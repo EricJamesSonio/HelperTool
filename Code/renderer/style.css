@@ -1,4 +1,6 @@
-/* Reset some default styles */
+/* -----------------------------
+   Reset & Base Styles
+----------------------------- */
 * {
   margin: 0;
   padding: 0;
@@ -6,7 +8,6 @@
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Body styling */
 body {
   background-color: #f5f6fa;
   color: #333;
@@ -17,7 +18,9 @@ body {
   padding: 40px 20px;
 }
 
-/* App container */
+/* -----------------------------
+   App Container
+----------------------------- */
 #app {
   background-color: #fff;
   padding: 30px 40px;
@@ -35,12 +38,23 @@ body {
   color: #2f3640;
 }
 
-/* Section styling */
+/* -----------------------------
+   Sections
+----------------------------- */
 .section {
   margin-bottom: 25px;
 }
 
-/* Buttons */
+/* Active repo display */
+#activeRepoName {
+  margin-left: 15px;
+  font-weight: 500;
+  color: #636e72;
+}
+
+/* -----------------------------
+   Buttons
+----------------------------- */
 button {
   padding: 10px 20px;
   border: none;
@@ -61,31 +75,66 @@ button:active {
   transform: translateY(0);
 }
 
-/* Action buttons spacing */
 .action-btn {
   margin-right: 10px;
 }
 
-/* Active repo text */
-#activeRepoName {
-  margin-left: 15px;
-  font-weight: 500;
-  color: #636e72;
-}
-
-/* Tree container */
+/* -----------------------------
+   Tree Container
+----------------------------- */
 #treeContainer {
   margin-top: 10px;
   padding: 15px;
-  background-color: #dfe6e9;
+  background-color: #f9f9f9;
   border-radius: 8px;
-  min-height: 100px;
+  min-height: 120px;
+  max-height: 400px;
   overflow-y: auto;
   font-family: monospace;
   font-size: 0.95rem;
+  white-space: pre;
+  border: 1px solid #ccc;
 }
 
-/* Progress bar container */
+/* Each tree node */
+.tree-node {
+  padding: 4px 8px;
+  margin: 2px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+/* Hover effect */
+.tree-node:hover {
+  background-color: #eef;
+}
+
+/* Children container indentation */
+.children {
+  margin-left: 16px;
+}
+
+/* Selected nodes */
+.tree-node.selected {
+  background-color: #d0f0d0;
+  font-weight: bold;
+}
+
+/* Folder selected (all files) */
+.tree-node.folder-selected {
+  font-weight: bold;
+}
+
+/* File nodes smaller than folders */
+.tree-node.file {
+  font-size: 0.9em;
+}
+
+/* -----------------------------
+   Progress Bar
+----------------------------- */
 progress {
   width: 100%;
   height: 20px;
@@ -114,7 +163,9 @@ progress::-moz-progress-bar {
   color: #2d3436;
 }
 
-/* Responsive tweaks */
+/* -----------------------------
+   Responsive
+----------------------------- */
 @media (max-width: 480px) {
   #app {
     padding: 20px;
@@ -129,53 +180,3 @@ progress::-moz-progress-bar {
     margin-right: 0;
   }
 }
-
-/* style.css */
-
-/* General tree container */
-#treeContainer {
-  font-family: monospace;
-  white-space: pre;
-  border: 1px solid #ccc;
-  padding: 8px;
-  max-height: 400px;
-  overflow-y: auto;
-  background: #f9f9f9;
-}
-
-/* Each node */
-.tree-node {
-  padding: 2px 4px;
-  border-radius: 4px;
-  margin: 1px 0;
-}
-
-/* Hover effect */
-.tree-node:hover {
-  background-color: #eef;
-}
-
-/* Children nodes */
-.children {
-  margin-left: 16px; /* Indent children */
-}
-
-/* Selected node */
-.tree-node.selected {
-  background-color: #d0f0d0;
-  font-weight: bold;
-}
-
-/* Files smaller than folders */
-.tree-node.file {
-  font-size: 0.9em;
-}
-
-.tree-node.selected {
-  background-color: #d0f0d0;
-}
-
-.tree-node.folder-selected {
-  font-weight: bold;
-}
-

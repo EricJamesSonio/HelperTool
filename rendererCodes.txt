@@ -13,43 +13,76 @@ const progressText = document.getElementById('progressText');
 let selectedRepoPath = null;
 let selectedItems = [];
 let actionType = 'code';
+let cachedTree = null;
 
+// --------------------
+// UI setup
+// --------------------
 treeContainer.style.overflowY = 'auto';
 treeContainer.style.maxHeight = '80vh';
+generateBtn.disabled = true;
 
+// --------------------
+// Progress listener
+// --------------------
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
 });
 
+// --------------------
+// Helpers
+// --------------------
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
 }
 
-async function loadLastActiveRepo() {
-    const lastRepoPath = await window.electronAPI.getActiveProjectPath?.();
-    if (!lastRepoPath) return;
-
-    await loadRepo(lastRepoPath);
+function updateGenerateState() {
+    generateBtn.disabled = selectedItems.length === 0;
 }
 
+function countFiles(node) {
+    if (node.type === 'file') return 1;
+    if (!node.children?.length) return 0;
+    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
+}
+
+// --------------------
+// Load last repo
+// --------------------
+async function loadLastActiveRepo() {
+    const lastRepoPath = await window.electronAPI.getActiveProjectPath?.();
+    if (lastRepoPath) {
+        await loadRepo(lastRepoPath);
+    }
+}
+
+// --------------------
+// Repo selection
+// --------------------
 selectRepoBtn.addEventListener('click', async () => {
     const repoPath = await window.electronAPI.selectRepo();
-    if (!repoPath) return;
-    await loadRepo(repoPath);
+    if (repoPath) {
+        await loadRepo(repoPath);
+    }
 });
 
 async function loadRepo(repoPath) {
     selectedRepoPath = repoPath;
+
     const repoName = repoPath.split(/[/\\]/).pop();
     updateActiveRepo(repoName);
-    const treeData = await window.electronAPI.getFolderTree(repoPath);
 
-    selectedItems = await window.electronAPI.getLastSelected();
+    cachedTree = await window.electronAPI.getFolderTree(repoPath);
+    selectedItems = (await window.electronAPI.getLastSelected()) || [];
 
-    displayTree(treeData, treeContainer, actionType);
+    updateGenerateState();
+    displayTree(cachedTree, treeContainer, actionType);
 }
 
+// --------------------
+// Tree rendering
+// --------------------
 function displayTree(tree, container, mode) {
     container.innerHTML = '';
 
@@ -64,46 +97,42 @@ function displayTree(tree, container, mode) {
         el.style.fontSize = '14px';
 
         if (node.type === 'file') el.classList.add('file');
-        if (selectedItems.includes(node.path)) el.classList.add('selected');
 
-        if (
-    selectedItems.includes(node.path) &&
-    node.type === 'folder' &&
-    actionType === 'code'
-) {
-    el.classList.add('folder-selected');
-}
+        const isSelected = selectedItems.includes(node.path);
+        if (isSelected) el.classList.add('selected');
 
+        if (node.type === 'folder' && actionType === 'code' && isSelected) {
+            el.classList.add('folder-selected');
+        }
 
         let label = node.name;
-        if (node.type === 'folder' && node.children?.length > 0 && mode !== 'structure') {
+
+        if (node.type === 'folder' && node.children?.length && mode !== 'structure') {
             const fileCount = countFiles(node);
             if (fileCount > 0) label += ` (${fileCount} files)`;
         }
-        if (
-    node.type === 'folder' &&
-    actionType === 'code' &&
-    selectedItems.includes(node.path)
-) {
-    label += ' [ALL FILES]';
-}
 
-el.textContent = label;
+        if (node.type === 'folder' && actionType === 'code' && isSelected) {
+            label += ' [ALL FILES]';
+        }
 
+        el.textContent = label;
 
         el.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleSelect(el, node);
+            toggleSelect(node);
         });
 
-        if (node.type === 'folder' && node.children?.length > 0) {
+        if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
             childrenContainer.style.marginLeft = '16px';
+
             node.children.forEach(child => {
                 const childNode = createNode(child);
                 if (childNode) childrenContainer.appendChild(childNode);
             });
+
             el.appendChild(childrenContainer);
         }
 
@@ -116,84 +145,315 @@ el.textContent = label;
     });
 }
 
-function countFiles(node) {
-    if (node.type === 'file') return 1;
-    if (!node.children?.length) return 0;
-    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
-}
+// --------------------
+// Selection logic
+// --------------------
+function toggleSelect(node) {
+    if (!selectedRepoPath) return;
 
-function toggleSelect(el, node) {
     const isSelected = selectedItems.includes(node.path);
-generateBtn.disabled = selectedItems.length === 0;
+
     if (isSelected) {
         selectedItems = selectedItems.filter(p => p !== node.path);
-        el.classList.remove('selected');
-        el.classList.remove('folder-selected');
     } else {
         selectedItems.push(node.path);
-        el.classList.add('selected');
-
-        if (node.type === 'folder' && actionType === 'code') {
-            el.classList.add('folder-selected');
-        }
     }
 
-   window.electronAPI.setLastSelected(selectedItems);
+    window.electronAPI.setLastSelected(selectedItems);
+    updateGenerateState();
 
-if (node.type === 'folder' && actionType === 'code') {
-    window.electronAPI.getFolderTree(selectedRepoPath)
-        .then(tree => displayTree(tree, treeContainer, actionType));
+    // Re-render from cache to update labels
+    if (node.type === 'folder' && actionType === 'code') {
+        displayTree(cachedTree, treeContainer, actionType);
+    }
 }
 
-}
-
+// --------------------
+// Mode switching
+// --------------------
 function resetSelection() {
     selectedItems = [];
     window.electronAPI.setLastSelected([]);
-}generateBtn.disabled = true;
-
+    updateGenerateState();
+}
 
 structureBtn.addEventListener('click', async () => {
     actionType = 'structure';
     resetSelection();
 
     if (!selectedRepoPath) return;
-
-    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
-    displayTree(treeData, treeContainer, actionType);
+    displayTree(cachedTree, treeContainer, actionType);
 });
-
-
 
 codeBtn.addEventListener('click', async () => {
     actionType = 'code';
     resetSelection();
 
     if (!selectedRepoPath) return;
-
-    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
-    displayTree(treeData, treeContainer, actionType);
+    displayTree(cachedTree, treeContainer, actionType);
 });
 
-
-
+// --------------------
+// Generate
+// --------------------
 generateBtn.addEventListener('click', async () => {
-    if (!selectedRepoPath || !selectedItems.length) return alert('Select repo and items first!');
+    if (!selectedRepoPath || !selectedItems.length) {
+        return alert('Select repo and items first!');
+    }
+
     const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
     if (!fileName) return;
 
     progressBar.value = 0;
     progressText.textContent = '0%';
 
-    await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, fileName);
+    await window.electronAPI.generate(
+        actionType,
+        selectedRepoPath,
+        selectedItems,
+        fileName
+    );
 
     alert('Done!');
-    selectedItems = [];
-    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
-    displayTree(treeData, treeContainer, actionType);
+    resetSelection();
+    displayTree(cachedTree, treeContainer, actionType);
 });
 
-// ✅ Only one DOMContentLoaded
+// --------------------
+// Init
+// --------------------
 window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
+
+
+------------------------------
+FILE: index.html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helper Tool</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <h1>Helper Tool</h1>
+
+    <!-- Repo selection -->
+    <div class="section">
+      <button id="selectRepoBtn">Select Repo</button>
+      <span id="activeRepoName">No repo selected</span>
+    </div>
+
+    <!-- Tree view -->
+    <div class="section">
+      <h2>Project Tree</h2>
+      <div id="treeContainer">Select a repo to view files</div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="section">
+      <button id="structureBtn" class="action-btn">Structure</button>
+      <button id="codeBtn" class="action-btn">Code</button>
+      <button id="generateBtn" class="action-btn">Done / Generate</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="section">
+      <progress id="progressBar" value="0" max="100"></progress>
+      <span id="progressText">0%</span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
+
+------------------------------
+FILE: style.css
+
+/* Reset some default styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Body styling */
+body {
+  background-color: #f5f6fa;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+/* App container */
+#app {
+  background-color: #fff;
+  padding: 30px 40px;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Main title */
+#app h1 {
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 2rem;
+  color: #2f3640;
+}
+
+/* Section styling */
+.section {
+  margin-bottom: 25px;
+}
+
+/* Buttons */
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  background-color: #0984e3;
+  color: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+  background-color: #74b9ff;
+  transform: translateY(-2px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* Action buttons spacing */
+.action-btn {
+  margin-right: 10px;
+}
+
+/* Active repo text */
+#activeRepoName {
+  margin-left: 15px;
+  font-weight: 500;
+  color: #636e72;
+}
+
+/* Tree container */
+#treeContainer {
+  margin-top: 10px;
+  padding: 15px;
+  background-color: #dfe6e9;
+  border-radius: 8px;
+  min-height: 100px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.95rem;
+}
+
+/* Progress bar container */
+progress {
+  width: 100%;
+  height: 20px;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+  background-color: #dfe6e9;
+}
+
+progress::-webkit-progress-value {
+  background-color: #00b894;
+}
+
+progress::-moz-progress-bar {
+  background-color: #00b894;
+}
+
+#progressText {
+  display: inline-block;
+  margin-left: 10px;
+  font-weight: 500;
+  color: #2d3436;
+}
+
+/* Responsive tweaks */
+@media (max-width: 480px) {
+  #app {
+    padding: 20px;
+  }
+
+  button {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  .action-btn {
+    margin-right: 0;
+  }
+}
+
+/* style.css */
+
+/* General tree container */
+#treeContainer {
+  font-family: monospace;
+  white-space: pre;
+  border: 1px solid #ccc;
+  padding: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #f9f9f9;
+}
+
+/* Each node */
+.tree-node {
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin: 1px 0;
+}
+
+/* Hover effect */
+.tree-node:hover {
+  background-color: #eef;
+}
+
+/* Children nodes */
+.children {
+  margin-left: 16px; /* Indent children */
+}
+
+/* Selected node */
+.tree-node.selected {
+  background-color: #d0f0d0;
+  font-weight: bold;
+}
+
+/* Files smaller than folders */
+.tree-node.file {
+  font-size: 0.9em;
+}
+
+.tree-node.selected {
+  background-color: #d0f0d0;
+}
+
+.tree-node.folder-selected {
+  font-weight: bold;
+}
+
 
 

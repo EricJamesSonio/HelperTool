@@ -10,6 +10,7 @@ const progressText = document.getElementById('progressText');
 let selectedRepoPath = null;
 let selectedItems = [];
 let actionType = 'code';
+let cachedTree = null;
 
 // --------------------
 // UI setup
@@ -66,14 +67,17 @@ selectRepoBtn.addEventListener('click', async () => {
 async function loadRepo(repoPath) {
     selectedRepoPath = repoPath;
 
+    // 🔒 Reset selection when switching repos
+    selectedItems = [];
+    await window.electronAPI.setLastSelected([]);
+
     const repoName = repoPath.split(/[/\\]/).pop();
     updateActiveRepo(repoName);
 
-    const treeData = await window.electronAPI.getFolderTree(repoPath);
-    selectedItems = (await window.electronAPI.getLastSelected()) || [];
+    cachedTree = await window.electronAPI.getFolderTree(repoPath);
 
     updateGenerateState();
-    displayTree(treeData, treeContainer, actionType);
+    displayTree(cachedTree, treeContainer, actionType);
 }
 
 // --------------------
@@ -97,11 +101,7 @@ function displayTree(tree, container, mode) {
         const isSelected = selectedItems.includes(node.path);
         if (isSelected) el.classList.add('selected');
 
-        if (
-            node.type === 'folder' &&
-            actionType === 'code' &&
-            isSelected
-        ) {
+        if (node.type === 'folder' && actionType === 'code' && isSelected) {
             el.classList.add('folder-selected');
         }
 
@@ -112,11 +112,7 @@ function displayTree(tree, container, mode) {
             if (fileCount > 0) label += ` (${fileCount} files)`;
         }
 
-        if (
-            node.type === 'folder' &&
-            actionType === 'code' &&
-            isSelected
-        ) {
+        if (node.type === 'folder' && actionType === 'code' && isSelected) {
             label += ' [ALL FILES]';
         }
 
@@ -153,6 +149,8 @@ function displayTree(tree, container, mode) {
 // Selection logic
 // --------------------
 function toggleSelect(node) {
+    if (!selectedRepoPath || !cachedTree) return;
+
     const isSelected = selectedItems.includes(node.path);
 
     if (isSelected) {
@@ -164,11 +162,9 @@ function toggleSelect(node) {
     window.electronAPI.setLastSelected(selectedItems);
     updateGenerateState();
 
-    // Re-render to update folder labels / ALL FILES state
+    // Re-render only when folder selection affects labels
     if (node.type === 'folder' && actionType === 'code') {
-        window.electronAPI
-            .getFolderTree(selectedRepoPath)
-            .then(tree => displayTree(tree, treeContainer, actionType));
+        displayTree(cachedTree, treeContainer, actionType);
     }
 }
 
@@ -181,22 +177,20 @@ function resetSelection() {
     updateGenerateState();
 }
 
-structureBtn.addEventListener('click', async () => {
+structureBtn.addEventListener('click', () => {
     actionType = 'structure';
     resetSelection();
 
-    if (!selectedRepoPath) return;
-    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
-    displayTree(treeData, treeContainer, actionType);
+    if (!selectedRepoPath || !cachedTree) return;
+    displayTree(cachedTree, treeContainer, actionType);
 });
 
-codeBtn.addEventListener('click', async () => {
+codeBtn.addEventListener('click', () => {
     actionType = 'code';
     resetSelection();
 
-    if (!selectedRepoPath) return;
-    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
-    displayTree(treeData, treeContainer, actionType);
+    if (!selectedRepoPath || !cachedTree) return;
+    displayTree(cachedTree, treeContainer, actionType);
 });
 
 // --------------------
@@ -222,9 +216,7 @@ generateBtn.addEventListener('click', async () => {
 
     alert('Done!');
     resetSelection();
-
-    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
-    displayTree(treeData, treeContainer, actionType);
+    displayTree(cachedTree, treeContainer, actionType);
 });
 
 // --------------------
