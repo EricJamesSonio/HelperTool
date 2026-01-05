@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const config = require('./config/config.js');
 
-// Utils (we'll implement them next)
+// Utils
 const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
 const codeOps = require('./utils/codeOps.js');
@@ -43,10 +43,7 @@ function createTray() {
         { label: 'Open Helper', click: () => mainWindow.show() },
         { label: 'Open Storage Folder', click: () => openStorage() },
         { type: 'separator' },
-        {
-            label: 'Select Previous Repo',
-            submenu: getPreviousReposMenu()
-        },
+        { label: 'Select Previous Repo', submenu: getPreviousReposMenu() },
         { type: 'separator' },
         { label: 'Exit', click: () => app.quit() }
     ]);
@@ -54,7 +51,6 @@ function createTray() {
     tray.setContextMenu(contextMenu);
 }
 
-// Helper to build previous repos submenu
 function getPreviousReposMenu() {
     const cfg = config.readConfig();
     const submenu = [];
@@ -94,7 +90,7 @@ function openStorage() {
    IPC Handlers
 =========================== */
 
-// 1️⃣ Select Repo
+// 1️⃣ Select repo (updated to use userData storage)
 ipcMain.handle('select-repo', async () => {
     const result = await dialog.showOpenDialog({
         properties: ['openDirectory']
@@ -103,52 +99,50 @@ ipcMain.handle('select-repo', async () => {
     if (result.canceled || !result.filePaths.length) return null;
     const repoPath = result.filePaths[0];
 
-    // Check if repo exists in config
     const cfg = config.readConfig();
-    if (!cfg.projects[repoPath]) {
-        // Ask for storage folder name
-        const { response, checkboxChecked } = await dialog.showMessageBox({
-            type: 'question',
-            buttons: ['OK'],
-            defaultId: 0,
-            title: 'New Storage',
-            message: 'Enter a name for this storage folder:',
-            detail: 'This will create a storage folder inside C:/Storage'
-        });
+    const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
 
-        // For now we just auto-generate a folder name using repo basename
-        const storageName = path.basename(repoPath);
-        const storagePath = path.join(cfg.baseStoragePath, storageName);
+    // Save inside Electron userData folder
+    const userDataPath = app.getPath('userData');
+    const storagePath = path.join(userDataPath, storageName);
+
+    try {
+        // Ensure base folder exists
+        if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
+        // Ensure storage folder and subfolders exist
         if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
-        if (!fs.existsSync(path.join(storagePath, 'Codes'))) fs.mkdirSync(path.join(storagePath, 'Codes'));
-        if (!fs.existsSync(path.join(storagePath, 'Structures'))) fs.mkdirSync(path.join(storagePath, 'Structures'));
-
-        cfg.projects[repoPath] = {
-            storageName,
-            storagePath,
-            lastUsed: new Date().toISOString()
-        };
+        ['Codes', 'Structures'].forEach(sub => {
+            const subPath = path.join(storagePath, sub);
+            if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
+        });
+    } catch (err) {
+        dialog.showErrorBox('Permission Error', `Cannot create storage folder:\n${storagePath}\n\n${err.message}`);
+        return null;
     }
 
+    // Add or update project in config
+    cfg.projects[repoPath] = {
+        storageName,
+        storagePath,
+        lastUsed: new Date().toISOString()
+    };
+
+    // Set active project
     cfg.activeProject = repoPath;
     config.writeConfig(cfg);
 
     return repoPath;
 });
 
-// 2️⃣ Get Folder Tree
+// 2️⃣ Get folder tree
 ipcMain.handle('getFolderTree', async (event, repoPath) => {
     if (!repoPath) return [];
 
-    // Read .docignore rules if exist
     const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-
-    // Build tree recursively
-    const tree = fileOps.getFolderTree(repoPath, ignoreRules);
-    return tree;
+    return fileOps.getFolderTree(repoPath, ignoreRules);
 });
 
-// 3️⃣ Generate Structure / Code
+// 3️⃣ Generate structure/code
 ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) => {
     if (!repoPath || !items.length || !fileName) return;
 
@@ -166,16 +160,38 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) 
     if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder, { recursive: true });
 
     const outputFile = path.join(outputFolder, fileName);
+    const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
 
     if (actionType === 'structure') {
-        await fileOps.generateStructure(items, outputFile, (percent) => {
+        await fileOps.generateStructure(items, outputFile, ignoreRules, (percent) => {
             mainWindow.webContents.send('progress-update', percent);
         });
     } else if (actionType === 'code') {
         await codeOps.generateCode(items, outputFile, (percent) => {
             mainWindow.webContents.send('progress-update', percent);
-        });
+        }, repoPath, ignoreRules);
     }
 
     return true;
+});
+
+// 4️⃣ Get .docignore rules
+ipcMain.handle('get-docignore', async (event, repoPath) => {
+    if (!repoPath) return [];
+    return await docignoreUtils.getIgnoreRules(repoPath);
+});
+
+// 5️⃣ Get last active project
+ipcMain.handle('get-active-project', () => {
+    return config.getActiveProject();
+});
+
+// ✅ IPC: get last selected items
+ipcMain.handle('get-last-selected', () => {
+    return config.getLastSelectedItems();
+});
+
+// ✅ IPC: save last selected items
+ipcMain.handle('set-last-selected', (event, items) => {
+    config.setLastSelectedItems(items);
 });

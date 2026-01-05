@@ -15,11 +15,16 @@ const projectRoot = __dirname;
 // Config
 // --------------------
 const IGNORE_FOLDERS = new Set([
-  'node_modules',
   '.git',
   'dist',
   'build'
-]);
+].map(f => f.toLowerCase()));
+
+const IGNORE_FILES = new Set([
+  'package.json',
+  'package-lock.json',
+  'yarn.lock',
+].map(f => f.toLowerCase()));
 
 const CODE_EXTENSIONS = new Set([
   '.js', '.ts', '.jsx', '.tsx',
@@ -33,36 +38,34 @@ const CODE_EXTENSIONS = new Set([
   '.go'
 ]);
 
-// 🎯 TARGETS (ADD AS MANY AS YOU WANT)
+// 🎯 TARGETS
 const targets = [
-  {
-    path: './Code/config',
-    output: 'configCode.txt'
-  },
-  {
-    path: './Code/utils',
-    output: 'UtilsCodes.txt'
-  },
-  {
-    path: './Code/renderer',
-    output: 'rendererCodes.txt'
-  },
-  {
-    path: './Code',
-    output: 'Allcodes.txt'
-  }
+  { path: './Code/config', output: 'configCode.txt' },
+  { path: './Code/utils', output: 'UtilsCodes.txt' },
+  { path: './Code/renderer', output: 'rendererCodes.txt' },
+  { path: './Code', output: 'Allcodes.txt' }
 ];
 
 // --------------------
 // Recursive processor
 // --------------------
 function processFolder(folderPath, baseFolder) {
-  let content = '';
+  // Skip any folder that contains 'node_modules'
+  if (folderPath.split(path.sep).some(p => p.toLowerCase() === 'node_modules')) {
+    return '';
+  }
 
+  let content = '';
   const items = fs.readdirSync(folderPath, { withFileTypes: true });
 
   for (const item of items) {
-    if (IGNORE_FOLDERS.has(item.name)) continue;
+    const itemNameLower = item.name.toLowerCase();
+
+    // Skip ignored folders
+    if (item.isDirectory() && IGNORE_FOLDERS.has(itemNameLower)) continue;
+
+    // Skip ignored files
+    if (item.isFile() && IGNORE_FILES.has(itemNameLower)) continue;
 
     const fullPath = path.join(folderPath, item.name);
 

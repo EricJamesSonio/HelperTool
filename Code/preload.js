@@ -10,5 +10,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
             });
     },
     openStorage: () => ipcRenderer.invoke('open-storage'),
-    onProgressUpdate: (callback) => ipcRenderer.on('progress-update', (event, percent) => callback(percent))
+    onProgressUpdate: (callback) => ipcRenderer.on('progress-update', (event, percent) => callback(percent)),
+    getDocignore: (repoPath) => ipcRenderer.invoke('get-docignore', repoPath),
+        getLastSelected: () => ipcRenderer.invoke('get-last-selected'),
+    setLastSelected: (items) => ipcRenderer.invoke('set-last-selected', items),
+
+    // ✅ NEW: expose last active project
+    getActiveProject: () => ipcRenderer.invoke('get-active-project')
 });

@@ -1,0 +1,131 @@
+/* Reset some default styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Body styling */
+body {
+  background-color: #f5f6fa;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+/* App container */
+#app {
+  background-color: #fff;
+  padding: 30px 40px;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Main title */
+#app h1 {
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 2rem;
+  color: #2f3640;
+}
+
+/* Section styling */
+.section {
+  margin-bottom: 25px;
+}
+
+/* Buttons */
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  background-color: #0984e3;
+  color: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+  background-color: #74b9ff;
+  transform: translateY(-2px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* Action buttons spacing */
+.action-btn {
+  margin-right: 10px;
+}
+
+/* Active repo text */
+#activeRepoName {
+  margin-left: 15px;
+  font-weight: 500;
+  color: #636e72;
+}
+
+/* Tree container */
+#treeContainer {
+  margin-top: 10px;
+  padding: 15px;
+  background-color: #dfe6e9;
+  border-radius: 8px;
+  min-height: 100px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.95rem;
+}
+
+/* Progress bar container */
+progress {
+  width: 100%;
+  height: 20px;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+  background-color: #dfe6e9;
+}
+
+progress::-webkit-progress-value {
+  background-color: #00b894;
+}
+
+progress::-moz-progress-bar {
+  background-color: #00b894;
+}
+
+#progressText {
+  display: inline-block;
+  margin-left: 10px;
+  font-weight: 500;
+  color: #2d3436;
+}
+
+/* Responsive tweaks */
+@media (max-width: 480px) {
+  #app {
+    padding: 20px;
+  }
+
+  button {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  .action-btn {
+    margin-right: 0;
+  }
+}

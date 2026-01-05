@@ -1,28 +1,22 @@
-const fs = require('fs');
-const path = require('path');
+const { isIgnored } = require('./docignore');
 
 /**
- * Recursively builds a folder tree
- * @param {string} dir - directory path
- * @param {string[]} ignoreRules - array of folder/file names to ignore
- * @returns {Array} - tree structure [{ name, path, type, children }]
+ * Recursively builds a folder tree with ignore support
  */
-function getFolderTree(dir, ignoreRules = []) {
+function getFolderTree(dir, ignoreRules = [], repoRoot = dir) {
     const items = [];
-
     const files = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const file of files) {
-        if (ignoreRules.includes(file.name)) continue;
-
         const fullPath = path.join(dir, file.name);
+        if (isIgnored(fullPath, repoRoot, ignoreRules)) continue;
 
         if (file.isDirectory()) {
             items.push({
                 name: file.name,
                 path: fullPath,
                 type: 'folder',
-                children: getFolderTree(fullPath, ignoreRules)
+                children: getFolderTree(fullPath, ignoreRules, repoRoot)
             });
         } else {
             items.push({
@@ -37,32 +31,48 @@ function getFolderTree(dir, ignoreRules = []) {
 }
 
 /**
- * Generate folder structure text for selected folders
- * @param {Array} selectedPaths - array of folder paths
- * @param {string} outputFile - path to output txt file
- * @param {Function} progressCallback - callback(percent)
+ * Generate folder structure text respecting ignore rules
  */
-async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
+async function generateStructure(selectedPaths, outputFile, ignoreRules = [], progressCallback = () => {}) {
     let output = '';
+    const allItems = [];
 
-    function writeFolder(folderPath, prefix = '') {
-        const folderName = path.basename(folderPath);
-        output += `${prefix}${folderName}/\n`;
-        const children = fs.readdirSync(folderPath, { withFileTypes: true });
-        for (const child of children) {
-            const childPath = path.join(folderPath, child.name);
-            if (child.isDirectory()) {
-                writeFolder(childPath, prefix + '  ');
-            }
+    function collectItems(p, repoRoot) {
+        if (isIgnored(p, repoRoot, ignoreRules)) return;
+
+        const stat = fs.statSync(p);
+        if (stat.isDirectory()) {
+            allItems.push(p);
+            fs.readdirSync(p).forEach(child => collectItems(path.join(p, child), repoRoot));
+        } else {
+            allItems.push(p);
         }
     }
 
-    const total = selectedPaths.length;
-    selectedPaths.forEach((p, idx) => {
-        writeFolder(p);
-        const percent = Math.round(((idx + 1) / total) * 100);
+    selectedPaths.forEach(p => collectItems(p, p));
+
+    const total = allItems.length;
+    let processed = 0;
+
+    function writeItem(p, prefix = '', repoRoot = p) {
+        if (isIgnored(p, repoRoot, ignoreRules)) return;
+
+        const stat = fs.statSync(p);
+        const name = path.basename(p);
+
+        if (stat.isDirectory()) {
+            output += `${prefix}${name}/\n`;
+            fs.readdirSync(p).forEach(child => writeItem(path.join(p, child), prefix + '  ', repoRoot));
+        } else {
+            output += `${prefix}${name}\n`;
+        }
+
+        processed++;
+        const percent = Math.round((processed / total) * 100);
         progressCallback(percent);
-    });
+    }
+
+    selectedPaths.forEach(p => writeItem(p, '', p));
 
     fs.writeFileSync(outputFile, output, 'utf-8');
 }

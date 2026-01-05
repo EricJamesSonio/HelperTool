@@ -1,0 +1,22 @@
+{
+  "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\backend",
+  "projects": {
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
+      "storageName": "src",
+      "storagePath": "C:\\Users\\Windows 10\\Documents\\HelperStorage\\src",
+      "lastUsed": "2026-01-05T10:06:31.639Z"
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\backend": {
+      "storageName": "backend",
+      "storagePath": "C:\\Users\\Windows 10\\Documents\\HelperStorage\\backend",
+      "lastUsed": "2026-01-05T10:06:54.589Z"
+    }
+  },
+  "preferences": {
+    "docignoreFileName": ".docignore",
+    "showHiddenFiles": false,
+    "defaultStructureView": "tree",
+    "autoSelectLastProject": true
+  }
+}

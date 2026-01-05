@@ -13,6 +13,7 @@ const progressText = document.getElementById('progressText');
 let selectedRepoPath = null;
 let selectedItems = [];
 let actionType = null; // "structure" or "code"
+let ignoreRules = [];  // Store rules after loading repo
 
 // ✅ Listen to progress updates from main process
 window.electronAPI.onProgressUpdate((percent) => {
@@ -22,67 +23,111 @@ window.electronAPI.onProgressUpdate((percent) => {
 
 // Update active repo label
 function updateActiveRepo(name) {
-    activeRepoName.textContent = name;
+    activeRepoName.textContent = name || 'No repo selected';
 }
 
 // Handle repo selection
 selectRepoBtn.addEventListener('click', async () => {
     const repoPath = await window.electronAPI.selectRepo();
-    if (repoPath) {
-        selectedRepoPath = repoPath;
-        updateActiveRepo(repoPath);
+    if (!repoPath) return;
 
-        // Load folder tree
-        const treeData = await window.electronAPI.getFolderTree(repoPath);
-        displayTree(treeData, treeContainer);
-    }
+    await loadRepo(repoPath);
 });
 
-// Display tree recursively
+// Load a repo (used for both selection and auto-load)
+async function loadRepo(repoPath) {
+    selectedRepoPath = repoPath;
+    const repoName = repoPath.split(/[/\\]/).pop();
+    updateActiveRepo(repoName);
+
+    // Get ignore rules & tree
+    ignoreRules = await window.electronAPI.getDocignore(repoPath);
+    const treeData = await window.electronAPI.getFolderTree(repoPath);
+
+    // Restore last selected items
+    selectedItems = await window.electronAPI.getLastSelected();
+
+    displayTree(treeData, treeContainer);
+}
+
+// Recursive tree rendering with multi-target selection & restored highlights
 function displayTree(tree, container) {
     container.innerHTML = '';
+
     function createNode(node) {
         const el = document.createElement('div');
         el.classList.add('tree-node');
-        el.textContent = node.name;
+        el.style.cursor = 'pointer';
 
-        if (node.type === 'folder') {
-            el.classList.add('folder');
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleSelect(el, node);
-            });
-            if (node.children && node.children.length > 0) {
-                const childrenContainer = document.createElement('div');
-                childrenContainer.classList.add('children');
-                node.children.forEach(child => {
-                    childrenContainer.appendChild(createNode(child));
-                });
-                el.appendChild(childrenContainer);
-            }
-        } else {
-            el.classList.add('file');
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleSelect(el, node);
-            });
+        // Label with file count
+        let label = node.name;
+        if (node.type === 'folder' && node.children && node.children.length > 0) {
+            const fileCount = countFiles(node);
+            if (fileCount > 0) label += ` (${fileCount} files)`;
         }
+        el.textContent = label;
+
+        // Highlight if selected
+        if (selectedItems.includes(node.path)) {
+            el.style.backgroundColor = '#d0f0d0';
+            if (node.type === 'folder' && actionType === 'code') el.style.fontWeight = 'bold';
+        }
+
+        // Toggle selection on click
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSelect(el, node);
+        });
+
+        // Render children recursively
+        if (node.type === 'folder' && node.children && node.children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.classList.add('children');
+            childrenContainer.style.marginLeft = '16px';
+            node.children.forEach(child => childrenContainer.appendChild(createNode(child)));
+            el.appendChild(childrenContainer);
+        }
+
         return el;
     }
 
-    tree.forEach(node => {
-        container.appendChild(createNode(node));
-    });
+    tree.forEach(node => container.appendChild(createNode(node)));
 }
 
-// Toggle selection
+// Count all files under a folder recursively
+function countFiles(node) {
+    if (node.type === 'file') return 1;
+    if (!node.children || node.children.length === 0) return 0;
+    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
+}
+
+// Toggle selection and persist per project
 function toggleSelect(el, node) {
-    if (selectedItems.includes(node.path)) {
+    const isSelected = selectedItems.includes(node.path);
+
+    if (isSelected) {
         selectedItems = selectedItems.filter(p => p !== node.path);
         el.style.backgroundColor = '';
+        if (node.type === 'folder' && actionType === 'code') el.style.fontWeight = 'normal';
     } else {
         selectedItems.push(node.path);
         el.style.backgroundColor = '#d0f0d0';
+        if (node.type === 'folder' && actionType === 'code') el.style.fontWeight = 'bold';
+    }
+
+    // Save selection persistently per project
+    window.electronAPI.setLastSelected(selectedItems);
+}
+
+// Auto-load last active repo with restored selections
+async function loadLastActiveRepo() {
+    try {
+        const lastRepo = await window.electronAPI.getActiveProject?.();
+        if (!lastRepo) return;
+
+        await loadRepo(lastRepo.path || lastRepo.storagePath || lastRepo.repoPath);
+    } catch (err) {
+        console.error("Failed to load last active repo:", err);
     }
 }
 
@@ -90,7 +135,7 @@ function toggleSelect(el, node) {
 structureBtn.addEventListener('click', () => actionType = 'structure');
 codeBtn.addEventListener('click', () => actionType = 'code');
 
-// ✅ Generate button now uses IPC progress event
+// Generate combined output for multiple targets
 generateBtn.addEventListener('click', async () => {
     if (!selectedRepoPath || selectedItems.length === 0 || !actionType) {
         alert('Select repo, items, and action first!');
@@ -103,11 +148,17 @@ generateBtn.addEventListener('click', async () => {
     progressBar.value = 0;
     progressText.textContent = '0%';
 
-    // Call generate — progress handled by onProgressUpdate
+    // Generate — main process handles multi-target combining
     await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, fileName);
 
     alert('Done!');
     selectedItems = [];
+    displayTree(await window.electronAPI.getFolderTree(selectedRepoPath), treeContainer);
+});
+
+// Auto-load last active repo on startup
+window.addEventListener('DOMContentLoaded', () => {
+    loadLastActiveRepo();
 });
 
 

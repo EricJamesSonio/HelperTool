@@ -3,64 +3,71 @@ FILE: codeOps.js
 
 const fs = require('fs');
 const path = require('path');
+const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
- * Recursively collect all file paths from a folder
- * @param {string} folderPath 
- * @param {Array<string>} ignoreRules - optional names to ignore
- * @returns {Array<string>} list of file paths
+ * Recursively collect all file paths from a folder, respecting ignore rules
  */
-function getAllFiles(folderPath, ignoreRules = []) {
+function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
     let files = [];
     if (!fs.existsSync(folderPath)) return files;
 
-    const items = fs.readdirSync(folderPath);
+    const items = fs.readdirSync(folderPath, { withFileTypes: true });
     for (const item of items) {
-        if (ignoreRules.includes(item)) continue; // skip ignored files/folders
-        const fullPath = path.join(folderPath, item);
-        const stat = fs.statSync(fullPath);
-        if (stat.isDirectory()) {
-            files = files.concat(getAllFiles(fullPath, ignoreRules));
-        } else if (stat.isFile()) {
+        const fullPath = path.join(folderPath, item.name);
+
+        if (isIgnored(fullPath, repoRoot, ignoreRules)) continue;
+
+        if (item.isDirectory()) {
+            files = files.concat(getAllFiles(fullPath, ignoreRules, repoRoot));
+        } else if (item.isFile()) {
             files.push(fullPath);
         }
     }
+
     return files;
 }
 
 /**
- * Generate code file by combining selected files/folders
+ * Generate code file by combining multiple selected folders/files
  * @param {Array<string>} selectedItems - files or folders
- * @param {string} outputFile - output .txt path
+ * @param {string} outputFile
  * @param {Function} onProgress - callback(percent)
+ * @param {string} repoRoot - repo root path
+ * @param {Array<string>} ignoreRules - optional ignore rules
  */
-async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
-    let allFiles = [];
+async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules = []) {
+    if (!selectedItems || selectedItems.length === 0) return;
 
+    // Ensure repoRoot is set
+    if (!repoRoot) repoRoot = path.dirname(selectedItems[0]);
+
+    // Load ignore rules if not provided
+    if (!ignoreRules.length) ignoreRules = await getIgnoreRules(repoRoot);
+
+    // Collect all files from all selected items
+    let allFiles = [];
     for (const item of selectedItems) {
         const stat = fs.statSync(item);
         if (stat.isDirectory()) {
-            allFiles = allFiles.concat(getAllFiles(item));
-        } else {
-            allFiles.push(item);
+            allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
+        } else if (stat.isFile()) {
+            if (!isIgnored(item, repoRoot, ignoreRules)) allFiles.push(item);
         }
     }
 
-    const total = allFiles.length;
-    if (total === 0) return;
+    if (allFiles.length === 0) return;
 
+    // Write combined output
     const writeStream = fs.createWriteStream(outputFile, { flags: 'w', encoding: 'utf-8' });
-
     for (let i = 0; i < allFiles.length; i++) {
         const filePath = allFiles[i];
         const content = fs.readFileSync(filePath, 'utf-8');
 
-        // Optional: separate each file in output for clarity
-        writeStream.write(`\n// ===== File: ${filePath} =====\n`);
+        writeStream.write(`\n// ===== File: ${path.relative(repoRoot, filePath)} =====\n`);
         writeStream.write(content + '\n');
 
-        // update progress
-        const percent = Math.round(((i + 1) / total) * 100);
+        const percent = Math.round(((i + 1) / allFiles.length) * 100);
         onProgress(percent);
     }
 
@@ -77,11 +84,12 @@ FILE: docignore.js
 
 const fs = require('fs');
 const path = require('path');
+const micromatch = require('micromatch'); // npm install micromatch
 
 /**
  * Read .docignore file from repo
  * @param {string} repoPath - path to the repo
- * @returns {Promise<string[]>} - array of folder/file names to ignore
+ * @returns {Promise<string[]>} - array of patterns to ignore
  */
 async function getIgnoreRules(repoPath) {
     const cfg = path.join(repoPath, '.docignore');
@@ -89,46 +97,56 @@ async function getIgnoreRules(repoPath) {
 
     const content = fs.readFileSync(cfg, 'utf-8');
     const lines = content.split(/\r?\n/).map(line => line.trim());
-    
-    // Remove empty lines and comments (starting with #)
+
+    // Remove empty lines and comments
     const rules = lines.filter(line => line && !line.startsWith('#'));
 
     return rules;
 }
 
+/**
+ * Check if a given file/folder path should be ignored
+ * @param {string} fullPath - absolute path of file/folder
+ * @param {string} repoPath - root repo path
+ * @param {Array<string>} ignoreRules - array of patterns from getIgnoreRules
+ * @returns {boolean}
+ */
+function isIgnored(fullPath, repoPath, ignoreRules) {
+    // Relative path from repo root
+    const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
+
+    // Match against patterns using micromatch
+    return micromatch.isMatch(relPath, ignoreRules, { dot: true });
+}
+
 module.exports = {
-    getIgnoreRules
+    getIgnoreRules,
+    isIgnored
 };
 
 
 ------------------------------
 FILE: fileOps.js
 
-const fs = require('fs');
-const path = require('path');
+const { isIgnored } = require('./docignore');
 
 /**
- * Recursively builds a folder tree
- * @param {string} dir - directory path
- * @param {string[]} ignoreRules - array of folder/file names to ignore
- * @returns {Array} - tree structure [{ name, path, type, children }]
+ * Recursively builds a folder tree with ignore support
  */
-function getFolderTree(dir, ignoreRules = []) {
+function getFolderTree(dir, ignoreRules = [], repoRoot = dir) {
     const items = [];
-
     const files = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const file of files) {
-        if (ignoreRules.includes(file.name)) continue;
-
         const fullPath = path.join(dir, file.name);
+        if (isIgnored(fullPath, repoRoot, ignoreRules)) continue;
 
         if (file.isDirectory()) {
             items.push({
                 name: file.name,
                 path: fullPath,
                 type: 'folder',
-                children: getFolderTree(fullPath, ignoreRules)
+                children: getFolderTree(fullPath, ignoreRules, repoRoot)
             });
         } else {
             items.push({
@@ -143,32 +161,48 @@ function getFolderTree(dir, ignoreRules = []) {
 }
 
 /**
- * Generate folder structure text for selected folders
- * @param {Array} selectedPaths - array of folder paths
- * @param {string} outputFile - path to output txt file
- * @param {Function} progressCallback - callback(percent)
+ * Generate folder structure text respecting ignore rules
  */
-async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
+async function generateStructure(selectedPaths, outputFile, ignoreRules = [], progressCallback = () => {}) {
     let output = '';
+    const allItems = [];
 
-    function writeFolder(folderPath, prefix = '') {
-        const folderName = path.basename(folderPath);
-        output += `${prefix}${folderName}/\n`;
-        const children = fs.readdirSync(folderPath, { withFileTypes: true });
-        for (const child of children) {
-            const childPath = path.join(folderPath, child.name);
-            if (child.isDirectory()) {
-                writeFolder(childPath, prefix + '  ');
-            }
+    function collectItems(p, repoRoot) {
+        if (isIgnored(p, repoRoot, ignoreRules)) return;
+
+        const stat = fs.statSync(p);
+        if (stat.isDirectory()) {
+            allItems.push(p);
+            fs.readdirSync(p).forEach(child => collectItems(path.join(p, child), repoRoot));
+        } else {
+            allItems.push(p);
         }
     }
 
-    const total = selectedPaths.length;
-    selectedPaths.forEach((p, idx) => {
-        writeFolder(p);
-        const percent = Math.round(((idx + 1) / total) * 100);
+    selectedPaths.forEach(p => collectItems(p, p));
+
+    const total = allItems.length;
+    let processed = 0;
+
+    function writeItem(p, prefix = '', repoRoot = p) {
+        if (isIgnored(p, repoRoot, ignoreRules)) return;
+
+        const stat = fs.statSync(p);
+        const name = path.basename(p);
+
+        if (stat.isDirectory()) {
+            output += `${prefix}${name}/\n`;
+            fs.readdirSync(p).forEach(child => writeItem(path.join(p, child), prefix + '  ', repoRoot));
+        } else {
+            output += `${prefix}${name}\n`;
+        }
+
+        processed++;
+        const percent = Math.round((processed / total) * 100);
         progressCallback(percent);
-    });
+    }
+
+    selectedPaths.forEach(p => writeItem(p, '', p));
 
     fs.writeFileSync(outputFile, output, 'utf-8');
 }

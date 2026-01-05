@@ -120,6 +120,7 @@ Selection & actions:
   - Display all including folders, but files are the only clickable
   - Copy the code content of selected files
   - If a folder is selected (for display purposes), all file contents inside recursively
+  - IF folder is selected means i want to get all codes, since if i don't. ican just use selecting files
 
 - After selecting files/folders:
   - Click a "Done / Generate" button
