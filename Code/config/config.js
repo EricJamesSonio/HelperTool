@@ -1,0 +1,37 @@
+const fs = require('fs');
+const path = require('path');
+
+const CONFIG_PATH = path.join(__dirname, 'helper-config.json');
+
+function readConfig() {
+    if (!fs.existsSync(CONFIG_PATH)) {
+        const defaultConfig = {
+            baseStoragePath: "C:/Storage",
+            activeProject: null,
+            projects: {},
+            preferences: {
+                docignoreFileName: ".docignore",
+                showHiddenFiles: false,
+                defaultStructureView: "tree",
+                autoSelectLastProject: true
+            }
+        };
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
+        return defaultConfig;
+    }
+    return JSON.parse(fs.readFileSync(CONFIG_PATH));
+}
+
+function writeConfig(config) {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+}
+
+function getActiveProject() {
+    const config = readConfig();
+    if (config.activeProject) {
+        return config.projects[config.activeProject];
+    }
+    return null;
+}
+
+module.exports = { readConfig, writeConfig, getActiveProject };
