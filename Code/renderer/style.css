@@ -129,3 +129,45 @@ progress::-moz-progress-bar {
     margin-right: 0;
   }
 }
+
+/* style.css */
+
+/* General tree container */
+#treeContainer {
+  font-family: monospace;
+  white-space: pre;
+  border: 1px solid #ccc;
+  padding: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #f9f9f9;
+}
+
+/* Each node */
+.tree-node {
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin: 1px 0;
+}
+
+/* Hover effect */
+.tree-node:hover {
+  background-color: #eef;
+}
+
+/* Children nodes */
+.children {
+  margin-left: 16px; /* Indent children */
+}
+
+/* Selected node */
+.tree-node.selected {
+  background-color: #d0f0d0;
+  font-weight: bold;
+}
+
+/* Files smaller than folders */
+.tree-node.file {
+  font-size: 0.9em;
+}
+

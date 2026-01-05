@@ -68,7 +68,7 @@ module.exports = {
     writeConfig, 
     getActiveProject, 
     getLastSelectedItems,
-    setLastSelected,
+    setLastSelectedItems,   // ✅ corrected
     ensureStorageFolder
 };
 
@@ -78,7 +78,7 @@ FILE: helper-config.json
 
 {
   "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
-  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\backend",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Parallel\\Guitar-store",
   "projects": {
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
       "storageName": "src",
@@ -89,6 +89,20 @@ FILE: helper-config.json
       "storageName": "backend",
       "storagePath": "C:\\Users\\Windows 10\\Documents\\HelperStorage\\backend",
       "lastUsed": "2026-01-05T10:06:54.589Z"
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Parallel\\Guitar-store": {
+      "storageName": "Guitar-store",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Guitar-store",
+      "lastUsed": "2026-01-05T10:34:07.131Z",
+      "lastSelectedItems": []
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown": {
+      "storageName": "Gown",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Gown",
+      "lastUsed": "2026-01-05T10:43:07.456Z",
+      "lastSelectedItems": [
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database"
+      ]
     }
   },
   "preferences": {

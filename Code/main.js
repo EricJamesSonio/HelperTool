@@ -181,10 +181,17 @@ ipcMain.handle('get-docignore', async (event, repoPath) => {
     return await docignoreUtils.getIgnoreRules(repoPath);
 });
 
-// 5️⃣ Get last active project
 ipcMain.handle('get-active-project', () => {
-    return config.getActiveProject();
+    const activeProjectPath = config.readConfig().activeProject; // this is the real repo folder
+    if (!activeProjectPath) return null;
+
+    const projectData = config.readConfig().projects[activeProjectPath];
+    return {
+        repoPath: activeProjectPath,    // <-- real folder path
+        ...projectData
+    };
 });
+
 
 // ✅ IPC: get last selected items
 ipcMain.handle('get-last-selected', () => {
