@@ -142,38 +142,40 @@ ipcMain.handle('getFolderTree', async (event, repoPath) => {
     return fileOps.getFolderTree(repoPath, ignoreRules);
 });
 
-// 3️⃣ Generate structure/code
 ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) => {
-    if (!repoPath || !items.length || !fileName) return;
+    try {
+        if (!repoPath || !items.length || !fileName) throw new Error('Invalid arguments');
+        const activeProject = config.getActiveProject();
+        if (!activeProject) throw new Error('No active project found');
 
-    const activeProject = config.getActiveProject();
-    if (!activeProject) {
-        dialog.showErrorBox('Error', 'No active project found in config.');
-        return;
+        const storagePath = activeProject.storagePath;
+        const outputFolder = actionType === 'code'
+            ? path.join(storagePath, 'Codes')
+            : path.join(storagePath, 'Structures');
+
+        if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder, { recursive: true });
+
+        const outputFile = path.join(outputFolder, fileName);
+        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+
+        if (actionType === 'structure') {
+            await fileOps.generateStructure(items, outputFile, ignoreRules, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+            });
+        } else if (actionType === 'code') {
+            await codeOps.generateCode(items, outputFile, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+            }, repoPath, ignoreRules);
+        }
+
+        console.log(`Generated ${actionType} at:`, outputFile);
+        return true;
+    } catch (err) {
+        console.error('Generate IPC error:', err);
+        dialog.showErrorBox('Generate Error', err.message);
     }
-
-    const storagePath = activeProject.storagePath;
-    const outputFolder = actionType === 'code'
-        ? path.join(storagePath, 'Codes')
-        : path.join(storagePath, 'Structures');
-
-    if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder, { recursive: true });
-
-    const outputFile = path.join(outputFolder, fileName);
-    const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-
-    if (actionType === 'structure') {
-        await fileOps.generateStructure(items, outputFile, ignoreRules, (percent) => {
-            mainWindow.webContents.send('progress-update', percent);
-        });
-    } else if (actionType === 'code') {
-        await codeOps.generateCode(items, outputFile, (percent) => {
-            mainWindow.webContents.send('progress-update', percent);
-        }, repoPath, ignoreRules);
-    }
-
-    return true;
 });
+
 
 // 4️⃣ Get .docignore rules
 ipcMain.handle('get-docignore', async (event, repoPath) => {

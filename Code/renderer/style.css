@@ -103,7 +103,34 @@ button:active {
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+/* File nodes */
+.tree-node.file {
+  font-size: 0.9em;
+  color: #636e72;
+}
+
+/* Folder nodes */
+.tree-node.folder {
+  font-weight: 500;
+  color: #0984e3;
+}
+
+/* Selected nodes */
+.tree-node.selected {
+  background-color: #d0f0d0;
+  font-weight: bold;
+  color: #2d3436;
+}
+
+/* Folder selected (all files) */
+.tree-node.folder-selected {
+  font-weight: bold;
+  color: #00b894;
 }
 
 /* Hover effect */
@@ -111,25 +138,31 @@ button:active {
   background-color: #eef;
 }
 
-/* Children container indentation */
+/* Collapsible children container */
 .children {
   margin-left: 16px;
 }
 
-/* Selected nodes */
-.tree-node.selected {
-  background-color: #d0f0d0;
-  font-weight: bold;
+/* Collapsed state */
+.children.collapsed {
+  display: none;
 }
 
-/* Folder selected (all files) */
-.tree-node.folder-selected {
-  font-weight: bold;
+/* Folder expand/collapse icon */
+.tree-node::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  margin-right: 6px;
 }
 
-/* File nodes smaller than folders */
-.tree-node.file {
-  font-size: 0.9em;
+/* Add folder/file icons */
+.tree-node.folder::before {
+  content: '📁';
+}
+
+.tree-node.file::before {
+  content: '📄';
 }
 
 /* -----------------------------
@@ -180,3 +213,22 @@ progress::-moz-progress-bar {
     margin-right: 0;
   }
 }
+
+/* Folder icons */
+.tree-node.folder::before {
+  content: "📁 ";
+  display: inline-block;
+  width: 20px;
+}
+
+.tree-node.folder.folder-open::before {
+  content: "📂 ";
+}
+
+/* File icon */
+.tree-node.file::before {
+  content: "📄 ";
+  display: inline-block;
+  width: 20px;
+}
+

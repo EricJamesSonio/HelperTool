@@ -1,6 +1,3 @@
-// --------------------
-// Renderer: app.js
-// --------------------
 import { renderTree } from '../utils/treeView.js';
 
 const selectRepoBtn = document.getElementById('selectRepoBtn');
@@ -17,137 +14,214 @@ let selectedItems = [];
 let actionType = 'code';
 let cachedTree = null;
 
-// --------------------
 // UI setup
-// --------------------
 treeContainer.style.overflowY = 'auto';
 treeContainer.style.maxHeight = '80vh';
 generateBtn.disabled = true;
 
-// --------------------
+// ----------------------------
 // Progress listener
-// --------------------
+// ----------------------------
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
+    console.log(`[Progress] ${percent}%`);
 });
 
-// --------------------
+// ----------------------------
 // Helpers
-// --------------------
+// ----------------------------
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
+    console.log(`[UI] Active repo set to: ${name}`);
 }
 
 function updateGenerateState() {
     generateBtn.disabled = selectedItems.length === 0;
+    console.log(`[UI] Generate button ${generateBtn.disabled ? 'disabled' : 'enabled'}`);
 }
 
-// --------------------
-// Repo loading
-// --------------------
+// ----------------------------
+// Load last active repo
+// ----------------------------
 async function loadLastActiveRepo() {
-    const lastRepoPath = await window.electronAPI.getActiveProjectPath?.();
-    if (lastRepoPath) {
-        await loadRepo(lastRepoPath);
+    try {
+        console.log('[Init] Loading last active project...');
+        const project = await window.electronAPI.getActiveProject();
+        console.log('[Init] Last active project data:', project);
+
+        if (project?.repoPath) {
+            await loadRepo(project.repoPath);
+            selectedItems = project.lastSelectedItems || [];
+            console.log('[Init] Loaded last selected items:', selectedItems);
+        } else {
+            console.log('[Init] No last active project found.');
+        }
+    } catch (err) {
+        console.error('[Error] Failed to load last active project:', err);
     }
 }
 
+// ----------------------------
+// Select repo button
+// ----------------------------
 selectRepoBtn.addEventListener('click', async () => {
-    const repoPath = await window.electronAPI.selectRepo();
-    if (repoPath) await loadRepo(repoPath);
+    try {
+        console.log('[Action] Select repo clicked');
+        const repoPath = await window.electronAPI.selectRepo();
+        if (repoPath) {
+            console.log('[Action] Repo selected:', repoPath);
+            await loadRepo(repoPath);
+        } else {
+            console.log('[Action] Repo selection cancelled or invalid');
+        }
+    } catch (err) {
+        console.error('[Error] Selecting repo failed:', err);
+        alert('Error selecting repo. Check console for details.');
+    }
 });
 
+// ----------------------------
+// Load a repo
+// ----------------------------
 async function loadRepo(repoPath) {
-    selectedRepoPath = repoPath;
+    try {
+        console.log('[LoadRepo] Loading repo:', repoPath);
 
-    // Reset selections
-    selectedItems = [];
-    await window.electronAPI.setLastSelected([]);
+        selectedRepoPath = repoPath;
+        selectedItems = [];
+        await window.electronAPI.setLastSelected([]);
+        console.log('[LoadRepo] Cleared previous selections');
 
-    const repoName = repoPath.split(/[/\\]/).pop();
-    updateActiveRepo(repoName);
+        const repoName = repoPath.split(/[/\\]/).pop();
+        updateActiveRepo(repoName);
 
-    cachedTree = await window.electronAPI.getFolderTree(repoPath);
+        cachedTree = await window.electronAPI.getFolderTree(repoPath);
+        console.log('[LoadRepo] Folder tree loaded:', cachedTree);
 
-    updateGenerateState();
-    displayTree();
+        updateGenerateState();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Loading repo failed:', err);
+        alert('Failed to load repo. See console.');
+    }
 }
 
-// --------------------
-// Display tree using treeView.js
-// --------------------
+// ----------------------------
+// Display tree
+// ----------------------------
 function displayTree() {
-    if (!cachedTree) return;
-    renderTree(cachedTree, treeContainer, selectedItems, actionType, toggleSelect);
+    try {
+        if (!cachedTree) {
+            console.log('[DisplayTree] No tree data to display');
+            treeContainer.textContent = 'No data available';
+            return;
+        }
+        console.log('[DisplayTree] Rendering tree...');
+        renderTree(cachedTree, treeContainer, selectedItems, actionType, toggleSelect);
+    } catch (err) {
+        console.error('[Error] Displaying tree failed:', err);
+    }
 }
 
-// --------------------
+// ----------------------------
 // Selection logic
-// --------------------
+// ----------------------------
 function toggleSelect(node) {
-    if (!selectedRepoPath || !cachedTree) return;
+    try {
+        if (!selectedRepoPath || !cachedTree) return;
 
-    const isSelected = selectedItems.includes(node.path);
+        const isSelected = selectedItems.includes(node.path);
 
-    if (isSelected) selectedItems = selectedItems.filter(p => p !== node.path);
-    else selectedItems.push(node.path);
+        if (isSelected) {
+            selectedItems = selectedItems.filter(p => p !== node.path);
+            console.log('[Select] Deselected:', node.path);
+        } else {
+            selectedItems.push(node.path);
+            console.log('[Select] Selected:', node.path);
+        }
 
-    window.electronAPI.setLastSelected(selectedItems);
-    updateGenerateState();
+        window.electronAPI.setLastSelected(selectedItems);
+        updateGenerateState();
 
-    // Only re-render for folders in code mode (ALL FILES label)
-    if (node.type === 'folder' && actionType === 'code') displayTree();
+        if (node.type === 'folder' && actionType === 'code') displayTree();
+    } catch (err) {
+        console.error('[Error] toggleSelect failed:', err);
+    }
 }
 
-// --------------------
+// ----------------------------
 // Mode switching
-// --------------------
+// ----------------------------
 function resetSelection() {
-    selectedItems = [];
-    window.electronAPI.setLastSelected([]);
-    updateGenerateState();
+    try {
+        selectedItems = [];
+        window.electronAPI.setLastSelected([]);
+        updateGenerateState();
+        console.log('[UI] Selection reset');
+    } catch (err) {
+        console.error('[Error] resetSelection failed:', err);
+    }
 }
 
 structureBtn.addEventListener('click', () => {
-    actionType = 'structure';
-    resetSelection();
-    displayTree();
+    try {
+        console.log('[Action] Switch to structure mode');
+        actionType = 'structure';
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Switching to structure mode failed:', err);
+    }
 });
 
 codeBtn.addEventListener('click', () => {
-    actionType = 'code';
-    resetSelection();
-    displayTree();
-});
-
-// --------------------
-// Generate
-// --------------------
-generateBtn.addEventListener('click', async () => {
-    if (!selectedRepoPath || !selectedItems.length) {
-        return alert('Select repo and items first!');
+    try {
+        console.log('[Action] Switch to code mode');
+        actionType = 'code';
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Switching to code mode failed:', err);
     }
-
-    const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
-    if (!fileName) return;
-
-    progressBar.value = 0;
-    progressText.textContent = '0%';
-
-    await window.electronAPI.generate(
-        actionType,
-        selectedRepoPath,
-        selectedItems,
-        fileName
-    );
-
-    alert('Done!');
-    resetSelection();
-    displayTree();
 });
 
-// --------------------
+// ----------------------------
+// Generate
+// ----------------------------
+generateBtn.addEventListener('click', async () => {
+    try {
+        if (!selectedRepoPath || !selectedItems.length) {
+            console.log('[Generate] No repo or items selected');
+            return alert('Select repo and items first!');
+        }
+
+        const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
+        if (!fileName) {
+            console.log('[Generate] User cancelled file name prompt');
+            return;
+        }
+
+        progressBar.value = 0;
+        progressText.textContent = '0%';
+
+        console.log(`[Generate] Generating ${actionType} for ${selectedItems.length} items to "${fileName}"`);
+        const result = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, fileName);
+        console.log('[Generate] Generation result:', result);
+
+        alert('Done!');
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Generation failed:', err);
+        alert('Generation failed. Check console for details.');
+    }
+});
+
+// ----------------------------
 // Init
-// --------------------
-window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
+// ----------------------------
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('[Init] DOM loaded');
+    loadLastActiveRepo();
+});

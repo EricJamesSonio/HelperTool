@@ -1,17 +1,21 @@
 /**
- * Tree View Renderer
+ * Tree View Renderer (updated)
  * -----------------
- * Handles displaying a repo tree with:
- * - Collapsible folders
- * - Selectable files/folders
- * - Folder ALL FILES display
+ * Features:
+ * - Single-click select + expand/collapse folders
+ * - Selected files/folders highlighted
+ * - Folder ALL FILES display in code mode
+ * - Folder icons via CSS classes
+ * - Maintains expand/collapse state
  */
 
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
     container.innerHTML = '';
 
+    // Map to store expanded folder states
+    const expandedFolders = new WeakMap();
+
     function createNode(node, depth = 0) {
-        // If structure mode and file → skip
         if (actionType === 'structure' && node.type === 'file') return null;
 
         const el = document.createElement('div');
@@ -22,6 +26,7 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         el.style.cursor = 'pointer';
 
         if (node.type === 'file') el.classList.add('file');
+        else el.classList.add('folder');
 
         const isSelected = selectedItems.includes(node.path);
         if (isSelected) el.classList.add('selected');
@@ -29,7 +34,7 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
             el.classList.add('folder-selected');
         }
 
-        // Label
+        // Label + file count
         let label = node.name;
         if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
             const fileCount = countFiles(node);
@@ -41,17 +46,12 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
         el.textContent = label;
 
-        // Click to toggle select
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            onToggle(node);
-        });
-
-        // Folder children
+        // Children container
+        let childrenContainer;
         if (node.type === 'folder' && node.children?.length) {
-            const childrenContainer = document.createElement('div');
+            childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
-            childrenContainer.style.display = 'block';
+            childrenContainer.style.display = expandedFolders.get(node) ? 'block' : 'none';
 
             node.children.forEach(child => {
                 const childNode = createNode(child, depth + 1);
@@ -59,13 +59,23 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
             });
 
             el.appendChild(childrenContainer);
-
-            // Optional: collapse on click on folder name
-            el.addEventListener('dblclick', (e) => {
-                e.stopPropagation();
-                childrenContainer.style.display = childrenContainer.style.display === 'none' ? 'block' : 'none';
-            });
         }
+
+        // Click logic
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            // Toggle selection
+            onToggle(node);
+
+            // If folder, toggle expand/collapse only if not selected in code mode
+            if (node.type === 'folder') {
+                const isExpanded = expandedFolders.get(node) || false;
+                expandedFolders.set(node, !isExpanded);
+                if (childrenContainer) childrenContainer.style.display = !isExpanded ? 'block' : 'none';
+                el.classList.toggle('folder-open', !isExpanded);
+            }
+        });
 
         return el;
     }
