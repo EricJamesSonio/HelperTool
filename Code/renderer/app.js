@@ -1,3 +1,8 @@
+// --------------------
+// Renderer: app.js
+// --------------------
+import { renderTree } from '../utils/treeView.js';
+
 const selectRepoBtn = document.getElementById('selectRepoBtn');
 const activeRepoName = document.getElementById('activeRepoName');
 const treeContainer = document.getElementById('treeContainer');
@@ -38,14 +43,8 @@ function updateGenerateState() {
     generateBtn.disabled = selectedItems.length === 0;
 }
 
-function countFiles(node) {
-    if (node.type === 'file') return 1;
-    if (!node.children?.length) return 0;
-    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
-}
-
 // --------------------
-// Load last repo
+// Repo loading
 // --------------------
 async function loadLastActiveRepo() {
     const lastRepoPath = await window.electronAPI.getActiveProjectPath?.();
@@ -54,20 +53,15 @@ async function loadLastActiveRepo() {
     }
 }
 
-// --------------------
-// Repo selection
-// --------------------
 selectRepoBtn.addEventListener('click', async () => {
     const repoPath = await window.electronAPI.selectRepo();
-    if (repoPath) {
-        await loadRepo(repoPath);
-    }
+    if (repoPath) await loadRepo(repoPath);
 });
 
 async function loadRepo(repoPath) {
     selectedRepoPath = repoPath;
 
-    // 🔒 Reset selection when switching repos
+    // Reset selections
     selectedItems = [];
     await window.electronAPI.setLastSelected([]);
 
@@ -77,72 +71,15 @@ async function loadRepo(repoPath) {
     cachedTree = await window.electronAPI.getFolderTree(repoPath);
 
     updateGenerateState();
-    displayTree(cachedTree, treeContainer, actionType);
+    displayTree();
 }
 
 // --------------------
-// Tree rendering
+// Display tree using treeView.js
 // --------------------
-function displayTree(tree, container, mode) {
-    container.innerHTML = '';
-
-    function createNode(node) {
-        if (mode === 'structure' && node.type === 'file') return null;
-
-        const el = document.createElement('div');
-        el.classList.add('tree-node');
-        el.style.cursor = 'pointer';
-        el.style.paddingLeft = '16px';
-        el.style.userSelect = 'none';
-        el.style.fontSize = '14px';
-
-        if (node.type === 'file') el.classList.add('file');
-
-        const isSelected = selectedItems.includes(node.path);
-        if (isSelected) el.classList.add('selected');
-
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            el.classList.add('folder-selected');
-        }
-
-        let label = node.name;
-
-        if (node.type === 'folder' && node.children?.length && mode !== 'structure') {
-            const fileCount = countFiles(node);
-            if (fileCount > 0) label += ` (${fileCount} files)`;
-        }
-
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            label += ' [ALL FILES]';
-        }
-
-        el.textContent = label;
-
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleSelect(node);
-        });
-
-        if (node.type === 'folder' && node.children?.length) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.classList.add('children');
-            childrenContainer.style.marginLeft = '16px';
-
-            node.children.forEach(child => {
-                const childNode = createNode(child);
-                if (childNode) childrenContainer.appendChild(childNode);
-            });
-
-            el.appendChild(childrenContainer);
-        }
-
-        return el;
-    }
-
-    tree.forEach(node => {
-        const n = createNode(node);
-        if (n) container.appendChild(n);
-    });
+function displayTree() {
+    if (!cachedTree) return;
+    renderTree(cachedTree, treeContainer, selectedItems, actionType, toggleSelect);
 }
 
 // --------------------
@@ -153,19 +90,14 @@ function toggleSelect(node) {
 
     const isSelected = selectedItems.includes(node.path);
 
-    if (isSelected) {
-        selectedItems = selectedItems.filter(p => p !== node.path);
-    } else {
-        selectedItems.push(node.path);
-    }
+    if (isSelected) selectedItems = selectedItems.filter(p => p !== node.path);
+    else selectedItems.push(node.path);
 
     window.electronAPI.setLastSelected(selectedItems);
     updateGenerateState();
 
-    // Re-render only when folder selection affects labels
-    if (node.type === 'folder' && actionType === 'code') {
-        displayTree(cachedTree, treeContainer, actionType);
-    }
+    // Only re-render for folders in code mode (ALL FILES label)
+    if (node.type === 'folder' && actionType === 'code') displayTree();
 }
 
 // --------------------
@@ -180,17 +112,13 @@ function resetSelection() {
 structureBtn.addEventListener('click', () => {
     actionType = 'structure';
     resetSelection();
-
-    if (!selectedRepoPath || !cachedTree) return;
-    displayTree(cachedTree, treeContainer, actionType);
+    displayTree();
 });
 
 codeBtn.addEventListener('click', () => {
     actionType = 'code';
     resetSelection();
-
-    if (!selectedRepoPath || !cachedTree) return;
-    displayTree(cachedTree, treeContainer, actionType);
+    displayTree();
 });
 
 // --------------------
@@ -216,7 +144,7 @@ generateBtn.addEventListener('click', async () => {
 
     alert('Done!');
     resetSelection();
-    displayTree(cachedTree, treeContainer, actionType);
+    displayTree();
 });
 
 // --------------------

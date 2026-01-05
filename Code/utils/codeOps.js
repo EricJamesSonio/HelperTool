@@ -3,7 +3,7 @@ const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
- * Recursively collect all file paths from a folder, respecting ignore rules
+ * Recursively collect files from folder respecting ignore rules
  */
 function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
     let files = [];
@@ -12,7 +12,6 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
     const items = fs.readdirSync(folderPath, { withFileTypes: true });
     for (const item of items) {
         const fullPath = path.join(folderPath, item.name);
-
         if (isIgnored(fullPath, repoRoot, ignoreRules)) continue;
 
         if (item.isDirectory()) {
@@ -21,17 +20,16 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
             files.push(fullPath);
         }
     }
-
     return files;
 }
 
 /**
- * Generate code file by combining multiple selected folders/files
- * @param {Array<string>} selectedItems - files or folders
+ * Generate combined code output
+ * @param {string[]} selectedItems
  * @param {string} outputFile
- * @param {Function} onProgress - callback(percent)
- * @param {string} repoRoot - repo root path
- * @param {Array<string>} ignoreRules - optional ignore rules
+ * @param {function(number):void} onProgress
+ * @param {string} repoRoot
+ * @param {string[]} ignoreRules
  */
 async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules = []) {
     if (!selectedItems.length) return;
@@ -57,7 +55,4 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}, re
     writeStream.close();
 }
 
-
-module.exports = {
-    generateCode
-};
+module.exports = { generateCode };
