@@ -3,7 +3,7 @@ Helper tool!
 
 
 Project view:
-- Can be minimize like tray icon!
+- Can be minimized to tray icon
 - Runs as a desktop helper (no auto start)
 - I manually start it, then it lives in the tray
 - Basically a helper for me as a developer
@@ -16,9 +16,17 @@ Language to use:
 Features:
 - Select local folder (cloned repo)
 - Selected folder becomes the project root
-- Generate the folder structure
+- Generate folder structure
 - Generate code outputs (copy file contents)
 - Outputs are stored outside the repo
+
+Jsons for config:
+- Helper config stores:
+  - Base storage path
+  - List of repos previously worked on
+  - Mapping: repo folder → storage folder
+  - Active project
+- .docignore settings for the program to know what to ignore
 
 
 Storage (outputs):
@@ -45,6 +53,10 @@ C:\Storage\JollibeePOS\
 - No extra picking
 - Just name the storage
 - Fast workflow
+
+- Previously used repos are tracked in config
+- Can select any previous repo → active project switches automatically
+- All actions (view storage, generate structure/code) point to that repo’s storage
 
 
 Storage structure:
@@ -98,26 +110,99 @@ Selection & actions:
   - "Code"
 
 - If Structure is chosen:
-  - Only display the folders! then for example, it selected a folder that has subfolder, it will also iterate that!
-  - Getting all even the subfolders! so basically the starting is the selected folder!
-  - Print folder structure of selected items
+  - Only display the folders
+  - If a folder has subfolders, all subfolders are included recursively
+  - Print folder structure of the selected items
+
+- Selection will be just change the color of the button if selected, double click to unselect
 
 - If Code is chosen:
+  - Display all including folders, but files are the only clickable
   - Copy the code content of selected files
-  - If folder is selected, copy all file contents inside
+  - If a folder is selected (for display purposes), all file contents inside recursively
 
 - After selecting files/folders:
   - Click a "Done / Generate" button
-  - Ask for name of the txt file to put the output! like "UserModule.txt"
-  - Program automatically knows it if the choice is "Codes" then this txt will go inside the Codes folder of the storage!
-  - if Structure then in Structure folder of the storage!
-  - Then the process starts
-  - Have a loading like 0% - 100% and Tell if its done!
+  - Ask for name of the txt file to put the output (e.g., "UserModule.txt")
+  - Program automatically knows:
+      - If choice is "Codes" → put txt inside Codes folder of storage
+      - If choice is "Structure" → put txt inside Structures folder of storage
+  - Show loading progress (0% → 100%)
+  - Notify when done
 
 
 Tray icon actions:
 - Enable
 - Disable
 - Open helper window
-- Open storage folder
+- Open storage folder (always opens storage for the active project)
+- Select previously worked repo (switch active project)
 - Exit
+
+
+---------------------------------------------------------------------------
+
+1️. helper-config.json — Full Structure
+{
+  "baseStoragePath": "C:/Storage",
+  "activeProject": "D:/Projects/Collaby",
+  "projects": {
+    "D:/Projects/FirstRepo": {
+      "storageName": "FirstRepoStorage",
+      "storagePath": "C:/Storage/FirstRepoStorage",
+      "lastUsed": "2026-01-05T14:20:00Z"
+    },
+    "D:/Projects/Collaby": {
+      "storageName": "Collaby",
+      "storagePath": "C:/Storage/Collaby",
+      "lastUsed": "2026-01-05T15:00:00Z"
+    },
+    "D:/Projects/JollibeePOS": {
+      "storageName": "JollibeePOS",
+      "storagePath": "C:/Storage/JollibeePOS",
+      "lastUsed": "2026-01-04T18:40:00Z"
+    }
+  },
+  "preferences": {
+    "docignoreFileName": ".docignore",
+    "showHiddenFiles": false,
+    "defaultStructureView": "tree",
+    "autoSelectLastProject": true
+  }
+}
+
+2️. Explanation of each field
+- baseStoragePath → Fixed root folder for all storage outputs (C:\Storage)
+- activeProject → Path of the currently active repo
+- projects → Maps repo folder paths → storage info
+  - projects[repoPath].storageName → Name of the storage folder for that repo
+  - projects[repoPath].storagePath → Full path to the storage folder (C:\Storage\<StorageName>)
+  - projects[repoPath].lastUsed → Optional: timestamp of last time project was active
+- preferences → Global program preferences
+  - preferences.docignoreFileName → Name of the ignore file to read (.docignore)
+  - preferences.showHiddenFiles → Whether to show hidden/system files in tree view
+  - preferences.defaultStructureView → Can be "tree" or "list" for default display
+  - preferences.autoSelectLastProject → If true, app automatically selects the last used project on startup
+
+3️. How this config is used
+- Startup
+  - Electron reads the config JSON from app.getPath('userData')
+  - If autoSelectLastProject → sets activeProject automatically
+- Selecting a repo
+  - If repo exists in projects → sets activeProject
+  - If new repo → prompts for storageName, creates folders, adds entry to projects
+- Open Storage Folder
+  - Always uses projects[activeProject].storagePath
+- Generate Code / Structure
+  - Writes outputs into projects[activeProject].storagePath
+  - Codes → Codes/
+  - Structures → Structures/
+- Ignore System
+  - Reads docignoreFileName in the repo root
+  - Filters files/folders according to its rules
+
+4️. Benefits of this structure
+- Full history of repos → can switch back anytime
+- Centralized storage info → no hard-coded paths
+- Expandable preferences → can add more later (themes, display settings, etc.)
+- Cross-platform safe → can adapt for Windows, Mac, Linux
