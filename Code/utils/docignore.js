@@ -5,27 +5,34 @@ const { app } = require('electron');
 
 const globalIgnorePath = path.join(app.getPath('userData'), 'global-docignore.json');
 
-/**
- * Get global ignore rules
- * @returns {string[]}
- */
-function getGlobalIgnoreRules() {
-    if (!fs.existsSync(globalIgnorePath)) return [];
+// ----------------------------
+// Cached Global Rules
+// ----------------------------
+let cachedGlobalRules = null;
+
+function loadGlobalIgnoreRules() {
+    if (cachedGlobalRules) return cachedGlobalRules;
+
+    if (!fs.existsSync(globalIgnorePath)) {
+        cachedGlobalRules = [];
+        return cachedGlobalRules;
+    }
+
     try {
         const data = fs.readFileSync(globalIgnorePath, 'utf-8');
-        console.log('[Docignore] Global ignore rules loaded:', data);
-        return JSON.parse(data);
+        cachedGlobalRules = JSON.parse(data);
+        console.log('[Docignore] Global ignore rules loaded:', cachedGlobalRules);
+        return cachedGlobalRules;
     } catch (err) {
         console.error('[Docignore] Failed to read global ignore:', err);
-        return [];
+        cachedGlobalRules = [];
+        return cachedGlobalRules;
     }
 }
 
-/**
- * Get combined ignore rules for a repo (global + optional repo-specific)
- * @param {string} repoPath
- * @returns {Promise<string[]>}
- */
+// ----------------------------
+// Repo-specific + combined rules
+// ----------------------------
 async function getIgnoreRules(repoPath) {
     try {
         let repoRules = [];
@@ -40,7 +47,7 @@ async function getIgnoreRules(repoPath) {
             }
         }
 
-        const combinedRules = [...getGlobalIgnoreRules(), ...repoRules];
+        const combinedRules = [...loadGlobalIgnoreRules(), ...repoRules];
         console.log('[Docignore] Combined ignore rules for', repoPath, combinedRules);
         return combinedRules;
     } catch (err) {
@@ -49,19 +56,22 @@ async function getIgnoreRules(repoPath) {
     }
 }
 
-/**
- * Check if a file/folder is ignored
- * @param {string} fullPath
- * @param {string} repoPath
- * @param {string[]} extraRules Optional extra rules (repo-specific)
- */
+// ----------------------------
+// Check if path is ignored
+// ----------------------------
 function isIgnored(fullPath, repoPath, extraRules = []) {
     const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
-    const rules = [...getGlobalIgnoreRules(), ...extraRules];
+    const rules = [...loadGlobalIgnoreRules(), ...extraRules];
     const ignored = micromatch.isMatch(relPath, rules, { dot: true });
-    // debug log
-    if (ignored) console.log('[Docignore] Ignored:', relPath);
+
+    // Log each ignored file only once
+    isIgnored.loggedFiles = isIgnored.loggedFiles || new Set();
+    if (ignored && !isIgnored.loggedFiles.has(relPath)) {
+        console.log('[Docignore] Ignored:', relPath);
+        isIgnored.loggedFiles.add(relPath);
+    }
+
     return ignored;
 }
 
-module.exports = { isIgnored, getGlobalIgnoreRules, getIgnoreRules };
+module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };

@@ -91,6 +91,17 @@ ipcMain.handle('open-global-docignore', async () => {
     }
 });
 
+ipcMain.handle('open-storage', async () => {
+    try {
+        openStorage(); // just reuse the existing function
+        return true;
+    } catch (err) {
+        console.error('[IPC] open-storage failed:', err);
+        return false;
+    }
+});
+
+
 // ----------------------------
 // Previous Repos Menu
 // ----------------------------

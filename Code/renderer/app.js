@@ -8,6 +8,7 @@ const codeBtn = document.getElementById('codeBtn');
 const generateBtn = document.getElementById('generateBtn');
 const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
+const openStorageBtn = document.getElementById('openStorageBtn'); // new
 
 let selectedRepoPath = null;
 let selectedItems = [];
@@ -35,6 +36,16 @@ function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
     console.log(`[UI] Active repo set to: ${name}`);
 }
+
+openStorageBtn.addEventListener('click', async () => {
+    try {
+        console.log('[UI] Open Storage clicked');
+        await window.electronAPI.openStorage();
+    } catch (err) {
+        console.error('[UI] Failed to open storage:', err);
+        alert('Failed to open storage. Check console for details.');
+    }
+});
 
 function updateGenerateState() {
     generateBtn.disabled = selectedItems.length === 0;
