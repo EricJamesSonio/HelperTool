@@ -171,3 +171,11 @@ progress::-moz-progress-bar {
   font-size: 0.9em;
 }
 
+.tree-node.selected {
+  background-color: #d0f0d0;
+}
+
+.tree-node.folder-selected {
+  font-weight: bold;
+}
+

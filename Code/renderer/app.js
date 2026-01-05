@@ -10,39 +10,75 @@ const progressText = document.getElementById('progressText');
 let selectedRepoPath = null;
 let selectedItems = [];
 let actionType = 'code';
-let ignoreRules = [];
 
+// --------------------
+// UI setup
+// --------------------
 treeContainer.style.overflowY = 'auto';
 treeContainer.style.maxHeight = '80vh';
+generateBtn.disabled = true;
 
+// --------------------
+// Progress listener
+// --------------------
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
 });
 
+// --------------------
+// Helpers
+// --------------------
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
 }
 
+function updateGenerateState() {
+    generateBtn.disabled = selectedItems.length === 0;
+}
+
+function countFiles(node) {
+    if (node.type === 'file') return 1;
+    if (!node.children?.length) return 0;
+    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
+}
+
+// --------------------
+// Load last repo
+// --------------------
+async function loadLastActiveRepo() {
+    const lastRepoPath = await window.electronAPI.getActiveProjectPath?.();
+    if (lastRepoPath) {
+        await loadRepo(lastRepoPath);
+    }
+}
+
+// --------------------
+// Repo selection
+// --------------------
 selectRepoBtn.addEventListener('click', async () => {
     const repoPath = await window.electronAPI.selectRepo();
-    if (!repoPath) return;
-    await loadRepo(repoPath);
+    if (repoPath) {
+        await loadRepo(repoPath);
+    }
 });
 
 async function loadRepo(repoPath) {
     selectedRepoPath = repoPath;
+
     const repoName = repoPath.split(/[/\\]/).pop();
     updateActiveRepo(repoName);
 
-    ignoreRules = await window.electronAPI.getDocignore(repoPath);
     const treeData = await window.electronAPI.getFolderTree(repoPath);
+    selectedItems = (await window.electronAPI.getLastSelected()) || [];
 
-    selectedItems = await window.electronAPI.getLastSelected();
-
+    updateGenerateState();
     displayTree(treeData, treeContainer, actionType);
 }
 
+// --------------------
+// Tree rendering
+// --------------------
 function displayTree(tree, container, mode) {
     container.innerHTML = '';
 
@@ -57,28 +93,50 @@ function displayTree(tree, container, mode) {
         el.style.fontSize = '14px';
 
         if (node.type === 'file') el.classList.add('file');
-        if (selectedItems.includes(node.path)) el.classList.add('selected');
+
+        const isSelected = selectedItems.includes(node.path);
+        if (isSelected) el.classList.add('selected');
+
+        if (
+            node.type === 'folder' &&
+            actionType === 'code' &&
+            isSelected
+        ) {
+            el.classList.add('folder-selected');
+        }
 
         let label = node.name;
-        if (node.type === 'folder' && node.children?.length > 0 && mode !== 'structure') {
+
+        if (node.type === 'folder' && node.children?.length && mode !== 'structure') {
             const fileCount = countFiles(node);
             if (fileCount > 0) label += ` (${fileCount} files)`;
         }
+
+        if (
+            node.type === 'folder' &&
+            actionType === 'code' &&
+            isSelected
+        ) {
+            label += ' [ALL FILES]';
+        }
+
         el.textContent = label;
 
         el.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleSelect(el, node);
+            toggleSelect(node);
         });
 
-        if (node.type === 'folder' && node.children?.length > 0) {
+        if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
             childrenContainer.style.marginLeft = '16px';
+
             node.children.forEach(child => {
                 const childNode = createNode(child);
                 if (childNode) childrenContainer.appendChild(childNode);
             });
+
             el.appendChild(childrenContainer);
         }
 
@@ -91,59 +149,85 @@ function displayTree(tree, container, mode) {
     });
 }
 
-function countFiles(node) {
-    if (node.type === 'file') return 1;
-    if (!node.children?.length) return 0;
-    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
-}
-
-function toggleSelect(el, node) {
+// --------------------
+// Selection logic
+// --------------------
+function toggleSelect(node) {
     const isSelected = selectedItems.includes(node.path);
+
     if (isSelected) {
         selectedItems = selectedItems.filter(p => p !== node.path);
-        el.style.backgroundColor = '';
-        if (node.type === 'folder' && actionType === 'code') el.style.fontWeight = 'normal';
     } else {
         selectedItems.push(node.path);
-        el.style.backgroundColor = '#d0f0d0';
-        if (node.type === 'folder' && actionType === 'code') el.style.fontWeight = 'bold';
     }
+
     window.electronAPI.setLastSelected(selectedItems);
+    updateGenerateState();
+
+    // Re-render to update folder labels / ALL FILES state
+    if (node.type === 'folder' && actionType === 'code') {
+        window.electronAPI
+            .getFolderTree(selectedRepoPath)
+            .then(tree => displayTree(tree, treeContainer, actionType));
+    }
 }
 
-structureBtn.addEventListener('click', () => {
+// --------------------
+// Mode switching
+// --------------------
+function resetSelection() {
+    selectedItems = [];
+    window.electronAPI.setLastSelected([]);
+    updateGenerateState();
+}
+
+structureBtn.addEventListener('click', async () => {
     actionType = 'structure';
-    if (selectedRepoPath) {
-        window.electronAPI.getFolderTree(selectedRepoPath).then(treeData => {
-            displayTree(treeData, treeContainer, actionType);
-        });
-    }
+    resetSelection();
+
+    if (!selectedRepoPath) return;
+    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
+    displayTree(treeData, treeContainer, actionType);
 });
 
-codeBtn.addEventListener('click', () => {
+codeBtn.addEventListener('click', async () => {
     actionType = 'code';
-    if (selectedRepoPath) {
-        window.electronAPI.getFolderTree(selectedRepoPath).then(treeData => {
-            displayTree(treeData, treeContainer, actionType);
-        });
-    }
+    resetSelection();
+
+    if (!selectedRepoPath) return;
+    const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
+    displayTree(treeData, treeContainer, actionType);
 });
 
+// --------------------
+// Generate
+// --------------------
 generateBtn.addEventListener('click', async () => {
-    if (!selectedRepoPath || !selectedItems.length) return alert('Select repo and items first!');
+    if (!selectedRepoPath || !selectedItems.length) {
+        return alert('Select repo and items first!');
+    }
+
     const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
     if (!fileName) return;
 
     progressBar.value = 0;
     progressText.textContent = '0%';
 
-    await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, fileName);
+    await window.electronAPI.generate(
+        actionType,
+        selectedRepoPath,
+        selectedItems,
+        fileName
+    );
 
     alert('Done!');
-    selectedItems = [];
+    resetSelection();
+
     const treeData = await window.electronAPI.getFolderTree(selectedRepoPath);
     displayTree(treeData, treeContainer, actionType);
 });
 
-// ✅ Only one DOMContentLoaded
+// --------------------
+// Init
+// --------------------
 window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
