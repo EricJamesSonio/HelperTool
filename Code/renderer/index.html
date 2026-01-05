@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helper Tool</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <h1>Helper Tool</h1>
+
+    <!-- Repo selection -->
+    <div class="section">
+      <button id="selectRepoBtn">Select Repo</button>
+      <span id="activeRepoName">No repo selected</span>
+    </div>
+
+    <!-- Tree view -->
+    <div class="section">
+      <h2>Project Tree</h2>
+      <div id="treeContainer">Select a repo to view files</div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="section">
+      <button id="structureBtn" class="action-btn">Structure</button>
+      <button id="codeBtn" class="action-btn">Code</button>
+      <button id="generateBtn" class="action-btn">Done / Generate</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="section">
+      <progress id="progressBar" value="0" max="100"></progress>
+      <span id="progressText">0%</span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

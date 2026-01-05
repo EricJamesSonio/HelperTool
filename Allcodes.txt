@@ -1,0 +1,551 @@
+------------------------------
+FILE: config\config.js
+
+const fs = require('fs');
+const path = require('path');
+
+const CONFIG_PATH = path.join(__dirname, 'helper-config.json');
+
+function readConfig() {
+    if (!fs.existsSync(CONFIG_PATH)) {
+        const defaultConfig = {
+            baseStoragePath: "C:/Storage",
+            activeProject: null,
+            projects: {},
+            preferences: {
+                docignoreFileName: ".docignore",
+                showHiddenFiles: false,
+                defaultStructureView: "tree",
+                autoSelectLastProject: true
+            }
+        };
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
+        return defaultConfig;
+    }
+    return JSON.parse(fs.readFileSync(CONFIG_PATH));
+}
+
+function writeConfig(config) {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+}
+
+function getActiveProject() {
+    const config = readConfig();
+    if (config.activeProject) {
+        return config.projects[config.activeProject];
+    }
+    return null;
+}
+
+module.exports = { readConfig, writeConfig, getActiveProject };
+
+
+------------------------------
+FILE: config\helper-config.json
+
+
+
+------------------------------
+FILE: main.js
+
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const config = require('./config/config.js');
+
+// Utils (we'll implement them next)
+const fileOps = require('./utils/fileOps.js');
+const docignoreUtils = require('./utils/docignore.js');
+const codeOps = require('./utils/codeOps.js');
+
+let mainWindow;
+let tray;
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        show: true,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+
+    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    mainWindow.on('close', (e) => {
+        e.preventDefault();
+        mainWindow.hide();
+    });
+}
+
+app.whenReady().then(() => {
+    createTray();
+    createWindow();
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+});
+
+function createTray() {
+    tray = new Tray(path.join(__dirname, 'assets', 'tray-icon.png'));
+    const contextMenu = Menu.buildFromTemplate([
+        { label: 'Open Helper', click: () => mainWindow.show() },
+        { label: 'Open Storage Folder', click: () => openStorage() },
+        { type: 'separator' },
+        {
+            label: 'Select Previous Repo',
+            submenu: getPreviousReposMenu()
+        },
+        { type: 'separator' },
+        { label: 'Exit', click: () => app.quit() }
+    ]);
+    tray.setToolTip('Helper Tool');
+    tray.setContextMenu(contextMenu);
+}
+
+// Helper to build previous repos submenu
+function getPreviousReposMenu() {
+    const cfg = config.readConfig();
+    const submenu = [];
+
+    for (const repoPath in cfg.projects) {
+        submenu.push({
+            label: path.basename(repoPath),
+            click: () => {
+                cfg.activeProject = repoPath;
+                config.writeConfig(cfg);
+            }
+        });
+    }
+
+    if (submenu.length === 0) {
+        submenu.push({ label: 'No previous repos', enabled: false });
+    }
+
+    return submenu;
+}
+
+function openStorage() {
+    const activeProject = config.getActiveProject();
+    if (activeProject) {
+        const storagePath = activeProject.storagePath;
+        if (fs.existsSync(storagePath)) {
+            shell.openPath(storagePath);
+        } else {
+            dialog.showErrorBox('Storage Not Found', 'Storage folder does not exist.');
+        }
+    } else {
+        dialog.showErrorBox('No Active Project', 'Select a project first.');
+    }
+}
+
+/* ===========================
+   IPC Handlers
+=========================== */
+
+// 1️⃣ Select Repo
+ipcMain.handle('select-repo', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+    });
+
+    if (result.canceled || !result.filePaths.length) return null;
+    const repoPath = result.filePaths[0];
+
+    // Check if repo exists in config
+    const cfg = config.readConfig();
+    if (!cfg.projects[repoPath]) {
+        // Ask for storage folder name
+        const { response, checkboxChecked } = await dialog.showMessageBox({
+            type: 'question',
+            buttons: ['OK'],
+            defaultId: 0,
+            title: 'New Storage',
+            message: 'Enter a name for this storage folder:',
+            detail: 'This will create a storage folder inside C:/Storage'
+        });
+
+        // For now we just auto-generate a folder name using repo basename
+        const storageName = path.basename(repoPath);
+        const storagePath = path.join(cfg.baseStoragePath, storageName);
+        if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
+        if (!fs.existsSync(path.join(storagePath, 'Codes'))) fs.mkdirSync(path.join(storagePath, 'Codes'));
+        if (!fs.existsSync(path.join(storagePath, 'Structures'))) fs.mkdirSync(path.join(storagePath, 'Structures'));
+
+        cfg.projects[repoPath] = {
+            storageName,
+            storagePath,
+            lastUsed: new Date().toISOString()
+        };
+    }
+
+    cfg.activeProject = repoPath;
+    config.writeConfig(cfg);
+
+    return repoPath;
+});
+
+// 2️⃣ Get Folder Tree
+ipcMain.handle('getFolderTree', async (event, repoPath) => {
+    if (!repoPath) return [];
+
+    // Read .docignore rules if exist
+    const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+
+    // Build tree recursively
+    const tree = fileOps.getFolderTree(repoPath, ignoreRules);
+    return tree;
+});
+
+// 3️⃣ Generate Structure / Code
+ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) => {
+    if (!repoPath || !items.length || !fileName) return;
+
+    const activeProject = config.getActiveProject();
+    if (!activeProject) {
+        dialog.showErrorBox('Error', 'No active project found in config.');
+        return;
+    }
+
+    const storagePath = activeProject.storagePath;
+    const outputFolder = actionType === 'code'
+        ? path.join(storagePath, 'Codes')
+        : path.join(storagePath, 'Structures');
+
+    if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder, { recursive: true });
+
+    const outputFile = path.join(outputFolder, fileName);
+
+    if (actionType === 'structure') {
+        await fileOps.generateStructure(items, outputFile, (percent) => {
+            mainWindow.webContents.send('progress-update', percent);
+        });
+    } else if (actionType === 'code') {
+        await codeOps.generateCode(items, outputFile, (percent) => {
+            mainWindow.webContents.send('progress-update', percent);
+        });
+    }
+
+    return true;
+});
+
+
+------------------------------
+FILE: preload.js
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+    selectRepo: () => ipcRenderer.invoke('select-repo'),
+    getFolderTree: (repoPath) => ipcRenderer.invoke('getFolderTree', repoPath),
+    generate: (actionType, repoPath, items, fileName, onProgress) => {
+        return ipcRenderer.invoke('generate', actionType, repoPath, items, fileName)
+            .then(() => {
+                if (onProgress) onProgress(100);
+            });
+    },
+    openStorage: () => ipcRenderer.invoke('open-storage'),
+    onProgressUpdate: (callback) => ipcRenderer.on('progress-update', (event, percent) => callback(percent))
+});
+
+
+------------------------------
+FILE: renderer\app.js
+
+const selectRepoBtn = document.getElementById('selectRepoBtn');
+const activeRepoName = document.getElementById('activeRepoName');
+const treeContainer = document.getElementById('treeContainer');
+const structureBtn = document.getElementById('structureBtn');
+const codeBtn = document.getElementById('codeBtn');
+const generateBtn = document.getElementById('generateBtn');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+
+let selectedRepoPath = null;
+let selectedItems = [];
+let actionType = null; // "structure" or "code"
+
+// ✅ Listen to progress updates from main process
+window.electronAPI.onProgressUpdate((percent) => {
+    progressBar.value = percent;
+    progressText.textContent = `${percent}%`;
+});
+
+// Update active repo label
+function updateActiveRepo(name) {
+    activeRepoName.textContent = name;
+}
+
+// Handle repo selection
+selectRepoBtn.addEventListener('click', async () => {
+    const repoPath = await window.electronAPI.selectRepo();
+    if (repoPath) {
+        selectedRepoPath = repoPath;
+        updateActiveRepo(repoPath);
+
+        // Load folder tree
+        const treeData = await window.electronAPI.getFolderTree(repoPath);
+        displayTree(treeData, treeContainer);
+    }
+});
+
+// Display tree recursively
+function displayTree(tree, container) {
+    container.innerHTML = '';
+    function createNode(node) {
+        const el = document.createElement('div');
+        el.classList.add('tree-node');
+        el.textContent = node.name;
+
+        if (node.type === 'folder') {
+            el.classList.add('folder');
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleSelect(el, node);
+            });
+            if (node.children && node.children.length > 0) {
+                const childrenContainer = document.createElement('div');
+                childrenContainer.classList.add('children');
+                node.children.forEach(child => {
+                    childrenContainer.appendChild(createNode(child));
+                });
+                el.appendChild(childrenContainer);
+            }
+        } else {
+            el.classList.add('file');
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleSelect(el, node);
+            });
+        }
+        return el;
+    }
+
+    tree.forEach(node => {
+        container.appendChild(createNode(node));
+    });
+}
+
+// Toggle selection
+function toggleSelect(el, node) {
+    if (selectedItems.includes(node.path)) {
+        selectedItems = selectedItems.filter(p => p !== node.path);
+        el.style.backgroundColor = '';
+    } else {
+        selectedItems.push(node.path);
+        el.style.backgroundColor = '#d0f0d0';
+    }
+}
+
+// Action buttons
+structureBtn.addEventListener('click', () => actionType = 'structure');
+codeBtn.addEventListener('click', () => actionType = 'code');
+
+// ✅ Generate button now uses IPC progress event
+generateBtn.addEventListener('click', async () => {
+    if (!selectedRepoPath || selectedItems.length === 0 || !actionType) {
+        alert('Select repo, items, and action first!');
+        return;
+    }
+
+    const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
+    if (!fileName) return;
+
+    progressBar.value = 0;
+    progressText.textContent = '0%';
+
+    // Call generate — progress handled by onProgressUpdate
+    await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, fileName);
+
+    alert('Done!');
+    selectedItems = [];
+});
+
+
+------------------------------
+FILE: utils\codeOps.js
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Recursively collect all file paths from a folder
+ * @param {string} folderPath 
+ * @param {Array<string>} ignoreRules - optional names to ignore
+ * @returns {Array<string>} list of file paths
+ */
+function getAllFiles(folderPath, ignoreRules = []) {
+    let files = [];
+    if (!fs.existsSync(folderPath)) return files;
+
+    const items = fs.readdirSync(folderPath);
+    for (const item of items) {
+        if (ignoreRules.includes(item)) continue; // skip ignored files/folders
+        const fullPath = path.join(folderPath, item);
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+            files = files.concat(getAllFiles(fullPath, ignoreRules));
+        } else if (stat.isFile()) {
+            files.push(fullPath);
+        }
+    }
+    return files;
+}
+
+/**
+ * Generate code file by combining selected files/folders
+ * @param {Array<string>} selectedItems - files or folders
+ * @param {string} outputFile - output .txt path
+ * @param {Function} onProgress - callback(percent)
+ */
+async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
+    let allFiles = [];
+
+    for (const item of selectedItems) {
+        const stat = fs.statSync(item);
+        if (stat.isDirectory()) {
+            allFiles = allFiles.concat(getAllFiles(item));
+        } else {
+            allFiles.push(item);
+        }
+    }
+
+    const total = allFiles.length;
+    if (total === 0) return;
+
+    const writeStream = fs.createWriteStream(outputFile, { flags: 'w', encoding: 'utf-8' });
+
+    for (let i = 0; i < allFiles.length; i++) {
+        const filePath = allFiles[i];
+        const content = fs.readFileSync(filePath, 'utf-8');
+
+        // Optional: separate each file in output for clarity
+        writeStream.write(`\n// ===== File: ${filePath} =====\n`);
+        writeStream.write(content + '\n');
+
+        // update progress
+        const percent = Math.round(((i + 1) / total) * 100);
+        onProgress(percent);
+    }
+
+    writeStream.close();
+}
+
+module.exports = {
+    generateCode
+};
+
+
+------------------------------
+FILE: utils\docignore.js
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Read .docignore file from repo
+ * @param {string} repoPath - path to the repo
+ * @returns {Promise<string[]>} - array of folder/file names to ignore
+ */
+async function getIgnoreRules(repoPath) {
+    const cfg = path.join(repoPath, '.docignore');
+    if (!fs.existsSync(cfg)) return [];
+
+    const content = fs.readFileSync(cfg, 'utf-8');
+    const lines = content.split(/\r?\n/).map(line => line.trim());
+    
+    // Remove empty lines and comments (starting with #)
+    const rules = lines.filter(line => line && !line.startsWith('#'));
+
+    return rules;
+}
+
+module.exports = {
+    getIgnoreRules
+};
+
+
+------------------------------
+FILE: utils\fileOps.js
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Recursively builds a folder tree
+ * @param {string} dir - directory path
+ * @param {string[]} ignoreRules - array of folder/file names to ignore
+ * @returns {Array} - tree structure [{ name, path, type, children }]
+ */
+function getFolderTree(dir, ignoreRules = []) {
+    const items = [];
+
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const file of files) {
+        if (ignoreRules.includes(file.name)) continue;
+
+        const fullPath = path.join(dir, file.name);
+
+        if (file.isDirectory()) {
+            items.push({
+                name: file.name,
+                path: fullPath,
+                type: 'folder',
+                children: getFolderTree(fullPath, ignoreRules)
+            });
+        } else {
+            items.push({
+                name: file.name,
+                path: fullPath,
+                type: 'file'
+            });
+        }
+    }
+
+    return items;
+}
+
+/**
+ * Generate folder structure text for selected folders
+ * @param {Array} selectedPaths - array of folder paths
+ * @param {string} outputFile - path to output txt file
+ * @param {Function} progressCallback - callback(percent)
+ */
+async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
+    let output = '';
+
+    function writeFolder(folderPath, prefix = '') {
+        const folderName = path.basename(folderPath);
+        output += `${prefix}${folderName}/\n`;
+        const children = fs.readdirSync(folderPath, { withFileTypes: true });
+        for (const child of children) {
+            const childPath = path.join(folderPath, child.name);
+            if (child.isDirectory()) {
+                writeFolder(childPath, prefix + '  ');
+            }
+        }
+    }
+
+    const total = selectedPaths.length;
+    selectedPaths.forEach((p, idx) => {
+        writeFolder(p);
+        const percent = Math.round(((idx + 1) / total) * 100);
+        progressCallback(percent);
+    });
+
+    fs.writeFileSync(outputFile, output, 'utf-8');
+}
+
+module.exports = {
+    getFolderTree,
+    generateStructure
+};
+
+
+------------------------------
+FILE: utils\treeView.js
+
+
+

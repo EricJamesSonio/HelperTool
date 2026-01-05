@@ -1,3 +1,6 @@
+------------------------------
+FILE: app.js
+
 const selectRepoBtn = document.getElementById('selectRepoBtn');
 const activeRepoName = document.getElementById('activeRepoName');
 const treeContainer = document.getElementById('treeContainer');
@@ -106,3 +109,5 @@ generateBtn.addEventListener('click', async () => {
     alert('Done!');
     selectedItems = [];
 });
+
+

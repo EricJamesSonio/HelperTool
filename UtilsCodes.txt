@@ -1,0 +1,186 @@
+------------------------------
+FILE: codeOps.js
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Recursively collect all file paths from a folder
+ * @param {string} folderPath 
+ * @param {Array<string>} ignoreRules - optional names to ignore
+ * @returns {Array<string>} list of file paths
+ */
+function getAllFiles(folderPath, ignoreRules = []) {
+    let files = [];
+    if (!fs.existsSync(folderPath)) return files;
+
+    const items = fs.readdirSync(folderPath);
+    for (const item of items) {
+        if (ignoreRules.includes(item)) continue; // skip ignored files/folders
+        const fullPath = path.join(folderPath, item);
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+            files = files.concat(getAllFiles(fullPath, ignoreRules));
+        } else if (stat.isFile()) {
+            files.push(fullPath);
+        }
+    }
+    return files;
+}
+
+/**
+ * Generate code file by combining selected files/folders
+ * @param {Array<string>} selectedItems - files or folders
+ * @param {string} outputFile - output .txt path
+ * @param {Function} onProgress - callback(percent)
+ */
+async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
+    let allFiles = [];
+
+    for (const item of selectedItems) {
+        const stat = fs.statSync(item);
+        if (stat.isDirectory()) {
+            allFiles = allFiles.concat(getAllFiles(item));
+        } else {
+            allFiles.push(item);
+        }
+    }
+
+    const total = allFiles.length;
+    if (total === 0) return;
+
+    const writeStream = fs.createWriteStream(outputFile, { flags: 'w', encoding: 'utf-8' });
+
+    for (let i = 0; i < allFiles.length; i++) {
+        const filePath = allFiles[i];
+        const content = fs.readFileSync(filePath, 'utf-8');
+
+        // Optional: separate each file in output for clarity
+        writeStream.write(`\n// ===== File: ${filePath} =====\n`);
+        writeStream.write(content + '\n');
+
+        // update progress
+        const percent = Math.round(((i + 1) / total) * 100);
+        onProgress(percent);
+    }
+
+    writeStream.close();
+}
+
+module.exports = {
+    generateCode
+};
+
+
+------------------------------
+FILE: docignore.js
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Read .docignore file from repo
+ * @param {string} repoPath - path to the repo
+ * @returns {Promise<string[]>} - array of folder/file names to ignore
+ */
+async function getIgnoreRules(repoPath) {
+    const cfg = path.join(repoPath, '.docignore');
+    if (!fs.existsSync(cfg)) return [];
+
+    const content = fs.readFileSync(cfg, 'utf-8');
+    const lines = content.split(/\r?\n/).map(line => line.trim());
+    
+    // Remove empty lines and comments (starting with #)
+    const rules = lines.filter(line => line && !line.startsWith('#'));
+
+    return rules;
+}
+
+module.exports = {
+    getIgnoreRules
+};
+
+
+------------------------------
+FILE: fileOps.js
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Recursively builds a folder tree
+ * @param {string} dir - directory path
+ * @param {string[]} ignoreRules - array of folder/file names to ignore
+ * @returns {Array} - tree structure [{ name, path, type, children }]
+ */
+function getFolderTree(dir, ignoreRules = []) {
+    const items = [];
+
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const file of files) {
+        if (ignoreRules.includes(file.name)) continue;
+
+        const fullPath = path.join(dir, file.name);
+
+        if (file.isDirectory()) {
+            items.push({
+                name: file.name,
+                path: fullPath,
+                type: 'folder',
+                children: getFolderTree(fullPath, ignoreRules)
+            });
+        } else {
+            items.push({
+                name: file.name,
+                path: fullPath,
+                type: 'file'
+            });
+        }
+    }
+
+    return items;
+}
+
+/**
+ * Generate folder structure text for selected folders
+ * @param {Array} selectedPaths - array of folder paths
+ * @param {string} outputFile - path to output txt file
+ * @param {Function} progressCallback - callback(percent)
+ */
+async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
+    let output = '';
+
+    function writeFolder(folderPath, prefix = '') {
+        const folderName = path.basename(folderPath);
+        output += `${prefix}${folderName}/\n`;
+        const children = fs.readdirSync(folderPath, { withFileTypes: true });
+        for (const child of children) {
+            const childPath = path.join(folderPath, child.name);
+            if (child.isDirectory()) {
+                writeFolder(childPath, prefix + '  ');
+            }
+        }
+    }
+
+    const total = selectedPaths.length;
+    selectedPaths.forEach((p, idx) => {
+        writeFolder(p);
+        const percent = Math.round(((idx + 1) / total) * 100);
+        progressCallback(percent);
+    });
+
+    fs.writeFileSync(outputFile, output, 'utf-8');
+}
+
+module.exports = {
+    getFolderTree,
+    generateStructure
+};
+
+
+------------------------------
+FILE: treeView.js
+
+
+
