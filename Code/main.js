@@ -11,7 +11,11 @@ const codeOps = require('./utils/codeOps.js');
 let mainWindow;
 let tray;
 
+// ----------------------------
+// Create Main Window
+// ----------------------------
 function createWindow() {
+    console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
         width: 800,
         height: 600,
@@ -22,13 +26,19 @@ function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
     mainWindow.on('close', (e) => {
         e.preventDefault();
         mainWindow.hide();
+        console.log('[Main] Main window hidden instead of close');
     });
 }
 
+// ----------------------------
+// App Ready
+// ----------------------------
 app.whenReady().then(() => {
+    console.log('[Main] App is ready');
     createTray();
     createWindow();
 
@@ -37,8 +47,13 @@ app.whenReady().then(() => {
     });
 });
 
+// ----------------------------
+// Tray
+// ----------------------------
 function createTray() {
+    console.log('[Tray] Creating tray icon...');
     tray = new Tray(path.join(__dirname, 'assets', 'tray-icon.png'));
+
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Open Helper', click: () => mainWindow.show() },
         { label: 'Open Storage Folder', click: () => openStorage() },
@@ -47,10 +62,15 @@ function createTray() {
         { type: 'separator' },
         { label: 'Exit', click: () => app.quit() }
     ]);
+
     tray.setToolTip('Helper Tool');
     tray.setContextMenu(contextMenu);
+    console.log('[Tray] Tray menu created');
 }
 
+// ----------------------------
+// Previous Repos Menu
+// ----------------------------
 function getPreviousReposMenu() {
     const cfg = config.readConfig();
     const submenu = [];
@@ -59,6 +79,7 @@ function getPreviousReposMenu() {
         submenu.push({
             label: path.basename(repoPath),
             click: () => {
+                console.log('[Tray] Setting active project:', repoPath);
                 cfg.activeProject = repoPath;
                 config.writeConfig(cfg);
             }
@@ -67,84 +88,108 @@ function getPreviousReposMenu() {
 
     if (submenu.length === 0) {
         submenu.push({ label: 'No previous repos', enabled: false });
+        console.log('[Tray] No previous repos found');
     }
 
     return submenu;
 }
 
+// ----------------------------
+// Open Storage Folder
+// ----------------------------
 function openStorage() {
-    const activeProject = config.getActiveProject();
-    if (activeProject) {
-        const storagePath = activeProject.storagePath;
-        if (fs.existsSync(storagePath)) {
-            shell.openPath(storagePath);
+    try {
+        const activeProject = config.getActiveProject();
+        if (activeProject) {
+            const storagePath = activeProject.storagePath;
+            console.log('[Storage] Opening storage folder:', storagePath);
+            if (fs.existsSync(storagePath)) {
+                shell.openPath(storagePath);
+            } else {
+                console.warn('[Storage] Storage folder does not exist:', storagePath);
+                dialog.showErrorBox('Storage Not Found', 'Storage folder does not exist.');
+            }
         } else {
-            dialog.showErrorBox('Storage Not Found', 'Storage folder does not exist.');
+            console.warn('[Storage] No active project');
+            dialog.showErrorBox('No Active Project', 'Select a project first.');
         }
-    } else {
-        dialog.showErrorBox('No Active Project', 'Select a project first.');
+    } catch (err) {
+        console.error('[Error] openStorage failed:', err);
     }
 }
 
-/* ===========================
-   IPC Handlers
-=========================== */
+// ----------------------------
+// IPC Handlers
+// ----------------------------
 
-// 1️⃣ Select repo (updated to use userData storage)
+// Select repo
 ipcMain.handle('select-repo', async () => {
-    const result = await dialog.showOpenDialog({
-        properties: ['openDirectory']
-    });
-
-    if (result.canceled || !result.filePaths.length) return null;
-    const repoPath = result.filePaths[0];
-
-    const cfg = config.readConfig();
-    const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
-
-    // Save inside Electron userData folder
-    const userDataPath = app.getPath('userData');
-    const storagePath = path.join(userDataPath, storageName);
-
     try {
-        // Ensure base folder exists
+        console.log('[IPC] select-repo called');
+        const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+
+        if (result.canceled || !result.filePaths.length) {
+            console.log('[IPC] Repo selection cancelled');
+            return null;
+        }
+
+        const repoPath = result.filePaths[0];
+        console.log('[IPC] Repo selected:', repoPath);
+
+        const cfg = config.readConfig();
+        const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
+        const userDataPath = app.getPath('userData');
+        const storagePath = path.join(userDataPath, storageName);
+
+        // Create storage folders
         if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
-        // Ensure storage folder and subfolders exist
         if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
         ['Codes', 'Structures'].forEach(sub => {
             const subPath = path.join(storagePath, sub);
             if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
         });
+        console.log('[IPC] Storage folders ensured at:', storagePath);
+
+        // Update config
+        cfg.projects[repoPath] = {
+            storageName,
+            storagePath,
+            lastUsed: new Date().toISOString()
+        };
+        cfg.activeProject = repoPath;
+        config.writeConfig(cfg);
+        console.log('[IPC] Config updated for repo:', repoPath);
+
+        return repoPath;
     } catch (err) {
-        dialog.showErrorBox('Permission Error', `Cannot create storage folder:\n${storagePath}\n\n${err.message}`);
+        console.error('[IPC] select-repo error:', err);
+        dialog.showErrorBox('Select Repo Error', err.message);
         return null;
     }
-
-    // Add or update project in config
-    cfg.projects[repoPath] = {
-        storageName,
-        storagePath,
-        lastUsed: new Date().toISOString()
-    };
-
-    // Set active project
-    cfg.activeProject = repoPath;
-    config.writeConfig(cfg);
-
-    return repoPath;
 });
 
-// 2️⃣ Get folder tree
+// Get folder tree
 ipcMain.handle('getFolderTree', async (event, repoPath) => {
-    if (!repoPath) return [];
+    try {
+        console.log('[IPC] getFolderTree called for:', repoPath);
+        if (!repoPath) return [];
 
-    const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-    return fileOps.getFolderTree(repoPath, ignoreRules);
+        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+        const tree = fileOps.getFolderTree(repoPath, ignoreRules);
+        console.log('[IPC] Folder tree returned, nodes:', tree.length);
+        return tree;
+    } catch (err) {
+        console.error('[IPC] getFolderTree error:', err);
+        return [];
+    }
 });
 
+// Generate code or structure
 ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) => {
     try {
-        if (!repoPath || !items.length || !fileName) throw new Error('Invalid arguments');
+        console.log('[IPC] generate called:', { actionType, repoPath, itemsLength: items?.length, fileName });
+        if (!repoPath || !items?.length || !fileName) throw new Error('Invalid arguments');
+
         const activeProject = config.getActiveProject();
         if (!activeProject) throw new Error('No active project found');
 
@@ -159,48 +204,73 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) 
         const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
 
         if (actionType === 'structure') {
+            console.log('[IPC] Generating structure...');
             await fileOps.generateStructure(items, outputFile, ignoreRules, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
+                console.log(`[Progress] ${percent}%`);
             });
         } else if (actionType === 'code') {
+            console.log('[IPC] Generating code...');
             await codeOps.generateCode(items, outputFile, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
+                console.log(`[Progress] ${percent}%`);
             }, repoPath, ignoreRules);
         }
 
-        console.log(`Generated ${actionType} at:`, outputFile);
+        console.log(`[IPC] Generation complete. Output at: ${outputFile}`);
         return true;
     } catch (err) {
-        console.error('Generate IPC error:', err);
+        console.error('[IPC] generate error:', err);
         dialog.showErrorBox('Generate Error', err.message);
+        return false;
     }
 });
 
-
-// 4️⃣ Get .docignore rules
+// Get .docignore rules
 ipcMain.handle('get-docignore', async (event, repoPath) => {
-    if (!repoPath) return [];
-    return await docignoreUtils.getIgnoreRules(repoPath);
+    try {
+        console.log('[IPC] get-docignore called for:', repoPath);
+        if (!repoPath) return [];
+        return await docignoreUtils.getIgnoreRules(repoPath);
+    } catch (err) {
+        console.error('[IPC] get-docignore error:', err);
+        return [];
+    }
 });
 
+// Get active project
 ipcMain.handle('get-active-project', () => {
-    const activeProjectPath = config.readConfig().activeProject; // this is the real repo folder
-    if (!activeProjectPath) return null;
-
-    const projectData = config.readConfig().projects[activeProjectPath];
-    return {
-        repoPath: activeProjectPath,    // <-- real folder path
-        ...projectData
-    };
+    try {
+        console.log('[IPC] get-active-project called');
+        const activeProjectPath = config.readConfig().activeProject;
+        if (!activeProjectPath) return null;
+        const projectData = config.readConfig().projects[activeProjectPath];
+        console.log('[IPC] Active project data:', projectData);
+        return { repoPath: activeProjectPath, ...projectData };
+    } catch (err) {
+        console.error('[IPC] get-active-project error:', err);
+        return null;
+    }
 });
 
-
-// ✅ IPC: get last selected items
+// Get last selected items
 ipcMain.handle('get-last-selected', () => {
-    return config.getLastSelectedItems();
+    try {
+        const items = config.getLastSelectedItems();
+        console.log('[IPC] get-last-selected:', items);
+        return items;
+    } catch (err) {
+        console.error('[IPC] get-last-selected error:', err);
+        return [];
+    }
 });
 
-// ✅ IPC: save last selected items
+// Set last selected items
 ipcMain.handle('set-last-selected', (event, items) => {
-    config.setLastSelectedItems(items);
+    try {
+        console.log('[IPC] set-last-selected:', items);
+        config.setLastSelectedItems(items);
+    } catch (err) {
+        console.error('[IPC] set-last-selected error:', err);
+    }
 });

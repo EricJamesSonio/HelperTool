@@ -1,6 +1,6 @@
 {
   "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
-  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee",
   "projects": {
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
       "storageName": "src",
@@ -23,8 +23,17 @@
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Gown",
       "lastUsed": "2026-01-05T11:02:54.764Z",
       "lastSelectedItems": [
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database",
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\server\\database"
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database"
+      ]
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee": {
+      "storageName": "Jollibee",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Jollibee",
+      "lastUsed": "2026-01-05T14:42:20.003Z",
+      "lastSelectedItems": [
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee\\payment-service",
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee\\README.md",
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee\\resetdocker.md"
       ]
     }
   },
