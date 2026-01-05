@@ -9,25 +9,21 @@ const progressText = document.getElementById('progressText');
 
 let selectedRepoPath = null;
 let selectedItems = [];
-let actionType = 'code'; // Default view: show everything
-let ignoreRules = [];  // Store rules after loading repo
+let actionType = 'code';
+let ignoreRules = [];
 
-// Make tree container scrollable
 treeContainer.style.overflowY = 'auto';
 treeContainer.style.maxHeight = '80vh';
 
-// Listen to progress updates from main process
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
 });
 
-// Update active repo label
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
 }
 
-// Handle repo selection
 selectRepoBtn.addEventListener('click', async () => {
     const repoPath = await window.electronAPI.selectRepo();
     if (!repoPath) return;
@@ -39,22 +35,18 @@ async function loadRepo(repoPath) {
     const repoName = repoPath.split(/[/\\]/).pop();
     updateActiveRepo(repoName);
 
-    // Get ignore rules & tree
     ignoreRules = await window.electronAPI.getDocignore(repoPath);
     const treeData = await window.electronAPI.getFolderTree(repoPath);
 
-    // Restore last selected items
     selectedItems = await window.electronAPI.getLastSelected();
 
     displayTree(treeData, treeContainer, actionType);
 }
 
-// Recursive tree rendering with multi-target selection & mode
 function displayTree(tree, container, mode) {
     container.innerHTML = '';
 
     function createNode(node) {
-        // If structure mode and node is a file → skip
         if (mode === 'structure' && node.type === 'file') return null;
 
         const el = document.createElement('div');
@@ -67,24 +59,19 @@ function displayTree(tree, container, mode) {
         if (node.type === 'file') el.classList.add('file');
         if (selectedItems.includes(node.path)) el.classList.add('selected');
 
-        // Folder/file label
         let label = node.name;
-        if (node.type === 'folder' && node.children && node.children.length > 0) {
-            if (mode !== 'structure') {
-                const fileCount = countFiles(node);
-                if (fileCount > 0) label += ` (${fileCount} files)`;
-            }
+        if (node.type === 'folder' && node.children?.length > 0 && mode !== 'structure') {
+            const fileCount = countFiles(node);
+            if (fileCount > 0) label += ` (${fileCount} files)`;
         }
         el.textContent = label;
 
-        // Click to select
         el.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleSelect(el, node);
         });
 
-        // Recursively render children
-        if (node.type === 'folder' && node.children && node.children.length > 0) {
+        if (node.type === 'folder' && node.children?.length > 0) {
             const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
             childrenContainer.style.marginLeft = '16px';
@@ -104,17 +91,14 @@ function displayTree(tree, container, mode) {
     });
 }
 
-// Count all files under a folder recursively
 function countFiles(node) {
     if (node.type === 'file') return 1;
-    if (!node.children || node.children.length === 0) return 0;
+    if (!node.children?.length) return 0;
     return node.children.reduce((acc, child) => acc + countFiles(child), 0);
 }
 
-// Toggle selection and persist per project
 function toggleSelect(el, node) {
     const isSelected = selectedItems.includes(node.path);
-
     if (isSelected) {
         selectedItems = selectedItems.filter(p => p !== node.path);
         el.style.backgroundColor = '';
@@ -124,23 +108,9 @@ function toggleSelect(el, node) {
         el.style.backgroundColor = '#d0f0d0';
         if (node.type === 'folder' && actionType === 'code') el.style.fontWeight = 'bold';
     }
-
     window.electronAPI.setLastSelected(selectedItems);
 }
 
-// Auto-load last active repo
-async function loadLastActiveRepo() {
-    try {
-        const lastRepo = await window.electronAPI.getActiveProject?.();
-        if (!lastRepo) return;
-
-        await loadRepo(lastRepo.repoPath || lastRepo.path || lastRepo.storagePath); 
-    } catch (err) {
-        console.error("Failed to load last active repo:", err);
-    }
-}
-
-// Action buttons
 structureBtn.addEventListener('click', () => {
     actionType = 'structure';
     if (selectedRepoPath) {
@@ -159,13 +129,8 @@ codeBtn.addEventListener('click', () => {
     }
 });
 
-// Generate combined output
 generateBtn.addEventListener('click', async () => {
-    if (!selectedRepoPath || selectedItems.length === 0) {
-        alert('Select repo and items first!');
-        return;
-    }
-
+    if (!selectedRepoPath || !selectedItems.length) return alert('Select repo and items first!');
     const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
     if (!fileName) return;
 
@@ -180,5 +145,5 @@ generateBtn.addEventListener('click', async () => {
     displayTree(treeData, treeContainer, actionType);
 });
 
-// Load last repo on startup
+// ✅ Only one DOMContentLoaded
 window.addEventListener('DOMContentLoaded', loadLastActiveRepo);

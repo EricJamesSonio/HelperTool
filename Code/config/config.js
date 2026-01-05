@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron'); // Add electron app
+const { app } = require('electron');
 
 const CONFIG_PATH = path.join(__dirname, 'helper-config.json');
 
@@ -35,13 +35,11 @@ function getActiveProject() {
     return null;
 }
 
-// ✅ New: get last selected items for active project
 function getLastSelectedItems() {
     const project = getActiveProject();
     return project?.lastSelectedItems || [];
 }
 
-// ✅ New: set last selected items for active project
 function setLastSelectedItems(items) {
     const cfg = readConfig();
     if (cfg.activeProject && cfg.projects[cfg.activeProject]) {
@@ -50,13 +48,12 @@ function setLastSelectedItems(items) {
     }
 }
 
-// ✅ Helper to ensure storage folder exists safely
 function ensureStorageFolder(storagePath) {
     if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
-    const codesPath = path.join(storagePath, 'Codes');
-    const structuresPath = path.join(storagePath, 'Structures');
-    if (!fs.existsSync(codesPath)) fs.mkdirSync(codesPath);
-    if (!fs.existsSync(structuresPath)) fs.mkdirSync(structuresPath);
+    ['Codes', 'Structures'].forEach(sub => {
+        const subPath = path.join(storagePath, sub);
+        if (!fs.existsSync(subPath)) fs.mkdirSync(subPath);
+    });
     return storagePath;
 }
 
@@ -65,6 +62,6 @@ module.exports = {
     writeConfig, 
     getActiveProject, 
     getLastSelectedItems,
-    setLastSelectedItems,   // ✅ corrected
+    setLastSelectedItems,
     ensureStorageFolder
 };

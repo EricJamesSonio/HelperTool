@@ -1,6 +1,6 @@
 {
   "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
-  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Parallel\\Guitar-store",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown",
   "projects": {
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
       "storageName": "src",
@@ -21,7 +21,7 @@
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown": {
       "storageName": "Gown",
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Gown",
-      "lastUsed": "2026-01-05T10:43:07.456Z",
+      "lastUsed": "2026-01-05T11:02:54.764Z",
       "lastSelectedItems": [
         "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database"
       ]

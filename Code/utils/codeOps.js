@@ -34,42 +34,29 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
  * @param {Array<string>} ignoreRules - optional ignore rules
  */
 async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules = []) {
-    if (!selectedItems || selectedItems.length === 0) return;
-
-    // Ensure repoRoot is set
+    if (!selectedItems.length) return;
     if (!repoRoot) repoRoot = path.dirname(selectedItems[0]);
-
-    // Load ignore rules if not provided
     if (!ignoreRules.length) ignoreRules = await getIgnoreRules(repoRoot);
 
-    // Collect all files from all selected items
     let allFiles = [];
     for (const item of selectedItems) {
         const stat = fs.statSync(item);
-        if (stat.isDirectory()) {
-            allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
-        } else if (stat.isFile()) {
-            if (!isIgnored(item, repoRoot, ignoreRules)) allFiles.push(item);
-        }
+        if (stat.isDirectory()) allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
+        else if (stat.isFile() && !isIgnored(item, repoRoot, ignoreRules)) allFiles.push(item);
     }
 
-    if (allFiles.length === 0) return;
+    if (!allFiles.length) return;
 
-    // Write combined output
     const writeStream = fs.createWriteStream(outputFile, { flags: 'w', encoding: 'utf-8' });
     for (let i = 0; i < allFiles.length; i++) {
         const filePath = allFiles[i];
-        const content = fs.readFileSync(filePath, 'utf-8');
-
         writeStream.write(`\n// ===== File: ${path.relative(repoRoot, filePath)} =====\n`);
-        writeStream.write(content + '\n');
-
-        const percent = Math.round(((i + 1) / allFiles.length) * 100);
-        onProgress(percent);
+        writeStream.write(fs.readFileSync(filePath, 'utf-8') + '\n');
+        onProgress(Math.round(((i + 1) / allFiles.length) * 100));
     }
-
     writeStream.close();
 }
+
 
 module.exports = {
     generateCode

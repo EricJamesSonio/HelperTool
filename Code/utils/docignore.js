@@ -10,15 +10,12 @@ const micromatch = require('micromatch'); // npm install micromatch
 async function getIgnoreRules(repoPath) {
     const cfg = path.join(repoPath, '.docignore');
     if (!fs.existsSync(cfg)) return [];
-
-    const content = fs.readFileSync(cfg, 'utf-8');
-    const lines = content.split(/\r?\n/).map(line => line.trim());
-
-    // Remove empty lines and comments
-    const rules = lines.filter(line => line && !line.startsWith('#'));
-
-    return rules;
+    return fs.readFileSync(cfg, 'utf-8')
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(l => l && !l.startsWith('#'));
 }
+
 
 /**
  * Check if a given file/folder path should be ignored
@@ -28,14 +25,7 @@ async function getIgnoreRules(repoPath) {
  * @returns {boolean}
  */
 function isIgnored(fullPath, repoPath, ignoreRules) {
-    // Relative path from repo root
     const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
-
-    // Match against patterns using micromatch
     return micromatch.isMatch(relPath, ignoreRules, { dot: true });
 }
-
-module.exports = {
-    getIgnoreRules,
-    isIgnored
-};
+module.exports = { getIgnoreRules, isIgnored };
