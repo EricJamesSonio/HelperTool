@@ -75,7 +75,7 @@ FILE: config\helper-config.json
 
 {
   "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
-  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee",
   "projects": {
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
       "storageName": "src",
@@ -98,9 +98,14 @@ FILE: config\helper-config.json
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Gown",
       "lastUsed": "2026-01-05T11:02:54.764Z",
       "lastSelectedItems": [
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database",
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\server\\database"
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database"
       ]
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee": {
+      "storageName": "Jollibee",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Jollibee",
+      "lastUsed": "2026-01-05T14:42:20.003Z",
+      "lastSelectedItems": []
     }
   },
   "preferences": {
@@ -127,7 +132,11 @@ const codeOps = require('./utils/codeOps.js');
 let mainWindow;
 let tray;
 
+// ----------------------------
+// Create Main Window
+// ----------------------------
 function createWindow() {
+    console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
         width: 800,
         height: 600,
@@ -138,13 +147,19 @@ function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
     mainWindow.on('close', (e) => {
         e.preventDefault();
         mainWindow.hide();
+        console.log('[Main] Main window hidden instead of close');
     });
 }
 
+// ----------------------------
+// App Ready
+// ----------------------------
 app.whenReady().then(() => {
+    console.log('[Main] App is ready');
     createTray();
     createWindow();
 
@@ -153,8 +168,13 @@ app.whenReady().then(() => {
     });
 });
 
+// ----------------------------
+// Tray
+// ----------------------------
 function createTray() {
+    console.log('[Tray] Creating tray icon...');
     tray = new Tray(path.join(__dirname, 'assets', 'tray-icon.png'));
+
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Open Helper', click: () => mainWindow.show() },
         { label: 'Open Storage Folder', click: () => openStorage() },
@@ -163,10 +183,49 @@ function createTray() {
         { type: 'separator' },
         { label: 'Exit', click: () => app.quit() }
     ]);
+
     tray.setToolTip('Helper Tool');
     tray.setContextMenu(contextMenu);
+    console.log('[Tray] Tray menu created');
 }
 
+// main.js additions
+ipcMain.handle('open-global-docignore', async () => {
+    try {
+        const globalDocignorePath = path.join(app.getPath('userData'), 'global-docignore.json');
+
+        // Create file if it doesn't exist
+        if (!fs.existsSync(globalDocignorePath)) {
+            fs.writeFileSync(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
+            console.log('[Main] Created new global-docignore.json at', globalDocignorePath);
+        } else {
+            console.log('[Main] global-docignore.json exists at', globalDocignorePath);
+        }
+
+        // Open with default editor
+        await shell.openPath(globalDocignorePath);
+        console.log('[Main] global-docignore.json opened');
+        return true;
+    } catch (err) {
+        console.error('[Main] Failed to open global-docignore.json:', err);
+        return false;
+    }
+});
+
+ipcMain.handle('open-storage', async () => {
+    try {
+        openStorage(); // just reuse the existing function
+        return true;
+    } catch (err) {
+        console.error('[IPC] open-storage failed:', err);
+        return false;
+    }
+});
+
+
+// ----------------------------
+// Previous Repos Menu
+// ----------------------------
 function getPreviousReposMenu() {
     const cfg = config.readConfig();
     const submenu = [];
@@ -175,6 +234,7 @@ function getPreviousReposMenu() {
         submenu.push({
             label: path.basename(repoPath),
             click: () => {
+                console.log('[Tray] Setting active project:', repoPath);
                 cfg.activeProject = repoPath;
                 config.writeConfig(cfg);
             }
@@ -183,166 +243,298 @@ function getPreviousReposMenu() {
 
     if (submenu.length === 0) {
         submenu.push({ label: 'No previous repos', enabled: false });
+        console.log('[Tray] No previous repos found');
     }
 
     return submenu;
 }
 
+// ----------------------------
+// Open Storage Folder
+// ----------------------------
 function openStorage() {
-    const activeProject = config.getActiveProject();
-    if (activeProject) {
-        const storagePath = activeProject.storagePath;
-        if (fs.existsSync(storagePath)) {
-            shell.openPath(storagePath);
+    try {
+        const activeProject = config.getActiveProject();
+        if (activeProject) {
+            const storagePath = activeProject.storagePath;
+            console.log('[Storage] Opening storage folder:', storagePath);
+            if (fs.existsSync(storagePath)) {
+                shell.openPath(storagePath);
+            } else {
+                console.warn('[Storage] Storage folder does not exist:', storagePath);
+                dialog.showErrorBox('Storage Not Found', 'Storage folder does not exist.');
+            }
         } else {
-            dialog.showErrorBox('Storage Not Found', 'Storage folder does not exist.');
+            console.warn('[Storage] No active project');
+            dialog.showErrorBox('No Active Project', 'Select a project first.');
         }
-    } else {
-        dialog.showErrorBox('No Active Project', 'Select a project first.');
+    } catch (err) {
+        console.error('[Error] openStorage failed:', err);
     }
 }
 
-/* ===========================
-   IPC Handlers
-=========================== */
+// ----------------------------
+// IPC Handlers
+// ----------------------------
 
-// 1️⃣ Select repo (updated to use userData storage)
+// Select repo
 ipcMain.handle('select-repo', async () => {
-    const result = await dialog.showOpenDialog({
-        properties: ['openDirectory']
-    });
-
-    if (result.canceled || !result.filePaths.length) return null;
-    const repoPath = result.filePaths[0];
-
-    const cfg = config.readConfig();
-    const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
-
-    // Save inside Electron userData folder
-    const userDataPath = app.getPath('userData');
-    const storagePath = path.join(userDataPath, storageName);
-
     try {
-        // Ensure base folder exists
+        console.log('[IPC] select-repo called');
+        const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+
+        if (result.canceled || !result.filePaths.length) {
+            console.log('[IPC] Repo selection cancelled');
+            return null;
+        }
+
+        const repoPath = result.filePaths[0];
+        console.log('[IPC] Repo selected:', repoPath);
+
+        const cfg = config.readConfig();
+        const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
+        const userDataPath = app.getPath('userData');
+        const storagePath = path.join(userDataPath, storageName);
+
+        // Create storage folders
         if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
-        // Ensure storage folder and subfolders exist
         if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
         ['Codes', 'Structures'].forEach(sub => {
             const subPath = path.join(storagePath, sub);
             if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
         });
+        console.log('[IPC] Storage folders ensured at:', storagePath);
+
+        // Update config
+        cfg.projects[repoPath] = {
+            storageName,
+            storagePath,
+            lastUsed: new Date().toISOString()
+        };
+        cfg.activeProject = repoPath;
+        config.writeConfig(cfg);
+        console.log('[IPC] Config updated for repo:', repoPath);
+
+        return repoPath;
     } catch (err) {
-        dialog.showErrorBox('Permission Error', `Cannot create storage folder:\n${storagePath}\n\n${err.message}`);
+        console.error('[IPC] select-repo error:', err);
+        dialog.showErrorBox('Select Repo Error', err.message);
         return null;
     }
-
-    // Add or update project in config
-    cfg.projects[repoPath] = {
-        storageName,
-        storagePath,
-        lastUsed: new Date().toISOString()
-    };
-
-    // Set active project
-    cfg.activeProject = repoPath;
-    config.writeConfig(cfg);
-
-    return repoPath;
 });
 
-// 2️⃣ Get folder tree
 ipcMain.handle('getFolderTree', async (event, repoPath) => {
-    if (!repoPath) return [];
+    try {
+        if (!repoPath) return [];
 
-    const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-    return fileOps.getFolderTree(repoPath, ignoreRules);
+        // No need to load repo-specific docignore anymore
+        const ignoreRules = []; // optional: load repo-specific rules if needed
+        const tree = fileOps.getFolderTree(repoPath, ignoreRules);
+        return tree;
+    } catch (err) {
+        console.error('[IPC] getFolderTree error:', err);
+        return [];
+    }
+});
+ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
+
+
+ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) => {
+    try {
+        console.log('[IPC] generate called:', { actionType, repoPath, itemsLength: items?.length, filePath });
+        if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
+
+        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+
+        // Ensure the directory of the output file exists
+        const outputDir = path.dirname(filePath);
+        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+        if (actionType === 'structure') {
+            console.log('[IPC] Generating structure...');
+            await fileOps.generateStructure(items, filePath, ignoreRules, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+                console.log(`[Progress] ${percent}%`);
+            });
+        } else if (actionType === 'code') {
+            console.log('[IPC] Generating code...');
+            await codeOps.generateCode(items, filePath, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+                console.log(`[Progress] ${percent}%`);
+            }, repoPath, ignoreRules);
+        }
+
+        console.log(`[IPC] Generation complete. Output at: ${filePath}`);
+        return true;
+    } catch (err) {
+        console.error('[IPC] generate error:', err);
+        dialog.showErrorBox('Generate Error', err.message);
+        return false;
+    }
 });
 
-// 3️⃣ Generate structure/code
-ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) => {
-    if (!repoPath || !items.length || !fileName) return;
+// ----------------------------
+// Open .docignore file
+// ----------------------------
+ipcMain.handle('open-docignore', async (event, repoPath) => {
+    try {
+        if (!repoPath) return false;
+        const docignoreFile = path.join(repoPath, '.docignore');
 
-    const activeProject = config.getActiveProject();
-    if (!activeProject) {
-        dialog.showErrorBox('Error', 'No active project found in config.');
-        return;
+        // If file doesn't exist, create empty
+        if (!fs.existsSync(docignoreFile)) {
+            fs.writeFileSync(docignoreFile, '# Add patterns to ignore files/folders\n', 'utf-8');
+        }
+
+        // Open with default editor
+        shell.openPath(docignoreFile);
+        console.log('[Main] .docignore opened:', docignoreFile);
+        return true;
+    } catch (err) {
+        console.error('[IPC] open-docignore error:', err);
+        return false;
     }
-
-    const storagePath = activeProject.storagePath;
-    const outputFolder = actionType === 'code'
-        ? path.join(storagePath, 'Codes')
-        : path.join(storagePath, 'Structures');
-
-    if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder, { recursive: true });
-
-    const outputFile = path.join(outputFolder, fileName);
-    const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-
-    if (actionType === 'structure') {
-        await fileOps.generateStructure(items, outputFile, ignoreRules, (percent) => {
-            mainWindow.webContents.send('progress-update', percent);
-        });
-    } else if (actionType === 'code') {
-        await codeOps.generateCode(items, outputFile, (percent) => {
-            mainWindow.webContents.send('progress-update', percent);
-        }, repoPath, ignoreRules);
-    }
-
-    return true;
 });
 
-// 4️⃣ Get .docignore rules
+
+// Get .docignore rules
 ipcMain.handle('get-docignore', async (event, repoPath) => {
-    if (!repoPath) return [];
-    return await docignoreUtils.getIgnoreRules(repoPath);
+    try {
+        console.log('[IPC] get-docignore called for:', repoPath);
+        if (!repoPath) return [];
+        return await docignoreUtils.getIgnoreRules(repoPath);
+    } catch (err) {
+        console.error('[IPC] get-docignore error:', err);
+        return [];
+    }
 });
 
+// Get active project
 ipcMain.handle('get-active-project', () => {
-    const activeProjectPath = config.readConfig().activeProject; // this is the real repo folder
-    if (!activeProjectPath) return null;
-
-    const projectData = config.readConfig().projects[activeProjectPath];
-    return {
-        repoPath: activeProjectPath,    // <-- real folder path
-        ...projectData
-    };
+    try {
+        console.log('[IPC] get-active-project called');
+        const activeProjectPath = config.readConfig().activeProject;
+        if (!activeProjectPath) return null;
+        const projectData = config.readConfig().projects[activeProjectPath];
+        console.log('[IPC] Active project data:', projectData);
+        return { repoPath: activeProjectPath, ...projectData };
+    } catch (err) {
+        console.error('[IPC] get-active-project error:', err);
+        return null;
+    }
 });
 
-
-// ✅ IPC: get last selected items
+// Get last selected items
 ipcMain.handle('get-last-selected', () => {
-    return config.getLastSelectedItems();
+    try {
+        const items = config.getLastSelectedItems();
+        console.log('[IPC] get-last-selected:', items);
+        return items;
+    } catch (err) {
+        console.error('[IPC] get-last-selected error:', err);
+        return [];
+    }
 });
 
-// ✅ IPC: save last selected items
+// Set last selected items
 ipcMain.handle('set-last-selected', (event, items) => {
-    config.setLastSelectedItems(items);
+    try {
+        console.log('[IPC] set-last-selected:', items);
+        config.setLastSelectedItems(items);
+    } catch (err) {
+        console.error('[IPC] set-last-selected error:', err);
+    }
+});
+
+ipcMain.handle('save-file-dialog', async (event, actionType) => {
+    const activeProject = config.getActiveProject();
+    if (!activeProject) return { filePath: null };
+
+    const defaultFolder = path.join(
+        activeProject.storagePath,
+        actionType === 'code' ? 'Codes' : 'Structures'
+    );
+
+    const result = await dialog.showSaveDialog({
+        title: 'Enter output file name',
+        defaultPath: path.join(defaultFolder, 'output.txt'),
+        buttonLabel: 'Save'
+    });
+
+    return { filePath: result.canceled ? null : result.filePath };
 });
 
 
 ------------------------------
 FILE: preload.js
 
+// preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+    // ------------------------
+    // Repo selection
+    // ------------------------
     selectRepo: () => ipcRenderer.invoke('select-repo'),
+
+    // ------------------------
+    // Folder tree
+    // ------------------------
     getFolderTree: (repoPath) => ipcRenderer.invoke('getFolderTree', repoPath),
-    generate: (actionType, repoPath, items, fileName, onProgress) => {
-        return ipcRenderer.invoke('generate', actionType, repoPath, items, fileName)
-            .then(() => { if (onProgress) onProgress(100); });
+
+    // ------------------------
+    // Generate structure/code
+    // ------------------------
+    generate: (actionType, repoPath, items, filePath) => {
+        return ipcRenderer.invoke('generate', actionType, repoPath, items, filePath);
     },
+
+    // ------------------------
+    // Open storage folder
+    // ------------------------
     openStorage: () => ipcRenderer.invoke('open-storage'),
-    onProgressUpdate: (callback) => ipcRenderer.on('progress-update', (event, percent) => callback(percent)),
+    openDocignore: (repoPath) => ipcRenderer.invoke('open-docignore', repoPath),
+    getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+    openGlobalDocignore: () => ipcRenderer.invoke('open-global-docignore'),
+
+    // ------------------------
+    // Progress updates
+    // ------------------------
+    onProgressUpdate: (callback) => {
+        ipcRenderer.removeAllListeners('progress-update'); // avoid duplicate callbacks
+        ipcRenderer.on('progress-update', (event, percent) => {
+            const validPercent = Math.min(Math.max(Math.round(percent), 0), 100);
+            callback(validPercent);
+        });
+    },
+
+    // ------------------------
+    // .docignore
+    // ------------------------
     getDocignore: (repoPath) => ipcRenderer.invoke('get-docignore', repoPath),
+
+    // ------------------------
+    // Last selected items
+    // ------------------------
     getLastSelected: () => ipcRenderer.invoke('get-last-selected'),
     setLastSelected: (items) => ipcRenderer.invoke('set-last-selected', items),
-    getActiveProject: () => ipcRenderer.invoke('get-active-project')
+
+    // ------------------------
+    // Active project
+    // ------------------------
+    getActiveProject: () => ipcRenderer.invoke('get-active-project'),
+
+    // ------------------------
+    // Save file dialog (new)
+    // ------------------------
+    saveFileDialog: (actionType) => ipcRenderer.invoke('save-file-dialog', actionType)
 });
 
 
 ------------------------------
 FILE: renderer\app.js
+
+import { renderTree } from '../utils/treeView.js';
 
 const selectRepoBtn = document.getElementById('selectRepoBtn');
 const activeRepoName = document.getElementById('activeRepoName');
@@ -352,220 +544,268 @@ const codeBtn = document.getElementById('codeBtn');
 const generateBtn = document.getElementById('generateBtn');
 const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
+const openStorageBtn = document.getElementById('openStorageBtn'); // new
 
 let selectedRepoPath = null;
 let selectedItems = [];
 let actionType = 'code';
 let cachedTree = null;
 
-// --------------------
 // UI setup
-// --------------------
 treeContainer.style.overflowY = 'auto';
 treeContainer.style.maxHeight = '80vh';
 generateBtn.disabled = true;
 
-// --------------------
+// ----------------------------
 // Progress listener
-// --------------------
+// ----------------------------
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
+    console.log(`[Progress] ${percent}%`);
 });
 
-// --------------------
+// ----------------------------
 // Helpers
-// --------------------
+// ----------------------------
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
+    console.log(`[UI] Active repo set to: ${name}`);
 }
+
+openStorageBtn.addEventListener('click', async () => {
+    try {
+        console.log('[UI] Open Storage clicked');
+        await window.electronAPI.openStorage();
+    } catch (err) {
+        console.error('[UI] Failed to open storage:', err);
+        alert('Failed to open storage. Check console for details.');
+    }
+});
 
 function updateGenerateState() {
     generateBtn.disabled = selectedItems.length === 0;
+    console.log(`[UI] Generate button ${generateBtn.disabled ? 'disabled' : 'enabled'}`);
 }
 
-function countFiles(node) {
-    if (node.type === 'file') return 1;
-    if (!node.children?.length) return 0;
-    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
-}
-
-// --------------------
-// Load last repo
-// --------------------
+// ----------------------------
+// Load last active repo
+// ----------------------------
 async function loadLastActiveRepo() {
-    const lastRepoPath = await window.electronAPI.getActiveProjectPath?.();
-    if (lastRepoPath) {
-        await loadRepo(lastRepoPath);
+    try {
+        console.log('[Init] Loading last active project...');
+        const project = await window.electronAPI.getActiveProject();
+        console.log('[Init] Last active project data:', project);
+
+        if (project?.repoPath) {
+            await loadRepo(project.repoPath);
+            selectedItems = project.lastSelectedItems || [];
+            console.log('[Init] Loaded last selected items:', selectedItems);
+        } else {
+            console.log('[Init] No last active project found.');
+        }
+    } catch (err) {
+        console.error('[Error] Failed to load last active project:', err);
     }
 }
 
-// --------------------
-// Repo selection
-// --------------------
+// ----------------------------
+// Select repo button
+// ----------------------------
 selectRepoBtn.addEventListener('click', async () => {
-    const repoPath = await window.electronAPI.selectRepo();
-    if (repoPath) {
-        await loadRepo(repoPath);
+    try {
+        console.log('[Action] Select repo clicked');
+        const repoPath = await window.electronAPI.selectRepo();
+        if (repoPath) {
+            console.log('[Action] Repo selected:', repoPath);
+            await loadRepo(repoPath);
+        } else {
+            console.log('[Action] Repo selection cancelled or invalid');
+        }
+    } catch (err) {
+        console.error('[Error] Selecting repo failed:', err);
+        alert('Error selecting repo. Check console for details.');
     }
 });
 
+// ----------------------------
+// Load a repo
+// ----------------------------
 async function loadRepo(repoPath) {
-    selectedRepoPath = repoPath;
+    try {
+        console.log('[LoadRepo] Loading repo:', repoPath);
 
-    const repoName = repoPath.split(/[/\\]/).pop();
-    updateActiveRepo(repoName);
+        selectedRepoPath = repoPath;
+        selectedItems = [];
+        await window.electronAPI.setLastSelected([]);
+        console.log('[LoadRepo] Cleared previous selections');
 
-    cachedTree = await window.electronAPI.getFolderTree(repoPath);
-    selectedItems = (await window.electronAPI.getLastSelected()) || [];
+        const repoName = repoPath.split(/[/\\]/).pop();
+        updateActiveRepo(repoName);
 
-    updateGenerateState();
-    displayTree(cachedTree, treeContainer, actionType);
+        cachedTree = await window.electronAPI.getFolderTree(repoPath);
+        console.log('[LoadRepo] Folder tree loaded:', cachedTree);
+
+        updateGenerateState();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Loading repo failed:', err);
+        alert('Failed to load repo. See console.');
+    }
 }
 
-// --------------------
-// Tree rendering
-// --------------------
-function displayTree(tree, container, mode) {
-    container.innerHTML = '';
+// ----------------------------
+// Display tree
+// ----------------------------
+function displayTree() {
+    try {
+        if (!cachedTree) {
+            console.log('[DisplayTree] No tree data to display');
+            treeContainer.textContent = 'No data available';
+            return;
+        }
+        console.log('[DisplayTree] Rendering tree...');
+        renderTree(cachedTree, treeContainer, selectedItems, actionType, toggleSelect);
+    } catch (err) {
+        console.error('[Error] Displaying tree failed:', err);
+    }
+}
 
-    function createNode(node) {
-        if (mode === 'structure' && node.type === 'file') return null;
-
-        const el = document.createElement('div');
-        el.classList.add('tree-node');
-        el.style.cursor = 'pointer';
-        el.style.paddingLeft = '16px';
-        el.style.userSelect = 'none';
-        el.style.fontSize = '14px';
-
-        if (node.type === 'file') el.classList.add('file');
+// ----------------------------
+// Selection logic
+// ----------------------------
+function toggleSelect(node) {
+    try {
+        if (!selectedRepoPath || !cachedTree) return;
 
         const isSelected = selectedItems.includes(node.path);
-        if (isSelected) el.classList.add('selected');
 
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            el.classList.add('folder-selected');
+        if (isSelected) {
+            selectedItems = selectedItems.filter(p => p !== node.path);
+            console.log('[Select] Deselected:', node.path);
+        } else {
+            selectedItems.push(node.path);
+            console.log('[Select] Selected:', node.path);
         }
 
-        let label = node.name;
+        window.electronAPI.setLastSelected(selectedItems);
+        updateGenerateState();
 
-        if (node.type === 'folder' && node.children?.length && mode !== 'structure') {
-            const fileCount = countFiles(node);
-            if (fileCount > 0) label += ` (${fileCount} files)`;
-        }
-
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            label += ' [ALL FILES]';
-        }
-
-        el.textContent = label;
-
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleSelect(node);
-        });
-
-        if (node.type === 'folder' && node.children?.length) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.classList.add('children');
-            childrenContainer.style.marginLeft = '16px';
-
-            node.children.forEach(child => {
-                const childNode = createNode(child);
-                if (childNode) childrenContainer.appendChild(childNode);
-            });
-
-            el.appendChild(childrenContainer);
-        }
-
-        return el;
-    }
-
-    tree.forEach(node => {
-        const n = createNode(node);
-        if (n) container.appendChild(n);
-    });
-}
-
-// --------------------
-// Selection logic
-// --------------------
-function toggleSelect(node) {
-    if (!selectedRepoPath) return;
-
-    const isSelected = selectedItems.includes(node.path);
-
-    if (isSelected) {
-        selectedItems = selectedItems.filter(p => p !== node.path);
-    } else {
-        selectedItems.push(node.path);
-    }
-
-    window.electronAPI.setLastSelected(selectedItems);
-    updateGenerateState();
-
-    // Re-render from cache to update labels
-    if (node.type === 'folder' && actionType === 'code') {
-        displayTree(cachedTree, treeContainer, actionType);
+        if (node.type === 'folder' && actionType === 'code') displayTree();
+    } catch (err) {
+        console.error('[Error] toggleSelect failed:', err);
     }
 }
 
-// --------------------
+// ----------------------------
 // Mode switching
-// --------------------
+// ----------------------------
 function resetSelection() {
-    selectedItems = [];
-    window.electronAPI.setLastSelected([]);
-    updateGenerateState();
+    try {
+        selectedItems = [];
+        window.electronAPI.setLastSelected([]);
+        updateGenerateState();
+        console.log('[UI] Selection reset');
+    } catch (err) {
+        console.error('[Error] resetSelection failed:', err);
+    }
 }
 
-structureBtn.addEventListener('click', async () => {
-    actionType = 'structure';
-    resetSelection();
-
-    if (!selectedRepoPath) return;
-    displayTree(cachedTree, treeContainer, actionType);
-});
-
-codeBtn.addEventListener('click', async () => {
-    actionType = 'code';
-    resetSelection();
-
-    if (!selectedRepoPath) return;
-    displayTree(cachedTree, treeContainer, actionType);
-});
-
-// --------------------
-// Generate
-// --------------------
-generateBtn.addEventListener('click', async () => {
-    if (!selectedRepoPath || !selectedItems.length) {
-        return alert('Select repo and items first!');
+structureBtn.addEventListener('click', () => {
+    try {
+        console.log('[Action] Switch to structure mode');
+        actionType = 'structure';
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Switching to structure mode failed:', err);
     }
-
-    const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
-    if (!fileName) return;
-
-    progressBar.value = 0;
-    progressText.textContent = '0%';
-
-    await window.electronAPI.generate(
-        actionType,
-        selectedRepoPath,
-        selectedItems,
-        fileName
-    );
-
-    alert('Done!');
-    resetSelection();
-    displayTree(cachedTree, treeContainer, actionType);
 });
 
-// --------------------
+const editDocignoreBtn = document.getElementById('editDocignoreBtn');
+
+// ----------------------------
+// Edit .docignore button
+// ----------------------------
+// ----------------------------
+// Edit .docignore button (updated)
+// ----------------------------
+editDocignoreBtn.addEventListener('click', async () => {
+    try {
+        console.log('[UI] Edit Global .docignore clicked');
+
+        const result = await window.electronAPI.openGlobalDocignore();
+
+        if (result) {
+            console.log('[UI] Global .docignore opened successfully');
+        } else {
+            console.warn('[UI] Failed to open global .docignore');
+            alert('Failed to open global ignore file. Check console.');
+        }
+    } catch (err) {
+        console.error('[UI] Error opening global .docignore:', err);
+        alert('Error opening global ignore file. Check console.');
+    }
+});
+
+
+
+
+codeBtn.addEventListener('click', () => {
+    try {
+        console.log('[Action] Switch to code mode');
+        actionType = 'code';
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Switching to code mode failed:', err);
+    }
+});
+
+// ----------------------------
+// Generate
+// ----------------------------
+generateBtn.addEventListener('click', async () => {
+    try {
+        if (!selectedRepoPath || !selectedItems.length) {
+            console.log('[Generate] No repo or items selected');
+            return alert('Select repo and items first!');
+        }
+
+        // Step 1: Show save file dialog
+        const { filePath } = await window.electronAPI.saveFileDialog(actionType);
+        if (!filePath) {
+            console.log('[Generate] User cancelled file save dialog');
+            return;
+        }
+
+        // Step 2: Reset progress
+        progressBar.value = 0;
+        progressText.textContent = '0%';
+
+        // Step 3: Generate
+        console.log(`[Generate] Generating ${actionType} for ${selectedItems.length} items to "${filePath}"`);
+        const result = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, filePath);
+
+        console.log('[Generate] Generation result:', result);
+
+        alert('Done!');
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Generation failed:', err);
+        alert('Generation failed. Check console for details.');
+    }
+});
+
+
+// ----------------------------
 // Init
-// --------------------
-window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
+// ----------------------------
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('[Init] DOM loaded');
+    loadLastActiveRepo();
+});
 
 
 ------------------------------
@@ -584,32 +824,36 @@ FILE: renderer\index.html
     <h1>Helper Tool</h1>
 
     <!-- Repo selection -->
-    <div class="section">
+    <div class="section repo-selection">
       <button id="selectRepoBtn">Select Repo</button>
       <span id="activeRepoName">No repo selected</span>
     </div>
 
     <!-- Tree view -->
-    <div class="section">
+    <div class="section tree-view">
       <h2>Project Tree</h2>
       <div id="treeContainer">Select a repo to view files</div>
     </div>
 
-    <!-- Action buttons -->
-    <div class="section">
-      <button id="structureBtn" class="action-btn">Structure</button>
-      <button id="codeBtn" class="action-btn">Code</button>
-      <button id="generateBtn" class="action-btn">Done / Generate</button>
-    </div>
+<!-- Action buttons -->
+<div class="section actions">
+  <button id="structureBtn" class="action-btn">Structure</button>
+  <button id="codeBtn" class="action-btn">Code</button>
+  <button id="generateBtn" class="action-btn">Done / Generate</button>
+  <button id="editDocignoreBtn" class="action-btn">Edit .docignore</button>
+  <button id="openStorageBtn" class="action-btn">Open Storage</button> <!-- NEW -->
+</div>
+
 
     <!-- Progress -->
-    <div class="section">
+    <div class="section progress-section">
       <progress id="progressBar" value="0" max="100"></progress>
       <span id="progressText">0%</span>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- App logic -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>
 
@@ -617,7 +861,9 @@ FILE: renderer\index.html
 ------------------------------
 FILE: renderer\style.css
 
-/* Reset some default styles */
+/* -----------------------------
+   Reset & Base Styles
+----------------------------- */
 * {
   margin: 0;
   padding: 0;
@@ -625,7 +871,6 @@ FILE: renderer\style.css
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Body styling */
 body {
   background-color: #f5f6fa;
   color: #333;
@@ -633,35 +878,51 @@ body {
   justify-content: center;
   align-items: flex-start;
   min-height: 100vh;
-  padding: 40px 20px;
+  padding: 10px;
 }
 
-/* App container */
 #app {
   background-color: #fff;
-  padding: 30px 40px;
+  padding: 20px;
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-  width: 100%;
-  max-width: 600px;
+  width: 95%;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Main title */
+/* -----------------------------
+   Titles & Sections
+----------------------------- */
 #app h1 {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
   font-size: 2rem;
   color: #2f3640;
 }
 
-/* Section styling */
 .section {
-  margin-bottom: 25px;
+  margin-bottom: 20px;
 }
 
-/* Buttons */
+.section h2 {
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #2d3436;
+}
+
+#activeRepoName {
+  margin-left: 10px;
+  font-weight: 500;
+  color: #636e72;
+}
+
+/* -----------------------------
+   Buttons
+----------------------------- */
 button {
-  padding: 10px 20px;
+  padding: 10px 18px;
   border: none;
   border-radius: 6px;
   background-color: #0984e3;
@@ -669,6 +930,7 @@ button {
   cursor: pointer;
   font-size: 1rem;
   transition: background-color 0.2s ease, transform 0.1s ease;
+  margin-right: 10px;
 }
 
 button:hover {
@@ -680,51 +942,132 @@ button:active {
   transform: translateY(0);
 }
 
-/* Action buttons spacing */
+button:disabled {
+  background-color: #b2bec3;
+  cursor: not-allowed;
+}
+
 .action-btn {
   margin-right: 10px;
 }
 
-/* Active repo text */
-#activeRepoName {
-  margin-left: 15px;
+/* -----------------------------
+   Tree Container
+----------------------------- */
+#treeContainer {
+  flex: 1;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  font-family: monospace;
+}
+
+/* -----------------------------
+   Tree Node Base
+----------------------------- */
+.tree-node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 2px 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  user-select: none;
+  padding: 4px 6px;
+}
+
+/* Folder / File types */
+.tree-node.folder {
   font-weight: 500;
+  color: #0984e3;
+}
+.tree-node.file {
+  font-size: 0.9em;
   color: #636e72;
 }
 
-/* Tree container */
-#treeContainer {
-  margin-top: 10px;
-  padding: 15px;
-  background-color: #dfe6e9;
-  border-radius: 8px;
-  min-height: 100px;
-  overflow-y: auto;
-  font-family: monospace;
-  font-size: 0.95rem;
+/* Folder icons */
+.tree-node.folder::before {
+  content: "📁 ";
+}
+.tree-node.folder.folder-open::before {
+  content: "📂 ";
 }
 
-/* Progress bar container */
+/* File icon */
+.tree-node.file::before {
+  content: "📄 ";
+}
+
+/* Hover */
+.tree-node:hover {
+  background-color: #dfe6e9;
+}
+
+/* Selected Highlights */
+.tree-node.folder.selected {
+  background-color: #74b9ff;
+  color: #fff;
+  font-weight: bold;
+}
+.tree-node.folder.folder-selected {
+  background-color: #d0f0d0;
+  color: #00b894;
+  font-weight: bold;
+}
+.tree-node.file.file-selected {
+  background-color: #ffeaa7;
+  color: #2d3436;
+  font-weight: bold;
+}
+
+/* -----------------------------
+   Children Layout (Horizontal)
+----------------------------- */
+.children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: 20px;
+}
+
+.children .tree-node.file {
+  flex: 1 1 100px; /* Each file takes 1 space, min 100px */
+  padding: 6px;
+  border-radius: 6px;
+  text-align: center;
+  background-color: #fafafa;
+  transition: all 0.2s ease;
+}
+
+.children .tree-node.folder {
+  flex: 1 1 auto;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+
+/* Collapsed */
+.children.collapsed {
+  display: none;
+}
+
+/* -----------------------------
+   Progress Bar
+----------------------------- */
 progress {
   width: 100%;
   height: 20px;
-  -webkit-appearance: none;
-  appearance: none;
   border-radius: 10px;
   overflow: hidden;
+  margin-top: 5px;
 }
-
-progress::-webkit-progress-bar {
-  background-color: #dfe6e9;
-}
-
-progress::-webkit-progress-value {
-  background-color: #00b894;
-}
-
-progress::-moz-progress-bar {
-  background-color: #00b894;
-}
+progress::-webkit-progress-bar { background: #dfe6e9; }
+progress::-webkit-progress-value { background: #00b894; }
+progress::-moz-progress-bar { background: #00b894; }
 
 #progressText {
   display: inline-block;
@@ -733,71 +1076,24 @@ progress::-moz-progress-bar {
   color: #2d3436;
 }
 
-/* Responsive tweaks */
-@media (max-width: 480px) {
-  #app {
-    padding: 20px;
+/* -----------------------------
+   Responsive
+----------------------------- */
+@media (max-width: 768px) {
+  #treeContainer {
+    flex-direction: column;
   }
-
+  .children {
+    flex-direction: column;
+  }
   button {
     width: 100%;
     margin-bottom: 10px;
   }
-
   .action-btn {
     margin-right: 0;
   }
 }
-
-/* style.css */
-
-/* General tree container */
-#treeContainer {
-  font-family: monospace;
-  white-space: pre;
-  border: 1px solid #ccc;
-  padding: 8px;
-  max-height: 400px;
-  overflow-y: auto;
-  background: #f9f9f9;
-}
-
-/* Each node */
-.tree-node {
-  padding: 2px 4px;
-  border-radius: 4px;
-  margin: 1px 0;
-}
-
-/* Hover effect */
-.tree-node:hover {
-  background-color: #eef;
-}
-
-/* Children nodes */
-.children {
-  margin-left: 16px; /* Indent children */
-}
-
-/* Selected node */
-.tree-node.selected {
-  background-color: #d0f0d0;
-  font-weight: bold;
-}
-
-/* Files smaller than folders */
-.tree-node.file {
-  font-size: 0.9em;
-}
-
-.tree-node.selected {
-  background-color: #d0f0d0;
-}
-
-.tree-node.folder-selected {
-  font-weight: bold;
-}
-
 
 
 ------------------------------
@@ -808,7 +1104,7 @@ const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
- * Recursively collect all file paths from a folder, respecting ignore rules
+ * Recursively collect files from folder respecting ignore rules
  */
 function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
     let files = [];
@@ -817,7 +1113,6 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
     const items = fs.readdirSync(folderPath, { withFileTypes: true });
     for (const item of items) {
         const fullPath = path.join(folderPath, item.name);
-
         if (isIgnored(fullPath, repoRoot, ignoreRules)) continue;
 
         if (item.isDirectory()) {
@@ -826,17 +1121,16 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
             files.push(fullPath);
         }
     }
-
     return files;
 }
 
 /**
- * Generate code file by combining multiple selected folders/files
- * @param {Array<string>} selectedItems - files or folders
+ * Generate combined code output
+ * @param {string[]} selectedItems
  * @param {string} outputFile
- * @param {Function} onProgress - callback(percent)
- * @param {string} repoRoot - repo root path
- * @param {Array<string>} ignoreRules - optional ignore rules
+ * @param {function(number):void} onProgress
+ * @param {string} repoRoot
+ * @param {string[]} ignoreRules
  */
 async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules = []) {
     if (!selectedItems.length) return;
@@ -862,10 +1156,7 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}, re
     writeStream.close();
 }
 
-
-module.exports = {
-    generateCode
-};
+module.exports = { generateCode };
 
 
 ------------------------------
@@ -873,35 +1164,71 @@ FILE: utils\docignore.js
 
 const fs = require('fs');
 const path = require('path');
-const micromatch = require('micromatch'); // npm install micromatch
+const micromatch = require('micromatch');
+const { app } = require('electron');
+
+const globalIgnorePath = path.join(app.getPath('userData'), 'global-docignore.json');
 
 /**
- * Read .docignore file from repo
- * @param {string} repoPath - path to the repo
- * @returns {Promise<string[]>} - array of patterns to ignore
+ * Get global ignore rules
+ * @returns {string[]}
+ */
+function getGlobalIgnoreRules() {
+    if (!fs.existsSync(globalIgnorePath)) return [];
+    try {
+        const data = fs.readFileSync(globalIgnorePath, 'utf-8');
+        console.log('[Docignore] Global ignore rules loaded:', data);
+        return JSON.parse(data);
+    } catch (err) {
+        console.error('[Docignore] Failed to read global ignore:', err);
+        return [];
+    }
+}
+
+/**
+ * Get combined ignore rules for a repo (global + optional repo-specific)
+ * @param {string} repoPath
+ * @returns {Promise<string[]>}
  */
 async function getIgnoreRules(repoPath) {
-    const cfg = path.join(repoPath, '.docignore');
-    if (!fs.existsSync(cfg)) return [];
-    return fs.readFileSync(cfg, 'utf-8')
-        .split(/\r?\n/)
-        .map(l => l.trim())
-        .filter(l => l && !l.startsWith('#'));
-}
+    try {
+        let repoRules = [];
+        const repoIgnoreFile = path.join(repoPath, '.docignore');
 
+        if (fs.existsSync(repoIgnoreFile)) {
+            const data = fs.readFileSync(repoIgnoreFile, 'utf-8');
+            try {
+                repoRules = JSON.parse(data);
+            } catch (err) {
+                console.warn('[Docignore] Failed to parse repo .docignore, skipping:', err.message);
+            }
+        }
+
+        const combinedRules = [...getGlobalIgnoreRules(), ...repoRules];
+        console.log('[Docignore] Combined ignore rules for', repoPath, combinedRules);
+        return combinedRules;
+    } catch (err) {
+        console.error('[Docignore] getIgnoreRules error:', err);
+        return [];
+    }
+}
 
 /**
- * Check if a given file/folder path should be ignored
- * @param {string} fullPath - absolute path of file/folder
- * @param {string} repoPath - root repo path
- * @param {Array<string>} ignoreRules - array of patterns from getIgnoreRules
- * @returns {boolean}
+ * Check if a file/folder is ignored
+ * @param {string} fullPath
+ * @param {string} repoPath
+ * @param {string[]} extraRules Optional extra rules (repo-specific)
  */
-function isIgnored(fullPath, repoPath, ignoreRules) {
+function isIgnored(fullPath, repoPath, extraRules = []) {
     const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
-    return micromatch.isMatch(relPath, ignoreRules, { dot: true });
+    const rules = [...getGlobalIgnoreRules(), ...extraRules];
+    const ignored = micromatch.isMatch(relPath, rules, { dot: true });
+    // debug log
+    if (ignored) console.log('[Docignore] Ignored:', relPath);
+    return ignored;
 }
-module.exports = { getIgnoreRules, isIgnored };
+
+module.exports = { isIgnored, getGlobalIgnoreRules, getIgnoreRules };
 
 
 ------------------------------
@@ -911,35 +1238,48 @@ const fs = require('fs');
 const path = require('path');
 const { isIgnored } = require('./docignore');
 
+/**
+ * Get folder tree structure for tree view
+ */
 function getFolderTree(dir, ignoreRules = [], repoRoot = dir) {
     return fs.readdirSync(dir, { withFileTypes: true })
         .filter(f => !isIgnored(path.join(dir, f.name), repoRoot, ignoreRules))
         .map(f => f.isDirectory()
-            ? { name: f.name, path: path.join(dir, f.name), type: 'folder', children: getFolderTree(path.join(dir, f.name), ignoreRules, repoRoot) }
+            ? { 
+                name: f.name, 
+                path: path.join(dir, f.name), 
+                type: 'folder', 
+                children: getFolderTree(path.join(dir, f.name), ignoreRules, repoRoot) 
+              }
             : { name: f.name, path: path.join(dir, f.name), type: 'file' }
         );
 }
 
+/**
+ * Generate folder structure output (text)
+ */
 async function generateStructure(selectedPaths, outputFile, ignoreRules = [], progressCallback = () => {}) {
-    let output = '';
+    const outputLines = [];
     const allItems = [];
 
-    function collect(p, repoRoot) {
+    function collect(p, repoRoot, depth = 0) {
         if (isIgnored(p, repoRoot, ignoreRules)) return;
-        allItems.push(p);
-        if (fs.statSync(p).isDirectory())
-            fs.readdirSync(p).forEach(c => collect(path.join(p, c), repoRoot));
+        allItems.push({ path: p, depth });
+        if (fs.statSync(p).isDirectory()) {
+            fs.readdirSync(p).forEach(c => collect(path.join(p, c), repoRoot, depth + 1));
+        }
     }
 
     selectedPaths.forEach(p => collect(p, p));
 
-    allItems.forEach((p, idx) => {
-        const stat = fs.statSync(p);
-        output += `${'  '.repeat(p.split(path.sep).length)}${path.basename(p)}${stat.isDirectory() ? '/' : ''}\n`;
+    allItems.forEach((item, idx) => {
+        const stat = fs.statSync(item.path);
+        const prefix = '  '.repeat(item.depth);
+        outputLines.push(`${prefix}${path.basename(item.path)}${stat.isDirectory() ? '/' : ''}`);
         progressCallback(Math.round(((idx + 1) / allItems.length) * 100));
     });
 
-    fs.writeFileSync(outputFile, output, 'utf-8');
+    fs.writeFileSync(outputFile, outputLines.join('\n'), 'utf-8');
 }
 
 module.exports = { getFolderTree, generateStructure };
@@ -948,5 +1288,134 @@ module.exports = { getFolderTree, generateStructure };
 ------------------------------
 FILE: utils\treeView.js
 
+/**
+ * Tree View Renderer
+ * -----------------
+ * - Shows folders always
+ * - Files shown in code mode
+ * - Click to select folders/files
+ * - Folder selection in code mode = all files inside selected recursively
+ * - Highlights selected items
+ * - Displays children in horizontal rows (flex)
+ */
+export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
+    container.innerHTML = '';
+
+    // Store expanded/collapsed folder state
+    const expandedFolders = new WeakMap();
+
+    // Recursively get all files under a folder
+    function getAllFiles(node) {
+        if (node.type === 'file') return [node];
+        if (!node.children?.length) return [];
+        return node.children.flatMap(getAllFiles);
+    }
+
+    function createNode(node) {
+        // In structure mode, skip files
+        if (actionType === 'structure' && node.type === 'file') return null;
+
+        const el = document.createElement('div');
+        el.classList.add('tree-node');
+        if (node.type === 'file') el.classList.add('file');
+        else el.classList.add('folder');
+
+        // Determine if node is selected
+        const isSelected = selectedItems.includes(node.path);
+
+        // Apply highlight
+        if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
+        else if (node.type === 'file' && isSelected) el.classList.add('file-selected');
+        else if (node.type === 'folder' && isSelected) el.classList.add('selected');
+
+        // Label
+        let label = node.name;
+        if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
+            const fileCount = countFiles(node);
+            if (fileCount > 0) label += ` (${fileCount} files)`;
+        }
+        if (node.type === 'folder' && actionType === 'code' && isSelected) label += ' [ALL FILES]';
+        el.textContent = label;
+
+        // Children container
+        let childrenContainer;
+        if (node.type === 'folder' && node.children?.length) {
+            childrenContainer = document.createElement('div');
+            childrenContainer.classList.add('children');
+            // Use flex + wrap for horizontal layout
+            childrenContainer.style.display = expandedFolders.get(node) ? 'flex' : 'none';
+            childrenContainer.style.flexWrap = 'wrap';
+            childrenContainer.style.gap = '8px';
+            childrenContainer.style.marginLeft = '20px';
+
+            node.children.forEach(child => {
+                const childNode = createNode(child);
+                if (childNode) childrenContainer.appendChild(childNode);
+            });
+
+            el.appendChild(childrenContainer);
+        }
+
+        // Click logic
+        el.addEventListener('click', e => {
+            e.stopPropagation();
+
+            // Toggle selection
+            if (node.type === 'file') {
+                const index = selectedItems.indexOf(node.path);
+                if (index === -1) selectedItems.push(node.path);
+                else selectedItems.splice(index, 1);
+            } else if (node.type === 'folder') {
+                if (actionType === 'code') {
+                    const allFiles = getAllFiles(node);
+                    const allSelected = allFiles.every(f => selectedItems.includes(f.path));
+                    if (allSelected) {
+                        allFiles.forEach(f => {
+                            const idx = selectedItems.indexOf(f.path);
+                            if (idx !== -1) selectedItems.splice(idx, 1);
+                        });
+                    } else {
+                        allFiles.forEach(f => {
+                            if (!selectedItems.includes(f.path)) selectedItems.push(f.path);
+                        });
+                    }
+                } else {
+                    // Structure mode: toggle folder only
+                    const idx = selectedItems.indexOf(node.path);
+                    if (idx === -1) selectedItems.push(node.path);
+                    else selectedItems.splice(idx, 1);
+                }
+            }
+
+            // Folder expand/collapse
+            if (node.type === 'folder') {
+                const isExpanded = expandedFolders.get(node) || false;
+                expandedFolders.set(node, !isExpanded);
+                if (childrenContainer) childrenContainer.style.display = !isExpanded ? 'flex' : 'none';
+                el.classList.toggle('folder-open', !isExpanded);
+            }
+
+            // Force re-render to update highlights
+            renderTree(treeData, container, selectedItems, actionType, onToggle);
+
+            // Trigger callback
+            if (onToggle) onToggle(node);
+        });
+
+        return el;
+    }
+
+    treeData.forEach(node => {
+        const n = createNode(node);
+        if (n) container.appendChild(n);
+    });
+}
+
+// Count files recursively
+function countFiles(node) {
+    if (node.type === 'file') return 1;
+    if (!node.children?.length) return 0;
+    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
+}
 
 

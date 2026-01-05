@@ -1,6 +1,8 @@
 ------------------------------
 FILE: app.js
 
+import { renderTree } from '../utils/treeView.js';
+
 const selectRepoBtn = document.getElementById('selectRepoBtn');
 const activeRepoName = document.getElementById('activeRepoName');
 const treeContainer = document.getElementById('treeContainer');
@@ -9,220 +11,268 @@ const codeBtn = document.getElementById('codeBtn');
 const generateBtn = document.getElementById('generateBtn');
 const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
+const openStorageBtn = document.getElementById('openStorageBtn'); // new
 
 let selectedRepoPath = null;
 let selectedItems = [];
 let actionType = 'code';
 let cachedTree = null;
 
-// --------------------
 // UI setup
-// --------------------
 treeContainer.style.overflowY = 'auto';
 treeContainer.style.maxHeight = '80vh';
 generateBtn.disabled = true;
 
-// --------------------
+// ----------------------------
 // Progress listener
-// --------------------
+// ----------------------------
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
+    console.log(`[Progress] ${percent}%`);
 });
 
-// --------------------
+// ----------------------------
 // Helpers
-// --------------------
+// ----------------------------
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
+    console.log(`[UI] Active repo set to: ${name}`);
 }
+
+openStorageBtn.addEventListener('click', async () => {
+    try {
+        console.log('[UI] Open Storage clicked');
+        await window.electronAPI.openStorage();
+    } catch (err) {
+        console.error('[UI] Failed to open storage:', err);
+        alert('Failed to open storage. Check console for details.');
+    }
+});
 
 function updateGenerateState() {
     generateBtn.disabled = selectedItems.length === 0;
+    console.log(`[UI] Generate button ${generateBtn.disabled ? 'disabled' : 'enabled'}`);
 }
 
-function countFiles(node) {
-    if (node.type === 'file') return 1;
-    if (!node.children?.length) return 0;
-    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
-}
-
-// --------------------
-// Load last repo
-// --------------------
+// ----------------------------
+// Load last active repo
+// ----------------------------
 async function loadLastActiveRepo() {
-    const lastRepoPath = await window.electronAPI.getActiveProjectPath?.();
-    if (lastRepoPath) {
-        await loadRepo(lastRepoPath);
+    try {
+        console.log('[Init] Loading last active project...');
+        const project = await window.electronAPI.getActiveProject();
+        console.log('[Init] Last active project data:', project);
+
+        if (project?.repoPath) {
+            await loadRepo(project.repoPath);
+            selectedItems = project.lastSelectedItems || [];
+            console.log('[Init] Loaded last selected items:', selectedItems);
+        } else {
+            console.log('[Init] No last active project found.');
+        }
+    } catch (err) {
+        console.error('[Error] Failed to load last active project:', err);
     }
 }
 
-// --------------------
-// Repo selection
-// --------------------
+// ----------------------------
+// Select repo button
+// ----------------------------
 selectRepoBtn.addEventListener('click', async () => {
-    const repoPath = await window.electronAPI.selectRepo();
-    if (repoPath) {
-        await loadRepo(repoPath);
+    try {
+        console.log('[Action] Select repo clicked');
+        const repoPath = await window.electronAPI.selectRepo();
+        if (repoPath) {
+            console.log('[Action] Repo selected:', repoPath);
+            await loadRepo(repoPath);
+        } else {
+            console.log('[Action] Repo selection cancelled or invalid');
+        }
+    } catch (err) {
+        console.error('[Error] Selecting repo failed:', err);
+        alert('Error selecting repo. Check console for details.');
     }
 });
 
+// ----------------------------
+// Load a repo
+// ----------------------------
 async function loadRepo(repoPath) {
-    selectedRepoPath = repoPath;
+    try {
+        console.log('[LoadRepo] Loading repo:', repoPath);
 
-    const repoName = repoPath.split(/[/\\]/).pop();
-    updateActiveRepo(repoName);
+        selectedRepoPath = repoPath;
+        selectedItems = [];
+        await window.electronAPI.setLastSelected([]);
+        console.log('[LoadRepo] Cleared previous selections');
 
-    cachedTree = await window.electronAPI.getFolderTree(repoPath);
-    selectedItems = (await window.electronAPI.getLastSelected()) || [];
+        const repoName = repoPath.split(/[/\\]/).pop();
+        updateActiveRepo(repoName);
 
-    updateGenerateState();
-    displayTree(cachedTree, treeContainer, actionType);
+        cachedTree = await window.electronAPI.getFolderTree(repoPath);
+        console.log('[LoadRepo] Folder tree loaded:', cachedTree);
+
+        updateGenerateState();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Loading repo failed:', err);
+        alert('Failed to load repo. See console.');
+    }
 }
 
-// --------------------
-// Tree rendering
-// --------------------
-function displayTree(tree, container, mode) {
-    container.innerHTML = '';
+// ----------------------------
+// Display tree
+// ----------------------------
+function displayTree() {
+    try {
+        if (!cachedTree) {
+            console.log('[DisplayTree] No tree data to display');
+            treeContainer.textContent = 'No data available';
+            return;
+        }
+        console.log('[DisplayTree] Rendering tree...');
+        renderTree(cachedTree, treeContainer, selectedItems, actionType, toggleSelect);
+    } catch (err) {
+        console.error('[Error] Displaying tree failed:', err);
+    }
+}
 
-    function createNode(node) {
-        if (mode === 'structure' && node.type === 'file') return null;
-
-        const el = document.createElement('div');
-        el.classList.add('tree-node');
-        el.style.cursor = 'pointer';
-        el.style.paddingLeft = '16px';
-        el.style.userSelect = 'none';
-        el.style.fontSize = '14px';
-
-        if (node.type === 'file') el.classList.add('file');
+// ----------------------------
+// Selection logic
+// ----------------------------
+function toggleSelect(node) {
+    try {
+        if (!selectedRepoPath || !cachedTree) return;
 
         const isSelected = selectedItems.includes(node.path);
-        if (isSelected) el.classList.add('selected');
 
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            el.classList.add('folder-selected');
+        if (isSelected) {
+            selectedItems = selectedItems.filter(p => p !== node.path);
+            console.log('[Select] Deselected:', node.path);
+        } else {
+            selectedItems.push(node.path);
+            console.log('[Select] Selected:', node.path);
         }
 
-        let label = node.name;
+        window.electronAPI.setLastSelected(selectedItems);
+        updateGenerateState();
 
-        if (node.type === 'folder' && node.children?.length && mode !== 'structure') {
-            const fileCount = countFiles(node);
-            if (fileCount > 0) label += ` (${fileCount} files)`;
-        }
-
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            label += ' [ALL FILES]';
-        }
-
-        el.textContent = label;
-
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleSelect(node);
-        });
-
-        if (node.type === 'folder' && node.children?.length) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.classList.add('children');
-            childrenContainer.style.marginLeft = '16px';
-
-            node.children.forEach(child => {
-                const childNode = createNode(child);
-                if (childNode) childrenContainer.appendChild(childNode);
-            });
-
-            el.appendChild(childrenContainer);
-        }
-
-        return el;
-    }
-
-    tree.forEach(node => {
-        const n = createNode(node);
-        if (n) container.appendChild(n);
-    });
-}
-
-// --------------------
-// Selection logic
-// --------------------
-function toggleSelect(node) {
-    if (!selectedRepoPath) return;
-
-    const isSelected = selectedItems.includes(node.path);
-
-    if (isSelected) {
-        selectedItems = selectedItems.filter(p => p !== node.path);
-    } else {
-        selectedItems.push(node.path);
-    }
-
-    window.electronAPI.setLastSelected(selectedItems);
-    updateGenerateState();
-
-    // Re-render from cache to update labels
-    if (node.type === 'folder' && actionType === 'code') {
-        displayTree(cachedTree, treeContainer, actionType);
+        if (node.type === 'folder' && actionType === 'code') displayTree();
+    } catch (err) {
+        console.error('[Error] toggleSelect failed:', err);
     }
 }
 
-// --------------------
+// ----------------------------
 // Mode switching
-// --------------------
+// ----------------------------
 function resetSelection() {
-    selectedItems = [];
-    window.electronAPI.setLastSelected([]);
-    updateGenerateState();
+    try {
+        selectedItems = [];
+        window.electronAPI.setLastSelected([]);
+        updateGenerateState();
+        console.log('[UI] Selection reset');
+    } catch (err) {
+        console.error('[Error] resetSelection failed:', err);
+    }
 }
 
-structureBtn.addEventListener('click', async () => {
-    actionType = 'structure';
-    resetSelection();
-
-    if (!selectedRepoPath) return;
-    displayTree(cachedTree, treeContainer, actionType);
-});
-
-codeBtn.addEventListener('click', async () => {
-    actionType = 'code';
-    resetSelection();
-
-    if (!selectedRepoPath) return;
-    displayTree(cachedTree, treeContainer, actionType);
-});
-
-// --------------------
-// Generate
-// --------------------
-generateBtn.addEventListener('click', async () => {
-    if (!selectedRepoPath || !selectedItems.length) {
-        return alert('Select repo and items first!');
+structureBtn.addEventListener('click', () => {
+    try {
+        console.log('[Action] Switch to structure mode');
+        actionType = 'structure';
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Switching to structure mode failed:', err);
     }
-
-    const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
-    if (!fileName) return;
-
-    progressBar.value = 0;
-    progressText.textContent = '0%';
-
-    await window.electronAPI.generate(
-        actionType,
-        selectedRepoPath,
-        selectedItems,
-        fileName
-    );
-
-    alert('Done!');
-    resetSelection();
-    displayTree(cachedTree, treeContainer, actionType);
 });
 
-// --------------------
+const editDocignoreBtn = document.getElementById('editDocignoreBtn');
+
+// ----------------------------
+// Edit .docignore button
+// ----------------------------
+// ----------------------------
+// Edit .docignore button (updated)
+// ----------------------------
+editDocignoreBtn.addEventListener('click', async () => {
+    try {
+        console.log('[UI] Edit Global .docignore clicked');
+
+        const result = await window.electronAPI.openGlobalDocignore();
+
+        if (result) {
+            console.log('[UI] Global .docignore opened successfully');
+        } else {
+            console.warn('[UI] Failed to open global .docignore');
+            alert('Failed to open global ignore file. Check console.');
+        }
+    } catch (err) {
+        console.error('[UI] Error opening global .docignore:', err);
+        alert('Error opening global ignore file. Check console.');
+    }
+});
+
+
+
+
+codeBtn.addEventListener('click', () => {
+    try {
+        console.log('[Action] Switch to code mode');
+        actionType = 'code';
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Switching to code mode failed:', err);
+    }
+});
+
+// ----------------------------
+// Generate
+// ----------------------------
+generateBtn.addEventListener('click', async () => {
+    try {
+        if (!selectedRepoPath || !selectedItems.length) {
+            console.log('[Generate] No repo or items selected');
+            return alert('Select repo and items first!');
+        }
+
+        // Step 1: Show save file dialog
+        const { filePath } = await window.electronAPI.saveFileDialog(actionType);
+        if (!filePath) {
+            console.log('[Generate] User cancelled file save dialog');
+            return;
+        }
+
+        // Step 2: Reset progress
+        progressBar.value = 0;
+        progressText.textContent = '0%';
+
+        // Step 3: Generate
+        console.log(`[Generate] Generating ${actionType} for ${selectedItems.length} items to "${filePath}"`);
+        const result = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, filePath);
+
+        console.log('[Generate] Generation result:', result);
+
+        alert('Done!');
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Error] Generation failed:', err);
+        alert('Generation failed. Check console for details.');
+    }
+});
+
+
+// ----------------------------
 // Init
-// --------------------
-window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
+// ----------------------------
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('[Init] DOM loaded');
+    loadLastActiveRepo();
+});
 
 
 ------------------------------
@@ -241,32 +291,36 @@ FILE: index.html
     <h1>Helper Tool</h1>
 
     <!-- Repo selection -->
-    <div class="section">
+    <div class="section repo-selection">
       <button id="selectRepoBtn">Select Repo</button>
       <span id="activeRepoName">No repo selected</span>
     </div>
 
     <!-- Tree view -->
-    <div class="section">
+    <div class="section tree-view">
       <h2>Project Tree</h2>
       <div id="treeContainer">Select a repo to view files</div>
     </div>
 
-    <!-- Action buttons -->
-    <div class="section">
-      <button id="structureBtn" class="action-btn">Structure</button>
-      <button id="codeBtn" class="action-btn">Code</button>
-      <button id="generateBtn" class="action-btn">Done / Generate</button>
-    </div>
+<!-- Action buttons -->
+<div class="section actions">
+  <button id="structureBtn" class="action-btn">Structure</button>
+  <button id="codeBtn" class="action-btn">Code</button>
+  <button id="generateBtn" class="action-btn">Done / Generate</button>
+  <button id="editDocignoreBtn" class="action-btn">Edit .docignore</button>
+  <button id="openStorageBtn" class="action-btn">Open Storage</button> <!-- NEW -->
+</div>
+
 
     <!-- Progress -->
-    <div class="section">
+    <div class="section progress-section">
       <progress id="progressBar" value="0" max="100"></progress>
       <span id="progressText">0%</span>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- App logic -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>
 
@@ -274,7 +328,9 @@ FILE: index.html
 ------------------------------
 FILE: style.css
 
-/* Reset some default styles */
+/* -----------------------------
+   Reset & Base Styles
+----------------------------- */
 * {
   margin: 0;
   padding: 0;
@@ -282,7 +338,6 @@ FILE: style.css
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Body styling */
 body {
   background-color: #f5f6fa;
   color: #333;
@@ -290,35 +345,51 @@ body {
   justify-content: center;
   align-items: flex-start;
   min-height: 100vh;
-  padding: 40px 20px;
+  padding: 10px;
 }
 
-/* App container */
 #app {
   background-color: #fff;
-  padding: 30px 40px;
+  padding: 20px;
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-  width: 100%;
-  max-width: 600px;
+  width: 95%;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Main title */
+/* -----------------------------
+   Titles & Sections
+----------------------------- */
 #app h1 {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
   font-size: 2rem;
   color: #2f3640;
 }
 
-/* Section styling */
 .section {
-  margin-bottom: 25px;
+  margin-bottom: 20px;
 }
 
-/* Buttons */
+.section h2 {
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #2d3436;
+}
+
+#activeRepoName {
+  margin-left: 10px;
+  font-weight: 500;
+  color: #636e72;
+}
+
+/* -----------------------------
+   Buttons
+----------------------------- */
 button {
-  padding: 10px 20px;
+  padding: 10px 18px;
   border: none;
   border-radius: 6px;
   background-color: #0984e3;
@@ -326,6 +397,7 @@ button {
   cursor: pointer;
   font-size: 1rem;
   transition: background-color 0.2s ease, transform 0.1s ease;
+  margin-right: 10px;
 }
 
 button:hover {
@@ -337,51 +409,132 @@ button:active {
   transform: translateY(0);
 }
 
-/* Action buttons spacing */
+button:disabled {
+  background-color: #b2bec3;
+  cursor: not-allowed;
+}
+
 .action-btn {
   margin-right: 10px;
 }
 
-/* Active repo text */
-#activeRepoName {
-  margin-left: 15px;
+/* -----------------------------
+   Tree Container
+----------------------------- */
+#treeContainer {
+  flex: 1;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  font-family: monospace;
+}
+
+/* -----------------------------
+   Tree Node Base
+----------------------------- */
+.tree-node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 2px 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  user-select: none;
+  padding: 4px 6px;
+}
+
+/* Folder / File types */
+.tree-node.folder {
   font-weight: 500;
+  color: #0984e3;
+}
+.tree-node.file {
+  font-size: 0.9em;
   color: #636e72;
 }
 
-/* Tree container */
-#treeContainer {
-  margin-top: 10px;
-  padding: 15px;
-  background-color: #dfe6e9;
-  border-radius: 8px;
-  min-height: 100px;
-  overflow-y: auto;
-  font-family: monospace;
-  font-size: 0.95rem;
+/* Folder icons */
+.tree-node.folder::before {
+  content: "📁 ";
+}
+.tree-node.folder.folder-open::before {
+  content: "📂 ";
 }
 
-/* Progress bar container */
+/* File icon */
+.tree-node.file::before {
+  content: "📄 ";
+}
+
+/* Hover */
+.tree-node:hover {
+  background-color: #dfe6e9;
+}
+
+/* Selected Highlights */
+.tree-node.folder.selected {
+  background-color: #74b9ff;
+  color: #fff;
+  font-weight: bold;
+}
+.tree-node.folder.folder-selected {
+  background-color: #d0f0d0;
+  color: #00b894;
+  font-weight: bold;
+}
+.tree-node.file.file-selected {
+  background-color: #ffeaa7;
+  color: #2d3436;
+  font-weight: bold;
+}
+
+/* -----------------------------
+   Children Layout (Horizontal)
+----------------------------- */
+.children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: 20px;
+}
+
+.children .tree-node.file {
+  flex: 1 1 100px; /* Each file takes 1 space, min 100px */
+  padding: 6px;
+  border-radius: 6px;
+  text-align: center;
+  background-color: #fafafa;
+  transition: all 0.2s ease;
+}
+
+.children .tree-node.folder {
+  flex: 1 1 auto;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+
+/* Collapsed */
+.children.collapsed {
+  display: none;
+}
+
+/* -----------------------------
+   Progress Bar
+----------------------------- */
 progress {
   width: 100%;
   height: 20px;
-  -webkit-appearance: none;
-  appearance: none;
   border-radius: 10px;
   overflow: hidden;
+  margin-top: 5px;
 }
-
-progress::-webkit-progress-bar {
-  background-color: #dfe6e9;
-}
-
-progress::-webkit-progress-value {
-  background-color: #00b894;
-}
-
-progress::-moz-progress-bar {
-  background-color: #00b894;
-}
+progress::-webkit-progress-bar { background: #dfe6e9; }
+progress::-webkit-progress-value { background: #00b894; }
+progress::-moz-progress-bar { background: #00b894; }
 
 #progressText {
   display: inline-block;
@@ -390,70 +543,23 @@ progress::-moz-progress-bar {
   color: #2d3436;
 }
 
-/* Responsive tweaks */
-@media (max-width: 480px) {
-  #app {
-    padding: 20px;
+/* -----------------------------
+   Responsive
+----------------------------- */
+@media (max-width: 768px) {
+  #treeContainer {
+    flex-direction: column;
   }
-
+  .children {
+    flex-direction: column;
+  }
   button {
     width: 100%;
     margin-bottom: 10px;
   }
-
   .action-btn {
     margin-right: 0;
   }
 }
-
-/* style.css */
-
-/* General tree container */
-#treeContainer {
-  font-family: monospace;
-  white-space: pre;
-  border: 1px solid #ccc;
-  padding: 8px;
-  max-height: 400px;
-  overflow-y: auto;
-  background: #f9f9f9;
-}
-
-/* Each node */
-.tree-node {
-  padding: 2px 4px;
-  border-radius: 4px;
-  margin: 1px 0;
-}
-
-/* Hover effect */
-.tree-node:hover {
-  background-color: #eef;
-}
-
-/* Children nodes */
-.children {
-  margin-left: 16px; /* Indent children */
-}
-
-/* Selected node */
-.tree-node.selected {
-  background-color: #d0f0d0;
-  font-weight: bold;
-}
-
-/* Files smaller than folders */
-.tree-node.file {
-  font-size: 0.9em;
-}
-
-.tree-node.selected {
-  background-color: #d0f0d0;
-}
-
-.tree-node.folder-selected {
-  font-weight: bold;
-}
-
 
 
