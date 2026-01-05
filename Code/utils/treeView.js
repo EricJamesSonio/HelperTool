@@ -1,49 +1,50 @@
 /**
- * Tree View Renderer (updated)
+ * Tree View Renderer
  * -----------------
- * Features:
- * - Single-click select + expand/collapse folders
- * - Selected files/folders highlighted
- * - Folder ALL FILES display in code mode
- * - Folder icons via CSS classes
- * - Maintains expand/collapse state
+ * - Shows folders always
+ * - Files shown in code mode
+ * - Click to select folders/files
+ * - Folder selection in code mode = all files inside selected recursively
+ * - Highlights selected items
+ * - Displays children in horizontal rows (flex)
  */
-
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
     container.innerHTML = '';
 
-    // Map to store expanded folder states
+    // Store expanded/collapsed folder state
     const expandedFolders = new WeakMap();
 
-    function createNode(node, depth = 0) {
+    // Recursively get all files under a folder
+    function getAllFiles(node) {
+        if (node.type === 'file') return [node];
+        if (!node.children?.length) return [];
+        return node.children.flatMap(getAllFiles);
+    }
+
+    function createNode(node) {
+        // In structure mode, skip files
         if (actionType === 'structure' && node.type === 'file') return null;
 
         const el = document.createElement('div');
         el.classList.add('tree-node');
-        el.style.paddingLeft = `${16 * depth}px`;
-        el.style.userSelect = 'none';
-        el.style.fontSize = '14px';
-        el.style.cursor = 'pointer';
-
         if (node.type === 'file') el.classList.add('file');
         else el.classList.add('folder');
 
+        // Determine if node is selected
         const isSelected = selectedItems.includes(node.path);
-        if (isSelected) el.classList.add('selected');
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            el.classList.add('folder-selected');
-        }
 
-        // Label + file count
+        // Apply highlight
+        if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
+        else if (node.type === 'file' && isSelected) el.classList.add('file-selected');
+        else if (node.type === 'folder' && isSelected) el.classList.add('selected');
+
+        // Label
         let label = node.name;
         if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
             const fileCount = countFiles(node);
             if (fileCount > 0) label += ` (${fileCount} files)`;
         }
-        if (node.type === 'folder' && actionType === 'code' && isSelected) {
-            label += ' [ALL FILES]';
-        }
-
+        if (node.type === 'folder' && actionType === 'code' && isSelected) label += ' [ALL FILES]';
         el.textContent = label;
 
         // Children container
@@ -51,10 +52,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         if (node.type === 'folder' && node.children?.length) {
             childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
-            childrenContainer.style.display = expandedFolders.get(node) ? 'block' : 'none';
+            // Use flex + wrap for horizontal layout
+            childrenContainer.style.display = expandedFolders.get(node) ? 'flex' : 'none';
+            childrenContainer.style.flexWrap = 'wrap';
+            childrenContainer.style.gap = '8px';
+            childrenContainer.style.marginLeft = '20px';
 
             node.children.forEach(child => {
-                const childNode = createNode(child, depth + 1);
+                const childNode = createNode(child);
                 if (childNode) childrenContainer.appendChild(childNode);
             });
 
@@ -62,19 +67,49 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         }
 
         // Click logic
-        el.addEventListener('click', (e) => {
+        el.addEventListener('click', e => {
             e.stopPropagation();
 
             // Toggle selection
-            onToggle(node);
+            if (node.type === 'file') {
+                const index = selectedItems.indexOf(node.path);
+                if (index === -1) selectedItems.push(node.path);
+                else selectedItems.splice(index, 1);
+            } else if (node.type === 'folder') {
+                if (actionType === 'code') {
+                    const allFiles = getAllFiles(node);
+                    const allSelected = allFiles.every(f => selectedItems.includes(f.path));
+                    if (allSelected) {
+                        allFiles.forEach(f => {
+                            const idx = selectedItems.indexOf(f.path);
+                            if (idx !== -1) selectedItems.splice(idx, 1);
+                        });
+                    } else {
+                        allFiles.forEach(f => {
+                            if (!selectedItems.includes(f.path)) selectedItems.push(f.path);
+                        });
+                    }
+                } else {
+                    // Structure mode: toggle folder only
+                    const idx = selectedItems.indexOf(node.path);
+                    if (idx === -1) selectedItems.push(node.path);
+                    else selectedItems.splice(idx, 1);
+                }
+            }
 
-            // If folder, toggle expand/collapse only if not selected in code mode
+            // Folder expand/collapse
             if (node.type === 'folder') {
                 const isExpanded = expandedFolders.get(node) || false;
                 expandedFolders.set(node, !isExpanded);
-                if (childrenContainer) childrenContainer.style.display = !isExpanded ? 'block' : 'none';
+                if (childrenContainer) childrenContainer.style.display = !isExpanded ? 'flex' : 'none';
                 el.classList.toggle('folder-open', !isExpanded);
             }
+
+            // Force re-render to update highlights
+            renderTree(treeData, container, selectedItems, actionType, onToggle);
+
+            // Trigger callback
+            if (onToggle) onToggle(node);
         });
 
         return el;
@@ -86,11 +121,7 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
     });
 }
 
-/**
- * Count all files in a folder node recursively
- * @param {Object} node
- * @returns {number}
- */
+// Count files recursively
 function countFiles(node) {
     if (node.type === 'file') return 1;
     if (!node.children?.length) return 0;

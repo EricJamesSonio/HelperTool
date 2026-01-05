@@ -68,6 +68,29 @@ function createTray() {
     console.log('[Tray] Tray menu created');
 }
 
+// main.js additions
+ipcMain.handle('open-global-docignore', async () => {
+    try {
+        const globalDocignorePath = path.join(app.getPath('userData'), 'global-docignore.json');
+
+        // Create file if it doesn't exist
+        if (!fs.existsSync(globalDocignorePath)) {
+            fs.writeFileSync(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
+            console.log('[Main] Created new global-docignore.json at', globalDocignorePath);
+        } else {
+            console.log('[Main] global-docignore.json exists at', globalDocignorePath);
+        }
+
+        // Open with default editor
+        await shell.openPath(globalDocignorePath);
+        console.log('[Main] global-docignore.json opened');
+        return true;
+    } catch (err) {
+        console.error('[Main] Failed to open global-docignore.json:', err);
+        return false;
+    }
+});
+
 // ----------------------------
 // Previous Repos Menu
 // ----------------------------
@@ -168,56 +191,48 @@ ipcMain.handle('select-repo', async () => {
     }
 });
 
-// Get folder tree
 ipcMain.handle('getFolderTree', async (event, repoPath) => {
     try {
-        console.log('[IPC] getFolderTree called for:', repoPath);
         if (!repoPath) return [];
 
-        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+        // No need to load repo-specific docignore anymore
+        const ignoreRules = []; // optional: load repo-specific rules if needed
         const tree = fileOps.getFolderTree(repoPath, ignoreRules);
-        console.log('[IPC] Folder tree returned, nodes:', tree.length);
         return tree;
     } catch (err) {
         console.error('[IPC] getFolderTree error:', err);
         return [];
     }
 });
+ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
 
-// Generate code or structure
-ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) => {
+
+ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) => {
     try {
-        console.log('[IPC] generate called:', { actionType, repoPath, itemsLength: items?.length, fileName });
-        if (!repoPath || !items?.length || !fileName) throw new Error('Invalid arguments');
+        console.log('[IPC] generate called:', { actionType, repoPath, itemsLength: items?.length, filePath });
+        if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
 
-        const activeProject = config.getActiveProject();
-        if (!activeProject) throw new Error('No active project found');
-
-        const storagePath = activeProject.storagePath;
-        const outputFolder = actionType === 'code'
-            ? path.join(storagePath, 'Codes')
-            : path.join(storagePath, 'Structures');
-
-        if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder, { recursive: true });
-
-        const outputFile = path.join(outputFolder, fileName);
         const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+
+        // Ensure the directory of the output file exists
+        const outputDir = path.dirname(filePath);
+        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
         if (actionType === 'structure') {
             console.log('[IPC] Generating structure...');
-            await fileOps.generateStructure(items, outputFile, ignoreRules, (percent) => {
+            await fileOps.generateStructure(items, filePath, ignoreRules, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
                 console.log(`[Progress] ${percent}%`);
             });
         } else if (actionType === 'code') {
             console.log('[IPC] Generating code...');
-            await codeOps.generateCode(items, outputFile, (percent) => {
+            await codeOps.generateCode(items, filePath, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
                 console.log(`[Progress] ${percent}%`);
             }, repoPath, ignoreRules);
         }
 
-        console.log(`[IPC] Generation complete. Output at: ${outputFile}`);
+        console.log(`[IPC] Generation complete. Output at: ${filePath}`);
         return true;
     } catch (err) {
         console.error('[IPC] generate error:', err);
@@ -225,6 +240,30 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, fileName) 
         return false;
     }
 });
+
+// ----------------------------
+// Open .docignore file
+// ----------------------------
+ipcMain.handle('open-docignore', async (event, repoPath) => {
+    try {
+        if (!repoPath) return false;
+        const docignoreFile = path.join(repoPath, '.docignore');
+
+        // If file doesn't exist, create empty
+        if (!fs.existsSync(docignoreFile)) {
+            fs.writeFileSync(docignoreFile, '# Add patterns to ignore files/folders\n', 'utf-8');
+        }
+
+        // Open with default editor
+        shell.openPath(docignoreFile);
+        console.log('[Main] .docignore opened:', docignoreFile);
+        return true;
+    } catch (err) {
+        console.error('[IPC] open-docignore error:', err);
+        return false;
+    }
+});
+
 
 // Get .docignore rules
 ipcMain.handle('get-docignore', async (event, repoPath) => {
@@ -273,4 +312,22 @@ ipcMain.handle('set-last-selected', (event, items) => {
     } catch (err) {
         console.error('[IPC] set-last-selected error:', err);
     }
+});
+
+ipcMain.handle('save-file-dialog', async (event, actionType) => {
+    const activeProject = config.getActiveProject();
+    if (!activeProject) return { filePath: null };
+
+    const defaultFolder = path.join(
+        activeProject.storagePath,
+        actionType === 'code' ? 'Codes' : 'Structures'
+    );
+
+    const result = await dialog.showSaveDialog({
+        title: 'Enter output file name',
+        defaultPath: path.join(defaultFolder, 'output.txt'),
+        buttonLabel: 'Save'
+    });
+
+    return { filePath: result.canceled ? null : result.filePath };
 });

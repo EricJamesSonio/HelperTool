@@ -175,6 +175,35 @@ structureBtn.addEventListener('click', () => {
     }
 });
 
+const editDocignoreBtn = document.getElementById('editDocignoreBtn');
+
+// ----------------------------
+// Edit .docignore button
+// ----------------------------
+// ----------------------------
+// Edit .docignore button (updated)
+// ----------------------------
+editDocignoreBtn.addEventListener('click', async () => {
+    try {
+        console.log('[UI] Edit Global .docignore clicked');
+
+        const result = await window.electronAPI.openGlobalDocignore();
+
+        if (result) {
+            console.log('[UI] Global .docignore opened successfully');
+        } else {
+            console.warn('[UI] Failed to open global .docignore');
+            alert('Failed to open global ignore file. Check console.');
+        }
+    } catch (err) {
+        console.error('[UI] Error opening global .docignore:', err);
+        alert('Error opening global ignore file. Check console.');
+    }
+});
+
+
+
+
 codeBtn.addEventListener('click', () => {
     try {
         console.log('[Action] Switch to code mode');
@@ -196,17 +225,21 @@ generateBtn.addEventListener('click', async () => {
             return alert('Select repo and items first!');
         }
 
-        const fileName = prompt('Enter output file name (e.g., UserModule.txt):');
-        if (!fileName) {
-            console.log('[Generate] User cancelled file name prompt');
+        // Step 1: Show save file dialog
+        const { filePath } = await window.electronAPI.saveFileDialog(actionType);
+        if (!filePath) {
+            console.log('[Generate] User cancelled file save dialog');
             return;
         }
 
+        // Step 2: Reset progress
         progressBar.value = 0;
         progressText.textContent = '0%';
 
-        console.log(`[Generate] Generating ${actionType} for ${selectedItems.length} items to "${fileName}"`);
-        const result = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, fileName);
+        // Step 3: Generate
+        console.log(`[Generate] Generating ${actionType} for ${selectedItems.length} items to "${filePath}"`);
+        const result = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, filePath);
+
         console.log('[Generate] Generation result:', result);
 
         alert('Done!');
@@ -217,6 +250,7 @@ generateBtn.addEventListener('click', async () => {
         alert('Generation failed. Check console for details.');
     }
 });
+
 
 // ----------------------------
 // Init
