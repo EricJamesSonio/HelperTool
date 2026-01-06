@@ -204,11 +204,17 @@ ipcMain.handle('select-repo', async () => {
 
 ipcMain.handle('getFolderTree', async (event, repoPath) => {
     try {
+        console.log('[IPC] getFolderTree called for:', repoPath);
         if (!repoPath) return [];
 
-        // No need to load repo-specific docignore anymore
-        const ignoreRules = []; // optional: load repo-specific rules if needed
-        const tree = fileOps.getFolderTree(repoPath, ignoreRules);
+        // Load ignore rules
+        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+        console.log('[IPC] Ignore rules loaded:', ignoreRules.length);
+        
+        // IMPORTANT: AWAIT the tree generation!
+        const tree = await fileOps.getFolderTree(repoPath, ignoreRules);
+        console.log('[IPC] Tree generated, root items:', tree.length);
+        
         return tree;
     } catch (err) {
         console.error('[IPC] getFolderTree error:', err);
