@@ -5,33 +5,30 @@ const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
  * Recursively collect files from folder respecting ignore rules
- * @param {string} folderPath
- * @param {string[]} ignoreRules
- * @param {string} repoRoot
+ * Skips entire ignored folders
  */
-function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
-    let files = [];
-    if (!fs.existsSync(folderPath)) return files;
+function getAllFiles(folderPath, repoRoot) {
+    if (isIgnored(folderPath, repoRoot)) return [];
+
+    if (!fs.existsSync(folderPath)) return [];
 
     const items = fs.readdirSync(folderPath, { withFileTypes: true });
+    let files = [];
+
     for (const item of items) {
         const fullPath = path.join(folderPath, item.name);
 
-        // Skip ignored files/folders
-        if (isIgnored(fullPath, repoRoot, ignoreRules)) continue;
+        if (isIgnored(fullPath, repoRoot)) continue;
 
-        if (item.isDirectory()) {
-            files = files.concat(getAllFiles(fullPath, ignoreRules, repoRoot));
-        } else if (item.isFile()) {
-            files.push(fullPath);
-        }
+        if (item.isDirectory()) files.push(...getAllFiles(fullPath, repoRoot));
+        else files.push(fullPath);
     }
+
     return files;
 }
 
 /**
  * Find repo root starting from a folder (optional fallback)
- * @param {string} startPath
  */
 function findRepoRoot(startPath) {
     let dir = path.resolve(startPath);
@@ -46,27 +43,18 @@ function findRepoRoot(startPath) {
 
 /**
  * Generate combined code output from selected items
- * @param {string[]} selectedItems - user-selected files/folders
- * @param {string} outputFile - output file path
- * @param {function(number):void} onProgress - optional progress callback
  */
 async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
     if (!selectedItems.length) return;
 
-    // Use the folder the user selected as repo root
     const repoRoot = path.resolve(selectedItems[0]);
-
-    // Load ignore rules from the target repo only
-    const ignoreRules = await getIgnoreRules(repoRoot);
+    await getIgnoreRules(repoRoot); // load & cache rules
 
     let allFiles = [];
     for (const item of selectedItems) {
         const stat = fs.statSync(item);
-        if (stat.isDirectory()) {
-            allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
-        } else if (stat.isFile() && !isIgnored(item, repoRoot, ignoreRules)) {
-            allFiles.push(item);
-        }
+        if (stat.isDirectory()) allFiles.push(...getAllFiles(item, repoRoot));
+        else if (!isIgnored(item, repoRoot)) allFiles.push(item);
     }
 
     if (!allFiles.length) return;
@@ -83,14 +71,12 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
 
 /**
  * Get folder tree structure for tree view respecting ignore rules
- * @param {string} dir
- * @param {string[]} ignoreRules
- * @param {string} repoRoot
  */
-function getFolderTree(dir, ignoreRules = [], repoRoot) {
+async function getFolderTree(dir, repoRoot = null) {
     if (!repoRoot) repoRoot = path.resolve(dir);
+    await getIgnoreRules(repoRoot);
 
-    if (isIgnored(dir, repoRoot, ignoreRules)) return [];
+    if (isIgnored(dir, repoRoot)) return [];
 
     let entries = [];
     try {
@@ -100,10 +86,7 @@ function getFolderTree(dir, ignoreRules = [], repoRoot) {
     }
 
     return entries
-        .filter(entry => {
-            const fullPath = path.join(dir, entry.name);
-            return !isIgnored(fullPath, repoRoot, ignoreRules);
-        })
+        .filter(entry => !isIgnored(path.join(dir, entry.name), repoRoot))
         .map(entry => {
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
@@ -111,7 +94,7 @@ function getFolderTree(dir, ignoreRules = [], repoRoot) {
                     name: entry.name,
                     path: fullPath,
                     type: 'folder',
-                    children: getFolderTree(fullPath, ignoreRules, repoRoot),
+                    children: getFolderTree(fullPath, repoRoot),
                 };
             }
             return { name: entry.name, path: fullPath, type: 'file' };

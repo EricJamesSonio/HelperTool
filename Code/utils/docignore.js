@@ -1,3 +1,4 @@
+// file: docignore.js
 const fs = require('fs');
 const path = require('path');
 const micromatch = require('micromatch');
@@ -9,6 +10,8 @@ const globalIgnorePath = path.join(app.getPath('userData'), 'global-docignore.js
 // Cached Global Rules
 // ----------------------------
 let cachedGlobalRules = null;
+const repoRulesCache = new Map();        // repo path -> combined rules
+const compiledMatchersCache = new Map(); // repo path -> compiled matcher functions
 
 function loadGlobalIgnoreRules() {
     if (cachedGlobalRules) return cachedGlobalRules;
@@ -19,8 +22,7 @@ function loadGlobalIgnoreRules() {
     }
 
     try {
-        const data = fs.readFileSync(globalIgnorePath, 'utf-8');
-        cachedGlobalRules = JSON.parse(data);
+        cachedGlobalRules = JSON.parse(fs.readFileSync(globalIgnorePath, 'utf-8'));
         console.log('[Docignore] Global ignore rules loaded:', cachedGlobalRules);
         return cachedGlobalRules;
     } catch (err) {
@@ -31,56 +33,45 @@ function loadGlobalIgnoreRules() {
 }
 
 // ----------------------------
-// Repo-specific + combined rules
+// Repo-specific + combined rules (cached)
 // ----------------------------
 async function getIgnoreRules(repoPath) {
-    try {
-        let repoRules = [];
-        const repoIgnoreFile = path.join(repoPath, '.docignore');
+    if (repoRulesCache.has(repoPath)) return repoRulesCache.get(repoPath);
 
-        if (fs.existsSync(repoIgnoreFile)) {
-            const data = fs.readFileSync(repoIgnoreFile, 'utf-8');
-            try {
-                repoRules = JSON.parse(data);
-            } catch (err) {
-                console.warn('[Docignore] Failed to parse repo .docignore, skipping:', err.message);
-            }
+    let repoRules = [];
+    const repoIgnoreFile = path.join(repoPath, '.docignore');
+
+    if (fs.existsSync(repoIgnoreFile)) {
+        try {
+            repoRules = JSON.parse(fs.readFileSync(repoIgnoreFile, 'utf-8'));
+        } catch (err) {
+            console.warn('[Docignore] Failed to parse repo .docignore:', err.message);
         }
-
-        const combinedRules = [...loadGlobalIgnoreRules(), ...repoRules];
-        console.log('[Docignore] Combined ignore rules for', repoPath, combinedRules);
-        return combinedRules;
-    } catch (err) {
-        console.error('[Docignore] getIgnoreRules error:', err);
-        return [];
     }
+
+    const combinedRules = [...loadGlobalIgnoreRules(), ...repoRules];
+    repoRulesCache.set(repoPath, combinedRules);
+
+    // Precompile matchers for this repo
+    const matchers = combinedRules.map(pattern => micromatch.matcher(pattern, { dot: true }));
+    compiledMatchersCache.set(repoPath, matchers);
+
+    return combinedRules;
 }
 
 // ----------------------------
 // Check if path is ignored
 // ----------------------------
-function isIgnored(fullPath, repoPath, rules = []) {
+function isIgnored(fullPath, repoPath) {
     if (!repoPath) return false;
 
-    let relPath = path.relative(repoPath, fullPath);
-
-    // Normalize for Windows + micromatch
-    relPath = relPath.replace(/\\/g, '/');
+    let relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
 
     // Ignore anything outside the repo
     if (relPath.startsWith('..')) return false;
-    console.log('[Docignore] Checking:', relPath, 'Rules:', rules);
 
-    const ignored = micromatch.isMatch(relPath, rules, { dot: true });
-
-    isIgnored.loggedFiles = isIgnored.loggedFiles || new Set();
-    if (ignored && !isIgnored.loggedFiles.has(relPath)) {
-        console.log('[Docignore] Ignored:', relPath);
-        isIgnored.loggedFiles.add(relPath);
-    }
-
-    return ignored;
+    const matchers = compiledMatchersCache.get(repoPath) || [];
+    return matchers.some(fn => fn(relPath));
 }
-
 
 module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };
