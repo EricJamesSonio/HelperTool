@@ -1,18 +1,21 @@
 /**
- * Tree View Renderer
+ * Tree Diagram Renderer
  * -----------------
  * - Shows folders always
  * - Files shown in code mode
  * - Click to select folders/files
  * - Folder selection in code mode = all files inside selected recursively
  * - Highlights selected items
- * - Displays children in horizontal rows (flex)
+ * - Displays as visual tree with connecting lines
  */
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
     container.innerHTML = '';
-
-    // Store expanded/collapsed folder state
-    const expandedFolders = new WeakMap();
+    
+    // Store expanded/collapsed folder state persistently
+    if (!window._expandedFolders) {
+        window._expandedFolders = new Map();
+    }
+    const expandedFolders = window._expandedFolders;
 
     // Recursively get all files under a folder (ignores folders with no files)
     function getAllFiles(node) {
@@ -28,9 +31,13 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         return node.children.reduce((acc, child) => acc + countFiles(child), 0);
     }
 
-    function createNode(node, isRoot = false) {
+    function createNode(node, depth = 0) {
         // Skip files in structure mode
         if (actionType === 'structure' && node.type === 'file') return null;
+
+        const nodeWrapper = document.createElement('div');
+        nodeWrapper.classList.add('node-wrapper');
+        nodeWrapper.style.setProperty('--depth', depth);
 
         const el = document.createElement('div');
         el.classList.add('tree-node');
@@ -38,11 +45,18 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         else el.classList.add('folder');
 
         const isSelected = selectedItems.includes(node.path);
+        const isExpanded = expandedFolders.get(node.path) || false;
 
         // Highlight selection
         if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
         else if (node.type === 'file' && isSelected) el.classList.add('file-selected');
         else if (node.type === 'folder' && isSelected) el.classList.add('selected');
+
+        // Add expand indicator for folders with children
+        if (node.type === 'folder' && node.children?.length) {
+            el.classList.add('expandable');
+            if (isExpanded) el.classList.add('folder-open');
+        }
 
         // Label
         let label = node.name;
@@ -53,22 +67,19 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         if (node.type === 'folder' && actionType === 'code' && isSelected) label += ' [ALL FILES]';
         el.textContent = label;
 
+        nodeWrapper.appendChild(el);
+
         // Children container
-        let childrenContainer;
-        if (node.type === 'folder' && node.children?.length) {
-            childrenContainer = document.createElement('div');
+        if (node.type === 'folder' && node.children?.length && isExpanded) {
+            const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
-            childrenContainer.style.display = expandedFolders.get(node) ? 'flex' : 'none';
-            childrenContainer.style.flexWrap = 'wrap';
-            childrenContainer.style.gap = '8px';
-            childrenContainer.style.marginLeft = '20px';
 
             node.children.forEach(child => {
-                const childNode = createNode(child);
+                const childNode = createNode(child, depth + 1);
                 if (childNode) childrenContainer.appendChild(childNode);
             });
 
-            el.appendChild(childrenContainer);
+            nodeWrapper.appendChild(childrenContainer);
         }
 
         // Click logic
@@ -98,32 +109,30 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                     if (idx === -1) selectedItems.push(node.path);
                     else selectedItems.splice(idx, 1);
                 }
+
+                // Toggle expand/collapse
+                if (node.children?.length) {
+                    expandedFolders.set(node.path, !isExpanded);
+                }
             }
 
-            // Folder expand/collapse
-            if (node.type === 'folder') {
-                const isExpanded = expandedFolders.get(node) || false;
-                expandedFolders.set(node, !isExpanded);
-                if (childrenContainer) childrenContainer.style.display = !isExpanded ? 'flex' : 'none';
-                el.classList.toggle('folder-open', !isExpanded);
-            }
-
-            // Re-render container without losing root
-            container.innerHTML = '';
-            treeData.forEach(n => {
-                const nodeEl = createNode(n, true);
-                if (nodeEl) container.appendChild(nodeEl);
-            });
+            // Re-render entire tree
+            renderTree(treeData, container, selectedItems, actionType, onToggle);
 
             if (onToggle) onToggle(node);
         });
 
-        return el;
+        return nodeWrapper;
     }
 
-    // Always render root nodes, ignore rules only apply to children
+    // Create tree container with root level
+    const treeRoot = document.createElement('div');
+    treeRoot.classList.add('tree-root');
+
     treeData.forEach(node => {
-        const n = createNode(node, true);
-        if (n) container.appendChild(n);
+        const n = createNode(node, 0);
+        if (n) treeRoot.appendChild(n);
     });
+
+    container.appendChild(treeRoot);
 }

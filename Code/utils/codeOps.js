@@ -1,4 +1,3 @@
-// file: codeOps.js
 const fs = require('fs');
 const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
@@ -71,6 +70,7 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
 
 /**
  * Get folder tree structure for tree view respecting ignore rules
+ * FIXED: Now properly awaits all nested folder promises
  */
 async function getFolderTree(dir, repoRoot = null) {
     if (!repoRoot) repoRoot = path.resolve(dir);
@@ -85,20 +85,36 @@ async function getFolderTree(dir, repoRoot = null) {
         return [];
     }
 
-    return entries
-        .filter(entry => !isIgnored(path.join(dir, entry.name), repoRoot))
-        .map(entry => {
+    // Filter out ignored entries first
+    const validEntries = entries.filter(entry => 
+        !isIgnored(path.join(dir, entry.name), repoRoot)
+    );
+
+    // Process all entries and await promises
+    const results = await Promise.all(
+        validEntries.map(async (entry) => {
             const fullPath = path.join(dir, entry.name);
+            
             if (entry.isDirectory()) {
+                // Recursively get children (await the promise!)
+                const children = await getFolderTree(fullPath, repoRoot);
                 return {
                     name: entry.name,
                     path: fullPath,
                     type: 'folder',
-                    children: getFolderTree(fullPath, repoRoot),
+                    children: children,
                 };
             }
-            return { name: entry.name, path: fullPath, type: 'file' };
-        });
+            
+            return { 
+                name: entry.name, 
+                path: fullPath, 
+                type: 'file' 
+            };
+        })
+    );
+
+    return results;
 }
 
 module.exports = { generateCode, getAllFiles, findRepoRoot, getFolderTree };
