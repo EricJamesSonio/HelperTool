@@ -97,27 +97,32 @@ button:disabled {
   background-color: #f9f9f9;
   border-radius: 8px;
   border: 1px solid #ccc;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   font-family: monospace;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
 }
 
 /* -----------------------------
    Tree Diagram Structure
 ----------------------------- */
 .tree-root {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
+  display: inline-flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
   padding: 20px 0;
+  gap: 40px;
+  flex-wrap: nowrap;
 }
 
 .node-wrapper {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  margin: 10px 0;
 }
 
 /* -----------------------------
@@ -212,7 +217,7 @@ button:disabled {
    Children Layout (Tree Branches)
 ----------------------------- */
 .children {
-  display: flex;
+  display: inline-flex;
   flex-direction: row;
   justify-content: center;
   align-items: flex-start;
@@ -220,6 +225,7 @@ button:disabled {
   margin-top: 50px;
   position: relative;
   padding-top: 0;
+  flex-wrap: nowrap;
 }
 
 /* Vertical line from parent down to horizontal line */
@@ -313,18 +319,14 @@ progress::-moz-progress-bar { background: #00b894; }
    Responsive
 ----------------------------- */
 @media (max-width: 768px) {
-  .children {
+  .tree-root {
     flex-direction: column;
-    gap: 20px;
     align-items: center;
   }
   
-  .children::after {
-    display: none;
-  }
-  
-  .children > .node-wrapper::after {
-    display: none;
+  .children {
+    flex-wrap: wrap;
+    gap: 20px;
   }
   
   button {
