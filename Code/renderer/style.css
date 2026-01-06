@@ -204,9 +204,10 @@ button:disabled {
   gap: 30px;
   margin-top: 50px;
   position: relative;
+  padding-top: 0;
 }
 
-/* Vertical line from parent down */
+/* Vertical line from parent down to horizontal line */
 .node-wrapper > .children::before {
   content: '';
   position: absolute;
@@ -224,23 +225,14 @@ button:disabled {
   content: '';
   position: absolute;
   top: 0;
+  left: 0;
+  right: 0;
   height: 3px;
   background: linear-gradient(to right, #0984e3, #74b9ff, #0984e3);
   z-index: 0;
 }
 
-/* Calculate horizontal line position based on children */
-.children::after {
-  left: calc(var(--first-child-center, 50%) - 50%);
-  right: calc(var(--last-child-center, 50%) - 50%);
-}
-
-/* For single child, no horizontal line needed */
-.children:has(.node-wrapper:only-child)::after {
-  display: none;
-}
-
-/* Vertical line down to each child */
+/* Vertical line down from horizontal line to each child */
 .children > .node-wrapper::before {
   content: '';
   position: absolute;
@@ -253,31 +245,31 @@ button:disabled {
   z-index: 0;
 }
 
-/* Connect horizontal line properly for first and last children */
+/* Trim horizontal line to only span between first and last child */
 .children > .node-wrapper:first-child::after {
   content: '';
   position: absolute;
-  top: -50px;
+  top: 0;
   left: 50%;
-  right: -100%;
+  right: -1000%;
   height: 3px;
-  background: linear-gradient(to right, #0984e3, #74b9ff);
-  z-index: 0;
+  background: transparent;
+  z-index: 1;
 }
 
 .children > .node-wrapper:last-child::after {
   content: '';
   position: absolute;
-  top: -50px;
+  top: 0;
   right: 50%;
-  left: -100%;
+  left: -1000%;
   height: 3px;
-  background: linear-gradient(to left, #0984e3, #74b9ff);
-  z-index: 0;
+  background: transparent;
+  z-index: 1;
 }
 
-/* Single child doesn't need the horizontal connector */
-.children > .node-wrapper:only-child::after {
+/* Single child doesn't need horizontal line */
+.children:has(.node-wrapper:only-child)::after {
   display: none;
 }
 

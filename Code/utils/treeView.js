@@ -45,7 +45,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         else el.classList.add('folder');
 
         const isSelected = selectedItems.includes(node.path);
-        const isExpanded = expandedFolders.get(node.path) || false;
+        
+        // Auto-expand first level folders (depth 0) if not explicitly set
+        let isExpanded = expandedFolders.get(node.path);
+        if (isExpanded === undefined && depth === 0 && node.type === 'folder') {
+            isExpanded = true;
+            expandedFolders.set(node.path, true);
+        }
+        isExpanded = isExpanded || false;
 
         // Highlight selection
         if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
