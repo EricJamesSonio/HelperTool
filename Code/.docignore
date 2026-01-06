@@ -1,0 +1,10 @@
+[
+  "node_modules/**",
+  ".git/**",
+  "logs/**",
+  "*.log",
+  "Allcodes.txt",
+  "configCode.txt",
+  "rendererCodes.txt",
+  "UtilsCodes.txt"
+]

@@ -75,7 +75,7 @@ FILE: config\helper-config.json
 
 {
   "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
-  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2",
   "projects": {
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
       "storageName": "src",
@@ -96,15 +96,41 @@ FILE: config\helper-config.json
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown": {
       "storageName": "Gown",
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Gown",
-      "lastUsed": "2026-01-05T11:02:54.764Z",
-      "lastSelectedItems": [
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database"
-      ]
+      "lastUsed": "2026-01-06T02:17:56.102Z",
+      "lastSelectedItems": []
     },
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee": {
       "storageName": "Jollibee",
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Jollibee",
       "lastUsed": "2026-01-05T14:42:20.003Z",
+      "lastSelectedItems": []
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Excalidraw": {
+      "storageName": "Excalidraw",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Excalidraw",
+      "lastUsed": "2026-01-06T02:17:34.325Z",
+      "lastSelectedItems": [
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Excalidraw\\Labdoc.excalidraw"
+      ]
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EventDrivenArchitecture": {
+      "storageName": "EventDrivenArchitecture",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\EventDrivenArchitecture",
+      "lastUsed": "2026-01-06T03:10:54.347Z",
+      "lastSelectedItems": []
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\STUDYLY": {
+      "storageName": "STUDYLY",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\STUDYLY",
+      "lastUsed": "2026-01-06T03:21:11.358Z",
+      "lastSelectedItems": [
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\STUDYLY\\Presentation"
+      ]
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2": {
+      "storageName": "EduToolV2",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\EduToolV2",
+      "lastUsed": "2026-01-06T03:24:49.189Z",
       "lastSelectedItems": []
     }
   },
@@ -354,7 +380,7 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
             console.log('[IPC] Generating structure...');
             await fileOps.generateStructure(items, filePath, ignoreRules, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
-                console.log(`[Progress] ${percent}%`);
+                //console.log(`[Progress] ${percent}%`);
             });
         } else if (actionType === 'code') {
             console.log('[IPC] Generating code...');
@@ -562,7 +588,7 @@ generateBtn.disabled = true;
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
-    console.log(`[Progress] ${percent}%`);
+    //console.log(`[Progress] ${percent}%`);
 });
 
 // ----------------------------
@@ -1125,6 +1151,20 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
 }
 
 /**
+ * Find repo root for ignore rules
+ */
+function findRepoRoot(startPath) {
+    let dir = startPath;
+    while (dir && dir !== path.parse(dir).root) {
+        if (fs.existsSync(path.join(dir, '.docignore')) || fs.existsSync(path.join(dir, 'package.json'))) {
+            return dir;
+        }
+        dir = path.dirname(dir);
+    }
+    return startPath; // fallback
+}
+
+/**
  * Generate combined code output
  * @param {string[]} selectedItems
  * @param {string} outputFile
@@ -1134,14 +1174,17 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
  */
 async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules = []) {
     if (!selectedItems.length) return;
-    if (!repoRoot) repoRoot = path.dirname(selectedItems[0]);
+    if (!repoRoot) repoRoot = findRepoRoot(selectedItems[0]);
     if (!ignoreRules.length) ignoreRules = await getIgnoreRules(repoRoot);
 
     let allFiles = [];
     for (const item of selectedItems) {
         const stat = fs.statSync(item);
-        if (stat.isDirectory()) allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
-        else if (stat.isFile() && !isIgnored(item, repoRoot, ignoreRules)) allFiles.push(item);
+        if (stat.isDirectory()) {
+            allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
+        } else if (stat.isFile() && !isIgnored(item, repoRoot, ignoreRules)) {
+            allFiles.push(item);
+        }
     }
 
     if (!allFiles.length) return;
@@ -1156,7 +1199,7 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}, re
     writeStream.close();
 }
 
-module.exports = { generateCode };
+module.exports = { generateCode, getAllFiles, findRepoRoot };
 
 
 ------------------------------
@@ -1169,27 +1212,34 @@ const { app } = require('electron');
 
 const globalIgnorePath = path.join(app.getPath('userData'), 'global-docignore.json');
 
-/**
- * Get global ignore rules
- * @returns {string[]}
- */
-function getGlobalIgnoreRules() {
-    if (!fs.existsSync(globalIgnorePath)) return [];
+// ----------------------------
+// Cached Global Rules
+// ----------------------------
+let cachedGlobalRules = null;
+
+function loadGlobalIgnoreRules() {
+    if (cachedGlobalRules) return cachedGlobalRules;
+
+    if (!fs.existsSync(globalIgnorePath)) {
+        cachedGlobalRules = [];
+        return cachedGlobalRules;
+    }
+
     try {
         const data = fs.readFileSync(globalIgnorePath, 'utf-8');
-        console.log('[Docignore] Global ignore rules loaded:', data);
-        return JSON.parse(data);
+        cachedGlobalRules = JSON.parse(data);
+        console.log('[Docignore] Global ignore rules loaded:', cachedGlobalRules);
+        return cachedGlobalRules;
     } catch (err) {
         console.error('[Docignore] Failed to read global ignore:', err);
-        return [];
+        cachedGlobalRules = [];
+        return cachedGlobalRules;
     }
 }
 
-/**
- * Get combined ignore rules for a repo (global + optional repo-specific)
- * @param {string} repoPath
- * @returns {Promise<string[]>}
- */
+// ----------------------------
+// Repo-specific + combined rules
+// ----------------------------
 async function getIgnoreRules(repoPath) {
     try {
         let repoRules = [];
@@ -1204,7 +1254,7 @@ async function getIgnoreRules(repoPath) {
             }
         }
 
-        const combinedRules = [...getGlobalIgnoreRules(), ...repoRules];
+        const combinedRules = [...loadGlobalIgnoreRules(), ...repoRules];
         console.log('[Docignore] Combined ignore rules for', repoPath, combinedRules);
         return combinedRules;
     } catch (err) {
@@ -1213,22 +1263,34 @@ async function getIgnoreRules(repoPath) {
     }
 }
 
-/**
- * Check if a file/folder is ignored
- * @param {string} fullPath
- * @param {string} repoPath
- * @param {string[]} extraRules Optional extra rules (repo-specific)
- */
-function isIgnored(fullPath, repoPath, extraRules = []) {
-    const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
-    const rules = [...getGlobalIgnoreRules(), ...extraRules];
+// ----------------------------
+// Check if path is ignored
+// ----------------------------
+function isIgnored(fullPath, repoPath, rules = []) {
+    if (!repoPath) return false;
+
+    let relPath = path.relative(repoPath, fullPath);
+
+    // Normalize for Windows + micromatch
+    relPath = relPath.replace(/\\/g, '/');
+
+    // Ignore anything outside the repo
+    if (relPath.startsWith('..')) return false;
+    console.log('[Docignore] Checking:', relPath, 'Rules:', rules);
+
     const ignored = micromatch.isMatch(relPath, rules, { dot: true });
-    // debug log
-    if (ignored) console.log('[Docignore] Ignored:', relPath);
+
+    isIgnored.loggedFiles = isIgnored.loggedFiles || new Set();
+    if (ignored && !isIgnored.loggedFiles.has(relPath)) {
+        console.log('[Docignore] Ignored:', relPath);
+        isIgnored.loggedFiles.add(relPath);
+    }
+
     return ignored;
 }
 
-module.exports = { isIgnored, getGlobalIgnoreRules, getIgnoreRules };
+
+module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };
 
 
 ------------------------------
@@ -1241,41 +1303,85 @@ const { isIgnored } = require('./docignore');
 /**
  * Get folder tree structure for tree view
  */
-function getFolderTree(dir, ignoreRules = [], repoRoot = dir) {
-    return fs.readdirSync(dir, { withFileTypes: true })
-        .filter(f => !isIgnored(path.join(dir, f.name), repoRoot, ignoreRules))
-        .map(f => f.isDirectory()
-            ? { 
-                name: f.name, 
-                path: path.join(dir, f.name), 
-                type: 'folder', 
-                children: getFolderTree(path.join(dir, f.name), ignoreRules, repoRoot) 
-              }
-            : { name: f.name, path: path.join(dir, f.name), type: 'file' }
-        );
+function getFolderTree(dir, ignoreRules = [], repoRoot) {
+    if (!repoRoot) repoRoot = dir;
+
+    if (isIgnored(dir, repoRoot, ignoreRules)) return [];
+
+    let entries = [];
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+        return [];
+    }
+
+    return entries
+        .filter(entry => {
+            const fullPath = path.join(dir, entry.name);
+            return !isIgnored(fullPath, repoRoot, ignoreRules);
+        })
+        .map(entry => {
+            const fullPath = path.join(dir, entry.name);
+
+            if (entry.isDirectory()) {
+                return {
+                    name: entry.name,
+                    path: fullPath,
+                    type: 'folder',
+                    children: getFolderTree(fullPath, ignoreRules, repoRoot),
+                };
+            }
+
+            return {
+                name: entry.name,
+                path: fullPath,
+                type: 'file',
+            };
+        });
 }
 
 /**
  * Generate folder structure output (text)
  */
 async function generateStructure(selectedPaths, outputFile, ignoreRules = [], progressCallback = () => {}) {
+    if (!selectedPaths || !selectedPaths.length) return;
+
+    const repoRoot = selectedPaths[0]; // top-level repo root
+
     const outputLines = [];
     const allItems = [];
 
-    function collect(p, repoRoot, depth = 0) {
-        if (isIgnored(p, repoRoot, ignoreRules)) return;
-        allItems.push({ path: p, depth });
-        if (fs.statSync(p).isDirectory()) {
-            fs.readdirSync(p).forEach(c => collect(path.join(p, c), repoRoot, depth + 1));
+    function collect(currentPath, depth = 0) {
+        if (isIgnored(currentPath, repoRoot, ignoreRules)) return;
+
+        let stat;
+        try {
+            stat = fs.statSync(currentPath);
+        } catch {
+            return;
+        }
+
+        allItems.push({ path: currentPath, depth });
+
+        if (stat.isDirectory()) {
+            let children = [];
+            try {
+                children = fs.readdirSync(currentPath);
+            } catch {
+                return;
+            }
+
+            children.forEach(child => collect(path.join(currentPath, child), depth + 1));
         }
     }
 
-    selectedPaths.forEach(p => collect(p, p));
+    selectedPaths.forEach(p => collect(p, 0));
 
     allItems.forEach((item, idx) => {
         const stat = fs.statSync(item.path);
         const prefix = '  '.repeat(item.depth);
         outputLines.push(`${prefix}${path.basename(item.path)}${stat.isDirectory() ? '/' : ''}`);
+
         progressCallback(Math.round(((idx + 1) / allItems.length) * 100));
     });
 
@@ -1304,15 +1410,22 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
     // Store expanded/collapsed folder state
     const expandedFolders = new WeakMap();
 
-    // Recursively get all files under a folder
+    // Recursively get all files under a folder (ignores folders with no files)
     function getAllFiles(node) {
         if (node.type === 'file') return [node];
         if (!node.children?.length) return [];
         return node.children.flatMap(getAllFiles);
     }
 
+    // Count only visible files (non-ignored) recursively
+    function countFiles(node) {
+        if (node.type === 'file') return 1;
+        if (!node.children?.length) return 0;
+        return node.children.reduce((acc, child) => acc + countFiles(child), 0);
+    }
+
     function createNode(node) {
-        // In structure mode, skip files
+        // Skip files in structure mode
         if (actionType === 'structure' && node.type === 'file') return null;
 
         const el = document.createElement('div');
@@ -1320,10 +1433,9 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         if (node.type === 'file') el.classList.add('file');
         else el.classList.add('folder');
 
-        // Determine if node is selected
         const isSelected = selectedItems.includes(node.path);
 
-        // Apply highlight
+        // Highlight selection
         if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
         else if (node.type === 'file' && isSelected) el.classList.add('file-selected');
         else if (node.type === 'folder' && isSelected) el.classList.add('selected');
@@ -1342,7 +1454,6 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         if (node.type === 'folder' && node.children?.length) {
             childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
-            // Use flex + wrap for horizontal layout
             childrenContainer.style.display = expandedFolders.get(node) ? 'flex' : 'none';
             childrenContainer.style.flexWrap = 'wrap';
             childrenContainer.style.gap = '8px';
@@ -1360,7 +1471,6 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         el.addEventListener('click', e => {
             e.stopPropagation();
 
-            // Toggle selection
             if (node.type === 'file') {
                 const index = selectedItems.indexOf(node.path);
                 if (index === -1) selectedItems.push(node.path);
@@ -1380,7 +1490,6 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                         });
                     }
                 } else {
-                    // Structure mode: toggle folder only
                     const idx = selectedItems.indexOf(node.path);
                     if (idx === -1) selectedItems.push(node.path);
                     else selectedItems.splice(idx, 1);
@@ -1395,10 +1504,13 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                 el.classList.toggle('folder-open', !isExpanded);
             }
 
-            // Force re-render to update highlights
-            renderTree(treeData, container, selectedItems, actionType, onToggle);
+            // Re-render only container children to improve performance
+            container.innerHTML = '';
+            treeData.forEach(n => {
+                const nodeEl = createNode(n);
+                if (nodeEl) container.appendChild(nodeEl);
+            });
 
-            // Trigger callback
             if (onToggle) onToggle(node);
         });
 
@@ -1409,13 +1521,6 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         const n = createNode(node);
         if (n) container.appendChild(n);
     });
-}
-
-// Count files recursively
-function countFiles(node) {
-    if (node.type === 'file') return 1;
-    if (!node.children?.length) return 0;
-    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
 }
 
 

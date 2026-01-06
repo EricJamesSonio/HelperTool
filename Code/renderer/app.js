@@ -26,7 +26,7 @@ generateBtn.disabled = true;
 window.electronAPI.onProgressUpdate((percent) => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
-    console.log(`[Progress] ${percent}%`);
+    //console.log(`[Progress] ${percent}%`);
 });
 
 // ----------------------------

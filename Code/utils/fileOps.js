@@ -5,41 +5,85 @@ const { isIgnored } = require('./docignore');
 /**
  * Get folder tree structure for tree view
  */
-function getFolderTree(dir, ignoreRules = [], repoRoot = dir) {
-    return fs.readdirSync(dir, { withFileTypes: true })
-        .filter(f => !isIgnored(path.join(dir, f.name), repoRoot, ignoreRules))
-        .map(f => f.isDirectory()
-            ? { 
-                name: f.name, 
-                path: path.join(dir, f.name), 
-                type: 'folder', 
-                children: getFolderTree(path.join(dir, f.name), ignoreRules, repoRoot) 
-              }
-            : { name: f.name, path: path.join(dir, f.name), type: 'file' }
-        );
+function getFolderTree(dir, ignoreRules = [], repoRoot) {
+    if (!repoRoot) repoRoot = dir;
+
+    if (isIgnored(dir, repoRoot, ignoreRules)) return [];
+
+    let entries = [];
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+        return [];
+    }
+
+    return entries
+        .filter(entry => {
+            const fullPath = path.join(dir, entry.name);
+            return !isIgnored(fullPath, repoRoot, ignoreRules);
+        })
+        .map(entry => {
+            const fullPath = path.join(dir, entry.name);
+
+            if (entry.isDirectory()) {
+                return {
+                    name: entry.name,
+                    path: fullPath,
+                    type: 'folder',
+                    children: getFolderTree(fullPath, ignoreRules, repoRoot),
+                };
+            }
+
+            return {
+                name: entry.name,
+                path: fullPath,
+                type: 'file',
+            };
+        });
 }
 
 /**
  * Generate folder structure output (text)
  */
 async function generateStructure(selectedPaths, outputFile, ignoreRules = [], progressCallback = () => {}) {
+    if (!selectedPaths || !selectedPaths.length) return;
+
+    const repoRoot = selectedPaths[0]; // top-level repo root
+
     const outputLines = [];
     const allItems = [];
 
-    function collect(p, repoRoot, depth = 0) {
-        if (isIgnored(p, repoRoot, ignoreRules)) return;
-        allItems.push({ path: p, depth });
-        if (fs.statSync(p).isDirectory()) {
-            fs.readdirSync(p).forEach(c => collect(path.join(p, c), repoRoot, depth + 1));
+    function collect(currentPath, depth = 0) {
+        if (isIgnored(currentPath, repoRoot, ignoreRules)) return;
+
+        let stat;
+        try {
+            stat = fs.statSync(currentPath);
+        } catch {
+            return;
+        }
+
+        allItems.push({ path: currentPath, depth });
+
+        if (stat.isDirectory()) {
+            let children = [];
+            try {
+                children = fs.readdirSync(currentPath);
+            } catch {
+                return;
+            }
+
+            children.forEach(child => collect(path.join(currentPath, child), depth + 1));
         }
     }
 
-    selectedPaths.forEach(p => collect(p, p));
+    selectedPaths.forEach(p => collect(p, 0));
 
     allItems.forEach((item, idx) => {
         const stat = fs.statSync(item.path);
         const prefix = '  '.repeat(item.depth);
         outputLines.push(`${prefix}${path.basename(item.path)}${stat.isDirectory() ? '/' : ''}`);
+
         progressCallback(Math.round(((idx + 1) / allItems.length) * 100));
     });
 

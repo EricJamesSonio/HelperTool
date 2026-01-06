@@ -233,7 +233,7 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
             console.log('[IPC] Generating structure...');
             await fileOps.generateStructure(items, filePath, ignoreRules, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
-                console.log(`[Progress] ${percent}%`);
+                //console.log(`[Progress] ${percent}%`);
             });
         } else if (actionType === 'code') {
             console.log('[IPC] Generating code...');

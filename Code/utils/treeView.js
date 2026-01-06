@@ -14,15 +14,22 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
     // Store expanded/collapsed folder state
     const expandedFolders = new WeakMap();
 
-    // Recursively get all files under a folder
+    // Recursively get all files under a folder (ignores folders with no files)
     function getAllFiles(node) {
         if (node.type === 'file') return [node];
         if (!node.children?.length) return [];
         return node.children.flatMap(getAllFiles);
     }
 
-    function createNode(node) {
-        // In structure mode, skip files
+    // Count only visible files recursively
+    function countFiles(node) {
+        if (node.type === 'file') return 1;
+        if (!node.children?.length) return 0;
+        return node.children.reduce((acc, child) => acc + countFiles(child), 0);
+    }
+
+    function createNode(node, isRoot = false) {
+        // Skip files in structure mode
         if (actionType === 'structure' && node.type === 'file') return null;
 
         const el = document.createElement('div');
@@ -30,10 +37,9 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         if (node.type === 'file') el.classList.add('file');
         else el.classList.add('folder');
 
-        // Determine if node is selected
         const isSelected = selectedItems.includes(node.path);
 
-        // Apply highlight
+        // Highlight selection
         if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
         else if (node.type === 'file' && isSelected) el.classList.add('file-selected');
         else if (node.type === 'folder' && isSelected) el.classList.add('selected');
@@ -52,7 +58,6 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         if (node.type === 'folder' && node.children?.length) {
             childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
-            // Use flex + wrap for horizontal layout
             childrenContainer.style.display = expandedFolders.get(node) ? 'flex' : 'none';
             childrenContainer.style.flexWrap = 'wrap';
             childrenContainer.style.gap = '8px';
@@ -70,7 +75,6 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         el.addEventListener('click', e => {
             e.stopPropagation();
 
-            // Toggle selection
             if (node.type === 'file') {
                 const index = selectedItems.indexOf(node.path);
                 if (index === -1) selectedItems.push(node.path);
@@ -90,7 +94,6 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                         });
                     }
                 } else {
-                    // Structure mode: toggle folder only
                     const idx = selectedItems.indexOf(node.path);
                     if (idx === -1) selectedItems.push(node.path);
                     else selectedItems.splice(idx, 1);
@@ -105,25 +108,22 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                 el.classList.toggle('folder-open', !isExpanded);
             }
 
-            // Force re-render to update highlights
-            renderTree(treeData, container, selectedItems, actionType, onToggle);
+            // Re-render container without losing root
+            container.innerHTML = '';
+            treeData.forEach(n => {
+                const nodeEl = createNode(n, true);
+                if (nodeEl) container.appendChild(nodeEl);
+            });
 
-            // Trigger callback
             if (onToggle) onToggle(node);
         });
 
         return el;
     }
 
+    // Always render root nodes, ignore rules only apply to children
     treeData.forEach(node => {
-        const n = createNode(node);
+        const n = createNode(node, true);
         if (n) container.appendChild(n);
     });
-}
-
-// Count files recursively
-function countFiles(node) {
-    if (node.type === 'file') return 1;
-    if (!node.children?.length) return 0;
-    return node.children.reduce((acc, child) => acc + countFiles(child), 0);
 }

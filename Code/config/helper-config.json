@@ -1,6 +1,6 @@
 {
   "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
-  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2",
   "projects": {
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
       "storageName": "src",
@@ -21,15 +21,41 @@
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown": {
       "storageName": "Gown",
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Gown",
-      "lastUsed": "2026-01-05T11:02:54.764Z",
-      "lastSelectedItems": [
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Gown\\database"
-      ]
+      "lastUsed": "2026-01-06T02:17:56.102Z",
+      "lastSelectedItems": []
     },
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Jollibee": {
       "storageName": "Jollibee",
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Jollibee",
       "lastUsed": "2026-01-05T14:42:20.003Z",
+      "lastSelectedItems": []
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Excalidraw": {
+      "storageName": "Excalidraw",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Excalidraw",
+      "lastUsed": "2026-01-06T02:17:34.325Z",
+      "lastSelectedItems": [
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Excalidraw\\Labdoc.excalidraw"
+      ]
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EventDrivenArchitecture": {
+      "storageName": "EventDrivenArchitecture",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\EventDrivenArchitecture",
+      "lastUsed": "2026-01-06T03:10:54.347Z",
+      "lastSelectedItems": []
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\STUDYLY": {
+      "storageName": "STUDYLY",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\STUDYLY",
+      "lastUsed": "2026-01-06T03:21:11.358Z",
+      "lastSelectedItems": [
+        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\STUDYLY\\Presentation"
+      ]
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2": {
+      "storageName": "EduToolV2",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\EduToolV2",
+      "lastUsed": "2026-01-06T03:24:49.189Z",
       "lastSelectedItems": []
     }
   },

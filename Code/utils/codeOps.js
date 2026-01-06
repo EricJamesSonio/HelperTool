@@ -24,6 +24,20 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
 }
 
 /**
+ * Find repo root for ignore rules
+ */
+function findRepoRoot(startPath) {
+    let dir = startPath;
+    while (dir && dir !== path.parse(dir).root) {
+        if (fs.existsSync(path.join(dir, '.docignore')) || fs.existsSync(path.join(dir, 'package.json'))) {
+            return dir;
+        }
+        dir = path.dirname(dir);
+    }
+    return startPath; // fallback
+}
+
+/**
  * Generate combined code output
  * @param {string[]} selectedItems
  * @param {string} outputFile
@@ -33,14 +47,17 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
  */
 async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules = []) {
     if (!selectedItems.length) return;
-    if (!repoRoot) repoRoot = path.dirname(selectedItems[0]);
+    if (!repoRoot) repoRoot = findRepoRoot(selectedItems[0]);
     if (!ignoreRules.length) ignoreRules = await getIgnoreRules(repoRoot);
 
     let allFiles = [];
     for (const item of selectedItems) {
         const stat = fs.statSync(item);
-        if (stat.isDirectory()) allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
-        else if (stat.isFile() && !isIgnored(item, repoRoot, ignoreRules)) allFiles.push(item);
+        if (stat.isDirectory()) {
+            allFiles = allFiles.concat(getAllFiles(item, ignoreRules, repoRoot));
+        } else if (stat.isFile() && !isIgnored(item, repoRoot, ignoreRules)) {
+            allFiles.push(item);
+        }
     }
 
     if (!allFiles.length) return;
@@ -55,4 +72,4 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}, re
     writeStream.close();
 }
 
-module.exports = { generateCode };
+module.exports = { generateCode, getAllFiles, findRepoRoot };
