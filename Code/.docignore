@@ -1,10 +1,77 @@
 [
-  "node_modules/**",
-  ".git/**",
-  "logs/**",
-  "*.log",
-  "Allcodes.txt",
-  "configCode.txt",
-  "rendererCodes.txt",
-  "UtilsCodes.txt"
+  "**/node_modules/**",
+
+  "**/package.json",
+  "**/package-lock.json",
+  "**/yarn.lock",
+  "**/pnpm-lock.yaml",
+  "**/.npmrc",
+
+  "**/.git/**",
+
+  "**/logs/**",
+  "**/*.log",
+
+  "**/dist/**",
+  "**/build/**",
+  "**/out/**",
+
+  "**/.env",
+  "**/.env.*",
+
+  "**/.DS_Store",
+  "**/Thumbs.db",
+
+  "**/.vscode/**",
+  "**/.idea/**",
+
+  "**/requirements.txt",
+  "**/Pipfile",
+  "**/Pipfile.lock",
+  "**/pyproject.toml",
+  "**/poetry.lock",
+  "**/__pycache__/**",
+  "**/*.pyc",
+  "**/venv/**",
+  "**/.venv/**",
+
+  "**/pom.xml",
+  "**/build.gradle",
+  "**/settings.gradle",
+  "**/gradlew",
+  "**/gradle/**",
+  "**/target/**",
+  "**/*.class",
+  "**/*.jar",
+
+  "**/composer.json",
+  "**/composer.lock",
+  "**/vendor/**",
+
+  "**/go.mod",
+  "**/go.sum",
+  "**/bin/**",
+  "**/*.exe",
+
+  "**/Cargo.toml",
+  "**/Cargo.lock",
+  "**/target/**",
+
+  "**/*.csproj",
+  "**/*.fsproj",
+  "**/*.vbproj",
+  "**/packages.lock.json",
+  "**/bin/**",
+  "**/obj/**",
+
+  "**/.next/**",
+  "**/.nuxt/**",
+  "**/.svelte-kit/**",
+  "**/coverage/**",
+
+  "**/text.txt",
+  "**/Allcodes.txt",
+  "**/configCode.txt",
+  "**/rendererCodes.txt",
+  "**/UtilsCodes.txt"
 ]

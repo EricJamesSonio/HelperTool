@@ -293,14 +293,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         return node.children.flatMap(getAllFiles);
     }
 
-    // Count only visible files (non-ignored) recursively
+    // Count only visible files recursively
     function countFiles(node) {
         if (node.type === 'file') return 1;
         if (!node.children?.length) return 0;
         return node.children.reduce((acc, child) => acc + countFiles(child), 0);
     }
 
-    function createNode(node) {
+    function createNode(node, isRoot = false) {
         // Skip files in structure mode
         if (actionType === 'structure' && node.type === 'file') return null;
 
@@ -380,10 +380,10 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                 el.classList.toggle('folder-open', !isExpanded);
             }
 
-            // Re-render only container children to improve performance
+            // Re-render container without losing root
             container.innerHTML = '';
             treeData.forEach(n => {
-                const nodeEl = createNode(n);
+                const nodeEl = createNode(n, true);
                 if (nodeEl) container.appendChild(nodeEl);
             });
 
@@ -393,8 +393,9 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         return el;
     }
 
+    // Always render root nodes, ignore rules only apply to children
     treeData.forEach(node => {
-        const n = createNode(node);
+        const n = createNode(node, true);
         if (n) container.appendChild(n);
     });
 }

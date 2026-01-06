@@ -47,19 +47,7 @@ async function getIgnoreRules(repoPath) {
             }
         }
 
-        // ----------------------------
-        // Default hardcoded rules
-        // ----------------------------
-        const defaultRules = [
-            'node_modules/**',
-            '.git/**',
-            '.DS_Store',
-            'dist/**',
-            'build/**'
-        ];
-
-        // Combine defaults + global + repo rules
-        const combinedRules = [...defaultRules, ...loadGlobalIgnoreRules(), ...repoRules];
+        const combinedRules = [...loadGlobalIgnoreRules(), ...repoRules];
         console.log('[Docignore] Combined ignore rules for', repoPath, combinedRules);
         return combinedRules;
     } catch (err) {
@@ -81,8 +69,8 @@ function isIgnored(fullPath, repoPath, rules = []) {
 
     // Ignore anything outside the repo
     if (relPath.startsWith('..')) return false;
+    console.log('[Docignore] Checking:', relPath, 'Rules:', rules);
 
-    // Check against rules
     const ignored = micromatch.isMatch(relPath, rules, { dot: true });
 
     isIgnored.loggedFiles = isIgnored.loggedFiles || new Set();
@@ -93,5 +81,6 @@ function isIgnored(fullPath, repoPath, rules = []) {
 
     return ignored;
 }
+
 
 module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };

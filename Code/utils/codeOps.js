@@ -1,9 +1,13 @@
+// file: codeOps.js
 const fs = require('fs');
 const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
  * Recursively collect files from folder respecting ignore rules
+ * @param {string} folderPath
+ * @param {string[]} ignoreRules
+ * @param {string} repoRoot
  */
 function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
     let files = [];
@@ -12,6 +16,8 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
     const items = fs.readdirSync(folderPath, { withFileTypes: true });
     for (const item of items) {
         const fullPath = path.join(folderPath, item.name);
+
+        // Skip ignored files/folders
         if (isIgnored(fullPath, repoRoot, ignoreRules)) continue;
 
         if (item.isDirectory()) {
@@ -24,31 +30,34 @@ function getAllFiles(folderPath, ignoreRules = [], repoRoot) {
 }
 
 /**
- * Find repo root for ignore rules
+ * Find repo root starting from a folder (optional fallback)
+ * @param {string} startPath
  */
 function findRepoRoot(startPath) {
-    let dir = startPath;
+    let dir = path.resolve(startPath);
     while (dir && dir !== path.parse(dir).root) {
         if (fs.existsSync(path.join(dir, '.docignore')) || fs.existsSync(path.join(dir, 'package.json'))) {
             return dir;
         }
         dir = path.dirname(dir);
     }
-    return startPath; // fallback
+    return startPath; // fallback to the folder itself
 }
 
 /**
- * Generate combined code output
- * @param {string[]} selectedItems
- * @param {string} outputFile
- * @param {function(number):void} onProgress
- * @param {string} repoRoot
- * @param {string[]} ignoreRules
+ * Generate combined code output from selected items
+ * @param {string[]} selectedItems - user-selected files/folders
+ * @param {string} outputFile - output file path
+ * @param {function(number):void} onProgress - optional progress callback
  */
-async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules = []) {
+async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
     if (!selectedItems.length) return;
-    if (!repoRoot) repoRoot = findRepoRoot(selectedItems[0]);
-    if (!ignoreRules.length) ignoreRules = await getIgnoreRules(repoRoot);
+
+    // Use the folder the user selected as repo root
+    const repoRoot = path.resolve(selectedItems[0]);
+
+    // Load ignore rules from the target repo only
+    const ignoreRules = await getIgnoreRules(repoRoot);
 
     let allFiles = [];
     for (const item of selectedItems) {
@@ -72,4 +81,41 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}, re
     writeStream.close();
 }
 
-module.exports = { generateCode, getAllFiles, findRepoRoot };
+/**
+ * Get folder tree structure for tree view respecting ignore rules
+ * @param {string} dir
+ * @param {string[]} ignoreRules
+ * @param {string} repoRoot
+ */
+function getFolderTree(dir, ignoreRules = [], repoRoot) {
+    if (!repoRoot) repoRoot = path.resolve(dir);
+
+    if (isIgnored(dir, repoRoot, ignoreRules)) return [];
+
+    let entries = [];
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return [];
+    }
+
+    return entries
+        .filter(entry => {
+            const fullPath = path.join(dir, entry.name);
+            return !isIgnored(fullPath, repoRoot, ignoreRules);
+        })
+        .map(entry => {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                return {
+                    name: entry.name,
+                    path: fullPath,
+                    type: 'folder',
+                    children: getFolderTree(fullPath, ignoreRules, repoRoot),
+                };
+            }
+            return { name: entry.name, path: fullPath, type: 'file' };
+        });
+}
+
+module.exports = { generateCode, getAllFiles, findRepoRoot, getFolderTree };
