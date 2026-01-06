@@ -38,6 +38,7 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         const nodeWrapper = document.createElement('div');
         nodeWrapper.classList.add('node-wrapper');
         nodeWrapper.style.setProperty('--depth', depth);
+        nodeWrapper.dataset.nodePath = node.path; // Store path for later reference
 
         const el = document.createElement('div');
         el.classList.add('tree-node');
@@ -46,7 +47,7 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
         const isSelected = selectedItems.includes(node.path);
         
-        // Auto-expand first level folders (depth 0) if not explicitly set
+        // Check if folder should be expanded (persistent state)
         let isExpanded = expandedFolders.get(node.path);
         if (isExpanded === undefined && depth === 0 && node.type === 'folder') {
             isExpanded = true;
@@ -76,10 +77,15 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
         nodeWrapper.appendChild(el);
 
-        // Children container
-        if (node.type === 'folder' && node.children?.length && isExpanded) {
+        // Children container - ALWAYS render if folder has children
+        if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
+            
+            // Show/hide based on expanded state
+            if (!isExpanded) {
+                childrenContainer.style.display = 'none';
+            }
 
             node.children.forEach(child => {
                 const childNode = createNode(child, depth + 1);
@@ -117,19 +123,69 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                     else selectedItems.splice(idx, 1);
                 }
 
-                // Toggle expand/collapse
+                // Toggle expand/collapse for folders with children
                 if (node.children?.length) {
-                    expandedFolders.set(node.path, !isExpanded);
+                    const newExpandedState = !isExpanded;
+                    expandedFolders.set(node.path, newExpandedState);
+                    
+                    // Find the children container and toggle its display
+                    const childrenContainer = nodeWrapper.querySelector('.children');
+                    if (childrenContainer) {
+                        childrenContainer.style.display = newExpandedState ? 'flex' : 'none';
+                    }
+                    
+                    // Update folder icon
+                    if (newExpandedState) {
+                        el.classList.add('folder-open');
+                    } else {
+                        el.classList.remove('folder-open');
+                    }
                 }
             }
 
-            // Re-render entire tree
-            renderTree(treeData, container, selectedItems, actionType, onToggle);
+            // Update selection highlights without re-rendering
+            updateSelectionHighlights();
 
             if (onToggle) onToggle(node);
         });
 
         return nodeWrapper;
+    }
+
+    // Helper to update selection highlights without full re-render
+    function updateSelectionHighlights() {
+        const allNodes = container.querySelectorAll('.tree-node');
+        allNodes.forEach(nodeEl => {
+            const wrapper = nodeEl.parentElement;
+            const nodePath = wrapper.dataset.nodePath;
+            
+            if (!nodePath) return;
+            
+            const isSelected = selectedItems.includes(nodePath);
+            
+            // Remove all selection classes
+            nodeEl.classList.remove('selected', 'folder-selected', 'file-selected');
+            
+            // Re-apply based on current state
+            if (nodeEl.classList.contains('folder')) {
+                if (actionType === 'code' && isSelected) {
+                    nodeEl.classList.add('folder-selected');
+                } else if (isSelected) {
+                    nodeEl.classList.add('selected');
+                }
+            } else if (nodeEl.classList.contains('file') && isSelected) {
+                nodeEl.classList.add('file-selected');
+            }
+        });
+        
+        updateGenerateState();
+    }
+
+    function updateGenerateState() {
+        const generateBtn = document.getElementById('generateBtn');
+        if (generateBtn) {
+            generateBtn.disabled = selectedItems.length === 0;
+        }
     }
 
     // Create tree container with root level
