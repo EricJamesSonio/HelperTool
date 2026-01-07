@@ -3,10 +3,12 @@
  * -----------------
  * - Shows folders always
  * - Files shown in code mode
+ * - ALL folders expanded by default
  * - Click to select folders/files
  * - Folder selection in code mode = all files inside selected recursively
  * - Highlights selected items
  * - Displays as visual tree with connecting lines
+ * - Compact design for easier viewing of large trees
  */
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
     container.innerHTML = '';
@@ -47,13 +49,13 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
         const isSelected = selectedItems.includes(node.path);
         
-        // Check if folder should be expanded (persistent state)
+        // Check if folder should be expanded - DEFAULT TO TRUE for all folders
         let isExpanded = expandedFolders.get(node.path);
-        if (isExpanded === undefined && depth === 0 && node.type === 'folder') {
-            isExpanded = true;
+        if (isExpanded === undefined && node.type === 'folder' && node.children?.length) {
+            isExpanded = true; // Expand all folders by default
             expandedFolders.set(node.path, true);
         }
-        isExpanded = isExpanded || false;
+        isExpanded = isExpanded !== false; // Default to expanded unless explicitly collapsed
 
         // Highlight selection
         if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
@@ -66,13 +68,13 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
             if (isExpanded) el.classList.add('folder-open');
         }
 
-        // Label
+        // Label (more compact)
         let label = node.name;
         if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
             const fileCount = countFiles(node);
-            if (fileCount > 0) label += ` (${fileCount} files)`;
+            if (fileCount > 0) label += ` (${fileCount})`;
         }
-        if (node.type === 'folder' && actionType === 'code' && isSelected) label += ' [ALL FILES]';
+        if (node.type === 'folder' && actionType === 'code' && isSelected) label += ' [ALL]';
         el.textContent = label;
 
         nodeWrapper.appendChild(el);
@@ -82,7 +84,7 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
             const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
             
-            // Show/hide based on expanded state
+            // Show/hide based on expanded state (but default is shown)
             if (!isExpanded) {
                 childrenContainer.style.display = 'none';
             }
