@@ -241,15 +241,14 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
 
         if (actionType === 'structure') {
             console.log('[IPC] Generating structure...');
-await fileOps.generateStructure(items, filePath, (percent) => {
-    mainWindow.webContents.send('progress-update', percent);
-});
+            await fileOps.generateStructure(items, filePath, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+            });
 
         } else if (actionType === 'code') {
             console.log('[IPC] Generating code...');
             await codeOps.generateCode(items, filePath, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
-                //console.log(`[Progress] ${percent}%`);
             }, repoPath, ignoreRules);
         }
 
@@ -257,10 +256,21 @@ await fileOps.generateStructure(items, filePath, (percent) => {
 
         // --------------------------
         // OPEN NOTEPAD AUTOMATICALLY
+        // Wait a bit to ensure file is fully written
         // --------------------------
-        exec(`notepad "${filePath}"`, (err) => {
-            if (err) console.error('[IPC] Failed to open Notepad:', err);
-        });
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (fs.existsSync(filePath)) {
+            exec(`notepad "${filePath}"`, (err) => {
+                if (err) {
+                    console.error('[IPC] Failed to open Notepad:', err);
+                    // Fallback to default app
+                    shell.openPath(filePath);
+                }
+            });
+        } else {
+            console.error('[IPC] File does not exist after generation:', filePath);
+        }
 
         return true;
     } catch (err) {

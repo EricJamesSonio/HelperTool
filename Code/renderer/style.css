@@ -502,3 +502,59 @@ button:disabled {
 #treeContainer::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
 }
+
+.search-section {
+  position: relative;
+}
+
+.search-input {
+  padding: 5px 10px;
+  width: 200px;
+}
+
+.search-suggestions {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  width: 200px;
+  background: #fff;
+  border: 1px solid #ccc;
+  max-height: 150px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: none;
+  z-index: 100;
+}
+
+.search-suggestions li {
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.search-suggestions li:hover {
+  background-color: #eee;
+}
+
+/* -----------------------------
+   Search Highlight (Flash + Fade)
+----------------------------- */
+.tree-node.highlighted {
+  background: rgba(255, 235, 150, 0.95) !important;
+  box-shadow: 0 0 0 3px rgba(255, 200, 80, 0.9) !important;
+  border-color: #f39c12 !important;
+  animation: searchFlash 1.6s ease-out forwards;
+}
+
+@keyframes searchFlash {
+  0% {
+    background: rgba(255, 235, 150, 0.95) !important;
+  }
+  60% {
+    background: rgba(255, 235, 150, 0.6) !important;
+  }
+  100% {
+    background: transparent !important;
+  }
+}

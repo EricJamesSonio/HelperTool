@@ -29,7 +29,7 @@ const IGNORE_FILES = new Set([
 const CODE_EXTENSIONS = new Set([
   '.js', '.ts', '.jsx', '.tsx',
   '.json', '.sql', '.env', '.md',
-  '.yml', '.yaml','.html','.css',
+  '.yml', '.yaml','.html',
   '.graphql',
   '.txt',
   '.prisma',
