@@ -155,6 +155,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('elec
 const path = require('path');
 const fs = require('fs');
 const config = require('./config/config.js');
+const { exec } = require('child_process'); 
 
 // Utils
 const fileOps = require('./utils/fileOps.js');
@@ -392,7 +393,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
             console.log('[IPC] Generating structure...');
             await fileOps.generateStructure(items, filePath, ignoreRules, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
-                //console.log(`[Progress] ${percent}%`);
             });
         } else if (actionType === 'code') {
             console.log('[IPC] Generating code...');
@@ -403,6 +403,14 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
         }
 
         console.log(`[IPC] Generation complete. Output at: ${filePath}`);
+
+        // --------------------------
+        // OPEN NOTEPAD AUTOMATICALLY
+        // --------------------------
+        exec(`notepad "${filePath}"`, (err) => {
+            if (err) console.error('[IPC] Failed to open Notepad:', err);
+        });
+
         return true;
     } catch (err) {
         console.error('[IPC] generate error:', err);
@@ -410,7 +418,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
         return false;
     }
 });
-
 // ----------------------------
 // Open .docignore file
 // ----------------------------
@@ -572,6 +579,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 ------------------------------
 FILE: renderer\app.js
 
+
 import { renderTree } from '../utils/treeView.js';
 
 const selectRepoBtn = document.getElementById('selectRepoBtn');
@@ -584,6 +592,7 @@ const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
 const openStorageBtn = document.getElementById('openStorageBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
+
 
 let selectedRepoPath = null;
 let selectedItems = [];        // ⚠️ NEVER reassign this
@@ -738,26 +747,39 @@ editDocignoreBtn.addEventListener('click', async () => {
 /* ----------------------------------------
  * Generate
  * -------------------------------------- */
+/* ----------------------------------------
+ * Generate
+ * -------------------------------------- */
 generateBtn.addEventListener('click', async () => {
     try {
         if (!selectedRepoPath || !selectedItems.length) {
             return alert('Select repo and items first!');
         }
 
+        // Ask for file path
         const { filePath } = await window.electronAPI.saveFileDialog(actionType);
         if (!filePath) return;
 
+        // Reset progress UI
         progressBar.value = 0;
         progressText.textContent = '0%';
 
-        await window.electronAPI.generate(
+        // Generate code / structure
+        const success = await window.electronAPI.generate(
             actionType,
             selectedRepoPath,
             selectedItems,
             filePath
         );
 
-        alert('Done!');
+        if (success) {
+            // No alert needed — file will open automatically
+            console.log(`[UI] Generation complete. File should open in VS Code or default editor: ${filePath}`);
+        } else {
+            alert('Generation failed.');
+        }
+
+        // Reset selection & tree
         resetSelection();
         displayTree();
     } catch (err) {
@@ -765,6 +787,7 @@ generateBtn.addEventListener('click', async () => {
         alert('Generation failed.');
     }
 });
+
 
 /* ----------------------------------------
  * Init
@@ -1402,10 +1425,11 @@ const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
- * Get folder tree structure for tree view
+ * Recursively get folder tree structure for tree view
  * @param {string} dir - starting directory
  * @param {string[]} ignoreRules - optional ignore rules
  * @param {string} repoRoot - repo root path
+ * @returns {Promise<Object[]>} - folder tree nodes
  */
 async function getFolderTree(dir, ignoreRules = [], repoRoot) {
     if (!repoRoot) repoRoot = path.resolve(dir);
@@ -1413,7 +1437,7 @@ async function getFolderTree(dir, ignoreRules = [], repoRoot) {
 
     if (isIgnored(dir, repoRoot, ignoreRules)) return [];
 
-    let entries = [];
+    let entries;
     try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (err) {
@@ -1445,7 +1469,7 @@ async function getFolderTree(dir, ignoreRules = [], repoRoot) {
 }
 
 /**
- * Generate folder structure output (text) respecting repo ignore rules
+ * Generate tree-style structure text respecting repo ignore rules
  * @param {string[]} selectedPaths - folders/files selected by user
  * @param {string} outputFile - path to write structure text
  * @param {function(number):void} progressCallback - optional progress update
@@ -1453,46 +1477,66 @@ async function getFolderTree(dir, ignoreRules = [], repoRoot) {
 async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
     if (!selectedPaths || !selectedPaths.length) return;
 
-    // Use the first selected path as repo root
     const repoRoot = path.resolve(selectedPaths[0]);
-
-    // Load ignore rules for this repo
     const ignoreRules = await getIgnoreRules(repoRoot);
 
-    const outputLines = [];
-    const allItems = [];
+    // Recursive helper to build tree node
+    async function buildTree(currentPath) {
+        if (isIgnored(currentPath, repoRoot, ignoreRules)) return null;
 
-function collect(currentPath, depth = 0) {
-    if (isIgnored(currentPath, repoRoot, ignoreRules)) return;
+        let stat;
+        try { stat = fs.statSync(currentPath); } catch { return null; }
 
-    let stat;
-    try { stat = fs.statSync(currentPath); } catch { return; }
+        const node = {
+            name: path.basename(currentPath),
+            path: currentPath,
+            type: stat.isDirectory() ? 'folder' : 'file',
+            children: []
+        };
 
-    if (stat.isFile() || (stat.isDirectory() && fs.readdirSync(currentPath).length > 0)) {
-        allItems.push({ path: currentPath, depth });
-    }
-
-    if (stat.isDirectory()) {
-        const children = fs.readdirSync(currentPath);
-        for (const child of children) {
-            collect(path.join(currentPath, child), depth + 1);
+        if (stat.isDirectory()) {
+            const entries = fs.readdirSync(currentPath);
+            for (const entry of entries) {
+                const childNode = await buildTree(path.join(currentPath, entry));
+                if (childNode) node.children.push(childNode);
+            }
         }
+
+        return node;
     }
-}
+
+    function treeLines(node, prefix = '', isLast = true) {
+        const lines = [];
+        const connector = prefix ? (isLast ? '└─ ' : '├─ ') : '';
+        lines.push(prefix + connector + node.name + (node.type === 'folder' ? '/' : ''));
+
+        if (node.children && node.children.length > 0) {
+            node.children.forEach((child, idx) => {
+                const last = idx === node.children.length - 1;
+                // Add '│   ' for continuing branches, '    ' for last branch
+                const newPrefix = prefix + (prefix ? (isLast ? '    ' : '│   ') : '');
+                lines.push(...treeLines(child, newPrefix, last));
+            });
+        }
+
+        return lines;
+    }
 
 
-    selectedPaths.forEach(p => collect(p, 0));
+    // Collect lines for all selected paths
+    const allLines = [];
+    for (const p of selectedPaths) {
+        const rootNode = await buildTree(p);
+        if (rootNode) allLines.push(...treeLines(rootNode));
+    }
 
-    // Build output lines for folder structure
-    allItems.forEach((item, idx) => {
-        const stat = fs.statSync(item.path);
-        const prefix = '  '.repeat(item.depth);
-        outputLines.push(`${prefix}${path.basename(item.path)}${stat.isDirectory() ? '/' : ''}`);
-
-        progressCallback(Math.round(((idx + 1) / allItems.length) * 100));
-    });
-
-    fs.writeFileSync(outputFile, outputLines.join('\n'), 'utf-8');
+    // Write to file
+    try {
+        fs.writeFileSync(outputFile, allLines.join('\n'), 'utf-8');
+        progressCallback(100);
+    } catch (err) {
+        console.error('Failed to write tree to file:', err);
+    }
 }
 
 module.exports = { getFolderTree, generateStructure };
