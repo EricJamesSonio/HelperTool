@@ -131,12 +131,7 @@ FILE: helper-config.json
       "storageName": "EduToolV2",
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\EduToolV2",
       "lastUsed": "2026-01-06T03:24:49.189Z",
-      "lastSelectedItems": [
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2\\server\\src\\backend",
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2\\server\\src\\backend\\controllers",
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2\\server\\server.js",
-        "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2\\server\\src"
-      ]
+      "lastSelectedItems": []
     }
   },
   "preferences": {

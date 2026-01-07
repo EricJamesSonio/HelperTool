@@ -1,6 +1,6 @@
 {
   "baseStoragePath": "C:/Users/Windows10/Desktop/HelperToolStorage",
-  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduToolV2",
+  "activeProject": "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Chatly",
   "projects": {
     "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\EduTool\\client\\src": {
       "storageName": "src",
@@ -56,6 +56,12 @@
       "storageName": "EduToolV2",
       "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\EduToolV2",
       "lastUsed": "2026-01-06T03:24:49.189Z",
+      "lastSelectedItems": []
+    },
+    "C:\\Users\\Windows 10\\Desktop\\Personal\\Projects\\Chatly": {
+      "storageName": "Chatly",
+      "storagePath": "C:\\Users\\Windows 10\\AppData\\Roaming\\Electron\\Chatly",
+      "lastUsed": "2026-01-07T12:51:48.286Z",
       "lastSelectedItems": []
     }
   },
