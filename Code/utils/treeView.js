@@ -9,6 +9,7 @@
  * - Highlights selected items
  * - Displays as visual tree with connecting lines
  * - Compact design for easier viewing of large trees
+ * - Proper alignment: same depth = same vertical position
  */
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
     container.innerHTML = '';
@@ -33,6 +34,37 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         return node.children.reduce((acc, child) => acc + countFiles(child), 0);
     }
 
+    // Get maximum depth of tree
+    function getMaxDepth(nodes, currentDepth = 0) {
+        if (!nodes || nodes.length === 0) return currentDepth;
+        let maxChildDepth = currentDepth;
+        nodes.forEach(node => {
+            if (node.children?.length) {
+                const childDepth = getMaxDepth(node.children, currentDepth + 1);
+                maxChildDepth = Math.max(maxChildDepth, childDepth);
+            }
+        });
+        return maxChildDepth;
+    }
+
+    // Organize nodes by depth level
+    function organizeByDepth(nodes, depth = 0, result = {}) {
+        if (!result[depth]) result[depth] = [];
+        
+        nodes.forEach(node => {
+            // Skip files in structure mode
+            if (actionType === 'structure' && node.type === 'file') return;
+            
+            result[depth].push(node);
+            
+            if (node.children?.length) {
+                organizeByDepth(node.children, depth + 1, result);
+            }
+        });
+        
+        return result;
+    }
+
     function createNode(node, depth = 0) {
         // Skip files in structure mode
         if (actionType === 'structure' && node.type === 'file') return null;
@@ -40,7 +72,8 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         const nodeWrapper = document.createElement('div');
         nodeWrapper.classList.add('node-wrapper');
         nodeWrapper.style.setProperty('--depth', depth);
-        nodeWrapper.dataset.nodePath = node.path; // Store path for later reference
+        nodeWrapper.dataset.nodePath = node.path;
+        nodeWrapper.dataset.nodeDepth = depth;
 
         const el = document.createElement('div');
         el.classList.add('tree-node');

@@ -1,7 +1,6 @@
 ------------------------------
 FILE: codeOps.js
 
-// file: codeOps.js
 const fs = require('fs');
 const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
@@ -74,6 +73,7 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
 
 /**
  * Get folder tree structure for tree view respecting ignore rules
+ * FIXED: Now properly awaits all nested folder promises
  */
 async function getFolderTree(dir, repoRoot = null) {
     if (!repoRoot) repoRoot = path.resolve(dir);
@@ -88,24 +88,39 @@ async function getFolderTree(dir, repoRoot = null) {
         return [];
     }
 
-    return entries
-        .filter(entry => !isIgnored(path.join(dir, entry.name), repoRoot))
-        .map(entry => {
+    // Filter out ignored entries first
+    const validEntries = entries.filter(entry => 
+        !isIgnored(path.join(dir, entry.name), repoRoot)
+    );
+
+    // Process all entries and await promises
+    const results = await Promise.all(
+        validEntries.map(async (entry) => {
             const fullPath = path.join(dir, entry.name);
+            
             if (entry.isDirectory()) {
+                // Recursively get children (await the promise!)
+                const children = await getFolderTree(fullPath, repoRoot);
                 return {
                     name: entry.name,
                     path: fullPath,
                     type: 'folder',
-                    children: getFolderTree(fullPath, repoRoot),
+                    children: children,
                 };
             }
-            return { name: entry.name, path: fullPath, type: 'file' };
-        });
+            
+            return { 
+                name: entry.name, 
+                path: fullPath, 
+                type: 'file' 
+            };
+        })
+    );
+
+    return results;
 }
 
 module.exports = { generateCode, getAllFiles, findRepoRoot, getFolderTree };
-
 
 ------------------------------
 FILE: docignore.js
@@ -298,20 +313,23 @@ module.exports = { getFolderTree, generateStructure };
 FILE: treeView.js
 
 /**
- * Tree View Renderer
+ * Tree Diagram Renderer
  * -----------------
  * - Shows folders always
  * - Files shown in code mode
  * - Click to select folders/files
  * - Folder selection in code mode = all files inside selected recursively
  * - Highlights selected items
- * - Displays children in horizontal rows (flex)
+ * - Displays as visual tree with connecting lines
  */
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
     container.innerHTML = '';
-
-    // Store expanded/collapsed folder state
-    const expandedFolders = new WeakMap();
+    
+    // Store expanded/collapsed folder state persistently
+    if (!window._expandedFolders) {
+        window._expandedFolders = new Map();
+    }
+    const expandedFolders = window._expandedFolders;
 
     // Recursively get all files under a folder (ignores folders with no files)
     function getAllFiles(node) {
@@ -327,9 +345,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         return node.children.reduce((acc, child) => acc + countFiles(child), 0);
     }
 
-    function createNode(node, isRoot = false) {
+    function createNode(node, depth = 0) {
         // Skip files in structure mode
         if (actionType === 'structure' && node.type === 'file') return null;
+
+        const nodeWrapper = document.createElement('div');
+        nodeWrapper.classList.add('node-wrapper');
+        nodeWrapper.style.setProperty('--depth', depth);
+        nodeWrapper.dataset.nodePath = node.path; // Store path for later reference
 
         const el = document.createElement('div');
         el.classList.add('tree-node');
@@ -337,11 +360,25 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         else el.classList.add('folder');
 
         const isSelected = selectedItems.includes(node.path);
+        
+        // Check if folder should be expanded (persistent state)
+        let isExpanded = expandedFolders.get(node.path);
+        if (isExpanded === undefined && depth === 0 && node.type === 'folder') {
+            isExpanded = true;
+            expandedFolders.set(node.path, true);
+        }
+        isExpanded = isExpanded || false;
 
         // Highlight selection
         if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
         else if (node.type === 'file' && isSelected) el.classList.add('file-selected');
         else if (node.type === 'folder' && isSelected) el.classList.add('selected');
+
+        // Add expand indicator for folders with children
+        if (node.type === 'folder' && node.children?.length) {
+            el.classList.add('expandable');
+            if (isExpanded) el.classList.add('folder-open');
+        }
 
         // Label
         let label = node.name;
@@ -352,22 +389,24 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         if (node.type === 'folder' && actionType === 'code' && isSelected) label += ' [ALL FILES]';
         el.textContent = label;
 
-        // Children container
-        let childrenContainer;
+        nodeWrapper.appendChild(el);
+
+        // Children container - ALWAYS render if folder has children
         if (node.type === 'folder' && node.children?.length) {
-            childrenContainer = document.createElement('div');
+            const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('children');
-            childrenContainer.style.display = expandedFolders.get(node) ? 'flex' : 'none';
-            childrenContainer.style.flexWrap = 'wrap';
-            childrenContainer.style.gap = '8px';
-            childrenContainer.style.marginLeft = '20px';
+            
+            // Show/hide based on expanded state
+            if (!isExpanded) {
+                childrenContainer.style.display = 'none';
+            }
 
             node.children.forEach(child => {
-                const childNode = createNode(child);
+                const childNode = createNode(child, depth + 1);
                 if (childNode) childrenContainer.appendChild(childNode);
             });
 
-            el.appendChild(childrenContainer);
+            nodeWrapper.appendChild(childrenContainer);
         }
 
         // Click logic
@@ -397,34 +436,81 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                     if (idx === -1) selectedItems.push(node.path);
                     else selectedItems.splice(idx, 1);
                 }
+
+                // Toggle expand/collapse for folders with children
+                if (node.children?.length) {
+                    const newExpandedState = !isExpanded;
+                    expandedFolders.set(node.path, newExpandedState);
+                    
+                    // Find the children container and toggle its display
+                    const childrenContainer = nodeWrapper.querySelector('.children');
+                    if (childrenContainer) {
+                        childrenContainer.style.display = newExpandedState ? 'flex' : 'none';
+                    }
+                    
+                    // Update folder icon
+                    if (newExpandedState) {
+                        el.classList.add('folder-open');
+                    } else {
+                        el.classList.remove('folder-open');
+                    }
+                }
             }
 
-            // Folder expand/collapse
-            if (node.type === 'folder') {
-                const isExpanded = expandedFolders.get(node) || false;
-                expandedFolders.set(node, !isExpanded);
-                if (childrenContainer) childrenContainer.style.display = !isExpanded ? 'flex' : 'none';
-                el.classList.toggle('folder-open', !isExpanded);
-            }
-
-            // Re-render container without losing root
-            container.innerHTML = '';
-            treeData.forEach(n => {
-                const nodeEl = createNode(n, true);
-                if (nodeEl) container.appendChild(nodeEl);
-            });
+            // Update selection highlights without re-rendering
+            updateSelectionHighlights();
 
             if (onToggle) onToggle(node);
         });
 
-        return el;
+        return nodeWrapper;
     }
 
-    // Always render root nodes, ignore rules only apply to children
-    treeData.forEach(node => {
-        const n = createNode(node, true);
-        if (n) container.appendChild(n);
-    });
-}
+    // Helper to update selection highlights without full re-render
+    function updateSelectionHighlights() {
+        const allNodes = container.querySelectorAll('.tree-node');
+        allNodes.forEach(nodeEl => {
+            const wrapper = nodeEl.parentElement;
+            const nodePath = wrapper.dataset.nodePath;
+            
+            if (!nodePath) return;
+            
+            const isSelected = selectedItems.includes(nodePath);
+            
+            // Remove all selection classes
+            nodeEl.classList.remove('selected', 'folder-selected', 'file-selected');
+            
+            // Re-apply based on current state
+            if (nodeEl.classList.contains('folder')) {
+                if (actionType === 'code' && isSelected) {
+                    nodeEl.classList.add('folder-selected');
+                } else if (isSelected) {
+                    nodeEl.classList.add('selected');
+                }
+            } else if (nodeEl.classList.contains('file') && isSelected) {
+                nodeEl.classList.add('file-selected');
+            }
+        });
+        
+        updateGenerateState();
+    }
 
+    function updateGenerateState() {
+        const generateBtn = document.getElementById('generateBtn');
+        if (generateBtn) {
+            generateBtn.disabled = selectedItems.length === 0;
+        }
+    }
+
+    // Create tree container with root level
+    const treeRoot = document.createElement('div');
+    treeRoot.classList.add('tree-root');
+
+    treeData.forEach(node => {
+        const n = createNode(node, 0);
+        if (n) treeRoot.appendChild(n);
+    });
+
+    container.appendChild(treeRoot);
+}
 
