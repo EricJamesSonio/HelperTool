@@ -313,239 +313,214 @@ module.exports = { getFolderTree, generateStructure };
 FILE: treeView.js
 
 /**
- * Tree Diagram Renderer
- * -----------------
- * - Shows folders always
- * - Files shown in code mode
- * - ALL folders expanded by default
- * - Click to select folders/files
- * - Folder selection in code mode = all files inside selected recursively
- * - Highlights selected items
- * - Displays as visual tree with connecting lines
- * - Compact design for easier viewing of large trees
- * - Proper alignment: same depth = same vertical position
+ * Tree Diagram Renderer (Refactored)
+ * ---------------------------------
+ * - Pure render: selection comes ONLY from selectedItems
+ * - No re-render on click
+ * - Stable selection & expansion behavior
  */
+
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
     container.innerHTML = '';
-    
-    // Store expanded/collapsed folder state persistently
+
+    /* ----------------------------------------
+     * Persistent folder expansion state
+     * -------------------------------------- */
     if (!window._expandedFolders) {
         window._expandedFolders = new Map();
     }
     const expandedFolders = window._expandedFolders;
 
-    // Recursively get all files under a folder (ignores folders with no files)
-    function getAllFiles(node) {
+    /* ----------------------------------------
+     * Helpers (PURE)
+     * -------------------------------------- */
+
+    const getAllFiles = (node) => {
         if (node.type === 'file') return [node];
-        if (!node.children?.length) return [];
+        if (!node.children) return [];
         return node.children.flatMap(getAllFiles);
-    }
+    };
 
-    // Count only visible files recursively
-    function countFiles(node) {
+    const countFiles = (node) => {
         if (node.type === 'file') return 1;
-        if (!node.children?.length) return 0;
-        return node.children.reduce((acc, child) => acc + countFiles(child), 0);
+        if (!node.children) return 0;
+        return node.children.reduce((sum, c) => sum + countFiles(c), 0);
+    };
+
+    const isSelected = (path) => selectedItems.includes(path);
+
+    /* ----------------------------------------
+     * DOM helpers
+     * -------------------------------------- */
+
+    function applySelectionClass(el, node) {
+        el.classList.remove('selected', 'folder-selected', 'file-selected');
+
+        if (!isSelected(node.path)) return;
+
+        if (node.type === 'folder') {
+            if (actionType === 'code') el.classList.add('folder-selected');
+            else el.classList.add('selected');
+        } else {
+            el.classList.add('file-selected');
+        }
     }
 
-    // Get maximum depth of tree
-    function getMaxDepth(nodes, currentDepth = 0) {
-        if (!nodes || nodes.length === 0) return currentDepth;
-        let maxChildDepth = currentDepth;
-        nodes.forEach(node => {
-            if (node.children?.length) {
-                const childDepth = getMaxDepth(node.children, currentDepth + 1);
-                maxChildDepth = Math.max(maxChildDepth, childDepth);
-            }
-        });
-        return maxChildDepth;
-    }
+    function updateAllSelectionHighlights() {
+        container.querySelectorAll('.tree-node').forEach(el => {
+            const wrapper = el.parentElement;
+            if (!wrapper?.dataset.nodePath) return;
 
-    // Organize nodes by depth level
-    function organizeByDepth(nodes, depth = 0, result = {}) {
-        if (!result[depth]) result[depth] = [];
-        
-        nodes.forEach(node => {
-            // Skip files in structure mode
-            if (actionType === 'structure' && node.type === 'file') return;
-            
-            result[depth].push(node);
-            
-            if (node.children?.length) {
-                organizeByDepth(node.children, depth + 1, result);
-            }
-        });
-        
-        return result;
-    }
+            const path = wrapper.dataset.nodePath;
+            const type = el.classList.contains('folder') ? 'folder' : 'file';
 
-    function createNode(node, depth = 0) {
-        // Skip files in structure mode
-        if (actionType === 'structure' && node.type === 'file') return null;
-
-        const nodeWrapper = document.createElement('div');
-        nodeWrapper.classList.add('node-wrapper');
-        nodeWrapper.style.setProperty('--depth', depth);
-        nodeWrapper.dataset.nodePath = node.path;
-        nodeWrapper.dataset.nodeDepth = depth;
-
-        const el = document.createElement('div');
-        el.classList.add('tree-node');
-        if (node.type === 'file') el.classList.add('file');
-        else el.classList.add('folder');
-
-        const isSelected = selectedItems.includes(node.path);
-        
-        // Check if folder should be expanded - DEFAULT TO TRUE for all folders
-        let isExpanded = expandedFolders.get(node.path);
-        if (isExpanded === undefined && node.type === 'folder' && node.children?.length) {
-            isExpanded = true; // Expand all folders by default
-            expandedFolders.set(node.path, true);
-        }
-        isExpanded = isExpanded !== false; // Default to expanded unless explicitly collapsed
-
-        // Highlight selection
-        if (node.type === 'folder' && actionType === 'code' && isSelected) el.classList.add('folder-selected');
-        else if (node.type === 'file' && isSelected) el.classList.add('file-selected');
-        else if (node.type === 'folder' && isSelected) el.classList.add('selected');
-
-        // Add expand indicator for folders with children
-        if (node.type === 'folder' && node.children?.length) {
-            el.classList.add('expandable');
-            if (isExpanded) el.classList.add('folder-open');
-        }
-
-        // Label (more compact)
-        let label = node.name;
-        if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
-            const fileCount = countFiles(node);
-            if (fileCount > 0) label += ` (${fileCount})`;
-        }
-        if (node.type === 'folder' && actionType === 'code' && isSelected) label += ' [ALL]';
-        el.textContent = label;
-
-        nodeWrapper.appendChild(el);
-
-        // Children container - ALWAYS render if folder has children
-        if (node.type === 'folder' && node.children?.length) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.classList.add('children');
-            
-            // Show/hide based on expanded state (but default is shown)
-            if (!isExpanded) {
-                childrenContainer.style.display = 'none';
-            }
-
-            node.children.forEach(child => {
-                const childNode = createNode(child, depth + 1);
-                if (childNode) childrenContainer.appendChild(childNode);
-            });
-
-            nodeWrapper.appendChild(childrenContainer);
-        }
-
-        // Click logic
-        el.addEventListener('click', e => {
-            e.stopPropagation();
-
-            if (node.type === 'file') {
-                const index = selectedItems.indexOf(node.path);
-                if (index === -1) selectedItems.push(node.path);
-                else selectedItems.splice(index, 1);
-            } else if (node.type === 'folder') {
-                if (actionType === 'code') {
-                    const allFiles = getAllFiles(node);
-                    const allSelected = allFiles.every(f => selectedItems.includes(f.path));
-                    if (allSelected) {
-                        allFiles.forEach(f => {
-                            const idx = selectedItems.indexOf(f.path);
-                            if (idx !== -1) selectedItems.splice(idx, 1);
-                        });
-                    } else {
-                        allFiles.forEach(f => {
-                            if (!selectedItems.includes(f.path)) selectedItems.push(f.path);
-                        });
-                    }
-                } else {
-                    const idx = selectedItems.indexOf(node.path);
-                    if (idx === -1) selectedItems.push(node.path);
-                    else selectedItems.splice(idx, 1);
-                }
-
-                // Toggle expand/collapse for folders with children
-                if (node.children?.length) {
-                    const newExpandedState = !isExpanded;
-                    expandedFolders.set(node.path, newExpandedState);
-                    
-                    // Find the children container and toggle its display
-                    const childrenContainer = nodeWrapper.querySelector('.children');
-                    if (childrenContainer) {
-                        childrenContainer.style.display = newExpandedState ? 'flex' : 'none';
-                    }
-                    
-                    // Update folder icon
-                    if (newExpandedState) {
-                        el.classList.add('folder-open');
-                    } else {
-                        el.classList.remove('folder-open');
-                    }
-                }
-            }
-
-            // Update selection highlights without re-rendering
-            updateSelectionHighlights();
-
-            if (onToggle) onToggle(node);
+            applySelectionClass(el, { path, type });
         });
 
-        return nodeWrapper;
-    }
-
-    // Helper to update selection highlights without full re-render
-    function updateSelectionHighlights() {
-        const allNodes = container.querySelectorAll('.tree-node');
-        allNodes.forEach(nodeEl => {
-            const wrapper = nodeEl.parentElement;
-            const nodePath = wrapper.dataset.nodePath;
-            
-            if (!nodePath) return;
-            
-            const isSelected = selectedItems.includes(nodePath);
-            
-            // Remove all selection classes
-            nodeEl.classList.remove('selected', 'folder-selected', 'file-selected');
-            
-            // Re-apply based on current state
-            if (nodeEl.classList.contains('folder')) {
-                if (actionType === 'code' && isSelected) {
-                    nodeEl.classList.add('folder-selected');
-                } else if (isSelected) {
-                    nodeEl.classList.add('selected');
-                }
-            } else if (nodeEl.classList.contains('file') && isSelected) {
-                nodeEl.classList.add('file-selected');
-            }
-        });
-        
         updateGenerateState();
     }
 
     function updateGenerateState() {
-        const generateBtn = document.getElementById('generateBtn');
-        if (generateBtn) {
-            generateBtn.disabled = selectedItems.length === 0;
-        }
+        const btn = document.getElementById('generateBtn');
+        if (btn) btn.disabled = selectedItems.length === 0;
     }
 
-    // Create tree container with root level
-    const treeRoot = document.createElement('div');
-    treeRoot.classList.add('tree-root');
+    /* ----------------------------------------
+     * Node creation
+     * -------------------------------------- */
+
+    function createNode(node, depth = 0) {
+        if (actionType === 'structure' && node.type === 'file') return null;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'node-wrapper';
+        wrapper.style.setProperty('--depth', depth);
+        wrapper.dataset.nodePath = node.path;
+
+        const el = document.createElement('div');
+        el.classList.add('tree-node', node.type);
+
+        /* Expansion state (folders only) */
+        let expanded = expandedFolders.get(node.path);
+        if (expanded === undefined && node.type === 'folder') {
+            expanded = true;
+            expandedFolders.set(node.path, true);
+        }
+
+        if (node.type === 'folder' && node.children?.length) {
+            el.classList.add('expandable');
+            if (expanded) el.classList.add('folder-open');
+        }
+
+        /* Label */
+        let label = node.name;
+
+        if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
+            const count = countFiles(node);
+            if (count > 0) label += ` (${count})`;
+        }
+
+        if (node.type === 'folder' && actionType === 'code' && isSelected(node.path)) {
+            label += ' [ALL]';
+        }
+
+        el.textContent = label;
+        applySelectionClass(el, node);
+
+        wrapper.appendChild(el);
+
+        /* Children */
+        let childrenContainer = null;
+
+        if (node.type === 'folder' && node.children?.length) {
+            childrenContainer = document.createElement('div');
+            childrenContainer.className = 'children';
+            if (!expanded) childrenContainer.style.display = 'none';
+
+            node.children.forEach(child => {
+                const childEl = createNode(child, depth + 1);
+                if (childEl) {
+                    childrenContainer.appendChild(childEl);
+                }
+            });
+
+
+
+            wrapper.appendChild(childrenContainer);
+        }
+
+        /* ----------------------------------------
+         * Click handling (STATE ONLY)
+         * -------------------------------------- */
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            if (node.type === 'file') {
+                togglePath(node.path);
+            } else {
+                if (actionType === 'code') {
+                    const files = getAllFiles(node);
+                    const allSelected = files.every(f => isSelected(f.path));
+
+                    files.forEach(f => {
+                        if (allSelected) removePath(f.path);
+                        else addPath(f.path);
+                    });
+                } else {
+                    togglePath(node.path);
+                }
+
+                if (node.children?.length) {
+                    expanded = !expanded;
+                    expandedFolders.set(node.path, expanded);
+
+                    if (childrenContainer) {
+                        childrenContainer.style.display = expanded ? 'flex' : 'none';
+                    }
+
+                    el.classList.toggle('folder-open', expanded);
+                }
+            }
+
+            updateAllSelectionHighlights();
+            onToggle?.(node);
+        });
+
+        return wrapper;
+    }
+
+    /* ----------------------------------------
+     * Selection mutations (CENTRALIZED)
+     * -------------------------------------- */
+
+    function addPath(path) {
+        if (!selectedItems.includes(path)) selectedItems.push(path);
+    }
+
+    function removePath(path) {
+        const i = selectedItems.indexOf(path);
+        if (i !== -1) selectedItems.splice(i, 1);
+    }
+
+    function togglePath(path) {
+        if (isSelected(path)) removePath(path);
+        else addPath(path);
+    }
+
+    /* ----------------------------------------
+     * Initial render
+     * -------------------------------------- */
+
+    const root = document.createElement('div');
+    root.className = 'tree-root';
 
     treeData.forEach(node => {
-        const n = createNode(node, 0);
-        if (n) treeRoot.appendChild(n);
+        const el = createNode(node, 0);
+        if (el) root.appendChild(el);
     });
 
-    container.appendChild(treeRoot);
+    container.appendChild(root);
+    updateGenerateState();
 }
+
 

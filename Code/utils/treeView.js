@@ -125,8 +125,12 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
             node.children.forEach(child => {
                 const childEl = createNode(child, depth + 1);
-                if (childEl) childrenContainer.appendChild(childEl);
+                if (childEl) {
+                    childrenContainer.appendChild(childEl);
+                }
             });
+
+
 
             wrapper.appendChild(childrenContainer);
         }

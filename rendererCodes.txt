@@ -11,268 +11,194 @@ const codeBtn = document.getElementById('codeBtn');
 const generateBtn = document.getElementById('generateBtn');
 const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
-const openStorageBtn = document.getElementById('openStorageBtn'); // new
+const openStorageBtn = document.getElementById('openStorageBtn');
+const editDocignoreBtn = document.getElementById('editDocignoreBtn');
 
 let selectedRepoPath = null;
-let selectedItems = [];
+let selectedItems = [];        // ⚠️ NEVER reassign this
 let actionType = 'code';
 let cachedTree = null;
 
-// UI setup
+/* ----------------------------------------
+ * UI setup
+ * -------------------------------------- */
 treeContainer.style.overflowY = 'auto';
 treeContainer.style.maxHeight = '80vh';
 generateBtn.disabled = true;
 
-// ----------------------------
-// Progress listener
-// ----------------------------
-window.electronAPI.onProgressUpdate((percent) => {
+/* ----------------------------------------
+ * Progress listener
+ * -------------------------------------- */
+window.electronAPI.onProgressUpdate(percent => {
     progressBar.value = percent;
     progressText.textContent = `${percent}%`;
-    //console.log(`[Progress] ${percent}%`);
 });
 
-// ----------------------------
-// Helpers
-// ----------------------------
+/* ----------------------------------------
+ * Helpers
+ * -------------------------------------- */
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
-    console.log(`[UI] Active repo set to: ${name}`);
 }
-
-openStorageBtn.addEventListener('click', async () => {
-    try {
-        console.log('[UI] Open Storage clicked');
-        await window.electronAPI.openStorage();
-    } catch (err) {
-        console.error('[UI] Failed to open storage:', err);
-        alert('Failed to open storage. Check console for details.');
-    }
-});
 
 function updateGenerateState() {
     generateBtn.disabled = selectedItems.length === 0;
-    console.log(`[UI] Generate button ${generateBtn.disabled ? 'disabled' : 'enabled'}`);
 }
 
-// ----------------------------
-// Load last active repo
-// ----------------------------
-async function loadLastActiveRepo() {
-    try {
-        console.log('[Init] Loading last active project...');
-        const project = await window.electronAPI.getActiveProject();
-        console.log('[Init] Last active project data:', project);
-
-        if (project?.repoPath) {
-            await loadRepo(project.repoPath);
-            selectedItems = project.lastSelectedItems || [];
-            console.log('[Init] Loaded last selected items:', selectedItems);
-        } else {
-            console.log('[Init] No last active project found.');
-        }
-    } catch (err) {
-        console.error('[Error] Failed to load last active project:', err);
-    }
+/* ----------------------------------------
+ * Tree selection callback
+ * -------------------------------------- */
+function onTreeSelectionChange() {
+    updateGenerateState();
+    window.electronAPI.setLastSelected(selectedItems);
 }
 
-// ----------------------------
-// Select repo button
-// ----------------------------
-selectRepoBtn.addEventListener('click', async () => {
+/* ----------------------------------------
+ * Open storage
+ * -------------------------------------- */
+openStorageBtn.addEventListener('click', async () => {
     try {
-        console.log('[Action] Select repo clicked');
-        const repoPath = await window.electronAPI.selectRepo();
-        if (repoPath) {
-            console.log('[Action] Repo selected:', repoPath);
-            await loadRepo(repoPath);
-        } else {
-            console.log('[Action] Repo selection cancelled or invalid');
-        }
+        await window.electronAPI.openStorage();
     } catch (err) {
-        console.error('[Error] Selecting repo failed:', err);
-        alert('Error selecting repo. Check console for details.');
+        console.error('[UI] Failed to open storage:', err);
+        alert('Failed to open storage.');
     }
 });
 
-// ----------------------------
-// Load a repo
-// ----------------------------
-async function loadRepo(repoPath) {
+/* ----------------------------------------
+ * Load last active repo
+ * -------------------------------------- */
+async function loadLastActiveRepo() {
     try {
-        console.log('[LoadRepo] Loading repo:', repoPath);
+        const project = await window.electronAPI.getActiveProject();
 
-        selectedRepoPath = repoPath;
-        selectedItems = [];
+        if (project?.repoPath) {
+            selectedItems.length = 0;
+            project.lastSelectedItems?.forEach(p => selectedItems.push(p));
+
+            await loadRepo(project.repoPath, false);
+        }
+    } catch (err) {
+        console.error('[Init] Failed to load last project:', err);
+    }
+}
+
+/* ----------------------------------------
+ * Select repo
+ * -------------------------------------- */
+selectRepoBtn.addEventListener('click', async () => {
+    try {
+        const repoPath = await window.electronAPI.selectRepo();
+        if (repoPath) await loadRepo(repoPath);
+    } catch (err) {
+        console.error('[UI] Repo selection failed:', err);
+    }
+});
+
+/* ----------------------------------------
+ * Load repo
+ * -------------------------------------- */
+async function loadRepo(repoPath, resetSelection = true) {
+    selectedRepoPath = repoPath;
+
+    if (resetSelection) {
+        selectedItems.length = 0;
         await window.electronAPI.setLastSelected([]);
-        console.log('[LoadRepo] Cleared previous selections');
-
-        const repoName = repoPath.split(/[/\\]/).pop();
-        updateActiveRepo(repoName);
-
-        cachedTree = await window.electronAPI.getFolderTree(repoPath);
-        console.log('[LoadRepo] Folder tree loaded:', cachedTree);
-
-        updateGenerateState();
-        displayTree();
-    } catch (err) {
-        console.error('[Error] Loading repo failed:', err);
-        alert('Failed to load repo. See console.');
     }
+
+    updateActiveRepo(repoPath.split(/[/\\]/).pop());
+
+    cachedTree = await window.electronAPI.getFolderTree(repoPath);
+    displayTree();
+    updateGenerateState();
 }
 
-// ----------------------------
-// Display tree
-// ----------------------------
+/* ----------------------------------------
+ * Display tree (PURE)
+ * -------------------------------------- */
 function displayTree() {
-    try {
-        if (!cachedTree) {
-            console.log('[DisplayTree] No tree data to display');
-            treeContainer.textContent = 'No data available';
-            return;
-        }
-        console.log('[DisplayTree] Rendering tree...');
-        renderTree(cachedTree, treeContainer, selectedItems, actionType, toggleSelect);
-    } catch (err) {
-        console.error('[Error] Displaying tree failed:', err);
+    if (!cachedTree) {
+        treeContainer.textContent = 'No data available';
+        return;
     }
+
+    renderTree(
+        cachedTree,
+        treeContainer,
+        selectedItems,
+        actionType,
+        onTreeSelectionChange
+    );
 }
 
-// ----------------------------
-// Selection logic
-// ----------------------------
-function toggleSelect(node) {
-    try {
-        if (!selectedRepoPath || !cachedTree) return;
-
-        const isSelected = selectedItems.includes(node.path);
-
-        if (isSelected) {
-            selectedItems = selectedItems.filter(p => p !== node.path);
-            console.log('[Select] Deselected:', node.path);
-        } else {
-            selectedItems.push(node.path);
-            console.log('[Select] Selected:', node.path);
-        }
-
-        window.electronAPI.setLastSelected(selectedItems);
-        updateGenerateState();
-
-        if (node.type === 'folder' && actionType === 'code') displayTree();
-    } catch (err) {
-        console.error('[Error] toggleSelect failed:', err);
-    }
-}
-
-// ----------------------------
-// Mode switching
-// ----------------------------
+/* ----------------------------------------
+ * Mode switching
+ * -------------------------------------- */
 function resetSelection() {
-    try {
-        selectedItems = [];
-        window.electronAPI.setLastSelected([]);
-        updateGenerateState();
-        console.log('[UI] Selection reset');
-    } catch (err) {
-        console.error('[Error] resetSelection failed:', err);
-    }
+    selectedItems.length = 0;
+    window.electronAPI.setLastSelected([]);
+    updateGenerateState();
 }
 
 structureBtn.addEventListener('click', () => {
-    try {
-        console.log('[Action] Switch to structure mode');
-        actionType = 'structure';
-        resetSelection();
-        displayTree();
-    } catch (err) {
-        console.error('[Error] Switching to structure mode failed:', err);
-    }
+    actionType = 'structure';
+    resetSelection();
+    displayTree();
 });
-
-const editDocignoreBtn = document.getElementById('editDocignoreBtn');
-
-// ----------------------------
-// Edit .docignore button
-// ----------------------------
-// ----------------------------
-// Edit .docignore button (updated)
-// ----------------------------
-editDocignoreBtn.addEventListener('click', async () => {
-    try {
-        console.log('[UI] Edit Global .docignore clicked');
-
-        const result = await window.electronAPI.openGlobalDocignore();
-
-        if (result) {
-            console.log('[UI] Global .docignore opened successfully');
-        } else {
-            console.warn('[UI] Failed to open global .docignore');
-            alert('Failed to open global ignore file. Check console.');
-        }
-    } catch (err) {
-        console.error('[UI] Error opening global .docignore:', err);
-        alert('Error opening global ignore file. Check console.');
-    }
-});
-
-
-
 
 codeBtn.addEventListener('click', () => {
+    actionType = 'code';
+    resetSelection();
+    displayTree();
+});
+
+/* ----------------------------------------
+ * Edit .docignore
+ * -------------------------------------- */
+editDocignoreBtn.addEventListener('click', async () => {
     try {
-        console.log('[Action] Switch to code mode');
-        actionType = 'code';
-        resetSelection();
-        displayTree();
+        const ok = await window.electronAPI.openGlobalDocignore();
+        if (!ok) alert('Failed to open global ignore file.');
     } catch (err) {
-        console.error('[Error] Switching to code mode failed:', err);
+        console.error('[UI] Error opening .docignore:', err);
     }
 });
 
-// ----------------------------
-// Generate
-// ----------------------------
+/* ----------------------------------------
+ * Generate
+ * -------------------------------------- */
 generateBtn.addEventListener('click', async () => {
     try {
         if (!selectedRepoPath || !selectedItems.length) {
-            console.log('[Generate] No repo or items selected');
             return alert('Select repo and items first!');
         }
 
-        // Step 1: Show save file dialog
         const { filePath } = await window.electronAPI.saveFileDialog(actionType);
-        if (!filePath) {
-            console.log('[Generate] User cancelled file save dialog');
-            return;
-        }
+        if (!filePath) return;
 
-        // Step 2: Reset progress
         progressBar.value = 0;
         progressText.textContent = '0%';
 
-        // Step 3: Generate
-        console.log(`[Generate] Generating ${actionType} for ${selectedItems.length} items to "${filePath}"`);
-        const result = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, filePath);
-
-        console.log('[Generate] Generation result:', result);
+        await window.electronAPI.generate(
+            actionType,
+            selectedRepoPath,
+            selectedItems,
+            filePath
+        );
 
         alert('Done!');
         resetSelection();
         displayTree();
     } catch (err) {
-        console.error('[Error] Generation failed:', err);
-        alert('Generation failed. Check console for details.');
+        console.error('[Generate] Failed:', err);
+        alert('Generation failed.');
     }
 });
 
-
-// ----------------------------
-// Init
-// ----------------------------
-window.addEventListener('DOMContentLoaded', () => {
-    console.log('[Init] DOM loaded');
-    loadLastActiveRepo();
-});
+/* ----------------------------------------
+ * Init
+ * -------------------------------------- */
+window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
 
 
 ------------------------------
