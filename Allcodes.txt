@@ -1251,10 +1251,12 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
     const writeStream = fs.createWriteStream(outputFile, { flags: 'w', encoding: 'utf-8' });
     for (let i = 0; i < allFiles.length; i++) {
         const filePath = allFiles[i];
-        writeStream.write(`\n// ===== File: ${path.relative(repoRoot, filePath)} =====\n`);
+        const relativeName = path.relative(repoRoot, filePath) || path.basename(filePath);
+        writeStream.write(`\n// ===== File: ${relativeName} =====\n`);
         writeStream.write(fs.readFileSync(filePath, 'utf-8') + '\n');
         onProgress(Math.round(((i + 1) / allFiles.length) * 100));
     }
+
     writeStream.close();
 }
 

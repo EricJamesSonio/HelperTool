@@ -1,3 +1,4 @@
+
 import { renderTree } from '../utils/treeView.js';
 
 const selectRepoBtn = document.getElementById('selectRepoBtn');
@@ -10,6 +11,7 @@ const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
 const openStorageBtn = document.getElementById('openStorageBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
+
 
 let selectedRepoPath = null;
 let selectedItems = [];        // ⚠️ NEVER reassign this
@@ -164,26 +166,39 @@ editDocignoreBtn.addEventListener('click', async () => {
 /* ----------------------------------------
  * Generate
  * -------------------------------------- */
+/* ----------------------------------------
+ * Generate
+ * -------------------------------------- */
 generateBtn.addEventListener('click', async () => {
     try {
         if (!selectedRepoPath || !selectedItems.length) {
             return alert('Select repo and items first!');
         }
 
+        // Ask for file path
         const { filePath } = await window.electronAPI.saveFileDialog(actionType);
         if (!filePath) return;
 
+        // Reset progress UI
         progressBar.value = 0;
         progressText.textContent = '0%';
 
-        await window.electronAPI.generate(
+        // Generate code / structure
+        const success = await window.electronAPI.generate(
             actionType,
             selectedRepoPath,
             selectedItems,
             filePath
         );
 
-        alert('Done!');
+        if (success) {
+            // No alert needed — file will open automatically
+            console.log(`[UI] Generation complete. File should open in VS Code or default editor: ${filePath}`);
+        } else {
+            alert('Generation failed.');
+        }
+
+        // Reset selection & tree
         resetSelection();
         displayTree();
     } catch (err) {
@@ -191,6 +206,7 @@ generateBtn.addEventListener('click', async () => {
         alert('Generation failed.');
     }
 });
+
 
 /* ----------------------------------------
  * Init

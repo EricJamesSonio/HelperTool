@@ -2,6 +2,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('elec
 const path = require('path');
 const fs = require('fs');
 const config = require('./config/config.js');
+const { exec } = require('child_process'); 
 
 // Utils
 const fileOps = require('./utils/fileOps.js');
@@ -239,7 +240,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
             console.log('[IPC] Generating structure...');
             await fileOps.generateStructure(items, filePath, ignoreRules, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
-                //console.log(`[Progress] ${percent}%`);
             });
         } else if (actionType === 'code') {
             console.log('[IPC] Generating code...');
@@ -250,6 +250,14 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
         }
 
         console.log(`[IPC] Generation complete. Output at: ${filePath}`);
+
+        // --------------------------
+        // OPEN NOTEPAD AUTOMATICALLY
+        // --------------------------
+        exec(`notepad "${filePath}"`, (err) => {
+            if (err) console.error('[IPC] Failed to open Notepad:', err);
+        });
+
         return true;
     } catch (err) {
         console.error('[IPC] generate error:', err);
@@ -257,7 +265,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
         return false;
     }
 });
-
 // ----------------------------
 // Open .docignore file
 // ----------------------------
