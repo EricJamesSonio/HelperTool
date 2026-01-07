@@ -209,17 +209,12 @@ module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };
 ------------------------------
 FILE: fileOps.js
 
-// file: fileOps.js
 const fs = require('fs');
 const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
  * Recursively get folder tree structure for tree view
- * @param {string} dir - starting directory
- * @param {string[]} ignoreRules - optional ignore rules
- * @param {string} repoRoot - repo root path
- * @returns {Promise<Object[]>} - folder tree nodes
  */
 async function getFolderTree(dir, ignoreRules = [], repoRoot) {
     if (!repoRoot) repoRoot = path.resolve(dir);
@@ -260,17 +255,15 @@ async function getFolderTree(dir, ignoreRules = [], repoRoot) {
 
 /**
  * Generate tree-style structure text respecting repo ignore rules
- * @param {string[]} selectedPaths - folders/files selected by user
- * @param {string} outputFile - path to write structure text
- * @param {function(number):void} progressCallback - optional progress update
+ * with progress updates
  */
-async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
+async function generateStructure(selectedPaths, outputFile, ignoreRules = [], progressCallback = () => {}) {
     if (!selectedPaths || !selectedPaths.length) return;
 
     const repoRoot = path.resolve(selectedPaths[0]);
-    const ignoreRules = await getIgnoreRules(repoRoot);
+    if (!ignoreRules.length) ignoreRules = await getIgnoreRules(repoRoot);
 
-    // Recursive helper to build tree node
+    // Helper: build tree nodes recursively
     async function buildTree(currentPath) {
         if (isIgnored(currentPath, repoRoot, ignoreRules)) return null;
 
@@ -295,37 +288,40 @@ async function generateStructure(selectedPaths, outputFile, progressCallback = (
         return node;
     }
 
-    function treeLines(node, prefix = '', isLast = true) {
+    // Helper: convert tree node to text lines
+    function treeLines(node, prefix = '', isLast = true, isRoot = true) {
         const lines = [];
-        const connector = prefix ? (isLast ? '└─ ' : '├─ ') : '';
+        const connector = isRoot ? '' : (isLast ? '└─ ' : '├─ ');
         lines.push(prefix + connector + node.name + (node.type === 'folder' ? '/' : ''));
 
         if (node.children && node.children.length > 0) {
             node.children.forEach((child, idx) => {
                 const last = idx === node.children.length - 1;
-                // Add '│   ' for continuing branches, '    ' for last branch
-                const newPrefix = prefix + (prefix ? (isLast ? '    ' : '│   ') : '');
-                lines.push(...treeLines(child, newPrefix, last));
+                const newPrefix = prefix + (isRoot ? '' : (isLast ? '    ' : '│   '));
+                lines.push(...treeLines(child, newPrefix, last, false));
             });
         }
 
         return lines;
     }
 
-
-    // Collect lines for all selected paths
     const allLines = [];
-    for (const p of selectedPaths) {
+    for (let i = 0; i < selectedPaths.length; i++) {
+        const p = selectedPaths[i];
         const rootNode = await buildTree(p);
         if (rootNode) allLines.push(...treeLines(rootNode));
+
+        // Incremental progress per root path
+        const percent = Math.round(((i + 1) / selectedPaths.length) * 100);
+        progressCallback(percent);
     }
 
     // Write to file
     try {
         fs.writeFileSync(outputFile, allLines.join('\n'), 'utf-8');
-        progressCallback(100);
+        progressCallback(100); // ensure 100% at end
     } catch (err) {
-        console.error('Failed to write tree to file:', err);
+        console.error('[generateStructure] Failed to write file:', err);
     }
 }
 

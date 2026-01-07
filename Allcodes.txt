@@ -162,24 +162,28 @@ const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
 const codeOps = require('./utils/codeOps.js');
 
+
 let mainWindow;
 let tray;
 
-// ----------------------------
-// Create Main Window
-// ----------------------------
 function createWindow() {
     console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 1920,
+        height: 1080,
         show: true,
+        frame: true,  // Show normal window frame with buttons
+        maximizable: true,
+        minimizable: true,  // Allow minimize
         webPreferences: {
             preload: path.join(__dirname, 'preload.js')
         }
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    
+    // Maximize on start
+    mainWindow.maximize();
 
     mainWindow.on('close', (e) => {
         e.preventDefault();
@@ -187,7 +191,6 @@ function createWindow() {
         console.log('[Main] Main window hidden instead of close');
     });
 }
-
 // ----------------------------
 // App Ready
 // ----------------------------
@@ -808,35 +811,58 @@ FILE: renderer\index.html
 </head>
 <body>
   <div id="app">
-    <h1>Helper Tool</h1>
+    
+    <!-- Top Navbar with All Controls -->
+    <div class="top-navbar">
+      <!-- Left Section: Repo Selection -->
+      <div class="navbar-section">
+        <button id="selectRepoBtn" class="primary-btn">
+          <span class="btn-icon">📁</span>
+          Select Repo
+        </button>
+        <span id="activeRepoName" class="repo-name">No repo selected</span>
+      </div>
 
-    <!-- Repo selection -->
-    <div class="section repo-selection">
-      <button id="selectRepoBtn">Select Repo</button>
-      <span id="activeRepoName">No repo selected</span>
+      <!-- Center Section: Action Buttons -->
+      <div class="navbar-section center">
+        <button id="structureBtn" class="action-btn">
+          <span class="btn-icon">🌳</span>
+          Structure
+        </button>
+        <button id="codeBtn" class="action-btn">
+          <span class="btn-icon">💻</span>
+          Code
+        </button>
+        <button id="generateBtn" class="action-btn generate-btn">
+          <span class="btn-icon">⚡</span>
+          Generate
+        </button>
+      </div>
+
+      <!-- Right Section: Tools & Progress -->
+      <div class="navbar-section right">
+        <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore">
+          <span class="btn-icon">⚙️</span>
+          Ignore
+        </button>
+        <button id="openStorageBtn" class="tool-btn" title="Open Storage Folder">
+          <span class="btn-icon">📂</span>
+          Storage
+        </button>
+        
+        <!-- Progress Indicator -->
+        <div class="progress-container">
+          <progress id="progressBar" value="0" max="100"></progress>
+          <span id="progressText">0%</span>
+        </div>
+      </div>
     </div>
 
     <!-- Tree view -->
-    <div class="section tree-view">
-      <h2>Project Tree</h2>
+    <div class="tree-view-container">
       <div id="treeContainer">Select a repo to view files</div>
     </div>
 
-<!-- Action buttons -->
-<div class="section actions">
-  <button id="structureBtn" class="action-btn">Structure</button>
-  <button id="codeBtn" class="action-btn">Code</button>
-  <button id="generateBtn" class="action-btn">Done / Generate</button>
-  <button id="editDocignoreBtn" class="action-btn">Edit .docignore</button>
-  <button id="openStorageBtn" class="action-btn">Open Storage</button> <!-- NEW -->
-</div>
-
-
-    <!-- Progress -->
-    <div class="section progress-section">
-      <progress id="progressBar" value="0" max="100"></progress>
-      <span id="progressText">0%</span>
-    </div>
   </div>
 
   <!-- App logic -->
@@ -844,369 +870,6 @@ FILE: renderer\index.html
 </body>
 </html>
 
-
-------------------------------
-FILE: renderer\style.css
-
-/* -----------------------------
-   Reset & Base Styles
------------------------------ */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-body {
-  background-color: #f5f6fa;
-  color: #333;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100vh;
-  padding: 10px;
-}
-
-#app {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-  width: 95%;
-  height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* -----------------------------
-   Titles & Sections
------------------------------ */
-#app h1 {
-  text-align: center;
-  margin-bottom: 20px;
-  font-size: 2rem;
-  color: #2f3640;
-}
-
-.section {
-  margin-bottom: 20px;
-}
-
-.section h2 {
-  margin-bottom: 10px;
-  font-size: 1.2rem;
-  color: #2d3436;
-}
-
-#activeRepoName {
-  margin-left: 10px;
-  font-weight: 500;
-  color: #636e72;
-}
-
-/* -----------------------------
-   Buttons
------------------------------ */
-button {
-  padding: 10px 18px;
-  border: none;
-  border-radius: 6px;
-  background-color: #0984e3;
-  color: #fff;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-  margin-right: 10px;
-}
-
-button:hover {
-  background-color: #74b9ff;
-  transform: translateY(-2px);
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-button:disabled {
-  background-color: #b2bec3;
-  cursor: not-allowed;
-}
-
-.action-btn {
-  margin-right: 10px;
-}
-
-/* -----------------------------
-   Tree Container
------------------------------ */
-#treeContainer {
-  flex: 1;
-  padding: 20px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  overflow-x: auto;
-  overflow-y: auto;
-  font-family: monospace;
-  min-height: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-}
-
-/* -----------------------------
-   Tree Diagram Structure
------------------------------ */
-.tree-root {
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  align-items: flex-start;
-  padding: 10px 0;
-  gap: 25px;
-  flex-wrap: wrap;
-  max-width: 100%;
-}
-
-.node-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-/* Ensure the tree nodes themselves are always aligned */
-.tree-node {
-  margin-bottom: 0;
-}
-
-/* -----------------------------
-   Tree Node Styling (Compact)
------------------------------ */
-.tree-node {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-  background-color: #fff;
-  border: 2px solid #0984e3;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-  position: relative;
-  z-index: 2;
-  
-  /* Smaller, more compact sizing */
-  min-width: 80px;
-  max-width: 120px;
-  width: 100px;
-  
-  /* Handle long names with wrapping */
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-  text-align: center;
-  line-height: 1.2;
-  min-height: 28px;
-  font-size: 0.85rem;
-}
-
-/* Folder / File types */
-.tree-node.folder {
-  font-weight: 600;
-  color: #0984e3;
-  border-color: #0984e3;
-}
-
-.tree-node.file {
-  font-size: 0.8em;
-  color: #636e72;
-  border-color: #636e72;
-  background-color: #fafafa;
-}
-
-/* Folder icons (smaller) */
-.tree-node.folder::before {
-  content: "📁 ";
-  font-size: 0.9em;
-}
-.tree-node.folder.folder-open::before {
-  content: "📂 ";
-  font-size: 0.9em;
-}
-
-/* File icon (smaller) */
-.tree-node.file::before {
-  content: "📄 ";
-  font-size: 0.85em;
-}
-
-/* Hover */
-.tree-node:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-}
-
-/* Selected Highlights */
-.tree-node.folder.selected {
-  background-color: #74b9ff;
-  border-color: #0984e3;
-  color: #fff;
-  font-weight: bold;
-}
-
-.tree-node.folder.folder-selected {
-  background-color: #d0f0d0;
-  border-color: #00b894;
-  color: #00b894;
-  font-weight: bold;
-}
-
-.tree-node.file.file-selected {
-  background-color: #ffeaa7;
-  border-color: #fdcb6e;
-  color: #2d3436;
-  font-weight: bold;
-}
-
-/* -----------------------------
-   Children Layout (Compact Tree Branches)
------------------------------ */
-.children {
-  display: inline-flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 20px;
-  margin-top: 30px;
-  position: relative;
-  padding-top: 0;
-  flex-wrap: wrap;
-  max-width: 380px; /* 3 nodes * 100px + 2 gaps * 20px + some padding */
-}
-
-/* Vertical line from parent down to horizontal line (shorter) */
-.node-wrapper > .children::before {
-  content: '';
-  position: absolute;
-  top: -30px;
-  left: 50%;
-  width: 2px;
-  height: 30px;
-  background: linear-gradient(to bottom, #0984e3, #74b9ff);
-  transform: translateX(-50%);
-  z-index: 0;
-}
-
-/* Horizontal line connecting all siblings */
-.children::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(to right, #0984e3, #74b9ff, #0984e3);
-  z-index: 0;
-}
-
-/* Vertical line down from horizontal line to each child (shorter) */
-.children > .node-wrapper::before {
-  content: '';
-  position: absolute;
-  top: -30px;
-  left: 50%;
-  width: 2px;
-  height: 30px;
-  background: linear-gradient(to bottom, #74b9ff, #0984e3);
-  transform: translateX(-50%);
-  z-index: 0;
-}
-
-/* Handle wrapping rows - add spacing between rows */
-.children > .node-wrapper {
-  margin-bottom: 30px;
-}
-
-/* Trim horizontal line to only span between first and last child */
-.children > .node-wrapper:first-child::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  right: -1000%;
-  height: 2px;
-  background: transparent;
-  z-index: 1;
-}
-
-.children > .node-wrapper:last-child::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 50%;
-  left: -1000%;
-  height: 2px;
-  background: transparent;
-  z-index: 1;
-}
-
-/* Single child doesn't need horizontal line */
-.children:has(.node-wrapper:only-child)::after {
-  display: none;
-}
-
-/* -----------------------------
-   Progress Bar
------------------------------ */
-progress {
-  width: 100%;
-  height: 20px;
-  border-radius: 10px;
-  overflow: hidden;
-  margin-top: 5px;
-}
-progress::-webkit-progress-bar { background: #dfe6e9; }
-progress::-webkit-progress-value { background: #00b894; }
-progress::-moz-progress-bar { background: #00b894; }
-
-#progressText {
-  display: inline-block;
-  margin-left: 10px;
-  font-weight: 500;
-  color: #2d3436;
-}
-
-/* -----------------------------
-   Responsive
------------------------------ */
-@media (max-width: 768px) {
-  .tree-root {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .children {
-    flex-wrap: wrap;
-    gap: 15px;
-  }
-  
-  button {
-    width: 100%;
-    margin-bottom: 10px;
-  }
-  
-  .action-btn {
-    margin-right: 0;
-  }
-}
 
 ------------------------------
 FILE: utils\codeOps.js
@@ -1419,17 +1082,12 @@ module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };
 ------------------------------
 FILE: utils\fileOps.js
 
-// file: fileOps.js
 const fs = require('fs');
 const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
  * Recursively get folder tree structure for tree view
- * @param {string} dir - starting directory
- * @param {string[]} ignoreRules - optional ignore rules
- * @param {string} repoRoot - repo root path
- * @returns {Promise<Object[]>} - folder tree nodes
  */
 async function getFolderTree(dir, ignoreRules = [], repoRoot) {
     if (!repoRoot) repoRoot = path.resolve(dir);
@@ -1470,17 +1128,15 @@ async function getFolderTree(dir, ignoreRules = [], repoRoot) {
 
 /**
  * Generate tree-style structure text respecting repo ignore rules
- * @param {string[]} selectedPaths - folders/files selected by user
- * @param {string} outputFile - path to write structure text
- * @param {function(number):void} progressCallback - optional progress update
+ * with progress updates
  */
-async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
+async function generateStructure(selectedPaths, outputFile, ignoreRules = [], progressCallback = () => {}) {
     if (!selectedPaths || !selectedPaths.length) return;
 
     const repoRoot = path.resolve(selectedPaths[0]);
-    const ignoreRules = await getIgnoreRules(repoRoot);
+    if (!ignoreRules.length) ignoreRules = await getIgnoreRules(repoRoot);
 
-    // Recursive helper to build tree node
+    // Helper: build tree nodes recursively
     async function buildTree(currentPath) {
         if (isIgnored(currentPath, repoRoot, ignoreRules)) return null;
 
@@ -1505,37 +1161,40 @@ async function generateStructure(selectedPaths, outputFile, progressCallback = (
         return node;
     }
 
-    function treeLines(node, prefix = '', isLast = true) {
+    // Helper: convert tree node to text lines
+    function treeLines(node, prefix = '', isLast = true, isRoot = true) {
         const lines = [];
-        const connector = prefix ? (isLast ? '└─ ' : '├─ ') : '';
+        const connector = isRoot ? '' : (isLast ? '└─ ' : '├─ ');
         lines.push(prefix + connector + node.name + (node.type === 'folder' ? '/' : ''));
 
         if (node.children && node.children.length > 0) {
             node.children.forEach((child, idx) => {
                 const last = idx === node.children.length - 1;
-                // Add '│   ' for continuing branches, '    ' for last branch
-                const newPrefix = prefix + (prefix ? (isLast ? '    ' : '│   ') : '');
-                lines.push(...treeLines(child, newPrefix, last));
+                const newPrefix = prefix + (isRoot ? '' : (isLast ? '    ' : '│   '));
+                lines.push(...treeLines(child, newPrefix, last, false));
             });
         }
 
         return lines;
     }
 
-
-    // Collect lines for all selected paths
     const allLines = [];
-    for (const p of selectedPaths) {
+    for (let i = 0; i < selectedPaths.length; i++) {
+        const p = selectedPaths[i];
         const rootNode = await buildTree(p);
         if (rootNode) allLines.push(...treeLines(rootNode));
+
+        // Incremental progress per root path
+        const percent = Math.round(((i + 1) / selectedPaths.length) * 100);
+        progressCallback(percent);
     }
 
     // Write to file
     try {
         fs.writeFileSync(outputFile, allLines.join('\n'), 'utf-8');
-        progressCallback(100);
+        progressCallback(100); // ensure 100% at end
     } catch (err) {
-        console.error('Failed to write tree to file:', err);
+        console.error('[generateStructure] Failed to write file:', err);
     }
 }
 

@@ -8,35 +8,58 @@
 </head>
 <body>
   <div id="app">
-    <h1>Helper Tool</h1>
+    
+    <!-- Top Navbar with All Controls -->
+    <div class="top-navbar">
+      <!-- Left Section: Repo Selection -->
+      <div class="navbar-section">
+        <button id="selectRepoBtn" class="primary-btn">
+          <span class="btn-icon">📁</span>
+          Select Repo
+        </button>
+        <span id="activeRepoName" class="repo-name">No repo selected</span>
+      </div>
 
-    <!-- Repo selection -->
-    <div class="section repo-selection">
-      <button id="selectRepoBtn">Select Repo</button>
-      <span id="activeRepoName">No repo selected</span>
+      <!-- Center Section: Action Buttons -->
+      <div class="navbar-section center">
+        <button id="structureBtn" class="action-btn">
+          <span class="btn-icon">🌳</span>
+          Structure
+        </button>
+        <button id="codeBtn" class="action-btn">
+          <span class="btn-icon">💻</span>
+          Code
+        </button>
+        <button id="generateBtn" class="action-btn generate-btn">
+          <span class="btn-icon">⚡</span>
+          Generate
+        </button>
+      </div>
+
+      <!-- Right Section: Tools & Progress -->
+      <div class="navbar-section right">
+        <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore">
+          <span class="btn-icon">⚙️</span>
+          Ignore
+        </button>
+        <button id="openStorageBtn" class="tool-btn" title="Open Storage Folder">
+          <span class="btn-icon">📂</span>
+          Storage
+        </button>
+        
+        <!-- Progress Indicator -->
+        <div class="progress-container">
+          <progress id="progressBar" value="0" max="100"></progress>
+          <span id="progressText">0%</span>
+        </div>
+      </div>
     </div>
 
     <!-- Tree view -->
-    <div class="section tree-view">
-      <h2>Project Tree</h2>
+    <div class="tree-view-container">
       <div id="treeContainer">Select a repo to view files</div>
     </div>
 
-<!-- Action buttons -->
-<div class="section actions">
-  <button id="structureBtn" class="action-btn">Structure</button>
-  <button id="codeBtn" class="action-btn">Code</button>
-  <button id="generateBtn" class="action-btn">Done / Generate</button>
-  <button id="editDocignoreBtn" class="action-btn">Edit .docignore</button>
-  <button id="openStorageBtn" class="action-btn">Open Storage</button> <!-- NEW -->
-</div>
-
-
-    <!-- Progress -->
-    <div class="section progress-section">
-      <progress id="progressBar" value="0" max="100"></progress>
-      <span id="progressText">0%</span>
-    </div>
   </div>
 
   <!-- App logic -->

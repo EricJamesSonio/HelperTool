@@ -9,24 +9,28 @@ const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
 const codeOps = require('./utils/codeOps.js');
 
+
 let mainWindow;
 let tray;
 
-// ----------------------------
-// Create Main Window
-// ----------------------------
 function createWindow() {
     console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 1920,
+        height: 1080,
         show: true,
+        frame: true,  // Show normal window frame with buttons
+        maximizable: true,
+        minimizable: true,  // Allow minimize
         webPreferences: {
             preload: path.join(__dirname, 'preload.js')
         }
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    
+    // Maximize on start
+    mainWindow.maximize();
 
     mainWindow.on('close', (e) => {
         e.preventDefault();
@@ -34,7 +38,6 @@ function createWindow() {
         console.log('[Main] Main window hidden instead of close');
     });
 }
-
 // ----------------------------
 // App Ready
 // ----------------------------
@@ -245,7 +248,7 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
             console.log('[IPC] Generating code...');
             await codeOps.generateCode(items, filePath, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
-                console.log(`[Progress] ${percent}%`);
+                //console.log(`[Progress] ${percent}%`);
             }, repoPath, ignoreRules);
         }
 
