@@ -66,12 +66,11 @@ function isIgnored(fullPath, repoPath) {
     if (!repoPath) return false;
 
     let relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
-
-    // Ignore anything outside the repo
     if (relPath.startsWith('..')) return false;
 
     const matchers = compiledMatchersCache.get(repoPath) || [];
     return matchers.some(fn => fn(relPath));
 }
+
 
 module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };

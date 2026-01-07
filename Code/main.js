@@ -216,7 +216,7 @@ ipcMain.handle('getFolderTree', async (event, repoPath) => {
         console.log('[IPC] Ignore rules loaded:', ignoreRules.length);
         
         // IMPORTANT: AWAIT the tree generation!
-        const tree = await fileOps.getFolderTree(repoPath, ignoreRules);
+        const tree = await fileOps.getFolderTree(repoPath);
         console.log('[IPC] Tree generated, root items:', tree.length);
         
         return tree;
@@ -241,9 +241,10 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
 
         if (actionType === 'structure') {
             console.log('[IPC] Generating structure...');
-            await fileOps.generateStructure(items, filePath, ignoreRules, (percent) => {
-                mainWindow.webContents.send('progress-update', percent);
-            });
+await fileOps.generateStructure(items, filePath, (percent) => {
+    mainWindow.webContents.send('progress-update', percent);
+});
+
         } else if (actionType === 'code') {
             console.log('[IPC] Generating code...');
             await codeOps.generateCode(items, filePath, (percent) => {
