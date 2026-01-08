@@ -235,15 +235,37 @@ function flattenTree(tree, result = []) {
 }
 
 function expandPathParents(path) {
-    let target = document.querySelector(`[data-node-path='${path}']`);
-    while (target) {
-        const wrapper = target.closest('.node-wrapper');
-        if (!wrapper) break;
-        const childrenContainer = wrapper.querySelector('.children');
-        if (childrenContainer) childrenContainer.style.display = 'flex';
-        const folderNode = wrapper.querySelector('.tree-node.folder');
-        if (folderNode) folderNode.classList.add('folder-open');
-        target = wrapper.parentElement.closest('.tree-node');
+    console.log('[Search] Expanding parents for:', path);
+    
+    // Find the wrapper element by data attribute
+    const wrapper = document.querySelector(`[data-node-path='${CSS.escape(path)}']`);
+    if (!wrapper) {
+        console.log('[Search] Wrapper not found for path:', path);
+        return;
+    }
+    
+    // Traverse up and expand all parent folders
+    let current = wrapper.parentElement;
+    while (current && current !== treeContainer) {
+        if (current.classList.contains('node-wrapper')) {
+            const childrenContainer = current.querySelector(':scope > .children');
+            const folderNode = current.querySelector(':scope > .tree-node.folder');
+            
+            if (childrenContainer) {
+                childrenContainer.style.display = 'flex';
+                console.log('[Search] Expanded children container');
+            }
+            if (folderNode) {
+                folderNode.classList.add('folder-open');
+                // Update expansion state
+                const folderPath = current.dataset.nodePath;
+                if (folderPath && window._expandedFolders) {
+                    window._expandedFolders.set(folderPath, true);
+                }
+                console.log('[Search] Opened folder node');
+            }
+        }
+        current = current.parentElement;
     }
 }
 
@@ -279,29 +301,85 @@ function searchTree(query) {
 }
 
 function selectSearchItem(path) {
-    console.log('[Search] Selecting item:', path);
-    expandPathParents(path); // ensure parent folders are open
-
-    const target = document.querySelector(`[data-node-path='${path}']`);
-    if (!target) return;
-
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // Force animation replay (even if already highlighted)
-    target.classList.remove('highlighted');
-    void target.offsetWidth; // Force reflow to restart animation
-    target.classList.add('highlighted');
-
-    // Remove highlight after animation completes
+    console.log('[Search] Showing item:', path);
+    
+    // First expand all parent folders
+    expandPathParents(path);
+    
+    // Small delay to ensure DOM updates are complete
     setTimeout(() => {
-        target.classList.remove('highlighted');
-    }, 1600);
+        // Find the wrapper with the matching path
+        const wrapper = document.querySelector(`[data-node-path='${CSS.escape(path)}']`);
+        if (!wrapper) {
+            console.log('[Search] Could not find wrapper for path:', path);
+            return;
+        }
+        
+        console.log('[Search] Wrapper found:', wrapper);
+        
+        // Get the actual tree-node element inside the wrapper
+        const treeNode = wrapper.querySelector(':scope > .tree-node');
+        if (!treeNode) {
+            console.log('[Search] Could not find tree-node element');
+            return;
+        }
 
-    if (!selectedItems.includes(path)) {
-        selectedItems.push(path);
-        console.log('[Search] Item added to selection:', selectedItems);
-        onTreeSelectionChange();
-    }
+        console.log('[Search] Tree node found:', treeNode);
+        console.log('[Search] Tree node classes before:', treeNode.className);
+
+        // Scroll the tree node into view
+        treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        console.log('[Search] Scrolled to node');
+
+        // Store original styles
+        const originalBackground = treeNode.style.background;
+        const originalBoxShadow = treeNode.style.boxShadow;
+        const originalBorderColor = treeNode.style.borderColor;
+        const originalColor = treeNode.style.color;
+        const originalTransform = treeNode.style.transform;
+        const originalTransition = treeNode.style.transition;
+
+        // Apply PURPLE highlight directly via inline styles
+        treeNode.style.transition = 'all 0.3s ease';
+        treeNode.style.background = 'linear-gradient(135deg, #9c27b0 0%, #6a1b9a 100%)';
+        treeNode.style.boxShadow = '0 0 0 6px rgba(156, 39, 176, 0.8), 0 0 35px rgba(106, 27, 154, 1)';
+        treeNode.style.borderColor = '#9c27b0';
+        treeNode.style.color = '#fff';
+        treeNode.style.transform = 'scale(1.2)';
+        treeNode.style.zIndex = '1000';
+        
+        console.log('[Search] Applied PURPLE highlight via inline styles');
+
+        // Fade effect: gradually reduce intensity
+        setTimeout(() => {
+            treeNode.style.transition = 'all 1s ease';
+            treeNode.style.background = 'linear-gradient(135deg, #ba68c8 0%, #9c27b0 100%)';
+            treeNode.style.boxShadow = '0 0 0 4px rgba(156, 39, 176, 0.6), 0 0 25px rgba(106, 27, 154, 0.7)';
+            treeNode.style.transform = 'scale(1.15)';
+        }, 800);
+
+        setTimeout(() => {
+            treeNode.style.background = 'linear-gradient(135deg, #ce93d8 0%, #ba68c8 100%)';
+            treeNode.style.boxShadow = '0 0 0 2px rgba(156, 39, 176, 0.4), 0 0 15px rgba(106, 27, 154, 0.5)';
+            treeNode.style.transform = 'scale(1.08)';
+        }, 1600);
+
+        // Remove highlight and restore original styles
+        setTimeout(() => {
+            treeNode.style.transition = 'all 0.5s ease';
+            treeNode.style.background = originalBackground;
+            treeNode.style.boxShadow = originalBoxShadow;
+            treeNode.style.borderColor = originalBorderColor;
+            treeNode.style.color = originalColor;
+            treeNode.style.transform = originalTransform;
+            treeNode.style.zIndex = '';
+            
+            setTimeout(() => {
+                treeNode.style.transition = originalTransition;
+                console.log('[Search] Removed highlight and restored original styles');
+            }, 500);
+        }, 2500);
+    }, 150);
 }
 
 treeSearchInput.addEventListener('input', (e) => {
