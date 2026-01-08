@@ -1,9 +1,9 @@
 /**
- * Tree Diagram Renderer (Refactored)
+ * Tree Diagram Renderer (Fixed)
  * ---------------------------------
  * - Pure render: selection comes ONLY from selectedItems
- * - No re-render on click
- * - Stable selection & expansion behavior
+ * - Folders NEVER collapse - always stay open
+ * - Green highlighting for folders in code mode works correctly
  */
 
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
@@ -40,15 +40,20 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
      * -------------------------------------- */
 
     function applySelectionClass(el, node) {
+        // Remove all selection classes first
         el.classList.remove('selected', 'folder-selected', 'file-selected');
 
         if (!isSelected(node.path)) return;
 
+        // Apply correct selection class based on type and mode
         if (node.type === 'folder') {
-            if (actionType === 'code') el.classList.add('folder-selected');
-            else el.classList.add('selected');
+            if (actionType === 'code') {
+                el.classList.add('folder-selected'); // GREEN in code mode
+            } else {
+                el.classList.add('selected'); // PURPLE in structure mode
+            }
         } else {
-            el.classList.add('file-selected');
+            el.classList.add('file-selected'); // YELLOW for files
         }
     }
 
@@ -86,16 +91,12 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
 
-        /* Expansion state (folders only) */
-        let expanded = expandedFolders.get(node.path);
-        if (expanded === undefined && node.type === 'folder') {
-            expanded = true;
-            expandedFolders.set(node.path, true);
-        }
+        /* Expansion state - ALWAYS EXPANDED */
+        let expanded = true;
+        expandedFolders.set(node.path, true);
 
         if (node.type === 'folder' && node.children?.length) {
-            el.classList.add('expandable');
-            if (expanded) el.classList.add('folder-open');
+            el.classList.add('expandable', 'folder-open');
         }
 
         /* Label */
@@ -115,13 +116,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
         wrapper.appendChild(el);
 
-        /* Children */
+        /* Children - ALWAYS VISIBLE */
         let childrenContainer = null;
 
         if (node.type === 'folder' && node.children?.length) {
             childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
-            if (!expanded) childrenContainer.style.display = 'none';
+            // ALWAYS display children - never hide
+            childrenContainer.style.display = 'flex';
 
             node.children.forEach(child => {
                 const childEl = createNode(child, depth + 1);
@@ -130,20 +132,20 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                 }
             });
 
-
-
             wrapper.appendChild(childrenContainer);
         }
 
         /* ----------------------------------------
-         * Click handling (STATE ONLY)
+         * Click handling - NO EXPANSION TOGGLE
          * -------------------------------------- */
         el.addEventListener('click', (e) => {
             e.stopPropagation();
 
             if (node.type === 'file') {
+                // File click: toggle selection
                 togglePath(node.path);
             } else {
+                // Folder click: select/deselect ALL files inside
                 if (actionType === 'code') {
                     const files = getAllFiles(node);
                     const allSelected = files.every(f => isSelected(f.path));
@@ -153,21 +155,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                         else addPath(f.path);
                     });
                 } else {
+                    // Structure mode: toggle folder itself
                     togglePath(node.path);
                 }
 
-                if (node.children?.length) {
-                    expanded = !expanded;
-                    expandedFolders.set(node.path, expanded);
-
-                    if (childrenContainer) {
-                        childrenContainer.style.display = expanded ? 'flex' : 'none';
-                    }
-
-                    el.classList.toggle('folder-open', expanded);
-                }
+                // DO NOT toggle expansion - folders stay open permanently
             }
 
+            // Update visual highlights
             updateAllSelectionHighlights();
             onToggle?.(node);
         });
