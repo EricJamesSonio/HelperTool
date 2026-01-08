@@ -12,6 +12,8 @@ const openStorageBtn = document.getElementById('openStorageBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
 const treeSearchInput = document.getElementById('treeSearchInput');
 const searchSuggestions = document.getElementById('searchSuggestions');
+const selectionCount = document.getElementById('selectionCount');
+const clearSelectionBtn = document.getElementById('clearSelectionBtn');
 
 let selectedRepoPath = null;
 let selectedItems = [];        
@@ -43,9 +45,23 @@ function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
 }
 
+function updateSelectionCounter() {
+    const count = selectedItems.length;
+    selectionCount.textContent = count;
+    console.log(`[UI] Selection count updated: ${count}`);
+    
+    // Add visual feedback when count changes
+    if (count > 0) {
+        selectionCount.parentElement.classList.add('has-selections');
+    } else {
+        selectionCount.parentElement.classList.remove('has-selections');
+    }
+}
+
 function updateGenerateState() {
     console.log(`[UI] Generate button ${selectedItems.length === 0 ? 'disabled' : 'enabled'}`);
     generateBtn.disabled = selectedItems.length === 0;
+    updateSelectionCounter();
 }
 
 /* ----------------------------------------
@@ -56,6 +72,18 @@ function onTreeSelectionChange() {
     updateGenerateState();
     window.electronAPI.setLastSelected(selectedItems);
 }
+
+/* ----------------------------------------
+ * Clear Selection Button
+ * -------------------------------------- */
+clearSelectionBtn.addEventListener('click', () => {
+    console.log('[UI] Clear selection clicked');
+    selectedItems.length = 0;
+    window.electronAPI.setLastSelected([]);
+    updateGenerateState();
+    displayTree();
+    console.log('[UI] All selections cleared');
+});
 
 /* ----------------------------------------
  * Open storage

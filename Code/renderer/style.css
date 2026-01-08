@@ -75,6 +75,70 @@ body {
 }
 
 /* -----------------------------
+   Selection Counter
+----------------------------- */
+.selection-counter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.selection-counter.has-selections {
+  background: rgba(76, 175, 80, 0.3);
+  border-color: rgba(76, 175, 80, 0.5);
+  animation: counterPulse 0.3s ease;
+}
+
+@keyframes counterPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.counter-icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+#selectionCount {
+  font-size: 1.1em;
+  font-weight: 700;
+  min-width: 24px;
+  text-align: center;
+  color: #fff;
+}
+
+.counter-label {
+  font-size: 0.85em;
+  opacity: 0.9;
+}
+
+/* Clear Button */
+.clear-btn {
+  background: rgba(244, 67, 54, 0.2) !important;
+  color: #fff !important;
+  border: 1px solid rgba(244, 67, 54, 0.4) !important;
+}
+
+.clear-btn:hover {
+  background: rgba(244, 67, 54, 0.4) !important;
+  border-color: rgba(244, 67, 54, 0.6) !important;
+}
+
+/* -----------------------------
    Button Styles
 ----------------------------- */
 button {
@@ -508,53 +572,52 @@ button:disabled {
 }
 
 .search-input {
-  padding: 5px 10px;
+  padding: 8px 12px;
   width: 200px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  background: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .search-suggestions {
   position: absolute;
-  top: 28px;
+  top: 40px;
   left: 0;
   width: 200px;
   background: #fff;
   border: 1px solid #ccc;
-  max-height: 150px;
+  border-radius: 8px;
+  max-height: 200px;
   overflow-y: auto;
   list-style: none;
   padding: 0;
   margin: 0;
   display: none;
   z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .search-suggestions li {
-  padding: 5px 10px;
+  padding: 8px 12px;
   cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s ease;
+}
+
+.search-suggestions li:last-child {
+  border-bottom: none;
 }
 
 .search-suggestions li:hover {
-  background-color: #eee;
-}
-
-/* -----------------------------
-   Search Highlight (Flash + Fade)
------------------------------ */
-.tree-node.highlighted {
-  background: rgba(255, 235, 150, 0.95) !important;
-  box-shadow: 0 0 0 3px rgba(255, 200, 80, 0.9) !important;
-  border-color: #f39c12 !important;
-  animation: searchFlash 1.6s ease-out forwards;
-}
-
-@keyframes searchFlash {
-  0% {
-    background: rgba(255, 235, 150, 0.95) !important;
-  }
-  60% {
-    background: rgba(255, 235, 150, 0.6) !important;
-  }
-  100% {
-    background: transparent !important;
-  }
+  background-color: #f5f5f5;
 }
