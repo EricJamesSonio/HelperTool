@@ -9,28 +9,31 @@ const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
 const codeOps = require('./utils/codeOps.js');
 
-
 let mainWindow;
 let tray;
+
+// ----------------------------
+// KEEP TRAY ALIVE (FIX #1)
+// ----------------------------
+app.on('window-all-closed', (e) => {
+    e.preventDefault(); // keep tray alive
+});
 
 function createWindow() {
     console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
-        width: 1920,
-        height: 1080,
-        show: true,
-        frame: true,  // Show normal window frame with buttons
+        width: 1200,
+        height: 800,
+        show: false, // 👈 tray-first
+        frame: true,
         maximizable: true,
-        minimizable: true,  // Allow minimize
+        minimizable: true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js')
         }
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-    
-    // Maximize on start
-    mainWindow.maximize();
 
     mainWindow.on('close', (e) => {
         e.preventDefault();
@@ -38,6 +41,7 @@ function createWindow() {
         console.log('[Main] Main window hidden instead of close');
     });
 }
+
 // ----------------------------
 // App Ready
 // ----------------------------
@@ -59,12 +63,29 @@ function createTray() {
     tray = new Tray(path.join(__dirname, 'assets', 'tray-icon.png'));
 
     const contextMenu = Menu.buildFromTemplate([
-        { label: 'Open Helper', click: () => mainWindow.show() },
+        { 
+            label: 'Open Helper',
+            click: () => {
+                // FIX #2 — tray click safety
+                if (!mainWindow) {
+                    createWindow();
+                }
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        },
         { label: 'Open Storage Folder', click: () => openStorage() },
         { type: 'separator' },
         { label: 'Select Previous Repo', submenu: getPreviousReposMenu() },
         { type: 'separator' },
-        { label: 'Exit', click: () => app.quit() }
+        { 
+            label: 'Exit',
+            click: () => {
+                // FIX #3 — clean quit
+                tray.destroy();
+                app.exit(0);
+            }
+        }
     ]);
 
     tray.setToolTip('Helper Tool');
@@ -104,7 +125,6 @@ ipcMain.handle('open-storage', async () => {
         return false;
     }
 });
-
 
 // ----------------------------
 // Previous Repos Menu
@@ -227,7 +247,6 @@ ipcMain.handle('getFolderTree', async (event, repoPath) => {
 });
 ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
 
-
 ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) => {
     try {
         console.log('[IPC] generate called:', { actionType, repoPath, itemsLength: items?.length, filePath });
@@ -256,7 +275,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
 
         // --------------------------
         // OPEN NOTEPAD AUTOMATICALLY
-        // Wait a bit to ensure file is fully written
         // --------------------------
         await new Promise(resolve => setTimeout(resolve, 100));
         
@@ -264,7 +282,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
             exec(`notepad "${filePath}"`, (err) => {
                 if (err) {
                     console.error('[IPC] Failed to open Notepad:', err);
-                    // Fallback to default app
                     shell.openPath(filePath);
                 }
             });
@@ -279,6 +296,7 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
         return false;
     }
 });
+
 // ----------------------------
 // Open .docignore file
 // ----------------------------
@@ -287,12 +305,10 @@ ipcMain.handle('open-docignore', async (event, repoPath) => {
         if (!repoPath) return false;
         const docignoreFile = path.join(repoPath, '.docignore');
 
-        // If file doesn't exist, create empty
         if (!fs.existsSync(docignoreFile)) {
             fs.writeFileSync(docignoreFile, '# Add patterns to ignore files/folders\n', 'utf-8');
         }
 
-        // Open with default editor
         shell.openPath(docignoreFile);
         console.log('[Main] .docignore opened:', docignoreFile);
         return true;
@@ -301,7 +317,6 @@ ipcMain.handle('open-docignore', async (event, repoPath) => {
         return false;
     }
 });
-
 
 // Get .docignore rules
 ipcMain.handle('get-docignore', async (event, repoPath) => {

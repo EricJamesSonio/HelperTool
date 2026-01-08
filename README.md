@@ -8,5 +8,15 @@ Helper tool project for me!
 To run:
 npx electron main.js
 
+Run exe: 
+npm run build:win
+
+
 Devtools of electron:
 ctrl + shift + i
+
+
+
+Requirements
+
+npm install --save-dev electron-builder
