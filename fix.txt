@@ -1,0 +1,135 @@
+📁 Project structure for: HelperTool
+=============================================
+
+.
+  .Docs
+    Project.md
+    Structure.md
+  .git
+  .gitignore
+  Allcodes.txt
+  Code
+    .docignore
+    assets
+      icon.ico
+      tray-icon.png
+    config
+      config.js
+      helper-config.json
+    dist
+      builder-debug.yml
+      builder-effective-config.yaml
+      Helper Tool Setup 1.0.0.exe
+      Helper Tool Setup 1.0.0.exe.blockmap
+      HelperTool Setup 1.0.0.exe
+      HelperTool Setup 1.0.0.exe.blockmap
+      win-unpacked
+        d3dcompiler_47.dll
+        debug.log
+        dxcompiler.dll
+        dxil.dll
+        ffmpeg.dll
+        HelperTool.exe
+        icudtl.dat
+        libEGL.dll
+        libGLESv2.dll
+        LICENSE.electron.txt
+        LICENSES.chromium.html
+        locales
+          af.pak
+          am.pak
+          ar.pak
+          bg.pak
+          bn.pak
+          ca.pak
+          cs.pak
+          da.pak
+          de.pak
+          el.pak
+          en-GB.pak
+          en-US.pak
+          es-419.pak
+          es.pak
+          et.pak
+          fa.pak
+          fi.pak
+          fil.pak
+          fr.pak
+          gu.pak
+          he.pak
+          hi.pak
+          hr.pak
+          hu.pak
+          id.pak
+          it.pak
+          ja.pak
+          kn.pak
+          ko.pak
+          lt.pak
+          lv.pak
+          ml.pak
+          mr.pak
+          ms.pak
+          nb.pak
+          nl.pak
+          pl.pak
+          pt-BR.pak
+          pt-PT.pak
+          ro.pak
+          ru.pak
+          sk.pak
+          sl.pak
+          sr.pak
+          sv.pak
+          sw.pak
+          ta.pak
+          te.pak
+          th.pak
+          tr.pak
+          uk.pak
+          ur.pak
+          vi.pak
+          zh-CN.pak
+          zh-TW.pak
+        resources
+          app.asar
+          config
+            config.js
+            helper-config.json
+          elevate.exe
+        resources.pak
+        snapshot_blob.bin
+        v8_context_snapshot.bin
+        vk_swiftshader.dll
+        vk_swiftshader_icd.json
+        vulkan-1.dll
+    logs
+    main.js
+    node_modules
+    package-lock.json
+    package.json
+    preload.js
+    renderer
+      app.js
+      index.html
+      style.css
+    utils
+      codeOps.js
+      docignore.js
+      fileOps.js
+      treeView.js
+  configCode.txt
+  free.js
+  README.md
+  rendererCodes.txt
+  sh.sh
+  UtilsCodes.txt
+
+
+
+.... here is the folder structure and it was working fine when i run in vs code, it uses the helper config,json to check or save 
+the selected repos, but since i do is have this dist set up to make it like an applikcation that i can run without the need of opening it 
+vs code. so the only issue is i think the setup is a bit lacking? sinc ewhen i try selecting other repo , it can't saying theres
+no helper-config.json even tho it has ,, look in here C:\Users\Windows 10\Desktop\Personal\Projects\HelperTool\Code\dist\win-unpacked\resources\config
+
+there is the config.js and the helper-config.json.... i dont know why it saying no such file 
