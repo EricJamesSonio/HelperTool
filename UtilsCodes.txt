@@ -1,6 +1,1242 @@
-------------------------------
-FILE: codeOps.js
 
+// ===== File: config.js =====
+const fs = require('fs');
+const path = require('path');
+const { app } = require('electron');
+
+// Always store config in a writable OS location (works in dev + packaged exe)
+const CONFIG_DIR = app.getPath('userData');
+const CONFIG_PATH = path.join(CONFIG_DIR, 'helper-config.json');
+
+function readConfig() {
+    // Ensure config directory exists
+    if (!fs.existsSync(CONFIG_DIR)) {
+        fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+
+    // Create default config if missing
+    if (!fs.existsSync(CONFIG_PATH)) {
+        const defaultConfig = {
+            baseStoragePath: path.join(app.getPath('userData'), 'HelperToolStorage'),
+            activeProject: null,
+            projects: {},
+            preferences: {
+                docignoreFileName: ".docignore",
+                showHiddenFiles: false,
+                defaultStructureView: "tree",
+                autoSelectLastProject: true
+            }
+        };
+
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
+        return defaultConfig;
+    }
+
+    // Read existing config
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+}
+
+function writeConfig(config) {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+}
+
+function getActiveProject() {
+    const config = readConfig();
+    if (config.activeProject) {
+        return config.projects[config.activeProject];
+    }
+    return null;
+}
+
+function getLastSelectedItems() {
+    const project = getActiveProject();
+    return project?.lastSelectedItems || [];
+}
+
+function setLastSelectedItems(items) {
+    const cfg = readConfig();
+    if (cfg.activeProject && cfg.projects[cfg.activeProject]) {
+        cfg.projects[cfg.activeProject].lastSelectedItems = items;
+        writeConfig(cfg);
+    }
+}
+
+function ensureStorageFolder(storagePath) {
+    if (!fs.existsSync(storagePath)) {
+        fs.mkdirSync(storagePath, { recursive: true });
+    }
+
+    ['Codes', 'Structures'].forEach(sub => {
+        const subPath = path.join(storagePath, sub);
+        if (!fs.existsSync(subPath)) {
+            fs.mkdirSync(subPath);
+        }
+    });
+
+    return storagePath;
+}
+
+module.exports = { 
+    readConfig, 
+    writeConfig, 
+    getActiveProject, 
+    getLastSelectedItems,
+    setLastSelectedItems,
+    ensureStorageFolder
+};
+
+
+// ===== File: ..\..\main.js =====
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const config = require('./config/config.js');
+const { exec } = require('child_process'); 
+
+// Utils
+const fileOps = require('./utils/fileOps.js');
+const docignoreUtils = require('./utils/docignore.js');
+const codeOps = require('./utils/codeOps.js');
+
+let mainWindow;
+let tray;
+
+// ----------------------------
+// KEEP TRAY ALIVE (FIX #1)
+// ----------------------------
+app.on('window-all-closed', (e) => {
+    e.preventDefault(); // keep tray alive
+});
+
+function createWindow() {
+    console.log('[Main] Creating main window...');
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        show: true,
+        frame: true,
+        maximizable: true,
+        minimizable: true,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+
+    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+    mainWindow.on('close', (e) => {
+        e.preventDefault();
+        mainWindow.hide();
+        console.log('[Main] Main window hidden instead of close');
+    });
+}
+
+// ----------------------------
+// App Ready
+// ----------------------------
+app.whenReady().then(() => {
+    console.log('[Main] App is ready');
+    createTray();
+    createWindow();
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+});
+
+// ----------------------------
+// Tray
+// ----------------------------
+function createTray() {
+    console.log('[Tray] Creating tray icon...');
+    tray = new Tray(path.join(__dirname, 'assets', 'helpertool.png'));
+
+    const contextMenu = Menu.buildFromTemplate([
+        { 
+            label: 'Open Helper',
+            click: () => {
+                if (!mainWindow) {
+                    createWindow();
+                }
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        },
+        { label: 'Open Storage Folder', click: () => openStorage() },
+        { type: 'separator' },
+        { label: 'Select Previous Repo', submenu: getPreviousReposMenu() },
+        { type: 'separator' },
+        { 
+            label: 'Exit',
+            click: () => {
+                tray.destroy();
+                app.exit(0);
+            }
+        }
+    ]);
+
+    tray.setToolTip('Helper Tool');
+    tray.setContextMenu(contextMenu);
+    console.log('[Tray] Tray menu created');
+}
+
+// ----------------------------
+// Open Global Docignore
+// ----------------------------
+ipcMain.handle('open-global-docignore', async () => {
+    try {
+        const globalDocignorePath = path.join(app.getPath('userData'), 'global-docignore.json');
+
+        if (!fs.existsSync(globalDocignorePath)) {
+            fs.writeFileSync(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
+            console.log('[Main] Created new global-docignore.json at', globalDocignorePath);
+        } else {
+            console.log('[Main] global-docignore.json exists at', globalDocignorePath);
+        }
+
+        await shell.openPath(globalDocignorePath);
+        console.log('[Main] global-docignore.json opened');
+        return true;
+    } catch (err) {
+        console.error('[Main] Failed to open global-docignore.json:', err);
+        return false;
+    }
+});
+
+ipcMain.handle('open-storage', async () => {
+    try {
+        openStorage();
+        return true;
+    } catch (err) {
+        console.error('[IPC] open-storage failed:', err);
+        return false;
+    }
+});
+
+// ----------------------------
+// Previous Repos Menu
+// ----------------------------
+function getPreviousReposMenu() {
+    const cfg = config.readConfig();
+    const submenu = [];
+
+    for (const repoPath in cfg.projects) {
+        submenu.push({
+            label: path.basename(repoPath),
+            click: () => {
+                console.log('[Tray] Setting active project:', repoPath);
+                cfg.activeProject = repoPath;
+                config.writeConfig(cfg);
+            }
+        });
+    }
+
+    if (submenu.length === 0) {
+        submenu.push({ label: 'No previous repos', enabled: false });
+        console.log('[Tray] No previous repos found');
+    }
+
+    return submenu;
+}
+
+// ----------------------------
+// Open Storage Folder
+// ----------------------------
+function openStorage() {
+    try {
+        const activeProject = config.getActiveProject();
+        if (activeProject) {
+            const storagePath = activeProject.storagePath;
+            console.log('[Storage] Opening storage folder:', storagePath);
+            if (fs.existsSync(storagePath)) {
+                shell.openPath(storagePath);
+            } else {
+                console.warn('[Storage] Storage folder does not exist:', storagePath);
+                dialog.showErrorBox('Storage Not Found', 'Storage folder does not exist.');
+            }
+        } else {
+            console.warn('[Storage] No active project');
+            dialog.showErrorBox('No Active Project', 'Select a project first.');
+        }
+    } catch (err) {
+        console.error('[Error] openStorage failed:', err);
+    }
+}
+
+// ----------------------------
+// IPC Handlers
+// ----------------------------
+
+// Select repo
+ipcMain.handle('select-repo', async () => {
+    try {
+        console.log('[IPC] select-repo called');
+        const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+
+        if (result.canceled || !result.filePaths.length) {
+            console.log('[IPC] Repo selection cancelled');
+            return null;
+        }
+
+        const repoPath = result.filePaths[0];
+        console.log('[IPC] Repo selected:', repoPath);
+
+        const cfg = config.readConfig();
+        const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
+        const userDataPath = app.getPath('userData');
+        const storagePath = path.join(userDataPath, storageName);
+
+        if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
+        if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
+        ['Codes', 'Structures'].forEach(sub => {
+            const subPath = path.join(storagePath, sub);
+            if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
+        });
+        console.log('[IPC] Storage folders ensured at:', storagePath);
+
+        cfg.projects[repoPath] = {
+            storageName,
+            storagePath,
+            lastUsed: new Date().toISOString()
+        };
+        cfg.activeProject = repoPath;
+        config.writeConfig(cfg);
+        console.log('[IPC] Config updated for repo:', repoPath);
+
+        return repoPath;
+    } catch (err) {
+        console.error('[IPC] select-repo error:', err);
+        dialog.showErrorBox('Select Repo Error', err.message);
+        return null;
+    }
+});
+
+ipcMain.handle('getFolderTree', async (event, repoPath) => {
+    try {
+        console.log('[IPC] getFolderTree called for:', repoPath);
+        if (!repoPath) return [];
+
+        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+        console.log('[IPC] Ignore rules loaded:', ignoreRules.length);
+        
+        const tree = await fileOps.getFolderTree(repoPath);
+        console.log('[IPC] Tree generated, root items:', tree.length);
+        
+        return tree;
+    } catch (err) {
+        console.error('[IPC] getFolderTree error:', err);
+        return [];
+    }
+});
+
+ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
+
+ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) => {
+    try {
+        console.log('[IPC] generate called:', { actionType, repoPath, itemsLength: items?.length, filePath });
+        if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
+
+        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+
+        const outputDir = path.dirname(filePath);
+        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+        if (actionType === 'structure') {
+            console.log('[IPC] Generating structure...');
+            await fileOps.generateStructure(items, filePath, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+            });
+
+        } else if (actionType === 'code') {
+            console.log('[IPC] Generating code...');
+            await codeOps.generateCode(items, filePath, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+            }, repoPath, ignoreRules);
+        }
+
+        console.log(`[IPC] Generation complete. Output at: ${filePath}`);
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (fs.existsSync(filePath)) {
+            exec(`notepad "${filePath}"`, (err) => {
+                if (err) {
+                    console.error('[IPC] Failed to open Notepad:', err);
+                    shell.openPath(filePath);
+                }
+            });
+        } else {
+            console.error('[IPC] File does not exist after generation:', filePath);
+        }
+
+        return true;
+    } catch (err) {
+        console.error('[IPC] generate error:', err);
+        dialog.showErrorBox('Generate Error', err.message);
+        return false;
+    }
+});
+
+// ----------------------------
+// Open .docignore file
+// ----------------------------
+ipcMain.handle('open-docignore', async (event, repoPath) => {
+    try {
+        if (!repoPath) return false;
+        const docignoreFile = path.join(repoPath, '.docignore');
+
+        if (!fs.existsSync(docignoreFile)) {
+            fs.writeFileSync(docignoreFile, '# Add patterns to ignore files/folders\n', 'utf-8');
+        }
+
+        shell.openPath(docignoreFile);
+        console.log('[Main] .docignore opened:', docignoreFile);
+        return true;
+    } catch (err) {
+        console.error('[IPC] open-docignore error:', err);
+        return false;
+    }
+});
+
+// Get .docignore rules
+ipcMain.handle('get-docignore', async (event, repoPath) => {
+    try {
+        console.log('[IPC] get-docignore called for:', repoPath);
+        if (!repoPath) return [];
+        return await docignoreUtils.getIgnoreRules(repoPath);
+    } catch (err) {
+        console.error('[IPC] get-docignore error:', err);
+        return [];
+    }
+});
+
+// Get active project
+ipcMain.handle('get-active-project', () => {
+    try {
+        console.log('[IPC] get-active-project called');
+        const activeProjectPath = config.readConfig().activeProject;
+        if (!activeProjectPath) return null;
+        const projectData = config.readConfig().projects[activeProjectPath];
+        console.log('[IPC] Active project data:', projectData);
+        return { repoPath: activeProjectPath, ...projectData };
+    } catch (err) {
+        console.error('[IPC] get-active-project error:', err);
+        return null;
+    }
+});
+
+// Get last selected items
+ipcMain.handle('get-last-selected', () => {
+    try {
+        const items = config.getLastSelectedItems();
+        console.log('[IPC] get-last-selected:', items);
+        return items;
+    } catch (err) {
+        console.error('[IPC] get-last-selected error:', err);
+        return [];
+    }
+});
+
+// Set last selected items
+ipcMain.handle('set-last-selected', (event, items) => {
+    try {
+        console.log('[IPC] set-last-selected:', items);
+        config.setLastSelectedItems(items);
+    } catch (err) {
+        console.error('[IPC] set-last-selected error:', err);
+    }
+});
+
+ipcMain.handle('save-file-dialog', async (event, actionType) => {
+    const activeProject = config.getActiveProject();
+    if (!activeProject) return { filePath: null };
+
+    const defaultFolder = path.join(
+        activeProject.storagePath,
+        actionType === 'code' ? 'Codes' : 'Structures'
+    );
+
+    const result = await dialog.showSaveDialog({
+        title: 'Enter output file name',
+        defaultPath: path.join(defaultFolder, 'output.txt'),
+        buttonLabel: 'Save'
+    });
+
+    return { filePath: result.canceled ? null : result.filePath };
+});
+
+// ----------------------------
+// Ignored Extensions (ext ignore list)
+// ----------------------------
+
+// Get ignored extensions for the active project
+ipcMain.handle('get-ignored-extensions', () => {
+    try {
+        const cfg = config.readConfig();
+        const activePath = cfg.activeProject;
+        if (!activePath || !cfg.projects[activePath]) return [];
+        return cfg.projects[activePath].ignoredExtensions || [];
+    } catch (err) {
+        console.error('[IPC] get-ignored-extensions error:', err);
+        return [];
+    }
+});
+
+// Save ignored extensions for the active project
+ipcMain.handle('set-ignored-extensions', (event, exts) => {
+    try {
+        const cfg = config.readConfig();
+        const activePath = cfg.activeProject;
+        if (!activePath || !cfg.projects[activePath]) return;
+        cfg.projects[activePath].ignoredExtensions = Array.isArray(exts) ? exts : [];
+        config.writeConfig(cfg);
+        console.log('[IPC] set-ignored-extensions saved:', exts);
+    } catch (err) {
+        console.error('[IPC] set-ignored-extensions error:', err);
+    }
+});
+
+// ===== File: ..\..\preload.js =====
+// preload.js
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+    // ------------------------
+    // Repo selection
+    // ------------------------
+    selectRepo: () => ipcRenderer.invoke('select-repo'),
+
+    // ------------------------
+    // Folder tree
+    // ------------------------
+    getFolderTree: (repoPath) => ipcRenderer.invoke('getFolderTree', repoPath),
+
+    // ------------------------
+    // Generate structure/code
+    // ------------------------
+    generate: (actionType, repoPath, items, filePath) => {
+        return ipcRenderer.invoke('generate', actionType, repoPath, items, filePath);
+    },
+
+    // ------------------------
+    // Open storage folder
+    // ------------------------
+    openStorage: () => ipcRenderer.invoke('open-storage'),
+    openDocignore: (repoPath) => ipcRenderer.invoke('open-docignore', repoPath),
+    getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+    openGlobalDocignore: () => ipcRenderer.invoke('open-global-docignore'),
+
+    // ------------------------
+    // Progress updates
+    // ------------------------
+    onProgressUpdate: (callback) => {
+        ipcRenderer.removeAllListeners('progress-update'); // avoid duplicate callbacks
+        ipcRenderer.on('progress-update', (event, percent) => {
+            const validPercent = Math.min(Math.max(Math.round(percent), 0), 100);
+            callback(validPercent);
+        });
+    },
+
+    // ------------------------
+    // .docignore
+    // ------------------------
+    getDocignore: (repoPath) => ipcRenderer.invoke('get-docignore', repoPath),
+
+    // ------------------------
+    // Last selected items
+    // ------------------------
+    getLastSelected: () => ipcRenderer.invoke('get-last-selected'),
+    setLastSelected: (items) => ipcRenderer.invoke('set-last-selected', items),
+
+    // ------------------------
+    // Active project
+    // ------------------------
+    getActiveProject: () => ipcRenderer.invoke('get-active-project'),
+
+    // ------------------------
+    // Save file dialog
+    // ------------------------
+    saveFileDialog: (actionType) => ipcRenderer.invoke('save-file-dialog', actionType),
+
+    // ------------------------
+    // Ignored extensions (ext ignore list)
+    // ------------------------
+    getIgnoredExtensions: () => ipcRenderer.invoke('get-ignored-extensions'),
+    setIgnoredExtensions: (exts) => ipcRenderer.invoke('set-ignored-extensions', exts),
+});
+
+// ===== File: ..\..\renderer\app.js =====
+/**
+ * app.js
+ * Core app logic: repo selection, tree display, mode switching, generate.
+ * Filter logic → filterManager.js
+ * Search logic → searchManager.js
+ */
+
+import { renderTree } from '../utils/treeView.js';
+import {
+    activeExtensions,
+    ignoredExtensions,
+    filterTree,
+    renderFilterChips,
+    renderIgnorePanel,
+    loadIgnoredExtensions,
+    setupFilterInput,
+} from './filterManager.js';
+import { setupSearch } from './searchManager.js';
+
+/* ----------------------------------------
+ * DOM refs
+ * -------------------------------------- */
+const selectRepoBtn = document.getElementById('selectRepoBtn');
+const activeRepoName = document.getElementById('activeRepoName');
+const treeContainer = document.getElementById('treeContainer');
+const structureBtn = document.getElementById('structureBtn');
+const codeBtn = document.getElementById('codeBtn');
+const generateBtn = document.getElementById('generateBtn');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const openStorageBtn = document.getElementById('openStorageBtn');
+const editDocignoreBtn = document.getElementById('editDocignoreBtn');
+const selectionCount = document.getElementById('selectionCount');
+const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+
+/* ----------------------------------------
+ * State
+ * -------------------------------------- */
+let selectedRepoPath = null;
+let selectedItems = [];
+let actionType = 'code';
+let cachedTree = null;
+
+/* ----------------------------------------
+ * UI setup
+ * -------------------------------------- */
+console.log('[Init] Setting up UI...');
+treeContainer.style.overflowY = 'auto';
+treeContainer.style.maxHeight = '80vh';
+generateBtn.disabled = true;
+
+/* ----------------------------------------
+ * Progress listener
+ * -------------------------------------- */
+window.electronAPI.onProgressUpdate(percent => {
+    console.log(`[Progress] ${percent}%`);
+    progressBar.value = percent;
+    progressText.textContent = `${percent}%`;
+});
+
+/* ----------------------------------------
+ * Helpers
+ * -------------------------------------- */
+function updateActiveRepo(name) {
+    activeRepoName.textContent = name || 'No repo selected';
+}
+
+function updateSelectionCounter() {
+    const count = selectedItems.length;
+    selectionCount.textContent = count;
+    selectionCount.parentElement.classList.toggle('has-selections', count > 0);
+}
+
+function updateGenerateState() {
+    generateBtn.disabled = selectedItems.length === 0;
+    updateSelectionCounter();
+}
+
+function resetSelection() {
+    selectedItems.length = 0;
+    window.electronAPI.setLastSelected([]);
+    updateGenerateState();
+}
+
+/* ----------------------------------------
+ * Tree display
+ * -------------------------------------- */
+function displayTree() {
+    if (!cachedTree) {
+        treeContainer.textContent = 'No data available';
+        return;
+    }
+    const visibleTree = filterTree(cachedTree);
+    renderTree(visibleTree, treeContainer, selectedItems, actionType, onTreeSelectionChange);
+}
+
+function onTreeSelectionChange() {
+    updateGenerateState();
+    window.electronAPI.setLastSelected(selectedItems);
+}
+
+/* ----------------------------------------
+ * Repo loading
+ * -------------------------------------- */
+async function loadRepo(repoPath, resetSel = true) {
+    selectedRepoPath = repoPath;
+    if (resetSel) {
+        selectedItems.length = 0;
+        await window.electronAPI.setLastSelected([]);
+    }
+    updateActiveRepo(repoPath.split(/[/\\]/).pop());
+    cachedTree = await window.electronAPI.getFolderTree(repoPath);
+    activeExtensions.clear();
+    renderFilterChips();
+
+    // ── NEW: refresh ignore panel if open ──
+    if (cachedTree) renderIgnorePanel(cachedTree);
+
+    displayTree();
+    updateGenerateState();
+}
+
+async function loadLastActiveRepo() {
+    console.log('[Init] Loading last active repo...');
+    try {
+        const project = await window.electronAPI.getActiveProject();
+        if (project?.repoPath) {
+            selectedItems.length = 0;
+            project.lastSelectedItems?.forEach(p => selectedItems.push(p));
+            await loadRepo(project.repoPath, false);
+        }
+    } catch (err) {
+        console.error('[Init] Failed to load last project:', err);
+    }
+}
+
+/* ----------------------------------------
+ * Button events
+ * -------------------------------------- */
+selectRepoBtn.addEventListener('click', async () => {
+    try {
+        const repoPath = await window.electronAPI.selectRepo();
+        if (repoPath) await loadRepo(repoPath);
+    } catch (err) {
+        console.error('[UI] Repo selection failed:', err);
+    }
+});
+
+refreshBtn.addEventListener('click', async () => {
+    if (!selectedRepoPath) return;
+    refreshBtn.classList.add('spinning');
+    refreshBtn.disabled = true;
+    try {
+        cachedTree = await window.electronAPI.getFolderTree(selectedRepoPath);
+        renderFilterChips();
+        if (cachedTree) renderIgnorePanel(cachedTree); // ── NEW
+        displayTree();
+    } catch (err) {
+        console.error('[UI] Refresh failed:', err);
+    } finally {
+        refreshBtn.classList.remove('spinning');
+        refreshBtn.disabled = false;
+    }
+});
+
+clearSelectionBtn.addEventListener('click', () => {
+    selectedItems.length = 0;
+    window.electronAPI.setLastSelected([]);
+    updateGenerateState();
+    displayTree();
+});
+
+openStorageBtn.addEventListener('click', async () => {
+    try {
+        await window.electronAPI.openStorage();
+    } catch {
+        alert('Failed to open storage.');
+    }
+});
+
+editDocignoreBtn.addEventListener('click', async () => {
+    try {
+        const ok = await window.electronAPI.openGlobalDocignore();
+        if (!ok) alert('Failed to open global ignore file.');
+    } catch (err) {
+        console.error('[UI] Error opening .docignore:', err);
+    }
+});
+
+structureBtn.addEventListener('click', () => {
+    actionType = 'structure';
+    resetSelection();
+    displayTree();
+});
+
+codeBtn.addEventListener('click', () => {
+    actionType = 'code';
+    resetSelection();
+    displayTree();
+});
+
+generateBtn.addEventListener('click', async () => {
+    try {
+        if (!selectedRepoPath || !selectedItems.length) {
+            return alert('Select repo and items first!');
+        }
+        const { filePath } = await window.electronAPI.saveFileDialog(actionType);
+        if (!filePath) return;
+
+        progressBar.value = 0;
+        progressText.textContent = '0%';
+
+        const success = await window.electronAPI.generate(
+            actionType, selectedRepoPath, selectedItems, filePath
+        );
+        if (!success) alert('Generation failed.');
+        resetSelection();
+        displayTree();
+    } catch (err) {
+        console.error('[Generate] Failed:', err);
+        alert('Generation failed.');
+    }
+});
+
+/* ----------------------------------------
+ * Init managers
+ * -------------------------------------- */
+setupFilterInput(() => cachedTree, displayTree);
+setupSearch(() => cachedTree, treeContainer);
+
+console.log('[Init] DOM content loaded, initializing...');
+window.addEventListener('DOMContentLoaded', async () => {
+    await loadIgnoredExtensions(); // ── NEW: load saved ignored exts
+    loadLastActiveRepo();
+});
+
+// ===== File: ..\..\renderer\filterManager.js =====
+/**
+ * filterManager.js
+ * Handles extension filter chips, suggestions, tree filtering,
+ * and ignore-list detection (new).
+ */
+
+const filterInput = document.getElementById('filterInput');
+const activeFiltersEl = document.getElementById('activeFilters');
+const extSuggestionsEl = document.getElementById('extSuggestions');
+
+// ── NEW: ignore panel elements ──────────────────────────────
+const availableExtsEl = document.getElementById('availableExts');
+const ignoredExtsEl = document.getElementById('ignoredExts');
+const ignoreToggleBtn = document.getElementById('ignoreToggleBtn');
+const ignorePanel = document.getElementById('ignorePanel');
+
+export const activeExtensions = new Set(); // empty = show all
+export const ignoredExtensions = new Set(); // extensions hidden from tree
+
+let _displayTree = null;
+let _getCachedTree = null;
+
+// ── Ignore panel visibility ─────────────────────────────────
+let ignorePanelOpen = false;
+
+if (ignoreToggleBtn && ignorePanel) {
+    ignoreToggleBtn.addEventListener('click', () => {
+        ignorePanelOpen = !ignorePanelOpen;
+        ignorePanel.classList.toggle('open', ignorePanelOpen);
+        ignoreToggleBtn.classList.toggle('active', ignorePanelOpen);
+
+        if (ignorePanelOpen) {
+            const tree = _getCachedTree?.();
+            if (tree) renderIgnorePanel(tree);
+        }
+    });
+}
+
+/**
+ * Collect all unique file extensions from a tree
+ */
+export function collectExtensions(tree, exts = new Set()) {
+    for (const node of tree) {
+        if (node.type === 'file') {
+            const ext = node.name.includes('.') ? node.name.split('.').pop().toLowerCase() : '';
+            if (ext) exts.add(ext);
+        }
+        if (node.children?.length) collectExtensions(node.children, exts);
+    }
+    return exts;
+}
+
+/**
+ * Filter tree nodes by active extensions AND remove ignored extensions
+ * Returns filtered copy
+ */
+export function filterTree(tree) {
+    function filterNode(node) {
+        if (node.type === 'file') {
+            const ext = node.name.includes('.') ? node.name.split('.').pop().toLowerCase() : '';
+            // Drop ignored extensions first
+            if (ignoredExtensions.has(ext)) return null;
+            // Then apply active filter (if any)
+            if (activeExtensions.size > 0 && !activeExtensions.has(ext)) return null;
+            return node;
+        }
+        if (node.type === 'folder') {
+            const filteredChildren = (node.children || []).map(filterNode).filter(Boolean);
+            if (filteredChildren.length === 0) return null;
+            return { ...node, children: filteredChildren };
+        }
+        return node;
+    }
+
+    return tree.map(filterNode).filter(Boolean);
+}
+
+// ── Active filter chips (existing) ─────────────────────────
+export function renderFilterChips() {
+    activeFiltersEl.innerHTML = '';
+
+    activeExtensions.forEach(ext => {
+        const chip = document.createElement('div');
+        chip.className = 'filter-chip active';
+        chip.innerHTML = `<span>.${ext}</span><button class="chip-remove" data-ext="${ext}">✕</button>`;
+        chip.querySelector('.chip-remove').addEventListener('click', () => {
+            activeExtensions.delete(ext);
+            renderFilterChips();
+            _displayTree();
+        });
+        activeFiltersEl.appendChild(chip);
+    });
+
+    if (activeExtensions.size > 0) {
+        const clearChip = document.createElement('div');
+        clearChip.className = 'filter-chip clear-all';
+        clearChip.textContent = 'Clear filters';
+        clearChip.addEventListener('click', () => {
+            activeExtensions.clear();
+            renderFilterChips();
+            _displayTree();
+        });
+        activeFiltersEl.appendChild(clearChip);
+    }
+}
+
+// ── NEW: Ignore panel renderer ─────────────────────────────
+export function renderIgnorePanel(tree) {
+    if (!availableExtsEl || !ignoredExtsEl) return;
+
+    const allExts = [...collectExtensions(tree)].sort();
+
+    // ── Available extensions (not yet ignored) ──
+    availableExtsEl.innerHTML = '';
+    const available = allExts.filter(e => !ignoredExtensions.has(e));
+
+    if (available.length === 0) {
+        availableExtsEl.innerHTML = '<span class="ignore-empty">All extensions ignored</span>';
+    } else {
+        available.forEach(ext => {
+            const chip = document.createElement('div');
+            chip.className = 'ignore-chip available';
+            chip.title = `Click to ignore .${ext} files`;
+            chip.innerHTML = `<span>.${ext}</span><span class="ignore-chip-action">→ ignore</span>`;
+            chip.addEventListener('click', () => {
+                ignoredExtensions.add(ext);
+                // Also remove from active filter if present
+                activeExtensions.delete(ext);
+                renderFilterChips();
+                renderIgnorePanel(tree);
+                _displayTree();
+                saveIgnoredExtensions();
+            });
+            availableExtsEl.appendChild(chip);
+        });
+    }
+
+    // ── Ignored extensions ──
+    ignoredExtsEl.innerHTML = '';
+
+    if (ignoredExtensions.size === 0) {
+        ignoredExtsEl.innerHTML = '<span class="ignore-empty">No extensions ignored</span>';
+    } else {
+        [...ignoredExtensions].sort().forEach(ext => {
+            const chip = document.createElement('div');
+            chip.className = 'ignore-chip ignored';
+            chip.title = `Click to restore .${ext} files`;
+            chip.innerHTML = `<span>.${ext}</span><button class="ignore-chip-remove">✕</button>`;
+            chip.querySelector('.ignore-chip-remove').addEventListener('click', (e) => {
+                e.stopPropagation();
+                ignoredExtensions.delete(ext);
+                renderIgnorePanel(tree);
+                _displayTree();
+                saveIgnoredExtensions();
+            });
+            ignoredExtsEl.appendChild(chip);
+        });
+
+        // Clear all ignored
+        const clearAll = document.createElement('div');
+        clearAll.className = 'ignore-chip ignore-clear-all';
+        clearAll.textContent = 'Restore all';
+        clearAll.addEventListener('click', () => {
+            ignoredExtensions.clear();
+            renderIgnorePanel(tree);
+            _displayTree();
+            saveIgnoredExtensions();
+        });
+        ignoredExtsEl.appendChild(clearAll);
+    }
+
+    // Update badge count on toggle button
+    if (ignoreToggleBtn) {
+        const badge = ignoreToggleBtn.querySelector('.ignore-badge');
+        if (badge) {
+            badge.textContent = ignoredExtensions.size || '';
+            badge.style.display = ignoredExtensions.size > 0 ? 'inline-flex' : 'none';
+        }
+    }
+}
+
+// ── Persist ignored extensions via electronAPI ─────────────
+async function saveIgnoredExtensions() {
+    try {
+        await window.electronAPI?.setIgnoredExtensions?.([...ignoredExtensions]);
+    } catch (e) {
+        // silently fail if API not wired yet
+    }
+}
+
+export async function loadIgnoredExtensions() {
+    try {
+        const saved = await window.electronAPI?.getIgnoredExtensions?.();
+        if (Array.isArray(saved)) {
+            saved.forEach(e => ignoredExtensions.add(e));
+        }
+    } catch (e) {
+        // silently fail
+    }
+}
+
+// ── Ext suggestions (existing) ─────────────────────────────
+function showExtSuggestions(allExts, query) {
+    const filtered = allExts.filter(e =>
+        e.includes(query) && !activeExtensions.has(e) && !ignoredExtensions.has(e)
+    );
+    extSuggestionsEl.innerHTML = '';
+    if (!filtered.length) { extSuggestionsEl.style.display = 'none'; return; }
+
+    filtered.slice(0, 8).forEach(ext => {
+        const li = document.createElement('li');
+        li.textContent = `.${ext}`;
+        li.addEventListener('click', () => {
+            activeExtensions.add(ext);
+            filterInput.value = '';
+            hideExtSuggestions();
+            renderFilterChips();
+            _displayTree();
+        });
+        extSuggestionsEl.appendChild(li);
+    });
+    extSuggestionsEl.style.display = 'block';
+}
+
+function hideExtSuggestions() {
+    extSuggestionsEl.style.display = 'none';
+}
+
+export function setupFilterInput(getCachedTree, displayTree) {
+    _displayTree = displayTree;
+    _getCachedTree = getCachedTree;
+
+    filterInput.addEventListener('focus', () => {
+        if (!getCachedTree()) return;
+        const allExts = [...collectExtensions(getCachedTree())].sort();
+        showExtSuggestions(allExts, filterInput.value.trim());
+    });
+
+    filterInput.addEventListener('input', () => {
+        if (!getCachedTree()) return;
+        const allExts = [...collectExtensions(getCachedTree())].sort();
+        showExtSuggestions(allExts, filterInput.value.trim().toLowerCase());
+    });
+
+    filterInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const val = filterInput.value.trim().replace(/^\./, '').toLowerCase();
+            if (val) {
+                activeExtensions.add(val);
+                filterInput.value = '';
+                hideExtSuggestions();
+                renderFilterChips();
+                _displayTree();
+            }
+        }
+        if (e.key === 'Escape') hideExtSuggestions();
+    });
+
+    filterInput.addEventListener('blur', () => {
+        setTimeout(hideExtSuggestions, 200);
+    });
+}
+
+// ===== File: ..\..\renderer\searchManager.js =====
+/**
+ * searchManager.js
+ * Handles tree search input, suggestions, path expansion, and highlight animation.
+ * Mirrors the original closure-based structure exactly — only extracted into a module.
+ */
+
+const treeSearchInput = document.getElementById('treeSearchInput');
+const searchSuggestions = document.getElementById('searchSuggestions');
+
+// Injected once via setupSearch — stored as module-level vars so all
+// inner functions share them just like the original's closures did.
+let _getCachedTree = null;
+let _treeContainer = null;
+
+/* ----------------------------------------
+ * Helpers
+ * -------------------------------------- */
+
+function flattenTree(tree, result = [], parentPath = '') {
+    for (const node of tree) {
+        const displayPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+        result.push({ ...node, displayPath });
+        if (node.children?.length) flattenTree(node.children, result, displayPath);
+    }
+    return result;
+}
+
+function expandPathParents(nodePath) {
+    const wrapper = document.querySelector(`[data-node-path='${CSS.escape(nodePath)}']`);
+    if (!wrapper) return;
+
+    let current = wrapper.parentElement;
+    while (current && current !== _treeContainer) {
+        if (current.classList.contains('node-wrapper')) {
+            const childrenContainer = current.querySelector(':scope > .children');
+            const folderNode = current.querySelector(':scope > .tree-node.folder');
+            if (childrenContainer) childrenContainer.style.display = 'flex';
+            if (folderNode) {
+                folderNode.classList.add('folder-open');
+                const folderPath = current.dataset.nodePath;
+                if (folderPath && window._expandedFolders) {
+                    window._expandedFolders.set(folderPath, true);
+                }
+            }
+        }
+        current = current.parentElement;
+    }
+}
+
+function selectSearchItem(path) {
+    expandPathParents(path);
+
+    setTimeout(() => {
+        const wrapper = document.querySelector(`[data-node-path='${CSS.escape(path)}']`);
+        if (!wrapper) return;
+
+        const treeNode = wrapper.querySelector(':scope > .tree-node');
+        if (!treeNode) return;
+
+        treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        const orig = {
+            bg: treeNode.style.background,
+            shadow: treeNode.style.boxShadow,
+            border: treeNode.style.borderColor,
+            color: treeNode.style.color,
+            transform: treeNode.style.transform,
+            transition: treeNode.style.transition,
+        };
+
+        treeNode.style.transition = 'all 0.3s ease';
+        treeNode.style.background = 'linear-gradient(135deg, #9c27b0 0%, #6a1b9a 100%)';
+        treeNode.style.boxShadow = '0 0 0 6px rgba(156, 39, 176, 0.8), 0 0 35px rgba(106, 27, 154, 1)';
+        treeNode.style.borderColor = '#9c27b0';
+        treeNode.style.color = '#fff';
+        treeNode.style.transform = 'scale(1.2)';
+        treeNode.style.zIndex = '1000';
+
+        setTimeout(() => {
+            treeNode.style.transition = 'all 1s ease';
+            treeNode.style.background = 'linear-gradient(135deg, #ba68c8 0%, #9c27b0 100%)';
+            treeNode.style.boxShadow = '0 0 0 4px rgba(156, 39, 176, 0.6), 0 0 25px rgba(106, 27, 154, 0.7)';
+            treeNode.style.transform = 'scale(1.15)';
+        }, 800);
+
+        setTimeout(() => {
+            treeNode.style.background = 'linear-gradient(135deg, #ce93d8 0%, #ba68c8 100%)';
+            treeNode.style.boxShadow = '0 0 0 2px rgba(156, 39, 176, 0.4), 0 0 15px rgba(106, 27, 154, 0.5)';
+            treeNode.style.transform = 'scale(1.08)';
+        }, 1600);
+
+        setTimeout(() => {
+            treeNode.style.transition = 'all 0.5s ease';
+            Object.assign(treeNode.style, {
+                background: orig.bg,
+                boxShadow: orig.shadow,
+                borderColor: orig.border,
+                color: orig.color,
+                transform: orig.transform,
+                zIndex: '',
+            });
+            setTimeout(() => { treeNode.style.transition = orig.transition; }, 500);
+        }, 2500);
+    }, 150);
+}
+
+function searchTree(query) {
+    const cachedTree = _getCachedTree();
+    if (!cachedTree || !query) {
+        searchSuggestions.style.display = 'none';
+        return;
+    }
+
+    const flatList = flattenTree(cachedTree);
+    const q = query.toLowerCase();
+
+    const matches = flatList.filter(node =>
+        node.name.toLowerCase().includes(q) ||
+        node.displayPath.toLowerCase().includes(q)
+    );
+
+    searchSuggestions.innerHTML = '';
+    matches.slice(0, 12).forEach(node => {
+        const li = document.createElement('li');
+        li.className = 'search-result-item';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'result-name';
+        nameSpan.textContent = node.name;
+
+        const pathSpan = document.createElement('span');
+        pathSpan.className = 'result-path';
+        const parentPath = node.displayPath.includes('/')
+            ? node.displayPath.substring(0, node.displayPath.lastIndexOf('/'))
+            : '';
+        pathSpan.textContent = parentPath ? `📁 ${parentPath}` : '(root)';
+
+        li.appendChild(nameSpan);
+        li.appendChild(pathSpan);
+
+        li.addEventListener('click', () => {
+            selectSearchItem(node.path);
+            searchSuggestions.style.display = 'none';
+            treeSearchInput.value = '';
+        });
+        searchSuggestions.appendChild(li);
+    });
+
+    searchSuggestions.style.display = matches.length ? 'block' : 'none';
+}
+
+/* ----------------------------------------
+ * Setup — call once from app.js
+ * -------------------------------------- */
+
+export function setupSearch(getCachedTree, treeContainer) {
+    _getCachedTree = getCachedTree;
+    _treeContainer = treeContainer;
+
+    treeSearchInput.addEventListener('input', (e) => {
+        searchTree(e.target.value.trim());
+    });
+
+    treeSearchInput.addEventListener('blur', () => {
+        setTimeout(() => searchSuggestions.style.display = 'none', 200);
+    });
+}
+
+// ===== File: ..\..\utils\codeOps.js =====
 const fs = require('fs');
 const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
@@ -124,9 +1360,7 @@ async function getFolderTree(dir, repoRoot = null) {
 
 module.exports = { generateCode, getAllFiles, findRepoRoot, getFolderTree };
 
-------------------------------
-FILE: docignore.js
-
+// ===== File: ..\..\utils\docignore.js =====
 // file: docignore.js
 const fs = require('fs');
 const path = require('path');
@@ -205,9 +1439,7 @@ function isIgnored(fullPath, repoPath) {
 module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };
 
 
-------------------------------
-FILE: fileOps.js
-
+// ===== File: ..\..\utils\fileOps.js =====
 const fs = require('fs');
 const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
@@ -312,15 +1544,13 @@ async function generateStructure(selectedPaths, outputFile, progressCallback = (
 module.exports = { getFolderTree, generateStructure };
 
 
-------------------------------
-FILE: treeView.js
-
+// ===== File: ..\..\utils\treeView.js =====
 /**
- * Tree Diagram Renderer (Refactored)
+ * Tree Diagram Renderer (Fixed)
  * ---------------------------------
  * - Pure render: selection comes ONLY from selectedItems
- * - No re-render on click
- * - Stable selection & expansion behavior
+ * - Folders NEVER collapse - always stay open
+ * - Green highlighting for folders in code mode works correctly
  */
 
 export function renderTree(treeData, container, selectedItems, actionType, onToggle) {
@@ -357,15 +1587,20 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
      * -------------------------------------- */
 
     function applySelectionClass(el, node) {
+        // Remove all selection classes first
         el.classList.remove('selected', 'folder-selected', 'file-selected');
 
         if (!isSelected(node.path)) return;
 
+        // Apply correct selection class based on type and mode
         if (node.type === 'folder') {
-            if (actionType === 'code') el.classList.add('folder-selected');
-            else el.classList.add('selected');
+            if (actionType === 'code') {
+                el.classList.add('folder-selected'); // GREEN in code mode
+            } else {
+                el.classList.add('selected'); // PURPLE in structure mode
+            }
         } else {
-            el.classList.add('file-selected');
+            el.classList.add('file-selected'); // YELLOW for files
         }
     }
 
@@ -403,16 +1638,12 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
 
-        /* Expansion state (folders only) */
-        let expanded = expandedFolders.get(node.path);
-        if (expanded === undefined && node.type === 'folder') {
-            expanded = true;
-            expandedFolders.set(node.path, true);
-        }
+        /* Expansion state - ALWAYS EXPANDED */
+        let expanded = true;
+        expandedFolders.set(node.path, true);
 
         if (node.type === 'folder' && node.children?.length) {
-            el.classList.add('expandable');
-            if (expanded) el.classList.add('folder-open');
+            el.classList.add('expandable', 'folder-open');
         }
 
         /* Label */
@@ -432,13 +1663,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
         wrapper.appendChild(el);
 
-        /* Children */
+        /* Children - ALWAYS VISIBLE */
         let childrenContainer = null;
 
         if (node.type === 'folder' && node.children?.length) {
             childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
-            if (!expanded) childrenContainer.style.display = 'none';
+            // ALWAYS display children - never hide
+            childrenContainer.style.display = 'flex';
 
             node.children.forEach(child => {
                 const childEl = createNode(child, depth + 1);
@@ -447,20 +1679,20 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                 }
             });
 
-
-
             wrapper.appendChild(childrenContainer);
         }
 
         /* ----------------------------------------
-         * Click handling (STATE ONLY)
+         * Click handling - NO EXPANSION TOGGLE
          * -------------------------------------- */
         el.addEventListener('click', (e) => {
             e.stopPropagation();
 
             if (node.type === 'file') {
+                // File click: toggle selection
                 togglePath(node.path);
             } else {
+                // Folder click: select/deselect ALL files inside
                 if (actionType === 'code') {
                     const files = getAllFiles(node);
                     const allSelected = files.every(f => isSelected(f.path));
@@ -470,21 +1702,14 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
                         else addPath(f.path);
                     });
                 } else {
+                    // Structure mode: toggle folder itself
                     togglePath(node.path);
                 }
 
-                if (node.children?.length) {
-                    expanded = !expanded;
-                    expandedFolders.set(node.path, expanded);
-
-                    if (childrenContainer) {
-                        childrenContainer.style.display = expanded ? 'flex' : 'none';
-                    }
-
-                    el.classList.toggle('folder-open', expanded);
-                }
+                // DO NOT toggle expansion - folders stay open permanently
             }
 
+            // Update visual highlights
             updateAllSelectionHighlights();
             onToggle?.(node);
         });
@@ -525,5 +1750,3 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
     container.appendChild(root);
     updateGenerateState();
 }
-
-

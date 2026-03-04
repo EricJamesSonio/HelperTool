@@ -104,8 +104,9 @@ function selectSearchItem(path) {
     }, 150);
 }
 
+// NEW
 function searchTree(query) {
-    const cachedTree = _getCachedTree();
+    const cachedTree = (_getFilteredTree?.() ?? _getCachedTree?.()) ;
     if (!cachedTree || !query) {
         searchSuggestions.style.display = 'none';
         return;
@@ -153,8 +154,12 @@ function searchTree(query) {
  * Setup — call once from app.js
  * -------------------------------------- */
 
-export function setupSearch(getCachedTree, treeContainer) {
+// NEW
+let _getFilteredTree = null;
+
+export function setupSearch(getCachedTree, getFilteredTree, treeContainer) {
     _getCachedTree = getCachedTree;
+    _getFilteredTree = getFilteredTree;
     _treeContainer = treeContainer;
 
     treeSearchInput.addEventListener('input', (e) => {

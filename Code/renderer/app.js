@@ -227,7 +227,8 @@ generateBtn.addEventListener('click', async () => {
  * Init managers
  * -------------------------------------- */
 setupFilterInput(() => cachedTree, displayTree);
-setupSearch(() => cachedTree, treeContainer);
+// NEW
+setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
 
 console.log('[Init] DOM content loaded, initializing...');
 window.addEventListener('DOMContentLoaded', async () => {
