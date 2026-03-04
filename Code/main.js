@@ -267,14 +267,20 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
 
         console.log(`[IPC] Generation complete. Output at: ${filePath}`);
 
+        // WITH this:
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         if (fs.existsSync(filePath)) {
-            exec(`notepad "${filePath}"`, (err) => {
-                if (err) {
-                    console.error('[IPC] Failed to open Notepad:', err);
-                    shell.openPath(filePath);
-                }
+            // Kill any existing Notepad showing our file, then reopen it fresh
+            exec(`taskkill /FI "WINDOWTITLE eq helper-output*" /F`, () => {
+                setTimeout(() => {
+                    exec(`notepad "${filePath}"`, (err) => {
+                        if (err) {
+                            console.error('[IPC] Failed to open Notepad:', err);
+                            shell.openPath(filePath);
+                        }
+                    });
+                }, 300);
             });
         } else {
             console.error('[IPC] File does not exist after generation:', filePath);
@@ -359,22 +365,10 @@ ipcMain.handle('set-last-selected', (event, items) => {
 });
 
 ipcMain.handle('save-file-dialog', async (event, actionType) => {
-    const activeProject = config.getActiveProject();
-    if (!activeProject) return { filePath: null };
-
-    const defaultFolder = path.join(
-        activeProject.storagePath,
-        actionType === 'code' ? 'Codes' : 'Structures'
-    );
-
-    const result = await dialog.showSaveDialog({
-        title: 'Enter output file name',
-        defaultPath: path.join(defaultFolder, 'output.txt'),
-        buttonLabel: 'Save'
-    });
-
-    return { filePath: result.canceled ? null : result.filePath };
+    const tempFile = path.join(app.getPath('temp'), 'helper-output.txt');
+    return { filePath: tempFile };
 });
+
 
 // ----------------------------
 // Ignored Extensions (ext ignore list)
