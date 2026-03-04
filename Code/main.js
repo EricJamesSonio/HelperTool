@@ -24,7 +24,7 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        show: false, // 👈 tray-first
+        show: true,
         frame: true,
         maximizable: true,
         minimizable: true,
