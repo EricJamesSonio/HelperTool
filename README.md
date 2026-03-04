@@ -97,8 +97,8 @@ This project is a personal helper tool built to improve workflow efficiency when
 More upgrades may come in the future.
 
 Versions:
-January 8 - V1 First release
-March 4 - V2 Seconf release
+# January 8 - V1 First release
+# March 4 - V2 Seconf release
 
 ---
 
