@@ -25,7 +25,6 @@ build/
 *.exe
 *.dll
 *.pdb
-*.ico
 
 # IDE / editor specific
 .vscode/
