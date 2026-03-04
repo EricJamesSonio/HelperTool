@@ -8,7 +8,7 @@
 </head>
 <body>
   <div id="app">
-    
+
     <!-- Top Navbar with All Controls -->
     <div class="top-navbar">
 
@@ -29,6 +29,13 @@
           <span class="btn-icon">📁</span>
           Select Repo
         </button>
+
+        <!-- NEW: Refresh Button -->
+        <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh folder tree">
+          <span class="btn-icon refresh-icon">🔄</span>
+          Refresh
+        </button>
+
         <span id="activeRepoName" class="repo-name">No repo selected</span>
       </div>
 
@@ -56,13 +63,13 @@
           <span id="selectionCount">0</span>
           <span class="counter-label">selected</span>
         </div>
-        
+
         <!-- Clear Selection Button -->
         <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear All Selections">
           <span class="btn-icon">✕</span>
           Clear
         </button>
-        
+
         <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore">
           <span class="btn-icon">⚙️</span>
           Ignore
@@ -71,13 +78,29 @@
           <span class="btn-icon">📂</span>
           Storage
         </button>
-        
+
         <!-- Progress Indicator -->
         <div class="progress-container">
           <progress id="progressBar" value="0" max="100"></progress>
           <span id="progressText">0%</span>
         </div>
       </div>
+    </div>
+
+    <!-- NEW: Extension Filter Bar -->
+    <div class="filter-bar" id="filterContainer">
+      <span class="filter-label">🔍 Filter by extension:</span>
+      <div class="filter-input-wrap">
+        <input
+          type="text"
+          id="filterInput"
+          placeholder="e.g. js, ts, html..."
+          class="filter-text-input"
+          autocomplete="off"
+        />
+        <ul id="extSuggestions" class="ext-suggestions"></ul>
+      </div>
+      <div id="activeFilters" class="active-filters"></div>
     </div>
 
     <!-- Tree view -->

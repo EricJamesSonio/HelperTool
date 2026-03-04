@@ -11,6 +11,11 @@ January 8, 2026 (Final i think, maybe soon i'll upgrade this)
 - Basically an application in my device
 - Easier to use!
 
+March 4, 2026 
+- Improvements to be made
+- Improve searching
+- Have filtering in detecting files
+- Add refresh button
 
 
 

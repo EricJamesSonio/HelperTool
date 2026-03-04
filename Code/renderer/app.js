@@ -14,11 +14,18 @@ const treeSearchInput = document.getElementById('treeSearchInput');
 const searchSuggestions = document.getElementById('searchSuggestions');
 const selectionCount = document.getElementById('selectionCount');
 const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+const filterContainer = document.getElementById('filterContainer');
+const filterInput = document.getElementById('filterInput');
+const activeFiltersEl = document.getElementById('activeFilters');
 
 let selectedRepoPath = null;
-let selectedItems = [];        
+let selectedItems = [];
 let actionType = 'code';
 let cachedTree = null;
+
+// Extension filter state
+let activeExtensions = new Set(); // empty = show all
 
 /* ----------------------------------------
  * UI setup
@@ -41,16 +48,12 @@ window.electronAPI.onProgressUpdate(percent => {
  * Helpers
  * -------------------------------------- */
 function updateActiveRepo(name) {
-    console.log(`[UI] Active repo updated: ${name || 'No repo selected'}`);
     activeRepoName.textContent = name || 'No repo selected';
 }
 
 function updateSelectionCounter() {
     const count = selectedItems.length;
     selectionCount.textContent = count;
-    console.log(`[UI] Selection count updated: ${count}`);
-    
-    // Add visual feedback when count changes
     if (count > 0) {
         selectionCount.parentElement.classList.add('has-selections');
     } else {
@@ -59,16 +62,147 @@ function updateSelectionCounter() {
 }
 
 function updateGenerateState() {
-    console.log(`[UI] Generate button ${selectedItems.length === 0 ? 'disabled' : 'enabled'}`);
     generateBtn.disabled = selectedItems.length === 0;
     updateSelectionCounter();
+}
+
+/* ----------------------------------------
+ * Extension Filter Logic
+ * -------------------------------------- */
+
+/**
+ * Collect all unique extensions from a tree
+ */
+function collectExtensions(tree, exts = new Set()) {
+    for (const node of tree) {
+        if (node.type === 'file') {
+            const ext = node.name.includes('.') ? node.name.split('.').pop().toLowerCase() : '';
+            if (ext) exts.add(ext);
+        }
+        if (node.children?.length) collectExtensions(node.children, exts);
+    }
+    return exts;
+}
+
+/**
+ * Filter tree by active extensions (deep clone with filtering)
+ */
+function filterTree(tree) {
+    if (activeExtensions.size === 0) return tree; // no filter = show all
+
+    function filterNode(node) {
+        if (node.type === 'file') {
+            const ext = node.name.includes('.') ? node.name.split('.').pop().toLowerCase() : '';
+            return activeExtensions.has(ext) ? node : null;
+        }
+        if (node.type === 'folder') {
+            const filteredChildren = (node.children || [])
+                .map(filterNode)
+                .filter(Boolean);
+            // Only include folder if it has visible children
+            if (filteredChildren.length === 0) return null;
+            return { ...node, children: filteredChildren };
+        }
+        return node;
+    }
+
+    return tree.map(filterNode).filter(Boolean);
+}
+
+function renderFilterChips() {
+    activeFiltersEl.innerHTML = '';
+
+    activeExtensions.forEach(ext => {
+        const chip = document.createElement('div');
+        chip.className = 'filter-chip active';
+        chip.innerHTML = `<span>.${ext}</span><button class="chip-remove" data-ext="${ext}">✕</button>`;
+        chip.querySelector('.chip-remove').addEventListener('click', () => {
+            activeExtensions.delete(ext);
+            renderFilterChips();
+            displayTree();
+        });
+        activeFiltersEl.appendChild(chip);
+    });
+
+    // Show/hide clear-all chip
+    if (activeExtensions.size > 0) {
+        const clearChip = document.createElement('div');
+        clearChip.className = 'filter-chip clear-all';
+        clearChip.textContent = 'Clear filters';
+        clearChip.addEventListener('click', () => {
+            activeExtensions.clear();
+            renderFilterChips();
+            displayTree();
+        });
+        activeFiltersEl.appendChild(clearChip);
+    }
+}
+
+function setupFilterInput() {
+    // Populate extension suggestions on focus
+    filterInput.addEventListener('focus', () => {
+        if (!cachedTree) return;
+        const allExts = [...collectExtensions(cachedTree)].sort();
+        showExtSuggestions(allExts, filterInput.value.trim());
+    });
+
+    filterInput.addEventListener('input', () => {
+        if (!cachedTree) return;
+        const allExts = [...collectExtensions(cachedTree)].sort();
+        showExtSuggestions(allExts, filterInput.value.trim().toLowerCase());
+    });
+
+    filterInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const val = filterInput.value.trim().replace(/^\./, '').toLowerCase();
+            if (val) {
+                activeExtensions.add(val);
+                filterInput.value = '';
+                hideExtSuggestions();
+                renderFilterChips();
+                displayTree();
+            }
+        }
+        if (e.key === 'Escape') {
+            hideExtSuggestions();
+        }
+    });
+
+    filterInput.addEventListener('blur', () => {
+        setTimeout(hideExtSuggestions, 200);
+    });
+}
+
+const extSuggestionsEl = document.getElementById('extSuggestions');
+
+function showExtSuggestions(allExts, query) {
+    const filtered = allExts.filter(e => e.includes(query) && !activeExtensions.has(e));
+    extSuggestionsEl.innerHTML = '';
+    if (!filtered.length) { extSuggestionsEl.style.display = 'none'; return; }
+
+    filtered.slice(0, 8).forEach(ext => {
+        const li = document.createElement('li');
+        li.textContent = `.${ext}`;
+        li.addEventListener('click', () => {
+            activeExtensions.add(ext);
+            filterInput.value = '';
+            hideExtSuggestions();
+            renderFilterChips();
+            displayTree();
+        });
+        extSuggestionsEl.appendChild(li);
+    });
+    extSuggestionsEl.style.display = 'block';
+}
+
+function hideExtSuggestions() {
+    extSuggestionsEl.style.display = 'none';
 }
 
 /* ----------------------------------------
  * Tree selection callback
  * -------------------------------------- */
 function onTreeSelectionChange() {
-    console.log('[Tree] Selection changed:', selectedItems);
     updateGenerateState();
     window.electronAPI.setLastSelected(selectedItems);
 }
@@ -77,24 +211,41 @@ function onTreeSelectionChange() {
  * Clear Selection Button
  * -------------------------------------- */
 clearSelectionBtn.addEventListener('click', () => {
-    console.log('[UI] Clear selection clicked');
     selectedItems.length = 0;
     window.electronAPI.setLastSelected([]);
     updateGenerateState();
     displayTree();
-    console.log('[UI] All selections cleared');
+});
+
+/* ----------------------------------------
+ * Refresh Button — reload folder tree
+ * -------------------------------------- */
+refreshBtn.addEventListener('click', async () => {
+    if (!selectedRepoPath) return;
+    console.log('[UI] Refresh clicked');
+    refreshBtn.classList.add('spinning');
+    refreshBtn.disabled = true;
+
+    try {
+        cachedTree = await window.electronAPI.getFolderTree(selectedRepoPath);
+        renderFilterChips(); // refresh available extensions
+        displayTree();
+        console.log('[UI] Tree refreshed');
+    } catch (err) {
+        console.error('[UI] Refresh failed:', err);
+    } finally {
+        refreshBtn.classList.remove('spinning');
+        refreshBtn.disabled = false;
+    }
 });
 
 /* ----------------------------------------
  * Open storage
  * -------------------------------------- */
 openStorageBtn.addEventListener('click', async () => {
-    console.log('[UI] Open storage clicked');
     try {
         await window.electronAPI.openStorage();
-        console.log('[UI] Storage opened');
     } catch (err) {
-        console.error('[UI] Failed to open storage:', err);
         alert('Failed to open storage.');
     }
 });
@@ -106,12 +257,9 @@ async function loadLastActiveRepo() {
     console.log('[Init] Loading last active repo...');
     try {
         const project = await window.electronAPI.getActiveProject();
-        console.log('[Init] Last project data:', project);
-
         if (project?.repoPath) {
             selectedItems.length = 0;
             project.lastSelectedItems?.forEach(p => selectedItems.push(p));
-
             await loadRepo(project.repoPath, false);
         }
     } catch (err) {
@@ -123,10 +271,8 @@ async function loadLastActiveRepo() {
  * Select repo
  * -------------------------------------- */
 selectRepoBtn.addEventListener('click', async () => {
-    console.log('[UI] Select repo clicked');
     try {
         const repoPath = await window.electronAPI.selectRepo();
-        console.log('[UI] Repo selected:', repoPath);
         if (repoPath) await loadRepo(repoPath);
     } catch (err) {
         console.error('[UI] Repo selection failed:', err);
@@ -137,42 +283,40 @@ selectRepoBtn.addEventListener('click', async () => {
  * Load repo
  * -------------------------------------- */
 async function loadRepo(repoPath, resetSelection = true) {
-    console.log('[Repo] Loading repo:', repoPath);
     selectedRepoPath = repoPath;
 
     if (resetSelection) {
         selectedItems.length = 0;
         await window.electronAPI.setLastSelected([]);
-        console.log('[Repo] Selection reset');
     }
 
     updateActiveRepo(repoPath.split(/[/\\]/).pop());
 
     cachedTree = await window.electronAPI.getFolderTree(repoPath);
-    console.log('[Repo] Tree data loaded:', cachedTree);
+    activeExtensions.clear();
+    renderFilterChips();
     displayTree();
     updateGenerateState();
 }
 
 /* ----------------------------------------
- * Display tree
+ * Display tree (applies extension filter)
  * -------------------------------------- */
 function displayTree() {
-    console.log('[Tree] Displaying tree...');
     if (!cachedTree) {
         treeContainer.textContent = 'No data available';
-        console.log('[Tree] No tree data');
         return;
     }
 
+    const visibleTree = filterTree(cachedTree);
+
     renderTree(
-        cachedTree,
+        visibleTree,
         treeContainer,
         selectedItems,
         actionType,
         onTreeSelectionChange
     );
-    console.log('[Tree] Tree rendered');
 }
 
 /* ----------------------------------------
@@ -181,20 +325,17 @@ function displayTree() {
 function resetSelection() {
     selectedItems.length = 0;
     window.electronAPI.setLastSelected([]);
-    console.log('[UI] Selection reset');
     updateGenerateState();
 }
 
 structureBtn.addEventListener('click', () => {
     actionType = 'structure';
-    console.log('[UI] Switched to structure mode');
     resetSelection();
     displayTree();
 });
 
 codeBtn.addEventListener('click', () => {
     actionType = 'code';
-    console.log('[UI] Switched to code mode');
     resetSelection();
     displayTree();
 });
@@ -203,10 +344,8 @@ codeBtn.addEventListener('click', () => {
  * Edit .docignore
  * -------------------------------------- */
 editDocignoreBtn.addEventListener('click', async () => {
-    console.log('[UI] Edit .docignore clicked');
     try {
         const ok = await window.electronAPI.openGlobalDocignore();
-        console.log('[UI] .docignore opened:', ok);
         if (!ok) alert('Failed to open global ignore file.');
     } catch (err) {
         console.error('[UI] Error opening .docignore:', err);
@@ -217,14 +356,12 @@ editDocignoreBtn.addEventListener('click', async () => {
  * Generate
  * -------------------------------------- */
 generateBtn.addEventListener('click', async () => {
-    console.log('[UI] Generate clicked');
     try {
         if (!selectedRepoPath || !selectedItems.length) {
             return alert('Select repo and items first!');
         }
 
         const { filePath } = await window.electronAPI.saveFileDialog(actionType);
-        console.log('[UI] Save file dialog result:', filePath);
         if (!filePath) return;
 
         progressBar.value = 0;
@@ -237,11 +374,7 @@ generateBtn.addEventListener('click', async () => {
             filePath
         );
 
-        if (success) {
-            console.log(`[UI] Generation complete. File should open in VS Code or default editor: ${filePath}`);
-        } else {
-            alert('Generation failed.');
-        }
+        if (!success) alert('Generation failed.');
 
         resetSelection();
         displayTree();
@@ -252,45 +385,34 @@ generateBtn.addEventListener('click', async () => {
 });
 
 /* ----------------------------------------
- * Tree search
+ * Tree search — IMPROVED with full paths
  * -------------------------------------- */
-function flattenTree(tree, result = []) {
+function flattenTree(tree, result = [], parentPath = '') {
     for (const node of tree) {
-        result.push(node);
-        if (node.children?.length) flattenTree(node.children, result);
+        // Build display path relative to repo root
+        const displayPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+        result.push({ ...node, displayPath });
+        if (node.children?.length) flattenTree(node.children, result, displayPath);
     }
     return result;
 }
 
-function expandPathParents(path) {
-    console.log('[Search] Expanding parents for:', path);
-    
-    // Find the wrapper element by data attribute
-    const wrapper = document.querySelector(`[data-node-path='${CSS.escape(path)}']`);
-    if (!wrapper) {
-        console.log('[Search] Wrapper not found for path:', path);
-        return;
-    }
-    
-    // Traverse up and expand all parent folders
+function expandPathParents(nodePath) {
+    const wrapper = document.querySelector(`[data-node-path='${CSS.escape(nodePath)}']`);
+    if (!wrapper) return;
+
     let current = wrapper.parentElement;
     while (current && current !== treeContainer) {
         if (current.classList.contains('node-wrapper')) {
             const childrenContainer = current.querySelector(':scope > .children');
             const folderNode = current.querySelector(':scope > .tree-node.folder');
-            
-            if (childrenContainer) {
-                childrenContainer.style.display = 'flex';
-                console.log('[Search] Expanded children container');
-            }
+            if (childrenContainer) childrenContainer.style.display = 'flex';
             if (folderNode) {
                 folderNode.classList.add('folder-open');
-                // Update expansion state
                 const folderPath = current.dataset.nodePath;
                 if (folderPath && window._expandedFolders) {
                     window._expandedFolders.set(folderPath, true);
                 }
-                console.log('[Search] Opened folder node');
             }
         }
         current = current.parentElement;
@@ -298,25 +420,42 @@ function expandPathParents(path) {
 }
 
 function searchTree(query) {
-    console.log('[Search] Query:', query);
     if (!cachedTree || !query) {
         searchSuggestions.style.display = 'none';
-        console.log('[Search] No results, tree empty or query empty');
         return;
     }
 
+    // Flatten with full display paths
     const flatList = flattenTree(cachedTree);
-    const matches = flatList.filter(node => 
-        node.name.toLowerCase().includes(query.toLowerCase())
+    const q = query.toLowerCase();
+
+    // Match against both name and full path
+    const matches = flatList.filter(node =>
+        node.name.toLowerCase().includes(q) ||
+        node.displayPath.toLowerCase().includes(q)
     );
 
-    console.log('[Search] Matches:', matches.map(m => m.name));
-
     searchSuggestions.innerHTML = '';
-    matches.slice(0, 10).forEach(node => {
+    matches.slice(0, 12).forEach(node => {
         const li = document.createElement('li');
-        li.textContent = node.name;
-        li.dataset.path = node.path;
+        li.className = 'search-result-item';
+
+        // Show full path for disambiguation
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'result-name';
+        nameSpan.textContent = node.name;
+
+        const pathSpan = document.createElement('span');
+        pathSpan.className = 'result-path';
+        // Show parent path only (not the name itself) for cleanliness
+        const parentPath = node.displayPath.includes('/')
+            ? node.displayPath.substring(0, node.displayPath.lastIndexOf('/'))
+            : '';
+        pathSpan.textContent = parentPath ? `📁 ${parentPath}` : '(root)';
+
+        li.appendChild(nameSpan);
+        li.appendChild(pathSpan);
+
         li.addEventListener('click', () => {
             selectSearchItem(node.path);
             searchSuggestions.style.display = 'none';
@@ -329,45 +468,26 @@ function searchTree(query) {
 }
 
 function selectSearchItem(path) {
-    console.log('[Search] Showing item:', path);
-    
-    // First expand all parent folders
     expandPathParents(path);
-    
-    // Small delay to ensure DOM updates are complete
+
     setTimeout(() => {
-        // Find the wrapper with the matching path
         const wrapper = document.querySelector(`[data-node-path='${CSS.escape(path)}']`);
-        if (!wrapper) {
-            console.log('[Search] Could not find wrapper for path:', path);
-            return;
-        }
-        
-        console.log('[Search] Wrapper found:', wrapper);
-        
-        // Get the actual tree-node element inside the wrapper
+        if (!wrapper) return;
+
         const treeNode = wrapper.querySelector(':scope > .tree-node');
-        if (!treeNode) {
-            console.log('[Search] Could not find tree-node element');
-            return;
-        }
+        if (!treeNode) return;
 
-        console.log('[Search] Tree node found:', treeNode);
-        console.log('[Search] Tree node classes before:', treeNode.className);
-
-        // Scroll the tree node into view
         treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        console.log('[Search] Scrolled to node');
 
-        // Store original styles
-        const originalBackground = treeNode.style.background;
-        const originalBoxShadow = treeNode.style.boxShadow;
-        const originalBorderColor = treeNode.style.borderColor;
-        const originalColor = treeNode.style.color;
-        const originalTransform = treeNode.style.transform;
-        const originalTransition = treeNode.style.transition;
+        const orig = {
+            bg: treeNode.style.background,
+            shadow: treeNode.style.boxShadow,
+            border: treeNode.style.borderColor,
+            color: treeNode.style.color,
+            transform: treeNode.style.transform,
+            transition: treeNode.style.transition,
+        };
 
-        // Apply PURPLE highlight directly via inline styles
         treeNode.style.transition = 'all 0.3s ease';
         treeNode.style.background = 'linear-gradient(135deg, #9c27b0 0%, #6a1b9a 100%)';
         treeNode.style.boxShadow = '0 0 0 6px rgba(156, 39, 176, 0.8), 0 0 35px rgba(106, 27, 154, 1)';
@@ -375,10 +495,7 @@ function selectSearchItem(path) {
         treeNode.style.color = '#fff';
         treeNode.style.transform = 'scale(1.2)';
         treeNode.style.zIndex = '1000';
-        
-        console.log('[Search] Applied PURPLE highlight via inline styles');
 
-        // Fade effect: gradually reduce intensity
         setTimeout(() => {
             treeNode.style.transition = 'all 1s ease';
             treeNode.style.background = 'linear-gradient(135deg, #ba68c8 0%, #9c27b0 100%)';
@@ -392,27 +509,23 @@ function selectSearchItem(path) {
             treeNode.style.transform = 'scale(1.08)';
         }, 1600);
 
-        // Remove highlight and restore original styles
         setTimeout(() => {
             treeNode.style.transition = 'all 0.5s ease';
-            treeNode.style.background = originalBackground;
-            treeNode.style.boxShadow = originalBoxShadow;
-            treeNode.style.borderColor = originalBorderColor;
-            treeNode.style.color = originalColor;
-            treeNode.style.transform = originalTransform;
-            treeNode.style.zIndex = '';
-            
-            setTimeout(() => {
-                treeNode.style.transition = originalTransition;
-                console.log('[Search] Removed highlight and restored original styles');
-            }, 500);
+            Object.assign(treeNode.style, {
+                background: orig.bg,
+                boxShadow: orig.shadow,
+                borderColor: orig.border,
+                color: orig.color,
+                transform: orig.transform,
+                zIndex: '',
+            });
+            setTimeout(() => { treeNode.style.transition = orig.transition; }, 500);
         }, 2500);
     }, 150);
 }
 
 treeSearchInput.addEventListener('input', (e) => {
-    const query = e.target.value.trim();
-    searchTree(query);
+    searchTree(e.target.value.trim());
 });
 
 treeSearchInput.addEventListener('blur', () => {
@@ -422,5 +535,6 @@ treeSearchInput.addEventListener('blur', () => {
 /* ----------------------------------------
  * Init
  * -------------------------------------- */
+setupFilterInput();
 console.log('[Init] DOM content loaded, initializing...');
 window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
