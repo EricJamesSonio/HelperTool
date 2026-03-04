@@ -937,3 +937,254 @@ button:disabled {
   .navbar-section.center { width: 100%; justify-content: space-between; }
   .search-input { font-size: 13px; }
 }
+
+/* ============================================================
+   IGNORE PANEL — Extension ignore list
+   Append these rules to the bottom of style.css
+   ============================================================ */
+
+/* ── Toggle button in filter bar ──────────────────────────── */
+.filter-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+.ignore-toggle-btn {
+  position: relative;
+  border-color: rgba(244,100,95,0.2);
+  color: var(--text-secondary);
+  gap: 6px;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+
+.ignore-toggle-btn:hover {
+  background: var(--red-dim);
+  border-color: rgba(244,100,95,0.4);
+  color: var(--red);
+}
+
+.ignore-toggle-btn.active {
+  background: var(--red-dim);
+  border-color: rgba(244,100,95,0.45);
+  color: var(--red);
+}
+
+/* Badge showing count of ignored extensions */
+.ignore-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--red);
+  color: #fff;
+  border-radius: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── Ignore panel container ───────────────────────────────── */
+.ignore-panel {
+  max-height: 0;
+  overflow: hidden;
+  background: #0c1520;
+  border-bottom: 0px solid var(--border-subtle);
+  transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              border-bottom-width 0.32s ease,
+              padding 0.32s ease;
+  flex-shrink: 0;
+}
+
+.ignore-panel.open {
+  max-height: 260px;
+  border-bottom-width: 1px;
+}
+
+.ignore-panel-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  padding: 14px 22px;
+  min-height: 0;
+}
+
+/* ── Columns ──────────────────────────────────────────────── */
+.ignore-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ignore-col-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.ignore-col-icon { font-size: 14px; }
+
+.ignore-col-title {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.ignore-col-hint {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-style: italic;
+}
+
+/* ── Center divider/arrow ─────────────────────────────────── */
+.ignore-divider-vert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+
+.ignore-arrow {
+  font-size: 22px;
+  color: var(--border-mid);
+  line-height: 1;
+  user-select: none;
+}
+
+/* ── Chip wrap (scrollable row) ───────────────────────────── */
+.ignore-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-content: flex-start;
+  overflow-y: auto;
+  max-height: 140px;
+  padding: 2px 0 4px;
+}
+
+.ignore-chips-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+.ignore-chips-wrap::-webkit-scrollbar-track { background: transparent; }
+.ignore-chips-wrap::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 2px;
+}
+
+/* ── Individual ignore chips ──────────────────────────────── */
+.ignore-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid transparent;
+  transition: background var(--ease), border-color var(--ease), color var(--ease), transform 0.1s ease;
+  white-space: nowrap;
+}
+
+/* Available: blue-ish, invite click */
+.ignore-chip.available {
+  background: var(--blue-dim);
+  border-color: rgba(91,141,238,0.25);
+  color: var(--folder-text);
+}
+
+.ignore-chip.available:hover {
+  background: rgba(91,141,238,0.2);
+  border-color: rgba(91,141,238,0.5);
+  color: #9ec4f5;
+  transform: translateY(-1px);
+}
+
+.ignore-chip.available .ignore-chip-action {
+  font-size: 10px;
+  opacity: 0;
+  color: var(--red);
+  transition: opacity var(--ease);
+  font-family: var(--font-ui);
+  letter-spacing: 0.03em;
+}
+
+.ignore-chip.available:hover .ignore-chip-action {
+  opacity: 1;
+}
+
+/* Ignored: red, shows remove button */
+.ignore-chip.ignored {
+  background: var(--red-dim);
+  border-color: rgba(244,100,95,0.3);
+  color: var(--red);
+}
+
+.ignore-chip.ignored:hover {
+  background: rgba(244,100,95,0.18);
+  border-color: rgba(244,100,95,0.5);
+}
+
+.ignore-chip-remove {
+  background: none !important;
+  border: none !important;
+  color: var(--red) !important;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 !important;
+  line-height: 1;
+  opacity: 0.5;
+  height: auto !important;
+  box-shadow: none !important;
+  transition: opacity var(--ease);
+  min-width: unset !important;
+  width: auto !important;
+}
+
+.ignore-chip-remove:hover {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Restore all chip */
+.ignore-chip.ignore-clear-all {
+  background: transparent;
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+}
+
+.ignore-chip.ignore-clear-all:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-mid);
+  color: var(--text-secondary);
+}
+
+/* Empty state text */
+.ignore-empty {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 4px 2px;
+}

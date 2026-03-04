@@ -66,7 +66,6 @@ function createTray() {
         { 
             label: 'Open Helper',
             click: () => {
-                // FIX #2 — tray click safety
                 if (!mainWindow) {
                     createWindow();
                 }
@@ -81,7 +80,6 @@ function createTray() {
         { 
             label: 'Exit',
             click: () => {
-                // FIX #3 — clean quit
                 tray.destroy();
                 app.exit(0);
             }
@@ -93,12 +91,13 @@ function createTray() {
     console.log('[Tray] Tray menu created');
 }
 
-// main.js additions
+// ----------------------------
+// Open Global Docignore
+// ----------------------------
 ipcMain.handle('open-global-docignore', async () => {
     try {
         const globalDocignorePath = path.join(app.getPath('userData'), 'global-docignore.json');
 
-        // Create file if it doesn't exist
         if (!fs.existsSync(globalDocignorePath)) {
             fs.writeFileSync(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
             console.log('[Main] Created new global-docignore.json at', globalDocignorePath);
@@ -106,7 +105,6 @@ ipcMain.handle('open-global-docignore', async () => {
             console.log('[Main] global-docignore.json exists at', globalDocignorePath);
         }
 
-        // Open with default editor
         await shell.openPath(globalDocignorePath);
         console.log('[Main] global-docignore.json opened');
         return true;
@@ -118,7 +116,7 @@ ipcMain.handle('open-global-docignore', async () => {
 
 ipcMain.handle('open-storage', async () => {
     try {
-        openStorage(); // just reuse the existing function
+        openStorage();
         return true;
     } catch (err) {
         console.error('[IPC] open-storage failed:', err);
@@ -199,7 +197,6 @@ ipcMain.handle('select-repo', async () => {
         const userDataPath = app.getPath('userData');
         const storagePath = path.join(userDataPath, storageName);
 
-        // Create storage folders
         if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
         if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
         ['Codes', 'Structures'].forEach(sub => {
@@ -208,7 +205,6 @@ ipcMain.handle('select-repo', async () => {
         });
         console.log('[IPC] Storage folders ensured at:', storagePath);
 
-        // Update config
         cfg.projects[repoPath] = {
             storageName,
             storagePath,
@@ -231,11 +227,9 @@ ipcMain.handle('getFolderTree', async (event, repoPath) => {
         console.log('[IPC] getFolderTree called for:', repoPath);
         if (!repoPath) return [];
 
-        // Load ignore rules
         const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
         console.log('[IPC] Ignore rules loaded:', ignoreRules.length);
         
-        // IMPORTANT: AWAIT the tree generation!
         const tree = await fileOps.getFolderTree(repoPath);
         console.log('[IPC] Tree generated, root items:', tree.length);
         
@@ -245,6 +239,7 @@ ipcMain.handle('getFolderTree', async (event, repoPath) => {
         return [];
     }
 });
+
 ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
 
 ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) => {
@@ -254,7 +249,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
 
         const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
 
-        // Ensure the directory of the output file exists
         const outputDir = path.dirname(filePath);
         if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
@@ -273,9 +267,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
 
         console.log(`[IPC] Generation complete. Output at: ${filePath}`);
 
-        // --------------------------
-        // OPEN NOTEPAD AUTOMATICALLY
-        // --------------------------
         await new Promise(resolve => setTimeout(resolve, 100));
         
         if (fs.existsSync(filePath)) {
@@ -383,4 +374,35 @@ ipcMain.handle('save-file-dialog', async (event, actionType) => {
     });
 
     return { filePath: result.canceled ? null : result.filePath };
+});
+
+// ----------------------------
+// Ignored Extensions (ext ignore list)
+// ----------------------------
+
+// Get ignored extensions for the active project
+ipcMain.handle('get-ignored-extensions', () => {
+    try {
+        const cfg = config.readConfig();
+        const activePath = cfg.activeProject;
+        if (!activePath || !cfg.projects[activePath]) return [];
+        return cfg.projects[activePath].ignoredExtensions || [];
+    } catch (err) {
+        console.error('[IPC] get-ignored-extensions error:', err);
+        return [];
+    }
+});
+
+// Save ignored extensions for the active project
+ipcMain.handle('set-ignored-extensions', (event, exts) => {
+    try {
+        const cfg = config.readConfig();
+        const activePath = cfg.activeProject;
+        if (!activePath || !cfg.projects[activePath]) return;
+        cfg.projects[activePath].ignoredExtensions = Array.isArray(exts) ? exts : [];
+        config.writeConfig(cfg);
+        console.log('[IPC] set-ignored-extensions saved:', exts);
+    } catch (err) {
+        console.error('[IPC] set-ignored-extensions error:', err);
+    }
 });

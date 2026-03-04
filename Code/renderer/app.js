@@ -8,8 +8,11 @@
 import { renderTree } from '../utils/treeView.js';
 import {
     activeExtensions,
+    ignoredExtensions,
     filterTree,
     renderFilterChips,
+    renderIgnorePanel,
+    loadIgnoredExtensions,
     setupFilterInput,
 } from './filterManager.js';
 import { setupSearch } from './searchManager.js';
@@ -110,6 +113,10 @@ async function loadRepo(repoPath, resetSel = true) {
     cachedTree = await window.electronAPI.getFolderTree(repoPath);
     activeExtensions.clear();
     renderFilterChips();
+
+    // ── NEW: refresh ignore panel if open ──
+    if (cachedTree) renderIgnorePanel(cachedTree);
+
     displayTree();
     updateGenerateState();
 }
@@ -147,6 +154,7 @@ refreshBtn.addEventListener('click', async () => {
     try {
         cachedTree = await window.electronAPI.getFolderTree(selectedRepoPath);
         renderFilterChips();
+        if (cachedTree) renderIgnorePanel(cachedTree); // ── NEW
         displayTree();
     } catch (err) {
         console.error('[UI] Refresh failed:', err);
@@ -222,4 +230,7 @@ setupFilterInput(() => cachedTree, displayTree);
 setupSearch(() => cachedTree, treeContainer);
 
 console.log('[Init] DOM content loaded, initializing...');
-window.addEventListener('DOMContentLoaded', loadLastActiveRepo);
+window.addEventListener('DOMContentLoaded', async () => {
+    await loadIgnoredExtensions(); // ── NEW: load saved ignored exts
+    loadLastActiveRepo();
+});

@@ -88,7 +88,7 @@
 
     <!-- ══ Extension Filter Bar ══ -->
     <div class="filter-bar" id="filterContainer">
-      <span class="filter-label">🔍 Filter by extension:</span>
+      <span class="filter-label">🔍 Filter:</span>
       <div class="filter-input-wrap">
         <input
           type="text"
@@ -100,6 +100,46 @@
         <ul id="extSuggestions" class="ext-suggestions"></ul>
       </div>
       <div id="activeFilters" class="active-filters"></div>
+
+      <!-- ── NEW: Ignore toggle button ── -->
+      <div class="filter-divider"></div>
+      <button id="ignoreToggleBtn" class="tool-btn ignore-toggle-btn" title="Manage ignored extensions">
+        <span class="btn-icon">🚫</span>
+        Ext Ignore
+        <span class="ignore-badge" style="display:none">0</span>
+      </button>
+    </div>
+
+    <!-- ══ NEW: Ignore Panel (collapsible, below filter bar) ══ -->
+    <div id="ignorePanel" class="ignore-panel">
+      <div class="ignore-panel-inner">
+
+        <!-- Left: Available extensions -->
+        <div class="ignore-col">
+          <div class="ignore-col-header">
+            <span class="ignore-col-icon">📂</span>
+            <span class="ignore-col-title">Detected Extensions</span>
+            <span class="ignore-col-hint">Click to ignore →</span>
+          </div>
+          <div id="availableExts" class="ignore-chips-wrap"></div>
+        </div>
+
+        <!-- Divider arrow -->
+        <div class="ignore-divider-vert">
+          <span class="ignore-arrow">⟶</span>
+        </div>
+
+        <!-- Right: Ignored extensions -->
+        <div class="ignore-col">
+          <div class="ignore-col-header">
+            <span class="ignore-col-icon">🚫</span>
+            <span class="ignore-col-title">Ignored Extensions</span>
+            <span class="ignore-col-hint">Hidden from tree</span>
+          </div>
+          <div id="ignoredExts" class="ignore-chips-wrap"></div>
+        </div>
+
+      </div>
     </div>
 
     <!-- ══ Tree view ══ -->

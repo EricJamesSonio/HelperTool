@@ -55,7 +55,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getActiveProject: () => ipcRenderer.invoke('get-active-project'),
 
     // ------------------------
-    // Save file dialog (new)
+    // Save file dialog
     // ------------------------
-    saveFileDialog: (actionType) => ipcRenderer.invoke('save-file-dialog', actionType)
+    saveFileDialog: (actionType) => ipcRenderer.invoke('save-file-dialog', actionType),
+
+    // ------------------------
+    // Ignored extensions (ext ignore list)
+    // ------------------------
+    getIgnoredExtensions: () => ipcRenderer.invoke('get-ignored-extensions'),
+    setIgnoredExtensions: (exts) => ipcRenderer.invoke('set-ignored-extensions', exts),
 });
