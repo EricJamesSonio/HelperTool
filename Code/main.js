@@ -60,7 +60,7 @@ app.whenReady().then(() => {
 // ----------------------------
 function createTray() {
     console.log('[Tray] Creating tray icon...');
-    tray = new Tray(path.join(__dirname, 'assets', 'tray-icon.png'));
+    tray = new Tray(path.join(__dirname, 'assets', 'helpertool.png'));
 
     const contextMenu = Menu.buildFromTemplate([
         { 

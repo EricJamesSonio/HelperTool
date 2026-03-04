@@ -1,7 +1,6 @@
 /* ============================================================
-   HELPER TOOL — Executive Dark Theme (Comfortable Size)
+   HELPER TOOL — Executive Dark Theme
    Typefaces: DM Sans (UI) · IBM Plex Mono (code/labels)
-   Palette:   #0d1117 navy base · slate surfaces · amber accent
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -10,38 +9,33 @@
    DESIGN TOKENS
 ------------------------------------------------------------ */
 :root {
-  /* Surfaces */
   --bg-root:        #0d1117;
   --bg-navbar:      #0f1622;
+  --bg-statusbar:   #0c1420;
   --bg-filterbar:   #111827;
   --bg-tree:        #0d1117;
   --bg-surface:     #161d2e;
   --bg-raised:      #1c2640;
   --bg-hover:       #1f2d47;
 
-  /* Borders */
   --border-subtle:  rgba(255,255,255,0.055);
   --border-mid:     rgba(255,255,255,0.11);
   --border-strong:  rgba(255,255,255,0.22);
 
-  /* Accent — amber */
   --accent:         #e8a838;
   --accent-dim:     rgba(232,168,56,0.13);
   --accent-border:  rgba(232,168,56,0.35);
 
-  /* Folder color — blue-slate, clearly distinct from files */
   --folder-bg:      #1a2540;
   --folder-bg-h:    #1e2e52;
-  --folder-border:  rgba(91,141,238,0.35);
+  --folder-border:  rgba(91,141,238,0.38);
   --folder-text:    #7eaaee;
 
-  /* File color — quiet dark neutral */
   --file-bg:        #131921;
   --file-bg-h:      #182030;
   --file-border:    rgba(255,255,255,0.075);
   --file-text:      #6e82a0;
 
-  /* Semantic */
   --green:          #2dd4a0;
   --green-dim:      rgba(45,212,160,0.12);
   --red:            #f4645f;
@@ -51,23 +45,19 @@
   --yellow:         #f5c542;
   --yellow-dim:     rgba(245,197,66,0.13);
 
-  /* Text */
   --text-primary:   #dde2ed;
   --text-secondary: #8a96b0;
   --text-muted:     #4a5870;
   --text-accent:    #e8a838;
 
-  /* Fonts */
   --font-ui:        'DM Sans', system-ui, sans-serif;
   --font-mono:      'IBM Plex Mono', 'Consolas', monospace;
 
-  /* Radius */
   --r-xs: 4px;
   --r-sm: 6px;
   --r-md: 9px;
   --r-lg: 12px;
 
-  /* Motion */
   --ease: 0.16s ease;
 }
 
@@ -86,7 +76,7 @@ html, body {
   background: var(--bg-root);
   color: var(--text-primary);
   font-family: var(--font-ui);
-  font-size: 14.5px;
+  font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
@@ -100,22 +90,24 @@ html, body {
 }
 
 /* ------------------------------------------------------------
-   TOP NAVBAR
+   ROW 1 — Primary navbar
 ------------------------------------------------------------ */
-.top-navbar {
+.navbar-row--primary {
   background: var(--bg-navbar);
   border-bottom: 1px solid var(--border-subtle);
-  padding: 0 24px;
-  height: 62px;
+  padding: 0 22px;
+  height: 64px;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: nowrap;
   position: relative;
   z-index: 50;
 }
 
-.top-navbar::before {
+/* Amber top rule */
+.navbar-row--primary::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
@@ -136,24 +128,18 @@ html, body {
 .navbar-section.right {
   margin-left: auto;
   gap: 8px;
-}
-
-.navbar-divider {
-  width: 1px;
-  height: 26px;
-  background: var(--border-subtle);
   flex-shrink: 0;
 }
 
 .repo-name {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-accent);
   background: var(--accent-dim);
   border: 1px solid var(--accent-border);
   border-radius: var(--r-xs);
-  padding: 4px 11px;
+  padding: 5px 12px;
   max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -162,20 +148,138 @@ html, body {
 }
 
 /* ------------------------------------------------------------
+   ROW 2 — Status bar (selection + progress always visible)
+------------------------------------------------------------ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 22px;
+  height: 44px;
+  background: var(--bg-statusbar);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+/* Selection counter */
+.selection-counter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xs);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  min-width: 110px;
+  flex-shrink: 0;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+
+.selection-counter.has-selections {
+  background: var(--green-dim);
+  border-color: rgba(45,212,160,0.3);
+  color: var(--green);
+}
+
+.counter-icon { font-size: 12px; }
+
+#selectionCount {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+}
+
+.counter-label {
+  font-size: 12.5px;
+  opacity: 0.75;
+}
+
+/* Progress bar — takes remaining width, always visible */
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xs);
+  flex: 1;               /* fills all remaining space */
+  min-width: 0;          /* allows shrinking below content size */
+  max-width: 600px;      /* don't go crazy wide on huge monitors */
+}
+
+.progress-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.progress-container progress {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border: none;
+  border-radius: 3px;
+  background: var(--bg-raised);
+  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.progress-container progress::-webkit-progress-bar {
+  background: var(--bg-raised);
+  border-radius: 3px;
+}
+.progress-container progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.progress-container progress::-moz-progress-bar {
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+#progressText {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------
    BUTTON SYSTEM
 ------------------------------------------------------------ */
 button {
   font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 500;
   border: 1px solid transparent;
   border-radius: var(--r-xs);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 14px;
-  height: 36px;
+  gap: 7px;
+  padding: 0 15px;
+  height: 38px;
   white-space: nowrap;
   transition: background var(--ease), border-color var(--ease), color var(--ease), opacity var(--ease);
   letter-spacing: 0.01em;
@@ -204,12 +308,11 @@ button:disabled {
 }
 
 .btn-icon {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1;
   flex-shrink: 0;
 }
 
-/* Select Repo */
 .primary-btn {
   background: var(--bg-raised);
   color: var(--text-primary);
@@ -221,7 +324,6 @@ button:disabled {
   border-color: var(--border-strong);
 }
 
-/* Structure / Code */
 .action-btn {
   background: var(--bg-surface);
   color: var(--text-secondary);
@@ -238,7 +340,6 @@ button:disabled {
   color: var(--accent);
 }
 
-/* Generate */
 .generate-btn {
   background: var(--accent);
   color: #0d1117;
@@ -253,13 +354,12 @@ button:disabled {
   border-color: var(--border-subtle) !important;
 }
 
-/* Tool buttons */
 .tool-btn {
   background: transparent;
   color: var(--text-secondary);
   border-color: var(--border-subtle);
-  padding: 0 12px;
-  height: 34px;
+  padding: 0 13px;
+  height: 36px;
 }
 .tool-btn:hover {
   background: var(--bg-surface);
@@ -267,7 +367,6 @@ button:disabled {
   color: var(--text-primary);
 }
 
-/* Destructive — Clear */
 .clear-btn {
   color: var(--red) !important;
   border-color: rgba(244,100,95,0.2) !important;
@@ -292,94 +391,6 @@ button:disabled {
 }
 
 /* ------------------------------------------------------------
-   SELECTION COUNTER
------------------------------------------------------------- */
-.selection-counter {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 13px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-xs);
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 500;
-  min-width: 108px;
-  transition: background var(--ease), border-color var(--ease), color var(--ease);
-}
-
-.selection-counter.has-selections {
-  background: var(--green-dim);
-  border-color: rgba(45,212,160,0.3);
-  color: var(--green);
-}
-
-.counter-icon { font-size: 11px; }
-
-#selectionCount {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  min-width: 18px;
-  text-align: center;
-}
-
-.counter-label {
-  font-size: 12px;
-  opacity: 0.75;
-}
-
-/* ------------------------------------------------------------
-   PROGRESS BAR
------------------------------------------------------------- */
-.progress-container {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 34px;
-  padding: 0 12px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-xs);
-  min-width: 160px;
-}
-
-.progress-container progress {
-  flex: 1;
-  height: 4px;
-  border: none;
-  border-radius: 2px;
-  background: var(--bg-raised);
-  overflow: hidden;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.progress-container progress::-webkit-progress-bar {
-  background: var(--bg-raised);
-  border-radius: 2px;
-}
-.progress-container progress::-webkit-progress-value {
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-.progress-container progress::-moz-progress-bar {
-  background: var(--accent);
-  border-radius: 2px;
-}
-
-#progressText {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  min-width: 36px;
-  text-align: right;
-}
-
-/* ------------------------------------------------------------
    FILTER BAR
 ------------------------------------------------------------ */
 .filter-bar {
@@ -387,8 +398,8 @@ button:disabled {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 0 24px;
-  min-height: 46px;
+  padding: 0 22px;
+  min-height: 48px;
   background: var(--bg-filterbar);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -396,11 +407,11 @@ button:disabled {
 
 .filter-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.09em;
   white-space: nowrap;
   user-select: none;
 }
@@ -408,15 +419,15 @@ button:disabled {
 .filter-input-wrap { position: relative; }
 
 .filter-text-input {
-  height: 30px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 13px;
   background: var(--bg-surface);
   border: 1px solid var(--border-mid);
   border-radius: var(--r-xs);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 13px;
-  width: 160px;
+  font-size: 13.5px;
+  width: 170px;
   outline: none;
   transition: border-color var(--ease), box-shadow var(--ease);
 }
@@ -426,7 +437,6 @@ button:disabled {
 }
 .filter-text-input::placeholder { color: var(--text-muted); }
 
-/* Extension dropdown */
 .ext-suggestions {
   display: none;
   position: absolute;
@@ -436,15 +446,15 @@ button:disabled {
   border: 1px solid var(--border-mid);
   border-radius: var(--r-md);
   list-style: none;
-  padding: 4px 0;
-  min-width: 160px;
+  padding: 5px 0;
+  min-width: 170px;
   z-index: 200;
   box-shadow: 0 10px 28px rgba(0,0,0,0.5);
 }
 .ext-suggestions li {
-  padding: 7px 14px;
+  padding: 8px 15px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--ease), color var(--ease);
@@ -454,7 +464,6 @@ button:disabled {
   color: var(--accent);
 }
 
-/* Filter chips */
 .active-filters {
   display: flex;
   flex-wrap: wrap;
@@ -466,10 +475,10 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px;
+  padding: 4px 11px;
   border-radius: var(--r-xs);
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   user-select: none;
   transition: background var(--ease);
@@ -505,9 +514,9 @@ button:disabled {
   border: 1px solid rgba(244,100,95,0.25);
   color: var(--red);
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 13px;
   cursor: pointer;
-  padding: 3px 12px;
+  padding: 4px 13px;
 }
 .filter-chip.clear-all:hover {
   background: rgba(244,100,95,0.22);
@@ -521,15 +530,15 @@ button:disabled {
 .search-section { position: relative; }
 
 .search-input {
-  height: 36px;
-  padding: 0 13px;
-  width: 220px;
+  height: 38px;
+  padding: 0 14px;
+  width: 230px;
   background: var(--bg-surface);
   border: 1px solid var(--border-mid);
   border-radius: var(--r-xs);
   color: var(--text-primary);
   font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: 14px;
   outline: none;
   transition: border-color var(--ease), box-shadow var(--ease), width 0.22s ease;
 }
@@ -537,19 +546,18 @@ button:disabled {
 .search-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
-  width: 290px;
+  width: 300px;
 }
 
-/* Search dropdown */
 .search-suggestions {
   position: absolute;
   top: calc(100% + 7px);
   left: 0;
-  width: 360px;
+  width: 370px;
   background: var(--bg-surface);
   border: 1px solid var(--border-mid);
   border-radius: var(--r-md);
-  max-height: 320px;
+  max-height: 340px;
   overflow-y: auto;
   list-style: none;
   padding: 4px 0;
@@ -563,7 +571,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 9px 14px;
+  padding: 10px 15px;
   cursor: pointer;
   border-bottom: 1px solid var(--border-subtle);
   transition: background var(--ease);
@@ -572,25 +580,24 @@ button:disabled {
 .search-suggestions .search-result-item:hover { background: var(--bg-hover); }
 
 .result-name {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
 }
 .result-path {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 325px;
+  max-width: 340px;
 }
 
-/* Fallback plain li */
 .search-suggestions li:not(.search-result-item) {
-  padding: 9px 14px;
+  padding: 10px 15px;
   cursor: pointer;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-subtle);
   transition: background var(--ease);
@@ -601,7 +608,6 @@ button:disabled {
   color: var(--text-primary);
 }
 
-/* Scrollbar */
 .search-suggestions::-webkit-scrollbar { width: 4px; }
 .search-suggestions::-webkit-scrollbar-track { background: transparent; }
 .search-suggestions::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
@@ -614,6 +620,7 @@ button:disabled {
   overflow: hidden;
   background: var(--bg-root);
   padding: 16px;
+  min-height: 0;
 }
 
 #treeContainer {
@@ -654,51 +661,51 @@ button:disabled {
 }
 
 /* ------------------------------------------------------------
-   TREE NODES — folders & files clearly distinct
+   TREE NODES
 ------------------------------------------------------------ */
 .tree-node {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 12px;
+  padding: 9px 13px;
   border-radius: var(--r-xs);
   cursor: pointer;
   transition: background var(--ease), border-color var(--ease), color var(--ease);
   user-select: none;
   position: relative;
   z-index: 2;
-  min-width: 100px;
-  max-width: 155px;
-  width: 124px;
+  min-width: 108px;
+  max-width: 165px;
+  width: 132px;
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: normal;
   text-align: center;
   line-height: 1.4;
-  min-height: 36px;
+  min-height: 40px;
   font-family: var(--font-mono);
   box-shadow: none;
 }
 
-/* ── FOLDER — blue-slate, visually heavier & brighter ── */
+/* FOLDER — blue-slate, heavier */
 .tree-node.folder {
   background: var(--folder-bg);
   border: 1px solid var(--folder-border);
   color: var(--folder-text);
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .tree-node.folder:hover {
   background: var(--folder-bg-h);
-  border-color: rgba(91,141,238,0.55);
+  border-color: rgba(91,141,238,0.6);
   color: #9ec4f5;
   transform: none !important;
   box-shadow: none !important;
 }
 .tree-node.folder::before {
   content: "▸ ";
-  font-size: 9px;
+  font-size: 9.5px;
   color: var(--blue);
   opacity: 0.7;
 }
@@ -708,17 +715,17 @@ button:disabled {
   opacity: 1;
 }
 
-/* ── FILE — darker, quieter, clearly subordinate ── */
+/* FILE — dark neutral, quieter */
 .tree-node.file {
   background: var(--file-bg);
   border: 1px solid var(--file-border);
   color: var(--file-text);
   font-weight: 400;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 .tree-node.file:hover {
   background: var(--file-bg-h);
-  border-color: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.15);
   color: var(--text-secondary);
   transform: none !important;
   box-shadow: none !important;
@@ -731,22 +738,22 @@ button:disabled {
   vertical-align: middle;
 }
 
-/* ── SELECTION STATES ── */
+/* Selection states */
 .tree-node.folder.selected {
   background: var(--blue-dim);
-  border-color: rgba(91,141,238,0.45);
+  border-color: rgba(91,141,238,0.48);
   color: var(--blue);
   font-weight: 700;
 }
 .tree-node.folder.folder-selected {
   background: var(--green-dim);
-  border-color: rgba(45,212,160,0.4);
+  border-color: rgba(45,212,160,0.42);
   color: var(--green);
   font-weight: 700;
 }
 .tree-node.file.file-selected {
   background: var(--yellow-dim);
-  border-color: rgba(245,197,66,0.4);
+  border-color: rgba(245,197,66,0.42);
   color: var(--yellow);
   font-weight: 600;
 }
@@ -830,53 +837,95 @@ button:disabled {
 /* ------------------------------------------------------------
    RESPONSIVE
 ------------------------------------------------------------ */
+
+/* Narrow the search box a bit on slightly smaller screens */
 @media (max-width: 1300px) {
-  .repo-name    { max-width: 170px; }
-  .search-input { width: 180px; }
-  .search-input:focus { width: 240px; }
-  .progress-container { min-width: 120px; }
+  .repo-name { max-width: 180px; }
+  .search-input { width: 190px; }
+  .search-input:focus { width: 250px; }
 }
 
+/* Wrap navbar at medium width */
 @media (max-width: 1100px) {
-  .top-navbar {
+  .navbar-row--primary {
     height: auto;
     flex-wrap: wrap;
-    padding: 10px 16px;
-    gap: 7px;
-    row-gap: 7px;
+    padding: 10px 18px;
+    gap: 8px;
+    row-gap: 8px;
   }
   .navbar-section.right {
-    width: 100%;
-    justify-content: flex-end;
-    flex-wrap: wrap;
+    margin-left: auto;
   }
   .navbar-section.center {
     flex: 1;
     justify-content: center;
   }
+  /* Status bar stays single row — no changes needed */
+}
+
+@media (max-width: 900px) {
+  /* Search goes full width on its own row */
+  .search-section {
+    order: -1;
+    width: 100%;
+  }
+  .search-input {
+    width: 100%;
+  }
+  .search-input:focus {
+    width: 100%;
+  }
+  .search-suggestions {
+    width: 100%;
+  }
 }
 
 @media (max-width: 768px) {
-  html, body { font-size: 13px; }
-  .top-navbar { padding: 8px 12px; }
-  .search-input { width: 140px; }
-  .search-input:focus { width: 190px; }
-  .search-suggestions { width: 290px; }
-  .repo-name { max-width: 130px; font-size: 11px; }
-  .filter-bar { height: auto; padding: 8px 14px; gap: 7px; }
+  html, body { font-size: 13.5px; }
+
+  .navbar-row--primary { padding: 8px 12px; }
+  .status-bar { padding: 0 12px; height: 40px; }
+  .filter-bar { padding: 7px 12px; }
+
+  .repo-name { max-width: 140px; font-size: 11.5px; }
   .filter-text-input { width: 130px; }
-  .progress-container { min-width: 90px; }
-  #progressText { display: none; }
+
+  /* Progress text still visible — just smaller */
+  #progressText { font-size: 12px; min-width: 32px; }
+  .progress-label { display: none; } /* hide "PROGRESS" label, keep bar + % */
+
   .tree-view-container { padding: 10px; }
   .tree-root { flex-direction: column; align-items: center; gap: 18px; }
   .children { gap: 16px; }
-  button { font-size: 12.5px; padding: 0 10px; height: 32px; }
+
+  button { font-size: 13px; padding: 0 11px; height: 34px; }
+  .tool-btn { height: 32px; }
+}
+
+@media (max-width: 560px) {
+  /* Stack selection counter and progress vertically */
+  .status-bar {
+    height: auto;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .status-spacer { display: none; }
+  .progress-container {
+    width: 100%;
+    max-width: 100%;
+  }
+  .selection-counter {
+    flex: 1;
+  }
+  .counter-label { display: none; }
 }
 
 @media (max-width: 480px) {
-  .navbar-section.center { width: 100%; justify-content: space-between; }
-  .selection-counter { min-width: 80px; font-size: 12px; }
-  .counter-label { display: none; }
-  .search-input { width: 110px; }
-  .search-input:focus { width: 160px; }
+  .navbar-section.center {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .search-input { font-size: 13px; }
 }
