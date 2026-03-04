@@ -12,39 +12,28 @@ It helps you:
 * Iterate through files to extract codes
 * Generate structure or code outputs
 
-This tool is designed to help speed up file analysis and code extraction in projects.
+This tool is designed to speed up file analysis and code extraction in projects.
 
 ---
 
-# Project Timeline
+# Features
 
-## January 8, 2026 (First Stable Version)
+* Folder structure fetching
+* Code extraction from selected files
+* File searching
+* File extension filtering
+* Ignore extension filtering
+* Refresh folder content
+* Improved search readability and accuracy
+* Better directory-based searching (e.g., `Backend/src/models`)
 
-* Created a desktop shortcut so it can run without opening VS Code
-* Installed as a local desktop application
-* Built using Electron
-* Packaged using `electron-builder`
-* Converted into a working `.exe` file
-* Easier and faster to use
+For detailed feature breakdown per version, please check:
 
-Version Preview:
+```
+.Versions/
+```
 
-![Version 1](assets/v1.jpg)
-
----
-
-## March 4, 2026 (Latest Improvements)
-
-Planned / Added Improvements:
-
-* Improved searching
-* File filtering support
-* Add refresh button
-* General performance and usability improvements
-
-Version Preview:
-
-![Version 2](assets/v2.jpg)
+Each version has its own documentation file inside that folder.
 
 ---
 
@@ -92,14 +81,13 @@ npm install electron
 
 # Notes
 
-This project is a personal helper tool built to improve workflow efficiency when working with repositories.
+This project is a personal workflow helper tool designed to improve efficiency when working with repositories.
 
-More upgrades may come in the future.
+For version history and detailed feature evolution, see:
 
-Versions:
-
-# January 8 - V1 First release
-# March 4 - V2 Seconf release
+```
+.Versions/
+```
 
 ---
 
