@@ -18,10 +18,8 @@ let tray;
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-    // Another instance is already running — quit immediately
     app.quit();
 } else {
-    // When a second instance tries to launch, focus our existing window instead
     app.on('second-instance', () => {
         if (mainWindow) {
             if (mainWindow.isMinimized()) mainWindow.restore();
@@ -34,7 +32,7 @@ if (!gotTheLock) {
     // KEEP TRAY ALIVE
     // ----------------------------
     app.on('window-all-closed', (e) => {
-        e.preventDefault(); // keep tray alive
+        e.preventDefault();
     });
 
     // ----------------------------
@@ -88,9 +86,7 @@ function createTray() {
         { 
             label: 'Open Helper',
             click: () => {
-                if (!mainWindow) {
-                    createWindow();
-                }
+                if (!mainWindow) createWindow();
                 mainWindow.show();
                 mainWindow.focus();
             }
@@ -118,16 +114,10 @@ function createTray() {
 ipcMain.handle('open-global-docignore', async () => {
     try {
         const globalDocignorePath = path.join(app.getPath('userData'), 'global-docignore.json');
-
         if (!fs.existsSync(globalDocignorePath)) {
             fs.writeFileSync(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
-            console.log('[Main] Created new global-docignore.json at', globalDocignorePath);
-        } else {
-            console.log('[Main] global-docignore.json exists at', globalDocignorePath);
         }
-
         await shell.openPath(globalDocignorePath);
-        console.log('[Main] global-docignore.json opened');
         return true;
     } catch (err) {
         console.error('[Main] Failed to open global-docignore.json:', err);
@@ -146,7 +136,6 @@ function getPreviousReposMenu() {
         submenu.push({
             label: path.basename(repoPath),
             click: () => {
-                console.log('[Tray] Setting active project:', repoPath);
                 cfg.activeProject = repoPath;
                 config.writeConfig(cfg);
             }
@@ -155,31 +144,21 @@ function getPreviousReposMenu() {
 
     if (submenu.length === 0) {
         submenu.push({ label: 'No previous repos', enabled: false });
-        console.log('[Tray] No previous repos found');
     }
 
     return submenu;
 }
 
-
 // ----------------------------
 // IPC Handlers
 // ----------------------------
 
-// Select repo
 ipcMain.handle('select-repo', async () => {
     try {
-        console.log('[IPC] select-repo called');
         const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-
-        if (result.canceled || !result.filePaths.length) {
-            console.log('[IPC] Repo selection cancelled');
-            return null;
-        }
+        if (result.canceled || !result.filePaths.length) return null;
 
         const repoPath = result.filePaths[0];
-        console.log('[IPC] Repo selected:', repoPath);
-
         const cfg = config.readConfig();
         const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
         const userDataPath = app.getPath('userData');
@@ -191,7 +170,6 @@ ipcMain.handle('select-repo', async () => {
             const subPath = path.join(storagePath, sub);
             if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
         });
-        console.log('[IPC] Storage folders ensured at:', storagePath);
 
         cfg.projects[repoPath] = {
             storageName,
@@ -200,8 +178,6 @@ ipcMain.handle('select-repo', async () => {
         };
         cfg.activeProject = repoPath;
         config.writeConfig(cfg);
-        console.log('[IPC] Config updated for repo:', repoPath);
-
         return repoPath;
     } catch (err) {
         console.error('[IPC] select-repo error:', err);
@@ -212,16 +188,10 @@ ipcMain.handle('select-repo', async () => {
 
 ipcMain.handle('getFolderTree', async (event, repoPath) => {
     try {
-        console.log('[IPC] getFolderTree called for:', repoPath);
         if (!repoPath) return [];
-
         const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
         console.log('[IPC] Ignore rules loaded:', ignoreRules.length);
-        
-        const tree = await fileOps.getFolderTree(repoPath);
-        console.log('[IPC] Tree generated, root items:', tree.length);
-        
-        return tree;
+        return await fileOps.getFolderTree(repoPath);
     } catch (err) {
         console.error('[IPC] getFolderTree error:', err);
         return [];
@@ -232,45 +202,32 @@ ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
 
 ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) => {
     try {
-        console.log('[IPC] generate called:', { actionType, repoPath, itemsLength: items?.length, filePath });
         if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
 
         const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-
         const outputDir = path.dirname(filePath);
         if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
         if (actionType === 'structure') {
-            console.log('[IPC] Generating structure...');
             await fileOps.generateStructure(items, filePath, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
             });
-
         } else if (actionType === 'code') {
-            console.log('[IPC] Generating code...');
             await codeOps.generateCode(items, filePath, (percent) => {
                 mainWindow.webContents.send('progress-update', percent);
             }, repoPath, ignoreRules);
         }
 
-        console.log(`[IPC] Generation complete. Output at: ${filePath}`);
-
         await new Promise(resolve => setTimeout(resolve, 100));
 
         if (fs.existsSync(filePath)) {
-            // Kill any existing Notepad showing our file, then reopen it fresh
             exec(`taskkill /FI "WINDOWTITLE eq helper-output*" /F`, () => {
                 setTimeout(() => {
                     exec(`notepad "${filePath}"`, (err) => {
-                        if (err) {
-                            console.error('[IPC] Failed to open Notepad:', err);
-                            shell.openPath(filePath);
-                        }
+                        if (err) shell.openPath(filePath);
                     });
                 }, 300);
             });
-        } else {
-            console.error('[IPC] File does not exist after generation:', filePath);
         }
 
         return true;
@@ -281,20 +238,14 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
     }
 });
 
-// ----------------------------
-// Open .docignore file
-// ----------------------------
 ipcMain.handle('open-docignore', async (event, repoPath) => {
     try {
         if (!repoPath) return false;
         const docignoreFile = path.join(repoPath, '.docignore');
-
         if (!fs.existsSync(docignoreFile)) {
             fs.writeFileSync(docignoreFile, '# Add patterns to ignore files/folders\n', 'utf-8');
         }
-
         shell.openPath(docignoreFile);
-        console.log('[Main] .docignore opened:', docignoreFile);
         return true;
     } catch (err) {
         console.error('[IPC] open-docignore error:', err);
@@ -302,10 +253,8 @@ ipcMain.handle('open-docignore', async (event, repoPath) => {
     }
 });
 
-// Get .docignore rules
 ipcMain.handle('get-docignore', async (event, repoPath) => {
     try {
-        console.log('[IPC] get-docignore called for:', repoPath);
         if (!repoPath) return [];
         return await docignoreUtils.getIgnoreRules(repoPath);
     } catch (err) {
@@ -314,14 +263,11 @@ ipcMain.handle('get-docignore', async (event, repoPath) => {
     }
 });
 
-// Get active project
 ipcMain.handle('get-active-project', () => {
     try {
-        console.log('[IPC] get-active-project called');
         const activeProjectPath = config.readConfig().activeProject;
         if (!activeProjectPath) return null;
         const projectData = config.readConfig().projects[activeProjectPath];
-        console.log('[IPC] Active project data:', projectData);
         return { repoPath: activeProjectPath, ...projectData };
     } catch (err) {
         console.error('[IPC] get-active-project error:', err);
@@ -329,22 +275,17 @@ ipcMain.handle('get-active-project', () => {
     }
 });
 
-// Get last selected items
 ipcMain.handle('get-last-selected', () => {
     try {
-        const items = config.getLastSelectedItems();
-        console.log('[IPC] get-last-selected:', items);
-        return items;
+        return config.getLastSelectedItems();
     } catch (err) {
         console.error('[IPC] get-last-selected error:', err);
         return [];
     }
 });
 
-// Set last selected items
 ipcMain.handle('set-last-selected', (event, items) => {
     try {
-        console.log('[IPC] set-last-selected:', items);
         config.setLastSelectedItems(items);
     } catch (err) {
         console.error('[IPC] set-last-selected error:', err);
@@ -356,12 +297,9 @@ ipcMain.handle('save-file-dialog', async (event, actionType) => {
     return { filePath: tempFile };
 });
 
-
 // ----------------------------
-// Ignored Extensions (ext ignore list)
+// Ignored Extensions
 // ----------------------------
-
-// Get ignored extensions for the active project
 ipcMain.handle('get-ignored-extensions', () => {
     try {
         const cfg = config.readConfig();
@@ -374,7 +312,6 @@ ipcMain.handle('get-ignored-extensions', () => {
     }
 });
 
-// Save ignored extensions for the active project
 ipcMain.handle('set-ignored-extensions', (event, exts) => {
     try {
         const cfg = config.readConfig();
@@ -382,8 +319,38 @@ ipcMain.handle('set-ignored-extensions', (event, exts) => {
         if (!activePath || !cfg.projects[activePath]) return;
         cfg.projects[activePath].ignoredExtensions = Array.isArray(exts) ? exts : [];
         config.writeConfig(cfg);
-        console.log('[IPC] set-ignored-extensions saved:', exts);
     } catch (err) {
         console.error('[IPC] set-ignored-extensions error:', err);
+    }
+});
+
+// ----------------------------
+// Folder Filters (ignore + focus)
+// ----------------------------
+ipcMain.handle('get-folder-filters', () => {
+    try {
+        const cfg = config.readConfig();
+        const activePath = cfg.activeProject;
+        if (!activePath || !cfg.projects[activePath]) return { ignored: [], focused: [] };
+        return cfg.projects[activePath].folderFilters || { ignored: [], focused: [] };
+    } catch (err) {
+        console.error('[IPC] get-folder-filters error:', err);
+        return { ignored: [], focused: [] };
+    }
+});
+
+ipcMain.handle('set-folder-filters', (event, filters) => {
+    try {
+        const cfg = config.readConfig();
+        const activePath = cfg.activeProject;
+        if (!activePath || !cfg.projects[activePath]) return;
+        cfg.projects[activePath].folderFilters = {
+            ignored: Array.isArray(filters?.ignored) ? filters.ignored : [],
+            focused: Array.isArray(filters?.focused) ? filters.focused : [],
+        };
+        config.writeConfig(cfg);
+        console.log('[IPC] set-folder-filters saved:', cfg.projects[activePath].folderFilters);
+    } catch (err) {
+        console.error('[IPC] set-folder-filters error:', err);
     }
 });

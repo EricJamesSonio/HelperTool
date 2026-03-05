@@ -1,16 +1,17 @@
 /* ============================================================
-   IGNORE-PANEL.CSS — Extension ignore panel component
+   IGNORE-PANEL.CSS — Extension ignore + Folder filter panels
    ============================================================ */
 
-/* ── Toggle button in filter bar ──────────────────────────── */
+/* ── Toggle buttons in filter bar ────────────────────────── */
 .filter-divider {
-  width: 10px;
-  height: 40px;
+  width: 1px;
+  height: 28px;
   background: var(--border-subtle);
   flex-shrink: 0;
-  margin: 0 4px;
+  margin: 0 6px;
 }
 
+/* Extension ignore toggle */
 .ignore-toggle-btn {
   position: relative;
   border-color: rgba(244,100,95,0.2);
@@ -29,15 +30,34 @@
   color: var(--red);
 }
 
-.ignore-badge {
+/* Folder filter toggle */
+.folder-toggle-btn {
+  position: relative;
+  border-color: rgba(91,141,238,0.2);
+  color: var(--text-secondary);
+  gap: 6px;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+.folder-toggle-btn:hover {
+  background: var(--blue-dim);
+  border-color: rgba(91,141,238,0.4);
+  color: var(--blue);
+}
+.folder-toggle-btn.active {
+  background: var(--blue-dim);
+  border-color: rgba(91,141,238,0.45);
+  color: var(--blue);
+}
+
+/* Badges */
+.ignore-badge,
+.folder-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: var(--red);
-  color: #fff;
   border-radius: 9px;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -45,24 +65,36 @@
   line-height: 1;
   flex-shrink: 0;
 }
+.ignore-badge { background: var(--red); color: #fff; }
+.folder-badge { background: var(--blue); color: #fff; }
 
-/* ── Panel container ──────────────────────────────────────── */
+/* ── Panel container (shared) ─────────────────────────────── */
 .ignore-panel {
   max-height: 0;
   overflow: hidden;
   background: #0c1520;
   border-bottom: 0px solid var(--border-subtle);
   transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              border-bottom-width 0.32s ease,
-              padding 0.32s ease;
+              border-bottom-width 0.32s ease;
   flex-shrink: 0;
 }
 .ignore-panel.open {
-  max-height: 260px;
+  max-height: 280px;
   border-bottom-width: 1px;
 }
 
+/* ── Extension panel inner ────────────────────────────────── */
 .ignore-panel-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  padding: 14px 22px;
+  min-height: 0;
+}
+
+/* ── Folder panel inner (3 columns) ──────────────────────── */
+.folder-panel-inner {
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -79,6 +111,9 @@
   gap: 10px;
   min-width: 0;
 }
+
+/* Available folders column slightly wider — has action buttons */
+.folder-available-col { flex: 1.4; }
 
 .ignore-col-header {
   display: flex;
@@ -108,18 +143,18 @@
   font-style: italic;
 }
 
-/* ── Center divider/arrow ─────────────────────────────────── */
+/* ── Dividers ─────────────────────────────────────────────── */
 .ignore-divider-vert {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0 20px;
+  padding: 0 16px;
   flex-shrink: 0;
 }
 
 .ignore-arrow {
-  font-size: 22px;
+  font-size: 20px;
   color: var(--border-mid);
   line-height: 1;
   user-select: none;
@@ -132,11 +167,14 @@
   gap: 6px;
   align-content: flex-start;
   overflow-y: auto;
-  max-height: 140px;
+  max-height: 150px;
   padding: 2px 0 4px;
 }
 
-/* ── Individual chips ─────────────────────────────────────── */
+/* Folder available column — chips need more height for action buttons */
+.folder-chips-wrap { max-height: 160px; }
+
+/* ── Individual chips (base) ──────────────────────────────── */
 .ignore-chip {
   display: inline-flex;
   align-items: center;
@@ -146,25 +184,25 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 500;
-  cursor: pointer;
   user-select: none;
   border: 1px solid transparent;
-  transition: background var(--ease), border-color var(--ease), color var(--ease), transform 0.1s ease;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
   white-space: nowrap;
 }
 
-.ignore-chip.available {
+/* Available ext chip */
+.ignore-chip.available:not(.folder-chip) {
   background: var(--blue-dim);
   border-color: rgba(91,141,238,0.25);
   color: var(--folder-text);
+  cursor: pointer;
 }
-.ignore-chip.available:hover {
+.ignore-chip.available:not(.folder-chip):hover {
   background: rgba(91,141,238,0.2);
   border-color: rgba(91,141,238,0.5);
   color: #9ec4f5;
-  transform: translateY(-1px);
 }
-.ignore-chip.available .ignore-chip-action {
+.ignore-chip.available:not(.folder-chip) .ignore-chip-action {
   font-size: 10px;
   opacity: 0;
   color: var(--red);
@@ -172,8 +210,9 @@
   font-family: var(--font-ui);
   letter-spacing: 0.03em;
 }
-.ignore-chip.available:hover .ignore-chip-action { opacity: 1; }
+.ignore-chip.available:not(.folder-chip):hover .ignore-chip-action { opacity: 1; }
 
+/* Ignored chip (ext + folder) */
 .ignore-chip.ignored {
   background: var(--red-dim);
   border-color: rgba(244,100,95,0.3);
@@ -184,10 +223,104 @@
   border-color: rgba(244,100,95,0.5);
 }
 
+/* Focused folder chip */
+.ignore-chip.focused {
+  background: rgba(45,212,160,0.12);
+  border-color: rgba(45,212,160,0.35);
+  color: var(--green);
+}
+.ignore-chip.focused:hover {
+  background: rgba(45,212,160,0.2);
+  border-color: rgba(45,212,160,0.55);
+}
+
+/* Clear/restore chip */
+.ignore-chip.ignore-clear-all {
+  background: transparent;
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.ignore-chip.ignore-clear-all:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-mid);
+  color: var(--text-secondary);
+}
+
+/* ── Folder chip — horizontal layout with action buttons ──── */
+.ignore-chip.folder-chip.available {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--bg-surface);
+  border-color: var(--border-mid);
+  color: var(--folder-text);
+  cursor: default;
+  padding: 5px 10px 5px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.ignore-chip.folder-chip.available:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-strong);
+}
+
+.folder-chip-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.folder-chip-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.folder-action-btn {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 9px !important;
+  height: 24px !important;
+  min-width: unset;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+  white-space: nowrap;
+}
+
+.ignore-action-btn {
+  background: var(--red-dim);
+  border-color: rgba(244,100,95,0.3);
+  color: var(--red);
+}
+.ignore-action-btn:hover {
+  background: rgba(244,100,95,0.22);
+  border-color: rgba(244,100,95,0.55);
+}
+
+.focus-action-btn {
+  background: rgba(45,212,160,0.1);
+  border-color: rgba(45,212,160,0.3);
+  color: var(--green);
+}
+.focus-action-btn:hover {
+  background: rgba(45,212,160,0.2);
+  border-color: rgba(45,212,160,0.55);
+}
+
+/* ── Remove button (inside chips) ────────────────────────── */
 .ignore-chip-remove {
   background: none !important;
   border: none !important;
-  color: var(--red) !important;
   cursor: pointer;
   font-size: 10px;
   padding: 0 !important;
@@ -198,26 +331,37 @@
   transition: opacity var(--ease);
   min-width: unset !important;
   width: auto !important;
+  color: inherit !important;
 }
 .ignore-chip-remove:hover { opacity: 1 !important; transform: none !important; }
 
-.ignore-chip.ignore-clear-all {
-  background: transparent;
-  border-color: var(--border-subtle);
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-}
-.ignore-chip.ignore-clear-all:hover {
-  background: var(--bg-surface);
-  border-color: var(--border-mid);
-  color: var(--text-secondary);
-}
-
+/* ── Empty state ──────────────────────────────────────────── */
 .ignore-empty {
   font-family: var(--font-ui);
   font-size: 12px;
   color: var(--text-muted);
   font-style: italic;
   padding: 4px 2px;
+}
+
+/* ── Filter bar chips for folder filters ─────────────────── */
+.filter-chip.folder-ignored-chip {
+  background: var(--red-dim);
+  border: 1px solid rgba(244,100,95,0.3);
+  color: var(--red);
+}
+.filter-chip.folder-focused-chip {
+  background: rgba(45,212,160,0.1);
+  border: 1px solid rgba(45,212,160,0.3);
+  color: var(--green);
+}
+.filter-chip.folder-ignored-chip .chip-remove,
+.filter-chip.folder-focused-chip .chip-remove {
+  color: inherit;
+  opacity: 0.55;
+}
+.filter-chip.folder-ignored-chip .chip-remove:hover,
+.filter-chip.folder-focused-chip .chip-remove:hover {
+  opacity: 1;
+  color: inherit;
 }

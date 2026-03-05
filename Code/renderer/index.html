@@ -68,7 +68,7 @@
       </div>
     </div>
 
-    <!-- ══ ROW 2: Status bar — always full width, always visible ══ -->
+    <!-- ══ ROW 2: Status bar ══ -->
     <div class="status-bar">
       <div class="selection-counter">
         <span class="counter-icon">✓</span>
@@ -100,20 +100,26 @@
       </div>
       <div id="activeFilters" class="active-filters"></div>
 
-      <!-- ── NEW: Ignore toggle button ── -->
       <div class="filter-divider"></div>
+
+      <!-- Extension ignore toggle -->
       <button id="ignoreToggleBtn" class="tool-btn ignore-toggle-btn" title="Manage ignored extensions">
         <span class="btn-icon">🚫</span>
         Ext Ignore
         <span class="ignore-badge" style="display:none">0</span>
       </button>
+
+      <!-- Folder filter toggle -->
+      <button id="folderToggleBtn" class="tool-btn folder-toggle-btn" title="Manage folder filters">
+        <span class="btn-icon">📁</span>
+        Folders
+        <span class="folder-badge" style="display:none">0</span>
+      </button>
     </div>
 
-    <!-- ══ NEW: Ignore Panel (collapsible, below filter bar) ══ -->
+    <!-- ══ Extension Ignore Panel ══ -->
     <div id="ignorePanel" class="ignore-panel">
       <div class="ignore-panel-inner">
-
-        <!-- Left: Available extensions -->
         <div class="ignore-col">
           <div class="ignore-col-header">
             <span class="ignore-col-icon">📂</span>
@@ -122,13 +128,9 @@
           </div>
           <div id="availableExts" class="ignore-chips-wrap"></div>
         </div>
-
-        <!-- Divider arrow -->
         <div class="ignore-divider-vert">
           <span class="ignore-arrow">⟶</span>
         </div>
-
-        <!-- Right: Ignored extensions -->
         <div class="ignore-col">
           <div class="ignore-col-header">
             <span class="ignore-col-icon">🚫</span>
@@ -136,6 +138,50 @@
             <span class="ignore-col-hint">Hidden from tree</span>
           </div>
           <div id="ignoredExts" class="ignore-chips-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Folder Filter Panel ══ -->
+    <div id="folderPanel" class="ignore-panel folder-panel">
+      <div class="folder-panel-inner">
+
+        <!-- Left: All detected folders -->
+        <div class="ignore-col folder-available-col">
+          <div class="ignore-col-header">
+            <span class="ignore-col-icon">📁</span>
+            <span class="ignore-col-title">Detected Folders</span>
+            <span class="ignore-col-hint">Ignore or Focus →</span>
+          </div>
+          <div id="availableFolders" class="ignore-chips-wrap folder-chips-wrap"></div>
+        </div>
+
+        <div class="ignore-divider-vert folder-divider-double">
+          <span class="ignore-arrow">⟶</span>
+        </div>
+
+        <!-- Middle: Ignored folders -->
+        <div class="ignore-col">
+          <div class="ignore-col-header">
+            <span class="ignore-col-icon">🚫</span>
+            <span class="ignore-col-title">Ignored Folders</span>
+            <span class="ignore-col-hint">Hidden from tree</span>
+          </div>
+          <div id="ignoredFolders" class="ignore-chips-wrap"></div>
+        </div>
+
+        <div class="ignore-divider-vert">
+          <span class="ignore-arrow" style="color: #2dd4a0;">⟶</span>
+        </div>
+
+        <!-- Right: Focused folders -->
+        <div class="ignore-col">
+          <div class="ignore-col-header">
+            <span class="ignore-col-icon">🎯</span>
+            <span class="ignore-col-title">Focused Folders</span>
+            <span class="ignore-col-hint">Show only these</span>
+          </div>
+          <div id="focusedFolders" class="ignore-chips-wrap"></div>
         </div>
 
       </div>
