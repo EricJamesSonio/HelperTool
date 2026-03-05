@@ -139,6 +139,79 @@
 [data-theme="light"] .result-name { color: #111926; }
 [data-theme="light"] .result-path { color: #5a6e88; }
 
+/* Light mode button overrides — darker, more visible */
+[data-theme="light"] button {
+  color: #1e2e45;
+  border-color: rgba(0,0,0,0.22);
+}
+[data-theme="light"] .primary-btn {
+  background: #9aaec4;
+  border-color: rgba(0,0,0,0.28);
+  color: #0f1b2a;
+}
+[data-theme="light"] .primary-btn:hover {
+  background: #8da2ba;
+  border-color: rgba(0,0,0,0.38);
+}
+[data-theme="light"] .action-btn {
+  background: #a8bace;
+  border-color: rgba(0,0,0,0.22);
+  color: #0f1b2a;
+}
+[data-theme="light"] .action-btn:hover {
+  background: #96aabf;
+  border-color: rgba(0,0,0,0.32);
+  color: #0a1520;
+}
+[data-theme="light"] .generate-btn {
+  background: #b87010;
+  color: #fff;
+  border-color: transparent;
+}
+[data-theme="light"] .generate-btn:hover {
+  background: #a66008;
+}
+[data-theme="light"] .generate-btn:disabled {
+  background: #9aaec4 !important;
+  color: #5a6e88 !important;
+  border-color: rgba(0,0,0,0.18) !important;
+}
+[data-theme="light"] .tool-btn {
+  background: #a0b4c8;
+  border-color: rgba(0,0,0,0.25);
+  color: #0f1b2a;
+}
+[data-theme="light"] .tool-btn:hover {
+  background: #8fa5bc;
+  border-color: rgba(0,0,0,0.35);
+  color: #0a1520;
+}
+[data-theme="light"] .clear-btn {
+  color: #a02020 !important;
+  border-color: rgba(160,32,32,0.35) !important;
+  background: rgba(160,32,32,0.08) !important;
+}
+[data-theme="light"] .clear-btn:hover {
+  background: rgba(160,32,32,0.18) !important;
+  border-color: rgba(160,32,32,0.5) !important;
+}
+[data-theme="light"] .panel-toggle-btn {
+  background: #a8bace;
+  border-left-color: rgba(0,0,0,0.18);
+  color: #1e2e45;
+}
+[data-theme="light"] .panel-toggle-btn:hover {
+  background: #96aabf;
+  color: #0a1520;
+}
+[data-theme="light"] .panel-toggle-btn.active {
+  background: #8fa3ba;
+  color: #0a1520;
+}
+[data-theme="light"] #filterToggleBtn.active { color: #b87010; }
+[data-theme="light"] #ignoreToggleBtn.active  { color: #a02020; }
+[data-theme="light"] #folderToggleBtn.active  { color: #1e4a9e; }
+
 /* Theme toggle button */
 .theme-toggle-btn {
   background: transparent;
