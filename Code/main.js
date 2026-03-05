@@ -13,12 +13,47 @@ let mainWindow;
 let tray;
 
 // ----------------------------
-// KEEP TRAY ALIVE (FIX #1)
+// SINGLE INSTANCE LOCK
 // ----------------------------
-app.on('window-all-closed', (e) => {
-    e.preventDefault(); // keep tray alive
-});
+const gotTheLock = app.requestSingleInstanceLock();
 
+if (!gotTheLock) {
+    // Another instance is already running — quit immediately
+    app.quit();
+} else {
+    // When a second instance tries to launch, focus our existing window instead
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+
+    // ----------------------------
+    // KEEP TRAY ALIVE
+    // ----------------------------
+    app.on('window-all-closed', (e) => {
+        e.preventDefault(); // keep tray alive
+    });
+
+    // ----------------------------
+    // App Ready
+    // ----------------------------
+    app.whenReady().then(() => {
+        console.log('[Main] App is ready');
+        createTray();
+        createWindow();
+
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) createWindow();
+        });
+    });
+}
+
+// ----------------------------
+// Window
+// ----------------------------
 function createWindow() {
     console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
@@ -41,19 +76,6 @@ function createWindow() {
         console.log('[Main] Main window hidden instead of close');
     });
 }
-
-// ----------------------------
-// App Ready
-// ----------------------------
-app.whenReady().then(() => {
-    console.log('[Main] App is ready');
-    createTray();
-    createWindow();
-
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
-});
 
 // ----------------------------
 // Tray
@@ -233,7 +255,6 @@ ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) 
 
         console.log(`[IPC] Generation complete. Output at: ${filePath}`);
 
-        // WITH this:
         await new Promise(resolve => setTimeout(resolve, 100));
 
         if (fs.existsSync(filePath)) {

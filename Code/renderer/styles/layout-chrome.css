@@ -1,0 +1,215 @@
+/* ============================================================
+   LAYOUT-CHROME.CSS — Navbar, status bar, buttons
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   ROW 1 — Primary navbar
+------------------------------------------------------------ */
+.navbar-row--primary {
+  background: var(--bg-navbar);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 22px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  position: relative;
+  z-index: 50;
+}
+
+.navbar-row--primary::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 35%, var(--accent) 65%, transparent 100%);
+  opacity: 0.55;
+}
+
+.navbar-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.navbar-section.center { gap: 6px; }
+
+.navbar-section.right {
+  margin-left: auto;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.repo-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-accent);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xs);
+  padding: 5px 12px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.015em;
+}
+
+/* ------------------------------------------------------------
+   ROW 2 — Status bar
+------------------------------------------------------------ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 22px;
+  height: 44px;
+  background: var(--bg-statusbar);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.status-spacer { flex: 1; }
+
+.selection-counter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xs);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  min-width: 110px;
+  flex-shrink: 0;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+.selection-counter.has-selections {
+  background: var(--green-dim);
+  border-color: rgba(45,212,160,0.3);
+  color: var(--green);
+}
+
+.counter-icon { font-size: 12px; }
+
+#selectionCount {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+}
+
+.counter-label { font-size: 12.5px; opacity: 0.75; }
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xs);
+  flex: 1;
+  min-width: 0;
+  max-width: 600px;
+}
+
+.progress-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.progress-container progress {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border: none;
+  border-radius: 3px;
+  background: var(--bg-raised);
+  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.progress-container progress::-webkit-progress-bar { background: var(--bg-raised); border-radius: 3px; }
+.progress-container progress::-webkit-progress-value { background: var(--accent); border-radius: 3px; transition: width 0.3s ease; }
+.progress-container progress::-moz-progress-bar { background: var(--accent); border-radius: 3px; }
+
+#progressText {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------
+   BUTTON SYSTEM
+------------------------------------------------------------ */
+button {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 15px;
+  height: 38px;
+  white-space: nowrap;
+  transition: background var(--ease), border-color var(--ease), color var(--ease), opacity var(--ease);
+  letter-spacing: 0.01em;
+  background: transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
+  outline: none;
+  user-select: none;
+}
+button:hover { color: var(--text-primary); transform: none !important; box-shadow: none !important; }
+button:active { opacity: 0.75; transform: none !important; }
+button:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+
+.btn-icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
+
+.primary-btn { background: var(--bg-raised); color: var(--text-primary); border-color: var(--border-mid); font-weight: 600; }
+.primary-btn:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+
+.action-btn { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border-subtle); }
+.action-btn:hover { background: var(--bg-raised); border-color: var(--border-mid); color: var(--text-primary); }
+.action-btn.active { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+
+.generate-btn { background: var(--accent); color: #0d1117; border-color: transparent; font-weight: 700; letter-spacing: 0.03em; }
+.generate-btn:hover { background: #f0b84a; }
+.generate-btn:disabled { background: var(--bg-raised) !important; color: var(--text-muted) !important; border-color: var(--border-subtle) !important; }
+
+.tool-btn { background: transparent; color: var(--text-secondary); border-color: var(--border-subtle); padding: 0 13px; height: 36px; }
+.tool-btn:hover { background: var(--bg-surface); border-color: var(--border-mid); color: var(--text-primary); }
+
+.clear-btn { color: var(--red) !important; border-color: rgba(244,100,95,0.2) !important; }
+.clear-btn:hover { background: var(--red-dim) !important; border-color: rgba(244,100,95,0.4) !important; }
+
+.refresh-icon { display: inline-block; }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.refresh-btn.spinning .refresh-icon { animation: spin 0.6s linear infinite; }

@@ -1,0 +1,171 @@
+/* ============================================================
+   BASE.CSS — Design tokens, reset, typography, scrollbars
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+/* ------------------------------------------------------------
+   DESIGN TOKENS
+------------------------------------------------------------ */
+:root {
+  --bg-root:        #0d1117;
+  --bg-navbar:      #0f1622;
+  --bg-statusbar:   #0c1420;
+  --bg-filterbar:   #111827;
+  --bg-tree:        #0d1117;
+  --bg-surface:     #161d2e;
+  --bg-raised:      #1c2640;
+  --bg-hover:       #1f2d47;
+
+  --border-subtle:  rgba(255,255,255,0.055);
+  --border-mid:     rgba(255,255,255,0.11);
+  --border-strong:  rgba(255,255,255,0.22);
+
+  --accent:         #e8a838;
+  --accent-dim:     rgba(232,168,56,0.13);
+  --accent-border:  rgba(232,168,56,0.35);
+
+  --folder-bg:      #1a2540;
+  --folder-bg-h:    #1e2e52;
+  --folder-border:  rgba(91,141,238,0.38);
+  --folder-text:    #7eaaee;
+
+  --file-bg:        #131921;
+  --file-bg-h:      #182030;
+  --file-border:    rgba(255,255,255,0.075);
+  --file-text:      #6e82a0;
+
+  --green:          #2dd4a0;
+  --green-dim:      rgba(45,212,160,0.12);
+  --red:            #f4645f;
+  --red-dim:        rgba(244,100,95,0.12);
+  --blue:           #5b8dee;
+  --blue-dim:       rgba(91,141,238,0.13);
+  --yellow:         #f5c542;
+  --yellow-dim:     rgba(245,197,66,0.13);
+
+  --text-primary:   #dde2ed;
+  --text-secondary: #8a96b0;
+  --text-muted:     #4a5870;
+  --text-accent:    #e8a838;
+
+  --font-ui:        'DM Sans', system-ui, sans-serif;
+  --font-mono:      'IBM Plex Mono', 'Consolas', monospace;
+
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 12px;
+
+  --ease: 0.16s ease;
+}
+
+/* ------------------------------------------------------------
+   RESET
+------------------------------------------------------------ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------
+   SCROLLBARS
+------------------------------------------------------------ */
+#treeContainer::-webkit-scrollbar { width: 7px; height: 7px; }
+#treeContainer::-webkit-scrollbar-track { background: transparent; }
+#treeContainer::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 4px;
+}
+#treeContainer::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+.ignore-chips-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+.ignore-chips-wrap::-webkit-scrollbar-track { background: transparent; }
+.ignore-chips-wrap::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 2px;
+}
+
+.search-suggestions::-webkit-scrollbar { width: 4px; }
+.search-suggestions::-webkit-scrollbar-track { background: transparent; }
+.search-suggestions::-webkit-scrollbar-thumb {
+  background: rgba(232,168,56,0.2);
+  border-radius: 2px;
+}
+
+/* ------------------------------------------------------------
+   RESPONSIVE
+------------------------------------------------------------ */
+@media (max-width: 1300px) {
+  .repo-name { max-width: 180px; }
+  .search-input { width: 190px; }
+  .search-input:focus { width: 250px; }
+}
+
+@media (max-width: 1100px) {
+  .navbar-row--primary {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+    gap: 8px;
+    row-gap: 8px;
+  }
+  .navbar-section.right { margin-left: auto; }
+  .navbar-section.center { flex: 1; justify-content: center; }
+}
+
+@media (max-width: 900px) {
+  .search-section { order: -1; width: 100%; }
+  .search-input { width: 100%; }
+  .search-input:focus { width: 100%; }
+  .search-suggestions { width: 100%; }
+}
+
+@media (max-width: 768px) {
+  html, body { font-size: 13.5px; }
+  .navbar-row--primary { padding: 8px 12px; }
+  .status-bar { padding: 0 12px; height: 40px; }
+  .filter-bar { padding: 7px 12px; }
+  .repo-name { max-width: 140px; font-size: 11.5px; }
+  .filter-text-input { width: 130px; }
+  #progressText { font-size: 12px; min-width: 32px; }
+  .progress-label { display: none; }
+  .tree-view-container { padding: 10px; }
+  .tree-root { flex-direction: column; align-items: center; gap: 18px; }
+  .children { gap: 16px; }
+  button { font-size: 13px; padding: 0 11px; height: 34px; }
+  .tool-btn { height: 32px; }
+}
+
+@media (max-width: 560px) {
+  .status-bar { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+  .status-spacer { display: none; }
+  .progress-container { width: 100%; max-width: 100%; }
+  .selection-counter { flex: 1; }
+  .counter-label { display: none; }
+}
+
+@media (max-width: 480px) {
+  .navbar-section.center { width: 100%; justify-content: space-between; }
+  .search-input { font-size: 13px; }
+}
