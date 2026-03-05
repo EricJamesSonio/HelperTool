@@ -23,9 +23,10 @@
 
 ![Version 2 UI](../assets/v2/4.png)
 
-# o.5 V
+# 0.5 V
 * [Added light/dark mode]
 
-![Version 2 UI](../assets/v2/5.png)
+![Version 2 UI](../assets/v2/5.1.png)
+![Version 2 UI](../assets/v2/5.2.png)
 
 ---
