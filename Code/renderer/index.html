@@ -14,174 +14,142 @@
 
     <!-- ══ ROW 1: Primary actions ══ -->
     <div class="navbar-row navbar-row--primary">
-
-      <!-- Search -->
       <div class="navbar-section search-section">
-        <input
-          type="text"
-          id="treeSearchInput"
-          placeholder="Search folder/file..."
-          class="search-input"
-        />
+        <input type="text" id="treeSearchInput" placeholder="Search files & folders…" class="search-input" />
         <ul id="searchSuggestions" class="search-suggestions"></ul>
       </div>
 
-      <!-- Repo selection -->
       <div class="navbar-section">
         <button id="selectRepoBtn" class="primary-btn">
-          <span class="btn-icon">📁</span>
-          Select Repo
+          <span class="btn-icon">📁</span>Select Repo
         </button>
-        <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh folder tree">
+        <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh">
           <span class="btn-icon refresh-icon">🔄</span>
-          Refresh
         </button>
         <span id="activeRepoName" class="repo-name">No repo selected</span>
       </div>
 
-      <!-- Mode + Generate -->
       <div class="navbar-section center">
-        <button id="structureBtn" class="action-btn">
-          <span class="btn-icon">🌳</span>
-          Structure
-        </button>
-        <button id="codeBtn" class="action-btn">
-          <span class="btn-icon">💻</span>
-          Code
-        </button>
-        <button id="generateBtn" class="action-btn generate-btn">
-          <span class="btn-icon">⚡</span>
-          Generate
-        </button>
+        <button id="structureBtn" class="action-btn"><span class="btn-icon">🌳</span>Structure</button>
+        <button id="codeBtn" class="action-btn"><span class="btn-icon">💻</span>Code</button>
+        <button id="generateBtn" class="action-btn generate-btn"><span class="btn-icon">⚡</span>Generate</button>
       </div>
 
-      <!-- Tools -->
       <div class="navbar-section right">
-        <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear All Selections">
-          <span class="btn-icon">✕</span>
-          Clear
-        </button>
-        <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore">
-          <span class="btn-icon">⚙️</span>
-          Ignore
-        </button>
+        <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon">✕</span></button>
+        <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore"><span class="btn-icon">⚙️</span></button>
       </div>
     </div>
 
-    <!-- ══ ROW 2: Status bar ══ -->
-    <div class="status-bar">
-      <div class="selection-counter">
+    <!-- ══ ROW 2: Status + Filter bar (combined, lean) ══ -->
+    <div class="status-filter-bar">
+
+      <!-- Left: selection counter -->
+      <div class="selection-counter" id="selectionCounterEl">
         <span class="counter-icon">✓</span>
         <span id="selectionCount">0</span>
         <span class="counter-label">selected</span>
       </div>
 
-      <div class="status-spacer"></div>
-
-      <div class="progress-container">
-        <span class="progress-label">Progress</span>
-        <progress id="progressBar" value="0" max="100"></progress>
-        <span id="progressText">0%</span>
-      </div>
-    </div>
-
-    <!-- ══ Extension Filter Bar ══ -->
-    <div class="filter-bar" id="filterContainer">
-      <span class="filter-label">🔍 Filter:</span>
+      <!-- Center: ext filter input -->
       <div class="filter-input-wrap">
+        <span class="filter-input-icon">⌕</span>
         <input
           type="text"
           id="filterInput"
-          placeholder="e.g. js, ts, html..."
+          placeholder="Filter by extension…"
           class="filter-text-input"
           autocomplete="off"
         />
         <ul id="extSuggestions" class="ext-suggestions"></ul>
+        <!-- Active ext filter chips — live inline here, small -->
+        <div id="activeFilters" class="active-filters-inline"></div>
       </div>
-      <div id="activeFilters" class="active-filters"></div>
 
-      <div class="filter-divider"></div>
+      <!-- Right: panel toggles + progress -->
+      <div class="bar-right">
+        <!-- Ext ignore toggle -->
+        <button id="ignoreToggleBtn" class="panel-toggle-btn" title="Manage ignored extensions">
+          <span>🚫 Ext</span>
+          <span class="toggle-badge ignore-badge" style="display:none"></span>
+        </button>
 
-      <!-- Extension ignore toggle -->
-      <button id="ignoreToggleBtn" class="tool-btn ignore-toggle-btn" title="Manage ignored extensions">
-        <span class="btn-icon">🚫</span>
-        Ext Ignore
-        <span class="ignore-badge" style="display:none">0</span>
-      </button>
+        <!-- Folder filter toggle -->
+        <button id="folderToggleBtn" class="panel-toggle-btn folder-toggle-btn" title="Manage folder filters">
+          <span>📁 Folders</span>
+          <span class="toggle-badge folder-badge" style="display:none"></span>
+        </button>
 
-      <!-- Folder filter toggle -->
-      <button id="folderToggleBtn" class="tool-btn folder-toggle-btn" title="Manage folder filters">
-        <span class="btn-icon">📁</span>
-        Folders
-        <span class="folder-badge" style="display:none">0</span>
-      </button>
+        <div class="bar-divider"></div>
+
+        <!-- Progress -->
+        <div class="progress-compact">
+          <progress id="progressBar" value="0" max="100"></progress>
+          <span id="progressText">0%</span>
+        </div>
+      </div>
     </div>
 
     <!-- ══ Extension Ignore Panel ══ -->
-    <div id="ignorePanel" class="ignore-panel">
-      <div class="ignore-panel-inner">
-        <div class="ignore-col">
-          <div class="ignore-col-header">
-            <span class="ignore-col-icon">📂</span>
-            <span class="ignore-col-title">Detected Extensions</span>
-            <span class="ignore-col-hint">Click to ignore →</span>
+    <div id="ignorePanel" class="slide-panel">
+      <div class="slide-panel-inner">
+
+        <!-- Left col: available -->
+        <div class="panel-col">
+          <div class="panel-col-label">
+            <span class="col-label-dot dot-blue"></span>
+            Detected Extensions
+            <span class="col-label-hint">click to ignore</span>
           </div>
-          <div id="availableExts" class="ignore-chips-wrap"></div>
+          <div id="availableExts" class="chip-list"></div>
         </div>
-        <div class="ignore-divider-vert">
-          <span class="ignore-arrow">⟶</span>
-        </div>
-        <div class="ignore-col">
-          <div class="ignore-col-header">
-            <span class="ignore-col-icon">🚫</span>
-            <span class="ignore-col-title">Ignored Extensions</span>
-            <span class="ignore-col-hint">Hidden from tree</span>
+
+        <!-- Right col: ignored -->
+        <div class="panel-col panel-col-active">
+          <div class="panel-col-label">
+            <span class="col-label-dot dot-red"></span>
+            Ignored
+            <span id="extIgnoredCount" class="col-count"></span>
           </div>
-          <div id="ignoredExts" class="ignore-chips-wrap"></div>
+          <div id="ignoredExts" class="chip-list chip-list-active"></div>
         </div>
+
       </div>
     </div>
 
     <!-- ══ Folder Filter Panel ══ -->
-    <div id="folderPanel" class="ignore-panel folder-panel">
-      <div class="folder-panel-inner">
+    <div id="folderPanel" class="slide-panel">
+      <div class="slide-panel-inner">
 
-        <!-- Left: All detected folders -->
-        <div class="ignore-col folder-available-col">
-          <div class="ignore-col-header">
-            <span class="ignore-col-icon">📁</span>
-            <span class="ignore-col-title">Detected Folders</span>
-            <span class="ignore-col-hint">Ignore or Focus →</span>
+        <!-- Left col: available folders -->
+        <div class="panel-col panel-col-folders">
+          <div class="panel-col-label">
+            <span class="col-label-dot dot-blue"></span>
+            Detected Folders
+            <span class="col-label-hint">ignore or focus</span>
           </div>
-          <div id="availableFolders" class="ignore-chips-wrap folder-chips-wrap"></div>
+          <div id="availableFolders" class="chip-list chip-list-folders"></div>
         </div>
 
-        <div class="ignore-divider-vert folder-divider-double">
-          <span class="ignore-arrow">⟶</span>
-        </div>
-
-        <!-- Middle: Ignored folders -->
-        <div class="ignore-col">
-          <div class="ignore-col-header">
-            <span class="ignore-col-icon">🚫</span>
-            <span class="ignore-col-title">Ignored Folders</span>
-            <span class="ignore-col-hint">Hidden from tree</span>
+        <!-- Middle col: ignored folders -->
+        <div class="panel-col panel-col-active">
+          <div class="panel-col-label">
+            <span class="col-label-dot dot-red"></span>
+            Ignored
+            <span id="folderIgnoredCount" class="col-count"></span>
           </div>
-          <div id="ignoredFolders" class="ignore-chips-wrap"></div>
+          <div id="ignoredFolders" class="chip-list chip-list-active"></div>
         </div>
 
-        <div class="ignore-divider-vert">
-          <span class="ignore-arrow" style="color: #2dd4a0;">⟶</span>
-        </div>
-
-        <!-- Right: Focused folders -->
-        <div class="ignore-col">
-          <div class="ignore-col-header">
-            <span class="ignore-col-icon">🎯</span>
-            <span class="ignore-col-title">Focused Folders</span>
-            <span class="ignore-col-hint">Show only these</span>
+        <!-- Right col: focused folders -->
+        <div class="panel-col panel-col-active">
+          <div class="panel-col-label">
+            <span class="col-label-dot dot-green"></span>
+            Focused
+            <span id="folderFocusedCount" class="col-count"></span>
+            <span class="col-label-hint" style="margin-left:4px">show only</span>
           </div>
-          <div id="focusedFolders" class="ignore-chips-wrap"></div>
+          <div id="focusedFolders" class="chip-list chip-list-active"></div>
         </div>
 
       </div>

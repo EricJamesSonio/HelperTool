@@ -1,367 +1,582 @@
 /* ============================================================
    IGNORE-PANEL.CSS — Extension ignore + Folder filter panels
+   Redesigned: panels are self-contained, filter bar stays lean
    ============================================================ */
 
-/* ── Toggle buttons in filter bar ────────────────────────── */
-.filter-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--border-subtle);
-  flex-shrink: 0;
-  margin: 0 6px;
-}
-
-/* Extension ignore toggle */
-.ignore-toggle-btn {
-  position: relative;
-  border-color: rgba(244,100,95,0.2);
-  color: var(--text-secondary);
-  gap: 6px;
-  transition: background var(--ease), border-color var(--ease), color var(--ease);
-}
-.ignore-toggle-btn:hover {
-  background: var(--red-dim);
-  border-color: rgba(244,100,95,0.4);
-  color: var(--red);
-}
-.ignore-toggle-btn.active {
-  background: var(--red-dim);
-  border-color: rgba(244,100,95,0.45);
-  color: var(--red);
-}
-
-/* Folder filter toggle */
-.folder-toggle-btn {
-  position: relative;
-  border-color: rgba(91,141,238,0.2);
-  color: var(--text-secondary);
-  gap: 6px;
-  transition: background var(--ease), border-color var(--ease), color var(--ease);
-}
-.folder-toggle-btn:hover {
-  background: var(--blue-dim);
-  border-color: rgba(91,141,238,0.4);
-  color: var(--blue);
-}
-.folder-toggle-btn.active {
-  background: var(--blue-dim);
-  border-color: rgba(91,141,238,0.45);
-  color: var(--blue);
-}
-
-/* Badges */
-.ignore-badge,
-.folder-badge {
-  display: inline-flex;
+/* ══════════════════════════════════════════════════════════
+   STATUS + FILTER BAR (combined row)
+   ══════════════════════════════════════════════════════════ */
+.status-filter-bar {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
+  gap: 0;
+  height: 46px;
+  background: var(--bg-statusbar);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  padding: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 40;
+}
+
+/* ── Selection counter ──────────────────────────────────── */
+.selection-counter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 18px;
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background var(--ease), color var(--ease);
+  white-space: nowrap;
+}
+.selection-counter.has-selections {
+  background: rgba(45,212,160,0.07);
+  color: var(--green);
+}
+.counter-icon { font-size: 11px; }
+#selectionCount {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 1;
-  flex-shrink: 0;
+  min-width: 18px;
+  text-align: center;
 }
-.ignore-badge { background: var(--red); color: #fff; }
-.folder-badge { background: var(--blue); color: #fff; }
+.counter-label { font-size: 12px; opacity: 0.7; }
 
-/* ── Panel container (shared) ─────────────────────────────── */
-.ignore-panel {
-  max-height: 0;
-  overflow: hidden;
-  background: #0c1520;
-  border-bottom: 0px solid var(--border-subtle);
-  transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              border-bottom-width 0.32s ease;
-  flex-shrink: 0;
-}
-.ignore-panel.open {
-  max-height: 280px;
-  border-bottom-width: 1px;
-}
-
-/* ── Extension panel inner ────────────────────────────────── */
-.ignore-panel-inner {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  gap: 0;
-  padding: 14px 22px;
-  min-height: 0;
-}
-
-/* ── Folder panel inner (3 columns) ──────────────────────── */
-.folder-panel-inner {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  gap: 0;
-  padding: 14px 22px;
-  min-height: 0;
-}
-
-/* ── Columns ──────────────────────────────────────────────── */
-.ignore-col {
+/* ── Filter input (center, flex grows) ─────────────────── */
+.filter-input-wrap {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 0 14px;
+  border-right: 1px solid var(--border-subtle);
+  position: relative;
   min-width: 0;
 }
 
-/* Available folders column slightly wider — has action buttons */
-.folder-available-col { flex: 1.4; }
-
-.ignore-col-header {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-subtle);
+.filter-input-icon {
+  font-size: 16px;
+  color: var(--text-muted);
   flex-shrink: 0;
+  line-height: 1;
+  pointer-events: none;
 }
 
-.ignore-col-icon { font-size: 14px; }
+.filter-text-input {
+  height: 28px;
+  padding: 0 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xs);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  width: 180px;
+  flex-shrink: 0;
+  outline: none;
+  transition: border-color var(--ease), width 0.2s ease;
+}
+.filter-text-input:focus {
+  border-color: var(--accent);
+  width: 240px;
+}
+.filter-text-input::placeholder { color: var(--text-muted); }
 
-.ignore-col-title {
+/* Inline active ext filter chips (compact, inside filter wrap) */
+.active-filters-inline {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  align-items: center;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-chip-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 3px;
   font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.filter-chip-inline .chip-x {
+  font-size: 10px;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--ease);
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  height: auto;
+  line-height: 1;
+}
+.filter-chip-inline .chip-x:hover { opacity: 1; }
+
+/* Ext suggestions dropdown */
+.ext-suggestions {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r-md);
+  list-style: none;
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 300;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+}
+.ext-suggestions li {
+  padding: 7px 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
   color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--ease), color var(--ease);
 }
+.ext-suggestions li:hover { background: var(--bg-hover); color: var(--accent); }
 
-.ignore-col-hint {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-left: auto;
-  font-style: italic;
-}
-
-/* ── Dividers ─────────────────────────────────────────────── */
-.ignore-divider-vert {
+/* ── Right side: toggles + progress ────────────────────── */
+.bar-right {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0 16px;
+  gap: 0;
+  height: 100%;
   flex-shrink: 0;
 }
 
-.ignore-arrow {
-  font-size: 20px;
-  color: var(--border-mid);
-  line-height: 1;
-  user-select: none;
+.bar-divider {
+  width: 1px;
+  height: 26px;
+  background: var(--border-subtle);
+  margin: 0 2px;
 }
 
-/* ── Chip wrap ────────────────────────────────────────────── */
-.ignore-chips-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-content: flex-start;
-  overflow-y: auto;
-  max-height: 150px;
-  padding: 2px 0 4px;
-}
-
-/* Folder available column — chips need more height for action buttons */
-.folder-chips-wrap { max-height: 160px; }
-
-/* ── Individual chips (base) ──────────────────────────────── */
-.ignore-chip {
+/* Panel toggle buttons */
+.panel-toggle-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  height: 100%;
+  padding: 0 16px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-subtle);
+  border-radius: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--ease), color var(--ease);
+  position: relative;
+}
+.panel-toggle-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.panel-toggle-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+/* Active underline indicator */
+.panel-toggle-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 1px;
+}
+#ignoreToggleBtn.active::after  { background: var(--red); }
+#folderToggleBtn.active::after  { background: var(--blue); }
+
+/* Folder toggle specific color on active */
+.folder-toggle-btn.active { color: var(--blue); }
+#ignoreToggleBtn.active   { color: var(--red); }
+
+/* Badges */
+.toggle-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+.ignore-badge { background: var(--red);  color: #fff; }
+.folder-badge { background: var(--blue); color: #fff; }
+
+/* Compact progress */
+.progress-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-left: 1px solid var(--border-subtle);
+  height: 100%;
+}
+.progress-compact progress {
+  width: 100px;
+  height: 4px;
+  border: none;
+  border-radius: 2px;
+  background: var(--bg-raised);
+  appearance: none;
+  -webkit-appearance: none;
+}
+.progress-compact progress::-webkit-progress-bar  { background: var(--bg-raised); border-radius: 2px; }
+.progress-compact progress::-webkit-progress-value { background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+.progress-compact progress::-moz-progress-bar { background: var(--accent); border-radius: 2px; }
+#progressText {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SLIDE PANELS (shared structure for ext + folder)
+   ══════════════════════════════════════════════════════════ */
+.slide-panel {
+  max-height: 0;
+  overflow: hidden;
+  background: #0a1420;
+  border-bottom: 0px solid var(--border-subtle);
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-bottom-width 0.3s ease;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 30;
+}
+.slide-panel.open {
+  max-height: 230px;
+  border-bottom-width: 1px;
+}
+
+.slide-panel-inner {
+  display: flex;
+  flex-direction: row;
+  height: 230px;
+  overflow: hidden;
+}
+
+/* ── Panel columns ──────────────────────────────────────── */
+.panel-col {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+/* Detected (source) column — wider */
+.panel-col:first-child { flex: 1.5; }
+
+/* Active (ignored / focused) columns — narrower */
+.panel-col-active { flex: 1; }
+
+/* Folder available column — widest because of action buttons */
+.panel-col-folders { flex: 2; }
+
+.panel-col:last-child { border-right: none; }
+
+/* Column header */
+.panel-col-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.col-label-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-blue  { background: var(--blue); }
+.dot-red   { background: var(--red); }
+.dot-green { background: var(--green); }
+
+.col-label-hint {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.col-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Chip list scroll area */
+.chip-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.chip-list::-webkit-scrollbar { width: 3px; }
+.chip-list::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+/* Active column chip lists — slight tint */
+.chip-list-active {
+  background: rgba(0,0,0,0.15);
+}
+
+/* Folder list — needs horizontal room for action buttons */
+.chip-list-folders { gap: 4px; }
+
+/* ── Extension chips (source list) ─────────────────────── */
+.ext-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
   border-radius: var(--r-xs);
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 500;
-  user-select: none;
-  border: 1px solid transparent;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--folder-text);
+  cursor: pointer;
   transition: background var(--ease), border-color var(--ease), color var(--ease);
   white-space: nowrap;
+  user-select: none;
 }
-
-/* Available ext chip */
-.ignore-chip.available:not(.folder-chip) {
-  background: var(--blue-dim);
-  border-color: rgba(91,141,238,0.25);
-  color: var(--folder-text);
-  cursor: pointer;
+.ext-chip:hover {
+  background: var(--red-dim);
+  border-color: rgba(244,100,95,0.35);
+  color: var(--red);
 }
-.ignore-chip.available:not(.folder-chip):hover {
-  background: rgba(91,141,238,0.2);
-  border-color: rgba(91,141,238,0.5);
-  color: #9ec4f5;
-}
-.ignore-chip.available:not(.folder-chip) .ignore-chip-action {
+.ext-chip .chip-arrow {
+  margin-left: auto;
   font-size: 10px;
   opacity: 0;
-  color: var(--red);
   transition: opacity var(--ease);
-  font-family: var(--font-ui);
-  letter-spacing: 0.03em;
-}
-.ignore-chip.available:not(.folder-chip):hover .ignore-chip-action { opacity: 1; }
-
-/* Ignored chip (ext + folder) */
-.ignore-chip.ignored {
-  background: var(--red-dim);
-  border-color: rgba(244,100,95,0.3);
   color: var(--red);
 }
-.ignore-chip.ignored:hover {
-  background: rgba(244,100,95,0.18);
-  border-color: rgba(244,100,95,0.5);
-}
+.ext-chip:hover .chip-arrow { opacity: 1; }
 
-/* Focused folder chip */
-.ignore-chip.focused {
-  background: rgba(45,212,160,0.12);
-  border-color: rgba(45,212,160,0.35);
-  color: var(--green);
+/* Ignored ext chips */
+.ext-chip-ignored {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--red-dim);
+  border: 1px solid rgba(244,100,95,0.28);
+  color: var(--red);
+  cursor: default;
+  white-space: nowrap;
+  user-select: none;
 }
-.ignore-chip.focused:hover {
-  background: rgba(45,212,160,0.2);
-  border-color: rgba(45,212,160,0.55);
+.ext-chip-ignored .chip-remove-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--red);
+  opacity: 0.45;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  height: auto;
+  line-height: 1;
+  transition: opacity var(--ease);
 }
+.ext-chip-ignored .chip-remove-btn:hover { opacity: 1; transform: none !important; }
 
-/* Clear/restore chip */
-.ignore-chip.ignore-clear-all {
-  background: transparent;
-  border-color: var(--border-subtle);
-  color: var(--text-muted);
+/* Restore-all row */
+.chip-restore-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
   font-family: var(--font-ui);
   font-size: 11.5px;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-subtle);
   cursor: pointer;
+  transition: background var(--ease), color var(--ease), border-color var(--ease);
+  margin-top: 4px;
 }
-.ignore-chip.ignore-clear-all:hover {
+.chip-restore-all:hover {
   background: var(--bg-surface);
-  border-color: var(--border-mid);
   color: var(--text-secondary);
-}
-
-/* ── Folder chip — horizontal layout with action buttons ──── */
-.ignore-chip.folder-chip.available {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  background: var(--bg-surface);
   border-color: var(--border-mid);
-  color: var(--folder-text);
-  cursor: default;
-  padding: 5px 10px 5px 12px;
-  width: 100%;
-  box-sizing: border-box;
-}
-.ignore-chip.folder-chip.available:hover {
-  background: var(--bg-raised);
-  border-color: var(--border-strong);
 }
 
-.folder-chip-name {
+/* Empty state */
+.chip-empty {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 6px 10px;
+  text-align: center;
+}
+
+/* ── Folder chips (source list) ─────────────────────────── */
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 10px;
+  border-radius: var(--r-xs);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  transition: background var(--ease), border-color var(--ease);
+  min-width: 0;
+}
+.folder-row:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-mid);
+}
+
+.folder-row-name {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--folder-text);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
+  min-width: 0;
 }
 
-.folder-chip-actions {
+.folder-row-actions {
   display: flex;
-  gap: 5px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-.folder-action-btn {
+.folder-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  height: 22px;
+  border-radius: 3px;
   font-family: var(--font-ui);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 2px 9px !important;
-  height: 24px !important;
-  min-width: unset;
-  border-radius: var(--r-xs);
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background var(--ease), border-color var(--ease), color var(--ease);
   white-space: nowrap;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
 }
-
-.ignore-action-btn {
+.folder-btn-ignore {
   background: var(--red-dim);
-  border-color: rgba(244,100,95,0.3);
+  border-color: rgba(244,100,95,0.28);
   color: var(--red);
 }
-.ignore-action-btn:hover {
+.folder-btn-ignore:hover {
   background: rgba(244,100,95,0.22);
-  border-color: rgba(244,100,95,0.55);
+  border-color: rgba(244,100,95,0.5);
 }
-
-.focus-action-btn {
+.folder-btn-focus {
   background: rgba(45,212,160,0.1);
-  border-color: rgba(45,212,160,0.3);
+  border-color: rgba(45,212,160,0.28);
   color: var(--green);
 }
-.focus-action-btn:hover {
+.folder-btn-focus:hover {
   background: rgba(45,212,160,0.2);
-  border-color: rgba(45,212,160,0.55);
+  border-color: rgba(45,212,160,0.5);
 }
 
-/* ── Remove button (inside chips) ────────────────────────── */
-.ignore-chip-remove {
-  background: none !important;
-  border: none !important;
+/* Active folder chips (ignored / focused columns) */
+.folder-chip-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.folder-chip-active.type-ignored {
+  background: var(--red-dim);
+  border: 1px solid rgba(244,100,95,0.28);
+  color: var(--red);
+}
+.folder-chip-active.type-focused {
+  background: rgba(45,212,160,0.1);
+  border: 1px solid rgba(45,212,160,0.28);
+  color: var(--green);
+}
+.folder-chip-active .chip-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.folder-chip-active .chip-remove-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.45;
   cursor: pointer;
   font-size: 10px;
-  padding: 0 !important;
+  padding: 0;
+  height: auto;
   line-height: 1;
-  opacity: 0.5;
-  height: auto !important;
-  box-shadow: none !important;
+  flex-shrink: 0;
   transition: opacity var(--ease);
-  min-width: unset !important;
-  width: auto !important;
-  color: inherit !important;
 }
-.ignore-chip-remove:hover { opacity: 1 !important; transform: none !important; }
-
-/* ── Empty state ──────────────────────────────────────────── */
-.ignore-empty {
-  font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
-  padding: 4px 2px;
-}
-
-/* ── Filter bar chips for folder filters ─────────────────── */
-.filter-chip.folder-ignored-chip {
-  background: var(--red-dim);
-  border: 1px solid rgba(244,100,95,0.3);
-  color: var(--red);
-}
-.filter-chip.folder-focused-chip {
-  background: rgba(45,212,160,0.1);
-  border: 1px solid rgba(45,212,160,0.3);
-  color: var(--green);
-}
-.filter-chip.folder-ignored-chip .chip-remove,
-.filter-chip.folder-focused-chip .chip-remove {
-  color: inherit;
-  opacity: 0.55;
-}
-.filter-chip.folder-ignored-chip .chip-remove:hover,
-.filter-chip.folder-focused-chip .chip-remove:hover {
-  opacity: 1;
-  color: inherit;
-}
+.folder-chip-active .chip-remove-btn:hover { opacity: 1; transform: none !important; }

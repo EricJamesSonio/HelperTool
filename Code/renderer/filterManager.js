@@ -2,36 +2,45 @@
  * filterManager.js
  * Handles extension filter chips, suggestions, tree filtering,
  * folder ignore/focus filtering, and ignore-list detection.
+ *
+ * Design: panels are self-contained. The status-filter bar only shows
+ * inline ext filter chips. Folder filters NEVER appear outside the panel.
  */
 
-const filterInput = document.getElementById('filterInput');
-const activeFiltersEl = document.getElementById('activeFilters');
+const filterInput    = document.getElementById('filterInput');
+const activeFiltersEl = document.getElementById('activeFilters'); // inline ext chips only
 const extSuggestionsEl = document.getElementById('extSuggestions');
 
-// ── Extension ignore panel elements ────────────────────────
-const availableExtsEl = document.getElementById('availableExts');
-const ignoredExtsEl = document.getElementById('ignoredExts');
-const ignoreToggleBtn = document.getElementById('ignoreToggleBtn');
-const ignorePanel = document.getElementById('ignorePanel');
+// Extension panel
+const availableExtsEl  = document.getElementById('availableExts');
+const ignoredExtsEl    = document.getElementById('ignoredExts');
+const extIgnoredCount  = document.getElementById('extIgnoredCount');
+const ignoreToggleBtn  = document.getElementById('ignoreToggleBtn');
+const ignorePanel      = document.getElementById('ignorePanel');
 
-// ── Folder filter panel elements ────────────────────────────
-const folderToggleBtn = document.getElementById('folderToggleBtn');
-const folderPanel = document.getElementById('folderPanel');
+// Folder panel
+const folderToggleBtn    = document.getElementById('folderToggleBtn');
+const folderPanel        = document.getElementById('folderPanel');
 const availableFoldersEl = document.getElementById('availableFolders');
-const ignoredFoldersEl = document.getElementById('ignoredFolders');
-const focusedFoldersEl = document.getElementById('focusedFolders');
+const ignoredFoldersEl   = document.getElementById('ignoredFolders');
+const focusedFoldersEl   = document.getElementById('focusedFolders');
+const folderIgnoredCount = document.getElementById('folderIgnoredCount');
+const folderFocusedCount = document.getElementById('folderFocusedCount');
 
-export const activeExtensions = new Set();   // empty = show all
-export const ignoredExtensions = new Set();  // extensions hidden from tree
-export const ignoredFolders = new Set();     // folders hidden from tree
-export const focusedFolders = new Set();     // when non-empty, show ONLY these folders
+// State
+export const activeExtensions  = new Set();
+export const ignoredExtensions = new Set();
+export const ignoredFolders    = new Set();
+export const focusedFolders    = new Set();
 
-let _displayTree = null;
-let _getCachedTree = null;
-
-// ── Panel visibility ────────────────────────────────────────
+let _displayTree    = null;
+let _getCachedTree  = null;
 let ignorePanelOpen = false;
 let folderPanelOpen = false;
+
+/* ============================================================
+   PANEL TOGGLES
+   ============================================================ */
 
 if (ignoreToggleBtn && ignorePanel) {
     ignoreToggleBtn.addEventListener('click', () => {
@@ -124,109 +133,48 @@ export function filterTree(tree) {
             if (focusedFolders.size > 0 && !isInsideFolder(node.path, focusedFolders)) return null;
             return node;
         }
-
         if (node.type === 'folder') {
             if (ignoredFolders.has(node.path)) return null;
-
             if (focusedFolders.size > 0) {
-                const isTarget = focusedFolders.has(node.path);
+                const isTarget   = focusedFolders.has(node.path);
                 const isAncestor = [...focusedFolders].some(fp =>
                     fp.startsWith(node.path + '\\') || fp.startsWith(node.path + '/')
                 );
                 if (!isTarget && !isAncestor) return null;
             }
-
             const filteredChildren = (node.children || []).map(filterNode).filter(Boolean);
-            // Keep focused folders even if empty after filtering
             if (filteredChildren.length === 0 && focusedFolders.size === 0) return null;
             return { ...node, children: filteredChildren };
         }
-
         return node;
     }
-
     return tree.map(filterNode).filter(Boolean);
 }
 
 /* ============================================================
-   FILTER BAR CHIPS
+   FILTER BAR — inline ext chips only (no folder chips here)
    ============================================================ */
 
 export function renderFilterChips() {
+    if (!activeFiltersEl) return;
     activeFiltersEl.innerHTML = '';
 
     activeExtensions.forEach(ext => {
         const chip = document.createElement('div');
-        chip.className = 'filter-chip active';
-        chip.innerHTML = `<span>.${ext}</span><button class="chip-remove" data-ext="${ext}">✕</button>`;
-        chip.querySelector('.chip-remove').addEventListener('click', () => {
+        chip.className = 'filter-chip-inline';
+        chip.innerHTML = `<span>.${ext}</span>`;
+
+        const x = document.createElement('button');
+        x.className = 'chip-x';
+        x.textContent = '✕';
+        x.addEventListener('click', () => {
             activeExtensions.delete(ext);
             renderFilterChips();
-            _displayTree();
+            _displayTree?.();
         });
+        chip.appendChild(x);
         activeFiltersEl.appendChild(chip);
     });
-
-    ignoredFolders.forEach(fp => {
-        const name = fp.split(/[/\\]/).pop();
-        const chip = document.createElement('div');
-        chip.className = 'filter-chip folder-ignored-chip';
-        chip.title = fp;
-        chip.innerHTML = `<span>🚫 ${name}</span><button class="chip-remove">✕</button>`;
-        chip.querySelector('.chip-remove').addEventListener('click', () => {
-            ignoredFolders.delete(fp);
-            renderFilterChips();
-            _displayTree();
-            saveFolderFilters();
-            const tree = _getCachedTree?.();
-            if (tree && folderPanelOpen) renderFolderPanel(tree);
-            updateFolderBadge();
-        });
-        activeFiltersEl.appendChild(chip);
-    });
-
-    focusedFolders.forEach(fp => {
-        const name = fp.split(/[/\\]/).pop();
-        const chip = document.createElement('div');
-        chip.className = 'filter-chip folder-focused-chip';
-        chip.title = fp;
-        chip.innerHTML = `<span>🎯 ${name}</span><button class="chip-remove">✕</button>`;
-        chip.querySelector('.chip-remove').addEventListener('click', () => {
-            focusedFolders.delete(fp);
-            renderFilterChips();
-            _displayTree();
-            saveFolderFilters();
-            const tree = _getCachedTree?.();
-            if (tree && folderPanelOpen) renderFolderPanel(tree);
-            updateFolderBadge();
-        });
-        activeFiltersEl.appendChild(chip);
-    });
-
-    if (activeExtensions.size > 0) {
-        const c = document.createElement('div');
-        c.className = 'filter-chip clear-all';
-        c.textContent = 'Clear ext';
-        c.addEventListener('click', () => { activeExtensions.clear(); renderFilterChips(); _displayTree(); });
-        activeFiltersEl.appendChild(c);
-    }
-
-    if (ignoredFolders.size > 0 || focusedFolders.size > 0) {
-        const c = document.createElement('div');
-        c.className = 'filter-chip clear-all';
-        c.textContent = 'Clear folders';
-        c.addEventListener('click', () => {
-            ignoredFolders.clear();
-            focusedFolders.clear();
-            renderFilterChips();
-            _displayTree();
-            saveFolderFilters();
-            const tree = _getCachedTree?.();
-            if (tree && folderPanelOpen) renderFolderPanel(tree);
-            updateFolderBadge();
-        });
-        activeFiltersEl.appendChild(c);
-    }
 }
 
 /* ============================================================
@@ -237,66 +185,77 @@ export function renderIgnorePanel(tree) {
     if (!availableExtsEl || !ignoredExtsEl) return;
 
     const allExts = [...collectExtensions(tree)].sort();
-    availableExtsEl.innerHTML = '';
     const available = allExts.filter(e => !ignoredExtensions.has(e));
 
+    // ── Available column ──
+    availableExtsEl.innerHTML = '';
     if (available.length === 0) {
-        availableExtsEl.innerHTML = '<span class="ignore-empty">All extensions ignored</span>';
+        availableExtsEl.innerHTML = '<div class="chip-empty">All extensions ignored</div>';
     } else {
         available.forEach(ext => {
             const chip = document.createElement('div');
-            chip.className = 'ignore-chip available';
-            chip.title = `Click to ignore .${ext} files`;
-            chip.innerHTML = `<span>.${ext}</span><span class="ignore-chip-action">→ ignore</span>`;
+            chip.className = 'ext-chip';
+            chip.innerHTML = `<span>.${ext}</span><span class="chip-arrow">→ ignore</span>`;
             chip.addEventListener('click', () => {
                 ignoredExtensions.add(ext);
                 activeExtensions.delete(ext);
                 renderFilterChips();
                 renderIgnorePanel(tree);
-                _displayTree();
+                _displayTree?.();
                 saveIgnoredExtensions();
+                updateExtBadge();
             });
             availableExtsEl.appendChild(chip);
         });
     }
 
+    // ── Ignored column ──
     ignoredExtsEl.innerHTML = '';
+    if (extIgnoredCount) extIgnoredCount.textContent = ignoredExtensions.size || '';
+
     if (ignoredExtensions.size === 0) {
-        ignoredExtsEl.innerHTML = '<span class="ignore-empty">No extensions ignored</span>';
+        ignoredExtsEl.innerHTML = '<div class="chip-empty">None ignored</div>';
     } else {
         [...ignoredExtensions].sort().forEach(ext => {
             const chip = document.createElement('div');
-            chip.className = 'ignore-chip ignored';
-            chip.title = `Click to restore .${ext} files`;
-            chip.innerHTML = `<span>.${ext}</span><button class="ignore-chip-remove">✕</button>`;
-            chip.querySelector('.ignore-chip-remove').addEventListener('click', (e) => {
-                e.stopPropagation();
+            chip.className = 'ext-chip-ignored';
+            chip.innerHTML = `<span>.${ext}</span>`;
+
+            const btn = document.createElement('button');
+            btn.className = 'chip-remove-btn';
+            btn.textContent = '✕';
+            btn.addEventListener('click', () => {
                 ignoredExtensions.delete(ext);
                 renderIgnorePanel(tree);
-                _displayTree();
+                _displayTree?.();
                 saveIgnoredExtensions();
+                updateExtBadge();
             });
+            chip.appendChild(btn);
             ignoredExtsEl.appendChild(chip);
         });
-        const clearAll = document.createElement('div');
-        clearAll.className = 'ignore-chip ignore-clear-all';
-        clearAll.textContent = 'Restore all';
-        clearAll.addEventListener('click', () => {
+
+        const restore = document.createElement('div');
+        restore.className = 'chip-restore-all';
+        restore.textContent = 'Restore all';
+        restore.addEventListener('click', () => {
             ignoredExtensions.clear();
             renderIgnorePanel(tree);
-            _displayTree();
+            _displayTree?.();
             saveIgnoredExtensions();
+            updateExtBadge();
         });
-        ignoredExtsEl.appendChild(clearAll);
+        ignoredExtsEl.appendChild(restore);
     }
 
-    if (ignoreToggleBtn) {
-        const badge = ignoreToggleBtn.querySelector('.ignore-badge');
-        if (badge) {
-            badge.textContent = ignoredExtensions.size || '';
-            badge.style.display = ignoredExtensions.size > 0 ? 'inline-flex' : 'none';
-        }
-    }
+    updateExtBadge();
+}
+
+function updateExtBadge() {
+    const badge = ignoreToggleBtn?.querySelector('.ignore-badge');
+    if (!badge) return;
+    badge.textContent = ignoredExtensions.size || '';
+    badge.style.display = ignoredExtensions.size > 0 ? 'inline-flex' : 'none';
 }
 
 /* ============================================================
@@ -307,140 +266,155 @@ export function renderFolderPanel(tree) {
     if (!availableFoldersEl) return;
 
     const allFolders = collectFolders(tree);
-    const usedPaths = new Set([...ignoredFolders, ...focusedFolders]);
-    const available = allFolders.filter(f => !usedPaths.has(f.path));
+    const usedPaths  = new Set([...ignoredFolders, ...focusedFolders]);
+    const available  = allFolders.filter(f => !usedPaths.has(f.path));
 
-    // ── Available ──────────────────────────────────────────────
+    // ── Available column ──
     availableFoldersEl.innerHTML = '';
     if (available.length === 0) {
-        availableFoldersEl.innerHTML = '<span class="ignore-empty">No folders available</span>';
+        availableFoldersEl.innerHTML = '<div class="chip-empty">No folders available</div>';
     } else {
         available.forEach(folder => {
-            const chip = document.createElement('div');
-            chip.className = 'ignore-chip available folder-chip';
-            chip.title = folder.path;
+            const row = document.createElement('div');
+            row.className = 'folder-row';
+            row.title = folder.path;
 
-            const nameEl = document.createElement('span');
-            nameEl.className = 'folder-chip-name';
-            nameEl.textContent = '📁 ' + folder.name;
+            const name = document.createElement('span');
+            name.className = 'folder-row-name';
+            name.textContent = '📁 ' + folder.name;
 
-            const actions = document.createElement('span');
-            actions.className = 'folder-chip-actions';
+            const actions = document.createElement('div');
+            actions.className = 'folder-row-actions';
 
-            const ignoreBtn = document.createElement('button');
-            ignoreBtn.className = 'folder-action-btn ignore-action-btn';
-            ignoreBtn.textContent = '🚫 Ignore';
-            ignoreBtn.title = 'Hide this folder from tree';
-
-            const focusBtn = document.createElement('button');
-            focusBtn.className = 'folder-action-btn focus-action-btn';
-            focusBtn.textContent = '🎯 Focus';
-            focusBtn.title = 'Show ONLY this folder in tree';
-
-            actions.appendChild(ignoreBtn);
-            actions.appendChild(focusBtn);
-            chip.appendChild(nameEl);
-            chip.appendChild(actions);
-
-            ignoreBtn.addEventListener('click', (e) => {
+            const ignBtn = document.createElement('button');
+            ignBtn.className = 'folder-btn folder-btn-ignore';
+            ignBtn.textContent = '🚫 Ignore';
+            ignBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 ignoredFolders.add(folder.path);
                 focusedFolders.delete(folder.path);
-                renderFilterChips();
                 renderFolderPanel(tree);
-                _displayTree();
+                _displayTree?.();
                 saveFolderFilters();
                 updateFolderBadge();
             });
 
-            focusBtn.addEventListener('click', (e) => {
+            const focBtn = document.createElement('button');
+            focBtn.className = 'folder-btn folder-btn-focus';
+            focBtn.textContent = '🎯 Focus';
+            focBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 focusedFolders.add(folder.path);
                 ignoredFolders.delete(folder.path);
-                renderFilterChips();
                 renderFolderPanel(tree);
-                _displayTree();
+                _displayTree?.();
                 saveFolderFilters();
                 updateFolderBadge();
             });
 
-            availableFoldersEl.appendChild(chip);
+            actions.appendChild(ignBtn);
+            actions.appendChild(focBtn);
+            row.appendChild(name);
+            row.appendChild(actions);
+            availableFoldersEl.appendChild(row);
         });
     }
 
-    // ── Ignored ────────────────────────────────────────────────
+    // ── Ignored column ──
     if (ignoredFoldersEl) {
         ignoredFoldersEl.innerHTML = '';
+        if (folderIgnoredCount) folderIgnoredCount.textContent = ignoredFolders.size || '';
+
         if (ignoredFolders.size === 0) {
-            ignoredFoldersEl.innerHTML = '<span class="ignore-empty">None ignored</span>';
+            ignoredFoldersEl.innerHTML = '<div class="chip-empty">None</div>';
         } else {
             [...ignoredFolders].forEach(fp => {
                 const name = fp.split(/[/\\]/).pop();
                 const chip = document.createElement('div');
-                chip.className = 'ignore-chip ignored folder-chip';
+                chip.className = 'folder-chip-active type-ignored';
                 chip.title = fp;
-                chip.innerHTML = `<span>🚫 ${name}</span><button class="ignore-chip-remove">✕</button>`;
-                chip.querySelector('.ignore-chip-remove').addEventListener('click', (e) => {
+
+                const label = document.createElement('span');
+                label.className = 'chip-label';
+                label.textContent = '📁 ' + name;
+
+                const btn = document.createElement('button');
+                btn.className = 'chip-remove-btn';
+                btn.textContent = '✕';
+                btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     ignoredFolders.delete(fp);
-                    renderFilterChips();
                     renderFolderPanel(tree);
-                    _displayTree();
+                    _displayTree?.();
                     saveFolderFilters();
                     updateFolderBadge();
                 });
+
+                chip.appendChild(label);
+                chip.appendChild(btn);
                 ignoredFoldersEl.appendChild(chip);
             });
-            const clearAll = document.createElement('div');
-            clearAll.className = 'ignore-chip ignore-clear-all';
-            clearAll.textContent = 'Restore all';
-            clearAll.addEventListener('click', () => {
+
+            const restore = document.createElement('div');
+            restore.className = 'chip-restore-all';
+            restore.textContent = 'Restore all';
+            restore.addEventListener('click', () => {
                 ignoredFolders.clear();
-                renderFilterChips();
                 renderFolderPanel(tree);
-                _displayTree();
+                _displayTree?.();
                 saveFolderFilters();
                 updateFolderBadge();
             });
-            ignoredFoldersEl.appendChild(clearAll);
+            ignoredFoldersEl.appendChild(restore);
         }
     }
 
-    // ── Focused ────────────────────────────────────────────────
+    // ── Focused column ──
     if (focusedFoldersEl) {
         focusedFoldersEl.innerHTML = '';
+        if (folderFocusedCount) folderFocusedCount.textContent = focusedFolders.size || '';
+
         if (focusedFolders.size === 0) {
-            focusedFoldersEl.innerHTML = '<span class="ignore-empty">None focused — all visible</span>';
+            focusedFoldersEl.innerHTML = '<div class="chip-empty">None — all shown</div>';
         } else {
             [...focusedFolders].forEach(fp => {
                 const name = fp.split(/[/\\]/).pop();
                 const chip = document.createElement('div');
-                chip.className = 'ignore-chip focused folder-chip';
+                chip.className = 'folder-chip-active type-focused';
                 chip.title = fp;
-                chip.innerHTML = `<span>🎯 ${name}</span><button class="ignore-chip-remove">✕</button>`;
-                chip.querySelector('.ignore-chip-remove').addEventListener('click', (e) => {
+
+                const label = document.createElement('span');
+                label.className = 'chip-label';
+                label.textContent = '📁 ' + name;
+
+                const btn = document.createElement('button');
+                btn.className = 'chip-remove-btn';
+                btn.textContent = '✕';
+                btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     focusedFolders.delete(fp);
-                    renderFilterChips();
                     renderFolderPanel(tree);
-                    _displayTree();
+                    _displayTree?.();
                     saveFolderFilters();
                     updateFolderBadge();
                 });
+
+                chip.appendChild(label);
+                chip.appendChild(btn);
                 focusedFoldersEl.appendChild(chip);
             });
-            const clearAll = document.createElement('div');
-            clearAll.className = 'ignore-chip ignore-clear-all';
-            clearAll.textContent = 'Clear focus';
-            clearAll.addEventListener('click', () => {
+
+            const clear = document.createElement('div');
+            clear.className = 'chip-restore-all';
+            clear.textContent = 'Clear focus';
+            clear.addEventListener('click', () => {
                 focusedFolders.clear();
-                renderFilterChips();
                 renderFolderPanel(tree);
-                _displayTree();
+                _displayTree?.();
                 saveFolderFilters();
                 updateFolderBadge();
             });
-            focusedFoldersEl.appendChild(clearAll);
+            focusedFoldersEl.appendChild(clear);
         }
     }
 
@@ -448,8 +422,7 @@ export function renderFolderPanel(tree) {
 }
 
 function updateFolderBadge() {
-    if (!folderToggleBtn) return;
-    const badge = folderToggleBtn.querySelector('.folder-badge');
+    const badge = folderToggleBtn?.querySelector('.folder-badge');
     if (!badge) return;
     const total = ignoredFolders.size + focusedFolders.size;
     badge.textContent = total || '';
@@ -461,7 +434,7 @@ function updateFolderBadge() {
    ============================================================ */
 
 async function saveIgnoredExtensions() {
-    try { await window.electronAPI?.setIgnoredExtensions?.([...ignoredExtensions]); } catch (e) {}
+    try { await window.electronAPI?.setIgnoredExtensions?.([...ignoredExtensions]); } catch {}
 }
 
 async function saveFolderFilters() {
@@ -470,14 +443,15 @@ async function saveFolderFilters() {
             ignored: [...ignoredFolders],
             focused: [...focusedFolders],
         });
-    } catch (e) {}
+    } catch {}
 }
 
 export async function loadIgnoredExtensions() {
     try {
         const saved = await window.electronAPI?.getIgnoredExtensions?.();
         if (Array.isArray(saved)) saved.forEach(e => ignoredExtensions.add(e));
-    } catch (e) {}
+        updateExtBadge();
+    } catch {}
 }
 
 export async function loadFolderFilters() {
@@ -486,11 +460,11 @@ export async function loadFolderFilters() {
         if (saved?.ignored) saved.ignored.forEach(p => ignoredFolders.add(p));
         if (saved?.focused) saved.focused.forEach(p => focusedFolders.add(p));
         updateFolderBadge();
-    } catch (e) {}
+    } catch {}
 }
 
 /* ============================================================
-   EXT SUGGESTIONS
+   EXT SUGGESTIONS DROPDOWN
    ============================================================ */
 
 function showExtSuggestions(allExts, query) {
@@ -506,33 +480,27 @@ function showExtSuggestions(allExts, query) {
         li.addEventListener('click', () => {
             activeExtensions.add(ext);
             filterInput.value = '';
-            hideExtSuggestions();
+            extSuggestionsEl.style.display = 'none';
             renderFilterChips();
-            _displayTree();
+            _displayTree?.();
         });
         extSuggestionsEl.appendChild(li);
     });
     extSuggestionsEl.style.display = 'block';
 }
 
-function hideExtSuggestions() {
-    extSuggestionsEl.style.display = 'none';
-}
-
 export function setupFilterInput(getCachedTree, displayTree) {
-    _displayTree = displayTree;
-    _getCachedTree = getCachedTree;
+    _displayTree    = displayTree;
+    _getCachedTree  = getCachedTree;
 
     filterInput.addEventListener('focus', () => {
         if (!getCachedTree()) return;
-        const allExts = [...collectExtensions(getCachedTree())].sort();
-        showExtSuggestions(allExts, filterInput.value.trim());
+        showExtSuggestions([...collectExtensions(getCachedTree())].sort(), filterInput.value.trim());
     });
 
     filterInput.addEventListener('input', () => {
         if (!getCachedTree()) return;
-        const allExts = [...collectExtensions(getCachedTree())].sort();
-        showExtSuggestions(allExts, filterInput.value.trim().toLowerCase());
+        showExtSuggestions([...collectExtensions(getCachedTree())].sort(), filterInput.value.trim().toLowerCase());
     });
 
     filterInput.addEventListener('keydown', (e) => {
@@ -541,15 +509,15 @@ export function setupFilterInput(getCachedTree, displayTree) {
             if (val) {
                 activeExtensions.add(val);
                 filterInput.value = '';
-                hideExtSuggestions();
+                extSuggestionsEl.style.display = 'none';
                 renderFilterChips();
-                _displayTree();
+                _displayTree?.();
             }
         }
-        if (e.key === 'Escape') hideExtSuggestions();
+        if (e.key === 'Escape') extSuggestionsEl.style.display = 'none';
     });
 
     filterInput.addEventListener('blur', () => {
-        setTimeout(hideExtSuggestions, 200);
+        setTimeout(() => { extSuggestionsEl.style.display = 'none'; }, 200);
     });
 }
