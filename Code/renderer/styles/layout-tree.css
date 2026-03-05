@@ -1,6 +1,5 @@
 /* ============================================================
    LAYOUT-TREE.CSS — Search, tree view & connectors
-   (Filter bar merged into status-filter-bar in ignore-panel.css)
    ============================================================ */
 
 /* ------------------------------------------------------------
@@ -178,21 +177,46 @@
   font-size: 14px;
 }
 
-.tree-node.folder { background: var(--folder-bg); border: 1px solid var(--folder-border); color: var(--folder-text); font-weight: 600; }
-.tree-node.folder:hover { background: var(--folder-bg-h); border-color: rgba(91,141,238,0.6); color: #9ec4f5; transform: none !important; box-shadow: none !important; }
+/* Folder nodes — use CSS variables so light/dark both work */
+.tree-node.folder {
+  background: var(--folder-bg);
+  border: 1px solid var(--folder-border);
+  color: var(--folder-text);
+  font-weight: 600;
+}
+.tree-node.folder:hover {
+  background: var(--folder-bg-h);
+  border-color: var(--folder-hover-border);
+  color: var(--folder-hover-color);
+  transform: none !important;
+  box-shadow: none !important;
+}
 .tree-node.folder::before { content: "▸ "; font-size: 11px; color: var(--blue); opacity: 0.7; }
 .tree-node.folder.folder-open::before { content: "▾ "; color: var(--accent); opacity: 1; }
 
-.tree-node.file { background: var(--file-bg); border: 1px solid var(--file-border); color: var(--file-text); font-weight: 400; }
-.tree-node.file:hover { background: var(--file-bg-h); border-color: rgba(255,255,255,0.15); color: var(--text-secondary); transform: none !important; box-shadow: none !important; }
+/* File nodes — use CSS variables */
+.tree-node.file {
+  background: var(--file-bg);
+  border: 1px solid var(--file-border);
+  color: var(--file-text);
+  font-weight: 400;
+}
+.tree-node.file:hover {
+  background: var(--file-bg-h);
+  border-color: var(--file-hover-border);
+  color: var(--file-hover-color);
+  transform: none !important;
+  box-shadow: none !important;
+}
 .tree-node.file::before { content: "· "; font-size: 16px; color: var(--text-muted); line-height: 0; vertical-align: middle; }
 
-.tree-node.folder.selected      { background: var(--blue-dim);   border-color: rgba(91,141,238,0.48); color: var(--blue);   font-weight: 700; }
-.tree-node.folder.folder-selected { background: var(--green-dim); border-color: rgba(45,212,160,0.42); color: var(--green); font-weight: 700; }
-.tree-node.file.file-selected   { background: var(--yellow-dim); border-color: rgba(245,197,66,0.42);  color: var(--yellow); font-weight: 600; }
+/* Selection states */
+.tree-node.folder.selected        { background: var(--blue-dim);   border-color: rgba(91,141,238,0.48); color: var(--blue);   font-weight: 700; }
+.tree-node.folder.folder-selected { background: var(--green-dim);  border-color: rgba(45,212,160,0.42); color: var(--green); font-weight: 700; }
+.tree-node.file.file-selected     { background: var(--yellow-dim); border-color: rgba(245,197,66,0.42); color: var(--yellow); font-weight: 600; }
 
 /* ------------------------------------------------------------
-   TREE CONNECTORS
+   TREE CONNECTORS — use var so they're visible in light mode
 ------------------------------------------------------------ */
 .children {
   display: inline-flex;
@@ -212,7 +236,7 @@
   position: absolute;
   top: -32px; left: 50%;
   width: 1px; height: 32px;
-  background: var(--border-mid);
+  background: var(--connector-color);
   transform: translateX(-50%);
   z-index: 0;
 }
@@ -222,7 +246,7 @@
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: var(--border-mid);
+  background: var(--connector-color);
   z-index: 0;
 }
 
@@ -231,7 +255,7 @@
   position: absolute;
   top: -32px; left: 50%;
   width: 1px; height: 32px;
-  background: var(--border-mid);
+  background: var(--connector-color);
   transform: translateX(-50%);
   z-index: 0;
 }
