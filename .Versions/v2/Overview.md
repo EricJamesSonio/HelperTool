@@ -42,20 +42,9 @@ This version focuses on usability improvements, better filtering, and improved w
 
 * Eliminates the need to restart the application
 
----
+# UI - Preview
 
-# UI Preview
-
-![Version 2 UI](../assets/v2.png)
-
-# 0.2 V
-
-![Version 2 UI](../assets/v2.2.png)
-
-# Latest UI (Storage helper removed)
-
-![Version 2 UI](../assets/v2.3.png)
----
+* View UI-Preview.md to view the Ui versions.
 
 # Notes
 
