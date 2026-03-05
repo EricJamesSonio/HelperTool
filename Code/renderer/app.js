@@ -12,7 +12,9 @@ import {
     filterTree,
     renderFilterChips,
     renderIgnorePanel,
+    renderFolderPanel,
     loadIgnoredExtensions,
+    loadFolderFilters,
     setupFilterInput,
 } from './filterManager.js';
 import { setupSearch } from './searchManager.js';
@@ -113,8 +115,10 @@ async function loadRepo(repoPath, resetSel = true) {
     activeExtensions.clear();
     renderFilterChips();
 
-    // ── NEW: refresh ignore panel if open ──
-    if (cachedTree) renderIgnorePanel(cachedTree);
+    if (cachedTree) {
+        renderIgnorePanel(cachedTree);
+        renderFolderPanel(cachedTree);
+    }
 
     displayTree();
     updateGenerateState();
@@ -153,7 +157,10 @@ refreshBtn.addEventListener('click', async () => {
     try {
         cachedTree = await window.electronAPI.getFolderTree(selectedRepoPath);
         renderFilterChips();
-        if (cachedTree) renderIgnorePanel(cachedTree); // ── NEW
+        if (cachedTree) {
+            renderIgnorePanel(cachedTree);
+            renderFolderPanel(cachedTree);
+        }
         displayTree();
     } catch (err) {
         console.error('[UI] Refresh failed:', err);
@@ -218,11 +225,11 @@ generateBtn.addEventListener('click', async () => {
  * Init managers
  * -------------------------------------- */
 setupFilterInput(() => cachedTree, displayTree);
-// NEW
 setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
 
 console.log('[Init] DOM content loaded, initializing...');
 window.addEventListener('DOMContentLoaded', async () => {
-    await loadIgnoredExtensions(); // ── NEW: load saved ignored exts
+    await loadIgnoredExtensions();
+    await loadFolderFilters();
     loadLastActiveRepo();
 });
