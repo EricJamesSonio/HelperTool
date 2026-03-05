@@ -51,23 +51,15 @@
         <span class="counter-label">selected</span>
       </div>
 
-      <!-- Center: ext filter input -->
-      <div class="filter-input-wrap">
-        <span class="filter-input-icon">⌕</span>
-        <input
-          type="text"
-          id="filterInput"
-          placeholder="Filter by extension…"
-          class="filter-text-input"
-          autocomplete="off"
-        />
-        <ul id="extSuggestions" class="ext-suggestions"></ul>
-        <!-- Active ext filter chips — live inline here, small -->
-        <div id="activeFilters" class="active-filters-inline"></div>
-      </div>
-
       <!-- Right: panel toggles + progress -->
       <div class="bar-right">
+
+        <!-- Ext FILTER toggle (new — replaces old filter input) -->
+        <button id="filterToggleBtn" class="panel-toggle-btn filter-toggle-btn" title="Filter by extension">
+          <span>⌕ Filter Ext</span>
+          <span class="toggle-badge filter-badge" style="display:none"></span>
+        </button>
+
         <!-- Ext ignore toggle -->
         <button id="ignoreToggleBtn" class="panel-toggle-btn" title="Manage ignored extensions">
           <span>🚫 Ext</span>
@@ -87,6 +79,33 @@
           <progress id="progressBar" value="0" max="100"></progress>
           <span id="progressText">0%</span>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ Extension FILTER Panel (new) ══ -->
+    <div id="filterPanel" class="slide-panel">
+      <div class="slide-panel-inner">
+
+        <!-- Left col: detected extensions to filter by -->
+        <div class="panel-col">
+          <div class="panel-col-label">
+            <span class="col-label-dot dot-yellow"></span>
+            Detected Extensions
+            <span class="col-label-hint">click to filter</span>
+          </div>
+          <div id="availableFilterExts" class="chip-list"></div>
+        </div>
+
+        <!-- Right col: active filters -->
+        <div class="panel-col panel-col-active">
+          <div class="panel-col-label">
+            <span class="col-label-dot dot-accent"></span>
+            Active Filters
+            <span id="extFilterCount" class="col-count"></span>
+          </div>
+          <div id="activeFilterExts" class="chip-list chip-list-active"></div>
+        </div>
+
       </div>
     </div>
 

@@ -1,24 +1,27 @@
 /**
  * filterManager.js
- * Handles extension filter chips, suggestions, tree filtering,
+ * Handles extension filter chips, tree filtering,
  * folder ignore/focus filtering, and ignore-list detection.
  *
- * Design: panels are self-contained. The status-filter bar only shows
- * inline ext filter chips. Folder filters NEVER appear outside the panel.
+ * Filter Ext, Ignore Ext, and Folder panels are all unified
+ * as slide-panel toggles — no inline filter input.
  */
 
-const filterInput    = document.getElementById('filterInput');
-const activeFiltersEl = document.getElementById('activeFilters'); // inline ext chips only
-const extSuggestionsEl = document.getElementById('extSuggestions');
+// ── Filter Ext panel ─────────────────────────────────────
+const filterToggleBtn     = document.getElementById('filterToggleBtn');
+const filterPanel         = document.getElementById('filterPanel');
+const availableFilterExtsEl = document.getElementById('availableFilterExts');
+const activeFilterExtsEl  = document.getElementById('activeFilterExts');
+const extFilterCount      = document.getElementById('extFilterCount');
 
-// Extension panel
+// ── Ignore Ext panel ─────────────────────────────────────
 const availableExtsEl  = document.getElementById('availableExts');
 const ignoredExtsEl    = document.getElementById('ignoredExts');
 const extIgnoredCount  = document.getElementById('extIgnoredCount');
 const ignoreToggleBtn  = document.getElementById('ignoreToggleBtn');
 const ignorePanel      = document.getElementById('ignorePanel');
 
-// Folder panel
+// ── Folder panel ─────────────────────────────────────────
 const folderToggleBtn    = document.getElementById('folderToggleBtn');
 const folderPanel        = document.getElementById('folderPanel');
 const availableFoldersEl = document.getElementById('availableFolders');
@@ -27,29 +30,60 @@ const focusedFoldersEl   = document.getElementById('focusedFolders');
 const folderIgnoredCount = document.getElementById('folderIgnoredCount');
 const folderFocusedCount = document.getElementById('folderFocusedCount');
 
-// State
-export const activeExtensions  = new Set();
-export const ignoredExtensions = new Set();
+// ── State ─────────────────────────────────────────────────
+export const activeExtensions  = new Set(); // filter-by exts
+export const ignoredExtensions = new Set(); // hidden exts
 export const ignoredFolders    = new Set();
 export const focusedFolders    = new Set();
 
-let _displayTree    = null;
-let _getCachedTree  = null;
+let _displayTree   = null;
+let _getCachedTree = null;
+
+let filterPanelOpen = false;
 let ignorePanelOpen = false;
 let folderPanelOpen = false;
 
 /* ============================================================
-   PANEL TOGGLES
+   PANEL TOGGLE HELPERS
    ============================================================ */
 
+function closeAllPanels(except) {
+    if (except !== 'filter' && filterPanelOpen) {
+        filterPanelOpen = false;
+        filterPanel?.classList.remove('open');
+        filterToggleBtn?.classList.remove('active');
+    }
+    if (except !== 'ignore' && ignorePanelOpen) {
+        ignorePanelOpen = false;
+        ignorePanel?.classList.remove('open');
+        ignoreToggleBtn?.classList.remove('active');
+    }
+    if (except !== 'folder' && folderPanelOpen) {
+        folderPanelOpen = false;
+        folderPanel?.classList.remove('open');
+        folderToggleBtn?.classList.remove('active');
+    }
+}
+
+/* ── Filter Ext toggle ───────────────────────────────────── */
+if (filterToggleBtn && filterPanel) {
+    filterToggleBtn.addEventListener('click', () => {
+        filterPanelOpen = !filterPanelOpen;
+        if (filterPanelOpen) closeAllPanels('filter');
+        filterPanel.classList.toggle('open', filterPanelOpen);
+        filterToggleBtn.classList.toggle('active', filterPanelOpen);
+        if (filterPanelOpen) {
+            const tree = _getCachedTree?.();
+            if (tree) renderFilterPanel(tree);
+        }
+    });
+}
+
+/* ── Ignore Ext toggle ───────────────────────────────────── */
 if (ignoreToggleBtn && ignorePanel) {
     ignoreToggleBtn.addEventListener('click', () => {
         ignorePanelOpen = !ignorePanelOpen;
-        if (ignorePanelOpen && folderPanelOpen) {
-            folderPanelOpen = false;
-            folderPanel?.classList.remove('open');
-            folderToggleBtn?.classList.remove('active');
-        }
+        if (ignorePanelOpen) closeAllPanels('ignore');
         ignorePanel.classList.toggle('open', ignorePanelOpen);
         ignoreToggleBtn.classList.toggle('active', ignorePanelOpen);
         if (ignorePanelOpen) {
@@ -59,14 +93,11 @@ if (ignoreToggleBtn && ignorePanel) {
     });
 }
 
+/* ── Folder toggle ───────────────────────────────────────── */
 if (folderToggleBtn && folderPanel) {
     folderToggleBtn.addEventListener('click', () => {
         folderPanelOpen = !folderPanelOpen;
-        if (folderPanelOpen && ignorePanelOpen) {
-            ignorePanelOpen = false;
-            ignorePanel?.classList.remove('open');
-            ignoreToggleBtn?.classList.remove('active');
-        }
+        if (folderPanelOpen) closeAllPanels('folder');
         folderPanel.classList.toggle('open', folderPanelOpen);
         folderToggleBtn.classList.toggle('active', folderPanelOpen);
         if (folderPanelOpen) {
@@ -152,29 +183,86 @@ export function filterTree(tree) {
 }
 
 /* ============================================================
-   FILTER BAR — inline ext chips only (no folder chips here)
+   FILTER EXT PANEL
    ============================================================ */
 
 export function renderFilterChips() {
-    if (!activeFiltersEl) return;
-    activeFiltersEl.innerHTML = '';
+    // Keep badge + panel in sync whenever activeExtensions changes
+    updateFilterBadge();
+    const tree = _getCachedTree?.();
+    if (tree && filterPanelOpen) renderFilterPanel(tree);
+}
 
-    activeExtensions.forEach(ext => {
-        const chip = document.createElement('div');
-        chip.className = 'filter-chip-inline';
-        chip.innerHTML = `<span>.${ext}</span>`;
+function renderFilterPanel(tree) {
+    if (!availableFilterExtsEl || !activeFilterExtsEl) return;
 
-        const x = document.createElement('button');
-        x.className = 'chip-x';
-        x.textContent = '✕';
-        x.addEventListener('click', () => {
-            activeExtensions.delete(ext);
-            renderFilterChips();
+    const allExts   = [...collectExtensions(tree)].sort();
+    const available = allExts.filter(e => !activeExtensions.has(e) && !ignoredExtensions.has(e));
+
+    // ── Available column ──
+    availableFilterExtsEl.innerHTML = '';
+    if (available.length === 0) {
+        availableFilterExtsEl.innerHTML = '<div class="chip-empty">No extensions to filter</div>';
+    } else {
+        available.forEach(ext => {
+            const chip = document.createElement('div');
+            chip.className = 'ext-filter-chip';
+            chip.innerHTML = `<span>.${ext}</span><span class="chip-arrow">→ filter</span>`;
+            chip.addEventListener('click', () => {
+                activeExtensions.add(ext);
+                renderFilterPanel(tree);
+                updateFilterBadge();
+                _displayTree?.();
+            });
+            availableFilterExtsEl.appendChild(chip);
+        });
+    }
+
+    // ── Active filters column ──
+    activeFilterExtsEl.innerHTML = '';
+    if (extFilterCount) extFilterCount.textContent = activeExtensions.size || '';
+
+    if (activeExtensions.size === 0) {
+        activeFilterExtsEl.innerHTML = '<div class="chip-empty">None — all shown</div>';
+    } else {
+        [...activeExtensions].sort().forEach(ext => {
+            const chip = document.createElement('div');
+            chip.className = 'ext-filter-chip-active';
+            chip.innerHTML = `<span>.${ext}</span>`;
+
+            const btn = document.createElement('button');
+            btn.className = 'chip-remove-btn';
+            btn.textContent = '✕';
+            btn.addEventListener('click', () => {
+                activeExtensions.delete(ext);
+                renderFilterPanel(tree);
+                updateFilterBadge();
+                _displayTree?.();
+            });
+            chip.appendChild(btn);
+            activeFilterExtsEl.appendChild(chip);
+        });
+
+        const clear = document.createElement('div');
+        clear.className = 'chip-restore-all';
+        clear.textContent = 'Clear all filters';
+        clear.addEventListener('click', () => {
+            activeExtensions.clear();
+            renderFilterPanel(tree);
+            updateFilterBadge();
             _displayTree?.();
         });
-        chip.appendChild(x);
-        activeFiltersEl.appendChild(chip);
-    });
+        activeFilterExtsEl.appendChild(clear);
+    }
+
+    updateFilterBadge();
+}
+
+function updateFilterBadge() {
+    const badge = filterToggleBtn?.querySelector('.filter-badge');
+    if (!badge) return;
+    badge.textContent = activeExtensions.size || '';
+    badge.style.display = activeExtensions.size > 0 ? 'inline-flex' : 'none';
 }
 
 /* ============================================================
@@ -184,7 +272,7 @@ export function renderFilterChips() {
 export function renderIgnorePanel(tree) {
     if (!availableExtsEl || !ignoredExtsEl) return;
 
-    const allExts = [...collectExtensions(tree)].sort();
+    const allExts  = [...collectExtensions(tree)].sort();
     const available = allExts.filter(e => !ignoredExtensions.has(e));
 
     // ── Available column ──
@@ -199,8 +287,10 @@ export function renderIgnorePanel(tree) {
             chip.addEventListener('click', () => {
                 ignoredExtensions.add(ext);
                 activeExtensions.delete(ext);
-                renderFilterChips();
                 renderIgnorePanel(tree);
+                // also refresh filter panel if open
+                if (filterPanelOpen) renderFilterPanel(tree);
+                updateFilterBadge();
                 _displayTree?.();
                 saveIgnoredExtensions();
                 updateExtBadge();
@@ -227,6 +317,7 @@ export function renderIgnorePanel(tree) {
             btn.addEventListener('click', () => {
                 ignoredExtensions.delete(ext);
                 renderIgnorePanel(tree);
+                if (filterPanelOpen) renderFilterPanel(tree);
                 _displayTree?.();
                 saveIgnoredExtensions();
                 updateExtBadge();
@@ -241,6 +332,7 @@ export function renderIgnorePanel(tree) {
         restore.addEventListener('click', () => {
             ignoredExtensions.clear();
             renderIgnorePanel(tree);
+            if (filterPanelOpen) renderFilterPanel(tree);
             _displayTree?.();
             saveIgnoredExtensions();
             updateExtBadge();
@@ -464,60 +556,12 @@ export async function loadFolderFilters() {
 }
 
 /* ============================================================
-   EXT SUGGESTIONS DROPDOWN
+   SETUP — called from app.js
+   No more filter input / suggestions dropdown.
    ============================================================ */
 
-function showExtSuggestions(allExts, query) {
-    const filtered = allExts.filter(e =>
-        e.includes(query) && !activeExtensions.has(e) && !ignoredExtensions.has(e)
-    );
-    extSuggestionsEl.innerHTML = '';
-    if (!filtered.length) { extSuggestionsEl.style.display = 'none'; return; }
-
-    filtered.slice(0, 8).forEach(ext => {
-        const li = document.createElement('li');
-        li.textContent = `.${ext}`;
-        li.addEventListener('click', () => {
-            activeExtensions.add(ext);
-            filterInput.value = '';
-            extSuggestionsEl.style.display = 'none';
-            renderFilterChips();
-            _displayTree?.();
-        });
-        extSuggestionsEl.appendChild(li);
-    });
-    extSuggestionsEl.style.display = 'block';
-}
-
 export function setupFilterInput(getCachedTree, displayTree) {
-    _displayTree    = displayTree;
-    _getCachedTree  = getCachedTree;
-
-    filterInput.addEventListener('focus', () => {
-        if (!getCachedTree()) return;
-        showExtSuggestions([...collectExtensions(getCachedTree())].sort(), filterInput.value.trim());
-    });
-
-    filterInput.addEventListener('input', () => {
-        if (!getCachedTree()) return;
-        showExtSuggestions([...collectExtensions(getCachedTree())].sort(), filterInput.value.trim().toLowerCase());
-    });
-
-    filterInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const val = filterInput.value.trim().replace(/^\./, '').toLowerCase();
-            if (val) {
-                activeExtensions.add(val);
-                filterInput.value = '';
-                extSuggestionsEl.style.display = 'none';
-                renderFilterChips();
-                _displayTree?.();
-            }
-        }
-        if (e.key === 'Escape') extSuggestionsEl.style.display = 'none';
-    });
-
-    filterInput.addEventListener('blur', () => {
-        setTimeout(() => { extSuggestionsEl.style.display = 'none'; }, 200);
-    });
+    _displayTree   = displayTree;
+    _getCachedTree = getCachedTree;
+    // Nothing else needed — all interaction is panel-driven now.
 }

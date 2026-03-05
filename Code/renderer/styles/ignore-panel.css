@@ -1,6 +1,6 @@
 /* ============================================================
    IGNORE-PANEL.CSS — Extension ignore + Folder filter panels
-   Redesigned: panels are self-contained, filter bar stays lean
+   + Extension Filter panel (all three unified as slide panels)
    ============================================================ */
 
 /* ══════════════════════════════════════════════════════════
@@ -49,112 +49,6 @@
 }
 .counter-label { font-size: 12px; opacity: 0.7; }
 
-/* ── Filter input (center, flex grows) ─────────────────── */
-.filter-input-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 100%;
-  padding: 0 14px;
-  border-right: 1px solid var(--border-subtle);
-  position: relative;
-  min-width: 0;
-}
-
-.filter-input-icon {
-  font-size: 16px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.filter-text-input {
-  height: 28px;
-  padding: 0 10px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-xs);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  width: 180px;
-  flex-shrink: 0;
-  outline: none;
-  transition: border-color var(--ease), width 0.2s ease;
-}
-.filter-text-input:focus {
-  border-color: var(--accent);
-  width: 240px;
-}
-.filter-text-input::placeholder { color: var(--text-muted); }
-
-/* Inline active ext filter chips (compact, inside filter wrap) */
-.active-filters-inline {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 5px;
-  align-items: center;
-  overflow: hidden;
-  flex: 1;
-  min-width: 0;
-}
-
-.filter-chip-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  font-weight: 600;
-  background: var(--accent-dim);
-  border: 1px solid var(--accent-border);
-  color: var(--accent);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.filter-chip-inline .chip-x {
-  font-size: 10px;
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity var(--ease);
-  background: none;
-  border: none;
-  color: inherit;
-  padding: 0;
-  height: auto;
-  line-height: 1;
-}
-.filter-chip-inline .chip-x:hover { opacity: 1; }
-
-/* Ext suggestions dropdown */
-.ext-suggestions {
-  display: none;
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 14px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-mid);
-  border-radius: var(--r-md);
-  list-style: none;
-  padding: 4px 0;
-  min-width: 160px;
-  z-index: 300;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
-}
-.ext-suggestions li {
-  padding: 7px 14px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background var(--ease), color var(--ease);
-}
-.ext-suggestions li:hover { background: var(--bg-hover); color: var(--accent); }
-
 /* ── Right side: toggles + progress ────────────────────── */
 .bar-right {
   display: flex;
@@ -162,6 +56,7 @@
   gap: 0;
   height: 100%;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .bar-divider {
@@ -171,7 +66,9 @@
   margin: 0 2px;
 }
 
-/* Panel toggle buttons */
+/* ══════════════════════════════════════════════════════════
+   PANEL TOGGLE BUTTONS (all three share this style)
+   ══════════════════════════════════════════════════════════ */
 .panel-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -207,10 +104,12 @@
   height: 2px;
   border-radius: 1px;
 }
+#filterToggleBtn.active::after  { background: var(--accent); }
 #ignoreToggleBtn.active::after  { background: var(--red); }
 #folderToggleBtn.active::after  { background: var(--blue); }
 
-/* Folder toggle specific color on active */
+/* Per-toggle active colors */
+.filter-toggle-btn.active { color: var(--accent); }
 .folder-toggle-btn.active { color: var(--blue); }
 #ignoreToggleBtn.active   { color: var(--red); }
 
@@ -228,8 +127,9 @@
   font-weight: 700;
   line-height: 1;
 }
-.ignore-badge { background: var(--red);  color: #fff; }
-.folder-badge { background: var(--blue); color: #fff; }
+.filter-badge { background: var(--accent); color: #0d1117; }
+.ignore-badge { background: var(--red);    color: #fff; }
+.folder-badge { background: var(--blue);   color: #fff; }
 
 /* Compact progress */
 .progress-compact {
@@ -262,7 +162,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   SLIDE PANELS (shared structure for ext + folder)
+   SLIDE PANELS (shared structure for all three panels)
    ══════════════════════════════════════════════════════════ */
 .slide-panel {
   max-height: 0;
@@ -298,7 +198,7 @@
 /* Detected (source) column — wider */
 .panel-col:first-child { flex: 1.5; }
 
-/* Active (ignored / focused) columns — narrower */
+/* Active (ignored / focused / filtered) columns — narrower */
 .panel-col-active { flex: 1; }
 
 /* Folder available column — widest because of action buttons */
@@ -328,9 +228,11 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
-.dot-blue  { background: var(--blue); }
-.dot-red   { background: var(--red); }
-.dot-green { background: var(--green); }
+.dot-blue   { background: var(--blue); }
+.dot-red    { background: var(--red); }
+.dot-green  { background: var(--green); }
+.dot-yellow { background: var(--yellow); }
+.dot-accent { background: var(--accent); }
 
 .col-label-hint {
   font-family: var(--font-ui);
@@ -370,7 +272,77 @@
 /* Folder list — needs horizontal room for action buttons */
 .chip-list-folders { gap: 4px; }
 
-/* ── Extension chips (source list) ─────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   EXTENSION FILTER CHIPS (click-to-filter panel)
+   ══════════════════════════════════════════════════════════ */
+
+/* Source list: detected exts available to filter by */
+.ext-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--folder-text);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+  white-space: nowrap;
+  user-select: none;
+}
+.ext-filter-chip:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+.ext-filter-chip .chip-arrow {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity var(--ease);
+  color: var(--accent);
+}
+.ext-filter-chip:hover .chip-arrow { opacity: 1; }
+
+/* Active filter chips (right col) */
+.ext-filter-chip-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  cursor: default;
+  white-space: nowrap;
+  user-select: none;
+}
+.ext-filter-chip-active .chip-remove-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--accent);
+  opacity: 0.45;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  height: auto;
+  line-height: 1;
+  transition: opacity var(--ease);
+}
+.ext-filter-chip-active .chip-remove-btn:hover { opacity: 1; transform: none !important; }
+
+/* ══════════════════════════════════════════════════════════
+   EXTENSION IGNORE CHIPS (click-to-ignore panel)
+   ══════════════════════════════════════════════════════════ */
 .ext-chip {
   display: flex;
   align-items: center;
@@ -465,7 +437,9 @@
   text-align: center;
 }
 
-/* ── Folder chips (source list) ─────────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   FOLDER CHIPS
+   ══════════════════════════════════════════════════════════ */
 .folder-row {
   display: flex;
   align-items: center;
