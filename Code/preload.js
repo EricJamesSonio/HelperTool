@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Progress updates
     // ------------------------
     onProgressUpdate: (callback) => {
-        ipcRenderer.removeAllListeners('progress-update'); // avoid duplicate callbacks
+        ipcRenderer.removeAllListeners('progress-update');
         ipcRenderer.on('progress-update', (event, percent) => {
             const validPercent = Math.min(Math.max(Math.round(percent), 0), 100);
             callback(validPercent);
@@ -59,8 +59,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveFileDialog: (actionType) => ipcRenderer.invoke('save-file-dialog', actionType),
 
     // ------------------------
-    // Ignored extensions (ext ignore list)
+    // Ignored extensions
     // ------------------------
     getIgnoredExtensions: () => ipcRenderer.invoke('get-ignored-extensions'),
     setIgnoredExtensions: (exts) => ipcRenderer.invoke('set-ignored-extensions', exts),
+
+    // ------------------------
+    // Folder filters (ignore + focus)
+    // ------------------------
+    getFolderFilters: () => ipcRenderer.invoke('get-folder-filters'),
+    setFolderFilters: (filters) => ipcRenderer.invoke('set-folder-filters', filters),
 });

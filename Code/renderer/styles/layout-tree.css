@@ -1,129 +1,20 @@
 /* ============================================================
-   LAYOUT-TREE.CSS — Filter bar, search, tree view & connectors
+   LAYOUT-TREE.CSS — Search, tree view & connectors
+   (Filter bar merged into status-filter-bar in ignore-panel.css)
    ============================================================ */
 
 /* ------------------------------------------------------------
-   FILTER BAR
------------------------------------------------------------- */
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 0 22px;
-  min-height: 48px;
-  background: var(--bg-filterbar);
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.filter-label {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  white-space: nowrap;
-  user-select: none;
-}
-
-.filter-input-wrap { position: relative; }
-
-.filter-text-input {
-  height: 32px;
-  padding: 0 13px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-mid);
-  border-radius: var(--r-xs);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  width: 170px;
-  outline: none;
-  transition: border-color var(--ease), box-shadow var(--ease);
-}
-.filter-text-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
-.filter-text-input::placeholder { color: var(--text-muted); }
-
-.ext-suggestions {
-  display: none;
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-mid);
-  border-radius: var(--r-md);
-  list-style: none;
-  padding: 5px 0;
-  min-width: 170px;
-  z-index: 200;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.5);
-}
-.ext-suggestions li {
-  padding: 8px 15px;
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background var(--ease), color var(--ease);
-}
-.ext-suggestions li:hover { background: var(--bg-hover); color: var(--accent); }
-
-.active-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 11px;
-  border-radius: var(--r-xs);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 500;
-  user-select: none;
-  transition: background var(--ease);
-}
-.filter-chip.active { background: var(--accent-dim); border: 1px solid var(--accent-border); color: var(--accent); }
-
-.chip-remove {
-  background: none;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 0;
-  line-height: 1;
-  opacity: 0.55;
-  height: auto;
-  box-shadow: none;
-  transition: color var(--ease), opacity var(--ease);
-}
-.chip-remove:hover { color: var(--red); opacity: 1; transform: none !important; box-shadow: none !important; }
-
-.filter-chip.clear-all {
-  background: var(--red-dim);
-  border: 1px solid rgba(244,100,95,0.25);
-  color: var(--red);
-  font-family: var(--font-ui);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 4px 13px;
-}
-.filter-chip.clear-all:hover { background: rgba(255,255,255,0.858); transform: none !important; box-shadow: none !important; }
-
-/* ------------------------------------------------------------
-   SEARCH BAR
+   SEARCH BAR (in navbar)
 ------------------------------------------------------------ */
 .search-section { position: relative; }
 
 .search-section::before {
   content: '⌕';
   position: absolute;
-  left: 11px;
+  left: 10px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 17px;
+  font-size: 16px;
   color: var(--text-muted);
   pointer-events: none;
   z-index: 1;
@@ -131,30 +22,30 @@
 }
 
 .search-input {
-  height: 38px;
-  padding: 0 14px 0 34px;
-  width: 230px;
+  height: 34px;
+  padding: 0 12px 0 30px;
+  width: 210px;
   background: var(--bg-surface);
   border: 1px solid var(--border-mid);
   border-radius: var(--r-xs);
   color: var(--text-primary);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: 13.5px;
   outline: none;
   transition: border-color var(--ease), box-shadow var(--ease), width 0.22s ease;
 }
 .search-input::placeholder { color: var(--text-muted); }
-.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); width: 300px; }
+.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); width: 280px; }
 
 .search-suggestions {
   position: absolute;
   top: calc(100% + 7px);
   left: 0;
-  width: 380px;
+  width: 360px;
   background: #1e2840;
   border: 1px solid rgba(255,255,255,0.13);
   border-radius: var(--r-md);
-  max-height: 340px;
+  max-height: 320px;
   overflow-y: auto;
   list-style: none;
   padding: 5px 0;
@@ -220,7 +111,7 @@
   flex: 1;
   overflow: hidden;
   background: var(--bg-root);
-  padding: 16px;
+  padding: 14px;
   min-height: 0;
 }
 
@@ -233,7 +124,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 24px 28px;
+  padding: 20px 24px;
   background: var(--bg-tree);
   border-radius: var(--r-lg);
   border: 1px solid var(--border-subtle);
@@ -284,20 +175,21 @@
   min-height: 40px;
   font-family: var(--font-mono);
   box-shadow: none;
+  font-size: 14px;
 }
 
-.tree-node.folder { background: var(--folder-bg); border: 1px solid var(--folder-border); color: var(--folder-text); font-weight: 600; font-size: 15px; }
+.tree-node.folder { background: var(--folder-bg); border: 1px solid var(--folder-border); color: var(--folder-text); font-weight: 600; }
 .tree-node.folder:hover { background: var(--folder-bg-h); border-color: rgba(91,141,238,0.6); color: #9ec4f5; transform: none !important; box-shadow: none !important; }
 .tree-node.folder::before { content: "▸ "; font-size: 11px; color: var(--blue); opacity: 0.7; }
 .tree-node.folder.folder-open::before { content: "▾ "; color: var(--accent); opacity: 1; }
 
-.tree-node.file { background: var(--file-bg); border: 1px solid var(--file-border); color: var(--file-text); font-weight: 400; font-size: 15px; }
+.tree-node.file { background: var(--file-bg); border: 1px solid var(--file-border); color: var(--file-text); font-weight: 400; }
 .tree-node.file:hover { background: var(--file-bg-h); border-color: rgba(255,255,255,0.15); color: var(--text-secondary); transform: none !important; box-shadow: none !important; }
 .tree-node.file::before { content: "· "; font-size: 16px; color: var(--text-muted); line-height: 0; vertical-align: middle; }
 
-.tree-node.folder.selected { background: var(--blue-dim); border-color: rgba(91,141,238,0.48); color: var(--blue); font-weight: 700; }
+.tree-node.folder.selected      { background: var(--blue-dim);   border-color: rgba(91,141,238,0.48); color: var(--blue);   font-weight: 700; }
 .tree-node.folder.folder-selected { background: var(--green-dim); border-color: rgba(45,212,160,0.42); color: var(--green); font-weight: 700; }
-.tree-node.file.file-selected { background: var(--yellow-dim); border-color: rgba(245,197,66,0.42); color: var(--yellow); font-weight: 600; }
+.tree-node.file.file-selected   { background: var(--yellow-dim); border-color: rgba(245,197,66,0.42);  color: var(--yellow); font-weight: 600; }
 
 /* ------------------------------------------------------------
    TREE CONNECTORS

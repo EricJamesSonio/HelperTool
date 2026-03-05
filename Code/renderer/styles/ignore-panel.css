@@ -1,223 +1,556 @@
 /* ============================================================
-   IGNORE-PANEL.CSS — Extension ignore panel component
+   IGNORE-PANEL.CSS — Extension ignore + Folder filter panels
+   + Extension Filter panel (all three unified as slide panels)
    ============================================================ */
 
-/* ── Toggle button in filter bar ──────────────────────────── */
-.filter-divider {
-  width: 10px;
-  height: 40px;
-  background: var(--border-subtle);
+/* ══════════════════════════════════════════════════════════
+   STATUS + FILTER BAR (combined row)
+   ══════════════════════════════════════════════════════════ */
+.status-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 46px;
+  background: var(--bg-statusbar);
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  margin: 0 4px;
-}
-
-.ignore-toggle-btn {
+  padding: 0;
+  overflow: visible;
   position: relative;
-  border-color: rgba(244,100,95,0.2);
-  color: var(--text-secondary);
-  gap: 6px;
-  transition: background var(--ease), border-color var(--ease), color var(--ease);
-}
-.ignore-toggle-btn:hover {
-  background: var(--red-dim);
-  border-color: rgba(244,100,95,0.4);
-  color: var(--red);
-}
-.ignore-toggle-btn.active {
-  background: var(--red-dim);
-  border-color: rgba(244,100,95,0.45);
-  color: var(--red);
+  z-index: 40;
 }
 
-.ignore-badge {
+/* ── Selection counter ──────────────────────────────────── */
+.selection-counter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 18px;
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background var(--ease), color var(--ease);
+  white-space: nowrap;
+}
+.selection-counter.has-selections {
+  background: rgba(45,212,160,0.07);
+  color: var(--green);
+}
+.counter-icon { font-size: 11px; }
+#selectionCount {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+}
+.counter-label { font-size: 12px; opacity: 0.7; }
+
+/* ── Right side: toggles + progress ────────────────────── */
+.bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.bar-divider {
+  width: 1px;
+  height: 26px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PANEL TOGGLE BUTTONS (all three share this style)
+   ══════════════════════════════════════════════════════════ */
+.panel-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 16px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-subtle);
+  border-radius: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--ease), color var(--ease);
+  position: relative;
+}
+.panel-toggle-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.panel-toggle-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+/* Active underline indicator */
+.panel-toggle-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 1px;
+}
+#filterToggleBtn.active::after  { background: var(--accent); }
+#ignoreToggleBtn.active::after  { background: var(--red); }
+#folderToggleBtn.active::after  { background: var(--blue); }
+
+/* Per-toggle active colors */
+.filter-toggle-btn.active { color: var(--accent); }
+.folder-toggle-btn.active { color: var(--blue); }
+#ignoreToggleBtn.active   { color: var(--red); }
+
+/* Badges */
+.toggle-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: var(--red);
-  color: #fff;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
   border-radius: 9px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
-  flex-shrink: 0;
+}
+.filter-badge { background: var(--accent); color: #0d1117; }
+.ignore-badge { background: var(--red);    color: #fff; }
+.folder-badge { background: var(--blue);   color: #fff; }
+
+/* Compact progress */
+.progress-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-left: 1px solid var(--border-subtle);
+  height: 100%;
+}
+.progress-compact progress {
+  width: 100px;
+  height: 4px;
+  border: none;
+  border-radius: 2px;
+  background: var(--bg-raised);
+  appearance: none;
+  -webkit-appearance: none;
+}
+.progress-compact progress::-webkit-progress-bar  { background: var(--bg-raised); border-radius: 2px; }
+.progress-compact progress::-webkit-progress-value { background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+.progress-compact progress::-moz-progress-bar { background: var(--accent); border-radius: 2px; }
+#progressText {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 32px;
+  text-align: right;
 }
 
-/* ── Panel container ──────────────────────────────────────── */
-.ignore-panel {
+/* ══════════════════════════════════════════════════════════
+   SLIDE PANELS (shared structure for all three panels)
+   ══════════════════════════════════════════════════════════ */
+.slide-panel {
   max-height: 0;
   overflow: hidden;
-  background: #0c1520;
+  background: #0a1420;
   border-bottom: 0px solid var(--border-subtle);
-  transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              border-bottom-width 0.32s ease,
-              padding 0.32s ease;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-bottom-width 0.3s ease;
   flex-shrink: 0;
+  position: relative;
+  z-index: 30;
 }
-.ignore-panel.open {
-  max-height: 260px;
+.slide-panel.open {
+  max-height: 230px;
   border-bottom-width: 1px;
 }
 
-.ignore-panel-inner {
+.slide-panel-inner {
   display: flex;
   flex-direction: row;
-  align-items: stretch;
-  gap: 0;
-  padding: 14px 22px;
-  min-height: 0;
+  height: 230px;
+  overflow: hidden;
 }
 
-/* ── Columns ──────────────────────────────────────────────── */
-.ignore-col {
-  flex: 1;
+/* ── Panel columns ──────────────────────────────────────── */
+.panel-col {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  border-right: 1px solid var(--border-subtle);
   min-width: 0;
 }
 
-.ignore-col-header {
+/* Detected (source) column — wider */
+.panel-col:first-child { flex: 1.5; }
+
+/* Active (ignored / focused / filtered) columns — narrower */
+.panel-col-active { flex: 1; }
+
+/* Folder available column — widest because of action buttons */
+.panel-col-folders { flex: 2; }
+
+.panel-col:last-child { border-right: none; }
+
+/* Column header */
+.panel-col-label {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding-bottom: 8px;
+  padding: 10px 14px 8px;
   border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.ignore-col-icon { font-size: 14px; }
-
-.ignore-col-title {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.col-label-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-blue   { background: var(--blue); }
+.dot-red    { background: var(--red); }
+.dot-green  { background: var(--green); }
+.dot-yellow { background: var(--yellow); }
+.dot-accent { background: var(--accent); }
+
+.col-label-hint {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.col-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
   color: var(--text-secondary);
 }
 
-.ignore-col-hint {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-left: auto;
-  font-style: italic;
-}
-
-/* ── Center divider/arrow ─────────────────────────────────── */
-.ignore-divider-vert {
+/* Chip list scroll area */
+.chip-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 20px;
-  flex-shrink: 0;
+  gap: 3px;
+}
+.chip-list::-webkit-scrollbar { width: 3px; }
+.chip-list::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+/* Active column chip lists — slight tint */
+.chip-list-active {
+  background: rgba(0,0,0,0.15);
 }
 
-.ignore-arrow {
-  font-size: 22px;
-  color: var(--border-mid);
-  line-height: 1;
-  user-select: none;
-}
+/* Folder list — needs horizontal room for action buttons */
+.chip-list-folders { gap: 4px; }
 
-/* ── Chip wrap ────────────────────────────────────────────── */
-.ignore-chips-wrap {
+/* ══════════════════════════════════════════════════════════
+   EXTENSION FILTER CHIPS (click-to-filter panel)
+   ══════════════════════════════════════════════════════════ */
+
+/* Source list: detected exts available to filter by */
+.ext-filter-chip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-content: flex-start;
-  overflow-y: auto;
-  max-height: 140px;
-  padding: 2px 0 4px;
-}
-
-/* ── Individual chips ─────────────────────────────────────── */
-.ignore-chip {
-  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 5px 10px;
   border-radius: var(--r-xs);
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-  border: 1px solid transparent;
-  transition: background var(--ease), border-color var(--ease), color var(--ease), transform 0.1s ease;
-  white-space: nowrap;
-}
-
-.ignore-chip.available {
-  background: var(--blue-dim);
-  border-color: rgba(91,141,238,0.25);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   color: var(--folder-text);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+  white-space: nowrap;
+  user-select: none;
 }
-.ignore-chip.available:hover {
-  background: rgba(91,141,238,0.2);
-  border-color: rgba(91,141,238,0.5);
-  color: #9ec4f5;
-  transform: translateY(-1px);
+.ext-filter-chip:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
-.ignore-chip.available .ignore-chip-action {
+.ext-filter-chip .chip-arrow {
+  margin-left: auto;
   font-size: 10px;
   opacity: 0;
-  color: var(--red);
   transition: opacity var(--ease);
-  font-family: var(--font-ui);
-  letter-spacing: 0.03em;
+  color: var(--accent);
 }
-.ignore-chip.available:hover .ignore-chip-action { opacity: 1; }
+.ext-filter-chip:hover .chip-arrow { opacity: 1; }
 
-.ignore-chip.ignored {
-  background: var(--red-dim);
-  border-color: rgba(244,100,95,0.3);
-  color: var(--red);
+/* Active filter chips (right col) */
+.ext-filter-chip-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  cursor: default;
+  white-space: nowrap;
+  user-select: none;
 }
-.ignore-chip.ignored:hover {
-  background: rgba(244,100,95,0.18);
-  border-color: rgba(244,100,95,0.5);
-}
-
-.ignore-chip-remove {
-  background: none !important;
-  border: none !important;
-  color: var(--red) !important;
+.ext-filter-chip-active .chip-remove-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--accent);
+  opacity: 0.45;
   cursor: pointer;
   font-size: 10px;
-  padding: 0 !important;
+  padding: 0;
+  height: auto;
   line-height: 1;
-  opacity: 0.5;
-  height: auto !important;
-  box-shadow: none !important;
   transition: opacity var(--ease);
-  min-width: unset !important;
-  width: auto !important;
 }
-.ignore-chip-remove:hover { opacity: 1 !important; transform: none !important; }
+.ext-filter-chip-active .chip-remove-btn:hover { opacity: 1; transform: none !important; }
 
-.ignore-chip.ignore-clear-all {
-  background: transparent;
-  border-color: var(--border-subtle);
-  color: var(--text-muted);
+/* ══════════════════════════════════════════════════════════
+   EXTENSION IGNORE CHIPS (click-to-ignore panel)
+   ══════════════════════════════════════════════════════════ */
+.ext-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--folder-text);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+  white-space: nowrap;
+  user-select: none;
+}
+.ext-chip:hover {
+  background: var(--red-dim);
+  border-color: rgba(244,100,95,0.35);
+  color: var(--red);
+}
+.ext-chip .chip-arrow {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity var(--ease);
+  color: var(--red);
+}
+.ext-chip:hover .chip-arrow { opacity: 1; }
+
+/* Ignored ext chips */
+.ext-chip-ignored {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--red-dim);
+  border: 1px solid rgba(244,100,95,0.28);
+  color: var(--red);
+  cursor: default;
+  white-space: nowrap;
+  user-select: none;
+}
+.ext-chip-ignored .chip-remove-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--red);
+  opacity: 0.45;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  height: auto;
+  line-height: 1;
+  transition: opacity var(--ease);
+}
+.ext-chip-ignored .chip-remove-btn:hover { opacity: 1; transform: none !important; }
+
+/* Restore-all row */
+.chip-restore-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
   font-family: var(--font-ui);
   font-size: 11.5px;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-subtle);
+  cursor: pointer;
+  transition: background var(--ease), color var(--ease), border-color var(--ease);
+  margin-top: 4px;
 }
-.ignore-chip.ignore-clear-all:hover {
+.chip-restore-all:hover {
   background: var(--bg-surface);
-  border-color: var(--border-mid);
   color: var(--text-secondary);
+  border-color: var(--border-mid);
 }
 
-.ignore-empty {
+/* Empty state */
+.chip-empty {
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-muted);
   font-style: italic;
-  padding: 4px 2px;
+  padding: 6px 10px;
+  text-align: center;
 }
+
+/* ══════════════════════════════════════════════════════════
+   FOLDER CHIPS
+   ══════════════════════════════════════════════════════════ */
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 10px;
+  border-radius: var(--r-xs);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  transition: background var(--ease), border-color var(--ease);
+  min-width: 0;
+}
+.folder-row:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-mid);
+}
+
+.folder-row-name {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--folder-text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.folder-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.folder-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  height: 22px;
+  border-radius: 3px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+.folder-btn-ignore {
+  background: var(--red-dim);
+  border-color: rgba(244,100,95,0.28);
+  color: var(--red);
+}
+.folder-btn-ignore:hover {
+  background: rgba(244,100,95,0.22);
+  border-color: rgba(244,100,95,0.5);
+}
+.folder-btn-focus {
+  background: rgba(45,212,160,0.1);
+  border-color: rgba(45,212,160,0.28);
+  color: var(--green);
+}
+.folder-btn-focus:hover {
+  background: rgba(45,212,160,0.2);
+  border-color: rgba(45,212,160,0.5);
+}
+
+/* Active folder chips (ignored / focused columns) */
+.folder-chip-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.folder-chip-active.type-ignored {
+  background: var(--red-dim);
+  border: 1px solid rgba(244,100,95,0.28);
+  color: var(--red);
+}
+.folder-chip-active.type-focused {
+  background: rgba(45,212,160,0.1);
+  border: 1px solid rgba(45,212,160,0.28);
+  color: var(--green);
+}
+.folder-chip-active .chip-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.folder-chip-active .chip-remove-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.45;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  height: auto;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: opacity var(--ease);
+}
+.folder-chip-active .chip-remove-btn:hover { opacity: 1; transform: none !important; }
