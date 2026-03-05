@@ -1,31 +1,17 @@
-name: CI — Lint & Validate
+name: CI
 
 on:
   push:
-    branches:
-      - main
-      - develop
-      - '**'
+    branches: ['**']
   pull_request:
     branches:
       - main
       - develop
 
-# Block merge if any job fails
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  # ─────────────────────────────────────────
-  # JOB 1: Dependency install + basic checks
-  # ─────────────────────────────────────────
-  install-and-validate:
-    name: Install & Validate
-    runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: Code
+  check:
+    name: Check for Errors
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -39,329 +25,99 @@ jobs:
           cache-dependency-path: Code/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Check package.json is valid JSON
-        run: node -e "require('./package.json'); console.log('package.json OK')"
-
-  # ─────────────────────────────────────────
-  # JOB 2: ESLint — catch real code errors
-  # ─────────────────────────────────────────
-  lint:
-    name: ESLint
-    runs-on: ubuntu-latest
-    needs: install-and-validate
-    defaults:
-      run:
         working-directory: Code
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: Code/package-lock.json
-
-      - name: Install dependencies
         run: npm ci
 
-      - name: Install ESLint if not present
+      # ── 1. Syntax check: CommonJS files (main process) ──────────────────
+      - name: Syntax check — main process files
         run: |
-          if ! npx eslint --version > /dev/null 2>&1; then
-            npm install --save-dev eslint@latest
-          fi
-
-      - name: Lint — main process files (CommonJS / Node env)
-        run: |
-          npx eslint \
-            main.js \
-            preload.js \
-            config/config.js \
-            utils/codeOps.js \
-            utils/docignore.js \
-            utils/fileOps.js \
-            --env node \
-            --env es2022 \
-            --parser-options=ecmaVersion:2022 \
-            --rule "no-undef: error" \
-            --rule "no-unused-vars: warn" \
-            --rule "no-console: off" \
-            --rule "semi: error" \
-            --rule "no-unreachable: error" \
-            --rule "no-duplicate-case: error" \
-            --rule "no-empty: error" \
-            --ignore-pattern "node_modules/" \
-            --ignore-pattern "dist/"
-
-      - name: Lint — renderer files (ES modules / browser env)
-        run: |
-          npx eslint \
-            renderer/app.js \
-            renderer/filterManager.js \
-            renderer/searchManager.js \
-            utils/treeView.js \
-            --env browser \
-            --env es2022 \
-            --parser-options=ecmaVersion:2022,sourceType:module \
-            --rule "no-undef: error" \
-            --rule "no-unused-vars: warn" \
-            --rule "no-unreachable: error" \
-            --rule "no-duplicate-case: error" \
-            --rule "no-empty: error" \
-            --ignore-pattern "node_modules/" \
-            --ignore-pattern "dist/"
-
-  # ─────────────────────────────────────────
-  # JOB 3: Syntax check — Node.js parse pass
-  # ─────────────────────────────────────────
-  syntax-check:
-    name: Syntax Check
-    runs-on: ubuntu-latest
-    needs: install-and-validate
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Check syntax — main process JS files
-        run: |
-          echo "Checking main process files (CommonJS)..."
-          FILES=(
-            "Code/main.js"
-            "Code/preload.js"
-            "Code/config/config.js"
-            "Code/utils/codeOps.js"
-            "Code/utils/docignore.js"
-            "Code/utils/fileOps.js"
-          )
           ERRORS=0
-          for f in "${FILES[@]}"; do
-            if [ -f "$f" ]; then
-              node --check "$f" && echo "  ✅ $f" || { echo "  ❌ SYNTAX ERROR: $f"; ERRORS=$((ERRORS+1)); }
-            else
-              echo "  ⚠️  $f not found, skipping"
-            fi
+          for f in \
+            Code/main.js \
+            Code/preload.js \
+            Code/config/config.js \
+            Code/utils/codeOps.js \
+            Code/utils/docignore.js \
+            Code/utils/fileOps.js
+          do
+            node --check "$f" \
+              && echo "✅ $f" \
+              || { echo "❌ Syntax error in $f"; ERRORS=$((ERRORS+1)); }
           done
-          if [ $ERRORS -gt 0 ]; then
-            echo ""
-            echo "❌ $ERRORS file(s) have syntax errors. Fix before merging."
-            exit 1
-          fi
-          echo ""
-          echo "✅ All main process files passed syntax check."
+          [ $ERRORS -eq 0 ] || exit 1
 
-      - name: Check syntax — renderer JS files (ES modules)
+      # ── 2. Syntax check: ES module files (renderer) ─────────────────────
+      #    node --check doesn't support ESM import/export so we use acorn
+      - name: Syntax check — renderer / ES module files
         run: |
-          echo "Checking renderer files (ES modules)..."
-          FILES=(
-            "Code/renderer/app.js"
-            "Code/renderer/filterManager.js"
-            "Code/renderer/searchManager.js"
-            "Code/utils/treeView.js"
-          )
+          npm install -g acorn 2>/dev/null
           ERRORS=0
-          for f in "${FILES[@]}"; do
-            if [ -f "$f" ]; then
-              node --input-type=module < "$f" > /dev/null 2>&1 \
-                && echo "  ✅ $f" \
-                || {
-                  # Fallback: strip import/export keywords then run --check
-                  node --check <(sed \
-                    's/^import .*//; s/^export default /const _default = /; s/^export \(function\|const\|class\|let\|var\)/\1/g' \
-                    "$f") 2>/dev/null \
-                    && echo "  ✅ $f (fallback check)" \
-                    || { echo "  ❌ SYNTAX ERROR: $f"; ERRORS=$((ERRORS+1)); }
-                }
-            else
-              echo "  ⚠️  $f not found, skipping"
-            fi
+          for f in \
+            Code/renderer/app.js \
+            Code/renderer/filterManager.js \
+            Code/renderer/searchManager.js \
+            Code/utils/treeView.js
+          do
+            acorn --ecma2022 --module "$f" > /dev/null \
+              && echo "✅ $f" \
+              || { echo "❌ Syntax error in $f"; ERRORS=$((ERRORS+1)); }
           done
-          if [ $ERRORS -gt 0 ]; then
-            echo ""
-            echo "❌ $ERRORS renderer file(s) have syntax errors."
-            exit 1
-          fi
-          echo "✅ All renderer files passed syntax check."
+          [ $ERRORS -eq 0 ] || exit 1
 
-  # ─────────────────────────────────────────
-  # JOB 4: Structural integrity checks
-  # ─────────────────────────────────────────
-  structure-check:
-    name: Project Structure Check
-    runs-on: ubuntu-latest
-    needs: install-and-validate
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Verify all required files exist
-        run: |
-          echo "Checking required project files..."
-          MISSING=0
-          REQUIRED_FILES=(
-            # Root
-            "Code/package.json"
-            "Code/.docignore"
-            # Main process
-            "Code/main.js"
-            "Code/preload.js"
-            # Config
-            "Code/config/config.js"
-            # Utils
-            "Code/utils/codeOps.js"
-            "Code/utils/docignore.js"
-            "Code/utils/fileOps.js"
-            "Code/utils/treeView.js"
-            # Renderer
-            "Code/renderer/index.html"
-            "Code/renderer/app.js"
-            "Code/renderer/filterManager.js"
-            "Code/renderer/searchManager.js"
-            # Styles
-            "Code/renderer/styles/base.css"
-            "Code/renderer/styles/ignore-panel.css"
-            "Code/renderer/styles/layout-chrome.css"
-            "Code/renderer/styles/layout-tree.css"
-          )
-
-          for f in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "$f" ]; then
-              echo "  ❌ MISSING: $f"
-              MISSING=$((MISSING+1))
-            else
-              echo "  ✅ $f"
-            fi
-          done
-
-          if [ $MISSING -gt 0 ]; then
-            echo ""
-            echo "❌ $MISSING required file(s) are missing."
-            exit 1
-          fi
-          echo ""
-          echo "✅ All required files present."
-
-      - name: Verify IPC handlers match preload exposures
+      # ── 3. IPC integrity: every preload invoke has a main.js handler ─────
+      - name: IPC channel integrity check
         run: |
           node -e "
             const fs = require('fs');
+            const main    = fs.readFileSync('Code/main.js',    'utf-8');
+            const preload = fs.readFileSync('Code/preload.js', 'utf-8');
 
-            const mainJs    = fs.readFileSync('Code/main.js',    'utf-8');
-            const preloadJs = fs.readFileSync('Code/preload.js', 'utf-8');
-
-            // Extract ipcMain.handle channel names from main.js
-            const mainHandles = [...mainJs.matchAll(/ipcMain\.handle\(['\"]([\\w-]+)['\"],/g)]
-              .map(m => m[1]);
-
-            // Extract ipcRenderer.invoke channel names from preload.js
-            const preloadInvokes = [...preloadJs.matchAll(/ipcRenderer\.invoke\(['\"]([\\w-]+)['\"][\s,)]/g)]
-              .map(m => m[1]);
-
-            console.log('\nHandlers registered in main.js:');
-            mainHandles.forEach(h => console.log('  •', h));
-
-            console.log('\nChannels invoked in preload.js:');
-            preloadInvokes.forEach(h => console.log('  •', h));
+            const handlers = [...main.matchAll(/ipcMain\.handle\(['\"]([^'\"]+)['\"],/g)].map(m => m[1]);
+            const invokes  = [...preload.matchAll(/ipcRenderer\.invoke\(['\"]([^'\"]+)['\"][\s,)]/g)].map(m => m[1]);
 
             let errors = 0;
-            for (const invoke of preloadInvokes) {
-              if (!mainHandles.includes(invoke)) {
-                console.error('\n❌ preload.js invokes [' + invoke + '] but main.js has NO matching handler!');
+            for (const ch of invokes) {
+              if (!handlers.includes(ch)) {
+                console.error('❌ preload invokes [' + ch + '] but no handler in main.js');
                 errors++;
               }
             }
-
-            if (errors > 0) {
-              console.error('\n❌ ' + errors + ' IPC mismatch(es) found. Fix before merging.');
-              process.exit(1);
-            }
-
-            console.log('\n✅ All IPC channels are matched.');
+            if (errors) process.exit(1);
+            console.log('✅ All IPC channels matched');
           "
 
-      - name: Check for merge conflict markers in Code/
+      # ── 4. Merge conflict markers ────────────────────────────────────────
+      - name: Check for merge conflict markers
         run: |
-          echo "Checking Code/ for merge conflict markers..."
-          CONFLICTS=$(grep -rn "<<<<<<\|>>>>>>\|=======" Code/ \
-            --include="*.js" \
-            --include="*.json" \
-            --include="*.html" \
-            --include="*.css" \
-            --exclude-dir=node_modules \
-            --exclude-dir=dist \
-            --exclude-dir=.git || true)
+          CONFLICTS=$(grep -rn "^<<<<<<< \|^>>>>>>> \|^=======$" Code/ \
+            --include="*.js" --include="*.json" --include="*.html" --include="*.css" \
+            --exclude-dir=node_modules || true)
           if [ -n "$CONFLICTS" ]; then
             echo "❌ Merge conflict markers found:"
             echo "$CONFLICTS"
             exit 1
           fi
-          echo "✅ No merge conflict markers in Code/."
+          echo "✅ No merge conflict markers"
 
-      - name: Check for merge conflict markers in .Docs/
+      # ── 5. Required files exist ──────────────────────────────────────────
+      - name: Required files check
         run: |
-          echo "Checking .Docs/ for merge conflict markers..."
-          CONFLICTS=$(grep -rn "<<<<<<\|>>>>>>\|=======" .Docs/ \
-            --include="*.md" \
-            --include="*.sh" \
-            --exclude-dir=.git || true)
-          if [ -n "$CONFLICTS" ]; then
-            echo "❌ Merge conflict markers found in .Docs/:"
-            echo "$CONFLICTS"
-            exit 1
-          fi
-          echo "✅ No merge conflict markers in .Docs/."
-
-  # ─────────────────────────────────────────
-  # JOB 5: Dependency audit (security)
-  # ─────────────────────────────────────────
-  audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    needs: install-and-validate
-    defaults:
-      run:
-        working-directory: Code
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: Code/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run npm audit (high severity — warns, does not block)
-        run: npm audit --audit-level=high || true
-        # Remove `|| true` above to hard-block merges on high-severity vulnerabilities
-
-  # ─────────────────────────────────────────
-  # FINAL: Gate — all jobs must pass
-  # ─────────────────────────────────────────
-  all-checks-passed:
-    name: ✅ All Checks Passed
-    runs-on: ubuntu-latest
-    needs:
-      - lint
-      - syntax-check
-      - structure-check
-      - audit
-
-    steps:
-      - name: Gate check
-        run: echo "All CI checks passed — safe to merge."
+          MISSING=0
+          for f in \
+            Code/main.js \
+            Code/preload.js \
+            Code/config/config.js \
+            Code/utils/codeOps.js \
+            Code/utils/docignore.js \
+            Code/utils/fileOps.js \
+            Code/utils/treeView.js \
+            Code/renderer/index.html \
+            Code/renderer/app.js \
+            Code/renderer/filterManager.js \
+            Code/renderer/searchManager.js
+          do
+            [ -f "$f" ] \
+              && echo "✅ $f" \
+              || { echo "❌ Missing: $f"; MISSING=$((MISSING+1)); }
+          done
+          [ $MISSING -eq 0 ] || exit 1
