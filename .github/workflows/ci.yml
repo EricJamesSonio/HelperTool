@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  check:
+    name: Check for Errors
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Code/package-lock.json
+
+      - name: Install dependencies
+        working-directory: Code
+        run: npm ci
+
+      # ── 1. Syntax check: CommonJS files (main process) ──────────────────
+      - name: Syntax check — main process files
+        run: |
+          ERRORS=0
+          for f in \
+            Code/main.js \
+            Code/preload.js \
+            Code/config/config.js \
+            Code/utils/codeOps.js \
+            Code/utils/docignore.js \
+            Code/utils/fileOps.js
+          do
+            node --check "$f" \
+              && echo "✅ $f" \
+              || { echo "❌ Syntax error in $f"; ERRORS=$((ERRORS+1)); }
+          done
+          [ $ERRORS -eq 0 ] || exit 1
+
+      # ── 2. Syntax check: ES module files (renderer) ─────────────────────
+      #    node --check doesn't support ESM import/export so we use acorn
+      - name: Syntax check — renderer / ES module files
+        run: |
+          npm install -g acorn 2>/dev/null
+          ERRORS=0
+          for f in \
+            Code/renderer/app.js \
+            Code/renderer/filterManager.js \
+            Code/renderer/searchManager.js \
+            Code/utils/treeView.js
+          do
+            acorn --ecma2022 --module "$f" > /dev/null \
+              && echo "✅ $f" \
+              || { echo "❌ Syntax error in $f"; ERRORS=$((ERRORS+1)); }
+          done
+          [ $ERRORS -eq 0 ] || exit 1
+
+      # ── 3. IPC integrity: every preload invoke has a main.js handler ─────
+      - name: IPC channel integrity check
+        run: |
+          node -e "
+            const fs = require('fs');
+            const main    = fs.readFileSync('Code/main.js',    'utf-8');
+            const preload = fs.readFileSync('Code/preload.js', 'utf-8');
+
+            const handlers = [...main.matchAll(/ipcMain\.handle\(['\"]([^'\"]+)['\"],/g)].map(m => m[1]);
+            const invokes  = [...preload.matchAll(/ipcRenderer\.invoke\(['\"]([^'\"]+)['\"][\s,)]/g)].map(m => m[1]);
+
+            let errors = 0;
+            for (const ch of invokes) {
+              if (!handlers.includes(ch)) {
+                console.error('❌ preload invokes [' + ch + '] but no handler in main.js');
+                errors++;
+              }
+            }
+            if (errors) process.exit(1);
+            console.log('✅ All IPC channels matched');
+          "
+
+      # ── 4. Merge conflict markers ────────────────────────────────────────
+      - name: Check for merge conflict markers
+        run: |
+          CONFLICTS=$(grep -rn "^<<<<<<< \|^>>>>>>> \|^=======$" Code/ \
+            --include="*.js" --include="*.json" --include="*.html" --include="*.css" \
+            --exclude-dir=node_modules || true)
+          if [ -n "$CONFLICTS" ]; then
+            echo "❌ Merge conflict markers found:"
+            echo "$CONFLICTS"
+            exit 1
+          fi
+          echo "✅ No merge conflict markers"
+
+      # ── 5. Required files exist ──────────────────────────────────────────
+      - name: Required files check
+        run: |
+          MISSING=0
+          for f in \
+            Code/main.js \
+            Code/preload.js \
+            Code/config/config.js \
+            Code/utils/codeOps.js \
+            Code/utils/docignore.js \
+            Code/utils/fileOps.js \
+            Code/utils/treeView.js \
+            Code/renderer/index.html \
+            Code/renderer/app.js \
+            Code/renderer/filterManager.js \
+            Code/renderer/searchManager.js
+          do
+            [ -f "$f" ] \
+              && echo "✅ $f" \
+              || { echo "❌ Missing: $f"; MISSING=$((MISSING+1)); }
+          done
+          [ $MISSING -eq 0 ] || exit 1
