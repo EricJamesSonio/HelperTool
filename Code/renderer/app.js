@@ -233,3 +233,34 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadFolderFilters();
     loadLastActiveRepo();
 });
+
+/* ----------------------------------------
+ * THEME TOGGLE
+ * Add this block to app.js after the DOM refs section.
+ * -------------------------------------- */
+
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const themeIcon      = document.getElementById('themeIcon');
+const themeLabel     = document.getElementById('themeLabel');
+
+// Load saved theme preference (persists across sessions)
+const savedTheme = localStorage.getItem('helpertool-theme') || 'dark';
+applyTheme(savedTheme);
+
+function applyTheme(theme) {
+    if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeIcon.textContent  = '🌙';
+        themeLabel.textContent = 'Dark';
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent  = '☀️';
+        themeLabel.textContent = 'Light';
+    }
+    localStorage.setItem('helpertool-theme', theme);
+}
+
+themeToggleBtn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    applyTheme(current === 'light' ? 'dark' : 'light');
+});

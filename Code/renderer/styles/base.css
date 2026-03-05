@@ -5,13 +5,12 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 /* ------------------------------------------------------------
-   DESIGN TOKENS
+   DESIGN TOKENS — DARK (default)
 ------------------------------------------------------------ */
 :root {
   --bg-root:        #0d1117;
   --bg-navbar:      #0f1622;
   --bg-statusbar:   #0c1420;
-  --bg-filterbar:   #111827;
   --bg-tree:        #0d1117;
   --bg-surface:     #161d2e;
   --bg-raised:      #1c2640;
@@ -34,6 +33,14 @@
   --file-bg-h:      #182030;
   --file-border:    rgba(255,255,255,0.075);
   --file-text:      #6e82a0;
+
+  --file-hover-border: rgba(255,255,255,0.15);
+  --file-hover-color:  #8a96b0;
+
+  --folder-hover-border: rgba(91,141,238,0.6);
+  --folder-hover-color:  #9ec4f5;
+
+  --connector-color: rgba(255,255,255,0.11);
 
   --green:          #2dd4a0;
   --green-dim:      rgba(45,212,160,0.12);
@@ -61,13 +68,253 @@
 }
 
 /* ------------------------------------------------------------
+   DESIGN TOKENS — LIGHT
+------------------------------------------------------------ */
+[data-theme="light"] {
+  --bg-root:        #c8d3e0;
+  --bg-navbar:      #d4dde9;
+  --bg-statusbar:   #cdd7e3;
+  --bg-tree:        #bcc9d8;
+  --bg-surface:     #d8e1ec;
+  --bg-raised:      #c0ccda;
+  --bg-hover:       #b8c6d6;
+
+  --border-subtle:  rgba(0,0,0,0.10);
+  --border-mid:     rgba(0,0,0,0.18);
+  --border-strong:  rgba(0,0,0,0.30);
+
+  --accent:         #e8a838;
+  --accent-dim:     rgba(232,168,56,0.18);
+  --accent-border:  rgba(232,168,56,0.45);
+
+  /* Folder nodes — rich navy that pops on light bg */
+  --folder-bg:      #1e3560;
+  --folder-bg-h:    #284880;
+  --folder-border:  rgba(91,141,238,0.80);
+  --folder-text:    #a8d0ff;
+
+  /* File nodes — dark slate, clearly visible */
+  --file-bg:        #2a3848;
+  --file-bg-h:      #344558;
+  --file-border:    rgba(91,141,238,0.25);
+  --file-text:      #90aac8;
+
+  --file-hover-border: rgba(91,141,238,0.45);
+  --file-hover-color:  #b0c8e8;
+
+  --folder-hover-border: rgba(91,141,238,0.95);
+  --folder-hover-color:  #c8e4ff;
+
+  --connector-color: rgba(0,0,0,0.25);
+
+  --green:          #2dd4a0;
+  --green-dim:      rgba(45,212,160,0.15);
+  --red:            #f4645f;
+  --red-dim:        rgba(244,100,95,0.15);
+  --blue:           #5b8dee;
+  --blue-dim:       rgba(91,141,238,0.15);
+  --yellow:         #f5c542;
+  --yellow-dim:     rgba(245,197,66,0.15);
+
+  --text-primary:   #111926;
+  --text-secondary: #2e3f55;
+  --text-muted:     #4a5a70;
+  --text-accent:    #c47a00;
+}
+
+/* ------------------------------------------------------------
+   RICH SOLID BUTTON STYLES (both themes)
+------------------------------------------------------------ */
+
+/* Select Repo — deep navy */
+.primary-btn {
+  background: #1e3a5f !important;
+  border-color: #2e5590 !important;
+  color: #a8c8ee !important;
+}
+.primary-btn:hover {
+  background: #254878 !important;
+  border-color: #5b8dee !important;
+  color: #c8deff !important;
+}
+
+/* Structure — deep teal */
+#structureBtn {
+  background: #0f3028 !important;
+  border-color: #2dd4a0 !important;
+  color: #2dd4a0 !important;
+}
+#structureBtn:hover {
+  background: #14402f !important;
+  color: #5ae8bc !important;
+}
+
+/* Code — deep blue */
+#codeBtn {
+  background: #0f2050 !important;
+  border-color: #5b8dee !important;
+  color: #5b8dee !important;
+}
+#codeBtn:hover {
+  background: #162870 !important;
+  color: #88aaff !important;
+}
+
+/* Generate — vivid amber */
+.generate-btn {
+  background: #b86e00 !important;
+  border-color: #e8a838 !important;
+  color: #fff8ee !important;
+  font-weight: 700 !important;
+}
+.generate-btn:hover {
+  background: #d48820 !important;
+  border-color: #f0c060 !important;
+  color: #fff !important;
+}
+.generate-btn:disabled {
+  background: #1c2640 !important;
+  border-color: rgba(255,255,255,0.06) !important;
+  color: #3a4860 !important;
+}
+
+/* Clear (✕) — deep crimson */
+.clear-btn {
+  background: #3a0f0f !important;
+  border-color: #f4645f !important;
+  color: #f4645f !important;
+}
+.clear-btn:hover {
+  background: #541414 !important;
+  border-color: #ff8a86 !important;
+  color: #ffaaaa !important;
+}
+
+/* Edit docignore (⚙️) — deep violet */
+#editDocignoreBtn {
+  background: #1e1040 !important;
+  border-color: #8060c0 !important;
+  color: #a888e0 !important;
+}
+#editDocignoreBtn:hover {
+  background: #281450 !important;
+  border-color: #a080e0 !important;
+  color: #c8aaff !important;
+}
+
+/* Refresh — steel blue */
+.refresh-btn {
+  background: #0f1e38 !important;
+  border-color: #3a6090 !important;
+  color: #6090c0 !important;
+}
+.refresh-btn:hover {
+  background: #142848 !important;
+  border-color: #5b8dee !important;
+  color: #88b4e8 !important;
+}
+
+/* Panel toggle buttons */
+.panel-toggle-btn {
+  background: #10192a !important;
+  color: var(--text-secondary) !important;
+  border-left-color: rgba(255,255,255,0.07) !important;
+}
+.panel-toggle-btn:hover {
+  background: #172030 !important;
+  color: var(--text-primary) !important;
+}
+.panel-toggle-btn.active {
+  background: #172030 !important;
+}
+#filterToggleBtn.active  { color: var(--accent) !important; }
+#ignoreToggleBtn.active  { color: var(--red) !important; }
+#folderToggleBtn.active  { color: var(--blue) !important; }
+
+/* Light: panel toggles stay dark to pop on the lighter bg */
+[data-theme="light"] .panel-toggle-btn {
+  background: #152040 !important;
+  border-left-color: rgba(0,0,0,0.22) !important;
+  color: #7090b8 !important;
+}
+[data-theme="light"] .panel-toggle-btn:hover {
+  background: #1a2a50 !important;
+  color: #90b0d8 !important;
+}
+[data-theme="light"] .panel-toggle-btn.active {
+  background: #1a2a50 !important;
+}
+
+/* Light mode misc */
+[data-theme="light"] .navbar-row--primary::before { opacity: 0.45; }
+[data-theme="light"] #treeContainer {
+  border-color: rgba(0,0,0,0.14);
+  box-shadow: inset 0 1px 4px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .slide-panel { background: #c0cbda; }
+[data-theme="light"] .search-suggestions {
+  background: #cdd7e3;
+  border-color: rgba(0,0,0,0.18);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.22), 0 0 0 1px rgba(232,168,56,0.12);
+}
+[data-theme="light"] .search-suggestions .search-result-item:hover {
+  background: rgba(232,168,56,0.10);
+}
+[data-theme="light"] .result-name { color: #111926; }
+[data-theme="light"] .result-path { color: #5a6e88; }
+
+/* ------------------------------------------------------------
+   THEME TOGGLE BUTTON
+------------------------------------------------------------ */
+.theme-toggle-btn {
+  background: #0f2050;
+  border: 1px solid #3a5888;
+  color: #5b8dee;
+  padding: 0 10px;
+  height: 36px;
+  border-radius: var(--r-xs);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.theme-toggle-btn:hover {
+  background: #162870;
+  border-color: #5b8dee;
+  color: #88aaff;
+  transform: rotate(15deg) !important;
+}
+.theme-toggle-btn .theme-label {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5b8dee;
+}
+.theme-toggle-btn:hover .theme-label { color: #88aaff; }
+
+/* ------------------------------------------------------------
+   SMOOTH THEME TRANSITIONS
+------------------------------------------------------------ */
+body, #app, .navbar-row--primary, .status-filter-bar,
+.slide-panel, .tree-view-container, #treeContainer,
+.tree-node, .search-suggestions, .panel-toggle-btn,
+.ext-chip, .ext-chip-ignored, .ext-filter-chip,
+.ext-filter-chip-active, .folder-row, .folder-chip-active {
+  transition: background var(--ease), border-color var(--ease),
+              color var(--ease), box-shadow var(--ease);
+}
+
+/* ------------------------------------------------------------
    RESET
 ------------------------------------------------------------ */
-*, *::before, *::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
   height: 100vh;
@@ -93,79 +340,37 @@ html, body {
 ------------------------------------------------------------ */
 #treeContainer::-webkit-scrollbar { width: 7px; height: 7px; }
 #treeContainer::-webkit-scrollbar-track { background: transparent; }
-#treeContainer::-webkit-scrollbar-thumb {
-  background: var(--border-mid);
-  border-radius: 4px;
-}
+#treeContainer::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 4px; }
 #treeContainer::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
-
 .ignore-chips-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
 .ignore-chips-wrap::-webkit-scrollbar-track { background: transparent; }
-.ignore-chips-wrap::-webkit-scrollbar-thumb {
-  background: var(--border-mid);
-  border-radius: 2px;
-}
-
+.ignore-chips-wrap::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
 .search-suggestions::-webkit-scrollbar { width: 4px; }
 .search-suggestions::-webkit-scrollbar-track { background: transparent; }
-.search-suggestions::-webkit-scrollbar-thumb {
-  background: rgba(232,168,56,0.2);
-  border-radius: 2px;
-}
+.search-suggestions::-webkit-scrollbar-thumb { background: rgba(232,168,56,0.2); border-radius: 2px; }
 
 /* ------------------------------------------------------------
    RESPONSIVE
 ------------------------------------------------------------ */
-@media (max-width: 1300px) {
-  .repo-name { max-width: 180px; }
-  .search-input { width: 190px; }
-  .search-input:focus { width: 250px; }
-}
-
+@media (max-width: 1300px) { .repo-name { max-width: 180px; } .search-input { width: 190px; } .search-input:focus { width: 250px; } }
 @media (max-width: 1100px) {
-  .navbar-row--primary {
-    height: auto;
-    flex-wrap: wrap;
-    padding: 10px 18px;
-    gap: 8px;
-    row-gap: 8px;
-  }
+  .navbar-row--primary { height: auto; flex-wrap: wrap; padding: 10px 18px; gap: 8px; row-gap: 8px; }
   .navbar-section.right { margin-left: auto; }
   .navbar-section.center { flex: 1; justify-content: center; }
 }
-
-@media (max-width: 900px) {
-  .search-section { order: -1; width: 100%; }
-  .search-input { width: 100%; }
-  .search-input:focus { width: 100%; }
-  .search-suggestions { width: 100%; }
-}
-
+@media (max-width: 900px) { .search-section { order: -1; width: 100%; } .search-input { width: 100%; } .search-input:focus { width: 100%; } .search-suggestions { width: 100%; } }
 @media (max-width: 768px) {
   html, body { font-size: 13.5px; }
   .navbar-row--primary { padding: 8px 12px; }
-  .status-bar { padding: 0 12px; height: 40px; }
-  .filter-bar { padding: 7px 12px; }
   .repo-name { max-width: 140px; font-size: 11.5px; }
-  .filter-text-input { width: 130px; }
-  #progressText { font-size: 12px; min-width: 32px; }
-  .progress-label { display: none; }
   .tree-view-container { padding: 10px; }
   .tree-root { flex-direction: column; align-items: center; gap: 18px; }
   .children { gap: 16px; }
   button { font-size: 20px; padding: 0 20px; height: 60px; }
   .tool-btn { height: 50px; }
 }
-
 @media (max-width: 560px) {
-  .status-bar { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
-  .status-spacer { display: none; }
-  .progress-container { width: 100%; max-width: 100%; }
   .selection-counter { flex: 1; }
   .counter-label { display: none; }
 }
-
-@media (max-width: 480px) {
-  .navbar-section.center { width: 100%; justify-content: space-between; }
-  .search-input { font-size: 13px; }
-}
+@media (max-width: 480px) { .navbar-section.center { width: 100%; justify-content: space-between; } .search-input { font-size: 13px; } }
