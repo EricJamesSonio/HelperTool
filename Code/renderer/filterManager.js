@@ -146,17 +146,27 @@ export function collectFolders(tree, folders = []) {
 }
 
 /**
- * Collect all descendant folder paths under a given folder path from the tree.
+ * Collect all descendant folder paths under a given folder path.
+ * Flattens entire tree first, then filters by path prefix.
  */
-function collectSubfolderPaths(tree, targetPath, result = []) {
-    for (const node of tree) {
-        if (node.type === 'folder') {
-            if (node.path === targetPath || node.path.startsWith(targetPath + '\\') || node.path.startsWith(targetPath + '/')) {
-                if (node.path !== targetPath) {
-                    result.push(node.path);
-                }
+function collectSubfolderPaths(tree, targetPath, result) {
+    if (!result) result = [];
+    const allFolders = [];
+    function flatten(nodes) {
+        for (const node of nodes) {
+            if (node.type === 'folder') {
+                allFolders.push(node);
+                if (node.children && node.children.length) flatten(node.children);
             }
-            if (node.children?.length) collectSubfolderPaths(node.children, targetPath, result);
+        }
+    }
+    flatten(tree);
+    for (const node of allFolders) {
+        if (node.path !== targetPath && (
+            node.path.startsWith(targetPath + '\\') ||
+            node.path.startsWith(targetPath + '/')
+        )) {
+            result.push(node.path);
         }
     }
     return result;
@@ -181,17 +191,22 @@ export function filterTree(tree) {
             const ext = getPrimaryExtension(node.name);
             if (ignoredExtensions.has(ext)) return null;
             if (activeExtensions.size > 0 && !activeExtensions.has(ext)) return null;
+            // File is hidden if it lives inside an ignored folder (ignore always wins)
+            if (isInsideFolder(node.path, ignoredFolders)) return null;
+            // File visible only if it lives inside a focused folder
             if (focusedFolders.size > 0 && !isInsideFolder(node.path, focusedFolders)) return null;
             return node;
         }
         if (node.type === 'folder') {
+            // Ignore always wins — even if parent is focused
             if (ignoredFolders.has(node.path)) return null;
             if (focusedFolders.size > 0) {
-                const isTarget   = focusedFolders.has(node.path);
-                const isAncestor = [...focusedFolders].some(fp =>
+                const isFocused    = focusedFolders.has(node.path);
+                const isAncestor   = [...focusedFolders].some(fp =>
                     fp.startsWith(node.path + '\\') || fp.startsWith(node.path + '/')
                 );
-                if (!isTarget && !isAncestor) return null;
+                const isDescendant = isInsideFolder(node.path, focusedFolders);
+                if (!isFocused && !isAncestor && !isDescendant) return null;
             }
             const filteredChildren = (node.children || []).map(filterNode).filter(Boolean);
             if (filteredChildren.length === 0 && focusedFolders.size === 0) return null;
@@ -421,7 +436,6 @@ export function renderFolderPanel(tree) {
             focBtn.textContent = '🎯 Focus';
             focBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // Add folder + all subfolders
                 focusedFolders.add(folder.path);
                 ignoredFolders.delete(folder.path);
                 const subs = collectSubfolderPaths(tree, folder.path);
@@ -525,9 +539,18 @@ export function renderFolderPanel(tree) {
                 const btn = document.createElement('button');
                 btn.className = 'chip-remove-btn';
                 btn.textContent = '✕';
+                btn.title = 'Remove from focus (moves to ignored)';
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     focusedFolders.delete(fp);
+                    // If this folder has a focused parent, move it to ignored
+                    // so the parent's scope doesn't pull it back in
+                    const hasActiveFocusedParent = [...focusedFolders].some(other =>
+                        fp.startsWith(other + '\\') || fp.startsWith(other + '/')
+                    );
+                    if (hasActiveFocusedParent) {
+                        ignoredFolders.add(fp);
+                    }
                     renderFolderPanel(tree);
                     _displayTree?.();
                     saveFolderFilters();
