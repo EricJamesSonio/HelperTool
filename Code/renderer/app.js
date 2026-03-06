@@ -18,37 +18,43 @@ import {
     setupFilterInput,
 } from './filterManager.js';
 import { setupSearch } from './searchManager.js';
+import { initSecretHolder, openSecretHolder, closeSecretHolder, isSecretHolderOpen } from './secretHolder.js';
+
 
 /* ----------------------------------------
  * DOM refs
  * -------------------------------------- */
-const selectRepoBtn = document.getElementById('selectRepoBtn');
+const selectRepoBtn  = document.getElementById('selectRepoBtn');
 const activeRepoName = document.getElementById('activeRepoName');
-const treeContainer = document.getElementById('treeContainer');
-const structureBtn = document.getElementById('structureBtn');
-const codeBtn = document.getElementById('codeBtn');
-const generateBtn = document.getElementById('generateBtn');
-const progressBar = document.getElementById('progressBar');
-const progressText = document.getElementById('progressText');
-const editDocignoreBtn = document.getElementById('editDocignoreBtn');
-const selectionCount = document.getElementById('selectionCount');
+const treeContainer  = document.getElementById('treeContainer');
+const structureBtn   = document.getElementById('structureBtn');
+const codeBtn        = document.getElementById('codeBtn');
+const generateBtn    = document.getElementById('generateBtn');
+const progressBar    = document.getElementById('progressBar');
+const progressText   = document.getElementById('progressText');
+const editDocignoreBtn  = document.getElementById('editDocignoreBtn');
+const selectionCount    = document.getElementById('selectionCount');
 const clearSelectionBtn = document.getElementById('clearSelectionBtn');
-const refreshBtn = document.getElementById('refreshBtn');
+const refreshBtn        = document.getElementById('refreshBtn');
+const secretHolderBtn   = document.getElementById('secretHolderBtn');
+const viewModeBtn       = document.getElementById('viewModeBtn');
+const themeToggleBtn    = document.getElementById('themeToggleBtn');
+const themeIcon         = document.getElementById('themeIcon');
+const themeLabel        = document.getElementById('themeLabel');
 
 /* ----------------------------------------
  * State
  * -------------------------------------- */
 let selectedRepoPath = null;
-let selectedItems = [];
-let actionType = 'code';
-let cachedTree = null;
+let selectedItems    = [];
+let actionType       = 'code';
+let cachedTree       = null;
+let viewMode         = localStorage.getItem('helpertool-viewmode') || 'list';
 
 /* ----------------------------------------
  * UI setup
  * -------------------------------------- */
 console.log('[Init] Setting up UI...');
-treeContainer.style.overflowY = 'auto';
-treeContainer.style.maxHeight = '80vh';
 generateBtn.disabled = true;
 
 /* ----------------------------------------
@@ -56,9 +62,60 @@ generateBtn.disabled = true;
  * -------------------------------------- */
 window.electronAPI.onProgressUpdate(percent => {
     console.log(`[Progress] ${percent}%`);
-    progressBar.value = percent;
+    progressBar.value       = percent;
     progressText.textContent = `${percent}%`;
 });
+
+/* ----------------------------------------
+ * Theme
+ * -------------------------------------- */
+function applyTheme(theme) {
+    if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeIcon.textContent  = '🌙';
+        themeLabel.textContent = 'Dark';
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent  = '☀️';
+        themeLabel.textContent = 'Light';
+    }
+    localStorage.setItem('helpertool-theme', theme);
+}
+
+themeToggleBtn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    applyTheme(current === 'light' ? 'dark' : 'light');
+});
+
+// Apply saved theme immediately (before any async work)
+applyTheme(localStorage.getItem('helpertool-theme') || 'dark');
+
+/* ----------------------------------------
+ * View mode
+ * -------------------------------------- */
+function applyViewMode(mode) {
+    viewMode = mode;
+    localStorage.setItem('helpertool-viewmode', mode);
+
+    if (mode === 'tree') {
+        viewModeBtn.textContent = '🌳 Tree Mode';
+        viewModeBtn.className   = 'view-mode-btn active-tree';
+        viewModeBtn.title       = 'Switch to List (roof) mode';
+    } else {
+        viewModeBtn.textContent = '☰ Roof Mode';
+        viewModeBtn.className   = 'view-mode-btn active-list';
+        viewModeBtn.title       = 'Switch to Tree mode';
+    }
+    // Only re-render if there's data to show
+    if (cachedTree) displayTree();
+}
+
+viewModeBtn.addEventListener('click', () => {
+    applyViewMode(viewMode === 'list' ? 'tree' : 'list');
+});
+
+// Apply saved preference (updates button label/class only — no render yet, no tree data yet)
+applyViewMode(viewMode);
 
 /* ----------------------------------------
  * Helpers
@@ -93,7 +150,7 @@ function displayTree() {
         return;
     }
     const visibleTree = filterTree(cachedTree);
-    renderTree(visibleTree, treeContainer, selectedItems, actionType, onTreeSelectionChange);
+    renderTree(visibleTree, treeContainer, selectedItems, actionType, onTreeSelectionChange, viewMode);
 }
 
 function onTreeSelectionChange() {
@@ -177,6 +234,14 @@ clearSelectionBtn.addEventListener('click', () => {
     displayTree();
 });
 
+secretHolderBtn.addEventListener('click', async () => {
+    if (isSecretHolderOpen()) {
+        closeSecretHolder();
+    } else {
+        await openSecretHolder();
+    }
+});
+
 editDocignoreBtn.addEventListener('click', async () => {
     try {
         const ok = await window.electronAPI.openGlobalDocignore();
@@ -206,7 +271,7 @@ generateBtn.addEventListener('click', async () => {
         const { filePath } = await window.electronAPI.saveFileDialog(actionType);
         if (!filePath) return;
 
-        progressBar.value = 0;
+        progressBar.value       = 0;
         progressText.textContent = '0%';
 
         const success = await window.electronAPI.generate(
@@ -222,7 +287,7 @@ generateBtn.addEventListener('click', async () => {
 });
 
 /* ----------------------------------------
- * Init managers
+ * Init managers & boot
  * -------------------------------------- */
 setupFilterInput(() => cachedTree, displayTree);
 setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
@@ -231,36 +296,6 @@ console.log('[Init] DOM content loaded, initializing...');
 window.addEventListener('DOMContentLoaded', async () => {
     await loadIgnoredExtensions();
     await loadFolderFilters();
-    loadLastActiveRepo();
-});
-
-/* ----------------------------------------
- * THEME TOGGLE
- * Add this block to app.js after the DOM refs section.
- * -------------------------------------- */
-
-const themeToggleBtn = document.getElementById('themeToggleBtn');
-const themeIcon      = document.getElementById('themeIcon');
-const themeLabel     = document.getElementById('themeLabel');
-
-// Load saved theme preference (persists across sessions)
-const savedTheme = localStorage.getItem('helpertool-theme') || 'dark';
-applyTheme(savedTheme);
-
-function applyTheme(theme) {
-    if (theme === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
-        themeIcon.textContent  = '🌙';
-        themeLabel.textContent = 'Dark';
-    } else {
-        document.documentElement.removeAttribute('data-theme');
-        themeIcon.textContent  = '☀️';
-        themeLabel.textContent = 'Light';
-    }
-    localStorage.setItem('helpertool-theme', theme);
-}
-
-themeToggleBtn.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    applyTheme(current === 'light' ? 'dark' : 'light');
+    await loadLastActiveRepo();
+    initSecretHolder();
 });

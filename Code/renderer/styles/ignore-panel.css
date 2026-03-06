@@ -3,6 +3,20 @@
    + Extension Filter panel (all three unified as slide panels)
    ============================================================ */
 
+   
+/* Panel border adjustments per panel type */
+#filterPanel .panel-col:first-child { border-right: 1px solid var(--border-subtle); }
+#ignorePanel .panel-col:first-child { border-right: 1px solid var(--border-subtle); }
+#folderPanel .panel-col             { border-right: 1px solid var(--border-subtle); }
+#folderPanel .panel-col:last-child  { border-right: none; }
+
+/* Slightly tighter padding for folder chip list */
+#folderPanel .chip-list-folders { padding: 6px 8px; }
+
+/* Ensure active-column chip lists have subtle tint */
+.chip-list-active { background: rgba(0,0,0,0.06); }
+[data-theme="light"] .chip-list-active { background: rgba(0,0,0,0.03); }
+
 /* ══════════════════════════════════════════════════════════
    STATUS + FILTER BAR (combined row)
    ══════════════════════════════════════════════════════════ */
@@ -554,3 +568,8 @@
   transition: opacity var(--ease);
 }
 .folder-chip-active .chip-remove-btn:hover { opacity: 1; transform: none !important; }
+/* ============================================================
+   IGNORE-PANEL.CSS — Panel-specific structural tweaks only.
+   All shared chip/folder/panel styles live in layout-chrome.css.
+   All status-bar/toggle/badge styles live in base.css.
+   ============================================================ */

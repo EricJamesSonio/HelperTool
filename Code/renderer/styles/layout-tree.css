@@ -1,10 +1,11 @@
 /* ============================================================
-   LAYOUT-TREE.CSS — Search, tree view & connectors
+   LAYOUT-TREE.CSS
+   Two view modes, scoped by class on #treeContainer:
+     .mode-list  →  "List Mode"  (roof mode):  VS-Code-style flat list
+     .mode-tree  →  "Tree Mode"  (tree mode):  horizontal graph spread
    ============================================================ */
 
-/* ------------------------------------------------------------
-   SEARCH BAR (in navbar)
------------------------------------------------------------- */
+/* ── Search bar ──────────────────────────────────────────── */
 .search-section { position: relative; }
 
 .search-section::before {
@@ -21,29 +22,18 @@
 }
 
 .search-input {
-  height: 34px;
-  padding: 0 12px 0 30px;
-  width: 210px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-mid);
-  border-radius: var(--r-xs);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: 13.5px;
-  outline: none;
-  transition: border-color var(--ease), box-shadow var(--ease), width 0.22s ease;
+  padding-left: 30px;
+  background-image: none; /* icon handled by ::before */
 }
-.search-input::placeholder { color: var(--text-muted); }
-.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); width: 280px; }
 
 .search-suggestions {
   position: absolute;
   top: calc(100% + 7px);
   left: 0;
   width: 360px;
-  background: #1e2840;
-  border: 1px solid rgba(255,255,255,0.13);
-  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
   max-height: 320px;
   overflow-y: auto;
   list-style: none;
@@ -51,9 +41,8 @@
   margin: 0;
   display: none;
   z-index: 150;
-  box-shadow: 0 20px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(232,168,56,0.06);
+  box-shadow: var(--shadow-lg);
 }
-
 .search-suggestions .search-result-item {
   display: flex;
   flex-direction: row;
@@ -61,89 +50,227 @@
   gap: 10px;
   padding: 8px 14px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255,255,255,0.045);
+  border-bottom: 1px solid var(--border-subtle);
   transition: background var(--ease);
 }
 .search-suggestions .search-result-item:last-child { border-bottom: none; }
-.search-suggestions .search-result-item:hover { background: rgba(232,168,56,0.07); }
-
+.search-suggestions .search-result-item:hover { background: var(--accent-dim); }
 .result-name {
   font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
-  color: #e2e8f8;
+  color: var(--text-primary);
   white-space: nowrap;
   flex-shrink: 0;
-  transition: color var(--ease);
 }
-
 .result-path {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #47607e;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
-  transition: color var(--ease);
 }
-
 .search-suggestions .search-result-item:hover .result-name { color: var(--accent); }
-.search-suggestions .search-result-item:hover .result-path { color: #7090b0; }
+.search-suggestions .search-result-item:hover .result-path { color: var(--text-secondary); }
 
-.search-suggestions li:not(.search-result-item) {
-  padding: 9px 14px;
-  cursor: pointer;
-  font-size: 13.5px;
-  color: var(--text-secondary);
-  border-bottom: 1px solid rgba(255,255,255,0.045);
-  transition: background var(--ease);
-}
-.search-suggestions li:not(.search-result-item):last-child { border-bottom: none; }
-.search-suggestions li:not(.search-result-item):hover { background: rgba(232,168,56,0.07); color: #e2e8f8; }
-
-/* ------------------------------------------------------------
-   TREE VIEW CONTAINER
------------------------------------------------------------- */
+/* ── Tree view container (shared) ────────────────────────── */
 .tree-view-container {
   flex: 1;
   overflow: hidden;
-  background: var(--bg-root);
-  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  padding: 10px;
   min-height: 0;
+  transition: background 0.25s;
 }
 
 #treeContainer {
+  flex: 1;
   font-family: var(--font-mono);
-  height: 100%;
-  width: 100%;
-  overflow-y: auto;
-  overflow-x: auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 20px 24px;
+  color: var(--text-secondary);
+  line-height: 1.5;
   background: var(--bg-tree);
   border-radius: var(--r-lg);
   border: 1px solid var(--border-subtle);
+  transition: background 0.2s;
+  overflow: auto;
+}
+#treeContainer::-webkit-scrollbar { width: 5px; height: 5px; }
+#treeContainer::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 99px;
 }
 
-/* ------------------------------------------------------------
-   TREE STRUCTURE & NODES
------------------------------------------------------------- */
-.tree-root {
+/* ── View mode toggle button ─────────────────────────────── */
+.view-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 13px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--ease);
+  white-space: nowrap;
+  user-select: none;
+}
+.view-mode-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+.view-mode-btn.active-list {
+  background: var(--blue-dim);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.view-mode-btn.active-tree {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* ============================================================
+   MODE-LIST  —  "Roof Mode"  —  VS-Code flat indented list
+   ============================================================ */
+
+#treeContainer.mode-list {
+  padding: 10px 8px 24px;
+  font-size: 12.5px;
+}
+
+#treeContainer.mode-list .tree-root {
   display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#treeContainer.mode-list .node-wrapper {
+  display: flex;
+  flex-direction: column;
+  padding-left: calc(var(--depth, 0) * 18px);
+}
+
+#treeContainer.mode-list .tree-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Folder */
+#treeContainer.mode-list .tree-node.folder {
+  color: var(--node-folder);
+  font-weight: 500;
+}
+#treeContainer.mode-list .tree-node.folder::before {
+  content: '📁';
+  font-size: 12px;
+  flex-shrink: 0;
+}
+#treeContainer.mode-list .tree-node.folder.folder-open::before { content: '📂'; }
+
+/* File */
+#treeContainer.mode-list .tree-node.file {
+  color: var(--node-file);
+  font-weight: 400;
+}
+#treeContainer.mode-list .tree-node.file::before {
+  content: '·';
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+/* Hover */
+#treeContainer.mode-list .tree-node:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+}
+
+/* Selection states */
+#treeContainer.mode-list .tree-node.file-selected {
+  background: var(--yellow-dim);
+  border-color: rgba(251,191,36,0.30);
+  color: var(--node-selected-file);
+}
+#treeContainer.mode-list .tree-node.file-selected::before {
+  color: var(--node-selected-file);
+}
+#treeContainer.mode-list .tree-node.folder-selected {
+  background: var(--green-dim);
+  border-color: rgba(52,211,153,0.28);
+  color: var(--node-selected-folder);
+}
+#treeContainer.mode-list .tree-node.selected {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* Children — vertical guide line */
+#treeContainer.mode-list .children {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: relative;
+  padding-left: 10px;
+}
+#treeContainer.mode-list .children::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--border-subtle);
+  border-radius: 1px;
+}
+/* No horizontal bar in list mode */
+#treeContainer.mode-list .children::after { display: none; }
+#treeContainer.mode-list .node-wrapper::before,
+#treeContainer.mode-list .node-wrapper::after { display: none; }
+
+/* ============================================================
+   MODE-TREE  —  "Tree Mode"  —  horizontal graph / data-structure
+   ============================================================ */
+
+#treeContainer.mode-tree {
+  padding: 20px 24px;
+  font-size: 14px;
+}
+
+#treeContainer.mode-tree .tree-root {
+  display: inline-flex;
   flex-direction: row;
   justify-content: flex-start;
   align-items: flex-start;
   padding: 8px 0;
   gap: 28px;
   flex-wrap: wrap;
-  max-width: 100%;
+  min-width: max-content;
 }
 
-.node-wrapper {
+#treeContainer.mode-tree .node-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -151,7 +278,7 @@
   justify-content: flex-start;
 }
 
-.tree-node {
+#treeContainer.mode-tree .tree-node {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -172,53 +299,77 @@
   text-align: center;
   line-height: 1.4;
   min-height: 40px;
-  font-family: var(--font-mono);
   box-shadow: none;
-  font-size: 14px;
 }
 
-/* Folder nodes — use CSS variables so light/dark both work */
-.tree-node.folder {
+/* Folder nodes */
+#treeContainer.mode-tree .tree-node.folder {
   background: var(--folder-bg);
   border: 1px solid var(--folder-border);
   color: var(--folder-text);
   font-weight: 600;
 }
-.tree-node.folder:hover {
+#treeContainer.mode-tree .tree-node.folder:hover {
   background: var(--folder-bg-h);
   border-color: var(--folder-hover-border);
   color: var(--folder-hover-color);
-  transform: none !important;
-  box-shadow: none !important;
 }
-.tree-node.folder::before { content: "▸ "; font-size: 11px; color: var(--blue); opacity: 0.7; }
-.tree-node.folder.folder-open::before { content: "▾ "; color: var(--accent); opacity: 1; }
+#treeContainer.mode-tree .tree-node.folder::before {
+  content: "▸ ";
+  font-size: 11px;
+  color: var(--blue);
+  opacity: 0.7;
+}
+#treeContainer.mode-tree .tree-node.folder.folder-open::before {
+  content: "▾ ";
+  color: var(--accent);
+  opacity: 1;
+}
 
-/* File nodes — use CSS variables */
-.tree-node.file {
+/* File nodes */
+#treeContainer.mode-tree .tree-node.file {
   background: var(--file-bg);
   border: 1px solid var(--file-border);
   color: var(--file-text);
   font-weight: 400;
 }
-.tree-node.file:hover {
+#treeContainer.mode-tree .tree-node.file:hover {
   background: var(--file-bg-h);
   border-color: var(--file-hover-border);
   color: var(--file-hover-color);
-  transform: none !important;
-  box-shadow: none !important;
 }
-.tree-node.file::before { content: "· "; font-size: 16px; color: var(--text-muted); line-height: 0; vertical-align: middle; }
+#treeContainer.mode-tree .tree-node.file::before {
+  content: "· ";
+  font-size: 16px;
+  color: var(--text-muted);
+  line-height: 0;
+  vertical-align: middle;
+}
 
 /* Selection states */
-.tree-node.folder.selected        { background: var(--blue-dim);   border-color: rgba(91,141,238,0.48); color: var(--blue);   font-weight: 700; }
-.tree-node.folder.folder-selected { background: var(--green-dim);  border-color: rgba(45,212,160,0.42); color: var(--green); font-weight: 700; }
-.tree-node.file.file-selected     { background: var(--yellow-dim); border-color: rgba(245,197,66,0.42); color: var(--yellow); font-weight: 600; }
+#treeContainer.mode-tree .tree-node.folder.selected {
+  background: var(--blue-dim);
+  border-color: rgba(91,141,238,0.48);
+  color: var(--blue);
+  font-weight: 700;
+}
+#treeContainer.mode-tree .tree-node.folder.folder-selected {
+  background: var(--green-dim);
+  border-color: rgba(45,212,160,0.42);
+  color: var(--green);
+  font-weight: 700;
+}
+#treeContainer.mode-tree .tree-node.file.file-selected {
+  background: var(--yellow-dim);
+  border-color: rgba(245,197,66,0.42);
+  color: var(--yellow);
+  font-weight: 600;
+}
 
-/* ------------------------------------------------------------
-   TREE CONNECTORS — use var so they're visible in light mode
------------------------------------------------------------- */
-.children {
+/* ── Connector lines ─────────────────────────────────────── */
+
+/* Children row layout */
+#treeContainer.mode-tree .children {
   display: inline-flex;
   flex-direction: row;
   justify-content: center;
@@ -228,54 +379,186 @@
   position: relative;
   padding-top: 0;
   flex-wrap: wrap;
-  max-width: 450px;
+  max-width: 600px;
 }
 
-.node-wrapper > .children::before {
+/* Vertical drop from parent down to the children row */
+#treeContainer.mode-tree .node-wrapper > .children::before {
   content: '';
   position: absolute;
-  top: -32px; left: 50%;
-  width: 1px; height: 32px;
+  top: -32px;
+  left: 50%;
+  width: 1px;
+  height: 32px;
   background: var(--connector-color);
   transform: translateX(-50%);
   z-index: 0;
 }
 
-.children::after {
+/* Horizontal bar across all sibling children */
+#treeContainer.mode-tree .children::after {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 1px;
   background: var(--connector-color);
   z-index: 0;
 }
 
-.children > .node-wrapper::before {
+/* Vertical drop from bar down to each child */
+#treeContainer.mode-tree .children > .node-wrapper::before {
   content: '';
   position: absolute;
-  top: -32px; left: 50%;
-  width: 1px; height: 32px;
+  top: -32px;
+  left: 50%;
+  width: 1px;
+  height: 32px;
   background: var(--connector-color);
   transform: translateX(-50%);
   z-index: 0;
 }
 
-.children > .node-wrapper { margin-bottom: 32px; }
+#treeContainer.mode-tree .children > .node-wrapper { margin-bottom: 32px; }
 
-.children > .node-wrapper:first-child::after {
+/* Clip bar on the left side of first child */
+#treeContainer.mode-tree .children > .node-wrapper:first-child::after {
   content: '';
   position: absolute;
-  top: 0; left: 50%; right: -1000%;
-  height: 1px; background: transparent;
+  top: 0;
+  left: 50%;
+  right: -1000%;
+  height: 1px;
+  background: transparent;
   z-index: 1;
 }
 
-.children > .node-wrapper:last-child::after {
+/* Clip bar on the right side of last child */
+#treeContainer.mode-tree .children > .node-wrapper:last-child::after {
   content: '';
   position: absolute;
-  top: 0; right: 50%; left: -1000%;
-  height: 1px; background: transparent;
+  top: 0;
+  right: 50%;
+  left: -1000%;
+  height: 1px;
+  background: transparent;
   z-index: 1;
 }
 
-.children:has(.node-wrapper:only-child)::after { display: none; }
+/* Hide horizontal bar when only one child */
+#treeContainer.mode-tree .children:has(.node-wrapper:only-child)::after {
+  display: none;
+}
+
+/* ============================================================
+   ROOT FOLDER COLORS
+   Applied to depth-0 folder node-wrappers via data-root-color="N".
+   Cycles through 12 distinct colors.
+   Selection states are boosted in specificity so they always win.
+   ============================================================ */
+
+/*
+  Palette:
+  0  orange    #f97316
+  1  violet    #a78bfa
+  2  cyan      #22d3ee
+  3  rose      #fb7185
+  4  lime      #84cc16
+  5  amber     #fbbf24
+  6  sky       #38bdf8
+  7  fuchsia   #e879f9
+  8  teal      #2dd4bf
+  9  red       #f87171
+  10 indigo    #818cf8
+  11 emerald   #34d399
+*/
+
+/* ── MODE-LIST root folder colors ────────────────────────────
+   Direct child selector (>) so only the root .tree-node gets
+   the color, not descendants.
+   Left border accent makes roots visually pop in the list.
+   ──────────────────────────────────────────────────────────── */
+
+#treeContainer.mode-list [data-root-color="0"]  > .tree-node.folder { color: #f97316; border-left: 3px solid #f97316; background: rgba(249,115,22,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="1"]  > .tree-node.folder { color: #a78bfa; border-left: 3px solid #a78bfa; background: rgba(167,139,250,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="2"]  > .tree-node.folder { color: #22d3ee; border-left: 3px solid #22d3ee; background: rgba(34,211,238,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="3"]  > .tree-node.folder { color: #fb7185; border-left: 3px solid #fb7185; background: rgba(251,113,133,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="4"]  > .tree-node.folder { color: #84cc16; border-left: 3px solid #84cc16; background: rgba(132,204,22,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="5"]  > .tree-node.folder { color: #fbbf24; border-left: 3px solid #fbbf24; background: rgba(251,191,36,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="6"]  > .tree-node.folder { color: #38bdf8; border-left: 3px solid #38bdf8; background: rgba(56,189,248,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="7"]  > .tree-node.folder { color: #e879f9; border-left: 3px solid #e879f9; background: rgba(232,121,249,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="8"]  > .tree-node.folder { color: #2dd4bf; border-left: 3px solid #2dd4bf; background: rgba(45,212,191,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="9"]  > .tree-node.folder { color: #f87171; border-left: 3px solid #f87171; background: rgba(248,113,113,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="10"] > .tree-node.folder { color: #818cf8; border-left: 3px solid #818cf8; background: rgba(129,140,248,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="11"] > .tree-node.folder { color: #34d399; border-left: 3px solid #34d399; background: rgba(52,211,153,0.08);  padding-left: 8px; }
+
+/* Hover — darken tint slightly */
+#treeContainer.mode-list [data-root-color="0"]  > .tree-node.folder:hover { background: rgba(249,115,22,0.15);  border-color: #f97316; }
+#treeContainer.mode-list [data-root-color="1"]  > .tree-node.folder:hover { background: rgba(167,139,250,0.15); border-color: #a78bfa; }
+#treeContainer.mode-list [data-root-color="2"]  > .tree-node.folder:hover { background: rgba(34,211,238,0.15);  border-color: #22d3ee; }
+#treeContainer.mode-list [data-root-color="3"]  > .tree-node.folder:hover { background: rgba(251,113,133,0.15); border-color: #fb7185; }
+#treeContainer.mode-list [data-root-color="4"]  > .tree-node.folder:hover { background: rgba(132,204,22,0.15);  border-color: #84cc16; }
+#treeContainer.mode-list [data-root-color="5"]  > .tree-node.folder:hover { background: rgba(251,191,36,0.15);  border-color: #fbbf24; }
+#treeContainer.mode-list [data-root-color="6"]  > .tree-node.folder:hover { background: rgba(56,189,248,0.15);  border-color: #38bdf8; }
+#treeContainer.mode-list [data-root-color="7"]  > .tree-node.folder:hover { background: rgba(232,121,249,0.15); border-color: #e879f9; }
+#treeContainer.mode-list [data-root-color="8"]  > .tree-node.folder:hover { background: rgba(45,212,191,0.15);  border-color: #2dd4bf; }
+#treeContainer.mode-list [data-root-color="9"]  > .tree-node.folder:hover { background: rgba(248,113,113,0.15); border-color: #f87171; }
+#treeContainer.mode-list [data-root-color="10"] > .tree-node.folder:hover { background: rgba(129,140,248,0.15); border-color: #818cf8; }
+#treeContainer.mode-list [data-root-color="11"] > .tree-node.folder:hover { background: rgba(52,211,153,0.15);  border-color: #34d399; }
+
+/* Selection always wins — boost specificity by adding the selection class */
+#treeContainer.mode-list [data-root-color] > .tree-node.folder.folder-selected {
+  color: var(--node-selected-folder);
+  background: var(--green-dim);
+  border-left-color: rgba(52,211,153,0.7);
+}
+#treeContainer.mode-list [data-root-color] > .tree-node.folder.selected {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+
+/* ── MODE-TREE root folder colors ────────────────────────────
+   Card style — colored background tint + border + text.
+   No left-border trick needed; full card border shows the color.
+   ──────────────────────────────────────────────────────────── */
+
+#treeContainer.mode-tree [data-root-color="0"]  > .tree-node.folder { color: #f97316; background: rgba(249,115,22,0.12);  border-color: rgba(249,115,22,0.45); }
+#treeContainer.mode-tree [data-root-color="1"]  > .tree-node.folder { color: #a78bfa; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.45); }
+#treeContainer.mode-tree [data-root-color="2"]  > .tree-node.folder { color: #22d3ee; background: rgba(34,211,238,0.12);  border-color: rgba(34,211,238,0.45);  }
+#treeContainer.mode-tree [data-root-color="3"]  > .tree-node.folder { color: #fb7185; background: rgba(251,113,133,0.12); border-color: rgba(251,113,133,0.45); }
+#treeContainer.mode-tree [data-root-color="4"]  > .tree-node.folder { color: #84cc16; background: rgba(132,204,22,0.12);  border-color: rgba(132,204,22,0.45);  }
+#treeContainer.mode-tree [data-root-color="5"]  > .tree-node.folder { color: #fbbf24; background: rgba(251,191,36,0.12);  border-color: rgba(251,191,36,0.45);  }
+#treeContainer.mode-tree [data-root-color="6"]  > .tree-node.folder { color: #38bdf8; background: rgba(56,189,248,0.12);  border-color: rgba(56,189,248,0.45);  }
+#treeContainer.mode-tree [data-root-color="7"]  > .tree-node.folder { color: #e879f9; background: rgba(232,121,249,0.12); border-color: rgba(232,121,249,0.45); }
+#treeContainer.mode-tree [data-root-color="8"]  > .tree-node.folder { color: #2dd4bf; background: rgba(45,212,191,0.12);  border-color: rgba(45,212,191,0.45);  }
+#treeContainer.mode-tree [data-root-color="9"]  > .tree-node.folder { color: #f87171; background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); }
+#treeContainer.mode-tree [data-root-color="10"] > .tree-node.folder { color: #818cf8; background: rgba(129,140,248,0.12); border-color: rgba(129,140,248,0.45); }
+#treeContainer.mode-tree [data-root-color="11"] > .tree-node.folder { color: #34d399; background: rgba(52,211,153,0.12);  border-color: rgba(52,211,153,0.45);  }
+
+/* Hover */
+#treeContainer.mode-tree [data-root-color="0"]  > .tree-node.folder:hover { background: rgba(249,115,22,0.22);  border-color: #f97316; }
+#treeContainer.mode-tree [data-root-color="1"]  > .tree-node.folder:hover { background: rgba(167,139,250,0.22); border-color: #a78bfa; }
+#treeContainer.mode-tree [data-root-color="2"]  > .tree-node.folder:hover { background: rgba(34,211,238,0.22);  border-color: #22d3ee; }
+#treeContainer.mode-tree [data-root-color="3"]  > .tree-node.folder:hover { background: rgba(251,113,133,0.22); border-color: #fb7185; }
+#treeContainer.mode-tree [data-root-color="4"]  > .tree-node.folder:hover { background: rgba(132,204,22,0.22);  border-color: #84cc16; }
+#treeContainer.mode-tree [data-root-color="5"]  > .tree-node.folder:hover { background: rgba(251,191,36,0.22);  border-color: #fbbf24; }
+#treeContainer.mode-tree [data-root-color="6"]  > .tree-node.folder:hover { background: rgba(56,189,248,0.22);  border-color: #38bdf8; }
+#treeContainer.mode-tree [data-root-color="7"]  > .tree-node.folder:hover { background: rgba(232,121,249,0.22); border-color: #e879f9; }
+#treeContainer.mode-tree [data-root-color="8"]  > .tree-node.folder:hover { background: rgba(45,212,191,0.22);  border-color: #2dd4bf; }
+#treeContainer.mode-tree [data-root-color="9"]  > .tree-node.folder:hover { background: rgba(248,113,113,0.22); border-color: #f87171; }
+#treeContainer.mode-tree [data-root-color="10"] > .tree-node.folder:hover { background: rgba(129,140,248,0.22); border-color: #818cf8; }
+#treeContainer.mode-tree [data-root-color="11"] > .tree-node.folder:hover { background: rgba(52,211,153,0.22);  border-color: #34d399; }
+
+/* Selection always wins in tree mode too */
+#treeContainer.mode-tree [data-root-color] > .tree-node.folder.folder-selected {
+  background: var(--green-dim);
+  border-color: rgba(45,212,160,0.42);
+  color: var(--green);
+}
+#treeContainer.mode-tree [data-root-color] > .tree-node.folder.selected {
+  background: var(--blue-dim);
+  border-color: rgba(91,141,238,0.48);
+  color: var(--blue);
+}

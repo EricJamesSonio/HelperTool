@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./styles/layout-chrome.css">
   <link rel="stylesheet" href="./styles/layout-tree.css">
   <link rel="stylesheet" href="./styles/ignore-panel.css">
+  <link rel="stylesheet" href="./styles/secret-holder.css">
 </head>
 <body>
   <div id="app">
@@ -33,6 +34,11 @@
         <button id="structureBtn" class="action-btn"><span class="btn-icon">🌳</span>Structure</button>
         <button id="codeBtn" class="action-btn"><span class="btn-icon">💻</span>Code</button>
         <button id="generateBtn" class="action-btn generate-btn"><span class="btn-icon">⚡</span>Generate</button>
+
+        <!-- NEW: View Mode Toggle -->
+        <button id="viewModeBtn" class="view-mode-btn active-list" title="Switch to Tree mode">
+          ☰ Roof Mode
+        </button>
       </div>
 
       <div class="navbar-section right">
@@ -40,37 +46,40 @@
           <span id="themeIcon">☀️</span>
           <span class="theme-label" id="themeLabel">Light</span>
         </button>
-        <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon">✕</span></button>
-        <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore"><span class="btn-icon">⚙️</span></button>
+
+        <button id="secretHolderBtn" class="tool-btn sh-nav-btn" title="Secret Holder">🔐</button>
+
+        <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections">
+          <span class="btn-icon">✕</span>
+        </button>
+
+        <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore">
+          <span class="btn-icon">⚙️</span>
+        </button>
       </div>
     </div>
 
     <!-- ══ ROW 2: Status + Filter bar (combined, lean) ══ -->
     <div class="status-filter-bar">
 
-      <!-- Left: selection counter -->
       <div class="selection-counter" id="selectionCounterEl">
         <span class="counter-icon">✓</span>
         <span id="selectionCount">0</span>
         <span class="counter-label">selected</span>
       </div>
 
-      <!-- Right: panel toggles + progress -->
       <div class="bar-right">
 
-        <!-- Ext FILTER toggle (new — replaces old filter input) -->
         <button id="filterToggleBtn" class="panel-toggle-btn filter-toggle-btn" title="Filter by extension">
           <span>⌕ Filter Ext</span>
           <span class="toggle-badge filter-badge" style="display:none"></span>
         </button>
 
-        <!-- Ext ignore toggle -->
         <button id="ignoreToggleBtn" class="panel-toggle-btn" title="Manage ignored extensions">
           <span>🚫 Ext</span>
           <span class="toggle-badge ignore-badge" style="display:none"></span>
         </button>
 
-        <!-- Folder filter toggle -->
         <button id="folderToggleBtn" class="panel-toggle-btn folder-toggle-btn" title="Manage folder filters">
           <span>📁 Folders</span>
           <span class="toggle-badge folder-badge" style="display:none"></span>
@@ -78,7 +87,6 @@
 
         <div class="bar-divider"></div>
 
-        <!-- Progress -->
         <div class="progress-compact">
           <progress id="progressBar" value="0" max="100"></progress>
           <span id="progressText">0%</span>
@@ -86,11 +94,10 @@
       </div>
     </div>
 
-    <!-- ══ Extension FILTER Panel (new) ══ -->
+    <!-- ══ Extension FILTER Panel ══ -->
     <div id="filterPanel" class="slide-panel">
       <div class="slide-panel-inner">
 
-        <!-- Left col: detected extensions to filter by -->
         <div class="panel-col">
           <div class="panel-col-label">
             <span class="col-label-dot dot-yellow"></span>
@@ -100,7 +107,6 @@
           <div id="availableFilterExts" class="chip-list"></div>
         </div>
 
-        <!-- Right col: active filters -->
         <div class="panel-col panel-col-active">
           <div class="panel-col-label">
             <span class="col-label-dot dot-accent"></span>
@@ -117,7 +123,6 @@
     <div id="ignorePanel" class="slide-panel">
       <div class="slide-panel-inner">
 
-        <!-- Left col: available -->
         <div class="panel-col">
           <div class="panel-col-label">
             <span class="col-label-dot dot-blue"></span>
@@ -127,7 +132,6 @@
           <div id="availableExts" class="chip-list"></div>
         </div>
 
-        <!-- Right col: ignored -->
         <div class="panel-col panel-col-active">
           <div class="panel-col-label">
             <span class="col-label-dot dot-red"></span>
@@ -144,7 +148,6 @@
     <div id="folderPanel" class="slide-panel">
       <div class="slide-panel-inner">
 
-        <!-- Left col: available folders -->
         <div class="panel-col panel-col-folders">
           <div class="panel-col-label">
             <span class="col-label-dot dot-blue"></span>
@@ -154,7 +157,6 @@
           <div id="availableFolders" class="chip-list chip-list-folders"></div>
         </div>
 
-        <!-- Middle col: ignored folders -->
         <div class="panel-col panel-col-active">
           <div class="panel-col-label">
             <span class="col-label-dot dot-red"></span>
@@ -164,7 +166,6 @@
           <div id="ignoredFolders" class="chip-list chip-list-active"></div>
         </div>
 
-        <!-- Right col: focused folders -->
         <div class="panel-col panel-col-active">
           <div class="panel-col-label">
             <span class="col-label-dot dot-green"></span>
