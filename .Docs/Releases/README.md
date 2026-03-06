@@ -10,8 +10,8 @@
 2. **Tag the commit**
 
 ```bash
-git tag vX.Y.Z <commit-hash>
-git push origin vX.Y.Z
+git tag v1.0.0 <commit-hash>
+git push origin v1.0.0
 ```
 
 * Replace `vX.Y.Z` with your version number.
