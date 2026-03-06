@@ -180,11 +180,11 @@ clearSelectionBtn.addEventListener('click', () => {
     displayTree();
 });
 
-secretHolderBtn.addEventListener('click', () => {
+secretHolderBtn.addEventListener('click', async () => {
     if (isSecretHolderOpen()) {
         closeSecretHolder();
     } else {
-        openSecretHolder();
+        await openSecretHolder();
     }
 });
 
@@ -243,6 +243,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadIgnoredExtensions();
     await loadFolderFilters();
     loadLastActiveRepo();
+    initSecretHolder();
 });
 
 /* ----------------------------------------
