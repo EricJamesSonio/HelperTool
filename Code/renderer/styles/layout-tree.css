@@ -450,3 +450,115 @@
 #treeContainer.mode-tree .children:has(.node-wrapper:only-child)::after {
   display: none;
 }
+
+/* ============================================================
+   ROOT FOLDER COLORS
+   Applied to depth-0 folder node-wrappers via data-root-color="N".
+   Cycles through 12 distinct colors.
+   Selection states are boosted in specificity so they always win.
+   ============================================================ */
+
+/*
+  Palette:
+  0  orange    #f97316
+  1  violet    #a78bfa
+  2  cyan      #22d3ee
+  3  rose      #fb7185
+  4  lime      #84cc16
+  5  amber     #fbbf24
+  6  sky       #38bdf8
+  7  fuchsia   #e879f9
+  8  teal      #2dd4bf
+  9  red       #f87171
+  10 indigo    #818cf8
+  11 emerald   #34d399
+*/
+
+/* ── MODE-LIST root folder colors ────────────────────────────
+   Direct child selector (>) so only the root .tree-node gets
+   the color, not descendants.
+   Left border accent makes roots visually pop in the list.
+   ──────────────────────────────────────────────────────────── */
+
+#treeContainer.mode-list [data-root-color="0"]  > .tree-node.folder { color: #f97316; border-left: 3px solid #f97316; background: rgba(249,115,22,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="1"]  > .tree-node.folder { color: #a78bfa; border-left: 3px solid #a78bfa; background: rgba(167,139,250,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="2"]  > .tree-node.folder { color: #22d3ee; border-left: 3px solid #22d3ee; background: rgba(34,211,238,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="3"]  > .tree-node.folder { color: #fb7185; border-left: 3px solid #fb7185; background: rgba(251,113,133,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="4"]  > .tree-node.folder { color: #84cc16; border-left: 3px solid #84cc16; background: rgba(132,204,22,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="5"]  > .tree-node.folder { color: #fbbf24; border-left: 3px solid #fbbf24; background: rgba(251,191,36,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="6"]  > .tree-node.folder { color: #38bdf8; border-left: 3px solid #38bdf8; background: rgba(56,189,248,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="7"]  > .tree-node.folder { color: #e879f9; border-left: 3px solid #e879f9; background: rgba(232,121,249,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="8"]  > .tree-node.folder { color: #2dd4bf; border-left: 3px solid #2dd4bf; background: rgba(45,212,191,0.08);  padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="9"]  > .tree-node.folder { color: #f87171; border-left: 3px solid #f87171; background: rgba(248,113,113,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="10"] > .tree-node.folder { color: #818cf8; border-left: 3px solid #818cf8; background: rgba(129,140,248,0.08); padding-left: 8px; }
+#treeContainer.mode-list [data-root-color="11"] > .tree-node.folder { color: #34d399; border-left: 3px solid #34d399; background: rgba(52,211,153,0.08);  padding-left: 8px; }
+
+/* Hover — darken tint slightly */
+#treeContainer.mode-list [data-root-color="0"]  > .tree-node.folder:hover { background: rgba(249,115,22,0.15);  border-color: #f97316; }
+#treeContainer.mode-list [data-root-color="1"]  > .tree-node.folder:hover { background: rgba(167,139,250,0.15); border-color: #a78bfa; }
+#treeContainer.mode-list [data-root-color="2"]  > .tree-node.folder:hover { background: rgba(34,211,238,0.15);  border-color: #22d3ee; }
+#treeContainer.mode-list [data-root-color="3"]  > .tree-node.folder:hover { background: rgba(251,113,133,0.15); border-color: #fb7185; }
+#treeContainer.mode-list [data-root-color="4"]  > .tree-node.folder:hover { background: rgba(132,204,22,0.15);  border-color: #84cc16; }
+#treeContainer.mode-list [data-root-color="5"]  > .tree-node.folder:hover { background: rgba(251,191,36,0.15);  border-color: #fbbf24; }
+#treeContainer.mode-list [data-root-color="6"]  > .tree-node.folder:hover { background: rgba(56,189,248,0.15);  border-color: #38bdf8; }
+#treeContainer.mode-list [data-root-color="7"]  > .tree-node.folder:hover { background: rgba(232,121,249,0.15); border-color: #e879f9; }
+#treeContainer.mode-list [data-root-color="8"]  > .tree-node.folder:hover { background: rgba(45,212,191,0.15);  border-color: #2dd4bf; }
+#treeContainer.mode-list [data-root-color="9"]  > .tree-node.folder:hover { background: rgba(248,113,113,0.15); border-color: #f87171; }
+#treeContainer.mode-list [data-root-color="10"] > .tree-node.folder:hover { background: rgba(129,140,248,0.15); border-color: #818cf8; }
+#treeContainer.mode-list [data-root-color="11"] > .tree-node.folder:hover { background: rgba(52,211,153,0.15);  border-color: #34d399; }
+
+/* Selection always wins — boost specificity by adding the selection class */
+#treeContainer.mode-list [data-root-color] > .tree-node.folder.folder-selected {
+  color: var(--node-selected-folder);
+  background: var(--green-dim);
+  border-left-color: rgba(52,211,153,0.7);
+}
+#treeContainer.mode-list [data-root-color] > .tree-node.folder.selected {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+
+/* ── MODE-TREE root folder colors ────────────────────────────
+   Card style — colored background tint + border + text.
+   No left-border trick needed; full card border shows the color.
+   ──────────────────────────────────────────────────────────── */
+
+#treeContainer.mode-tree [data-root-color="0"]  > .tree-node.folder { color: #f97316; background: rgba(249,115,22,0.12);  border-color: rgba(249,115,22,0.45); }
+#treeContainer.mode-tree [data-root-color="1"]  > .tree-node.folder { color: #a78bfa; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.45); }
+#treeContainer.mode-tree [data-root-color="2"]  > .tree-node.folder { color: #22d3ee; background: rgba(34,211,238,0.12);  border-color: rgba(34,211,238,0.45);  }
+#treeContainer.mode-tree [data-root-color="3"]  > .tree-node.folder { color: #fb7185; background: rgba(251,113,133,0.12); border-color: rgba(251,113,133,0.45); }
+#treeContainer.mode-tree [data-root-color="4"]  > .tree-node.folder { color: #84cc16; background: rgba(132,204,22,0.12);  border-color: rgba(132,204,22,0.45);  }
+#treeContainer.mode-tree [data-root-color="5"]  > .tree-node.folder { color: #fbbf24; background: rgba(251,191,36,0.12);  border-color: rgba(251,191,36,0.45);  }
+#treeContainer.mode-tree [data-root-color="6"]  > .tree-node.folder { color: #38bdf8; background: rgba(56,189,248,0.12);  border-color: rgba(56,189,248,0.45);  }
+#treeContainer.mode-tree [data-root-color="7"]  > .tree-node.folder { color: #e879f9; background: rgba(232,121,249,0.12); border-color: rgba(232,121,249,0.45); }
+#treeContainer.mode-tree [data-root-color="8"]  > .tree-node.folder { color: #2dd4bf; background: rgba(45,212,191,0.12);  border-color: rgba(45,212,191,0.45);  }
+#treeContainer.mode-tree [data-root-color="9"]  > .tree-node.folder { color: #f87171; background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); }
+#treeContainer.mode-tree [data-root-color="10"] > .tree-node.folder { color: #818cf8; background: rgba(129,140,248,0.12); border-color: rgba(129,140,248,0.45); }
+#treeContainer.mode-tree [data-root-color="11"] > .tree-node.folder { color: #34d399; background: rgba(52,211,153,0.12);  border-color: rgba(52,211,153,0.45);  }
+
+/* Hover */
+#treeContainer.mode-tree [data-root-color="0"]  > .tree-node.folder:hover { background: rgba(249,115,22,0.22);  border-color: #f97316; }
+#treeContainer.mode-tree [data-root-color="1"]  > .tree-node.folder:hover { background: rgba(167,139,250,0.22); border-color: #a78bfa; }
+#treeContainer.mode-tree [data-root-color="2"]  > .tree-node.folder:hover { background: rgba(34,211,238,0.22);  border-color: #22d3ee; }
+#treeContainer.mode-tree [data-root-color="3"]  > .tree-node.folder:hover { background: rgba(251,113,133,0.22); border-color: #fb7185; }
+#treeContainer.mode-tree [data-root-color="4"]  > .tree-node.folder:hover { background: rgba(132,204,22,0.22);  border-color: #84cc16; }
+#treeContainer.mode-tree [data-root-color="5"]  > .tree-node.folder:hover { background: rgba(251,191,36,0.22);  border-color: #fbbf24; }
+#treeContainer.mode-tree [data-root-color="6"]  > .tree-node.folder:hover { background: rgba(56,189,248,0.22);  border-color: #38bdf8; }
+#treeContainer.mode-tree [data-root-color="7"]  > .tree-node.folder:hover { background: rgba(232,121,249,0.22); border-color: #e879f9; }
+#treeContainer.mode-tree [data-root-color="8"]  > .tree-node.folder:hover { background: rgba(45,212,191,0.22);  border-color: #2dd4bf; }
+#treeContainer.mode-tree [data-root-color="9"]  > .tree-node.folder:hover { background: rgba(248,113,113,0.22); border-color: #f87171; }
+#treeContainer.mode-tree [data-root-color="10"] > .tree-node.folder:hover { background: rgba(129,140,248,0.22); border-color: #818cf8; }
+#treeContainer.mode-tree [data-root-color="11"] > .tree-node.folder:hover { background: rgba(52,211,153,0.22);  border-color: #34d399; }
+
+/* Selection always wins in tree mode too */
+#treeContainer.mode-tree [data-root-color] > .tree-node.folder.folder-selected {
+  background: var(--green-dim);
+  border-color: rgba(45,212,160,0.42);
+  color: var(--green);
+}
+#treeContainer.mode-tree [data-root-color] > .tree-node.folder.selected {
+  background: var(--blue-dim);
+  border-color: rgba(91,141,238,0.48);
+  color: var(--blue);
+}

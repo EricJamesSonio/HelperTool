@@ -141,9 +141,17 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
 
     const root = document.createElement('div');
     root.className = 'tree-root';
+    let rootColorIdx = 0;
     treeData.forEach(node => {
         const el = createNode(node, 0);
-        if (el) root.appendChild(el);
+        if (el) {
+            // Only folders at root depth get a color index; root files stay default
+            if (node.type === 'folder') {
+                el.dataset.rootColor = rootColorIdx % 12;
+                rootColorIdx++;
+            }
+            root.appendChild(el);
+        }
     });
     container.appendChild(root);
 }
@@ -239,9 +247,16 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
 
     const root = document.createElement('div');
     root.className = 'tree-root';
+    let rootColorIdx = 0;
     treeData.forEach(node => {
         const el = createNode(node);
-        if (el) root.appendChild(el);
+        if (el) {
+            if (node.type === 'folder') {
+                el.dataset.rootColor = rootColorIdx % 12;
+                rootColorIdx++;
+            }
+            root.appendChild(el);
+        }
     });
     container.appendChild(root);
 }
