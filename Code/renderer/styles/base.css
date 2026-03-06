@@ -374,3 +374,13 @@ html, body {
   .counter-label { display: none; }
 }
 @media (max-width: 480px) { .navbar-section.center { width: 100%; justify-content: space-between; } .search-input { font-size: 13px; } }
+.sh-nav-btn {
+  background: #1a0f30 !important;
+  border-color: #6040a0 !important;
+  color: #c090f0 !important;
+}
+.sh-nav-btn:hover {
+  background: #241440 !important;
+  border-color: #9060d0 !important;
+  color: #e0b0ff !important;
+}

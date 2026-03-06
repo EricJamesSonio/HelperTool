@@ -18,6 +18,8 @@ import {
     setupFilterInput,
 } from './filterManager.js';
 import { setupSearch } from './searchManager.js';
+import { initSecretHolder, openSecretHolder, closeSecretHolder, isSecretHolderOpen } from './secretHolder.js';
+
 
 /* ----------------------------------------
  * DOM refs
@@ -34,6 +36,7 @@ const editDocignoreBtn = document.getElementById('editDocignoreBtn');
 const selectionCount = document.getElementById('selectionCount');
 const clearSelectionBtn = document.getElementById('clearSelectionBtn');
 const refreshBtn = document.getElementById('refreshBtn');
+const secretHolderBtn = document.getElementById('secretHolderBtn');
 
 /* ----------------------------------------
  * State
@@ -175,6 +178,14 @@ clearSelectionBtn.addEventListener('click', () => {
     window.electronAPI.setLastSelected([]);
     updateGenerateState();
     displayTree();
+});
+
+secretHolderBtn.addEventListener('click', () => {
+    if (isSecretHolderOpen()) {
+        closeSecretHolder();
+    } else {
+        openSecretHolder();
+    }
 });
 
 editDocignoreBtn.addEventListener('click', async () => {

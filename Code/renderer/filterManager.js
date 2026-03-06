@@ -3,16 +3,17 @@
  * Handles extension filter chips, tree filtering,
  * folder ignore/focus filtering, and ignore-list detection.
  *
- * Filter Ext, Ignore Ext, and Folder panels are all unified
- * as slide-panel toggles — no inline filter input.
+ * CHANGES:
+ *  - Folders sorted alphabetically in the panel
+ *  - When a folder is focused/ignored, all its subfolders are also added
  */
 
 // ── Filter Ext panel ─────────────────────────────────────
-const filterToggleBtn     = document.getElementById('filterToggleBtn');
-const filterPanel         = document.getElementById('filterPanel');
+const filterToggleBtn       = document.getElementById('filterToggleBtn');
+const filterPanel           = document.getElementById('filterPanel');
 const availableFilterExtsEl = document.getElementById('availableFilterExts');
-const activeFilterExtsEl  = document.getElementById('activeFilterExts');
-const extFilterCount      = document.getElementById('extFilterCount');
+const activeFilterExtsEl    = document.getElementById('activeFilterExts');
+const extFilterCount        = document.getElementById('extFilterCount');
 
 // ── Ignore Ext panel ─────────────────────────────────────
 const availableExtsEl  = document.getElementById('availableExts');
@@ -139,7 +140,26 @@ export function collectFolders(tree, folders = []) {
             if (node.children?.length) collectFolders(node.children, folders);
         }
     }
+    // Sort alphabetically by name (case-insensitive)
+    folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     return folders;
+}
+
+/**
+ * Collect all descendant folder paths under a given folder path from the tree.
+ */
+function collectSubfolderPaths(tree, targetPath, result = []) {
+    for (const node of tree) {
+        if (node.type === 'folder') {
+            if (node.path === targetPath || node.path.startsWith(targetPath + '\\') || node.path.startsWith(targetPath + '/')) {
+                if (node.path !== targetPath) {
+                    result.push(node.path);
+                }
+            }
+            if (node.children?.length) collectSubfolderPaths(node.children, targetPath, result);
+        }
+    }
+    return result;
 }
 
 function isInsideFolder(nodePath, folderPathSet) {
@@ -187,7 +207,6 @@ export function filterTree(tree) {
    ============================================================ */
 
 export function renderFilterChips() {
-    // Keep badge + panel in sync whenever activeExtensions changes
     updateFilterBadge();
     const tree = _getCachedTree?.();
     if (tree && filterPanelOpen) renderFilterPanel(tree);
@@ -288,7 +307,6 @@ export function renderIgnorePanel(tree) {
                 ignoredExtensions.add(ext);
                 activeExtensions.delete(ext);
                 renderIgnorePanel(tree);
-                // also refresh filter panel if open
                 if (filterPanelOpen) renderFilterPanel(tree);
                 updateFilterBadge();
                 _displayTree?.();
@@ -357,6 +375,7 @@ function updateExtBadge() {
 export function renderFolderPanel(tree) {
     if (!availableFoldersEl) return;
 
+    // collectFolders already returns sorted alphabetically
     const allFolders = collectFolders(tree);
     const usedPaths  = new Set([...ignoredFolders, ...focusedFolders]);
     const available  = allFolders.filter(f => !usedPaths.has(f.path));
@@ -383,8 +402,14 @@ export function renderFolderPanel(tree) {
             ignBtn.textContent = '🚫 Ignore';
             ignBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                // Add folder + all subfolders
                 ignoredFolders.add(folder.path);
                 focusedFolders.delete(folder.path);
+                const subs = collectSubfolderPaths(tree, folder.path);
+                subs.forEach(sp => {
+                    ignoredFolders.add(sp);
+                    focusedFolders.delete(sp);
+                });
                 renderFolderPanel(tree);
                 _displayTree?.();
                 saveFolderFilters();
@@ -396,8 +421,14 @@ export function renderFolderPanel(tree) {
             focBtn.textContent = '🎯 Focus';
             focBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                // Add folder + all subfolders
                 focusedFolders.add(folder.path);
                 ignoredFolders.delete(folder.path);
+                const subs = collectSubfolderPaths(tree, folder.path);
+                subs.forEach(sp => {
+                    focusedFolders.add(sp);
+                    ignoredFolders.delete(sp);
+                });
                 renderFolderPanel(tree);
                 _displayTree?.();
                 saveFolderFilters();
@@ -412,15 +443,21 @@ export function renderFolderPanel(tree) {
         });
     }
 
-    // ── Ignored column ──
+    // ── Ignored column — sorted alphabetically ──
     if (ignoredFoldersEl) {
         ignoredFoldersEl.innerHTML = '';
         if (folderIgnoredCount) folderIgnoredCount.textContent = ignoredFolders.size || '';
 
-        if (ignoredFolders.size === 0) {
+        const sortedIgnored = [...ignoredFolders].sort((a, b) => {
+            const na = a.split(/[/\\]/).pop();
+            const nb = b.split(/[/\\]/).pop();
+            return na.localeCompare(nb, undefined, { sensitivity: 'base' });
+        });
+
+        if (sortedIgnored.length === 0) {
             ignoredFoldersEl.innerHTML = '<div class="chip-empty">None</div>';
         } else {
-            [...ignoredFolders].forEach(fp => {
+            sortedIgnored.forEach(fp => {
                 const name = fp.split(/[/\\]/).pop();
                 const chip = document.createElement('div');
                 chip.className = 'folder-chip-active type-ignored';
@@ -461,15 +498,21 @@ export function renderFolderPanel(tree) {
         }
     }
 
-    // ── Focused column ──
+    // ── Focused column — sorted alphabetically ──
     if (focusedFoldersEl) {
         focusedFoldersEl.innerHTML = '';
         if (folderFocusedCount) folderFocusedCount.textContent = focusedFolders.size || '';
 
-        if (focusedFolders.size === 0) {
+        const sortedFocused = [...focusedFolders].sort((a, b) => {
+            const na = a.split(/[/\\]/).pop();
+            const nb = b.split(/[/\\]/).pop();
+            return na.localeCompare(nb, undefined, { sensitivity: 'base' });
+        });
+
+        if (sortedFocused.length === 0) {
             focusedFoldersEl.innerHTML = '<div class="chip-empty">None — all shown</div>';
         } else {
-            [...focusedFolders].forEach(fp => {
+            sortedFocused.forEach(fp => {
                 const name = fp.split(/[/\\]/).pop();
                 const chip = document.createElement('div');
                 chip.className = 'folder-chip-active type-focused';
@@ -557,11 +600,9 @@ export async function loadFolderFilters() {
 
 /* ============================================================
    SETUP — called from app.js
-   No more filter input / suggestions dropdown.
    ============================================================ */
 
 export function setupFilterInput(getCachedTree, displayTree) {
     _displayTree   = displayTree;
     _getCachedTree = getCachedTree;
-    // Nothing else needed — all interaction is panel-driven now.
 }

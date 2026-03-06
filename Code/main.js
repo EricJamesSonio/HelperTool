@@ -354,3 +354,91 @@ ipcMain.handle('set-folder-filters', (event, filters) => {
         console.error('[IPC] set-folder-filters error:', err);
     }
 });
+
+// ===== ADD TO main.js — Secret Holder IPC =====
+
+const crypto = require('crypto');
+
+// Storage path for secrets (in userData)
+function getSecretsPath() {
+    return path.join(app.getPath('userData'), 'secrets.json');
+}
+
+function readSecretsFile() {
+    const p = getSecretsPath();
+    if (!fs.existsSync(p)) return { passwordHash: null, secrets: [] };
+    try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { return { passwordHash: null, secrets: [] }; }
+}
+
+function writeSecretsFile(data) {
+    fs.writeFileSync(getSecretsPath(), JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function hashPassword(pw) {
+    return crypto.createHash('sha256').update(pw).digest('hex');
+}
+
+// Has password been set?
+ipcMain.handle('secrets-has-password', () => {
+    return !!readSecretsFile().passwordHash;
+});
+
+// Set password (first time)
+ipcMain.handle('secrets-set-password', (event, pw) => {
+    const data = readSecretsFile();
+    if (data.passwordHash) return false; // already set
+    data.passwordHash = hashPassword(pw);
+    writeSecretsFile(data);
+    return true;
+});
+
+// Verify password
+ipcMain.handle('secrets-verify-password', (event, pw) => {
+    const data = readSecretsFile();
+    if (!data.passwordHash) return false;
+    return data.passwordHash === hashPassword(pw);
+});
+
+// Reset password (requires old password)
+ipcMain.handle('secrets-reset-password', (event, oldPw, newPw) => {
+    const data = readSecretsFile();
+    if (data.passwordHash !== hashPassword(oldPw)) return false;
+    data.passwordHash = hashPassword(newPw);
+    writeSecretsFile(data);
+    return true;
+});
+
+// Get all secrets (requires password verification done client-side — server trusts unlock state)
+ipcMain.handle('secrets-get-all', () => {
+    return readSecretsFile().secrets || [];
+});
+
+// Add secret
+ipcMain.handle('secrets-add', (event, name, value) => {
+    const data = readSecretsFile();
+    const id = Date.now().toString();
+    data.secrets = data.secrets || [];
+    data.secrets.push({ id, name: name.trim(), value: value.trim() });
+    data.secrets.sort((a, b) => a.name.localeCompare(b.name));
+    writeSecretsFile(data);
+    return true;
+});
+
+// Update secret
+ipcMain.handle('secrets-update', (event, id, name, value) => {
+    const data = readSecretsFile();
+    const idx = data.secrets.findIndex(s => s.id === id);
+    if (idx === -1) return false;
+    data.secrets[idx] = { id, name: name.trim(), value: value.trim() };
+    data.secrets.sort((a, b) => a.name.localeCompare(b.name));
+    writeSecretsFile(data);
+    return true;
+});
+
+// Delete secret
+ipcMain.handle('secrets-delete', (event, id) => {
+    const data = readSecretsFile();
+    data.secrets = (data.secrets || []).filter(s => s.id !== id);
+    writeSecretsFile(data);
+    return true;
+});
