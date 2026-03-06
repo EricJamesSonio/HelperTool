@@ -34,6 +34,11 @@
         <button id="structureBtn" class="action-btn"><span class="btn-icon">🌳</span>Structure</button>
         <button id="codeBtn" class="action-btn"><span class="btn-icon">💻</span>Code</button>
         <button id="generateBtn" class="action-btn generate-btn"><span class="btn-icon">⚡</span>Generate</button>
+
+        <!-- NEW: View Mode Toggle -->
+        <button id="viewModeBtn" class="view-mode-btn active-list" title="Switch to Tree mode">
+          ☰ Roof Mode
+        </button>
       </div>
 
       <div class="navbar-section right">
@@ -57,29 +62,24 @@
     <!-- ══ ROW 2: Status + Filter bar (combined, lean) ══ -->
     <div class="status-filter-bar">
 
-      <!-- Left: selection counter -->
       <div class="selection-counter" id="selectionCounterEl">
         <span class="counter-icon">✓</span>
         <span id="selectionCount">0</span>
         <span class="counter-label">selected</span>
       </div>
 
-      <!-- Right: panel toggles + progress -->
       <div class="bar-right">
 
-        <!-- Ext FILTER toggle -->
         <button id="filterToggleBtn" class="panel-toggle-btn filter-toggle-btn" title="Filter by extension">
           <span>⌕ Filter Ext</span>
           <span class="toggle-badge filter-badge" style="display:none"></span>
         </button>
 
-        <!-- Ext ignore toggle -->
         <button id="ignoreToggleBtn" class="panel-toggle-btn" title="Manage ignored extensions">
           <span>🚫 Ext</span>
           <span class="toggle-badge ignore-badge" style="display:none"></span>
         </button>
 
-        <!-- Folder filter toggle -->
         <button id="folderToggleBtn" class="panel-toggle-btn folder-toggle-btn" title="Manage folder filters">
           <span>📁 Folders</span>
           <span class="toggle-badge folder-badge" style="display:none"></span>
@@ -87,7 +87,6 @@
 
         <div class="bar-divider"></div>
 
-        <!-- Progress -->
         <div class="progress-compact">
           <progress id="progressBar" value="0" max="100"></progress>
           <span id="progressText">0%</span>
