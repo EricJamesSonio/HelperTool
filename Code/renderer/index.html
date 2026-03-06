@@ -17,7 +17,6 @@
     <div class="navbar-row navbar-row--primary">
       <div class="navbar-section search-section">
         <input type="text" id="treeSearchInput" placeholder="Search files & folders…" class="search-input" />
-        <ul id="searchSuggestions" class="search-suggestions"></ul>
       </div>
 
       <div class="navbar-section">
@@ -35,7 +34,6 @@
         <button id="codeBtn" class="action-btn"><span class="btn-icon">💻</span>Code</button>
         <button id="generateBtn" class="action-btn generate-btn"><span class="btn-icon">⚡</span>Generate</button>
 
-        <!-- NEW: View Mode Toggle -->
         <button id="viewModeBtn" class="view-mode-btn active-list" title="Switch to Tree mode">
           ☰ Roof Mode
         </button>
@@ -185,6 +183,9 @@
     </div>
 
   </div>
+
+  <!-- ══ Search suggestions — outside #app to escape stacking context ══ -->
+  <ul id="searchSuggestions" class="search-suggestions"></ul>
 
   <script type="module" src="app.js"></script>
 </body>

@@ -6,7 +6,10 @@
    ============================================================ */
 
 /* ── Search bar ──────────────────────────────────────────── */
-.search-section { position: relative; }
+.search-section {
+  position: relative;
+  z-index: 99999;
+}
 
 .search-section::before {
   content: '⌕';
@@ -40,7 +43,7 @@
   padding: 5px 0;
   margin: 0;
   display: none;
-  z-index: 150;
+  z-index: 99999;
   box-shadow: var(--shadow-lg);
 }
 .search-suggestions .search-result-item {
