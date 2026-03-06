@@ -1,10 +1,8 @@
 /* ============================================================
-   LAYOUT-TREE.CSS — Search, tree view & connectors
+   LAYOUT-TREE.CSS — Search bar & flat file-list tree view
    ============================================================ */
 
-/* ------------------------------------------------------------
-   SEARCH BAR (in navbar)
------------------------------------------------------------- */
+/* ── Search bar ──────────────────────────────────────────── */
 .search-section { position: relative; }
 
 .search-section::before {
@@ -20,30 +18,21 @@
   line-height: 1;
 }
 
+/* Override base.css search-input to add left-padding for the icon */
 .search-input {
-  height: 34px;
-  padding: 0 12px 0 30px;
-  width: 210px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-mid);
-  border-radius: var(--r-xs);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: 13.5px;
-  outline: none;
-  transition: border-color var(--ease), box-shadow var(--ease), width 0.22s ease;
+  padding-left: 30px;
+  /* Remove bg-image icon set in base.css since ::before handles it */
+  background-image: none;
 }
-.search-input::placeholder { color: var(--text-muted); }
-.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); width: 280px; }
 
 .search-suggestions {
   position: absolute;
   top: calc(100% + 7px);
   left: 0;
   width: 360px;
-  background: #1e2840;
-  border: 1px solid rgba(255,255,255,0.13);
-  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
   max-height: 320px;
   overflow-y: auto;
   list-style: none;
@@ -51,7 +40,7 @@
   margin: 0;
   display: none;
   z-index: 150;
-  box-shadow: 0 20px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(232,168,56,0.06);
+  box-shadow: var(--shadow-lg);
 }
 
 .search-suggestions .search-result-item {
@@ -61,221 +50,159 @@
   gap: 10px;
   padding: 8px 14px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255,255,255,0.045);
+  border-bottom: 1px solid var(--border-subtle);
   transition: background var(--ease);
 }
 .search-suggestions .search-result-item:last-child { border-bottom: none; }
-.search-suggestions .search-result-item:hover { background: rgba(232,168,56,0.07); }
+.search-suggestions .search-result-item:hover { background: var(--accent-dim); }
 
 .result-name {
   font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
-  color: #e2e8f8;
+  color: var(--text-primary);
   white-space: nowrap;
   flex-shrink: 0;
-  transition: color var(--ease);
 }
-
 .result-path {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #47607e;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
-  transition: color var(--ease);
 }
-
 .search-suggestions .search-result-item:hover .result-name { color: var(--accent); }
-.search-suggestions .search-result-item:hover .result-path { color: #7090b0; }
+.search-suggestions .search-result-item:hover .result-path { color: var(--text-secondary); }
 
-.search-suggestions li:not(.search-result-item) {
-  padding: 9px 14px;
-  cursor: pointer;
-  font-size: 13.5px;
-  color: var(--text-secondary);
-  border-bottom: 1px solid rgba(255,255,255,0.045);
-  transition: background var(--ease);
-}
-.search-suggestions li:not(.search-result-item):last-child { border-bottom: none; }
-.search-suggestions li:not(.search-result-item):hover { background: rgba(232,168,56,0.07); color: #e2e8f8; }
-
-/* ------------------------------------------------------------
-   TREE VIEW CONTAINER
------------------------------------------------------------- */
+/* ── Tree view container ─────────────────────────────────── */
 .tree-view-container {
   flex: 1;
   overflow: hidden;
-  background: var(--bg-root);
-  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  padding: 10px;
   min-height: 0;
+  transition: background 0.25s;
 }
 
 #treeContainer {
-  font-family: var(--font-mono);
-  height: 100%;
-  width: 100%;
+  flex: 1;
   overflow-y: auto;
-  overflow-x: auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 20px 24px;
+  overflow-x: hidden;
+  padding: 10px 8px 24px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
   background: var(--bg-tree);
   border-radius: var(--r-lg);
   border: 1px solid var(--border-subtle);
 }
+#treeContainer::-webkit-scrollbar { width: 5px; }
+#treeContainer::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 99px;
+}
 
-/* ------------------------------------------------------------
-   TREE STRUCTURE & NODES
------------------------------------------------------------- */
+/* ── Tree structure ──────────────────────────────────────── */
 .tree-root {
   display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  align-items: flex-start;
-  padding: 8px 0;
-  gap: 28px;
-  flex-wrap: wrap;
-  max-width: 100%;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .node-wrapper {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  position: relative;
-  justify-content: flex-start;
+  padding-left: calc(var(--depth, 0) * 18px);
 }
 
 .tree-node {
-  display: inline-flex;
-  flex-direction: column;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 9px 13px;
-  border-radius: var(--r-xs);
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
   cursor: pointer;
+  border: 1px solid transparent;
   transition: background var(--ease), border-color var(--ease), color var(--ease);
-  user-select: none;
   position: relative;
-  z-index: 2;
-  min-width: 108px;
-  max-width: 165px;
-  width: 132px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-  text-align: center;
-  line-height: 1.4;
-  min-height: 40px;
-  font-family: var(--font-mono);
-  box-shadow: none;
-  font-size: 14px;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Folder nodes — use CSS variables so light/dark both work */
+/* Folder nodes */
 .tree-node.folder {
-  background: var(--folder-bg);
-  border: 1px solid var(--folder-border);
-  color: var(--folder-text);
-  font-weight: 600;
+  color: var(--node-folder);
+  font-weight: 500;
 }
-.tree-node.folder:hover {
-  background: var(--folder-bg-h);
-  border-color: var(--folder-hover-border);
-  color: var(--folder-hover-color);
-  transform: none !important;
-  box-shadow: none !important;
+.tree-node.folder::before {
+  content: '📁';
+  font-size: 12px;
+  flex-shrink: 0;
 }
-.tree-node.folder::before { content: "▸ "; font-size: 11px; color: var(--blue); opacity: 0.7; }
-.tree-node.folder.folder-open::before { content: "▾ "; color: var(--accent); opacity: 1; }
+.tree-node.folder.folder-open::before { content: '📂'; }
 
-/* File nodes — use CSS variables */
+/* File nodes */
 .tree-node.file {
-  background: var(--file-bg);
-  border: 1px solid var(--file-border);
-  color: var(--file-text);
+  color: var(--node-file);
   font-weight: 400;
 }
-.tree-node.file:hover {
-  background: var(--file-bg-h);
-  border-color: var(--file-hover-border);
-  color: var(--file-hover-color);
-  transform: none !important;
-  box-shadow: none !important;
+.tree-node.file::before {
+  content: '·';
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 0;
+  flex-shrink: 0;
 }
-.tree-node.file::before { content: "· "; font-size: 16px; color: var(--text-muted); line-height: 0; vertical-align: middle; }
 
-/* Selection states */
-.tree-node.folder.selected        { background: var(--blue-dim);   border-color: rgba(91,141,238,0.48); color: var(--blue);   font-weight: 700; }
-.tree-node.folder.folder-selected { background: var(--green-dim);  border-color: rgba(45,212,160,0.42); color: var(--green); font-weight: 700; }
-.tree-node.file.file-selected     { background: var(--yellow-dim); border-color: rgba(245,197,66,0.42); color: var(--yellow); font-weight: 600; }
+/* Hover */
+.tree-node:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+}
 
-/* ------------------------------------------------------------
-   TREE CONNECTORS — use var so they're visible in light mode
------------------------------------------------------------- */
+/* ── Selection states ────────────────────────────────────── */
+.tree-node.file-selected {
+  background: var(--yellow-dim);
+  border-color: rgba(251,191,36,0.30);
+  color: var(--node-selected-file);
+}
+.tree-node.file-selected::before { color: var(--node-selected-file); }
+
+.tree-node.folder-selected {
+  background: var(--green-dim);
+  border-color: rgba(52,211,153,0.28);
+  color: var(--node-selected-folder);
+}
+
+.tree-node.selected {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* ── Children (indented subtrees) ────────────────────────── */
 .children {
-  display: inline-flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 22px;
-  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   position: relative;
-  padding-top: 0;
-  flex-wrap: wrap;
-  max-width: 450px;
+  padding-left: 10px;
 }
-
-.node-wrapper > .children::before {
+.children::before {
   content: '';
   position: absolute;
-  top: -32px; left: 50%;
-  width: 1px; height: 32px;
-  background: var(--connector-color);
-  transform: translateX(-50%);
-  z-index: 0;
+  left: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--border-subtle);
+  border-radius: 1px;
 }
-
-.children::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: var(--connector-color);
-  z-index: 0;
-}
-
-.children > .node-wrapper::before {
-  content: '';
-  position: absolute;
-  top: -32px; left: 50%;
-  width: 1px; height: 32px;
-  background: var(--connector-color);
-  transform: translateX(-50%);
-  z-index: 0;
-}
-
-.children > .node-wrapper { margin-bottom: 32px; }
-
-.children > .node-wrapper:first-child::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 50%; right: -1000%;
-  height: 1px; background: transparent;
-  z-index: 1;
-}
-
-.children > .node-wrapper:last-child::after {
-  content: '';
-  position: absolute;
-  top: 0; right: 50%; left: -1000%;
-  height: 1px; background: transparent;
-  z-index: 1;
-}
-
-.children:has(.node-wrapper:only-child)::after { display: none; }
