@@ -14,5 +14,8 @@
 * [Secret mode mannager]
 ![Version 3 UI](../assets/v3/1.2.png)
 
+* [Change password settings]
+![Version 3 UI](../assets/v3/1.4.png)
+
 
 ---
