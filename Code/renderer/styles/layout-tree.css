@@ -1,5 +1,8 @@
 /* ============================================================
-   LAYOUT-TREE.CSS — Search bar & flat file-list tree view
+   LAYOUT-TREE.CSS
+   Two view modes, scoped by class on #treeContainer:
+     .mode-list  →  "List Mode"  (roof mode):  VS-Code-style flat list
+     .mode-tree  →  "Tree Mode"  (tree mode):  horizontal graph spread
    ============================================================ */
 
 /* ── Search bar ──────────────────────────────────────────── */
@@ -18,11 +21,9 @@
   line-height: 1;
 }
 
-/* Override base.css search-input to add left-padding for the icon */
 .search-input {
   padding-left: 30px;
-  /* Remove bg-image icon set in base.css since ::before handles it */
-  background-image: none;
+  background-image: none; /* icon handled by ::before */
 }
 
 .search-suggestions {
@@ -42,7 +43,6 @@
   z-index: 150;
   box-shadow: var(--shadow-lg);
 }
-
 .search-suggestions .search-result-item {
   display: flex;
   flex-direction: row;
@@ -55,7 +55,6 @@
 }
 .search-suggestions .search-result-item:last-child { border-bottom: none; }
 .search-suggestions .search-result-item:hover { background: var(--accent-dim); }
-
 .result-name {
   font-family: var(--font-ui);
   font-size: 13px;
@@ -77,7 +76,7 @@
 .search-suggestions .search-result-item:hover .result-name { color: var(--accent); }
 .search-suggestions .search-result-item:hover .result-path { color: var(--text-secondary); }
 
-/* ── Tree view container ─────────────────────────────────── */
+/* ── Tree view container (shared) ────────────────────────── */
 .tree-view-container {
   flex: 1;
   overflow: hidden;
@@ -91,37 +90,78 @@
 
 #treeContainer {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 10px 8px 24px;
   font-family: var(--font-mono);
-  font-size: 12.5px;
   color: var(--text-secondary);
   line-height: 1.5;
   background: var(--bg-tree);
   border-radius: var(--r-lg);
   border: 1px solid var(--border-subtle);
+  transition: background 0.2s;
+  overflow: auto;
 }
-#treeContainer::-webkit-scrollbar { width: 5px; }
+#treeContainer::-webkit-scrollbar { width: 5px; height: 5px; }
 #treeContainer::-webkit-scrollbar-thumb {
   background: var(--border-default);
   border-radius: 99px;
 }
 
-/* ── Tree structure ──────────────────────────────────────── */
-.tree-root {
+/* ── View mode toggle button ─────────────────────────────── */
+.view-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 13px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--ease);
+  white-space: nowrap;
+  user-select: none;
+}
+.view-mode-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+.view-mode-btn.active-list {
+  background: var(--blue-dim);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.view-mode-btn.active-tree {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* ============================================================
+   MODE-LIST  —  "Roof Mode"  —  VS-Code flat indented list
+   ============================================================ */
+
+#treeContainer.mode-list {
+  padding: 10px 8px 24px;
+  font-size: 12.5px;
+}
+
+#treeContainer.mode-list .tree-root {
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
-.node-wrapper {
+#treeContainer.mode-list .node-wrapper {
   display: flex;
   flex-direction: column;
   padding-left: calc(var(--depth, 0) * 18px);
 }
 
-.tree-node {
+#treeContainer.mode-list .tree-node {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -130,31 +170,30 @@
   cursor: pointer;
   border: 1px solid transparent;
   transition: background var(--ease), border-color var(--ease), color var(--ease);
-  position: relative;
   user-select: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Folder nodes */
-.tree-node.folder {
+/* Folder */
+#treeContainer.mode-list .tree-node.folder {
   color: var(--node-folder);
   font-weight: 500;
 }
-.tree-node.folder::before {
+#treeContainer.mode-list .tree-node.folder::before {
   content: '📁';
   font-size: 12px;
   flex-shrink: 0;
 }
-.tree-node.folder.folder-open::before { content: '📂'; }
+#treeContainer.mode-list .tree-node.folder.folder-open::before { content: '📂'; }
 
-/* File nodes */
-.tree-node.file {
+/* File */
+#treeContainer.mode-list .tree-node.file {
   color: var(--node-file);
   font-weight: 400;
 }
-.tree-node.file::before {
+#treeContainer.mode-list .tree-node.file::before {
   content: '·';
   color: var(--text-faint);
   font-size: 16px;
@@ -163,40 +202,40 @@
 }
 
 /* Hover */
-.tree-node:hover {
+#treeContainer.mode-list .tree-node:hover {
   background: var(--bg-hover);
   border-color: var(--border-subtle);
 }
 
-/* ── Selection states ────────────────────────────────────── */
-.tree-node.file-selected {
+/* Selection states */
+#treeContainer.mode-list .tree-node.file-selected {
   background: var(--yellow-dim);
   border-color: rgba(251,191,36,0.30);
   color: var(--node-selected-file);
 }
-.tree-node.file-selected::before { color: var(--node-selected-file); }
-
-.tree-node.folder-selected {
+#treeContainer.mode-list .tree-node.file-selected::before {
+  color: var(--node-selected-file);
+}
+#treeContainer.mode-list .tree-node.folder-selected {
   background: var(--green-dim);
   border-color: rgba(52,211,153,0.28);
   color: var(--node-selected-folder);
 }
-
-.tree-node.selected {
+#treeContainer.mode-list .tree-node.selected {
   background: var(--accent-dim);
   border-color: var(--accent-border);
   color: var(--accent);
 }
 
-/* ── Children (indented subtrees) ────────────────────────── */
-.children {
+/* Children — vertical guide line */
+#treeContainer.mode-list .children {
   display: flex;
   flex-direction: column;
   gap: 1px;
   position: relative;
   padding-left: 10px;
 }
-.children::before {
+#treeContainer.mode-list .children::before {
   content: '';
   position: absolute;
   left: 4px;
@@ -205,4 +244,209 @@
   width: 1px;
   background: var(--border-subtle);
   border-radius: 1px;
+}
+/* No horizontal bar in list mode */
+#treeContainer.mode-list .children::after { display: none; }
+#treeContainer.mode-list .node-wrapper::before,
+#treeContainer.mode-list .node-wrapper::after { display: none; }
+
+/* ============================================================
+   MODE-TREE  —  "Tree Mode"  —  horizontal graph / data-structure
+   ============================================================ */
+
+#treeContainer.mode-tree {
+  padding: 20px 24px;
+  font-size: 14px;
+}
+
+#treeContainer.mode-tree .tree-root {
+  display: inline-flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 8px 0;
+  gap: 28px;
+  flex-wrap: wrap;
+  min-width: max-content;
+}
+
+#treeContainer.mode-tree .node-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  justify-content: flex-start;
+}
+
+#treeContainer.mode-tree .tree-node {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 13px;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+  user-select: none;
+  position: relative;
+  z-index: 2;
+  min-width: 108px;
+  max-width: 165px;
+  width: 132px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.4;
+  min-height: 40px;
+  box-shadow: none;
+}
+
+/* Folder nodes */
+#treeContainer.mode-tree .tree-node.folder {
+  background: var(--folder-bg);
+  border: 1px solid var(--folder-border);
+  color: var(--folder-text);
+  font-weight: 600;
+}
+#treeContainer.mode-tree .tree-node.folder:hover {
+  background: var(--folder-bg-h);
+  border-color: var(--folder-hover-border);
+  color: var(--folder-hover-color);
+}
+#treeContainer.mode-tree .tree-node.folder::before {
+  content: "▸ ";
+  font-size: 11px;
+  color: var(--blue);
+  opacity: 0.7;
+}
+#treeContainer.mode-tree .tree-node.folder.folder-open::before {
+  content: "▾ ";
+  color: var(--accent);
+  opacity: 1;
+}
+
+/* File nodes */
+#treeContainer.mode-tree .tree-node.file {
+  background: var(--file-bg);
+  border: 1px solid var(--file-border);
+  color: var(--file-text);
+  font-weight: 400;
+}
+#treeContainer.mode-tree .tree-node.file:hover {
+  background: var(--file-bg-h);
+  border-color: var(--file-hover-border);
+  color: var(--file-hover-color);
+}
+#treeContainer.mode-tree .tree-node.file::before {
+  content: "· ";
+  font-size: 16px;
+  color: var(--text-muted);
+  line-height: 0;
+  vertical-align: middle;
+}
+
+/* Selection states */
+#treeContainer.mode-tree .tree-node.folder.selected {
+  background: var(--blue-dim);
+  border-color: rgba(91,141,238,0.48);
+  color: var(--blue);
+  font-weight: 700;
+}
+#treeContainer.mode-tree .tree-node.folder.folder-selected {
+  background: var(--green-dim);
+  border-color: rgba(45,212,160,0.42);
+  color: var(--green);
+  font-weight: 700;
+}
+#treeContainer.mode-tree .tree-node.file.file-selected {
+  background: var(--yellow-dim);
+  border-color: rgba(245,197,66,0.42);
+  color: var(--yellow);
+  font-weight: 600;
+}
+
+/* ── Connector lines ─────────────────────────────────────── */
+
+/* Children row layout */
+#treeContainer.mode-tree .children {
+  display: inline-flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 22px;
+  margin-top: 32px;
+  position: relative;
+  padding-top: 0;
+  flex-wrap: wrap;
+  max-width: 600px;
+}
+
+/* Vertical drop from parent down to the children row */
+#treeContainer.mode-tree .node-wrapper > .children::before {
+  content: '';
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  width: 1px;
+  height: 32px;
+  background: var(--connector-color);
+  transform: translateX(-50%);
+  z-index: 0;
+}
+
+/* Horizontal bar across all sibling children */
+#treeContainer.mode-tree .children::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--connector-color);
+  z-index: 0;
+}
+
+/* Vertical drop from bar down to each child */
+#treeContainer.mode-tree .children > .node-wrapper::before {
+  content: '';
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  width: 1px;
+  height: 32px;
+  background: var(--connector-color);
+  transform: translateX(-50%);
+  z-index: 0;
+}
+
+#treeContainer.mode-tree .children > .node-wrapper { margin-bottom: 32px; }
+
+/* Clip bar on the left side of first child */
+#treeContainer.mode-tree .children > .node-wrapper:first-child::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  right: -1000%;
+  height: 1px;
+  background: transparent;
+  z-index: 1;
+}
+
+/* Clip bar on the right side of last child */
+#treeContainer.mode-tree .children > .node-wrapper:last-child::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  left: -1000%;
+  height: 1px;
+  background: transparent;
+  z-index: 1;
+}
+
+/* Hide horizontal bar when only one child */
+#treeContainer.mode-tree .children:has(.node-wrapper:only-child)::after {
+  display: none;
 }
