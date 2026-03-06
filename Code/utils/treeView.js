@@ -1,18 +1,7 @@
 /**
  * treeView.js
  * Dual-mode tree renderer.
- *
- * "List Mode"  (a.k.a. roof mode)  — VS-Code-style flat indented list.
- * "Tree Mode"  (a.k.a. tree mode)  — horizontal graph / data-structure spread.
- *
- * Public API:
- *   renderTree(treeData, container, selectedItems, actionType, onToggle, viewMode)
- *     viewMode: 'list' | 'tree'   (defaults to 'list')
  */
-
-/* ============================================================
-   SHARED HELPERS
-   ============================================================ */
 
 const getAllFiles = (node) => {
     if (node.type === 'file') return [node];
@@ -26,14 +15,10 @@ const countFiles = (node) => {
     return node.children.reduce((sum, c) => sum + countFiles(c), 0);
 };
 
-/* ============================================================
-   PUBLIC ENTRY POINT
-   ============================================================ */
+const normPath = (p) => p.replace(/\\/g, '/');
 
 export function renderTree(treeData, container, selectedItems, actionType, onToggle, viewMode = 'list') {
     container.innerHTML = '';
-
-    // Swap CSS mode class so layout-tree.css scoping kicks in
     container.classList.remove('mode-list', 'mode-tree');
     container.classList.add(viewMode === 'tree' ? 'mode-tree' : 'mode-list');
 
@@ -47,14 +32,16 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 }
 
 /* ============================================================
-   LIST MODE  ("roof mode") — VS-Code-style indented list
+   LIST MODE
    ============================================================ */
 
 function _renderListMode(treeData, container, selectedItems, actionType, onToggle) {
     if (!window._expandedFolders) window._expandedFolders = new Map();
     const expandedFolders = window._expandedFolders;
 
-    const isSelected = (path) => selectedItems.includes(path);
+    // Normalise all selectedItems paths once so comparisons always work
+    const normSelected = () => selectedItems.map(normPath);
+    const isSelected = (p) => normSelected().includes(normPath(p));
 
     function applySelectionClass(el, node) {
         el.classList.remove('selected', 'folder-selected', 'file-selected');
@@ -84,18 +71,16 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         const wrapper = document.createElement('div');
         wrapper.className = 'node-wrapper';
         wrapper.style.setProperty('--depth', depth);
-        wrapper.dataset.nodePath = node.path;
+        wrapper.dataset.nodePath = normPath(node.path);
 
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
 
-        // Always expanded
-        expandedFolders.set(node.path, true);
+        expandedFolders.set(normPath(node.path), true);
         if (node.type === 'folder' && node.children?.length) {
             el.classList.add('expandable', 'folder-open');
         }
 
-        // Label
         let label = node.name;
         if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
             const count = countFiles(node);
@@ -108,7 +93,6 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         applySelectionClass(el, node);
         wrapper.appendChild(el);
 
-        // Children (always visible)
         if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
@@ -120,7 +104,6 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
             wrapper.appendChild(childrenContainer);
         }
 
-        // Click
         el.addEventListener('click', (e) => {
             e.stopPropagation();
             if (node.type === 'file') {
@@ -128,7 +111,9 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
             } else if (actionType === 'code') {
                 const files = getAllFiles(node);
                 const allSel = files.every(f => isSelected(f.path));
-                files.forEach(f => allSel ? _removePath(selectedItems, f.path) : _addPath(selectedItems, f.path));
+                files.forEach(f => allSel
+                    ? _removePath(selectedItems, f.path)
+                    : _addPath(selectedItems, f.path));
             } else {
                 _togglePath(selectedItems, node.path);
             }
@@ -145,7 +130,6 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
     treeData.forEach(node => {
         const el = createNode(node, 0);
         if (el) {
-            // Only folders at root depth get a color index; root files stay default
             if (node.type === 'folder') {
                 el.dataset.rootColor = rootColorIdx % 12;
                 rootColorIdx++;
@@ -157,11 +141,12 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
 }
 
 /* ============================================================
-   TREE MODE  ("tree mode") — horizontal graph / data-structure
+   TREE MODE
    ============================================================ */
 
 function _renderTreeMode(treeData, container, selectedItems, actionType, onToggle) {
-    const isSelected = (path) => selectedItems.includes(path);
+    const normSelected = () => selectedItems.map(normPath);
+    const isSelected = (p) => normSelected().includes(normPath(p));
 
     function applySelectionClass(el, node) {
         el.classList.remove('selected', 'folder-selected', 'file-selected');
@@ -190,17 +175,15 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
 
         const wrapper = document.createElement('div');
         wrapper.className = 'node-wrapper';
-        wrapper.dataset.nodePath = node.path;
+        wrapper.dataset.nodePath = normPath(node.path);
 
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
 
-        // Folder open state
         if (node.type === 'folder' && node.children?.length) {
             el.classList.add('folder-open');
         }
 
-        // Label
         let label = node.name;
         if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
             const count = countFiles(node);
@@ -213,20 +196,16 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
         applySelectionClass(el, node);
         wrapper.appendChild(el);
 
-        // Children
         if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
-
             node.children.forEach(child => {
                 const childEl = createNode(child);
                 if (childEl) childrenContainer.appendChild(childEl);
             });
-
             wrapper.appendChild(childrenContainer);
         }
 
-        // Click
         el.addEventListener('click', (e) => {
             e.stopPropagation();
             if (node.type === 'file') {
@@ -234,7 +213,9 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
             } else if (actionType === 'code') {
                 const files = getAllFiles(node);
                 const allSel = files.every(f => isSelected(f.path));
-                files.forEach(f => allSel ? _removePath(selectedItems, f.path) : _addPath(selectedItems, f.path));
+                files.forEach(f => allSel
+                    ? _removePath(selectedItems, f.path)
+                    : _addPath(selectedItems, f.path));
             } else {
                 _togglePath(selectedItems, node.path);
             }
@@ -263,11 +244,22 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
 
 /* ============================================================
    SELECTION MUTATIONS
+   Stored paths keep their original OS form (backslashes).
+   Comparisons always go through normPath().
    ============================================================ */
 
-function _addPath(arr, path)    { if (!arr.includes(path)) arr.push(path); }
-function _removePath(arr, path) { const i = arr.indexOf(path); if (i !== -1) arr.splice(i, 1); }
-function _togglePath(arr, path) { arr.includes(path) ? _removePath(arr, path) : _addPath(arr, path); }
+function _addPath(arr, path) {
+    if (!arr.map(normPath).includes(normPath(path))) arr.push(path);
+}
+function _removePath(arr, path) {
+    const i = arr.findIndex(p => normPath(p) === normPath(path));
+    if (i !== -1) arr.splice(i, 1);
+}
+function _togglePath(arr, path) {
+    arr.map(normPath).includes(normPath(path))
+        ? _removePath(arr, path)
+        : _addPath(arr, path);
+}
 
 function _updateGenerateState(selectedItems) {
     const btn = document.getElementById('generateBtn');
