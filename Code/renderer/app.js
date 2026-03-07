@@ -19,6 +19,7 @@ import {
 } from './filterManager.js';
 import { setupSearch } from './searchManager.js';
 import { initSecretHolder, openSecretHolder, closeSecretHolder, isSecretHolderOpen } from './secretHolder.js';
+import { initSettings, openSettings, hookLegacyThemeToggle } from './settingsManager.js';
 
 
 /* ----------------------------------------
@@ -41,6 +42,7 @@ const viewModeBtn       = document.getElementById('viewModeBtn');
 const themeToggleBtn    = document.getElementById('themeToggleBtn');
 const themeIcon         = document.getElementById('themeIcon');
 const themeLabel        = document.getElementById('themeLabel');
+const settingsBtn = document.getElementById('settingsBtn');
 
 /* ----------------------------------------
  * State
@@ -206,6 +208,7 @@ selectRepoBtn.addEventListener('click', async () => {
         console.error('[UI] Repo selection failed:', err);
     }
 });
+settingsBtn.addEventListener('click', () => openSettings());
 
 refreshBtn.addEventListener('click', async () => {
     if (!selectedRepoPath) return;
@@ -294,6 +297,8 @@ setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
 
 console.log('[Init] DOM content loaded, initializing...');
 window.addEventListener('DOMContentLoaded', async () => {
+    initSettings();              // ← apply saved theme/accent/size on boot
+    hookLegacyThemeToggle();     // ← keep the navbar theme btn in sync
     await loadIgnoredExtensions();
     await loadFolderFilters();
     await loadLastActiveRepo();

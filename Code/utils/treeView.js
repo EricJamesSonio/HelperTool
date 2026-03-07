@@ -1,6 +1,6 @@
 /**
  * treeView.js
- * Dual-mode tree renderer.
+ * Dual-mode tree renderer with depth-level coloring.
  */
 
 const getAllFiles = (node) => {
@@ -39,7 +39,6 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
     if (!window._expandedFolders) window._expandedFolders = new Map();
     const expandedFolders = window._expandedFolders;
 
-    // Normalise all selectedItems paths once so comparisons always work
     const normSelected = () => selectedItems.map(normPath);
     const isSelected = (p) => normSelected().includes(normPath(p));
 
@@ -65,6 +64,7 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         _updateGenerateState(selectedItems);
     }
 
+    // depth = visual nesting depth (0 = root folders)
     function createNode(node, depth = 0) {
         if (actionType === 'structure' && node.type === 'file') return null;
 
@@ -72,6 +72,8 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         wrapper.className = 'node-wrapper';
         wrapper.style.setProperty('--depth', depth);
         wrapper.dataset.nodePath = normPath(node.path);
+        // Set depth-level color attribute on every node
+        wrapper.dataset.depthLevel = depth;
 
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
@@ -97,6 +99,7 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
             childrenContainer.style.display = 'flex';
+            // Pass depth+1 so children know their level
             node.children.forEach(child => {
                 const childEl = createNode(child, depth + 1);
                 if (childEl) childrenContainer.appendChild(childEl);
@@ -126,16 +129,9 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
 
     const root = document.createElement('div');
     root.className = 'tree-root';
-    let rootColorIdx = 0;
     treeData.forEach(node => {
         const el = createNode(node, 0);
-        if (el) {
-            if (node.type === 'folder') {
-                el.dataset.rootColor = rootColorIdx % 12;
-                rootColorIdx++;
-            }
-            root.appendChild(el);
-        }
+        if (el) root.appendChild(el);
     });
     container.appendChild(root);
 }
@@ -170,12 +166,13 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
         _updateGenerateState(selectedItems);
     }
 
-    function createNode(node) {
+    function createNode(node, depth = 0) {
         if (actionType === 'structure' && node.type === 'file') return null;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'node-wrapper';
         wrapper.dataset.nodePath = normPath(node.path);
+        wrapper.dataset.depthLevel = depth;
 
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
@@ -200,7 +197,7 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
             node.children.forEach(child => {
-                const childEl = createNode(child);
+                const childEl = createNode(child, depth + 1);
                 if (childEl) childrenContainer.appendChild(childEl);
             });
             wrapper.appendChild(childrenContainer);
@@ -228,24 +225,15 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
 
     const root = document.createElement('div');
     root.className = 'tree-root';
-    let rootColorIdx = 0;
     treeData.forEach(node => {
-        const el = createNode(node);
-        if (el) {
-            if (node.type === 'folder') {
-                el.dataset.rootColor = rootColorIdx % 12;
-                rootColorIdx++;
-            }
-            root.appendChild(el);
-        }
+        const el = createNode(node, 0);
+        if (el) root.appendChild(el);
     });
     container.appendChild(root);
 }
 
 /* ============================================================
    SELECTION MUTATIONS
-   Stored paths keep their original OS form (backslashes).
-   Comparisons always go through normPath().
    ============================================================ */
 
 function _addPath(arr, path) {
