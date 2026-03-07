@@ -4,7 +4,10 @@
    ============================================================ */
 
 /* ── Main screen taller for notes ────────────────────────── */
-.sh-main-screen { max-height: 90vh; }
+.sh-main-screen {
+  width: 820px;
+  max-height: 95vh;
+}
 
 /* ── Tab bar ─────────────────────────────────────────────── */
 .sh-tabs {
@@ -50,9 +53,11 @@
 
 /* ── Notes two-column layout ─────────────────────────────── */
 .sh-notes-layout {
-  flex-direction: row !important;  /* override column from sh-tab-panel */
-  height: 520px;
-  min-height: 0;
+  flex-direction: row !important;
+  height: 620px;
+  max-height: 620px;
+  min-height: 620px;
+  overflow: hidden;
 }
 
 /* ── LEFT: sidebar ───────────────────────────────────────── */
@@ -65,6 +70,8 @@
   border-right: 2px solid var(--border-strong);
   background: var(--bg-base);
   overflow: hidden;
+  height: 100%;
+  max-height: 100%;
 }
 
 .sh-notes-sidebar-header {
@@ -169,11 +176,14 @@
   overflow: hidden;
   background: var(--bg-surface);
   min-width: 0;
+  height: 100%;
+  max-height: 100%;
 }
 
 /* Empty placeholder */
 .sh-notes-editor-empty {
   flex: 1;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -194,11 +204,14 @@
 /* Editor form */
 .sh-notes-editor-form {
   flex: 1;
+  height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   padding: 14px 16px 12px;
   gap: 10px;
+  box-sizing: border-box;
 }
 
 /* Title + date row */
