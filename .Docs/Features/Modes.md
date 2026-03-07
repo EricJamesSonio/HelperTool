@@ -53,3 +53,9 @@ Secure storage for sensitive development information.
 
 * Password required before access
 * Allows storage of API keys, JWT tokens, credentials, or other secrets depending on user needs.
+
+**NotePad Mode**
+
+### Accesability
+
+**Settings Mode**
