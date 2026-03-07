@@ -1,7 +1,10 @@
 /* ============================================================
-   SECRET-HOLDER ADDITIONS — Tabs + Notes Panel
+   SECRET-HOLDER ADDITIONS — Tabs + Notes Sidebar/Editor Layout
    Append to the bottom of secret-holder.css
    ============================================================ */
+
+/* ── Main screen taller for notes ────────────────────────── */
+.sh-main-screen { max-height: 90vh; }
 
 /* ── Tab bar ─────────────────────────────────────────────── */
 .sh-tabs {
@@ -45,199 +48,226 @@
   min-height: 0;
 }
 
-/* ── Notes add bar ───────────────────────────────────────── */
-.sh-note-add-bar {
+/* ── Notes two-column layout ─────────────────────────────── */
+.sh-notes-layout {
+  flex-direction: row !important;  /* override column from sh-tab-panel */
+  height: 520px;
+  min-height: 0;
+}
+
+/* ── LEFT: sidebar ───────────────────────────────────────── */
+.sh-notes-sidebar {
+  width: 210px;
+  min-width: 180px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 14px 18px 13px;
-  border-bottom: 2px solid var(--border-strong);
+  border-right: 2px solid var(--border-strong);
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.sh-notes-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 9px;
+  border-bottom: 1.5px solid var(--border-strong);
   background: var(--bg-overlay);
   flex-shrink: 0;
 }
 
-.sh-note-add-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.sh-note-date-input {
-  width: 148px;
-  flex-shrink: 0;
-  color-scheme: dark;
-}
-[data-theme="light"] .sh-note-date-input { color-scheme: light; }
-
-/* Inputs inside the notes form — boosted contrast */
-.sh-note-add-bar .sh-input {
-  background: var(--bg-base);
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-}
-.sh-note-add-bar .sh-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
-  background: var(--bg-surface);
-}
-.sh-note-add-bar .sh-input::placeholder { color: var(--text-muted); }
-
-.sh-note-textarea {
-  resize: vertical;
-  min-height: 72px;
-  padding: 10px 14px;
-  line-height: 1.65;
+.sh-notes-sidebar-title {
   font-family: var(--font-ui);
-  font-size: 13px;
-  border-radius: var(--r-md);
-}
-.sh-note-textarea--tall { min-height: 148px; }
-
-.sh-note-add-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
-/* ── Notes list ──────────────────────────────────────────── */
-.sh-notes-list {
+.sh-notes-sidebar-list {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 14px;
+  padding: 6px 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  background: var(--bg-surface);
 }
-.sh-notes-list::-webkit-scrollbar { width: 4px; }
-.sh-notes-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+.sh-notes-sidebar-list::-webkit-scrollbar { width: 3px; }
+.sh-notes-sidebar-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
 
-/* ── Empty state ─────────────────────────────────────────── */
-.sh-notes-empty {
+.sh-notes-sidebar-empty {
+  padding: 28px 16px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.8;
+  font-style: italic;
+}
+
+/* Sidebar note item */
+.sh-notes-sidebar-item {
+  padding: 9px 13px 8px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--ease), border-color var(--ease);
+}
+.sh-notes-sidebar-item:last-child { border-bottom: none; }
+.sh-notes-sidebar-item:hover {
+  background: var(--bg-hover);
+  border-left-color: var(--border-strong);
+}
+.sh-notes-sidebar-item.active {
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+
+.sh-notes-sidebar-item-title {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.sh-notes-sidebar-item.active .sh-notes-sidebar-item-title {
+  color: var(--accent);
+}
+
+.sh-notes-sidebar-item-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  letter-spacing: 0.03em;
+}
+.sh-notes-sidebar-item.active .sh-notes-sidebar-item-meta {
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+.sh-notes-sidebar-item-preview {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+/* ── RIGHT: editor ───────────────────────────────────────── */
+.sh-notes-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-surface);
+  min-width: 0;
+}
+
+/* Empty placeholder */
+.sh-notes-editor-empty {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 48px 20px;
-  flex: 1;
+  color: var(--text-muted);
 }
-.sh-notes-empty-icon  { font-size: 38px; opacity: 0.4; }
+.sh-notes-empty-icon  { font-size: 36px; opacity: 0.35; }
 .sh-notes-empty-text {
   font-family: var(--font-ui);
   font-size: 13px;
   color: var(--text-muted);
   font-style: italic;
   text-align: center;
-  line-height: 1.65;
+  line-height: 1.7;
 }
 
-/* ── Note card ───────────────────────────────────────────── */
-.sh-note-card {
-  background: var(--bg-elevated);
-  border: 1.5px solid var(--border-default);
-  border-radius: var(--r-md);
-  padding: 14px 16px 11px;
+/* Editor form */
+.sh-notes-editor-form {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  transition: border-color var(--ease), background var(--ease), box-shadow var(--ease);
-}
-.sh-note-card:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-sm);
-}
-
-.sh-note-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.sh-note-card-title {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1.3;
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sh-note-card-date {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border: 1.5px solid var(--accent-border);
-  border-radius: 99px;
-  padding: 3px 10px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  letter-spacing: 0.03em;
-}
-
-.sh-note-card-body {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-primary);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  opacity: 0.82;
-}
-.sh-note-card:hover .sh-note-card-body {
-  -webkit-line-clamp: unset;
-  overflow: visible;
-  opacity: 1;
-}
-
-.sh-note-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1.5px solid var(--border-default);
-  margin-top: 2px;
-}
-
-.sh-note-card-upd {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
-}
-
-.sh-note-card-acts { display: flex; gap: 5px; }
-
-/* ── Note edit modal ─────────────────────────────────────── */
-.sh-note-modal {
-  width: 520px;
+  padding: 14px 16px 12px;
   gap: 10px;
 }
 
-.sh-note-modal .sh-input,
-.sh-note-modal .sh-note-textarea {
-  background: var(--bg-base);
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-}
-.sh-note-modal .sh-input:focus,
-.sh-note-modal .sh-note-textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
-  background: var(--bg-surface);
+/* Title + date row */
+.sh-notes-editor-topbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.sh-main-screen { max-height: 88vh; }
+.sh-notes-editor-title-input {
+  flex: 1;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  background: var(--bg-base) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+  height: 40px;
+}
+.sh-notes-editor-title-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-dim) !important;
+}
+.sh-notes-editor-title-input::placeholder { color: var(--text-muted) !important; font-weight: 400 !important; }
+
+.sh-note-date-input {
+  width: 148px;
+  flex-shrink: 0;
+  color-scheme: dark;
+  background: var(--bg-base) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .sh-note-date-input {
+  color-scheme: light;
+  background: var(--bg-base) !important;
+}
+.sh-note-date-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-dim) !important;
+}
+
+/* Main textarea — fills all remaining space */
+.sh-notes-editor-textarea {
+  flex: 1;
+  resize: none;
+  padding: 12px 14px;
+  line-height: 1.75;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  border-radius: var(--r-md);
+  background: var(--bg-base) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+  min-height: 0;
+}
+.sh-notes-editor-textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-dim) !important;
+  outline: none;
+}
+.sh-notes-editor-textarea::placeholder { color: var(--text-muted) !important; }
+
+/* Action bar */
+.sh-notes-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 4px;
+  border-top: 1.5px solid var(--border-default);
+}

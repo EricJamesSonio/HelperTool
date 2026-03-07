@@ -24,9 +24,9 @@ let panel, lockScreen, mainScreen,
     // tabs
     tabSecrets, tabNotes, panelSecrets, panelNotes,
     // notes
-    notesList, noteFormTitle, noteFormBody, noteFormDate, noteSaveBtn, noteCancelBtn,
-    noteEditModal, noteEditTitle, noteEditBody, noteEditDate,
-    noteEditSaveBtn, noteEditCancelBtn, noteEditModalBack;
+    notesList, noteFormTitle, noteFormBody, noteFormDate,
+    noteSaveBtn, noteCancelBtn, noteDeleteBtn, noteNewBtn,
+    notesEditorEmpty, notesEditorForm;
 
 /* ============================================================
    PUBLIC API
@@ -136,23 +136,37 @@ function _injectHTML() {
   </div>
 
   <!-- ══ NOTES PANEL ══ -->
-  <div id="shPanelNotes" class="sh-tab-panel" style="display:none">
+  <div id="shPanelNotes" class="sh-tab-panel sh-notes-layout" style="display:none">
 
-    <!-- Quick-add note form -->
-    <div class="sh-note-add-bar">
-      <div class="sh-note-add-row">
-        <input id="shNoteFormTitle" class="sh-input sh-input-sm" placeholder="Note title…" maxlength="120" style="flex:1" />
-        <input id="shNoteFormDate"  class="sh-input sh-input-sm sh-mono sh-note-date-input" type="date" title="Date for this note" />
+    <!-- LEFT: sidebar list -->
+    <div class="sh-notes-sidebar">
+      <div class="sh-notes-sidebar-header">
+        <span class="sh-notes-sidebar-title">📝 Notes</span>
+        <button id="shNoteNewBtn" class="sh-btn sh-btn-accent sh-btn-xs" type="button">＋ New</button>
       </div>
-      <textarea id="shNoteFormBody" class="sh-input sh-note-textarea" placeholder="Write your note here…" rows="3"></textarea>
-      <div class="sh-note-add-actions">
-        <button id="shNoteSaveBtn"   class="sh-btn sh-btn-accent sh-btn-sm"  type="button">＋ Save Note</button>
-        <button id="shNoteCancelBtn" class="sh-btn sh-btn-ghost  sh-btn-sm"  type="button" style="display:none">✕ Clear</button>
-      </div>
+      <div id="shNotesList" class="sh-notes-sidebar-list"></div>
     </div>
 
-    <!-- Notes list -->
-    <div id="shNotesList" class="sh-list sh-notes-list"></div>
+    <!-- RIGHT: editor -->
+    <div class="sh-notes-editor">
+      <div id="shNotesEditorEmpty" class="sh-notes-editor-empty">
+        <div class="sh-notes-empty-icon">📝</div>
+        <div class="sh-notes-empty-text">Select a note or create a new one.</div>
+      </div>
+      <div id="shNotesEditorForm" class="sh-notes-editor-form" style="display:none">
+        <div class="sh-notes-editor-topbar">
+          <input id="shNoteFormTitle" class="sh-input sh-notes-editor-title-input" placeholder="Note title…" maxlength="120" />
+          <input id="shNoteFormDate"  class="sh-input sh-input-sm sh-mono sh-note-date-input" type="date" title="Date for this note" />
+        </div>
+        <textarea id="shNoteFormBody" class="sh-input sh-notes-editor-textarea" placeholder="Write your note here…"></textarea>
+        <div class="sh-notes-editor-actions">
+          <button id="shNoteDeleteBtn" class="sh-btn sh-btn-danger  sh-btn-sm" type="button" style="display:none">🗑 Delete</button>
+          <div style="flex:1"></div>
+          <button id="shNoteCancelBtn" class="sh-btn sh-btn-ghost   sh-btn-sm" type="button">✕ Discard</button>
+          <button id="shNoteSaveBtn"   class="sh-btn sh-btn-accent  sh-btn-sm" type="button">💾 Save</button>
+        </div>
+      </div>
+    </div>
 
   </div>
 
@@ -173,22 +187,6 @@ function _injectHTML() {
   </div>
 </div>
 
-<!-- ══ NOTE EDIT MODAL ══ -->
-<div id="shNoteEditModal" class="sh-modal-back" style="display:none">
-  <div class="sh-modal sh-note-modal">
-    <div class="sh-modal-title">📝 Edit Note</div>
-    <label class="sh-label">Title</label>
-    <input id="shNoteEditTitle" class="sh-input" maxlength="120" />
-    <label class="sh-label">Date</label>
-    <input id="shNoteEditDate"  class="sh-input sh-input-sm sh-mono" type="date" />
-    <label class="sh-label">Note</label>
-    <textarea id="shNoteEditBody" class="sh-input sh-note-textarea sh-note-textarea--tall" rows="7"></textarea>
-    <div class="sh-modal-foot">
-      <button id="shNoteEditCancel" class="sh-btn sh-btn-ghost"   type="button">Cancel</button>
-      <button id="shNoteEditSave"   class="sh-btn sh-btn-primary" type="button">Save</button>
-    </div>
-  </div>
-</div>
 `;
 
     document.body.appendChild(el);
@@ -234,12 +232,10 @@ function _resolveRefs() {
     noteFormDate       = document.getElementById('shNoteFormDate');
     noteSaveBtn        = document.getElementById('shNoteSaveBtn');
     noteCancelBtn      = document.getElementById('shNoteCancelBtn');
-    noteEditModal      = document.getElementById('shNoteEditModal');
-    noteEditTitle      = document.getElementById('shNoteEditTitle');
-    noteEditBody       = document.getElementById('shNoteEditBody');
-    noteEditDate       = document.getElementById('shNoteEditDate');
-    noteEditSaveBtn    = document.getElementById('shNoteEditSave');
-    noteEditCancelBtn  = document.getElementById('shNoteEditCancel');
+    noteDeleteBtn      = document.getElementById('shNoteDeleteBtn');
+    noteNewBtn         = document.getElementById('shNoteNewBtn');
+    notesEditorEmpty   = document.getElementById('shNotesEditorEmpty');
+    notesEditorForm    = document.getElementById('shNotesEditorForm');
 }
 
 function _wireEvents() {
@@ -269,23 +265,17 @@ function _wireEvents() {
     tabSecrets.addEventListener('click', () => _switchTab('secrets'));
     tabNotes.addEventListener('click',   () => _switchTab('notes'));
 
-    // notes add form
-    noteFormTitle.addEventListener('input', _updateNoteCancelBtn);
-    noteFormBody.addEventListener('input',  _updateNoteCancelBtn);
+    // notes
+    noteNewBtn.addEventListener('click',    () => _openEditorForNew());
     noteSaveBtn.addEventListener('click',   _handleNoteSave);
-    noteCancelBtn.addEventListener('click', _clearNoteForm);
-
-    // note edit modal
-    noteEditSaveBtn.addEventListener('click',   _handleNoteEditSave);
-    noteEditCancelBtn.addEventListener('click', _closeNoteEditModal);
-    noteEditModal.addEventListener('click', e => { if (e.target === noteEditModal) _closeNoteEditModal(); });
+    noteCancelBtn.addEventListener('click', _closeEditor);
+    noteDeleteBtn.addEventListener('click', _handleNoteDeleteCurrent);
 
     // backdrop + escape
     panel.addEventListener('click', e => { if (e.target === panel) closeSecretHolder(); });
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-            if (noteEditModal?.style.display !== 'none') { _closeNoteEditModal(); return; }
-            if (editModal?.style.display !== 'none')     { _closeEditModal();     return; }
+            if (editModal?.style.display !== 'none') { _closeEditModal(); return; }
             if (isSecretHolderOpen()) closeSecretHolder();
         }
     });
@@ -388,7 +378,7 @@ function _lockVault() {
     _editingId = null;
     _editingNoteId = null;
     _closeEditModal();
-    _closeNoteEditModal();
+    _closeEditor();
     _showLockScreen();
     pwInput.value = '';
     _hidePwError();
@@ -526,9 +516,7 @@ async function _handleResetPassword() {
 }
 
 /* ============================================================
-   NOTES — storage helpers (localStorage under the hood;
-   notes are not sensitive so no extra encryption needed,
-   but they're only accessible after vault unlock)
+   NOTES — storage helpers
    ============================================================ */
 
 const NOTES_KEY = 'sh_notes_v1';
@@ -549,7 +537,7 @@ function _newNoteId() {
 }
 
 function _todayISO() {
-    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    return new Date().toISOString().slice(0, 10);
 }
 
 function _formatDisplayDate(iso) {
@@ -560,98 +548,103 @@ function _formatDisplayDate(iso) {
 }
 
 /* ============================================================
-   NOTES CRUD
+   NOTES CRUD + EDITOR
    ============================================================ */
 
 function _refreshNotes() {
     _notes = _loadNotesFromStorage();
-    _renderNotes();
+    _renderSidebar();
+    // If currently editing a note, re-highlight its sidebar item
+    if (_editingNoteId) _highlightSidebarItem(_editingNoteId);
 }
 
-function _renderNotes() {
+function _renderSidebar() {
     notesList.innerHTML = '';
 
-    if (_notes.length === 0) {
-        notesList.innerHTML = `
-          <div class="sh-notes-empty">
-            <div class="sh-notes-empty-icon">📝</div>
-            <div class="sh-notes-empty-text">No notes yet.<br>Write something above.</div>
-          </div>`;
-        return;
-    }
-
-    // Sort: newest first (by updatedAt or createdAt)
     const sorted = [..._notes].sort((a, b) =>
         (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
     );
 
+    if (sorted.length === 0) {
+        notesList.innerHTML = `
+          <div class="sh-notes-sidebar-empty">
+            <div>No notes yet.</div>
+            <div>Hit ＋ New to start.</div>
+          </div>`;
+        return;
+    }
+
     sorted.forEach(note => {
-        const card = document.createElement('div');
-        card.className = 'sh-note-card';
+        const item = document.createElement('div');
+        item.className = 'sh-notes-sidebar-item';
+        item.dataset.noteId = note.id;
+        if (note.id === _editingNoteId) item.classList.add('active');
 
-        const cardTop = document.createElement('div');
-        cardTop.className = 'sh-note-card-top';
+        const itemTitle = document.createElement('div');
+        itemTitle.className   = 'sh-notes-sidebar-item-title';
+        itemTitle.textContent = note.title || '(Untitled)';
 
-        const title = document.createElement('div');
-        title.className = 'sh-note-card-title';
-        title.textContent = note.title || '(Untitled)';
+        const itemMeta = document.createElement('div');
+        itemMeta.className   = 'sh-notes-sidebar-item-meta';
+        itemMeta.textContent = _formatDisplayDate(note.date || note.createdAt?.slice(0,10));
 
-        const date = document.createElement('div');
-        date.className   = 'sh-note-card-date';
-        date.textContent = _formatDisplayDate(note.date || note.createdAt?.slice(0,10));
+        const itemPreview = document.createElement('div');
+        itemPreview.className   = 'sh-notes-sidebar-item-preview';
+        itemPreview.textContent = (note.body || '').slice(0, 80);
 
-        cardTop.appendChild(title);
-        cardTop.appendChild(date);
+        item.appendChild(itemTitle);
+        item.appendChild(itemMeta);
+        item.appendChild(itemPreview);
 
-        const body = document.createElement('div');
-        body.className   = 'sh-note-card-body';
-        body.textContent = note.body || '';
-
-        const footer = document.createElement('div');
-        footer.className = 'sh-note-card-footer';
-
-        const updLbl = document.createElement('span');
-        updLbl.className   = 'sh-note-card-upd';
-        updLbl.textContent = note.updatedAt
-            ? `Updated ${_formatDisplayDate(note.updatedAt.slice(0,10))}`
-            : `Added ${_formatDisplayDate(note.createdAt?.slice(0,10))}`;
-
-        const acts = document.createElement('div');
-        acts.className = 'sh-note-card-acts';
-
-        const edBtn = _makeBtn('✏️ Edit', 'sh-btn sh-btn-ghost sh-btn-xs', 'Edit note',
-            () => _openNoteEditModal(note));
-
-        const dlBtn = _makeBtn('🗑', 'sh-btn sh-btn-danger sh-btn-xs', 'Delete note',
-            () => _handleNoteDelete(note.id, card));
-
-        acts.appendChild(edBtn);
-        acts.appendChild(dlBtn);
-        footer.appendChild(updLbl);
-        footer.appendChild(acts);
-
-        card.appendChild(cardTop);
-        card.appendChild(body);
-        card.appendChild(footer);
-        notesList.appendChild(card);
+        item.addEventListener('click', () => _openEditorForNote(note));
+        notesList.appendChild(item);
     });
 }
 
-function _updateNoteCancelBtn() {
-    const hasContent = noteFormTitle.value.trim() || noteFormBody.value.trim();
-    noteCancelBtn.style.display = hasContent ? 'inline-flex' : 'none';
+function _highlightSidebarItem(id) {
+    notesList.querySelectorAll('.sh-notes-sidebar-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.noteId === id);
+    });
 }
 
-function _clearNoteForm() {
-    noteFormTitle.value = '';
-    noteFormBody.value  = '';
-    noteFormDate.value  = _todayISO();
-    noteCancelBtn.style.display = 'none';
+function _openEditorForNew() {
+    _editingNoteId = null;
+    noteFormTitle.value  = '';
+    noteFormBody.value   = '';
+    noteFormDate.value   = _todayISO();
+    noteDeleteBtn.style.display = 'none';
+    _showEditor();
+    _highlightSidebarItem(null);
+    setTimeout(() => noteFormTitle.focus(), 40);
+}
+
+function _openEditorForNote(note) {
+    _editingNoteId       = note.id;
+    noteFormTitle.value  = note.title || '';
+    noteFormBody.value   = note.body  || '';
+    noteFormDate.value   = note.date  || note.createdAt?.slice(0,10) || _todayISO();
+    noteDeleteBtn.style.display = 'inline-flex';
+    _showEditor();
+    _highlightSidebarItem(note.id);
+    setTimeout(() => noteFormBody.focus(), 40);
+}
+
+function _showEditor() {
+    notesEditorEmpty.style.display = 'none';
+    notesEditorForm.style.display  = 'flex';
+}
+
+function _closeEditor() {
+    _editingNoteId = null;
+    notesEditorEmpty.style.display = 'flex';
+    notesEditorForm.style.display  = 'none';
+    _highlightSidebarItem(null);
 }
 
 function _handleNoteSave() {
     const title = noteFormTitle.value.trim();
     const body  = noteFormBody.value.trim();
+
     if (!title && !body) {
         noteFormTitle.classList.add('sh-err-border');
         setTimeout(() => noteFormTitle.classList.remove('sh-err-border'), 1200);
@@ -659,66 +652,71 @@ function _handleNoteSave() {
     }
 
     const notes = _loadNotesFromStorage();
-    notes.unshift({
-        id:        _newNoteId(),
-        title:     title || '(Untitled)',
-        body:      body,
-        date:      noteFormDate.value || _todayISO(),
-        createdAt: new Date().toISOString(),
-        updatedAt: null,
-    });
-    _saveNotesToStorage(notes);
-    _clearNoteForm();
-    _refreshNotes();
-    noteFormTitle.focus();
-}
 
-function _handleNoteDelete(id, cardEl) {
-    cardEl.style.transition = 'opacity 0.18s, transform 0.18s';
-    cardEl.style.opacity    = '0';
-    cardEl.style.transform  = 'translateX(8px)';
+    if (_editingNoteId) {
+        // Update existing
+        const idx = notes.findIndex(n => n.id === _editingNoteId);
+        if (idx !== -1) {
+            notes[idx] = {
+                ...notes[idx],
+                title:     title || '(Untitled)',
+                body,
+                date:      noteFormDate.value || _todayISO(),
+                updatedAt: new Date().toISOString(),
+            };
+        }
+    } else {
+        // Create new
+        const newNote = {
+            id:        _newNoteId(),
+            title:     title || '(Untitled)',
+            body,
+            date:      noteFormDate.value || _todayISO(),
+            createdAt: new Date().toISOString(),
+            updatedAt: null,
+        };
+        notes.unshift(newNote);
+        _editingNoteId = newNote.id;
+        noteDeleteBtn.style.display = 'inline-flex';
+    }
+
+    _saveNotesToStorage(notes);
+    _refreshNotes();
+
+    // Flash save button to confirm
+    noteSaveBtn.textContent = '✓ Saved';
+    noteSaveBtn.style.background = 'var(--green-dim)';
+    noteSaveBtn.style.borderColor = 'var(--green)';
+    noteSaveBtn.style.color = 'var(--green)';
     setTimeout(() => {
-        const notes = _loadNotesFromStorage().filter(n => n.id !== id);
-        _saveNotesToStorage(notes);
-        _refreshNotes();
-    }, 200);
+        noteSaveBtn.textContent = '💾 Save';
+        noteSaveBtn.style.background = '';
+        noteSaveBtn.style.borderColor = '';
+        noteSaveBtn.style.color = '';
+    }, 1400);
 }
 
-function _openNoteEditModal(note) {
-    _editingNoteId         = note.id;
-    noteEditTitle.value    = note.title || '';
-    noteEditBody.value     = note.body  || '';
-    noteEditDate.value     = note.date  || note.createdAt?.slice(0,10) || _todayISO();
-    noteEditModal.style.display = 'flex';
-    setTimeout(() => noteEditTitle.focus(), 40);
-}
-
-function _closeNoteEditModal() {
-    _editingNoteId = null;
-    noteEditModal.style.display = 'none';
-}
-
-function _handleNoteEditSave() {
+function _handleNoteDeleteCurrent() {
     if (!_editingNoteId) return;
-    const title = noteEditTitle.value.trim();
-    const body  = noteEditBody.value.trim();
-    const date  = noteEditDate.value;
-
-    const notes = _loadNotesFromStorage();
-    const idx   = notes.findIndex(n => n.id === _editingNoteId);
-    if (idx === -1) { _closeNoteEditModal(); return; }
-
-    notes[idx] = {
-        ...notes[idx],
-        title:     title || '(Untitled)',
-        body:      body,
-        date:      date,
-        updatedAt: new Date().toISOString(),
-    };
+    const notes = _loadNotesFromStorage().filter(n => n.id !== _editingNoteId);
     _saveNotesToStorage(notes);
-    _closeNoteEditModal();
+    _closeEditor();
     _refreshNotes();
 }
+
+// kept for legacy compat (sidebar delete) — not used in new layout
+function _handleNoteDelete(id) {
+    const notes = _loadNotesFromStorage().filter(n => n.id !== id);
+    _saveNotesToStorage(notes);
+    if (_editingNoteId === id) _closeEditor();
+    _refreshNotes();
+}
+
+// no-ops for removed modal
+function _updateNoteCancelBtn() {}
+function _clearNoteForm() { _closeEditor(); }
+function _openNoteEditModal() {}
+function _closeNoteEditModal() {}
 
 /* ============================================================
    HELPERS
