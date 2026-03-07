@@ -1,8 +1,20 @@
 /* ============================================================
    LAYOUT-TREE.CSS
-   Two view modes, scoped by class on #treeContainer:
-     .mode-list  →  "List Mode"  (roof mode):  VS-Code-style flat list
-     .mode-tree  →  "Tree Mode"  (tree mode):  horizontal graph spread
+   Two view modes:
+     .mode-list  →  "Roof Mode"  —  VS-Code-style flat indented list
+     .mode-tree  →  "Tree Mode"  —  horizontal graph spread
+
+   DEPTH-LEVEL COLOR SYSTEM
+   ─────────────────────────
+   data-depth-level="0"  →  root folders        — amber/gold
+   data-depth-level="1"  →  sub-folders (L1)    — sky blue
+   data-depth-level="2"  →  sub-folders (L2)    — violet
+   data-depth-level="3"  →  sub-folders (L3)    — teal/green
+   data-depth-level="4"  →  sub-folders (L4)    — rose
+   depth ≥5              →  dim muted (no color) — default text
+
+   Guide lines in list mode match the depth-color of the parent
+   so users can visually trace which folder they're inside.
    ============================================================ */
 
 /* ── Search bar ──────────────────────────────────────────── */
@@ -24,10 +36,7 @@
   line-height: 1;
 }
 
-.search-input {
-  padding-left: 30px;
-  background-image: none; /* icon handled by ::before */
-}
+.search-input { padding-left: 30px; background-image: none; }
 
 .search-suggestions {
   position: absolute;
@@ -79,7 +88,7 @@
 .search-suggestions .search-result-item:hover .result-name { color: var(--accent); }
 .search-suggestions .search-result-item:hover .result-path { color: var(--text-secondary); }
 
-/* ── Tree view container (shared) ────────────────────────── */
+/* ── Tree view container ─────────────────────────────────── */
 .tree-view-container {
   flex: 1;
   overflow: hidden;
@@ -103,10 +112,7 @@
   overflow: auto;
 }
 #treeContainer::-webkit-scrollbar { width: 5px; height: 5px; }
-#treeContainer::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 99px;
-}
+#treeContainer::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 99px; }
 
 /* ── View mode toggle button ─────────────────────────────── */
 .view-mode-btn {
@@ -127,21 +133,84 @@
   white-space: nowrap;
   user-select: none;
 }
-.view-mode-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
-  color: var(--text-secondary);
+.view-mode-btn:hover { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text-secondary); }
+.view-mode-btn.active-list { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+.view-mode-btn.active-tree { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+
+
+/* ============================================================
+   DEPTH-LEVEL COLOR TOKENS
+   Referenced by both mode-list and mode-tree rules below.
+   ============================================================ */
+:root {
+  /* depth 0 — amber gold (roots) */
+  --dl0-color:   #f0b429;
+  --dl0-bg:      rgba(240, 180, 41, 0.10);
+  --dl0-bg-h:    rgba(240, 180, 41, 0.18);
+  --dl0-border:  rgba(240, 180, 41, 0.40);
+  --dl0-line:    rgba(240, 180, 41, 0.35);
+
+  /* depth 1 — sky blue */
+  --dl1-color:   #38bdf8;
+  --dl1-bg:      rgba(56, 189, 248, 0.09);
+  --dl1-bg-h:    rgba(56, 189, 248, 0.17);
+  --dl1-border:  rgba(56, 189, 248, 0.38);
+  --dl1-line:    rgba(56, 189, 248, 0.30);
+
+  /* depth 2 — violet */
+  --dl2-color:   #a78bfa;
+  --dl2-bg:      rgba(167, 139, 250, 0.09);
+  --dl2-bg-h:    rgba(167, 139, 250, 0.17);
+  --dl2-border:  rgba(167, 139, 250, 0.38);
+  --dl2-line:    rgba(167, 139, 250, 0.30);
+
+  /* depth 3 — teal */
+  --dl3-color:   #2dd4bf;
+  --dl3-bg:      rgba(45, 212, 191, 0.09);
+  --dl3-bg-h:    rgba(45, 212, 191, 0.17);
+  --dl3-border:  rgba(45, 212, 191, 0.36);
+  --dl3-line:    rgba(45, 212, 191, 0.28);
+
+  /* depth 4 — rose */
+  --dl4-color:   #fb7185;
+  --dl4-bg:      rgba(251, 113, 133, 0.09);
+  --dl4-bg-h:    rgba(251, 113, 133, 0.17);
+  --dl4-border:  rgba(251, 113, 133, 0.36);
+  --dl4-line:    rgba(251, 113, 133, 0.28);
 }
-.view-mode-btn.active-list {
-  background: var(--blue-dim);
-  border-color: var(--blue);
-  color: var(--blue);
+
+[data-theme="light"] {
+  --dl0-color:   #b45309;
+  --dl0-bg:      rgba(180, 83, 9, 0.08);
+  --dl0-bg-h:    rgba(180, 83, 9, 0.14);
+  --dl0-border:  rgba(180, 83, 9, 0.35);
+  --dl0-line:    rgba(180, 83, 9, 0.30);
+
+  --dl1-color:   #0284c7;
+  --dl1-bg:      rgba(2, 132, 199, 0.07);
+  --dl1-bg-h:    rgba(2, 132, 199, 0.13);
+  --dl1-border:  rgba(2, 132, 199, 0.32);
+  --dl1-line:    rgba(2, 132, 199, 0.25);
+
+  --dl2-color:   #7c3aed;
+  --dl2-bg:      rgba(124, 58, 237, 0.07);
+  --dl2-bg-h:    rgba(124, 58, 237, 0.13);
+  --dl2-border:  rgba(124, 58, 237, 0.32);
+  --dl2-line:    rgba(124, 58, 237, 0.25);
+
+  --dl3-color:   #0d9488;
+  --dl3-bg:      rgba(13, 148, 136, 0.07);
+  --dl3-bg-h:    rgba(13, 148, 136, 0.13);
+  --dl3-border:  rgba(13, 148, 136, 0.30);
+  --dl3-line:    rgba(13, 148, 136, 0.22);
+
+  --dl4-color:   #be123c;
+  --dl4-bg:      rgba(190, 18, 60, 0.07);
+  --dl4-bg-h:    rgba(190, 18, 60, 0.13);
+  --dl4-border:  rgba(190, 18, 60, 0.30);
+  --dl4-line:    rgba(190, 18, 60, 0.22);
 }
-.view-mode-btn.active-tree {
-  background: var(--green-dim);
-  border-color: var(--green);
-  color: var(--green);
-}
+
 
 /* ============================================================
    MODE-LIST  —  "Roof Mode"  —  VS-Code flat indented list
@@ -177,21 +246,24 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
 }
 
-/* Folder */
-#treeContainer.mode-list .tree-node.folder {
-  color: var(--node-folder);
-  font-weight: 500;
-}
+/* ── Folder icon ─────────────────────────────────────────── */
 #treeContainer.mode-list .tree-node.folder::before {
-  content: '📁';
-  font-size: 12px;
+  content: '▸';
+  font-size: 10px;
   flex-shrink: 0;
+  transition: transform 0.15s ease, color 0.15s ease;
+  margin-right: 2px;
+  opacity: 0.8;
 }
-#treeContainer.mode-list .tree-node.folder.folder-open::before { content: '📂'; }
+#treeContainer.mode-list .tree-node.folder.folder-open::before {
+  content: '▾';
+  opacity: 1;
+}
 
-/* File */
+/* ── File dot ────────────────────────────────────────────── */
 #treeContainer.mode-list .tree-node.file {
   color: var(--node-file);
   font-weight: 400;
@@ -199,59 +271,249 @@
 #treeContainer.mode-list .tree-node.file::before {
   content: '·';
   color: var(--text-faint);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 0;
   flex-shrink: 0;
 }
 
-/* Hover */
+/* ── Default hover (files, deep folders) ─────────────────── */
 #treeContainer.mode-list .tree-node:hover {
   background: var(--bg-hover);
   border-color: var(--border-subtle);
 }
 
-/* Selection states */
-#treeContainer.mode-list .tree-node.file-selected {
-  background: var(--yellow-dim);
-  border-color: rgba(251,191,36,0.30);
-  color: var(--node-selected-file);
-}
-#treeContainer.mode-list .tree-node.file-selected::before {
-  color: var(--node-selected-file);
-}
-#treeContainer.mode-list .tree-node.folder-selected {
-  background: var(--green-dim);
-  border-color: rgba(52,211,153,0.28);
-  color: var(--node-selected-folder);
-}
+/* ── Selection states — solid fill, depth-cohesive ───────── */
+/*
+  Base fallback (depth 5+, files not in a colored depth).
+  Depth-specific overrides below take priority.
+*/
+#treeContainer.mode-list .tree-node.file-selected,
+#treeContainer.mode-list .tree-node.folder-selected,
 #treeContainer.mode-list .tree-node.selected {
-  background: var(--accent-dim);
-  border-color: var(--accent-border);
-  color: var(--accent);
+  /* dark bg so the colored text/border pops */
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px currentColor;
 }
 
-/* Children — vertical guide line */
+/* ── Children container — VS Code-style guide lines ─────── */
 #treeContainer.mode-list .children {
   display: flex;
   flex-direction: column;
   gap: 1px;
   position: relative;
   padding-left: 10px;
+  margin-left: 11px; /* aligns line with the arrow icon center */
 }
+
+/* The vertical guide line — color matches parent folder depth */
 #treeContainer.mode-list .children::before {
   content: '';
   position: absolute;
-  left: 4px;
-  top: 4px;
-  bottom: 4px;
-  width: 1px;
-  background: var(--border-subtle);
+  left: 0;
+  top: 2px;
+  bottom: 6px;
+  width: 1.5px;
   border-radius: 1px;
+  background: var(--connector-color);
+  transition: background 0.15s;
 }
-/* No horizontal bar in list mode */
+
+/* Hide horizontal bar in list mode */
 #treeContainer.mode-list .children::after { display: none; }
 #treeContainer.mode-list .node-wrapper::before,
 #treeContainer.mode-list .node-wrapper::after { display: none; }
+
+
+/* ── DEPTH-LEVEL COLORS: folder nodes in mode-list ───────── */
+
+/* depth 0 — amber gold (root level) */
+#treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder {
+  color: var(--dl0-color);
+  background: var(--dl0-bg);
+  border-color: var(--dl0-border);
+  border-left: 2.5px solid var(--dl0-color);
+  padding-left: 8px;
+  font-weight: 700;
+}
+#treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder:hover {
+  background: var(--dl0-bg-h);
+  border-color: var(--dl0-color);
+}
+/* guide line for children of depth-0 folders */
+#treeContainer.mode-list [data-depth-level="0"] > .children::before {
+  background: var(--dl0-line);
+  width: 2px;
+}
+
+/* depth 1 — sky blue */
+#treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder {
+  color: var(--dl1-color);
+  background: var(--dl1-bg);
+  border-color: var(--dl1-border);
+  font-weight: 600;
+}
+#treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder:hover {
+  background: var(--dl1-bg-h);
+  border-color: var(--dl1-color);
+}
+#treeContainer.mode-list [data-depth-level="1"] > .children::before {
+  background: var(--dl1-line);
+}
+
+/* depth 2 — violet */
+#treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder {
+  color: var(--dl2-color);
+  background: var(--dl2-bg);
+  border-color: var(--dl2-border);
+  font-weight: 600;
+}
+#treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder:hover {
+  background: var(--dl2-bg-h);
+  border-color: var(--dl2-color);
+}
+#treeContainer.mode-list [data-depth-level="2"] > .children::before {
+  background: var(--dl2-line);
+}
+
+/* depth 3 — teal */
+#treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder {
+  color: var(--dl3-color);
+  background: var(--dl3-bg);
+  border-color: var(--dl3-border);
+  font-weight: 500;
+}
+#treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder:hover {
+  background: var(--dl3-bg-h);
+  border-color: var(--dl3-color);
+}
+#treeContainer.mode-list [data-depth-level="3"] > .children::before {
+  background: var(--dl3-line);
+}
+
+/* depth 4 — rose */
+#treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder {
+  color: var(--dl4-color);
+  background: var(--dl4-bg);
+  border-color: var(--dl4-border);
+  font-weight: 500;
+}
+#treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder:hover {
+  background: var(--dl4-bg-h);
+  border-color: var(--dl4-color);
+}
+#treeContainer.mode-list [data-depth-level="4"] > .children::before {
+  background: var(--dl4-line);
+}
+
+/* depth 5+ — plain, muted */
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder,
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder,
+#treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ── DEPTH-COHESIVE SELECTION — solid fill per depth level ──
+   Folders: folder-selected (code mode) or selected (structure)
+   Files:   file-selected
+   Both modes use the same depth color as the unselected state
+   but with an opaque fill + bright text + stronger border.
+   !important ensures these beat the generic .file-selected etc.
+   ──────────────────────────────────────────────────────────── */
+
+/* depth 0 — amber gold */
+#treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder.selected {
+  background: var(--dl0-color) !important;
+  border-color: var(--dl0-color) !important;
+  border-left-color: var(--dl0-color) !important;
+  color: #0a0a0a !important;
+  text-shadow: none;
+}
+#treeContainer.mode-list [data-depth-level="0"] > .tree-node.file.file-selected {
+  background: var(--dl0-color) !important;
+  border-color: var(--dl0-color) !important;
+  color: #0a0a0a !important;
+}
+
+/* depth 1 — sky blue */
+#treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder.selected {
+  background: var(--dl1-color) !important;
+  border-color: var(--dl1-color) !important;
+  color: #060e1a !important;
+}
+#treeContainer.mode-list [data-depth-level="1"] > .tree-node.file.file-selected {
+  background: var(--dl1-color) !important;
+  border-color: var(--dl1-color) !important;
+  color: #060e1a !important;
+}
+
+/* depth 2 — violet */
+#treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder.selected {
+  background: var(--dl2-color) !important;
+  border-color: var(--dl2-color) !important;
+  color: #0d0818 !important;
+}
+#treeContainer.mode-list [data-depth-level="2"] > .tree-node.file.file-selected {
+  background: var(--dl2-color) !important;
+  border-color: var(--dl2-color) !important;
+  color: #0d0818 !important;
+}
+
+/* depth 3 — teal */
+#treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder.selected {
+  background: var(--dl3-color) !important;
+  border-color: var(--dl3-color) !important;
+  color: #04120f !important;
+}
+#treeContainer.mode-list [data-depth-level="3"] > .tree-node.file.file-selected {
+  background: var(--dl3-color) !important;
+  border-color: var(--dl3-color) !important;
+  color: #04120f !important;
+}
+
+/* depth 4 — rose */
+#treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder.selected {
+  background: var(--dl4-color) !important;
+  border-color: var(--dl4-color) !important;
+  color: #180306 !important;
+}
+#treeContainer.mode-list [data-depth-level="4"] > .tree-node.file.file-selected {
+  background: var(--dl4-color) !important;
+  border-color: var(--dl4-color) !important;
+  color: #180306 !important;
+}
+
+/* depth 5+ fallback — use accent */
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder-selected,
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.selected,
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.file-selected,
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder-selected,
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.selected,
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.file-selected {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #080808 !important;
+}
+
+/* ::before icon inherits color — make sure it stays readable */
+#treeContainer.mode-list [data-depth-level] > .tree-node.folder-selected::before,
+#treeContainer.mode-list [data-depth-level] > .tree-node.selected::before,
+#treeContainer.mode-list [data-depth-level] > .tree-node.file-selected::before {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+/* ── Depth-level file colors (subtle tint to match parent) ── */
+#treeContainer.mode-list [data-depth-level="1"] > .tree-node.file { color: rgba(56,189,248,0.75); }
+#treeContainer.mode-list [data-depth-level="2"] > .tree-node.file { color: rgba(167,139,250,0.75); }
+#treeContainer.mode-list [data-depth-level="3"] > .tree-node.file { color: rgba(45,212,191,0.75); }
+#treeContainer.mode-list [data-depth-level="4"] > .tree-node.file { color: rgba(251,113,133,0.75); }
+
 
 /* ============================================================
    MODE-TREE  —  "Tree Mode"  —  horizontal graph / data-structure
@@ -305,7 +567,7 @@
   box-shadow: none;
 }
 
-/* Folder nodes */
+/* ── Folder nodes (default — depth 5+) ──────────────────── */
 #treeContainer.mode-tree .tree-node.folder {
   background: var(--folder-bg);
   border: 1px solid var(--folder-border);
@@ -318,18 +580,13 @@
   color: var(--folder-hover-color);
 }
 #treeContainer.mode-tree .tree-node.folder::before {
-  content: "▸ ";
-  font-size: 11px;
-  color: var(--blue);
-  opacity: 0.7;
+  content: "▸ "; font-size: 11px; color: var(--blue); opacity: 0.7;
 }
 #treeContainer.mode-tree .tree-node.folder.folder-open::before {
-  content: "▾ ";
-  color: var(--accent);
-  opacity: 1;
+  content: "▾ "; color: var(--accent); opacity: 1;
 }
 
-/* File nodes */
+/* ── File nodes ──────────────────────────────────────────── */
 #treeContainer.mode-tree .tree-node.file {
   background: var(--file-bg);
   border: 1px solid var(--file-border);
@@ -342,34 +599,155 @@
   color: var(--file-hover-color);
 }
 #treeContainer.mode-tree .tree-node.file::before {
-  content: "· ";
-  font-size: 16px;
-  color: var(--text-muted);
-  line-height: 0;
-  vertical-align: middle;
+  content: "· "; font-size: 16px; color: var(--text-muted); line-height: 0; vertical-align: middle;
 }
 
-/* Selection states */
-#treeContainer.mode-tree .tree-node.folder.selected {
-  background: var(--blue-dim);
-  border-color: rgba(91,141,238,0.48);
-  color: var(--blue);
+/* ── DEPTH-LEVEL COLORS: folder nodes in mode-tree ───────── */
+
+/* depth 0 — amber gold */
+#treeContainer.mode-tree [data-depth-level="0"] > .tree-node.folder {
+  color: var(--dl0-color);
+  background: var(--dl0-bg);
+  border-color: var(--dl0-border);
   font-weight: 700;
 }
-#treeContainer.mode-tree .tree-node.folder.folder-selected {
-  background: var(--green-dim);
-  border-color: rgba(45,212,160,0.42);
-  color: var(--green);
-  font-weight: 700;
-}
-#treeContainer.mode-tree .tree-node.file.file-selected {
-  background: var(--yellow-dim);
-  border-color: rgba(245,197,66,0.42);
-  color: var(--yellow);
-  font-weight: 600;
+#treeContainer.mode-tree [data-depth-level="0"] > .tree-node.folder:hover {
+  background: var(--dl0-bg-h);
+  border-color: var(--dl0-color);
 }
 
-/* ── Connector lines ─────────────────────────────────────── */
+/* depth 1 — sky blue */
+#treeContainer.mode-tree [data-depth-level="1"] > .tree-node.folder {
+  color: var(--dl1-color);
+  background: var(--dl1-bg);
+  border-color: var(--dl1-border);
+}
+#treeContainer.mode-tree [data-depth-level="1"] > .tree-node.folder:hover {
+  background: var(--dl1-bg-h);
+  border-color: var(--dl1-color);
+}
+
+/* depth 2 — violet */
+#treeContainer.mode-tree [data-depth-level="2"] > .tree-node.folder {
+  color: var(--dl2-color);
+  background: var(--dl2-bg);
+  border-color: var(--dl2-border);
+}
+#treeContainer.mode-tree [data-depth-level="2"] > .tree-node.folder:hover {
+  background: var(--dl2-bg-h);
+  border-color: var(--dl2-color);
+}
+
+/* depth 3 — teal */
+#treeContainer.mode-tree [data-depth-level="3"] > .tree-node.folder {
+  color: var(--dl3-color);
+  background: var(--dl3-bg);
+  border-color: var(--dl3-border);
+}
+#treeContainer.mode-tree [data-depth-level="3"] > .tree-node.folder:hover {
+  background: var(--dl3-bg-h);
+  border-color: var(--dl3-color);
+}
+
+/* depth 4 — rose */
+#treeContainer.mode-tree [data-depth-level="4"] > .tree-node.folder {
+  color: var(--dl4-color);
+  background: var(--dl4-bg);
+  border-color: var(--dl4-border);
+}
+#treeContainer.mode-tree [data-depth-level="4"] > .tree-node.folder:hover {
+  background: var(--dl4-bg-h);
+  border-color: var(--dl4-color);
+}
+
+/* Selection — solid fill per depth, both folders and files */
+
+/* depth 0 — amber gold */
+#treeContainer.mode-tree [data-depth-level="0"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="0"] > .tree-node.folder.selected {
+  background: var(--dl0-color) !important;
+  border-color: var(--dl0-color) !important;
+  color: #0a0a0a !important;
+}
+#treeContainer.mode-tree [data-depth-level="0"] > .tree-node.file.file-selected {
+  background: var(--dl0-color) !important;
+  border-color: var(--dl0-color) !important;
+  color: #0a0a0a !important;
+}
+
+/* depth 1 — sky blue */
+#treeContainer.mode-tree [data-depth-level="1"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="1"] > .tree-node.folder.selected {
+  background: var(--dl1-color) !important;
+  border-color: var(--dl1-color) !important;
+  color: #060e1a !important;
+}
+#treeContainer.mode-tree [data-depth-level="1"] > .tree-node.file.file-selected {
+  background: var(--dl1-color) !important;
+  border-color: var(--dl1-color) !important;
+  color: #060e1a !important;
+}
+
+/* depth 2 — violet */
+#treeContainer.mode-tree [data-depth-level="2"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="2"] > .tree-node.folder.selected {
+  background: var(--dl2-color) !important;
+  border-color: var(--dl2-color) !important;
+  color: #0d0818 !important;
+}
+#treeContainer.mode-tree [data-depth-level="2"] > .tree-node.file.file-selected {
+  background: var(--dl2-color) !important;
+  border-color: var(--dl2-color) !important;
+  color: #0d0818 !important;
+}
+
+/* depth 3 — teal */
+#treeContainer.mode-tree [data-depth-level="3"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="3"] > .tree-node.folder.selected {
+  background: var(--dl3-color) !important;
+  border-color: var(--dl3-color) !important;
+  color: #04120f !important;
+}
+#treeContainer.mode-tree [data-depth-level="3"] > .tree-node.file.file-selected {
+  background: var(--dl3-color) !important;
+  border-color: var(--dl3-color) !important;
+  color: #04120f !important;
+}
+
+/* depth 4 — rose */
+#treeContainer.mode-tree [data-depth-level="4"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="4"] > .tree-node.folder.selected {
+  background: var(--dl4-color) !important;
+  border-color: var(--dl4-color) !important;
+  color: #180306 !important;
+}
+#treeContainer.mode-tree [data-depth-level="4"] > .tree-node.file.file-selected {
+  background: var(--dl4-color) !important;
+  border-color: var(--dl4-color) !important;
+  color: #180306 !important;
+}
+
+/* depth 5+ fallback */
+#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder-selected,
+#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.selected,
+#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.file-selected,
+#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder-selected,
+#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.selected,
+#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.file-selected {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #080808 !important;
+}
+
+/* ::before icon stays readable on solid fill */
+#treeContainer.mode-tree [data-depth-level] > .tree-node.folder-selected::before,
+#treeContainer.mode-tree [data-depth-level] > .tree-node.selected::before,
+#treeContainer.mode-tree [data-depth-level] > .tree-node.file-selected::before {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+/* ── Connector lines — colored by depth of the PARENT ─────── */
 
 /* Children row layout */
 #treeContainer.mode-tree .children {
@@ -385,13 +763,13 @@
   max-width: 600px;
 }
 
-/* Vertical drop from parent down to the children row */
+/* Vertical stem from parent node down to the children row */
 #treeContainer.mode-tree .node-wrapper > .children::before {
   content: '';
   position: absolute;
   top: -32px;
   left: 50%;
-  width: 1px;
+  width: 1.5px;
   height: 32px;
   background: var(--connector-color);
   transform: translateX(-50%);
@@ -402,21 +780,19 @@
 #treeContainer.mode-tree .children::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
+  top: 0; left: 0; right: 0;
+  height: 1.5px;
   background: var(--connector-color);
   z-index: 0;
 }
 
-/* Vertical drop from bar down to each child */
+/* Vertical drop from bar down to each child node */
 #treeContainer.mode-tree .children > .node-wrapper::before {
   content: '';
   position: absolute;
   top: -32px;
   left: 50%;
-  width: 1px;
+  width: 1.5px;
   height: 32px;
   background: var(--connector-color);
   transform: translateX(-50%);
@@ -425,143 +801,61 @@
 
 #treeContainer.mode-tree .children > .node-wrapper { margin-bottom: 32px; }
 
-/* Clip bar on the left side of first child */
+/* Clip bar edges (first and last child) */
 #treeContainer.mode-tree .children > .node-wrapper:first-child::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 50%;
-  right: -1000%;
+  top: 0; left: 50%; right: -1000%;
   height: 1px;
   background: transparent;
   z-index: 1;
 }
-
-/* Clip bar on the right side of last child */
 #treeContainer.mode-tree .children > .node-wrapper:last-child::after {
   content: '';
   position: absolute;
-  top: 0;
-  right: 50%;
-  left: -1000%;
+  top: 0; right: 50%; left: -1000%;
   height: 1px;
   background: transparent;
   z-index: 1;
 }
 
 /* Hide horizontal bar when only one child */
-#treeContainer.mode-tree .children:has(.node-wrapper:only-child)::after {
-  display: none;
+#treeContainer.mode-tree .children:has(.node-wrapper:only-child)::after { display: none; }
+
+/* ── Connector color per parent depth level ──────────────── */
+/* The .children sits INSIDE [data-depth-level="N"] > .node-wrapper,
+   so we can target the stems and bar with the right color. */
+
+#treeContainer.mode-tree [data-depth-level="0"] > .children,
+#treeContainer.mode-tree [data-depth-level="0"] > .children > .node-wrapper {
+  --connector-color: var(--dl0-line);
+}
+#treeContainer.mode-tree [data-depth-level="0"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="0"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="0"] > .children > .node-wrapper::before {
+  background: var(--dl0-line);
 }
 
-/* ============================================================
-   ROOT FOLDER COLORS
-   Applied to depth-0 folder node-wrappers via data-root-color="N".
-   Cycles through 12 distinct colors.
-   Selection states are boosted in specificity so they always win.
-   ============================================================ */
-
-/*
-  Palette:
-  0  orange    #f97316
-  1  violet    #a78bfa
-  2  cyan      #22d3ee
-  3  rose      #fb7185
-  4  lime      #84cc16
-  5  amber     #fbbf24
-  6  sky       #38bdf8
-  7  fuchsia   #e879f9
-  8  teal      #2dd4bf
-  9  red       #f87171
-  10 indigo    #818cf8
-  11 emerald   #34d399
-*/
-
-/* ── MODE-LIST root folder colors ────────────────────────────
-   Direct child selector (>) so only the root .tree-node gets
-   the color, not descendants.
-   Left border accent makes roots visually pop in the list.
-   ──────────────────────────────────────────────────────────── */
-
-#treeContainer.mode-list [data-root-color="0"]  > .tree-node.folder { color: #f97316; border-left: 3px solid #f97316; background: rgba(249,115,22,0.08); padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="1"]  > .tree-node.folder { color: #a78bfa; border-left: 3px solid #a78bfa; background: rgba(167,139,250,0.08); padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="2"]  > .tree-node.folder { color: #22d3ee; border-left: 3px solid #22d3ee; background: rgba(34,211,238,0.08);  padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="3"]  > .tree-node.folder { color: #fb7185; border-left: 3px solid #fb7185; background: rgba(251,113,133,0.08); padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="4"]  > .tree-node.folder { color: #84cc16; border-left: 3px solid #84cc16; background: rgba(132,204,22,0.08);  padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="5"]  > .tree-node.folder { color: #fbbf24; border-left: 3px solid #fbbf24; background: rgba(251,191,36,0.08);  padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="6"]  > .tree-node.folder { color: #38bdf8; border-left: 3px solid #38bdf8; background: rgba(56,189,248,0.08);  padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="7"]  > .tree-node.folder { color: #e879f9; border-left: 3px solid #e879f9; background: rgba(232,121,249,0.08); padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="8"]  > .tree-node.folder { color: #2dd4bf; border-left: 3px solid #2dd4bf; background: rgba(45,212,191,0.08);  padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="9"]  > .tree-node.folder { color: #f87171; border-left: 3px solid #f87171; background: rgba(248,113,113,0.08); padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="10"] > .tree-node.folder { color: #818cf8; border-left: 3px solid #818cf8; background: rgba(129,140,248,0.08); padding-left: 8px; }
-#treeContainer.mode-list [data-root-color="11"] > .tree-node.folder { color: #34d399; border-left: 3px solid #34d399; background: rgba(52,211,153,0.08);  padding-left: 8px; }
-
-/* Hover — darken tint slightly */
-#treeContainer.mode-list [data-root-color="0"]  > .tree-node.folder:hover { background: rgba(249,115,22,0.15);  border-color: #f97316; }
-#treeContainer.mode-list [data-root-color="1"]  > .tree-node.folder:hover { background: rgba(167,139,250,0.15); border-color: #a78bfa; }
-#treeContainer.mode-list [data-root-color="2"]  > .tree-node.folder:hover { background: rgba(34,211,238,0.15);  border-color: #22d3ee; }
-#treeContainer.mode-list [data-root-color="3"]  > .tree-node.folder:hover { background: rgba(251,113,133,0.15); border-color: #fb7185; }
-#treeContainer.mode-list [data-root-color="4"]  > .tree-node.folder:hover { background: rgba(132,204,22,0.15);  border-color: #84cc16; }
-#treeContainer.mode-list [data-root-color="5"]  > .tree-node.folder:hover { background: rgba(251,191,36,0.15);  border-color: #fbbf24; }
-#treeContainer.mode-list [data-root-color="6"]  > .tree-node.folder:hover { background: rgba(56,189,248,0.15);  border-color: #38bdf8; }
-#treeContainer.mode-list [data-root-color="7"]  > .tree-node.folder:hover { background: rgba(232,121,249,0.15); border-color: #e879f9; }
-#treeContainer.mode-list [data-root-color="8"]  > .tree-node.folder:hover { background: rgba(45,212,191,0.15);  border-color: #2dd4bf; }
-#treeContainer.mode-list [data-root-color="9"]  > .tree-node.folder:hover { background: rgba(248,113,113,0.15); border-color: #f87171; }
-#treeContainer.mode-list [data-root-color="10"] > .tree-node.folder:hover { background: rgba(129,140,248,0.15); border-color: #818cf8; }
-#treeContainer.mode-list [data-root-color="11"] > .tree-node.folder:hover { background: rgba(52,211,153,0.15);  border-color: #34d399; }
-
-/* Selection always wins — boost specificity by adding the selection class */
-#treeContainer.mode-list [data-root-color] > .tree-node.folder.folder-selected {
-  color: var(--node-selected-folder);
-  background: var(--green-dim);
-  border-left-color: rgba(52,211,153,0.7);
-}
-#treeContainer.mode-list [data-root-color] > .tree-node.folder.selected {
-  color: var(--accent);
-  background: var(--accent-dim);
-  border-left-color: var(--accent);
+#treeContainer.mode-tree [data-depth-level="1"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="1"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="1"] > .children > .node-wrapper::before {
+  background: var(--dl1-line);
 }
 
-/* ── MODE-TREE root folder colors ────────────────────────────
-   Card style — colored background tint + border + text.
-   No left-border trick needed; full card border shows the color.
-   ──────────────────────────────────────────────────────────── */
-
-#treeContainer.mode-tree [data-root-color="0"]  > .tree-node.folder { color: #f97316; background: rgba(249,115,22,0.12);  border-color: rgba(249,115,22,0.45); }
-#treeContainer.mode-tree [data-root-color="1"]  > .tree-node.folder { color: #a78bfa; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.45); }
-#treeContainer.mode-tree [data-root-color="2"]  > .tree-node.folder { color: #22d3ee; background: rgba(34,211,238,0.12);  border-color: rgba(34,211,238,0.45);  }
-#treeContainer.mode-tree [data-root-color="3"]  > .tree-node.folder { color: #fb7185; background: rgba(251,113,133,0.12); border-color: rgba(251,113,133,0.45); }
-#treeContainer.mode-tree [data-root-color="4"]  > .tree-node.folder { color: #84cc16; background: rgba(132,204,22,0.12);  border-color: rgba(132,204,22,0.45);  }
-#treeContainer.mode-tree [data-root-color="5"]  > .tree-node.folder { color: #fbbf24; background: rgba(251,191,36,0.12);  border-color: rgba(251,191,36,0.45);  }
-#treeContainer.mode-tree [data-root-color="6"]  > .tree-node.folder { color: #38bdf8; background: rgba(56,189,248,0.12);  border-color: rgba(56,189,248,0.45);  }
-#treeContainer.mode-tree [data-root-color="7"]  > .tree-node.folder { color: #e879f9; background: rgba(232,121,249,0.12); border-color: rgba(232,121,249,0.45); }
-#treeContainer.mode-tree [data-root-color="8"]  > .tree-node.folder { color: #2dd4bf; background: rgba(45,212,191,0.12);  border-color: rgba(45,212,191,0.45);  }
-#treeContainer.mode-tree [data-root-color="9"]  > .tree-node.folder { color: #f87171; background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); }
-#treeContainer.mode-tree [data-root-color="10"] > .tree-node.folder { color: #818cf8; background: rgba(129,140,248,0.12); border-color: rgba(129,140,248,0.45); }
-#treeContainer.mode-tree [data-root-color="11"] > .tree-node.folder { color: #34d399; background: rgba(52,211,153,0.12);  border-color: rgba(52,211,153,0.45);  }
-
-/* Hover */
-#treeContainer.mode-tree [data-root-color="0"]  > .tree-node.folder:hover { background: rgba(249,115,22,0.22);  border-color: #f97316; }
-#treeContainer.mode-tree [data-root-color="1"]  > .tree-node.folder:hover { background: rgba(167,139,250,0.22); border-color: #a78bfa; }
-#treeContainer.mode-tree [data-root-color="2"]  > .tree-node.folder:hover { background: rgba(34,211,238,0.22);  border-color: #22d3ee; }
-#treeContainer.mode-tree [data-root-color="3"]  > .tree-node.folder:hover { background: rgba(251,113,133,0.22); border-color: #fb7185; }
-#treeContainer.mode-tree [data-root-color="4"]  > .tree-node.folder:hover { background: rgba(132,204,22,0.22);  border-color: #84cc16; }
-#treeContainer.mode-tree [data-root-color="5"]  > .tree-node.folder:hover { background: rgba(251,191,36,0.22);  border-color: #fbbf24; }
-#treeContainer.mode-tree [data-root-color="6"]  > .tree-node.folder:hover { background: rgba(56,189,248,0.22);  border-color: #38bdf8; }
-#treeContainer.mode-tree [data-root-color="7"]  > .tree-node.folder:hover { background: rgba(232,121,249,0.22); border-color: #e879f9; }
-#treeContainer.mode-tree [data-root-color="8"]  > .tree-node.folder:hover { background: rgba(45,212,191,0.22);  border-color: #2dd4bf; }
-#treeContainer.mode-tree [data-root-color="9"]  > .tree-node.folder:hover { background: rgba(248,113,113,0.22); border-color: #f87171; }
-#treeContainer.mode-tree [data-root-color="10"] > .tree-node.folder:hover { background: rgba(129,140,248,0.22); border-color: #818cf8; }
-#treeContainer.mode-tree [data-root-color="11"] > .tree-node.folder:hover { background: rgba(52,211,153,0.22);  border-color: #34d399; }
-
-/* Selection always wins in tree mode too */
-#treeContainer.mode-tree [data-root-color] > .tree-node.folder.folder-selected {
-  background: var(--green-dim);
-  border-color: rgba(45,212,160,0.42);
-  color: var(--green);
+#treeContainer.mode-tree [data-depth-level="2"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="2"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="2"] > .children > .node-wrapper::before {
+  background: var(--dl2-line);
 }
-#treeContainer.mode-tree [data-root-color] > .tree-node.folder.selected {
-  background: var(--blue-dim);
-  border-color: rgba(91,141,238,0.48);
-  color: var(--blue);
+
+#treeContainer.mode-tree [data-depth-level="3"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="3"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="3"] > .children > .node-wrapper::before {
+  background: var(--dl3-line);
+}
+
+#treeContainer.mode-tree [data-depth-level="4"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="4"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="4"] > .children > .node-wrapper::before {
+  background: var(--dl4-line);
 }
