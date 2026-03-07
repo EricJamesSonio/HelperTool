@@ -282,19 +282,6 @@
   border-color: var(--border-subtle);
 }
 
-/* ── Selection states — solid fill, depth-cohesive ───────── */
-/*
-  Base fallback (depth 5+, files not in a colored depth).
-  Depth-specific overrides below take priority.
-*/
-#treeContainer.mode-list .tree-node.file-selected,
-#treeContainer.mode-list .tree-node.folder-selected,
-#treeContainer.mode-list .tree-node.selected {
-  /* dark bg so the colored text/border pops */
-  font-weight: 700;
-  box-shadow: inset 0 0 0 1px currentColor;
-}
-
 /* ── Children container — VS Code-style guide lines ─────── */
 #treeContainer.mode-list .children {
   display: flex;
@@ -413,97 +400,82 @@
   font-weight: 500;
 }
 
-/* ── DEPTH-COHESIVE SELECTION — solid fill per depth level ──
-   Folders: folder-selected (code mode) or selected (structure)
-   Files:   file-selected
-   Both modes use the same depth color as the unselected state
-   but with an opaque fill + bright text + stronger border.
-   !important ensures these beat the generic .file-selected etc.
+/* ── DEPTH-COHESIVE SELECTION — toned-down solid fill ────────
+   ~45% opacity background + full-color border + bright text.
+   Not pure full-color (too loud), not just a tint (too weak).
+   Folders: .folder-selected (code mode) or .selected (structure)
+   Files:   .file-selected
+   border-left override for depth-0 is explicitly reset here.
    ──────────────────────────────────────────────────────────── */
 
 /* depth 0 — amber gold */
 #treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder.selected {
-  background: var(--dl0-color) !important;
+#treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder.selected,
+#treeContainer.mode-list [data-depth-level="0"] > .tree-node.file.file-selected {
+  background: rgba(240, 180, 41, 0.28) !important;
   border-color: var(--dl0-color) !important;
   border-left-color: var(--dl0-color) !important;
-  color: #0a0a0a !important;
-  text-shadow: none;
-}
-#treeContainer.mode-list [data-depth-level="0"] > .tree-node.file.file-selected {
-  background: var(--dl0-color) !important;
-  border-color: var(--dl0-color) !important;
-  color: #0a0a0a !important;
+  color: var(--dl0-color) !important;
+  font-weight: 700;
 }
 
 /* depth 1 — sky blue */
 #treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder.selected {
-  background: var(--dl1-color) !important;
-  border-color: var(--dl1-color) !important;
-  color: #060e1a !important;
-}
+#treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="1"] > .tree-node.file.file-selected {
-  background: var(--dl1-color) !important;
+  background: rgba(56, 189, 248, 0.22) !important;
   border-color: var(--dl1-color) !important;
-  color: #060e1a !important;
+  color: var(--dl1-color) !important;
+  font-weight: 700;
 }
 
 /* depth 2 — violet */
 #treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder.selected {
-  background: var(--dl2-color) !important;
-  border-color: var(--dl2-color) !important;
-  color: #0d0818 !important;
-}
+#treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="2"] > .tree-node.file.file-selected {
-  background: var(--dl2-color) !important;
+  background: rgba(167, 139, 250, 0.22) !important;
   border-color: var(--dl2-color) !important;
-  color: #0d0818 !important;
+  color: var(--dl2-color) !important;
+  font-weight: 700;
 }
 
 /* depth 3 — teal */
 #treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder.selected {
-  background: var(--dl3-color) !important;
-  border-color: var(--dl3-color) !important;
-  color: #04120f !important;
-}
+#treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="3"] > .tree-node.file.file-selected {
-  background: var(--dl3-color) !important;
+  background: rgba(45, 212, 191, 0.20) !important;
   border-color: var(--dl3-color) !important;
-  color: #04120f !important;
+  color: var(--dl3-color) !important;
+  font-weight: 700;
 }
 
 /* depth 4 — rose */
 #treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder.selected {
-  background: var(--dl4-color) !important;
-  border-color: var(--dl4-color) !important;
-  color: #180306 !important;
-}
+#treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="4"] > .tree-node.file.file-selected {
-  background: var(--dl4-color) !important;
+  background: rgba(251, 113, 133, 0.22) !important;
   border-color: var(--dl4-color) !important;
-  color: #180306 !important;
+  color: var(--dl4-color) !important;
+  font-weight: 700;
 }
 
 /* depth 5+ fallback — use accent */
-#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder-selected,
-#treeContainer.mode-list [data-depth-level="5"] > .tree-node.selected,
-#treeContainer.mode-list [data-depth-level="5"] > .tree-node.file-selected,
-#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder-selected,
-#treeContainer.mode-list [data-depth-level="6"] > .tree-node.selected,
-#treeContainer.mode-list [data-depth-level="6"] > .tree-node.file-selected {
-  background: var(--accent) !important;
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder.selected,
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.file.file-selected,
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder.selected,
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.file.file-selected {
+  background: var(--accent-dim) !important;
   border-color: var(--accent) !important;
-  color: #080808 !important;
+  color: var(--accent) !important;
+  font-weight: 700;
 }
 
-/* ::before icon inherits color — make sure it stays readable */
-#treeContainer.mode-list [data-depth-level] > .tree-node.folder-selected::before,
-#treeContainer.mode-list [data-depth-level] > .tree-node.selected::before,
-#treeContainer.mode-list [data-depth-level] > .tree-node.file-selected::before {
+/* ::before icon matches the selected color */
+#treeContainer.mode-list [data-depth-level] > .tree-node.folder.folder-selected::before,
+#treeContainer.mode-list [data-depth-level] > .tree-node.folder.selected::before,
+#treeContainer.mode-list [data-depth-level] > .tree-node.file.file-selected::before {
   color: inherit !important;
   opacity: 1 !important;
 }
@@ -660,89 +632,75 @@
   border-color: var(--dl4-color);
 }
 
-/* Selection — solid fill per depth, both folders and files */
+/* Selection — toned-down depth-cohesive fill, both folders and files */
 
 /* depth 0 — amber gold */
 #treeContainer.mode-tree [data-depth-level="0"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-tree [data-depth-level="0"] > .tree-node.folder.selected {
-  background: var(--dl0-color) !important;
-  border-color: var(--dl0-color) !important;
-  color: #0a0a0a !important;
-}
+#treeContainer.mode-tree [data-depth-level="0"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="0"] > .tree-node.file.file-selected {
-  background: var(--dl0-color) !important;
+  background: rgba(240, 180, 41, 0.28) !important;
   border-color: var(--dl0-color) !important;
-  color: #0a0a0a !important;
+  color: var(--dl0-color) !important;
+  font-weight: 700;
 }
 
 /* depth 1 — sky blue */
 #treeContainer.mode-tree [data-depth-level="1"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-tree [data-depth-level="1"] > .tree-node.folder.selected {
-  background: var(--dl1-color) !important;
-  border-color: var(--dl1-color) !important;
-  color: #060e1a !important;
-}
+#treeContainer.mode-tree [data-depth-level="1"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="1"] > .tree-node.file.file-selected {
-  background: var(--dl1-color) !important;
+  background: rgba(56, 189, 248, 0.22) !important;
   border-color: var(--dl1-color) !important;
-  color: #060e1a !important;
+  color: var(--dl1-color) !important;
+  font-weight: 700;
 }
 
 /* depth 2 — violet */
 #treeContainer.mode-tree [data-depth-level="2"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-tree [data-depth-level="2"] > .tree-node.folder.selected {
-  background: var(--dl2-color) !important;
-  border-color: var(--dl2-color) !important;
-  color: #0d0818 !important;
-}
+#treeContainer.mode-tree [data-depth-level="2"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="2"] > .tree-node.file.file-selected {
-  background: var(--dl2-color) !important;
+  background: rgba(167, 139, 250, 0.22) !important;
   border-color: var(--dl2-color) !important;
-  color: #0d0818 !important;
+  color: var(--dl2-color) !important;
+  font-weight: 700;
 }
 
 /* depth 3 — teal */
 #treeContainer.mode-tree [data-depth-level="3"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-tree [data-depth-level="3"] > .tree-node.folder.selected {
-  background: var(--dl3-color) !important;
-  border-color: var(--dl3-color) !important;
-  color: #04120f !important;
-}
+#treeContainer.mode-tree [data-depth-level="3"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="3"] > .tree-node.file.file-selected {
-  background: var(--dl3-color) !important;
+  background: rgba(45, 212, 191, 0.20) !important;
   border-color: var(--dl3-color) !important;
-  color: #04120f !important;
+  color: var(--dl3-color) !important;
+  font-weight: 700;
 }
 
 /* depth 4 — rose */
 #treeContainer.mode-tree [data-depth-level="4"] > .tree-node.folder.folder-selected,
-#treeContainer.mode-tree [data-depth-level="4"] > .tree-node.folder.selected {
-  background: var(--dl4-color) !important;
-  border-color: var(--dl4-color) !important;
-  color: #180306 !important;
-}
+#treeContainer.mode-tree [data-depth-level="4"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="4"] > .tree-node.file.file-selected {
-  background: var(--dl4-color) !important;
+  background: rgba(251, 113, 133, 0.22) !important;
   border-color: var(--dl4-color) !important;
-  color: #180306 !important;
+  color: var(--dl4-color) !important;
+  font-weight: 700;
 }
 
 /* depth 5+ fallback */
-#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder-selected,
-#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.selected,
-#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.file-selected,
-#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder-selected,
-#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.selected,
-#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.file-selected {
-  background: var(--accent) !important;
+#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder.selected,
+#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.file.file-selected,
+#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder.selected,
+#treeContainer.mode-tree [data-depth-level="6"] > .tree-node.file.file-selected {
+  background: var(--accent-dim) !important;
   border-color: var(--accent) !important;
-  color: #080808 !important;
+  color: var(--accent) !important;
+  font-weight: 700;
 }
 
-/* ::before icon stays readable on solid fill */
-#treeContainer.mode-tree [data-depth-level] > .tree-node.folder-selected::before,
-#treeContainer.mode-tree [data-depth-level] > .tree-node.selected::before,
-#treeContainer.mode-tree [data-depth-level] > .tree-node.file-selected::before {
+/* ::before icon matches selected color */
+#treeContainer.mode-tree [data-depth-level] > .tree-node.folder.folder-selected::before,
+#treeContainer.mode-tree [data-depth-level] > .tree-node.folder.selected::before,
+#treeContainer.mode-tree [data-depth-level] > .tree-node.file.file-selected::before {
   color: inherit !important;
   opacity: 1 !important;
 }
