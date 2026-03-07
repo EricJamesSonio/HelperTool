@@ -1,7 +1,7 @@
 /**
  * settingsManager.js
  * Handles the settings modal: theme, accent color, font size, presets.
- * All settings are saved to localStorage under 'helpertool-settings'.
+ * All settings saved to localStorage under 'helpertool-settings'.
  */
 
 /* ─── Accent palette ──────────────────────────────────────────────────────── */
@@ -23,24 +23,25 @@ const PRESETS = [
   { id: 'violet-dark',   label: 'Violet Dark', theme: 'dark',  accentId: 'violet' },
   { id: 'rose-light',    label: 'Rose Light',  theme: 'light', accentId: 'rose'   },
   { id: 'matrix',        label: 'Matrix',      theme: 'dark',  accentId: 'lime'   },
+  { id: 'sky-dark',      label: 'Sky Dark',    theme: 'dark',  accentId: 'sky'    },
+  { id: 'sunset',        label: 'Sunset',      theme: 'dark',  accentId: 'orange' },
 ];
 
-/* ─── Default settings ────────────────────────────────────────────────────── */
+/* ─── Defaults ────────────────────────────────────────────────────────────── */
 const DEFAULT_SETTINGS = {
-  theme:         'dark',
-  accentId:      'amber',
-  customAccent:  null,   // hex string or null
-  fontSize:      14,
-  compactMode:   false,
+  theme:        'dark',
+  accentId:     'amber',
+  customAccent: null,
+  fontSize:     14,
+  compactMode:  false,
 };
 
 const STORAGE_KEY = 'helpertool-settings';
 
-/* ─── State ───────────────────────────────────────────────────────────────── */
-let settings = loadSettings();
+let settings  = loadSettings();
 let overlayEl = null;
 
-/* ─── Persist & load ──────────────────────────────────────────────────────── */
+/* ─── Storage ─────────────────────────────────────────────────────────────── */
 function loadSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -49,77 +50,115 @@ function loadSettings() {
     return { ...DEFAULT_SETTINGS };
   }
 }
-
 function saveSettings() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
-/* ─── Apply settings to DOM ───────────────────────────────────────────────── */
-function applySettings(s = settings) {
-  const root = document.documentElement;
-
-  // Theme
-  if (s.theme === 'light') {
-    root.setAttribute('data-theme', 'light');
-  } else {
-    root.removeAttribute('data-theme');
-  }
-
-  // Accent color
-  const accent = s.customAccent
-    ? { dark: s.customAccent, light: s.customAccent }
-    : ACCENTS.find(a => a.id === s.accentId) || ACCENTS[0];
-
-  const accentValue  = s.theme === 'light' ? accent.light : accent.dark;
-
-  // Helper: hex to rgba string
-  function hexToRgba(hex, alpha) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-
-  root.style.setProperty('--accent',        accentValue);
-  root.style.setProperty('--accent-dim',    hexToRgba(accentValue, 0.15));
-  root.style.setProperty('--accent-glow',   hexToRgba(accentValue, 0.25));
-  root.style.setProperty('--accent-border', hexToRgba(accentValue, 0.35));
-
-  // Font size
-  root.style.setProperty('font-size', `${s.fontSize}px`);
-
-  // Compact mode
-  root.classList.toggle('compact-mode', !!s.compactMode);
+/* ─── Color helpers ───────────────────────────────────────────────────────── */
+function hexToRgb(hex) {
+  const h    = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  return {
+    r: parseInt(full.slice(0, 2), 16),
+    g: parseInt(full.slice(2, 4), 16),
+    b: parseInt(full.slice(4, 6), 16),
+  };
+}
+function rgba(hex, alpha) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/* ─── Sync existing theme toggle button in navbar ─────────────────────────── */
+/**
+ * Given the accent hex, return the 5 depth-level colors.
+ * Depth 0 = accent. Depths 1-4 = fixed harmonious palette
+ * (sky, violet, teal, rose) — they stay consistent regardless of accent
+ * so the tree stays readable.
+ */
+function buildDepthPalette(accentHex, isDark) {
+  const fixed = isDark
+    ? ['#38bdf8', '#a78bfa', '#2dd4bf', '#fb7185']
+    : ['#0284c7', '#7c3aed', '#0d9488', '#be123c'];
+
+  return [accentHex, ...fixed].map(color => ({
+    color,
+    bg:     rgba(color, isDark ? 0.10 : 0.08),
+    bgH:    rgba(color, isDark ? 0.18 : 0.14),
+    border: rgba(color, isDark ? 0.40 : 0.35),
+    line:   rgba(color, isDark ? 0.35 : 0.30),
+  }));
+}
+
+/* ─── Apply everything ────────────────────────────────────────────────────── */
+function applySettings(s = settings) {
+  const root   = document.documentElement;
+  const isDark = s.theme !== 'light';
+
+  /* 1 — Theme */
+  isDark
+    ? root.removeAttribute('data-theme')
+    : root.setAttribute('data-theme', 'light');
+
+  /* 2 — Resolve accent */
+  const accentEntry = ACCENTS.find(a => a.id === s.accentId) || ACCENTS[0];
+  const accentHex   = s.customAccent
+    ? s.customAccent
+    : (isDark ? accentEntry.dark : accentEntry.light);
+
+  /* 3 — Core accent vars */
+  root.style.setProperty('--accent',        accentHex);
+  root.style.setProperty('--accent-dim',    rgba(accentHex, isDark ? 0.15 : 0.12));
+  root.style.setProperty('--accent-glow',   rgba(accentHex, isDark ? 0.25 : 0.22));
+  root.style.setProperty('--accent-border', rgba(accentHex, isDark ? 0.35 : 0.32));
+
+  /* 4 — Depth-level color tokens (these are what color the tree folders) */
+  buildDepthPalette(accentHex, isDark).forEach(({ color, bg, bgH, border, line }, i) => {
+    root.style.setProperty(`--dl${i}-color`,  color);
+    root.style.setProperty(`--dl${i}-bg`,     bg);
+    root.style.setProperty(`--dl${i}-bg-h`,   bgH);
+    root.style.setProperty(`--dl${i}-border`, border);
+    root.style.setProperty(`--dl${i}-line`,   line);
+  });
+
+  /* 5 — Selected node highlight colors */
+  root.style.setProperty('--node-selected-file',   accentHex);
+  root.style.setProperty('--node-selected-folder', isDark ? '#34d399' : '#059669');
+
+  /* 6 — Font size on <body> so px values in CSS scale relative to it */
+  document.body.style.fontSize = `${s.fontSize}px`;
+
+  /* 7 — Compact mode class */
+  root.classList.toggle('compact-mode', !!s.compactMode);
+
+  /* 8 — Sync navbar legacy button */
+  syncThemeToggleBtn();
+}
+
 function syncThemeToggleBtn() {
-  const themeIcon  = document.getElementById('themeIcon');
-  const themeLabel = document.getElementById('themeLabel');
-  if (!themeIcon || !themeLabel) return;
+  const icon  = document.getElementById('themeIcon');
+  const label = document.getElementById('themeLabel');
+  if (!icon || !label) return;
   if (settings.theme === 'light') {
-    themeIcon.textContent  = '🌙';
-    themeLabel.textContent = 'Dark';
+    icon.textContent  = '🌙';
+    label.textContent = 'Dark';
   } else {
-    themeIcon.textContent  = '☀️';
-    themeLabel.textContent = 'Light';
+    icon.textContent  = '☀️';
+    label.textContent = 'Light';
   }
-  // Keep localStorage in sync for the legacy theme key
   localStorage.setItem('helpertool-theme', settings.theme);
 }
 
-/* ─── Build modal HTML ────────────────────────────────────────────────────── */
+/* ─── Build modal ─────────────────────────────────────────────────────────── */
 function buildModal() {
   const overlay = document.createElement('div');
   overlay.className = 'settings-overlay';
-  overlay.id = 'settingsOverlay';
-
+  overlay.id        = 'settingsOverlay';
   overlay.innerHTML = `
-    <div class="settings-modal" role="dialog" aria-label="Settings">
+    <div class="settings-modal" role="dialog" aria-label="Appearance Settings">
 
       <div class="settings-header">
         <span class="settings-title">
-          <span class="settings-title-icon">⚙️</span>
+          <span class="settings-title-icon">🎨</span>
           Appearance Settings
         </span>
         <button class="settings-close-btn" id="settingsCloseBtn" title="Close">✕</button>
@@ -127,16 +166,13 @@ function buildModal() {
 
       <div class="settings-body">
 
-        <!-- ── Presets ── -->
         <div class="settings-section">
           <div class="settings-section-label">Quick Presets</div>
           <div class="settings-presets" id="settingsPresets"></div>
         </div>
 
-        <!-- ── Theme ── -->
         <div class="settings-section">
           <div class="settings-section-label">Theme</div>
-
           <div class="settings-row">
             <div class="settings-row-label">
               Dark mode
@@ -147,11 +183,10 @@ function buildModal() {
               <span class="settings-toggle-track"></span>
             </label>
           </div>
-
           <div class="settings-row">
             <div class="settings-row-label">
               Compact mode
-              <small>Reduces padding and button sizes</small>
+              <small>Reduces padding and button sizes across the UI</small>
             </div>
             <label class="settings-toggle">
               <input type="checkbox" id="settingsCompactToggle">
@@ -160,29 +195,26 @@ function buildModal() {
           </div>
         </div>
 
-        <!-- ── Accent Color ── -->
         <div class="settings-section">
           <div class="settings-section-label">Accent Color</div>
           <div class="settings-row">
             <div class="settings-row-label">
               Color
-              <small>Used for highlights, buttons, and focus rings</small>
+              <small>Buttons, highlights, tree folder depth-0 color, focus rings</small>
             </div>
             <div class="settings-swatches" id="settingsSwatches"></div>
           </div>
         </div>
 
-        <!-- ── Font Size ── -->
         <div class="settings-section">
           <div class="settings-section-label">Font Size</div>
           <div class="settings-row">
             <div class="settings-row-label">
               UI font size
-              <small>Base size for all interface text</small>
+              <small>Base size for all text in the interface</small>
             </div>
             <div class="settings-slider-wrap">
-              <input type="range" class="settings-slider" id="settingsFontSlider"
-                min="11" max="18" step="1">
+              <input type="range" class="settings-slider" id="settingsFontSlider" min="11" max="18" step="1">
               <span class="settings-slider-value" id="settingsFontValue">14px</span>
             </div>
           </div>
@@ -197,67 +229,69 @@ function buildModal() {
 
     </div>
   `;
-
   return overlay;
 }
 
-/* ─── Populate swatches ───────────────────────────────────────────────────── */
+/* ─── Render swatches ─────────────────────────────────────────────────────── */
 function renderSwatches() {
   const container = document.getElementById('settingsSwatches');
   if (!container) return;
   container.innerHTML = '';
+  const isDark = settings.theme !== 'light';
 
   ACCENTS.forEach(accent => {
-    const swatch = document.createElement('div');
-    swatch.className = 'swatch' + (settings.accentId === accent.id && !settings.customAccent ? ' active' : '');
-    swatch.title = accent.label;
-    swatch.style.background = settings.theme === 'light' ? accent.light : accent.dark;
-    swatch.addEventListener('click', () => {
+    const color    = isDark ? accent.dark : accent.light;
+    const isActive = settings.accentId === accent.id && !settings.customAccent;
+    const el       = document.createElement('div');
+    el.className         = 'swatch' + (isActive ? ' active' : '');
+    el.title             = accent.label;
+    el.style.background  = color;
+    el.addEventListener('click', () => {
       settings.accentId     = accent.id;
       settings.customAccent = null;
       saveAndApply();
       renderSwatches();
       renderPresets();
     });
-    container.appendChild(swatch);
+    container.appendChild(el);
   });
 
-  // Custom color picker swatch
-  const customSwatch = document.createElement('div');
-  customSwatch.className = 'swatch swatch-custom' + (settings.customAccent ? ' active' : '');
-  customSwatch.title = 'Custom color';
-  if (settings.customAccent) customSwatch.style.background = settings.customAccent;
+  // Custom picker
+  const custom = document.createElement('div');
+  custom.className = 'swatch swatch-custom' + (settings.customAccent ? ' active' : '');
+  custom.title     = 'Custom color';
+  if (settings.customAccent) custom.style.background = settings.customAccent;
 
-  const colorInput = document.createElement('input');
-  colorInput.type = 'color';
-  colorInput.value = settings.customAccent || '#ffffff';
-  colorInput.addEventListener('input', e => {
+  const picker = document.createElement('input');
+  picker.type  = 'color';
+  picker.value = settings.customAccent || '#ffffff';
+  picker.addEventListener('input', e => {
     settings.customAccent = e.target.value;
     settings.accentId     = null;
     saveAndApply();
     renderSwatches();
     renderPresets();
   });
-  customSwatch.appendChild(colorInput);
-  container.appendChild(customSwatch);
+  custom.appendChild(picker);
+  container.appendChild(custom);
 }
 
-/* ─── Populate presets ────────────────────────────────────────────────────── */
+/* ─── Render presets ──────────────────────────────────────────────────────── */
 function renderPresets() {
   const container = document.getElementById('settingsPresets');
   if (!container) return;
   container.innerHTML = '';
 
   PRESETS.forEach(preset => {
-    const accent = ACCENTS.find(a => a.id === preset.accentId);
-    const isActive = settings.theme === preset.theme && settings.accentId === preset.accentId && !settings.customAccent;
+    const accent   = ACCENTS.find(a => a.id === preset.accentId);
+    const color    = preset.theme === 'light' ? accent.light : accent.dark;
+    const isActive = settings.theme === preset.theme
+                  && settings.accentId === preset.accentId
+                  && !settings.customAccent;
 
     const chip = document.createElement('button');
     chip.className = 'preset-chip' + (isActive ? ' active' : '');
-    chip.innerHTML = `
-      <span class="preset-dot" style="background:${preset.theme === 'light' ? accent.light : accent.dark}"></span>
-      ${preset.label}
-    `;
+    chip.innerHTML = `<span class="preset-dot" style="background:${color}"></span>${preset.label}`;
     chip.addEventListener('click', () => {
       settings.theme        = preset.theme;
       settings.accentId     = preset.accentId;
@@ -269,7 +303,7 @@ function renderPresets() {
   });
 }
 
-/* ─── Sync all controls to current settings ──────────────────────────────── */
+/* ─── Sync all controls ───────────────────────────────────────────────────── */
 function syncControls() {
   const themeToggle   = document.getElementById('settingsThemeToggle');
   const compactToggle = document.getElementById('settingsCompactToggle');
@@ -285,11 +319,10 @@ function syncControls() {
   renderPresets();
 }
 
-/* ─── Save + apply + flash badge ─────────────────────────────────────────── */
+/* ─── Save + apply + badge ────────────────────────────────────────────────── */
 function saveAndApply() {
   saveSettings();
   applySettings();
-  syncThemeToggleBtn();
   flashSaved();
 }
 
@@ -297,11 +330,11 @@ function flashSaved() {
   const badge = document.getElementById('settingsSavedBadge');
   if (!badge) return;
   badge.classList.add('visible');
-  clearTimeout(badge._timeout);
-  badge._timeout = setTimeout(() => badge.classList.remove('visible'), 1800);
+  clearTimeout(badge._t);
+  badge._t = setTimeout(() => badge.classList.remove('visible'), 1800);
 }
 
-/* ─── Open / close ────────────────────────────────────────────────────────── */
+/* ─── Public API ──────────────────────────────────────────────────────────── */
 export function openSettings() {
   if (!overlayEl) return;
   syncControls();
@@ -309,79 +342,66 @@ export function openSettings() {
 }
 
 export function closeSettings() {
-  if (!overlayEl) return;
-  overlayEl.classList.remove('open');
+  overlayEl?.classList.remove('open');
 }
 
-/* ─── Init ────────────────────────────────────────────────────────────────── */
-export function initSettings() {
-  // Apply saved settings immediately on boot
-  applySettings();
-  syncThemeToggleBtn();
+export function hookLegacyThemeToggle() {
+  const btn = document.getElementById('themeToggleBtn');
+  if (!btn) return;
+  // Replace to clear old listeners
+  const fresh = btn.cloneNode(true);
+  btn.parentNode.replaceChild(fresh, btn);
+  fresh.addEventListener('click', () => {
+    settings.theme = settings.theme === 'light' ? 'dark' : 'light';
+    saveAndApply();
+    if (overlayEl?.classList.contains('open')) syncControls();
+  });
+}
 
-  // Build and inject modal
+export function initSettings() {
+  applySettings(); // apply immediately on boot
+
   overlayEl = buildModal();
   document.body.appendChild(overlayEl);
 
-  // Close on backdrop click
+  // Backdrop click
   overlayEl.addEventListener('click', e => {
     if (e.target === overlayEl) closeSettings();
   });
 
-  // Close button
-  document.getElementById('settingsCloseBtn')?.addEventListener('click', closeSettings);
+  document.getElementById('settingsCloseBtn')
+    ?.addEventListener('click', closeSettings);
 
-  // Keyboard: Escape to close
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && overlayEl.classList.contains('open')) closeSettings();
   });
 
-  // Theme toggle
-  document.getElementById('settingsThemeToggle')?.addEventListener('change', e => {
-    settings.theme = e.target.checked ? 'dark' : 'light';
+  document.getElementById('settingsThemeToggle')
+    ?.addEventListener('change', e => {
+      settings.theme = e.target.checked ? 'dark' : 'light';
+      saveAndApply();
+      renderSwatches();
+      renderPresets();
+    });
+
+  document.getElementById('settingsCompactToggle')
+    ?.addEventListener('change', e => {
+      settings.compactMode = e.target.checked;
+      saveAndApply();
+    });
+
+  const slider = document.getElementById('settingsFontSlider');
+  const sliderVal = document.getElementById('settingsFontValue');
+  slider?.addEventListener('input', e => {
+    settings.fontSize       = parseInt(e.target.value);
+    sliderVal.textContent   = `${settings.fontSize}px`;
     saveAndApply();
-    renderSwatches(); // update swatch colors for new theme
-    renderPresets();
   });
 
-  // Compact toggle
-  document.getElementById('settingsCompactToggle')?.addEventListener('change', e => {
-    settings.compactMode = e.target.checked;
-    saveAndApply();
-  });
-
-  // Font size slider
-  const fontSlider = document.getElementById('settingsFontSlider');
-  const fontValue  = document.getElementById('settingsFontValue');
-  fontSlider?.addEventListener('input', e => {
-    settings.fontSize    = parseInt(e.target.value);
-    fontValue.textContent = `${settings.fontSize}px`;
-    saveAndApply();
-  });
-
-  // Reset button
-  document.getElementById('settingsResetBtn')?.addEventListener('click', () => {
-    settings = { ...DEFAULT_SETTINGS };
-    saveAndApply();
-    syncControls();
-  });
-}
-
-/* ─── Override the legacy theme toggle in navbar ─────────────────────────── */
-// Call this after initSettings so the old toggle also updates our settings
-export function hookLegacyThemeToggle() {
-  const btn = document.getElementById('themeToggleBtn');
-  if (!btn) return;
-  // Replace existing listeners by cloning the button
-  const newBtn = btn.cloneNode(true);
-  btn.parentNode.replaceChild(newBtn, btn);
-
-  newBtn.addEventListener('click', () => {
-    settings.theme = settings.theme === 'light' ? 'dark' : 'light';
-    saveAndApply();
-    // Re-sync swatches if modal is open
-    if (overlayEl?.classList.contains('open')) {
+  document.getElementById('settingsResetBtn')
+    ?.addEventListener('click', () => {
+      settings = { ...DEFAULT_SETTINGS };
+      saveAndApply();
       syncControls();
-    }
-  });
+    });
 }

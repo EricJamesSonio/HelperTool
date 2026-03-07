@@ -351,3 +351,41 @@
 .settings-saved-badge.visible {
   opacity: 1;
 }
+
+/* ── Compact mode ───────────────────────────────────────────── */
+.compact-mode .navbar-row--primary {
+  height: 46px !important;
+}
+.compact-mode .status-filter-bar {
+  height: 36px !important;
+}
+.compact-mode .primary-btn,
+.compact-mode .action-btn {
+  height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+.compact-mode .tool-btn {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 13px !important;
+}
+.compact-mode .theme-toggle-btn {
+  height: 28px !important;
+  padding: 0 9px !important;
+  font-size: 11.5px !important;
+}
+.compact-mode .tree-view-container {
+  padding: 6px !important;
+}
+.compact-mode #treeContainer.mode-list {
+  padding: 6px 4px 16px !important;
+  font-size: 11.5px !important;
+}
+.compact-mode #treeContainer.mode-list .tree-node {
+  padding: 2px 8px !important;
+}
+.compact-mode .panel-toggle-btn {
+  padding: 0 11px !important;
+  font-size: 12px !important;
+}
