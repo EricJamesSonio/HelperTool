@@ -3,10 +3,12 @@
    Append to the bottom of secret-holder.css
    ============================================================ */
 
-/* ── Main screen taller for notes ────────────────────────── */
+/* ── Main screen ─────────────────────────────────────────── */
 .sh-main-screen {
   width: 820px;
   max-height: 95vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Tab bar ─────────────────────────────────────────────── */
@@ -54,9 +56,8 @@
 /* ── Notes two-column layout ─────────────────────────────── */
 .sh-notes-layout {
   flex-direction: row !important;
-  height: 620px;
-  max-height: 620px;
-  min-height: 620px;
+  flex: 1 !important;
+  min-height: 560px;
   overflow: hidden;
 }
 
@@ -70,8 +71,7 @@
   border-right: 2px solid var(--border-strong);
   background: var(--bg-base);
   overflow: hidden;
-  height: 100%;
-  max-height: 100%;
+  align-self: stretch;
 }
 
 .sh-notes-sidebar-header {
@@ -99,6 +99,7 @@
   padding: 6px 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 .sh-notes-sidebar-list::-webkit-scrollbar { width: 3px; }
 .sh-notes-sidebar-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
@@ -141,9 +142,7 @@
   text-overflow: ellipsis;
   margin-bottom: 2px;
 }
-.sh-notes-sidebar-item.active .sh-notes-sidebar-item-title {
-  color: var(--accent);
-}
+.sh-notes-sidebar-item.active .sh-notes-sidebar-item-title { color: var(--accent); }
 
 .sh-notes-sidebar-item-meta {
   font-family: var(--font-mono);
@@ -153,10 +152,7 @@
   margin-bottom: 4px;
   letter-spacing: 0.03em;
 }
-.sh-notes-sidebar-item.active .sh-notes-sidebar-item-meta {
-  color: var(--accent);
-  opacity: 0.75;
-}
+.sh-notes-sidebar-item.active .sh-notes-sidebar-item-meta { color: var(--accent); opacity: 0.75; }
 
 .sh-notes-sidebar-item-preview {
   font-family: var(--font-ui);
@@ -171,27 +167,24 @@
 /* ── RIGHT: editor ───────────────────────────────────────── */
 .sh-notes-editor {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-surface);
-  min-width: 0;
-  height: 100%;
-  max-height: 100%;
+  align-self: stretch;
 }
 
 /* Empty placeholder */
 .sh-notes-editor-empty {
   flex: 1;
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--text-muted);
 }
-.sh-notes-empty-icon  { font-size: 36px; opacity: 0.35; }
+.sh-notes-empty-icon { font-size: 36px; opacity: 0.35; }
 .sh-notes-empty-text {
   font-family: var(--font-ui);
   font-size: 13px;
@@ -201,16 +194,15 @@
   line-height: 1.7;
 }
 
-/* Editor form */
+/* Editor form — must be a flex column that fills its parent */
 .sh-notes-editor-form {
   flex: 1;
-  height: 100%;
-  max-height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   padding: 14px 16px 12px;
   gap: 10px;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -230,6 +222,7 @@
   border-color: var(--border-strong) !important;
   color: var(--text-primary) !important;
   height: 40px;
+  flex-shrink: 0;
 }
 .sh-notes-editor-title-input:focus {
   border-color: var(--accent) !important;
@@ -254,9 +247,11 @@
   box-shadow: 0 0 0 3px var(--accent-dim) !important;
 }
 
-/* Main textarea — fills all remaining space */
+/* THE textarea — this is the key: flex:1 + min-height:0 + no intrinsic height */
 .sh-notes-editor-textarea {
   flex: 1;
+  min-height: 0;
+  width: 100%;
   resize: none;
   padding: 12px 14px;
   line-height: 1.75;
@@ -266,7 +261,8 @@
   background: var(--bg-base) !important;
   border-color: var(--border-strong) !important;
   color: var(--text-primary) !important;
-  min-height: 0;
+  box-sizing: border-box;
+  display: block;
 }
 .sh-notes-editor-textarea:focus {
   border-color: var(--accent) !important;
@@ -275,12 +271,12 @@
 }
 .sh-notes-editor-textarea::placeholder { color: var(--text-muted) !important; }
 
-/* Action bar */
+/* Action bar — pinned at bottom, never grows */
 .sh-notes-editor-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  padding-top: 4px;
+  padding-top: 8px;
   border-top: 1.5px solid var(--border-default);
 }
