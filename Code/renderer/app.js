@@ -1,8 +1,9 @@
 /**
- * app.js
- * Core app logic: repo selection, tree display, mode switching, generate.
- * Filter logic → filterManager.js
- * Search logic → searchManager.js
+ * app.js — Core app logic
+ * PERF FIXES:
+ *  – setLastSelected is debounced (500ms) to avoid a disk write on every tree click
+ *  – invalidateFlatCache() called after tree reload so search stays accurate
+ *  – theme applied synchronously before async work (unchanged, already good)
  */
 
 import { renderTree } from '../utils/treeView.js';
@@ -17,14 +18,11 @@ import {
     loadFolderFilters,
     setupFilterInput,
 } from './filterManager.js';
-import { setupSearch } from './searchManager.js';
+import { setupSearch, invalidateFlatCache } from './searchManager.js';
 import { initSecretHolder, openSecretHolder, closeSecretHolder, isSecretHolderOpen } from './secretHolder.js';
 import { initSettings, openSettings, hookLegacyThemeToggle } from './settingsManager.js';
 
-
-/* ----------------------------------------
- * DOM refs
- * -------------------------------------- */
+/* ── DOM refs ────────────────────────────────────────────────────────────── */
 const selectRepoBtn  = document.getElementById('selectRepoBtn');
 const activeRepoName = document.getElementById('activeRepoName');
 const treeContainer  = document.getElementById('treeContainer');
@@ -42,35 +40,36 @@ const viewModeBtn       = document.getElementById('viewModeBtn');
 const themeToggleBtn    = document.getElementById('themeToggleBtn');
 const themeIcon         = document.getElementById('themeIcon');
 const themeLabel        = document.getElementById('themeLabel');
-const settingsBtn = document.getElementById('settingsBtn');
+const settingsBtn       = document.getElementById('settingsBtn');
 
-/* ----------------------------------------
- * State
- * -------------------------------------- */
+/* ── State ───────────────────────────────────────────────────────────────── */
 let selectedRepoPath = null;
 let selectedItems    = [];
 let actionType       = 'code';
 let cachedTree       = null;
 let viewMode         = localStorage.getItem('helpertool-viewmode') || 'list';
 
-/* ----------------------------------------
- * UI setup
- * -------------------------------------- */
-console.log('[Init] Setting up UI...');
 generateBtn.disabled = true;
 
-/* ----------------------------------------
- * Progress listener
- * -------------------------------------- */
+/* ── Debounce helper ─────────────────────────────────────────────────────── */
+function debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// Debounced disk write — prevents a write on every single tree node click
+const debouncedSetLastSelected = debounce(
+    (items) => window.electronAPI.setLastSelected(items),
+    500
+);
+
+/* ── Progress listener ───────────────────────────────────────────────────── */
 window.electronAPI.onProgressUpdate(percent => {
-    console.log(`[Progress] ${percent}%`);
-    progressBar.value       = percent;
+    progressBar.value        = percent;
     progressText.textContent = `${percent}%`;
 });
 
-/* ----------------------------------------
- * Theme
- * -------------------------------------- */
+/* ── Theme (legacy toggle — settingsManager now owns the real theme) ─────── */
 function applyTheme(theme) {
     if (theme === 'light') {
         document.documentElement.setAttribute('data-theme', 'light');
@@ -88,17 +87,12 @@ themeToggleBtn.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme');
     applyTheme(current === 'light' ? 'dark' : 'light');
 });
-
-// Apply saved theme immediately (before any async work)
 applyTheme(localStorage.getItem('helpertool-theme') || 'dark');
 
-/* ----------------------------------------
- * View mode
- * -------------------------------------- */
+/* ── View mode ───────────────────────────────────────────────────────────── */
 function applyViewMode(mode) {
     viewMode = mode;
     localStorage.setItem('helpertool-viewmode', mode);
-
     if (mode === 'tree') {
         viewModeBtn.textContent = '🌳 Tree Mode';
         viewModeBtn.className   = 'view-mode-btn active-tree';
@@ -108,20 +102,13 @@ function applyViewMode(mode) {
         viewModeBtn.className   = 'view-mode-btn active-list';
         viewModeBtn.title       = 'Switch to Tree mode';
     }
-    // Only re-render if there's data to show
     if (cachedTree) displayTree();
 }
 
-viewModeBtn.addEventListener('click', () => {
-    applyViewMode(viewMode === 'list' ? 'tree' : 'list');
-});
-
-// Apply saved preference (updates button label/class only — no render yet, no tree data yet)
+viewModeBtn.addEventListener('click', () => applyViewMode(viewMode === 'list' ? 'tree' : 'list'));
 applyViewMode(viewMode);
 
-/* ----------------------------------------
- * Helpers
- * -------------------------------------- */
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
 }
@@ -139,30 +126,23 @@ function updateGenerateState() {
 
 function resetSelection() {
     selectedItems.length = 0;
-    window.electronAPI.setLastSelected([]);
+    window.electronAPI.setLastSelected([]);   // immediate write on explicit reset
     updateGenerateState();
 }
 
-/* ----------------------------------------
- * Tree display
- * -------------------------------------- */
+/* ── Tree display ────────────────────────────────────────────────────────── */
 function displayTree() {
-    if (!cachedTree) {
-        treeContainer.textContent = 'No data available';
-        return;
-    }
+    if (!cachedTree) { treeContainer.textContent = 'No data available'; return; }
     const visibleTree = filterTree(cachedTree);
     renderTree(visibleTree, treeContainer, selectedItems, actionType, onTreeSelectionChange, viewMode);
 }
 
 function onTreeSelectionChange() {
     updateGenerateState();
-    window.electronAPI.setLastSelected(selectedItems);
+    debouncedSetLastSelected(selectedItems);  // debounced — no disk hit per click
 }
 
-/* ----------------------------------------
- * Repo loading
- * -------------------------------------- */
+/* ── Repo loading ────────────────────────────────────────────────────────── */
 async function loadRepo(repoPath, resetSel = true) {
     selectedRepoPath = repoPath;
     if (resetSel) {
@@ -174,17 +154,18 @@ async function loadRepo(repoPath, resetSel = true) {
     activeExtensions.clear();
     renderFilterChips();
 
+    // Invalidate search flat-cache so it rebuilds with new tree data
+    invalidateFlatCache();
+
     if (cachedTree) {
         renderIgnorePanel(cachedTree);
         renderFolderPanel(cachedTree);
     }
-
     displayTree();
     updateGenerateState();
 }
 
 async function loadLastActiveRepo() {
-    console.log('[Init] Loading last active repo...');
     try {
         const project = await window.electronAPI.getActiveProject();
         if (project?.repoPath) {
@@ -197,9 +178,7 @@ async function loadLastActiveRepo() {
     }
 }
 
-/* ----------------------------------------
- * Button events
- * -------------------------------------- */
+/* ── Button events ───────────────────────────────────────────────────────── */
 selectRepoBtn.addEventListener('click', async () => {
     try {
         const repoPath = await window.electronAPI.selectRepo();
@@ -208,6 +187,7 @@ selectRepoBtn.addEventListener('click', async () => {
         console.error('[UI] Repo selection failed:', err);
     }
 });
+
 settingsBtn.addEventListener('click', () => openSettings());
 
 refreshBtn.addEventListener('click', async () => {
@@ -216,6 +196,7 @@ refreshBtn.addEventListener('click', async () => {
     refreshBtn.disabled = true;
     try {
         cachedTree = await window.electronAPI.getFolderTree(selectedRepoPath);
+        invalidateFlatCache();
         renderFilterChips();
         if (cachedTree) {
             renderIgnorePanel(cachedTree);
@@ -238,11 +219,8 @@ clearSelectionBtn.addEventListener('click', () => {
 });
 
 secretHolderBtn.addEventListener('click', async () => {
-    if (isSecretHolderOpen()) {
-        closeSecretHolder();
-    } else {
-        await openSecretHolder();
-    }
+    if (isSecretHolderOpen()) closeSecretHolder();
+    else await openSecretHolder();
 });
 
 editDocignoreBtn.addEventListener('click', async () => {
@@ -268,18 +246,14 @@ codeBtn.addEventListener('click', () => {
 
 generateBtn.addEventListener('click', async () => {
     try {
-        if (!selectedRepoPath || !selectedItems.length) {
-            return alert('Select repo and items first!');
-        }
+        if (!selectedRepoPath || !selectedItems.length) return alert('Select repo and items first!');
         const { filePath } = await window.electronAPI.saveFileDialog(actionType);
         if (!filePath) return;
 
-        progressBar.value       = 0;
+        progressBar.value        = 0;
         progressText.textContent = '0%';
 
-        const success = await window.electronAPI.generate(
-            actionType, selectedRepoPath, selectedItems, filePath
-        );
+        const success = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, filePath);
         if (!success) alert('Generation failed.');
         resetSelection();
         displayTree();
@@ -289,16 +263,13 @@ generateBtn.addEventListener('click', async () => {
     }
 });
 
-/* ----------------------------------------
- * Init managers & boot
- * -------------------------------------- */
+/* ── Init ────────────────────────────────────────────────────────────────── */
 setupFilterInput(() => cachedTree, displayTree);
 setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
 
-console.log('[Init] DOM content loaded, initializing...');
 window.addEventListener('DOMContentLoaded', async () => {
-    initSettings();              // ← apply saved theme/accent/size on boot
-    hookLegacyThemeToggle();     // ← keep the navbar theme btn in sync
+    initSettings();
+    hookLegacyThemeToggle();
     await loadIgnoredExtensions();
     await loadFolderFilters();
     await loadLastActiveRepo();

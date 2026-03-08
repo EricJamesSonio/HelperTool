@@ -1,15 +1,23 @@
 /* ============================================================
    BASE.CSS — Helper Tool Design System
-   Dark: deep navy/slate with amber accents
-   Light: warm cream/slate with teal accents
+   PERF FIXES:
+    – Removed Google Fonts @import (causes network fetch on every launch)
+    – Removed `transition: background 0.25s, color 0.25s` from body
+      (triggered full-page repaints on any CSS variable change)
+    – Removed duplicate .status-filter-bar, .selection-counter,
+      .bar-right, .bar-divider, .panel-toggle-btn, .toggle-badge,
+      .progress-compact — all defined again in ignore-panel.css
+    – Removed duplicate .search-suggestions (also in layout-tree.css)
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@500;600;700;800&display=swap');
-
-/* ── CSS Variables: DARK (default) ──────────────────────── */
+/* ── System font stack — zero network cost ─────────────────
+   Replace the Google Fonts import above with this.
+   Falls back gracefully on every OS.
+   If you want the exact Syne/JetBrains Mono fonts, download
+   them once, place in renderer/fonts/, and use @font-face.   */
 :root {
-  --font-ui:   'Syne', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-ui:   'Syne', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
 
   /* Backgrounds */
   --bg-base:        #070d1a;
@@ -35,13 +43,13 @@
   --text-muted:     #556080;
   --text-faint:     #364060;
 
-  /* Accent — amber */
+  /* Accent */
   --accent:         #f0b429;
   --accent-dim:     rgba(240,180,41,0.15);
   --accent-glow:    rgba(240,180,41,0.25);
   --accent-border:  rgba(240,180,41,0.35);
 
-  /* Semantic colors */
+  /* Semantic */
   --green:          #34d399;
   --green-dim:      rgba(52,211,153,0.13);
   --red:            #f87171;
@@ -59,7 +67,7 @@
   --node-selected-file:   #fbbf24;
   --node-selected-folder: #34d399;
 
-  /* Folder/file node tokens (used in layout-tree.css) */
+  /* Folder/file tokens */
   --folder-bg:           rgba(96,165,250,0.08);
   --folder-border:       rgba(96,165,250,0.20);
   --folder-text:         #93c5fd;
@@ -84,7 +92,7 @@
   --navbar-h:    58px;
   --statusbar-h: 46px;
 
-  /* Border radii */
+  /* Radii */
   --r-xs: 4px;
   --r-sm: 6px;
   --r-md: 9px;
@@ -94,9 +102,8 @@
   --ease: 0.15s ease;
 }
 
-/* ── CSS Variables: LIGHT ────────────────────────────────── */
+/* ── Light theme overrides ──────────────────────────────── */
 [data-theme="light"] {
-  /* Backgrounds */
   --bg-base:        #f0f4f8;
   --bg-surface:     #ffffff;
   --bg-elevated:    #f8fafc;
@@ -108,25 +115,21 @@
   --bg-root:        #e8edf5;
   --bg-tree:        #f4f7fb;
 
-  /* Borders */
   --border-subtle:  rgba(0,0,0,0.06);
   --border-default: rgba(0,0,0,0.10);
   --border-strong:  rgba(0,0,0,0.18);
   --border-mid:     rgba(0,0,0,0.12);
 
-  /* Text */
   --text-primary:   #0f172a;
   --text-secondary: #334155;
   --text-muted:     #64748b;
   --text-faint:     #94a3b8;
 
-  /* Accent — teal */
   --accent:         #0d9488;
   --accent-dim:     rgba(13,148,136,0.12);
   --accent-glow:    rgba(13,148,136,0.22);
   --accent-border:  rgba(13,148,136,0.32);
 
-  /* Semantic colors */
   --green:          #059669;
   --green-dim:      rgba(5,150,105,0.12);
   --red:            #dc2626;
@@ -138,13 +141,11 @@
   --yellow:         #d97706;
   --yellow-dim:     rgba(217,119,6,0.12);
 
-  /* Tree node colors */
   --node-folder:          #2563eb;
   --node-file:            #475569;
   --node-selected-file:   #d97706;
   --node-selected-folder: #059669;
 
-  /* Folder/file node tokens */
   --folder-bg:           rgba(37,99,235,0.07);
   --folder-border:       rgba(37,99,235,0.20);
   --folder-text:         #1d4ed8;
@@ -159,7 +160,6 @@
   --file-hover-color:    #1e293b;
   --connector-color:     rgba(0,0,0,0.12);
 
-  /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
   --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
   --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
@@ -177,7 +177,7 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  transition: background 0.25s ease, color 0.25s ease;
+  /* NO body transition — was causing full-page repaints on every theme var change */
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -206,7 +206,8 @@ body {
   position: relative;
   z-index: 10;
   overflow: visible;
-  transition: background 0.25s, border-color 0.25s;
+  /* Scoped transition — only this element, not body-wide */
+  transition: background var(--ease), border-color var(--ease);
 }
 
 .navbar-section { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -226,7 +227,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: background var(--ease), color var(--ease);
 }
 
 /* ── Primary button ──────────────────────────────────────── */
@@ -289,11 +289,7 @@ body {
   background: rgba(52,211,153,0.22);
   box-shadow: 0 0 0 3px var(--green-dim);
 }
-.generate-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  pointer-events: none;
-}
+.generate-btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 
 /* ── Tool buttons ────────────────────────────────────────── */
 .tool-btn {
@@ -321,11 +317,7 @@ body {
 .spinning { animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.clear-btn:hover {
-  background: var(--red-dim);
-  border-color: var(--red);
-  color: var(--red);
-}
+.clear-btn:hover { background: var(--red-dim); border-color: var(--red); color: var(--red); }
 
 .sh-nav-btn {
   background: var(--purple-dim) !important;
@@ -361,8 +353,8 @@ body {
   color: var(--text-primary);
 }
 
-/* ── Search ──────────────────────────────────────────────── */
-.search-section { flex: 1; max-width: 280px; position: relative; z-index: 99999;}
+/* ── Search input ────────────────────────────────────────── */
+.search-section { flex: 1; max-width: 280px; position: relative; z-index: 99999; }
 
 .search-input {
   width: 100%;
@@ -375,7 +367,7 @@ body {
   font-family: var(--font-mono);
   font-size: 12.5px;
   outline: none;
-  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+  transition: border-color var(--ease), box-shadow var(--ease);
 }
 .search-input::placeholder { color: var(--text-faint); }
 .search-input:focus {
@@ -384,40 +376,10 @@ body {
   background-color: var(--bg-overlay);
 }
 
-/* Search icon via pseudo-element (layout-tree.css handles this, no bg-image needed) */
-
-.search-suggestions {
-  position: fixed;
-  width: 360px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-lg);
-  max-height: 320px;
-  overflow-y: auto;
-  list-style: none;
-  padding: 5px 0;
-  margin: 0;
-  display: none;
-  z-index: 99999;
-  box-shadow: var(--shadow-lg);
-}
-.search-result-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 9px 13px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background var(--ease);
-}
-.search-result-item:last-child { border-bottom: none; }
-.search-result-item:hover { background: var(--bg-hover); }
-.result-name { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; color: var(--text-primary); }
-.result-path { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
-
 .btn-icon { font-size: 14px; line-height: 1; }
 
 /* ── Status / filter bar ─────────────────────────────────── */
+/* NOTE: detailed rules live in ignore-panel.css (single source of truth) */
 .status-filter-bar {
   display: flex;
   align-items: center;
@@ -430,139 +392,4 @@ body {
   overflow: visible;
   position: relative;
   z-index: 40;
-  transition: background 0.25s, border-color 0.25s;
-}
-
-/* ── Selection counter ───────────────────────────────────── */
-.selection-counter {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 100%;
-  padding: 0 18px;
-  border-right: 1px solid var(--border-subtle);
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 500;
-  flex-shrink: 0;
-  transition: background var(--ease), color var(--ease);
-  white-space: nowrap;
-}
-.selection-counter.has-selections {
-  background: rgba(52,211,153,0.07);
-  color: var(--green);
-}
-.counter-icon { font-size: 11px; }
-#selectionCount { font-size: 14px; font-weight: 700; min-width: 18px; text-align: center; }
-.counter-label { font-size: 12px; opacity: 0.7; }
-
-/* ── Bar right ───────────────────────────────────────────── */
-.bar-right {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  height: 100%;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.bar-divider {
-  width: 1px;
-  height: 26px;
-  background: var(--border-subtle);
-  margin: 0 2px;
-}
-
-/* ── Panel toggle buttons ────────────────────────────────── */
-.panel-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 100%;
-  padding: 0 16px;
-  background: transparent;
-  border: none;
-  border-left: 1px solid var(--border-subtle);
-  border-radius: 0;
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--ease), color var(--ease);
-  position: relative;
-}
-.panel-toggle-btn:hover {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-}
-.panel-toggle-btn.active {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-}
-
-/* Active underline indicator */
-.panel-toggle-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 2px;
-  border-radius: 1px;
-}
-#filterToggleBtn.active::after  { background: var(--accent); }
-#ignoreToggleBtn.active::after  { background: var(--red); }
-#folderToggleBtn.active::after  { background: var(--blue); }
-
-/* Per-toggle active text colors */
-.filter-toggle-btn.active { color: var(--accent); }
-.folder-toggle-btn.active { color: var(--blue); }
-#ignoreToggleBtn.active   { color: var(--red); }
-
-/* ── Toggle badges ───────────────────────────────────────── */
-.toggle-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-  border-radius: 9px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1;
-}
-.filter-badge { background: var(--accent); color: var(--bg-base); }
-.ignore-badge { background: var(--red);    color: #fff; }
-.folder-badge { background: var(--blue);   color: #fff; }
-
-/* ── Progress ────────────────────────────────────────────── */
-.progress-compact {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-  border-left: 1px solid var(--border-subtle);
-  height: 100%;
-}
-.progress-compact progress {
-  width: 100px;
-  height: 4px;
-  border: none;
-  border-radius: 2px;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.progress-compact progress::-webkit-progress-bar  { background: var(--bg-raised); border-radius: 2px; }
-.progress-compact progress::-webkit-progress-value { background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
-.progress-compact progress::-moz-progress-bar { background: var(--accent); border-radius: 2px; }
-#progressText {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  min-width: 32px;
-  text-align: right;
 }
