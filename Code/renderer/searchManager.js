@@ -1,31 +1,62 @@
 /**
  * searchManager.js
+ * – Debounced input (120ms) so flattenTree never runs on every keystroke
+ * – Flattened tree is cached until the tree data changes (call invalidateFlatCache())
  */
 
-const treeSearchInput = document.getElementById('treeSearchInput');
+const treeSearchInput   = document.getElementById('treeSearchInput');
 const searchSuggestions = document.getElementById('searchSuggestions');
 
 let _getCachedTree   = null;
 let _getFilteredTree = null;
 let _treeContainer   = null;
 
+// ── Flat-list cache — rebuilt only when tree changes ──────────────────────
+let _flatCache        = null;
+let _flatCacheTreeRef = null;          // reference equality check
+
+export function invalidateFlatCache() {
+    _flatCache        = null;
+    _flatCacheTreeRef = null;
+}
+
 const normPath = (p) => (p || '').replace(/\\/g, '/');
 
-/* ----------------------------------------
- * Helpers
- * -------------------------------------- */
+/* ── Debounce helper ────────────────────────────────────────────────────── */
+function debounce(fn, ms) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+    };
+}
 
-function flattenTree(tree, result = [], parentPath = '') {
-    for (const node of tree) {
-        const displayPath = parentPath ? `${parentPath}/${node.name}` : node.name;
-        result.push({ ...node, displayPath });
-        if (node.children?.length) flattenTree(node.children, result, displayPath);
+/* ── Tree flattening (cached) ───────────────────────────────────────────── */
+function getFlatList() {
+    const tree = _getCachedTree?.();
+    if (!tree) return [];
+
+    // Only rebuild when the tree reference changes
+    if (tree === _flatCacheTreeRef && _flatCache) return _flatCache;
+
+    const result = [];
+    function flatten(nodes, parentPath = '') {
+        for (const node of nodes) {
+            const displayPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+            result.push({ ...node, displayPath });
+            if (node.children?.length) flatten(node.children, displayPath);
+        }
     }
+    flatten(tree);
+
+    _flatCache        = result;
+    _flatCacheTreeRef = tree;
     return result;
 }
 
+/* ── DOM helpers ────────────────────────────────────────────────────────── */
 function expandPathParents(nodePath) {
-    const np = normPath(nodePath);
+    const np      = normPath(nodePath);
     const wrapper = document.querySelector(`[data-node-path='${CSS.escape(np)}']`);
     if (!wrapper) return;
 
@@ -33,7 +64,7 @@ function expandPathParents(nodePath) {
     while (current && current !== _treeContainer) {
         if (current.classList.contains('node-wrapper')) {
             const childrenContainer = current.querySelector(':scope > .children');
-            const folderNode = current.querySelector(':scope > .tree-node.folder');
+            const folderNode        = current.querySelector(':scope > .tree-node.folder');
             if (childrenContainer) childrenContainer.style.display = 'flex';
             if (folderNode) {
                 folderNode.classList.add('folder-open');
@@ -52,21 +83,20 @@ function selectSearchItem(path) {
     expandPathParents(path);
 
     setTimeout(() => {
-        const wrapper = document.querySelector(`[data-node-path='${CSS.escape(np)}']`);
+        const wrapper  = document.querySelector(`[data-node-path='${CSS.escape(np)}']`);
         if (!wrapper) return;
-
         const treeNode = wrapper.querySelector(':scope > .tree-node');
         if (!treeNode) return;
 
         treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
         const orig = {
-            bg:         treeNode.style.background,
-            shadow:     treeNode.style.boxShadow,
-            border:     treeNode.style.borderColor,
-            color:      treeNode.style.color,
-            transform:  treeNode.style.transform,
-            transition: treeNode.style.transition,
+            bg:        treeNode.style.background,
+            shadow:    treeNode.style.boxShadow,
+            border:    treeNode.style.borderColor,
+            color:     treeNode.style.color,
+            transform: treeNode.style.transform,
+            transition:treeNode.style.transition,
         };
 
         treeNode.style.transition  = 'all 0.3s ease';
@@ -106,14 +136,13 @@ function selectSearchItem(path) {
 }
 
 function searchTree(query) {
-    const fullTree = _getCachedTree?.();
-    if (!fullTree || !query) {
+    if (!query) {
         searchSuggestions.style.display = 'none';
         return;
     }
 
-    const flatList = flattenTree(fullTree);
-    const q = query.toLowerCase();
+    const flatList = getFlatList();
+    const q        = query.toLowerCase();
 
     const matches = flatList.filter(node =>
         node.name.toLowerCase().includes(q) ||
@@ -121,17 +150,18 @@ function searchTree(query) {
     );
 
     searchSuggestions.innerHTML = '';
+
     matches.slice(0, 12).forEach(node => {
         const li = document.createElement('li');
         li.className = 'search-result-item';
 
         const nameSpan = document.createElement('span');
-        nameSpan.className = 'result-name';
+        nameSpan.className   = 'result-name';
         nameSpan.textContent = node.name;
 
-        const pathSpan = document.createElement('span');
-        pathSpan.className = 'result-path';
-        const parentPath = node.displayPath.includes('/')
+        const pathSpan  = document.createElement('span');
+        pathSpan.className  = 'result-path';
+        const parentPath    = node.displayPath.includes('/')
             ? node.displayPath.substring(0, node.displayPath.lastIndexOf('/'))
             : '';
         pathSpan.textContent = parentPath ? `📁 ${parentPath}` : '(root)';
@@ -153,25 +183,24 @@ function searchTree(query) {
 
 function positionSuggestions() {
     const rect = treeSearchInput.getBoundingClientRect();
-    searchSuggestions.style.top  = (rect.bottom + 6) + 'px';
-    searchSuggestions.style.left = rect.left + 'px';
+    searchSuggestions.style.top   = (rect.bottom + 6) + 'px';
+    searchSuggestions.style.left  = rect.left + 'px';
     searchSuggestions.style.width = Math.max(rect.width, 360) + 'px';
 }
 
-/* ----------------------------------------
- * Setup — call once from app.js
- * -------------------------------------- */
-
+/* ── Setup ──────────────────────────────────────────────────────────────── */
 export function setupSearch(getCachedTree, getFilteredTree, treeContainer) {
     _getCachedTree   = getCachedTree;
     _getFilteredTree = getFilteredTree;
     _treeContainer   = treeContainer;
 
+    const debouncedSearch = debounce((val) => searchTree(val), 120);
+
     treeSearchInput.addEventListener('input', (e) => {
-        searchTree(e.target.value.trim());
+        debouncedSearch(e.target.value.trim());
     });
 
     treeSearchInput.addEventListener('blur', () => {
-        setTimeout(() => searchSuggestions.style.display = 'none', 200);
+        setTimeout(() => { searchSuggestions.style.display = 'none'; }, 200);
     });
 }
