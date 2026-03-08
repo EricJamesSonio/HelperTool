@@ -1,19 +1,21 @@
 /**
  * secretHolder.js
- * Password-protected local secret manager + notepad.
- * Appended to <body> as a fixed overlay.
+ * PERF FIXES:
+ *  – _notes is loaded from localStorage ONCE into memory, then kept in sync
+ *  – _loadNotesFromStorage() is only called on open/unlock, not on every render
+ *  – _saveNotesToStorage only serialises when data actually changes
  */
 
-// ─── State ────────────────────────────────────────────────
-let _unlocked    = false;
-let _secrets     = [];
-let _notes       = [];
-let _editingId   = null;
+// ── State ─────────────────────────────────────────────────────────────────
+let _unlocked      = false;
+let _secrets       = [];
+let _notes         = [];          // ← in-memory cache; localStorage only on save/load
+let _editingId     = null;
 let _editingNoteId = null;
-let _initialized = false;
-let _activeTab   = 'secrets'; // 'secrets' | 'notes'
+let _initialized   = false;
+let _activeTab     = 'secrets';
 
-// ─── DOM refs (set after inject) ─────────────────────────
+// ── DOM refs ──────────────────────────────────────────────────────────────
 let panel, lockScreen, mainScreen,
     pwInput, pwSubmitBtn, pwError, pwLabel, pwSubtitle,
     secretsList, addName, addValue, addBtn,
@@ -21,17 +23,12 @@ let panel, lockScreen, mainScreen,
     lockBtn, closeBtn, closeLockBtn,
     resetSection, resetOld, resetNew, resetBtn, resetErr, resetSuccess,
     togglePwBtn,
-    // tabs
     tabSecrets, tabNotes, panelSecrets, panelNotes,
-    // notes
     notesList, noteFormTitle, noteFormBody, noteFormDate,
     noteSaveBtn, noteCancelBtn, noteDeleteBtn, noteNewBtn,
     notesEditorEmpty, notesEditorForm;
 
-/* ============================================================
-   PUBLIC API
-   ============================================================ */
-
+/* ── Public API ──────────────────────────────────────────────────────────── */
 export function initSecretHolder() {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _setup);
@@ -58,10 +55,7 @@ export function isSecretHolderOpen() {
     return panel?.classList.contains('sh-visible') ?? false;
 }
 
-/* ============================================================
-   INIT
-   ============================================================ */
-
+/* ── Init ────────────────────────────────────────────────────────────────── */
 function _setup() {
     if (_initialized) return;
     _initialized = true;
@@ -72,13 +66,10 @@ function _setup() {
 
 function _injectHTML() {
     if (document.getElementById('secretHolderPanel')) return;
-
     const el = document.createElement('div');
     el.id        = 'secretHolderPanel';
     el.className = 'sh-panel';
-
     el.innerHTML = `
-
 <!-- ══ LOCK SCREEN ══ -->
 <div id="shLockScreen" class="sh-lock-screen">
   <div class="sh-lock-card">
@@ -95,10 +86,8 @@ function _injectHTML() {
     <button id="shCloseLock" class="sh-btn sh-btn-ghost sh-btn-block sh-btn-sm" type="button">✕ Cancel</button>
   </div>
 </div>
-
 <!-- ══ MAIN SCREEN ══ -->
 <div id="shMainScreen" class="sh-main-screen" style="display:none">
-
   <div class="sh-header">
     <span class="sh-header-title">🔐 Secret Holder</span>
     <div class="sh-header-btns">
@@ -106,14 +95,11 @@ function _injectHTML() {
       <button id="shCloseBtn" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">✕ Close</button>
     </div>
   </div>
-
-  <!-- TABS -->
   <div class="sh-tabs">
     <button id="shTabSecrets" class="sh-tab sh-tab-active" type="button">🔑 Secrets</button>
     <button id="shTabNotes"   class="sh-tab"               type="button">📝 Notes</button>
   </div>
-
-  <!-- ══ SECRETS PANEL ══ -->
+  <!-- SECRETS PANEL -->
   <div id="shPanelSecrets" class="sh-tab-panel">
     <div class="sh-add-bar">
       <input id="shAddName"  class="sh-input sh-input-sm" placeholder="Name  (e.g. JWT_SECRET)" />
@@ -134,11 +120,8 @@ function _injectHTML() {
       </div>
     </details>
   </div>
-
-  <!-- ══ NOTES PANEL ══ -->
+  <!-- NOTES PANEL -->
   <div id="shPanelNotes" class="sh-tab-panel sh-notes-layout" style="display:none">
-
-    <!-- LEFT: sidebar list -->
     <div class="sh-notes-sidebar">
       <div class="sh-notes-sidebar-header">
         <span class="sh-notes-sidebar-title">📝 Notes</span>
@@ -146,8 +129,6 @@ function _injectHTML() {
       </div>
       <div id="shNotesList" class="sh-notes-sidebar-list"></div>
     </div>
-
-    <!-- RIGHT: editor -->
     <div class="sh-notes-editor">
       <div id="shNotesEditorEmpty" class="sh-notes-editor-empty">
         <div class="sh-notes-empty-icon">📝</div>
@@ -156,7 +137,7 @@ function _injectHTML() {
       <div id="shNotesEditorForm" class="sh-notes-editor-form" style="display:none">
         <div class="sh-notes-editor-topbar">
           <input id="shNoteFormTitle" class="sh-input sh-notes-editor-title-input" placeholder="Note title…" maxlength="120" />
-          <input id="shNoteFormDate"  class="sh-input sh-input-sm sh-mono sh-note-date-input" type="date" title="Date for this note" />
+          <input id="shNoteFormDate"  class="sh-input sh-input-sm sh-mono sh-note-date-input" type="date" />
         </div>
         <textarea id="shNoteFormBody" class="sh-input sh-notes-editor-textarea" placeholder="Write your note here…"></textarea>
         <div class="sh-notes-editor-actions">
@@ -167,12 +148,9 @@ function _injectHTML() {
         </div>
       </div>
     </div>
-
   </div>
-
 </div>
-
-<!-- ══ SECRET EDIT MODAL ══ -->
+<!-- EDIT MODAL -->
 <div id="shEditModal" class="sh-modal-back" style="display:none">
   <div class="sh-modal">
     <div class="sh-modal-title">✏️ Edit secret</div>
@@ -185,10 +163,7 @@ function _injectHTML() {
       <button id="shEditSave"   class="sh-btn sh-btn-primary" type="button">Save</button>
     </div>
   </div>
-</div>
-
-`;
-
+</div>`;
     document.body.appendChild(el);
 }
 
@@ -220,12 +195,10 @@ function _resolveRefs() {
     resetErr       = document.getElementById('shResetErr');
     resetSuccess   = document.getElementById('shResetSuccess');
     togglePwBtn    = document.getElementById('shTogglePw');
-    // tabs
     tabSecrets     = document.getElementById('shTabSecrets');
     tabNotes       = document.getElementById('shTabNotes');
     panelSecrets   = document.getElementById('shPanelSecrets');
     panelNotes     = document.getElementById('shPanelNotes');
-    // notes
     notesList          = document.getElementById('shNotesList');
     noteFormTitle      = document.getElementById('shNoteFormTitle');
     noteFormBody       = document.getElementById('shNoteFormBody');
@@ -239,39 +212,28 @@ function _resolveRefs() {
 }
 
 function _wireEvents() {
-    // pw toggle
     togglePwBtn.addEventListener('click', () => {
         const show = pwInput.type === 'password';
-        pwInput.type = show ? 'text' : 'password';
+        pwInput.type        = show ? 'text' : 'password';
         togglePwBtn.textContent = show ? '🙈' : '👁';
     });
-
     pwSubmitBtn.addEventListener('click', _handlePwSubmit);
     pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') _handlePwSubmit(); });
-
     closeLockBtn.addEventListener('click', closeSecretHolder);
     closeBtn.addEventListener('click', closeSecretHolder);
     lockBtn.addEventListener('click', _lockVault);
-
-    // secrets
     addBtn.addEventListener('click', _handleAdd);
     addValue.addEventListener('keydown', e => { if (e.key === 'Enter') _handleAdd(); });
     editSaveBtn.addEventListener('click', _handleEditSave);
     editCancelBtn.addEventListener('click', _closeEditModal);
     editModal.addEventListener('click', e => { if (e.target === editModal) _closeEditModal(); });
     resetBtn.addEventListener('click', _handleResetPassword);
-
-    // tabs
     tabSecrets.addEventListener('click', () => _switchTab('secrets'));
     tabNotes.addEventListener('click',   () => _switchTab('notes'));
-
-    // notes
     noteNewBtn.addEventListener('click',    () => _openEditorForNew());
     noteSaveBtn.addEventListener('click',   _handleNoteSave);
     noteCancelBtn.addEventListener('click', _closeEditor);
     noteDeleteBtn.addEventListener('click', _handleNoteDeleteCurrent);
-
-    // backdrop + escape
     panel.addEventListener('click', e => { if (e.target === panel) closeSecretHolder(); });
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
@@ -281,10 +243,7 @@ function _wireEvents() {
     });
 }
 
-/* ============================================================
-   TABS
-   ============================================================ */
-
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
 function _switchTab(tab) {
     _activeTab = tab;
     if (tab === 'secrets') {
@@ -298,14 +257,11 @@ function _switchTab(tab) {
         panelNotes.style.display   = 'flex';
         panelSecrets.style.display = 'none';
         if (noteFormDate && !noteFormDate.value) noteFormDate.value = _todayISO();
-        _refreshNotes();
+        _renderSidebar();
     }
 }
 
-/* ============================================================
-   LOCK SCREEN
-   ============================================================ */
-
+/* ── Lock screen ─────────────────────────────────────────────────────────── */
 function _showLockScreen() {
     lockScreen.style.display = 'flex';
     mainScreen.style.display = 'none';
@@ -326,31 +282,23 @@ async function _updateLockLabel() {
     }
 }
 
-/* ============================================================
-   PASSWORD FLOW
-   ============================================================ */
-
+/* ── Password flow ───────────────────────────────────────────────────────── */
 async function _handlePwSubmit() {
     const pw = pwInput.value.trim();
     if (!pw) { _showPwError('Please enter a password.'); return; }
     _hidePwError();
     pwSubmitBtn.disabled    = true;
     pwSubmitBtn.textContent = '…';
-
     try {
         const has = await window.electronAPI.secretsHasPassword();
         if (!has) {
             const ok = await window.electronAPI.secretsSetPassword(pw);
-            if (ok) { await _openVault(); }
-            else    { _showPwError('Could not save password. Try again.'); }
+            if (ok) await _openVault();
+            else _showPwError('Could not save password. Try again.');
         } else {
             const ok = await window.electronAPI.secretsVerifyPassword(pw);
-            if (ok) { await _openVault(); }
-            else {
-                _showPwError('Incorrect password.');
-                pwInput.value = '';
-                pwInput.focus();
-            }
+            if (ok) await _openVault();
+            else { _showPwError('Incorrect password.'); pwInput.value = ''; pwInput.focus(); }
         }
     } catch (err) {
         console.error('[SecretHolder]', err);
@@ -368,14 +316,16 @@ async function _openVault() {
     lockScreen.style.display = 'none';
     mainScreen.style.display = 'flex';
     await _refreshSecrets();
-    _refreshNotes();
+    // Load notes into memory once on unlock
+    _notes = _loadNotesFromStorage();
+    _renderSidebar();
 }
 
 function _lockVault() {
-    _unlocked  = false;
-    _secrets   = [];
-    _notes     = [];
-    _editingId = null;
+    _unlocked      = false;
+    _secrets       = [];
+    _notes         = [];           // wipe memory on lock
+    _editingId     = null;
     _editingNoteId = null;
     _closeEditModal();
     _closeEditor();
@@ -384,10 +334,7 @@ function _lockVault() {
     _hidePwError();
 }
 
-/* ============================================================
-   SECRETS CRUD
-   ============================================================ */
-
+/* ── Secrets CRUD ────────────────────────────────────────────────────────── */
 async function _refreshSecrets() {
     try { _secrets = await window.electronAPI.secretsGetAll(); }
     catch { _secrets = []; }
@@ -400,48 +347,32 @@ function _renderSecrets() {
         secretsList.innerHTML = '<div class="sh-empty">No secrets yet — add one above.</div>';
         return;
     }
-
     _secrets.forEach(s => {
-        const row = document.createElement('div');
+        const row  = document.createElement('div');
         row.className = 'sh-row';
-
         const info = document.createElement('div');
         info.className = 'sh-row-info';
-
         const nm = document.createElement('div');
         nm.className   = 'sh-row-name';
         nm.textContent = s.name;
-
         const vl = document.createElement('div');
         vl.className   = 'sh-row-val';
         vl.textContent = s.value;
-
         info.appendChild(nm);
         info.appendChild(vl);
-
         const acts = document.createElement('div');
         acts.className = 'sh-row-acts';
-
         const cpBtn = _makeBtn('📋', 'sh-btn sh-btn-ghost sh-btn-xs', 'Copy', () => {
             navigator.clipboard.writeText(s.value).then(() => {
-                cpBtn.textContent  = '✓';
-                cpBtn.style.color  = 'var(--green)';
+                cpBtn.textContent = '✓';
+                cpBtn.style.color = 'var(--green)';
                 setTimeout(() => { cpBtn.textContent = '📋'; cpBtn.style.color = ''; }, 1400);
             });
         });
-
-        const edBtn = _makeBtn('✏️', 'sh-btn sh-btn-ghost sh-btn-xs', 'Edit',
-            () => _openEditModal(s));
-
-        const dlBtn = _makeBtn('🗑', 'sh-btn sh-btn-danger sh-btn-xs', 'Delete',
-            () => _handleDelete(s.id, row));
-
-        acts.appendChild(cpBtn);
-        acts.appendChild(edBtn);
-        acts.appendChild(dlBtn);
-
-        row.appendChild(info);
-        row.appendChild(acts);
+        const edBtn = _makeBtn('✏️', 'sh-btn sh-btn-ghost sh-btn-xs', 'Edit', () => _openEditModal(s));
+        const dlBtn = _makeBtn('🗑', 'sh-btn sh-btn-danger sh-btn-xs', 'Delete', () => _handleDelete(s.id, row));
+        acts.appendChild(cpBtn); acts.appendChild(edBtn); acts.appendChild(dlBtn);
+        row.appendChild(info); row.appendChild(acts);
         secretsList.appendChild(row);
     });
 }
@@ -449,16 +380,13 @@ function _renderSecrets() {
 async function _handleAdd() {
     const name  = addName.value.trim();
     const value = addValue.value.trim();
-
     if (!name || !value) {
         if (!name)  { addName.classList.add('sh-err-border');  setTimeout(() => addName.classList.remove('sh-err-border'),  1200); }
         if (!value) { addValue.classList.add('sh-err-border'); setTimeout(() => addValue.classList.remove('sh-err-border'), 1200); }
         return;
     }
-
     await window.electronAPI.secretsAdd(name, value);
-    addName.value  = '';
-    addValue.value = '';
+    addName.value = ''; addValue.value = '';
     addName.focus();
     await _refreshSecrets();
 }
@@ -494,10 +422,7 @@ async function _handleEditSave() {
     await _refreshSecrets();
 }
 
-/* ============================================================
-   CHANGE PASSWORD
-   ============================================================ */
-
+/* ── Change password ─────────────────────────────────────────────────────── */
 async function _handleResetPassword() {
     resetErr.style.display     = 'none';
     resetSuccess.style.display = 'none';
@@ -506,8 +431,7 @@ async function _handleResetPassword() {
     if (!old || !nw) { _showResetErr('Fill in both fields.'); return; }
     const ok = await window.electronAPI.secretsResetPassword(old, nw);
     if (ok) {
-        resetOld.value = '';
-        resetNew.value = '';
+        resetOld.value = ''; resetNew.value = '';
         resetSuccess.style.display = 'block';
         setTimeout(() => { resetSuccess.style.display = 'none'; }, 3500);
     } else {
@@ -515,10 +439,7 @@ async function _handleResetPassword() {
     }
 }
 
-/* ============================================================
-   NOTES — storage helpers
-   ============================================================ */
-
+/* ── Notes storage ───────────────────────────────────────────────────────── */
 const NOTES_KEY = 'sh_notes_v1';
 
 function _loadNotesFromStorage() {
@@ -528,17 +449,13 @@ function _loadNotesFromStorage() {
     } catch { return []; }
 }
 
-function _saveNotesToStorage(notes) {
-    try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch {}
+function _saveNotesToStorage() {
+    // Writes from the in-memory _notes array — no repeated loads
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(_notes)); } catch {}
 }
 
-function _newNoteId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
-
-function _todayISO() {
-    return new Date().toISOString().slice(0, 10);
-}
+function _newNoteId()   { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function _todayISO()    { return new Date().toISOString().slice(0, 10); }
 
 function _formatDisplayDate(iso) {
     if (!iso) return '';
@@ -547,55 +464,31 @@ function _formatDisplayDate(iso) {
     return `${months[parseInt(m,10)-1]} ${parseInt(d,10)}, ${y}`;
 }
 
-/* ============================================================
-   NOTES CRUD + EDITOR
-   ============================================================ */
-
-function _refreshNotes() {
-    _notes = _loadNotesFromStorage();
-    _renderSidebar();
-    // If currently editing a note, re-highlight its sidebar item
-    if (_editingNoteId) _highlightSidebarItem(_editingNoteId);
-}
-
+/* ── Notes CRUD + editor ─────────────────────────────────────────────────── */
 function _renderSidebar() {
     notesList.innerHTML = '';
-
     const sorted = [..._notes].sort((a, b) =>
         (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
     );
-
     if (sorted.length === 0) {
-        notesList.innerHTML = `
-          <div class="sh-notes-sidebar-empty">
-            <div>No notes yet.</div>
-            <div>Hit ＋ New to start.</div>
-          </div>`;
+        notesList.innerHTML = `<div class="sh-notes-sidebar-empty"><div>No notes yet.</div><div>Hit ＋ New to start.</div></div>`;
         return;
     }
-
     sorted.forEach(note => {
         const item = document.createElement('div');
-        item.className = 'sh-notes-sidebar-item';
+        item.className  = 'sh-notes-sidebar-item';
         item.dataset.noteId = note.id;
         if (note.id === _editingNoteId) item.classList.add('active');
-
-        const itemTitle = document.createElement('div');
-        itemTitle.className   = 'sh-notes-sidebar-item-title';
-        itemTitle.textContent = note.title || '(Untitled)';
-
-        const itemMeta = document.createElement('div');
-        itemMeta.className   = 'sh-notes-sidebar-item-meta';
-        itemMeta.textContent = _formatDisplayDate(note.date || note.createdAt?.slice(0,10));
-
-        const itemPreview = document.createElement('div');
-        itemPreview.className   = 'sh-notes-sidebar-item-preview';
-        itemPreview.textContent = (note.body || '').slice(0, 80);
-
-        item.appendChild(itemTitle);
-        item.appendChild(itemMeta);
-        item.appendChild(itemPreview);
-
+        const t = document.createElement('div');
+        t.className   = 'sh-notes-sidebar-item-title';
+        t.textContent = note.title || '(Untitled)';
+        const m = document.createElement('div');
+        m.className   = 'sh-notes-sidebar-item-meta';
+        m.textContent = _formatDisplayDate(note.date || note.createdAt?.slice(0,10));
+        const p = document.createElement('div');
+        p.className   = 'sh-notes-sidebar-item-preview';
+        p.textContent = (note.body || '').slice(0, 80);
+        item.appendChild(t); item.appendChild(m); item.appendChild(p);
         item.addEventListener('click', () => _openEditorForNote(note));
         notesList.appendChild(item);
     });
@@ -609,9 +502,8 @@ function _highlightSidebarItem(id) {
 
 function _openEditorForNew() {
     _editingNoteId = null;
-    noteFormTitle.value  = '';
-    noteFormBody.value   = '';
-    noteFormDate.value   = _todayISO();
+    noteFormTitle.value = ''; noteFormBody.value = '';
+    noteFormDate.value  = _todayISO();
     noteDeleteBtn.style.display = 'none';
     _showEditor();
     _highlightSidebarItem(null);
@@ -619,10 +511,10 @@ function _openEditorForNew() {
 }
 
 function _openEditorForNote(note) {
-    _editingNoteId       = note.id;
-    noteFormTitle.value  = note.title || '';
-    noteFormBody.value   = note.body  || '';
-    noteFormDate.value   = note.date  || note.createdAt?.slice(0,10) || _todayISO();
+    _editingNoteId      = note.id;
+    noteFormTitle.value = note.title || '';
+    noteFormBody.value  = note.body  || '';
+    noteFormDate.value  = note.date  || note.createdAt?.slice(0,10) || _todayISO();
     noteDeleteBtn.style.display = 'inline-flex';
     _showEditor();
     _highlightSidebarItem(note.id);
@@ -644,90 +536,52 @@ function _closeEditor() {
 function _handleNoteSave() {
     const title = noteFormTitle.value.trim();
     const body  = noteFormBody.value.trim();
-
     if (!title && !body) {
         noteFormTitle.classList.add('sh-err-border');
         setTimeout(() => noteFormTitle.classList.remove('sh-err-border'), 1200);
         return;
     }
-
-    const notes = _loadNotesFromStorage();
-
     if (_editingNoteId) {
-        // Update existing
-        const idx = notes.findIndex(n => n.id === _editingNoteId);
+        const idx = _notes.findIndex(n => n.id === _editingNoteId);
         if (idx !== -1) {
-            notes[idx] = {
-                ...notes[idx],
-                title:     title || '(Untitled)',
-                body,
-                date:      noteFormDate.value || _todayISO(),
-                updatedAt: new Date().toISOString(),
-            };
+            _notes[idx] = { ..._notes[idx], title: title || '(Untitled)', body,
+                date: noteFormDate.value || _todayISO(), updatedAt: new Date().toISOString() };
         }
     } else {
-        // Create new
-        const newNote = {
-            id:        _newNoteId(),
-            title:     title || '(Untitled)',
-            body,
-            date:      noteFormDate.value || _todayISO(),
-            createdAt: new Date().toISOString(),
-            updatedAt: null,
-        };
-        notes.unshift(newNote);
+        const newNote = { id: _newNoteId(), title: title || '(Untitled)', body,
+            date: noteFormDate.value || _todayISO(),
+            createdAt: new Date().toISOString(), updatedAt: null };
+        _notes.unshift(newNote);
         _editingNoteId = newNote.id;
         noteDeleteBtn.style.display = 'inline-flex';
     }
-
-    _saveNotesToStorage(notes);
-    _refreshNotes();
-
-    // Flash save button to confirm
-    noteSaveBtn.textContent = '✓ Saved';
-    noteSaveBtn.style.background = 'var(--green-dim)';
-    noteSaveBtn.style.borderColor = 'var(--green)';
-    noteSaveBtn.style.color = 'var(--green)';
+    _saveNotesToStorage();      // write to localStorage once from memory
+    _renderSidebar();
+    _highlightSidebarItem(_editingNoteId);
+    noteSaveBtn.textContent          = '✓ Saved';
+    noteSaveBtn.style.background     = 'var(--green-dim)';
+    noteSaveBtn.style.borderColor    = 'var(--green)';
+    noteSaveBtn.style.color          = 'var(--green)';
     setTimeout(() => {
-        noteSaveBtn.textContent = '💾 Save';
-        noteSaveBtn.style.background = '';
+        noteSaveBtn.textContent       = '💾 Save';
+        noteSaveBtn.style.background  = '';
         noteSaveBtn.style.borderColor = '';
-        noteSaveBtn.style.color = '';
+        noteSaveBtn.style.color       = '';
     }, 1400);
 }
 
 function _handleNoteDeleteCurrent() {
     if (!_editingNoteId) return;
-    const notes = _loadNotesFromStorage().filter(n => n.id !== _editingNoteId);
-    _saveNotesToStorage(notes);
+    _notes = _notes.filter(n => n.id !== _editingNoteId);
+    _saveNotesToStorage();
     _closeEditor();
-    _refreshNotes();
+    _renderSidebar();
 }
 
-// kept for legacy compat (sidebar delete) — not used in new layout
-function _handleNoteDelete(id) {
-    const notes = _loadNotesFromStorage().filter(n => n.id !== id);
-    _saveNotesToStorage(notes);
-    if (_editingNoteId === id) _closeEditor();
-    _refreshNotes();
-}
-
-// no-ops for removed modal
-function _updateNoteCancelBtn() {}
-function _clearNoteForm() { _closeEditor(); }
-function _openNoteEditModal() {}
-function _closeNoteEditModal() {}
-
-/* ============================================================
-   HELPERS
-   ============================================================ */
-
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 function _makeBtn(text, cls, title, onClick) {
     const b = document.createElement('button');
-    b.type        = 'button';
-    b.className   = cls;
-    b.title       = title;
-    b.textContent = text;
+    b.type = 'button'; b.className = cls; b.title = title; b.textContent = text;
     b.addEventListener('click', onClick);
     return b;
 }
