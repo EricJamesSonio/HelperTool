@@ -43,13 +43,28 @@ export function toggleApiToolPanel() {
 }
 
 export function openApiToolPanel() {
+    console.log('[API Tool] openApiToolPanel called, _panel =', _panel);
+    
     if (!_panel) {
+        console.log('[API Tool] Panel not found, injecting...');
         _injectPanel();
+        console.log('[API Tool] Panel injected');
         _resolveRefs();
+        console.log('[API Tool] Refs resolved, panel =', panel);
         _wireEvents();
+        console.log('[API Tool] Events wired');
     }
+    
     _panelOpen = true;
+    console.log('[API Tool] Setting panel visible...');
+    
+    if (!panel) {
+        console.error('[API Tool] ERROR: panel is still null after injection!');
+        return;
+    }
+    
     panel.classList.add('at-visible');
+    console.log('[API Tool] Panel should be visible now');
     _renderApiList();
 }
 
@@ -64,7 +79,13 @@ export function isApiToolPanelOpen() {
 
 /* ── Inject HTML ──────────────────────────────────────────────── */
 function _injectPanel() {
-    if (document.getElementById('apiToolPanel')) return;
+    console.log('[API Tool] _injectPanel called');
+    
+    if (document.getElementById('apiToolPanel')) {
+        console.log('[API Tool] Panel already exists in DOM');
+        return;
+    }
+    
     const el = document.createElement('div');
     el.id = 'apiToolPanel';
     el.className = 'at-panel';
@@ -198,6 +219,7 @@ function _injectPanel() {
   </div>
 </div>`;
     document.body.appendChild(el);
+    console.log('[API Tool] Panel appended to body');
 }
 
 /* ── Resolve DOM Refs ─────────────────────────────────────────── */
