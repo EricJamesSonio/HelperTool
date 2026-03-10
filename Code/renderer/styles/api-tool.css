@@ -1,0 +1,654 @@
+/* ============================================================
+   API-TOOL.CSS — Lightweight Postman-Inspired API Tester
+   Matches Helper Tool design system: navy dark theme, depth colors
+   ============================================================ */
+
+/* ── Panel container ─────────────────────────────────────────── */
+.api-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 850;
+    background: var(--bg-base);
+    display: flex;
+    flex-direction: row;
+    gap: 0;
+    overflow: hidden;
+}
+
+.api-panel.hidden {
+    display: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LEFT SIDEBAR — API List
+   ══════════════════════════════════════════════════════════════ */
+
+.api-sidebar {
+    width: 240px;
+    min-width: 180px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-subtle);
+    overflow: hidden;
+}
+
+.api-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.api-sidebar-title {
+    font-family: var(--font-ui);
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+}
+
+/* ── API List ────────────────────────────────────────────────── */
+.api-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+}
+
+.api-list::-webkit-scrollbar { width: 3px; }
+.api-list::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 99px; }
+
+.api-list-empty {
+    padding: 32px 16px;
+    text-align: center;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    line-height: 1.6;
+}
+
+.api-list-empty small {
+    display: block;
+    font-size: 11px;
+    margin-top: 4px;
+    color: var(--text-faint);
+}
+
+/* ── API List Item ───────────────────────────────────────────── */
+.api-list-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin: 0 6px;
+    border-radius: var(--r-sm);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background var(--ease), border-color var(--ease);
+}
+
+.api-list-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
+}
+
+.api-list-item.active {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+}
+
+.api-list-item-info {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.api-list-item-name {
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 2px;
+}
+
+.api-list-item.active .api-list-item-name {
+    color: var(--accent);
+}
+
+.api-list-item-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.api-list-item.active .api-list-item-meta {
+    color: var(--accent);
+    opacity: 0.75;
+}
+
+.api-list-item-delete {
+    display: none;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background var(--ease), color var(--ease);
+}
+
+.api-list-item:hover .api-list-item-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.api-list-item-delete:hover {
+    background: var(--red-dim);
+    border-color: var(--red);
+    color: var(--red);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN AREA — Editor + Response
+   ══════════════════════════════════════════════════════════════ */
+
+.api-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-base);
+    overflow: hidden;
+}
+
+/* ── Header (config inputs) ──────────────────────────────────── */
+.api-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.api-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.api-name-input {
+    flex: 0 1 180px;
+}
+
+.api-host-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.api-host-input {
+    flex: 1;
+    min-width: 100px;
+}
+
+.api-port-input {
+    width: 80px;
+    flex-shrink: 0;
+}
+
+.api-colon {
+    color: var(--text-muted);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.api-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* ── Editor Section ──────────────────────────────────────────── */
+.api-editor {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-base);
+}
+
+.api-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.api-method-select {
+    width: 90px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color var(--ease), box-shadow var(--ease);
+    flex-shrink: 0;
+}
+
+.api-method-select:hover,
+.api-method-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    outline: none;
+}
+
+.api-endpoint-input {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TABS
+   ══════════════════════════════════════════════════════════════ */
+
+.api-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    flex-shrink: 0;
+    overflow-x: auto;
+}
+
+.api-tabs::-webkit-scrollbar { height: 3px; }
+.api-tabs::-webkit-scrollbar-thumb { background: var(--border-mid); }
+
+.api-tab {
+    padding: 11px 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--ease), border-color var(--ease);
+}
+
+.api-tab:hover {
+    color: var(--text-primary);
+}
+
+.api-tab-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* ── Tab content ─────────────────────────────────────────────── */
+.api-tab-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-base);
+    padding: 12px 16px;
+    min-height: 0;
+}
+
+.api-tab-panel {
+    display: none;
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+}
+
+.api-tab-panel-active {
+    display: flex;
+    flex-direction: column;
+}
+
+.api-tab-panel::-webkit-scrollbar { width: 4px; }
+.api-tab-panel::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+
+/* ══════════════════════════════════════════════════════════════
+   KEY-VALUE EDITORS (Params, Headers)
+   ══════════════════════════════════════════════════════════════ */
+
+.api-kv-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.api-kv-empty {
+    padding: 24px 16px;
+    text-align: center;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.api-kv-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.api-kv-key,
+.api-kv-value {
+    flex: 1;
+    height: 32px;
+}
+
+.api-kv-row .api-btn-danger {
+    flex-shrink: 0;
+    width: 28px;
+    height: 32px;
+    padding: 0;
+}
+
+.api-kv-add-row {
+    padding-top: 6px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: center;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BODY EDITOR (JSON)
+   ══════════════════════════════════════════════════════════════ */
+
+.api-textarea {
+    width: 100%;
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    resize: none;
+    outline: none;
+    transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.api-textarea::placeholder {
+    color: var(--text-faint);
+}
+
+.api-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSE VIEWER
+   ══════════════════════════════════════════════════════════════ */
+
+.api-response-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: var(--bg-elevated);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+}
+
+.api-response-status {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: var(--bg-base);
+    color: var(--text-muted);
+    min-width: 45px;
+    text-align: center;
+}
+
+.api-response-status.api-status-ok {
+    background: rgba(52, 211, 153, 0.15);
+    color: var(--green);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.api-response-status.api-status-redirect {
+    background: rgba(96, 165, 250, 0.15);
+    color: var(--blue);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.api-response-status.api-status-client-error {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--red);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.api-response-status.api-status-server-error {
+    background: rgba(251, 113, 133, 0.15);
+    color: #fb7185;
+    border: 1px solid rgba(251, 113, 133, 0.3);
+}
+
+.api-response-time {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+
+.api-response-body {
+    flex: 1;
+    padding: 12px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-md);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+}
+
+.api-response-body.api-response-json {
+    color: var(--text-primary);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BUTTONS
+   ══════════════════════════════════════════════════════════════ */
+
+.api-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 14px;
+    height: 36px;
+    border-radius: var(--r-md);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--ease);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.api-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.api-btn-xs {
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+}
+
+.api-btn-sm {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.api-btn-add {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.api-btn-add:hover {
+    background: var(--accent-glow);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.api-btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-muted);
+}
+
+.api-btn-ghost:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
+}
+
+.api-btn-save {
+    background: var(--green-dim);
+    border-color: var(--green);
+    color: var(--green);
+}
+
+.api-btn-save:hover {
+    background: rgba(52, 211, 153, 0.22);
+    box-shadow: 0 0 0 3px var(--green-dim);
+}
+
+.api-btn-send {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.api-btn-send:hover:not(:disabled) {
+    background: var(--accent-glow);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    transform: translateY(-1px);
+}
+
+.api-btn-danger {
+    background: var(--red-dim);
+    border-color: var(--red);
+    color: var(--red);
+}
+
+.api-btn-danger:hover {
+    background: rgba(248, 113, 113, 0.22);
+    border-color: var(--red);
+}
+
+.api-btn-accent {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.api-btn-accent:hover {
+    background: var(--accent-glow);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ── Inputs ──────────────────────────────────────────────────── */
+.api-input {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    outline: none;
+    transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.api-input::placeholder {
+    color: var(--text-faint);
+}
+
+.api-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    background-color: var(--bg-overlay);
+}
+
+.api-input-sm {
+    height: 32px;
+    font-size: 12px;
+    padding: 0 10px;
+}

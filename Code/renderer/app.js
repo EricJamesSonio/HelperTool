@@ -21,7 +21,7 @@ import {
 import { setupSearch, invalidateFlatCache } from './searchManager.js';
 import { initSecretHolder, openSecretHolder, closeSecretHolder, isSecretHolderOpen } from './secretHolder.js';
 import { initSettings, openSettings, hookLegacyThemeToggle } from './settingsManager.js';
-
+import { openApiToolPanel, closeApiToolPanel, isApiToolPanelOpen, initApiToolUI } from './apiToolUI.js';
 /* ── DOM refs ────────────────────────────────────────────────────────────── */
 const selectRepoBtn  = document.getElementById('selectRepoBtn');
 const activeRepoName = document.getElementById('activeRepoName');
@@ -41,6 +41,7 @@ const themeToggleBtn    = document.getElementById('themeToggleBtn');
 const themeIcon         = document.getElementById('themeIcon');
 const themeLabel        = document.getElementById('themeLabel');
 const settingsBtn       = document.getElementById('settingsBtn');
+const apiToolBtn = document.getElementById('apiToolBtn');
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let selectedRepoPath = null;
@@ -187,6 +188,10 @@ selectRepoBtn.addEventListener('click', async () => {
         console.error('[UI] Repo selection failed:', err);
     }
 });
+apiToolBtn.addEventListener('click', async () => {
+    if (isApiToolPanelOpen()) closeApiToolPanel();
+    else openApiToolPanel();
+});
 
 settingsBtn.addEventListener('click', () => openSettings());
 
@@ -274,4 +279,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadFolderFilters();
     await loadLastActiveRepo();
     initSecretHolder();
+    try {
+        await initApiToolUI();
+    } catch (err) {
+        console.error('[Init] Failed to init API Tool:', err);
+    }
 });

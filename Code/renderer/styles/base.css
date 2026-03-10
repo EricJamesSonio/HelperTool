@@ -393,3 +393,15 @@ body {
   position: relative;
   z-index: 40;
 }
+.api-tool-btn {
+  background: var(--blue-dim) !important;
+  border-color: var(--blue) !important;
+  color: var(--blue) !important;
+}
+
+.api-tool-btn:hover {
+  background: var(--blue-dim) !important;
+  border-color: var(--blue) !important;
+  color: var(--blue) !important;
+  box-shadow: 0 0 0 3px var(--blue-dim) !important;
+}
