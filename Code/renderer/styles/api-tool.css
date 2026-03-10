@@ -417,6 +417,8 @@
     overflow: hidden;
     padding: 12px;
     gap: 12px;
+    min-height: 0;
+    max-height: 100%;
 }
 
 .at-request-header {
@@ -473,8 +475,10 @@
     display: none;
     flex: 1;
     flex-direction: column;
-    overflow: auto;
+    overflow-y: auto;
     gap: 8px;
+    padding: 8px;
+    min-height: 0;
 }
 
 .at-tab-content.at-tab-active {
@@ -483,6 +487,7 @@
 
 .at-tab-content::-webkit-scrollbar { width: 4px; }
 .at-tab-content::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 99px; }
+.at-tab-content::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
 /* ── KV List ─────────────────────────────────────────────────── */
 .at-kv-list {
@@ -797,161 +802,60 @@
     padding: 0 10px;
     font-size: 12px;
 }
-/* ── Response Section — Improved Visibility ──────────────────── */
-.at-response-section {
-    background: var(--bg-base) !important;
-}
 
-.at-response-header {
-    background: var(--bg-elevated) !important;
-    border: 1px solid var(--border-default) !important;
-    padding: 12px !important;
-}
-
-.at-response-body {
-    background: var(--bg-elevated) !important;
-    border: 1px solid var(--border-default) !important;
+/* ── Response Display in Tab ─────────────────────────────── */
+.at-response-display {
+    width: 100%;
     color: var(--text-primary) !important;
-    padding: 16px !important;
-    font-size: 13px !important;
-    line-height: 1.6 !important;
+    overflow-y: auto !important;
+    padding: 12px !important;
+    box-sizing: border-box;
 }
 
-.at-response-code pre {
-    background: var(--bg-base) !important;
+.at-response-display::-webkit-scrollbar {
+    width: 4px;
+}
+
+.at-response-display::-webkit-scrollbar-thumb {
+    background: var(--border-mid) !important;
+    border-radius: 99px;
+}
+
+.at-response-display::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong) !important;
+}
+
+.at-response-display .at-response-meta {
+    margin-bottom: 16px !important;
+    padding: 0 !important;
+}
+
+.at-response-display .at-response-meta div {
     color: var(--text-primary) !important;
+    font-size: 12px !important;
+    padding: 4px 0 !important;
+}
+
+.at-response-display .at-response-code {
+    background: var(--bg-elevated) !important;
     padding: 12px !important;
-    border-radius: var(--r-md) !important;
+    border-radius: var(--r-sm) !important;
+    border: 1px solid var(--border-subtle) !important;
     overflow-x: auto !important;
 }
 
-.at-response-meta {
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    margin-bottom: 12px !important;
-}
-
-.at-response-meta code {
-    background: var(--bg-base) !important;
-    color: var(--blue) !important;
-    padding: 2px 6px !important;
-    border-radius: 3px !important;
-    font-family: var(--font-mono) !important;
-    font-size: 12px !important;
-}
-
-.at-response-meta div {
-    padding: 4px 0 !important;
-    color: var(--text-primary) !important;
-}
-
-.at-response-meta hr {
-    border: none !important;
-    border-top: 1px solid var(--border-subtle) !important;
-    margin: 8px 0 !important;
-}
-
-/* ── Response Section — FIX VISIBILITY ──────────────────────── */
-.at-response-section {
-    background: var(--bg-base) !important;
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 16px !important;
-    gap: 16px !important;
-}
-
-.at-response-header {
-    background: var(--bg-elevated) !important;
-    border: 1px solid var(--border-default) !important;
-    padding: 12px 16px !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-}
-
-.at-response-status {
-    padding: 6px 12px !important;
-    background: var(--bg-base) !important;
-    border-radius: 4px !important;
-    font-weight: 700 !important;
-    min-width: 60px !important;
-}
-
-.at-response-body {
-    flex: 1 !important;
-    background: var(--bg-base) !important;
-    border: 1px solid var(--border-default) !important;
-    padding: 16px !important;
-    border-radius: var(--r-md) !important;
-    color: var(--text-primary) !important;
-    font-size: 13px !important;
-    overflow-y: auto !important;
-    white-space: pre-wrap !important;
-    word-wrap: break-word !important;
-    line-height: 1.6 !important;
-}
-
-.at-response-code {
-    background: var(--bg-base) !important;
-    padding: 12px !important;
-    border-radius: var(--r-sm) !important;
-}
-
-.at-response-code pre {
+.at-response-display .at-response-code pre {
     margin: 0 !important;
     color: var(--text-primary) !important;
+    overflow-x: auto !important;
     font-size: 12px !important;
     line-height: 1.6 !important;
 }
 
-.at-response-meta {
-    background: transparent !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    color: var(--text-primary) !important;
-}
-
-.at-response-meta div {
-    color: var(--text-primary) !important;
-    padding: 4px 0 !important;
-    font-size: 12px !important;
-}
-
-.at-response-meta code {
-    background: var(--bg-elevated) !important;
-    color: var(--blue) !important;
-    padding: 2px 6px !important;
-    border-radius: 3px !important;
-    font-family: var(--font-mono) !important;
-}
-
-.at-error {
+.at-response-display .at-error {
     background: var(--red-dim) !important;
     border: 1px solid rgba(248, 113, 113, 0.3) !important;
     color: var(--red) !important;
     padding: 12px !important;
     border-radius: var(--r-md) !important;
-}
-
-.at-loading {
-    color: var(--text-primary) !important;
-    font-size: 14px !important;
-}/* ── Response Display in Tab ─────────────────────────────── */
-.at-response-display {
-    color: var(--text-primary) !important;
-    overflow-y: auto !important;
-}
-
-.at-response-display .at-response-meta {
-    margin-bottom: 12px !important;
-}
-
-.at-response-display .at-response-code pre {
-    background: var(--bg-base) !important;
-    border: 1px solid var(--border-subtle) !important;
-    padding: 12px !important;
-    border-radius: var(--r-sm) !important;
-    color: var(--text-primary) !important;
-    overflow-x: auto !important;
 }

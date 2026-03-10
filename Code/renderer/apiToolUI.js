@@ -420,7 +420,6 @@ async function _handleDeleteEndpoint(endpointId) {
     if (_selectedEndpointId === endpointId) {
         _selectedEndpointId = null;
         document.querySelector('.at-request-section').style.display = 'none';
-        responsePanel.style.display = 'none';
     }
     _renderEndpointsList();
 }
@@ -491,9 +490,18 @@ function _handleCancelEdit() {
 function _displayResponse(response) {
     console.log('[API Tool] Displaying response:', response);
     
+    let responseDisplay = document.getElementById('atResponseDisplay');
+    if (!responseDisplay) {
+        responseDisplay = document.createElement('div');
+        responseDisplay.id = 'atResponseDisplay';
+        const responseTab = document.getElementById('atResponseTab');
+        if (responseTab) {
+            responseTab.appendChild(responseDisplay);
+        }
+    }
+    
     if (response.error) {
-        document.getElementById('atResponseStatus').innerHTML = '<span class="at-status-error">❌ Error</span>';
-        responseBody.innerHTML = `<div class="at-error">
+        responseDisplay.innerHTML = `<div class="at-error">
 <strong>❌ Connection Error</strong><br/>
 <code>${response.error}</code><br/>
 <br/>
@@ -503,6 +511,7 @@ function _displayResponse(response) {
 • Check CORS settings if calling from browser<br/>
 • Verify the endpoint path is correct</small>
 </div>`;
+        _switchTab('response');
         return;
     }
 
@@ -513,18 +522,15 @@ function _displayResponse(response) {
 
     const statusIcon = response.status >= 200 && response.status < 300 ? '✅' : '⚠️';
 
-    document.getElementById('atResponseStatus').innerHTML = 
-        `<span class="${statusClass}">${statusIcon} ${response.status}</span>`;
-
     const api = getApi(_selectedApiId);
     const endpoint = api?.endpoints.find(e => e.id === _selectedEndpointId);
     const fullUrl = api ? `${api.url}${endpoint.path}` : 'unknown';
 
     let bodyHtml = `<div class="at-response-meta">
 <div>🔗 <strong>URL:</strong> <code>${fullUrl}</code></div>
-<div>📊 <strong>Status:</strong> ${response.status} ${response.statusText || ''}</div>
+<div>📊 <strong>Status:</strong> <span class="${statusClass}">${statusIcon} ${response.status}</span></div>
 <div>⏱️ <strong>Time:</strong> ${new Date(response.timing).toLocaleTimeString()}</div>
-<hr style="border: none; border-top: 1px solid var(--border-subtle); margin: 8px 0;">
+<hr style="border: none; border-top: 1px solid var(--border-subtle); margin: 12px 0;">
 <div><strong>📦 Response Body:</strong></div>
 </div>`;
 
@@ -554,7 +560,8 @@ function _displayResponse(response) {
     
     bodyHtml += '</div>';
 
-    responseBody.innerHTML = bodyHtml;
+    responseDisplay.innerHTML = bodyHtml;
+    _switchTab('response');
 }
 
 /* ── Tab Switching ────────────────────────────────────────────── */
