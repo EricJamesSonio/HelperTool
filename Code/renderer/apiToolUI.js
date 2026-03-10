@@ -20,9 +20,9 @@ let _panelOpen = false;
 let _lastResponse = null;
 
 /* ── DOM Refs ─────────────────────────────────────────────────── */
-let panel, apiList, addApiForm, testPanel, responsePanel;
+let panel, apiList, addApiForm, testPanel;
 let apiNameInput, apiUrlInput;
-let methodSelect, pathInput, descInput, sendBtn, responseBody;
+let methodSelect, pathInput, descInput, sendBtn;
 
 /**
  * Init API tool panel
@@ -149,11 +149,12 @@ function _injectPanel() {
             <input type="text" id="atDescription" class="at-input at-input-sm" placeholder="Description (optional)" />
           </div>
 
-          <!-- Tabs: Headers / Body / Params -->
+          <!-- Tabs: Headers / Body / Params / Response -->
           <div class="at-tabs">
             <button class="at-tab at-tab-active" data-tab="headers">Headers</button>
             <button class="at-tab" data-tab="body">Body</button>
             <button class="at-tab" data-tab="params">Params</button>
+            <button class="at-tab" data-tab="response">Response</button>
           </div>
 
           <!-- Headers -->
@@ -173,6 +174,11 @@ function _injectPanel() {
             <button id="atAddParamBtn" class="at-btn at-btn-xs at-btn-ghost">+ Param</button>
           </div>
 
+          <!-- Response -->
+          <div id="atResponseTab" class="at-tab-content" style="display:none">
+            <div id="atResponseDisplay" class="at-response-display"></div>
+          </div>
+
           <div class="at-req-actions">
             <button id="atSaveEndpointBtn" class="at-btn at-btn-accent">💾 Save Endpoint</button>
             <button id="atCancelEditBtn" class="at-btn at-btn-ghost">Cancel</button>
@@ -180,17 +186,7 @@ function _injectPanel() {
           </div>
         </div>
       </div>
-
-      <!-- Response Panel -->
-      <div id="atResponseSection" class="at-response-section" style="display:none">
-        <div class="at-response-header">
-          <span>Response</span>
-          <span id="atResponseStatus" class="at-response-status"></span>
-        </div>
-        <div id="atResponseBody" class="at-response-body"></div>
-      </div>
     </div>
-  </div>
 </div>`;
     document.body.appendChild(el);
 }
@@ -200,8 +196,6 @@ function _resolveRefs() {
     panel = document.getElementById('apiToolPanel');
     apiList = document.getElementById('atApiList');
     testPanel = document.getElementById('atTestUI');
-    responsePanel = document.getElementById('atResponseSection');
-    responseBody = document.getElementById('atResponseBody');
     
     // Add API form
     apiNameInput = document.getElementById('atAddApiName');
@@ -361,8 +355,6 @@ function _selectEndpoint(endpointId) {
     _renderHeaders(endpoint.headers);
     document.getElementById('atBodyInput').value = endpoint.body;
     _renderParams(endpoint.params);
-
-    responsePanel.style.display = 'none';
 }
 
 /* ── Handle Add API ───────────────────────────────────────────── */
@@ -462,11 +454,6 @@ async function _handleSendRequest() {
 
     sendBtn.disabled = true;
     sendBtn.textContent = '⏳ Sending…';
-    
-    // Show response section immediately
-    responsePanel.style.display = 'block';
-    responseBody.innerHTML = '<div class="at-loading">⏳ Sending request…</div>';
-    document.getElementById('atResponseStatus').textContent = '';
 
     try {
         const response = await executeRequest(_selectedApiId, _selectedEndpointId);
@@ -474,12 +461,18 @@ async function _handleSendRequest() {
         _displayResponse(response);
     } catch (err) {
         console.error('[API Tool] Request error:', err);
-        responseBody.innerHTML = `<div class="at-error">
+        let responseDisplay = document.getElementById('atResponseDisplay');
+        if (!responseDisplay) {
+            responseDisplay = document.createElement('div');
+            responseDisplay.id = 'atResponseDisplay';
+            document.getElementById('atResponseTab').appendChild(responseDisplay);
+        }
+        responseDisplay.innerHTML = `<div class="at-error">
 <strong>❌ Request Failed</strong><br/>
 ${err.message}<br/>
 <small>Check your URL and make sure the API is running</small>
 </div>`;
-        document.getElementById('atResponseStatus').innerHTML = '<span class="at-status-error">❌ Failed</span>';
+        _switchTab('response');
     } finally {
         sendBtn.disabled = false;
         sendBtn.textContent = '▶ Send Request';
@@ -489,7 +482,6 @@ ${err.message}<br/>
 /* ── Handle Cancel Edit ───────────────────────────────────────── */
 function _handleCancelEdit() {
     document.querySelector('.at-request-section').style.display = 'none';
-    responsePanel.style.display = 'none';
     _selectedEndpointId = null;
     _editingEndpointId = null;
     _renderEndpointsList();
