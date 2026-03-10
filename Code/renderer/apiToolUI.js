@@ -1,5 +1,5 @@
 /**
- * apiToolUI.js — fixed scroll + tab switching
+ * apiToolUI.js — with Swagger/OpenAPI import
  */
 
 import {
@@ -9,43 +9,51 @@ import {
     executeRequest,
 } from './apiTool.js';
 
-let _panel = null;
+import { fetchSpec, parseSpec } from './swaggerImport.js';
+
+/* ── State ────────────────────────────────────────────────────── */
 let _selectedApiId = null;
 let _selectedEndpointId = null;
 let _editingEndpointId = null;
 let _panelOpen = false;
 
+/* ── DOM Refs ─────────────────────────────────────────────────── */
 let panel, apiList, testPanel;
 let apiNameInput, apiUrlInput;
 let methodSelect, pathInput, descInput, sendBtn;
 
+/* ── Swagger import state ─────────────────────────────────────── */
+let _swOverlay = null;
+let _swParsedEndpoints = [];   // all endpoints from last parse
+let _swChecked = new Set();    // indices the user has ticked
+
+/* ═══════════════════════════════════════════════════════════════
+   PUBLIC API
+   ═══════════════════════════════════════════════════════════════ */
 export async function initApiToolUI() {
     await initApiTool();
     _injectPanel();
     _resolveRefs();
     _wireEvents();
 }
-
 export function toggleApiToolPanel() {
-    if (_panelOpen) closeApiToolPanel();
-    else openApiToolPanel();
+    if (_panelOpen) closeApiToolPanel(); else openApiToolPanel();
 }
-
 export function openApiToolPanel() {
-    if (!_panel) { _injectPanel(); _resolveRefs(); _wireEvents(); }
+    if (!panel) { _injectPanel(); _resolveRefs(); _wireEvents(); }
     _panelOpen = true;
     panel.classList.add('at-visible');
     _renderApiList();
 }
-
 export function closeApiToolPanel() {
     _panelOpen = false;
     panel?.classList.remove('at-visible');
 }
-
 export function isApiToolPanelOpen() { return _panelOpen; }
 
-/* ── Inject HTML ──────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   INJECT HTML
+   ═══════════════════════════════════════════════════════════════ */
 function _injectPanel() {
     if (document.getElementById('apiToolPanel')) return;
     const el = document.createElement('div');
@@ -55,19 +63,14 @@ function _injectPanel() {
 <div class="at-backdrop"></div>
 <div class="at-container">
   <div class="at-header">
-    <div class="at-header-title">
-      <span class="at-header-icon">🔌</span>
-      API Tool
-    </div>
+    <div class="at-header-title"><span class="at-header-icon">🔌</span>API Tool</div>
     <button class="at-close-btn" id="atCloseBtn" title="Close">✕</button>
   </div>
 
   <div class="at-main">
     <!-- LEFT sidebar -->
     <div class="at-sidebar">
-      <div class="at-sidebar-header">
-        <span class="at-sidebar-title">Saved APIs</span>
-      </div>
+      <div class="at-sidebar-header"><span class="at-sidebar-title">Saved APIs</span></div>
       <div class="at-add-form">
         <input type="text" id="atAddApiName" class="at-input at-input-sm" placeholder="API name" maxlength="40" />
         <input type="url" id="atAddApiUrl" class="at-input at-input-sm" placeholder="http://127.0.0.1:8000" />
@@ -84,7 +87,7 @@ function _injectPanel() {
       </div>
 
       <div id="atTestUI" class="at-test-ui" style="display:none">
-        <!-- FIXED: api name/url/save/delete -->
+        <!-- FIXED top bar -->
         <div class="at-api-config">
           <div class="at-config-row">
             <input type="text" id="atApiName" class="at-input at-input-sm" placeholder="API name" />
@@ -96,61 +99,52 @@ function _injectPanel() {
           </div>
         </div>
 
-        <!-- SCROLLABLE: everything below the fixed bar -->
+        <!-- SCROLLABLE body -->
         <div class="at-right-body">
 
           <div class="at-endpoints-section">
             <div class="at-endpoints-header">
               <span>Endpoints</span>
-              <button id="atAddEndpointBtn" class="at-btn at-btn-xs at-btn-accent">＋ New</button>
+              <div style="display:flex;gap:6px">
+                <button id="atImportSwaggerBtn" class="at-btn at-btn-xs at-btn-ghost" title="Import from Swagger/OpenAPI spec">⚡ Import Swagger</button>
+                <button id="atAddEndpointBtn" class="at-btn at-btn-xs at-btn-accent">＋ New</button>
+              </div>
             </div>
             <div id="atEndpointsList" class="at-endpoints-list"></div>
           </div>
 
           <div class="at-request-section" id="atRequestSection" style="display:none">
             <div class="at-request-header">Request Builder</div>
-
             <div class="at-req-row">
               <select id="atMethod" class="at-input at-input-sm" style="width:90px">
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="PATCH">PATCH</option>
-                <option value="DELETE">DELETE</option>
-                <option value="HEAD">HEAD</option>
+                <option>GET</option><option>POST</option><option>PUT</option>
+                <option>PATCH</option><option>DELETE</option><option>HEAD</option>
               </select>
               <input type="text" id="atPath" class="at-input at-input-sm" placeholder="/api/endpoint" />
             </div>
-
             <div class="at-req-row">
               <input type="text" id="atDescription" class="at-input at-input-sm" placeholder="Description (optional)" />
             </div>
-
             <div class="at-tabs">
               <button class="at-tab at-tab-active" data-tab="headers">Headers</button>
               <button class="at-tab" data-tab="body">Body</button>
               <button class="at-tab" data-tab="params">Params</button>
               <button class="at-tab" data-tab="response">Response</button>
             </div>
-
             <div id="atHeadersTab" class="at-tab-content at-tab-content--visible">
               <div id="atHeadersList" class="at-kv-list"></div>
               <button id="atAddHeaderBtn" class="at-btn at-btn-xs at-btn-ghost">+ Header</button>
             </div>
-
             <div id="atBodyTab" class="at-tab-content">
               <textarea id="atBodyInput" class="at-textarea" placeholder='{"key":"value"}'></textarea>
             </div>
-
             <div id="atParamsTab" class="at-tab-content">
               <div id="atParamsList" class="at-kv-list"></div>
               <button id="atAddParamBtn" class="at-btn at-btn-xs at-btn-ghost">+ Param</button>
             </div>
-
             <div id="atResponseTab" class="at-tab-content">
               <div id="atResponseDisplay" class="at-response-display"></div>
             </div>
-
             <div class="at-req-actions">
               <button id="atSaveEndpointBtn" class="at-btn at-btn-accent">💾 Save Endpoint</button>
               <button id="atCancelEditBtn" class="at-btn at-btn-ghost">Cancel</button>
@@ -164,8 +158,240 @@ function _injectPanel() {
   </div>
 </div>`;
     document.body.appendChild(el);
+    _injectSwaggerModal();
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   SWAGGER IMPORT MODAL HTML
+   ═══════════════════════════════════════════════════════════════ */
+function _injectSwaggerModal() {
+    const el = document.createElement('div');
+    el.id = 'swOverlay';
+    el.className = 'sw-overlay';
+    el.innerHTML = `
+<div class="sw-modal">
+  <div class="sw-header">
+    <div class="sw-title"><span class="sw-title-icon">⚡</span>Import from Swagger / OpenAPI</div>
+    <button class="sw-close" id="swCloseBtn">✕</button>
+  </div>
+
+  <div class="sw-body">
+    <!-- Step 1: URL -->
+    <div>
+      <div class="sw-step-label">Spec URL</div>
+      <div class="sw-url-row">
+        <input type="url" id="swUrlInput" class="sw-url-input"
+               placeholder="http://127.0.0.1:8000/openapi.json" />
+        <button id="swFetchBtn" class="at-btn at-btn-accent">Fetch</button>
+      </div>
+      <div class="sw-hint">
+        Common paths: <code>/openapi.json</code> (FastAPI) · <code>/api-docs</code> (Swagger UI) ·
+        <code>/swagger.json</code> · <code>/v2/api-docs</code> (Spring)
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div id="swStatus" class="sw-status"></div>
+
+    <hr class="sw-divider" id="swDivider" style="display:none">
+
+    <!-- Step 2: Preview -->
+    <div id="swPreview" class="sw-preview">
+      <div class="sw-preview-toolbar">
+        <div class="sw-preview-count">Found <span id="swFoundCount">0</span> endpoints —
+          <span id="swSelectedCount">0</span> selected</div>
+        <button id="swSelectAllBtn" class="at-btn at-btn-xs at-btn-ghost">Select All</button>
+        <button id="swSelectNoneBtn" class="at-btn at-btn-xs at-btn-ghost">None</button>
+      </div>
+      <div id="swEndpointList" class="sw-endpoint-list"></div>
+    </div>
+  </div>
+
+  <div class="sw-footer">
+    <span class="sw-mode-label">Import mode:</span>
+    <button id="swModeMerge" class="sw-mode-btn sw-mode-btn--active" data-mode="merge">Merge</button>
+    <button id="swModeReplace" class="sw-mode-btn" data-mode="replace">Replace</button>
+    <div style="flex:1"></div>
+    <button id="swCancelBtn" class="at-btn at-btn-ghost">Cancel</button>
+    <button id="swImportBtn" class="at-btn at-btn-primary" disabled>⚡ Import Selected</button>
+  </div>
+</div>`;
+    document.body.appendChild(el);
+    _swOverlay = el;
+    _wireSwaggerEvents();
+}
+
+/* ── Wire swagger modal events ────────────────────────────────── */
+function _wireSwaggerEvents() {
+    document.getElementById('swCloseBtn').addEventListener('click', _closeSwagger);
+    document.getElementById('swCancelBtn').addEventListener('click', _closeSwagger);
+    _swOverlay.addEventListener('click', e => { if (e.target === _swOverlay) _closeSwagger(); });
+
+    document.getElementById('swFetchBtn').addEventListener('click', _handleSwaggerFetch);
+    document.getElementById('swUrlInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') _handleSwaggerFetch();
+    });
+
+    document.getElementById('swSelectAllBtn').addEventListener('click', () => {
+        _swChecked = new Set(_swParsedEndpoints.map((_, i) => i));
+        _renderSwaggerPreview();
+    });
+    document.getElementById('swSelectNoneBtn').addEventListener('click', () => {
+        _swChecked.clear();
+        _renderSwaggerPreview();
+    });
+
+    // Mode toggle
+    document.querySelectorAll('.sw-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.sw-mode-btn').forEach(b => b.classList.remove('sw-mode-btn--active'));
+            btn.classList.add('sw-mode-btn--active');
+        });
+    });
+
+    document.getElementById('swImportBtn').addEventListener('click', _handleSwaggerImport);
+}
+
+/* ── Open swagger modal ───────────────────────────────────────── */
+function _openSwagger() {
+    // Pre-fill URL with base URL + /openapi.json
+    const api = getApi(_selectedApiId);
+    if (api?.url) {
+        const base = api.url.replace(/\/$/, '');
+        document.getElementById('swUrlInput').value = base + '/openapi.json';
+    }
+    _swParsedEndpoints = [];
+    _swChecked = new Set();
+    document.getElementById('swStatus').className = 'sw-status';
+    document.getElementById('swStatus').textContent = '';
+    document.getElementById('swDivider').style.display = 'none';
+    document.getElementById('swPreview').classList.remove('sw-preview--visible');
+    document.getElementById('swImportBtn').disabled = true;
+    _swOverlay.classList.add('sw-visible');
+}
+
+function _closeSwagger() {
+    _swOverlay.classList.remove('sw-visible');
+}
+
+/* ── Fetch & parse spec ───────────────────────────────────────── */
+async function _handleSwaggerFetch() {
+    const url = document.getElementById('swUrlInput').value.trim();
+    if (!url) return;
+
+    const statusEl = document.getElementById('swStatus');
+    const fetchBtn = document.getElementById('swFetchBtn');
+
+    // Loading state
+    statusEl.className = 'sw-status sw-status--loading';
+    statusEl.innerHTML = '<div class="sw-spinner"></div> Fetching spec…';
+    fetchBtn.disabled = true;
+    document.getElementById('swDivider').style.display = 'none';
+    document.getElementById('swPreview').classList.remove('sw-preview--visible');
+    document.getElementById('swImportBtn').disabled = true;
+
+    try {
+        const spec = await fetchSpec(url);
+        _swParsedEndpoints = parseSpec(spec);
+
+        if (_swParsedEndpoints.length === 0) {
+            statusEl.className = 'sw-status sw-status--error';
+            statusEl.textContent = '⚠️ Spec parsed but no endpoints found. Check the spec has a "paths" section.';
+            return;
+        }
+
+        // Default: all checked
+        _swChecked = new Set(_swParsedEndpoints.map((_, i) => i));
+
+        statusEl.className = 'sw-status sw-status--success';
+        statusEl.innerHTML = `✅ Loaded spec — found <strong>${_swParsedEndpoints.length}</strong> endpoints`;
+        document.getElementById('swDivider').style.display = 'block';
+        document.getElementById('swPreview').classList.add('sw-preview--visible');
+        document.getElementById('swImportBtn').disabled = false;
+        _renderSwaggerPreview();
+
+    } catch (err) {
+        statusEl.className = 'sw-status sw-status--error';
+        statusEl.textContent = `❌ ${err.message}`;
+    } finally {
+        fetchBtn.disabled = false;
+    }
+}
+
+/* ── Render preview list ──────────────────────────────────────── */
+function _renderSwaggerPreview() {
+    const list = document.getElementById('swEndpointList');
+    const METHOD_COLORS = {
+        GET: 'at-method-get', POST: 'at-method-post', PUT: 'at-method-put',
+        PATCH: 'at-method-patch', DELETE: 'at-method-delete', HEAD: 'at-method-head',
+    };
+
+    list.innerHTML = '';
+    _swParsedEndpoints.forEach((ep, i) => {
+        const checked = _swChecked.has(i);
+        const row = document.createElement('div');
+        row.className = 'sw-ep-row' + (checked ? ' sw-ep-row--checked' : '');
+        row.innerHTML = `
+<div class="sw-ep-check">${checked ? '✓' : ''}</div>
+<div class="sw-ep-method at-endpoint-method ${METHOD_COLORS[ep.method] || ''}">${ep.method}</div>
+<div class="sw-ep-path">${ep.path}</div>
+<div class="sw-ep-desc">${ep.description || ''}</div>`;
+        row.addEventListener('click', () => {
+            if (_swChecked.has(i)) _swChecked.delete(i); else _swChecked.add(i);
+            _renderSwaggerPreview();
+        });
+        list.appendChild(row);
+    });
+
+    document.getElementById('swFoundCount').textContent = _swParsedEndpoints.length;
+    document.getElementById('swSelectedCount').textContent = _swChecked.size;
+    document.getElementById('swImportBtn').disabled = _swChecked.size === 0;
+}
+
+/* ── Do the import ────────────────────────────────────────────── */
+async function _handleSwaggerImport() {
+    const mode = document.querySelector('.sw-mode-btn--active')?.dataset.mode || 'merge';
+    const toImport = _swParsedEndpoints.filter((_, i) => _swChecked.has(i));
+    if (toImport.length === 0) return;
+
+    // Replace mode: delete all existing endpoints first
+    if (mode === 'replace') {
+        const api = getApi(_selectedApiId);
+        if (api) {
+            for (const ep of [...api.endpoints]) {
+                await deleteEndpoint(_selectedApiId, ep.id);
+            }
+        }
+    }
+
+    // Add selected endpoints
+    for (const ep of toImport) {
+        await addEndpoint(_selectedApiId, ep.method, ep.path, ep.description);
+        // Now update it with headers/body/params from the spec
+        const api = getApi(_selectedApiId);
+        const newEp = api.endpoints[api.endpoints.length - 1];
+        if (newEp) {
+            await updateEndpoint(
+                _selectedApiId, newEp.id,
+                ep.method, ep.path, ep.description,
+                ep.headers, ep.body, ep.params
+            );
+        }
+    }
+
+    _closeSwagger();
+    _renderEndpointsList();
+
+    // Flash a quick success on the endpoints header
+    const header = document.querySelector('.at-endpoints-header span');
+    const orig = header.textContent;
+    header.textContent = `✅ Imported ${toImport.length} endpoints`;
+    setTimeout(() => { header.textContent = orig; }, 2500);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESOLVE REFS + WIRE MAIN EVENTS
+   ═══════════════════════════════════════════════════════════════ */
 function _resolveRefs() {
     panel = document.getElementById('apiToolPanel');
     apiList = document.getElementById('atApiList');
@@ -180,27 +406,29 @@ function _resolveRefs() {
 
 function _wireEvents() {
     document.getElementById('atCloseBtn')?.addEventListener('click', closeApiToolPanel);
-    panel?.addEventListener('click', (e) => { if (e.target === panel) closeApiToolPanel(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && _panelOpen) closeApiToolPanel(); });
+    panel?.addEventListener('click', e => { if (e.target === panel) closeApiToolPanel(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && _panelOpen) closeApiToolPanel(); });
 
     document.getElementById('atAddApiBtn')?.addEventListener('click', _handleAddApi);
-    document.getElementById('atAddApiName')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') _handleAddApi(); });
-
+    document.getElementById('atAddApiName')?.addEventListener('keydown', e => { if (e.key === 'Enter') _handleAddApi(); });
     document.getElementById('atApiSaveBtn')?.addEventListener('click', _handleSaveApiConfig);
     document.getElementById('atApiDeleteBtn')?.addEventListener('click', _handleDeleteApi);
     document.getElementById('atAddEndpointBtn')?.addEventListener('click', _handleAddEndpoint);
+    document.getElementById('atImportSwaggerBtn')?.addEventListener('click', _openSwagger);
 
     document.querySelectorAll('.at-tab').forEach(btn => {
-        btn.addEventListener('click', (e) => _switchTab(e.target.dataset.tab));
+        btn.addEventListener('click', e => _switchTab(e.target.dataset.tab));
     });
 
     document.getElementById('atSendBtn')?.addEventListener('click', _handleSendRequest);
     document.getElementById('atSaveEndpointBtn')?.addEventListener('click', _handleSaveEndpoint);
     document.getElementById('atCancelEditBtn')?.addEventListener('click', _handleCancelEdit);
-
     document.querySelector('.at-backdrop')?.addEventListener('click', closeApiToolPanel);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   RENDER HELPERS
+   ═══════════════════════════════════════════════════════════════ */
 function _renderApiList() {
     const apis = getAllApis();
     apiList.innerHTML = '';
@@ -226,14 +454,10 @@ function _selectApi(apiId) {
     _selectedApiId = apiId;
     _selectedEndpointId = null;
     _renderApiList();
-    _showTestPanel();
-    _renderApiConfig();
-    _renderEndpointsList();
-}
-
-function _showTestPanel() {
     document.getElementById('atEmptyTest').style.display = 'none';
     testPanel.style.display = 'flex';
+    _renderApiConfig();
+    _renderEndpointsList();
 }
 
 function _renderApiConfig() {
@@ -249,7 +473,7 @@ function _renderEndpointsList() {
     const list = document.getElementById('atEndpointsList');
     list.innerHTML = '';
     if (api.endpoints.length === 0) {
-        list.innerHTML = '<div class="at-empty-list">No endpoints yet</div>';
+        list.innerHTML = '<div class="at-empty-list">No endpoints yet — add manually or import from Swagger</div>';
         return;
     }
     api.endpoints.forEach(endpoint => {
@@ -263,9 +487,8 @@ function _renderEndpointsList() {
 </div>
 <button class="at-endpoint-delete" title="Delete">✕</button>`;
         item.querySelector('.at-endpoint-info').addEventListener('click', () => _selectEndpoint(endpoint.id));
-        item.querySelector('.at-endpoint-delete').addEventListener('click', (e) => {
-            e.stopPropagation();
-            _handleDeleteEndpoint(endpoint.id);
+        item.querySelector('.at-endpoint-delete').addEventListener('click', e => {
+            e.stopPropagation(); _handleDeleteEndpoint(endpoint.id);
         });
         list.appendChild(item);
     });
@@ -276,18 +499,68 @@ function _selectEndpoint(endpointId) {
     if (!api) return;
     const endpoint = api.endpoints.find(e => e.id === endpointId);
     if (!endpoint) return;
+
     _selectedEndpointId = endpointId;
     _editingEndpointId = endpointId;
     _renderEndpointsList();
     document.getElementById('atRequestSection').style.display = 'flex';
+
+    // Populate fields
     methodSelect.value = endpoint.method;
     pathInput.value = endpoint.path;
-    descInput.value = endpoint.description;
-    _renderHeaders(endpoint.headers);
-    document.getElementById('atBodyInput').value = endpoint.body;
-    _renderParams(endpoint.params);
+    descInput.value = endpoint.description || '';
+
+    // Headers
+    const headers = endpoint.headers || {};
+    _renderHeaders(headers);
+
+    // Body — with helpful placeholder when method needs a body but spec had none
+    const bodyInput = document.getElementById('atBodyInput');
+    const body = endpoint.body || '';
+    bodyInput.value = body;
+    bodyInput.placeholder = (!body && ['POST','PUT','PATCH'].includes(endpoint.method))
+        ? '// No schema in spec — enter JSON body manually'
+        : '{"key": "value"}';
+
+    // Params
+    const params = endpoint.params || {};
+    _renderParams(params);
+
+    // Update tab badges showing what has data
+    _updateTabBadges({ headers, body, params });
+
+    // Auto-switch to most useful tab
+    const hasBody   = body.trim().length > 0;
+    const hasParams = Object.keys(params).length > 0;
+    if (hasBody)        _switchTab('body');
+    else if (hasParams) _switchTab('params');
+    else                _switchTab('headers');
+
+    // Scroll into view
+    document.getElementById('atRequestSection')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function _updateTabBadges({ headers, body, params }) {
+    document.querySelectorAll('.at-tab').forEach(tab => {
+        tab.querySelector('.at-tab-badge')?.remove();
+        const name = tab.dataset.tab;
+        let count = 0;
+        if (name === 'headers') count = Object.keys(headers || {}).length;
+        if (name === 'body')    count = (body || '').trim().length > 0 ? 1 : 0;
+        if (name === 'params')  count = Object.keys(params || {}).length;
+        if (count > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'at-tab-badge';
+            badge.textContent = name === 'body' ? '●' : count;
+            tab.appendChild(badge);
+        }
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ACTION HANDLERS
+   ═══════════════════════════════════════════════════════════════ */
 async function _handleAddApi() {
     const name = apiNameInput.value.trim();
     const url = apiUrlInput.value.trim();
@@ -296,7 +569,6 @@ async function _handleAddApi() {
     apiNameInput.value = ''; apiUrlInput.value = '';
     _renderApiList();
 }
-
 async function _handleSaveApiConfig() {
     const name = document.getElementById('atApiName').value.trim();
     const url = document.getElementById('atApiUrl').value.trim();
@@ -304,7 +576,6 @@ async function _handleSaveApiConfig() {
     await updateApi(_selectedApiId, name, url);
     _renderApiList(); _renderApiConfig();
 }
-
 async function _handleDeleteApi() {
     if (!confirm('Delete this API and all its endpoints?')) return;
     await deleteApi(_selectedApiId);
@@ -313,17 +584,15 @@ async function _handleDeleteApi() {
     testPanel.style.display = 'none';
     _renderApiList();
 }
-
 async function _handleAddEndpoint() {
     const api = getApi(_selectedApiId);
     if (!api) return;
     await addEndpoint(_selectedApiId, 'GET', '/endpoint', '');
-    _renderEndpointsList();
     const updated = getApi(_selectedApiId);
+    _renderEndpointsList();
     if (updated.endpoints.length > 0)
         _selectEndpoint(updated.endpoints[updated.endpoints.length - 1].id);
 }
-
 async function _handleDeleteEndpoint(endpointId) {
     if (!confirm('Delete this endpoint?')) return;
     await deleteEndpoint(_selectedApiId, endpointId);
@@ -333,20 +602,16 @@ async function _handleDeleteEndpoint(endpointId) {
     }
     _renderEndpointsList();
 }
-
 async function _handleSaveEndpoint() {
     const method = methodSelect.value;
     const path = pathInput.value.trim();
     const description = descInput.value.trim();
     if (!path) { alert('Path is required'); return; }
-    const headers = _getHeadersFromForm();
-    const body = document.getElementById('atBodyInput').value;
-    const params = _getParamsFromForm();
-    await updateEndpoint(_selectedApiId, _selectedEndpointId, method, path, description, headers, body, params);
+    await updateEndpoint(_selectedApiId, _selectedEndpointId, method, path, description,
+        _getHeadersFromForm(), document.getElementById('atBodyInput').value, _getParamsFromForm());
     alert('Endpoint saved!');
     _renderEndpointsList();
 }
-
 async function _handleSendRequest() {
     if (!_selectedEndpointId) { alert('Please select or create an endpoint first'); return; }
     sendBtn.disabled = true; sendBtn.textContent = '⏳ Sending…';
@@ -362,92 +627,90 @@ async function _handleSendRequest() {
         sendBtn.disabled = false; sendBtn.textContent = '▶ Send Request';
     }
 }
-
 function _handleCancelEdit() {
     document.getElementById('atRequestSection').style.display = 'none';
     _selectedEndpointId = null; _editingEndpointId = null;
     _renderEndpointsList();
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSE DISPLAY
+   ═══════════════════════════════════════════════════════════════ */
 function _displayResponse(response) {
-    const responseDisplay = document.getElementById('atResponseDisplay');
+    const rd = document.getElementById('atResponseDisplay');
     if (response.error) {
-        responseDisplay.innerHTML = `<div class="at-error">
-<strong>❌ Connection Error</strong><br/><code>${response.error}</code><br/><br/>
+        rd.innerHTML = `<div class="at-error"><strong>❌ Connection Error</strong><br/><code>${response.error}</code><br/><br/>
 <small>• Check the URL is correct<br/>• Make sure the API server is running<br/>• Check CORS settings</small></div>`;
         _switchTab('response');
         return;
     }
-    const statusClass = response.status >= 200 && response.status < 300 ? 'at-status-success' :
-                        response.status >= 300 && response.status < 400 ? 'at-status-redirect' : 'at-status-error';
-    const statusIcon = response.status >= 200 && response.status < 300 ? '✅' : '⚠️';
+    const sc = response.status >= 200 && response.status < 300 ? 'at-status-success' :
+               response.status >= 300 && response.status < 400 ? 'at-status-redirect' : 'at-status-error';
+    const si = response.status >= 200 && response.status < 300 ? '✅' : '⚠️';
     const api = getApi(_selectedApiId);
-    const endpoint = api?.endpoints.find(e => e.id === _selectedEndpointId);
-    const fullUrl = api ? `${api.url}${endpoint.path}` : 'unknown';
+    const ep = api?.endpoints.find(e => e.id === _selectedEndpointId);
+    const fullUrl = api ? `${api.url}${ep.path}` : 'unknown';
 
-    let bodyHtml = `<div class="at-response-meta">
+    let html = `<div class="at-response-meta">
 <div>🔗 <strong>URL:</strong> <code>${fullUrl}</code></div>
-<div>📊 <strong>Status:</strong> <span class="${statusClass}">${statusIcon} ${response.status}</span></div>
+<div>📊 <strong>Status:</strong> <span class="${sc}">${si} ${response.status}</span></div>
 <div>⏱️ <strong>Time:</strong> ${new Date(response.timing).toLocaleTimeString()}</div>
 <hr style="border:none;border-top:1px solid var(--border-subtle);margin:8px 0">
 <div><strong>📦 Response Body:</strong></div>
 </div><div class="at-response-code">`;
 
     if (!response.body || response.body === '') {
-        bodyHtml += '<pre style="color:var(--text-muted)">(empty response)</pre>';
+        html += '<pre style="color:var(--text-muted)">(empty response)</pre>';
     } else if (typeof response.body === 'object') {
-        bodyHtml += `<pre>${JSON.stringify(response.body, null, 2)}</pre>`;
+        html += `<pre>${JSON.stringify(response.body, null, 2)}</pre>`;
     } else {
-        try { bodyHtml += `<pre>${JSON.stringify(JSON.parse(response.body), null, 2)}</pre>`; }
-        catch { bodyHtml += `<pre>${response.body}</pre>`; }
+        try { html += `<pre>${JSON.stringify(JSON.parse(response.body), null, 2)}</pre>`; }
+        catch { html += `<pre>${response.body}</pre>`; }
     }
-    bodyHtml += '</div>';
-    responseDisplay.innerHTML = bodyHtml;
+    html += '</div>';
+    rd.innerHTML = html;
     _switchTab('response');
-
-    // Scroll so response is visible
     document.querySelector('.at-right-body')?.scrollTo({ top: 99999, behavior: 'smooth' });
 }
 
-/* ── Tab switching — uses CSS class, NOT inline display style ─── */
+/* ── Tab switching ────────────────────────────────────────────── */
 function _switchTab(tabName) {
-    document.querySelectorAll('.at-tab').forEach(btn => {
-        btn.classList.toggle('at-tab-active', btn.dataset.tab === tabName);
+    document.querySelectorAll('.at-tab').forEach(b => {
+        b.classList.toggle('at-tab-active', b.dataset.tab === tabName);
     });
-    document.querySelectorAll('.at-tab-content').forEach(content => {
-        content.classList.remove('at-tab-content--visible');
+    document.querySelectorAll('.at-tab-content').forEach(c => {
+        c.classList.remove('at-tab-content--visible');
     });
     document.getElementById(`at${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`)
         ?.classList.add('at-tab-content--visible');
 }
 
+/* ── KV helpers ───────────────────────────────────────────────── */
 function _renderHeaders(headers = {}) {
-    const list = document.getElementById('atHeadersList');
-    list.innerHTML = '';
+    const list = document.getElementById('atHeadersList'); list.innerHTML = '';
     Object.entries(headers).forEach(([k, v]) => list.appendChild(_createKVRow('header', k, v)));
 }
 function _getHeadersFromForm() {
-    const headers = {};
+    const h = {};
     document.querySelectorAll('#atHeadersList .at-kv-row').forEach(row => {
         const k = row.querySelector('input:nth-of-type(1)').value.trim();
         const v = row.querySelector('input:nth-of-type(2)').value.trim();
-        if (k) headers[k] = v;
+        if (k) h[k] = v;
     });
-    return headers;
+    return h;
 }
 function _renderParams(params = {}) {
-    const list = document.getElementById('atParamsList');
-    list.innerHTML = '';
+    const list = document.getElementById('atParamsList'); list.innerHTML = '';
     Object.entries(params).forEach(([k, v]) => list.appendChild(_createKVRow('param', k, v)));
 }
 function _getParamsFromForm() {
-    const params = {};
+    const p = {};
     document.querySelectorAll('#atParamsList .at-kv-row').forEach(row => {
         const k = row.querySelector('input:nth-of-type(1)').value.trim();
         const v = row.querySelector('input:nth-of-type(2)').value.trim();
-        if (k) params[k] = v;
+        if (k) p[k] = v;
     });
-    return params;
+    return p;
 }
 function _createKVRow(type, key = '', value = '') {
     const row = document.createElement('div');
@@ -460,7 +723,7 @@ function _createKVRow(type, key = '', value = '') {
     return row;
 }
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', e => {
     if (e.target.id === 'atAddHeaderBtn') document.getElementById('atHeadersList').appendChild(_createKVRow('header'));
     if (e.target.id === 'atAddParamBtn') document.getElementById('atParamsList').appendChild(_createKVRow('param'));
 });
