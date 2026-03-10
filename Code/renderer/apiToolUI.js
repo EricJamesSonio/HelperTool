@@ -21,7 +21,7 @@ let _lastResponse = null;
 
 /* ── DOM Refs ─────────────────────────────────────────────────── */
 let panel, apiList, addApiForm, testPanel, responsePanel;
-let apiNameInput, apiHostInput, apiPortInput, apiBaseUrlInput;
+let apiNameInput, apiUrlInput;
 let methodSelect, pathInput, descInput, sendBtn, responseBody;
 
 /**
@@ -43,28 +43,13 @@ export function toggleApiToolPanel() {
 }
 
 export function openApiToolPanel() {
-    console.log('[API Tool] openApiToolPanel called, _panel =', _panel);
-    
     if (!_panel) {
-        console.log('[API Tool] Panel not found, injecting...');
         _injectPanel();
-        console.log('[API Tool] Panel injected');
         _resolveRefs();
-        console.log('[API Tool] Refs resolved, panel =', panel);
         _wireEvents();
-        console.log('[API Tool] Events wired');
     }
-    
     _panelOpen = true;
-    console.log('[API Tool] Setting panel visible...');
-    
-    if (!panel) {
-        console.error('[API Tool] ERROR: panel is still null after injection!');
-        return;
-    }
-    
     panel.classList.add('at-visible');
-    console.log('[API Tool] Panel should be visible now');
     _renderApiList();
 }
 
@@ -79,13 +64,7 @@ export function isApiToolPanelOpen() {
 
 /* ── Inject HTML ──────────────────────────────────────────────── */
 function _injectPanel() {
-    console.log('[API Tool] _injectPanel called');
-    
-    if (document.getElementById('apiToolPanel')) {
-        console.log('[API Tool] Panel already exists in DOM');
-        return;
-    }
-    
+    if (document.getElementById('apiToolPanel')) return;
     const el = document.createElement('div');
     el.id = 'apiToolPanel';
     el.className = 'at-panel';
@@ -112,10 +91,7 @@ function _injectPanel() {
       <!-- Add API Form -->
       <div class="at-add-form">
         <input type="text" id="atAddApiName" class="at-input at-input-sm" placeholder="API name" maxlength="40" />
-        <div class="at-form-row">
-          <input type="text" id="atAddApiHost" class="at-input at-input-sm" placeholder="host" />
-          <input type="number" id="atAddApiPort" class="at-input at-input-sm" placeholder="port" value="3000" min="1" max="65535" />
-        </div>
+        <input type="url" id="atAddApiUrl" class="at-input at-input-sm" placeholder="http://127.0.0.1:8000" />
         <button id="atAddApiBtn" class="at-btn at-btn-sm at-btn-accent">＋ Add API</button>
       </div>
 
@@ -136,11 +112,9 @@ function _injectPanel() {
         <div class="at-api-config">
           <div class="at-config-row">
             <input type="text" id="atApiName" class="at-input at-input-sm" placeholder="API name" />
-            <input type="text" id="atApiHost" class="at-input at-input-sm" placeholder="host" />
-            <input type="number" id="atApiPort" class="at-input at-input-sm" placeholder="port" min="1" max="65535" />
+            <input type="url" id="atApiUrl" class="at-input at-input-sm" placeholder="http://127.0.0.1:8000" />
           </div>
           <div class="at-config-row">
-            <input type="text" id="atApiBaseUrl" class="at-input at-input-sm" placeholder="Base URL (optional)" />
             <button id="atApiSaveBtn" class="at-btn at-btn-xs at-btn-primary">✓ Save</button>
             <button id="atApiDeleteBtn" class="at-btn at-btn-xs at-btn-danger">🗑 Delete</button>
           </div>
@@ -219,7 +193,6 @@ function _injectPanel() {
   </div>
 </div>`;
     document.body.appendChild(el);
-    console.log('[API Tool] Panel appended to body');
 }
 
 /* ── Resolve DOM Refs ─────────────────────────────────────────── */
@@ -232,9 +205,7 @@ function _resolveRefs() {
     
     // Add API form
     apiNameInput = document.getElementById('atAddApiName');
-    apiHostInput = document.getElementById('atAddApiHost');
-    apiPortInput = document.getElementById('atAddApiPort');
-    apiBaseUrlInput = document.getElementById('atApiBaseUrl');
+    apiUrlInput = document.getElementById('atAddApiUrl');
     
     // Request builder
     methodSelect = document.getElementById('atMethod');
@@ -300,7 +271,7 @@ function _renderApiList() {
         item.innerHTML = `
 <div class="at-api-item-info">
   <div class="at-api-item-name">${api.name}</div>
-  <div class="at-api-item-meta">${api.host}:${api.port}</div>
+  <div class="at-api-item-meta">${api.url}</div>
 </div>
 <div class="at-api-item-count">${api.endpoints.length}</div>`;
         item.addEventListener('click', () => _selectApi(api.id));
@@ -330,9 +301,7 @@ function _renderApiConfig() {
     if (!api) return;
 
     document.getElementById('atApiName').value = api.name;
-    document.getElementById('atApiHost').value = api.host;
-    document.getElementById('atApiPort').value = api.port;
-    document.getElementById('atApiBaseUrl').value = api.baseUrl || '';
+    document.getElementById('atApiUrl').value = api.url;
 }
 
 /* ── Render Endpoints List ────────────────────────────────────── */
@@ -399,34 +368,30 @@ function _selectEndpoint(endpointId) {
 /* ── Handle Add API ───────────────────────────────────────────── */
 async function _handleAddApi() {
     const name = apiNameInput.value.trim();
-    const host = apiHostInput.value.trim();
-    const port = apiPortInput.value.trim();
+    const url = apiUrlInput.value.trim();
 
-    if (!name || !host) {
-        alert('Please enter API name and host');
+    if (!name || !url) {
+        alert('Please enter API name and URL');
         return;
     }
 
-    await createApi(name, host, port || 3000);
+    await createApi(name, url);
     apiNameInput.value = '';
-    apiHostInput.value = '';
-    apiPortInput.value = '3000';
+    apiUrlInput.value = '';
     _renderApiList();
 }
 
 /* ── Handle Save API Config ───────────────────────────────────── */
 async function _handleSaveApiConfig() {
     const name = document.getElementById('atApiName').value.trim();
-    const host = document.getElementById('atApiHost').value.trim();
-    const port = document.getElementById('atApiPort').value.trim();
-    const baseUrl = document.getElementById('atApiBaseUrl').value.trim();
+    const url = document.getElementById('atApiUrl').value.trim();
 
-    if (!name || !host) {
-        alert('API name and host are required');
+    if (!name || !url) {
+        alert('API name and URL are required');
         return;
     }
 
-    await updateApi(_selectedApiId, name, host, port || 3000, baseUrl);
+    await updateApi(_selectedApiId, name, url);
     _renderApiList();
     _renderApiConfig();
 }
@@ -497,14 +462,24 @@ async function _handleSendRequest() {
 
     sendBtn.disabled = true;
     sendBtn.textContent = '⏳ Sending…';
+    
+    // Show response section immediately
     responsePanel.style.display = 'block';
-    responseBody.innerHTML = '<div class="at-loading">Sending request…</div>';
+    responseBody.innerHTML = '<div class="at-loading">⏳ Sending request…</div>';
+    document.getElementById('atResponseStatus').textContent = '';
 
     try {
         const response = await executeRequest(_selectedApiId, _selectedEndpointId);
+        console.log('[API Tool] Full response:', response);
         _displayResponse(response);
     } catch (err) {
-        responseBody.innerHTML = `<div class="at-error">Error: ${err.message}</div>`;
+        console.error('[API Tool] Request error:', err);
+        responseBody.innerHTML = `<div class="at-error">
+<strong>❌ Request Failed</strong><br/>
+${err.message}<br/>
+<small>Check your URL and make sure the API is running</small>
+</div>`;
+        document.getElementById('atResponseStatus').innerHTML = '<span class="at-status-error">❌ Failed</span>';
     } finally {
         sendBtn.disabled = false;
         sendBtn.textContent = '▶ Send Request';
@@ -522,10 +497,19 @@ function _handleCancelEdit() {
 
 /* ── Display Response ─────────────────────────────────────────── */
 function _displayResponse(response) {
+    console.log('[API Tool] Displaying response:', response);
+    
     if (response.error) {
-        document.getElementById('atResponseStatus').innerHTML = '<span class="at-status-error">Error</span>';
+        document.getElementById('atResponseStatus').innerHTML = '<span class="at-status-error">❌ Error</span>';
         responseBody.innerHTML = `<div class="at-error">
-<strong>Error:</strong> ${response.error}
+<strong>❌ Connection Error</strong><br/>
+<code>${response.error}</code><br/>
+<br/>
+<small><strong>Troubleshooting:</strong><br/>
+• Check the URL is correct (http://127.0.0.1:8000)<br/>
+• Make sure the API server is running<br/>
+• Check CORS settings if calling from browser<br/>
+• Verify the endpoint path is correct</small>
 </div>`;
         return;
     }
@@ -535,21 +519,47 @@ function _displayResponse(response) {
                         response.status >= 400 && response.status < 500 ? 'at-status-error' :
                         'at-status-error';
 
+    const statusIcon = response.status >= 200 && response.status < 300 ? '✅' : '⚠️';
+
     document.getElementById('atResponseStatus').innerHTML = 
-        `<span class="${statusClass}">${response.status} ${response.statusText}</span>`;
+        `<span class="${statusClass}">${statusIcon} ${response.status}</span>`;
+
+    const api = getApi(_selectedApiId);
+    const endpoint = api?.endpoints.find(e => e.id === _selectedEndpointId);
+    const fullUrl = api ? `${api.url}${endpoint.path}` : 'unknown';
 
     let bodyHtml = `<div class="at-response-meta">
-<div><strong>Status:</strong> ${response.status} ${response.statusText}</div>
-<div><strong>Time:</strong> ${response.timing}</div>
+<div>🔗 <strong>URL:</strong> <code>${fullUrl}</code></div>
+<div>📊 <strong>Status:</strong> ${response.status} ${response.statusText || ''}</div>
+<div>⏱️ <strong>Time:</strong> ${new Date(response.timing).toLocaleTimeString()}</div>
+<hr style="border: none; border-top: 1px solid var(--border-subtle); margin: 8px 0;">
+<div><strong>📦 Response Body:</strong></div>
 </div>`;
 
-    // Display body
+    // Display body with better formatting
     bodyHtml += '<div class="at-response-code">';
-    if (typeof response.body === 'object') {
-        bodyHtml += `<pre>${JSON.stringify(response.body, null, 2)}</pre>`;
+    
+    if (!response.body || response.body === '') {
+        bodyHtml += '<pre style="color: var(--text-muted);">(empty response)</pre>';
+    } else if (typeof response.body === 'object') {
+        try {
+            bodyHtml += `<pre>${JSON.stringify(response.body, null, 2)}</pre>`;
+        } catch (e) {
+            bodyHtml += `<pre>${String(response.body)}</pre>`;
+        }
+    } else if (typeof response.body === 'string') {
+        // Try to parse as JSON for better display
+        try {
+            const parsed = JSON.parse(response.body);
+            bodyHtml += `<pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+        } catch {
+            // If not JSON, display as plain text
+            bodyHtml += `<pre>${response.body}</pre>`;
+        }
     } else {
-        bodyHtml += `<pre>${response.body}</pre>`;
+        bodyHtml += `<pre>${String(response.body)}</pre>`;
     }
+    
     bodyHtml += '</div>';
 
     responseBody.innerHTML = bodyHtml;

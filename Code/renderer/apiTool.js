@@ -36,15 +36,13 @@ export function getApi(id) {
 }
 
 /**
- * Create new API config
+ * Create new API config (simplified - just name + URL)
  */
-export async function createApi(name, host, port) {
+export async function createApi(name, url) {
     const api = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         name: name.trim(),
-        host: host.trim(),
-        port: parseInt(port) || 3000,
-        baseUrl: '',
+        url: url.trim(),
         endpoints: [],
         createdAt: new Date().toISOString(),
     };
@@ -56,13 +54,11 @@ export async function createApi(name, host, port) {
 /**
  * Update API config
  */
-export async function updateApi(id, name, host, port, baseUrl) {
+export async function updateApi(id, name, url) {
     const api = getApi(id);
     if (!api) return false;
     api.name = name.trim();
-    api.host = host.trim();
-    api.port = parseInt(port) || 3000;
-    api.baseUrl = baseUrl.trim();
+    api.url = url.trim();
     await _saveApis();
     return true;
 }
@@ -140,7 +136,11 @@ export async function executeRequest(apiId, endpointId) {
     if (!endpoint) return { error: 'Endpoint not found' };
 
     try {
-        const url = `http://${api.host}:${api.port}${api.baseUrl}${endpoint.path}`;
+        // Construct full URL from base URL + endpoint path
+        const baseUrl = api.url.endsWith('/') ? api.url.slice(0, -1) : api.url;
+        const fullPath = endpoint.path.startsWith('/') ? endpoint.path : '/' + endpoint.path;
+        const url = baseUrl + fullPath;
+
         const options = {
             method: endpoint.method,
             headers: {
