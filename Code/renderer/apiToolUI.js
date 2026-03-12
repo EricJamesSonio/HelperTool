@@ -16,16 +16,17 @@ let _selectedApiId = null;
 let _selectedEndpointId = null;
 let _editingEndpointId = null;
 let _panelOpen = false;
+let _eventsWired = false;
 
 /* ── DOM Refs ─────────────────────────────────────────────────── */
 let panel, apiList, testPanel;
 let apiNameInput, apiUrlInput;
-let methodSelect, pathInput, descInput, sendBtn;
+let methodSelect, pathInput, descInput;
 
 /* ── Swagger import state ─────────────────────────────────────── */
 let _swOverlay = null;
-let _swParsedEndpoints = [];   // all endpoints from last parse
-let _swChecked = new Set();    // indices the user has ticked
+let _swParsedEndpoints = [];
+let _swChecked = new Set();
 
 /* ═══════════════════════════════════════════════════════════════
    PUBLIC API
@@ -34,21 +35,35 @@ export async function initApiToolUI() {
     await initApiTool();
     _injectPanel();
     _resolveRefs();
-    _wireEvents();
+    if (!_eventsWired) {
+        _wireEvents();
+        _eventsWired = true;
+    }
 }
+
 export function toggleApiToolPanel() {
     if (_panelOpen) closeApiToolPanel(); else openApiToolPanel();
 }
+
 export function openApiToolPanel() {
-    if (!panel) { _injectPanel(); _resolveRefs(); _wireEvents(); }
+    if (!panel) {
+        _injectPanel();
+        _resolveRefs();
+    }
+    if (!_eventsWired) {
+        _wireEvents();
+        _eventsWired = true;
+    }
     _panelOpen = true;
     panel.classList.add('at-visible');
     _renderApiList();
 }
+
 export function closeApiToolPanel() {
     _panelOpen = false;
     panel?.classList.remove('at-visible');
 }
+
 export function isApiToolPanelOpen() { return _panelOpen; }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -176,7 +191,6 @@ function _injectSwaggerModal() {
   </div>
 
   <div class="sw-body">
-    <!-- Step 1: URL -->
     <div>
       <div class="sw-step-label">Spec URL</div>
       <div class="sw-url-row">
@@ -190,12 +204,10 @@ function _injectSwaggerModal() {
       </div>
     </div>
 
-    <!-- Status -->
     <div id="swStatus" class="sw-status"></div>
 
     <hr class="sw-divider" id="swDivider" style="display:none">
 
-    <!-- Step 2: Preview -->
     <div id="swPreview" class="sw-preview">
       <div class="sw-preview-toolbar">
         <div class="sw-preview-count">Found <span id="swFoundCount">0</span> endpoints —
@@ -225,6 +237,7 @@ function _injectSwaggerModal() {
 function _wireSwaggerEvents() {
     document.getElementById('swCloseBtn').addEventListener('click', _closeSwagger);
     document.getElementById('swCancelBtn').addEventListener('click', _closeSwagger);
+    // Only close swagger when clicking the overlay backdrop itself, not the modal
     _swOverlay.addEventListener('click', e => { if (e.target === _swOverlay) _closeSwagger(); });
 
     document.getElementById('swFetchBtn').addEventListener('click', _handleSwaggerFetch);
@@ -241,7 +254,6 @@ function _wireSwaggerEvents() {
         _renderSwaggerPreview();
     });
 
-    // Mode toggle
     document.querySelectorAll('.sw-mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.sw-mode-btn').forEach(b => b.classList.remove('sw-mode-btn--active'));
@@ -254,7 +266,6 @@ function _wireSwaggerEvents() {
 
 /* ── Open swagger modal ───────────────────────────────────────── */
 function _openSwagger() {
-    // Pre-fill URL with base URL + /openapi.json
     const api = getApi(_selectedApiId);
     if (api?.url) {
         const base = api.url.replace(/\/$/, '');
@@ -282,7 +293,6 @@ async function _handleSwaggerFetch() {
     const statusEl = document.getElementById('swStatus');
     const fetchBtn = document.getElementById('swFetchBtn');
 
-    // Loading state
     statusEl.className = 'sw-status sw-status--loading';
     statusEl.innerHTML = '<div class="sw-spinner"></div> Fetching spec…';
     fetchBtn.disabled = true;
@@ -300,7 +310,6 @@ async function _handleSwaggerFetch() {
             return;
         }
 
-        // Default: all checked
         _swChecked = new Set(_swParsedEndpoints.map((_, i) => i));
 
         statusEl.className = 'sw-status sw-status--success';
@@ -354,7 +363,6 @@ async function _handleSwaggerImport() {
     const toImport = _swParsedEndpoints.filter((_, i) => _swChecked.has(i));
     if (toImport.length === 0) return;
 
-    // Replace mode: delete all existing endpoints first
     if (mode === 'replace') {
         const api = getApi(_selectedApiId);
         if (api) {
@@ -364,10 +372,8 @@ async function _handleSwaggerImport() {
         }
     }
 
-    // Add selected endpoints
     for (const ep of toImport) {
         await addEndpoint(_selectedApiId, ep.method, ep.path, ep.description);
-        // Now update it with headers/body/params from the spec
         const api = getApi(_selectedApiId);
         const newEp = api.endpoints[api.endpoints.length - 1];
         if (newEp) {
@@ -382,7 +388,6 @@ async function _handleSwaggerImport() {
     _closeSwagger();
     _renderEndpointsList();
 
-    // Flash a quick success on the endpoints header
     const header = document.querySelector('.at-endpoints-header span');
     const orig = header.textContent;
     header.textContent = `✅ Imported ${toImport.length} endpoints`;
@@ -393,37 +398,57 @@ async function _handleSwaggerImport() {
    RESOLVE REFS + WIRE MAIN EVENTS
    ═══════════════════════════════════════════════════════════════ */
 function _resolveRefs() {
-    panel = document.getElementById('apiToolPanel');
-    apiList = document.getElementById('atApiList');
-    testPanel = document.getElementById('atTestUI');
+    panel        = document.getElementById('apiToolPanel');
+    apiList      = document.getElementById('atApiList');
+    testPanel    = document.getElementById('atTestUI');
     apiNameInput = document.getElementById('atAddApiName');
-    apiUrlInput = document.getElementById('atAddApiUrl');
+    apiUrlInput  = document.getElementById('atAddApiUrl');
     methodSelect = document.getElementById('atMethod');
-    pathInput = document.getElementById('atPath');
-    descInput = document.getElementById('atDescription');
-    sendBtn = document.getElementById('atSendBtn');
+    pathInput    = document.getElementById('atPath');
+    descInput    = document.getElementById('atDescription');
 }
 
 function _wireEvents() {
+    // Close button and backdrop only — removed panel-root click to prevent accidental closes
     document.getElementById('atCloseBtn')?.addEventListener('click', closeApiToolPanel);
-    panel?.addEventListener('click', e => { if (e.target === panel) closeApiToolPanel(); });
+    document.querySelector('.at-backdrop')?.addEventListener('click', closeApiToolPanel);
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && _panelOpen) closeApiToolPanel(); });
 
+    // Stop clicks inside the container from bubbling to backdrop
+    document.querySelector('.at-container')?.addEventListener('click', e => e.stopPropagation());
+
+    // Sidebar
     document.getElementById('atAddApiBtn')?.addEventListener('click', _handleAddApi);
     document.getElementById('atAddApiName')?.addEventListener('keydown', e => { if (e.key === 'Enter') _handleAddApi(); });
+    document.getElementById('atAddApiUrl')?.addEventListener('keydown', e => { if (e.key === 'Enter') _handleAddApi(); });
+
+    // API config
     document.getElementById('atApiSaveBtn')?.addEventListener('click', _handleSaveApiConfig);
     document.getElementById('atApiDeleteBtn')?.addEventListener('click', _handleDeleteApi);
+
+    // Endpoints
     document.getElementById('atAddEndpointBtn')?.addEventListener('click', _handleAddEndpoint);
     document.getElementById('atImportSwaggerBtn')?.addEventListener('click', _openSwagger);
 
+    // Tabs
     document.querySelectorAll('.at-tab').forEach(btn => {
-        btn.addEventListener('click', e => _switchTab(e.target.dataset.tab));
+        btn.addEventListener('click', e => _switchTab(e.target.closest('.at-tab').dataset.tab));
     });
 
+    // Request builder actions
     document.getElementById('atSendBtn')?.addEventListener('click', _handleSendRequest);
     document.getElementById('atSaveEndpointBtn')?.addEventListener('click', _handleSaveEndpoint);
     document.getElementById('atCancelEditBtn')?.addEventListener('click', _handleCancelEdit);
-    document.querySelector('.at-backdrop')?.addEventListener('click', closeApiToolPanel);
+
+    // KV row add buttons — delegated but scoped to the panel
+    panel?.addEventListener('click', e => {
+        if (e.target.id === 'atAddHeaderBtn') {
+            document.getElementById('atHeadersList').appendChild(_createKVRow('header'));
+        }
+        if (e.target.id === 'atAddParamBtn') {
+            document.getElementById('atParamsList').appendChild(_createKVRow('param'));
+        }
+    });
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -488,7 +513,8 @@ function _renderEndpointsList() {
 <button class="at-endpoint-delete" title="Delete">✕</button>`;
         item.querySelector('.at-endpoint-info').addEventListener('click', () => _selectEndpoint(endpoint.id));
         item.querySelector('.at-endpoint-delete').addEventListener('click', e => {
-            e.stopPropagation(); _handleDeleteEndpoint(endpoint.id);
+            e.stopPropagation();
+            _handleDeleteEndpoint(endpoint.id);
         });
         list.appendChild(item);
     });
@@ -505,38 +531,31 @@ function _selectEndpoint(endpointId) {
     _renderEndpointsList();
     document.getElementById('atRequestSection').style.display = 'flex';
 
-    // Populate fields
     methodSelect.value = endpoint.method;
     pathInput.value = endpoint.path;
     descInput.value = endpoint.description || '';
 
-    // Headers
     const headers = endpoint.headers || {};
     _renderHeaders(headers);
 
-    // Body — with helpful placeholder when method needs a body but spec had none
     const bodyInput = document.getElementById('atBodyInput');
     const body = endpoint.body || '';
     bodyInput.value = body;
-    bodyInput.placeholder = (!body && ['POST','PUT','PATCH'].includes(endpoint.method))
+    bodyInput.placeholder = (!body && ['POST', 'PUT', 'PATCH'].includes(endpoint.method))
         ? '// No schema in spec — enter JSON body manually'
         : '{"key": "value"}';
 
-    // Params
     const params = endpoint.params || {};
     _renderParams(params);
 
-    // Update tab badges showing what has data
     _updateTabBadges({ headers, body, params });
 
-    // Auto-switch to most useful tab
     const hasBody   = body.trim().length > 0;
     const hasParams = Object.keys(params).length > 0;
     if (hasBody)        _switchTab('body');
     else if (hasParams) _switchTab('params');
     else                _switchTab('headers');
 
-    // Scroll into view
     document.getElementById('atRequestSection')
         ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -563,27 +582,33 @@ function _updateTabBadges({ headers, body, params }) {
    ═══════════════════════════════════════════════════════════════ */
 async function _handleAddApi() {
     const name = apiNameInput.value.trim();
-    const url = apiUrlInput.value.trim();
+    const url  = apiUrlInput.value.trim();
     if (!name || !url) { alert('Please enter API name and URL'); return; }
     await createApi(name, url);
-    apiNameInput.value = ''; apiUrlInput.value = '';
+    apiNameInput.value = '';
+    apiUrlInput.value  = '';
     _renderApiList();
 }
+
 async function _handleSaveApiConfig() {
     const name = document.getElementById('atApiName').value.trim();
-    const url = document.getElementById('atApiUrl').value.trim();
+    const url  = document.getElementById('atApiUrl').value.trim();
     if (!name || !url) { alert('API name and URL are required'); return; }
     await updateApi(_selectedApiId, name, url);
-    _renderApiList(); _renderApiConfig();
+    _renderApiList();
+    _renderApiConfig();
 }
+
 async function _handleDeleteApi() {
     if (!confirm('Delete this API and all its endpoints?')) return;
     await deleteApi(_selectedApiId);
-    _selectedApiId = null; _selectedEndpointId = null;
+    _selectedApiId     = null;
+    _selectedEndpointId = null;
     document.getElementById('atEmptyTest').style.display = 'flex';
     testPanel.style.display = 'none';
     _renderApiList();
 }
+
 async function _handleAddEndpoint() {
     const api = getApi(_selectedApiId);
     if (!api) return;
@@ -593,6 +618,7 @@ async function _handleAddEndpoint() {
     if (updated.endpoints.length > 0)
         _selectEndpoint(updated.endpoints[updated.endpoints.length - 1].id);
 }
+
 async function _handleDeleteEndpoint(endpointId) {
     if (!confirm('Delete this endpoint?')) return;
     await deleteEndpoint(_selectedApiId, endpointId);
@@ -602,19 +628,29 @@ async function _handleDeleteEndpoint(endpointId) {
     }
     _renderEndpointsList();
 }
+
 async function _handleSaveEndpoint() {
-    const method = methodSelect.value;
-    const path = pathInput.value.trim();
+    const method      = methodSelect.value;
+    const path        = pathInput.value.trim();
     const description = descInput.value.trim();
     if (!path) { alert('Path is required'); return; }
-    await updateEndpoint(_selectedApiId, _selectedEndpointId, method, path, description,
-        _getHeadersFromForm(), document.getElementById('atBodyInput').value, _getParamsFromForm());
+    await updateEndpoint(
+        _selectedApiId, _selectedEndpointId,
+        method, path, description,
+        _getHeadersFromForm(),
+        document.getElementById('atBodyInput').value,
+        _getParamsFromForm()
+    );
     alert('Endpoint saved!');
     _renderEndpointsList();
 }
+
 async function _handleSendRequest() {
     if (!_selectedEndpointId) { alert('Please select or create an endpoint first'); return; }
-    sendBtn.disabled = true; sendBtn.textContent = '⏳ Sending…';
+    const btn = document.getElementById('atSendBtn');
+    if (!btn) return;
+    btn.disabled    = true;
+    btn.textContent = '⏳ Sending…';
     try {
         const response = await executeRequest(_selectedApiId, _selectedEndpointId);
         _displayResponse(response);
@@ -624,12 +660,18 @@ async function _handleSendRequest() {
 <small>Check your URL and make sure the API is running</small></div>`;
         _switchTab('response');
     } finally {
-        sendBtn.disabled = false; sendBtn.textContent = '▶ Send Request';
+        const btnFresh = document.getElementById('atSendBtn');
+        if (btnFresh) {
+            btnFresh.disabled    = false;
+            btnFresh.textContent = '▶ Send Request';
+        }
     }
 }
+
 function _handleCancelEdit() {
     document.getElementById('atRequestSection').style.display = 'none';
-    _selectedEndpointId = null; _editingEndpointId = null;
+    _selectedEndpointId = null;
+    _editingEndpointId  = null;
     _renderEndpointsList();
 }
 
@@ -648,7 +690,7 @@ function _displayResponse(response) {
                response.status >= 300 && response.status < 400 ? 'at-status-redirect' : 'at-status-error';
     const si = response.status >= 200 && response.status < 300 ? '✅' : '⚠️';
     const api = getApi(_selectedApiId);
-    const ep = api?.endpoints.find(e => e.id === _selectedEndpointId);
+    const ep  = api?.endpoints.find(e => e.id === _selectedEndpointId);
     const fullUrl = api ? `${api.url}${ep.path}` : 'unknown';
 
     let html = `<div class="at-response-meta">
@@ -687,9 +729,11 @@ function _switchTab(tabName) {
 
 /* ── KV helpers ───────────────────────────────────────────────── */
 function _renderHeaders(headers = {}) {
-    const list = document.getElementById('atHeadersList'); list.innerHTML = '';
+    const list = document.getElementById('atHeadersList');
+    list.innerHTML = '';
     Object.entries(headers).forEach(([k, v]) => list.appendChild(_createKVRow('header', k, v)));
 }
+
 function _getHeadersFromForm() {
     const h = {};
     document.querySelectorAll('#atHeadersList .at-kv-row').forEach(row => {
@@ -699,10 +743,13 @@ function _getHeadersFromForm() {
     });
     return h;
 }
+
 function _renderParams(params = {}) {
-    const list = document.getElementById('atParamsList'); list.innerHTML = '';
+    const list = document.getElementById('atParamsList');
+    list.innerHTML = '';
     Object.entries(params).forEach(([k, v]) => list.appendChild(_createKVRow('param', k, v)));
 }
+
 function _getParamsFromForm() {
     const p = {};
     document.querySelectorAll('#atParamsList .at-kv-row').forEach(row => {
@@ -712,6 +759,7 @@ function _getParamsFromForm() {
     });
     return p;
 }
+
 function _createKVRow(type, key = '', value = '') {
     const row = document.createElement('div');
     row.className = 'at-kv-row';
@@ -722,8 +770,3 @@ function _createKVRow(type, key = '', value = '') {
     row.querySelector('button').addEventListener('click', () => row.remove());
     return row;
 }
-
-document.addEventListener('click', e => {
-    if (e.target.id === 'atAddHeaderBtn') document.getElementById('atHeadersList').appendChild(_createKVRow('header'));
-    if (e.target.id === 'atAddParamBtn') document.getElementById('atParamsList').appendChild(_createKVRow('param'));
-});

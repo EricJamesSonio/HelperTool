@@ -12,9 +12,14 @@
     justify-content: center !important;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    visibility: hidden;                          /* ADD THIS */
+    transition: opacity 0.2s ease, visibility 0.2s ease;  /* ADD visibility */
 }
-.at-panel.at-visible { opacity: 1 !important; pointer-events: all !important; }
+.at-panel.at-visible {
+    opacity: 1 !important;
+    pointer-events: all !important;
+    visibility: visible;                         /* ADD THIS */
+}
 .at-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); z-index: 1; }
 
 .at-container {
@@ -350,11 +355,13 @@
     backdrop-filter: blur(2px);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.15s ease;
+    visibility: hidden;                          /* ADD THIS */
+    transition: opacity 0.15s ease, visibility 0.15s ease;  /* ADD visibility */
 }
 .sw-overlay.sw-visible {
     opacity: 1;
     pointer-events: all;
+    visibility: visible;                         /* ADD THIS */
 }
 
 .sw-modal {
