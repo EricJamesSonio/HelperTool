@@ -455,3 +455,26 @@ ipcMain.handle('secrets-delete',         (event, id) => {
     writeSecretsFile(data);
     return true;
 });
+
+ipcMain.handle('apiToolGetAll', () => {
+    try {
+        const cfg = config.readConfig();
+        const apis = cfg.apis || [];
+        return apis;
+    } catch (err) {
+        console.error('[IPC] apiToolGetAll error:', err);
+        return [];
+    }
+});
+
+ipcMain.handle('apiToolSaveAll', (event, apis) => {
+    try {
+        const cfg = config.readConfig();
+        cfg.apis = apis;
+        config.writeConfig(cfg);
+        return true;
+    } catch (err) {
+        console.error('[IPC] apiToolSaveAll error:', err);
+        return false;
+    }
+});

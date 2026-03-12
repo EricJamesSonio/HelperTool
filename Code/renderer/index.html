@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="./styles/secret-holder.css">
   <link rel="stylesheet" href="./styles/note-mode.css">
   <link rel="stylesheet" href="./styles/settings.css">
+  <link rel="stylesheet" href="./styles/api-tool.css">
 </head>
 <body>
   <div id="app">
@@ -25,6 +26,27 @@
         <button id="selectRepoBtn" class="primary-btn">
           <span class="btn-icon">📁</span>Select Repo
         </button>
+
+        <!-- ══ TOOLS DROPDOWN ══ -->
+        <div class="tools-dropdown" id="toolsDropdown">
+          <button class="tool-btn tools-trigger-btn" id="toolsTriggerBtn" title="Tools">
+            <span class="btn-icon">🛠️</span>
+            <span class="tools-label">Tools</span>
+            <span class="tools-caret">▾</span>
+          </button>
+          <div class="tools-menu" id="toolsMenu">
+            <div class="tools-menu-header">Tools</div>
+            <button class="tools-menu-item" id="apiToolBtn">
+              <span class="tools-menu-item-icon">🔌</span>
+              <div class="tools-menu-item-info">
+                <span class="tools-menu-item-name">API Tool</span>
+                <span class="tools-menu-item-desc">Test & manage REST endpoints</span>
+              </div>
+            </button>
+            <!-- Add more tool items here in the future -->
+          </div>
+        </div>
+
         <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh">
           <span class="btn-icon refresh-icon">🔄</span>
         </button>
@@ -48,8 +70,8 @@
         </button>
 
         <button id="settingsBtn" class="tool-btn" title="Appearance settings">
-        <span class="btn-icon">🎨</span>
-      </button>
+          <span class="btn-icon">🎨</span>
+        </button>
         <button id="secretHolderBtn" class="tool-btn sh-nav-btn" title="Secret Holder">🔐</button>
 
         <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections">

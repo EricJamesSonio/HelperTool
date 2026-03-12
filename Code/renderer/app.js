@@ -21,16 +21,17 @@ import {
 import { setupSearch, invalidateFlatCache } from './searchManager.js';
 import { initSecretHolder, openSecretHolder, closeSecretHolder, isSecretHolderOpen } from './secretHolder.js';
 import { initSettings, openSettings, hookLegacyThemeToggle } from './settingsManager.js';
+import { openApiToolPanel, closeApiToolPanel, isApiToolPanelOpen, initApiToolUI } from './apiToolUI.js';
 
 /* ── DOM refs ────────────────────────────────────────────────────────────── */
-const selectRepoBtn  = document.getElementById('selectRepoBtn');
-const activeRepoName = document.getElementById('activeRepoName');
-const treeContainer  = document.getElementById('treeContainer');
-const structureBtn   = document.getElementById('structureBtn');
-const codeBtn        = document.getElementById('codeBtn');
-const generateBtn    = document.getElementById('generateBtn');
-const progressBar    = document.getElementById('progressBar');
-const progressText   = document.getElementById('progressText');
+const selectRepoBtn     = document.getElementById('selectRepoBtn');
+const activeRepoName    = document.getElementById('activeRepoName');
+const treeContainer     = document.getElementById('treeContainer');
+const structureBtn      = document.getElementById('structureBtn');
+const codeBtn           = document.getElementById('codeBtn');
+const generateBtn       = document.getElementById('generateBtn');
+const progressBar       = document.getElementById('progressBar');
+const progressText      = document.getElementById('progressText');
 const editDocignoreBtn  = document.getElementById('editDocignoreBtn');
 const selectionCount    = document.getElementById('selectionCount');
 const clearSelectionBtn = document.getElementById('clearSelectionBtn');
@@ -268,6 +269,60 @@ setupFilterInput(() => cachedTree, displayTree);
 setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
 
 window.addEventListener('DOMContentLoaded', async () => {
+    // Initialize API Tool
+    try {
+        await initApiToolUI();
+        console.log('[Init] API Tool initialized');
+    } catch (err) {
+        console.error('[Init] Failed to init API Tool:', err);
+    }
+
+    // ── Tools dropdown ───────────────────────────────────────────
+    const toolsTriggerBtn = document.getElementById('toolsTriggerBtn');
+    const toolsMenu       = document.getElementById('toolsMenu');
+    const apiToolBtn      = document.getElementById('apiToolBtn');
+
+    function openToolsMenu() {
+        toolsMenu?.classList.add('open');
+        toolsTriggerBtn?.classList.add('open');
+    }
+    function closeToolsMenu() {
+        toolsMenu?.classList.remove('open');
+        toolsTriggerBtn?.classList.remove('open');
+    }
+
+    toolsTriggerBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toolsMenu?.classList.contains('open') ? closeToolsMenu() : openToolsMenu();
+    });
+
+    // Close menu when clicking anywhere outside the dropdown
+    document.addEventListener('click', (e) => {
+        if (!document.getElementById('toolsDropdown')?.contains(e.target)) {
+            closeToolsMenu();
+        }
+    });
+
+    // API Tool menu item
+    apiToolBtn?.addEventListener('click', () => {
+        closeToolsMenu();
+        if (isApiToolPanelOpen()) {
+            closeApiToolPanel();
+            apiToolBtn.classList.remove('active');
+        } else {
+            openApiToolPanel();
+            apiToolBtn.classList.add('active');
+        }
+    });
+
+    // Keep menu item active state in sync when panel closes via Esc / backdrop
+    document.addEventListener('keydown', () => {
+        if (!isApiToolPanelOpen()) {
+            apiToolBtn?.classList.remove('active');
+        }
+    });
+
+    // Rest of initialization
     initSettings();
     hookLegacyThemeToggle();
     await loadIgnoredExtensions();

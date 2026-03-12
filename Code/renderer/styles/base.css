@@ -10,11 +10,6 @@
     – Removed duplicate .search-suggestions (also in layout-tree.css)
    ============================================================ */
 
-/* ── System font stack — zero network cost ─────────────────
-   Replace the Google Fonts import above with this.
-   Falls back gracefully on every OS.
-   If you want the exact Syne/JetBrains Mono fonts, download
-   them once, place in renderer/fonts/, and use @font-face.   */
 :root {
   --font-ui:   'Syne', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
@@ -177,7 +172,6 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  /* NO body transition — was causing full-page repaints on every theme var change */
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -204,9 +198,8 @@ body {
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
   position: relative;
-  z-index: 10;
+  z-index: 9998;        /* raised — lets dropdown beat status bar (z:40) and panels */
   overflow: visible;
-  /* Scoped transition — only this element, not body-wide */
   transition: background var(--ease), border-color var(--ease);
 }
 
@@ -379,7 +372,6 @@ body {
 .btn-icon { font-size: 14px; line-height: 1; }
 
 /* ── Status / filter bar ─────────────────────────────────── */
-/* NOTE: detailed rules live in ignore-panel.css (single source of truth) */
 .status-filter-bar {
   display: flex;
   align-items: center;
@@ -393,3 +385,160 @@ body {
   position: relative;
   z-index: 40;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   TOOLS DROPDOWN
+   ══════════════════════════════════════════════════════════════ */
+
+.tools-dropdown {
+  position: relative;
+  z-index: 9999;
+}
+
+/* Trigger button */
+.tools-trigger-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  width: auto !important;
+  padding: 0 12px !important;
+  height: 34px !important;
+  background: var(--blue-dim) !important;
+  border: 1px solid var(--blue) !important;
+  border-radius: var(--r-md) !important;
+  color: var(--blue) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all var(--ease) !important;
+  white-space: nowrap !important;
+  user-select: none !important;
+}
+.tools-trigger-btn:hover {
+  background: rgba(96,165,250,0.22) !important;
+  box-shadow: 0 0 0 3px var(--blue-dim) !important;
+}
+.tools-trigger-btn.open {
+  background: rgba(96,165,250,0.22) !important;
+  box-shadow: 0 0 0 3px var(--blue-dim) !important;
+}
+
+.tools-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--blue);
+}
+.tools-caret {
+  font-size: 9px;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+  line-height: 1;
+  color: var(--blue);
+}
+.tools-trigger-btn.open .tools-caret {
+  transform: rotate(180deg);
+}
+
+/* Dropdown menu card */
+.tools-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 99999;       /* beats everything — panels, overlays, etc. */
+  animation: tools-menu-in 0.13s ease;
+}
+.tools-menu.open {
+  display: flex;
+}
+@keyframes tools-menu-in {
+  from { opacity: 0; transform: translateY(-5px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Section label inside menu */
+.tools-menu-header {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 5px 8px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 2px;
+}
+
+/* Each tool item */
+.tools-menu-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+  height: auto !important;
+  padding: 9px 10px !important;
+  border-radius: var(--r-md) !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  cursor: pointer !important;
+  transition: all var(--ease) !important;
+  text-align: left !important;
+  font-family: var(--font-ui) !important;
+}
+.tools-menu-item:hover {
+  background: var(--blue-dim) !important;
+  border-color: rgba(96,165,250,0.3) !important;
+}
+.tools-menu-item.active {
+  background: var(--blue-dim) !important;
+  border-color: var(--blue) !important;
+}
+
+.tools-menu-item-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+  line-height: 1;
+}
+
+.tools-menu-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tools-menu-item-name {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.tools-menu-item-desc {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.tools-menu-item:hover .tools-menu-item-name { color: var(--blue); }
+.tools-menu-item:hover .tools-menu-item-desc { color: var(--blue); opacity: 0.7; }
+.tools-menu-item.active .tools-menu-item-name { color: var(--blue); }
+.tools-menu-item.active .tools-menu-item-desc { color: var(--blue); opacity: 0.7; }
