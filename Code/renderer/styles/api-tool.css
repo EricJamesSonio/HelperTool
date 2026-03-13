@@ -1,6 +1,11 @@
 /* ============================================================
    API-TOOL.CSS
    RIGHT PANEL: .at-api-config is fixed, .at-right-body scrolls
+   POINTER-EVENTS FIX:
+    – .at-backdrop now has pointer-events: inherit so it correctly
+      inherits none from the parent when panel is not visible,
+      preventing it from blocking clicks on elements beneath it
+      (e.g. Secret Holder inputs).
    ============================================================ */
 
 .at-panel {
@@ -12,15 +17,21 @@
     justify-content: center !important;
     opacity: 0;
     pointer-events: none;
-    visibility: hidden;                          /* ADD THIS */
-    transition: opacity 0.2s ease, visibility 0.2s ease;  /* ADD visibility */
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 .at-panel.at-visible {
     opacity: 1 !important;
     pointer-events: all !important;
-    visibility: visible;                         /* ADD THIS */
+    visibility: visible;
 }
-.at-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); z-index: 1; }
+.at-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 1;
+    pointer-events: inherit; /* inherits 'none' when panel hidden, 'all' when visible */
+}
 
 .at-container {
     position: relative; z-index: 2;
@@ -232,12 +243,12 @@
     margin-bottom: -1px; background: transparent;
     color: var(--text-secondary); font-family: var(--font-ui);
     font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all var(--ease);
+    position: relative;
 }
 .at-tab:hover { color: var(--text-primary); }
 .at-tab.at-tab-active { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* Tab content — natural height, no overflow, no flex magic needed */
-/* JS shows/hides with .at-tab-content--visible class (not display style) */
 .at-tab-content {
     display: none;
     flex-direction: column;
@@ -347,7 +358,7 @@
 .sw-overlay {
     position: fixed;
     inset: 0;
-    z-index: 10001;
+    z-index: 10001; /* above at-panel (9999) and sh-panel (10000) */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -355,13 +366,13 @@
     backdrop-filter: blur(2px);
     opacity: 0;
     pointer-events: none;
-    visibility: hidden;                          /* ADD THIS */
-    transition: opacity 0.15s ease, visibility 0.15s ease;  /* ADD visibility */
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
 }
 .sw-overlay.sw-visible {
     opacity: 1;
     pointer-events: all;
-    visibility: visible;                         /* ADD THIS */
+    visibility: visible;
 }
 
 .sw-modal {
@@ -573,9 +584,6 @@
 .sw-mode-btn:hover:not(.sw-mode-btn--active) { background: var(--bg-hover); color: var(--text-primary); }
 
 /* ── Tab badges (show count of populated fields) ─────────────── */
-.at-tab {
-    position: relative;
-}
 .at-tab-badge {
     display: inline-flex;
     align-items: center;
