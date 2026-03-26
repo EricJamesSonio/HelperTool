@@ -1,0 +1,141 @@
+/* ── Generate split-button ─────────────────────────────────────────────── */
+
+.generate-split-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+}
+
+/* Main generate button — keep all existing .generate-btn styles, just square off the right side */
+.generate-split-btn #generateBtn {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* The little mode-toggle arrow button */
+.generate-mode-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    /* Inherit colours from .action-btn / .generate-btn via cascade */
+    background: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.generate-mode-toggle:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.generate-mode-caret {
+    font-size: 9px;
+    opacity: 0.75;
+    transition: transform 0.2s ease;
+}
+
+.generate-split-btn.menu-open .generate-mode-caret {
+    transform: rotate(180deg);
+}
+
+/* Badge label inside toggle ("Normal" / "Minified") */
+#generateModeLabel {
+    opacity: 0.85;
+}
+
+/* ── Dropdown menu ──────────────────────────────────────────────────────── */
+
+.generate-mode-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 999;
+    min-width: 200px;
+    background: var(--bg-surface, #1e1e2e);
+    border: 1px solid var(--border, rgba(255,255,255,0.12));
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    overflow: hidden;
+    animation: gm-drop 0.15s ease;
+}
+
+@keyframes gm-drop {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.generate-split-btn.menu-open .generate-mode-menu {
+    display: block;
+}
+
+/* Individual items */
+.generate-mode-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: none;
+    border: none;
+    color: var(--text-primary, #e0e0e0);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s ease;
+}
+
+.generate-mode-item:hover {
+    background: var(--bg-hover, rgba(255,255,255,0.07));
+}
+
+.generate-mode-item.active {
+    background: var(--bg-active, rgba(255,255,255,0.04));
+}
+
+.generate-mode-item.active .gm-name::after {
+    content: ' ✓';
+    opacity: 0.6;
+    font-size: 10px;
+}
+
+.gm-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.gm-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.gm-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+}
+
+.gm-desc {
+    font-size: 10px;
+    opacity: 0.55;
+    color: var(--text-secondary, #aaa);
+}
+
+/* ── Minified mode indicator on the main generate button ───────────────── */
+.generate-split-btn[data-mode="minified"] #generateBtn {
+    /* Subtle amber tint to signal minified is active */
+    background: linear-gradient(135deg, #b8860b 0%, #8b6914 100%);
+    box-shadow: 0 0 0 1px rgba(184,134,11,0.4);
+}
+
+.generate-split-btn[data-mode="minified"] #generateBtn .btn-icon::before {
+    content: '⚡';
+}

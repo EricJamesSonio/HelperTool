@@ -3,12 +3,42 @@ const path = require('path');
 const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
+ * Minify a source file's text content.
+ * Strategy: strip blank lines, line comments, collapse leading whitespace.
+ * Keeps string literals intact (no full AST parse — fast & safe for output readability).
+ */
+function minifySource(src) {
+    const lines = src.split('\n');
+    const out = [];
+
+    for (let raw of lines) {
+        // Collapse all leading whitespace to a single space (preserves indentation signal
+        // without eating blank-line budget) then trim trailing space
+        let line = raw.replace(/^\s+/, ' ').trimEnd();
+
+        // Skip blank / whitespace-only lines
+        if (line.trim() === '') continue;
+
+        // Strip full-line // comments (won't touch URLs inside strings — good enough)
+        if (/^\s*\/\//.test(line)) continue;
+
+        // Strip full-line # comments (Python / shell / yaml style)
+        if (/^\s*#/.test(line)) continue;
+
+        // Strip full-line /* … */ single-line block comments
+        if (/^\s*\/\*.*\*\/\s*$/.test(line)) continue;
+
+        out.push(line);
+    }
+
+    return out.join('\n');
+}
+
+/**
  * Recursively collect files from folder respecting ignore rules
- * Skips entire ignored folders
  */
 function getAllFiles(folderPath, repoRoot) {
     if (isIgnored(folderPath, repoRoot)) return [];
-
     if (!fs.existsSync(folderPath)) return [];
 
     const items = fs.readdirSync(folderPath, { withFileTypes: true });
@@ -16,9 +46,7 @@ function getAllFiles(folderPath, repoRoot) {
 
     for (const item of items) {
         const fullPath = path.join(folderPath, item.name);
-
         if (isIgnored(fullPath, repoRoot)) continue;
-
         if (item.isDirectory()) files.push(...getAllFiles(fullPath, repoRoot));
         else files.push(fullPath);
     }
@@ -37,33 +65,46 @@ function findRepoRoot(startPath) {
         }
         dir = path.dirname(dir);
     }
-    return startPath; // fallback to the folder itself
+    return startPath;
 }
 
 /**
- * Generate combined code output from selected items
+ * Generate combined code output from selected items.
+ * @param {string[]} selectedItems
+ * @param {string}   outputFile
+ * @param {Function} onProgress
+ * @param {string}   [repoRoot]
+ * @param {string[]} [ignoreRules]
+ * @param {boolean}  [minify=false]  — when true, strips blanks/comments per file
  */
-async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
+async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules, minify = false) {
     if (!selectedItems.length) return;
 
-    const repoRoot = path.resolve(selectedItems[0]);
-    await getIgnoreRules(repoRoot); // load & cache rules
+    const root = repoRoot || path.resolve(selectedItems[0]);
+    await getIgnoreRules(root);
 
     let allFiles = [];
     for (const item of selectedItems) {
         const stat = fs.statSync(item);
-        if (stat.isDirectory()) allFiles.push(...getAllFiles(item, repoRoot));
-        else if (!isIgnored(item, repoRoot)) allFiles.push(item);
+        if (stat.isDirectory()) allFiles.push(...getAllFiles(item, root));
+        else if (!isIgnored(item, root)) allFiles.push(item);
     }
 
     if (!allFiles.length) return;
 
     const writeStream = fs.createWriteStream(outputFile, { flags: 'w', encoding: 'utf-8' });
+
     for (let i = 0; i < allFiles.length; i++) {
         const filePath = allFiles[i];
-        const relativeName = path.relative(repoRoot, filePath) || path.basename(filePath);
+        const relativeName = path.relative(root, filePath) || path.basename(filePath);
+
+        // Header separator — keep it even in minified mode so files stay identifiable
         writeStream.write(`\n// ===== File: ${relativeName} =====\n`);
-        writeStream.write(fs.readFileSync(filePath, 'utf-8') + '\n');
+
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const content = minify ? minifySource(raw) : raw;
+        writeStream.write(content + '\n');
+
         onProgress(Math.round(((i + 1) / allFiles.length) * 100));
     }
 
@@ -72,7 +113,6 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}) {
 
 /**
  * Get folder tree structure for tree view respecting ignore rules
- * FIXED: Now properly awaits all nested folder promises
  */
 async function getFolderTree(dir, repoRoot = null) {
     if (!repoRoot) repoRoot = path.resolve(dir);
@@ -87,32 +127,25 @@ async function getFolderTree(dir, repoRoot = null) {
         return [];
     }
 
-    // Filter out ignored entries first
-    const validEntries = entries.filter(entry => 
+    const validEntries = entries.filter(entry =>
         !isIgnored(path.join(dir, entry.name), repoRoot)
     );
 
-    // Process all entries and await promises
     const results = await Promise.all(
         validEntries.map(async (entry) => {
             const fullPath = path.join(dir, entry.name);
-            
+
             if (entry.isDirectory()) {
-                // Recursively get children (await the promise!)
                 const children = await getFolderTree(fullPath, repoRoot);
                 return {
                     name: entry.name,
                     path: fullPath,
                     type: 'folder',
-                    children: children,
+                    children,
                 };
             }
-            
-            return { 
-                name: entry.name, 
-                path: fullPath, 
-                type: 'file' 
-            };
+
+            return { name: entry.name, path: fullPath, type: 'file' };
         })
     );
 
