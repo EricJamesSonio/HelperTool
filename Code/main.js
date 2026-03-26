@@ -235,43 +235,6 @@ ipcMain.handle('getFolderTree', async (event, repoPath) => {
 
 ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
 
-ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath) => {
-    try {
-        if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
-
-        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-        const outputDir = path.dirname(filePath);
-        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
-        if (actionType === 'structure') {
-            await fileOps.generateStructure(items, filePath, (percent) => {
-                mainWindow.webContents.send('progress-update', percent);
-            });
-        } else if (actionType === 'code') {
-            await codeOps.generateCode(items, filePath, (percent) => {
-                mainWindow.webContents.send('progress-update', percent);
-            }, repoPath, ignoreRules);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (fs.existsSync(filePath)) {
-            exec(`taskkill /FI "WINDOWTITLE eq helper-output*" /F`, () => {
-                setTimeout(() => {
-                    exec(`notepad "${filePath}"`, (err) => {
-                        if (err) shell.openPath(filePath);
-                    });
-                }, 300);
-            });
-        }
-
-        return true;
-    } catch (err) {
-        console.error('[IPC] generate error:', err);
-        dialog.showErrorBox('Generate Error', err.message);
-        return false;
-    }
-});
 
 ipcMain.handle('open-docignore', async (event, repoPath) => {
     try {
@@ -475,6 +438,52 @@ ipcMain.handle('apiToolSaveAll', (event, apis) => {
         return true;
     } catch (err) {
         console.error('[IPC] apiToolSaveAll error:', err);
+        return false;
+    }
+});
+
+// ── DROP-IN REPLACEMENT for the ipcMain.handle('generate', …) block in main.js ──
+// Adds the `minify` flag forwarded from the renderer.
+
+ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath, minify = false) => {
+    try {
+        if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
+
+        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+        const outputDir = path.dirname(filePath);
+        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+        if (actionType === 'structure') {
+            await fileOps.generateStructure(items, filePath, (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+            });
+        } else if (actionType === 'code') {
+            await codeOps.generateCode(
+                items,
+                filePath,
+                (percent) => { mainWindow.webContents.send('progress-update', percent); },
+                repoPath,
+                ignoreRules,
+                minify          // ← new param
+            );
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (fs.existsSync(filePath)) {
+            exec(`taskkill /FI "WINDOWTITLE eq helper-output*" /F`, () => {
+                setTimeout(() => {
+                    exec(`notepad "${filePath}"`, (err) => {
+                        if (err) shell.openPath(filePath);
+                    });
+                }, 300);
+            });
+        }
+
+        return true;
+    } catch (err) {
+        console.error('[IPC] generate error:', err);
+        dialog.showErrorBox('Generate Error', err.message);
         return false;
     }
 });

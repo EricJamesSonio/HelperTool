@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./styles/note-mode.css">
   <link rel="stylesheet" href="./styles/settings.css">
   <link rel="stylesheet" href="./styles/api-tool.css">
+  <link rel="stylesheet" href="./styles/minified.css">
 </head>
 <body>
   <div id="app">
@@ -56,7 +57,33 @@
       <div class="navbar-section center">
         <button id="structureBtn" class="action-btn"><span class="btn-icon">🌳</span>Structure</button>
         <button id="codeBtn" class="action-btn"><span class="btn-icon">💻</span>Code</button>
-        <button id="generateBtn" class="action-btn generate-btn"><span class="btn-icon">⚡</span>Generate</button>
+        <!-- ── REPLACE the single <button id="generateBtn"> with this split-button group ── -->
+
+<div class="generate-split-btn" id="generateSplitGroup">
+  <button id="generateBtn" class="action-btn generate-btn" title="Generate output">
+    <span class="btn-icon">⚡</span>Generate
+  </button>
+  <button id="generateModeToggle" class="action-btn generate-mode-toggle" title="Toggle minified output">
+    <span id="generateModeLabel">Normal</span>
+    <span class="generate-mode-caret">▾</span>
+  </button>
+  <div class="generate-mode-menu" id="generateModeMenu">
+    <button class="generate-mode-item active" data-mode="normal">
+      <span class="gm-icon">📄</span>
+      <div class="gm-info">
+        <span class="gm-name">Normal</span>
+        <span class="gm-desc">Full source, comments &amp; spacing kept</span>
+      </div>
+    </button>
+    <button class="generate-mode-item" data-mode="minified">
+      <span class="gm-icon">⚡</span>
+      <div class="gm-info">
+        <span class="gm-name">Minified</span>
+        <span class="gm-desc">No blank lines, no comments</span>
+      </div>
+    </button>
+  </div>
+</div>
 
         <button id="viewModeBtn" class="view-mode-btn active-list" title="Switch to Tree mode">
           ☰ Roof Mode
