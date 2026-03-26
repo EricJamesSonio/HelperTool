@@ -4,34 +4,40 @@ const { isIgnored, getIgnoreRules } = require('./docignore');
 
 /**
  * Minify a source file's text content.
- * Strategy: strip blank lines, line comments, collapse leading whitespace.
- * Keeps string literals intact (no full AST parse — fast & safe for output readability).
+ * - Removes all blank lines
+ * - Removes full-line // comments
+ * - Removes full-line # comments
+ * - Removes full-line /* ... *\/ block comments
+ * - Strips ALL leading and trailing whitespace from each line
+ * - Joins everything with no separator (pure wall of code)
  */
 function minifySource(src) {
     const lines = src.split('\n');
     const out = [];
 
-    for (let raw of lines) {
-        // Collapse all leading whitespace to a single space (preserves indentation signal
-        // without eating blank-line budget) then trim trailing space
-        let line = raw.replace(/^\s+/, ' ').trimEnd();
+    for (const raw of lines) {
+        const line = raw.trim();
 
-        // Skip blank / whitespace-only lines
-        if (line.trim() === '') continue;
+        // Skip blank lines
+        if (line === '') continue;
 
-        // Strip full-line // comments (won't touch URLs inside strings — good enough)
-        if (/^\s*\/\//.test(line)) continue;
+        // Skip full-line // comments
+        if (line.startsWith('//')) continue;
 
-        // Strip full-line # comments (Python / shell / yaml style)
-        if (/^\s*#/.test(line)) continue;
+        // Skip full-line # comments
+        if (line.startsWith('#')) continue;
 
-        // Strip full-line /* … */ single-line block comments
-        if (/^\s*\/\*.*\*\/\s*$/.test(line)) continue;
+        // Skip full-line /* ... */ block comments
+        if (line.startsWith('/*') && line.endsWith('*/')) continue;
+
+        // Skip full-line * ... (inside block comments)
+        if (line.startsWith('*')) continue;
 
         out.push(line);
     }
 
-    return out.join('\n');
+    // Join with a single space so tokens don't merge (e.g. "return" + "{" stays readable)
+    return out.join(' ');
 }
 
 /**
@@ -75,7 +81,7 @@ function findRepoRoot(startPath) {
  * @param {Function} onProgress
  * @param {string}   [repoRoot]
  * @param {string[]} [ignoreRules]
- * @param {boolean}  [minify=false]  — when true, strips blanks/comments per file
+ * @param {boolean}  [minify=false]
  */
 async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules, minify = false) {
     if (!selectedItems.length) return;
@@ -98,7 +104,7 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}, re
         const filePath = allFiles[i];
         const relativeName = path.relative(root, filePath) || path.basename(filePath);
 
-        // Header separator — keep it even in minified mode so files stay identifiable
+        // Always keep the file header so files stay identifiable
         writeStream.write(`\n// ===== File: ${relativeName} =====\n`);
 
         const raw = fs.readFileSync(filePath, 'utf-8');
