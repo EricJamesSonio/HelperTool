@@ -183,7 +183,7 @@ async function loadLastActiveRepo() {
     }
 }
 
-/* ── Generate mode (Normal / Minified) split-button ─────────────────────── */
+/* ── Generate mode split-button (toggle arrow open/close) ───────────────── */
 generateModeToggle.addEventListener('click', (e) => {
     e.stopPropagation();
     generateSplitGroup.classList.toggle('menu-open');
@@ -194,26 +194,6 @@ document.addEventListener('click', (e) => {
     if (!generateSplitGroup.contains(e.target)) {
         generateSplitGroup.classList.remove('menu-open');
     }
-});
-
-// Wire up each mode item inside the dropdown
-document.querySelectorAll('.generate-mode-item').forEach(item => {
-    item.addEventListener('click', () => {
-        const mode = item.dataset.mode;
-        generateMinified = (mode === 'minified');
-
-        // Update the label on the toggle button
-        generateModeLabel.textContent = generateMinified ? 'Minified' : 'Normal';
-
-        // Swap active class among items
-        document.querySelectorAll('.generate-mode-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
-
-        // Tint the split group so the user always knows which mode is armed
-        generateSplitGroup.dataset.mode = mode;
-
-        generateSplitGroup.classList.remove('menu-open');
-    });
 });
 
 /* ── Button events ───────────────────────────────────────────────────────── */
@@ -318,7 +298,29 @@ setupFilterInput(() => cachedTree, displayTree);
 setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
 
 window.addEventListener('DOMContentLoaded', async () => {
-    // Initialize API Tool
+
+    // ── Generate mode items — wired here so the dropdown elements
+    //    exist in the DOM before we query them ────────────────────
+    document.querySelectorAll('.generate-mode-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const mode = item.dataset.mode;
+            generateMinified = (mode === 'minified');
+
+            // Update the label on the toggle button
+            generateModeLabel.textContent = generateMinified ? 'Minified' : 'Normal';
+
+            // Swap active class among items
+            document.querySelectorAll('.generate-mode-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            // Tint the split group so the user always knows which mode is armed
+            generateSplitGroup.dataset.mode = mode;
+
+            generateSplitGroup.classList.remove('menu-open');
+        });
+    });
+
+    // ── Initialize API Tool ──────────────────────────────────────
     try {
         await initApiToolUI();
         console.log('[Init] API Tool initialized');
