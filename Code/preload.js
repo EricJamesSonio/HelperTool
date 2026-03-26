@@ -15,8 +15,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ------------------------
     // Generate structure/code
     // ------------------------
-    generate: (actionType, repoPath, items, filePath) => {
-        return ipcRenderer.invoke('generate', actionType, repoPath, items, filePath);
+// ── REPLACE the existing generate line inside contextBridge.exposeInMainWorld ──
+
+    generate: (actionType, repoPath, items, filePath, minify = false) => {
+        return ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify);
     },
 
     // ------------------------

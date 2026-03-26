@@ -24,24 +24,27 @@ import { initSettings, openSettings, hookLegacyThemeToggle } from './settingsMan
 import { openApiToolPanel, closeApiToolPanel, isApiToolPanelOpen, initApiToolUI } from './apiToolUI.js';
 
 /* ── DOM refs ────────────────────────────────────────────────────────────── */
-const selectRepoBtn     = document.getElementById('selectRepoBtn');
-const activeRepoName    = document.getElementById('activeRepoName');
-const treeContainer     = document.getElementById('treeContainer');
-const structureBtn      = document.getElementById('structureBtn');
-const codeBtn           = document.getElementById('codeBtn');
-const generateBtn       = document.getElementById('generateBtn');
-const progressBar       = document.getElementById('progressBar');
-const progressText      = document.getElementById('progressText');
-const editDocignoreBtn  = document.getElementById('editDocignoreBtn');
-const selectionCount    = document.getElementById('selectionCount');
-const clearSelectionBtn = document.getElementById('clearSelectionBtn');
-const refreshBtn        = document.getElementById('refreshBtn');
-const secretHolderBtn   = document.getElementById('secretHolderBtn');
-const viewModeBtn       = document.getElementById('viewModeBtn');
-const themeToggleBtn    = document.getElementById('themeToggleBtn');
-const themeIcon         = document.getElementById('themeIcon');
-const themeLabel        = document.getElementById('themeLabel');
-const settingsBtn       = document.getElementById('settingsBtn');
+const selectRepoBtn      = document.getElementById('selectRepoBtn');
+const activeRepoName     = document.getElementById('activeRepoName');
+const treeContainer      = document.getElementById('treeContainer');
+const structureBtn       = document.getElementById('structureBtn');
+const codeBtn            = document.getElementById('codeBtn');
+const generateBtn        = document.getElementById('generateBtn');
+const progressBar        = document.getElementById('progressBar');
+const progressText       = document.getElementById('progressText');
+const editDocignoreBtn   = document.getElementById('editDocignoreBtn');
+const selectionCount     = document.getElementById('selectionCount');
+const clearSelectionBtn  = document.getElementById('clearSelectionBtn');
+const refreshBtn         = document.getElementById('refreshBtn');
+const secretHolderBtn    = document.getElementById('secretHolderBtn');
+const viewModeBtn        = document.getElementById('viewModeBtn');
+const themeToggleBtn     = document.getElementById('themeToggleBtn');
+const themeIcon          = document.getElementById('themeIcon');
+const themeLabel         = document.getElementById('themeLabel');
+const settingsBtn        = document.getElementById('settingsBtn');
+const generateSplitGroup = document.getElementById('generateSplitGroup');
+const generateModeToggle = document.getElementById('generateModeToggle');
+const generateModeLabel  = document.getElementById('generateModeLabel');
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let selectedRepoPath = null;
@@ -49,6 +52,7 @@ let selectedItems    = [];
 let actionType       = 'code';
 let cachedTree       = null;
 let viewMode         = localStorage.getItem('helpertool-viewmode') || 'list';
+let generateMinified = false;
 
 generateBtn.disabled = true;
 
@@ -179,6 +183,19 @@ async function loadLastActiveRepo() {
     }
 }
 
+/* ── Generate mode split-button (toggle arrow open/close) ───────────────── */
+generateModeToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    generateSplitGroup.classList.toggle('menu-open');
+});
+
+// Close the mode menu when clicking anywhere outside the split group
+document.addEventListener('click', (e) => {
+    if (!generateSplitGroup.contains(e.target)) {
+        generateSplitGroup.classList.remove('menu-open');
+    }
+});
+
 /* ── Button events ───────────────────────────────────────────────────────── */
 selectRepoBtn.addEventListener('click', async () => {
     try {
@@ -235,12 +252,16 @@ editDocignoreBtn.addEventListener('click', async () => {
 
 structureBtn.addEventListener('click', () => {
     actionType = 'structure';
+    // Hide the mode toggle — minified is only meaningful for code output
+    generateModeToggle.style.display = 'none';
     resetSelection();
     displayTree();
 });
 
 codeBtn.addEventListener('click', () => {
     actionType = 'code';
+    // Restore the mode toggle
+    generateModeToggle.style.display = '';
     resetSelection();
     displayTree();
 });
@@ -254,7 +275,15 @@ generateBtn.addEventListener('click', async () => {
         progressBar.value        = 0;
         progressText.textContent = '0%';
 
-        const success = await window.electronAPI.generate(actionType, selectedRepoPath, selectedItems, filePath);
+        // Pass minify flag — only applied in code mode, ignored for structure
+        const success = await window.electronAPI.generate(
+            actionType,
+            selectedRepoPath,
+            selectedItems,
+            filePath,
+            actionType === 'code' ? generateMinified : false
+        );
+
         if (!success) alert('Generation failed.');
         resetSelection();
         displayTree();
@@ -269,7 +298,29 @@ setupFilterInput(() => cachedTree, displayTree);
 setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
 
 window.addEventListener('DOMContentLoaded', async () => {
-    // Initialize API Tool
+
+    // ── Generate mode items — wired here so the dropdown elements
+    //    exist in the DOM before we query them ────────────────────
+    document.querySelectorAll('.generate-mode-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const mode = item.dataset.mode;
+            generateMinified = (mode === 'minified');
+
+            // Update the label on the toggle button
+            generateModeLabel.textContent = generateMinified ? 'Minified' : 'Normal';
+
+            // Swap active class among items
+            document.querySelectorAll('.generate-mode-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            // Tint the split group so the user always knows which mode is armed
+            generateSplitGroup.dataset.mode = mode;
+
+            generateSplitGroup.classList.remove('menu-open');
+        });
+    });
+
+    // ── Initialize API Tool ──────────────────────────────────────
     try {
         await initApiToolUI();
         console.log('[Init] API Tool initialized');
