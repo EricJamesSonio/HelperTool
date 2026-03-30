@@ -1,16 +1,22 @@
 /**
  * settingsManager.js
  * PERF FIXES:
- *  – FULL_THEMES object is still defined once (unavoidable for the picker UI),
- *    but applySettings() no longer keeps the entire object in a hot loop —
- *    it accesses only the active theme's data.
  *  – rgba() helper is memoised to avoid recomputing the same values on
- *    every applySettings() call (theme switches are infrequent, but boot
- *    was computing ~40 rgba() calls unnecessarily on every page load).
- *  – buildModal() is now lazy — the DOM is only created when openSettings()
- *    is called for the first time, not at initSettings() / boot.
+ *    every applySettings() call.
+ *  – buildModal() is lazy — DOM is only created when openSettings() is
+ *    called for the first time, not at initSettings() / boot.
+ *  – applySettings() builds one <style> string and swaps ONE tag —
+ *    single cascade recalc instead of 50+ setProperty() calls.
  *  – syncControls() guards against missing elements (defensive).
+ *
+ * FEATURES PANEL:
+ *  – Added "Features" section at the bottom of the settings modal.
+ *  – Imports getFeatures / saveFeatures from featureManager.js.
+ *  – Save triggers location.reload() so disabled modules are skipped
+ *    on the next boot.
  */
+
+import { getFeatures, saveFeatures } from './featureManager.js';
 
 /* ─── Memoised rgba helper ────────────────────────────────────────────────── */
 const _rgbaCache = new Map();
@@ -259,11 +265,21 @@ const ACCENT_SWATCHES = [
   { id:'pink',   hex:'#f472b6', label:'Pink'   },
 ];
 
+/* ─── Features metadata (mirrors featureManager.js) ──────────────────────── */
+const FEATURES_META = [
+  { id: 'apiTool',       icon: '🔌', label: 'API Tool',          desc: 'Built-in API tester + Swagger import', heavy: true  },
+  { id: 'secretHolder',  icon: '🔐', label: 'Secret Holder',     desc: 'Password-protected vault for keys & notes', heavy: false },
+  { id: 'themeEngine',   icon: '🎨', label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)', heavy: true  },
+  { id: 'folderFilters', icon: '📁', label: 'Folder Filters',    desc: 'Ignore / Focus folder panels', heavy: false },
+  { id: 'swagger',       icon: '⚡', label: 'Swagger Import',    desc: 'OpenAPI spec import — only useful with API Tool', heavy: false },
+];
+
+/* ─── Settings state ──────────────────────────────────────────────────────── */
 const DEFAULT_SETTINGS = { themeId: 'navy-dark', customAccent: null, fontSize: 14, compactMode: false };
 const STORAGE_KEY = 'helpertool-settings';
 
-let settings  = loadSettings();
-let overlayEl = null;    // lazy — created on first openSettings() call
+let settings    = loadSettings();
+let overlayEl   = null;
 let _modalBuilt = false;
 
 function loadSettings() {
@@ -271,6 +287,7 @@ function loadSettings() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      // migrate old theme key
       if (parsed.theme && !parsed.themeId) {
         parsed.themeId = parsed.theme === 'light' ? 'cream-light' : 'navy-dark';
         delete parsed.theme; delete parsed.accentId;
@@ -286,24 +303,18 @@ function saveSettings() {
 }
 
 /* ─── Apply CSS variables ─────────────────────────────────────────────────── */
-// PERF: Instead of 50+ individual setProperty() calls (each one invalidates the
-// entire CSS cascade and triggers a style recalc), we build the full :root block
-// as a single string and swap ONE <style> tag. The browser processes it in one
-// pass — one recalc, one repaint, ~10x less CPU on theme switch.
-
-let _themeStyleEl = null;   // the injected <style> tag, reused across switches
+let _themeStyleEl = null;
 
 function applySettings(s = settings) {
-  const root   = document.documentElement;
-  const theme  = FULL_THEMES[s.themeId] || FULL_THEMES['navy-dark'];
-  const isDark = theme.dark;
+  const root      = document.documentElement;
+  const theme     = FULL_THEMES[s.themeId] || FULL_THEMES['navy-dark'];
+  const isDark    = theme.dark;
   const accentHex = s.customAccent || theme.accent;
 
   const depths = s.customAccent
     ? [s.customAccent, ...theme.depths.slice(1)]
     : theme.depths;
 
-  // Build the full :root variable block as one string
   const depthVars = depths.map((color, i) => `
   --dl${i}-color:  ${color};
   --dl${i}-bg:     ${rgba(color, isDark ? 0.10 : 0.08)};
@@ -364,17 +375,14 @@ function applySettings(s = settings) {
   ${depthVars}
 }`;
 
-  // Reuse the same <style> tag — just replace its text content
   if (!_themeStyleEl) {
     _themeStyleEl = document.createElement('style');
     _themeStyleEl.id = 'theme-vars';
     document.head.appendChild(_themeStyleEl);
   }
-  _themeStyleEl.textContent = css;   // single DOM write → single cascade recalc
+  _themeStyleEl.textContent = css;
 
-  // data-theme attribute controls light/dark selector in CSS files
   isDark ? root.removeAttribute('data-theme') : root.setAttribute('data-theme', 'light');
-
   document.body.style.fontSize = `${s.fontSize}px`;
   root.classList.toggle('compact-mode', !!s.compactMode);
   syncThemeToggleBtn(isDark);
@@ -401,15 +409,19 @@ function _ensureModal() {
       <div class="settings-header">
         <span class="settings-title">
           <span class="settings-title-icon">🎨</span>
-          Appearance Settings
+          Appearance &amp; Features
         </span>
         <button class="settings-close-btn" id="settingsCloseBtn" title="Close">✕</button>
       </div>
       <div class="settings-body">
+
+        <!-- ── Theme ── -->
         <div class="settings-section">
           <div class="settings-section-label">Theme</div>
           <div class="theme-grid" id="settingsThemeGrid"></div>
         </div>
+
+        <!-- ── Accent ── -->
         <div class="settings-section">
           <div class="settings-section-label">Accent Color Override</div>
           <div class="settings-row">
@@ -420,6 +432,8 @@ function _ensureModal() {
             <div class="settings-swatches" id="settingsSwatches"></div>
           </div>
         </div>
+
+        <!-- ── Font Size ── -->
         <div class="settings-section">
           <div class="settings-section-label">Font Size</div>
           <div class="settings-row">
@@ -433,6 +447,8 @@ function _ensureModal() {
             </div>
           </div>
         </div>
+
+        <!-- ── Layout ── -->
         <div class="settings-section">
           <div class="settings-section-label">Layout</div>
           <div class="settings-row">
@@ -446,15 +462,39 @@ function _ensureModal() {
             </label>
           </div>
         </div>
+
+        <!-- ── Features ── -->
+        <div class="settings-section" id="settingsFeaturesSection">
+          <div class="settings-section-label">Features</div>
+          <p style="font-size:0.77rem;color:var(--text-muted);margin:0 0 10px;line-height:1.5">
+            Disable features you don't use to make the app load faster.
+            Changes take effect after reloading the app.
+          </p>
+          <div id="settingsFeatureList" style="display:flex;flex-direction:column;gap:5px"></div>
+          <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:12px;gap:10px">
+            <span id="settingsFeatSavedBadge"
+              style="font-size:0.75rem;color:var(--green);opacity:0;transition:opacity 0.3s">
+              ✓ Saved — reloading…
+            </span>
+            <button id="settingsFeatSaveBtn"
+              style="padding:7px 16px;border:none;border-radius:7px;
+                     background:var(--accent);color:#000;font-weight:700;
+                     cursor:pointer;font-size:0.8rem;transition:opacity 0.15s">
+              Save &amp; Reload
+            </button>
+          </div>
+        </div>
+
       </div>
       <div class="settings-footer">
-        <button class="settings-reset-btn" id="settingsResetBtn">↺ Reset defaults</button>
+        <button class="settings-reset-btn" id="settingsResetBtn">↺ Reset appearance defaults</button>
         <span class="settings-saved-badge" id="settingsSavedBadge">✓ Saved</span>
       </div>
     </div>`;
 
   document.body.appendChild(overlayEl);
 
+  /* ── Core appearance listeners ── */
   overlayEl.addEventListener('click', e => { if (e.target === overlayEl) closeSettings(); });
   document.getElementById('settingsCloseBtn')?.addEventListener('click', closeSettings);
   document.addEventListener('keydown', e => {
@@ -475,9 +515,76 @@ function _ensureModal() {
     saveAndApply();
     syncControls();
   });
+
+  /* ── Features save button ── */
+  document.getElementById('settingsFeatSaveBtn')?.addEventListener('click', async () => {
+    const updated = {};
+    FEATURES_META.forEach(f => {
+      updated[f.id] = !!document.getElementById(`sf-feat-${f.id}`)?.checked;
+    });
+    await saveFeatures(updated);
+    const badge = document.getElementById('settingsFeatSavedBadge');
+    if (badge) { badge.style.opacity = '1'; }
+    setTimeout(() => location.reload(), 900);
+  });
 }
 
-/* ─── Render theme grid ───────────────────────────────────────────────────── */
+/* ─── Render features list ────────────────────────────────────────────────── */
+function _renderFeaturesList() {
+  const list = document.getElementById('settingsFeatureList');
+  if (!list) return;
+
+  const current = getFeatures();
+  list.innerHTML = '';
+
+  FEATURES_META.forEach(f => {
+    const isOn = !!current[f.id];
+
+    const row = document.createElement('label');
+    row.htmlFor   = `sf-feat-${f.id}`;
+    row.className = 'sf-feat-row';
+    row.style.cssText = `
+      display:flex; align-items:center; gap:10px;
+      padding:8px 10px; border-radius:8px; cursor:pointer;
+      border:1px solid var(--border-subtle);
+      background:${isOn ? 'var(--bg-active)' : 'transparent'};
+      transition:background 0.15s, border-color 0.15s;
+    `;
+
+    row.innerHTML = `
+      <span style="font-size:1.15rem;flex-shrink:0">${f.icon}</span>
+      <span style="flex:1;min-width:0">
+        <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);display:block">
+          ${f.label}
+          ${f.heavy ? `<span style="
+            display:inline-block;font-size:0.6rem;font-weight:700;
+            text-transform:uppercase;letter-spacing:0.5px;
+            color:var(--yellow);background:var(--yellow-dim);
+            border:1px solid rgba(251,191,36,0.25);border-radius:4px;
+            padding:1px 5px;margin-left:4px;vertical-align:middle">heavy</span>` : ''}
+        </span>
+        <span style="font-size:0.74rem;color:var(--text-muted)">${f.desc}</span>
+      </span>
+      <input
+        type="checkbox"
+        id="sf-feat-${f.id}"
+        ${isOn ? 'checked' : ''}
+        style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);flex-shrink:0"
+      />
+    `;
+
+    // live bg update on toggle
+    const cb = row.querySelector('input');
+    cb.addEventListener('change', () => {
+      row.style.background    = cb.checked ? 'var(--bg-active)' : 'transparent';
+      row.style.borderColor   = cb.checked ? 'var(--border-default)' : 'var(--border-subtle)';
+    });
+
+    list.appendChild(row);
+  });
+}
+
+/* ─── Theme grid + swatches ───────────────────────────────────────────────── */
 function renderThemeGrid() {
   const grid = document.getElementById('settingsThemeGrid');
   if (!grid) return;
@@ -549,6 +656,7 @@ function renderSwatches() {
   container.appendChild(custom);
 }
 
+/* ─── Sync all controls to current state ─────────────────────────────────── */
 function syncControls() {
   const compactToggle = document.getElementById('settingsCompactToggle');
   const fontSlider    = document.getElementById('settingsFontSlider');
@@ -558,6 +666,7 @@ function syncControls() {
   if (fontValue)     fontValue.textContent  = `${settings.fontSize}px`;
   renderThemeGrid();
   renderSwatches();
+  _renderFeaturesList();   // ← re-render features with fresh flag state
 }
 
 function saveAndApply() { saveSettings(); applySettings(); flashSaved(); }
@@ -572,7 +681,7 @@ function flashSaved() {
 
 /* ─── Public API ──────────────────────────────────────────────────────────── */
 export function openSettings() {
-  _ensureModal();            // build DOM lazily on first open
+  _ensureModal();
   syncControls();
   overlayEl.classList.add('open');
 }
@@ -590,14 +699,18 @@ export function hookLegacyThemeToggle() {
     const theme = FULL_THEMES[settings.themeId] || FULL_THEMES['navy-dark'];
     if (theme.dark) {
       const lightCounterpart = {
-        'navy-dark': 'cream-light', 'catppuccin-mocha': 'catppuccin-latte',
-        'solarized-dark': 'solarized-light', 'github-dark': 'github-light',
+        'navy-dark':       'cream-light',
+        'catppuccin-mocha':'catppuccin-latte',
+        'solarized-dark':  'solarized-light',
+        'github-dark':     'github-light',
       };
       settings.themeId = lightCounterpart[settings.themeId] || 'cream-light';
     } else {
       const darkCounterpart = {
-        'cream-light': 'navy-dark', 'catppuccin-latte': 'catppuccin-mocha',
-        'solarized-light': 'solarized-dark', 'github-light': 'github-dark',
+        'cream-light':      'navy-dark',
+        'catppuccin-latte': 'catppuccin-mocha',
+        'solarized-light':  'solarized-dark',
+        'github-light':     'github-dark',
       };
       settings.themeId = darkCounterpart[settings.themeId] || 'navy-dark';
     }
@@ -607,6 +720,6 @@ export function hookLegacyThemeToggle() {
 }
 
 export function initSettings() {
-  applySettings();   // apply current theme vars immediately at boot
+  applySettings();   // apply theme CSS vars immediately at boot
   // Modal DOM is NOT built here — deferred to first openSettings() call
 }
