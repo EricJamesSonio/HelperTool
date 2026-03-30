@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Repo selection
     // ------------------------
     selectRepo: () => ipcRenderer.invoke('select-repo'),
+    featuresGet: () => ipcRenderer.invoke('features-get'),
+featuresSet: (f)  => ipcRenderer.invoke('features-set', f),
 
     // ------------------------
     // Folder tree
@@ -89,4 +91,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ------------------------
     apiToolGetAll:  () => ipcRenderer.invoke('apiToolGetAll'),
     apiToolSaveAll: (apis) => ipcRenderer.invoke('apiToolSaveAll', apis),
+
+    featuresGet: () => ipcRenderer.invoke('features-get'),
+    featuresSet: (f) => ipcRenderer.invoke('features-set', f)
 });
