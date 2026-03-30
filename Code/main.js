@@ -234,7 +234,40 @@ ipcMain.handle('getFolderTree', async (event, repoPath) => {
 });
 
 ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
+// =====================================================================
+// ADD THESE IPC HANDLERS TO main.js (after existing ipcMain.handle calls)
+// =====================================================================
 
+const DEFAULT_FEATURES = {
+  apiTool: true,
+  secretHolder: true,
+  themeEngine: true,   // full 20-theme switcher; false = navy-dark only
+  folderFilters: true,
+  swagger: true,
+};
+
+ipcMain.handle('features-get', () => {
+  try {
+    const cfg = config.readConfig();
+    // null means "never been asked" → trigger first-launch wizard
+    return cfg.features ?? null;
+  } catch (err) {
+    console.error('[IPC] features-get error:', err);
+    return DEFAULT_FEATURES;
+  }
+});
+
+ipcMain.handle('features-set', (event, features) => {
+  try {
+    const cfg = config.readConfig();
+    cfg.features = { ...DEFAULT_FEATURES, ...features };
+    config.writeConfig(cfg);
+    return true;
+  } catch (err) {
+    console.error('[IPC] features-set error:', err);
+    return false;
+  }
+});
 
 ipcMain.handle('open-docignore', async (event, repoPath) => {
     try {
