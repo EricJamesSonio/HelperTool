@@ -1,0 +1,63 @@
+/* ══════════════════════════════════════════════════════════════
+   ROOT JUMPER BAR
+   Sits between navbar and status bar. Shows root folder pills.
+══════════════════════════════════════════════════════════════ */
+.root-jumper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  flex-wrap: nowrap;
+  min-height: 36px;
+}
+
+.root-jumper::-webkit-scrollbar {
+  display: none;
+}
+
+.root-jumper-label {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.root-jumper-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 11px;
+  background: var(--folder-bg);
+  border: 1px solid var(--folder-border);
+  border-radius: 99px;
+  color: var(--folder-text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background var(--ease), border-color var(--ease), color var(--ease), transform 0.1s;
+}
+
+.root-jumper-pill:hover {
+  background: var(--folder-bg-h);
+  border-color: var(--folder-hover-border);
+  color: var(--folder-hover-color);
+  transform: translateY(-1px);
+}
+
+.root-jumper-pill:active {
+  transform: translateY(0);
+}
