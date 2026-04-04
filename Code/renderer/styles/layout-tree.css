@@ -816,4 +816,14 @@
 #treeContainer.mode-tree [data-depth-level="4"] > .children::after,
 #treeContainer.mode-tree [data-depth-level="4"] > .children > .node-wrapper::before {
   background: var(--dl4-line);
+
+}
+
+/* ── Drag-to-scroll cursor feedback ── */
+.tree-view-container {
+  cursor: grab;
+}
+.tree-view-container.is-dragging {
+  cursor: grabbing;
+  user-select: none;
 }
