@@ -1,10 +1,11 @@
 /**
- * workspaceTool.js
- * ────────────────
- * Manages workers and tickets globally.
- * - Workers: name + fixed role labels (developer, product manager, frontend dev, backend dev, fullstack dev)
- * - Tickets: title + notes + status (pending, in-progress, complete)
- * - Persist via IPC to config.js (global storage, like apiTool and secretHolder)
+ * workspaceTool.js - v2
+ * ────────────────────
+ * Card-based workspace manager:
+ * - Workers displayed as clickable cards
+ * - Click worker to view/manage their tickets
+ * - Create tickets assigned to specific worker
+ * - Track ticket status: pending → in-progress → complete
  */
 
 const WORKER_ROLES = [
@@ -15,17 +16,21 @@ const WORKER_ROLES = [
   'fullstack dev',
 ];
 
+const STATUS_COLORS = {
+  pending: '#f0b429',
+  'in-progress': '#60a5fa',
+  complete: '#34d399',
+};
+
 let _workers = [];
 let _tickets = [];
 let _isWorkspacePanelOpen = false;
+let _selectedWorker = null; // Current worker being viewed
 
 // ────────────────────────────────────────────────────────────────────────────
-// PUBLIC EXPORT FUNCTIONS
+// PUBLIC API
 // ────────────────────────────────────────────────────────────────────────────
 
-/**
- * Initialize workspace tool: load workers and tickets from storage
- */
 export async function initWorkspaceTool() {
   try {
     const data = await window.electronAPI.workspaceGetAll();
@@ -33,35 +38,28 @@ export async function initWorkspaceTool() {
     _tickets = data?.tickets || [];
     console.log('[WorkspaceTool] Loaded', _workers.length, 'workers,', _tickets.length, 'tickets');
   } catch (err) {
-    console.error('[WorkspaceTool] Failed to load data:', err);
+    console.error('[WorkspaceTool] Failed to load:', err);
     _workers = [];
     _tickets = [];
   }
 }
 
-/**
- * Check if workspace panel is open
- */
 export function isWorkspacePanelOpen() {
   return _isWorkspacePanelOpen;
 }
 
-/**
- * Open workspace panel
- */
 export async function openWorkspacePanel() {
   if (_isWorkspacePanelOpen) return;
   await initWorkspaceTool();
   _ensureWorkspacePanel();
-  document.getElementById('workspaceOverlay')?.classList.add('open');
+  _selectedWorker = null;
+  _render();
+  document.getElementById('workspaceContainer')?.classList.add('open');
   _isWorkspacePanelOpen = true;
 }
 
-/**
- * Close workspace panel
- */
 export function closeWorkspacePanel() {
-  document.getElementById('workspaceOverlay')?.classList.remove('open');
+  document.getElementById('workspaceContainer')?.classList.remove('open');
   _isWorkspacePanelOpen = false;
 }
 
@@ -80,370 +78,330 @@ function addWorker(name, role) {
     createdAt: new Date().toISOString(),
   };
   _workers.push(worker);
-  _saveWorkspaceData();
+  _saveData();
   return worker;
-}
-
-function updateWorker(id, name, role) {
-  const idx = _workers.findIndex(w => w.id === id);
-  if (idx === -1) throw new Error('Worker not found');
-  if (!name?.trim() || !WORKER_ROLES.includes(role)) {
-    throw new Error('Invalid worker name or role');
-  }
-  _workers[idx] = {
-    ..._workers[idx],
-    name: name.trim(),
-    role,
-  };
-  _saveWorkspaceData();
 }
 
 function deleteWorker(id) {
   _workers = _workers.filter(w => w.id !== id);
-  // Also remove worker assignments from tickets
-  _tickets.forEach(t => {
-    if (t.assignedTo === id) t.assignedTo = null;
-  });
-  _saveWorkspaceData();
+  _tickets = _tickets.filter(t => t.assignedTo !== id);
+  if (_selectedWorker?.id === id) _selectedWorker = null;
+  _saveData();
+}
+
+function getWorkerById(id) {
+  return _workers.find(w => w.id === id);
+}
+
+function getWorkerTickets(workerId) {
+  return _tickets.filter(t => t.assignedTo === workerId);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // TICKET MANAGEMENT
 // ────────────────────────────────────────────────────────────────────────────
 
-function addTicket(title, notes = '') {
+function addTicket(workerId, title, notes = '') {
   if (!title?.trim()) throw new Error('Ticket title required');
+  if (!_workers.find(w => w.id === workerId)) throw new Error('Invalid worker');
+  
   const ticket = {
     id: Date.now().toString(),
+    assignedTo: workerId,
     title: title.trim(),
     notes: notes.trim(),
-    status: 'pending', // pending | in-progress | complete
-    assignedTo: null,
+    status: 'pending',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
   _tickets.push(ticket);
-  _saveWorkspaceData();
+  _saveData();
   return ticket;
 }
 
-function updateTicket(id, title, notes, status, assignedTo) {
-  const idx = _tickets.findIndex(t => t.id === id);
-  if (idx === -1) throw new Error('Ticket not found');
-  if (!title?.trim()) throw new Error('Ticket title required');
+function updateTicketStatus(ticketId, status) {
   if (!['pending', 'in-progress', 'complete'].includes(status)) {
     throw new Error('Invalid status');
   }
-  _tickets[idx] = {
-    ..._tickets[idx],
-    title: title.trim(),
-    notes: notes.trim(),
-    status,
-    assignedTo: assignedTo || null,
-    updatedAt: new Date().toISOString(),
-  };
-  _saveWorkspaceData();
-}
-
-function deleteTicket(id) {
-  _tickets = _tickets.filter(t => t.id !== id);
-  _saveWorkspaceData();
-}
-
-function updateTicketStatus(id, status) {
-  if (!['pending', 'in-progress', 'complete'].includes(status)) {
-    throw new Error('Invalid status');
-  }
-  const ticket = _tickets.find(t => t.id === id);
+  const ticket = _tickets.find(t => t.id === ticketId);
   if (!ticket) throw new Error('Ticket not found');
   ticket.status = status;
   ticket.updatedAt = new Date().toISOString();
-  _saveWorkspaceData();
+  _saveData();
+}
+
+function deleteTicket(ticketId) {
+  _tickets = _tickets.filter(t => t.id !== ticketId);
+  _saveData();
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // PERSISTENCE
 // ────────────────────────────────────────────────────────────────────────────
 
-async function _saveWorkspaceData() {
+async function _saveData() {
   try {
     await window.electronAPI.workspaceSaveAll({
       workers: _workers,
       tickets: _tickets,
     });
   } catch (err) {
-    console.error('[WorkspaceTool] Failed to save:', err);
+    console.error('[WorkspaceTool] Save failed:', err);
   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// UI PANEL
+// UI RENDERING
 // ────────────────────────────────────────────────────────────────────────────
 
 function _ensureWorkspacePanel() {
-  if (document.getElementById('workspaceOverlay')) return;
+  if (document.getElementById('workspaceContainer')) return;
 
-  const overlay = document.createElement('div');
-  overlay.id = 'workspaceOverlay';
-  overlay.className = 'workspace-overlay';
-  overlay.innerHTML = `
-    <div class="workspace-panel">
-      <div class="workspace-header">
-        <div class="workspace-header-left">
-          <h2 class="workspace-title">👥 Workspace</h2>
-        </div>
+  const container = document.createElement('div');
+  container.id = 'workspaceContainer';
+  container.className = 'workspace-container';
+  container.innerHTML = `
+    <div class="workspace-content">
+      <div class="workspace-navbar">
+        <button class="workspace-back-btn" id="workspaceBackBtn" style="display:none;">← Back</button>
+        <h1 class="workspace-title" id="workspaceTitle">👥 Workers</h1>
         <button class="workspace-close-btn" id="workspaceCloseBtn">✕</button>
       </div>
+      <div class="workspace-body" id="workspaceBody"></div>
+    </div>
+  `;
 
-      <div class="workspace-body">
-        <div class="workspace-tabs">
-          <button class="workspace-tab active" data-tab="workers">
-            Workers <span class="workspace-badge" id="workerCount">0</span>
-          </button>
-          <button class="workspace-tab" data-tab="tickets">
-            Tickets <span class="workspace-badge" id="ticketCount">0</span>
-          </button>
-        </div>
+  document.body.appendChild(container);
 
-        <!-- WORKERS TAB -->
-        <div id="workersTab" class="workspace-tab-content active">
-          <div class="workspace-section">
-            <div class="workspace-section-title">Add Worker</div>
-            <form id="addWorkerForm" class="workspace-form">
-              <input
-                type="text"
-                id="workerName"
-                placeholder="Worker name"
-                class="workspace-input"
-                required
-              />
-              <select id="workerRole" class="workspace-select" required>
-                <option value="">Select role</option>
-                ${WORKER_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}
-              </select>
-              <button type="submit" class="workspace-btn-primary">Add Worker</button>
-            </form>
-          </div>
+  // Wire events
+  document.getElementById('workspaceCloseBtn').addEventListener('click', closeWorkspacePanel);
+  document.getElementById('workspaceBackBtn').addEventListener('click', () => {
+    _selectedWorker = null;
+    _render();
+  });
+}
 
-          <div class="workspace-section">
-            <div class="workspace-section-title">Workers List</div>
-            <div id="workersList" class="workspace-list">
-              <!-- populated by render -->
-            </div>
-          </div>
-        </div>
+function _render() {
+  if (_selectedWorker) {
+    _renderWorkerDetails();
+  } else {
+    _renderWorkersList();
+  }
+}
 
-        <!-- TICKETS TAB -->
-        <div id="ticketsTab" class="workspace-tab-content">
-          <div class="workspace-section">
-            <div class="workspace-section-title">Create Ticket</div>
-            <form id="addTicketForm" class="workspace-form">
-              <input
-                type="text"
-                id="ticketTitle"
-                placeholder="Ticket title"
-                class="workspace-input"
-                required
-              />
-              <textarea
-                id="ticketNotes"
-                placeholder="Notes (optional)"
-                class="workspace-textarea"
-                rows="3"
-              ></textarea>
-              <button type="submit" class="workspace-btn-primary">Create Ticket</button>
-            </form>
-          </div>
+function _renderWorkersList() {
+  const backBtn = document.getElementById('workspaceBackBtn');
+  const titleEl = document.getElementById('workspaceTitle');
+  const body = document.getElementById('workspaceBody');
 
-          <div class="workspace-section">
-            <div class="workspace-section-title">Tickets List</div>
-            <div id="ticketsList" class="workspace-list">
-              <!-- populated by render -->
-            </div>
-          </div>
-        </div>
+  if (backBtn) backBtn.style.display = 'none';
+  if (titleEl) titleEl.textContent = '👥 Workers';
+
+  body.innerHTML = '';
+
+  // Add Worker Form
+  const formSection = document.createElement('div');
+  formSection.className = 'workspace-form-section';
+  formSection.innerHTML = `
+    <form class="workspace-add-worker-form" id="addWorkerForm">
+      <input
+        type="text"
+        id="workerNameInput"
+        placeholder="Worker name..."
+        class="workspace-input"
+        required
+      />
+      <select id="workerRoleSelect" class="workspace-select" required>
+        <option value="">Select role</option>
+        ${WORKER_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}
+      </select>
+      <button type="submit" class="workspace-btn-add">+ Add Worker</button>
+    </form>
+  `;
+  body.appendChild(formSection);
+
+  // Workers Grid
+  const grid = document.createElement('div');
+  grid.className = 'workspace-grid';
+
+  if (_workers.length === 0) {
+    grid.innerHTML = '<p class="workspace-empty">No workers yet. Add one to get started!</p>';
+    body.appendChild(grid);
+  } else {
+    _workers.forEach(worker => {
+      const card = _createWorkerCard(worker);
+      grid.appendChild(card);
+    });
+    body.appendChild(grid);
+  }
+
+  // Wire form
+  document.getElementById('addWorkerForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('workerNameInput').value;
+    const role = document.getElementById('workerRoleSelect').value;
+    try {
+      addWorker(name, role);
+      document.getElementById('addWorkerForm').reset();
+      _render();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+}
+
+function _createWorkerCard(worker) {
+  const card = document.createElement('div');
+  card.className = 'workspace-worker-card';
+  
+  const ticketCount = getWorkerTickets(worker.id).length;
+  const completedCount = getWorkerTickets(worker.id).filter(t => t.status === 'complete').length;
+
+  card.innerHTML = `
+    <div class="workspace-card-header">
+      <div class="workspace-card-title">${worker.name}</div>
+      <button class="workspace-card-delete" title="Delete worker">🗑️</button>
+    </div>
+    <div class="workspace-card-role">${worker.role}</div>
+    <div class="workspace-card-stats">
+      <div class="workspace-stat">
+        <span class="workspace-stat-value">${ticketCount}</span>
+        <span class="workspace-stat-label">Tickets</span>
+      </div>
+      <div class="workspace-stat">
+        <span class="workspace-stat-value" style="color: #34d399;">${completedCount}</span>
+        <span class="workspace-stat-label">Completed</span>
       </div>
     </div>
   `;
 
-  document.body.appendChild(overlay);
-
-  // Wire events
-  document.getElementById('workspaceCloseBtn').addEventListener('click', closeWorkspacePanel);
-
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) closeWorkspacePanel();
-  });
-
-  // Tab switching
-  document.querySelectorAll('.workspace-tab').forEach(tab => {
-    tab.addEventListener('click', () => _switchTab(tab.dataset.tab));
-  });
-
-  // Form submissions
-  document.getElementById('addWorkerForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const name = document.getElementById('workerName').value;
-    const role = document.getElementById('workerRole').value;
-    try {
-      addWorker(name, role);
-      document.getElementById('addWorkerForm').reset();
-      _renderWorkers();
-      _updateBadges();
-    } catch (err) {
-      alert('Error: ' + err.message);
+  card.addEventListener('click', (e) => {
+    if (!e.target.closest('.workspace-card-delete')) {
+      _selectedWorker = worker;
+      _render();
     }
   });
 
-  document.getElementById('addTicketForm').addEventListener('submit', e => {
+  card.querySelector('.workspace-card-delete').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (confirm(`Delete ${worker.name} and all their tickets?`)) {
+      deleteWorker(worker.id);
+      _render();
+    }
+  });
+
+  return card;
+}
+
+function _renderWorkerDetails() {
+  if (!_selectedWorker) return;
+
+  const backBtn = document.getElementById('workspaceBackBtn');
+  const titleEl = document.getElementById('workspaceTitle');
+  const body = document.getElementById('workspaceBody');
+
+  if (backBtn) backBtn.style.display = 'block';
+  if (titleEl) titleEl.innerHTML = `<span>${_selectedWorker.name}</span> <span style="opacity:0.5;font-size:0.8em">${_selectedWorker.role}</span>`;
+
+  body.innerHTML = '';
+
+  // Create Ticket Form
+  const formSection = document.createElement('div');
+  formSection.className = 'workspace-form-section';
+  formSection.innerHTML = `
+    <form class="workspace-add-ticket-form" id="addTicketForm">
+      <div class="workspace-form-group">
+        <input
+          type="text"
+          id="ticketTitleInput"
+          placeholder="Ticket title..."
+          class="workspace-input"
+          required
+        />
+      </div>
+      <div class="workspace-form-group">
+        <textarea
+          id="ticketNotesInput"
+          placeholder="Notes (optional)..."
+          class="workspace-textarea"
+          rows="3"
+        ></textarea>
+      </div>
+      <button type="submit" class="workspace-btn-add">+ Create Ticket</button>
+    </form>
+  `;
+  body.appendChild(formSection);
+
+  // Tickets List
+  const ticketsList = document.createElement('div');
+  ticketsList.className = 'workspace-tickets-list';
+
+  const tickets = getWorkerTickets(_selectedWorker.id);
+  
+  if (tickets.length === 0) {
+    ticketsList.innerHTML = '<p class="workspace-empty">No tickets yet. Create one!</p>';
+  } else {
+    tickets.forEach(ticket => {
+      const ticketEl = _createTicketElement(ticket);
+      ticketsList.appendChild(ticketEl);
+    });
+  }
+
+  body.appendChild(ticketsList);
+
+  // Wire form
+  document.getElementById('addTicketForm').addEventListener('submit', (e) => {
     e.preventDefault();
-    const title = document.getElementById('ticketTitle').value;
-    const notes = document.getElementById('ticketNotes').value;
+    const title = document.getElementById('ticketTitleInput').value;
+    const notes = document.getElementById('ticketNotesInput').value;
     try {
-      addTicket(title, notes);
+      addTicket(_selectedWorker.id, title, notes);
       document.getElementById('addTicketForm').reset();
-      _renderTickets();
-      _updateBadges();
+      _render();
     } catch (err) {
       alert('Error: ' + err.message);
     }
   });
-
-  _renderWorkers();
-  _renderTickets();
-  _updateBadges();
 }
 
-function _switchTab(tabName) {
-  // Hide all tabs
-  document.querySelectorAll('.workspace-tab-content').forEach(t => {
-    t.classList.remove('active');
-  });
+function _createTicketElement(ticket) {
+  const el = document.createElement('div');
+  el.className = `workspace-ticket-item status-${ticket.status}`;
+  el.style.borderLeftColor = STATUS_COLORS[ticket.status];
 
-  // Deactivate all tab buttons
-  document.querySelectorAll('.workspace-tab').forEach(t => {
-    t.classList.remove('active');
-  });
-
-  // Show selected tab
-  const contentId = tabName === 'workers' ? 'workersTab' : 'ticketsTab';
-  document.getElementById(contentId).classList.add('active');
-
-  // Activate tab button
-  document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-}
-
-function _renderWorkers() {
-  const list = document.getElementById('workersList');
-  if (!list) return;
-
-  if (_workers.length === 0) {
-    list.innerHTML = '<p class="workspace-empty">No workers yet</p>';
-    return;
-  }
-
-  list.innerHTML = _workers
-    .map(
-      worker => `
-    <div class="workspace-item worker-item">
-      <div class="workspace-item-content">
-        <div class="workspace-item-title">${worker.name}</div>
-        <div class="workspace-item-meta">${worker.role}</div>
-      </div>
-      <button
-        class="workspace-btn-icon delete"
-        title="Delete worker"
-        data-worker-id="${worker.id}"
-      >🗑️</button>
-    </div>
-  `
-    )
-    .join('');
-
-  // Wire delete buttons
-  document.querySelectorAll('[data-worker-id]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (confirm('Delete this worker?')) {
-        deleteWorker(btn.dataset.workerId);
-        _renderWorkers();
-        _updateBadges();
-      }
-    });
-  });
-}
-
-function _renderTickets() {
-  const list = document.getElementById('ticketsList');
-  if (!list) return;
-
-  if (_tickets.length === 0) {
-    list.innerHTML = '<p class="workspace-empty">No tickets yet</p>';
-    return;
-  }
-
-  list.innerHTML = _tickets
-    .map(
-      ticket => `
-    <div class="workspace-item ticket-item status-${ticket.status}">
-      <div class="workspace-item-content">
-        <div class="workspace-item-title">${ticket.title}</div>
-        ${ticket.notes ? `<div class="workspace-item-notes">${ticket.notes}</div>` : ''}
-        <div class="workspace-item-meta">
-          Status: <strong>${ticket.status}</strong>
-          ${ticket.assignedTo ? ` | Assigned to: <strong>${_getWorkerName(ticket.assignedTo)}</strong>` : ''}
-        </div>
-      </div>
-      <div class="workspace-item-actions">
-        <select
-          class="workspace-select-small status-select"
-          data-ticket-id="${ticket.id}"
-          value="${ticket.status}"
-        >
-          <option value="pending">pending</option>
-          <option value="in-progress">in-progress</option>
-          <option value="complete">complete</option>
-        </select>
-        <button
-          class="workspace-btn-icon delete"
-          title="Delete ticket"
-          data-ticket-id="${ticket.id}"
-        >🗑️</button>
+  el.innerHTML = `
+    <div class="workspace-ticket-content">
+      <div class="workspace-ticket-title">${ticket.title}</div>
+      ${ticket.notes ? `<div class="workspace-ticket-notes">${ticket.notes}</div>` : ''}
+      <div class="workspace-ticket-meta">
+        <span class="workspace-ticket-status" style="background-color: ${STATUS_COLORS[ticket.status]}40;">
+          ${ticket.status}
+        </span>
+        <span class="workspace-ticket-date">${new Date(ticket.updatedAt).toLocaleDateString()}</span>
       </div>
     </div>
-  `
-    )
-    .join('');
+    <div class="workspace-ticket-actions">
+      <select class="workspace-status-select" value="${ticket.status}">
+        <option value="pending">pending</option>
+        <option value="in-progress">in-progress</option>
+        <option value="complete">complete</option>
+      </select>
+      <button class="workspace-ticket-delete" title="Delete ticket">🗑️</button>
+    </div>
+  `;
 
-  // Wire status change
-  document.querySelectorAll('.status-select').forEach(select => {
-    select.addEventListener('change', () => {
-      const status = select.value;
-      const ticketId = select.dataset.ticketId;
-      updateTicketStatus(ticketId, status);
-      _renderTickets();
-    });
+  const statusSelect = el.querySelector('.workspace-status-select');
+  statusSelect.addEventListener('change', () => {
+    updateTicketStatus(ticket.id, statusSelect.value);
+    _render();
   });
 
-  // Wire delete buttons
-  document.querySelectorAll('[data-ticket-id]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (confirm('Delete this ticket?')) {
-        deleteTicket(btn.dataset.ticketId);
-        _renderTickets();
-        _updateBadges();
-      }
-    });
+  el.querySelector('.workspace-ticket-delete').addEventListener('click', () => {
+    if (confirm('Delete this ticket?')) {
+      deleteTicket(ticket.id);
+      _render();
+    }
   });
-}
 
-function _updateBadges() {
-  const workerBadge = document.getElementById('workerCount');
-  const ticketBadge = document.getElementById('ticketCount');
-  if (workerBadge) workerBadge.textContent = _workers.length;
-  if (ticketBadge) ticketBadge.textContent = _tickets.length;
-}
-
-function _getWorkerName(workerId) {
-  const worker = _workers.find(w => w.id === workerId);
-  return worker?.name || 'Unknown';
+  return el;
 }
