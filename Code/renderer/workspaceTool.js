@@ -1,11 +1,11 @@
 /**
- * workspaceTool.js - v2
+ * workspaceTool.js - v3
  * ────────────────────
- * Card-based workspace manager:
- * - Workers displayed as clickable cards
- * - Click worker to view/manage their tickets
- * - Create tickets assigned to specific worker
- * - Track ticket status: pending → in-progress → complete
+ * Card-based workspace manager with:
+ * - Edit workers (name, role)
+ * - Edit tickets (title, notes, status)
+ * - Comprehensive audit logs of all actions
+ * - Global activity timeline
  */
 
 const WORKER_ROLES = [
@@ -24,8 +24,10 @@ const STATUS_COLORS = {
 
 let _workers = [];
 let _tickets = [];
+let _auditLogs = []; // Global audit trail
 let _isWorkspacePanelOpen = false;
-let _selectedWorker = null; // Current worker being viewed
+let _selectedWorker = null;
+let _editingTicket = null; // Track which ticket is being edited
 
 // ────────────────────────────────────────────────────────────────────────────
 // PUBLIC API
@@ -36,11 +38,13 @@ export async function initWorkspaceTool() {
     const data = await window.electronAPI.workspaceGetAll();
     _workers = data?.workers || [];
     _tickets = data?.tickets || [];
-    console.log('[WorkspaceTool] Loaded', _workers.length, 'workers,', _tickets.length, 'tickets');
+    _auditLogs = data?.auditLogs || [];
+    console.log('[WorkspaceTool] Loaded', _workers.length, 'workers,', _tickets.length, 'tickets,', _auditLogs.length, 'logs');
   } catch (err) {
     console.error('[WorkspaceTool] Failed to load:', err);
     _workers = [];
     _tickets = [];
+    _auditLogs = [];
   }
 }
 
@@ -53,6 +57,7 @@ export async function openWorkspacePanel() {
   await initWorkspaceTool();
   _ensureWorkspacePanel();
   _selectedWorker = null;
+  _editingTicket = null;
   _render();
   document.getElementById('workspaceContainer')?.classList.add('open');
   _isWorkspacePanelOpen = true;
@@ -61,6 +66,21 @@ export async function openWorkspacePanel() {
 export function closeWorkspacePanel() {
   document.getElementById('workspaceContainer')?.classList.remove('open');
   _isWorkspacePanelOpen = false;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// AUDIT LOGGING
+// ────────────────────────────────────────────────────────────────────────────
+
+function _addAuditLog(action, details) {
+  const log = {
+    id: Date.now().toString(),
+    action,
+    details,
+    timestamp: new Date().toISOString(),
+  };
+  _auditLogs.unshift(log); // Add to beginning (most recent first)
+  _saveData();
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -78,13 +98,54 @@ function addWorker(name, role) {
     createdAt: new Date().toISOString(),
   };
   _workers.push(worker);
+  _addAuditLog('WORKER_CREATED', {
+    workerId: worker.id,
+    workerName: worker.name,
+    workerRole: worker.role,
+  });
   _saveData();
   return worker;
 }
 
+function updateWorker(workerId, name, role) {
+  if (!name?.trim() || !WORKER_ROLES.includes(role)) {
+    throw new Error('Invalid worker name or role');
+  }
+  const worker = _workers.find(w => w.id === workerId);
+  if (!worker) throw new Error('Worker not found');
+  
+  const oldName = worker.name;
+  const oldRole = worker.role;
+  
+  worker.name = name.trim();
+  worker.role = role;
+  
+  _addAuditLog('WORKER_UPDATED', {
+    workerId,
+    oldName,
+    newName: worker.name,
+    oldRole,
+    newRole: worker.role,
+  });
+  _saveData();
+}
+
 function deleteWorker(id) {
+  const worker = _workers.find(w => w.id === id);
+  if (!worker) throw new Error('Worker not found');
+  
   _workers = _workers.filter(w => w.id !== id);
+  
+  const affectedTickets = _tickets.filter(t => t.assignedTo === id);
   _tickets = _tickets.filter(t => t.assignedTo !== id);
+  
+  _addAuditLog('WORKER_DELETED', {
+    workerId: id,
+    workerName: worker.name,
+    workerRole: worker.role,
+    affectedTicketsCount: affectedTickets.length,
+  });
+  
   if (_selectedWorker?.id === id) _selectedWorker = null;
   _saveData();
 }
@@ -105,6 +166,7 @@ function addTicket(workerId, title, notes = '') {
   if (!title?.trim()) throw new Error('Ticket title required');
   if (!_workers.find(w => w.id === workerId)) throw new Error('Invalid worker');
   
+  const worker = getWorkerById(workerId);
   const ticket = {
     id: Date.now().toString(),
     assignedTo: workerId,
@@ -115,8 +177,52 @@ function addTicket(workerId, title, notes = '') {
     updatedAt: new Date().toISOString(),
   };
   _tickets.push(ticket);
+  
+  _addAuditLog('TICKET_CREATED', {
+    ticketId: ticket.id,
+    ticketTitle: ticket.title,
+    workerId,
+    workerName: worker.name,
+  });
+  
   _saveData();
   return ticket;
+}
+
+function updateTicket(ticketId, title, notes, status) {
+  if (!title?.trim()) throw new Error('Ticket title required');
+  if (!['pending', 'in-progress', 'complete'].includes(status)) {
+    throw new Error('Invalid status');
+  }
+  
+  const ticket = _tickets.find(t => t.id === ticketId);
+  if (!ticket) throw new Error('Ticket not found');
+  
+  const oldTitle = ticket.title;
+  const oldNotes = ticket.notes;
+  const oldStatus = ticket.status;
+  
+  ticket.title = title.trim();
+  ticket.notes = notes.trim();
+  ticket.status = status;
+  ticket.updatedAt = new Date().toISOString();
+  
+  const worker = getWorkerById(ticket.assignedTo);
+  
+  const changes = [];
+  if (oldTitle !== ticket.title) changes.push(`title: "${oldTitle}" → "${ticket.title}"`);
+  if (oldNotes !== ticket.notes) changes.push('notes updated');
+  if (oldStatus !== status) changes.push(`status: ${oldStatus} → ${status}`);
+  
+  _addAuditLog('TICKET_UPDATED', {
+    ticketId,
+    ticketTitle: ticket.title,
+    workerId: ticket.assignedTo,
+    workerName: worker.name,
+    changes: changes.join(', '),
+  });
+  
+  _saveData();
 }
 
 function updateTicketStatus(ticketId, status) {
@@ -125,13 +231,41 @@ function updateTicketStatus(ticketId, status) {
   }
   const ticket = _tickets.find(t => t.id === ticketId);
   if (!ticket) throw new Error('Ticket not found');
+  
+  const oldStatus = ticket.status;
   ticket.status = status;
   ticket.updatedAt = new Date().toISOString();
+  
+  const worker = getWorkerById(ticket.assignedTo);
+  
+  _addAuditLog('TICKET_STATUS_CHANGED', {
+    ticketId,
+    ticketTitle: ticket.title,
+    workerId: ticket.assignedTo,
+    workerName: worker.name,
+    oldStatus,
+    newStatus: status,
+  });
+  
   _saveData();
 }
 
 function deleteTicket(ticketId) {
+  const ticket = _tickets.find(t => t.id === ticketId);
+  if (!ticket) throw new Error('Ticket not found');
+  
+  const worker = getWorkerById(ticket.assignedTo);
+  
   _tickets = _tickets.filter(t => t.id !== ticketId);
+  
+  _addAuditLog('TICKET_DELETED', {
+    ticketId,
+    ticketTitle: ticket.title,
+    workerId: ticket.assignedTo,
+    workerName: worker.name,
+    status: ticket.status,
+  });
+  
   _saveData();
 }
 
@@ -144,6 +278,7 @@ async function _saveData() {
     await window.electronAPI.workspaceSaveAll({
       workers: _workers,
       tickets: _tickets,
+      auditLogs: _auditLogs,
     });
   } catch (err) {
     console.error('[WorkspaceTool] Save failed:', err);
@@ -165,7 +300,10 @@ function _ensureWorkspacePanel() {
       <div class="workspace-navbar">
         <button class="workspace-back-btn" id="workspaceBackBtn" style="display:none;">← Back</button>
         <h1 class="workspace-title" id="workspaceTitle">👥 Workers</h1>
-        <button class="workspace-close-btn" id="workspaceCloseBtn">✕</button>
+        <div class="workspace-navbar-right">
+          <button class="workspace-logs-btn" id="workspaceLogsBtn" title="View audit logs">📋 Logs</button>
+          <button class="workspace-close-btn" id="workspaceCloseBtn">✕</button>
+        </div>
       </div>
       <div class="workspace-body" id="workspaceBody"></div>
     </div>
@@ -173,12 +311,13 @@ function _ensureWorkspacePanel() {
 
   document.body.appendChild(container);
 
-  // Wire events
   document.getElementById('workspaceCloseBtn').addEventListener('click', closeWorkspacePanel);
   document.getElementById('workspaceBackBtn').addEventListener('click', () => {
     _selectedWorker = null;
+    _editingTicket = null;
     _render();
   });
+  document.getElementById('workspaceLogsBtn').addEventListener('click', _showAuditLogs);
 }
 
 function _render() {
@@ -199,7 +338,6 @@ function _renderWorkersList() {
 
   body.innerHTML = '';
 
-  // Add Worker Form
   const formSection = document.createElement('div');
   formSection.className = 'workspace-form-section';
   formSection.innerHTML = `
@@ -220,7 +358,6 @@ function _renderWorkersList() {
   `;
   body.appendChild(formSection);
 
-  // Workers Grid
   const grid = document.createElement('div');
   grid.className = 'workspace-grid';
 
@@ -235,7 +372,6 @@ function _renderWorkersList() {
     body.appendChild(grid);
   }
 
-  // Wire form
   document.getElementById('addWorkerForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = document.getElementById('workerNameInput').value;
@@ -260,6 +396,7 @@ function _createWorkerCard(worker) {
   card.innerHTML = `
     <div class="workspace-card-header">
       <div class="workspace-card-title">${worker.name}</div>
+      <button class="workspace-card-edit" title="Edit worker">✏️</button>
       <button class="workspace-card-delete" title="Delete worker">🗑️</button>
     </div>
     <div class="workspace-card-role">${worker.role}</div>
@@ -276,10 +413,15 @@ function _createWorkerCard(worker) {
   `;
 
   card.addEventListener('click', (e) => {
-    if (!e.target.closest('.workspace-card-delete')) {
+    if (!e.target.closest('.workspace-card-edit') && !e.target.closest('.workspace-card-delete')) {
       _selectedWorker = worker;
       _render();
     }
+  });
+
+  card.querySelector('.workspace-card-edit').addEventListener('click', (e) => {
+    e.stopPropagation();
+    _showEditWorkerModal(worker);
   });
 
   card.querySelector('.workspace-card-delete').addEventListener('click', (e) => {
@@ -291,6 +433,59 @@ function _createWorkerCard(worker) {
   });
 
   return card;
+}
+
+function _showEditWorkerModal(worker) {
+  const modal = document.createElement('div');
+  modal.className = 'workspace-modal-overlay';
+  modal.innerHTML = `
+    <div class="workspace-modal">
+      <div class="workspace-modal-header">
+        <h2>Edit Worker</h2>
+        <button class="workspace-modal-close">✕</button>
+      </div>
+      <form id="editWorkerForm" class="workspace-modal-form">
+        <div class="workspace-form-group">
+          <label>Name</label>
+          <input type="text" id="editWorkerName" value="${worker.name}" class="workspace-input" required />
+        </div>
+        <div class="workspace-form-group">
+          <label>Role</label>
+          <select id="editWorkerRole" class="workspace-select" required>
+            ${WORKER_ROLES.map(r => `<option value="${r}" ${r === worker.role ? 'selected' : ''}>${r}</option>`).join('')}
+          </select>
+        </div>
+        <div class="workspace-modal-footer">
+          <button type="button" class="workspace-btn-cancel">Cancel</button>
+          <button type="submit" class="workspace-btn-add">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const closeBtn = modal.querySelector('.workspace-modal-close');
+  const cancelBtn = modal.querySelector('.workspace-btn-cancel');
+  closeBtn.addEventListener('click', () => modal.remove());
+  cancelBtn.addEventListener('click', () => modal.remove());
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  document.getElementById('editWorkerForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('editWorkerName').value;
+    const role = document.getElementById('editWorkerRole').value;
+    try {
+      updateWorker(worker.id, name, role);
+      modal.remove();
+      _render();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
 }
 
 function _renderWorkerDetails() {
@@ -305,34 +500,66 @@ function _renderWorkerDetails() {
 
   body.innerHTML = '';
 
-  // Create Ticket Form
   const formSection = document.createElement('div');
   formSection.className = 'workspace-form-section';
-  formSection.innerHTML = `
-    <form class="workspace-add-ticket-form" id="addTicketForm">
-      <div class="workspace-form-group">
-        <input
-          type="text"
-          id="ticketTitleInput"
-          placeholder="Ticket title..."
-          class="workspace-input"
-          required
-        />
-      </div>
-      <div class="workspace-form-group">
-        <textarea
-          id="ticketNotesInput"
-          placeholder="Notes (optional)..."
-          class="workspace-textarea"
-          rows="3"
-        ></textarea>
-      </div>
-      <button type="submit" class="workspace-btn-add">+ Create Ticket</button>
-    </form>
-  `;
+  
+  if (_editingTicket) {
+    // Edit mode
+    formSection.innerHTML = `
+      <div class="workspace-form-label">Editing Ticket</div>
+      <form class="workspace-add-ticket-form" id="addTicketForm">
+        <div class="workspace-form-group">
+          <input
+            type="text"
+            id="ticketTitleInput"
+            placeholder="Ticket title..."
+            value="${_editingTicket.title}"
+            class="workspace-input"
+            required
+          />
+        </div>
+        <div class="workspace-form-group">
+          <textarea
+            id="ticketNotesInput"
+            placeholder="Notes (optional)..."
+            class="workspace-textarea"
+            rows="3"
+          >${_editingTicket.notes}</textarea>
+        </div>
+        <div class="workspace-form-actions">
+          <button type="button" class="workspace-btn-cancel" id="cancelEditBtn">Cancel Edit</button>
+          <button type="submit" class="workspace-btn-add">Update Ticket</button>
+        </div>
+      </form>
+    `;
+  } else {
+    // Create mode
+    formSection.innerHTML = `
+      <form class="workspace-add-ticket-form" id="addTicketForm">
+        <div class="workspace-form-group">
+          <input
+            type="text"
+            id="ticketTitleInput"
+            placeholder="Ticket title..."
+            class="workspace-input"
+            required
+          />
+        </div>
+        <div class="workspace-form-group">
+          <textarea
+            id="ticketNotesInput"
+            placeholder="Notes (optional)..."
+            class="workspace-textarea"
+            rows="3"
+          ></textarea>
+        </div>
+        <button type="submit" class="workspace-btn-add">+ Create Ticket</button>
+      </form>
+    `;
+  }
+  
   body.appendChild(formSection);
 
-  // Tickets List
   const ticketsList = document.createElement('div');
   ticketsList.className = 'workspace-tickets-list';
 
@@ -355,13 +582,25 @@ function _renderWorkerDetails() {
     const title = document.getElementById('ticketTitleInput').value;
     const notes = document.getElementById('ticketNotesInput').value;
     try {
-      addTicket(_selectedWorker.id, title, notes);
+      if (_editingTicket) {
+        updateTicket(_editingTicket.id, title, notes, _editingTicket.status);
+      } else {
+        addTicket(_selectedWorker.id, title, notes);
+      }
+      _editingTicket = null;
       document.getElementById('addTicketForm').reset();
       _render();
     } catch (err) {
       alert('Error: ' + err.message);
     }
   });
+
+  if (_editingTicket) {
+    document.getElementById('cancelEditBtn').addEventListener('click', () => {
+      _editingTicket = null;
+      _render();
+    });
+  }
 }
 
 function _createTicketElement(ticket) {
@@ -381,6 +620,7 @@ function _createTicketElement(ticket) {
       </div>
     </div>
     <div class="workspace-ticket-actions">
+      <button class="workspace-ticket-edit" title="Edit ticket">✏️</button>
       <select class="workspace-status-select" value="${ticket.status}">
         <option value="pending">pending</option>
         <option value="in-progress">in-progress</option>
@@ -389,6 +629,11 @@ function _createTicketElement(ticket) {
       <button class="workspace-ticket-delete" title="Delete ticket">🗑️</button>
     </div>
   `;
+
+  el.querySelector('.workspace-ticket-edit').addEventListener('click', () => {
+    _editingTicket = ticket;
+    _render();
+  });
 
   const statusSelect = el.querySelector('.workspace-status-select');
   statusSelect.addEventListener('change', () => {
@@ -402,6 +647,96 @@ function _createTicketElement(ticket) {
       _render();
     }
   });
+
+  return el;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// AUDIT LOGS VIEW
+// ────────────────────────────────────────────────────────────────────────────
+
+function _showAuditLogs() {
+  const modal = document.createElement('div');
+  modal.className = 'workspace-modal-overlay';
+  modal.innerHTML = `
+    <div class="workspace-modal workspace-modal-logs">
+      <div class="workspace-modal-header">
+        <h2>📋 Audit Logs</h2>
+        <button class="workspace-modal-close">✕</button>
+      </div>
+      <div class="workspace-logs-container" id="logsContainer"></div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const logsContainer = modal.querySelector('#logsContainer');
+
+  if (_auditLogs.length === 0) {
+    logsContainer.innerHTML = '<p class="workspace-empty">No activity yet</p>';
+  } else {
+    _auditLogs.forEach(log => {
+      const logEl = _createLogElement(log);
+      logsContainer.appendChild(logEl);
+    });
+  }
+
+  modal.querySelector('.workspace-modal-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+function _createLogElement(log) {
+  const el = document.createElement('div');
+  el.className = 'workspace-log-item';
+  
+  const date = new Date(log.timestamp);
+  const timeStr = date.toLocaleTimeString();
+  const dateStr = date.toLocaleDateString();
+  
+  let icon = '📝';
+  let message = '';
+  const d = log.details;
+
+  switch (log.action) {
+    case 'WORKER_CREATED':
+      icon = '👤';
+      message = `Created worker <strong>${d.workerName}</strong> (${d.workerRole})`;
+      break;
+    case 'WORKER_UPDATED':
+      icon = '✏️';
+      message = `Updated worker <strong>${d.newName}</strong>: ${d.oldName !== d.newName ? `name changed, ` : ''}role ${d.oldRole} → ${d.newRole}`;
+      break;
+    case 'WORKER_DELETED':
+      icon = '🗑️';
+      message = `Deleted worker <strong>${d.workerName}</strong> (${d.affectedTicketsCount} tickets removed)`;
+      break;
+    case 'TICKET_CREATED':
+      icon = '🎫';
+      message = `Created ticket <strong>"${d.ticketTitle}"</strong> for <strong>${d.workerName}</strong>`;
+      break;
+    case 'TICKET_UPDATED':
+      icon = '✏️';
+      message = `Updated ticket <strong>"${d.ticketTitle}"</strong>: ${d.changes}`;
+      break;
+    case 'TICKET_STATUS_CHANGED':
+      icon = '🔄';
+      message = `Status changed for <strong>"${d.ticketTitle}"</strong>: ${d.oldStatus} → ${d.newStatus}`;
+      break;
+    case 'TICKET_DELETED':
+      icon = '🗑️';
+      message = `Deleted ticket <strong>"${d.ticketTitle}"</strong> from ${d.workerName}`;
+      break;
+  }
+
+  el.innerHTML = `
+    <div class="workspace-log-icon">${icon}</div>
+    <div class="workspace-log-content">
+      <div class="workspace-log-message">${message}</div>
+      <div class="workspace-log-time">${timeStr} • ${dateStr}</div>
+    </div>
+  `;
 
   return el;
 }

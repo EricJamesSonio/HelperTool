@@ -1,8 +1,7 @@
 /**
- * workspaceTool.css - v2
+ * workspaceTool.css - v3
  * ──────────────────────
- * Fullscreen card-based workspace UI
- * Modern, clean, professional design
+ * Enhanced with modals, edit functionality, and audit logs
  */
 
 /* ──────────────────────────────────────────────────────────────────────────── */
@@ -52,7 +51,14 @@
   letter-spacing: -0.5px;
 }
 
-.workspace-back-btn {
+.workspace-navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.workspace-back-btn,
+.workspace-logs-btn {
   padding: 8px 14px;
   border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
@@ -64,7 +70,8 @@
   transition: all 0.15s;
 }
 
-.workspace-back-btn:hover {
+.workspace-back-btn:hover,
+.workspace-logs-btn:hover {
   background: var(--bg-active, rgba(255, 255, 255, 0.12));
   color: var(--text-primary, #eef2ff);
   border-color: var(--border-default, rgba(255, 255, 255, 0.15));
@@ -132,6 +139,16 @@
   padding: 20px;
 }
 
+.workspace-form-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent, #f0b429);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  display: block;
+}
+
 .workspace-add-worker-form,
 .workspace-add-ticket-form {
   display: flex;
@@ -152,6 +169,15 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1;
+}
+
+.workspace-form-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #a0b0d8);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .workspace-input,
@@ -200,22 +226,32 @@
   color: var(--text-primary, #eef2ff);
 }
 
+.workspace-form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 /* ──────────────────────────────────────────────────────────────────────────── */
 /* BUTTONS */
 /* ──────────────────────────────────────────────────────────────────────────── */
 
-.workspace-btn-add {
+.workspace-btn-add,
+.workspace-btn-cancel {
   padding: 11px 20px;
   border: none;
   border-radius: 10px;
-  background: var(--accent, #f0b429);
-  color: #000;
   font-size: 0.93rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
   letter-spacing: -0.3px;
   white-space: nowrap;
+}
+
+.workspace-btn-add {
+  background: var(--accent, #f0b429);
+  color: #000;
 }
 
 .workspace-btn-add:hover {
@@ -226,6 +262,17 @@
 
 .workspace-btn-add:active {
   transform: translateY(0);
+}
+
+.workspace-btn-cancel {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-secondary, #a0b0d8);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+}
+
+.workspace-btn-cancel:hover {
+  background: var(--bg-active, rgba(255, 255, 255, 0.12));
+  color: var(--text-primary, #eef2ff);
 }
 
 .workspace-add-worker-form .workspace-btn-add {
@@ -273,21 +320,13 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    circle at 100% 0%,
-    rgba(240, 180, 41, 0.1) 0%,
-    transparent 70%
-  );
+  background: radial-gradient(circle at 100% 0%, rgba(240, 180, 41, 0.1) 0%, transparent 70%);
   pointer-events: none;
 }
 
 .workspace-worker-card:hover {
   border-color: var(--accent, #f0b429);
-  background: linear-gradient(
-    135deg,
-    var(--bg-elevated, #111d34) 0%,
-    var(--bg-active, rgba(255, 255, 255, 0.12)) 100%
-  );
+  background: linear-gradient(135deg, var(--bg-elevated, #111d34) 0%, var(--bg-active, rgba(255, 255, 255, 0.12)) 100%);
   transform: translateY(-4px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--accent, #f0b429);
 }
@@ -296,7 +335,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   position: relative;
   z-index: 1;
 }
@@ -309,6 +348,7 @@
   word-break: break-word;
 }
 
+.workspace-card-edit,
 .workspace-card-delete {
   flex-shrink: 0;
   width: 32px;
@@ -326,8 +366,14 @@
   opacity: 0;
 }
 
+.workspace-worker-card:hover .workspace-card-edit,
 .workspace-worker-card:hover .workspace-card-delete {
   opacity: 1;
+}
+
+.workspace-card-edit:hover {
+  background: rgba(100, 200, 255, 0.15);
+  color: #60a5fa;
 }
 
 .workspace-card-delete:hover {
@@ -460,6 +506,27 @@
   flex-shrink: 0;
 }
 
+.workspace-ticket-edit {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #556080);
+  font-size: 0.95rem;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.workspace-ticket-edit:hover {
+  background: rgba(100, 200, 255, 0.15);
+  color: #60a5fa;
+}
+
 .workspace-status-select {
   padding: 6px 10px;
   border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
@@ -517,6 +584,180 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────────── */
+/* MODAL OVERLAY & MODAL */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: workspace-fade-in 0.2s ease-out;
+}
+
+@keyframes workspace-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.workspace-modal {
+  background: var(--bg-elevated, #111d34);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  width: min(500px, 90vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  animation: workspace-slide-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.workspace-modal-logs {
+  width: min(700px, 95vw);
+  max-height: 85vh;
+}
+
+@keyframes workspace-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.workspace-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.workspace-modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary, #eef2ff);
+  font-weight: 700;
+}
+
+.workspace-modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #a0b0d8);
+  font-size: 1.3rem;
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.workspace-modal-close:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #eef2ff);
+}
+
+.workspace-modal-form {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workspace-modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 20px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* AUDIT LOGS */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-logs-container {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.workspace-logs-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.workspace-logs-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace-logs-container::-webkit-scrollbar-thumb {
+  background: var(--border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 3px;
+}
+
+.workspace-log-item {
+  display: flex;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 10px;
+  background: var(--bg-raised, #0f1620);
+  transition: all 0.15s;
+}
+
+.workspace-log-item:hover {
+  border-color: var(--border-default, rgba(255, 255, 255, 0.1));
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+
+.workspace-log-icon {
+  flex-shrink: 0;
+  font-size: 1.4rem;
+  padding-top: 2px;
+}
+
+.workspace-log-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workspace-log-message {
+  font-size: 0.9rem;
+  color: var(--text-primary, #eef2ff);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.workspace-log-message strong {
+  font-weight: 700;
+  color: var(--accent, #f0b429);
+}
+
+.workspace-log-time {
+  font-size: 0.8rem;
+  color: var(--text-muted, #556080);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
 /* RESPONSIVE */
 /* ──────────────────────────────────────────────────────────────────────────── */
 
@@ -555,11 +796,28 @@
     gap: 12px;
   }
 
+  .workspace-navbar-right {
+    gap: 8px;
+  }
+
+  .workspace-logs-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+
   .workspace-title {
     font-size: 1.2rem;
   }
 
   .workspace-body {
     padding: 16px;
+  }
+
+  .workspace-modal {
+    width: 95vw;
+  }
+
+  .workspace-modal-logs {
+    width: 98vw;
   }
 }
