@@ -477,7 +477,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // ── Workspace Tool ────────────────────────────────────────────────────────────
   if (feats.workspaceTool) {
     try {
-      _workspaceTool = await import('./workspaceTool.js');
+      _workspaceTool = await import('./workspace/workspaceTool.js');
       await _workspaceTool.initWorkspaceTool();
       const workspaceToolBtn = document.getElementById('workspaceTool');
       workspaceToolBtn?.addEventListener('click', async () => {
