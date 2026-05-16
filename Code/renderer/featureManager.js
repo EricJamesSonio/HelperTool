@@ -10,9 +10,10 @@
 const DEFAULT_FEATURES = {
   apiTool:       true,
   secretHolder:  true,
-  themeEngine:   true,   // full 20-theme switcher
+  themeEngine:   true,
   folderFilters: true,
   swagger:       true,
+  workspaceTool: true,  // ← ADD THIS LINE
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -104,6 +105,13 @@ function _injectWizard() {
       desc: 'Auto-import endpoints from OpenAPI specs. Only useful alongside the API Tool.',
       heavy: false,
     },
+  {
+    id: 'workspaceTool',
+    icon: '👥',
+    label: 'Workspace Tool',
+    desc: 'Manage workers and project tickets. Assign tasks and track status.',
+    heavy: false,
+  },
   ];
 
   const el = document.createElement('div');

@@ -1,0 +1,449 @@
+/**
+ * workspaceTool.css
+ * ─────────────────
+ * Styling for the Workspace Tool panel (workers + tickets)
+ * Matches the design system from your existing components
+ */
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* OVERLAY & PANEL */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-out;
+}
+
+.workspace-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.workspace-panel {
+  background: var(--bg-elevated, #111d34);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  width: min(680px, 94vw);
+  max-height: 80vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  animation: workspace-slide-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes workspace-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* HEADER */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  gap: 12px;
+}
+
+.workspace-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary, #eef2ff);
+  letter-spacing: -0.3px;
+}
+
+.workspace-close-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  border-radius: 7px;
+  color: var(--text-secondary, #a0b0d8);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.workspace-close-btn:hover {
+  background: var(--bg-active, rgba(255, 255, 255, 0.12));
+  color: var(--text-primary, #eef2ff);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* BODY & TABS */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  background: var(--bg-raised, #0f1620);
+}
+
+.workspace-tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #556080);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.workspace-tab:hover {
+  color: var(--text-secondary, #a0b0d8);
+}
+
+.workspace-tab.active {
+  color: var(--accent, #f0b429);
+}
+
+.workspace-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent, #f0b429);
+}
+
+.workspace-badge {
+  display: inline-block;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--bg-active, rgba(255, 255, 255, 0.12));
+  color: var(--text-secondary, #a0b0d8);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+}
+
+.workspace-tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: none;
+}
+
+.workspace-tab-content.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* SECTIONS */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-section {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.workspace-section:last-child {
+  border-bottom: none;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-section-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary, #eef2ff);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* FORM ELEMENTS */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workspace-input,
+.workspace-select,
+.workspace-textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  background: var(--bg-raised, #0f1620);
+  color: var(--text-primary, #eef2ff);
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.workspace-input:focus,
+.workspace-select:focus,
+.workspace-textarea:focus {
+  outline: none;
+  border-color: var(--accent, #f0b429);
+  background: var(--bg-active, rgba(255, 255, 255, 0.08));
+}
+
+.workspace-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.workspace-select {
+  cursor: pointer;
+}
+
+.workspace-select option {
+  background: var(--bg-elevated, #111d34);
+  color: var(--text-primary, #eef2ff);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* BUTTONS */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-btn-primary {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent, #f0b429);
+  color: #000;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  letter-spacing: -0.2px;
+}
+
+.workspace-btn-primary:hover {
+  opacity: 0.88;
+  transform: scale(1.01);
+}
+
+.workspace-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.workspace-btn-icon {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #556080);
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.workspace-btn-icon:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-secondary, #a0b0d8);
+}
+
+.workspace-btn-icon.delete:hover {
+  color: #ff6b6b;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* LIST */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.workspace-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted, #556080);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.workspace-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 8px;
+  background: var(--bg-raised, #0f1620);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.workspace-item:hover {
+  border-color: var(--border-default, rgba(255, 255, 255, 0.1));
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+
+.workspace-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workspace-item-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #eef2ff);
+  word-break: break-word;
+}
+
+.workspace-item-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted, #556080);
+  line-height: 1.4;
+}
+
+.workspace-item-notes {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #a0b0d8);
+  padding: 8px;
+  background: var(--bg-active, rgba(255, 255, 255, 0.06));
+  border-radius: 6px;
+  border-left: 2px solid var(--accent, #f0b429);
+}
+
+.workspace-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.workspace-select-small {
+  padding: 6px 8px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  background: var(--bg-raised, #0f1620);
+  color: var(--text-secondary, #a0b0d8);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.workspace-select-small:focus {
+  outline: none;
+  border-color: var(--accent, #f0b429);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* STATUS STYLES (for tickets) */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.ticket-item.status-pending {
+  border-left: 3px solid #f0b429;
+}
+
+.ticket-item.status-in-progress {
+  border-left: 3px solid #60a5fa;
+}
+
+.ticket-item.status-complete {
+  border-left: 3px solid #34d399;
+  opacity: 0.8;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* WORKER ITEM SPECIFIC */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.worker-item {
+  flex-direction: row;
+}
+
+.worker-item .workspace-item-content {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+/* SCROLLBAR */
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+.workspace-list::-webkit-scrollbar,
+.workspace-tab-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.workspace-list::-webkit-scrollbar-track,
+.workspace-tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace-list::-webkit-scrollbar-thumb,
+.workspace-tab-content::-webkit-scrollbar-thumb {
+  background: var(--border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 3px;
+}
+
+.workspace-list::-webkit-scrollbar-thumb:hover,
+.workspace-tab-content::-webkit-scrollbar-thumb:hover {
+  background: var(--border-subtle, rgba(255, 255, 255, 0.15));
+}
