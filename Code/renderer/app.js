@@ -16,6 +16,7 @@ import { initFeatures, getFeatures } from './featureManager.js';
 let _secretHolder    = null;
 let _apiTool         = null;
 let _settingsManager = null;
+let _workspaceTool   = null;
 
 const selectRepoBtn      = document.getElementById('selectRepoBtn');
 const activeRepoName     = document.getElementById('activeRepoName');
@@ -115,7 +116,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('mouseleave', () => {
     isDragging = false;
     cursorEl?.classList.remove('is-dragging');
-    scroller.classList.remove('is-dragging');
+    scroller?.classList.remove('is-dragging');
   });
 });
 
@@ -473,6 +474,27 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ── Workspace Tool ────────────────────────────────────────────────────────────
+  if (feats.workspaceTool) {
+    try {
+      _workspaceTool = await import('./workspaceTool.js');
+      await _workspaceTool.initWorkspaceTool();
+      const workspaceToolBtn = document.getElementById('workspaceTool');
+      workspaceToolBtn?.addEventListener('click', async () => {
+        if (_workspaceTool.isWorkspacePanelOpen()) {
+          _workspaceTool.closeWorkspacePanel();
+          workspaceToolBtn.classList.remove('active');
+        } else {
+          await _workspaceTool.openWorkspacePanel();
+          workspaceToolBtn.classList.add('active');
+        }
+      });
+      console.log('[Init] Workspace Tool initialised');
+    } catch (err) {
+      console.error('[Init] Workspace Tool failed:', err);
+    }
+  }
+
   await loadIgnoredExtensions();
   if (feats.folderFilters) await loadFolderFilters();
   applyViewMode(viewMode);
@@ -485,6 +507,7 @@ function _applyFeatureVisibility(feats) {
   const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
   if (!feats.apiTool)       { hide('toolsTriggerBtn'); hide('toolsDropdown'); }
   if (!feats.secretHolder)  { hide('secretHolderBtn'); }
+  if (!feats.workspaceTool) { hide('workspaceTool'); }
   if (!feats.folderFilters) { hide('folderToggleBtn'); hide('folderPanel'); }
 }
 
@@ -503,6 +526,7 @@ function _ensureLightSettingsModal(getFeatures, saveFeatures) {
   const FEATURES_META = [
     { id: 'apiTool',       icon: '🔌', label: 'API Tool',         desc: 'Built-in API tester + Swagger import' },
     { id: 'secretHolder',  icon: '🔐', label: 'Secret Holder',    desc: 'Password-protected vault for keys & notes' },
+    { id: 'workspaceTool', icon: '👥', label: 'Workspace Tool',   desc: 'Manage workers and project tickets' },
     { id: 'themeEngine',   icon: '🎨', label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)' },
     { id: 'folderFilters', icon: '📁', label: 'Folder Filters',   desc: 'Ignore / Focus folder panels' },
     { id: 'swagger',       icon: '⚡', label: 'Swagger Import',   desc: 'Auto-import from OpenAPI specs' },
