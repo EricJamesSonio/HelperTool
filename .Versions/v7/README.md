@@ -7,7 +7,7 @@
 
 Version 7 introduces the **Workspace Tool**, a lightweight task and worker management system inspired by issue tracking workflows. It allows users to organize team members, assign roles, and manage tickets with flexible status control.
 
-This feature is designed to simplify coordination by keeping worker roles and their assigned tasks clearly structured in one place.
+This feature is designed to simplify coordination by keeping worker roles, task assignments, and system activity clearly structured in one place.
 
 ---
 
@@ -63,14 +63,37 @@ This allows for real-world iteration without restrictions.
 
 ---
 
+### Activity Logs (Audit Trail)
+
+A new **logging system** has been introduced to track all workspace actions for transparency and accountability.
+
+The system records key events, including:
+
+- Worker creation
+- Worker information updates (e.g., name, role changes)
+- Ticket creation
+- Ticket updates (title, notes, assignments)
+- Ticket status changes (Pending, In Progress, Complete)
+
+Each log entry captures:
+
+- **Action type** (e.g., CREATE_WORKER, UPDATE_TICKET)
+- **Target entity** (worker or ticket reference)
+- **Timestamp** of the action
+- **Changed fields** (for update actions)
+
+This ensures a full history of workspace activity, making it easier to audit changes, track progress, and debug inconsistencies.
+
+---
+
 ## Performance Notes
 
-The Workspace Tool is lightweight and operates independently. It introduces minimal overhead and integrates seamlessly with existing systems without affecting load performance.
+The Workspace Tool remains lightweight and operates independently. The addition of activity logging is optimized to minimize overhead and does not affect system performance or responsiveness.
 
 ---
 
 ## Compatibility
 
-The Workspace Tool stores worker and ticket data within the existing application structure. No migration is required for existing users.
+The Workspace Tool stores worker, ticket, and log data within the existing application structure. No migration is required for existing users.
 
-All new data is initialized only when the Workspace Tool is used.
+All new data (including logs) is initialized only when the Workspace Tool is used.
