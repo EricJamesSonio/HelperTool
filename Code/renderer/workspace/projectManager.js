@@ -2,6 +2,11 @@
  * projectManager.js
  * ──────────────────
  * Project CRUD + project-scoped log helpers.
+ *
+ * Folder structure is split into 3 independent fields:
+ *   folderMain      — full codebase / monorepo root
+ *   folderFrontend  — frontend-specific structure
+ *   folderBackend   — backend-specific structure
  */
 
 import { state, saveAll, genId } from './workspaceStore.js';
@@ -26,17 +31,22 @@ export function createProject(title, description = '') {
   if (!title?.trim()) throw new Error('Project title is required');
 
   const project = {
-    id:               genId(),
-    title:            title.trim(),
-    description:      description.trim(),
-    overview:         '',
-    folderStructure:  '',
-    databaseInfo:     '',
-    status:           'planning',
+    id: genId(),
+    title: title.trim(),
+    description: description.trim(),
+    overview: '',
+    // 3-part folder structure
+    folderMain: '',
+    folderFrontend: '',
+    folderBackend: '',
+    // Legacy field kept for backward-compat with any saved data
+    folderStructure: '',
+    databaseInfo: '',
+    status: 'planning',
     assignedWorkerIds: [],
-    projectLogs:      [],
-    createdAt:        new Date().toISOString(),
-    updatedAt:        new Date().toISOString(),
+    projectLogs: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   state.projects.push(project);
@@ -51,7 +61,12 @@ export function updateProject(id, fields) {
   const project = getProjectById(id);
   if (!project) throw new Error('Project not found');
 
-  const allowed = ['title', 'description', 'overview', 'folderStructure', 'databaseInfo', 'status'];
+  const allowed = [
+    'title', 'description', 'overview',
+    'folderMain', 'folderFrontend', 'folderBackend',
+    'folderStructure', // legacy
+    'databaseInfo', 'status',
+  ];
   allowed.forEach(key => {
     if (fields[key] !== undefined) project[key] = fields[key];
   });
@@ -75,7 +90,6 @@ export function deleteProject(id) {
 
   const title = project.title;
   state.projects = state.projects.filter(p => p.id !== id);
-  // Remove all tickets belonging to this project
   state.tickets = state.tickets.filter(t => t.projectId !== id);
   _addGlobalLog('project_deleted', `Project **${title}** deleted`);
   saveAll();
@@ -86,7 +100,7 @@ export function deleteProject(id) {
 export function assignWorkerToProject(projectId, workerId) {
   const project = getProjectById(projectId);
   if (!project) throw new Error('Project not found');
-  if (project.assignedWorkerIds.includes(workerId)) return; // already assigned
+  if (project.assignedWorkerIds.includes(workerId)) return;
 
   const worker = state.workers.find(w => w.id === workerId);
   if (!worker) throw new Error('Worker not found');
@@ -107,7 +121,6 @@ export function removeWorkerFromProject(projectId, workerId) {
   project.assignedWorkerIds = project.assignedWorkerIds.filter(id => id !== workerId);
   project.updatedAt = new Date().toISOString();
 
-  // Unassign worker's tickets in this project
   state.tickets
     .filter(t => t.projectId === projectId && t.assignedWorkerId === workerId)
     .forEach(t => { t.assignedWorkerId = null; });
@@ -130,7 +143,7 @@ export function addProjectLog(projectId, type, message) {
 function _addProjectLog(project, type, message) {
   if (!Array.isArray(project.projectLogs)) project.projectLogs = [];
   project.projectLogs.unshift({
-    id:        genId(),
+    id: genId(),
     type,
     message,
     timestamp: new Date().toISOString(),
@@ -141,7 +154,7 @@ function _addProjectLog(project, type, message) {
 
 function _addGlobalLog(type, message) {
   state.globalLogs.unshift({
-    id:        genId(),
+    id: genId(),
     type,
     message,
     timestamp: new Date().toISOString(),

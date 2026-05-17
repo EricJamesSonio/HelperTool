@@ -2,33 +2,28 @@
  * workspaceRenderer.js
  * ─────────────────────
  * All UI rendering. No business logic — imports managers for data/mutations.
- *
- * Navigation state:
- *   home → projects list OR workers list OR logs
- *   project-details → selected project (tabs: overview, workers, tickets, db, folders, logs)
- *   worker-details → (reserved for future use)
  */
 
 import { state }                                                  from './workspaceStore.js';
 import { getAllProjects, createProject, updateProject, deleteProject,
-         assignWorkerToProject, removeWorkerFromProject, PROJECT_STATUSES } from './projectManager.js';
-import { getAllWorkers, createWorker, updateWorker, deleteWorker, WORKER_ROLES } from './workerManager.js';
-import { getTicketsByProject, createTicket, updateTicket, updateTicketStatus,
-         deleteTicket, TICKET_STATUSES, TICKET_PRIORITIES,
-         STATUS_COLORS, PRIORITY_COLORS }                         from './ticketManager.js';
-import { getProjectById }                                          from './projectManager.js';
+         assignWorkerToProject, removeWorkerFromProject,
+         PROJECT_STATUSES, getProjectById }                       from './projectManager.js';
+import { getAllWorkers, createWorker, updateWorker, deleteWorker,
+         WORKER_ROLES }                                           from './workerManager.js';
+import { getTicketsByProject, createTicket, updateTicket,
+         updateTicketStatus, deleteTicket, TICKET_STATUSES,
+         TICKET_PRIORITIES, STATUS_COLORS, PRIORITY_COLORS }      from './ticketManager.js';
 
 // ─── Nav state ────────────────────────────────────────────────────────────────
 
-let _view           = 'home';      // 'home' | 'projects' | 'workers' | 'logs' | 'project-details'
+let _view            = 'home';
 let _selectedProject = null;
-let _projectTab      = 'overview'; // 'overview' | 'workers' | 'tickets' | 'db' | 'folders' | 'logs'
+let _projectTab      = 'overview';
 
 // ─── Entry ────────────────────────────────────────────────────────────────────
 
 export function ensurePanel() {
   if (document.getElementById('workspaceContainer')) return;
-
   const el = document.createElement('div');
   el.id        = 'workspaceContainer';
   el.className = 'workspace-container';
@@ -52,15 +47,12 @@ function _renderNavbar() {
   const nav = document.getElementById('workspaceNavbar');
   if (!nav) return;
 
-  const canGoBack = _view !== 'home';
-  const title = _getNavTitle();
-
   nav.innerHTML = `
-    ${canGoBack ? `<button class="workspace-back-btn" id="wsBackBtn">← Back</button>` : ''}
-    <h1 class="workspace-title">${title}</h1>
+    ${_view !== 'home' ? `<button class="workspace-back-btn" id="wsBackBtn">← Back</button>` : ''}
+    <h1 class="workspace-title">${_getNavTitle()}</h1>
     <div class="workspace-navbar-right">
       ${_view === 'home' ? `
-        <button class="workspace-nav-chip ${_view==='projects'?'active':''}" data-goto="projects">📁 Projects</button>
+        <button class="workspace-nav-chip" data-goto="projects">📁 Projects</button>
         <button class="workspace-nav-chip" data-goto="workers">👥 Workers</button>
         <button class="workspace-nav-chip" data-goto="logs">📋 Logs</button>
       ` : ''}
@@ -68,19 +60,17 @@ function _renderNavbar() {
     </div>
   `;
 
-  nav.querySelectorAll('[data-goto]').forEach(btn => {
-    btn.addEventListener('click', () => { _view = btn.dataset.goto; render(); });
-  });
-
+  nav.querySelectorAll('[data-goto]').forEach(btn =>
+    btn.addEventListener('click', () => { _view = btn.dataset.goto; render(); })
+  );
   nav.querySelector('#wsBackBtn')?.addEventListener('click', () => {
     if (_view === 'project-details') { _view = 'projects'; _selectedProject = null; }
     else { _view = 'home'; }
     render();
   });
-
-  nav.querySelector('#wsCloseBtn')?.addEventListener('click', () => {
-    document.getElementById('workspaceContainer')?.classList.remove('open');
-  });
+  nav.querySelector('#wsCloseBtn')?.addEventListener('click', () =>
+    document.getElementById('workspaceContainer')?.classList.remove('open')
+  );
 }
 
 function _getNavTitle() {
@@ -89,73 +79,136 @@ function _getNavTitle() {
     case 'projects':       return '📁 Projects';
     case 'workers':        return '👥 Workers';
     case 'logs':           return '📋 Global Logs';
-    case 'project-details':
-      return _selectedProject ? `📁 ${_selectedProject.title}` : '📁 Project';
+    case 'project-details':return _selectedProject ? `📁 ${_selectedProject.title}` : '📁 Project';
     default:               return 'Workspace';
   }
 }
 
-// ─── Body dispatcher ─────────────────────────────────────────────────────────
+// ─── Body dispatcher ──────────────────────────────────────────────────────────
 
 function _renderBody() {
   const body = document.getElementById('workspaceBody');
   if (!body) return;
   body.innerHTML = '';
-
   switch (_view) {
-    case 'home':           _renderHome(body);           break;
-    case 'projects':       _renderProjectsList(body);   break;
-    case 'workers':        _renderWorkersList(body);    break;
-    case 'logs':           _renderGlobalLogs(body);     break;
-    case 'project-details':_renderProjectDetails(body); break;
+    case 'home':            _renderHome(body);           break;
+    case 'projects':        _renderProjectsList(body);   break;
+    case 'workers':         _renderWorkersList(body);    break;
+    case 'logs':            _renderGlobalLogs(body);     break;
+    case 'project-details': _renderProjectDetails(body); break;
   }
 }
 
-// ─── HOME ────────────────────────────────────────────────────────────────────
+// ─── HOME ─────────────────────────────────────────────────────────────────────
 
 function _renderHome(body) {
-  const totalTickets    = state.tickets.length;
   const activeTickets   = state.tickets.filter(t => !['complete','backlog'].includes(t.status)).length;
   const completeTickets = state.tickets.filter(t => t.status === 'complete').length;
   const activeProjects  = state.projects.filter(p => p.status === 'in-progress').length;
+  const totalTickets    = state.tickets.length;
+  const completePct     = totalTickets ? Math.round((completeTickets / totalTickets) * 100) : 0;
+
+  // Recent logs (last 4)
+  const recentLogs = state.globalLogs.slice(0, 4);
 
   body.innerHTML = `
-    <div class="ws-home-stats">
-      <div class="ws-stat-card"><span class="ws-stat-num">${state.projects.length}</span><span class="ws-stat-lbl">Projects</span></div>
-      <div class="ws-stat-card"><span class="ws-stat-num">${activeProjects}</span><span class="ws-stat-lbl">Active</span></div>
-      <div class="ws-stat-card"><span class="ws-stat-num">${state.workers.length}</span><span class="ws-stat-lbl">Workers</span></div>
-      <div class="ws-stat-card"><span class="ws-stat-num" style="color:#60a5fa">${activeTickets}</span><span class="ws-stat-lbl">Active Tickets</span></div>
-      <div class="ws-stat-card"><span class="ws-stat-num" style="color:#34d399">${completeTickets}</span><span class="ws-stat-lbl">Done</span></div>
-    </div>
+    <div class="ws-home-layout">
 
-    <div class="ws-home-nav-cards">
-      <button class="ws-home-card" data-goto="projects">
-        <span class="ws-home-card-icon">📁</span>
-        <span class="ws-home-card-label">Projects</span>
-        <span class="ws-home-card-count">${state.projects.length}</span>
-      </button>
-      <button class="ws-home-card" data-goto="workers">
-        <span class="ws-home-card-icon">👥</span>
-        <span class="ws-home-card-label">Workers</span>
-        <span class="ws-home-card-count">${state.workers.length}</span>
-      </button>
-      <button class="ws-home-card" data-goto="logs">
-        <span class="ws-home-card-icon">📋</span>
-        <span class="ws-home-card-label">Activity Log</span>
-        <span class="ws-home-card-count">${state.globalLogs.length}</span>
-      </button>
+      <!-- Left column: stats + nav cards -->
+      <div class="ws-home-left">
+
+        <div class="ws-home-stats-grid">
+          <div class="ws-stat-card ws-stat-accent">
+            <span class="ws-stat-num">${state.projects.length}</span>
+            <span class="ws-stat-lbl">Total Projects</span>
+            <span class="ws-stat-sub">${activeProjects} active</span>
+          </div>
+          <div class="ws-stat-card">
+            <span class="ws-stat-num">${state.workers.length}</span>
+            <span class="ws-stat-lbl">Workers</span>
+            <span class="ws-stat-sub">global team</span>
+          </div>
+          <div class="ws-stat-card">
+            <span class="ws-stat-num" style="color:#60a5fa">${activeTickets}</span>
+            <span class="ws-stat-lbl">Active Tickets</span>
+            <span class="ws-stat-sub">in progress</span>
+          </div>
+          <div class="ws-stat-card">
+            <span class="ws-stat-num" style="color:#34d399">${completeTickets}</span>
+            <span class="ws-stat-lbl">Done</span>
+            <span class="ws-stat-sub">${completePct}% of total</span>
+          </div>
+        </div>
+
+        <div class="ws-home-section-label">Navigate</div>
+        <div class="ws-home-nav-cards">
+          <button class="ws-home-card" data-goto="projects">
+            <div class="ws-home-card-left">
+              <span class="ws-home-card-icon">📁</span>
+              <div>
+                <div class="ws-home-card-label">Projects</div>
+                <div class="ws-home-card-sub">${state.projects.length} total · ${activeProjects} active</div>
+              </div>
+            </div>
+            <span class="ws-home-card-arrow">→</span>
+          </button>
+          <button class="ws-home-card" data-goto="workers">
+            <div class="ws-home-card-left">
+              <span class="ws-home-card-icon">👥</span>
+              <div>
+                <div class="ws-home-card-label">Workers</div>
+                <div class="ws-home-card-sub">${state.workers.length} team members</div>
+              </div>
+            </div>
+            <span class="ws-home-card-arrow">→</span>
+          </button>
+          <button class="ws-home-card" data-goto="logs">
+            <div class="ws-home-card-left">
+              <span class="ws-home-card-icon">📋</span>
+              <div>
+                <div class="ws-home-card-label">Activity Log</div>
+                <div class="ws-home-card-sub">${state.globalLogs.length} events</div>
+              </div>
+            </div>
+            <span class="ws-home-card-arrow">→</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Right column: recent activity -->
+      <div class="ws-home-right">
+        <div class="ws-home-section-label">Recent Activity</div>
+        <div class="ws-home-activity" id="wsHomeActivity">
+          ${recentLogs.length === 0
+            ? '<p class="ws-home-empty">No activity yet.</p>'
+            : recentLogs.map(log => `
+                <div class="ws-home-activity-item">
+                  <div class="ws-home-activity-dot"></div>
+                  <div class="ws-home-activity-content">
+                    <div class="ws-home-activity-msg">${log.message.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>
+                    <div class="ws-home-activity-time">${new Date(log.timestamp).toLocaleString()}</div>
+                  </div>
+                </div>
+              `).join('')
+          }
+        </div>
+        ${state.globalLogs.length > 4 ? `
+          <button class="ws-home-view-all" data-goto="logs">View all activity →</button>
+        ` : ''}
+      </div>
+
     </div>
   `;
 
-  body.querySelectorAll('[data-goto]').forEach(btn => {
-    btn.addEventListener('click', () => { _view = btn.dataset.goto; render(); });
-  });
+  body.querySelectorAll('[data-goto]').forEach(btn =>
+    btn.addEventListener('click', () => { _view = btn.dataset.goto; render(); })
+  );
 }
 
 // ─── PROJECTS LIST ────────────────────────────────────────────────────────────
 
 function _renderProjectsList(body) {
-  // Add project form
   const form = document.createElement('div');
   form.className = 'workspace-form-section';
   form.innerHTML = `
@@ -169,20 +222,19 @@ function _renderProjectsList(body) {
   body.appendChild(form);
 
   form.querySelector('#addProjectBtn').addEventListener('click', () => {
-    const title = document.getElementById('newProjectTitle').value;
-    const desc  = document.getElementById('newProjectDesc').value;
     try {
-      createProject(title, desc);
+      createProject(
+        document.getElementById('newProjectTitle').value,
+        document.getElementById('newProjectDesc').value,
+      );
       document.getElementById('newProjectTitle').value = '';
       document.getElementById('newProjectDesc').value  = '';
       render();
     } catch (err) { alert(err.message); }
   });
 
-  // Grid
   const grid = document.createElement('div');
   grid.className = 'workspace-grid';
-
   const projects = getAllProjects();
   if (projects.length === 0) {
     grid.innerHTML = '<p class="workspace-empty">No projects yet. Create one above.</p>';
@@ -212,9 +264,7 @@ function _buildProjectCard(project) {
       <span>👥 ${workerCnt} worker${workerCnt !== 1 ? 's' : ''}</span>
       <span>🎫 ${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}</span>
     </div>
-    <div class="ws-progress-bar-wrap">
-      <div class="ws-progress-bar" style="width:${progress}%"></div>
-    </div>
+    <div class="ws-progress-bar-wrap"><div class="ws-progress-bar" style="width:${progress}%"></div></div>
     <div class="ws-progress-label">${progress}% complete</div>
   `;
 
@@ -294,7 +344,7 @@ function _renderWorkersList(body) {
     try {
       createWorker(
         document.getElementById('newWorkerName').value,
-        document.getElementById('newWorkerRole').value
+        document.getElementById('newWorkerRole').value,
       );
       document.getElementById('newWorkerName').value = '';
       document.getElementById('newWorkerRole').value = '';
@@ -304,7 +354,6 @@ function _renderWorkersList(body) {
 
   const grid = document.createElement('div');
   grid.className = 'workspace-grid';
-
   const workers = getAllWorkers();
   if (workers.length === 0) {
     grid.innerHTML = '<p class="workspace-empty">No workers yet. Add one above.</p>';
@@ -315,7 +364,6 @@ function _renderWorkersList(body) {
 }
 
 function _buildWorkerCard(worker) {
-  // Count tickets assigned to this worker across all projects
   const workerTickets    = state.tickets.filter(t => t.assignedWorkerId === worker.id);
   const completedTickets = workerTickets.filter(t => t.status === 'complete').length;
   const projectCount     = state.projects.filter(p => p.assignedWorkerIds.includes(worker.id)).length;
@@ -350,7 +398,6 @@ function _buildWorkerCard(worker) {
     e.stopPropagation();
     _showEditWorkerModal(worker);
   });
-
   card.querySelector('.workspace-card-delete').addEventListener('click', e => {
     e.stopPropagation();
     if (confirm(`Delete ${worker.name}? Their tickets will become unassigned.`)) {
@@ -358,7 +405,6 @@ function _buildWorkerCard(worker) {
       render();
     }
   });
-
   return card;
 }
 
@@ -379,7 +425,7 @@ function _showEditWorkerModal(worker) {
       updateWorker(
         worker.id,
         document.getElementById('editWorkerName').value,
-        document.getElementById('editWorkerRole').value
+        document.getElementById('editWorkerRole').value,
       );
       modal.remove();
       render();
@@ -406,20 +452,18 @@ function _renderGlobalLogs(body) {
 
 function _renderProjectDetails(body) {
   if (!_selectedProject) return;
-  // Always get fresh reference
   _selectedProject = getProjectById(_selectedProject.id);
   if (!_selectedProject) { _view = 'projects'; render(); return; }
 
   const tabs = [
-    { key: 'overview', label: '📄 Overview' },
-    { key: 'workers',  label: '👥 Workers'  },
-    { key: 'tickets',  label: '🎫 Tickets'  },
-    { key: 'db',       label: '🗄️ Database' },
-    { key: 'folders',  label: '📂 Folders'  },
-    { key: 'logs',     label: '📋 Logs'     },
+    { key: 'overview', label: '📄 Overview'  },
+    { key: 'workers',  label: '👥 Workers'   },
+    { key: 'tickets',  label: '🎫 Tickets'   },
+    { key: 'db',       label: '🗄️ Database'  },
+    { key: 'folders',  label: '📂 Folders'   },
+    { key: 'logs',     label: '📋 Logs'      },
   ];
 
-  // Tab bar
   const tabBar = document.createElement('div');
   tabBar.className = 'ws-tab-bar';
   tabs.forEach(t => {
@@ -431,17 +475,16 @@ function _renderProjectDetails(body) {
   });
   body.appendChild(tabBar);
 
-  // Tab content
   const content = document.createElement('div');
   content.className = 'ws-tab-content';
 
   switch (_projectTab) {
-    case 'overview': _renderTabOverview(content);  break;
-    case 'workers':  _renderTabWorkers(content);   break;
-    case 'tickets':  _renderTabTickets(content);   break;
-    case 'db':       _renderTabDb(content);         break;
-    case 'folders':  _renderTabFolders(content);   break;
-    case 'logs':     _renderTabProjectLogs(content);break;
+    case 'overview': _renderTabOverview(content);     break;
+    case 'workers':  _renderTabWorkers(content);      break;
+    case 'tickets':  _renderTabTickets(content);      break;
+    case 'db':       _renderTabDb(content);            break;
+    case 'folders':  _renderTabFolders(content);      break;
+    case 'logs':     _renderTabProjectLogs(content);  break;
   }
   body.appendChild(content);
 }
@@ -454,7 +497,7 @@ function _renderTabOverview(el) {
     <div class="ws-overview-grid">
       <div class="ws-overview-field">
         <label>Status</label>
-        <select id="overviewStatus" class="workspace-select ws-status-${p.status}">
+        <select id="overviewStatus" class="workspace-select">
           ${PROJECT_STATUSES.map(s => `<option value="${s}" ${s === p.status ? 'selected':''}>${s}</option>`).join('')}
         </select>
       </div>
@@ -471,7 +514,6 @@ function _renderTabOverview(el) {
       <button class="workspace-btn-add" id="saveOverviewBtn">Save Overview</button>
     </div>
   `;
-
   el.querySelector('#saveOverviewBtn').addEventListener('click', () => {
     updateProject(p.id, {
       status:      document.getElementById('overviewStatus').value,
@@ -485,12 +527,11 @@ function _renderTabOverview(el) {
 // ── Tab: Workers ──────────────────────────────────────────────────────────────
 
 function _renderTabWorkers(el) {
-  const p            = _selectedProject;
-  const allWorkers   = getAllWorkers();
-  const assignedIds  = p.assignedWorkerIds;
-  const unassigned   = allWorkers.filter(w => !assignedIds.includes(w.id));
+  const p           = _selectedProject;
+  const allWorkers  = getAllWorkers();
+  const assignedIds = p.assignedWorkerIds;
+  const unassigned  = allWorkers.filter(w => !assignedIds.includes(w.id));
 
-  // Assign form
   const assignWrap = document.createElement('div');
   assignWrap.className = 'workspace-form-section';
   assignWrap.innerHTML = `
@@ -512,7 +553,6 @@ function _renderTabWorkers(el) {
     catch (err) { alert(err.message); }
   });
 
-  // Assigned list
   const list = document.createElement('div');
   list.className = 'ws-assigned-workers-list';
 
@@ -532,7 +572,7 @@ function _renderTabWorkers(el) {
           <span class="ws-assigned-role">${worker.role}</span>
         </div>
         <span class="ws-assigned-tickets">${ticketCount} ticket${ticketCount !== 1 ? 's' : ''}</span>
-        <button class="workspace-card-delete ws-remove-worker-btn" data-wid="${wid}" title="Remove from project">✕</button>
+        <button class="workspace-card-delete ws-remove-worker-btn" data-wid="${wid}" title="Remove">✕</button>
       `;
       row.querySelector('.ws-remove-worker-btn').addEventListener('click', () => {
         if (confirm(`Remove ${worker.name} from this project?`)) {
@@ -549,9 +589,9 @@ function _renderTabWorkers(el) {
 // ── Tab: Tickets (Kanban) ─────────────────────────────────────────────────────
 
 function _renderTabTickets(el) {
-  const p         = _selectedProject;
-  const workers   = getAllWorkers().filter(w => p.assignedWorkerIds.includes(w.id));
-  const tickets   = getTicketsByProject(p.id);
+  const p       = _selectedProject;
+  const workers = getAllWorkers().filter(w => p.assignedWorkerIds.includes(w.id));
+  const tickets = getTicketsByProject(p.id);
 
   // Add ticket form
   const form = document.createElement('div');
@@ -572,7 +612,7 @@ function _renderTabTickets(el) {
       </select>
       <button class="workspace-btn-add" id="addTicketBtn">+ Add</button>
     </div>
-    <textarea id="newTicketDesc" placeholder="Description (optional)..." class="workspace-textarea" rows="2" style="margin-top:8px"></textarea>
+    <textarea id="newTicketDesc" placeholder="Description (optional)..." class="workspace-textarea" rows="2" style="margin-top:10px;width:100%;box-sizing:border-box"></textarea>
   `;
   el.appendChild(form);
 
@@ -585,9 +625,9 @@ function _renderTabTickets(el) {
         document.getElementById('newTicketWorker').value || null,
         document.getElementById('newTicketPriority').value,
       );
-      document.getElementById('newTicketTitle').value = '';
-      document.getElementById('newTicketDesc').value  = '';
-      document.getElementById('newTicketWorker').value = '';
+      document.getElementById('newTicketTitle').value   = '';
+      document.getElementById('newTicketDesc').value    = '';
+      document.getElementById('newTicketWorker').value  = '';
       render();
     } catch (err) { alert(err.message); }
   });
@@ -605,9 +645,9 @@ function _renderTabTickets(el) {
         <span class="ws-kanban-col-title">${status}</span>
         <span class="ws-kanban-col-count">${colTickets.length}</span>
       </div>
-      <div class="ws-kanban-col-body" id="kanban-col-${status}"></div>
+      <div class="ws-kanban-col-body"></div>
     `;
-    const colBody = col.querySelector(`#kanban-col-${status}`);
+    const colBody = col.querySelector('.ws-kanban-col-body');
     colTickets.forEach(ticket => colBody.appendChild(_buildKanbanCard(ticket, workers, p)));
     board.appendChild(col);
   });
@@ -616,35 +656,73 @@ function _renderTabTickets(el) {
 }
 
 function _buildKanbanCard(ticket, workers, project) {
-  const worker = workers.find(w => w.id === ticket.assignedWorkerId);
+  const worker  = workers.find(w => w.id === ticket.assignedWorkerId);
+  const PREVIEW = 90; // chars shown before "show more"
+  const hasLongDesc = ticket.description && ticket.description.length > PREVIEW;
+  const previewText  = hasLongDesc
+    ? ticket.description.slice(0, PREVIEW).trimEnd() + '…'
+    : ticket.description;
+
   const card = document.createElement('div');
   card.className = 'ws-kanban-card';
   card.innerHTML = `
     <div class="ws-kanban-card-header">
-      <span class="ws-kanban-priority" style="background:${PRIORITY_COLORS[ticket.priority]}22;color:${PRIORITY_COLORS[ticket.priority]}">${ticket.priority}</span>
+      <span class="ws-kanban-priority"
+        style="background:${PRIORITY_COLORS[ticket.priority]}22;color:${PRIORITY_COLORS[ticket.priority]}">
+        ${ticket.priority}
+      </span>
       <div class="ws-kanban-card-actions">
-        <button class="workspace-ticket-edit" title="Edit">✏️</button>
+        <button class="workspace-ticket-edit"   title="Edit">✏️</button>
         <button class="workspace-ticket-delete" title="Delete">🗑️</button>
       </div>
     </div>
-    <div class="ws-kanban-card-title">${ticket.title}</div>
-    ${ticket.description ? `<div class="ws-kanban-card-desc">${ticket.description}</div>` : ''}
+
+    <div class="ws-kanban-card-title">${_esc(ticket.title)}</div>
+
+    ${ticket.description ? `
+      <div class="ws-kanban-desc-wrap">
+        <div class="ws-kanban-card-desc ws-kanban-desc-preview">${_esc(previewText)}</div>
+        ${hasLongDesc ? `
+          <div class="ws-kanban-card-desc ws-kanban-desc-full" style="display:none">${_esc(ticket.description)}</div>
+          <button class="ws-kanban-desc-toggle">Show more</button>
+        ` : ''}
+      </div>
+    ` : ''}
+
     <div class="ws-kanban-card-footer">
-      ${worker ? `<span class="ws-kanban-assignee" style="background:${worker.avatarColor}">${worker.name.charAt(0)}</span>` : '<span class="ws-kanban-unassigned">—</span>'}
-      <select class="workspace-status-select ws-kanban-status-select">
+      <div class="ws-kanban-assignee-wrap">
+        ${worker
+          ? `<span class="ws-kanban-assignee" style="background:${worker.avatarColor}">${worker.name.charAt(0)}</span>
+             <span class="ws-kanban-assignee-name">${worker.name}</span>`
+          : `<span class="ws-kanban-unassigned">—</span>
+             <span class="ws-kanban-assignee-name ws-kanban-unassigned-lbl">Unassigned</span>`}
+      </div>
+      <select class="ws-kanban-status-select">
         ${TICKET_STATUSES.map(s => `<option value="${s}" ${s === ticket.status ? 'selected':''}>${s}</option>`).join('')}
       </select>
     </div>
   `;
 
-  card.querySelector('.workspace-ticket-edit').addEventListener('click', () => {
-    _showEditTicketModal(ticket, project, workers);
-  });
+  // Toggle description expand/collapse
+  const toggleBtn = card.querySelector('.ws-kanban-desc-toggle');
+  if (toggleBtn) {
+    const preview = card.querySelector('.ws-kanban-desc-preview');
+    const full    = card.querySelector('.ws-kanban-desc-full');
+    toggleBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const expanded = full.style.display !== 'none';
+      full.style.display    = expanded ? 'none'  : 'block';
+      preview.style.display = expanded ? 'block' : 'none';
+      toggleBtn.textContent = expanded ? 'Show more' : 'Show less';
+    });
+  }
 
+  card.querySelector('.workspace-ticket-edit').addEventListener('click', () =>
+    _showEditTicketModal(ticket, project, workers)
+  );
   card.querySelector('.workspace-ticket-delete').addEventListener('click', () => {
     if (confirm('Delete this ticket?')) { deleteTicket(ticket.id); render(); }
   });
-
   card.querySelector('.ws-kanban-status-select').addEventListener('change', e => {
     updateTicketStatus(ticket.id, e.target.value);
     render();
@@ -661,7 +739,7 @@ function _showEditTicketModal(ticket, project, workers) {
     </div>
     <div class="workspace-form-group">
       <label>Description</label>
-      <textarea id="etDesc" class="workspace-textarea" rows="3">${_esc(ticket.description)}</textarea>
+      <textarea id="etDesc" class="workspace-textarea" rows="4">${_esc(ticket.description)}</textarea>
     </div>
     <div class="workspace-form-group">
       <label>Assigned Worker</label>
@@ -673,7 +751,7 @@ function _showEditTicketModal(ticket, project, workers) {
     <div class="workspace-form-group">
       <label>Priority</label>
       <select id="etPriority" class="workspace-select">
-        ${['low','medium','high','critical'].map(p => `<option value="${p}" ${p === ticket.priority ? 'selected':''}>${p}</option>`).join('')}
+        ${TICKET_PRIORITIES.map(p => `<option value="${p}" ${p === ticket.priority ? 'selected':''}>${p}</option>`).join('')}
       </select>
     </div>
     <div class="workspace-form-group">
@@ -703,10 +781,11 @@ function _showEditTicketModal(ticket, project, workers) {
 function _renderTabDb(el) {
   const p = _selectedProject;
   el.innerHTML = `
-    <div class="workspace-form-section">
+    <div class="ws-fullheight-section">
       <div class="workspace-form-label">Database Info</div>
-      <textarea id="dbInfoText" class="workspace-textarea ws-mono" rows="14" placeholder="Describe your database schema, tables, relations...">${_esc(p.databaseInfo)}</textarea>
-      <div class="workspace-form-actions" style="margin-top:10px">
+      <textarea id="dbInfoText" class="ws-fullheight-textarea"
+        placeholder="Describe your database schema, tables, relations, indexes...">${_esc(p.databaseInfo)}</textarea>
+      <div class="ws-fullheight-footer">
         <button class="workspace-btn-add" id="saveDbBtn">Save</button>
       </div>
     </div>
@@ -717,21 +796,70 @@ function _renderTabDb(el) {
   });
 }
 
-// ── Tab: Folder Structure ─────────────────────────────────────────────────────
+// ── Tab: Folder Structure (3 panels) ─────────────────────────────────────────
 
 function _renderTabFolders(el) {
   const p = _selectedProject;
+
+  // Migrate legacy single folderStructure field into folderMain if folderMain is empty
+  const mainVal     = p.folderMain     || p.folderStructure || '';
+  const frontendVal = p.folderFrontend || '';
+  const backendVal  = p.folderBackend  || '';
+
+  el.className = 'ws-tab-content ws-folders-tab';
+
   el.innerHTML = `
-    <div class="workspace-form-section">
-      <div class="workspace-form-label">Folder Structure</div>
-      <textarea id="folderText" class="workspace-textarea ws-mono" rows="14" placeholder="src/\n  components/\n  pages/\n  api/">${_esc(p.folderStructure)}</textarea>
-      <div class="workspace-form-actions" style="margin-top:10px">
-        <button class="workspace-btn-add" id="saveFolderBtn">Save</button>
+    <div class="ws-folders-grid">
+
+      <div class="ws-folder-panel">
+        <div class="ws-folder-panel-header">
+          <span class="ws-folder-panel-icon">🗂️</span>
+          <div>
+            <div class="ws-folder-panel-title">Full Codebase</div>
+            <div class="ws-folder-panel-sub">Root / monorepo structure</div>
+          </div>
+        </div>
+        <textarea id="folderMain" class="ws-fullheight-textarea"
+          placeholder="root/\n├─ src/\n│   ├─ frontend/\n│   └─ backend/\n├─ docs/\n└─ package.json">${_esc(mainVal)}</textarea>
       </div>
+
+      <div class="ws-folder-panel">
+        <div class="ws-folder-panel-header">
+          <span class="ws-folder-panel-icon">🎨</span>
+          <div>
+            <div class="ws-folder-panel-title">Frontend</div>
+            <div class="ws-folder-panel-sub">UI / client-side structure</div>
+          </div>
+        </div>
+        <textarea id="folderFrontend" class="ws-fullheight-textarea"
+          placeholder="src/\n├─ components/\n├─ pages/\n├─ hooks/\n├─ styles/\n└─ utils/">${_esc(frontendVal)}</textarea>
+      </div>
+
+      <div class="ws-folder-panel">
+        <div class="ws-folder-panel-header">
+          <span class="ws-folder-panel-icon">⚙️</span>
+          <div>
+            <div class="ws-folder-panel-title">Backend</div>
+            <div class="ws-folder-panel-sub">Server / API structure</div>
+          </div>
+        </div>
+        <textarea id="folderBackend" class="ws-fullheight-textarea"
+          placeholder="src/\n├─ controllers/\n├─ services/\n├─ models/\n├─ routes/\n└─ middleware/">${_esc(backendVal)}</textarea>
+      </div>
+
+    </div>
+
+    <div class="workspace-form-actions ws-folders-save-row">
+      <button class="workspace-btn-add" id="saveFoldersBtn">Save All</button>
     </div>
   `;
-  el.querySelector('#saveFolderBtn').addEventListener('click', () => {
-    updateProject(p.id, { folderStructure: document.getElementById('folderText').value });
+
+  el.querySelector('#saveFoldersBtn').addEventListener('click', () => {
+    updateProject(p.id, {
+      folderMain:     document.getElementById('folderMain').value,
+      folderFrontend: document.getElementById('folderFrontend').value,
+      folderBackend:  document.getElementById('folderBackend').value,
+    });
     render();
   });
 }
@@ -765,16 +893,18 @@ function _buildLogItem(log) {
   return el;
 }
 
-/** Render **bold** markdown only */
 function _renderMarkdown(str) {
   return String(str).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 }
 
 function _esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-/** Generic modal factory */
 function _createModal(title, bodyHtml, onSave) {
   const modal = document.createElement('div');
   modal.className = 'workspace-modal-overlay';
@@ -791,8 +921,8 @@ function _createModal(title, bodyHtml, onSave) {
       </div>
     </div>
   `;
-  modal.querySelector('.workspace-modal-close').addEventListener('click', () => modal.remove());
-  modal.querySelector('.ws-modal-cancel-btn').addEventListener('click', () => modal.remove());
+  modal.querySelector('.workspace-modal-close').addEventListener('click',   () => modal.remove());
+  modal.querySelector('.ws-modal-cancel-btn').addEventListener('click',     () => modal.remove());
   modal.querySelector('.ws-modal-save-btn').addEventListener('click', onSave);
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   return modal;
