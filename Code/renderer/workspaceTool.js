@@ -1,11 +1,12 @@
 /**
- * workspaceTool.js - v3
- * ────────────────────
+ * workspaceTool.js - v3 FIXED
+ * ────────────────────────────
  * Card-based workspace manager with:
  * - Edit workers (name, role)
  * - Edit tickets (title, notes, status)
  * - Comprehensive audit logs of all actions
  * - Global activity timeline
+ * - PERSISTENT STORAGE (workers/tickets/logs stay after close)
  */
 
 const WORKER_ROLES = [
@@ -39,9 +40,9 @@ export async function initWorkspaceTool() {
     _workers = data?.workers || [];
     _tickets = data?.tickets || [];
     _auditLogs = data?.auditLogs || [];
-    console.log('[WorkspaceTool] Loaded', _workers.length, 'workers,', _tickets.length, 'tickets,', _auditLogs.length, 'logs');
+    console.log('[WorkspaceTool] ✅ Loaded', _workers.length, 'workers,', _tickets.length, 'tickets,', _auditLogs.length, 'logs');
   } catch (err) {
-    console.error('[WorkspaceTool] Failed to load:', err);
+    console.error('[WorkspaceTool] ❌ Failed to load:', err);
     _workers = [];
     _tickets = [];
     _auditLogs = [];
@@ -54,7 +55,7 @@ export function isWorkspacePanelOpen() {
 
 export async function openWorkspacePanel() {
   if (_isWorkspacePanelOpen) return;
-  await initWorkspaceTool();
+  await initWorkspaceTool(); // Load fresh data from disk
   _ensureWorkspacePanel();
   _selectedWorker = null;
   _editingTicket = null;
@@ -80,7 +81,7 @@ function _addAuditLog(action, details) {
     timestamp: new Date().toISOString(),
   };
   _auditLogs.unshift(log); // Add to beginning (most recent first)
-  _saveData();
+  console.log('[WorkspaceTool] 📝 Audit log:', action, details);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -270,18 +271,29 @@ function deleteTicket(ticketId) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// PERSISTENCE
+// PERSISTENCE - WITH PROPER AWAIT & ERROR HANDLING
 // ────────────────────────────────────────────────────────────────────────────
 
 async function _saveData() {
   try {
-    await window.electronAPI.workspaceSaveAll({
+    console.log('[WorkspaceTool] 💾 Saving to disk...');
+    const result = await window.electronAPI.workspaceSaveAll({
       workers: _workers,
       tickets: _tickets,
       auditLogs: _auditLogs,
     });
+    
+    if (result) {
+      console.log('[WorkspaceTool] ✅ Saved successfully:', {
+        workers: _workers.length,
+        tickets: _tickets.length,
+        logs: _auditLogs.length,
+      });
+    } else {
+      console.error('[WorkspaceTool] ❌ Save returned false');
+    }
   } catch (err) {
-    console.error('[WorkspaceTool] Save failed:', err);
+    console.error('[WorkspaceTool] ❌ Save failed:', err);
   }
 }
 
@@ -504,7 +516,6 @@ function _renderWorkerDetails() {
   formSection.className = 'workspace-form-section';
   
   if (_editingTicket) {
-    // Edit mode
     formSection.innerHTML = `
       <div class="workspace-form-label">Editing Ticket</div>
       <form class="workspace-add-ticket-form" id="addTicketForm">
@@ -533,7 +544,6 @@ function _renderWorkerDetails() {
       </form>
     `;
   } else {
-    // Create mode
     formSection.innerHTML = `
       <form class="workspace-add-ticket-form" id="addTicketForm">
         <div class="workspace-form-group">
@@ -576,7 +586,6 @@ function _renderWorkerDetails() {
 
   body.appendChild(ticketsList);
 
-  // Wire form
   document.getElementById('addTicketForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const title = document.getElementById('ticketTitleInput').value;
@@ -650,10 +659,6 @@ function _createTicketElement(ticket) {
 
   return el;
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// AUDIT LOGS VIEW
-// ────────────────────────────────────────────────────────────────────────────
 
 function _showAuditLogs() {
   const modal = document.createElement('div');

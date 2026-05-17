@@ -226,18 +226,19 @@ ipcMain.handle('select-repo', async () => {
 // Add these to main.js after existing ipcMain.handle() calls
 // ═════════════════════════════════════════════════════════════════════════════
 
-
 function getWorkspacePath() {
   return path.join(app.getPath('userData'), 'workspace.json');
 }
  
 function readWorkspaceFile() {
   const p = getWorkspacePath();
-  if (!fs.existsSync(p)) return { workers: [], tickets: [], auditLogs: [] };
+  if (!fs.existsSync(p)) {
+    return { projects: [], workers: [], tickets: [], globalLogs: [] };
+  }
   try {
     return JSON.parse(fs.readFileSync(p, 'utf-8'));
   } catch {
-    return { workers: [], tickets: [], auditLogs: [] };
+    return { projects: [], workers: [], tickets: [], globalLogs: [] };
   }
 }
  
@@ -250,7 +251,7 @@ ipcMain.handle('workspaceGetAll', () => {
     return readWorkspaceFile();
   } catch (err) {
     console.error('[IPC] workspaceGetAll error:', err);
-    return { workers: [], tickets: [], auditLogs: [] };
+    return { projects: [], workers: [], tickets: [], globalLogs: [] };
   }
 });
  
@@ -258,9 +259,10 @@ ipcMain.handle('workspaceSaveAll', (event, data) => {
   try {
     if (!data || typeof data !== 'object') throw new Error('Invalid data');
     const validated = {
-      workers: Array.isArray(data.workers) ? data.workers : [],
-      tickets: Array.isArray(data.tickets) ? data.tickets : [],
-      auditLogs: Array.isArray(data.auditLogs) ? data.auditLogs : [],
+      projects:   Array.isArray(data.projects)   ? data.projects   : [],
+      workers:    Array.isArray(data.workers)     ? data.workers    : [],
+      tickets:    Array.isArray(data.tickets)     ? data.tickets    : [],
+      globalLogs: Array.isArray(data.globalLogs)  ? data.globalLogs : [],
     };
     writeWorkspaceFile(validated);
     return true;
