@@ -92,6 +92,14 @@ featuresSet: (f)  => ipcRenderer.invoke('features-set', f),
     apiToolGetAll:  () => ipcRenderer.invoke('apiToolGetAll'),
     apiToolSaveAll: (apis) => ipcRenderer.invoke('apiToolSaveAll', apis),
 
+    // ------------------------
+    // Workspace Tool
+    // ------------------------
+    workspaceGetAll: () => ipcRenderer.invoke('workspaceGetAll'),
+
+    workspaceSaveAll: (data) =>
+        ipcRenderer.invoke('workspaceSaveAll', data),
+
     featuresGet: () => ipcRenderer.invoke('features-get'),
     featuresSet: (f) => ipcRenderer.invoke('features-set', f)
 });
