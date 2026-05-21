@@ -177,6 +177,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Tools (apiTool, secretHolder, workspaceTool, gitTool)
     await initTools(feats);
 
+
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => filterTree(state.cachedTree), treeContainer);
 

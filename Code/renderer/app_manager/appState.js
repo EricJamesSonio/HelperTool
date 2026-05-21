@@ -11,4 +11,7 @@ export const state = {
     actionType:       'code',
     generateMinified: false,
     viewMode:         localStorage.getItem('helpertool-viewmode') || 'list',
+    selectedPromptText: '',
+    selectedPromptId:   null,
+    selectedPromptIds:  [],
 };

@@ -62,7 +62,8 @@ async function getFolderTree(dir, repoRoot) {
     return tree;
 }
 
-async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}) {
+async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}, promptText = '') {
+
     if (!selectedPaths?.length) return;
 
     // FIX: derive the true repo root as the common ancestor of ALL selected paths
@@ -109,7 +110,12 @@ async function generateStructure(selectedPaths, outputFile, progressCallback = (
     }
 
     const allLines = [];
+
+    const promptBlock = (promptText || '').trim() ? `\n/* ===== Prompt ===== */\n${promptText.trim()}\n/* =================== */\n\n` : '';
+    if (promptBlock) allLines.push(...promptBlock.split('\n'));
+
     for (let i = 0; i < selectedPaths.length; i++) {
+
         const rootNode = await buildTree(selectedPaths[i]);
         if (rootNode) allLines.push(...treeLines(rootNode));
 

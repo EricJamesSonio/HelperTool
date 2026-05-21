@@ -6,6 +6,7 @@
 import { state }       from './appState.js';
 import { displayTree } from './viewManager.js';
 
+
 const generateBtn        = document.getElementById('generateBtn');
 const generateSplitGroup = document.getElementById('generateSplitGroup');
 const generateModeToggle = document.getElementById('generateModeToggle');
@@ -92,7 +93,7 @@ export function initSplitModeButton() {
     });
 
     document.addEventListener('click', (e) => {
-        if (!generateSplitGroup.contains(e.target))
+        if (generateSplitGroup && !generateSplitGroup.contains(e.target))
             generateSplitGroup.classList.remove('menu-open');
     });
 
@@ -112,7 +113,27 @@ export function initSplitModeButton() {
 // ── Generate button ───────────────────────────────────────────────────────────
 
 export function initGenerateButton() {
+    const promptBtn = document.getElementById('promptBtn');
+    if (promptBtn) {
+        promptBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                const m = await import('../promptTool.js');
+                if (m.openPromptSelectionModal) {
+                    await m.openPromptSelectionModal();
+                    return;
+                }
+                if (m.openPromptToolModal) return m.openPromptToolModal();
+            } catch (err) {
+                console.error('[Prompt] openPromptSelectionModal failed:', err);
+                alert('Failed to open prompt picker. Check console for details.');
+            }
+        });
+    }
+
     generateBtn.addEventListener('click', async () => {
+
+
         try {
             if (!state.selectedRepoPath || !state.selectedItems.length)
                 return alert('Select repo and items first!');
@@ -128,7 +149,8 @@ export function initGenerateButton() {
                 state.selectedRepoPath,
                 state.selectedItems,
                 filePath,
-                state.actionType === 'code' ? state.generateMinified : false
+                state.actionType === 'code' ? state.generateMinified : false,
+                state.selectedPromptText || ''
             );
 
             if (!success) alert('Generation failed.');
@@ -147,6 +169,10 @@ export function initClearSelectionButton() {
     clearSelectionBtn.addEventListener('click', () => {
         state.selectedItems.length = 0;
         window.electronAPI.setLastSelected([]);
+
+        state.selectedPromptText = '';
+        state.selectedPromptId   = null;
+        state.selectedPromptIds  = [];
         updateGenerateState();
         displayTree();
     });
