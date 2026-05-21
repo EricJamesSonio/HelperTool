@@ -48,19 +48,19 @@ jobs:
             const path = require('path');
 
             function findHandlers(dir) {
-              const handlers = [];
+              const names = [];
               for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
                 const full = path.join(dir, entry.name);
                 if (entry.isDirectory()) {
-                  if (entry.name !== 'node_modules') handlers.push(...findHandlers(full));
+                  if (entry.name !== 'node_modules') names.push(...findHandlers(full));
                 } else if (entry.name.endsWith('.js')) {
                   const src = fs.readFileSync(full, 'utf-8');
-                  handlers.push(
-                    ...src.matchAll(/ipcMain\.handle\(['\"]([^'\"]+)['\"],/g)
-                  );
+                  for (const m of src.matchAll(/ipcMain\.handle\(['\"]([^'\"]+)['\"],/g)) {
+                    names.push(m[1]);
+                  }
                 }
               }
-              return handlers.map(m => m[1]);
+              return names;
             }
 
             const preload = fs.readFileSync('Code/preload.js', 'utf-8');
