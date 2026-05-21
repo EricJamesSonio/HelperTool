@@ -1,38 +1,37 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-const { exec } = require('child_process');
 
 const config = require('./config/config.js');
 const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
 const codeOps = require('./utils/codeOps.js');
 
+// IPC modules
+const repoIpc      = require('./ipc/repo_ipc.js');
+const featuresIpc  = require('./ipc/features_ipc.js');
+const secretsIpc   = require('./ipc/secrets_ipc.js');
+const apitoolIpc   = require('./ipc/apitool_ipc.js');
+const workspaceIpc = require('./ipc/workspace_ipc.js');
+const generateIpc  = require('./ipc/generate_ipc.js');
+
 // ----------------------------
 // GPU / MEMORY REDUCTION FLAGS
 // Must be set BEFORE app.whenReady()
 // ----------------------------
-
-// Reduces GPU process memory by ~40-70 MB on most systems
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-software-rasterizer');
-
-// Limits the number of GPU rasterization threads
 app.commandLine.appendSwitch('num-raster-threads', '1');
-
-// Disables background throttling so the app stays responsive when minimised
-// without keeping extra GPU resources alive
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
-
-// Reduce Chromium feature overhead
 app.commandLine.appendSwitch('disable-features', 'TranslateUI,AutofillServerCommunication');
 app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
 
 let mainWindow;
 let tray;
+
+// Getter passed to IPC modules that need mainWindow at call-time (not init-time)
+function getMainWindow() { return mainWindow; }
 
 // ----------------------------
 // SINGLE INSTANCE LOCK
@@ -50,13 +49,13 @@ if (!gotTheLock) {
         }
     });
 
-    // Keep tray alive when window is closed
     app.on('window-all-closed', (e) => {
         e.preventDefault();
     });
 
     app.whenReady().then(() => {
         console.log('[Main] App is ready');
+        registerAllIpc();
         createTray();
         createWindow();
 
@@ -64,6 +63,20 @@ if (!gotTheLock) {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
         });
     });
+}
+
+// ----------------------------
+// Register all IPC modules
+// ----------------------------
+function registerAllIpc() {
+    const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow };
+
+    repoIpc.register(shared);
+    featuresIpc.register(shared);
+    secretsIpc.register(shared);
+    apitoolIpc.register(shared);
+    workspaceIpc.register(shared);
+    generateIpc.register(shared);
 }
 
 // ----------------------------
@@ -78,16 +91,13 @@ function createWindow() {
         frame: true,
         maximizable: true,
         minimizable: true,
-        // Reduce background rendering cost when window is hidden
         backgroundThrottling: true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            // Security + memory: disable unused features
             nodeIntegration: false,
             contextIsolation: true,
-            spellcheck: false,              // saves ~10-20 MB
+            spellcheck: false,
             enableWebSQL: false,
-            // Disable devtools in production to save memory
             devTools: process.env.NODE_ENV !== 'production',
         }
     });
@@ -100,13 +110,12 @@ function createWindow() {
         console.log('[Main] Main window hidden instead of close');
     });
 
-    // Free GPU resources when window is minimised
     mainWindow.on('minimize', () => {
-        mainWindow.webContents.setFrameRate(1); // drop to 1 fps when minimised
+        mainWindow.webContents.setFrameRate(1);
     });
 
     mainWindow.on('restore', () => {
-        mainWindow.webContents.setFrameRate(60); // restore normal fps
+        mainWindow.webContents.setFrameRate(60);
     });
 }
 
@@ -144,23 +153,6 @@ function createTray() {
 }
 
 // ----------------------------
-// Open Global Docignore
-// ----------------------------
-ipcMain.handle('open-global-docignore', async () => {
-    try {
-        const globalDocignorePath = path.join(app.getPath('userData'), 'global-docignore.json');
-        if (!fs.existsSync(globalDocignorePath)) {
-            fs.writeFileSync(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
-        }
-        await shell.openPath(globalDocignorePath);
-        return true;
-    } catch (err) {
-        console.error('[Main] Failed to open global-docignore.json:', err);
-        return false;
-    }
-});
-
-// ----------------------------
 // Previous Repos Menu
 // ----------------------------
 function getPreviousReposMenu() {
@@ -183,391 +175,3 @@ function getPreviousReposMenu() {
 
     return submenu;
 }
-
-// ----------------------------
-// IPC Handlers
-// ----------------------------
-
-ipcMain.handle('select-repo', async () => {
-    try {
-        const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-        if (result.canceled || !result.filePaths.length) return null;
-
-        const repoPath = result.filePaths[0];
-        const cfg = config.readConfig();
-        const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
-        const userDataPath = app.getPath('userData');
-        const storagePath = path.join(userDataPath, storageName);
-
-        if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
-        if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
-        ['Codes', 'Structures'].forEach(sub => {
-            const subPath = path.join(storagePath, sub);
-            if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
-        });
-
-        cfg.projects[repoPath] = {
-            storageName,
-            storagePath,
-            lastUsed: new Date().toISOString()
-        };
-        cfg.activeProject = repoPath;
-        config.writeConfig(cfg);
-        return repoPath;
-    } catch (err) {
-        console.error('[IPC] select-repo error:', err);
-        dialog.showErrorBox('Select Repo Error', err.message);
-        return null;
-    }
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-// WORKSPACE TOOL IPC HANDLERS
-// Add these to main.js after existing ipcMain.handle() calls
-// ═════════════════════════════════════════════════════════════════════════════
-
-function getWorkspacePath() {
-  return path.join(app.getPath('userData'), 'workspace.json');
-}
- 
-function readWorkspaceFile() {
-  const p = getWorkspacePath();
-  if (!fs.existsSync(p)) {
-    return { projects: [], workers: [], tickets: [], globalLogs: [] };
-  }
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch {
-    return { projects: [], workers: [], tickets: [], globalLogs: [] };
-  }
-}
- 
-function writeWorkspaceFile(data) {
-  fs.writeFileSync(getWorkspacePath(), JSON.stringify(data, null, 2), 'utf-8');
-}
- 
-ipcMain.handle('workspaceGetAll', () => {
-  try {
-    return readWorkspaceFile();
-  } catch (err) {
-    console.error('[IPC] workspaceGetAll error:', err);
-    return { projects: [], workers: [], tickets: [], globalLogs: [] };
-  }
-});
- 
-ipcMain.handle('workspaceSaveAll', (event, data) => {
-  try {
-    if (!data || typeof data !== 'object') throw new Error('Invalid data');
-    const validated = {
-      projects:   Array.isArray(data.projects)   ? data.projects   : [],
-      workers:    Array.isArray(data.workers)     ? data.workers    : [],
-      tickets:    Array.isArray(data.tickets)     ? data.tickets    : [],
-      globalLogs: Array.isArray(data.globalLogs)  ? data.globalLogs : [],
-    };
-    writeWorkspaceFile(validated);
-    return true;
-  } catch (err) {
-    console.error('[IPC] workspaceSaveAll error:', err);
-    return false;
-  }
-});
-
-ipcMain.handle('getFolderTree', async (event, repoPath) => {
-    try {
-        if (!repoPath) return [];
-        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-        console.log('[IPC] Ignore rules loaded:', ignoreRules.length);
-        return await fileOps.getFolderTree(repoPath);
-    } catch (err) {
-        console.error('[IPC] getFolderTree error:', err);
-        return [];
-    }
-});
-
-ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
-// =====================================================================
-// ADD THESE IPC HANDLERS TO main.js (after existing ipcMain.handle calls)
-// =====================================================================
-
-const DEFAULT_FEATURES = {
-  apiTool: true,
-  secretHolder: true,
-  themeEngine: true,   // full 20-theme switcher; false = navy-dark only
-  folderFilters: true,
-  swagger: true,
-};
-
-ipcMain.handle('features-get', () => {
-  try {
-    const cfg = config.readConfig();
-    // null means "never been asked" → trigger first-launch wizard
-    return cfg.features ?? null;
-  } catch (err) {
-    console.error('[IPC] features-get error:', err);
-    return DEFAULT_FEATURES;
-  }
-});
-
-ipcMain.handle('features-set', (event, features) => {
-  try {
-    const cfg = config.readConfig();
-    cfg.features = { ...DEFAULT_FEATURES, ...features };
-    config.writeConfig(cfg);
-    return true;
-  } catch (err) {
-    console.error('[IPC] features-set error:', err);
-    return false;
-  }
-});
-
-ipcMain.handle('open-docignore', async (event, repoPath) => {
-    try {
-        if (!repoPath) return false;
-        const docignoreFile = path.join(repoPath, '.docignore');
-        if (!fs.existsSync(docignoreFile)) {
-            fs.writeFileSync(docignoreFile, '# Add patterns to ignore files/folders\n', 'utf-8');
-        }
-        shell.openPath(docignoreFile);
-        return true;
-    } catch (err) {
-        console.error('[IPC] open-docignore error:', err);
-        return false;
-    }
-});
-
-ipcMain.handle('get-docignore', async (event, repoPath) => {
-    try {
-        if (!repoPath) return [];
-        return await docignoreUtils.getIgnoreRules(repoPath);
-    } catch (err) {
-        console.error('[IPC] get-docignore error:', err);
-        return [];
-    }
-});
-
-ipcMain.handle('get-active-project', () => {
-    try {
-        const cfg = config.readConfig();                  // uses cache now
-        const activeProjectPath = cfg.activeProject;
-        if (!activeProjectPath) return null;
-        return { repoPath: activeProjectPath, ...cfg.projects[activeProjectPath] };
-    } catch (err) {
-        console.error('[IPC] get-active-project error:', err);
-        return null;
-    }
-});
-
-ipcMain.handle('get-last-selected', () => {
-    try {
-        return config.getLastSelectedItems();
-    } catch (err) {
-        console.error('[IPC] get-last-selected error:', err);
-        return [];
-    }
-});
-
-ipcMain.handle('set-last-selected', (event, items) => {
-    try {
-        config.setLastSelectedItems(items);
-    } catch (err) {
-        console.error('[IPC] set-last-selected error:', err);
-    }
-});
-
-ipcMain.handle('save-file-dialog', async (event, actionType) => {
-    const tempFile = path.join(app.getPath('temp'), 'helper-output.txt');
-    return { filePath: tempFile };
-});
-
-// ----------------------------
-// Ignored Extensions
-// ----------------------------
-ipcMain.handle('get-ignored-extensions', () => {
-    try {
-        const cfg = config.readConfig();
-        const activePath = cfg.activeProject;
-        if (!activePath || !cfg.projects[activePath]) return [];
-        return cfg.projects[activePath].ignoredExtensions || [];
-    } catch (err) {
-        console.error('[IPC] get-ignored-extensions error:', err);
-        return [];
-    }
-});
-
-ipcMain.handle('set-ignored-extensions', (event, exts) => {
-    try {
-        const cfg = config.readConfig();
-        const activePath = cfg.activeProject;
-        if (!activePath || !cfg.projects[activePath]) return;
-        cfg.projects[activePath].ignoredExtensions = Array.isArray(exts) ? exts : [];
-        config.writeConfig(cfg);
-    } catch (err) {
-        console.error('[IPC] set-ignored-extensions error:', err);
-    }
-});
-
-// ----------------------------
-// Folder Filters
-// ----------------------------
-ipcMain.handle('get-folder-filters', () => {
-    try {
-        const cfg = config.readConfig();
-        const activePath = cfg.activeProject;
-        if (!activePath || !cfg.projects[activePath]) return { ignored: [], focused: [] };
-        return cfg.projects[activePath].folderFilters || { ignored: [], focused: [] };
-    } catch (err) {
-        console.error('[IPC] get-folder-filters error:', err);
-        return { ignored: [], focused: [] };
-    }
-});
-
-ipcMain.handle('set-folder-filters', (event, filters) => {
-    try {
-        const cfg = config.readConfig();
-        const activePath = cfg.activeProject;
-        if (!activePath || !cfg.projects[activePath]) return;
-        cfg.projects[activePath].folderFilters = {
-            ignored: Array.isArray(filters?.ignored) ? filters.ignored : [],
-            focused: Array.isArray(filters?.focused) ? filters.focused : [],
-        };
-        config.writeConfig(cfg);
-        console.log('[IPC] set-folder-filters saved:', cfg.projects[activePath].folderFilters);
-    } catch (err) {
-        console.error('[IPC] set-folder-filters error:', err);
-    }
-});
-
-// ----------------------------
-// Secret Holder IPC
-// ----------------------------
-function getSecretsPath() {
-    return path.join(app.getPath('userData'), 'secrets.json');
-}
-
-function readSecretsFile() {
-    const p = getSecretsPath();
-    if (!fs.existsSync(p)) return { passwordHash: null, secrets: [] };
-    try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { return { passwordHash: null, secrets: [] }; }
-}
-
-function writeSecretsFile(data) {
-    fs.writeFileSync(getSecretsPath(), JSON.stringify(data, null, 2), 'utf-8');
-}
-
-function hashPassword(pw) {
-    return crypto.createHash('sha256').update(pw).digest('hex');
-}
-
-ipcMain.handle('secrets-has-password',   ()               => !!readSecretsFile().passwordHash);
-ipcMain.handle('secrets-set-password',   (event, pw)      => {
-    const data = readSecretsFile();
-    if (data.passwordHash) return false;
-    data.passwordHash = hashPassword(pw);
-    writeSecretsFile(data);
-    return true;
-});
-ipcMain.handle('secrets-verify-password',(event, pw)      => {
-    const data = readSecretsFile();
-    if (!data.passwordHash) return false;
-    return data.passwordHash === hashPassword(pw);
-});
-ipcMain.handle('secrets-reset-password', (event, oldPw, newPw) => {
-    const data = readSecretsFile();
-    if (data.passwordHash !== hashPassword(oldPw)) return false;
-    data.passwordHash = hashPassword(newPw);
-    writeSecretsFile(data);
-    return true;
-});
-ipcMain.handle('secrets-get-all',        ()               => readSecretsFile().secrets || []);
-ipcMain.handle('secrets-add',            (event, name, value) => {
-    const data = readSecretsFile();
-    data.secrets = data.secrets || [];
-    data.secrets.push({ id: Date.now().toString(), name: name.trim(), value: value.trim() });
-    data.secrets.sort((a, b) => a.name.localeCompare(b.name));
-    writeSecretsFile(data);
-    return true;
-});
-ipcMain.handle('secrets-update',         (event, id, name, value) => {
-    const data = readSecretsFile();
-    const idx = data.secrets.findIndex(s => s.id === id);
-    if (idx === -1) return false;
-    data.secrets[idx] = { id, name: name.trim(), value: value.trim() };
-    data.secrets.sort((a, b) => a.name.localeCompare(b.name));
-    writeSecretsFile(data);
-    return true;
-});
-ipcMain.handle('secrets-delete',         (event, id) => {
-    const data = readSecretsFile();
-    data.secrets = (data.secrets || []).filter(s => s.id !== id);
-    writeSecretsFile(data);
-    return true;
-});
-
-ipcMain.handle('apiToolGetAll', () => {
-    try {
-        const cfg = config.readConfig();
-        const apis = cfg.apis || [];
-        return apis;
-    } catch (err) {
-        console.error('[IPC] apiToolGetAll error:', err);
-        return [];
-    }
-});
-
-ipcMain.handle('apiToolSaveAll', (event, apis) => {
-    try {
-        const cfg = config.readConfig();
-        cfg.apis = apis;
-        config.writeConfig(cfg);
-        return true;
-    } catch (err) {
-        console.error('[IPC] apiToolSaveAll error:', err);
-        return false;
-    }
-});
-
-// ── DROP-IN REPLACEMENT for the ipcMain.handle('generate', …) block in main.js ──
-// Adds the `minify` flag forwarded from the renderer.
-
-ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath, minify = false) => {
-    try {
-        if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
-
-        const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-        const outputDir = path.dirname(filePath);
-        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
-        if (actionType === 'structure') {
-            await fileOps.generateStructure(items, filePath, (percent) => {
-                mainWindow.webContents.send('progress-update', percent);
-            });
-        } else if (actionType === 'code') {
-            await codeOps.generateCode(
-                items,
-                filePath,
-                (percent) => { mainWindow.webContents.send('progress-update', percent); },
-                repoPath,
-                ignoreRules,
-                minify          // ← new param
-            );
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (fs.existsSync(filePath)) {
-            exec(`taskkill /FI "WINDOWTITLE eq helper-output*" /F`, () => {
-                setTimeout(() => {
-                    exec(`notepad "${filePath}"`, (err) => {
-                        if (err) shell.openPath(filePath);
-                    });
-                }, 300);
-            });
-        }
-
-        return true;
-    } catch (err) {
-        console.error('[IPC] generate error:', err);
-        dialog.showErrorBox('Generate Error', err.message);
-        return false;
-    }
-});
