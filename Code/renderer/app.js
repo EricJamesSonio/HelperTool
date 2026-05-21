@@ -1,600 +1,188 @@
-import { renderTree } from '../utils/treeView.js';
+/**
+ * app.js — entry point
+ * Imports all feature modules and wires them together.
+ * Contains no business logic of its own.
+ */
+
 import {
-  activeExtensions,
-  ignoredExtensions,
-  filterTree,
-  renderFilterChips,
-  renderIgnorePanel,
-  renderFolderPanel,
-  loadIgnoredExtensions,
-  loadFolderFilters,
-  setupFilterInput,
+    setupFilterInput,
+    loadIgnoredExtensions,
+    loadFolderFilters,
+    filterTree,
+    renderFilterChips,
+    renderIgnorePanel,
+    renderFolderPanel
 } from './filterManager.js';
-import { setupSearch, invalidateFlatCache, selectSearchItem } from './searchManager.js';
-import { initFeatures, getFeatures } from './featureManager.js';
 
-let _secretHolder    = null;
-let _apiTool         = null;
-let _settingsManager = null;
-let _workspaceTool   = null;
+import {
+    invalidateFlatCache,
+    setupSearch
+} from './searchManager.js';
 
-const selectRepoBtn      = document.getElementById('selectRepoBtn');
-const activeRepoName     = document.getElementById('activeRepoName');
-const treeContainer      = document.getElementById('treeContainer');
-const structureBtn       = document.getElementById('structureBtn');
-const codeBtn            = document.getElementById('codeBtn');
-const generateBtn        = document.getElementById('generateBtn');
-const progressBar        = document.getElementById('progressBar');
-const progressText       = document.getElementById('progressText');
-const editDocignoreBtn   = document.getElementById('editDocignoreBtn');
-const selectionCount     = document.getElementById('selectionCount');
-const clearSelectionBtn  = document.getElementById('clearSelectionBtn');
-const refreshBtn         = document.getElementById('refreshBtn');
-const secretHolderBtn    = document.getElementById('secretHolderBtn');
-const viewModeBtn        = document.getElementById('viewModeBtn');
-const themeToggleBtn     = document.getElementById('themeToggleBtn');
-const themeIcon          = document.getElementById('themeIcon');
-const themeLabel         = document.getElementById('themeLabel');
-const settingsBtn        = document.getElementById('settingsBtn');
-const generateSplitGroup = document.getElementById('generateSplitGroup');
-const generateModeToggle = document.getElementById('generateModeToggle');
-const generateModeLabel  = document.getElementById('generateModeLabel');
-const rootJumper         = document.getElementById('rootJumper');
+import {
+    initFeatures,
+    getFeatures
+} from './featureManager.js';
 
-let selectedRepoPath = null;
-let selectedItems    = [];
-let actionType       = 'code';
-let cachedTree       = null;
-let viewMode         = localStorage.getItem('helpertool-viewmode') || 'list';
-let generateMinified = false;
+import {
+    applyFallbackTheme,
+    wireFallbackThemeToggle
+} from './app_manager/themeManager.js';
 
-generateBtn.disabled = true;
+import { openLightSettings } from './app_manager/lightSettingsModal.js';
 
-// ── Utilities ────────────────────────────────────────────────────────────────
+import { init as initDragScroll } from './app_manager/dragScroll.js';
 
-function debounce(fn, ms) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
+import { state } from './app_manager/appState.js';
 
-// ── Drag-to-scroll on tree container ─────────────────────────────────────────
+import {
+    applyViewMode,
+    initViewMode,
+    setSelectionChangeHandler,
+    renderRootJumper,
+    displayTree
+} from './app_manager/viewManager.js';
 
-window.addEventListener('DOMContentLoaded', () => {
-  // .tree-view-container has overflow:hidden — the real scrollable is #treeContainer inside it
-  const scroller  = document.getElementById('treeContainer');
-  const cursorEl  = document.querySelector('.tree-view-container');
-  if (!scroller) return;
+import {
+    loadRepo,
+    loadLastActiveRepo,
+    setRepoChangeHandler
+} from './app_manager/repoManager.js';
 
-  let isDragging = false;
-  let didDrag    = false; // true once cursor moved enough to count as a drag
-  let startX = 0, startY = 0;
-  let scrollLeft = 0, scrollTop = 0;
-  const DRAG_THRESHOLD = 4; // px of movement before entering drag mode
+import {
+    initProgress,
+    initActionButtons,
+    initSplitModeButton,
+    initGenerateButton,
+    initClearSelectionButton,
+    onSelectionChange
+} from './app_manager/generateManager.js';
 
-  scroller.addEventListener('mousedown', (e) => {
-    // Only primary button; ignore clicks on interactive elements
-    if (e.button !== 0) return;
-    if (e.target.closest('button, input, a, label')) return;
+import {
+    initTools,
+    handleRepoChange
+} from './app_manager/toolsManager.js';
 
-    isDragging = true;
-    didDrag    = false;
-    startX     = e.clientX;
-    startY     = e.clientY;
-    scrollLeft = scroller.scrollLeft;
-    scrollTop  = scroller.scrollTop;
-  });
+// ── DOM refs only used in app.js ──────────────────────────────────────────────
 
-  window.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
+const selectRepoBtn  = document.getElementById('selectRepoBtn');
+const refreshBtn     = document.getElementById('refreshBtn');
+const editDocignoreBtn = document.getElementById('editDocignoreBtn');
+const settingsBtn    = document.getElementById('settingsBtn');
+const treeContainer  = document.getElementById('treeContainer');
 
-    if (!didDrag && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+// ── Cross-module wiring ───────────────────────────────────────────────────────
 
-    if (!didDrag) {
-      didDrag = true;
-      cursorEl?.classList.add('is-dragging');
-      scroller.classList.add('is-dragging');
-    }
+// viewManager needs to call generateManager when selection changes
+setSelectionChangeHandler(onSelectionChange);
 
-    e.preventDefault();
-    scroller.scrollLeft = scrollLeft - dx;
-    scroller.scrollTop  = scrollTop  - dy;
-  });
+// repoManager notifies toolsManager (git tool) on every repo change
+setRepoChangeHandler(handleRepoChange);
 
-  window.addEventListener('mouseup', () => {
-    if (!isDragging) return;
-    isDragging = false;
-    cursorEl?.classList.remove('is-dragging');
-    scroller.classList.remove('is-dragging');
-  });
-
-  // If mouse leaves the window entirely
-  window.addEventListener('mouseleave', () => {
-    isDragging = false;
-    cursorEl?.classList.remove('is-dragging');
-    scroller?.classList.remove('is-dragging');
-  });
-});
-
-// ── Progress & debounced IPC ──────────────────────────────────────────────────
-
-const debouncedSetLastSelected = debounce(
-  (items) => window.electronAPI.setLastSelected(items),
-  500
-);
-
-window.electronAPI.onProgressUpdate(percent => {
-  progressBar.value        = percent;
-  progressText.textContent = `${percent}%`;
-});
-
-// ── Root jumper ───────────────────────────────────────────────────────────────
-
-function renderRootJumper(tree) {
-  if (!rootJumper) return;
-  rootJumper.innerHTML = '';
-
-  if (!tree || !tree.length) {
-    rootJumper.style.display = 'none';
-    return;
-  }
-
-  const roots = tree.filter(n => n.type === 'folder' || n.children);
-  if (!roots.length) {
-    rootJumper.style.display = 'none';
-    return;
-  }
-
-  rootJumper.style.display = 'flex';
-
-  const label = document.createElement('span');
-  label.className   = 'root-jumper-label';
-  label.textContent = 'Jump to:';
-  rootJumper.appendChild(label);
-
-  roots.forEach(node => {
-    const btn = document.createElement('button');
-    btn.className   = 'root-jumper-pill';
-    btn.textContent = `📁 ${node.name}`;
-    btn.title       = `Jump to ${node.name}`;
-    btn.addEventListener('click', () => selectSearchItem(node.path));
-    rootJumper.appendChild(btn);
-  });
-}
-
-// ── Theme (fallback) ──────────────────────────────────────────────────────────
-
-function _applyFallbackTheme() {
-  const saved = localStorage.getItem('helpertool-theme') || 'dark';
-  if (saved === 'light') {
-    document.documentElement.setAttribute('data-theme', 'light');
-    if (themeIcon)  themeIcon.textContent  = '🌙';
-    if (themeLabel) themeLabel.textContent = 'Dark';
-  } else {
-    document.documentElement.removeAttribute('data-theme');
-    if (themeIcon)  themeIcon.textContent  = '☀️';
-    if (themeLabel) themeLabel.textContent = 'Light';
-  }
-}
-
-function _wireFallbackThemeToggle() {
-  themeToggleBtn?.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    const next    = current === 'light' ? 'dark' : 'light';
-    localStorage.setItem('helpertool-theme', next);
-    _applyFallbackTheme();
-  });
-}
-
-// ── View mode ─────────────────────────────────────────────────────────────────
-
-function applyViewMode(mode) {
-  viewMode = mode;
-  localStorage.setItem('helpertool-viewmode', mode);
-  if (mode === 'tree') {
-    viewModeBtn.textContent = '🌳 Tree Mode';
-    viewModeBtn.className   = 'view-mode-btn active-tree';
-    viewModeBtn.title       = 'Switch to List mode';
-  } else {
-    viewModeBtn.textContent = '☰ Roof Mode';
-    viewModeBtn.className   = 'view-mode-btn active-list';
-    viewModeBtn.title       = 'Switch to Tree mode';
-  }
-  if (cachedTree) displayTree();
-}
-
-viewModeBtn.addEventListener('click', () => applyViewMode(viewMode === 'list' ? 'tree' : 'list'));
-
-// ── Repo / selection helpers ──────────────────────────────────────────────────
-
-function updateActiveRepo(name) {
-  activeRepoName.textContent = name || 'No repo selected';
-}
-
-function updateSelectionCounter() {
-  const count = selectedItems.length;
-  selectionCount.textContent = count;
-  selectionCount.parentElement.classList.toggle('has-selections', count > 0);
-}
-
-function updateGenerateState() {
-  generateBtn.disabled = selectedItems.length === 0;
-  updateSelectionCounter();
-}
-
-function resetSelection() {
-  selectedItems.length = 0;
-  window.electronAPI.setLastSelected([]);
-  updateGenerateState();
-}
-
-function displayTree() {
-  if (!cachedTree) {
-    treeContainer.textContent = 'No data available';
-    return;
-  }
-  const visibleTree = filterTree(cachedTree);
-  renderTree(visibleTree, treeContainer, selectedItems, actionType, onTreeSelectionChange, viewMode);
-}
-
-function onTreeSelectionChange() {
-  updateGenerateState();
-  debouncedSetLastSelected(selectedItems);
-}
-
-async function loadRepo(repoPath, resetSel = true) {
-  selectedRepoPath = repoPath;
-  if (resetSel) {
-    selectedItems.length = 0;
-    await window.electronAPI.setLastSelected([]);
-  }
-  updateActiveRepo(repoPath.split(/[/\\]/).pop());
-  cachedTree = await window.electronAPI.getFolderTree(repoPath);
-  activeExtensions.clear();
-  renderFilterChips();
-  invalidateFlatCache();
-  const feats = getFeatures();
-  if (cachedTree) {
-    renderIgnorePanel(cachedTree);
-    if (feats.folderFilters) renderFolderPanel(cachedTree);
-  }
-  renderRootJumper(cachedTree);
-  displayTree();
-  updateGenerateState();
-}
-
-async function loadLastActiveRepo() {
-  try {
-    const project = await window.electronAPI.getActiveProject();
-    if (project?.repoPath) {
-      selectedItems.length = 0;
-      project.lastSelectedItems?.forEach(p => selectedItems.push(p));
-      await loadRepo(project.repoPath, false);
-    }
-  } catch (err) {
-    console.error('[Init] Failed to load last project:', err);
-  }
-}
-
-// ── Generate mode split button ────────────────────────────────────────────────
-
-generateModeToggle.addEventListener('click', (e) => {
-  e.stopPropagation();
-  generateSplitGroup.classList.toggle('menu-open');
-});
-
-document.addEventListener('click', (e) => {
-  if (!generateSplitGroup.contains(e.target)) generateSplitGroup.classList.remove('menu-open');
-});
-
-// ── Navbar button listeners ───────────────────────────────────────────────────
+// ── Navbar listeners ──────────────────────────────────────────────────────────
 
 selectRepoBtn.addEventListener('click', async () => {
-  try {
-    const repoPath = await window.electronAPI.selectRepo();
-    if (repoPath) await loadRepo(repoPath);
-  } catch (err) {
-    console.error('[UI] Repo selection failed:', err);
-  }
-});
-
-settingsBtn.addEventListener('click', () => {
-  _settingsManager
-    ? _settingsManager.openSettings()
-    : console.warn('[UI] Settings not loaded');
+    try {
+        const repoPath = await window.electronAPI.selectRepo();
+        if (repoPath) await loadRepo(repoPath);
+    } catch (err) {
+        console.error('[UI] Repo selection failed:', err);
+    }
 });
 
 refreshBtn.addEventListener('click', async () => {
-  if (!selectedRepoPath) return;
-  refreshBtn.classList.add('spinning');
-  refreshBtn.disabled = true;
-  try {
-    cachedTree = await window.electronAPI.getFolderTree(selectedRepoPath);
-    invalidateFlatCache();
-    renderFilterChips();
-    const feats = getFeatures();
-    if (cachedTree) {
-      renderIgnorePanel(cachedTree);
-      if (feats.folderFilters) renderFolderPanel(cachedTree);
+    if (!state.selectedRepoPath) return;
+    refreshBtn.classList.add('spinning');
+    refreshBtn.disabled = true;
+    try {
+        state.cachedTree = await window.electronAPI.getFolderTree(state.selectedRepoPath);
+        invalidateFlatCache();
+        renderFilterChips();
+        const feats = getFeatures();
+        if (state.cachedTree) {
+            renderIgnorePanel(state.cachedTree);
+            if (feats.folderFilters) renderFolderPanel(state.cachedTree);
+        }
+        renderRootJumper(state.cachedTree);
+        displayTree();
+    } catch (err) {
+        console.error('[UI] Refresh failed:', err);
+    } finally {
+        refreshBtn.classList.remove('spinning');
+        refreshBtn.disabled = false;
     }
-    renderRootJumper(cachedTree);
-    displayTree();
-  } catch (err) {
-    console.error('[UI] Refresh failed:', err);
-  } finally {
-    refreshBtn.classList.remove('spinning');
-    refreshBtn.disabled = false;
-  }
-});
-
-clearSelectionBtn.addEventListener('click', () => {
-  selectedItems.length = 0;
-  window.electronAPI.setLastSelected([]);
-  updateGenerateState();
-  displayTree();
 });
 
 editDocignoreBtn.addEventListener('click', async () => {
-  try {
-    const ok = await window.electronAPI.openGlobalDocignore();
-    if (!ok) alert('Failed to open global ignore file.');
-  } catch (err) {
-    console.error('[UI] Error opening .docignore:', err);
-  }
-});
-
-structureBtn.addEventListener('click', () => {
-  actionType = 'structure';
-  generateModeToggle.style.display = 'none';
-  resetSelection();
-  displayTree();
-});
-
-codeBtn.addEventListener('click', () => {
-  actionType = 'code';
-  generateModeToggle.style.display = '';
-  resetSelection();
-  displayTree();
-});
-
-generateBtn.addEventListener('click', async () => {
-  try {
-    if (!selectedRepoPath || !selectedItems.length) return alert('Select repo and items first!');
-    const { filePath } = await window.electronAPI.saveFileDialog(actionType);
-    if (!filePath) return;
-    progressBar.value        = 0;
-    progressText.textContent = '0%';
-    const success = await window.electronAPI.generate(
-      actionType,
-      selectedRepoPath,
-      selectedItems,
-      filePath,
-      actionType === 'code' ? generateMinified : false
-    );
-    if (!success) alert('Generation failed.');
-    resetSelection();
-    displayTree();
-  } catch (err) {
-    console.error('[Generate] Failed:', err);
-    alert('Generation failed.');
-  }
-});
-
-// ── Search & filter setup ─────────────────────────────────────────────────────
-
-setupFilterInput(() => cachedTree, displayTree);
-setupSearch(() => cachedTree, () => filterTree(cachedTree), treeContainer);
-
-// ── Main init (DOMContentLoaded) ──────────────────────────────────────────────
-
-window.addEventListener('DOMContentLoaded', async () => {
-  const feats = await initFeatures();
-  console.log('[Init] Features:', feats);
-  _applyFeatureVisibility(feats);
-
-  if (feats.themeEngine) {
-    _settingsManager = await import('./settingsManager.js');
-    _settingsManager.initSettings();
-    _settingsManager.hookLegacyThemeToggle();
-  } else {
-    _applyFallbackTheme();
-    _wireFallbackThemeToggle();
-    _settingsManager = { openSettings: _openLightSettings, hookLegacyThemeToggle: () => {} };
-  }
-
-  document.querySelectorAll('.generate-mode-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const mode = item.dataset.mode;
-      generateMinified = (mode === 'minified');
-      generateModeLabel.textContent = generateMinified ? 'Minified' : 'Normal';
-      document.querySelectorAll('.generate-mode-item').forEach(i => i.classList.remove('active'));
-      item.classList.add('active');
-      generateSplitGroup.dataset.mode = mode;
-      generateSplitGroup.classList.remove('menu-open');
-    });
-  });
-
-  if (feats.apiTool) {
     try {
-      _apiTool = await import('./apiToolUI.js');
-      await _apiTool.initApiToolUI();
-      console.log('[Init] API Tool initialised');
+        const ok = await window.electronAPI.openGlobalDocignore();
+        if (!ok) alert('Failed to open global ignore file.');
     } catch (err) {
-      console.error('[Init] API Tool failed:', err);
+        console.error('[UI] Error opening .docignore:', err);
     }
-  }
-
-  const toolsTriggerBtn = document.getElementById('toolsTriggerBtn');
-  const toolsMenu       = document.getElementById('toolsMenu');
-  const apiToolBtn      = document.getElementById('apiToolBtn');
-
-  if (feats.apiTool && toolsTriggerBtn) {
-    const openToolsMenu  = () => { toolsMenu?.classList.add('open');    toolsTriggerBtn?.classList.add('open'); };
-    const closeToolsMenu = () => { toolsMenu?.classList.remove('open'); toolsTriggerBtn?.classList.remove('open'); };
-
-    toolsTriggerBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toolsMenu?.classList.contains('open') ? closeToolsMenu() : openToolsMenu();
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!document.getElementById('toolsDropdown')?.contains(e.target)) closeToolsMenu();
-    });
-
-    apiToolBtn?.addEventListener('click', () => {
-      closeToolsMenu();
-      if (_apiTool.isApiToolPanelOpen()) {
-        _apiTool.closeApiToolPanel();
-        apiToolBtn.classList.remove('active');
-      } else {
-        _apiTool.openApiToolPanel();
-        apiToolBtn.classList.add('active');
-      }
-    });
-
-    document.addEventListener('keydown', () => {
-      if (!_apiTool?.isApiToolPanelOpen()) apiToolBtn?.classList.remove('active');
-    });
-  }
-
-  if (feats.secretHolder) {
-    try {
-      _secretHolder = await import('./secretHolder.js');
-      _secretHolder.initSecretHolder();
-      secretHolderBtn?.addEventListener('click', async () => {
-        if (_secretHolder.isSecretHolderOpen()) _secretHolder.closeSecretHolder();
-        else await _secretHolder.openSecretHolder();
-      });
-    } catch (err) {
-      console.error('[Init] Secret Holder failed:', err);
-    }
-  }
-
-  // ── Workspace Tool ────────────────────────────────────────────────────────────
-  if (feats.workspaceTool) {
-    try {
-      _workspaceTool = await import('./workspace/workspaceTool.js');
-      await _workspaceTool.initWorkspaceTool();
-      const workspaceToolBtn = document.getElementById('workspaceTool');
-      workspaceToolBtn?.addEventListener('click', async () => {
-        if (_workspaceTool.isWorkspacePanelOpen()) {
-          _workspaceTool.closeWorkspacePanel();
-          workspaceToolBtn.classList.remove('active');
-        } else {
-          await _workspaceTool.openWorkspacePanel();
-          workspaceToolBtn.classList.add('active');
-        }
-      });
-      console.log('[Init] Workspace Tool initialised');
-    } catch (err) {
-      console.error('[Init] Workspace Tool failed:', err);
-    }
-  }
-
-  await loadIgnoredExtensions();
-  if (feats.folderFilters) await loadFolderFilters();
-  applyViewMode(viewMode);
-  await loadLastActiveRepo();
 });
 
 // ── Feature visibility ────────────────────────────────────────────────────────
 
-function _applyFeatureVisibility(feats) {
-  const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
-  if (!feats.apiTool)       { hide('toolsTriggerBtn'); hide('toolsDropdown'); }
-  if (!feats.secretHolder)  { hide('secretHolderBtn'); }
-  if (!feats.workspaceTool) { hide('workspaceTool'); }
-  if (!feats.folderFilters) { hide('folderToggleBtn'); hide('folderPanel'); }
+function applyFeatureVisibility(feats) {
+    const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
+    if (!feats.secretHolder)  { hide('secretHolderBtn'); }
+    if (!feats.workspaceTool) { hide('workspaceTool'); }
+    if (!feats.folderFilters) { hide('folderToggleBtn'); hide('folderPanel'); }
 }
 
-// ── Light settings modal (fallback) ──────────────────────────────────────────
+// ── DOMContentLoaded init ─────────────────────────────────────────────────────
 
-function _openLightSettings() {
-  import('./featureManager.js').then(({ getFeatures, saveFeatures }) => {
-    _ensureLightSettingsModal(getFeatures, saveFeatures);
-    document.getElementById('lightSettingsOverlay')?.classList.add('open');
-  });
-}
+window.addEventListener('DOMContentLoaded', async () => {
+    // Drag scroll
+    initDragScroll();
 
-function _ensureLightSettingsModal(getFeatures, saveFeatures) {
-  if (document.getElementById('lightSettingsOverlay')) return;
+    // Features
+    const feats = await initFeatures();
+    console.log('[Init] Features:', feats);
+    applyFeatureVisibility(feats);
 
-  const FEATURES_META = [
-    { id: 'apiTool',       icon: '🔌', label: 'API Tool',         desc: 'Built-in API tester + Swagger import' },
-    { id: 'secretHolder',  icon: '🔐', label: 'Secret Holder',    desc: 'Password-protected vault for keys & notes' },
-    { id: 'workspaceTool', icon: '👥', label: 'Workspace Tool',   desc: 'Manage workers and project tickets' },
-    { id: 'themeEngine',   icon: '🎨', label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)' },
-    { id: 'folderFilters', icon: '📁', label: 'Folder Filters',   desc: 'Ignore / Focus folder panels' },
-    { id: 'swagger',       icon: '⚡', label: 'Swagger Import',   desc: 'Auto-import from OpenAPI specs' },
-  ];
+    // Theme
+    let settingsManager = null;
+    if (feats.themeEngine) {
+        settingsManager = await import('./settingsManager.js');
+        settingsManager.initSettings();
+        settingsManager.hookLegacyThemeToggle();
+    } else {
+        applyFallbackTheme();
+        wireFallbackThemeToggle();
+        settingsManager = { openSettings: openLightSettings };
+    }
 
-  const el = document.createElement('div');
-  el.id = 'lightSettingsOverlay';
-  el.className = 'settings-overlay';
-  el.innerHTML = `
-    <div class="settings-modal" role="dialog">
-      <div class="settings-header">
-        <span class="settings-title"><span class="settings-title-icon">⚙️</span> Manage Features</span>
-        <button class="settings-close-btn" id="lsCloseBtn">✕</button>
-      </div>
-      <div class="settings-body">
-        <div class="settings-section">
-          <div class="settings-section-label">Active Features</div>
-          <p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 12px">
-            Changes take effect on next launch. Reload the app after saving.
-          </p>
-          <div id="lsFeatureList" style="display:flex;flex-direction:column;gap:8px"></div>
-        </div>
-      </div>
-      <div class="settings-footer">
-        <span class="settings-saved-badge" id="lsSavedBadge">✓ Saved</span>
-        <button style="margin-left:auto;padding:8px 18px;border:none;border-radius:7px;
-          background:var(--accent);color:#000;font-weight:700;cursor:pointer;font-size:0.82rem"
-          id="lsSaveBtn">Save &amp; Reload</button>
-      </div>
-    </div>`;
-  document.body.appendChild(el);
-
-  const list = el.querySelector('#lsFeatureList');
-
-  function renderList() {
-    const current = getFeatures();
-    list.innerHTML = '';
-    FEATURES_META.forEach(f => {
-      const row = document.createElement('label');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid var(--border-subtle)';
-      row.innerHTML = `
-        <span style="font-size:1.1rem">${f.icon}</span>
-        <span style="flex:1">
-          <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);display:block">${f.label}</span>
-          <span style="font-size:0.74rem;color:var(--text-muted)">${f.desc}</span>
-        </span>
-        <input type="checkbox" id="ls-${f.id}" ${current[f.id] ? 'checked' : ''}
-          style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)"/>`;
-      list.appendChild(row);
+    settingsBtn.addEventListener('click', () => {
+        settingsManager
+            ? settingsManager.openSettings()
+            : console.warn('[UI] Settings not loaded');
     });
-  }
 
-  renderList();
+    // Generate controls
+    initProgress();
+    initActionButtons();
+    initSplitModeButton();
+    initGenerateButton();
+    initClearSelectionButton();
 
-  el.querySelector('#lsCloseBtn').addEventListener('click', () => el.classList.remove('open'));
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+    // View mode
+    initViewMode();
 
-  el.querySelector('#lsSaveBtn').addEventListener('click', async () => {
-    const updated = {};
-    FEATURES_META.forEach(f => {
-      updated[f.id] = !!el.querySelector(`#ls-${f.id}`)?.checked;
-    });
-    await saveFeatures(updated);
-    const badge = el.querySelector('#lsSavedBadge');
-    badge.classList.add('visible');
-    setTimeout(() => {
-      badge.classList.remove('visible');
-      location.reload();
-    }, 900);
-  });
-}
+    // Tools (apiTool, secretHolder, workspaceTool, gitTool)
+    await initTools(feats);
+
+    setupFilterInput(() => state.cachedTree, displayTree);
+    setupSearch(() => state.cachedTree, () => filterTree(state.cachedTree), treeContainer);
+
+    // Filters
+    await loadIgnoredExtensions();
+    if (feats.folderFilters) await loadFolderFilters();
+
+    // View mode apply
+    applyViewMode(state.viewMode);
+
+    // Restore last repo
+    await loadLastActiveRepo();
+});
