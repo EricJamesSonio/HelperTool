@@ -26,7 +26,13 @@
   <!-- ══ ROW 1: Primary actions ══ -->
   <div class="navbar-row navbar-row--primary">
     <div class="navbar-section search-section">
-      <input type="text" id="treeSearchInput" placeholder="Search files & folders…" class="search-input" />
+      <div class="search-container">
+        <input type="text" id="treeSearchInput" placeholder="Search files & folders…" class="search-input" />
+        <button id="shortcutModeBtn" class="shortcut-mode-btn" title="Shortcut Mode - Paste file list to auto-select">
+          <span class="shortcut-icon">⚡</span>
+          <span class="shortcut-label">Shortcut</span>
+        </button>
+      </div>
     </div>
 
     <div class="navbar-section">
@@ -199,6 +205,41 @@
   <!-- ══ Tree view ══ -->
   <div class="tree-view-container">
     <div id="treeContainer">Select a repo to view files</div>
+  </div>
+
+  <!-- ══ Shortcut Mode Input Modal ══ -->
+  <div id="shortcutInputModal" class="modal-overlay">
+    <div class="modal-content shortcut-input-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">⚡ Shortcut Mode - Paste File List</h3>
+        <button class="modal-close-btn" id="shortcutInputCloseBtn">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Paste content containing file names (with emojis, markdown, symbols, etc.). The system will extract and select matching files.</p>
+        <textarea id="shortcutInputTextarea" class="shortcut-textarea" placeholder="Paste your content here...&#10;Example: Please share generate_ipc.js, generate_bridge.js, generateManager.js"></textarea>
+        <div class="modal-actions">
+          <button id="shortcutProcessBtn" class="modal-btn modal-btn-primary">Process & Select Files</button>
+          <button id="shortcutCancelBtn" class="modal-btn modal-btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Shortcut Mode Results Modal ══ -->
+  <div id="shortcutResultsModal" class="modal-overlay">
+    <div class="modal-content shortcut-results-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">✓ Selection Results</h3>
+        <button class="modal-close-btn" id="shortcutResultsCloseBtn">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="shortcutResultsSummary" class="results-summary"></div>
+        <div id="shortcutResultsList" class="results-list"></div>
+        <div class="modal-actions">
+          <button id="shortcutResultsCloseBtn2" class="modal-btn modal-btn-primary">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 </div>

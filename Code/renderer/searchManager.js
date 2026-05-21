@@ -12,17 +12,7 @@ export function invalidateFlatCache() {
   _flatCacheTreeRef = null;
 }
 
-const normPath = (p) => (p || '').replace(/\\/g, '/');
-
-function debounce(fn, ms) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  };
-}
-
-function getFlatList() {
+export function getFlatList() {
   const tree = _getCachedTree?.();
   if (!tree) return [];
   if (tree === _flatCacheTreeRef && _flatCache) return _flatCache;
@@ -39,6 +29,16 @@ function getFlatList() {
   _flatCache        = result;
   _flatCacheTreeRef = tree;
   return result;
+}
+
+const normPath = (p) => (p || '').replace(/\\/g, '/');
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
 }
 
 function expandPathParents(nodePath) {

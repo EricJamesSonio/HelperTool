@@ -20,6 +20,10 @@ import {
 } from './searchManager.js';
 
 import {
+    initShortcutMode
+} from './shortcutMode.js';
+
+import {
     initFeatures,
     getFeatures
 } from './featureManager.js';
@@ -175,6 +179,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => filterTree(state.cachedTree), treeContainer);
+
+    // Shortcut mode
+    initShortcutMode();
 
     // Filters
     await loadIgnoredExtensions();
