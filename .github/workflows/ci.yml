@@ -28,65 +28,52 @@ jobs:
         working-directory: Code
         run: npm ci
 
-      # ── 1. Syntax check: CommonJS files (main process) ──────────────────
-      - name: Syntax check — main process files
-        run: |
-          ERRORS=0
-          for f in \
-            Code/main.js \
-            Code/preload.js \
-            Code/config/config.js \
-            Code/utils/codeOps.js \
-            Code/utils/docignore.js \
-            Code/utils/fileOps.js
-          do
-            node --check "$f" \
-              && echo "✅ $f" \
-              || { echo "❌ Syntax error in $f"; ERRORS=$((ERRORS+1)); }
-          done
-          [ $ERRORS -eq 0 ] || exit 1
-
-      # ── 2. Syntax check: ES module files (renderer) ─────────────────────
-      #    node --check doesn't support ESM import/export so we use acorn
-      - name: Syntax check — renderer / ES module files
+      # ── 1. Syntax check all JS files ─────────────────────────────────────
+      - name: Syntax check — all JS files
         run: |
           npm install -g acorn 2>/dev/null
           ERRORS=0
-          for f in \
-            Code/renderer/app.js \
-            Code/renderer/filterManager.js \
-            Code/renderer/searchManager.js \
-            Code/utils/treeView.js
-          do
-            acorn --ecma2022 --module "$f" > /dev/null \
+          while IFS= read -r -d '' f; do
+            acorn --ecma2022 --module "$f" > /dev/null 2>&1 \
               && echo "✅ $f" \
               || { echo "❌ Syntax error in $f"; ERRORS=$((ERRORS+1)); }
-          done
+          done < <(find Code/ -name '*.js' -not -path '*/node_modules/*' -print0)
           [ $ERRORS -eq 0 ] || exit 1
 
-      # ── 3. IPC integrity: every preload invoke has a main.js handler ─────
+      # ── 2. IPC integrity: every preload invoke has a handler ────────────
       - name: IPC channel integrity check
         run: |
           node -e "
             const fs = require('fs');
-            const main    = fs.readFileSync('Code/main.js',    'utf-8');
-            const preload = fs.readFileSync('Code/preload.js', 'utf-8');
+            const path = require('path');
 
-            const handlers = [...main.matchAll(/ipcMain\.handle\(['\"]([^'\"]+)['\"],/g)].map(m => m[1]);
+            function findHandlers(dir) {
+              const handlers = [];
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  if (entry.name !== 'node_modules') handlers.push(...findHandlers(full));
+                } else if (entry.name.endsWith('.js')) {
+                  const src = fs.readFileSync(full, 'utf-8');
+                  handlers.push(
+                    ...src.matchAll(/ipcMain\.handle\(['\"]([^'\"]+)['\"],/g)
+                  );
+                }
+              }
+              return handlers.map(m => m[1]);
+            }
+
+            const preload = fs.readFileSync('Code/preload.js', 'utf-8');
+            const handlers = findHandlers('Code');
             const invokes  = [...preload.matchAll(/ipcRenderer\.invoke\(['\"]([^'\"]+)['\"][\s,)]/g)].map(m => m[1]);
 
-            let errors = 0;
-            for (const ch of invokes) {
-              if (!handlers.includes(ch)) {
-                console.error('❌ preload invokes [' + ch + '] but no handler in main.js');
-                errors++;
-              }
-            }
-            if (errors) process.exit(1);
-            console.log('✅ All IPC channels matched');
+            const missing = invokes.filter(ch => !handlers.includes(ch));
+            missing.forEach(ch => console.error('❌ preload invokes [' + ch + '] but no handler found'));
+            if (missing.length) process.exit(1);
+            console.log('✅ All ' + invokes.length + ' IPC channels have handlers');
           "
 
-      # ── 4. Merge conflict markers ────────────────────────────────────────
+      # ── 3. Merge conflict markers ────────────────────────────────────────
       - name: Check for merge conflict markers
         run: |
           CONFLICTS=$(grep -rn "^<<<<<<< \|^>>>>>>> \|^=======$" Code/ \
@@ -99,25 +86,14 @@ jobs:
           fi
           echo "✅ No merge conflict markers"
 
-      # ── 5. Required files exist ──────────────────────────────────────────
-      - name: Required files check
+      # ── 4. Required dirs exist ───────────────────────────────────────────
+      - name: Required directories check
         run: |
           MISSING=0
-          for f in \
-            Code/main.js \
-            Code/preload.js \
-            Code/config/config.js \
-            Code/utils/codeOps.js \
-            Code/utils/docignore.js \
-            Code/utils/fileOps.js \
-            Code/utils/treeView.js \
-            Code/renderer/index.html \
-            Code/renderer/app.js \
-            Code/renderer/filterManager.js \
-            Code/renderer/searchManager.js
-          do
-            [ -f "$f" ] \
-              && echo "✅ $f" \
-              || { echo "❌ Missing: $f"; MISSING=$((MISSING+1)); }
+          for d in Code/config Code/utils Code/ipc Code/renderer; do
+            [ -d "$d" ] && echo "✅ $d" || { echo "❌ Missing: $d"; MISSING=$((MISSING+1)); }
           done
+          [ -f Code/main.js ] && echo "✅ Code/main.js" || { echo "❌ Missing: Code/main.js"; MISSING=$((MISSING+1)); }
+          [ -f Code/preload.js ] && echo "✅ Code/preload.js" || { echo "❌ Missing: Code/preload.js"; MISSING=$((MISSING+1)); }
+          [ -f Code/renderer/index.html ] && echo "✅ Code/renderer/index.html" || { echo "❌ Missing: Code/renderer/index.html"; MISSING=$((MISSING+1)); }
           [ $MISSING -eq 0 ] || exit 1
