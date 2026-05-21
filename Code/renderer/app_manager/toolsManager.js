@@ -40,7 +40,7 @@ function createToolsPanel() {
   document.body.appendChild(overlay);
 
   overlay.addEventListener('click', function (e) {
-    if (e.target === overlay) closeToolsPanel();
+    if (!e.target.closest('.tools-panel')) closeToolsPanel();
   });
   overlay.querySelector('#toolsPanelClose').addEventListener('click', closeToolsPanel);
 
@@ -85,46 +85,39 @@ function renderToolsPanelEntries() {
       '</div>';
     item.addEventListener('click', function () {
       closeToolsPanel();
-      console.log('[GitTool] Clicked, _gitPanel:', !!_gitPanel, '_gitTool:', !!_gitTool, 'isInit:', _gitTool?.isInitialized);
       if (_gitPanel && _gitPanel.classList.contains('open')) {
-        console.log('[GitTool] Panel open, closing');
         _gitPanel.classList.remove('open');
       } else {
-        if (!_gitPanel) {
-          console.log('[GitTool] Creating panel');
-          _gitPanel = createGitPanel();
-        }
-        console.log('[GitTool] Adding open class to panel');
+        if (!_gitPanel) _gitPanel = createGitPanel();
         _gitPanel.classList.add('open');
-        var cs = getComputedStyle(_gitPanel);
-        console.log('[GitTool] Panel styles:', cs.opacity, cs.display, cs.height, cs.width, cs.zIndex, cs.position);
-        console.log('[GitTool] Panel rect:', _gitPanel.getBoundingClientRect());
-        console.log('[GitTool] Container childNodes:', _gitContainer?.childNodes.length);
-        console.log('[GitTool] Container innerHTML length:', _gitContainer?.innerHTML.length);
         if (_gitTool && _gitTool.isInitialized) {
-          console.log('[GitTool] Tool already initialized, refreshing');
           _gitTool.refresh();
         } else {
           var repoPath = state.selectedRepoPath;
-          console.log('[GitTool] Need init, repoPath:', repoPath);
           if (repoPath) initializeGitTool(repoPath);
         }
       }
-      console.log('[GitTool] Panel open class after:', _gitPanel?.classList.contains('open'));
     });
     body.appendChild(item);
   }
 }
 
 function openToolsPanel() {
-  console.log('[ToolsPanel] Opening');
-  if (!_toolsPanel) {
-    console.log('[ToolsPanel] Creating panel DOM');
-    _toolsPanel = createToolsPanel();
-  }
+  if (!_toolsPanel) _toolsPanel = createToolsPanel();
   renderToolsPanelEntries();
+
+  var btn = document.getElementById('toolsPanelBtn');
+  if (btn) {
+    var rect = btn.getBoundingClientRect();
+    var panel = _toolsPanel.querySelector('.tools-panel');
+    if (panel) {
+      panel.style.left = Math.max(4, rect.left) + 'px';
+      panel.style.top = (rect.bottom + 6) + 'px';
+      panel.style.minWidth = Math.max(200, rect.width) + 'px';
+    }
+  }
+
   _toolsPanel.classList.add('open');
-  console.log('[ToolsPanel] Added open class, items:', document.querySelectorAll('.tools-panel-item').length);
 }
 
 function closeToolsPanel() {
