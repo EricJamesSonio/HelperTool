@@ -170,7 +170,10 @@ class GitToolUI {
 
     commitBtn?.addEventListener('click', () => this.handleCommit());
     commitInput?.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 'Enter') this.handleCommit();
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!commitBtn.disabled) this.handleCommit();
+      }
     });
   }
 
@@ -219,10 +222,25 @@ class GitToolUI {
     }
   }
 
+  setButtonLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+      btn._origHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.classList.add('btn-loading');
+      btn.innerHTML = '<span class="spinner"></span> ' + btn._origHTML.replace(/<span[^>]*>.*?<\/span>\s*/, '').trim();
+    } else {
+      btn.disabled = false;
+      btn.classList.remove('btn-loading');
+      if (btn._origHTML) btn.innerHTML = btn._origHTML;
+    }
+  }
+
   /**
    * Create a commit
    */
   async handleCommit() {
+    const commitBtn = this.container.querySelector('#commitBtn');
     const messageInput = this.container.querySelector('#commitMessageInput');
     const pushCheckbox = this.container.querySelector('#pushAfterCommit');
     const message = messageInput.value.trim();
@@ -232,9 +250,13 @@ class GitToolUI {
       return;
     }
 
+    this.setButtonLoading(commitBtn, true);
+
     const result = await this.gitHandler.createCommit(message, {
       pushAfter: pushCheckbox?.checked || false
     });
+
+    this.setButtonLoading(commitBtn, false);
 
     if (result.success) {
       messageInput.value = '';
@@ -250,10 +272,17 @@ class GitToolUI {
    * Push a specific commit
    */
   async handlePushCommit(event) {
-    const commitId = event.target.closest('.push-btn').dataset.commitId;
+    const btn = event.target.closest('.push-btn');
+    if (!btn) return;
+    const commitId = btn.dataset.commitId;
     if (!commitId) return;
 
+    this.setButtonLoading(btn, true);
+
     const result = await this.gitHandler.pushCommit(commitId);
+
+    this.setButtonLoading(btn, false);
+
     if (result.success) {
       this.refreshUI();
       this.showSuccess('Commit pushed successfully!');
