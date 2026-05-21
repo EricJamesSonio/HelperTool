@@ -4,6 +4,7 @@ module.exports = {
     generate: (actionType, repoPath, items, filePath, minify = false, promptText = '') =>
         ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify, promptText),
 
+
     onProgressUpdate: (callback) => {
         ipcRenderer.removeAllListeners('progress-update');
         ipcRenderer.on('progress-update', (event, percent) => {
