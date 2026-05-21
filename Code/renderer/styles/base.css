@@ -406,25 +406,24 @@ body {
 
 .tools-panel-overlay {
   position: fixed; inset: 0; z-index: 99998;
-  background: rgba(0,0,0,0.4);
-  display: none; align-items: flex-start; justify-content: flex-end;
-  padding: 60px 80px;
-  opacity: 0; pointer-events: none;
+  display: none;
+  background: transparent;
 }
-.tools-panel-overlay.open { display: flex; opacity: 1; pointer-events: all; }
+.tools-panel-overlay.open { display: block; }
 
 .tools-panel {
+  position: fixed;
   background: var(--bg-elevated, #111d34);
   border: 1px solid var(--border-default, rgba(255,255,255,0.1));
-  border-radius: 16px;
-  min-width: 280px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  border-radius: 12px;
+  min-width: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   overflow: hidden;
-  animation: toolsPanelIn 0.18s ease-out;
+  animation: toolsPanelIn 0.15s ease-out;
 }
 @keyframes toolsPanelIn {
-  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .tools-panel-header {
