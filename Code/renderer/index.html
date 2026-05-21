@@ -14,7 +14,11 @@
   <link rel="stylesheet" href="./styles/api-tool.css">
   <link rel="stylesheet" href="./styles/minified.css">
   <link rel="stylesheet" href="./styles/root-jumper.css">
-  <link rel="stylesheet" href="styles/workspaceTool.css">
+  <link rel="stylesheet" href="./styles/workspaceTool.css">
+
+  <!-- ✅ Git Tool -->
+  <link rel="stylesheet" href="./styles/git-tool.css">
+
 </head>
 <body>
 <div id="app">
@@ -30,24 +34,12 @@
         <span class="btn-icon">📁</span>Select Repo
       </button>
 
-      <!-- ══ TOOLS DROPDOWN ══ -->
-      <div class="tools-dropdown" id="toolsDropdown">
-        <button class="tool-btn tools-trigger-btn" id="toolsTriggerBtn" title="Tools">
-          <span class="btn-icon">🛠️</span>
-          <span class="tools-label">Tools</span>
-          <span class="tools-caret">▾</span>
-        </button>
-        <div class="tools-menu" id="toolsMenu">
-          <div class="tools-menu-header">Tools</div>
-          <button class="tools-menu-item" id="apiToolBtn">
-            <span class="tools-menu-item-icon">🔌</span>
-            <div class="tools-menu-item-info">
-              <span class="tools-menu-item-name">API Tool</span>
-              <span class="tools-menu-item-desc">Test & manage REST endpoints</span>
-            </div>
-          </button>
-        </div>
-      </div>
+            <button id="toolsPanelBtn" class="tool-btn" title="Open Tools Panel">
+        <span class="btn-icon">🛠️</span>
+        <span style="font-size:12.5px;font-weight:700;color:var(--blue);line-height:1">Tools</span>
+      </button>
+
+      
 
       <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh">
         <span class="btn-icon refresh-icon">🔄</span>

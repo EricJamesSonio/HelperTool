@@ -1,38 +1,27 @@
-// preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('electronAPI', {
-    // ------------------------
-    // Repo selection
-    // ------------------------
-    selectRepo: () => ipcRenderer.invoke('select-repo'),
-    featuresGet: () => ipcRenderer.invoke('features-get'),
-featuresSet: (f)  => ipcRenderer.invoke('features-set', f),
+// Inline all bridge modules directly (no require() calls)
 
-    // ------------------------
-    // Folder tree
-    // ------------------------
-    getFolderTree: (repoPath) => ipcRenderer.invoke('getFolderTree', repoPath),
+const repoBridge = {
+    selectRepo:          ()              => ipcRenderer.invoke('select-repo'),
+    getFolderTree:       (repoPath)      => ipcRenderer.invoke('getFolderTree', repoPath),
+    getUserDataPath:     ()              => ipcRenderer.invoke('get-user-data-path'),
+    openDocignore:       (repoPath)      => ipcRenderer.invoke('open-docignore', repoPath),
+    openGlobalDocignore: ()              => ipcRenderer.invoke('open-global-docignore'),
+    getDocignore:        (repoPath)      => ipcRenderer.invoke('get-docignore', repoPath),
+    getLastSelected:     ()              => ipcRenderer.invoke('get-last-selected'),
+    setLastSelected:     (items)         => ipcRenderer.invoke('set-last-selected', items),
+    getActiveProject:    ()              => ipcRenderer.invoke('get-active-project'),
+    saveFileDialog:      (actionType)    => ipcRenderer.invoke('save-file-dialog', actionType),
+    getIgnoredExtensions: ()             => ipcRenderer.invoke('get-ignored-extensions'),
+    setIgnoredExtensions: (exts)         => ipcRenderer.invoke('set-ignored-extensions', exts),
+    getFolderFilters:    ()              => ipcRenderer.invoke('get-folder-filters'),
+    setFolderFilters:    (filters)       => ipcRenderer.invoke('set-folder-filters', filters),
+};
 
-    // ------------------------
-    // Generate structure/code
-    // ------------------------
-// ── REPLACE the existing generate line inside contextBridge.exposeInMainWorld ──
-
-    generate: (actionType, repoPath, items, filePath, minify = false) => {
-        return ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify);
-    },
-
-    // ------------------------
-    // Open storage folder
-    // ------------------------
-    openDocignore: (repoPath) => ipcRenderer.invoke('open-docignore', repoPath),
-    getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
-    openGlobalDocignore: () => ipcRenderer.invoke('open-global-docignore'),
-
-    // ------------------------
-    // Progress updates
-    // ------------------------
+const generateBridge = {
+    generate: (actionType, repoPath, items, filePath, minify = false) =>
+        ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify),
     onProgressUpdate: (callback) => {
         ipcRenderer.removeAllListeners('progress-update');
         ipcRenderer.on('progress-update', (event, percent) => {
@@ -40,66 +29,53 @@ featuresSet: (f)  => ipcRenderer.invoke('features-set', f),
             callback(validPercent);
         });
     },
+};
 
-    // ------------------------
-    // .docignore
-    // ------------------------
-    getDocignore: (repoPath) => ipcRenderer.invoke('get-docignore', repoPath),
+const featuresBridge = {
+    featuresGet: ()  => ipcRenderer.invoke('features-get'),
+    featuresSet: (f) => ipcRenderer.invoke('features-set', f),
+};
 
-    // ------------------------
-    // Last selected items
-    // ------------------------
-    getLastSelected: () => ipcRenderer.invoke('get-last-selected'),
-    setLastSelected: (items) => ipcRenderer.invoke('set-last-selected', items),
+const secretsBridge = {
+    secretsHasPassword:    ()            => ipcRenderer.invoke('secrets-has-password'),
+    secretsSetPassword:    (pw)          => ipcRenderer.invoke('secrets-set-password', pw),
+    secretsVerifyPassword: (pw)          => ipcRenderer.invoke('secrets-verify-password', pw),
+    secretsResetPassword:  (old, nw)     => ipcRenderer.invoke('secrets-reset-password', old, nw),
+    secretsGetAll:         ()            => ipcRenderer.invoke('secrets-get-all'),
+    secretsAdd:            (n, v)        => ipcRenderer.invoke('secrets-add', n, v),
+    secretsUpdate:         (id, n, v)    => ipcRenderer.invoke('secrets-update', id, n, v),
+    secretsDelete:         (id)          => ipcRenderer.invoke('secrets-delete', id),
+};
 
-    // ------------------------
-    // Active project
-    // ------------------------
-    getActiveProject: () => ipcRenderer.invoke('get-active-project'),
+const apitoolBridge = {
+    apiToolGetAll:  ()      => ipcRenderer.invoke('apiToolGetAll'),
+    apiToolSaveAll: (apis)  => ipcRenderer.invoke('apiToolSaveAll', apis),
+};
 
-    // ------------------------
-    // Save file dialog
-    // ------------------------
-    saveFileDialog: (actionType) => ipcRenderer.invoke('save-file-dialog', actionType),
+const workspaceBridge = {
+    workspaceGetAll:  ()      => ipcRenderer.invoke('workspaceGetAll'),
+    workspaceSaveAll: (data)  => ipcRenderer.invoke('workspaceSaveAll', data),
+};
 
-    // ------------------------
-    // Ignored extensions
-    // ------------------------
-    getIgnoredExtensions: () => ipcRenderer.invoke('get-ignored-extensions'),
-    setIgnoredExtensions: (exts) => ipcRenderer.invoke('set-ignored-extensions', exts),
+const gitBridge = {
+    git: {
+        status:   (repoPath)                    => ipcRenderer.invoke('git:status', repoPath),
+        stage:    (repoPath, filePaths)         => ipcRenderer.invoke('git:stage', repoPath, filePaths),
+        unstage:  (repoPath, filePaths)         => ipcRenderer.invoke('git:unstage', repoPath, filePaths),
+        commit:   (repoPath, message, filePaths) => ipcRenderer.invoke('git:commit', repoPath, message, filePaths),
+        push:     (repoPath)                    => ipcRenderer.invoke('git:push', repoPath),
+        diff:     (repoPath, filePath)          => ipcRenderer.invoke('git:diff', repoPath, filePath),
+        log:      (repoPath, maxCount)          => ipcRenderer.invoke('git:log', repoPath, maxCount || 50),
+    },
+};
 
-    // ------------------------
-    // Folder filters (ignore + focus)
-    // ------------------------
-    getFolderFilters: () => ipcRenderer.invoke('get-folder-filters'),
-    setFolderFilters: (filters) => ipcRenderer.invoke('set-folder-filters', filters),
-
-    // ------------------------
-    // Secret Holder
-    // ------------------------
-    secretsHasPassword:      ()           => ipcRenderer.invoke('secrets-has-password'),
-    secretsSetPassword:      (pw)         => ipcRenderer.invoke('secrets-set-password', pw),
-    secretsVerifyPassword:   (pw)         => ipcRenderer.invoke('secrets-verify-password', pw),
-    secretsResetPassword:    (old, nw)    => ipcRenderer.invoke('secrets-reset-password', old, nw),
-    secretsGetAll:           ()           => ipcRenderer.invoke('secrets-get-all'),
-    secretsAdd:              (n, v)       => ipcRenderer.invoke('secrets-add', n, v),
-    secretsUpdate:           (id, n, v)   => ipcRenderer.invoke('secrets-update', id, n, v),
-    secretsDelete:           (id)         => ipcRenderer.invoke('secrets-delete', id),
-
-    // ------------------------
-    // API Tool
-    // ------------------------
-    apiToolGetAll:  () => ipcRenderer.invoke('apiToolGetAll'),
-    apiToolSaveAll: (apis) => ipcRenderer.invoke('apiToolSaveAll', apis),
-
-    // ------------------------
-    // Workspace Tool
-    // ------------------------
-    workspaceGetAll: () => ipcRenderer.invoke('workspaceGetAll'),
-
-    workspaceSaveAll: (data) =>
-        ipcRenderer.invoke('workspaceSaveAll', data),
-
-    featuresGet: () => ipcRenderer.invoke('features-get'),
-    featuresSet: (f) => ipcRenderer.invoke('features-set', f)
+// Expose everything to the renderer
+contextBridge.exposeInMainWorld('electronAPI', {
+    ...repoBridge,
+    ...generateBridge,
+    ...featuresBridge,
+    ...secretsBridge,
+    ...apitoolBridge,
+    ...workspaceBridge,
+    ...gitBridge,
 });
