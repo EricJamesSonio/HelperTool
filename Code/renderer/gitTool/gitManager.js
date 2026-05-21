@@ -175,4 +175,4 @@ class GitManager {
   }
 }
 
-module.exports = GitManager;
+export default GitManager;

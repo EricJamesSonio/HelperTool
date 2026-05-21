@@ -7,6 +7,7 @@
 class GitCommandHandler {
   constructor(gitManager) {
     this.gitManager = gitManager;
+    this.repoPath = null;
     this.ipc = window.electronAPI?.git;
     this.fileWatcher = null;
     this.lastStatusRefresh = 0;
@@ -32,7 +33,7 @@ class GitCommandHandler {
       const isAvailable = await this.checkGitAvailable();
       if (!isAvailable) return { error: 'Git API not available' };
 
-      const result = await this.ipc.status();
+      const result = await this.ipc.status(this.repoPath);
       if (result.error) return result;
 
       // Update manager with fresh status
@@ -56,14 +57,14 @@ class GitCommandHandler {
       // First try actual git staging if available
       let gitResult = null;
       if (this.ipc?.stage) {
-        gitResult = await this.ipc.stage(filePaths);
+        gitResult = await this.ipc.stage(this.repoPath, filePaths);
       }
 
       // Also update local state
       const localResult = this.gitManager.stageFiles(filePaths);
       
       return {
-        success: gitResult?.success !== false,
+        success: true,
         staged: this.gitManager.stagedFiles,
         gitResult
       };
@@ -84,7 +85,7 @@ class GitCommandHandler {
 
       // Try actual git unstaging if available
       if (this.ipc?.unstage) {
-        await this.ipc.unstage(filePaths);
+        await this.ipc.unstage(this.repoPath, filePaths);
       }
 
       // Update local state
@@ -117,7 +118,7 @@ class GitCommandHandler {
       let gitResult = null;
       if (this.ipc?.commit) {
         const stagedPaths = this.gitManager.stagedFiles.map(f => f.file);
-        gitResult = await this.ipc.commit(message, stagedPaths);
+        gitResult = await this.ipc.commit(this.repoPath, message, stagedPaths);
       }
 
       // Update local state
@@ -125,7 +126,7 @@ class GitCommandHandler {
 
       // If push after commit is enabled
       if (options.pushAfter && this.ipc?.push) {
-        await this.ipc.push();
+        await this.ipc.push(this.repoPath);
         if (commit.commit) {
           commit.commit.pushed = true;
         }
@@ -153,7 +154,7 @@ class GitCommandHandler {
 
       // Try actual git push if available
       if (this.ipc?.push) {
-        const result = await this.ipc.push();
+        const result = await this.ipc.push(this.repoPath);
         if (result.error) {
           return result;
         }
@@ -210,7 +211,7 @@ class GitCommandHandler {
       if (!this.ipc?.diff) {
         return { error: 'Diff not available' };
       }
-      return await this.ipc.diff(filePath);
+      return await this.ipc.diff(this.repoPath, filePath);
     } catch (error) {
       console.error('Error getting diff:', error);
       return { error: error.message };
@@ -229,6 +230,7 @@ class GitCommandHandler {
    */
   async initialize(repoPath) {
     try {
+      this.repoPath = repoPath;
       this.gitManager.setRepository(repoPath);
       
       // Get initial status
@@ -248,4 +250,4 @@ class GitCommandHandler {
   }
 }
 
-module.exports = GitCommandHandler;
+export default GitCommandHandler;

@@ -11,6 +11,7 @@ class GitToolUI {
     this.container = null;
     this.selectedFiles = new Set();
     this.setupComplete = false;
+    this.historyViewMode = 'unpushed';
   }
 
   /**
@@ -109,9 +110,15 @@ class GitToolUI {
           <!-- RIGHT PANEL: Commit History -->
           <div class="git-panel git-panel-history">
             <div class="panel-header">
-              <h3 class="panel-title">
-                <span class="panel-icon">🟢</span> Commit History
-              </h3>
+              <div class="panel-title-row">
+                <h3 class="panel-title">
+                  <span class="panel-icon">🟢</span> Commits
+                </h3>
+                <div class="history-view-switcher">
+                  <button class="view-tab" data-view="history">History</button>
+                  <button class="view-tab active" data-view="unpushed">Unpushed</button>
+                </div>
+              </div>
               <span class="panel-count" id="historyCount">0 commits</span>
             </div>
             <div class="panel-body">
@@ -142,6 +149,12 @@ class GitToolUI {
       }
       if (e.target.closest('.push-btn')) {
         this.handlePushCommit(e);
+      }
+      if (e.target.closest('.view-files-btn')) {
+        this.handleViewFiles(e);
+      }
+      if (e.target.closest('.view-tab')) {
+        this.handleViewSwitch(e);
       }
     });
 
@@ -249,6 +262,32 @@ class GitToolUI {
     }
   }
 
+  handleViewSwitch(event) {
+    const btn = event.target.closest('.view-tab');
+    if (!btn) return;
+    const view = btn.dataset.view;
+    if (!view || view === this.historyViewMode) return;
+    this.historyViewMode = view;
+    const tabs = btn.closest('.history-view-switcher').querySelectorAll('.view-tab');
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.view === view));
+    this.refreshUI();
+  }
+
+  handleViewFiles(event) {
+    const btn = event.target.closest('.view-files-btn');
+    if (!btn) return;
+
+    const card = btn.closest('.commit-card');
+    if (!card) return;
+
+    const filesDiv = card.querySelector('.commit-files');
+    if (!filesDiv) return;
+
+    const isHidden = filesDiv.style.display === 'none';
+    filesDiv.style.display = isHidden ? 'block' : 'none';
+    btn.innerHTML = isHidden ? '<span>📁</span> Hide Files' : '<span>📁</span> View Files';
+  }
+
   /**
    * Refresh all UI panels
    */
@@ -302,7 +341,7 @@ class GitToolUI {
     list.innerHTML = files.map(file => `
       <div class="file-item working-file-item" data-file="${file.file}">
         <input type="checkbox" class="file-checkbox" data-file="${file.file}" />
-        <span class="file-status-badge status-${file.status.toLowerCase()}">
+        <span class="file-status-badge status-${this.getStatusClass(file.status)}">
           ${this.getStatusLabel(file.status)}
         </span>
         <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
@@ -330,7 +369,7 @@ class GitToolUI {
     
     list.innerHTML = files.map(file => `
       <div class="file-item staged-file-item" data-file="${file.file}">
-        <span class="file-status-badge status-${file.status.toLowerCase()}">
+        <span class="file-status-badge status-${this.getStatusClass(file.status)}">
           ${this.getStatusLabel(file.status)}
         </span>
         <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
@@ -348,35 +387,45 @@ class GitToolUI {
     const list = this.container.querySelector('#commitHistoryList');
     const count = this.container.querySelector('#historyCount');
 
-    if (commits.length === 0) {
-      list.innerHTML = '<div class="empty-state">No commits yet</div>';
-      count.textContent = '0 commits';
+    const isHistory = this.historyViewMode === 'history';
+    const filtered = commits.filter(c => isHistory ? c.pushed : !c.pushed);
+
+    if (filtered.length === 0) {
+      const msg = isHistory ? 'No pushed commits yet' : 'All commits are pushed';
+      list.innerHTML = `<div class="empty-state">${msg}</div>`;
+      count.textContent = `0 ${isHistory ? 'pushed' : 'unpushed'}`;
       return;
     }
 
-    count.textContent = `${commits.length} commit${commits.length !== 1 ? 's' : ''}`;
+    count.textContent = `${filtered.length} ${isHistory ? 'pushed' : 'unpushed'} commit${filtered.length !== 1 ? 's' : ''}`;
     
-    list.innerHTML = commits.map(commit => `
+    list.innerHTML = filtered.map(commit => `
       <div class="commit-card" data-commit-id="${commit.id}">
         <div class="commit-header">
-          <span class="commit-status ${commit.pushed ? 'pushed' : 'unpushed'}">
-            ${commit.pushed ? '✓ Pushed' : '○ Unpushed'}
-          </span>
+          <span class="commit-id">${this.getShortCommitId(commit.id)}</span>
           <span class="commit-time">${this.formatTime(commit.timestamp)}</span>
         </div>
         <div class="commit-message">${this.escapeHtml(commit.message)}</div>
-        <div class="commit-files">
-          <span class="files-count">${commit.files.length} file${commit.files.length !== 1 ? 's' : ''} changed</span>
-        </div>
         <div class="commit-actions">
-          ${!commit.pushed ? `
+          <button class="view-files-btn btn btn-small" data-commit-id="${commit.id}" title="View files">
+            <span>📁</span> View Files
+          </button>
+          ${!commit.pushed && !isHistory ? `
             <button class="push-btn btn btn-small" data-commit-id="${commit.id}" title="Push commit">
               <span>↑</span> Push
             </button>
           ` : ''}
-          <button class="view-diff-btn btn btn-small" data-commit-id="${commit.id}" title="View changes">
-            <span>📊</span> Diff
-          </button>
+        </div>
+        <div class="commit-files" style="display:none">
+          <div class="files-count">${commit.files.length} file${commit.files.length !== 1 ? 's' : ''}</div>
+          <ul class="commit-file-list">
+            ${commit.files.map(f => `
+              <li class="commit-file-item">
+                <span class="file-status-badge status-${this.getStatusClass(f.status)}">${this.getStatusLabel(f.status)}</span>
+                <span class="file-path" title="${f.file}">${this.getFileName(f.file)}</span>
+              </li>
+            `).join('')}
+          </ul>
         </div>
       </div>
     `).join('');
@@ -392,9 +441,15 @@ class GitToolUI {
       'D': 'Deleted',
       'R': 'Renamed',
       'C': 'Copied',
-      'U': 'Unmerged'
+      'U': 'Unmerged',
+      '?': 'Untracked'
     };
     return labels[status] || status;
+  }
+
+  getStatusClass(status) {
+    const s = (status || '').toLowerCase();
+    return s === '?' ? 'u' : s;
   }
 
   /**
@@ -414,6 +469,14 @@ class GitToolUI {
       minute: '2-digit',
       hour12: true
     });
+  }
+
+  getShortCommitId(id) {
+    if (!id) return '';
+    if (id.startsWith('commit_')) {
+      return '#' + id.slice(-9);
+    }
+    return id.substring(0, 7);
   }
 
   /**
@@ -454,4 +517,4 @@ class GitToolUI {
   }
 }
 
-module.exports = GitToolUI;
+export default GitToolUI;
