@@ -479,13 +479,31 @@
   font-size: 14px;
 }
 
+.btn-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ══ FULL-SCREEN OVERLAY (workspace-style) ══ */
 .git-tool-panel {
   position: fixed; inset: 0; z-index: 9999;
   background: linear-gradient(135deg, var(--bg-base, #0a0f1a) 0%, var(--bg-elevated, #111d34) 100%);
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none; transition: opacity 0.3s ease-out;
-  border: 4px solid red !important;
   box-sizing: border-box;
 }
 .git-tool-panel.open { opacity: 1; pointer-events: all; }
