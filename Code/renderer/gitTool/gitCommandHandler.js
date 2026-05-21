@@ -172,6 +172,23 @@ class GitCommandHandler {
     }
   }
 
+  async pushAll() {
+    try {
+      if (this.ipc?.push) {
+        const result = await this.ipc.push(this.repoPath);
+        if (result.error) return result;
+      }
+      const result = this.gitManager.markAllPushed();
+      return {
+        success: true,
+        count: result.count
+      };
+    } catch (error) {
+      console.error('Error pushing all commits:', error);
+      return { error: error.message };
+    }
+  }
+
   /**
    * Set up file watching for real-time status updates
    * Watches for file changes and refreshes git status

@@ -122,6 +122,11 @@ class GitToolUI {
               <span class="panel-count" id="historyCount">0 commits</span>
             </div>
             <div class="panel-body">
+              <div class="push-all-row" id="pushAllRow" style="display:none">
+                <button id="pushAllBtn" class="btn btn-primary push-all-btn">
+                  <span>↑</span> Push All Unpushed
+                </button>
+              </div>
               <div id="commitHistoryList" class="commit-list">
                 <div class="empty-state">No commits yet</div>
               </div>
@@ -175,6 +180,9 @@ class GitToolUI {
         if (!commitBtn.disabled) this.handleCommit();
       }
     });
+
+    const pushAllBtn = this.container.querySelector('#pushAllBtn');
+    pushAllBtn?.addEventListener('click', () => this.handlePushAll());
   }
 
   /**
@@ -288,6 +296,24 @@ class GitToolUI {
       this.showSuccess('Commit pushed successfully!');
     } else {
       this.showError(result.error || 'Failed to push commit');
+    }
+  }
+
+  async handlePushAll() {
+    const btn = this.container.querySelector('#pushAllBtn');
+    if (!btn) return;
+
+    this.setButtonLoading(btn, true);
+
+    const result = await this.gitHandler.pushAll();
+
+    this.setButtonLoading(btn, false);
+
+    if (result.success) {
+      this.refreshUI();
+      this.showSuccess(`Pushed ${result.count} commit${result.count !== 1 ? 's' : ''}!`);
+    } else {
+      this.showError(result.error || 'Failed to push');
     }
   }
 
@@ -415,9 +441,14 @@ class GitToolUI {
   renderCommitHistory(commits) {
     const list = this.container.querySelector('#commitHistoryList');
     const count = this.container.querySelector('#historyCount');
+    const pushAllRow = this.container.querySelector('#pushAllRow');
 
     const isHistory = this.historyViewMode === 'history';
     const filtered = commits.filter(c => isHistory ? c.pushed : !c.pushed);
+
+    if (pushAllRow) {
+      pushAllRow.style.display = (!isHistory && filtered.length > 0) ? '' : 'none';
+    }
 
     if (filtered.length === 0) {
       const msg = isHistory ? 'No pushed commits yet' : 'All commits are pushed';

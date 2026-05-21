@@ -328,6 +328,16 @@
 }
 
 /* ══ COMMIT HISTORY ══ */
+.push-all-row {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+}
+
+.push-all-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .commit-list {
   flex: 1;
   display: flex;

@@ -134,6 +134,14 @@ class GitManager {
     return { success: true, commit };
   }
 
+  markAllPushed() {
+    const unpushed = this.commitHistory.filter(c => !c.pushed);
+    if (unpushed.length === 0) return { error: 'No unpushed commits' };
+    unpushed.forEach(c => c.pushed = true);
+    saveCommits(this.currentRepo, this.commitHistory);
+    return { success: true, count: unpushed.length };
+  }
+
   /**
    * Get current state as object (for UI rendering)
    */
