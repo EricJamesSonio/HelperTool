@@ -13,6 +13,7 @@ const secretsIpc   = require('./ipc/secrets_ipc.js');
 const apitoolIpc   = require('./ipc/apitool_ipc.js');
 const workspaceIpc = require('./ipc/workspace_ipc.js');
 const generateIpc  = require('./ipc/generate_ipc.js');
+const gitIpc = require('./ipc/git_ipc.js');
 
 // ----------------------------
 // GPU / MEMORY REDUCTION FLAGS
@@ -77,6 +78,7 @@ function registerAllIpc() {
     apitoolIpc.register(shared);
     workspaceIpc.register(shared);
     generateIpc.register(shared);
+    gitIpc.register(shared);
 }
 
 // ----------------------------
