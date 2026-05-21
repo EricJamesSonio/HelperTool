@@ -64,6 +64,7 @@ async function getFolderTree(dir, repoRoot) {
 
 async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}, promptText = '') {
 
+
     if (!selectedPaths?.length) return;
 
     // FIX: derive the true repo root as the common ancestor of ALL selected paths

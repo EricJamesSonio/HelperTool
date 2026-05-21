@@ -78,6 +78,27 @@ function renderToolsPanelEntries() {
     const item = document.createElement('button');
     item.className = 'tools-panel-item';
     item.innerHTML = 
+      '<span class="tools-panel-item-icon">\uD83E\uDDE9</span>' +
+      '<div class="tools-panel-item-info">' +
+        '<span class="tools-panel-item-name">Prompt Tool</span>' +
+        '<span class="tools-panel-item-desc">Manage custom AI prompts</span>' +
+      '</div>';
+    item.addEventListener('click', async function () {
+      closeToolsPanel();
+      try {
+        const { openPromptToolModal } = await import('../promptTool.js');
+        openPromptToolModal();
+      } catch (err) {
+        console.error('[Tools] Failed to open Prompt Tool:', err);
+      }
+    });
+    body.appendChild(item);
+  }
+
+  {
+    const item = document.createElement('button');
+    item.className = 'tools-panel-item';
+    item.innerHTML = 
       '<span class="tools-panel-item-icon">\uD83D\uDD00</span>' +
       '<div class="tools-panel-item-info">' +
         '<span class="tools-panel-item-name">Git Tool</span>' +

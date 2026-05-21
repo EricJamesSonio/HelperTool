@@ -18,6 +18,8 @@
 
   <!-- ✅ Git Tool -->
   <link rel="stylesheet" href="./styles/git-tool.css">
+  <!-- ✅ Prompt Tool -->
+  <link rel="stylesheet" href="./styles/prompt-tool.css">
 
 </head>
 <body>
@@ -58,10 +60,9 @@
       <button id="codeBtn"      class="action-btn"><span class="btn-icon">💻</span>Code</button>
 
       <div class="generate-split-btn" id="generateSplitGroup">
-        <button id="promptBtn" class="action-btn" title="Choose applicable prompts">🧩 Prompt</button>
-
 
         <button id="generateBtn" class="action-btn generate-btn" title="Generate output">
+
           <span class="btn-icon">⚡</span>Generate
         </button>
         <button id="generateModeToggle" class="action-btn generate-mode-toggle" title="Toggle minified output">
@@ -85,8 +86,17 @@
               <span class="gm-desc">No blank lines, no comments</span>
             </div>
           </button>
+
+          <button class="generate-mode-item" data-mode="prompt">
+            <span class="gm-icon">🧩</span>
+            <div class="gm-info">
+              <span class="gm-name">Prompt</span>
+              <span class="gm-desc">Choose applicable prompts</span>
+            </div>
+          </button>
         </div>
       </div>
+
 
       <button id="viewModeBtn" class="view-mode-btn active-list" title="Switch to Tree mode">
         ☰ Roof Mode
