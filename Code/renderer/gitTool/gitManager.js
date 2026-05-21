@@ -4,6 +4,8 @@
  * Handles: working tree, staged files, commit history
  */
 
+import { loadCommits, saveCommits } from './gitPersistence.js';
+
 class GitManager {
   constructor() {
     this.workingTreeFiles = [];
@@ -22,6 +24,8 @@ class GitManager {
     this.currentRepo = repoPath;
     this.workingTreeFiles = [];
     this.stagedFiles = [];
+    const saved = loadCommits(repoPath);
+    this.commitHistory = Array.isArray(saved) ? saved : [];
     return { success: true, repo: repoPath };
   }
 
@@ -109,6 +113,8 @@ class GitManager {
     this.commitHistory.unshift(commit);
     this.stagedFiles = [];
 
+    saveCommits(this.currentRepo, this.commitHistory);
+
     return {
       success: true,
       commit,
@@ -124,6 +130,7 @@ class GitManager {
     if (!commit) return { error: 'Commit not found' };
 
     commit.pushed = true;
+    saveCommits(this.currentRepo, this.commitHistory);
     return { success: true, commit };
   }
 
