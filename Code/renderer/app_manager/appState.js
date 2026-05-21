@@ -10,6 +10,8 @@ export const state = {
     cachedTree:       null,
     actionType:       'code',
     generateMinified: false,
+    generateOutputType: 'normal', // normal | minified | prompt
+
     viewMode:         localStorage.getItem('helpertool-viewmode') || 'list',
     selectedPromptText: '',
     selectedPromptId:   null,

@@ -84,6 +84,7 @@ export function initActionButtons() {
     });
 }
 
+
 // ── Split mode (Normal / Minified) ────────────────────────────────────────────
 
 export function initSplitModeButton() {
@@ -98,38 +99,44 @@ export function initSplitModeButton() {
     });
 
     document.querySelectorAll('.generate-mode-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', async () => {
             const mode = item.dataset.mode;
+
+            // mode values: normal | minified | prompt
+            state.generateOutputType = mode;
             state.generateMinified = (mode === 'minified');
-            generateModeLabel.textContent = state.generateMinified ? 'Minified' : 'Normal';
+
+            if (mode === 'prompt') {
+                generateModeLabel.textContent = 'Prompt';
+            } else {
+                generateModeLabel.textContent = state.generateMinified ? 'Minified' : 'Normal';
+            }
+
+
             document.querySelectorAll('.generate-mode-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
+
             generateSplitGroup.dataset.mode = mode;
             generateSplitGroup.classList.remove('menu-open');
+
+            if (mode === 'prompt') {
+                try {
+                    const m = await import('../promptTool.js');
+                    if (m.openPromptSelectionModal) await m.openPromptSelectionModal();
+                } catch (err) {
+                    console.error('[Prompt] failed to open prompt selection:', err);
+                    alert('Failed to open prompt picker. Check console for details.');
+                }
+            }
         });
     });
+
 }
 
 // ── Generate button ───────────────────────────────────────────────────────────
 
 export function initGenerateButton() {
-    const promptBtn = document.getElementById('promptBtn');
-    if (promptBtn) {
-        promptBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            try {
-                const m = await import('../promptTool.js');
-                if (m.openPromptSelectionModal) {
-                    await m.openPromptSelectionModal();
-                    return;
-                }
-                if (m.openPromptToolModal) return m.openPromptToolModal();
-            } catch (err) {
-                console.error('[Prompt] openPromptSelectionModal failed:', err);
-                alert('Failed to open prompt picker. Check console for details.');
-            }
-        });
-    }
+
 
     generateBtn.addEventListener('click', async () => {
 
@@ -152,6 +159,7 @@ export function initGenerateButton() {
                 state.actionType === 'code' ? state.generateMinified : false,
                 state.selectedPromptText || ''
             );
+
 
             if (!success) alert('Generation failed.');
             resetSelection();
