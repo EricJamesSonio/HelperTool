@@ -75,7 +75,6 @@ export async function openSecretHolder() {
     if (!S.unlocked) {
         showLockScreen();
         await updateLockLabel();
-        setTimeout(() => pwInput?.focus(), 80);
     }
 }
 
