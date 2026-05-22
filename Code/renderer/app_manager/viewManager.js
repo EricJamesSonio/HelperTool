@@ -26,6 +26,7 @@ export function displayTree() {
         onTreeSelectionChange,
         state.viewMode
     );
+    treeContainer.scrollTo(0, 0);
 }
 
 // Callback wired by app.js after generateManager is ready

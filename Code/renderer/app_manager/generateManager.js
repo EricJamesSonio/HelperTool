@@ -15,8 +15,8 @@ const selectionCount     = document.getElementById('selectionCount');
 const clearSelectionBtn  = document.getElementById('clearSelectionBtn');
 const progressBar        = document.getElementById('progressBar');
 const progressText       = document.getElementById('progressText');
-const structureBtn       = document.getElementById('structureBtn');
-const codeBtn            = document.getElementById('codeBtn');
+const generatorModeToggleBtn = document.getElementById('generatorModeToggleBtn');
+const generatorModeLabel   = document.getElementById('generatorModeLabel');
 
 generateBtn.disabled = true;
 
@@ -81,22 +81,24 @@ function updateModeForActionType() {
     }
 }
 
+function updateGeneratorModeButton() {
+    generatorModeLabel.textContent = state.actionType === 'code' ? 'Code' : 'Structure';
+}
+
 export function initActionButtons() {
-    structureBtn.addEventListener('click', () => {
-        state.actionType = 'structure';
-        updateModeForActionType();
-        resetSelection();
-        displayTree();
-    });
-
-    codeBtn.addEventListener('click', () => {
+    // Set initial mode to 'code' if not already set
+    if (!state.actionType || state.actionType === 'structure') {
         state.actionType = 'code';
-        updateModeForActionType();
+    }
+    updateGeneratorModeButton(); // Update button label on initialization
+
+    generatorModeToggleBtn.addEventListener('click', () => {
+        state.actionType = (state.actionType === 'code') ? 'structure' : 'code';
+        updateModeForActionType(); // Handles minified output visibility based on new actionType
+        updateGeneratorModeButton(); // Update the button text
         resetSelection();
         displayTree();
     });
-
-    updateModeForActionType();
 }
 
 
