@@ -72,6 +72,7 @@ function populateSidebar() {
         _apiTool.closeApiToolPanel();
         item.classList.remove('active');
       } else {
+        _closeAllToolPanels();
         if (_apiTool && _apiTool.openApiToolPanel) _apiTool.openApiToolPanel();
         item.classList.add('active');
       }
@@ -82,6 +83,12 @@ function populateSidebar() {
   // ── Prompt Tool ──────────────────────────────────────────
   {
     const item = createItem('\uD83E\uDDE9', 'Prompt Tool', 'Manage custom AI prompts', async function () {
+      const existing = document.getElementById('promptToolModal');
+      if (existing && existing.style.display !== 'none') {
+        existing.style.display = 'none';
+        return;
+      }
+      _closeAllToolPanels();
       try {
         const { openPromptToolModal } = await import('../promptTool.js');
         openPromptToolModal();
@@ -98,6 +105,7 @@ function populateSidebar() {
       if (_gitPanel && _gitPanel.classList.contains('open')) {
         _gitPanel.classList.remove('open');
       } else {
+        _closeAllToolPanels();
         if (!_gitPanel) _gitPanel = createGitPanel();
         _gitPanel.classList.add('open');
         if (_gitTool && _gitTool.isInitialized) {
@@ -114,6 +122,11 @@ function populateSidebar() {
   // ── Settings ─────────────────────────────────────────────
   {
     const item = createItem('\uD83C\uDFA8', 'Settings', 'Appearance & features', function () {
+      const fullOverlay = document.getElementById('settingsOverlay');
+      const lightOverlay = document.getElementById('lightSettingsOverlay');
+      if (fullOverlay && fullOverlay.classList.contains('open')) { fullOverlay.classList.remove('open'); return; }
+      if (lightOverlay && lightOverlay.classList.contains('open')) { lightOverlay.classList.remove('open'); return; }
+      _closeAllToolPanels();
       if (_settingsManager && _settingsManager.openSettings) {
         _settingsManager.openSettings();
       }
@@ -126,8 +139,11 @@ function populateSidebar() {
     const item = createItem('\uD83D\uDD10', 'Secret Holder', 'Manage API keys & secrets', async function () {
       if (_secretHolder && _secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) {
         _secretHolder.closeSecretHolder();
-      } else if (_secretHolder && _secretHolder.openSecretHolder) {
-        await _secretHolder.openSecretHolder();
+      } else {
+        _closeAllToolPanels();
+        if (_secretHolder && _secretHolder.openSecretHolder) {
+          await _secretHolder.openSecretHolder();
+        }
       }
     });
     body.appendChild(item);
@@ -146,8 +162,11 @@ function populateSidebar() {
     const item = createItem('\uD83D\uDC65', 'Workspace', 'Projects, tickets & workers', async function () {
       if (_workspaceTool && _workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) {
         _workspaceTool.closeWorkspacePanel();
-      } else if (_workspaceTool && _workspaceTool.openWorkspacePanel) {
-        await _workspaceTool.openWorkspacePanel();
+      } else {
+        _closeAllToolPanels();
+        if (_workspaceTool && _workspaceTool.openWorkspacePanel) {
+          await _workspaceTool.openWorkspacePanel();
+        }
       }
     });
     body.appendChild(item);
@@ -239,6 +258,21 @@ function destroyGitTool() {
   }
 }
 
+// ---- Close all tool panels (single-active-tool) ------------------------------
+
+function _closeAllToolPanels() {
+  if (_apiTool && _apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) _apiTool.closeApiToolPanel();
+  if (_gitPanel && _gitPanel.classList.contains('open')) _gitPanel.classList.remove('open');
+  const promptModal = document.getElementById('promptToolModal');
+  if (promptModal && promptModal.style.display !== 'none') promptModal.style.display = 'none';
+  const fullOverlay = document.getElementById('settingsOverlay');
+  if (fullOverlay && fullOverlay.classList.contains('open')) fullOverlay.classList.remove('open');
+  const lightOverlay = document.getElementById('lightSettingsOverlay');
+  if (lightOverlay && lightOverlay.classList.contains('open')) lightOverlay.classList.remove('open');
+  if (_secretHolder && _secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) _secretHolder.closeSecretHolder();
+  if (_workspaceTool && _workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) _workspaceTool.closeWorkspacePanel();
+}
+
 export function handleRepoChange(newRepoPath) {
   destroyGitTool();
   initializeGitTool(newRepoPath);
@@ -308,10 +342,10 @@ export async function initTools(feats, settingsManager) {
       if (_apiTool) {
         if (_apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) {
           _apiTool.closeApiToolPanel();
-        } else if (_apiTool.openApiToolPanel) {
-          _apiTool.openApiToolPanel();
-          document.querySelectorAll('.tools-sidebar-item')[0].classList.add('active');
+          return;
         }
+        _closeAllToolPanels();
+        _apiTool.openApiToolPanel();
       }
     };
   }
@@ -319,38 +353,41 @@ export async function initTools(feats, settingsManager) {
   shortcutActions.gitTool = function () {
     if (_gitPanel && _gitPanel.classList.contains('open')) {
       _gitPanel.classList.remove('open');
+      return;
+    }
+    _closeAllToolPanels();
+    if (!_gitPanel) _gitPanel = createGitPanel();
+    _gitPanel.classList.add('open');
+    if (_gitTool && _gitTool.isInitialized) {
+      _gitTool.refresh();
     } else {
-      if (!_gitPanel) _gitPanel = createGitPanel();
-      _gitPanel.classList.add('open');
-      if (_gitTool && _gitTool.isInitialized) {
-        _gitTool.refresh();
-      } else {
-        var repoPath = state.selectedRepoPath;
-        if (repoPath) initializeGitTool(repoPath);
-      }
+      var repoPath = state.selectedRepoPath;
+      if (repoPath) initializeGitTool(repoPath);
     }
   };
 
   shortcutActions.promptTool = async function () {
+    const modal = document.getElementById('promptToolModal');
+    if (modal && modal.style.display !== 'none') {
+      modal.style.display = 'none';
+      return;
+    }
+    _closeAllToolPanels();
     try {
-      const modal = document.getElementById('promptToolModal');
-      if (modal && modal.style.display !== 'none') {
-        const { closePromptToolModal } = await import('../promptTool.js');
-        closePromptToolModal();
-      } else {
-        const { openPromptToolModal } = await import('../promptTool.js');
-        openPromptToolModal();
-      }
+      const { openPromptToolModal } = await import('../promptTool.js');
+      openPromptToolModal();
     } catch (err) {
       console.error('[Shortcuts] Prompt Tool:', err);
     }
   };
 
   shortcutActions.settings = function () {
-    const overlay = document.getElementById('settingsOverlay');
-    if (overlay && overlay.classList.contains('open') && _settingsManager.closeSettings) {
-      _settingsManager.closeSettings();
-    } else if (_settingsManager && _settingsManager.openSettings) {
+    const fullOverlay = document.getElementById('settingsOverlay');
+    const lightOverlay = document.getElementById('lightSettingsOverlay');
+    if (fullOverlay && fullOverlay.classList.contains('open')) { fullOverlay.classList.remove('open'); return; }
+    if (lightOverlay && lightOverlay.classList.contains('open')) { lightOverlay.classList.remove('open'); return; }
+    _closeAllToolPanels();
+    if (_settingsManager && _settingsManager.openSettings) {
       _settingsManager.openSettings();
     }
   };
@@ -360,7 +397,10 @@ export async function initTools(feats, settingsManager) {
       if (_secretHolder) {
         if (_secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) {
           _secretHolder.closeSecretHolder();
-        } else if (_secretHolder.openSecretHolder) {
+          return;
+        }
+        _closeAllToolPanels();
+        if (_secretHolder.openSecretHolder) {
           await _secretHolder.openSecretHolder();
         }
       }
@@ -372,7 +412,10 @@ export async function initTools(feats, settingsManager) {
       if (_workspaceTool) {
         if (_workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) {
           _workspaceTool.closeWorkspacePanel();
-        } else if (_workspaceTool.openWorkspacePanel) {
+          return;
+        }
+        _closeAllToolPanels();
+        if (_workspaceTool.openWorkspacePanel) {
           await _workspaceTool.openWorkspacePanel();
         }
       }
