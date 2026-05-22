@@ -328,9 +328,15 @@
 }
 
 /* ══ COMMIT HISTORY ══ */
-.push-all-row {
+.push-all-row,
+.stage-all-row {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+}
+.push-all-btn,
+.stage-all-btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .push-all-btn {
