@@ -139,10 +139,10 @@
     position: relative; 
     z-index: 10; 
 }
-.pt-editor-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); width: 80px; }
+.pt-editor-label { font-size: 11px; font-weight: 700; color: var(--text-muted); width: 80px; text-transform: uppercase; }
 
 .pt-input {
-    flex: 1; height: 36px; padding: 0 12px;
+    flex: 1; max-width: 400px; height: 36px; padding: 0 12px;
     border-radius: var(--r-md); border: 1px solid var(--border-default);
     background: var(--bg-elevated); color: var(--text-primary);
     font-family: var(--font-ui); font-size: 13px; outline: none;
@@ -150,7 +150,7 @@
 .pt-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 
 .pt-textarea {
-    flex: 1; min-height: 200px; padding: 12px;
+    flex: 1; min-height: 300px; padding: 12px;
     border-radius: var(--r-md); border: 1px solid var(--border-default);
     background: var(--bg-elevated); color: var(--text-primary);
     font-family: var(--font-mono); font-size: 13px; line-height: 1.6;

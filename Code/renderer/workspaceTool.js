@@ -461,17 +461,21 @@ function _showEditWorkerModal(worker) {
         <button class="workspace-modal-close">✕</button>
       </div>
       <form id="editWorkerForm" class="workspace-modal-form">
-        <div class="workspace-form-group">
-          <label>Name</label>
-          <input type="text" id="editWorkerName" value="${worker.name}" class="workspace-input" required />
+        <div class="workspace-modal-form-fields">
+          <div class="workspace-form-group">
+            <label>Name</label>
+            <input type="text" id="editWorkerName" value="${worker.name}" class="workspace-input" required />
+          </div>
+          <div class="workspace-form-group">
+            <label>Role</label>
+            <select id="editWorkerRole" class="workspace-select" required>
+              ${WORKER_ROLES.map(r => `<option value="${r}" ${r === worker.role ? 'selected' : ''}>${r}</option>`).join('')}
+            </select>
+          </div>
         </div>
-        <div class="workspace-form-group">
-          <label>Role</label>
-          <select id="editWorkerRole" class="workspace-select" required>
-            ${WORKER_ROLES.map(r => `<option value="${r}" ${r === worker.role ? 'selected' : ''}>${r}</option>`).join('')}
-          </select>
+        <div class="workspace-modal-form-content">
+          <div class="workspace-form-error" id="editWorkerError"></div>
         </div>
-        <div class="workspace-form-error" id="editWorkerError"></div>
         <div class="workspace-modal-footer">
           <button type="button" class="workspace-btn-cancel">Cancel</button>
           <button type="submit" class="workspace-btn-add">Save Changes</button>
@@ -481,7 +485,7 @@ function _showEditWorkerModal(worker) {
   `;
 
   document.body.appendChild(modal);
-
+  // ... rest of the listener logic remains the same ...
   const closeBtn = modal.querySelector('.workspace-modal-close');
   const cancelBtn = modal.querySelector('.workspace-btn-cancel');
   closeBtn.addEventListener('click', () => modal.remove());
@@ -522,37 +526,12 @@ function _renderWorkerDetails() {
   const formSection = document.createElement('div');
   formSection.className = 'workspace-form-section';
   
-  if (_editingTicket) {
-    formSection.innerHTML = `
-      <div class="workspace-form-label">Editing Ticket</div>
-      <form class="workspace-add-ticket-form" id="addTicketForm">
-        <div class="workspace-form-group">
-          <input
-            type="text"
-            id="ticketTitleInput"
-            placeholder="Ticket title..."
-            value="${_editingTicket.title}"
-            class="workspace-input"
-            required
-          />
-        </div>
-        <div class="workspace-form-group">
-          <textarea
-            id="ticketNotesInput"
-            placeholder="Notes (optional)..."
-            class="workspace-textarea"
-            rows="3"
-          >${_editingTicket.notes}</textarea>
-        </div>
-        <div class="workspace-form-error" id="ticketFormError"></div>
-        <div class="workspace-form-actions">
-          <button type="button" class="workspace-btn-cancel" id="cancelEditBtn">Cancel Edit</button>
-          <button type="submit" class="workspace-btn-add">Update Ticket</button>
-        </div>
-      </form>
-    `;
-  } else {
-    formSection.innerHTML = `
+// ... (existing code above) ...
+
+  const formSection = document.createElement('div');
+  formSection.className = 'workspace-form-section';
+  
+  formSection.innerHTML = `
       <form class="workspace-add-ticket-form" id="addTicketForm">
         <div class="workspace-form-group">
           <input
@@ -575,7 +554,6 @@ function _renderWorkerDetails() {
         <button type="submit" class="workspace-btn-add">+ Create Ticket</button>
       </form>
     `;
-  }
   
   body.appendChild(formSection);
 
@@ -601,26 +579,79 @@ function _renderWorkerDetails() {
     const notes = document.getElementById('ticketNotesInput').value;
     const errEl = document.getElementById('ticketFormError');
     try {
-      if (_editingTicket) {
-        updateTicket(_editingTicket.id, title, notes, _editingTicket.status);
-      } else {
-        addTicket(_selectedWorker.id, title, notes);
-      }
+      addTicket(_selectedWorker.id, title, notes);
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-      _editingTicket = null;
       document.getElementById('addTicketForm').reset();
       _render();
     } catch (err) {
       if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     }
   });
+}
 
-  if (_editingTicket) {
-    document.getElementById('cancelEditBtn').addEventListener('click', () => {
-      _editingTicket = null;
+function _showEditTicketModal(ticket) {
+  const modal = document.createElement('div');
+  modal.className = 'workspace-modal-overlay';
+  modal.innerHTML = `
+    <div class="workspace-modal">
+      <div class="workspace-modal-header">
+        <h2>Edit Ticket</h2>
+        <button class="workspace-modal-close">✕</button>
+      </div>
+      <form id="editTicketForm" class="workspace-modal-form">
+        <div class="workspace-modal-form-fields">
+          <div class="workspace-form-group">
+            <label>Title</label>
+            <input type="text" id="editTicketTitle" value="${ticket.title}" class="workspace-input" required />
+          </div>
+          <div class="workspace-form-group">
+            <label>Status</label>
+            <select id="editTicketStatus" class="workspace-select" required>
+              ${['pending', 'in-progress', 'complete'].map(s => `<option value="${s}" ${s === ticket.status ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="workspace-modal-form-content">
+          <div class="workspace-form-group" style="flex:1">
+            <label>Description</label>
+            <textarea id="editTicketNotes" class="workspace-textarea" style="height:280px" placeholder="Add ticket description or notes here...">${ticket.notes}</textarea>
+          </div>
+          <div class="workspace-form-error" id="editTicketError"></div>
+        </div>
+        <div class="workspace-modal-footer">
+          <button type="button" class="workspace-btn-cancel">Cancel</button>
+          <button type="submit" class="workspace-btn-add">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const closeBtn = modal.querySelector('.workspace-modal-close');
+  const cancelBtn = modal.querySelector('.workspace-btn-cancel');
+  closeBtn.addEventListener('click', () => modal.remove());
+  cancelBtn.addEventListener('click', () => modal.remove());
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  document.getElementById('editTicketForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = document.getElementById('editTicketTitle').value;
+    const notes = document.getElementById('editTicketNotes').value;
+    const status = document.getElementById('editTicketStatus').value;
+    const errEl = document.getElementById('editTicketError');
+    try {
+      updateTicket(ticket.id, title, notes, status);
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      modal.remove();
       _render();
-    });
-  }
+    } catch (err) {
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    }
+  });
 }
 
 function _createTicketElement(ticket) {
@@ -651,9 +682,9 @@ function _createTicketElement(ticket) {
   `;
 
   el.querySelector('.workspace-ticket-edit').addEventListener('click', () => {
-    _editingTicket = ticket;
-    _render();
+    _showEditTicketModal(ticket);
   });
+// ... rest remains same ...
 
   const statusSelect = el.querySelector('.workspace-status-select');
   statusSelect.addEventListener('change', () => {

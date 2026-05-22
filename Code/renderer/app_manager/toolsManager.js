@@ -350,6 +350,14 @@ export async function initTools(feats, settingsManager) {
     };
   }
 
+  shortcutActions.shortcutTool = function () {
+    if (openConfig.isConfigOpen && openConfig.isConfigOpen()) {
+      openConfig(); // This will close it internally
+      return;
+    }
+    openConfig();
+  };
+
   shortcutActions.gitTool = function () {
     if (_gitPanel && _gitPanel.classList.contains('open')) {
       _gitPanel.classList.remove('open');

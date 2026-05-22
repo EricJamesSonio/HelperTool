@@ -765,33 +765,40 @@ function _buildKanbanCard(ticket, workers, project) {
 
 function _showEditTicketModal(ticket, project, workers) {
   const modal = _createModal('Edit Ticket', `
-    <div class="workspace-form-group">
-      <label>Title</label>
-      <input type="text" id="etTitle" value="${_esc(ticket.title)}" class="workspace-input" />
+  <div class="ws-edit-ticket-grid">
+
+    <div class="ws-edit-ticket-left">
+      <div class="workspace-form-group">
+        <label>Title</label>
+        <input type="text" id="etTitle" value="${_esc(ticket.title)}" class="workspace-input" />
+      </div>
+      <div class="workspace-form-group">
+        <label>Assigned Worker</label>
+        <select id="etWorker" class="workspace-select">
+          <option value="">Unassigned</option>
+          ${workers.map(w => `<option value="${w.id}" ${w.id === ticket.assignedWorkerId ? 'selected':''}>${w.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="workspace-form-group">
+        <label>Priority</label>
+        <select id="etPriority" class="workspace-select">
+          ${TICKET_PRIORITIES.map(p => `<option value="${p}" ${p === ticket.priority ? 'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div class="workspace-form-group">
+        <label>Status</label>
+        <select id="etStatus" class="workspace-select">
+          ${TICKET_STATUSES.map(s => `<option value="${s}" ${s === ticket.status ? 'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
     </div>
-    <div class="workspace-form-group">
+
+    <div class="ws-edit-ticket-right">
       <label>Description</label>
-      <textarea id="etDesc" class="workspace-textarea" rows="4">${_esc(ticket.description)}</textarea>
+      <textarea id="etDesc" class="workspace-textarea">${_esc(ticket.description)}</textarea>
     </div>
-    <div class="workspace-form-group">
-      <label>Assigned Worker</label>
-      <select id="etWorker" class="workspace-select">
-        <option value="">Unassigned</option>
-        ${workers.map(w => `<option value="${w.id}" ${w.id === ticket.assignedWorkerId ? 'selected':''}>${w.name}</option>`).join('')}
-      </select>
-    </div>
-    <div class="workspace-form-group">
-      <label>Priority</label>
-      <select id="etPriority" class="workspace-select">
-        ${TICKET_PRIORITIES.map(p => `<option value="${p}" ${p === ticket.priority ? 'selected':''}>${p}</option>`).join('')}
-      </select>
-    </div>
-    <div class="workspace-form-group">
-      <label>Status</label>
-      <select id="etStatus" class="workspace-select">
-        ${TICKET_STATUSES.map(s => `<option value="${s}" ${s === ticket.status ? 'selected':''}>${s}</option>`).join('')}
-      </select>
-    </div>
+
+  </div>
   `, errEl => {
     try {
       updateTicket(ticket.id, {

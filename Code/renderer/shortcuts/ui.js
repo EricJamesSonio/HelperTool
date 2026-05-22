@@ -2,6 +2,7 @@ import { S, loadShortcuts, saveShortcuts } from './state.js';
 import { eventToString } from './parser.js';
 
 const FEATURES = [
+  { id: 'shortcutTool',  icon: '\u2328\uFE0F', name: 'CLI Tool' },
   { id: 'apiTool',       icon: '\uD83D\uDD0C', name: 'API Tool' },
   { id: 'gitTool',       icon: '\uD83D\uDD00', name: 'Git Tool' },
   { id: 'promptTool',    icon: '\uD83E\uDDE9', name: 'Prompt Tool' },
@@ -160,4 +161,8 @@ function showSaved(btn) {
   setTimeout(function () { btn.textContent = orig; btn.style.color = ''; }, 1200);
 }
 
-export { openConfig };
+function isConfigOpen() {
+  return !!_modal;
+}
+
+export { openConfig, isConfigOpen };

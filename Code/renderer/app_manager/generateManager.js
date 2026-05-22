@@ -97,7 +97,7 @@ export function initActionButtons() {
         updateModeForActionType(); // Handles minified output visibility based on new actionType
         updateGeneratorModeButton(); // Update the button text
         resetSelection();
-        displayTree();
+        displayTree(true); // Explicitly reset scroll on toggle
     });
 }
 
@@ -180,7 +180,7 @@ export function initGenerateButton() {
 
             if (!success) alert('Generation failed.');
             resetSelection();
-            displayTree();
+            displayTree(false);
         } catch (err) {
             console.error('[Generate] Failed:', err);
             alert('Generation failed.');
@@ -199,6 +199,6 @@ export function initClearSelectionButton() {
         state.selectedPromptId   = null;
         state.selectedPromptIds  = [];
         updateGenerateState();
-        displayTree();
+        displayTree(false);
     });
 }
