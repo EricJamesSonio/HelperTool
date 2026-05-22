@@ -36,3 +36,12 @@ export function closeWorkspacePanel() {
   document.getElementById('workspaceContainer')?.classList.remove('open');
   _isOpen = false;
 }
+
+document.addEventListener('keydown', function wsEscape(e) {
+  if (e.key === 'Escape') {
+    const container = document.getElementById('workspaceContainer');
+    if (container && container.classList.contains('open')) {
+      closeWorkspacePanel();
+    }
+  }
+});

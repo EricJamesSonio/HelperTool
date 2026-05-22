@@ -17,17 +17,30 @@ export function initShortcutMode() {
   const shortcutResultsCloseBtn = document.getElementById('shortcutResultsCloseBtn');
   const shortcutResultsCloseBtn2 = document.getElementById('shortcutResultsCloseBtn2');
 
+  function showError(msg) {
+    const el = document.getElementById('shortcutInputError');
+    if (el) { el.textContent = msg; el.style.display = 'block'; }
+  }
+  function hideError() {
+    const el = document.getElementById('shortcutInputError');
+    if (el) { el.textContent = ''; el.style.display = 'none'; }
+  }
+
   shortcutModeBtn.addEventListener('click', () => {
     openShortcutInputModal();
+    hideError();
   });
 
-  shortcutInputCloseBtn.addEventListener('click', closeShortcutInputModal);
-  shortcutCancelBtn.addEventListener('click', closeShortcutInputModal);
+  shortcutInputCloseBtn.addEventListener('click', () => { hideError(); closeShortcutInputModal(); });
+  shortcutCancelBtn.addEventListener('click', () => { hideError(); closeShortcutInputModal(); });
+
+  getShortcutInputTextarea().addEventListener('input', hideError);
 
   shortcutProcessBtn.addEventListener('click', () => {
+    hideError();
     const inputText = getShortcutInputTextarea().value.trim();
     if (!inputText) {
-      alert('Please paste some content first');
+      showError('Please paste some content first');
       return;
     }
 
@@ -37,7 +50,7 @@ export function initShortcutMode() {
       closeShortcutInputModal();
       openShortcutResultsModal(result);
     } else {
-      alert(result.message);
+      showError(result.message);
     }
   });
 

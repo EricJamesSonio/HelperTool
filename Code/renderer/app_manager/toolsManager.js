@@ -176,6 +176,12 @@ function createGitPanel() {
     }
   });
 
+  document.addEventListener('keydown', function gitEscape(e) {
+    if (e.key === 'Escape' && panel.classList.contains('open')) {
+      panel.classList.remove('open');
+    }
+  });
+
   return panel;
 }
 

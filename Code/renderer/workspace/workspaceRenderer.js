@@ -218,19 +218,24 @@ function _renderProjectsList(body) {
       <input type="text" id="newProjectDesc"  placeholder="Short description (optional)..." class="workspace-input" />
       <button class="workspace-btn-add" id="addProjectBtn">+ Add Project</button>
     </div>
+    <div class="workspace-form-error" id="addProjectError"></div>
   `;
   body.appendChild(form);
 
   form.querySelector('#addProjectBtn').addEventListener('click', () => {
+    const errEl = document.getElementById('addProjectError');
     try {
       createProject(
         document.getElementById('newProjectTitle').value,
         document.getElementById('newProjectDesc').value,
       );
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       document.getElementById('newProjectTitle').value = '';
       document.getElementById('newProjectDesc').value  = '';
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    }
   });
 
   const grid = document.createElement('div');
@@ -284,6 +289,7 @@ function _buildProjectCard(project) {
   card.querySelector('.workspace-card-delete').addEventListener('click', e => {
     e.stopPropagation();
     if (confirm(`Delete project "${project.title}" and all its tickets?`)) {
+      window.focus();
       deleteProject(project.id);
       render();
     }
@@ -308,7 +314,7 @@ function _showEditProjectModal(project) {
         ${PROJECT_STATUSES.map(s => `<option value="${s}" ${s === project.status ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
     </div>
-  `, () => {
+  `, errEl => {
     try {
       updateProject(project.id, {
         title:       document.getElementById('editProjTitle').value,
@@ -317,7 +323,10 @@ function _showEditProjectModal(project) {
       });
       modal.remove();
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
   });
   document.body.appendChild(modal);
 }
@@ -337,19 +346,24 @@ function _renderWorkersList(body) {
       </select>
       <button class="workspace-btn-add" id="addWorkerBtn">+ Add Worker</button>
     </div>
+    <div class="workspace-form-error" id="addWorkerError"></div>
   `;
   body.appendChild(form);
 
   form.querySelector('#addWorkerBtn').addEventListener('click', () => {
+    const errEl = document.getElementById('addWorkerError');
     try {
       createWorker(
         document.getElementById('newWorkerName').value,
         document.getElementById('newWorkerRole').value,
       );
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       document.getElementById('newWorkerName').value = '';
       document.getElementById('newWorkerRole').value = '';
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    }
   });
 
   const grid = document.createElement('div');
@@ -401,6 +415,7 @@ function _buildWorkerCard(worker) {
   card.querySelector('.workspace-card-delete').addEventListener('click', e => {
     e.stopPropagation();
     if (confirm(`Delete ${worker.name}? Their tickets will become unassigned.`)) {
+      window.focus();
       deleteWorker(worker.id);
       render();
     }
@@ -420,7 +435,7 @@ function _showEditWorkerModal(worker) {
         ${WORKER_ROLES.map(r => `<option value="${r}" ${r === worker.role ? 'selected' : ''}>${r}</option>`).join('')}
       </select>
     </div>
-  `, () => {
+  `, errEl => {
     try {
       updateWorker(
         worker.id,
@@ -429,7 +444,10 @@ function _showEditWorkerModal(worker) {
       );
       modal.remove();
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
   });
   document.body.appendChild(modal);
 }
@@ -542,15 +560,23 @@ function _renderTabWorkers(el) {
         ${unassigned.map(w => `<option value="${w.id}">${w.name} — ${w.role}</option>`).join('')}
       </select>
       <button class="workspace-btn-add" id="assignWorkerBtn" ${unassigned.length === 0 ? 'disabled' : ''}>+ Assign</button>
+      <div class="workspace-form-error" id="assignWorkerError"></div>
     </div>
   `;
   el.appendChild(assignWrap);
 
   assignWrap.querySelector('#assignWorkerBtn').addEventListener('click', () => {
+    const errEl = document.getElementById('assignWorkerError');
     const id = document.getElementById('assignWorkerSelect').value;
     if (!id) return;
-    try { assignWorkerToProject(p.id, id); render(); }
-    catch (err) { alert(err.message); }
+    try {
+      assignWorkerToProject(p.id, id);
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      render();
+    }
+    catch (err) {
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    }
   });
 
   const list = document.createElement('div');
@@ -576,6 +602,7 @@ function _renderTabWorkers(el) {
       `;
       row.querySelector('.ws-remove-worker-btn').addEventListener('click', () => {
         if (confirm(`Remove ${worker.name} from this project?`)) {
+          window.focus();
           removeWorkerFromProject(p.id, wid);
           render();
         }
@@ -613,10 +640,12 @@ function _renderTabTickets(el) {
       <button class="workspace-btn-add" id="addTicketBtn">+ Add</button>
     </div>
     <textarea id="newTicketDesc" placeholder="Description (optional)..." class="workspace-textarea" rows="2" style="margin-top:10px;width:100%;box-sizing:border-box"></textarea>
+    <div class="workspace-form-error" id="addTicketError"></div>
   `;
   el.appendChild(form);
 
   form.querySelector('#addTicketBtn').addEventListener('click', () => {
+    const errEl = document.getElementById('addTicketError');
     try {
       createTicket(
         p.id,
@@ -625,11 +654,14 @@ function _renderTabTickets(el) {
         document.getElementById('newTicketWorker').value || null,
         document.getElementById('newTicketPriority').value,
       );
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       document.getElementById('newTicketTitle').value   = '';
       document.getElementById('newTicketDesc').value    = '';
       document.getElementById('newTicketWorker').value  = '';
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    }
   });
 
   // Kanban board
@@ -721,7 +753,7 @@ function _buildKanbanCard(ticket, workers, project) {
     _showEditTicketModal(ticket, project, workers)
   );
   card.querySelector('.workspace-ticket-delete').addEventListener('click', () => {
-    if (confirm('Delete this ticket?')) { deleteTicket(ticket.id); render(); }
+    if (confirm('Delete this ticket?')) { window.focus(); deleteTicket(ticket.id); render(); }
   });
   card.querySelector('.ws-kanban-status-select').addEventListener('change', e => {
     updateTicketStatus(ticket.id, e.target.value);
@@ -760,7 +792,7 @@ function _showEditTicketModal(ticket, project, workers) {
         ${TICKET_STATUSES.map(s => `<option value="${s}" ${s === ticket.status ? 'selected':''}>${s}</option>`).join('')}
       </select>
     </div>
-  `, () => {
+  `, errEl => {
     try {
       updateTicket(ticket.id, {
         title:            document.getElementById('etTitle').value,
@@ -771,7 +803,10 @@ function _showEditTicketModal(ticket, project, workers) {
       });
       modal.remove();
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
   });
   document.body.appendChild(modal);
 }
@@ -908,6 +943,7 @@ function _esc(str) {
 function _createModal(title, bodyHtml, onSave) {
   const modal = document.createElement('div');
   modal.className = 'workspace-modal-overlay';
+  const errId = `wsModalErr_${Date.now()}`;
   modal.innerHTML = `
     <div class="workspace-modal">
       <div class="workspace-modal-header">
@@ -915,15 +951,21 @@ function _createModal(title, bodyHtml, onSave) {
         <button class="workspace-modal-close">✕</button>
       </div>
       <div class="workspace-modal-form">${bodyHtml}</div>
+      <div class="workspace-form-error" id="${errId}"></div>
       <div class="workspace-modal-footer">
         <button class="workspace-btn-cancel ws-modal-cancel-btn">Cancel</button>
         <button class="workspace-btn-add ws-modal-save-btn">Save</button>
       </div>
     </div>
   `;
+  const errEl = modal.querySelector('.workspace-form-error');
   modal.querySelector('.workspace-modal-close').addEventListener('click',   () => modal.remove());
   modal.querySelector('.ws-modal-cancel-btn').addEventListener('click',     () => modal.remove());
-  modal.querySelector('.ws-modal-save-btn').addEventListener('click', onSave);
+  modal.querySelector('.ws-modal-save-btn').addEventListener('click', () => {
+    errEl.textContent = '';
+    errEl.style.display = 'none';
+    onSave(errEl);
+  });
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   return modal;
 }
