@@ -19,7 +19,7 @@ Thumbs.db
 dist/
 out/
 build/
-
+.opencode/
 # Electron specific
 *.asar
 *.exe

@@ -20,6 +20,10 @@ import {
 } from './searchManager.js';
 
 import {
+    initShortcutMode
+} from './shortcutMode.js';
+
+import {
     initFeatures,
     getFeatures
 } from './featureManager.js';
@@ -68,7 +72,6 @@ import {
 const selectRepoBtn  = document.getElementById('selectRepoBtn');
 const refreshBtn     = document.getElementById('refreshBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
-const settingsBtn    = document.getElementById('settingsBtn');
 const treeContainer  = document.getElementById('treeContainer');
 
 // ── Cross-module wiring ───────────────────────────────────────────────────────
@@ -126,8 +129,6 @@ editDocignoreBtn.addEventListener('click', async () => {
 
 function applyFeatureVisibility(feats) {
     const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
-    if (!feats.secretHolder)  { hide('secretHolderBtn'); }
-    if (!feats.workspaceTool) { hide('workspaceTool'); }
     if (!feats.folderFilters) { hide('folderToggleBtn'); hide('folderPanel'); }
 }
 
@@ -154,12 +155,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         settingsManager = { openSettings: openLightSettings };
     }
 
-    settingsBtn.addEventListener('click', () => {
-        settingsManager
-            ? settingsManager.openSettings()
-            : console.warn('[UI] Settings not loaded');
-    });
-
     // Generate controls
     initProgress();
     initActionButtons();
@@ -171,10 +166,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     initViewMode();
 
     // Tools (apiTool, secretHolder, workspaceTool, gitTool)
-    await initTools(feats);
+    await initTools(feats, settingsManager);
+
 
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => filterTree(state.cachedTree), treeContainer);
+
+    // Shortcut mode
+    initShortcutMode();
 
     // Filters
     await loadIgnoredExtensions();

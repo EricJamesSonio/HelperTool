@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Inline all bridge modules directly (no require() calls)
 
+
 const repoBridge = {
     selectRepo:          ()              => ipcRenderer.invoke('select-repo'),
     getFolderTree:       (repoPath)      => ipcRenderer.invoke('getFolderTree', repoPath),
@@ -20,8 +21,9 @@ const repoBridge = {
 };
 
 const generateBridge = {
-    generate: (actionType, repoPath, items, filePath, minify = false) =>
-        ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify),
+    generate: (actionType, repoPath, items, filePath, minify = false, promptText = '') =>
+        ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify, promptText),
+
     onProgressUpdate: (callback) => {
         ipcRenderer.removeAllListeners('progress-update');
         ipcRenderer.on('progress-update', (event, percent) => {
@@ -69,6 +71,20 @@ const gitBridge = {
     },
 };
 
+const promptsBridge = {
+    prompts: {
+        load:              () => ipcRenderer.invoke('prompts-load'),
+        getApplicable:    (mode) => ipcRenderer.invoke('prompts-getApplicable', mode),
+        createCategory:   (payload) => ipcRenderer.invoke('prompts-createCategory', payload),
+        updateCategory:   (payload) => ipcRenderer.invoke('prompts-updateCategory', payload),
+        deleteCategory:   (payload) => ipcRenderer.invoke('prompts-deleteCategory', payload),
+        upsertPrompt:     (payload) => ipcRenderer.invoke('prompts-upsertPrompt', payload),
+        deletePrompt:     (payload) => ipcRenderer.invoke('prompts-deletePrompt', payload),
+        toggleFavorite:   (payload) => ipcRenderer.invoke('prompts-toggleFavorite', payload),
+        togglePin:        (payload) => ipcRenderer.invoke('prompts-togglePin', payload),
+    },
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -78,4 +94,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...apitoolBridge,
     ...workspaceBridge,
     ...gitBridge,
+    ...promptsBridge,
 });
+
