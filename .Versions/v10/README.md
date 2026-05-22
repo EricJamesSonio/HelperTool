@@ -5,14 +5,17 @@
 
 ## Overview
 
-Version 10.0.0 introduces two major workflow productivity features:
+Version 10.0.0 introduces major workflow and usability improvements focused on intelligent file selection, reusable prompt workflows, UI modernization, and configurable tool management.
 
-- **Shortcut Mode** — intelligent repository file detection from pasted text
-- **Prompt Tool** — reusable prompt management and automated prompt injection
+This update adds:
 
-This update focuses on reducing repetitive manual work during file selection and AI-assisted generation workflows.
+- **Shortcut Mode** for automatic repository file detection
+- **Prompt Tool** for reusable prompt workflows
+- **CLI Tool Manager** for feature control and shortcut configuration
+- **New Sidebar UI** for cleaner navigation
+- **Improved Workspace Layout** for faster interaction
 
-The system now allows users to quickly identify repository files from large text blocks while also streamlining reusable prompt workflows for generated outputs.
+The goal of this version is to reduce repetitive actions, improve workspace organization, and create a faster AI-assisted development workflow.
 
 ---
 
@@ -22,127 +25,208 @@ The system now allows users to quickly identify repository files from large text
 
 A new **Shortcut Mode** system has been added.
 
-Users can now paste large blocks of text containing filenames, references, logs, stack traces, or code snippets, and the system will automatically detect and match related repository files.
+Users can now paste large blocks of text containing filenames, stack traces, logs, feature names, or code references, and the system will automatically detect related repository files.
 
 The feature uses:
 
 - Fuzzy matching
 - Pattern recognition
 - Filename similarity detection
-- Context-based matching algorithms
+- Context-aware matching algorithms
 
-Detected files are automatically searched and selected inside the current repository workspace.
+Matched files are automatically searched and selected inside the current repository workspace.
 
-This significantly reduces manual file searching during large-context workflows.
+This greatly reduces manual searching during large-context workflows.
 
 ---
 
 # Intelligent File Matching
 
-Shortcut Mode can now identify files even when pasted text is incomplete or inconsistent.
+Shortcut Mode supports advanced matching behavior for incomplete or inconsistent text.
 
-Supported matching behavior includes:
+Supported matching includes:
 
 - Partial filename matching
 - Typo-tolerant detection
 - Path similarity matching
-- Context-aware file resolution
+- Related keyword detection
+- Context-aware resolution
 
 Example:
-
-Pasted text:
 
 ```txt
 auth service
 user controller
-grade compute logic
+grading logic
 ```
 
-The system may automatically match:
+Automatically matched files may include:
 
 - `auth.service.ts`
 - `user.controller.ts`
-- `grade-computation.service.ts`
+- `grading.service.ts`
 
-This improves workflow speed when working with large repositories.
+This improves speed when working with larger repositories.
 
 ---
 
 # Automatic Multi-File Selection
 
-Matched files are now automatically selected after detection.
+Detected files are now automatically selected after matching.
 
-This allows users to:
+Users can now:
 
-- Quickly build working context
-- Reduce repetitive manual clicks
-- Open related repository files faster
-- Streamline AI generation workflows
+- Build context faster
+- Reduce repetitive clicking
+- Quickly prepare AI workflows
+- Open related repository files instantly
 
-The feature is optimized for repositories with large file counts.
+The system is optimized for repositories with large file counts.
 
 ---
 
 # Prompt Tool System
 
-Version 10.0.0 introduces a new **Prompt Tool** with reusable prompt management support.
+Version 10.0.0 introduces a reusable **Prompt Tool Management System**.
 
 Users can now:
 
 - Create prompts
 - Save prompts
 - Reuse prompts
-- Organize workflow instructions
+- Organize prompts by workflow
 - Apply prompts to selected files
 
-This creates a centralized prompt workflow system for AI-assisted generation tasks.
+This creates a centralized AI workflow management system for generation tasks.
 
 ---
 
 # Automatic Prompt Injection
 
-When generating output using selected files and a saved prompt, the system now automatically inserts the selected prompt at the top of the generated output file.
+Selected prompts are now automatically inserted at the top of generated output files.
 
 Workflow example:
 
-- Select repository files
-- Select saved prompt
+- Select files
+- Select prompt
 - Generate output
 
-The selected prompt is automatically attached to the generated result context.
+The selected prompt is automatically attached to the generated context.
 
-This ensures prompt consistency across repeated workflows.
+This ensures consistent AI instructions across repeated workflows.
+
+---
+
+# CLI Tool Manager
+
+A new **CLI Tool Manager** has been added.
+
+The CLI Tool allows users to configure and control application tools directly through command-based interactions.
+
+Supported capabilities include:
+
+- Enable tools
+- Disable tools
+- Toggle features
+- Configure workflow behavior
+- Assign shortcut keys
+- Manage tool visibility
+
+This reduces the need for manual configuration inside the interface.
+
+Example commands:
+
+```bash
+enable prompt-tool
+disable git-tool
+toggle shortcut-mode
+set shortcut open-sidebar Ctrl+B
+```
+
+The system is designed for fast workflow customization.
+
+---
+
+# Shortcut Key Configuration
+
+Users can now configure custom shortcut keys directly from the CLI Tool Manager.
+
+Supported configuration examples include:
+
+- Open sidebar
+- Toggle tools
+- Activate Shortcut Mode
+- Trigger generation
+- Open Prompt Tool
+- Switch workflow panels
+
+Shortcut customization improves workflow speed and accessibility.
+
+---
+
+# Sidebar UI Redesign
+
+The application interface now includes a redesigned **Sidebar Navigation System**.
+
+The sidebar provides centralized access to:
+
+- Tools
+- Prompt management
+- Git features
+- Workspace panels
+- CLI configuration
+- Workflow utilities
+
+The new structure improves navigation clarity and workspace organization.
+
+---
+
+# Cleaned Workspace UI
+
+Version 10.0.0 introduces a cleaner and more structured workspace layout.
+
+UI improvements include:
+
+- Reduced visual clutter
+- Improved spacing
+- Better panel organization
+- Cleaner tool grouping
+- Faster navigation flow
+- Improved readability
+
+The interface has been optimized for long development sessions and high-frequency workflows.
 
 ---
 
 # Workflow Improvements
 
-Version 10.0.0 reduces friction in repository navigation and prompt-based generation workflows.
+This update significantly reduces workflow friction across the application.
 
 Key improvements include:
 
-- Faster file discovery
+- Faster repository navigation
 - Reduced manual file selection
-- Reusable prompt workflows
-- Automated context preparation
-- Improved generation consistency
+- Centralized prompt workflows
+- Configurable tool management
+- Custom shortcut support
+- Improved UI organization
 
-The update is designed for high-speed development and AI-assisted coding environments.
+The system is designed for high-speed AI-assisted development workflows.
 
 ---
 
 # Performance Notes
 
-Shortcut Mode is optimized to efficiently process large pasted text inputs while minimizing unnecessary repository scans.
+Shortcut Mode has been optimized to process large pasted text inputs efficiently while minimizing unnecessary repository scans.
 
-The matching system prioritizes relevant files using lightweight fuzzy matching and scoring algorithms for responsive performance.
+The fuzzy matching engine uses lightweight scoring algorithms for responsive performance even in larger repositories.
 
-Prompt Tool operations are cached locally for faster prompt retrieval and application.
+UI rendering performance has also been improved through cleaner panel management and optimized workspace updates.
 
 ---
 
 # Compatibility
 
-Version 10.0.0 remains compatible with existing workspace and generation systems.
+Version 10.0.0 remains compatible with previous workspace and generation systems.
 
-Shortcut Mode and Prompt Tool integrate directly into the current workflow architecture without requiring repository migration or structural changes.
+The new Sidebar UI, CLI Tool Manager, Shortcut Mode, and Prompt Tool integrate directly into the existing architecture without requiring repository migration or structural changes.
