@@ -12,7 +12,7 @@ const viewModeBtn = document.getElementById('viewModeBtn');
 const rootJumper  = document.getElementById('rootJumper');
 const treeContainer = document.getElementById('treeContainer');
 
-export function displayTree() {
+export function displayTree(resetScroll = true) {
     if (!state.cachedTree) {
         treeContainer.textContent = 'No data available';
         return;
@@ -26,7 +26,9 @@ export function displayTree() {
         onTreeSelectionChange,
         state.viewMode
     );
-    treeContainer.scrollTo(0, 0);
+    if (resetScroll) {
+        treeContainer.scrollTo(0, 0);
+    }
 }
 
 // Callback wired by app.js after generateManager is ready

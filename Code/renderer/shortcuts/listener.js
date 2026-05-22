@@ -10,13 +10,24 @@ function registerAction(featureId, actionFn) {
 }
 
 function handleKeyDown(e) {
-  if (document.querySelector('.shortcuts-modal-overlay.open')) return;
+  const combo = eventToString(e);
+  if (!combo) return;
+
+  // Find if a shortcut matches the 'shortcutTool' action
+  let isShortcutToolCombo = false;
+  for (const [featureId, shortcut] of Object.entries(S.shortcuts)) {
+    if (featureId === 'shortcutTool' && combo === shortcut) {
+      isShortcutToolCombo = true;
+      break;
+    }
+  }
+
+  // If the shortcut modal is open, only allow the shortcutTool shortcut to proceed
+  if (document.querySelector('.shortcuts-modal-overlay.open') && !isShortcutToolCombo) return;
+
   const tag = document.activeElement ? document.activeElement.tagName : '';
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
   if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') return;
-
-  const combo = eventToString(e);
-  if (!combo) return;
 
   for (const [featureId, shortcut] of Object.entries(S.shortcuts)) {
     if (!shortcut) continue;
