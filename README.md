@@ -1,93 +1,44 @@
-
----
-
 # Helper Tool
 
-Helper Tool is a simple desktop application built with Electron.
+Helper Tool is a personal desktop application built with Electron and continuously developed to improve development workflows, repository management, and AI-assisted productivity.
 
-It helps you:
+The project acts as a centralized helper environment for working with repositories, generating development context, organizing workflows, and simplifying repetitive tasks during software development.
 
-* Get folder structure
-* Get codes inside folders
-* Iterate through files to extract codes
-* Generate structure or code outputs
-
-This tool is designed to speed up file analysis and code extraction in projects.
+This application is actively evolving, with new systems, workflow improvements, and productivity-focused features being added continuously.
 
 ---
 
-# Features
+# Purpose
 
-* Folder structure fetching
-* Code extraction from selected files
-* File searching
-* File extension filtering
-* Ignore extension filtering
-* Refresh folder content
-* Improved search readability and accuracy
-* Better directory-based searching (e.g., `Backend/src/models`)
+The goal of Helper Tool is to create a faster and more efficient development workflow environment.
 
-For detailed feature breakdown per version, please check:
+The application is designed to help reduce repetitive manual work when:
 
-```
+- Navigating repositories
+- Managing development workflows
+- Preparing AI generation context
+- Organizing project-related tasks
+- Working with large codebases
+- Improving productivity during development
+
+Helper Tool focuses heavily on workflow speed, usability, and developer convenience.
+
+---
+
+# Project Philosophy
+
+This project is built primarily as a personal helper system that evolves alongside real development needs and workflows.
+
+Instead of being a fixed tool, the application is continuously expanded and refined over time as new workflow problems, productivity bottlenecks, and development requirements appear.
+
+The goal is to gradually build a highly flexible and efficient development companion environment.
+
+---
+
+# Version Documentation
+
+Detailed feature breakdowns and release notes are available inside:
+
+```txt
 .Versions/
 ```
-
-Each version has its own documentation file inside that folder.
-
----
-
-# How To Run (Development)
-
-```bash
-npx electron main.js
-```
-
----
-
-# Build Windows Executable
-
-```bash
-npm run build:win
-```
-
-This will generate the `.exe` file using Electron Builder.
-
----
-
-# Open DevTools (Electron)
-
-```
-Ctrl + Shift + I
-```
-
----
-
-# Requirements
-
-Install Electron Builder:
-
-```bash
-npm install --save-dev electron-builder
-```
-
-Make sure Electron is installed:
-
-```bash
-npm install electron
-```
-
----
-
-# Notes
-
-This project is a personal workflow helper tool designed to improve efficiency when working with repositories.
-
-For version history and detailed feature evolution, see:
-
-```
-.Versions/
-```
-
----
-
