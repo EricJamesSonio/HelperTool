@@ -19,6 +19,7 @@
 
   <!-- ✅ Git Tool -->
   <link rel="stylesheet" href="./styles/git-tool.css">
+  <link rel="stylesheet" href="./styles/shortcuts.css">
   <!-- ✅ Prompt Tool -->
   
 
@@ -34,16 +35,13 @@
         <button id="shortcutModeBtn" class="shortcut-mode-btn" title="Shortcut Mode - Paste file list to auto-select">
           <span class="shortcut-label">Shortcut</span>
         </button>
+        <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon">✕</span></button>
       </div>
     </div>
 
     <div class="navbar-section">
       <button id="selectRepoBtn" class="primary-btn">
         <span class="btn-icon">📁</span>Select Repo
-      </button>
-
-      <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh">
-        <span class="btn-icon refresh-icon">🔄</span>
       </button>
       <span id="activeRepoName" class="repo-name">No repo selected</span>
     </div>
@@ -88,20 +86,23 @@
           </button>
         </div>
       </div>
+    </div>
 
-
+    <div class="navbar-section">
       <button id="viewModeBtn" class="view-mode-btn active-list" title="Switch to Tree mode">
         ☰ Roof Mode
       </button>
-    </div>
-
-    <div class="navbar-section right">
       <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle light/dark theme">
         <span id="themeIcon">☀️</span>
         <span class="theme-label" id="themeLabel">Theme</span>
       </button>
-      <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon">✕</span></button>
-      <button id="editDocignoreBtn"  class="tool-btn"          title="Edit Global Ignore"><span class="btn-icon">⚙️</span></button>
+    </div>
+
+    <div class="navbar-section right">
+      <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh">
+        <span class="btn-icon refresh-icon">🔄</span>
+      </button>
+      <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore"><span class="btn-icon">⚙️</span></button>
     </div>
   </div>
 

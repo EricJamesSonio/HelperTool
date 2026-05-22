@@ -8,6 +8,7 @@
  */
 
 import { state } from './appState.js';
+import { initShortcutManager, openConfig } from '../shortcutEntry.js';
 
 // ---- Module-level handles ------------------------------------------------
 
@@ -128,6 +129,14 @@ function populateSidebar() {
       } else if (_secretHolder && _secretHolder.openSecretHolder) {
         await _secretHolder.openSecretHolder();
       }
+    });
+    body.appendChild(item);
+  }
+
+  // ── CLI Tool Shortcuts ───────────────────────────────────
+  {
+    const item = createItem('\u2328\uFE0F', 'CLI Tool', 'Keyboard shortcuts config', function () {
+      openConfig();
     });
     body.appendChild(item);
   }
@@ -290,4 +299,85 @@ export async function initTools(feats, settingsManager) {
       console.error('[Tools] Workspace Tool failed:', err);
     }
   }
+
+  // ---- CLI Tool Shortcuts --------------------------------------------------
+  const shortcutActions = {};
+
+  if (feats.apiTool) {
+    shortcutActions.apiTool = function () {
+      if (_apiTool) {
+        if (_apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) {
+          _apiTool.closeApiToolPanel();
+        } else if (_apiTool.openApiToolPanel) {
+          _apiTool.openApiToolPanel();
+          document.querySelectorAll('.tools-sidebar-item')[0].classList.add('active');
+        }
+      }
+    };
+  }
+
+  shortcutActions.gitTool = function () {
+    if (_gitPanel && _gitPanel.classList.contains('open')) {
+      _gitPanel.classList.remove('open');
+    } else {
+      if (!_gitPanel) _gitPanel = createGitPanel();
+      _gitPanel.classList.add('open');
+      if (_gitTool && _gitTool.isInitialized) {
+        _gitTool.refresh();
+      } else {
+        var repoPath = state.selectedRepoPath;
+        if (repoPath) initializeGitTool(repoPath);
+      }
+    }
+  };
+
+  shortcutActions.promptTool = async function () {
+    try {
+      const modal = document.getElementById('promptToolModal');
+      if (modal && modal.style.display !== 'none') {
+        const { closePromptToolModal } = await import('../promptTool.js');
+        closePromptToolModal();
+      } else {
+        const { openPromptToolModal } = await import('../promptTool.js');
+        openPromptToolModal();
+      }
+    } catch (err) {
+      console.error('[Shortcuts] Prompt Tool:', err);
+    }
+  };
+
+  shortcutActions.settings = function () {
+    const overlay = document.getElementById('settingsOverlay');
+    if (overlay && overlay.classList.contains('open') && _settingsManager.closeSettings) {
+      _settingsManager.closeSettings();
+    } else if (_settingsManager && _settingsManager.openSettings) {
+      _settingsManager.openSettings();
+    }
+  };
+
+  if (feats.secretHolder) {
+    shortcutActions.secretHolder = async function () {
+      if (_secretHolder) {
+        if (_secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) {
+          _secretHolder.closeSecretHolder();
+        } else if (_secretHolder.openSecretHolder) {
+          await _secretHolder.openSecretHolder();
+        }
+      }
+    };
+  }
+
+  if (feats.workspaceTool) {
+    shortcutActions.workspaceTool = async function () {
+      if (_workspaceTool) {
+        if (_workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) {
+          _workspaceTool.closeWorkspacePanel();
+        } else if (_workspaceTool.openWorkspacePanel) {
+          await _workspaceTool.openWorkspacePanel();
+        }
+      }
+    };
+  }
+
+  initShortcutManager(shortcutActions, _feats);
 }
