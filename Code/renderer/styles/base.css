@@ -400,10 +400,11 @@ body {
 }
 
 /* ── Search input ────────────────────────────────────────── */
-.search-section { flex: 1; max-width: 500px; position: relative; z-index: 99999; }
+.search-section { max-width: 500px; position: relative; z-index: 99999; }
 
 .search-input {
   width: 100%;
+  min-width: 160px;
   height: 36px;
   padding: 0 12px 0 30px;
   background: var(--bg-elevated);
