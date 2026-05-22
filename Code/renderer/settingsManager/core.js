@@ -87,9 +87,7 @@ function applySettings(s = S.settings) {
 
 function syncThemeToggleBtn(isDark) {
   const icon  = document.getElementById('themeIcon');
-  const label = document.getElementById('themeLabel');
   if (icon)  icon.textContent  = isDark ? '\u2600\uFE0F' : '\u{1F319}';
-  if (label) label.textContent = isDark ? 'Light' : 'Dark';
   localStorage.setItem('helpertool-theme', isDark ? 'dark' : 'light');
 }
 

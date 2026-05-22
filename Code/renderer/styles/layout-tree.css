@@ -119,8 +119,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 34px;
-  padding: 0 13px;
+  height: 36px;
+  padding: 0 16px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: var(--r-md);
