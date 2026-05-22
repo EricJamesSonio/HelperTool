@@ -97,7 +97,7 @@ export function initActionButtons() {
         updateModeForActionType(); // Handles minified output visibility based on new actionType
         updateGeneratorModeButton(); // Update the button text
         resetSelection();
-        displayTree();
+        displayTree(true); // Explicitly reset scroll on toggle
     });
 }
 
