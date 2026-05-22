@@ -68,20 +68,35 @@ export function initProgress() {
 
 // ── Action type buttons ───────────────────────────────────────────────────────
 
+function updateModeForActionType() {
+    const isCode = state.actionType === 'code';
+    generateModeToggle.style.display = '';
+    const minifiedItem = document.querySelector('.generate-mode-item[data-mode="minified"]');
+    if (minifiedItem) {
+        minifiedItem.style.display = isCode ? '' : 'none';
+    }
+    if (!isCode && state.generateOutputType === 'minified') {
+        const normalItem = document.querySelector('.generate-mode-item[data-mode="normal"]');
+        if (normalItem) normalItem.click();
+    }
+}
+
 export function initActionButtons() {
     structureBtn.addEventListener('click', () => {
         state.actionType = 'structure';
-        generateModeToggle.style.display = 'none';
+        updateModeForActionType();
         resetSelection();
         displayTree();
     });
 
     codeBtn.addEventListener('click', () => {
         state.actionType = 'code';
-        generateModeToggle.style.display = '';
+        updateModeForActionType();
         resetSelection();
         displayTree();
     });
+
+    updateModeForActionType();
 }
 
 

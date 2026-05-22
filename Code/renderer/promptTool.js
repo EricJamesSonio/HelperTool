@@ -7,6 +7,7 @@ import { state } from './app_manager/appState.js';
 
 let _data = null;
 let _modal = null;
+let _selectedCategoryId = null;
 
 export function openPromptToolModal() {
     if (_modal) {
@@ -36,8 +37,13 @@ export function openPromptToolModal() {
           </div>
 
           <div class="pt-content">
+            <div class="pt-no-cat-message">
+              <div class="pt-no-cat-icon">📂</div>
+              <div class="pt-no-cat-text">Select a category to manage prompts</div>
+            </div>
             <div class="pt-prompt-list-wrap">
               <div class="pt-sidebar-header">
+                <button class="pt-back-btn" id="promptBackToCats" type="button">← Back</button>
                 <div class="pt-sidebar-title">Prompts</div>
               </div>
               <div id="promptList" class="pt-prompt-list"></div>
@@ -54,11 +60,7 @@ export function openPromptToolModal() {
                 <button id="promptResetEditor" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">New Prompt</button>
               </div>
               <input id="promptTitle" class="sh-input pt-input" placeholder="Prompt title" />
-              <div class="pt-editor-row">
-                <div class="pt-editor-label">Category:</div>
-                <select id="promptCategorySelect" class="sh-input sh-input-sm pt-input"></select>
-              </div>
-              <textarea id="promptBody" class="sh-input pt-textarea" placeholder="Prompt text to prepend to generated output..."></textarea>
+              <textarea id="promptBody" class="sh-input pt-textarea" placeholder="Prompt text..."></textarea>
               <div class="pt-actions">
                 <button id="promptSave" class="sh-btn sh-btn-primary sh-btn-sm" type="button">💾 Save</button>
                 <button id="promptDelete" class="sh-btn sh-btn-danger sh-btn-sm" type="button" style="display:none;">🗑 Delete</button>
@@ -84,6 +86,7 @@ export function openPromptToolModal() {
     wirePromptSave();
     wirePromptDelete();
     wirePromptFavoritePin();
+    wireBackButton();
 
     refresh();
     _modal.style.display = 'flex';
@@ -100,20 +103,31 @@ async function refresh() {
         _data = { categories: [], prompts: [] };
     }
 
+
     renderCategories();
-    renderCategorySelector();
     renderPromptList();
 }
 
 function getSelectedCategoryId() {
-    return document.getElementById('promptCats')?.querySelector('.prompt-cat-btn.active')?.dataset.catId || null;
+    return _selectedCategoryId;
 }
 
 function setSelectedCategoryId(catId) {
+    _selectedCategoryId = catId;
+    document.querySelectorAll('.prompt-cat-btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById(`promptCatBtn_${catId}`);
-    if (btn) {
-        document.querySelectorAll('.prompt-cat-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+    if (btn) btn.classList.add('active');
+}
+
+function restoreSelectedCategory() {
+    if (_selectedCategoryId) {
+        const btn = document.getElementById(`promptCatBtn_${_selectedCategoryId}`);
+        if (btn) {
+            document.querySelectorAll('.prompt-cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        } else {
+            _selectedCategoryId = null;
+        }
     }
 }
 
@@ -142,25 +156,23 @@ function renderCategories() {
         wrap.appendChild(btn);
     });
 
-    // auto select first
-    const first = document.querySelector('.prompt-cat-btn');
-    if (first && !first.classList.contains('active')) {
-        first.classList.add('active');
-    }
+    restoreSelectedCategory();
 }
+
 
 function renderPromptList() {
     const list = document.getElementById('promptList');
-    if (!list) return;
+    const content = document.querySelector('.pt-content');
+    if (!list || !content) return;
     list.innerHTML = '';
 
     const catId = getSelectedCategoryId();
-    const prompts = (_data.prompts || []).filter(p => p.categoryId === catId);
+    content.classList.toggle('has-cat', !!catId);
+    clearEditor();
 
-    if (!catId) {
-        list.innerHTML = '<div class="pt-empty-list">Select a category to manage prompts.</div>';
-        return;
-    }
+    if (!catId) return;
+
+    const prompts = (_data.prompts || []).filter(p => p.categoryId === catId);
 
     if (!prompts.length) {
         list.innerHTML = '<div class="pt-empty-list">No prompts in this category yet.</div>';
@@ -315,6 +327,16 @@ function wirePromptFavoritePin() {
         const p = await window.electronAPI.prompts.togglePin({ id });
         pinBtn.textContent = p.pinnedAt ? '📌 Pinned' : '📌 Pin';
         await refresh();
+    });
+}
+
+function wireBackButton() {
+    const btn = document.getElementById('promptBackToCats');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        _selectedCategoryId = null;
+        document.querySelectorAll('.prompt-cat-btn').forEach(b => b.classList.remove('active'));
+        renderPromptList();
     });
 }
 
@@ -511,6 +533,8 @@ export async function openPromptSelectionModal() {
     confirmBtn?.addEventListener('click', () => {
         // already set on preview update
         close();
+        const genBtn = document.getElementById('generateBtn');
+        if (genBtn && !genBtn.disabled) genBtn.click();
     });
 
     // Initial render
