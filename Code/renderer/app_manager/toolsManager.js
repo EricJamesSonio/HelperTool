@@ -8,6 +8,7 @@
  */
 
 import { state } from './appState.js';
+import { initShortcutManager, openConfig } from '../shortcutEntry.js';
 
 // ---- Module-level handles ------------------------------------------------
 
@@ -17,56 +18,61 @@ let _workspaceTool = null;
 let _gitTool       = null;
 let _gitPanel      = null;
 let _gitContainer  = null;
-let _toolsPanel     = null;
+
+let _settingsManager = null;
 
 // ---- Saved features for conditional tool entries ---------------------------
 
 let _feats = {};
 
-// ---- Tools Panel (floating launcher) ---------------------------------------
+// ---- Sidebar (collapsible tools launcher) -----------------------------------
 
-function createToolsPanel() {
-  const overlay = document.createElement('div');
-  overlay.id = 'toolsPanelOverlay';
-  overlay.className = 'tools-panel-overlay';
-  overlay.innerHTML = 
-    '<div class="tools-panel">' +
-      '<div class="tools-panel-header">' +
-        '<h3>Tools</h3>' +
-        '<button class="tools-panel-close" id="toolsPanelClose">\u2715</button>' +
-      '</div>' +
-      '<div class="tools-panel-body" id="toolsPanelBody"></div>' +
-    '</div>';
-  document.body.appendChild(overlay);
+function initSidebar() {
+  const sidebar = document.getElementById('toolsSidebar');
+  if (!sidebar) return;
 
-  overlay.addEventListener('click', function (e) {
-    if (!e.target.closest('.tools-panel')) closeToolsPanel();
+  let hoverTimer;
+
+  sidebar.addEventListener('mouseenter', function () {
+    if (sidebar.classList.contains('pinned')) return;
+    clearTimeout(hoverTimer);
+    sidebar.classList.add('expanded');
   });
-  overlay.querySelector('#toolsPanelClose').addEventListener('click', closeToolsPanel);
 
-  return overlay;
+  sidebar.addEventListener('mouseleave', function () {
+    if (sidebar.classList.contains('pinned')) return;
+    sidebar.classList.remove('expanded');
+  });
+
+  const pinBtn = document.getElementById('sidebarPinBtn');
+  if (pinBtn) {
+    pinBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const pinned = sidebar.classList.toggle('pinned');
+      if (pinned) {
+        sidebar.classList.add('expanded');
+        pinBtn.title = 'Unpin sidebar';
+      } else {
+        sidebar.classList.remove('expanded');
+        pinBtn.title = 'Pin sidebar open';
+      }
+    });
+  }
 }
 
-function renderToolsPanelEntries() {
-  const body = document.getElementById('toolsPanelBody');
+function populateSidebar() {
+  const body = document.getElementById('toolsSidebarBody');
   if (!body) return;
   body.innerHTML = '';
 
+  // ── API Tool ─────────────────────────────────────────────
   if (_feats.apiTool) {
-    const item = document.createElement('button');
-    item.className = 'tools-panel-item';
-    item.innerHTML = 
-      '<span class="tools-panel-item-icon">\uD83D\uDD0C</span>' +
-      '<div class="tools-panel-item-info">' +
-        '<span class="tools-panel-item-name">API Tool</span>' +
-        '<span class="tools-panel-item-desc">Test & manage REST endpoints</span>' +
-      '</div>';
-    item.addEventListener('click', function () {
-      closeToolsPanel();
+    const item = createItem('\uD83D\uDD0C', 'API Tool', 'Test & manage REST endpoints', function () {
       if (_apiTool && _apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) {
         _apiTool.closeApiToolPanel();
         item.classList.remove('active');
       } else {
+        _closeAllToolPanels();
         if (_apiTool && _apiTool.openApiToolPanel) _apiTool.openApiToolPanel();
         item.classList.add('active');
       }
@@ -74,20 +80,32 @@ function renderToolsPanelEntries() {
     body.appendChild(item);
   }
 
+  // ── Prompt Tool ──────────────────────────────────────────
   {
-    const item = document.createElement('button');
-    item.className = 'tools-panel-item';
-    item.innerHTML = 
-      '<span class="tools-panel-item-icon">\uD83D\uDD00</span>' +
-      '<div class="tools-panel-item-info">' +
-        '<span class="tools-panel-item-name">Git Tool</span>' +
-        '<span class="tools-panel-item-desc">Stage, commit & push changes</span>' +
-      '</div>';
-    item.addEventListener('click', function () {
-      closeToolsPanel();
+    const item = createItem('\uD83E\uDDE9', 'Prompt Tool', 'Manage custom AI prompts', async function () {
+      const existing = document.getElementById('promptToolModal');
+      if (existing && existing.style.display !== 'none') {
+        existing.style.display = 'none';
+        return;
+      }
+      _closeAllToolPanels();
+      try {
+        const { openPromptToolModal } = await import('../promptTool.js');
+        openPromptToolModal();
+      } catch (err) {
+        console.error('[Tools] Failed to open Prompt Tool:', err);
+      }
+    });
+    body.appendChild(item);
+  }
+
+  // ── Git Tool ─────────────────────────────────────────────
+  {
+    const item = createItem('\uD83D\uDD00', 'Git Tool', 'Stage, commit & push changes', function () {
       if (_gitPanel && _gitPanel.classList.contains('open')) {
         _gitPanel.classList.remove('open');
       } else {
+        _closeAllToolPanels();
         if (!_gitPanel) _gitPanel = createGitPanel();
         _gitPanel.classList.add('open');
         if (_gitTool && _gitTool.isInitialized) {
@@ -100,28 +118,72 @@ function renderToolsPanelEntries() {
     });
     body.appendChild(item);
   }
-}
 
-function openToolsPanel() {
-  if (!_toolsPanel) _toolsPanel = createToolsPanel();
-  renderToolsPanelEntries();
-
-  var btn = document.getElementById('toolsPanelBtn');
-  if (btn) {
-    var rect = btn.getBoundingClientRect();
-    var panel = _toolsPanel.querySelector('.tools-panel');
-    if (panel) {
-      panel.style.left = Math.max(4, rect.left) + 'px';
-      panel.style.top = (rect.bottom + 6) + 'px';
-      panel.style.minWidth = Math.max(200, rect.width) + 'px';
-    }
+  // ── Settings ─────────────────────────────────────────────
+  {
+    const item = createItem('\uD83C\uDFA8', 'Settings', 'Appearance & features', function () {
+      const fullOverlay = document.getElementById('settingsOverlay');
+      const lightOverlay = document.getElementById('lightSettingsOverlay');
+      if (fullOverlay && fullOverlay.classList.contains('open')) { fullOverlay.classList.remove('open'); return; }
+      if (lightOverlay && lightOverlay.classList.contains('open')) { lightOverlay.classList.remove('open'); return; }
+      _closeAllToolPanels();
+      if (_settingsManager && _settingsManager.openSettings) {
+        _settingsManager.openSettings();
+      }
+    });
+    body.appendChild(item);
   }
 
-  _toolsPanel.classList.add('open');
+  // ── Secret Holder ────────────────────────────────────────
+  if (_feats.secretHolder) {
+    const item = createItem('\uD83D\uDD10', 'Secret Holder', 'Manage API keys & secrets', async function () {
+      if (_secretHolder && _secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) {
+        _secretHolder.closeSecretHolder();
+      } else {
+        _closeAllToolPanels();
+        if (_secretHolder && _secretHolder.openSecretHolder) {
+          await _secretHolder.openSecretHolder();
+        }
+      }
+    });
+    body.appendChild(item);
+  }
+
+  // ── CLI Tool Shortcuts ───────────────────────────────────
+  {
+    const item = createItem('\u2328\uFE0F', 'CLI Tool', 'Keyboard shortcuts config', function () {
+      openConfig();
+    });
+    body.appendChild(item);
+  }
+
+  // ── Workspace ────────────────────────────────────────────
+  if (_feats.workspaceTool) {
+    const item = createItem('\uD83D\uDC65', 'Workspace', 'Projects, tickets & workers', async function () {
+      if (_workspaceTool && _workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) {
+        _workspaceTool.closeWorkspacePanel();
+      } else {
+        _closeAllToolPanels();
+        if (_workspaceTool && _workspaceTool.openWorkspacePanel) {
+          await _workspaceTool.openWorkspacePanel();
+        }
+      }
+    });
+    body.appendChild(item);
+  }
 }
 
-function closeToolsPanel() {
-  if (_toolsPanel) _toolsPanel.classList.remove('open');
+function createItem(icon, name, desc, onClick) {
+  const el = document.createElement('button');
+  el.className = 'tools-sidebar-item';
+  el.innerHTML =
+    '<span class="tools-sidebar-item-icon">' + icon + '</span>' +
+    '<div class="tools-sidebar-item-info">' +
+      '<span class="tools-sidebar-item-name">' + name + '</span>' +
+      '<span class="tools-sidebar-item-desc">' + desc + '</span>' +
+    '</div>';
+  el.addEventListener('click', onClick);
+  return el;
 }
 
 // ---- Git Tool lifecycle --------------------------------------------------
@@ -151,6 +213,12 @@ function createGitPanel() {
 
   panel.addEventListener('click', function (e) {
     if (e.target === panel) {
+      panel.classList.remove('open');
+    }
+  });
+
+  document.addEventListener('keydown', function gitEscape(e) {
+    if (e.key === 'Escape' && panel.classList.contains('open')) {
       panel.classList.remove('open');
     }
   });
@@ -190,6 +258,21 @@ function destroyGitTool() {
   }
 }
 
+// ---- Close all tool panels (single-active-tool) ------------------------------
+
+function _closeAllToolPanels() {
+  if (_apiTool && _apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) _apiTool.closeApiToolPanel();
+  if (_gitPanel && _gitPanel.classList.contains('open')) _gitPanel.classList.remove('open');
+  const promptModal = document.getElementById('promptToolModal');
+  if (promptModal && promptModal.style.display !== 'none') promptModal.style.display = 'none';
+  const fullOverlay = document.getElementById('settingsOverlay');
+  if (fullOverlay && fullOverlay.classList.contains('open')) fullOverlay.classList.remove('open');
+  const lightOverlay = document.getElementById('lightSettingsOverlay');
+  if (lightOverlay && lightOverlay.classList.contains('open')) lightOverlay.classList.remove('open');
+  if (_secretHolder && _secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) _secretHolder.closeSecretHolder();
+  if (_workspaceTool && _workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) _workspaceTool.closeWorkspacePanel();
+}
+
 export function handleRepoChange(newRepoPath) {
   destroyGitTool();
   initializeGitTool(newRepoPath);
@@ -203,20 +286,13 @@ window.addEventListener('beforeunload', function () {
 
 // ---- Main init -------------------------------------------------------------
 
-export async function initTools(feats) {
+export async function initTools(feats, settingsManager) {
   _feats = feats || {};
+  _settingsManager = settingsManager;
 
-  // ---- Tools Panel Button -------------------------------------------------
-  const toolsPanelBtn = document.getElementById('toolsPanelBtn');
-  if (toolsPanelBtn) {
-    toolsPanelBtn.addEventListener('click', function () {
-      if (_toolsPanel && _toolsPanel.classList.contains('open')) {
-        closeToolsPanel();
-      } else {
-        openToolsPanel();
-      }
-    });
-  }
+  // ---- Sidebar init -------------------------------------------------------
+  initSidebar();
+  populateSidebar();
 
   // ---- API Tool -----------------------------------------------------------
   if (feats.apiTool) {
@@ -230,7 +306,7 @@ export async function initTools(feats) {
 
     document.addEventListener('keydown', function () {
       if (_apiTool && !_apiTool.isApiToolPanelOpen()) {
-        const items = document.querySelectorAll('.tools-panel-item');
+        const items = document.querySelectorAll('.tools-sidebar-item');
         items.forEach(function (el) { el.classList.remove('active'); });
       }
     });
@@ -241,13 +317,6 @@ export async function initTools(feats) {
     try {
       _secretHolder = await import('../secretHolder.js');
       _secretHolder.initSecretHolder();
-
-      const secretHolderBtn = document.getElementById('secretHolderBtn');
-      secretHolderBtn && secretHolderBtn.addEventListener('click', async function () {
-        if (_secretHolder.isSecretHolderOpen()) _secretHolder.closeSecretHolder();
-        else await _secretHolder.openSecretHolder();
-      });
-
       console.log('[Tools] Secret Holder initialised');
     } catch (err) {
       console.error('[Tools] Secret Holder failed:', err);
@@ -259,21 +328,99 @@ export async function initTools(feats) {
     try {
       _workspaceTool = await import('../workspace/workspaceTool.js');
       await _workspaceTool.initWorkspaceTool();
-
-      const workspaceToolBtn = document.getElementById('workspaceTool');
-      workspaceToolBtn && workspaceToolBtn.addEventListener('click', async function () {
-        if (_workspaceTool.isWorkspacePanelOpen()) {
-          _workspaceTool.closeWorkspacePanel();
-          workspaceToolBtn.classList.remove('active');
-        } else {
-          await _workspaceTool.openWorkspacePanel();
-          workspaceToolBtn.classList.add('active');
-        }
-      });
-
       console.log('[Tools] Workspace Tool initialised');
     } catch (err) {
       console.error('[Tools] Workspace Tool failed:', err);
     }
   }
+
+  // ---- CLI Tool Shortcuts --------------------------------------------------
+  const shortcutActions = {};
+
+  if (feats.apiTool) {
+    shortcutActions.apiTool = function () {
+      if (_apiTool) {
+        if (_apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) {
+          _apiTool.closeApiToolPanel();
+          return;
+        }
+        _closeAllToolPanels();
+        _apiTool.openApiToolPanel();
+      }
+    };
+  }
+
+  shortcutActions.gitTool = function () {
+    if (_gitPanel && _gitPanel.classList.contains('open')) {
+      _gitPanel.classList.remove('open');
+      return;
+    }
+    _closeAllToolPanels();
+    if (!_gitPanel) _gitPanel = createGitPanel();
+    _gitPanel.classList.add('open');
+    if (_gitTool && _gitTool.isInitialized) {
+      _gitTool.refresh();
+    } else {
+      var repoPath = state.selectedRepoPath;
+      if (repoPath) initializeGitTool(repoPath);
+    }
+  };
+
+  shortcutActions.promptTool = async function () {
+    const modal = document.getElementById('promptToolModal');
+    if (modal && modal.style.display !== 'none') {
+      modal.style.display = 'none';
+      return;
+    }
+    _closeAllToolPanels();
+    try {
+      const { openPromptToolModal } = await import('../promptTool.js');
+      openPromptToolModal();
+    } catch (err) {
+      console.error('[Shortcuts] Prompt Tool:', err);
+    }
+  };
+
+  shortcutActions.settings = function () {
+    const fullOverlay = document.getElementById('settingsOverlay');
+    const lightOverlay = document.getElementById('lightSettingsOverlay');
+    if (fullOverlay && fullOverlay.classList.contains('open')) { fullOverlay.classList.remove('open'); return; }
+    if (lightOverlay && lightOverlay.classList.contains('open')) { lightOverlay.classList.remove('open'); return; }
+    _closeAllToolPanels();
+    if (_settingsManager && _settingsManager.openSettings) {
+      _settingsManager.openSettings();
+    }
+  };
+
+  if (feats.secretHolder) {
+    shortcutActions.secretHolder = async function () {
+      if (_secretHolder) {
+        if (_secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) {
+          _secretHolder.closeSecretHolder();
+          return;
+        }
+        _closeAllToolPanels();
+        if (_secretHolder.openSecretHolder) {
+          await _secretHolder.openSecretHolder();
+        }
+      }
+    };
+  }
+
+  if (feats.workspaceTool) {
+    shortcutActions.workspaceTool = async function () {
+      if (_workspaceTool) {
+        if (_workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) {
+          _workspaceTool.closeWorkspacePanel();
+          return;
+        }
+        _closeAllToolPanels();
+        if (_workspaceTool.openWorkspacePanel) {
+          await _workspaceTool.openWorkspacePanel();
+        }
+      }
+    };
+  }
+
+  initShortcutManager(shortcutActions, _feats);
 }

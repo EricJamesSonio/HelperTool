@@ -67,6 +67,11 @@ class GitToolUI {
               <span class="panel-count" id="workingCount">0 files</span>
             </div>
             <div class="panel-body">
+              <div class="stage-all-row" id="stageAllRow" style="display:none">
+                <button id="stageAllBtn" class="btn btn-primary stage-all-btn">
+                  <span>+</span> Stage All
+                </button>
+              </div>
               <div id="workingTreeList" class="file-list">
                 <div class="empty-state">No changes</div>
               </div>
@@ -183,6 +188,9 @@ class GitToolUI {
 
     const pushAllBtn = this.container.querySelector('#pushAllBtn');
     pushAllBtn?.addEventListener('click', () => this.handlePushAll());
+
+    const stageAllBtn = this.container.querySelector('#stageAllBtn');
+    stageAllBtn?.addEventListener('click', () => this.handleStageAll());
   }
 
   /**
@@ -212,6 +220,29 @@ class GitToolUI {
       this.refreshUI();
     } else {
       this.showError(result.error);
+    }
+  }
+
+  /**
+   * Stage all working tree files
+   */
+  async handleStageAll() {
+    const state = this.gitManager.getState();
+    const allPaths = (state.workingTree || []).map(f => f.file);
+    if (allPaths.length === 0) return;
+
+    const btn = this.container.querySelector('#stageAllBtn');
+    this.setButtonLoading(btn, true);
+
+    const result = await this.gitHandler.stageFiles(allPaths);
+
+    this.setButtonLoading(btn, false);
+
+    if (result.success) {
+      this.refreshUI();
+      this.showSuccess(`Staged ${allPaths.length} file${allPaths.length !== 1 ? 's' : ''}`);
+    } else {
+      this.showError(result.error || 'Failed to stage files');
     }
   }
 
@@ -384,14 +415,17 @@ class GitToolUI {
   renderWorkingTree(files) {
     const list = this.container.querySelector('#workingTreeList');
     const count = this.container.querySelector('#workingCount');
+    const stageAllRow = this.container.querySelector('#stageAllRow');
 
     if (files.length === 0) {
       list.innerHTML = '<div class="empty-state">No changes</div>';
       count.textContent = '0 files';
+      if (stageAllRow) stageAllRow.style.display = 'none';
       return;
     }
 
     count.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+    if (stageAllRow) stageAllRow.style.display = '';
     
     list.innerHTML = files.map(file => `
       <div class="file-item working-file-item" data-file="${file.file}">

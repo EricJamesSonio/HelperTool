@@ -8,7 +8,8 @@ const { exec } = require('child_process');
  */
 function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow }) {
 
-    ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath, minify = false) => {
+    ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath, minify = false, promptText = '') => {
+
         try {
             if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
 
@@ -19,9 +20,14 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
             const mainWindow = getMainWindow();
 
             if (actionType === 'structure') {
-                await fileOps.generateStructure(items, filePath, (percent) => {
-                    mainWindow.webContents.send('progress-update', percent);
-                });
+                await fileOps.generateStructure(
+                    items,
+                    filePath,
+                    (percent) => {
+                        mainWindow.webContents.send('progress-update', percent);
+                    },
+                    promptText
+                );
             } else if (actionType === 'code') {
                 await codeOps.generateCode(
                     items,
@@ -29,9 +35,11 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
                     (percent) => { mainWindow.webContents.send('progress-update', percent); },
                     repoPath,
                     ignoreRules,
-                    minify
+                    minify,
+                    promptText
                 );
             }
+
 
             await new Promise(resolve => setTimeout(resolve, 100));
 

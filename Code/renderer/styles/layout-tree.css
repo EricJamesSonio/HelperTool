@@ -111,7 +111,7 @@
   transition: background 0.2s;
   overflow: auto;
 }
-#treeContainer::-webkit-scrollbar { width: 5px; height: 5px; }
+#treeContainer::-webkit-scrollbar { width: 16px; height: 16px; }
 #treeContainer::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 99px; }
 
 /* ── View mode toggle button ─────────────────────────────── */
@@ -119,8 +119,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 34px;
-  padding: 0 13px;
+  height: 36px;
+  padding: 0 16px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: var(--r-md);
@@ -233,6 +233,13 @@
   padding-left: calc(var(--depth, 0) * 18px);
 }
 
+/* ── Space + divider between root folders ───────────────── */
+#treeContainer.mode-list [data-depth-level="0"] + [data-depth-level="0"] {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
 #treeContainer.mode-list .tree-node {
   display: flex;
   align-items: center;
@@ -297,15 +304,31 @@
   content: '';
   position: absolute;
   left: 0;
-  top: 2px;
-  bottom: 6px;
+  top: 0;
+  bottom: 0;
   width: 1.5px;
   border-radius: 1px;
-  background: var(--connector-color);
+  background: var(--connector-color, var(--text-faint));
   transition: background 0.15s;
 }
 
-/* Hide horizontal bar in list mode */
+/* ── Horizontal branch from guide line to each child ──────── */
+#treeContainer.mode-list .children > .node-wrapper > .tree-node::after {
+  content: '';
+  position: absolute;
+  left: calc(-10px - var(--depth, 0) * 18px);
+  top: 50%;
+  width: calc(10px + var(--depth, 0) * 18px);
+  height: 1.5px;
+  background: var(--connector-color, var(--text-faint));
+  pointer-events: none;
+  z-index: 1;
+}
+
+
+
+/* ── Hide residual pseudo-elements that conflict ──────────── */
+/* Keep ::before on tree-node (arrow/dot) untouched */
 #treeContainer.mode-list .children::after { display: none; }
 #treeContainer.mode-list .node-wrapper::before,
 #treeContainer.mode-list .node-wrapper::after { display: none; }
@@ -314,6 +337,9 @@
 /* ── DEPTH-LEVEL COLORS: folder nodes in mode-list ───────── */
 
 /* depth 0 — amber gold (root level) */
+#treeContainer.mode-list [data-depth-level="0"] {
+  --connector-color: var(--dl0-line);
+}
 #treeContainer.mode-list [data-depth-level="0"] > .tree-node.folder {
   color: var(--dl0-color);
   background: var(--dl0-bg);
@@ -326,13 +352,15 @@
   background: var(--dl0-bg-h);
   border-color: var(--dl0-color);
 }
-/* guide line for children of depth-0 folders */
 #treeContainer.mode-list [data-depth-level="0"] > .children::before {
   background: var(--dl0-line);
   width: 2px;
 }
 
 /* depth 1 — sky blue */
+#treeContainer.mode-list [data-depth-level="1"] {
+  --connector-color: var(--dl1-line);
+}
 #treeContainer.mode-list [data-depth-level="1"] > .tree-node.folder {
   color: var(--dl1-color);
   background: var(--dl1-bg);
@@ -348,6 +376,9 @@
 }
 
 /* depth 2 — violet */
+#treeContainer.mode-list [data-depth-level="2"] {
+  --connector-color: var(--dl2-line);
+}
 #treeContainer.mode-list [data-depth-level="2"] > .tree-node.folder {
   color: var(--dl2-color);
   background: var(--dl2-bg);
@@ -363,6 +394,9 @@
 }
 
 /* depth 3 — teal */
+#treeContainer.mode-list [data-depth-level="3"] {
+  --connector-color: var(--dl3-line);
+}
 #treeContainer.mode-list [data-depth-level="3"] > .tree-node.folder {
   color: var(--dl3-color);
   background: var(--dl3-bg);
@@ -378,6 +412,9 @@
 }
 
 /* depth 4 — rose */
+#treeContainer.mode-list [data-depth-level="4"] {
+  --connector-color: var(--dl4-line);
+}
 #treeContainer.mode-list [data-depth-level="4"] > .tree-node.folder {
   color: var(--dl4-color);
   background: var(--dl4-bg);

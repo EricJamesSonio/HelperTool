@@ -1,8 +1,9 @@
 const { ipcRenderer } = require('electron');
 
 module.exports = {
-    generate: (actionType, repoPath, items, filePath, minify = false) =>
-        ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify),
+    generate: (actionType, repoPath, items, filePath, minify = false, promptText = '') =>
+        ipcRenderer.invoke('generate', actionType, repoPath, items, filePath, minify, promptText),
+
 
     onProgressUpdate: (callback) => {
         ipcRenderer.removeAllListeners('progress-update');
@@ -12,3 +13,4 @@ module.exports = {
         });
     },
 };
+

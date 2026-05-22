@@ -6,6 +6,7 @@
 import { state }       from './appState.js';
 import { displayTree } from './viewManager.js';
 
+
 const generateBtn        = document.getElementById('generateBtn');
 const generateSplitGroup = document.getElementById('generateSplitGroup');
 const generateModeToggle = document.getElementById('generateModeToggle');
@@ -14,8 +15,8 @@ const selectionCount     = document.getElementById('selectionCount');
 const clearSelectionBtn  = document.getElementById('clearSelectionBtn');
 const progressBar        = document.getElementById('progressBar');
 const progressText       = document.getElementById('progressText');
-const structureBtn       = document.getElementById('structureBtn');
-const codeBtn            = document.getElementById('codeBtn');
+const generatorModeToggleBtn = document.getElementById('generatorModeToggleBtn');
+const generatorModeLabel   = document.getElementById('generatorModeLabel');
 
 generateBtn.disabled = true;
 
@@ -67,21 +68,39 @@ export function initProgress() {
 
 // ── Action type buttons ───────────────────────────────────────────────────────
 
-export function initActionButtons() {
-    structureBtn.addEventListener('click', () => {
-        state.actionType = 'structure';
-        generateModeToggle.style.display = 'none';
-        resetSelection();
-        displayTree();
-    });
+function updateModeForActionType() {
+    const isCode = state.actionType === 'code';
+    generateModeToggle.style.display = '';
+    const minifiedItem = document.querySelector('.generate-mode-item[data-mode="minified"]');
+    if (minifiedItem) {
+        minifiedItem.style.display = isCode ? '' : 'none';
+    }
+    if (!isCode && state.generateOutputType === 'minified') {
+        const normalItem = document.querySelector('.generate-mode-item[data-mode="normal"]');
+        if (normalItem) normalItem.click();
+    }
+}
 
-    codeBtn.addEventListener('click', () => {
+function updateGeneratorModeButton() {
+    generatorModeLabel.textContent = state.actionType === 'code' ? 'Code' : 'Structure';
+}
+
+export function initActionButtons() {
+    // Set initial mode to 'code' if not already set
+    if (!state.actionType || state.actionType === 'structure') {
         state.actionType = 'code';
-        generateModeToggle.style.display = '';
+    }
+    updateGeneratorModeButton(); // Update button label on initialization
+
+    generatorModeToggleBtn.addEventListener('click', () => {
+        state.actionType = (state.actionType === 'code') ? 'structure' : 'code';
+        updateModeForActionType(); // Handles minified output visibility based on new actionType
+        updateGeneratorModeButton(); // Update the button text
         resetSelection();
         displayTree();
     });
 }
+
 
 // ── Split mode (Normal / Minified) ────────────────────────────────────────────
 
@@ -92,27 +111,53 @@ export function initSplitModeButton() {
     });
 
     document.addEventListener('click', (e) => {
-        if (!generateSplitGroup.contains(e.target))
+        if (generateSplitGroup && !generateSplitGroup.contains(e.target))
             generateSplitGroup.classList.remove('menu-open');
     });
 
     document.querySelectorAll('.generate-mode-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', async () => {
             const mode = item.dataset.mode;
+
+            // mode values: normal | minified | prompt
+            state.generateOutputType = mode;
             state.generateMinified = (mode === 'minified');
-            generateModeLabel.textContent = state.generateMinified ? 'Minified' : 'Normal';
+
+            if (mode === 'prompt') {
+                generateModeLabel.textContent = 'Prompt';
+            } else {
+                generateModeLabel.textContent = state.generateMinified ? 'Minified' : 'Normal';
+            }
+
+
             document.querySelectorAll('.generate-mode-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
+
             generateSplitGroup.dataset.mode = mode;
             generateSplitGroup.classList.remove('menu-open');
+
+            if (mode === 'prompt') {
+                try {
+                    const m = await import('../promptTool.js');
+                    if (m.openPromptSelectionModal) await m.openPromptSelectionModal();
+                } catch (err) {
+                    console.error('[Prompt] failed to open prompt selection:', err);
+                    alert('Failed to open prompt picker. Check console for details.');
+                }
+            }
         });
     });
+
 }
 
 // ── Generate button ───────────────────────────────────────────────────────────
 
 export function initGenerateButton() {
+
+
     generateBtn.addEventListener('click', async () => {
+
+
         try {
             if (!state.selectedRepoPath || !state.selectedItems.length)
                 return alert('Select repo and items first!');
@@ -128,8 +173,10 @@ export function initGenerateButton() {
                 state.selectedRepoPath,
                 state.selectedItems,
                 filePath,
-                state.actionType === 'code' ? state.generateMinified : false
+                state.actionType === 'code' ? state.generateMinified : false,
+                state.selectedPromptText || ''
             );
+
 
             if (!success) alert('Generation failed.');
             resetSelection();
@@ -147,6 +194,10 @@ export function initClearSelectionButton() {
     clearSelectionBtn.addEventListener('click', () => {
         state.selectedItems.length = 0;
         window.electronAPI.setLastSelected([]);
+
+        state.selectedPromptText = '';
+        state.selectedPromptId   = null;
+        state.selectedPromptIds  = [];
         updateGenerateState();
         displayTree();
     });

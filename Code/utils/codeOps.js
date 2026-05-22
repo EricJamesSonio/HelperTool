@@ -83,7 +83,8 @@ function findRepoRoot(startPath) {
  * @param {string[]} [ignoreRules]
  * @param {boolean}  [minify=false]
  */
-async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules, minify = false) {
+async function generateCode(selectedItems, outputFile, onProgress = () => {}, repoRoot, ignoreRules, minify = false, promptText = '') {
+
     if (!selectedItems.length) return;
 
     const root = repoRoot || path.resolve(selectedItems[0]);
@@ -100,7 +101,11 @@ async function generateCode(selectedItems, outputFile, onProgress = () => {}, re
 
     const writeStream = fs.createWriteStream(outputFile, { flags: 'w', encoding: 'utf-8' });
 
+    const promptBlock = (promptText || '').trim() ? `\n/* ===== Prompt ===== */\n${promptText.trim()}\n/* =================== */\n\n` : '';
+    writeStream.write(promptBlock);
+
     for (let i = 0; i < allFiles.length; i++) {
+
         const filePath = allFiles[i];
         const relativeName = path.relative(root, filePath) || path.basename(filePath);
 

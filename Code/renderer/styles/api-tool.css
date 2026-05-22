@@ -12,7 +12,7 @@
     position: fixed !important;
     inset: 0 !important;
     z-index: 9999 !important;
-    display: flex !important;
+    display: none !important;
     align-items: center !important;
     justify-content: center !important;
     opacity: 0;
