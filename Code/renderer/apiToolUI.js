@@ -1,5 +1,8 @@
 /**
  * apiToolUI.js — with Swagger/OpenAPI import
+ * FIX: Replaced all alert() and confirm() calls with inline toast/confirm UI.
+ * In Electron, native alert/confirm dialogs leave the renderer in a broken
+ * focus state — inputs become unresponsive until the window is minimized/restored.
  */
 
 import {
@@ -27,6 +30,117 @@ let methodSelect, pathInput, descInput;
 let _swOverlay = null;
 let _swParsedEndpoints = [];
 let _swChecked = new Set();
+
+/* ═══════════════════════════════════════════════════════════════
+   TOAST NOTIFICATION (replaces alert)
+   ═══════════════════════════════════════════════════════════════ */
+function _toast(msg, type = 'success', duration = 2200) {
+    const existing = document.getElementById('atToast');
+    if (existing) existing.remove();
+
+    const el = document.createElement('div');
+    el.id = 'atToast';
+    const colors = {
+        success: { bg: 'var(--green-dim)',  border: 'var(--green)',  color: 'var(--green)'  },
+        error:   { bg: 'var(--red-dim)',    border: 'var(--red)',    color: 'var(--red)'    },
+        info:    { bg: 'var(--accent-dim)', border: 'var(--accent)', color: 'var(--accent)' },
+    };
+    const c = colors[type] || colors.info;
+    el.style.cssText = `
+        position: fixed;
+        bottom: 28px;
+        right: 28px;
+        z-index: 99999;
+        padding: 10px 18px;
+        background: ${c.bg};
+        border: 1px solid ${c.border};
+        border-radius: var(--r-md);
+        color: ${c.color};
+        font-family: var(--font-ui);
+        font-size: 13px;
+        font-weight: 600;
+        box-shadow: var(--shadow-md);
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    `;
+    el.textContent = msg;
+    document.body.appendChild(el);
+
+    requestAnimationFrame(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+    });
+
+    setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(8px)';
+        setTimeout(() => el.remove(), 200);
+    }, duration);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INLINE CONFIRM (replaces confirm())
+   ═══════════════════════════════════════════════════════════════ */
+function _inlineConfirm(anchorEl, msg, onConfirm) {
+    document.getElementById('atConfirmBar')?.remove();
+
+    const bar = document.createElement('div');
+    bar.id = 'atConfirmBar';
+    bar.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        background: var(--red-dim);
+        border: 1px solid var(--red);
+        border-radius: var(--r-md);
+        font-family: var(--font-ui);
+        font-size: 12px;
+        color: var(--red);
+        font-weight: 600;
+        margin: 6px 12px;
+        animation: atConfirmIn 0.15s ease;
+    `;
+
+    if (!document.getElementById('atConfirmKeyframe')) {
+        const style = document.createElement('style');
+        style.id = 'atConfirmKeyframe';
+        style.textContent = `@keyframes atConfirmIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }`;
+        document.head.appendChild(style);
+    }
+
+    bar.innerHTML = `
+        <span style="flex:1">${msg}</span>
+        <button id="atConfirmYes" style="
+            height:26px; padding:0 12px; border-radius:var(--r-sm);
+            background:var(--red); border:none; color:#fff;
+            font-family:var(--font-ui); font-size:12px; font-weight:700;
+            cursor:pointer;">Yes, delete</button>
+        <button id="atConfirmNo" style="
+            height:26px; padding:0 10px; border-radius:var(--r-sm);
+            background:transparent; border:1px solid var(--red); color:var(--red);
+            font-family:var(--font-ui); font-size:12px; font-weight:600;
+            cursor:pointer;">Cancel</button>
+    `;
+
+    const rightBody = document.querySelector('.at-right-body');
+    if (rightBody) {
+        rightBody.insertAdjacentElement('afterbegin', bar);
+        rightBody.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        anchorEl?.insertAdjacentElement('afterend', bar);
+    }
+
+    document.getElementById('atConfirmYes').addEventListener('click', () => {
+        bar.remove();
+        onConfirm();
+    });
+    document.getElementById('atConfirmNo').addEventListener('click', () => {
+        bar.remove();
+    });
+}
 
 /* ═══════════════════════════════════════════════════════════════
    PUBLIC API
@@ -62,6 +176,8 @@ export function openApiToolPanel() {
 export function closeApiToolPanel() {
     _panelOpen = false;
     panel?.classList.remove('at-visible');
+    document.getElementById('atConfirmBar')?.remove();
+    document.getElementById('atToast')?.remove();
 }
 
 export function isApiToolPanelOpen() { return _panelOpen; }
@@ -237,7 +353,6 @@ function _injectSwaggerModal() {
 function _wireSwaggerEvents() {
     document.getElementById('swCloseBtn').addEventListener('click', _closeSwagger);
     document.getElementById('swCancelBtn').addEventListener('click', _closeSwagger);
-    // Only close swagger when clicking the overlay backdrop itself, not the modal
     _swOverlay.addEventListener('click', e => { if (e.target === _swOverlay) _closeSwagger(); });
 
     document.getElementById('swFetchBtn').addEventListener('click', _handleSwaggerFetch);
@@ -409,12 +524,10 @@ function _resolveRefs() {
 }
 
 function _wireEvents() {
-    // Close button and backdrop only — removed panel-root click to prevent accidental closes
     document.getElementById('atCloseBtn')?.addEventListener('click', closeApiToolPanel);
     document.querySelector('.at-backdrop')?.addEventListener('click', closeApiToolPanel);
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && _panelOpen) closeApiToolPanel(); });
 
-    // Stop clicks inside the container from bubbling to backdrop
     document.querySelector('.at-container')?.addEventListener('click', e => e.stopPropagation());
 
     // Sidebar
@@ -440,7 +553,7 @@ function _wireEvents() {
     document.getElementById('atSaveEndpointBtn')?.addEventListener('click', _handleSaveEndpoint);
     document.getElementById('atCancelEditBtn')?.addEventListener('click', _handleCancelEdit);
 
-    // KV row add buttons — delegated but scoped to the panel
+    // KV row add buttons
     panel?.addEventListener('click', e => {
         if (e.target.id === 'atAddHeaderBtn') {
             document.getElementById('atHeadersList').appendChild(_createKVRow('header'));
@@ -478,6 +591,7 @@ function _renderApiList() {
 function _selectApi(apiId) {
     _selectedApiId = apiId;
     _selectedEndpointId = null;
+    document.getElementById('atConfirmBar')?.remove();
     _renderApiList();
     document.getElementById('atEmptyTest').style.display = 'none';
     testPanel.style.display = 'flex';
@@ -514,7 +628,7 @@ function _renderEndpointsList() {
         item.querySelector('.at-endpoint-info').addEventListener('click', () => _selectEndpoint(endpoint.id));
         item.querySelector('.at-endpoint-delete').addEventListener('click', e => {
             e.stopPropagation();
-            _handleDeleteEndpoint(endpoint.id);
+            _handleDeleteEndpoint(endpoint.id, item.querySelector('.at-endpoint-delete'));
         });
         list.appendChild(item);
     });
@@ -528,6 +642,7 @@ function _selectEndpoint(endpointId) {
 
     _selectedEndpointId = endpointId;
     _editingEndpointId = endpointId;
+    document.getElementById('atConfirmBar')?.remove();
     _renderEndpointsList();
     document.getElementById('atRequestSection').style.display = 'flex';
 
@@ -583,30 +698,47 @@ function _updateTabBadges({ headers, body, params }) {
 async function _handleAddApi() {
     const name = apiNameInput.value.trim();
     const url  = apiUrlInput.value.trim();
-    if (!name || !url) { alert('Please enter API name and URL'); return; }
+    if (!name) {
+        apiNameInput.style.borderColor = 'var(--red)';
+        setTimeout(() => { apiNameInput.style.borderColor = ''; }, 1200);
+        return;
+    }
+    if (!url) {
+        apiUrlInput.style.borderColor = 'var(--red)';
+        setTimeout(() => { apiUrlInput.style.borderColor = ''; }, 1200);
+        return;
+    }
     await createApi(name, url);
     apiNameInput.value = '';
     apiUrlInput.value  = '';
     _renderApiList();
+    _toast('API added!', 'success');
 }
 
 async function _handleSaveApiConfig() {
     const name = document.getElementById('atApiName').value.trim();
     const url  = document.getElementById('atApiUrl').value.trim();
-    if (!name || !url) { alert('API name and URL are required'); return; }
+    if (!name || !url) {
+        _toast('API name and URL are required', 'error');
+        return;
+    }
     await updateApi(_selectedApiId, name, url);
     _renderApiList();
     _renderApiConfig();
+    _toast('API config saved!', 'success');
 }
 
 async function _handleDeleteApi() {
-    if (!confirm('Delete this API and all its endpoints?')) return;
-    await deleteApi(_selectedApiId);
-    _selectedApiId     = null;
-    _selectedEndpointId = null;
-    document.getElementById('atEmptyTest').style.display = 'flex';
-    testPanel.style.display = 'none';
-    _renderApiList();
+    const btn = document.getElementById('atApiDeleteBtn');
+    _inlineConfirm(btn, 'Delete this API and all its endpoints?', async () => {
+        await deleteApi(_selectedApiId);
+        _selectedApiId      = null;
+        _selectedEndpointId = null;
+        document.getElementById('atEmptyTest').style.display = 'flex';
+        testPanel.style.display = 'none';
+        _renderApiList();
+        _toast('API deleted', 'info');
+    });
 }
 
 async function _handleAddEndpoint() {
@@ -619,21 +751,28 @@ async function _handleAddEndpoint() {
         _selectEndpoint(updated.endpoints[updated.endpoints.length - 1].id);
 }
 
-async function _handleDeleteEndpoint(endpointId) {
-    if (!confirm('Delete this endpoint?')) return;
-    await deleteEndpoint(_selectedApiId, endpointId);
-    if (_selectedEndpointId === endpointId) {
-        _selectedEndpointId = null;
-        document.getElementById('atRequestSection').style.display = 'none';
-    }
-    _renderEndpointsList();
+async function _handleDeleteEndpoint(endpointId, anchorEl) {
+    _inlineConfirm(anchorEl, 'Delete this endpoint?', async () => {
+        await deleteEndpoint(_selectedApiId, endpointId);
+        if (_selectedEndpointId === endpointId) {
+            _selectedEndpointId = null;
+            document.getElementById('atRequestSection').style.display = 'none';
+        }
+        _renderEndpointsList();
+        _toast('Endpoint deleted', 'info');
+    });
 }
 
 async function _handleSaveEndpoint() {
     const method      = methodSelect.value;
     const path        = pathInput.value.trim();
     const description = descInput.value.trim();
-    if (!path) { alert('Path is required'); return; }
+    if (!path) {
+        pathInput.style.borderColor = 'var(--red)';
+        setTimeout(() => { pathInput.style.borderColor = ''; }, 1200);
+        _toast('Path is required', 'error');
+        return;
+    }
     await updateEndpoint(
         _selectedApiId, _selectedEndpointId,
         method, path, description,
@@ -641,12 +780,30 @@ async function _handleSaveEndpoint() {
         document.getElementById('atBodyInput').value,
         _getParamsFromForm()
     );
-    alert('Endpoint saved!');
     _renderEndpointsList();
+
+    // Inline button feedback instead of alert()
+    const btn = document.getElementById('atSaveEndpointBtn');
+    if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Saved!';
+        btn.style.background   = 'var(--green-dim)';
+        btn.style.borderColor  = 'var(--green)';
+        btn.style.color        = 'var(--green)';
+        setTimeout(() => {
+            btn.textContent       = orig;
+            btn.style.background  = '';
+            btn.style.borderColor = '';
+            btn.style.color       = '';
+        }, 1800);
+    }
 }
 
 async function _handleSendRequest() {
-    if (!_selectedEndpointId) { alert('Please select or create an endpoint first'); return; }
+    if (!_selectedEndpointId) {
+        _toast('Select or create an endpoint first', 'error');
+        return;
+    }
     const btn = document.getElementById('atSendBtn');
     if (!btn) return;
     btn.disabled    = true;
@@ -670,6 +827,7 @@ async function _handleSendRequest() {
 
 function _handleCancelEdit() {
     document.getElementById('atRequestSection').style.display = 'none';
+    document.getElementById('atConfirmBar')?.remove();
     _selectedEndpointId = null;
     _editingEndpointId  = null;
     _renderEndpointsList();
