@@ -36,11 +36,19 @@ export async function openPromptSelectionModal() {
 
     function close() {
         modal.remove();
+        document.removeEventListener('keydown', escapeHandler);
     }
 
     closeBtn?.addEventListener('click', close);
     cancelBtn?.addEventListener('click', close);
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+    function escapeHandler(e) {
+        if (e.key === 'Escape' && document.getElementById('promptSelectionModal')) {
+            close();
+        }
+    }
+    document.addEventListener('keydown', escapeHandler);
 
     let selectedIds = Array.isArray(state.selectedPromptIds) ? [...state.selectedPromptIds] : [];
 

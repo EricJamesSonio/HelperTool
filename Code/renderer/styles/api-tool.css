@@ -7,18 +7,13 @@
     position: fixed !important;
     inset: 0 !important;
     z-index: 9999 !important;
-    display: flex !important;
+    display: none !important;
     align-items: center !important;
     justify-content: center !important;
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;                          /* ADD THIS */
-    transition: opacity 0.2s ease, visibility 0.2s ease;  /* ADD visibility */
 }
 .at-panel.at-visible {
-    opacity: 1 !important;
-    pointer-events: all !important;
-    visibility: visible;                         /* ADD THIS */
+    display: flex !important;
+    animation: overlayFadeIn 0.2s ease;
 }
 .at-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); z-index: 1; }
 
@@ -348,20 +343,15 @@
     position: fixed;
     inset: 0;
     z-index: 10001;
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     background: rgba(0,0,0,0.6);
     backdrop-filter: blur(2px);
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;                          /* ADD THIS */
-    transition: opacity 0.15s ease, visibility 0.15s ease;  /* ADD visibility */
 }
 .sw-overlay.sw-visible {
-    opacity: 1;
-    pointer-events: all;
-    visibility: visible;                         /* ADD THIS */
+    display: flex;
+    animation: overlayFadeIn 0.15s ease;
 }
 
 .sw-modal {

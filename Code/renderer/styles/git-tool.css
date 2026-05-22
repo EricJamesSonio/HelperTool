@@ -518,11 +518,13 @@
 .git-tool-panel {
   position: fixed; inset: 0; z-index: 9999;
   background: linear-gradient(135deg, var(--bg-base, #0a0f1a) 0%, var(--bg-elevated, #111d34) 100%);
-  display: flex; flex-direction: column;
-  opacity: 0; pointer-events: none; transition: opacity 0.3s ease-out;
+  display: none; flex-direction: column;
   box-sizing: border-box;
 }
-.git-tool-panel.open { opacity: 1; pointer-events: all; }
+.git-tool-panel.open {
+  display: flex;
+  animation: overlayFadeIn 0.2s ease;
+}
 
 .git-tool-content { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 

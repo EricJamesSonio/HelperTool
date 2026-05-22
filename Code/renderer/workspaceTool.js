@@ -365,6 +365,7 @@ function _renderWorkersList() {
         <option value="">Select role</option>
         ${WORKER_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}
       </select>
+      <div class="workspace-form-error" id="addWorkerError"></div>
       <button type="submit" class="workspace-btn-add">+ Add Worker</button>
     </form>
   `;
@@ -388,12 +389,14 @@ function _renderWorkersList() {
     e.preventDefault();
     const name = document.getElementById('workerNameInput').value;
     const role = document.getElementById('workerRoleSelect').value;
+    const errEl = document.getElementById('addWorkerError');
     try {
       addWorker(name, role);
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       document.getElementById('addWorkerForm').reset();
       _render();
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     }
   });
 }
@@ -442,6 +445,7 @@ function _createWorkerCard(worker) {
       deleteWorker(worker.id);
       _render();
     }
+    window.focus();
   });
 
   return card;
@@ -467,6 +471,7 @@ function _showEditWorkerModal(worker) {
             ${WORKER_ROLES.map(r => `<option value="${r}" ${r === worker.role ? 'selected' : ''}>${r}</option>`).join('')}
           </select>
         </div>
+        <div class="workspace-form-error" id="editWorkerError"></div>
         <div class="workspace-modal-footer">
           <button type="button" class="workspace-btn-cancel">Cancel</button>
           <button type="submit" class="workspace-btn-add">Save Changes</button>
@@ -490,12 +495,14 @@ function _showEditWorkerModal(worker) {
     e.preventDefault();
     const name = document.getElementById('editWorkerName').value;
     const role = document.getElementById('editWorkerRole').value;
+    const errEl = document.getElementById('editWorkerError');
     try {
       updateWorker(worker.id, name, role);
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       modal.remove();
       _render();
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     }
   });
 }
@@ -537,6 +544,7 @@ function _renderWorkerDetails() {
             rows="3"
           >${_editingTicket.notes}</textarea>
         </div>
+        <div class="workspace-form-error" id="ticketFormError"></div>
         <div class="workspace-form-actions">
           <button type="button" class="workspace-btn-cancel" id="cancelEditBtn">Cancel Edit</button>
           <button type="submit" class="workspace-btn-add">Update Ticket</button>
@@ -563,6 +571,7 @@ function _renderWorkerDetails() {
             rows="3"
           ></textarea>
         </div>
+        <div class="workspace-form-error" id="ticketFormError"></div>
         <button type="submit" class="workspace-btn-add">+ Create Ticket</button>
       </form>
     `;
@@ -590,17 +599,19 @@ function _renderWorkerDetails() {
     e.preventDefault();
     const title = document.getElementById('ticketTitleInput').value;
     const notes = document.getElementById('ticketNotesInput').value;
+    const errEl = document.getElementById('ticketFormError');
     try {
       if (_editingTicket) {
         updateTicket(_editingTicket.id, title, notes, _editingTicket.status);
       } else {
         addTicket(_selectedWorker.id, title, notes);
       }
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       _editingTicket = null;
       document.getElementById('addTicketForm').reset();
       _render();
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     }
   });
 
@@ -655,6 +666,7 @@ function _createTicketElement(ticket) {
       deleteTicket(ticket.id);
       _render();
     }
+    window.focus();
   });
 
   return el;

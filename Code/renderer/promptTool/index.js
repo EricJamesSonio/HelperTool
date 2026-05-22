@@ -34,6 +34,9 @@ export function openPromptToolModal() {
     modal.addEventListener('click', (e) => {
         if (e.target === modal) closePromptToolModal();
     });
+    document.addEventListener('keydown', function ptEscape(e) {
+        if (e.key === 'Escape' && getModal()) closePromptToolModal();
+    });
 
     wireCategoryAdd(refresh);
     wirePromptSave(refresh);

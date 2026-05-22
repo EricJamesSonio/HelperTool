@@ -548,6 +548,18 @@ body {
   background-color: var(--bg-overlay);
 }
 
+.shortcut-input-error {
+  display: none;
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  background: var(--red-dim);
+  border: 1px solid var(--red);
+  border-radius: var(--r-md);
+  color: var(--red);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 /* ── Modal actions ─────────────────────────────────────────── */
 .modal-actions {
   display: flex;
@@ -663,7 +675,7 @@ body {
 .tools-panel-overlay {
   position: fixed; inset: 0; z-index: 99998;
   display: none;
-  background: transparent;
+  background: rgba(0,0,0,0.01);
 }
 .tools-panel-overlay.open { display: block; }
 
