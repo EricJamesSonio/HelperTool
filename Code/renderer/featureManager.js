@@ -13,7 +13,8 @@ const DEFAULT_FEATURES = {
   themeEngine:   true,
   folderFilters: true,
   swagger:       true,
-  workspaceTool: true,  // ← ADD THIS LINE
+  workspaceTool: true,
+  symbolIndex:   true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -56,6 +57,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-api-tool',       !_features.apiTool);
   document.body.classList.toggle('feat-no-secret-holder',  !_features.secretHolder);
   document.body.classList.toggle('feat-no-folder-filters', !_features.folderFilters);
+  document.body.classList.toggle('feat-no-symbol-index',   !_features.symbolIndex);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────
@@ -111,6 +113,13 @@ function _injectWizard() {
     label: 'Workspace Tool',
     desc: 'Manage workers and project tickets. Assign tasks and track status.',
     heavy: false,
+  },
+  {
+    id: 'symbolIndex',
+    icon: '🔍',
+    label: 'Symbol Index',
+    desc: 'AST-based code symbol search with SQLite indexing. Requires initial index.',
+    heavy: true,
   },
   ];
 

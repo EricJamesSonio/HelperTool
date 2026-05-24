@@ -19,6 +19,10 @@ let _gitTool       = null;
 let _gitPanel      = null;
 let _gitContainer  = null;
 
+let _symbolIndexTool  = null;
+let _symbolIndexPanel = null;
+let _symbolIndexContainer = null;
+
 let _settingsManager = null;
 
 // ---- Saved features for conditional tool entries ---------------------------
@@ -171,6 +175,26 @@ function populateSidebar() {
     });
     body.appendChild(item);
   }
+
+  // ── Symbol Index ────────────────────────────────────────
+  {
+    const item = createItem('\uD83D\uDD0D', 'Symbol Index', 'Search code symbols & navigate', function () {
+      if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) {
+        _symbolIndexPanel.classList.remove('open');
+      } else {
+        _closeAllToolPanels();
+        if (!_symbolIndexPanel) _symbolIndexPanel = createSymbolIndexPanel();
+        _symbolIndexPanel.classList.add('open');
+        if (_symbolIndexTool && _symbolIndexTool.isInitialized) {
+          _symbolIndexTool.refresh();
+        } else {
+          var repoPath = state.selectedRepoPath;
+          if (repoPath) initializeSymbolIndexTool(repoPath);
+        }
+      }
+    });
+    body.appendChild(item);
+  }
 }
 
 function createItem(icon, name, desc, onClick) {
@@ -258,6 +282,77 @@ function destroyGitTool() {
   }
 }
 
+// ---- Symbol Index Tool lifecycle -------------------------------------------
+
+function createSymbolIndexPanel() {
+  const panel = document.createElement('div');
+  panel.id = 'symbolIndexPanel';
+  panel.className = 'symbol-index-panel';
+  panel.innerHTML =
+    '<div class="symbol-index-content">' +
+      '<div class="symbol-index-navbar">' +
+        '<h1 class="symbol-index-title">\uD83D\uDD0D Symbol Index</h1>' +
+        '<div class="symbol-index-navbar-right">' +
+          '<button class="symbol-index-close-btn" id="closeSymbolIndexBtn">\u2715</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="symbol-index-body" id="symbolIndexContainer"></div>' +
+    '</div>';
+  document.body.appendChild(panel);
+
+  _symbolIndexContainer = panel.querySelector('#symbolIndexContainer');
+
+  panel.querySelector('#closeSymbolIndexBtn').addEventListener('click', function () {
+    panel.classList.remove('open');
+  });
+
+  panel.addEventListener('click', function (e) {
+    if (e.target === panel) {
+      panel.classList.remove('open');
+    }
+  });
+
+  document.addEventListener('keydown', function siEscape(e) {
+    if (e.key === 'Escape' && panel.classList.contains('open')) {
+      panel.classList.remove('open');
+    }
+  });
+
+  return panel;
+}
+
+async function initializeSymbolIndexTool(repoPath) {
+  try {
+    const { default: SymbolIndex } = await import('../symbolIndex.js');
+    if (!_symbolIndexTool) _symbolIndexTool = new SymbolIndex();
+
+    const result = await _symbolIndexTool.initialize(repoPath);
+    if (!result.success) {
+      console.error('[Tools] Symbol Index init failed:', result.error);
+      return;
+    }
+
+    if (!_symbolIndexPanel) _symbolIndexPanel = createSymbolIndexPanel();
+    await _symbolIndexTool.render(_symbolIndexContainer);
+    console.log('[Tools] Symbol Index initialised');
+  } catch (err) {
+    console.error('[Tools] Symbol Index error:', err);
+  }
+}
+
+function destroySymbolIndexTool() {
+  if (_symbolIndexTool) {
+    _symbolIndexTool.destroy();
+    _symbolIndexTool = null;
+  }
+  if (_symbolIndexContainer) {
+    _symbolIndexContainer.innerHTML = '';
+  }
+  if (_symbolIndexPanel) {
+    _symbolIndexPanel.classList.remove('open');
+  }
+}
+
 // ---- Close all tool panels (single-active-tool) ------------------------------
 
 function _closeAllToolPanels() {
@@ -271,10 +366,12 @@ function _closeAllToolPanels() {
   if (lightOverlay && lightOverlay.classList.contains('open')) lightOverlay.classList.remove('open');
   if (_secretHolder && _secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) _secretHolder.closeSecretHolder();
   if (_workspaceTool && _workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) _workspaceTool.closeWorkspacePanel();
+  if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) _symbolIndexPanel.classList.remove('open');
 }
 
 export function handleRepoChange(newRepoPath) {
   destroyGitTool();
+  destroySymbolIndexTool();
   initializeGitTool(newRepoPath);
 }
 
@@ -282,6 +379,7 @@ export function handleRepoChange(newRepoPath) {
 
 window.addEventListener('beforeunload', function () {
   if (_gitTool) _gitTool.destroy();
+  if (_symbolIndexTool) _symbolIndexTool.destroy();
 });
 
 // ---- Main init -------------------------------------------------------------
@@ -429,6 +527,22 @@ export async function initTools(feats, settingsManager) {
       }
     };
   }
+
+  shortcutActions.symbolIndex = function () {
+    if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) {
+      _symbolIndexPanel.classList.remove('open');
+      return;
+    }
+    _closeAllToolPanels();
+    if (!_symbolIndexPanel) _symbolIndexPanel = createSymbolIndexPanel();
+    _symbolIndexPanel.classList.add('open');
+    if (_symbolIndexTool && _symbolIndexTool.isInitialized) {
+      _symbolIndexTool.refresh();
+    } else {
+      var repoPath = state.selectedRepoPath;
+      if (repoPath) initializeSymbolIndexTool(repoPath);
+    }
+  };
 
   initShortcutManager(shortcutActions, _feats);
 }
