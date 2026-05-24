@@ -6,6 +6,7 @@ const FEATURES_META = [
   { id: 'themeEngine',   icon: '\u{1F3A8}', label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)', heavy: true  },
   { id: 'folderFilters', icon: '\u{1F4C1}', label: 'Folder Filters',    desc: 'Ignore / Focus folder panels', heavy: false },
   { id: 'swagger',       icon: '\u26A1', label: 'Swagger Import',    desc: 'OpenAPI spec import \u2014 only useful with API Tool', heavy: false },
+  { id: 'canvasTool',    icon: '\u{1F3A8}', label: 'Canvas Tool',      desc: 'Infinite canvas for diagrams, sketches & flowcharts', heavy: false },
 ];
 
 function _renderFeaturesList() {
