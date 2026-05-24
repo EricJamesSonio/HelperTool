@@ -2,12 +2,15 @@ const { getDb } = require('./db');
 
 function insertBatch(symbols) {
   const db = getDb();
+  if (symbols.length === 0) return;
   const stmt = db.prepare(
     'INSERT INTO symbols (repo_id, file_id, name, type, line, column, is_exported, class_name, language, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
+  db.run('BEGIN');
   for (const s of symbols) {
     stmt.run([s.repo_id, s.file_id, s.name, s.type, s.line, s.column, s.is_exported ? 1 : 0, s.class_name || null, s.language || null, s.signature || null]);
   }
+  db.run('COMMIT');
   stmt.free();
 }
 

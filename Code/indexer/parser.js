@@ -2,6 +2,8 @@ const path = require('path');
 const { Parser, Language } = require('web-tree-sitter');
 
 const GRAMMAR_DIR = path.join(__dirname, '..', 'grammars');
+const MAX_FILE_SIZE = 512 * 1024; // skip files > 512KB for AST parsing
+
 const SUPPORTED_LANGUAGES = {
   '.js':     { wasm: 'tree-sitter-javascript.wasm',  name: 'javascript' },
   '.jsx':    { wasm: 'tree-sitter-javascript.wasm',  name: 'javascript' },
@@ -19,6 +21,7 @@ const SUPPORTED_LANGUAGES = {
 
 let _initialized = false;
 const _langCache = new Map();
+const _parserPool = new Map();
 
 async function initParser() {
   if (_initialized) return;
@@ -44,24 +47,35 @@ function getLanguageForFile(filePath) {
   return { ext, ...info };
 }
 
-function parseFile(sourceCode, filePath) {
-  const langInfo = getLanguageForFile(filePath);
-  if (!langInfo) return [];
-
-  const lang = _langCache.get(langInfo.name);
-  if (!lang) return [];
-
+function getParserForLanguage(langName) {
+  if (_parserPool.has(langName)) return _parserPool.get(langName);
+  const lang = _langCache.get(langName);
+  if (!lang) return null;
   const parser = new Parser();
   parser.setLanguage(lang);
+  _parserPool.set(langName, parser);
+  return parser;
+}
+
+function parseFile(sourceCode, filePath) {
+  if (sourceCode.length > MAX_FILE_SIZE) return { symbols: [], imports: [] };
+
+  const langInfo = getLanguageForFile(filePath);
+  if (!langInfo) return { symbols: [], imports: [] };
+
+  const parser = getParserForLanguage(langInfo.name);
+  if (!parser) return { symbols: [], imports: [] };
+
   const tree = parser.parse(sourceCode);
 
   const symbols = [];
+  const imports = [];
   const root = tree.rootNode;
 
   walkNode(root, null, symbols, langInfo.name, sourceCode);
-  parser.delete();
+  extractImports(root, imports, langInfo.name, sourceCode);
 
-  return symbols;
+  return { symbols, imports };
 }
 
 function walkNode(node, parentInfo, symbols, language, sourceCode) {
@@ -335,6 +349,204 @@ function extractCSS(node, parentInfo) {
     };
   }
   return null;
+}
+
+function extractImports(node, imports, language, sourceCode) {
+  // Handle language-specific extraction for this node
+  switch (language) {
+    case 'javascript':
+    case 'typescript':
+    case 'tsx':
+      extractJSTSImports(node, imports, sourceCode);
+      break;
+    case 'python':
+      extractPythonImports(node, imports, sourceCode);
+      break;
+    case 'css':
+      extractCSSImports(node, imports, sourceCode);
+      break;
+    case 'html':
+      extractHTMLImports(node, imports, sourceCode);
+      break;
+  }
+
+  // Recurse into children for all languages
+  for (const child of node.namedChildren) {
+    extractImports(child, imports, language, sourceCode);
+  }
+}
+
+function extractJSTSImports(node, imports, sourceCode) {
+  const type = node.type;
+
+  // Debug: log import-related node types
+  if (type === 'import_declaration' || type === 'export_statement' || type === 'call_expression' || type === 'import_statement') {
+    console.log('[Parser] JS node type=%s text=%s', type, sourceCode.slice(node.startIndex, node.endIndex).substring(0, 80));
+  }
+
+  // import X from 'path' / import { X } from 'path' / import * as X from 'path'
+  if (type === 'import_declaration') {
+    console.log('[Parser] found import_declaration:', sourceCode.slice(node.startIndex, node.endIndex).substring(0, 80));
+    const sourceNode = node.childForFieldName('source');
+    if (!sourceNode) return;
+    const importPath = sourceNode.text.replace(/['"]/g, '');
+
+    // Determine import type
+    const clause = node.childForFieldName('import_clause');
+    let importType = 'side-effect';
+    if (clause) {
+      if (clause.type === 'namespace_import') {
+        importType = 'namespace';
+      } else if (clause.type === 'named_imports') {
+        importType = 'named';
+      } else {
+        const defaultName = clause.childForFieldName('name');
+        if (defaultName) {
+          importType = 'default';
+          const namedSeen = clause.namedChildren.some(c => c.type === 'named_imports');
+          if (namedSeen) importType = 'default-named';
+        }
+      }
+    }
+
+    imports.push({
+      import_path: importPath,
+      import_type: importType,
+      line: node.startPosition.row + 1,
+      column: node.startPosition.column + 1,
+    });
+    return;
+  }
+
+  // export { X } from 'path' / export { default } from 'path'
+  if (type === 'export_statement') {
+    const sourceNode = node.childForFieldName('source');
+    if (!sourceNode) return;
+    const importPath = sourceNode.text.replace(/['"]/g, '');
+    imports.push({
+      import_path: importPath,
+      import_type: 're-export',
+      line: node.startPosition.row + 1,
+      column: node.startPosition.column + 1,
+    });
+    return;
+  }
+
+  // require('...')
+  if (type === 'call_expression') {
+    const fnNode = node.childForFieldName('function');
+    if (!fnNode || fnNode.type !== 'identifier') return;
+    if (fnNode.text !== 'require') return;
+    const argsNode = node.childForFieldName('arguments');
+    if (!argsNode) return;
+    for (const arg of argsNode.namedChildren) {
+      if (arg.type === 'string' || arg.type === 'template_string') {
+        const importPath = arg.text.replace(/['"`]/g, '');
+        imports.push({
+          import_path: importPath,
+          import_type: 'require',
+          line: node.startPosition.row + 1,
+          column: node.startPosition.column + 1,
+        });
+      }
+    }
+    return;
+  }
+
+  // import.meta.url / dynamic import() - skip these nodes  
+  if (type === 'import_expression') return;
+}
+
+function extractPythonImports(node, imports, sourceCode) {
+  const type = node.type;
+
+  // import X / import X.Y.Z / import X as A
+  if (type === 'import_statement') {
+    for (const child of node.namedChildren) {
+      if (child.type === 'dotted_name') {
+        imports.push({
+          import_path: child.text,
+          import_type: 'module',
+          line: node.startPosition.row + 1,
+          column: node.startPosition.column + 1,
+        });
+      }
+    }
+    return;
+  }
+
+  // from X import Y / from X import Y as Z
+  if (type === 'import_from_statement') {
+    const moduleNode = node.childForFieldName('module_name');
+    if (!moduleNode) return;
+    const modulePath = moduleNode.text;
+    imports.push({
+      import_path: modulePath,
+      import_type: 'from-import',
+      line: node.startPosition.row + 1,
+      column: node.startPosition.column + 1,
+    });
+    return;
+  }
+}
+
+function extractCSSImports(node, imports, sourceCode) {
+  if (node.type === 'import_rule') {
+    for (const child of node.namedChildren) {
+      if (child.type === 'string_value') {
+        imports.push({
+          import_path: child.text.replace(/['"]/g, ''),
+          import_type: 'css-import',
+          line: node.startPosition.row + 1,
+          column: node.startPosition.column + 1,
+        });
+      }
+    }
+    return;
+  }
+}
+
+function extractHTMLImports(node, imports, sourceCode) {
+  if (node.type !== 'element') {
+    // Recurse into children for non-element nodes (e.g., document root)
+    for (const child of node.namedChildren) {
+      extractHTMLImports(child, imports, sourceCode);
+    }
+    return;
+  }
+
+  let tagName = '';
+  let src = null;
+  let href = null;
+  let rel = null;
+
+  for (const child of node.namedChildren) {
+    if (child.type === 'tag_name') {
+      tagName = child.text;
+    } else if (child.type === 'attribute') {
+      const name = child.childForFieldName('attribute_name');
+      const val = child.childForFieldName('attribute_value');
+      if (!name || !val) continue;
+      const n = name.text;
+      const v = val.text.replace(/['"]/g, '');
+      if (n === 'src') src = v;
+      else if (n === 'href') href = v;
+      else if (n === 'rel') rel = v;
+    }
+  }
+
+  if (tagName === 'script' && src) {
+    imports.push({ import_path: src, import_type: 'script', line: node.startPosition.row + 1, column: node.startPosition.column + 1 });
+  } else if (tagName === 'link' && href && rel === 'stylesheet') {
+    imports.push({ import_path: href, import_type: 'stylesheet', line: node.startPosition.row + 1, column: node.startPosition.column + 1 });
+  }
+
+  // Recurse into child elements (nested HTML)
+  for (const child of node.namedChildren) {
+    if (child.type === 'element') {
+      extractHTMLImports(child, imports, sourceCode);
+    }
+  }
 }
 
 module.exports = { initParser, loadLanguage, parseFile, getLanguageForFile, SUPPORTED_LANGUAGES: Object.keys(SUPPORTED_LANGUAGES) };
