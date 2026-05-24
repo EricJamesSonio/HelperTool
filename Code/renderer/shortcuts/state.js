@@ -7,6 +7,7 @@ const DEFAULT_SHORTCUTS = {
   settings:      null,
   secretHolder:  null,
   workspaceTool: null,
+  symbolIndex:   null,
 };
 
 const S = { shortcuts: {} };

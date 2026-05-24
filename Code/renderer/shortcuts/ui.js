@@ -9,6 +9,7 @@ const FEATURES = [
   { id: 'settings',      icon: '\uD83C\uDFA8', name: 'Settings' },
   { id: 'secretHolder',  icon: '\uD83D\uDD10', name: 'Secret Holder' },
   { id: 'workspaceTool', icon: '\uD83D\uDC65', name: 'Workspace' },
+  { id: 'symbolIndex',   icon: '\uD83D\uDD0D', name: 'Symbol Index' },
 ];
 
 let _modal = null;
