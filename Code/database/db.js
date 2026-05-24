@@ -112,6 +112,17 @@ function createSchema() {
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_resolved ON file_imports(resolved_file_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_repo ON file_imports(repo_id)');
 
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS boards (
+      id         TEXT PRIMARY KEY,
+      repo_path  TEXT,
+      name       TEXT NOT NULL,
+      data       TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  _db.run('CREATE INDEX IF NOT EXISTS idx_boards_repo ON boards(repo_path)');
+
   const row = _db.exec("SELECT name FROM sqlite_master WHERE type='trigger' AND name='symbols_ai'");
   const hasFts = _db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols_fts'");
   if (row.length === 0 && hasFts.length > 0) {

@@ -16,6 +16,7 @@ const generateIpc  = require('./ipc/generate_ipc.js');
 const gitIpc = require('./ipc/git_ipc.js');
 const promptsIpc = require('./ipc/prompts_ipc.js');
 const symbolIndexIpc = require('./ipc/symbolIndex_ipc.js');
+const canvasIpc = require('./ipc/canvas_ipc.js');
 const { initDatabase } = require('./database/db.js');
 
 
@@ -102,6 +103,7 @@ function registerAllIpc() {
     gitIpc.register(shared);
     promptsIpc.register({ app });
     symbolIndexIpc.register(shared);
+    canvasIpc.register();
 }
 
 

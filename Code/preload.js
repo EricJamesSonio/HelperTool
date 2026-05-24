@@ -118,6 +118,17 @@ const symbolIndexBridge = {
     },
 };
 
+const canvasBridge = {
+    canvas: {
+        listBoards:   (repoPath)             => ipcRenderer.invoke('canvas:listBoards', repoPath),
+        createBoard:  (repoPath, name, data) => ipcRenderer.invoke('canvas:createBoard', repoPath, name, data),
+        saveBoard:    (boardId, data)        => ipcRenderer.invoke('canvas:saveBoard', boardId, data),
+        loadBoard:    (boardId)              => ipcRenderer.invoke('canvas:loadBoard', boardId),
+        deleteBoard:  (boardId)              => ipcRenderer.invoke('canvas:deleteBoard', boardId),
+        renameBoard:  (boardId, name)        => ipcRenderer.invoke('canvas:renameBoard', boardId, name),
+    },
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -129,5 +140,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...gitBridge,
     ...promptsBridge,
     ...symbolIndexBridge,
+    ...canvasBridge,
 });
 

@@ -15,6 +15,7 @@ const DEFAULT_FEATURES = {
   swagger:       true,
   workspaceTool: true,
   symbolIndex:   true,
+  canvasTool:    true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -120,6 +121,13 @@ function _injectWizard() {
     label: 'Symbol Index',
     desc: 'AST-based code symbol search with SQLite indexing. Requires initial index.',
     heavy: true,
+  },
+  {
+    id: 'canvasTool',
+    icon: '🎨',
+    label: 'Canvas Tool',
+    desc: 'Infinite canvas for drawing diagrams, flowcharts & sketches with pen, shapes & arrows.',
+    heavy: false,
   },
   ];
 

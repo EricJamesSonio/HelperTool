@@ -29,6 +29,7 @@ let _depsUI       = null;
 let _depsPanel    = null;
 let _depsContainer = null;
 
+let _canvasTool    = null;
 let _settingsManager = null;
 
 // ---- Saved features for conditional tool entries ---------------------------
@@ -196,6 +197,22 @@ function populateSidebar() {
         } else {
           var repoPath = state.selectedRepoPath;
           if (repoPath) initializeSymbolIndexTool(repoPath);
+        }
+      }
+    });
+    body.appendChild(item);
+  }
+
+  // ── Canvas Tool ─────────────────────────────────────────
+  if (_feats.canvasTool) {
+    const item = createItem('\uD83C\uDFA8', 'Canvas', 'Draw diagrams & sketches', function () {
+      if (_canvasTool && _canvasTool.isCanvasPanelOpen && _canvasTool.isCanvasPanelOpen()) {
+        _canvasTool.closeCanvasPanel();
+      } else {
+        _closeAllToolPanels();
+        var repoPath = state.selectedRepoPath;
+        if (_canvasTool && _canvasTool.openCanvasPanel) {
+          _canvasTool.openCanvasPanel(repoPath);
         }
       }
     });
@@ -413,6 +430,7 @@ function _closeAllToolPanels() {
   if (_workspaceTool && _workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) _workspaceTool.closeWorkspacePanel();
   if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) _symbolIndexPanel.classList.remove('open');
   if (_depsPanel && _depsPanel.classList.contains('open')) _depsPanel.classList.remove('open');
+  if (_canvasTool && _canvasTool.isCanvasPanelOpen && _canvasTool.isCanvasPanelOpen()) _canvasTool.closeCanvasPanel();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -475,6 +493,17 @@ export async function initTools(feats, settingsManager) {
       console.log('[Tools] Workspace Tool initialised');
     } catch (err) {
       console.error('[Tools] Workspace Tool failed:', err);
+    }
+  }
+
+  // ---- Canvas Tool ---------------------------------------------------------
+  if (feats.canvasTool) {
+    try {
+      _canvasTool = await import('../canvasTool.js');
+      _canvasTool.initCanvasTool();
+      console.log('[Tools] Canvas Tool initialised');
+    } catch (err) {
+      console.error('[Tools] Canvas Tool failed:', err);
     }
   }
 
@@ -622,6 +651,20 @@ export async function initTools(feats, settingsManager) {
       } else {
         var repoPath = state.selectedRepoPath;
         if (repoPath) initializeSymbolIndexTool(repoPath);
+      }
+    };
+  }
+
+  if (_feats.canvasTool) {
+    shortcutActions.canvasTool = function () {
+      if (_canvasTool && _canvasTool.isCanvasPanelOpen && _canvasTool.isCanvasPanelOpen()) {
+        _canvasTool.closeCanvasPanel();
+        return;
+      }
+      _closeAllToolPanels();
+      var repoPath = state.selectedRepoPath;
+      if (_canvasTool && _canvasTool.openCanvasPanel) {
+        _canvasTool.openCanvasPanel(repoPath);
       }
     };
   }
