@@ -194,10 +194,12 @@ class SymbolIndexUI {
       this._lastStatus = status;
       if (dirtyChanged) {
         this._cachedBrowseHtml = null;
+        this._cachedBrowseData = null;
         await this.showBrowseView();
       } else if (this._cachedBrowseHtml) {
         const resultsEl = this.container.querySelector('#siSearchResults');
         if (resultsEl) {
+          this._browseData = this._cachedBrowseData || new Map();
           resultsEl.innerHTML = this._cachedBrowseHtml;
           this.attachBrowseEvents(resultsEl);
         }
@@ -329,38 +331,30 @@ class SymbolIndexUI {
         return;
       }
 
+      this._browseData = new Map();
+
       let html = files.map(f => {
         const symbolCount = f.symbols?.length || 0;
         const filePath = this.escapeHtml(f.path);
         const lang = f.language ? `<span class="si-browse-lang">${f.language}</span>` : '';
 
-        let symbolsHtml = '';
-        if (symbolCount > 0) {
-          symbolsHtml = '<div class="si-browse-symbols">' +
-            f.symbols.slice(0, 15).map(s => `
-              <div class="si-browse-symbol" data-file="${filePath}" data-line="${s.line}">
-                <span class="si-result-type-badge si-type-${s.type}">${s.type}</span>
-                <span class="si-browse-sym-name">${this.escapeHtml(s.name)}</span>
-                <span class="si-browse-sym-line">:${s.line}</span>
-              </div>
-            `).join('') +
-            (symbolCount > 15 ? `<div class="si-browse-more">+${symbolCount - 15} more</div>` : '') +
-            '</div>';
-        }
+        this._browseData.set(f.path, f.symbols || []);
 
         return `
           <div class="si-browse-file" data-file="${filePath}">
             <div class="si-browse-file-header">
+              <span class="si-browse-toggle">▶</span>
               <span class="si-browse-file-path">${filePath}</span>
               ${lang}
               <span class="si-browse-file-count">${symbolCount} symbol${symbolCount !== 1 ? 's' : ''}</span>
             </div>
-            ${symbolsHtml}
+            <div class="si-browse-symbols"></div>
           </div>
         `;
       }).join('');
 
       this._cachedBrowseHtml = html;
+      this._cachedBrowseData = this._browseData;
       resultsEl.innerHTML = html;
       this.attachBrowseEvents(resultsEl);
     } catch (err) {
@@ -369,18 +363,46 @@ class SymbolIndexUI {
   }
 
   attachBrowseEvents(container) {
-    container.querySelectorAll('.si-browse-symbol').forEach(el => {
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.handleResultClick(el);
-      });
-    });
-
     container.querySelectorAll('.si-browse-file').forEach(el => {
       el.addEventListener('click', (e) => {
-        if (!e.target.closest('.si-browse-symbol')) {
-          const filePath = el.dataset.file;
-          if (filePath) this.selectFileInTree(filePath);
+        const filePath = el.dataset.file;
+        if (!filePath) return;
+
+        // Ignore clicks on already-rendered symbols (they have their own handler)
+        if (e.target.closest('.si-browse-symbol')) return;
+
+        const symContainer = el.querySelector('.si-browse-symbols');
+        const toggle = el.querySelector('.si-browse-toggle');
+
+        if (symContainer.dataset.rendered) {
+          const isOpen = el.classList.contains('si-browse-file-open');
+          el.classList.toggle('si-browse-file-open', !isOpen);
+          symContainer.style.display = isOpen ? 'none' : 'block';
+          if (toggle) toggle.textContent = isOpen ? '▶' : '▼';
+        } else {
+          const symbols = this._browseData.get(filePath) || [];
+          if (symbols.length === 0) {
+            symContainer.innerHTML = '<div class="si-browse-empty">No symbols</div>';
+          } else {
+            symContainer.innerHTML = symbols.map(s => `
+              <div class="si-browse-symbol" data-file="${this.escapeHtml(filePath)}" data-line="${s.line}">
+                <span class="si-result-type-badge si-type-${s.type}">${s.type}</span>
+                <span class="si-browse-sym-name">${this.escapeHtml(s.name)}</span>
+                <span class="si-browse-sym-line">:${s.line}</span>
+              </div>
+            `).join('');
+
+            symContainer.querySelectorAll('.si-browse-symbol').forEach(sym => {
+              sym.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleResultClick(sym);
+              });
+            });
+          }
+          el.classList.add('si-browse-file-open');
+          symContainer.style.display = 'block';
+          if (toggle) toggle.textContent = '▼';
+          symContainer.dataset.rendered = 'true';
         }
       });
     });
@@ -537,6 +559,7 @@ class SymbolIndexUI {
 
   handleDirtyChanged(count) {
     this._cachedBrowseHtml = null;
+    this._cachedBrowseData = null;
     this.manager.dirtyCount = count;
     const row = this.container.querySelector('#siDirtyRow');
     const countEl = this.container.querySelector('#siDirtyCount');
