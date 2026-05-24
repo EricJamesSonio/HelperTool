@@ -67,6 +67,16 @@ class SymbolIndexHandler {
     return this.ipc.getIndexedFiles(repoPath);
   }
 
+  async getDirtyFiles(repoPath) {
+    if (!this.ipc) return { files: [] };
+    return this.ipc.getDirtyFiles(repoPath);
+  }
+
+  async reindexFile(repoPath, filePath) {
+    if (!this.ipc) return { success: false, error: 'IPC not available' };
+    return this.ipc.reindexFile(repoPath, filePath);
+  }
+
   async delete(repoPath) {
     if (!this.ipc) return { success: false, error: 'IPC not available' };
     return this.ipc.delete(repoPath);

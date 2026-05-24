@@ -9,6 +9,9 @@ class SymbolIndexUI {
     this._searchTimeout = null;
     this._activeRepoPath = null;
     this._indexingInProgress = false;
+    this._cachedBrowseHtml = null;
+    this._lastStatus = null;
+    this._dirtyFiles = [];
   }
 
   async render(containerElement, repoPath) {
@@ -16,7 +19,7 @@ class SymbolIndexUI {
     this._activeRepoPath = repoPath;
     this.container.innerHTML = this.getTemplate();
     this.setupEventListeners();
-    await this.refreshUI();
+    await this.refreshUI({ force: true });
     this.setupComplete = true;
   }
 
@@ -85,14 +88,34 @@ class SymbolIndexUI {
                   <button class="btn-link" id="siEditDocignoreBtn">edit</button>
                 </p>
 
-                <div class="si-config-section">
-                  <div class="si-config-row si-dirty-row" id="siDirtyRow" style="display:none">
-                    <span id="siDirtyCount" class="si-dirty-badge">0</span>
-                    <span class="si-dirty-text">files changed</span>
-                    <button id="siReindexDirtyBtn" class="btn btn-small si-reindex-btn">
-                      <span>↻</span> Reindex
+                <div class="si-watcher-box">
+                  <div class="si-watcher-box-header">
+                    <span class="si-watcher-box-title">📡 File Watcher</span>
+                    <span class="si-watcher-dot" id="siWatcherDot"></span>
+                  </div>
+                  <div class="si-watcher-box-body">
+                    <span id="siWatcherStatus" class="si-watcher-status">Watching for changes…</span>
+                    <div class="si-watcher-dirty-row" id="siDirtyRow" style="display:none">
+                      <span id="siDirtyCount" class="si-dirty-badge">0</span>
+                      <span class="si-dirty-label">modified files</span>
+                      <span class="si-watcher-spacer"></span>
+                      <button id="siReindexDirtyBtn" class="btn btn-small si-reindex-btn">↻ Reindex All</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="siDirtyFilesContainer" class="si-dirty-files" style="display:none">
+                  <div class="si-dirty-files-header">
+                    <span class="si-dirty-files-title">Modified Files</span>
+                    <label class="si-dirty-select-all">
+                      <input type="checkbox" id="siDirtySelectAll" />
+                      Select all
+                    </label>
+                    <button id="siReindexSelectedBtn" class="btn btn-small si-reindex-btn">
+                      <span>↻</span> Reindex Selected
                     </button>
                   </div>
+                  <div id="siDirtyFilesList" class="si-dirty-files-list"></div>
                 </div>
 
                 <div class="si-actions">
@@ -146,13 +169,16 @@ class SymbolIndexUI {
     this.container.querySelector('#siResetBtn')?.addEventListener('click', () => this.confirmReset());
     this.container.querySelector('#siDeleteBtn')?.addEventListener('click', () => this.confirmDelete());
     this.container.querySelector('#siEditDocignoreBtn')?.addEventListener('click', () => this.openDocignore());
+    this.container.querySelector('#siDirtySelectAll')?.addEventListener('change', (e) => this.handleSelectAll(e));
+    this.container.querySelector('#siReindexSelectedBtn')?.addEventListener('click', () => this.handleReindexSelected());
+    this.container.querySelector('#siDirtyFilesList')?.addEventListener('click', (e) => this.handleDirtyFileClick(e));
 
     this.handler.onProgress((data) => this.handleProgress(data));
     this.handler.onDirtyChanged((count) => this.handleDirtyChanged(count));
     this.handler.onError((msg) => this.showToast(msg, 'error'));
   }
 
-  async refreshUI() {
+  async refreshUI(opts) {
     if (!this._activeRepoPath) return;
 
     const status = await this.handler.getStatus(this._activeRepoPath);
@@ -162,7 +188,22 @@ class SymbolIndexUI {
       this.manager.isIndexed = true;
       this.manager.dirtyCount = status.dirty_count || 0;
       this.showIndexedState(status);
-      this.showBrowseView();
+
+      // Cache browse view — only re-fetch if dirty count changed or forced
+      const dirtyChanged = opts?.force || !this._lastStatus || this._lastStatus.dirty_count !== status.dirty_count;
+      this._lastStatus = status;
+      if (dirtyChanged) {
+        this._cachedBrowseHtml = null;
+        await this.showBrowseView();
+      } else if (this._cachedBrowseHtml) {
+        const resultsEl = this.container.querySelector('#siSearchResults');
+        if (resultsEl) {
+          resultsEl.innerHTML = this._cachedBrowseHtml;
+          this.attachBrowseEvents(resultsEl);
+        }
+      } else {
+        await this.showBrowseView();
+      }
     } else if (status.exists && !status.indexed) {
       this.manager.isIndexed = false;
       this.showUnindexedState();
@@ -188,11 +229,16 @@ class SymbolIndexUI {
 
     const dirtyRow = this.container.querySelector('#siDirtyRow');
     const dirtyCount = this.container.querySelector('#siDirtyCount');
+    const watcherStatus = this.container.querySelector('#siWatcherStatus');
     if (status.dirty_count > 0) {
       dirtyRow.style.display = 'flex';
       dirtyCount.textContent = status.dirty_count;
+      watcherStatus.textContent = status.dirty_count + ' file' + (status.dirty_count !== 1 ? 's' : '') + ' changed';
+      this.renderDirtyFiles();
     } else {
       dirtyRow.style.display = 'none';
+      watcherStatus.textContent = 'Watching for changes…';
+      this.container.querySelector('#siDirtyFilesContainer').style.display = 'none';
     }
   }
 
@@ -314,26 +360,30 @@ class SymbolIndexUI {
         `;
       }).join('');
 
+      this._cachedBrowseHtml = html;
       resultsEl.innerHTML = html;
-
-      resultsEl.querySelectorAll('.si-browse-symbol').forEach(el => {
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.handleResultClick(el);
-        });
-      });
-
-      resultsEl.querySelectorAll('.si-browse-file').forEach(el => {
-        el.addEventListener('click', (e) => {
-          if (!e.target.closest('.si-browse-symbol')) {
-            const filePath = el.dataset.file;
-            if (filePath) this.selectFileInTree(filePath);
-          }
-        });
-      });
+      this.attachBrowseEvents(resultsEl);
     } catch (err) {
       resultsEl.innerHTML = `<div class="empty-state error">Failed to load index: ${this.escapeHtml(err.message)}</div>`;
     }
+  }
+
+  attachBrowseEvents(container) {
+    container.querySelectorAll('.si-browse-symbol').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.handleResultClick(el);
+      });
+    });
+
+    container.querySelectorAll('.si-browse-file').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (!e.target.closest('.si-browse-symbol')) {
+          const filePath = el.dataset.file;
+          if (filePath) this.selectFileInTree(filePath);
+        }
+      });
+    });
   }
 
   handleResultClick(el) {
@@ -464,7 +514,11 @@ class SymbolIndexUI {
     if (!ok) return;
     if (!this._activeRepoPath) return;
 
-    await this.handler.delete(this._activeRepoPath);
+    const result = await this.handler.delete(this._activeRepoPath);
+    if (!result.success) {
+      this.showToast(result.error || 'Failed to delete index. Try restarting the app.', 'error');
+      return;
+    }
     this.manager.reset();
     this.hideAllStates();
     this.showUnindexedState();
@@ -482,15 +536,106 @@ class SymbolIndexUI {
   }
 
   handleDirtyChanged(count) {
+    this._cachedBrowseHtml = null;
     this.manager.dirtyCount = count;
     const row = this.container.querySelector('#siDirtyRow');
     const countEl = this.container.querySelector('#siDirtyCount');
+    const watcherStatus = this.container.querySelector('#siWatcherStatus');
     if (count > 0) {
       row.style.display = 'flex';
       countEl.textContent = count;
+      watcherStatus.textContent = count + ' file' + (count !== 1 ? 's' : '') + ' changed';
+      this.renderDirtyFiles();
     } else {
       row.style.display = 'none';
+      watcherStatus.textContent = 'Watching for changes…';
+      this.container.querySelector('#siDirtyFilesContainer').style.display = 'none';
     }
+  }
+
+  async renderDirtyFiles() {
+    if (!this._activeRepoPath) return;
+    const container = this.container.querySelector('#siDirtyFilesContainer');
+    const list = this.container.querySelector('#siDirtyFilesList');
+    if (!list || !container) return;
+
+    try {
+      const { files } = await this.handler.getDirtyFiles(this._activeRepoPath);
+      this._dirtyFiles = files || [];
+
+      if (this._dirtyFiles.length === 0) {
+        container.style.display = 'none';
+        return;
+      }
+
+      container.style.display = 'block';
+      const selectAll = this.container.querySelector('#siDirtySelectAll');
+      if (selectAll) selectAll.checked = false;
+
+      list.innerHTML = this._dirtyFiles.map(f => `
+        <div class="si-dirty-file-item" data-path="${this.escapeHtml(f.path)}">
+          <input type="checkbox" class="si-dirty-file-cb" data-path="${this.escapeHtml(f.path)}" />
+          <span class="si-dirty-file-path">${this.escapeHtml(f.path)}</span>
+          <span class="si-dirty-file-info">${f.symbol_count || 0} symbols</span>
+        </div>
+      `).join('');
+    } catch (err) {
+      console.error('[SymbolIndex] Failed to load dirty files:', err);
+    }
+  }
+
+  handleSelectAll(e) {
+    const checked = e.target.checked;
+    this.container.querySelectorAll('.si-dirty-file-cb').forEach(cb => {
+      cb.checked = checked;
+    });
+  }
+
+  handleDirtyFileClick(e) {
+    const item = e.target.closest('.si-dirty-file-item');
+    if (!item) return;
+
+    const cb = item.querySelector('.si-dirty-file-cb');
+    const pathSpan = item.querySelector('.si-dirty-file-path');
+
+    if (e.target === pathSpan) {
+      const filePath = item.dataset.path;
+      if (filePath) this.selectFileInTree(filePath);
+      return;
+    }
+
+    if (e.target === item || e.target === cb) {
+      if (cb) cb.checked = !cb.checked;
+    }
+  }
+
+  async handleReindexSelected() {
+    const selected = [];
+    this.container.querySelectorAll('.si-dirty-file-cb:checked').forEach(cb => {
+      selected.push(cb.dataset.path);
+    });
+
+    if (selected.length === 0) {
+      this.showToast('No files selected', 'info');
+      return;
+    }
+
+    this.container.querySelector('#siReindexSelectedBtn').disabled = true;
+    let reindexed = 0;
+    for (const filePath of selected) {
+      try {
+        const result = await this.handler.reindexFile(this._activeRepoPath, filePath);
+        if (result.success) reindexed++;
+      } catch (err) {
+        console.error('[SymbolIndex] Failed to reindex:', filePath, err);
+      }
+    }
+    this.container.querySelector('#siReindexSelectedBtn').disabled = false;
+
+    if (reindexed > 0) {
+      this.showToast(`Reindexed ${reindexed} file${reindexed !== 1 ? 's' : ''}`, 'success');
+    }
+    await this.renderDirtyFiles();
   }
 
   showToast(message, type) {

@@ -333,15 +333,15 @@
   font-size: 0.74rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.6px;
   width: fit-content;
-  background: rgba(240,180,41,0.12); color: var(--accent, #f0b429);
+  background: rgba(34,211,238,0.12); color: var(--accent, #22d3ee);
 }
-.ws-project-status-badge.ws-status-complete    { background: rgba(52,211,153,0.12);  color: #34d399; }
-.ws-project-status-badge.ws-status-in-progress { background: rgba(96,165,250,0.12);  color: #60a5fa; }
-.ws-project-status-badge.ws-status-maintenance { background: rgba(167,139,250,0.12); color: #a78bfa; }
+.ws-project-status-badge.ws-status-complete    { background: rgba(45,212,176,0.12);  color: #2dd4b0; }
+.ws-project-status-badge.ws-status-in-progress { background: rgba(88,166,255,0.12);  color: #58a6ff; }
+.ws-project-status-badge.ws-status-maintenance { background: rgba(139,92,246,0.12); color: #8b5cf6; }
 .ws-project-status-badge.ws-status-planning    { background: rgba(148,163,184,0.1);  color: #94a3b8; }
-.ws-project-meta { display: flex; gap: 16px; font-size: 0.8rem; color: var(--text-muted, #556080); }
+.ws-project-meta { display: flex; gap: 16px; font-size: 0.8rem; color: var(--text-muted, #5b6a90); }
 .ws-progress-bar-wrap { height: 4px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
-.ws-progress-bar { height: 100%; background: var(--accent, #f0b429); border-radius: 3px; transition: width 0.4s ease; }
+.ws-progress-bar { height: 100%; background: var(--accent, #22d3ee); border-radius: 3px; transition: width 0.4s ease; }
 .ws-progress-label { font-size: 0.75rem; color: var(--text-muted, #556080); text-align: right; }
 
 /* ─── Worker card ────────────────────────────────────────────────────────── */
@@ -554,9 +554,8 @@
   position: fixed; inset: 0; z-index: 10000;
   background: rgba(0,0,0,0.62); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
-  animation: wsFadeIn 0.18s ease-out;
+  animation: overlayFadeIn 0.18s ease-out;
 }
-@keyframes wsFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes wsSlideUp {
   from { opacity: 0; transform: translateY(16px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
@@ -646,10 +645,10 @@
 .workspace-form-error {
   display: none;
   padding: 8px 12px;
-  background: rgba(248,113,113,0.12);
-  border: 1px solid var(--red, #f87171);
+  background: rgba(251,113,133,0.12);
+  border: 1px solid var(--red, #fb7185);
   border-radius: 8px;
-  color: var(--red, #f87171);
+  color: var(--red, #fb7185);
   font-size: 0.8rem;
   line-height: 1.4;
 }
