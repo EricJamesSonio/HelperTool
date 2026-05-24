@@ -100,6 +100,9 @@ const symbolIndexBridge = {
         getManaged:       ()                       => ipcRenderer.invoke('symbolIndex:getManaged'),
         getSymbolTypes:   (repoPath)               => ipcRenderer.invoke('symbolIndex:getSymbolTypes', repoPath),
         getIndexedFiles:  (repoPath)               => ipcRenderer.invoke('symbolIndex:getIndexedFiles', repoPath),
+        getDirtyFiles:    (repoPath)               => ipcRenderer.invoke('symbolIndex:getDirtyFiles', repoPath),
+        reindexFile:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:reindexFile', repoPath, filePath),
+        getFileDeps:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:getFileDeps', repoPath, filePath),
         onProgress:       (callback) => {
             ipcRenderer.removeAllListeners('symbolIndex:progress');
             ipcRenderer.on('symbolIndex:progress', (_, data) => callback(data));
