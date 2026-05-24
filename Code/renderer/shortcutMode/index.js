@@ -40,8 +40,11 @@ export function initShortcutMode() {
   // combo (i.e. a registered shortcut, not plain typing). If so, blur the
   // textarea immediately so the shortcuts/listener.js handler can receive it
   // without being blocked by the TEXTAREA focus guard.
+  // Skip common editing combos that the textarea should handle natively.
+  const EDIT_KEYS = new Set(['v', 'c', 'x', 'z', 'y', 'a']);
   getShortcutInputTextarea().addEventListener('keydown', (e) => {
     const isModified = e.ctrlKey || e.altKey || e.metaKey;
+    if (isModified && e.key && EDIT_KEYS.has(e.key.toLowerCase())) return;
     if (isModified && e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Meta') {
       e.stopPropagation(); // don't double-fire
       getShortcutInputTextarea().blur();

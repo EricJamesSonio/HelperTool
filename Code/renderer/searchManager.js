@@ -122,6 +122,30 @@ export function selectSearchItem(path) {
   }, 150);
 }
 
+function scoreMatch(query, name, displayPath) {
+  const q = query.toLowerCase();
+  const n = name.toLowerCase();
+  const p = displayPath.toLowerCase();
+
+  if (n === q) return 100;
+  if (p === q) return 95;
+  if (n.startsWith(q)) return 80;
+  if (n.includes(q)) return 60;
+  if (p.endsWith('/' + q)) return 70;
+
+  const pathSegments = query.split(/[\\/]/);
+  const lastSegment = pathSegments[pathSegments.length - 1];
+  if (lastSegment && lastSegment.length > 1) {
+    if (n === lastSegment) return 85;
+    if (n.startsWith(lastSegment)) return 65;
+    if (n.includes(lastSegment)) return 45;
+    if (p.includes(q)) return 40;
+  }
+
+  if (p.includes(q)) return 30;
+  return 0;
+}
+
 function searchTree(query) {
   if (!query) {
     searchSuggestions.style.display = 'none';
@@ -129,15 +153,19 @@ function searchTree(query) {
   }
 
   const flatList = getFlatList();
-  const q        = query.toLowerCase();
-  const matches  = flatList.filter(node =>
-    node.name.toLowerCase().includes(q) ||
-    node.displayPath.toLowerCase().includes(q)
-  );
+  const scored = flatList
+    .map(node => ({
+      node,
+      score: scoreMatch(query, node.name, node.displayPath),
+    }))
+    .filter(m => m.score > 0);
+
+  scored.sort((a, b) => b.score - a.score);
 
   searchSuggestions.innerHTML = '';
 
-  matches.forEach(node => {
+  scored.forEach(m => {
+    const node = m.node;
     const li = document.createElement('li');
     li.className = 'search-result-item';
 
@@ -162,8 +190,8 @@ function searchTree(query) {
     searchSuggestions.appendChild(li);
   });
 
-  searchSuggestions.style.display = matches.length ? 'block' : 'none';
-  if (matches.length) positionSuggestions();
+  searchSuggestions.style.display = scored.length ? 'block' : 'none';
+  if (scored.length) positionSuggestions();
 }
 
 function positionSuggestions() {
@@ -178,10 +206,11 @@ export function setupSearch(getCachedTree, getFilteredTree, treeContainer) {
   _getFilteredTree = getFilteredTree;
   _treeContainer   = treeContainer;
 
-  const debouncedSearch = debounce((val) => searchTree(val), 120);
+  const debouncedSearch = debounce((val) => searchTree(val), 80);
 
   treeSearchInput.addEventListener('input', (e) => {
-    debouncedSearch(e.target.value.trim());
+    const val = e.target.value.trim();
+    debouncedSearch(val);
   });
 
   treeSearchInput.addEventListener('blur', () => {
@@ -190,3 +219,5 @@ export function setupSearch(getCachedTree, getFilteredTree, treeContainer) {
     }, 200);
   });
 }
+
+export { searchTree as _searchTree };
