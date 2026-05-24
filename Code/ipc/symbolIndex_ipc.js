@@ -4,6 +4,7 @@ const db = require('../database/db');
 const repoDb = require('../database/repositories');
 const fileDb = require('../database/indexedFiles');
 const symbolDb = require('../database/symbols');
+const importDb = require('../database/imports');
 const indexer = require('../indexer/indexer');
 const parser = require('../indexer/parser');
 const watcher = require('../indexer/watcher');
@@ -45,6 +46,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
   ipcMain.handle('symbolIndex:startIndexing', async (_, repoPath) => {
     try {
       _activeRepoPath = repoPath;
+      indexer.resetIndex(repoPath);
       const result = await indexer.indexRepo(repoPath, docignoreUtils, (progress) => {
         const win = getMainWindow();
         if (win && !win.isDestroyed()) {
@@ -58,6 +60,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
       });
 
       watcher.createWatcher(repoPath, (dirtyCount) => {
+        console.log('[SI IPC] indexing watcher dirty changed:', dirtyCount);
         const win = getMainWindow();
         if (win && !win.isDestroyed()) {
           win.webContents.send('symbolIndex:dirtyChanged', dirtyCount);
@@ -75,6 +78,21 @@ function register({ app, docignoreUtils, getMainWindow }) {
       const repo = repoDb.getByPath(repoPath);
       if (!repo) return { exists: false };
       const dirtyCount = repo.id ? fileDb.countDirtyByRepo(repo.id) : 0;
+
+      // Start the watcher if the repo is indexed
+      if (repo.id && repo.indexed) {
+        console.log('[SI IPC] Starting watcher for:', repoPath);
+        watcher.createWatcher(repoPath, (count) => {
+          const w = getMainWindow();
+          if (w && !w.isDestroyed()) {
+            console.log('[SI IPC] Sending dirtyChanged:', count);
+            w.webContents.send('symbolIndex:dirtyChanged', count);
+          } else {
+            console.log('[SI IPC] Main window not available, dirty:', count);
+          }
+        });
+      }
+
       return {
         exists: true,
         indexed: !!repo.indexed,
@@ -136,6 +154,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
     try {
       watcher.destroyWatcher(repoPath);
       indexer.deleteIndex(repoPath);
+      if (_activeRepoPath === repoPath) _activeRepoPath = null;
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -175,6 +194,85 @@ function register({ app, docignoreUtils, getMainWindow }) {
       return { files };
     } catch (err) {
       return { files: [], error: err.message };
+    }
+  });
+
+  ipcMain.handle('symbolIndex:getDirtyFiles', async (_, repoPath) => {
+    try {
+      const repo = repoDb.getByPath(repoPath);
+      if (!repo) return { files: [] };
+      const files = fileDb.getDirtyWithSymbols(repo.id);
+      return { files };
+    } catch (err) {
+      return { files: [], error: err.message };
+    }
+  });
+
+  ipcMain.handle('symbolIndex:reindexFile', async (_, repoPath, filePath) => {
+    try {
+      const repo = repoDb.getByPath(repoPath);
+      if (!repo) return { success: false, error: 'Repo not found' };
+      const result = await indexer.indexFile(repo.id, repoPath, filePath);
+      if (result && !result.error) {
+      const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
+      const file = fileDb.getByRepoAndPath(repo.id, relPath);
+        if (file) fileDb.markClean(file.id);
+        db.save();
+        return { success: true, symbolsCount: result.symbolsCount };
+      }
+      return { success: false, error: result?.error || 'Reindex failed' };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('symbolIndex:getFileDeps', async (_, repoPath, filePath) => {
+    try {
+      const repo = repoDb.getByPath(repoPath);
+      if (!repo) {
+        console.log('[SI IPC] getFileDeps: repo not found for', repoPath);
+        return { exists: false };
+      }
+      const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
+      console.log('[SI IPC] getFileDeps: absolutePath=%s relPath=%s', filePath, relPath);
+      const file = fileDb.getByRepoAndPath(repo.id, relPath);
+      if (!file) {
+        console.log('[SI IPC] getFileDeps: file not found in DB:', relPath);
+        return { exists: false };
+      }
+      console.log('[SI IPC] getFileDeps: found file id=%s path=%s', file.id, file.path);
+
+      const imports = importDb.getByFile(file.id);
+      const reverseDeps = importDb.getReverseDeps(file.id, repo.id);
+
+      console.log('[SI IPC] getFileDeps: imports=%d reverseDeps=%d', imports.length, reverseDeps.length);
+      if (imports.length > 0) {
+        console.log('[SI IPC] getFileDeps: first 3 imports:', imports.slice(0, 3).map(i => i.import_path));
+      }
+
+      // Enrich with source file path for reverse deps
+      const enrichedImports = imports.map(imp => ({
+        import_path: imp.import_path,
+        import_type: imp.import_type,
+        line: imp.line,
+        resolved: !!imp.resolved_file_id,
+        resolved_path: imp.resolved_path || null,
+      }));
+
+      const enrichedReverse = reverseDeps.map(rd => ({
+        source_path: rd.source_path,
+        import_path: rd.import_path,
+        import_type: rd.import_type,
+      }));
+
+      return {
+        exists: true,
+        file_path: filePath,
+        imports: enrichedImports,
+        imported_by: enrichedReverse,
+      };
+    } catch (err) {
+      return { exists: false, error: err.message };
     }
   });
 }

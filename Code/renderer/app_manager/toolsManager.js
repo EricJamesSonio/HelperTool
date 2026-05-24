@@ -9,6 +9,8 @@
 
 import { state } from './appState.js';
 import { initShortcutManager, openConfig } from '../shortcutEntry.js';
+import { initContextMenu } from '../utils/contextMenu.js';
+import DependenciesUI from '../dependencies/dependenciesUI.js';
 
 // ---- Module-level handles ------------------------------------------------
 
@@ -22,6 +24,10 @@ let _gitContainer  = null;
 let _symbolIndexTool  = null;
 let _symbolIndexPanel = null;
 let _symbolIndexContainer = null;
+
+let _depsUI       = null;
+let _depsPanel    = null;
+let _depsContainer = null;
 
 let _settingsManager = null;
 
@@ -177,7 +183,7 @@ function populateSidebar() {
   }
 
   // ── Symbol Index ────────────────────────────────────────
-  {
+  if (_feats.symbolIndex) {
     const item = createItem('\uD83D\uDD0D', 'Symbol Index', 'Search code symbols & navigate', function () {
       if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) {
         _symbolIndexPanel.classList.remove('open');
@@ -353,6 +359,45 @@ function destroySymbolIndexTool() {
   }
 }
 
+// ---- Dependencies Panel ------------------------------------------------------
+
+function createDepsPanel() {
+  const panel = document.createElement('div');
+  panel.id = 'depsPanel';
+  panel.className = 'deps-panel';
+  panel.innerHTML =
+    '<div class="deps-content">' +
+      '<div class="deps-navbar">' +
+        '<h1 class="deps-title">🔗 Dependencies</h1>' +
+        '<div class="deps-navbar-right">' +
+          '<button class="deps-close-btn" id="closeDepsBtn">✕</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="deps-body" id="depsContainer"></div>' +
+    '</div>';
+  document.body.appendChild(panel);
+
+  _depsContainer = panel.querySelector('#depsContainer');
+
+  panel.querySelector('#closeDepsBtn').addEventListener('click', function () {
+    panel.classList.remove('open');
+  });
+
+  panel.addEventListener('click', function (e) {
+    if (e.target === panel) {
+      panel.classList.remove('open');
+    }
+  });
+
+  document.addEventListener('keydown', function depsEscape(e) {
+    if (e.key === 'Escape' && panel.classList.contains('open')) {
+      panel.classList.remove('open');
+    }
+  });
+
+  return panel;
+}
+
 // ---- Close all tool panels (single-active-tool) ------------------------------
 
 function _closeAllToolPanels() {
@@ -367,6 +412,7 @@ function _closeAllToolPanels() {
   if (_secretHolder && _secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) _secretHolder.closeSecretHolder();
   if (_workspaceTool && _workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) _workspaceTool.closeWorkspacePanel();
   if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) _symbolIndexPanel.classList.remove('open');
+  if (_depsPanel && _depsPanel.classList.contains('open')) _depsPanel.classList.remove('open');
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -434,6 +480,40 @@ export async function initTools(feats, settingsManager) {
 
   // ---- CLI Tool Shortcuts --------------------------------------------------
   const shortcutActions = {};
+
+  if (feats.apiTool) {
+    shortcutActions.apiTool = function () {
+      if (_apiTool) {
+        if (_apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) {
+          _apiTool.closeApiToolPanel();
+          return;
+        }
+        _closeAllToolPanels();
+        _apiTool.openApiToolPanel();
+      }
+    };
+  }
+
+  shortcutActions.shortcutTool = function () {
+    if (openConfig.isConfigOpen && openConfig.isConfigOpen()) {
+      openConfig();
+      return;
+    }
+    openConfig();
+  };
+
+  // ---- Context Menu Init ----------------------------------------------------
+  initContextMenu((filePath) => {
+    if (!state.selectedRepoPath) return;
+    _closeAllToolPanels();
+    if (!_depsPanel) _depsPanel = createDepsPanel();
+    _depsPanel.classList.add('open');
+    if (!_depsUI) {
+      _depsUI = new DependenciesUI();
+      _depsUI.render(_depsContainer, state.selectedRepoPath);
+    }
+    _depsUI.showForFile(filePath);
+  });
 
   if (feats.apiTool) {
     shortcutActions.apiTool = function () {
@@ -528,21 +608,23 @@ export async function initTools(feats, settingsManager) {
     };
   }
 
-  shortcutActions.symbolIndex = function () {
-    if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) {
-      _symbolIndexPanel.classList.remove('open');
-      return;
-    }
-    _closeAllToolPanels();
-    if (!_symbolIndexPanel) _symbolIndexPanel = createSymbolIndexPanel();
-    _symbolIndexPanel.classList.add('open');
-    if (_symbolIndexTool && _symbolIndexTool.isInitialized) {
-      _symbolIndexTool.refresh();
-    } else {
-      var repoPath = state.selectedRepoPath;
-      if (repoPath) initializeSymbolIndexTool(repoPath);
-    }
-  };
+  if (_feats.symbolIndex) {
+    shortcutActions.symbolIndex = function () {
+      if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) {
+        _symbolIndexPanel.classList.remove('open');
+        return;
+      }
+      _closeAllToolPanels();
+      if (!_symbolIndexPanel) _symbolIndexPanel = createSymbolIndexPanel();
+      _symbolIndexPanel.classList.add('open');
+      if (_symbolIndexTool && _symbolIndexTool.isInitialized) {
+        _symbolIndexTool.refresh();
+      } else {
+        var repoPath = state.selectedRepoPath;
+        if (repoPath) initializeSymbolIndexTool(repoPath);
+      }
+    };
+  }
 
   initShortcutManager(shortcutActions, _feats);
 }
