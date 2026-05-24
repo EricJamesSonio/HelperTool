@@ -14,67 +14,72 @@
   --font-ui:   'Syne', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
 
-  /* Backgrounds */
-  --bg-base:        #070d1a;
-  --bg-surface:     #0c1427;
-  --bg-elevated:    #111d34;
-  --bg-overlay:     #162038;
-  --bg-hover:       rgba(255,255,255,0.04);
-  --bg-active:      rgba(255,255,255,0.07);
-  --bg-raised:      #1a2540;
-  --bg-statusbar:   #0e1830;
-  --bg-root:        #070d1a;
-  --bg-tree:        #0a1220;
+  /* Backgrounds — GitHub Dark High Contrast */
+  --bg-base:        #010409;
+  --bg-surface:     #0a0c10;
+  --bg-elevated:    #0f1117;
+  --bg-overlay:     #15181d;
+  --bg-hover:       rgba(255,255,255,0.05);
+  --bg-active:      rgba(255,255,255,0.09);
+  --bg-raised:      #1c2028;
+  --bg-statusbar:   #010409;
+  --bg-root:        #010409;
+  --bg-tree:        #05070a;
 
-  /* Borders */
-  --border-subtle:  rgba(255,255,255,0.06);
-  --border-default: rgba(255,255,255,0.10);
-  --border-strong:  rgba(255,255,255,0.18);
-  --border-mid:     rgba(255,255,255,0.12);
+  /* Borders — more visible on darker bg */
+  --border-subtle:  rgba(255,255,255,0.07);
+  --border-default: rgba(255,255,255,0.12);
+  --border-strong:  rgba(255,255,255,0.20);
+  --border-mid:     rgba(255,255,255,0.14);
 
-  /* Text */
-  --text-primary:   #eef2ff;
-  --text-secondary: #94a3c4;
-  --text-muted:     #556080;
-  --text-faint:     #364060;
+  /* Text — High Contrast */
+  --text-primary:   #f0f6fc;
+  --text-secondary: #b1bac4;
+  --text-muted:     #8b949e;
+  --text-faint:     #545d68;
 
-  /* Accent */
-  --accent:         #f0b429;
-  --accent-dim:     rgba(240,180,41,0.15);
-  --accent-glow:    rgba(240,180,41,0.25);
-  --accent-border:  rgba(240,180,41,0.35);
+  /* Primary accent — cyan */
+  --accent:         #22d3ee;
+  --accent-dim:     rgba(34,211,238,0.12);
+  --accent-glow:    rgba(34,211,238,0.20);
+  --accent-border:  rgba(34,211,238,0.30);
+
+  /* Secondary accent — purple */
+  --purple-accent:      #8b5cf6;
+  --purple-accent-dim:  rgba(139,92,246,0.12);
+  --purple-accent-glow: rgba(139,92,246,0.20);
 
   /* Semantic */
-  --green:          #34d399;
-  --green-dim:      rgba(52,211,153,0.13);
-  --red:            #f87171;
-  --red-dim:        rgba(248,113,113,0.13);
-  --blue:           #60a5fa;
-  --blue-dim:       rgba(96,165,250,0.13);
-  --purple:         #a78bfa;
-  --purple-dim:     rgba(167,139,250,0.13);
-  --yellow:         #fbbf24;
-  --yellow-dim:     rgba(251,191,36,0.13);
+  --green:          #2dd4b0;
+  --green-dim:      rgba(45,212,176,0.13);
+  --red:            #f85149;
+  --red-dim:        rgba(248,81,73,0.13);
+  --blue:           #58a6ff;
+  --blue-dim:       rgba(88,166,255,0.13);
+  --purple:         #8b5cf6;
+  --purple-dim:     rgba(139,92,246,0.13);
+  --yellow:         #d29922;
+  --yellow-dim:     rgba(210,153,34,0.13);
 
   /* Tree node colors */
-  --node-folder:          #93c5fd;
-  --node-file:            #94a3c4;
-  --node-selected-file:   #fbbf24;
-  --node-selected-folder: #34d399;
+  --node-folder:          #22d3ee;
+  --node-file:            #8b949e;
+  --node-selected-file:   #d29922;
+  --node-selected-folder: #2dd4b0;
 
   /* Folder/file tokens */
-  --folder-bg:           rgba(96,165,250,0.08);
-  --folder-border:       rgba(96,165,250,0.20);
-  --folder-text:         #93c5fd;
-  --folder-bg-h:         rgba(96,165,250,0.14);
-  --folder-hover-border: rgba(96,165,250,0.38);
-  --folder-hover-color:  #bfdbfe;
-  --file-bg:             rgba(148,163,196,0.05);
-  --file-border:         rgba(148,163,196,0.13);
-  --file-text:           #94a3c4;
-  --file-bg-h:           rgba(148,163,196,0.10);
-  --file-hover-border:   rgba(148,163,196,0.28);
-  --file-hover-color:    #cbd5e1;
+  --folder-bg:           rgba(34,211,238,0.08);
+  --folder-border:       rgba(34,211,238,0.18);
+  --folder-text:         #22d3ee;
+  --folder-bg-h:         rgba(34,211,238,0.14);
+  --folder-hover-border: rgba(34,211,238,0.35);
+  --folder-hover-color:  #a5f3fc;
+  --file-bg:             rgba(139,148,158,0.05);
+  --file-border:         rgba(139,148,158,0.13);
+  --file-text:           #8b949e;
+  --file-bg-h:           rgba(139,148,158,0.10);
+  --file-hover-border:   rgba(139,148,158,0.28);
+  --file-hover-color:    #c9d1d9;
   --connector-color:     rgba(255,255,255,0.10);
 
   /* Shadows */
@@ -345,9 +350,6 @@ body {
   color: var(--text-primary);
 }
 
-.spinning { animation: spin 0.7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
 .clear-btn:hover { background: var(--red-dim); border-color: var(--red); color: var(--red); }
 
 .nav-btn {
@@ -481,11 +483,6 @@ body {
 }
 .modal-overlay.open { display: flex; }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 /* ── Modal content ─────────────────────────────────────────── */
 .modal-content {
   background: var(--bg-surface);
@@ -498,11 +495,6 @@ body {
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
 }
 
 .shortcut-input-modal { max-width: 700px; }
@@ -707,59 +699,6 @@ body {
   position: relative;
   z-index: 40;
 }
-
-.root-jumper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  flex-wrap: nowrap;
-  min-height: 36px;
-}
-.root-jumper::-webkit-scrollbar { display: none; }
-
-.root-jumper-label {
-  font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.root-jumper-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 11px;
-  background: var(--folder-bg);
-  border: 1px solid var(--folder-border);
-  border-radius: 99px;
-  color: var(--folder-text);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background var(--ease), border-color var(--ease), color var(--ease), transform 0.1s;
-}
-.root-jumper-pill:hover {
-  background: var(--folder-bg-h);
-  border-color: var(--folder-hover-border);
-  color: var(--folder-hover-color);
-  transform: translateY(-1px);
-}
-.root-jumper-pill:active { transform: translateY(0); }
 
 /* ═════════════════════════════════════════════════
    TOOLS SIDEBAR (collapsible, hover-expand, pin)
