@@ -35,8 +35,16 @@
     "electron-builder": "^26.8.1"
   },
   "dependencies": {
+    "chokidar": "^5.0.0",
     "micromatch": "^4.0.8",
     "minimatch": "^10.1.1",
-    "simple-git": "^3.36.0"
+    "simple-git": "^3.36.0",
+    "sql.js": "^1.14.1",
+    "tree-sitter-css": "^0.25.0",
+    "tree-sitter-html": "^0.23.2",
+    "tree-sitter-javascript": "^0.25.0",
+    "tree-sitter-python": "^0.25.0",
+    "tree-sitter-typescript": "^0.23.2",
+    "web-tree-sitter": "^0.26.9"
   }
 }
