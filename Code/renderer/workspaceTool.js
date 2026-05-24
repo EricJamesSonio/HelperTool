@@ -9,6 +9,8 @@
  * - PERSISTENT STORAGE (workers/tickets/logs stay after close)
  */
 
+import { confirmDialog } from './utils/confirmDialog.js';
+
 const WORKER_ROLES = [
   'developer',
   'product manager',
@@ -439,13 +441,12 @@ function _createWorkerCard(worker) {
     _showEditWorkerModal(worker);
   });
 
-  card.querySelector('.workspace-card-delete').addEventListener('click', (e) => {
+  card.querySelector('.workspace-card-delete').addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (confirm(`Delete ${worker.name} and all their tickets?`)) {
-      deleteWorker(worker.id);
-      _render();
-    }
-    window.focus();
+    const ok = await confirmDialog(`Delete ${worker.name} and all their tickets?`);
+    if (!ok) return;
+    deleteWorker(worker.id);
+    _render();
   });
 
   return card;
@@ -692,12 +693,11 @@ function _createTicketElement(ticket) {
     _render();
   });
 
-  el.querySelector('.workspace-ticket-delete').addEventListener('click', () => {
-    if (confirm('Delete this ticket?')) {
-      deleteTicket(ticket.id);
-      _render();
-    }
-    window.focus();
+  el.querySelector('.workspace-ticket-delete').addEventListener('click', async () => {
+    const ok = await confirmDialog('Delete this ticket?');
+    if (!ok) return;
+    deleteTicket(ticket.id);
+    _render();
   });
 
   return el;

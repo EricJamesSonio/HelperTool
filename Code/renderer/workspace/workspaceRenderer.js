@@ -13,6 +13,7 @@ import { getAllWorkers, createWorker, updateWorker, deleteWorker,
 import { getTicketsByProject, createTicket, updateTicket,
          updateTicketStatus, deleteTicket, TICKET_STATUSES,
          TICKET_PRIORITIES, STATUS_COLORS, PRIORITY_COLORS }      from './ticketManager.js';
+import { confirmDialog }                                          from '../utils/confirmDialog.js';
 
 // ─── Nav state ────────────────────────────────────────────────────────────────
 
@@ -286,13 +287,12 @@ function _buildProjectCard(project) {
     _showEditProjectModal(project);
   });
 
-  card.querySelector('.workspace-card-delete').addEventListener('click', e => {
+  card.querySelector('.workspace-card-delete').addEventListener('click', async e => {
     e.stopPropagation();
-    if (confirm(`Delete project "${project.title}" and all its tickets?`)) {
-      window.focus();
-      deleteProject(project.id);
-      render();
-    }
+    const ok = await confirmDialog(`Delete project "${project.title}" and all its tickets?`);
+    if (!ok) return;
+    deleteProject(project.id);
+    render();
   });
 
   return card;
@@ -412,13 +412,12 @@ function _buildWorkerCard(worker) {
     e.stopPropagation();
     _showEditWorkerModal(worker);
   });
-  card.querySelector('.workspace-card-delete').addEventListener('click', e => {
+  card.querySelector('.workspace-card-delete').addEventListener('click', async e => {
     e.stopPropagation();
-    if (confirm(`Delete ${worker.name}? Their tickets will become unassigned.`)) {
-      window.focus();
-      deleteWorker(worker.id);
-      render();
-    }
+    const ok = await confirmDialog(`Delete ${worker.name}? Their tickets will become unassigned.`);
+    if (!ok) return;
+    deleteWorker(worker.id);
+    render();
   });
   return card;
 }
@@ -600,12 +599,11 @@ function _renderTabWorkers(el) {
         <span class="ws-assigned-tickets">${ticketCount} ticket${ticketCount !== 1 ? 's' : ''}</span>
         <button class="workspace-card-delete ws-remove-worker-btn" data-wid="${wid}" title="Remove">✕</button>
       `;
-      row.querySelector('.ws-remove-worker-btn').addEventListener('click', () => {
-        if (confirm(`Remove ${worker.name} from this project?`)) {
-          window.focus();
-          removeWorkerFromProject(p.id, wid);
-          render();
-        }
+      row.querySelector('.ws-remove-worker-btn').addEventListener('click', async () => {
+        const ok = await confirmDialog(`Remove ${worker.name} from this project?`);
+        if (!ok) return;
+        removeWorkerFromProject(p.id, wid);
+        render();
       });
       list.appendChild(row);
     });
@@ -752,8 +750,11 @@ function _buildKanbanCard(ticket, workers, project) {
   card.querySelector('.workspace-ticket-edit').addEventListener('click', () =>
     _showEditTicketModal(ticket, project, workers)
   );
-  card.querySelector('.workspace-ticket-delete').addEventListener('click', () => {
-    if (confirm('Delete this ticket?')) { window.focus(); deleteTicket(ticket.id); render(); }
+  card.querySelector('.workspace-ticket-delete').addEventListener('click', async () => {
+    const ok = await confirmDialog('Delete this ticket?');
+    if (!ok) return;
+    deleteTicket(ticket.id);
+    render();
   });
   card.querySelector('.ws-kanban-status-select').addEventListener('change', e => {
     updateTicketStatus(ticket.id, e.target.value);
