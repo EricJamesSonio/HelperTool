@@ -379,32 +379,48 @@ function extractImports(node, imports, language, sourceCode) {
 function extractJSTSImports(node, imports, sourceCode) {
   const type = node.type;
 
-  // Debug: log import-related node types
-  if (type === 'import_declaration' || type === 'export_statement' || type === 'call_expression' || type === 'import_statement') {
-    console.log('[Parser] JS node type=%s text=%s', type, sourceCode.slice(node.startIndex, node.endIndex).substring(0, 80));
-  }
-
   // import X from 'path' / import { X } from 'path' / import * as X from 'path'
-  if (type === 'import_declaration') {
-    console.log('[Parser] found import_declaration:', sourceCode.slice(node.startIndex, node.endIndex).substring(0, 80));
+  if (type === 'import_statement') {
     const sourceNode = node.childForFieldName('source');
     if (!sourceNode) return;
     const importPath = sourceNode.text.replace(/['"]/g, '');
 
-    // Determine import type
+    // Determine import type and extract imported symbols
     const clause = node.childForFieldName('import_clause');
     let importType = 'side-effect';
+    const importedSymbols = [];
+
     if (clause) {
       if (clause.type === 'namespace_import') {
         importType = 'namespace';
+        const alias = clause.childForFieldName('name');
+        if (alias) importedSymbols.push(alias.text);
       } else if (clause.type === 'named_imports') {
         importType = 'named';
+        for (const spec of clause.namedChildren) {
+          if (spec.type === 'import_specifier') {
+            const name = spec.childForFieldName('name');
+            if (name) importedSymbols.push(name.text);
+          }
+        }
       } else {
+        // default import: import X from ...
+        // possibly with named: import X, { Y, Z } from ...
         const defaultName = clause.childForFieldName('name');
         if (defaultName) {
+          importedSymbols.push(defaultName.text);
           importType = 'default';
-          const namedSeen = clause.namedChildren.some(c => c.type === 'named_imports');
-          if (namedSeen) importType = 'default-named';
+        }
+        for (const child of clause.namedChildren) {
+          if (child.type === 'named_imports') {
+            importType = 'default-named';
+            for (const spec of child.namedChildren) {
+              if (spec.type === 'import_specifier') {
+                const name = spec.childForFieldName('name');
+                if (name) importedSymbols.push(name.text);
+              }
+            }
+          }
         }
       }
     }
@@ -412,6 +428,7 @@ function extractJSTSImports(node, imports, sourceCode) {
     imports.push({
       import_path: importPath,
       import_type: importType,
+      imported_symbols: importedSymbols,
       line: node.startPosition.row + 1,
       column: node.startPosition.column + 1,
     });
@@ -423,9 +440,17 @@ function extractJSTSImports(node, imports, sourceCode) {
     const sourceNode = node.childForFieldName('source');
     if (!sourceNode) return;
     const importPath = sourceNode.text.replace(/['"]/g, '');
+    const importedSymbols = [];
+    for (const child of node.namedChildren) {
+      if (child.type === 'export_specifier') {
+        const name = child.childForFieldName('name');
+        if (name) importedSymbols.push(name.text);
+      }
+    }
     imports.push({
       import_path: importPath,
       import_type: 're-export',
+      imported_symbols: importedSymbols,
       line: node.startPosition.row + 1,
       column: node.startPosition.column + 1,
     });
@@ -445,6 +470,7 @@ function extractJSTSImports(node, imports, sourceCode) {
         imports.push({
           import_path: importPath,
           import_type: 'require',
+          imported_symbols: [],
           line: node.startPosition.row + 1,
           column: node.startPosition.column + 1,
         });

@@ -226,7 +226,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
     }
   });
 
-  ipcMain.handle('symbolIndex:getFileDeps', async (_, repoPath, filePath) => {
+  ipcMain.handle('symbolIndex:getFileDeps', async (_, repoPath, filePath, mode) => {
     try {
       const repo = repoDb.getByPath(repoPath);
       if (!repo) {
@@ -246,23 +246,35 @@ function register({ app, docignoreUtils, getMainWindow }) {
       const reverseDeps = importDb.getReverseDeps(file.id, repo.id);
 
       console.log('[SI IPC] getFileDeps: imports=%d reverseDeps=%d', imports.length, reverseDeps.length);
-      if (imports.length > 0) {
-        console.log('[SI IPC] getFileDeps: first 3 imports:', imports.slice(0, 3).map(i => i.import_path));
+
+      // For function mode, return symbol-level cross-refs
+      if (mode === 'function') {
+        const funcData = buildFuncDeps(file, imports, reverseDeps, repo);
+        console.log('[SI IPC] getFileDeps: funcImports=%d funcReverse=%d',
+          funcData.funcImports.length, funcData.funcReverse.length);
+        return {
+          exists: true,
+          file_path: filePath,
+          mode: 'function',
+          ...funcData,
+        };
       }
 
-      // Enrich with source file path for reverse deps
+      // File mode (default)
       const enrichedImports = imports.map(imp => ({
         import_path: imp.import_path,
         import_type: imp.import_type,
         line: imp.line,
         resolved: !!imp.resolved_file_id,
         resolved_path: imp.resolved_path || null,
+        imported_symbols: imp.imported_symbols || [],
       }));
 
       const enrichedReverse = reverseDeps.map(rd => ({
         source_path: rd.source_path,
         import_path: rd.import_path,
         import_type: rd.import_type,
+        imported_symbols: rd.imported_symbols || [],
       }));
 
       return {
@@ -275,6 +287,57 @@ function register({ app, docignoreUtils, getMainWindow }) {
       return { exists: false, error: err.message };
     }
   });
+}
+
+function buildFuncDeps(file, imports, reverseDeps, repo) {
+  const funcImports = [];
+  const funcReverse = [];
+
+  // For each resolved import, look up which symbols from the target are used
+  for (const imp of imports) {
+    if (!imp.resolved_file_id) continue;
+    const symbols = imp.imported_symbols || [];
+    if (symbols.length === 0) continue;
+
+    // Get the symbol details from the resolved file
+    const resolvedSymbols = symbolDb.getByFile(imp.resolved_file_id);
+    const matched = resolvedSymbols.filter(s => symbols.includes(s.name));
+    funcImports.push({
+      import_path: imp.import_path,
+      resolved_path: imp.resolved_path || imp.import_path,
+      import_type: imp.import_type,
+      symbols: matched.length > 0
+        ? matched.map(s => ({ name: s.name, type: s.type, line: s.line }))
+        : symbols.map(n => ({ name: n, type: 'unknown', line: null })),
+    });
+  }
+
+  // Reverse: for each file that imports this file, get which symbols of ours they use
+  const ourSymbols = symbolDb.getByFile(file.id);
+  const ourSymbolNames = new Set(ourSymbols.map(s => s.name));
+
+  for (const rd of reverseDeps) {
+    const symbols = rd.imported_symbols || [];
+    if (symbols.length === 0) {
+      // If no specific symbols imported, show all our exports
+      funcReverse.push({
+        source_path: rd.source_path,
+        import_type: rd.import_type,
+        symbols: ourSymbols.map(s => ({ name: s.name, type: s.type, line: s.line })),
+      });
+    } else {
+      const matched = ourSymbols.filter(s => symbols.includes(s.name));
+      funcReverse.push({
+        source_path: rd.source_path,
+        import_type: rd.import_type,
+        symbols: matched.length > 0
+          ? matched.map(s => ({ name: s.name, type: s.type, line: s.line }))
+          : symbols.map(n => ({ name: n, type: 'unknown', line: null })),
+      });
+    }
+  }
+
+  return { funcImports, funcReverse };
 }
 
 module.exports = { register };

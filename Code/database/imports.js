@@ -4,12 +4,12 @@ function insertBatch(imports) {
   if (!imports || imports.length === 0) return;
   const db = getDb();
   const stmt = db.prepare(`
-    INSERT INTO file_imports (repo_id, file_id, import_path, import_type, resolved_file_id, line, column)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO file_imports (repo_id, file_id, import_path, import_type, resolved_file_id, imported_symbols, line, column)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   db.run('BEGIN');
   for (const imp of imports) {
-    stmt.bind([imp.repo_id, imp.file_id, imp.import_path, imp.import_type, imp.resolved_file_id || null, imp.line || null, imp.column || null]);
+    stmt.bind([imp.repo_id, imp.file_id, imp.import_path, imp.import_type, imp.resolved_file_id || null, imp.imported_symbols ? JSON.stringify(imp.imported_symbols) : null, imp.line || null, imp.column || null]);
     stmt.step();
     stmt.reset();
   }
@@ -29,7 +29,13 @@ function getByFile(fileId) {
   `);
   stmt.bind([fileId]);
   while (stmt.step()) {
-    results.push(stmt.getAsObject());
+    const row = stmt.getAsObject();
+    if (row.imported_symbols) {
+      try { row.imported_symbols = JSON.parse(row.imported_symbols); } catch (e) { row.imported_symbols = []; }
+    } else {
+      row.imported_symbols = [];
+    }
+    results.push(row);
   }
   stmt.free();
   return results;
@@ -47,7 +53,13 @@ function getReverseDeps(fileId, repoId) {
   `);
   stmt.bind([fileId, repoId]);
   while (stmt.step()) {
-    results.push(stmt.getAsObject());
+    const row = stmt.getAsObject();
+    if (row.imported_symbols) {
+      try { row.imported_symbols = JSON.parse(row.imported_symbols); } catch (e) { row.imported_symbols = []; }
+    } else {
+      row.imported_symbols = [];
+    }
+    results.push(row);
   }
   stmt.free();
   return results;

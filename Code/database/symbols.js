@@ -156,4 +156,16 @@ function getByRepoGrouped(repoId) {
   return Object.values(files);
 }
 
-module.exports = { insertBatch, deleteByFile, deleteByRepo, search, countByRepo, countByType, getByRepoGrouped };
+function getByFile(fileId) {
+  const db = getDb();
+  const results = [];
+  const stmt = db.prepare('SELECT * FROM symbols WHERE file_id = ? ORDER BY line');
+  stmt.bind([fileId]);
+  while (stmt.step()) {
+    results.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return results;
+}
+
+module.exports = { insertBatch, deleteByFile, deleteByRepo, search, countByRepo, countByType, getByRepoGrouped, getByFile };

@@ -103,6 +103,7 @@ function createSchema() {
       import_path   TEXT NOT NULL,
       import_type   TEXT NOT NULL,
       resolved_file_id INTEGER,
+      imported_symbols TEXT,
       line          INTEGER,
       column        INTEGER
     )

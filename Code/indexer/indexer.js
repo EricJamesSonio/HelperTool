@@ -137,6 +137,7 @@ async function indexFile(repoId, repoPath, relPath) {
           file_id: fileId,
           import_path: imp.import_path,
           import_type: imp.import_type,
+          imported_symbols: imp.imported_symbols || [],
           resolved_file_id: resolvedFileId,
           line: imp.line,
           column: imp.column,

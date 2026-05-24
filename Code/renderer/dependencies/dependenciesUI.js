@@ -23,7 +23,7 @@ class DependenciesUI {
           <button class="deps-tab deps-tab-active" data-mode="file">
             <span>📄</span> File
           </button>
-          <button class="deps-tab" data-mode="function" disabled title="Coming soon">
+          <button class="deps-tab" data-mode="function">
             <span>🔧</span> Function
           </button>
         </div>
@@ -60,9 +60,7 @@ class DependenciesUI {
     const pathEl = this.container.querySelector('#depsFilePath');
     if (pathEl) pathEl.textContent = filePath;
 
-    if (this._currentMode === 'file') {
-      await this.showDeps();
-    }
+    await this.showDeps();
   }
 
   async showDeps() {
@@ -74,65 +72,19 @@ class DependenciesUI {
     body.innerHTML = '<div class="deps-loading">Loading dependencies…</div>';
 
     try {
-      const result = await this.handler.getFileDeps(this._activeRepoPath, this._activeFilePath);
+      const mode = this._currentMode;
+      const result = await this.handler.getFileDeps(this._activeRepoPath, this._activeFilePath, mode);
       if (!result.exists) {
         body.innerHTML = '<div class="deps-empty">File not found in index</div>';
         return;
       }
 
-      const imports = result.imports || [];
-      const importedBy = result.imported_by || [];
-
-      let html = '';
-
-      // Imports section
-      html += `<div class="deps-section">
-        <div class="deps-section-header">
-          <span class="deps-section-title">📥 Imports</span>
-          <span class="deps-section-count">${imports.length}</span>
-        </div>
-        <div class="deps-section-body">`;
-
-      if (imports.length === 0) {
-        html += '<div class="deps-empty-sm">No imports found</div>';
+      if (mode === 'function') {
+        this._renderFuncDeps(body, result);
       } else {
-        html += imports.map(imp => {
-          const resolvedClass = imp.resolved ? 'deps-item-resolved' : 'deps-item-unresolved';
-          const typeLabel = imp.import_type;
-          return `<div class="deps-item ${resolvedClass}" data-path="${this._escape(imp.resolved_path || imp.import_path)}">
-            <span class="deps-item-path">${this._escape(imp.resolved_path || imp.import_path)}</span>
-            <span class="deps-item-type">${typeLabel}</span>
-            <span class="deps-item-line">:${imp.line || '?'}</span>
-          </div>`;
-        }).join('');
+        this._renderFileDeps(body, result);
       }
 
-      html += '</div></div>';
-
-      // Reverse deps section
-      html += `<div class="deps-section">
-        <div class="deps-section-header">
-          <span class="deps-section-title">📤 Used by</span>
-          <span class="deps-section-count">${importedBy.length}</span>
-        </div>
-        <div class="deps-section-body">`;
-
-      if (importedBy.length === 0) {
-        html += '<div class="deps-empty-sm">No files import this file</div>';
-      } else {
-        html += importedBy.map(rd => {
-          return `<div class="deps-item deps-item-resolved" data-path="${this._escape(rd.source_path)}">
-            <span class="deps-item-path">${this._escape(rd.source_path)}</span>
-            <span class="deps-item-type">${rd.import_type}</span>
-          </div>`;
-        }).join('');
-      }
-
-      html += '</div></div>';
-
-      body.innerHTML = html;
-
-      // Click handlers to open files in tree
       body.querySelectorAll('.deps-item').forEach(el => {
         el.addEventListener('click', () => {
           const path = el.dataset.path;
@@ -183,6 +135,118 @@ class DependenciesUI {
   showEmpty() {
     const body = this.container.querySelector('#depsBody');
     if (body) body.innerHTML = '<div class="deps-empty">Right-click a file in the tree → Find Dependencies</div>';
+  }
+
+  _renderFileDeps(body, result) {
+    const imports = result.imports || [];
+    const importedBy = result.imported_by || [];
+
+    let html = '';
+
+    html += `<div class="deps-section">
+      <div class="deps-section-header">
+        <span class="deps-section-title">📥 Imports</span>
+        <span class="deps-section-count">${imports.length}</span>
+      </div>
+      <div class="deps-section-body">`;
+
+    if (imports.length === 0) {
+      html += '<div class="deps-empty-sm">No imports found</div>';
+    } else {
+      html += imports.map(imp => {
+        const resolvedClass = imp.resolved ? 'deps-item-resolved' : 'deps-item-unresolved';
+        return `<div class="deps-item ${resolvedClass}" data-path="${this._escape(imp.resolved_path || imp.import_path)}">
+          <span class="deps-item-path">${this._escape(imp.resolved_path || imp.import_path)}</span>
+          <span class="deps-item-type">${imp.import_type}</span>
+          <span class="deps-item-line">:${imp.line || '?'}</span>
+        </div>`;
+      }).join('');
+    }
+
+    html += '</div></div>';
+
+    html += `<div class="deps-section">
+      <div class="deps-section-header">
+        <span class="deps-section-title">📤 Used by</span>
+        <span class="deps-section-count">${importedBy.length}</span>
+      </div>
+      <div class="deps-section-body">`;
+
+    if (importedBy.length === 0) {
+      html += '<div class="deps-empty-sm">No files import this file</div>';
+    } else {
+      html += importedBy.map(rd => {
+        return `<div class="deps-item deps-item-resolved" data-path="${this._escape(rd.source_path)}">
+          <span class="deps-item-path">${this._escape(rd.source_path)}</span>
+          <span class="deps-item-type">${rd.import_type}</span>
+        </div>`;
+      }).join('');
+    }
+
+    html += '</div></div>';
+    body.innerHTML = html;
+  }
+
+  _renderFuncDeps(body, result) {
+    const funcImports = result.funcImports || [];
+    const funcReverse = result.funcReverse || [];
+
+    let html = '';
+
+    // Symbols used from imports
+    html += `<div class="deps-section">
+      <div class="deps-section-header">
+        <span class="deps-section-title">🔧 Used symbols</span>
+        <span class="deps-section-count">${funcImports.length}</span>
+      </div>
+      <div class="deps-section-body">`;
+
+    if (funcImports.length === 0) {
+      html += '<div class="deps-empty-sm">No imported symbols used</div>';
+    } else {
+      html += funcImports.map(fi => {
+        return `<div class="deps-func-group" data-path="${this._escape(fi.resolved_path)}">
+          <div class="deps-func-source">${this._escape(fi.resolved_path)} <span class="deps-item-type">${fi.import_type}</span></div>
+          <div class="deps-func-symbols">${fi.symbols.map(s =>
+            `<span class="deps-func-symbol deps-func-${s.type}">${this._escape(s.name)}${s.line ? ' :' + s.line : ''}</span>`
+          ).join(', ')}</div>
+        </div>`;
+      }).join('');
+    }
+
+    html += '</div></div>';
+
+    // Our symbols used by other files
+    html += `<div class="deps-section">
+      <div class="deps-section-header">
+        <span class="deps-section-title">📤 Used by others</span>
+        <span class="deps-section-count">${funcReverse.length}</span>
+      </div>
+      <div class="deps-section-body">`;
+
+    if (funcReverse.length === 0) {
+      html += '<div class="deps-empty-sm">No files use this file symbols</div>';
+    } else {
+      html += funcReverse.map(fr => {
+        return `<div class="deps-func-group" data-path="${this._escape(fr.source_path)}">
+          <div class="deps-func-source">${this._escape(fr.source_path)} <span class="deps-item-type">${fr.import_type}</span></div>
+          <div class="deps-func-symbols">${fr.symbols.map(s =>
+            `<span class="deps-func-symbol deps-func-${s.type}">${this._escape(s.name)}${s.line ? ' :' + s.line : ''}</span>`
+          ).join(', ')}</div>
+        </div>`;
+      }).join('');
+    }
+
+    html += '</div></div>';
+    body.innerHTML = html;
+
+    // Click handlers for func groups
+    body.querySelectorAll('.deps-func-group').forEach(el => {
+      el.addEventListener('click', () => {
+        const path = el.dataset.path;
+        if (path) this.selectFileInTree(path);
+      });
+    });
   }
 
   _escape(text) {
