@@ -531,9 +531,8 @@
 .si-browse-file {
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
   border-radius: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   overflow: hidden;
-  cursor: pointer;
   transition: border-color 0.15s;
 }
 
@@ -544,10 +543,29 @@
 .si-browse-file-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 6px 8px;
   background: var(--bg-hover, rgba(255,255,255,0.02));
   font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.si-browse-file-header:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+}
+
+.si-browse-file-open .si-browse-file-header {
+  background: var(--accent-dim, rgba(34,211,238,0.06));
+}
+
+.si-browse-toggle {
+  font-size: 9px;
+  color: var(--text-muted, #556080);
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  transition: transform 0.1s;
 }
 
 .si-browse-file-path {
@@ -571,20 +589,25 @@
 }
 
 .si-browse-file-count {
-  font-size: 11px;
-  color: var(--text-muted, #556080);
+  font-size: 10px;
+  color: var(--text-faint, #556080);
   flex-shrink: 0;
 }
 
 .si-browse-symbols {
+  display: none;
   border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.04));
+}
+
+.si-browse-file-open .si-browse-symbols {
+  display: block;
 }
 
 .si-browse-symbol {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px 4px 24px;
+  padding: 3px 10px 3px 20px;
   font-size: 12px;
   cursor: pointer;
   transition: background 0.1s;
@@ -611,8 +634,8 @@
   margin-left: auto;
 }
 
-.si-browse-more {
-  padding: 4px 10px 4px 24px;
+.si-browse-empty {
+  padding: 6px 10px 6px 20px;
   font-size: 11px;
   color: var(--text-faint, #364060);
   font-style: italic;
