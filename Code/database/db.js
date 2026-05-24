@@ -83,7 +83,11 @@ function createSchema() {
     )
   `);
 
-  _db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, signature, content=symbols, content_rowid=id)`);
+  try {
+    _db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, signature, content=symbols, content_rowid=id)`);
+  } catch (e) {
+    console.log('[DB] FTS5 not available, search fallback will be used:', e.message);
+  }
 
   _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_repo_id ON symbols(repo_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id)');
@@ -91,18 +95,39 @@ function createSchema() {
   _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_type ON symbols(type)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_indexed_files_repo_dirty ON indexed_files(repo_id, is_dirty)');
 
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS file_imports (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+      file_id       INTEGER NOT NULL REFERENCES indexed_files(id) ON DELETE CASCADE,
+      import_path   TEXT NOT NULL,
+      import_type   TEXT NOT NULL,
+      resolved_file_id INTEGER,
+      line          INTEGER,
+      column        INTEGER
+    )
+  `);
+  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_file ON file_imports(file_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_resolved ON file_imports(resolved_file_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_repo ON file_imports(repo_id)');
+
   const row = _db.exec("SELECT name FROM sqlite_master WHERE type='trigger' AND name='symbols_ai'");
-  if (row.length === 0) {
-    _db.run(`CREATE TRIGGER symbols_ai AFTER INSERT ON symbols BEGIN
-      INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
-    END`);
-    _db.run(`CREATE TRIGGER symbols_ad AFTER DELETE ON symbols BEGIN
-      INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
-    END`);
-    _db.run(`CREATE TRIGGER symbols_au AFTER UPDATE ON symbols BEGIN
-      INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
-      INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
-    END`);
+  const hasFts = _db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols_fts'");
+  if (row.length === 0 && hasFts.length > 0) {
+    try {
+      _db.run(`CREATE TRIGGER symbols_ai AFTER INSERT ON symbols BEGIN
+        INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
+      END`);
+      _db.run(`CREATE TRIGGER symbols_ad AFTER DELETE ON symbols BEGIN
+        INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
+      END`);
+      _db.run(`CREATE TRIGGER symbols_au AFTER UPDATE ON symbols BEGIN
+        INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
+        INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
+      END`);
+    } catch (e) {
+      console.log('[DB] FTS5 triggers skipped:', e.message);
+    }
   }
 }
 

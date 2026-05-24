@@ -39,7 +39,25 @@ function markClean(id) {
 function getDirtyByRepo(repoId) {
   const db = getDb();
   const results = [];
-  const stmt = db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? AND is_dirty = 1');
+  const stmt = db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? AND is_dirty = 1 ORDER BY path');
+  stmt.bind([repoId]);
+  while (stmt.step()) {
+    results.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return results;
+}
+
+function getDirtyWithSymbols(repoId) {
+  const db = getDb();
+  const results = [];
+  const stmt = db.prepare(`
+    SELECT f.id, f.path, f.language, f.last_modified,
+           (SELECT COUNT(*) FROM symbols WHERE file_id = f.id) as symbol_count
+    FROM indexed_files f
+    WHERE f.repo_id = ? AND f.is_dirty = 1
+    ORDER BY f.path
+  `);
   stmt.bind([repoId]);
   while (stmt.step()) {
     results.push(stmt.getAsObject());
@@ -102,6 +120,6 @@ function removeByRepo(repoId) {
 
 module.exports = {
   insert, getByRepoAndPath, markDirty, markClean,
-  getDirtyByRepo, countDirtyByRepo, countByRepo, getByRepo,
+  getDirtyByRepo, getDirtyWithSymbols, countDirtyByRepo, countByRepo, getByRepo,
   removeByPath, removeByRepo
 };
