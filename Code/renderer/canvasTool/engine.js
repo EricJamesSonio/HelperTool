@@ -1,5 +1,5 @@
 import * as state from './state.js';
-import { worldPos } from './tools.js';
+import { worldPos, getResizeHandles, getConnectionPorts, updateArrowBindings } from './tools.js';
 
 let _canvas = null;
 let _ctx = null;
@@ -17,6 +17,7 @@ let _panStart = null;
 let _panViewport = null;
 
 let _toolInstance = null;
+let _activeToolName = 'select';
 let _spaceHeld = false;
 let _actionCallback = null;
 
@@ -133,7 +134,7 @@ function render() {
   const elements = st.elements || [];
 
   for (const el of elements) {
-    drawElement(_ctx, el);
+    drawElement(_ctx, el, st.selectedIds.includes(el.id));
   }
 
   // Draw selection outlines
@@ -143,15 +144,37 @@ function render() {
     }
   }
 
+  // Draw resize handles
+  for (const el of elements) {
+    if (st.selectedIds.includes(el.id)) {
+      drawResizeHandles(_ctx, el);
+    }
+  }
+
   // Draw draft element (in-progress drawing)
   if (_draftElement) {
-    drawElement(_ctx, _draftElement);
+    drawElement(_ctx, _draftElement, false);
+  }
+
+  // Draw connection ports when arrow/line tool is active
+  if (_activeToolName === 'arrow' || _activeToolName === 'line') {
+    for (const el of elements) {
+      if (isBindableShapeType(el.type)) {
+        drawConnectionPorts(_ctx, el);
+      }
+    }
   }
 
   _ctx.restore();
 }
 
-function drawElement(ctx, el) {
+function isBindableShapeType(type) {
+  return type === 'rect' || type === 'ellipse' || type === 'terminator' ||
+         type === 'diamond' || type === 'parallelogram' || type === 'double-rect' ||
+         type === 'circle';
+}
+
+function drawElement(ctx, el, isSelected) {
   ctx.save();
   if (el.opacity !== undefined && el.opacity < 1) {
     ctx.globalAlpha = el.opacity;
@@ -168,10 +191,10 @@ function drawElement(ctx, el) {
       drawEllipse(ctx, el);
       break;
     case 'line':
-      drawLine(ctx, el);
+      drawLine(ctx, el, isSelected);
       break;
     case 'arrow':
-      drawArrow(ctx, el);
+      drawArrow(ctx, el, isSelected);
       break;
     case 'text':
       drawText(ctx, el);
@@ -302,38 +325,102 @@ function drawDoubleRect(ctx, el) {
   ctx.stroke();
 }
 
-function drawLine(ctx, el) {
+function drawLine(ctx, el, isSelected) {
   ctx.strokeStyle = el.stroke || '#ffffff';
   ctx.lineWidth = el.strokeWidth || 2;
   ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(el.start.x, el.start.y);
-  ctx.lineTo(el.end.x, el.end.y);
-  ctx.stroke();
+
+  const waypoints = el.waypoints;
+  if (waypoints && waypoints.length > 0) {
+    ctx.beginPath();
+    ctx.moveTo(waypoints[0].x, waypoints[0].y);
+    for (let i = 1; i < waypoints.length; i++) {
+      ctx.lineTo(waypoints[i].x, waypoints[i].y);
+    }
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(el.start.x, el.start.y);
+    ctx.lineTo(el.end.x, el.end.y);
+    ctx.stroke();
+  }
+
+  // Binding indicators (when selected)
+  if (isSelected) {
+    const r = 5 / (viewport.zoom || 1);
+    ctx.fillStyle = '#22d3ee';
+    if (el.startBinding) {
+      ctx.beginPath();
+      ctx.arc(el.start.x, el.start.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (el.endBinding) {
+      ctx.beginPath();
+      ctx.arc(el.end.x, el.end.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
-function drawArrow(ctx, el) {
+function drawArrow(ctx, el, isSelected) {
   ctx.strokeStyle = el.stroke || '#ffffff';
   ctx.lineWidth = el.strokeWidth || 2;
   ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(el.start.x, el.start.y);
-  ctx.lineTo(el.end.x, el.end.y);
-  ctx.stroke();
 
-  // Arrowhead
-  const angle = Math.atan2(el.end.y - el.start.y, el.end.x - el.start.x);
+  // Draw through waypoints if available (routing)
+  const waypoints = el.waypoints;
+  if (waypoints && waypoints.length > 0) {
+    ctx.beginPath();
+    ctx.moveTo(waypoints[0].x, waypoints[0].y);
+    for (let i = 1; i < waypoints.length; i++) {
+      ctx.lineTo(waypoints[i].x, waypoints[i].y);
+    }
+    ctx.stroke();
+
+    // Arrowhead at the last segment
+    const last = waypoints[waypoints.length - 1];
+    const prev = waypoints[waypoints.length - 2] || el.start;
+    drawArrowhead(ctx, prev, last, el);
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(el.start.x, el.start.y);
+    ctx.lineTo(el.end.x, el.end.y);
+    ctx.stroke();
+
+    // Arrowhead
+    drawArrowhead(ctx, el.start, el.end, el);
+  }
+
+  // Binding indicators (when selected)
+  if (isSelected) {
+    const r = 5 / (viewport.zoom || 1);
+    ctx.fillStyle = '#22d3ee';
+    if (el.startBinding) {
+      ctx.beginPath();
+      ctx.arc(el.start.x, el.start.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (el.endBinding) {
+      ctx.beginPath();
+      ctx.arc(el.end.x, el.end.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawArrowhead(ctx, from, to, el) {
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
   const headLen = 12 + (el.strokeWidth || 2) * 1.5;
   ctx.fillStyle = el.stroke || '#ffffff';
   ctx.beginPath();
-  ctx.moveTo(el.end.x, el.end.y);
+  ctx.moveTo(to.x, to.y);
   ctx.lineTo(
-    el.end.x - headLen * Math.cos(angle - Math.PI / 6),
-    el.end.y - headLen * Math.sin(angle - Math.PI / 6)
+    to.x - headLen * Math.cos(angle - Math.PI / 6),
+    to.y - headLen * Math.sin(angle - Math.PI / 6)
   );
   ctx.lineTo(
-    el.end.x - headLen * Math.cos(angle + Math.PI / 6),
-    el.end.y - headLen * Math.sin(angle + Math.PI / 6)
+    to.x - headLen * Math.cos(angle + Math.PI / 6),
+    to.y - headLen * Math.sin(angle + Math.PI / 6)
   );
   ctx.closePath();
   ctx.fill();
@@ -364,6 +451,36 @@ function drawSelection(ctx, el) {
     ctx.strokeRect(el.x - 4, el.y - 4, el.width + 8, el.height + 8);
   }
   ctx.setLineDash([]);
+}
+
+function drawResizeHandles(ctx, el) {
+  const hs = getResizeHandles(el);
+  const s = 6 / (viewport.zoom || 1);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 1.5 / (viewport.zoom || 1);
+  for (const h of hs) {
+    ctx.fillRect(h.x - s / 2, h.y - s / 2, s, s);
+    ctx.strokeRect(h.x - s / 2, h.y - s / 2, s, s);
+  }
+}
+
+function drawConnectionPorts(ctx, shape) {
+  const ports = getConnectionPorts(shape);
+  const r = 4 / (viewport.zoom || 1);
+  ctx.fillStyle = 'rgba(34,211,238,0.5)';
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 1 / (viewport.zoom || 1);
+  for (const p of ports) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+export function setActiveToolName(name) {
+  _activeToolName = name || 'select';
 }
 
 function bindEvents() {
@@ -435,6 +552,33 @@ function onPointerMove(e) {
       }
     }
   }
+
+  // Resize cursor for handle hover
+  if (_canvas && !_spaceHeld && !_panning && _toolInstance === null) {
+    // Only when using the default cursor (not in a tool action)
+    // handled by updateCursor below
+  }
+  updateCursorForMove(e);
+}
+
+function updateCursorForMove(e) {
+  if (!_canvas || _spaceHeld || _panning) return;
+  const st = state.getState();
+  if (st.selectedIds.length === 1 && !(e.buttons & 1)) {
+    const el = st.elements.find(el => el.id === st.selectedIds[0]);
+    if (el) {
+      const pos = worldPos(_canvas, viewport, e.clientX, e.clientY);
+      const handle = getResizeHandles(el).find(h =>
+        Math.abs(pos.x - h.x) < 8 / (viewport.zoom || 1) &&
+        Math.abs(pos.y - h.y) < 8 / (viewport.zoom || 1)
+      );
+      if (handle) {
+        _canvas.style.cursor = handle.cursor;
+        return;
+      }
+    }
+  }
+  updateCursor();
 }
 
 function onPointerUp(e) {
@@ -450,6 +594,7 @@ function onPointerUp(e) {
     if (result) {
       if (result.action === 'commit' && result.element) {
         state.addElement(result.element);
+        updateArrowBindings(state.getState());
       } else if (result.action === 'commit-move') {
         // undo already pushed on first move
       }
@@ -457,6 +602,7 @@ function onPointerUp(e) {
   }
   _draftElement = null;
   _moveUndoPushed = false;
+  if (_canvas) updateCursorForMove(e);
 }
 
 function onPointerCancel() {

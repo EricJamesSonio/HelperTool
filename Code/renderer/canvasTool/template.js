@@ -46,6 +46,9 @@ export function getPanelTemplate() {
             <button class="canvas-btn" id="canvasClearBtn" title="Clear all">🗑️ Clear</button>
             <button class="canvas-btn" id="canvasResetViewBtn" title="Reset view">⊞ Reset View</button>
           </div>
+          <div class="canvas-toolbar-group">
+            <button class="canvas-btn canvas-btn-icon" id="canvasShortcutsBtn" title="Keyboard Shortcuts">⌨️</button>
+          </div>
         </div>
         <div class="canvas-main">
           <div class="canvas-sidebar" id="canvasSidebar">

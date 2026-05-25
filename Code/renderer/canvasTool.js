@@ -6,11 +6,12 @@ import {
   createPenTool, createRectTool, createEllipseTool,
   createLineTool, createArrowTool, createSelectTool,
   createTextTool, textWidth, textHeight,
-  SHAPES, createShapeDrawTool,
+  SHAPES, createShapeDrawTool, updateArrowBindings,
 } from './canvasTool/tools.js';
 import { S } from './shortcuts/state.js';
 import { eventToString } from './shortcuts/parser.js';
 import { confirmDialog, alertDialog } from './utils/confirmDialog.js';
+import { loadCanvasShortcuts, getCanvasShortcut, getCanvasShortcuts, openCanvasShortcutConfig } from './canvasTool/shortcutConfig.js';
 
 let _panel = null;
 let _panelOpen = false;
@@ -19,6 +20,7 @@ let _toolInstances = {};
 let _listenersAttached = false;
 let _captureKeyHandler = null;
 let _textOverlay = null;
+let _textCommitting = false;
 
 export function initCanvasTool() {
   state.onChange(handleStateChange);
@@ -52,11 +54,12 @@ export function openCanvasPanel(repoPath) {
 
   engine.setActionCallback((result) => {
     if (result.action === 'place-text') {
-      // If a text overlay is already open, commit it first
       if (_textOverlay) {
-        commitTextOverlay();
-        return; // This click was for committing, not placing new text
+        _textCommitting = true;
+        commitTextOverlay().finally(() => { _textCommitting = false; });
+        return;
       }
+      if (_textCommitting) return;
       createTextOverlay(result.x, result.y, result.clientX, result.clientY);
     }
   });
@@ -70,6 +73,7 @@ export function openCanvasPanel(repoPath) {
     arrow: createArrowTool(),
     text: createTextTool(),
   };
+  loadCanvasShortcuts();
   activateTool('select');
 
   addKeyGuard();
@@ -79,7 +83,11 @@ export function openCanvasPanel(repoPath) {
 
 export async function closeCanvasPanel() {
   if (!_panelOpen) return;
-  await boards.saveBoard();
+  try {
+    await boards.saveBoard();
+  } catch (err) {
+    console.error('[Canvas] Save on close failed:', err);
+  }
   removeKeyGuard();
   removeTextOverlay();
   engine.destroy();
@@ -95,6 +103,7 @@ function attachListeners() {
       const tool = btn.dataset.tool;
       if (tool === 'pan') {
         engine.setTool(null);
+        engine.setActiveToolName('pan');
         _panel.querySelector('#canvasToolbar').dataset.activeTool = 'pan';
       } else {
         activateTool(tool);
@@ -140,8 +149,19 @@ function attachListeners() {
     engine.resetView();
   });
 
+  _panel.querySelector('#canvasShortcutsBtn').addEventListener('click', () => {
+    openCanvasShortcutConfig();
+  });
+
   _panel.querySelector('#canvasSaveBtn').addEventListener('click', async () => {
-    await boards.saveBoard();
+    try {
+      const result = await boards.saveBoard();
+      if (result && !result.success) {
+        console.error('[Canvas] Save failed:', result.error);
+      }
+    } catch (err) {
+      console.error('[Canvas] Save error:', err);
+    }
     updateUI();
   });
 
@@ -199,13 +219,40 @@ function attachListeners() {
   });
 }
 
+// ── Shortcut combo → canvas tool name ──
+function _shortcutToTool(combo) {
+  if (!combo) return null;
+  const sc = getCanvasShortcuts();
+  const entries = [
+    ['selectTool', 'select'],
+    ['penTool', 'pen'],
+    ['rectTool', 'rect'],
+    ['ellipseTool', 'ellipse'],
+    ['lineTool', 'line'],
+    ['arrowTool', 'arrow'],
+    ['textTool', 'text'],
+    ['panTool', 'pan'],
+    ['shapeTerminator', 'terminator'],
+    ['shapeDiamond', 'diamond'],
+    ['shapeParallelogram', 'parallelogram'],
+    ['shapeDoubleRect', 'double-rect'],
+    ['shapeCircle', 'circle'],
+  ];
+  for (const [featId, toolName] of entries) {
+    if (sc[featId] === combo) return toolName;
+  }
+  return null;
+}
+
 // ── Capture-phase key guard: handles canvas keys, blocks other shortcuts ──
 function addKeyGuard() {
   if (_captureKeyHandler) return;
   _captureKeyHandler = (e) => {
     if (!_panelOpen) return;
-    // Allow typing in text input overlay
-    if (_textOverlay && _textOverlay.contains(e.target)) return;
+    // Allow typing in any input/textarea/contenteditable
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    // Allow key events when canvas shortcut config modal is open
+    if (document.querySelector('.canvas-sc-overlay')) return;
 
     // Space + zoom keys
     if (e.code === 'Space' || ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+' || e.key === '-'))) {
@@ -213,26 +260,22 @@ function addKeyGuard() {
       if (e.defaultPrevented) { e.stopPropagation(); return; }
     }
 
-    // Tool shortcuts
-    const toolMap = {
-      'v': 'select', 'p': 'pen', 'r': 'rect',
-      'e': 'ellipse', 'l': 'line', 'a': 'arrow',
-      'h': 'pan', 't': 'text',
-    };
-    const tool = toolMap[e.key.toLowerCase()];
-    if (tool && !(e.ctrlKey || e.metaKey) && !e.altKey) {
+    // Tool shortcuts (from configurable shortcuts)
+    const combo = eventToString(e);
+    const toolName = _shortcutToTool(combo);
+    if (toolName && toolName !== 'none') {
       e.preventDefault(); e.stopPropagation();
-      if (tool === 'pan') {
+      if (toolName === 'pan') {
         engine.setTool(null);
         _panel.querySelector('#canvasToolbar').dataset.activeTool = 'pan';
       } else {
-        activateTool(tool);
+        activateTool(toolName);
       }
       updateToolbarUI();
       return;
     }
 
-    // Ctrl+T → activate text tool
+    // Hardcoded secondaries: Ctrl+T → activate text tool
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') {
       e.preventDefault(); e.stopPropagation();
       activateTool('text');
@@ -268,7 +311,6 @@ function addKeyGuard() {
     }
 
     // Check if key matches the canvas tool toggle shortcut → close canvas
-    const combo = eventToString(e);
     if (combo && S.shortcuts.canvasTool === combo) {
       e.preventDefault(); e.stopPropagation();
       closeCanvasPanel();
@@ -296,7 +338,7 @@ function removeTextOverlay() {
   }
 }
 
-function commitTextOverlay() {
+async function commitTextOverlay() {
   if (!_textOverlay) return;
   const text = _textOverlay.querySelector('textarea')?.value || '';
   const worldX = parseFloat(_textOverlay.dataset.worldX);
@@ -304,34 +346,37 @@ function commitTextOverlay() {
   const color = _textOverlay.dataset.color || '#ffffff';
   const fontSize = parseInt(_textOverlay.dataset.fontSize, 10) || 20;
   removeTextOverlay();
-  if (text.trim()) {
-    // Check if text position is inside a shape → parent it
-    const st = state.getState();
-    let parentId = null;
-    for (let i = st.elements.length - 1; i >= 0; i--) {
-      const el = st.elements[i];
-      el._viewportZoom = 1;
-      if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
-          el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') {
-        if (worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
-          parentId = el.id;
-          break;
-        }
+  if (!text.trim()) return;
+
+  // Check if text position is inside a shape
+  const st = state.getState();
+  let parentId = null;
+  for (let i = st.elements.length - 1; i >= 0; i--) {
+    const el = st.elements[i];
+    if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
+        el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') {
+      if (worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
+        // Ask user if they want the text to stick to this shape
+        parentId = await confirmDialog(
+          `Stick this text to "${el.type}" shape so it moves with it?`
+        ) ? el.id : null;
+        break;
       }
     }
-    state.addElement({
-      id: 'el_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-      type: 'text',
-      x: worldX,
-      y: worldY,
-      text,
-      fontSize,
-      color,
-      opacity: state.getState().opacity,
-      parentId,
-    });
-    boards.markDirty();
   }
+
+  state.addElement({
+    id: 'el_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    type: 'text',
+    x: worldX,
+    y: worldY,
+    text,
+    fontSize,
+    color,
+    opacity: state.getState().opacity,
+    parentId,
+  });
+  boards.markDirty();
 }
 
 function createTextOverlay(worldX, worldY, clientX, clientY) {
@@ -378,6 +423,7 @@ function activateTool(toolName) {
   const tool = _toolInstances[toolName];
   if (tool) {
     engine.setTool(tool);
+    engine.setActiveToolName(toolName);
     _panel.querySelector('#canvasToolbar').dataset.activeTool = toolName;
   }
 }
@@ -484,6 +530,8 @@ async function handleBoardListClick(e) {
 async function loadBoardById(boardId) {
   try {
     await boards.loadBoard(boardId);
+    const st = state.getState();
+    updateArrowBindings(st);
     updateUI();
     await refreshBoardList();
   } catch (err) {
