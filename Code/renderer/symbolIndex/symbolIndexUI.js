@@ -9,9 +9,12 @@ class SymbolIndexUI {
     this._searchTimeout = null;
     this._activeRepoPath = null;
     this._indexingInProgress = false;
-    this._cachedBrowseHtml = null;
     this._lastStatus = null;
     this._dirtyFiles = [];
+    this._browseAllFiles = null;
+    this._browsePage = 0;
+    this._browsePageSize = 50;
+    this._browseData = null;
   }
 
   async render(containerElement, repoPath) {
@@ -19,6 +22,7 @@ class SymbolIndexUI {
     this._activeRepoPath = repoPath;
     this.container.innerHTML = this.getTemplate();
     this.setupEventListeners();
+    // Defer data-heavy refresh so the opening animation isn't blocked
     await this.refreshUI({ force: true });
     this.setupComplete = true;
   }
@@ -189,22 +193,15 @@ class SymbolIndexUI {
       this.manager.dirtyCount = status.dirty_count || 0;
       this.showIndexedState(status);
 
-      // Cache browse view — only re-fetch if dirty count changed or forced
+      // Invalidate cached browse when dirty count changes
       const dirtyChanged = opts?.force || !this._lastStatus || this._lastStatus.dirty_count !== status.dirty_count;
       this._lastStatus = status;
-      if (dirtyChanged) {
-        this._cachedBrowseHtml = null;
-        this._cachedBrowseData = null;
-        await this.showBrowseView();
-      } else if (this._cachedBrowseHtml) {
-        const resultsEl = this.container.querySelector('#siSearchResults');
-        if (resultsEl) {
-          this._browseData = this._cachedBrowseData || new Map();
-          resultsEl.innerHTML = this._cachedBrowseHtml;
-          this.attachBrowseEvents(resultsEl);
-        }
+      if (dirtyChanged || !this._browseAllFiles) {
+        this._browseAllFiles = null;
+        this._browseData = null;
+        this.showBrowseView();
       } else {
-        await this.showBrowseView();
+        this.showBrowseView();
       }
     } else if (status.exists && !status.indexed) {
       this.manager.isIndexed = false;
@@ -325,58 +322,81 @@ class SymbolIndexUI {
     }
 
     try {
-      const { files } = await this.handler.getIndexedFiles(this._activeRepoPath);
+      if (!this._browseAllFiles) {
+        const { files } = await this.handler.getIndexedFiles(this._activeRepoPath);
+        this._browseAllFiles = files || [];
+      }
+
+      const files = this._browseAllFiles;
       if (!files || files.length === 0) {
         resultsEl.innerHTML = '<div class="empty-state">No indexed files found</div>';
         return;
       }
 
-      this._browseData = new Map();
+      // Build the symbols map once
+      if (!this._browseData || this._browseData.size === 0) {
+        this._browseData = new Map();
+        for (const f of files) {
+          this._browseData.set(f.path, f.symbols || []);
+        }
+      }
 
-      let html = files.map(f => {
-        const symbolCount = f.symbols?.length || 0;
-        const filePath = this.escapeHtml(f.path);
-        const lang = f.language ? `<span class="si-browse-lang">${f.language}</span>` : '';
-
-        this._browseData.set(f.path, f.symbols || []);
-
-        return `
-          <div class="si-browse-file" data-file="${filePath}">
-            <div class="si-browse-file-header">
-              <span class="si-browse-toggle">▶</span>
-              <span class="si-browse-file-path">${filePath}</span>
-              ${lang}
-              <span class="si-browse-file-count">${symbolCount} symbol${symbolCount !== 1 ? 's' : ''}</span>
-            </div>
-            <div class="si-browse-symbols"></div>
-          </div>
-        `;
-      }).join('');
-
-      this._cachedBrowseHtml = html;
-      this._cachedBrowseData = this._browseData;
-      resultsEl.innerHTML = html;
-      this.attachBrowseEvents(resultsEl);
+      // Defer DOM rendering so opening animation doesn't hitch
+      this._renderBrowsePage(resultsEl, files);
     } catch (err) {
       resultsEl.innerHTML = `<div class="empty-state error">Failed to load index: ${this.escapeHtml(err.message)}</div>`;
     }
   }
 
-  attachBrowseEvents(container) {
-    container.querySelectorAll('.si-browse-file').forEach(el => {
-      el.addEventListener('click', (e) => {
-        const filePath = el.dataset.file;
+  _renderBrowsePage(container, files) {
+    const end = Math.min(this._browsePageSize, files.length);
+    const pageFiles = files.slice(0, end);
+
+    let html = pageFiles.map(f => {
+      const symbolCount = f.symbols?.length || 0;
+      const filePath = this.escapeHtml(f.path);
+      const lang = f.language ? `<span class="si-browse-lang">${f.language}</span>` : '';
+      return `
+        <div class="si-browse-file" data-file="${filePath}">
+          <div class="si-browse-file-header">
+            <span class="si-browse-toggle">▶</span>
+            <span class="si-browse-file-path">${filePath}</span>
+            ${lang}
+            <span class="si-browse-file-count">${symbolCount} symbol${symbolCount !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="si-browse-symbols"></div>
+        </div>
+      `;
+    }).join('');
+
+    const remaining = files.length - end;
+    if (remaining > 0) {
+      html += `<div class="si-browse-more" id="siBrowseMoreBtn">Show ${remaining} more…</div>`;
+    } else if (files.length > this._browsePageSize) {
+      html += `<div class="si-browse-more">All ${files.length} files loaded</div>`;
+    }
+
+    container.innerHTML = html;
+    this._attachBrowseEvents(container, files);
+  }
+
+  _attachBrowseEvents(container, files) {
+    // Use event delegation on the container instead of per-element listeners
+    container.addEventListener('click', (e) => {
+      const fileRow = e.target.closest('.si-browse-file');
+      if (fileRow) {
+        const filePath = fileRow.dataset.file;
         if (!filePath) return;
 
-        // Ignore clicks on already-rendered symbols (they have their own handler)
+        // Ignore clicks on already-rendered symbols (they have their own handler via delegation)
         if (e.target.closest('.si-browse-symbol')) return;
 
-        const symContainer = el.querySelector('.si-browse-symbols');
-        const toggle = el.querySelector('.si-browse-toggle');
+        const symContainer = fileRow.querySelector('.si-browse-symbols');
+        const toggle = fileRow.querySelector('.si-browse-toggle');
 
         if (symContainer.dataset.rendered) {
-          const isOpen = el.classList.contains('si-browse-file-open');
-          el.classList.toggle('si-browse-file-open', !isOpen);
+          const isOpen = fileRow.classList.contains('si-browse-file-open');
+          fileRow.classList.toggle('si-browse-file-open', !isOpen);
           symContainer.style.display = isOpen ? 'none' : 'block';
           if (toggle) toggle.textContent = isOpen ? '▶' : '▼';
         } else {
@@ -391,20 +411,29 @@ class SymbolIndexUI {
                 <span class="si-browse-sym-line">:${s.line}</span>
               </div>
             `).join('');
-
-            symContainer.querySelectorAll('.si-browse-symbol').forEach(sym => {
-              sym.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.handleResultClick(sym);
-              });
-            });
           }
-          el.classList.add('si-browse-file-open');
+          fileRow.classList.add('si-browse-file-open');
           symContainer.style.display = 'block';
           if (toggle) toggle.textContent = '▼';
           symContainer.dataset.rendered = 'true';
         }
-      });
+        return;
+      }
+
+      // Handle symbol click inside a file row (delegated)
+      const sym = e.target.closest('.si-browse-symbol');
+      if (sym) {
+        e.stopPropagation();
+        this.handleResultClick(sym);
+        return;
+      }
+
+      // Show more button
+      const moreBtn = e.target.closest('#siBrowseMoreBtn');
+      if (moreBtn && files) {
+        this._browsePageSize += 50;
+        this._renderBrowsePage(container, files);
+      }
     });
   }
 
@@ -558,8 +587,8 @@ class SymbolIndexUI {
   }
 
   handleDirtyChanged(count) {
-    this._cachedBrowseHtml = null;
-    this._cachedBrowseData = null;
+    this._browseAllFiles = null;
+    this._browseData = null;
     this.manager.dirtyCount = count;
     const row = this.container.querySelector('#siDirtyRow');
     const countEl = this.container.querySelector('#siDirtyCount');
