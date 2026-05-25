@@ -348,6 +348,11 @@ class GitToolUI {
     }
   }
 
+  syncViewTabs() {
+    const tabs = this.container.querySelectorAll('.view-tab');
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.view === this.historyViewMode));
+  }
+
   handleViewSwitch(event) {
     const btn = event.target.closest('.view-tab');
     if (!btn) return;
@@ -379,6 +384,13 @@ class GitToolUI {
    */
   refreshUI() {
     const state = this.gitManager.getState();
+    
+    console.debug('[GitToolUI] refreshUI:', {
+      historyViewMode: this.historyViewMode,
+      totalCommits: state.history.length,
+      unpushedCommits: state.stats.unpushed
+    });
+    this.syncViewTabs();
     
     // Update stats
     this.updateStats(state.stats);
@@ -479,6 +491,12 @@ class GitToolUI {
 
     const isHistory = this.historyViewMode === 'history';
     const filtered = commits.filter(c => isHistory ? c.pushed : !c.pushed);
+    console.debug('[GitToolUI] renderCommitHistory:', {
+      total: commits.length,
+      filtered: filtered.length,
+      viewMode: this.historyViewMode,
+      isHistory
+    });
 
     if (pushAllRow) {
       pushAllRow.style.display = (!isHistory && filtered.length > 0) ? '' : 'none';

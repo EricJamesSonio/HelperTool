@@ -1,7 +1,8 @@
 import { getData, getSelectedCategoryId, setSelectedCategoryId } from './state.js';
 import { renderPromptList } from './prompts.js';
+import { escapeHtml } from './utils.js';
 
-export function renderCategories() {
+export function renderCategories(onRefresh) {
     const wrap = document.getElementById('promptCats');
     if (!wrap) return;
     wrap.innerHTML = '';
@@ -18,11 +19,59 @@ export function renderCategories() {
         btn.id = `promptCatBtn_${c.id}`;
         btn.dataset.catId = c.id;
         btn.className = 'pt-cat-item prompt-cat-btn';
-        btn.textContent = c.name;
+        
+        btn.innerHTML = `
+            <span style="flex:1; text-align:left;">${escapeHtml(c.name)}</span>
+            <span class="pt-cat-rename" style="opacity:0.5; font-size:10px;">✎</span>
+        `;
+        
         btn.addEventListener('click', () => {
             setSelectedCategoryId(c.id);
             renderPromptList();
         });
+
+        const renameBtn = btn.querySelector('.pt-cat-rename');
+        renameBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+
+            const span = btn.querySelector('span');
+            const originalText = c.name;
+            const input = document.createElement('input');
+            input.value = originalText;
+            input.style.width = '100%';
+            input.style.color = 'var(--text-primary)';
+            input.style.background = 'var(--bg-elevated)';
+            input.style.border = '1px solid var(--border-default)';
+            input.style.borderRadius = 'var(--r-sm)';
+            
+            btn.replaceChild(input, span);
+            input.focus();
+            input.select();
+
+            let isFinished = false;
+            const finishRename = async () => {
+                if (isFinished) return;
+                isFinished = true;
+
+                const newName = input.value.trim();
+                if (newName && newName !== originalText) {
+                    await window.electronAPI.prompts.updateCategory({ id: c.id, name: newName });
+                    if (onRefresh) await onRefresh();
+                } else {
+                    renderCategories(onRefresh);
+                }
+            };
+
+            input.addEventListener('blur', finishRename);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') finishRename();
+                else if (e.key === 'Escape') {
+                    isFinished = true;
+                    renderCategories(onRefresh);
+                }
+            });
+        });
+
         wrap.appendChild(btn);
     });
 

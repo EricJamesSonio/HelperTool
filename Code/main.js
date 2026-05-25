@@ -15,6 +15,9 @@ const workspaceIpc = require('./ipc/workspace_ipc.js');
 const generateIpc  = require('./ipc/generate_ipc.js');
 const gitIpc = require('./ipc/git_ipc.js');
 const promptsIpc = require('./ipc/prompts_ipc.js');
+const symbolIndexIpc = require('./ipc/symbolIndex_ipc.js');
+const canvasIpc = require('./ipc/canvas_ipc.js');
+const { initDatabase } = require('./database/db.js');
 
 
 
@@ -59,15 +62,29 @@ if (!gotTheLock) {
         e.preventDefault();
     });
 
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
         console.log('[Main] App is ready');
         registerAllIpc();
         createTray();
         createWindow();
 
+        // Initialize symbol index database
+        try {
+            await initDatabase(app);
+        } catch (err) {
+            console.error('[Main] Failed to init symbol index DB:', err);
+        }
+
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
         });
+    });
+
+    app.on('before-quit', () => {
+        const db = require('./database/db.js');
+        db.close();
+        const watcher = require('./indexer/watcher.js');
+        watcher.destroyAllWatchers();
     });
 }
 
@@ -85,6 +102,8 @@ function registerAllIpc() {
     generateIpc.register(shared);
     gitIpc.register(shared);
     promptsIpc.register({ app });
+    symbolIndexIpc.register(shared);
+    canvasIpc.register();
 }
 
 

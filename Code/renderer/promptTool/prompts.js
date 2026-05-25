@@ -33,17 +33,11 @@ export function renderPromptList() {
         const row = document.createElement('div');
         row.className = 'pt-prompt-item';
         row.dataset.promptId = p.id;
-        const supportsClass = `pt-badge-${p.supports || 'both'}`;
 
         row.innerHTML = `
           <div class="pt-prompt-item-header">
             <div class="pt-prompt-item-title">${escapeHtml(p.title || '(Untitled)')}</div>
-            <div class="pt-prompt-item-meta">
-              <span class="pt-badge ${supportsClass}">${escapeHtml(p.supports || 'both')}</span>
-              ${p.isFavorite ? '★' : ''} ${p.pinnedAt ? '📌' : ''}
-            </div>
           </div>
-          <div class="pt-prompt-item-body">${escapeHtml((p.body || '').slice(0, 120))}${(p.body || '').length > 120 ? '…' : ''}</div>
         `;
 
         row.addEventListener('click', () => {

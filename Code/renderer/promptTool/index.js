@@ -12,7 +12,7 @@ async function refresh() {
     } catch {
         setData({ categories: [], prompts: [] });
     }
-    renderCategories();
+    renderCategories(refresh);
     renderPromptList();
 }
 

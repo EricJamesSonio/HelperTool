@@ -52,8 +52,8 @@
 }
 
 .stat-item.unpushed {
-  background: rgba(251,191,36,0.15);
-  color: #fbbf24;
+  background: rgba(210,153,34,0.15);
+  color: #d29922;
 }
 
 .stat-label {
@@ -198,33 +198,33 @@
 }
 
 .status-m {
-  background: rgba(96,165,250,0.18);
-  color: #60a5fa;
+  background: rgba(88,166,255,0.18);
+  color: #58a6ff;
 }
 
 .status-a {
-  background: rgba(52,211,153,0.18);
-  color: #34d399;
+  background: rgba(45,212,176,0.18);
+  color: #2dd4b0;
 }
 
 .status-d {
-  background: rgba(248,113,113,0.18);
-  color: #f87171;
+  background: rgba(248,81,73,0.18);
+  color: #f85149;
 }
 
 .status-r {
-  background: rgba(167,139,250,0.18);
-  color: #a78bfa;
+  background: rgba(139,92,246,0.18);
+  color: #8b5cf6;
 }
 
 .status-c {
-  background: rgba(96,165,250,0.18);
-  color: #60a5fa;
+  background: rgba(88,166,255,0.18);
+  color: #58a6ff;
 }
 
 .status-u {
-  background: rgba(251,191,36,0.15);
-  color: #fbbf24;
+  background: rgba(210,153,34,0.15);
+  color: #d29922;
 }
 
 .file-path {
@@ -256,17 +256,6 @@
 .btn-icon-small:hover {
   background: rgba(240,180,41,0.15);
   color: var(--accent, #f0b429);
-}
-
-.empty-state {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted, #556080);
-  font-size: 13px;
-  text-align: center;
-  padding: 40px 20px;
 }
 
 /* ══ STAGED PANEL SPECIFIC ══ */
@@ -380,13 +369,13 @@
 }
 
 .commit-status.pushed {
-  background: rgba(52,211,153,0.18);
-  color: #34d399;
+  background: rgba(45,212,176,0.18);
+  color: #2dd4b0;
 }
 
 .commit-status.unpushed {
-  background: rgba(251,191,36,0.15);
-  color: #fbbf24;
+  background: rgba(210,153,34,0.15);
+  color: #d29922;
 }
 
 .commit-id {
@@ -500,20 +489,6 @@
   opacity: 0.7;
 }
 
-.spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* ══ FULL-SCREEN OVERLAY (workspace-style) ══ */
 .git-tool-panel {
   position: fixed; inset: 0; z-index: 9999;
@@ -568,7 +543,7 @@
   border-radius: 4px;
   font-size: 13px;
   font-weight: 500;
-  animation: slideIn 0.3s ease-out;
+  animation: slideInRight 0.3s ease-out;
   z-index: 1000;
   max-width: 300px;
 }
@@ -581,17 +556,6 @@
 .git-toast-error {
   background: #f44336;
   color: white;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(400px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
 }
 
 /* ══ SCROLLBAR STYLING ══ */

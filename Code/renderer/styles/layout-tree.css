@@ -143,12 +143,12 @@
    Referenced by both mode-list and mode-tree rules below.
    ============================================================ */
 :root {
-  /* depth 0 — amber gold (roots) */
-  --dl0-color:   #f0b429;
-  --dl0-bg:      rgba(240, 180, 41, 0.10);
-  --dl0-bg-h:    rgba(240, 180, 41, 0.18);
-  --dl0-border:  rgba(240, 180, 41, 0.40);
-  --dl0-line:    rgba(240, 180, 41, 0.35);
+  /* depth 0 — cyan accent (roots) */
+  --dl0-color:   #22d3ee;
+  --dl0-bg:      rgba(34, 211, 238, 0.10);
+  --dl0-bg-h:    rgba(34, 211, 238, 0.18);
+  --dl0-border:  rgba(34, 211, 238, 0.40);
+  --dl0-line:    rgba(34, 211, 238, 0.35);
 
   /* depth 1 — sky blue */
   --dl1-color:   #38bdf8;
@@ -157,12 +157,12 @@
   --dl1-border:  rgba(56, 189, 248, 0.38);
   --dl1-line:    rgba(56, 189, 248, 0.30);
 
-  /* depth 2 — violet */
-  --dl2-color:   #a78bfa;
-  --dl2-bg:      rgba(167, 139, 250, 0.09);
-  --dl2-bg-h:    rgba(167, 139, 250, 0.17);
-  --dl2-border:  rgba(167, 139, 250, 0.38);
-  --dl2-line:    rgba(167, 139, 250, 0.30);
+  /* depth 2 — deep violet */
+  --dl2-color:   #8b5cf6;
+  --dl2-bg:      rgba(139, 92, 246, 0.09);
+  --dl2-bg-h:    rgba(139, 92, 246, 0.17);
+  --dl2-border:  rgba(139, 92, 246, 0.38);
+  --dl2-line:    rgba(139, 92, 246, 0.30);
 
   /* depth 3 — teal */
   --dl3-color:   #2dd4bf;
@@ -171,12 +171,12 @@
   --dl3-border:  rgba(45, 212, 191, 0.36);
   --dl3-line:    rgba(45, 212, 191, 0.28);
 
-  /* depth 4 — rose */
-  --dl4-color:   #fb7185;
-  --dl4-bg:      rgba(251, 113, 133, 0.09);
-  --dl4-bg-h:    rgba(251, 113, 133, 0.17);
-  --dl4-border:  rgba(251, 113, 133, 0.36);
-  --dl4-line:    rgba(251, 113, 133, 0.28);
+  /* depth 4 — red */
+  --dl4-color:   #f85149;
+  --dl4-bg:      rgba(248, 81, 73, 0.09);
+  --dl4-bg-h:    rgba(248, 81, 73, 0.17);
+  --dl4-border:  rgba(248, 81, 73, 0.36);
+  --dl4-line:    rgba(248, 81, 73, 0.28);
 }
 
 [data-theme="light"] {
