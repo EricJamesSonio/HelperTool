@@ -266,23 +266,17 @@ export function createArrowTool() {
 export function createSelectTool() {
   let dragging = false;
   let dragStart = null;
-  let dragOffsets = null;
+  let dragOriginals = null; // [{ id, snapshot }] — deep copy of original state
   let moved = false;
-  let undoPushed = false;
 
   return {
     onPointerDown(state, viewport, canvas, e) {
       const pos = worldPos(canvas, viewport, e.clientX, e.clientY);
 
-      // hit test in reverse (top-most first)
       for (let i = state.elements.length - 1; i >= 0; i--) {
         const el = state.elements[i];
         el._viewportZoom = viewport.zoom;
         if (hitTest(pos.x, pos.y, el)) {
-          // Push undo before any move starts
-          if (!undoPushed) {
-            // undo is pushed by engine on commit-move
-          }
           if (e.shiftKey) {
             const idx = state.selectedIds.indexOf(el.id);
             if (idx === -1) state.selectedIds.push(el.id);
@@ -292,10 +286,20 @@ export function createSelectTool() {
           }
           dragging = true;
           dragStart = { x: e.clientX, y: e.clientY };
-          dragOffsets = state.selectedIds.map(id => {
-            const e2 = state.elements.find(el => el.id === id);
-            return { id, startX: e2.clientX || e2.x || 0, startY: e2.clientY || e2.y || 0 };
-          });
+          // Deep-copy originals for selected + their text children
+          const idsToMove = new Set(state.selectedIds);
+          for (const selId of state.selectedIds) {
+            for (const child of state.elements) {
+              if (child.type === 'text' && child.parentId === selId && !idsToMove.has(child.id)) {
+                idsToMove.add(child.id);
+              }
+            }
+          }
+          dragOriginals = [];
+          for (const id of idsToMove) {
+            const src = state.elements.find(e => e.id === id);
+            if (src) dragOriginals.push({ id, snapshot: JSON.parse(JSON.stringify(src)) });
+          }
           moved = false;
           return { action: 'select', element: el };
         }
@@ -311,21 +315,22 @@ export function createSelectTool() {
 
       if (!moved) return { action: 'none' };
 
-      for (const selId of state.selectedIds) {
-        const el = state.elements.find(e => e.id === selId);
+      for (const entry of dragOriginals) {
+        const el = state.elements.find(e => e.id === entry.id);
         if (!el) continue;
+        const orig = entry.snapshot;
         if (el.type === 'pen') {
-          el.points = el.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+          el.points = orig.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
         } else if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'text' ||
                    el.type === 'terminator' || el.type === 'diamond' || el.type === 'parallelogram' ||
                    el.type === 'double-rect' || el.type === 'circle') {
-          el.x += dx;
-          el.y += dy;
+          el.x = orig.x + dx;
+          el.y = orig.y + dy;
         } else if (el.type === 'line' || el.type === 'arrow') {
-          el.start.x += dx;
-          el.start.y += dy;
-          el.end.x += dx;
-          el.end.y += dy;
+          el.start.x = orig.start.x + dx;
+          el.start.y = orig.start.y + dy;
+          el.end.x = orig.end.x + dx;
+          el.end.y = orig.end.y + dy;
         }
       }
       return { action: 'move' };
@@ -346,6 +351,19 @@ export function createTextTool() {
   return {
     onPointerDown(state, viewport, canvas, e) {
       const pos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      // Check if click is inside a shape → center text in that shape
+      for (let i = state.elements.length - 1; i >= 0; i--) {
+        const el = state.elements[i];
+        el._viewportZoom = viewport.zoom;
+        if (hitTest(pos.x, pos.y, el)) {
+          if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
+              el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') {
+            pos.x = el.x + el.width / 2;
+            pos.y = el.y + el.height / 2;
+          }
+          break;
+        }
+      }
       return { action: 'place-text', x: pos.x, y: pos.y, clientX: e.clientX, clientY: e.clientY, viewport };
     },
     onPointerMove() { return null; },

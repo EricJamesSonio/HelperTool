@@ -1,14 +1,16 @@
 import * as engine from './canvasTool/engine.js';
 import * as state from './canvasTool/state.js';
 import * as boards from './canvasTool/boards.js';
-import { getPanelTemplate, getTemplateCardHtml, getBoardItemHtml } from './canvasTool/template.js';
+import { getPanelTemplate, getTemplateCardHtml, getBoardItemHtml, getShapesPaletteHtml } from './canvasTool/template.js';
 import {
   createPenTool, createRectTool, createEllipseTool,
   createLineTool, createArrowTool, createSelectTool,
   createTextTool, textWidth, textHeight,
   SHAPES, createShapeDrawTool,
 } from './canvasTool/tools.js';
-import { getShapesPaletteHtml } from './canvasTool/template.js';
+import { S } from './shortcuts/state.js';
+import { eventToString } from './shortcuts/parser.js';
+import { confirmDialog, alertDialog } from './utils/confirmDialog.js';
 
 let _panel = null;
 let _panelOpen = false;
@@ -50,6 +52,11 @@ export function openCanvasPanel(repoPath) {
 
   engine.setActionCallback((result) => {
     if (result.action === 'place-text') {
+      // If a text overlay is already open, commit it first
+      if (_textOverlay) {
+        commitTextOverlay();
+        return; // This click was for committing, not placing new text
+      }
       createTextOverlay(result.x, result.y, result.clientX, result.clientY);
     }
   });
@@ -122,8 +129,8 @@ function attachListeners() {
     updateUI();
   });
 
-  _panel.querySelector('#canvasClearBtn').addEventListener('click', () => {
-    if (confirm('Clear all elements?')) {
+  _panel.querySelector('#canvasClearBtn').addEventListener('click', async () => {
+    if (await confirmDialog('Clear all elements?')) {
       state.clear();
       boards.markDirty();
     }
@@ -184,15 +191,15 @@ function attachListeners() {
     }
   }, { capture: true });
 
-  // Click on overlay area commits text
+  // Click on overlay area commits text (only after overlay is ready)
   _panel.addEventListener('pointerdown', (e) => {
-    if (_textOverlay && !_textOverlay.contains(e.target)) {
+    if (_textOverlay && _textOverlay.dataset.ready && !_textOverlay.contains(e.target)) {
       commitTextOverlay();
     }
   });
 }
 
-// ── Capture-phase key guard: blocks global shortcuts while canvas is open ──
+// ── Capture-phase key guard: handles canvas keys, blocks other shortcuts ──
 function addKeyGuard() {
   if (_captureKeyHandler) return;
   _captureKeyHandler = (e) => {
@@ -200,13 +207,10 @@ function addKeyGuard() {
     // Allow typing in text input overlay
     if (_textOverlay && _textOverlay.contains(e.target)) return;
 
-    // Let engine handle space + zoom keys
+    // Space + zoom keys
     if (e.code === 'Space' || ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+' || e.key === '-'))) {
       engine.onKeyDown(e);
-      if (e.defaultPrevented) {
-        e.stopImmediatePropagation();
-        return;
-      }
+      if (e.defaultPrevented) { e.stopPropagation(); return; }
     }
 
     // Tool shortcuts
@@ -217,8 +221,7 @@ function addKeyGuard() {
     };
     const tool = toolMap[e.key.toLowerCase()];
     if (tool && !(e.ctrlKey || e.metaKey) && !e.altKey) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
+      e.preventDefault(); e.stopPropagation();
       if (tool === 'pan') {
         engine.setTool(null);
         _panel.querySelector('#canvasToolbar').dataset.activeTool = 'pan';
@@ -231,8 +234,7 @@ function addKeyGuard() {
 
     // Ctrl+T → activate text tool
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
+      e.preventDefault(); e.stopPropagation();
       activateTool('text');
       updateToolbarUI();
       return;
@@ -240,13 +242,8 @@ function addKeyGuard() {
 
     // Undo/Redo
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (e.shiftKey) {
-        state.redo();
-      } else {
-        state.undo();
-      }
+      e.preventDefault(); e.stopPropagation();
+      if (e.shiftKey) { state.redo(); } else { state.undo(); }
       boards.markDirty();
       updateUI();
       return;
@@ -256,8 +253,7 @@ function addKeyGuard() {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       const st = state.getState();
       if (st.selectedIds.length > 0) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
+        e.preventDefault(); e.stopPropagation();
         state.removeSelected();
         boards.markDirty();
       }
@@ -266,13 +262,21 @@ function addKeyGuard() {
 
     // Escape → close canvas
     if (e.key === 'Escape') {
-      e.stopImmediatePropagation();
+      e.stopPropagation();
       closeCanvasPanel();
       return;
     }
 
-    // Block all other keys from reaching global shortcut handlers
-    e.stopImmediatePropagation();
+    // Check if key matches the canvas tool toggle shortcut → close canvas
+    const combo = eventToString(e);
+    if (combo && S.shortcuts.canvasTool === combo) {
+      e.preventDefault(); e.stopPropagation();
+      closeCanvasPanel();
+      return;
+    }
+
+    // Block all other keys from reaching other shortcut handlers
+    e.stopPropagation();
   };
   document.addEventListener('keydown', _captureKeyHandler, true);
 }
@@ -301,6 +305,20 @@ function commitTextOverlay() {
   const fontSize = parseInt(_textOverlay.dataset.fontSize, 10) || 20;
   removeTextOverlay();
   if (text.trim()) {
+    // Check if text position is inside a shape → parent it
+    const st = state.getState();
+    let parentId = null;
+    for (let i = st.elements.length - 1; i >= 0; i--) {
+      const el = st.elements[i];
+      el._viewportZoom = 1;
+      if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
+          el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') {
+        if (worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
+          parentId = el.id;
+          break;
+        }
+      }
+    }
     state.addElement({
       id: 'el_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       type: 'text',
@@ -310,6 +328,7 @@ function commitTextOverlay() {
       fontSize,
       color,
       opacity: state.getState().opacity,
+      parentId,
     });
     boards.markDirty();
   }
@@ -335,14 +354,13 @@ function createTextOverlay(worldX, worldY, clientX, clientY) {
   _panel.querySelector('#canvasViewport').appendChild(overlay);
   _textOverlay = overlay;
 
+  setTimeout(() => { overlay.dataset.ready = '1'; }, 0);
+
   const textarea = overlay.querySelector('textarea');
   textarea.focus();
 
+  // Only Escape cancels — Enter inserts newline naturally
   textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      commitTextOverlay();
-    }
     if (e.key === 'Escape') {
       e.preventDefault();
       removeTextOverlay();
@@ -422,7 +440,7 @@ async function handleCreateBoard() {
     updateUI();
     await refreshBoardList();
   } catch (err) {
-    alert('Failed to create board: ' + err.message);
+    alertDialog('Failed to create board: ' + err.message);
   }
 }
 
@@ -442,7 +460,7 @@ async function refreshBoardList() {
   }
 }
 
-function handleBoardListClick(e) {
+async function handleBoardListClick(e) {
   const item = e.target.closest('.canvas-board-item');
   const delBtn = e.target.closest('.canvas-board-item-del');
 
@@ -450,9 +468,10 @@ function handleBoardListClick(e) {
     e.stopPropagation();
     const boardId = item.dataset.boardId;
     const name = item.querySelector('.canvas-board-item-name')?.textContent || '';
-    if (confirm(`Delete board "${name}"?`)) {
-      boards.deleteBoard(boardId).then(() => refreshBoardList());
-    }
+      if (await confirmDialog(`Delete board "${name}"?`)) {
+        boards.deleteBoard(boardId);
+        await refreshBoardList();
+      }
     return;
   }
 
@@ -468,7 +487,7 @@ async function loadBoardById(boardId) {
     updateUI();
     await refreshBoardList();
   } catch (err) {
-    alert('Failed to load board: ' + err.message);
+    alertDialog('Failed to load board: ' + err.message);
   }
 }
 
