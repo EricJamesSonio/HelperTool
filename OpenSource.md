@@ -35,7 +35,11 @@ Installs Electron Builder for packaging the app.
 ## Run App (Development)
 
 ```bash
+# Old versions run command V1 - V10
 npx electron main.js
+
+# New version run command V11+
+npm start
 ```
 
 Starts the Electron app in development mode.
