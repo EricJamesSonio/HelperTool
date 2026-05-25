@@ -81,7 +81,7 @@ export async function openPromptSelectionModal() {
 
             const catWrap = document.createElement('div');
             catWrap.className = 'pt-cat-wrap';
-            catWrap.innerHTML = `<div class="pt-cat-header">📁 ${escapeHtml(catName)} <span class="pt-cat-count">${ps.length} prompt(s)</span></div>`;
+            catWrap.innerHTML = `<div class="pt-cat-header">${escapeHtml(catName)} - Prompts</div>`;
 
             ps.forEach(p => {
                 const row = document.createElement('div');
@@ -89,33 +89,43 @@ export async function openPromptSelectionModal() {
                 const isSelected = selectedIds.includes(p.id);
                 if (isSelected) row.classList.add('selected');
 
-                const supportsClass = `pt-badge-${p.supports || 'both'}`;
-
                 row.innerHTML = `
-                  <input type="checkbox" class="pt-checkbox" ${isSelected ? 'checked' : ''} />
+                  <input type="radio" name="prompt-select" class="pt-radio" ${isSelected ? 'checked' : ''} />
                   <div class="pt-select-item-info">
                     <div class="pt-select-item-title">${escapeHtml(p.title || '(Untitled)')}</div>
-                    <div class="pt-select-item-meta">
-                      <span class="pt-badge ${supportsClass}">${escapeHtml(p.supports || 'both')}</span>
-                      ${p.isFavorite ? '★' : ''} ${p.pinnedAt ? '📌' : ''}
-                    </div>
-                    <div class="pt-select-item-body">${escapeHtml((p.body || '').slice(0, 100))}${(p.body || '').length > 100 ? '…' : ''}</div>
                   </div>
                 `;
 
                 function toggle() {
-                    const idx = selectedIds.indexOf(p.id);
-                    if (idx === -1) selectedIds.push(p.id);
-                    else selectedIds.splice(idx, 1);
+                    const isCurrentlySelected = selectedIds.includes(p.id);
+                    if (isCurrentlySelected) {
+                        selectedIds = [];
+                    } else {
+                        selectedIds = [p.id];
+                    }
+
+                    // Clear all others
+                    listEl.querySelectorAll('.pt-select-item').forEach(el => {
+                        el.classList.remove('selected');
+                        const rb = el.querySelector('input[type="radio"]');
+                        if (rb) rb.checked = false;
+                    });
+
+                    if (!isCurrentlySelected) {
+                        row.classList.add('selected');
+                        const rb = row.querySelector('input[type="radio"]');
+                        if (rb) rb.checked = true;
+                    }
+
                     loadAndRenderPreviewOnly();
-                    row.classList.toggle('selected', selectedIds.includes(p.id));
-                    const cb = row.querySelector('input[type="checkbox"]');
-                    if (cb) cb.checked = selectedIds.includes(p.id);
                 }
 
                 row.addEventListener('click', toggle);
-                const cb = row.querySelector('input[type="checkbox"]');
-                cb?.addEventListener('click', (e) => e.stopPropagation());
+                const rb = row.querySelector('input[type="radio"]');
+                rb?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggle();
+                });
 
                 catWrap.appendChild(row);
             });
@@ -152,11 +162,29 @@ export async function openPromptSelectionModal() {
         loadAndRender();
     });
 
-    confirmBtn?.addEventListener('click', () => {
-        // already set on preview update
+    confirmBtn?.addEventListener('click', async () => {
+        const textToUse = state.selectedPromptText;
+        
+        // Close modal and initiate generation
         close();
+        
         const genBtn = document.getElementById('generateBtn');
-        if (genBtn && !genBtn.disabled) genBtn.click();
+        if (genBtn && !genBtn.disabled) {
+            // We need to ensure the generator uses the captured text 
+            // since we are about to reset the state.
+            // But wait, the generator button logic itself uses `state.selectedPromptText`.
+            // If I reset it here, it will be empty by the time the click handler runs.
+            // Instead, let's keep the state, and let the generator reset it itself.
+            genBtn.click();
+            
+            // To fulfill the user's requirement to reset:
+            // We can reset the state after a short delay or have the generator do it.
+            // Let's reset it after a delay to ensure the click has been processed.
+            setTimeout(() => {
+                state.selectedPromptIds = [];
+                state.selectedPromptText = '';
+            }, 100);
+        }
     });
 
     // Initial render

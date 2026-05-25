@@ -85,6 +85,50 @@ const promptsBridge = {
     },
 };
 
+const symbolIndexBridge = {
+    symbolIndex: {
+        init:             ()                       => ipcRenderer.invoke('symbolIndex:init'),
+        check:            (repoPath)               => ipcRenderer.invoke('symbolIndex:check', repoPath),
+        startIndexing:    (repoPath)               => ipcRenderer.invoke('symbolIndex:startIndexing', repoPath),
+        getStatus:        (repoPath)               => ipcRenderer.invoke('symbolIndex:getStatus', repoPath),
+        search:           (repoPath, query, limit) => ipcRenderer.invoke('symbolIndex:search', repoPath, query, limit),
+        getDirtyCount:    (repoPath)               => ipcRenderer.invoke('symbolIndex:getDirtyCount', repoPath),
+        reindexDirty:     (repoPath)               => ipcRenderer.invoke('symbolIndex:reindexDirty', repoPath),
+        reset:            (repoPath)               => ipcRenderer.invoke('symbolIndex:reset', repoPath),
+        delete:           (repoPath)               => ipcRenderer.invoke('symbolIndex:delete', repoPath),
+        stopWatcher:      (repoPath)               => ipcRenderer.invoke('symbolIndex:stopWatcher', repoPath),
+        getManaged:       ()                       => ipcRenderer.invoke('symbolIndex:getManaged'),
+        getSymbolTypes:   (repoPath)               => ipcRenderer.invoke('symbolIndex:getSymbolTypes', repoPath),
+        getIndexedFiles:  (repoPath)               => ipcRenderer.invoke('symbolIndex:getIndexedFiles', repoPath),
+        getDirtyFiles:    (repoPath)               => ipcRenderer.invoke('symbolIndex:getDirtyFiles', repoPath),
+        reindexFile:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:reindexFile', repoPath, filePath),
+        getFileDeps:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:getFileDeps', repoPath, filePath),
+        onProgress:       (callback) => {
+            ipcRenderer.removeAllListeners('symbolIndex:progress');
+            ipcRenderer.on('symbolIndex:progress', (_, data) => callback(data));
+        },
+        onError:          (callback) => {
+            ipcRenderer.removeAllListeners('symbolIndex:error');
+            ipcRenderer.on('symbolIndex:error', (_, msg) => callback(msg));
+        },
+        onDirtyChanged:   (callback) => {
+            ipcRenderer.removeAllListeners('symbolIndex:dirtyChanged');
+            ipcRenderer.on('symbolIndex:dirtyChanged', (_, count) => callback(count));
+        },
+    },
+};
+
+const canvasBridge = {
+    canvas: {
+        listBoards:   (repoPath)             => ipcRenderer.invoke('canvas:listBoards', repoPath),
+        createBoard:  (repoPath, name, data) => ipcRenderer.invoke('canvas:createBoard', repoPath, name, data),
+        saveBoard:    (boardId, data)        => ipcRenderer.invoke('canvas:saveBoard', boardId, data),
+        loadBoard:    (boardId)              => ipcRenderer.invoke('canvas:loadBoard', boardId),
+        deleteBoard:  (boardId)              => ipcRenderer.invoke('canvas:deleteBoard', boardId),
+        renameBoard:  (boardId, name)        => ipcRenderer.invoke('canvas:renameBoard', boardId, name),
+    },
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -95,5 +139,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...workspaceBridge,
     ...gitBridge,
     ...promptsBridge,
+    ...symbolIndexBridge,
+    ...canvasBridge,
 });
 

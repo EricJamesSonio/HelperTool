@@ -1,6 +1,5 @@
 /* ============================================================
-   LAYOUT-CHROME.CSS — Slide panels (filter, ignore, folder)
-   All status-bar, toggle-btn, badge styles live in base.css.
+   LAYOUT-CHROME.CSS — Slide panels, toggle buttons, badges
    ============================================================ */
 
 /* ── Slide panels ────────────────────────────────────────── */
@@ -121,7 +120,7 @@
   transition: all var(--ease);
 }
 .ext-chip:hover {
-  border-color: rgba(248,113,113,0.35);
+  border-color: rgba(251,113,133,0.35);
   background: var(--red-dim);
   color: var(--red);
   transform: translateX(2px);
@@ -143,7 +142,7 @@
   gap: 6px;
   padding: 5px 10px;
   border-radius: var(--r-sm);
-  border: 1px solid rgba(248,113,113,0.25);
+  border: 1px solid rgba(251,113,133,0.25);
   background: var(--red-dim);
 }
 .ext-chip-ignored span:first-child {
@@ -274,20 +273,20 @@
 }
 .folder-btn-ignore {
   background: var(--red-dim);
-  border-color: rgba(248,113,113,0.3);
+  border-color: rgba(251,113,133,0.3);
   color: var(--red);
 }
 .folder-btn-ignore:hover {
-  background: rgba(248,113,113,0.22);
+  background: rgba(251,113,133,0.22);
   border-color: var(--red);
 }
 .folder-btn-focus {
   background: var(--green-dim);
-  border-color: rgba(52,211,153,0.3);
+  border-color: rgba(45,212,176,0.3);
   color: var(--green);
 }
 .folder-btn-focus:hover {
-  background: rgba(52,211,153,0.22);
+  background: rgba(45,212,176,0.22);
   border-color: var(--green);
 }
 
@@ -304,11 +303,11 @@
 }
 .folder-chip-active.type-ignored {
   background: var(--red-dim);
-  border-color: rgba(248,113,113,0.25);
+  border-color: rgba(251,113,133,0.25);
 }
 .folder-chip-active.type-focused {
   background: var(--green-dim);
-  border-color: rgba(52,211,153,0.25);
+  border-color: rgba(45,212,176,0.25);
 }
 .chip-label {
   font-family: var(--font-mono);
@@ -329,4 +328,138 @@
   opacity: 1;
   background: transparent;
   color: inherit;
+}
+
+/* ══ SELECTION COUNTER ══ */
+.selection-counter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 18px;
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background var(--ease), color var(--ease);
+  white-space: nowrap;
+}
+.selection-counter.has-selections {
+  background: rgba(45,212,176,0.07);
+  color: var(--green);
+}
+.counter-icon { font-size: 11px; }
+#selectionCount {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+}
+.counter-label { font-size: 12px; opacity: 0.7; }
+
+/* ══ RIGHT SIDE: TOGGLES + PROGRESS ══ */
+.bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.bar-divider {
+  width: 1px;
+  height: 26px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+}
+
+/* ══ PANEL TOGGLE BUTTONS ══ */
+.panel-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 16px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-subtle);
+  border-radius: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--ease), color var(--ease);
+  position: relative;
+}
+.panel-toggle-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.panel-toggle-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.panel-toggle-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 1px;
+}
+#filterToggleBtn.active::after  { background: var(--accent); }
+#ignoreToggleBtn.active::after  { background: var(--red); }
+#folderToggleBtn.active::after  { background: var(--blue); }
+.filter-toggle-btn.active { color: var(--accent); }
+.folder-toggle-btn.active { color: var(--blue); }
+#ignoreToggleBtn.active   { color: var(--red); }
+
+/* ══ TOGGLE BADGES ══ */
+.toggle-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+.filter-badge { background: var(--accent); color: #0d1117; }
+.ignore-badge { background: var(--red);    color: #fff; }
+.folder-badge { background: var(--blue);   color: #fff; }
+
+/* ══ COMPACT PROGRESS ══ */
+.progress-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-left: 1px solid var(--border-subtle);
+  height: 100%;
+}
+.progress-compact progress {
+  width: 100px;
+  height: 4px;
+  border: none;
+  border-radius: 2px;
+  background: var(--bg-raised);
+  appearance: none;
+  -webkit-appearance: none;
+}
+.progress-compact progress::-webkit-progress-bar  { background: var(--bg-raised); border-radius: 2px; }
+.progress-compact progress::-webkit-progress-value { background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+#progressText {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 32px;
+  text-align: right;
 }

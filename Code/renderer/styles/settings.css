@@ -17,10 +17,6 @@
   display: flex;
   animation: overlayFadeIn 0.2s ease;
 }
-@keyframes overlayFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 
 /* ── Modal panel ───────────────────────────────────────────── */
 .settings-modal {

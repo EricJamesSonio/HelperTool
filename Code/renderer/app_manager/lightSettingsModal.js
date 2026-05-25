@@ -7,6 +7,7 @@ const FEATURES_META = [
     { id: 'apiTool',       icon: '🔌', label: 'API Tool',          desc: 'Built-in API tester + Swagger import' },
     { id: 'secretHolder',  icon: '🔐', label: 'Secret Holder',     desc: 'Password-protected vault for keys & notes' },
     { id: 'workspaceTool', icon: '👥', label: 'Workspace Tool',    desc: 'Manage workers and project tickets' },
+    { id: 'symbolIndex',   icon: '🔍', label: 'Symbol Index',      desc: 'Search code symbols & file watcher' },
     { id: 'themeEngine',   icon: '🎨', label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)' },
     { id: 'folderFilters', icon: '📁', label: 'Folder Filters',    desc: 'Ignore / Focus folder panels' },
     { id: 'swagger',       icon: '⚡', label: 'Swagger Import',    desc: 'Auto-import from OpenAPI specs' },
