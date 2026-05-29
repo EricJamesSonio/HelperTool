@@ -6,6 +6,8 @@ export const S = {
     editingNoteId: null,
     initialized: false,
     activeTab: 'secrets',
+    searchSecrets: '',
+    searchNotes: '',
 };
 
 export let panel, lockScreen, mainScreen,
@@ -18,7 +20,8 @@ export let panel, lockScreen, mainScreen,
     tabSecrets, tabNotes, panelSecrets, panelNotes,
     notesList, noteFormTitle, noteFormBody, noteFormDate,
     noteSaveBtn, noteCancelBtn, noteDeleteBtn, noteNewBtn,
-    notesEditorEmpty, notesEditorForm;
+    notesEditorEmpty, notesEditorForm,
+    searchSecretsInput, searchNotesInput;
 
 export function assignRefs() {
     panel          = document.getElementById('secretHolderPanel');
@@ -62,4 +65,6 @@ export function assignRefs() {
     noteNewBtn         = document.getElementById('shNoteNewBtn');
     notesEditorEmpty   = document.getElementById('shNotesEditorEmpty');
     notesEditorForm    = document.getElementById('shNotesEditorForm');
+    searchSecretsInput = document.getElementById('shSearchSecrets');
+    searchNotesInput   = document.getElementById('shSearchNotes');
 }
