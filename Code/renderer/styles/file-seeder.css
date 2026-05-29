@@ -1,0 +1,360 @@
+/* renderer/styles/file-seeder.css */
+
+/* ── Overlay ──────────────────────────────────────────────────────────────── */
+
+.fs-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+
+.fs-overlay--visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* ── Panel ────────────────────────────────────────────────────────────────── */
+
+.fs-panel {
+    background: var(--bg-panel, #1a1a2e);
+    border: 1px solid var(--border-subtle, #2e2e4a);
+    border-radius: 12px;
+    width: min(640px, 92vw);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateY(12px);
+    transition: transform 0.18s ease;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.fs-panel--visible {
+    transform: translateY(0);
+}
+
+.fs-panel-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.fs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border-subtle, #2e2e4a);
+    flex-shrink: 0;
+}
+
+.fs-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fs-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+}
+
+.fs-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fs-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-primary, #e8e8f0);
+    letter-spacing: 0.02em;
+}
+
+.fs-target-label {
+    font-size: 0.74rem;
+    color: var(--accent, #7c6af7);
+    font-family: var(--font-mono, monospace);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 380px;
+}
+
+.fs-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted, #888);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.fs-close-btn:hover {
+    background: var(--bg-hover, #2a2a3e);
+    color: var(--text-primary, #e8e8f0);
+}
+
+/* ── Stage system ─────────────────────────────────────────────────────────── */
+
+.fs-stage {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    padding: 16px;
+    gap: 10px;
+}
+
+.fs-stage-hidden {
+    display: none !important;
+}
+
+/* ── Section label + hint ─────────────────────────────────────────────────── */
+
+.fs-section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted, #888);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.fs-hint {
+    font-size: 0.77rem;
+    color: var(--text-muted, #888);
+    line-height: 1.5;
+}
+
+.fs-hint code {
+    background: var(--bg-code, #232336);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.75rem;
+    color: var(--accent, #7c6af7);
+}
+
+/* ── Textarea ─────────────────────────────────────────────────────────────── */
+
+.fs-textarea {
+    flex: 1;
+    min-height: 240px;
+    background: var(--bg-input, #12121e);
+    border: 1px solid var(--border-subtle, #2e2e4a);
+    border-radius: 8px;
+    color: var(--text-primary, #e8e8f0);
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    padding: 12px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.fs-textarea:focus {
+    border-color: var(--accent, #7c6af7);
+}
+
+.fs-textarea::placeholder {
+    color: var(--text-muted, #555);
+    opacity: 0.7;
+}
+
+/* ── Action buttons ───────────────────────────────────────────────────────── */
+
+.fs-input-actions,
+.fs-preview-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.fs-btn {
+    padding: 7px 16px;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.fs-btn:hover { opacity: 0.85; }
+
+.fs-btn-primary {
+    background: var(--accent, #7c6af7);
+    color: #fff;
+}
+
+.fs-btn-secondary {
+    background: var(--bg-hover, #2a2a3e);
+    color: var(--text-primary, #e8e8f0);
+    border: 1px solid var(--border-subtle, #2e2e4a);
+}
+
+/* ── Preview summary badges ───────────────────────────────────────────────── */
+
+.fs-preview-summary {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.fs-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+.fs-badge-create {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.fs-badge-skip {
+    background: rgba(251, 191, 36, 0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+/* ── Preview list ─────────────────────────────────────────────────────────── */
+
+.fs-preview-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border-subtle, #2e2e4a);
+    border-radius: 8px;
+    background: var(--bg-input, #12121e);
+    padding: 8px 0;
+}
+
+.fs-preview-folder {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted, #888);
+    padding: 8px 14px 4px;
+    letter-spacing: 0.03em;
+    font-family: var(--font-mono, monospace);
+}
+
+.fs-preview-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    font-size: 0.8rem;
+    font-family: var(--font-mono, monospace);
+    transition: background 0.1s;
+}
+
+.fs-preview-row:hover {
+    background: var(--bg-hover, #1e1e30);
+}
+
+.fs-preview-row--create { color: var(--text-primary, #e8e8f0); }
+.fs-preview-row--skip   { color: var(--text-muted, #666); }
+
+.fs-row-icon {
+    font-size: 0.7rem;
+    width: 14px;
+    flex-shrink: 0;
+}
+
+.fs-preview-row--create .fs-row-icon { color: #34d399; }
+.fs-preview-row--skip   .fs-row-icon { color: #fbbf24; }
+
+.fs-row-path {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fs-row-subdir {
+    color: var(--text-muted, #666);
+    font-size: 0.75rem;
+}
+
+.fs-row-badge {
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.fs-preview-row--create .fs-row-badge {
+    background: rgba(52, 211, 153, 0.12);
+    color: #34d399;
+}
+
+.fs-preview-row--skip .fs-row-badge {
+    background: rgba(251, 191, 36, 0.1);
+    color: #fbbf24;
+}
+
+/* ── Seeding spinner stage ────────────────────────────────────────────────── */
+
+#fsSeedingStage {
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+}
+
+.fs-seeding-spinner {
+    font-size: 2.4rem;
+    animation: fsSpin 1.2s linear infinite;
+}
+
+@keyframes fsSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.fs-seeding-label {
+    font-size: 0.85rem;
+    color: var(--text-muted, #888);
+}
+
+/* ── Notice toast ─────────────────────────────────────────────────────────── */
+
+.fs-notice {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel, #1a1a2e);
+    border: 1px solid var(--border-subtle, #2e2e4a);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    color: var(--text-primary, #e8e8f0);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 10;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.fs-notice--visible {
+    opacity: 1;
+}

@@ -5,12 +5,14 @@
  *   - Secret Holder
  *   - Workspace Tool
  *   - Git Tool
+ *   - File Seeder Tool
  */
 
 import { state } from './appState.js';
 import { initShortcutManager, openConfig } from '../shortcutEntry.js';
 import { initContextMenu } from '../utils/contextMenu.js';
 import DependenciesUI from '../dependencies/dependenciesUI.js';
+import * as fileSeederTool from '../fileSeederTool.js';
 
 // ---- Module-level handles ------------------------------------------------
 
@@ -21,15 +23,15 @@ let _gitTool       = null;
 let _gitPanel      = null;
 let _gitContainer  = null;
 
-let _symbolIndexTool  = null;
-let _symbolIndexPanel = null;
+let _symbolIndexTool      = null;
+let _symbolIndexPanel     = null;
 let _symbolIndexContainer = null;
 
-let _depsUI       = null;
-let _depsPanel    = null;
+let _depsUI        = null;
+let _depsPanel     = null;
 let _depsContainer = null;
 
-let _canvasTool    = null;
+let _canvasTool      = null;
 let _settingsManager = null;
 
 // ---- Saved features for conditional tool entries ---------------------------
@@ -42,11 +44,8 @@ function initSidebar() {
   const sidebar = document.getElementById('toolsSidebar');
   if (!sidebar) return;
 
-  let hoverTimer;
-
   sidebar.addEventListener('mouseenter', function () {
     if (sidebar.classList.contains('pinned')) return;
-    clearTimeout(hoverTimer);
     sidebar.classList.add('expanded');
   });
 
@@ -122,9 +121,23 @@ function populateSidebar() {
         if (_gitTool && _gitTool.isInitialized) {
           _gitTool.refresh();
         } else {
-          var repoPath = state.selectedRepoPath;
+          const repoPath = state.selectedRepoPath;
           if (repoPath) initializeGitTool(repoPath);
         }
+      }
+    });
+    body.appendChild(item);
+  }
+
+  // ── File Seeder ──────────────────────────────────────────
+  {
+    const item = createItem('🌱', 'File Seeder', 'Seed files into a folder', function () {
+      if (fileSeederTool.isOpen()) {
+        fileSeederTool.close();
+      } else {
+        _closeAllToolPanels();
+        // Open without a pre-selected folder — user right-clicks to target
+        fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
       }
     });
     body.appendChild(item);
@@ -133,14 +146,12 @@ function populateSidebar() {
   // ── Settings ─────────────────────────────────────────────
   {
     const item = createItem('\uD83C\uDFA8', 'Settings', 'Appearance & features', function () {
-      const fullOverlay = document.getElementById('settingsOverlay');
+      const fullOverlay  = document.getElementById('settingsOverlay');
       const lightOverlay = document.getElementById('lightSettingsOverlay');
-      if (fullOverlay && fullOverlay.classList.contains('open')) { fullOverlay.classList.remove('open'); return; }
+      if (fullOverlay  && fullOverlay.classList.contains('open'))  { fullOverlay.classList.remove('open');  return; }
       if (lightOverlay && lightOverlay.classList.contains('open')) { lightOverlay.classList.remove('open'); return; }
       _closeAllToolPanels();
-      if (_settingsManager && _settingsManager.openSettings) {
-        _settingsManager.openSettings();
-      }
+      if (_settingsManager && _settingsManager.openSettings) _settingsManager.openSettings();
     });
     body.appendChild(item);
   }
@@ -152,9 +163,7 @@ function populateSidebar() {
         _secretHolder.closeSecretHolder();
       } else {
         _closeAllToolPanels();
-        if (_secretHolder && _secretHolder.openSecretHolder) {
-          await _secretHolder.openSecretHolder();
-        }
+        if (_secretHolder && _secretHolder.openSecretHolder) await _secretHolder.openSecretHolder();
       }
     });
     body.appendChild(item);
@@ -175,15 +184,13 @@ function populateSidebar() {
         _workspaceTool.closeWorkspacePanel();
       } else {
         _closeAllToolPanels();
-        if (_workspaceTool && _workspaceTool.openWorkspacePanel) {
-          await _workspaceTool.openWorkspacePanel();
-        }
+        if (_workspaceTool && _workspaceTool.openWorkspacePanel) await _workspaceTool.openWorkspacePanel();
       }
     });
     body.appendChild(item);
   }
 
-  // ── Symbol Index ────────────────────────────────────────
+  // ── Symbol Index ─────────────────────────────────────────
   if (_feats.symbolIndex) {
     const item = createItem('\uD83D\uDD0D', 'Symbol Index', 'Search code symbols & navigate', function () {
       if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) {
@@ -195,7 +202,7 @@ function populateSidebar() {
         if (_symbolIndexTool && _symbolIndexTool.isInitialized) {
           _symbolIndexTool.refresh();
         } else {
-          var repoPath = state.selectedRepoPath;
+          const repoPath = state.selectedRepoPath;
           if (repoPath) initializeSymbolIndexTool(repoPath);
         }
       }
@@ -203,17 +210,15 @@ function populateSidebar() {
     body.appendChild(item);
   }
 
-  // ── Canvas Tool ─────────────────────────────────────────
+  // ── Canvas Tool ──────────────────────────────────────────
   if (_feats.canvasTool) {
     const item = createItem('\uD83C\uDFA8', 'Canvas', 'Draw diagrams & sketches', function () {
       if (_canvasTool && _canvasTool.isCanvasPanelOpen && _canvasTool.isCanvasPanelOpen()) {
         _canvasTool.closeCanvasPanel();
       } else {
         _closeAllToolPanels();
-        var repoPath = state.selectedRepoPath;
-        if (_canvasTool && _canvasTool.openCanvasPanel) {
-          _canvasTool.openCanvasPanel(repoPath);
-        }
+        const repoPath = state.selectedRepoPath;
+        if (_canvasTool && _canvasTool.openCanvasPanel) _canvasTool.openCanvasPanel(repoPath);
       }
     });
     body.appendChild(item);
@@ -239,7 +244,7 @@ function createGitPanel() {
   const panel = document.createElement('div');
   panel.id = 'gitToolPanel';
   panel.className = 'git-tool-panel';
-  panel.innerHTML = 
+  panel.innerHTML =
     '<div class="git-tool-content">' +
       '<div class="git-tool-navbar">' +
         '<h1 class="git-tool-title">\uD83D\uDD00 Git Tool</h1>' +
@@ -253,21 +258,16 @@ function createGitPanel() {
 
   _gitContainer = panel.querySelector('#gitToolContainer');
 
-  // Close button just hides the panel, never destroys the tool
   panel.querySelector('#closeGitToolBtn').addEventListener('click', function () {
     panel.classList.remove('open');
   });
 
   panel.addEventListener('click', function (e) {
-    if (e.target === panel) {
-      panel.classList.remove('open');
-    }
+    if (e.target === panel) panel.classList.remove('open');
   });
 
   document.addEventListener('keydown', function gitEscape(e) {
-    if (e.key === 'Escape' && panel.classList.contains('open')) {
-      panel.classList.remove('open');
-    }
+    if (e.key === 'Escape' && panel.classList.contains('open')) panel.classList.remove('open');
   });
 
   return panel;
@@ -293,16 +293,9 @@ async function initializeGitTool(repoPath) {
 }
 
 function destroyGitTool() {
-  if (_gitTool) {
-    _gitTool.destroy();
-    _gitTool = null;
-  }
-  if (_gitContainer) {
-    _gitContainer.innerHTML = '';
-  }
-  if (_gitPanel) {
-    _gitPanel.classList.remove('open');
-  }
+  if (_gitTool) { _gitTool.destroy(); _gitTool = null; }
+  if (_gitContainer) _gitContainer.innerHTML = '';
+  if (_gitPanel) _gitPanel.classList.remove('open');
 }
 
 // ---- Symbol Index Tool lifecycle -------------------------------------------
@@ -330,15 +323,11 @@ function createSymbolIndexPanel() {
   });
 
   panel.addEventListener('click', function (e) {
-    if (e.target === panel) {
-      panel.classList.remove('open');
-    }
+    if (e.target === panel) panel.classList.remove('open');
   });
 
   document.addEventListener('keydown', function siEscape(e) {
-    if (e.key === 'Escape' && panel.classList.contains('open')) {
-      panel.classList.remove('open');
-    }
+    if (e.key === 'Escape' && panel.classList.contains('open')) panel.classList.remove('open');
   });
 
   return panel;
@@ -364,19 +353,12 @@ async function initializeSymbolIndexTool(repoPath) {
 }
 
 function destroySymbolIndexTool() {
-  if (_symbolIndexTool) {
-    _symbolIndexTool.destroy();
-    _symbolIndexTool = null;
-  }
-  if (_symbolIndexContainer) {
-    _symbolIndexContainer.innerHTML = '';
-  }
-  if (_symbolIndexPanel) {
-    _symbolIndexPanel.classList.remove('open');
-  }
+  if (_symbolIndexTool) { _symbolIndexTool.destroy(); _symbolIndexTool = null; }
+  if (_symbolIndexContainer) _symbolIndexContainer.innerHTML = '';
+  if (_symbolIndexPanel) _symbolIndexPanel.classList.remove('open');
 }
 
-// ---- Dependencies Panel ------------------------------------------------------
+// ---- Dependencies Panel ----------------------------------------------------
 
 function createDepsPanel() {
   const panel = document.createElement('div');
@@ -401,21 +383,17 @@ function createDepsPanel() {
   });
 
   panel.addEventListener('click', function (e) {
-    if (e.target === panel) {
-      panel.classList.remove('open');
-    }
+    if (e.target === panel) panel.classList.remove('open');
   });
 
   document.addEventListener('keydown', function depsEscape(e) {
-    if (e.key === 'Escape' && panel.classList.contains('open')) {
-      panel.classList.remove('open');
-    }
+    if (e.key === 'Escape' && panel.classList.contains('open')) panel.classList.remove('open');
   });
 
   return panel;
 }
 
-// ---- Close all tool panels (single-active-tool) ------------------------------
+// ---- Close all tool panels (single-active-tool) ----------------------------
 
 function _closeAllToolPanels() {
   if (_apiTool && _apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) _apiTool.closeApiToolPanel();
@@ -431,6 +409,8 @@ function _closeAllToolPanels() {
   if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) _symbolIndexPanel.classList.remove('open');
   if (_depsPanel && _depsPanel.classList.contains('open')) _depsPanel.classList.remove('open');
   if (_canvasTool && _canvasTool.isCanvasPanelOpen && _canvasTool.isCanvasPanelOpen()) _canvasTool.closeCanvasPanel();
+  // File Seeder
+  if (fileSeederTool.isOpen()) fileSeederTool.close();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -452,6 +432,9 @@ export async function initTools(feats, settingsManager) {
   _feats = feats || {};
   _settingsManager = settingsManager;
 
+  // File Seeder — always available, no feature flag
+  fileSeederTool.init();
+
   // ---- Sidebar init -------------------------------------------------------
   initSidebar();
   populateSidebar();
@@ -468,8 +451,9 @@ export async function initTools(feats, settingsManager) {
 
     document.addEventListener('keydown', function () {
       if (_apiTool && !_apiTool.isApiToolPanelOpen()) {
-        const items = document.querySelectorAll('.tools-sidebar-item');
-        items.forEach(function (el) { el.classList.remove('active'); });
+        document.querySelectorAll('.tools-sidebar-item').forEach(function (el) {
+          el.classList.remove('active');
+        });
       }
     });
   }
@@ -496,7 +480,7 @@ export async function initTools(feats, settingsManager) {
     }
   }
 
-  // ---- Canvas Tool ---------------------------------------------------------
+  // ---- Canvas Tool --------------------------------------------------------
   if (feats.canvasTool) {
     try {
       _canvasTool = await import('../canvasTool.js');
@@ -507,16 +491,34 @@ export async function initTools(feats, settingsManager) {
     }
   }
 
-  // ---- CLI Tool Shortcuts --------------------------------------------------
+  // ---- Context Menu -------------------------------------------------------
+  initContextMenu(
+    // onFileDeps — existing behaviour unchanged
+    (filePath) => {
+      if (!state.selectedRepoPath) return;
+      _closeAllToolPanels();
+      if (!_depsPanel) _depsPanel = createDepsPanel();
+      _depsPanel.classList.add('open');
+      if (!_depsUI) {
+        _depsUI = new DependenciesUI();
+        _depsUI.render(_depsContainer, state.selectedRepoPath);
+      }
+      _depsUI.showForFile(filePath);
+    },
+    // onFolderSeed — new: right-click folder → File Seeder
+    (folderPath, folderName) => {
+      _closeAllToolPanels();
+      fileSeederTool.open(folderPath, folderName);
+    }
+  );
+
+  // ---- Shortcut actions ---------------------------------------------------
   const shortcutActions = {};
 
   if (feats.apiTool) {
     shortcutActions.apiTool = function () {
       if (_apiTool) {
-        if (_apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) {
-          _apiTool.closeApiToolPanel();
-          return;
-        }
+        if (_apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) { _apiTool.closeApiToolPanel(); return; }
         _closeAllToolPanels();
         _apiTool.openApiToolPanel();
       }
@@ -524,69 +526,25 @@ export async function initTools(feats, settingsManager) {
   }
 
   shortcutActions.shortcutTool = function () {
-    if (openConfig.isConfigOpen && openConfig.isConfigOpen()) {
-      openConfig();
-      return;
-    }
-    openConfig();
-  };
-
-  // ---- Context Menu Init ----------------------------------------------------
-  initContextMenu((filePath) => {
-    if (!state.selectedRepoPath) return;
-    _closeAllToolPanels();
-    if (!_depsPanel) _depsPanel = createDepsPanel();
-    _depsPanel.classList.add('open');
-    if (!_depsUI) {
-      _depsUI = new DependenciesUI();
-      _depsUI.render(_depsContainer, state.selectedRepoPath);
-    }
-    _depsUI.showForFile(filePath);
-  });
-
-  if (feats.apiTool) {
-    shortcutActions.apiTool = function () {
-      if (_apiTool) {
-        if (_apiTool.isApiToolPanelOpen && _apiTool.isApiToolPanelOpen()) {
-          _apiTool.closeApiToolPanel();
-          return;
-        }
-        _closeAllToolPanels();
-        _apiTool.openApiToolPanel();
-      }
-    };
-  }
-
-  shortcutActions.shortcutTool = function () {
-    if (openConfig.isConfigOpen && openConfig.isConfigOpen()) {
-      openConfig(); // This will close it internally
-      return;
-    }
     openConfig();
   };
 
   shortcutActions.gitTool = function () {
-    if (_gitPanel && _gitPanel.classList.contains('open')) {
-      _gitPanel.classList.remove('open');
-      return;
-    }
+    if (_gitPanel && _gitPanel.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
     _closeAllToolPanels();
     if (!_gitPanel) _gitPanel = createGitPanel();
     _gitPanel.classList.add('open');
     if (_gitTool && _gitTool.isInitialized) {
       _gitTool.refresh();
     } else {
-      var repoPath = state.selectedRepoPath;
+      const repoPath = state.selectedRepoPath;
       if (repoPath) initializeGitTool(repoPath);
     }
   };
 
   shortcutActions.promptTool = async function () {
     const modal = document.getElementById('promptToolModal');
-    if (modal && modal.style.display !== 'none') {
-      modal.style.display = 'none';
-      return;
-    }
+    if (modal && modal.style.display !== 'none') { modal.style.display = 'none'; return; }
     _closeAllToolPanels();
     try {
       const { openPromptToolModal } = await import('../promptTool.js');
@@ -597,27 +555,20 @@ export async function initTools(feats, settingsManager) {
   };
 
   shortcutActions.settings = function () {
-    const fullOverlay = document.getElementById('settingsOverlay');
+    const fullOverlay  = document.getElementById('settingsOverlay');
     const lightOverlay = document.getElementById('lightSettingsOverlay');
-    if (fullOverlay && fullOverlay.classList.contains('open')) { fullOverlay.classList.remove('open'); return; }
+    if (fullOverlay  && fullOverlay.classList.contains('open'))  { fullOverlay.classList.remove('open');  return; }
     if (lightOverlay && lightOverlay.classList.contains('open')) { lightOverlay.classList.remove('open'); return; }
     _closeAllToolPanels();
-    if (_settingsManager && _settingsManager.openSettings) {
-      _settingsManager.openSettings();
-    }
+    if (_settingsManager && _settingsManager.openSettings) _settingsManager.openSettings();
   };
 
   if (feats.secretHolder) {
     shortcutActions.secretHolder = async function () {
       if (_secretHolder) {
-        if (_secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) {
-          _secretHolder.closeSecretHolder();
-          return;
-        }
+        if (_secretHolder.isSecretHolderOpen && _secretHolder.isSecretHolderOpen()) { _secretHolder.closeSecretHolder(); return; }
         _closeAllToolPanels();
-        if (_secretHolder.openSecretHolder) {
-          await _secretHolder.openSecretHolder();
-        }
+        if (_secretHolder.openSecretHolder) await _secretHolder.openSecretHolder();
       }
     };
   }
@@ -625,31 +576,23 @@ export async function initTools(feats, settingsManager) {
   if (feats.workspaceTool) {
     shortcutActions.workspaceTool = async function () {
       if (_workspaceTool) {
-        if (_workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) {
-          _workspaceTool.closeWorkspacePanel();
-          return;
-        }
+        if (_workspaceTool.isWorkspacePanelOpen && _workspaceTool.isWorkspacePanelOpen()) { _workspaceTool.closeWorkspacePanel(); return; }
         _closeAllToolPanels();
-        if (_workspaceTool.openWorkspacePanel) {
-          await _workspaceTool.openWorkspacePanel();
-        }
+        if (_workspaceTool.openWorkspacePanel) await _workspaceTool.openWorkspacePanel();
       }
     };
   }
 
   if (_feats.symbolIndex) {
     shortcutActions.symbolIndex = function () {
-      if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) {
-        _symbolIndexPanel.classList.remove('open');
-        return;
-      }
+      if (_symbolIndexPanel && _symbolIndexPanel.classList.contains('open')) { _symbolIndexPanel.classList.remove('open'); return; }
       _closeAllToolPanels();
       if (!_symbolIndexPanel) _symbolIndexPanel = createSymbolIndexPanel();
       _symbolIndexPanel.classList.add('open');
       if (_symbolIndexTool && _symbolIndexTool.isInitialized) {
         _symbolIndexTool.refresh();
       } else {
-        var repoPath = state.selectedRepoPath;
+        const repoPath = state.selectedRepoPath;
         if (repoPath) initializeSymbolIndexTool(repoPath);
       }
     };
@@ -657,15 +600,10 @@ export async function initTools(feats, settingsManager) {
 
   if (_feats.canvasTool) {
     shortcutActions.canvasTool = function () {
-      if (_canvasTool && _canvasTool.isCanvasPanelOpen && _canvasTool.isCanvasPanelOpen()) {
-        _canvasTool.closeCanvasPanel();
-        return;
-      }
+      if (_canvasTool && _canvasTool.isCanvasPanelOpen && _canvasTool.isCanvasPanelOpen()) { _canvasTool.closeCanvasPanel(); return; }
       _closeAllToolPanels();
-      var repoPath = state.selectedRepoPath;
-      if (_canvasTool && _canvasTool.openCanvasPanel) {
-        _canvasTool.openCanvasPanel(repoPath);
-      }
+      const repoPath = state.selectedRepoPath;
+      if (_canvasTool && _canvasTool.openCanvasPanel) _canvasTool.openCanvasPanel(repoPath);
     };
   }
 

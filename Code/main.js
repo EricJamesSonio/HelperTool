@@ -18,6 +18,7 @@ const promptsIpc = require('./ipc/prompts_ipc.js');
 const symbolIndexIpc = require('./ipc/symbolIndex_ipc.js');
 const canvasIpc = require('./ipc/canvas_ipc.js');
 const { initDatabase } = require('./database/db.js');
+const fileseederIpc = require('./ipc/fileseeder_ipc.js');
 
 
 
@@ -104,6 +105,8 @@ function registerAllIpc() {
     promptsIpc.register({ app });
     symbolIndexIpc.register(shared);
     canvasIpc.register();
+    fileseederIpc.register(shared);
+
 }
 
 

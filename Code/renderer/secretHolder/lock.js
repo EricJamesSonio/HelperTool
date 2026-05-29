@@ -1,4 +1,5 @@
-import { S, lockScreen, mainScreen, pwInput, pwSubmitBtn, pwError, pwLabel, pwSubtitle } from './state.js';
+import { S, lockScreen, mainScreen, pwInput, pwSubmitBtn, pwError, pwLabel, pwSubtitle,
+    searchSecretsInput, searchNotesInput } from './state.js';
 import { _showPwError, _hidePwError } from './utils.js';
 import { refreshSecrets, closeEditModal } from './secrets.js';
 import { loadNotesFromStorage, renderSidebar, closeEditor } from './notes.js';
@@ -66,6 +67,10 @@ export function lockVault() {
     S.notes         = [];
     S.editingId     = null;
     S.editingNoteId = null;
+    S.searchSecrets = '';
+    S.searchNotes   = '';
+    if (searchSecretsInput) searchSecretsInput.value = '';
+    if (searchNotesInput)   searchNotesInput.value   = '';
     closeEditModal();
     closeEditor();
     showLockScreen();
