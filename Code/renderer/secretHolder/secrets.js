@@ -7,13 +7,25 @@ export async function refreshSecrets() {
     renderSecrets();
 }
 
-function renderSecrets() {
+export function renderSecrets() {
     secretsList.innerHTML = '';
-    if (S.secrets.length === 0) {
-        secretsList.innerHTML = '<div class="sh-empty">No secrets yet — add one above.</div>';
+
+    const q = (S.searchSecrets || '').toLowerCase().trim();
+    const list = q
+        ? S.secrets.filter(s =>
+            s.name.toLowerCase().includes(q) ||
+            s.value.toLowerCase().includes(q)
+          )
+        : S.secrets;
+
+    if (list.length === 0) {
+        secretsList.innerHTML = q
+            ? `<div class="sh-empty">No secrets match "<strong>${q}</strong>".</div>`
+            : '<div class="sh-empty">No secrets yet — add one above.</div>';
         return;
     }
-    S.secrets.forEach(s => {
+
+    list.forEach(s => {
         const row  = document.createElement('div');
         row.className = 'sh-row';
         const info = document.createElement('div');

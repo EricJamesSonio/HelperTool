@@ -1,11 +1,13 @@
 import { S, panel, lockBtn, closeBtn, closeLockBtn, togglePwBtn, pwInput,
     pwSubmitBtn, addBtn, addValue, editSaveBtn, editCancelBtn, editModal,
     resetBtn, tabSecrets, tabNotes, noteNewBtn, noteSaveBtn, noteCancelBtn, noteDeleteBtn,
+    searchSecretsInput, searchNotesInput,
     assignRefs } from './state.js';
 import { getTemplate } from './template.js';
 import { updateLockLabel, showLockScreen, handlePwSubmit, lockVault } from './lock.js';
 import { handleAdd, handleEditSave, closeEditModal } from './secrets.js';
-import { openEditorForNew, handleNoteSave, closeEditor, handleNoteDeleteCurrent } from './notes.js';
+import { renderSecrets } from './secrets.js';
+import { openEditorForNew, handleNoteSave, closeEditor, handleNoteDeleteCurrent, renderSidebar } from './notes.js';
 import { handleResetPassword } from './reset.js';
 import { switchTab } from './tabs.js';
 
@@ -52,6 +54,33 @@ function wireEvents() {
     noteCancelBtn.addEventListener('click', closeEditor);
     noteDeleteBtn.addEventListener('click', handleNoteDeleteCurrent);
     panel.addEventListener('click', e => { if (e.target === panel) closeSecretHolder(); });
+
+    // ── Search: secrets (name + value) ──────────────────────────
+    searchSecretsInput.addEventListener('input', () => {
+        S.searchSecrets = searchSecretsInput.value;
+        renderSecrets();
+    });
+    searchSecretsInput.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            searchSecretsInput.value = '';
+            S.searchSecrets = '';
+            renderSecrets();
+        }
+    });
+
+    // ── Search: notes (title + body) ─────────────────────────────
+    searchNotesInput.addEventListener('input', () => {
+        S.searchNotes = searchNotesInput.value;
+        renderSidebar();
+    });
+    searchNotesInput.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            searchNotesInput.value = '';
+            S.searchNotes = '';
+            renderSidebar();
+        }
+    });
+
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
             if (editModal?.style.display !== 'none') { closeEditModal(); return; }

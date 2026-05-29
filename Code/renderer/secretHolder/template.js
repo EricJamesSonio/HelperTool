@@ -36,6 +36,13 @@ export function getTemplate() {
       <input id="shAddValue" class="sh-input sh-input-sm sh-mono" placeholder="Value" />
       <button id="shAddBtn"  class="sh-btn sh-btn-accent sh-btn-sm" type="button">＋ Add</button>
     </div>
+    <div class="sh-search-bar">
+      <div class="sh-search-wrap">
+        <span class="sh-search-icon">🔍</span>
+        <input id="shSearchSecrets" class="sh-input sh-input-sm sh-search-input"
+               placeholder="Search by name or value…" autocomplete="off" />
+      </div>
+    </div>
     <div id="shSecretsList" class="sh-list"></div>
     <details class="sh-settings" id="shResetSection">
       <summary class="sh-settings-summary">⚙️ Change password</summary>
@@ -56,6 +63,13 @@ export function getTemplate() {
       <div class="sh-notes-sidebar-header">
         <span class="sh-notes-sidebar-title">📝 Notes</span>
         <button id="shNoteNewBtn" class="sh-btn sh-btn-accent sh-btn-xs" type="button">＋ New</button>
+      </div>
+      <div class="sh-notes-search">
+        <div class="sh-search-wrap">
+          <span class="sh-search-icon">🔍</span>
+          <input id="shSearchNotes" class="sh-input sh-input-sm sh-search-input"
+                 placeholder="Search notes…" autocomplete="off" />
+        </div>
       </div>
       <div id="shNotesList" class="sh-notes-sidebar-list"></div>
     </div>
