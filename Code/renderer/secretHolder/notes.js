@@ -17,14 +17,26 @@ function saveNotesToStorage() {
 
 export function renderSidebar() {
     notesList.innerHTML = '';
+
+    const q = (S.searchNotes || '').toLowerCase().trim();
     const sorted = [...S.notes].sort((a, b) =>
         (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
     );
-    if (sorted.length === 0) {
-        notesList.innerHTML = `<div class="sh-notes-sidebar-empty"><div>No notes yet.</div><div>Hit ＋ New to start.</div></div>`;
+    const filtered = q
+        ? sorted.filter(n =>
+            (n.title || '').toLowerCase().includes(q) ||
+            (n.body  || '').toLowerCase().includes(q)
+          )
+        : sorted;
+
+    if (filtered.length === 0) {
+        notesList.innerHTML = q
+            ? `<div class="sh-notes-sidebar-empty"><div>No notes match</div><div>"${q}"</div></div>`
+            : `<div class="sh-notes-sidebar-empty"><div>No notes yet.</div><div>Hit ＋ New to start.</div></div>`;
         return;
     }
-    sorted.forEach(note => {
+
+    filtered.forEach(note => {
         const item = document.createElement('div');
         item.className  = 'sh-notes-sidebar-item';
         item.dataset.noteId = note.id;

@@ -129,6 +129,16 @@ const canvasBridge = {
     },
 };
 
+const fileseederBridge = {
+    fileSeeder: {
+        preview: (basePath, relPaths) =>
+            ipcRenderer.invoke('fileseeder:preview', basePath, relPaths),
+
+        seed: (basePath, relPaths) =>
+            ipcRenderer.invoke('fileseeder:seed', basePath, relPaths),
+    },
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -141,5 +151,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...promptsBridge,
     ...symbolIndexBridge,
     ...canvasBridge,
+    ...fileseederBridge,
 });
 
