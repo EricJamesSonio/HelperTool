@@ -424,34 +424,44 @@ class GitToolUI {
   /**
    * Render working tree files
    */
-  renderWorkingTree(files) {
-    const list = this.container.querySelector('#workingTreeList');
-    const count = this.container.querySelector('#workingCount');
-    const stageAllRow = this.container.querySelector('#stageAllRow');
+renderWorkingTree(files) {
+  const list = this.container.querySelector('#workingTreeList');
+  const count = this.container.querySelector('#workingCount');
+  const stageAllRow = this.container.querySelector('#stageAllRow');
 
-    if (files.length === 0) {
-      list.innerHTML = '<div class="empty-state">No changes</div>';
-      count.textContent = '0 files';
-      if (stageAllRow) stageAllRow.style.display = 'none';
-      return;
-    }
-
-    count.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
-    if (stageAllRow) stageAllRow.style.display = '';
-    
-    list.innerHTML = files.map(file => `
-      <div class="file-item working-file-item" data-file="${file.file}">
-        <input type="checkbox" class="file-checkbox" data-file="${file.file}" />
-        <span class="file-status-badge status-${this.getStatusClass(file.status)}">
-          ${this.getStatusLabel(file.status)}
-        </span>
-        <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
-        <button class="stage-btn btn-icon-small" data-file="${file.file}" title="Stage file">
-          <span>→</span>
-        </button>
-      </div>
-    `).join('');
+  if (files.length === 0) {
+    list.innerHTML = '<div class="empty-state">No changes</div>';
+    count.textContent = '0 files';
+    if (stageAllRow) stageAllRow.style.display = 'none';
+    return;
   }
+
+  count.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+  if (stageAllRow) stageAllRow.style.display = '';
+
+  const groups = this.gitManager.getWorkingTreeGroupedByTime();
+
+  list.innerHTML = groups.map(group => `
+    <div class="time-group">
+      <div class="time-group-header">
+        <span class="time-group-label">${this.escapeHtml(group.label)}</span>
+        <span class="time-group-count">${group.files.length} file${group.files.length !== 1 ? 's' : ''}</span>
+      </div>
+      ${group.files.map(file => `
+        <div class="file-item working-file-item" data-file="${file.file}">
+          <input type="checkbox" class="file-checkbox" data-file="${file.file}" />
+          <span class="file-status-badge status-${this.getStatusClass(file.status)}">
+            ${this.getStatusLabel(file.status)}
+          </span>
+          <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
+          <button class="stage-btn btn-icon-small" data-file="${file.file}" title="Stage file">
+            <span>→</span>
+          </button>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
 
   /**
    * Render staged files
