@@ -1,26 +1,21 @@
-// ===== File: Code\renderer\utils\contextMenu.js =====
 let _activeMenu   = null;
 let _onFileDeps   = null;
 let _onFolderSeed = null;
+let _onFolderLoc  = null;
 
-export function initContextMenu(onFileDeps, onFolderSeed) {
+export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc) {
   _onFileDeps   = onFileDeps;
   _onFolderSeed = onFolderSeed;
+  _onFolderLoc  = onFolderLoc;
 
   document.addEventListener('contextmenu', (e) => {
     const wrapper = e.target.closest('.node-wrapper');
-    if (!wrapper) {
-      closeMenu();
-      return;
-    }
+    if (!wrapper) { closeMenu(); return; }
     e.preventDefault();
     closeMenu();
 
     const nodePath = wrapper.dataset.nodePath;
     const nodeName = wrapper.dataset.nodeName || nodePath?.split('/').pop() || '';
-    // :scope > limits to direct child only — without this, an expanded folder
-    // wrapper contains descendant .tree-node.file nodes which make isFile fire
-    // incorrectly when right-clicking a folder.
     const isFile   = !!wrapper.querySelector(':scope > .tree-node.file');
     const isFolder = !!wrapper.querySelector(':scope > .tree-node.folder');
 
@@ -38,8 +33,6 @@ export function initContextMenu(onFileDeps, onFolderSeed) {
     if (e.key === 'Escape') closeMenu();
   });
 }
-
-// ── File context menu ─────────────────────────────────────────────────────────
 
 function showFileMenu(x, y, filePath) {
   const menu = document.createElement('div');
@@ -71,8 +64,6 @@ function showFileMenu(x, y, filePath) {
   mountMenu(menu);
 }
 
-// ── Folder context menu ───────────────────────────────────────────────────────
-
 function showFolderMenu(x, y, folderPath, folderName) {
   const menu = document.createElement('div');
   menu.className = 'custom-context-menu';
@@ -86,35 +77,35 @@ function showFolderMenu(x, y, folderPath, folderName) {
       <span class="context-menu-label">File Seeder</span>
       <span class="context-menu-hint">Folder</span>
     </div>
+    <div class="context-menu-item" data-action="folder-loc">
+      <span class="context-menu-icon">📏</span>
+      <span class="context-menu-label">LOC Detector</span>
+      <span class="context-menu-hint">Folder</span>
+    </div>
   `;
 
   menu.addEventListener('click', (e) => {
     const item = e.target.closest('.context-menu-item');
     if (!item || item.classList.contains('context-menu-item-disabled')) return;
     if (item.dataset.action === 'folder-seed' && _onFolderSeed) _onFolderSeed(folderPath, folderName);
+    if (item.dataset.action === 'folder-loc'  && _onFolderLoc)  _onFolderLoc(folderPath, folderName);
     closeMenu();
   });
 
   mountMenu(menu);
 }
 
-// ── Shared ────────────────────────────────────────────────────────────────────
-
 function mountMenu(menu) {
   document.body.appendChild(menu);
   _activeMenu = menu;
 
-  // Reposition after append so getBoundingClientRect has real dimensions
   const rect = menu.getBoundingClientRect();
-  if (rect.right > window.innerWidth)   menu.style.left = (window.innerWidth  - rect.width  - 10) + 'px';
+  if (rect.right  > window.innerWidth)  menu.style.left = (window.innerWidth  - rect.width  - 10) + 'px';
   if (rect.bottom > window.innerHeight) menu.style.top  = (window.innerHeight - rect.height - 10) + 'px';
 }
 
 function closeMenu() {
-  if (_activeMenu) {
-    _activeMenu.remove();
-    _activeMenu = null;
-  }
+  if (_activeMenu) { _activeMenu.remove(); _activeMenu = null; }
 }
 
 function escapeHtml(text) {

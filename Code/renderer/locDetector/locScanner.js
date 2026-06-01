@@ -6,7 +6,7 @@
 
 export default class LocScanner {
   async scan({ rootPath, threshold, mode }) {
-    const response = await window.electronAPI.loc.scan({
+    const response = await window.electronAPI.scan({
       rootPath,
       threshold,
       mode,

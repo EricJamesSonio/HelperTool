@@ -1,7 +1,7 @@
 /**
  * locToolUI.js
- * Responsible for building the UI template and wiring DOM events.
- * Single responsibility: UI structure and event binding only.
+ * UI structure and event binding only.
+ * Path is injected externally via setRootPath() — no manual input needed.
  */
 
 import LocResultsRenderer from './locResultsRenderer.js';
@@ -14,6 +14,7 @@ export default class LocToolUI {
     this.container = null;
     this.results   = [];
     this.scanning  = false;
+    this._rootPath = '';
   }
 
   render(container) {
@@ -25,14 +26,27 @@ export default class LocToolUI {
     this.renderer.renderEmpty();
   }
 
+  /** Called by LocDetector.open() before showing the panel */
+  setRootPath(folderPath, folderName) {
+    this._rootPath = folderPath;
+    const label = this._el('locFolderLabel');
+    if (label) label.textContent = folderName || folderPath;
+  }
+
+  /** Auto-trigger scan when panel opens */
+  autoScan() {
+    if (this._rootPath) this._startScan();
+  }
+
   _template() {
     return `
       <div class="loc-panel">
-        <div class="loc-settings">
-          <div class="loc-path-row">
-            <input id="locPath" class="loc-path-input" type="text" placeholder="Project root path…" />
-            <button id="locScanBtn" class="loc-scan-btn">Scan</button>
-          </div>
+
+        <div class="loc-toolbar">
+          <span class="loc-toolbar-folder">
+            <span class="loc-toolbar-icon">📂</span>
+            <span id="locFolderLabel" class="loc-toolbar-label">—</span>
+          </span>
           <div class="loc-threshold-row">
             <span class="loc-label">Threshold:</span>
             <input id="locThreshold" class="loc-slider" type="range" min="50" max="1000" step="50" value="200" />
@@ -43,6 +57,7 @@ export default class LocToolUI {
             </select>
             <span id="locModeLabel" class="loc-mode-label">Show files with 200+ lines</span>
           </div>
+          <button id="locScanBtn" class="loc-scan-btn">Rescan</button>
         </div>
 
         <div id="locError" class="loc-error"></div>
@@ -105,12 +120,10 @@ export default class LocToolUI {
 
   async _startScan() {
     if (this.scanning) return;
+    if (!this._rootPath) { this._showError('No folder selected. Right-click a folder to scan.'); return; }
 
-    const rootPath  = this._el('locPath').value.trim();
     const threshold = parseInt(this._el('locThreshold').value, 10);
     const mode      = this._el('locMode').value;
-
-    if (!rootPath) { this._showError('Please enter a directory path to scan.'); return; }
 
     this.settings.save(threshold, mode);
     this.scanning = true;
@@ -118,7 +131,7 @@ export default class LocToolUI {
     this._clearError();
 
     try {
-      const response = await this.scanner.scan({ rootPath, threshold, mode });
+      const response = await this.scanner.scan({ rootPath: this._rootPath, threshold, mode });
       this.results = response.files;
       this.renderer.renderStats(response);
       this.renderer.populateExtFilter(response.files, this._el('locExtFilter'));
@@ -133,19 +146,19 @@ export default class LocToolUI {
 
   _setLoadingState(loading) {
     const btn = this._el('locScanBtn');
-    btn.disabled = loading;
-    btn.textContent = loading ? 'Scanning…' : 'Scan';
+    btn.disabled    = loading;
+    btn.textContent = loading ? 'Scanning…' : 'Rescan';
   }
 
   _showError(msg) {
     const el = this._el('locError');
-    el.textContent = msg;
-    el.style.display = 'block';
+    el.textContent    = msg;
+    el.style.display  = 'block';
   }
 
   _clearError() {
     const el = this._el('locError');
-    el.textContent = '';
+    el.textContent   = '';
     el.style.display = 'none';
   }
 

@@ -9,6 +9,7 @@ import { initShortcutManager, openConfig } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
 import DependenciesUI                     from '../dependencies/dependenciesUI.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
+import * as locDetector    from '../locDetector.js'; 
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 import PanelRegistry                      from './panels/panelRegistry.js';
@@ -85,12 +86,12 @@ function populateSidebar() {
     fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
   }));
 
-  body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files by line count', () => {
-    if (_locPanel?.classList.contains('open')) { _locPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_locPanel) _initLocPanel();
-    _locPanel.classList.add('open');
-  }));
+body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files by line count', () => {
+  if (locDetector.isOpen()) { locDetector.close(); return; }
+  _registry.closeAll();
+  // Open without a pre-set path — user can right-click a folder to scan
+  locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
+}));
 
   body.appendChild(createSidebarItem('\uD83C\uDFA8', 'Settings', 'Appearance & features', () => {
     const full  = document.getElementById('settingsOverlay');
@@ -161,7 +162,7 @@ function _initLocPanel() {
   _locContainer = container;
   _registry.register('loc', _locPanel);
 
-  import('../locDetector.js').then(mod => mod.initLocDetector(_locContainer))
+  import('../locDetector.js').then(mod => { console.log('[LOC] keys:', Object.keys(mod)); console.log('[LOC] fn:', mod.initLocDetector); if (typeof mod.initLocDetector === 'function') mod.initLocDetector(_locContainer); else console.error('[LOC] initLocDetector missing'); })
     .catch(err => console.error('[Tools] LOC Detector:', err));
 }
 
@@ -345,6 +346,7 @@ export async function initTools(feats, settingsManager) {
     } catch (err) { console.error('[Tools] Canvas Tool failed:', err); }
   }
 
+
   initContextMenu(
     (filePath) => {
       if (!state.selectedRepoPath) return;
@@ -364,6 +366,10 @@ export async function initTools(feats, settingsManager) {
     (folderPath, folderName) => {
       _registry.closeAll();
       fileSeederTool.open(folderPath, folderName);
+    },
+    (folderPath, folderName) => {          // ADD: onFolderLoc
+      _registry.closeAll();
+      locDetector.open(folderPath, folderName);
     }
   );
 
