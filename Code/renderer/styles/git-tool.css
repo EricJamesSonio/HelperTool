@@ -651,3 +651,41 @@
   font-size: 11px;
   color: var(--text-muted, #666);
 }
+.git-tool-panel {
+  display: none;
+  flex-direction: column;
+}
+
+.git-tool-panel.open {
+  display: flex;
+}
+
+.git-tool-panel-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.git-tool-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.git-tool-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.git-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.git-panel {
+  min-height: 0;
+}
