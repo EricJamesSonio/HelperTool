@@ -7,22 +7,20 @@ const docignoreUtils = require('./utils/docignore.js');
 const codeOps = require('./utils/codeOps.js');
 
 // IPC modules
-const repoIpc      = require('./ipc/repo_ipc.js');
-const featuresIpc  = require('./ipc/features_ipc.js');
-const secretsIpc   = require('./ipc/secrets_ipc.js');
-const apitoolIpc   = require('./ipc/apitool_ipc.js');
-const workspaceIpc = require('./ipc/workspace_ipc.js');
-const generateIpc  = require('./ipc/generate_ipc.js');
-const gitIpc = require('./ipc/git_ipc.js');
-const promptsIpc = require('./ipc/prompts_ipc.js');
+const repoIpc        = require('./ipc/repo_ipc.js');
+const featuresIpc    = require('./ipc/features_ipc.js');
+const secretsIpc     = require('./ipc/secrets_ipc.js');
+const apitoolIpc     = require('./ipc/apitool_ipc.js');
+const workspaceIpc   = require('./ipc/workspace_ipc.js');
+const generateIpc    = require('./ipc/generate_ipc.js');
+const gitIpc         = require('./ipc/git_ipc.js');
+const promptsIpc     = require('./ipc/prompts_ipc.js');
 const symbolIndexIpc = require('./ipc/symbolIndex_ipc.js');
-const canvasIpc = require('./ipc/canvas_ipc.js');
+const canvasIpc      = require('./ipc/canvas_ipc.js');
+const fileseederIpc  = require('./ipc/fileseeder_ipc.js');
+const locIpc         = require('./ipc/loc_ipc.js');
+
 const { initDatabase } = require('./database/db.js');
-const fileseederIpc = require('./ipc/fileseeder_ipc.js');
-
-
-
-
 
 // ----------------------------
 // GPU / MEMORY REDUCTION FLAGS
@@ -40,7 +38,6 @@ app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
 let mainWindow;
 let tray;
 
-// Getter passed to IPC modules that need mainWindow at call-time (not init-time)
 function getMainWindow() { return mainWindow; }
 
 // ----------------------------
@@ -69,7 +66,6 @@ if (!gotTheLock) {
         createTray();
         createWindow();
 
-        // Initialize symbol index database
         try {
             await initDatabase(app);
         } catch (err) {
@@ -106,9 +102,8 @@ function registerAllIpc() {
     symbolIndexIpc.register(shared);
     canvasIpc.register();
     fileseederIpc.register(shared);
-
+    locIpc.register(shared);
 }
-
 
 // ----------------------------
 // Window

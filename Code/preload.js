@@ -139,6 +139,10 @@ const fileseederBridge = {
     },
 };
 
+const locBridge = {
+    scan: (options) => ipcRenderer.invoke('loc:scan', options),
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -152,5 +156,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...symbolIndexBridge,
     ...canvasBridge,
     ...fileseederBridge,
+    ...locBridge,
 });
 
