@@ -12,14 +12,16 @@ export default class PanelRegistry {
     this._apiTool      = null;
     this._secretHolder = null;
     this._workspaceTool = null;
-    this._canvasTool   = null;
+    this._canvasTool    = null;
+    this._dbInspector   = null;
   }
 
   // Register external tools that don't use a panel element
-  setApiTool(t)       { this._apiTool = t; }
-  setSecretHolder(t)  { this._secretHolder = t; }
-  setWorkspaceTool(t) { this._workspaceTool = t; }
-  setCanvasTool(t)    { this._canvasTool = t; }
+  setApiTool(t)        { this._apiTool = t; }
+  setSecretHolder(t)   { this._secretHolder = t; }
+  setWorkspaceTool(t)  { this._workspaceTool = t; }
+  setCanvasTool(t)     { this._canvasTool = t; }
+  setDbInspector(t)    { this._dbInspector = t; }
 
   // Register a panel element by name
   register(name, panel) {
@@ -32,6 +34,7 @@ export default class PanelRegistry {
     if (this._secretHolder?.isSecretHolderOpen?.()) this._secretHolder.closeSecretHolder();
     if (this._workspaceTool?.isWorkspacePanelOpen?.()) this._workspaceTool.closeWorkspacePanel();
     if (this._canvasTool?.isCanvasPanelOpen?.()) this._canvasTool.closeCanvasPanel();
+    if (this._dbInspector?.isDbInspectorPanelOpen?.()) this._dbInspector.closeDbInspectorPanel();
 
     // Modal overlays
     const promptModal  = document.getElementById('promptToolModal');
