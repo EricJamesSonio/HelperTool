@@ -11,6 +11,8 @@ const FEATURES = [
   { id: 'workspaceTool', icon: '\uD83D\uDC65', name: 'Workspace' },
   { id: 'symbolIndex',   icon: '\uD83D\uDD0D', name: 'Symbol Index' },
   { id: 'canvasTool',    icon: '\uD83C\uDFA8', name: 'Canvas' },
+  { id: 'dbInspector',   icon: '\uD83D\uDDC3\uFE0F', name: 'DB Inspector' },
+  { id: 'locDetector',   icon: '\uD83D\uDCCF', name: 'LOC Detector' },
 ];
 
 let _modal = null;

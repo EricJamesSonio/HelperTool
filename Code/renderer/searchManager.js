@@ -1,3 +1,5 @@
+import { levenshteinDistance } from './shortcutMode/levenshtein.js';
+
 const treeSearchInput   = document.getElementById('treeSearchInput');
 const searchSuggestions = document.getElementById('searchSuggestions');
 
@@ -143,6 +145,12 @@ function scoreMatch(query, name, displayPath) {
   }
 
   if (p.includes(q)) return 30;
+
+  // Fuzzy fallback — Levenshtein similarity against name and displayPath
+  const nameSim  = 1 - (levenshteinDistance(q, n) / Math.max(q.length, n.length));
+  const pathSim  = 1 - (levenshteinDistance(q, p) / Math.max(q.length, p.length));
+  const bestSim  = Math.max(nameSim, pathSim);
+  if (bestSim >= 0.5) return Math.round(bestSim * 30);
   return 0;
 }
 
@@ -175,13 +183,27 @@ function searchTree(query) {
 
     const pathSpan   = document.createElement('span');
     pathSpan.className   = 'result-path';
-    const parentPath = node.displayPath.includes('/')
-      ? node.displayPath.substring(0, node.displayPath.lastIndexOf('/'))
-      : '';
-    pathSpan.textContent = parentPath ? `📁 ${parentPath}` : '(root)';
+
+    // Show full displayPath with the filename as the last segment
+    const dp = node.displayPath;
+    const lastSlash = dp.lastIndexOf('/');
+    if (lastSlash !== -1) {
+      const dir = dp.substring(0, lastSlash);
+      const file = dp.substring(lastSlash + 1);
+      pathSpan.innerHTML = `📁 ${dir}/<strong>${file}</strong>`;
+    } else {
+      pathSpan.innerHTML = `📁 <strong>${dp}</strong>`;
+    }
+
+    // Small score badge for transparency
+    const scoreBadge = document.createElement('span');
+    scoreBadge.className = 'result-score';
+    scoreBadge.textContent = m.score + '%';
+    scoreBadge.style.cssText = 'font-size:0.65rem;color:var(--text-muted);margin-left:auto;flex-shrink:0';
 
     li.appendChild(nameSpan);
     li.appendChild(pathSpan);
+    li.appendChild(scoreBadge);
     li.addEventListener('click', () => {
       selectSearchItem(node.path);
       searchSuggestions.style.display = 'none';

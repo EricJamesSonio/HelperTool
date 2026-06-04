@@ -7,6 +7,7 @@ const FEATURES_META = [
   { id: 'folderFilters', icon: '\u{1F4C1}', label: 'Folder Filters',    desc: 'Ignore / Focus folder panels', heavy: false },
   { id: 'swagger',       icon: '\u26A1', label: 'Swagger Import',    desc: 'OpenAPI spec import \u2014 only useful with API Tool', heavy: false },
   { id: 'canvasTool',    icon: '\u{1F3A8}', label: 'Canvas Tool',      desc: 'Infinite canvas for diagrams, sketches & flowcharts', heavy: false },
+  { id: 'dbInspector',   icon: '\u{1F5C3}', label: 'Database Inspector', desc: 'Visualize & explore database schemas', heavy: false },
 ];
 
 function _renderFeaturesList() {
