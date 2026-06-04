@@ -26,6 +26,7 @@ let _apiTool       = null;
 let _secretHolder  = null;
 let _workspaceTool = null;
 let _canvasTool    = null;
+let _dbInspector   = null;
 let _settingsManager = null;
 
 let _gitTool       = null;
@@ -138,6 +139,14 @@ body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files b
       _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
     }));
   }
+
+  if (_feats.dbInspector) {
+    body.appendChild(createSidebarItem('\uD83D\uDDC3\uFE0F', 'DB Inspector', 'View & explore database schemas', () => {
+      if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
+      _registry.closeAll();
+      _dbInspector?.openDbInspectorPanel?.();
+    }));
+  }
 }
 
 // ---- Panel init helpers ----------------------------------------------------
@@ -247,6 +256,12 @@ function _buildShortcutActions() {
     _registry.closeAll(); _settingsManager?.openSettings?.();
   };
 
+  actions.locDetector = () => {
+    if (locDetector.isOpen()) { locDetector.close(); return; }
+    _registry.closeAll();
+    locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
+  };
+
   if (_feats.secretHolder) {
     actions.secretHolder = async () => {
       if (_secretHolder?.isSecretHolderOpen?.()) { _secretHolder.closeSecretHolder(); return; }
@@ -276,6 +291,13 @@ function _buildShortcutActions() {
     actions.canvasTool = () => {
       if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
       _registry.closeAll(); _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
+    };
+  }
+
+  if (_feats.dbInspector) {
+    actions.dbInspector = () => {
+      if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
+      _registry.closeAll(); _dbInspector?.openDbInspectorPanel?.();
     };
   }
 
@@ -346,6 +368,14 @@ export async function initTools(feats, settingsManager) {
     } catch (err) { console.error('[Tools] Canvas Tool failed:', err); }
   }
 
+  if (feats.dbInspector) {
+    try {
+      _dbInspector = await import('../databaseInspector.js');
+      _dbInspector.initDbInspector();
+      _registry.setDbInspector(_dbInspector);
+      console.log('[Tools] DB Inspector initialised');
+    } catch (err) { console.error('[Tools] DB Inspector failed:', err); }
+  }
 
   initContextMenu(
     (filePath) => {
