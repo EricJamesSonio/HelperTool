@@ -112,7 +112,7 @@ export function getScanDialogHtml() {
           </div>
 
           <div id="dbiNewConnSection">
-            <div class="dbi-form-row">
+            <div class="dbi-form-row" id="dbiConnNameRow">
               <label class="dbi-form-label">Name</label>
               <input type="text" class="dbi-input" id="dbiScanName" placeholder="My Database" />
             </div>
@@ -133,15 +133,15 @@ export function getScanDialogHtml() {
               <label class="dbi-form-label">Port</label>
               <input type="number" class="dbi-input" id="dbiScanPort" placeholder="5432" />
             </div>
-            <div class="dbi-form-row">
+            <div class="dbi-form-row" id="dbiConnDatabaseRow">
               <label class="dbi-form-label">Database</label>
               <input type="text" class="dbi-input" id="dbiScanDatabase" placeholder="database_name" />
             </div>
-            <div class="dbi-form-row">
+            <div class="dbi-form-row" id="dbiConnUserRow">
               <label class="dbi-form-label">Username</label>
               <input type="text" class="dbi-input" id="dbiScanUser" placeholder="username" />
             </div>
-            <div class="dbi-form-row">
+            <div class="dbi-form-row" id="dbiConnPasswordRow">
               <label class="dbi-form-label">Password</label>
               <input type="password" class="dbi-input" id="dbiScanPassword" placeholder="password" />
             </div>

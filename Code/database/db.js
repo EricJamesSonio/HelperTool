@@ -85,6 +85,15 @@ function createSchema() {
 
   try {
     _db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, signature, content=symbols, content_rowid=id)`);
+    try {
+      const existing = _db.exec("SELECT COUNT(*) as cnt FROM symbols_fts");
+      if (existing.length > 0 && existing[0].values[0][0] === 0) {
+        _db.run("INSERT INTO symbols_fts(rowid, name, signature) SELECT id, name, signature FROM symbols");
+        console.log('[DB] FTS5 populated with existing symbols');
+      }
+    } catch (e) {
+      console.log('[DB] FTS5 population skipped:', e.message);
+    }
   } catch (e) {
     console.log('[DB] FTS5 not available, search fallback will be used:', e.message);
   }

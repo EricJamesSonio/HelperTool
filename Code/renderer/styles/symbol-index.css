@@ -78,6 +78,8 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   contain: layout style paint;
 }
 
@@ -87,6 +89,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  height: 100%;
   color: var(--text-primary, #eef2ff);
   font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 }
@@ -121,12 +124,17 @@
   font-size: 12px;
 }
 
+
+
+
 /* ══ CONTENT (2 panels) ══ */
 .si-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
   gap: 12px;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   padding: 12px;
 }
@@ -162,6 +170,7 @@
 .si-panel .panel-body {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding: 12px 14px;
 }
 

@@ -1,5 +1,46 @@
 const { ipcMain, safeStorage } = require('electron');
+const fs = require('fs');
 const dbi = require('../database/dbInspector.js');
+
+let _SQL = null;
+async function getSqlJs() {
+  if (!_SQL) {
+    const initSqlJs = require('sql.js/dist/sql-wasm.js');
+    _SQL = await initSqlJs();
+  }
+  return _SQL;
+}
+
+function wrapSqlJsDb(sqlJsDb) {
+  return {
+    prepare(sql) {
+      const stmt = sqlJsDb.prepare(sql);
+      let _cols = null;
+      return {
+        columns() {
+          if (!_cols) _cols = stmt.getColumnNames().map(n => ({ name: n }));
+          return _cols;
+        },
+        all() {
+          this.columns();
+          const rows = [];
+          while (stmt.step()) rows.push(stmt.getAsObject());
+          stmt.free();
+          return rows;
+        },
+        get() {
+          this.columns();
+          const has = stmt.step();
+          const row = has ? stmt.getAsObject() : undefined;
+          stmt.free();
+          return row;
+        },
+        free() { stmt.free(); },
+      };
+    },
+    close() { sqlJsDb.close(); },
+  };
+}
 
 function register(shared) {
   ipcMain.handle('dbInspector:testConnection', async (event, conn) => {
@@ -289,9 +330,11 @@ async function connectMysql(conn) {
 
 async function connectSqlite(conn) {
   if (!conn.file_path) throw new Error('SQLite requires a file path');
-  const sqlite3 = require('better-sqlite3');
-  const db = new sqlite3(conn.file_path, { readonly: true });
-  return db;
+  if (!fs.existsSync(conn.file_path)) throw new Error('SQLite file not found: ' + conn.file_path);
+  const SQL = await getSqlJs();
+  const buffer = fs.readFileSync(conn.file_path);
+  const db = new SQL.Database(buffer);
+  return wrapSqlJsDb(db);
 }
 
 async function connectMongo(conn) {

@@ -37,8 +37,8 @@ function search(repoId, query, limit) {
   if (sanitized) {
     const ftsQuery = sanitized.split(/\s+/).map(w => w + '*').join(' ');
     const sql = `
-      SELECT s.id, s.name, s.type, s.line, s.column, s.is_exported, s.class_name, s.language, s.signature,
-             s.file_id, f.path as file_path
+      SELECT s.name, s.type, s.line, s.class_name, s.signature,
+             f.path as file_path
       FROM symbols_fts
       JOIN symbols s ON symbols_fts.rowid = s.id
       JOIN indexed_files f ON s.file_id = f.id
@@ -54,19 +54,19 @@ function search(repoId, query, limit) {
       }
       stmt.free();
     } catch (e) {
-      // FTS5 failed — fall through to LIKE
+      console.warn('[Symbols] FTS5 query failed, using LIKE fallback:', e.message);
     }
   }
 
-  // If FTS5 returned nothing, fallback to LIKE on name + type
+  // If FTS5 returned nothing, fallback to LIKE on name only
   if (results.length === 0) {
     const like = `%${searchTerm.replace(/[%_]/g, '\\$&')}%`;
     const sql = `
-      SELECT s.id, s.name, s.type, s.line, s.column, s.is_exported, s.class_name, s.language, s.signature,
-             s.file_id, f.path as file_path
+      SELECT s.name, s.type, s.line, s.class_name, s.signature,
+             f.path as file_path
       FROM symbols s
       JOIN indexed_files f ON s.file_id = f.id
-      WHERE s.repo_id = ? AND (s.name LIKE ? ESCAPE '\\' OR s.type LIKE ? ESCAPE '\\')
+      WHERE s.repo_id = ? AND s.name LIKE ? ESCAPE '\\'
       ORDER BY
         CASE WHEN s.name = ? THEN 0
              WHEN s.name LIKE ? THEN 1
@@ -76,7 +76,7 @@ function search(repoId, query, limit) {
     `;
     try {
       const stmt = db.prepare(sql);
-      stmt.bind([repoId, like, like, searchTerm, like, limit]);
+      stmt.bind([repoId, like, searchTerm, like, limit]);
       while (stmt.step()) {
         results.push(stmt.getAsObject());
       }
@@ -168,4 +168,60 @@ function getByFile(fileId) {
   return results;
 }
 
-module.exports = { insertBatch, deleteByFile, deleteByRepo, search, countByRepo, countByType, getByRepoGrouped, getByFile };
+function getByRepoGroupedLight(repoId) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    SELECT f.path, f.language, f.is_dirty,
+           (SELECT COUNT(*) FROM symbols WHERE file_id = f.id) as symbol_count
+    FROM indexed_files f
+    WHERE f.repo_id = ?
+    ORDER BY f.path
+  `);
+  stmt.bind([repoId]);
+  const results = [];
+  while (stmt.step()) {
+    results.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return results;
+}
+
+function getByRepoAndFile(repoId, filePath) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    SELECT s.name, s.type, s.line,
+           s.class_name, s.signature
+    FROM symbols s
+    JOIN indexed_files f ON s.file_id = f.id
+    WHERE f.repo_id = ? AND f.path = ?
+    ORDER BY s.line
+  `);
+  stmt.bind([repoId, filePath]);
+  const results = [];
+  while (stmt.step()) {
+    results.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return results;
+}
+
+function getAllByRepo(repoId) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    SELECT s.name, s.type, s.line, s.class_name, s.signature,
+           f.path as file_path, f.language
+    FROM symbols s
+    JOIN indexed_files f ON s.file_id = f.id
+    WHERE s.repo_id = ?
+    ORDER BY f.path, s.line
+  `);
+  stmt.bind([repoId]);
+  const results = [];
+  while (stmt.step()) {
+    results.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return results;
+}
+
+module.exports = { insertBatch, deleteByFile, deleteByRepo, search, countByRepo, countByType, getByRepoGrouped, getByFile, getByRepoGroupedLight, getByRepoAndFile, getAllByRepo };

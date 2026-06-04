@@ -11,7 +11,6 @@ const db = require('../database/db');
 
 const BATCH_SIZE = 8;
 const PROGRESS_THROTTLE_PCT = 1; // at most one IPC per 1% change
-const SAVE_INTERVAL = 100; // save every N files
 
 function detectLanguage(ext) {
   const map = {
@@ -70,10 +69,6 @@ async function indexRepo(repoPath, docignoreUtils, onProgress, onError) {
       });
     }
 
-    // Periodic save
-    if (indexedCount % SAVE_INTERVAL === 0) {
-      db.save();
-    }
   }
 
   repoDb.markIndexed(repoId, totalFiles, symbolCount);
@@ -110,7 +105,6 @@ async function indexFile(repoId, repoPath, relPath) {
     const result = parser.parseFile(content, relPath);
     const symbols = result.symbols || [];
     const imports = result.imports || [];
-    console.log('[Indexer] parseFile %s: symbols=%d imports=%d', relPath, symbols.length, imports.length);
 
     if (symbols.length > 0) {
       symbolDb.insertBatch(symbols.map(s => ({
@@ -123,7 +117,6 @@ async function indexFile(repoId, repoPath, relPath) {
 
     // Resolve and store imports
     if (imports.length > 0) {
-      console.log('[Indexer] Storing %d imports for %s', imports.length, relPath);
       const enriched = imports.map(imp => {
         const resolvedFull = resolver.resolveImport(relPath, imp.import_path, repoPath);
         let resolvedFileId = null;
@@ -144,8 +137,6 @@ async function indexFile(repoId, repoPath, relPath) {
         };
       });
       importDb.insertBatch(enriched);
-    } else {
-      console.log('[Indexer] No imports for %s (lang=%s)', relPath, language);
     }
 
     return { fileId, symbolsCount: symbols.length, reused: false };

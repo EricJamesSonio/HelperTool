@@ -23,18 +23,13 @@ function createWatcher(repoPath, onDirty, onError) {
   destroyWatcher(repoPath);
 
   const repo = repoDb.getByPath(repoPath);
-  if (!repo) {
-    console.log('[SI Watcher] No repo found:', repoPath);
-    return null;
-  }
+  if (!repo) return null;
 
   let config = {};
   try { config = JSON.parse(repo.config_json || '{}'); } catch (e) { config = {}; }
   const ignoredFolders = config.ignoredFolders || ['node_modules', 'dist', 'build', '.git'];
 
   const ignorePattern = ignoredFolders.map(f => `**/${f}/**`);
-
-  console.log('[SI Watcher] Starting watcher for:', repoPath, 'ignore:', ignorePattern);
 
   const watcher = chokidar.watch(repoPath, {
     ignored: ignorePattern,
@@ -44,13 +39,11 @@ function createWatcher(repoPath, onDirty, onError) {
   });
 
   watcher.on('change', (filePath) => {
-    console.log('[SI Watcher] change:', filePath);
     const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
 
     // If file isn't in the index yet, insert it first (was created before watcher started)
     const existing = fileDb.getByRepoAndPath(repo.id, relPath);
     if (!existing) {
-      console.log('[SI Watcher] change on unknown file, inserting:', relPath);
       const ext = path.extname(relPath).toLowerCase();
       const langMap = { '.js': 'javascript', '.ts': 'typescript', '.tsx': 'tsx', '.py': 'python', '.html': 'html', '.css': 'css' };
       const language = langMap[ext] || null;
@@ -59,20 +52,16 @@ function createWatcher(repoPath, onDirty, onError) {
         const content = fs.readFileSync(filePath, 'utf-8');
         const hash = crypto.createHash('md5').update(content).digest('hex');
         fileDb.insert(repo.id, relPath, language, hash, stat.mtime.toISOString());
-      } catch (e) {
-        console.log('[SI Watcher] change insert error:', e.message);
-      }
+      } catch (e) {}
     }
 
     fileDb.markDirty(repo.id, relPath);
     debouncedSave(repoPath);
     const count = fileDb.countDirtyByRepo(repo.id);
-    console.log('[SI Watcher] dirty count after change:', count);
     if (onDirty) onDirty(count);
   });
 
   watcher.on('add', (filePath) => {
-    console.log('[SI Watcher] add:', filePath);
     const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
     const existing = fileDb.getByRepoAndPath(repo.id, relPath);
     if (existing) {
@@ -92,33 +81,25 @@ function createWatcher(repoPath, onDirty, onError) {
         fileDb.insert(repo.id, relPath, language, hash, stat.mtime.toISOString());
         fileDb.markDirty(repo.id, relPath);
         debouncedSave(repoPath);
-        console.log('[SI Watcher] inserted new file:', relPath);
-      } catch (e) {
-        console.log('[SI Watcher] add error:', e.message);
-      }
+      } catch (e) {}
     }
     const count = fileDb.countDirtyByRepo(repo.id);
-    console.log('[SI Watcher] dirty count after add:', count);
     if (onDirty) onDirty(count);
   });
 
   watcher.on('unlink', (filePath) => {
-    console.log('[SI Watcher] unlink:', filePath);
     const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
     fileDb.removeByPath(repo.id, relPath);
     debouncedSave(repoPath);
     const count = fileDb.countDirtyByRepo(repo.id);
-    console.log('[SI Watcher] dirty count after unlink:', count);
     if (onDirty) onDirty(count);
   });
 
   watcher.on('error', (err) => {
-    console.log('[SI Watcher] error:', err.message);
     if (onError) onError(err.message);
   });
 
   _watchers.set(repoPath, watcher);
-  console.log('[SI Watcher] Watcher created successfully');
   return watcher;
 }
 

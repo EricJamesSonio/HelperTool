@@ -67,6 +67,16 @@ class SymbolIndexHandler {
     return this.ipc.getIndexedFiles(repoPath);
   }
 
+  async getIndexedFileList(repoPath) {
+    if (!this.ipc) return { files: [] };
+    return this.ipc.getIndexedFileList(repoPath);
+  }
+
+  async getFileSymbols(repoPath, filePath) {
+    if (!this.ipc) return { symbols: [] };
+    return this.ipc.getFileSymbols(repoPath, filePath);
+  }
+
   async getDirtyFiles(repoPath) {
     if (!this.ipc) return { files: [] };
     return this.ipc.getDirtyFiles(repoPath);

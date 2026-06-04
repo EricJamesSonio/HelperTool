@@ -39,10 +39,13 @@ class SymbolIndex {
         throw new Error('SymbolIndex not initialized. Call initialize() first.');
       }
 
-      this.ui = new SymbolIndexUI(this.manager, this.handler);
-      await this.ui.render(containerElement, this.currentRepoPath);
+      if (this.ui) {
+        await this.ui.refreshUI();
+      } else {
+        this.ui = new SymbolIndexUI(this.manager, this.handler);
+        await this.ui.render(containerElement, this.currentRepoPath);
+      }
 
-      console.log('[SymbolIndex] UI rendered');
       return { success: true };
     } catch (err) {
       console.error('[SymbolIndex] Render error:', err);

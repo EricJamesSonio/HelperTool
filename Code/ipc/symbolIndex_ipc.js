@@ -1,4 +1,5 @@
 const { ipcMain } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const db = require('../database/db');
 const repoDb = require('../database/repositories');
@@ -11,9 +12,82 @@ const watcher = require('../indexer/watcher');
 
 let _getMainWindow = null;
 let _activeRepoPath = null;
+let _userDataPath = null;
+let _ripgrep = null;
 
-function register({ app, docignoreUtils, getMainWindow }) {
+// Main-process caches
+const _fileListCache = new Map();
+const _fileSymbolsCache = new Map();
+const _searchCache = new Map();
+const _SEARCH_CACHE_MAX = 20;
+const _statusCache = new Map();
+
+function _safeFilename(repoPath) {
+  return 'si-cache-' + Buffer.from(repoPath).toString('base64').replace(/[/+=]/g, '_');
+}
+
+function _tsvPath(repoPath) {
+  return path.join(_userDataPath, _safeFilename(repoPath) + '.tsv');
+}
+
+function _ensureSymbolTsv(repoPath) {
+  const tsv = _tsvPath(repoPath);
+  if (fs.existsSync(tsv)) return tsv;
+
+  const repo = repoDb.getByPath(repoPath);
+  if (!repo || !repo.indexed) return null;
+
+  const symbols = symbolDb.getAllByRepo(repo.id);
+  if (symbols.length === 0) return null;
+
+  const lines = symbols.map(s =>
+    [s.name || '', s.type || '', s.file_path || '', s.line || 0, s.signature || '', s.class_name || ''].join('\t')
+  ).join('\n');
+  if (lines) fs.writeFileSync(tsv, lines, 'utf8');
+  return lines ? tsv : null;
+}
+
+function _parseTsvLines(text) {
+  if (!text) return [];
+  return text.split('\n').filter(Boolean).map(line => {
+    const parts = line.split('\t');
+    if (parts.length < 4) return null;
+    return {
+      name: parts[0],
+      type: parts[1],
+      file_path: parts[2],
+      line: parseInt(parts[3], 10) || 0,
+      signature: parts[4] || undefined,
+      class_name: parts[5] || undefined,
+    };
+  }).filter(Boolean);
+}
+
+function _invalidateTsv(repoPath) {
+  try {
+    const tsv = _tsvPath(repoPath);
+    if (fs.existsSync(tsv)) fs.unlinkSync(tsv);
+  } catch (err) {
+    // silent
+  }
+}
+
+function invalidateCache(repoPath) {
+  _statusCache.delete(repoPath);
+  _fileListCache.delete(repoPath);
+  for (const key of _fileSymbolsCache.keys()) {
+    if (key.startsWith(repoPath + '::')) {
+      _fileSymbolsCache.delete(key);
+    }
+  }
+  _searchCache.clear();
+  if (_userDataPath) _invalidateTsv(repoPath);
+}
+
+async function register({ app, docignoreUtils, getMainWindow }) {
   _getMainWindow = getMainWindow;
+  _userDataPath = app.getPath('userData');
+  _ripgrep = (await import('ripgrep')).ripgrep;
 
   ipcMain.handle('symbolIndex:init', async () => {
     try {
@@ -60,13 +134,14 @@ function register({ app, docignoreUtils, getMainWindow }) {
       });
 
       watcher.createWatcher(repoPath, (dirtyCount) => {
-        console.log('[SI IPC] indexing watcher dirty changed:', dirtyCount);
+        invalidateCache(repoPath);
         const win = getMainWindow();
         if (win && !win.isDestroyed()) {
           win.webContents.send('symbolIndex:dirtyChanged', dirtyCount);
         }
       });
 
+      invalidateCache(repoPath);
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
@@ -75,25 +150,35 @@ function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:getStatus', async (_, repoPath) => {
     try {
+      const cached = _statusCache.get(repoPath);
+      if (cached) {
+        if (cached.exists && cached.indexed) {
+          watcher.createWatcher(repoPath, (count) => {
+            invalidateCache(repoPath);
+            const w = getMainWindow();
+            if (w && !w.isDestroyed()) {
+              w.webContents.send('symbolIndex:dirtyChanged', count);
+            }
+          });
+        }
+        return cached;
+      }
+
       const repo = repoDb.getByPath(repoPath);
       if (!repo) return { exists: false };
       const dirtyCount = repo.id ? fileDb.countDirtyByRepo(repo.id) : 0;
 
-      // Start the watcher if the repo is indexed
       if (repo.id && repo.indexed) {
-        console.log('[SI IPC] Starting watcher for:', repoPath);
         watcher.createWatcher(repoPath, (count) => {
+          invalidateCache(repoPath);
           const w = getMainWindow();
           if (w && !w.isDestroyed()) {
-            console.log('[SI IPC] Sending dirtyChanged:', count);
             w.webContents.send('symbolIndex:dirtyChanged', count);
-          } else {
-            console.log('[SI IPC] Main window not available, dirty:', count);
           }
         });
       }
 
-      return {
+      const result = {
         exists: true,
         indexed: !!repo.indexed,
         total_files: repo.total_files,
@@ -101,6 +186,8 @@ function register({ app, docignoreUtils, getMainWindow }) {
         last_indexed: repo.last_indexed,
         dirty_count: dirtyCount,
       };
+      _statusCache.set(repoPath, result);
+      return result;
     } catch (err) {
       return { exists: false, error: err.message };
     }
@@ -110,10 +197,43 @@ function register({ app, docignoreUtils, getMainWindow }) {
     try {
       const repo = repoDb.getByPath(repoPath);
       if (!repo) return { results: [] };
-      const results = symbolDb.search(repo.id, query, limit || 20);
+
+      const cacheKey = repoPath + '::' + query + '::' + (limit || 200);
+      const cached = _searchCache.get(cacheKey);
+      if (cached) {
+        _searchCache.delete(cacheKey);
+        _searchCache.set(cacheKey, cached);
+        return { results: cached };
+      }
+
+      const tsv = _ensureSymbolTsv(repoPath);
+      if (!tsv) return { results: [] };
+
+      const args = ['-i', '-N', '--color', 'never', '--no-heading'];
+      if (limit) args.push('-m', String(limit));
+      args.push(query, tsv);
+
+      const { stdout } = await _ripgrep(args, { buffer: true });
+      const results = _parseTsvLines(stdout);
+
+      if (_searchCache.size >= _SEARCH_CACHE_MAX) {
+        const firstKey = _searchCache.keys().next().value;
+        _searchCache.delete(firstKey);
+      }
+      _searchCache.set(cacheKey, results);
       return { results };
     } catch (err) {
-      return { results: [], error: err.message };
+      // If ripgrep fails (e.g. WASM compile), fall back to SQL search
+      try {
+        const repo2 = repoDb.getByPath(repoPath);
+        if (!repo2) return { results: [] };
+        const all = symbolDb.getAllByRepo(repo2.id);
+        const lower = query.toLowerCase();
+        const results = all.filter(s => s.name.toLowerCase().includes(lower)).slice(0, limit || 200);
+        return { results };
+      } catch (err2) {
+        return { results: [], error: err2.message };
+      }
     }
   });
 
@@ -135,6 +255,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
           win.webContents.send('symbolIndex:progress', progress);
         }
       });
+      invalidateCache(repoPath);
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
@@ -144,6 +265,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
   ipcMain.handle('symbolIndex:reset', async (_, repoPath) => {
     try {
       indexer.resetIndex(repoPath);
+      invalidateCache(repoPath);
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -154,6 +276,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
     try {
       watcher.destroyWatcher(repoPath);
       indexer.deleteIndex(repoPath);
+      invalidateCache(repoPath);
       if (_activeRepoPath === repoPath) _activeRepoPath = null;
       return { success: true };
     } catch (err) {
@@ -163,6 +286,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:stopWatcher', async (_, repoPath) => {
     watcher.destroyWatcher(repoPath);
+    _statusCache.delete(repoPath);
     return { success: true };
   });
 
@@ -197,6 +321,60 @@ function register({ app, docignoreUtils, getMainWindow }) {
     }
   });
 
+  ipcMain.handle('symbolIndex:getIndexedFileList', async (_, repoPath) => {
+    try {
+      const repo = repoDb.getByPath(repoPath);
+      if (!repo) return { files: [] };
+      const cached = _fileListCache.get(repoPath);
+      if (cached) return { files: cached };
+      const files = symbolDb.getByRepoGroupedLight(repo.id);
+      _fileListCache.set(repoPath, files);
+      return { files };
+    } catch (err) {
+      return { files: [], error: err.message };
+    }
+  });
+
+  ipcMain.handle('symbolIndex:getFileSymbols', async (_, repoPath, filePath) => {
+    try {
+      const repo = repoDb.getByPath(repoPath);
+      if (!repo) return { symbols: [] };
+
+      const cacheKey = repoPath + '::' + filePath;
+      const cached = _fileSymbolsCache.get(cacheKey);
+      if (cached) {
+        _fileSymbolsCache.delete(cacheKey);
+        _fileSymbolsCache.set(cacheKey, cached);
+        return { symbols: cached };
+      }
+
+      // Try TSV via ripgrep (fast file_path match)
+      const tsv = _ensureSymbolTsv(repoPath);
+      if (tsv) {
+        const args = ['-F', '-N', '--color', 'never', '--no-heading', '-m', '500', filePath, tsv];
+        const { stdout } = await _ripgrep(args, { buffer: true });
+        const symbols = _parseTsvLines(stdout).filter(s => s.file_path === filePath);
+        _fileSymbolsCache.set(cacheKey, symbols);
+        if (_fileSymbolsCache.size > 50) {
+          const firstKey = _fileSymbolsCache.keys().next().value;
+          _fileSymbolsCache.delete(firstKey);
+        }
+        return { symbols };
+      }
+
+      // Fallback to SQL
+      const symbols = symbolDb.getByRepoAndFile(repo.id, filePath);
+      _fileSymbolsCache.set(cacheKey, symbols);
+      if (_fileSymbolsCache.size > 50) {
+        const firstKey = _fileSymbolsCache.keys().next().value;
+        _fileSymbolsCache.delete(firstKey);
+      }
+      return { symbols };
+    } catch (err) {
+      return { symbols: [], error: err.message };
+    }
+  });
+
   ipcMain.handle('symbolIndex:getDirtyFiles', async (_, repoPath) => {
     try {
       const repo = repoDb.getByPath(repoPath);
@@ -218,6 +396,7 @@ function register({ app, docignoreUtils, getMainWindow }) {
       const file = fileDb.getByRepoAndPath(repo.id, relPath);
         if (file) fileDb.markClean(file.id);
         db.save();
+        invalidateCache(repoPath);
         return { success: true, symbolsCount: result.symbolsCount };
       }
       return { success: false, error: result?.error || 'Reindex failed' };
@@ -229,29 +408,16 @@ function register({ app, docignoreUtils, getMainWindow }) {
   ipcMain.handle('symbolIndex:getFileDeps', async (_, repoPath, filePath, mode) => {
     try {
       const repo = repoDb.getByPath(repoPath);
-      if (!repo) {
-        console.log('[SI IPC] getFileDeps: repo not found for', repoPath);
-        return { exists: false };
-      }
+      if (!repo) return { exists: false };
       const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
-      console.log('[SI IPC] getFileDeps: absolutePath=%s relPath=%s', filePath, relPath);
       const file = fileDb.getByRepoAndPath(repo.id, relPath);
-      if (!file) {
-        console.log('[SI IPC] getFileDeps: file not found in DB:', relPath);
-        return { exists: false };
-      }
-      console.log('[SI IPC] getFileDeps: found file id=%s path=%s', file.id, file.path);
+      if (!file) return { exists: false };
 
       const imports = importDb.getByFile(file.id);
       const reverseDeps = importDb.getReverseDeps(file.id, repo.id);
 
-      console.log('[SI IPC] getFileDeps: imports=%d reverseDeps=%d', imports.length, reverseDeps.length);
-
-      // For function mode, return symbol-level cross-refs
       if (mode === 'function') {
         const funcData = buildFuncDeps(file, imports, reverseDeps, repo);
-        console.log('[SI IPC] getFileDeps: funcImports=%d funcReverse=%d',
-          funcData.funcImports.length, funcData.funcReverse.length);
         return {
           exists: true,
           file_path: filePath,

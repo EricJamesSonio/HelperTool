@@ -25,6 +25,10 @@ function setupScanDialog(overlay) {
   const typeSelect = overlay.querySelector('#dbiScanType');
   const hostRow = overlay.querySelector('#dbiConnHostRow');
   const portRow = overlay.querySelector('#dbiConnPortRow');
+  const nameRow = overlay.querySelector('#dbiConnNameRow');
+  const databaseRow = overlay.querySelector('#dbiConnDatabaseRow');
+  const userRow = overlay.querySelector('#dbiConnUserRow');
+  const passwordRow = overlay.querySelector('#dbiConnPasswordRow');
   const sqliteRow = overlay.querySelector('#dbiSqliteRow');
   const mongoRow = overlay.querySelector('#dbiMongoRow');
   const savedSelect = overlay.querySelector('#dbiSavedConnSelect');
@@ -49,13 +53,17 @@ function setupScanDialog(overlay) {
   // DB type toggles
   typeSelect.addEventListener('change', () => {
     const t = typeSelect.value;
-    hostRow.style.display = t === 'sqlite' || t === 'mongodb' ? 'none' : '';
-    portRow.style.display = t === 'sqlite' || t === 'mongodb' ? 'none' : '';
-    sqliteRow.style.display = t === 'sqlite' ? '' : 'none';
-    mongoRow.style.display = t === 'mongodb' ? '' : 'none';
-    if (t === 'sqlite') {
-      overlay.querySelector('#dbiScanPort').value = '';
-    } else if (t === 'mongodb') {
+    const hideSqlite = t === 'sqlite';
+    const hideMongo = t === 'mongodb';
+    hostRow.style.display = hideSqlite || hideMongo ? 'none' : '';
+    portRow.style.display = hideSqlite || hideMongo ? 'none' : '';
+    nameRow.style.display = hideSqlite ? 'none' : '';
+    databaseRow.style.display = hideSqlite ? 'none' : '';
+    userRow.style.display = hideSqlite ? 'none' : '';
+    passwordRow.style.display = hideSqlite ? 'none' : '';
+    sqliteRow.style.display = hideSqlite ? '' : 'none';
+    mongoRow.style.display = hideMongo ? '' : 'none';
+    if (t === 'sqlite' || t === 'mongodb') {
       overlay.querySelector('#dbiScanPort').value = '';
     } else if (t === 'postgres') {
       overlay.querySelector('#dbiScanPort').value = '5432';
