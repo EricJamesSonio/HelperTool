@@ -33,10 +33,58 @@ class GitManager {
    * Update working tree with git status output
    * @param {Array} files - Array of {file: string, status: string}
    */
-  updateWorkingTree(files) {
-    this.workingTreeFiles = files || [];
-    return this.workingTreeFiles;
+updateWorkingTree(files) {
+  const existingMap = new Map(
+    this.workingTreeFiles.map(f => [f.file, f])
+  );
+
+  this.workingTreeFiles = (files || []).map(incoming => {
+    const existing = existingMap.get(incoming.file);
+    const isNew = !existing;
+    const statusChanged = existing && existing.status !== incoming.status;
+
+    return {
+      ...incoming,
+      modifiedAt: (isNew || statusChanged) ? Date.now() : existing.modifiedAt
+    };
+  });
+
+  return this.workingTreeFiles;
+}
+
+getWorkingTreeGroupedByTime() {
+  const sorted = [...this.workingTreeFiles].sort(
+    (a, b) => (b.modifiedAt || 0) - (a.modifiedAt || 0)
+  );
+
+  const groups = [];
+  const seen = new Map();
+
+  for (const file of sorted) {
+    const label = this.getTimeGroupLabel(file.modifiedAt);
+    if (!seen.has(label)) {
+      seen.set(label, groups.length);
+      groups.push({ label, files: [] });
+    }
+    groups[seen.get(label)].files.push(file);
   }
+
+  return groups;
+}
+
+getTimeGroupLabel(ts) {
+  if (!ts) return 'Unknown time';
+  const age = Date.now() - ts;
+  const min = 60_000;
+  const hr = 3_600_000;
+  if (age < 2 * min)  return 'Just now';
+  if (age < 10 * min) return 'Last few minutes';
+  if (age < 30 * min) return 'Last 30 minutes';
+  if (age < hr)       return 'Last hour';
+  if (age < 3 * hr)   return 'Last few hours';
+  if (age < 24 * hr)  return 'Earlier today';
+  return 'Older changes';
+}
 
   /**
    * Stage a file (move from working tree to staged)
@@ -69,16 +117,16 @@ class GitManager {
   /**
    * Unstage a file (move back to working tree)
    */
-  unstageFile(filePath) {
-    const fileIndex = this.stagedFiles.findIndex(f => f.file === filePath);
-    if (fileIndex === -1) return { error: 'File not found in staged area' };
+unstageFile(filePath) {
+  const fileIndex = this.stagedFiles.findIndex(f => f.file === filePath);
+  if (fileIndex === -1) return { error: 'File not found in staged area' };
 
-    const file = this.stagedFiles[fileIndex];
-    this.workingTreeFiles.push({ file: file.file, status: file.status });
-    this.stagedFiles.splice(fileIndex, 1);
+  const file = this.stagedFiles[fileIndex];
+  this.workingTreeFiles.push({ file: file.file, status: file.status, modifiedAt: file.modifiedAt });
+  this.stagedFiles.splice(fileIndex, 1);
 
-    return { success: true, working: this.workingTreeFiles };
-  }
+  return { success: true, working: this.workingTreeFiles };
+}
 
   /**
    * Unstage multiple files at once

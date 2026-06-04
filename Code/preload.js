@@ -139,6 +139,30 @@ const fileseederBridge = {
     },
 };
 
+const locBridge = {
+    scan: (options) => ipcRenderer.invoke('loc:scan', options),
+};
+
+const dbInspectorBridge = {
+    dbInspector: {
+        testConnection:  (conn)          => ipcRenderer.invoke('dbInspector:testConnection', conn),
+        scan:            (conn)          => ipcRenderer.invoke('dbInspector:scan', conn),
+        refreshSnapshot: (snapshotId)    => ipcRenderer.invoke('dbInspector:refreshSnapshot', snapshotId),
+        listConnections: ()              => ipcRenderer.invoke('dbInspector:listConnections'),
+        saveConnection:  (conn)          => ipcRenderer.invoke('dbInspector:saveConnection', conn),
+        deleteConnection: (id)           => ipcRenderer.invoke('dbInspector:deleteConnection', id),
+        getSnapshots:    (connectionId)  => ipcRenderer.invoke('dbInspector:getSnapshots', connectionId),
+        getGraphData:    (snapshotId)    => ipcRenderer.invoke('dbInspector:getGraphData', snapshotId),
+        getTableDetails: (snapshotId, tableName) => ipcRenderer.invoke('dbInspector:getTableDetails', snapshotId, tableName),
+        executeQuery:    ({ snapshotId, query }) => ipcRenderer.invoke('dbInspector:executeQuery', { snapshotId, query }),
+        encrypt:         (text)          => ipcRenderer.invoke('dbInspector:encrypt', text),
+        decrypt:         (encrypted)     => ipcRenderer.invoke('dbInspector:decrypt', encrypted),
+        listSeeds:       (snapshotId)    => ipcRenderer.invoke('dbInspector:listSeeds', snapshotId),
+        saveSeed:        (data)          => ipcRenderer.invoke('dbInspector:saveSeed', data),
+        deleteSeed:      (id)            => ipcRenderer.invoke('dbInspector:deleteSeed', id),
+    },
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -152,5 +176,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...symbolIndexBridge,
     ...canvasBridge,
     ...fileseederBridge,
+    ...locBridge,
+    ...dbInspectorBridge,
 });
 

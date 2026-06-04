@@ -37,14 +37,21 @@ export function openShortcutResultsModal(results) {
       ? (result.alreadySelected ? 'Already selected' : `${result.matchType} (${Math.round(result.similarity * 100)}%)`)
       : 'Not found';
 
-    item.innerHTML = `
-      <span class="result-item-icon">${icon}</span>
-      <span class="result-item-name">${result.original}</span>
-      <span class="result-item-status">${status}</span>
-    `;
-
-    if (result.found && result.matched) {
-      item.title = `Matched: ${result.matched}\nPath: ${result.path}`;
+    if (result.found) {
+      // Show the full matched path as primary text
+      const matchedPath = result.path || result.original;
+      item.innerHTML = `
+        <span class="result-item-icon">${icon}</span>
+        <span class="result-item-name">${matchedPath}</span>
+        <span class="result-item-status">${status}</span>
+      `;
+      item.title = `Searched: ${result.original}`;
+    } else {
+      item.innerHTML = `
+        <span class="result-item-icon">${icon}</span>
+        <span class="result-item-name">${result.original}</span>
+        <span class="result-item-status">${status}</span>
+      `;
     }
 
     shortcutResultsList.appendChild(item);

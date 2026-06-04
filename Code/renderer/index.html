@@ -17,16 +17,15 @@
   <link rel="stylesheet" href="./styles/prompt-tool.css">
   <link rel="stylesheet" href="./styles/root-jumper.css">
   <link rel="stylesheet" href="./styles/workspaceTool.css">
-
-  <!-- ✅ Git Tool -->
   <link rel="stylesheet" href="./styles/git-tool.css">
   <link rel="stylesheet" href="./styles/shortcuts.css">
   <link rel="stylesheet" href="./styles/symbol-index.css">
   <link rel="stylesheet" href="./styles/dependencies.css">
   <link rel="stylesheet" href="./styles/canvas-tool.css">
-  <!-- ✅ Prompt Tool -->
-  <link rel="stylesheet" href="styles/file-seeder.css">
-
+  <link rel="stylesheet" href="./styles/file-seeder.css">
+  <link rel="stylesheet" href="./styles/loc-detector.css">
+  <link rel="stylesheet" href="./styles/database-inspector.css">
+  <link rel="stylesheet" href="./databaseInspector/graph-bundle.css">
 </head>
 <body>
 <div id="app">
@@ -57,7 +56,6 @@
       </button>
 
       <div class="generate-split-btn" id="generateSplitGroup">
-
         <button id="generateBtn" class="action-btn generate-btn" title="Generate output">
           Generate
         </button>
@@ -66,7 +64,6 @@
           <span class="generate-mode-caret">▾</span>
         </button>
         <div class="generate-mode-menu" id="generateModeMenu">
-
           <button class="generate-mode-item active" data-mode="normal">
             <span class="gm-icon">📄</span>
             <div class="gm-info">
@@ -74,7 +71,6 @@
               <span class="gm-desc">Full source, comments &amp; spacing kept</span>
             </div>
           </button>
-
           <button class="generate-mode-item" data-mode="minified">
             <span class="gm-icon">⚡</span>
             <div class="gm-info">
@@ -82,7 +78,6 @@
               <span class="gm-desc">No blank lines, no comments</span>
             </div>
           </button>
-
           <button class="generate-mode-item" data-mode="prompt">
             <span class="gm-icon">🧩</span>
             <div class="gm-info">

@@ -1,0 +1,56 @@
+<!-- ── LOC Detector Panel ── add this inside your tab/panel container ── -->
+<div id="loc-detector-panel" class="loc-panel">
+
+  <!-- Settings -->
+  <div class="loc-settings">
+    <div class="loc-path-row">
+      <input id="loc-path" class="loc-path-input" type="text" placeholder="Project root path, e.g. /home/user/myapp" />
+      <button id="loc-scan-btn" class="loc-scan-btn">Scan</button>
+    </div>
+
+    <div class="loc-settings-row">
+      <span class="loc-label">Lines threshold:</span>
+      <input id="loc-threshold" class="loc-slider" type="range" min="50" max="1000" step="50" value="200"
+             oninput="document.getElementById('loc-threshold-display').textContent=this.value;
+                      document.getElementById('loc-mode-label').textContent=
+                        (document.getElementById('loc-mode').value==='above'?'Show files with ':'Show files with fewer than ')+this.value+(document.getElementById('loc-mode').value==='above'?'+ lines':' lines');" />
+      <span id="loc-threshold-display" class="loc-threshold-display">200</span>
+
+      <span class="loc-label">Mode:</span>
+      <select id="loc-mode" class="loc-mode-select">
+        <option value="above">Above threshold</option>
+        <option value="below">Below threshold</option>
+      </select>
+
+      <span id="loc-mode-label" class="loc-mode-label">Show files with 200+ lines</span>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="loc-error" class="loc-error"></div>
+
+  <!-- Stats -->
+  <div class="loc-stats-bar">
+    <span id="loc-stats" style="display:flex;align-items:center;gap:8px;width:100%;"></span>
+  </div>
+
+  <!-- Filters -->
+  <div class="loc-filter-row">
+    <span class="loc-label">Sort:</span>
+    <select id="loc-sort" class="loc-sort-select">
+      <option value="lines-desc">Most lines first</option>
+      <option value="lines-asc">Fewest lines first</option>
+      <option value="name">File name A–Z</option>
+      <option value="path">Path A–Z</option>
+    </select>
+
+    <span class="loc-label">Type:</span>
+    <select id="loc-ext-filter" class="loc-ext-select">
+      <option value="">All types</option>
+    </select>
+  </div>
+
+  <!-- Results -->
+  <div id="loc-results" class="loc-results"></div>
+
+</div>

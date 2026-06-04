@@ -10,94 +10,98 @@ import { levenshteinDistance } from './levenshtein.js';
 
 /**
  * Given raw pasted text, return an array of candidate strings.
- * Each candidate is either:
- *   - a plain filename:       "page.tsx"
- *   - a partial path:         "grades/page.tsx"  ← NEW: path context preserved
+ * Each candidate is a potential file path at every depth level,
+ * from the full path down to the bare filename.
  *
- * We keep up to the last 3 path segments so matching has enough context
- * without being polluted by dynamic route segments like [classId].
+ * Candidates are sorted longest first so findBestMatch tries
+ * the most specific (longest) path first.
  */
 function extractPotentialFilenames(text) {
   const potentialFiles = new Set();
 
-  // Normalise separators, collapse whitespace, drop brackets (dynamic segments)
-  // but keep slashes so path context survives.
   const cleanedText = text
-    .replace(/\[.*?\]/g, '')          // strip [classId], [id] etc.
-    .replace(/['"*!?@]/g, '')         // stray punctuation
-    .replace(/\\/g, '/')              // backslash → forward slash
+    .replace(/\[.*?\]/g, '')
+    .replace(/['"*!?@]/g, '')
+    .replace(/\\/g, '/')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Split on whitespace and commas only — NOT on slashes, so paths stay intact
   const parts = cleanedText.split(/[\s,;\n\r\t]+/);
 
   for (const part of parts) {
     if (!part) continue;
 
-    // Does any extension appear in this token?
     const hasExtension = FILE_EXTENSIONS.some(ext =>
       part.toLowerCase().endsWith(ext)
     );
 
+    let raw;
     if (hasExtension) {
-      // Keep the full token (may be "grades/page.tsx" or just "page.tsx")
-      // Strip leading slashes
-      const clean = part.replace(/^\/+/, '');
-
-      // Limit to last 3 path segments to avoid deep absolute paths
-      const segments = clean.split('/').filter(Boolean);
-      const candidate = segments.slice(-3).join('/');
-
-      if (candidate) potentialFiles.add(candidate);
+      raw = part.replace(/^\/+/, '');
     } else {
-      // Extension appears mid-token — extract up to end of extension
       for (const ext of FILE_EXTENSIONS) {
         const extIndex = part.toLowerCase().indexOf(ext);
         if (extIndex !== -1) {
-          const raw     = part.substring(0, extIndex + ext.length).replace(/^\/+/, '');
-          const segs    = raw.split('/').filter(Boolean);
-          const cleaned = segs.slice(-3).join('/');
-          if (cleaned.endsWith(ext) && cleaned.length > ext.length) {
-            potentialFiles.add(cleaned);
-          }
+          raw = part.substring(0, extIndex + ext.length).replace(/^\/+/, '');
+          break;
         }
       }
+      if (!raw) continue;
+    }
+
+    const segments = raw.split('/').filter(Boolean);
+    if (segments.length === 0) continue;
+
+    // Generate candidates at every depth, from full path down to bare filename
+    // This way the most specific (longest) candidate is tried first in matching
+    for (let i = 0; i < segments.length; i++) {
+      potentialFiles.add(segments.slice(i).join('/'));
     }
   }
 
-  return Array.from(potentialFiles);
+  // Sort: longest (most specific) first so findBestMatch tries full paths first
+  return Array.from(potentialFiles).sort((a, b) => b.length - a.length);
 }
 
 // ── Matching ──────────────────────────────────────────────────────────────────
+
+function stripDynamicSegments(path) {
+  return path.replace(/\/\[[^\]]*\]/g, '');
+}
 
 /**
  * Find the best matching node for a candidate string.
  *
  * Match priority (highest wins):
- *  1. displayPath ends with candidate (exact path-suffix match)
- *  2. name === last segment of candidate (exact name match)
- *  3. Fuzzy on name OR displayPath — only if similarity ≥ 0.75
- *     (raised from 0.5 to prevent wrong-file fuzzy wins)
- *
- * Raising the fuzzy threshold means short ambiguous filenames like "page.tsx"
- * won't match "grade.api.ts" at 56% anymore.
+ *  1. Exact displayPath match (after stripping dynamic segments)
+ *  2. displayPath ends with candidate (path-suffix match)
+ *  3. name === last segment of candidate (exact name match)
+ *  4. Fuzzy on name OR displayPath — only if similarity ≥ 0.75
+ *  5. Fuzzy on full displayPath for path-context candidates
  */
 function findBestMatch(candidate, flatList) {
   const candidateLower   = candidate.toLowerCase();
   const segments         = candidateLower.split('/');
-  const lastName         = segments[segments.length - 1]; // e.g. "page.tsx"
-  const hasPathContext   = segments.length > 1;            // e.g. "grades/page.tsx"
+  const lastName         = segments[segments.length - 1];
+  const hasPathContext   = segments.length > 1;
 
-  // ── Pass 1: exact path-suffix match ────────────────────────────────────────
-  // "grades/page.tsx" must match a node whose displayPath ends with "grades/page.tsx"
-  if (hasPathContext) {
-    for (const node of flatList) {
-      if (node.type !== 'file') continue;
-      const dp = node.displayPath.toLowerCase().replace(/\\/g, '/').replace(/\/\[[^\]]*\]/g, '');
-      if (dp === candidateLower || dp.endsWith('/' + candidateLower)) {
-        return { node, matchType: 'exact', similarity: 1 };
-      }
+  const cleanedCandidate = stripDynamicSegments(candidateLower);
+
+  // ── Pass 1a: exact displayPath match ────────────────────────────────────────
+  for (const node of flatList) {
+    if (node.type !== 'file') continue;
+    const dp = stripDynamicSegments(node.displayPath.toLowerCase().replace(/\\/g, '/'));
+    if (dp === cleanedCandidate) {
+      return { node, matchType: 'exact', similarity: 1 };
+    }
+  }
+
+  // ── Pass 1b: exact path-suffix match ────────────────────────────────────────
+  for (const node of flatList) {
+    if (node.type !== 'file') continue;
+    const dp = stripDynamicSegments(node.displayPath.toLowerCase().replace(/\\/g, '/'));
+    if (dp.endsWith('/' + cleanedCandidate)) {
+      return { node, matchType: 'exact', similarity: 1 };
     }
   }
 
@@ -109,13 +113,8 @@ function findBestMatch(candidate, flatList) {
     }
   }
 
-  // ── Pass 3: fuzzy — higher threshold to avoid wrong-file matches ────────────
-  // Only run fuzzy when there is NO path context (bare filename like "page.tsx").
-  // With path context we already tried exact suffix above; if that failed the
-  // file genuinely isn't in the tree, so fuzzy would just pick the wrong file.
-  if (hasPathContext) return null;
-
-  const FUZZY_THRESHOLD = 0.75; // raised from 0.5
+  // ── Pass 3: fuzzy on name (high threshold) ───────────────────────────────────
+  const FUZZY_THRESHOLD = 0.75;
 
   let bestMatch      = null;
   let bestSimilarity = 0;
@@ -123,14 +122,10 @@ function findBestMatch(candidate, flatList) {
   for (const node of flatList) {
     if (node.type !== 'file') continue;
 
-    const nameLower        = node.name.toLowerCase();
-    const displayPathLower = node.displayPath.toLowerCase();
-
+    const nameLower = node.name.toLowerCase();
     const nameDistance = levenshteinDistance(lastName, nameLower);
-    const pathDistance = levenshteinDistance(lastName, displayPathLower);
-    const minDistance  = Math.min(nameDistance, pathDistance);
-    const maxLength    = Math.max(lastName.length, nameLower.length);
-    const similarity   = 1 - (minDistance / maxLength);
+    const maxLen = Math.max(lastName.length, nameLower.length);
+    const similarity = 1 - (nameDistance / maxLen);
 
     if (similarity >= FUZZY_THRESHOLD && similarity > bestSimilarity) {
       bestMatch      = node;
@@ -140,6 +135,28 @@ function findBestMatch(candidate, flatList) {
 
   if (bestMatch) {
     return { node: bestMatch, matchType: 'fuzzy', similarity: bestSimilarity };
+  }
+
+  // ── Pass 4: fuzzy on full displayPath (for path-context candidates) ──────────
+  // Only run when candidate has path context — try fuzzy against the full path
+  if (hasPathContext) {
+    for (const node of flatList) {
+      if (node.type !== 'file') continue;
+
+      const dp = stripDynamicSegments(node.displayPath.toLowerCase().replace(/\\/g, '/'));
+      const distance = levenshteinDistance(cleanedCandidate, dp);
+      const maxLen = Math.max(cleanedCandidate.length, dp.length);
+      const similarity = 1 - (distance / maxLen);
+
+      if (similarity >= FUZZY_THRESHOLD && similarity > bestSimilarity) {
+        bestMatch      = node;
+        bestSimilarity = similarity;
+      }
+    }
+
+    if (bestMatch) {
+      return { node: bestMatch, matchType: 'fuzzy', similarity: bestSimilarity };
+    }
   }
 
   return null;
@@ -160,12 +177,18 @@ export function processShortcutInput(inputText) {
 
   const results      = [];
   const newlySelected = [];
+  const matchedPaths  = new Set(); // deduplicate matches pointing to the same file
 
   for (const potentialFile of potentialFiles) {
     const match = findBestMatch(potentialFile, flatList);
 
     if (match) {
       const normPath        = match.node.path.replace(/\\/g, '/');
+
+      // Skip if this file was already matched by a longer (more specific) candidate
+      if (matchedPaths.has(normPath)) continue;
+      matchedPaths.add(normPath);
+
       const alreadySelected = state.selectedItems.some(
         item => item.replace(/\\/g, '/') === normPath
       );

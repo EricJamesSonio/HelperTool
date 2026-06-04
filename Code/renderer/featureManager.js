@@ -16,6 +16,7 @@ const DEFAULT_FEATURES = {
   workspaceTool: true,
   symbolIndex:   true,
   canvasTool:    true,
+  dbInspector:   true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -59,6 +60,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-secret-holder',  !_features.secretHolder);
   document.body.classList.toggle('feat-no-folder-filters', !_features.folderFilters);
   document.body.classList.toggle('feat-no-symbol-index',   !_features.symbolIndex);
+  document.body.classList.toggle('feat-no-db-inspector',   !_features.dbInspector);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────
@@ -127,6 +129,13 @@ function _injectWizard() {
     icon: '🎨',
     label: 'Canvas Tool',
     desc: 'Infinite canvas for drawing diagrams, flowcharts & sketches with pen, shapes & arrows.',
+    heavy: false,
+  },
+  {
+    id: 'dbInspector',
+    icon: '🗃️',
+    label: 'Database Inspector',
+    desc: 'Connect to databases, scan schema, visualize tables & relationships.',
     heavy: false,
   },
   ];
