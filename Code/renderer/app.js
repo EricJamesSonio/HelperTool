@@ -74,6 +74,23 @@ const refreshBtn     = document.getElementById('refreshBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
 const treeContainer  = document.getElementById('treeContainer');
 
+// ── Title bar controls ─────────────────────────────────────────────────────────
+
+function initTitlebar() {
+  const wc = window.electronAPI.windowControls;
+  if (!wc) return;
+  document.querySelector('.titlebar-minimize')?.addEventListener('click', () => wc.minimize());
+  document.querySelector('.titlebar-maximize')?.addEventListener('click', () => wc.maximize());
+  document.querySelector('.titlebar-close')?.addEventListener('click', () => wc.close());
+
+  wc.onMaximizeChanged((maximized) => {
+    const bar = document.getElementById('appTitlebar');
+    if (bar) bar.classList.toggle('maximized', maximized);
+    const btn = document.getElementById('titlebarMaxBtn');
+    if (btn) btn.textContent = maximized ? '❐' : '□';
+  });
+}
+
 // ── Cross-module wiring ───────────────────────────────────────────────────────
 
 // viewManager needs to call generateManager when selection changes
@@ -135,6 +152,8 @@ function applyFeatureVisibility(feats) {
 // ── DOMContentLoaded init ─────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', async () => {
+    // Title bar
+    initTitlebar();
     // Drag scroll
     initDragScroll();
 

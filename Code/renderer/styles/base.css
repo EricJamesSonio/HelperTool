@@ -12,6 +12,7 @@
 
 :root {
   --font-ui:   'Syne', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --titlebar-h: 34px;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
 
   /* Backgrounds — GitHub Dark High Contrast */
@@ -825,4 +826,151 @@ body {
 .tools-sidebar-item-desc {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+/* ════════════════════════════════════════════════════════════
+   Custom Title Bar — modern polished design
+   ════════════════════════════════════════════════════════════ */
+.app-titlebar {
+  height: var(--titlebar-h);
+  min-height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%),
+              var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 0 rgba(0,0,0,0.3);
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 10000;
+  padding: 0 0 0 10px;
+}
+
+[data-theme="light"] .app-titlebar {
+  background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, transparent 100%),
+              var(--bg-base);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 0 rgba(0,0,0,0.06);
+}
+
+.titlebar-drag-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+  padding: 0 8px;
+}
+
+.titlebar-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 4px rgba(34,211,238,0.15));
+  transition: opacity 0.2s, filter 0.2s;
+}
+
+.titlebar-icon:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(34,211,238,0.3));
+}
+
+.titlebar-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-transform: uppercase;
+  opacity: 0.75;
+  transition: opacity 0.2s;
+}
+
+.titlebar-drag-area:hover .titlebar-label {
+  opacity: 1;
+}
+
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.08s ease, color 0.08s ease, transform 0.08s ease;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  line-height: 1;
+  position: relative;
+}
+
+.titlebar-btn:active {
+  transform: scale(0.92);
+  transition-duration: 0.03s;
+}
+
+.titlebar-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-primary);
+}
+
+.titlebar-btn:active:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* Minimize / Maximize — subtle accent on hover */
+.titlebar-btn.titlebar-minimize:hover {
+  background: rgba(34,211,238,0.08);
+  color: var(--accent);
+}
+
+.titlebar-btn.titlebar-maximize:hover {
+  background: rgba(45,212,176,0.08);
+  color: var(--green);
+}
+
+/* Close — red like VS Code */
+.titlebar-btn.titlebar-close:hover {
+  background: #e81123;
+  color: #ffffff;
+}
+
+.titlebar-btn.titlebar-close:active:hover {
+  background: #bf0f1d;
+}
+
+/* Maximized state — thinner top + indicator */
+.app-titlebar.maximized .titlebar-maximize {
+  opacity: 0.55;
+}
+
+.app-titlebar.maximized {
+  border-radius: 0;
+  padding-top: 0;
+}
+
+/* Subtle separator line before controls */
+.titlebar-controls::before {
+  content: '';
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  align-self: center;
+  margin-right: 2px;
+  opacity: 0.5;
+}
+
+/* Simulated traffic-light dots (macOS-style accent) — hidden on Win by default */
+.titlebar-drag-area::before {
+  content: '';
+  display: none;
 }

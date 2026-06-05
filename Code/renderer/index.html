@@ -30,6 +30,23 @@
 <body>
 <div id="app">
 
+  <!-- ══ Custom title bar ══ -->
+  <div class="app-titlebar" id="appTitlebar">
+    <span class="titlebar-drag-area">
+      <svg class="titlebar-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+      <span class="titlebar-label">Helper Tool</span>
+    </span>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn titlebar-minimize" title="Minimize">─</button>
+      <button class="titlebar-btn titlebar-maximize" id="titlebarMaxBtn" title="Maximize">□</button>
+      <button class="titlebar-btn titlebar-close" title="Close">✕</button>
+    </div>
+  </div>
+
   <!-- ══ ROW 1: Primary actions ══ -->
   <div class="navbar-row navbar-row--primary">
     <div class="navbar-section search-section">

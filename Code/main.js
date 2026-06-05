@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
 const path = require('path');
 
 const config = require('./config/config.js');
@@ -118,7 +118,7 @@ function createWindow() {
         width: 1200,
         height: 800,
         show: true,
-        frame: true,
+        frame: false,
         maximizable: true,
         minimizable: true,
         backgroundThrottling: true,
@@ -147,6 +147,17 @@ function createWindow() {
     mainWindow.on('restore', () => {
         mainWindow.webContents.setFrameRate(60);
     });
+
+    // ── Window control IPC ──
+    ipcMain.on('window:minimize', () => mainWindow.minimize());
+    ipcMain.on('window:maximize', () => {
+        mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+    });
+    ipcMain.on('window:close', () => mainWindow.close());
+
+    // Notify renderer when maximized state changes
+    mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximize-changed', true));
+    mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximize-changed', false));
 }
 
 // ----------------------------

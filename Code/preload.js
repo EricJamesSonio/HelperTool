@@ -165,6 +165,16 @@ const dbInspectorBridge = {
     },
 };
 
+// ── Window controls ──
+const windowControls = {
+    minimize: () => ipcRenderer.send('window:minimize'),
+    maximize: () => ipcRenderer.send('window:maximize'),
+    close:    () => ipcRenderer.send('window:close'),
+    onMaximizeChanged: (callback) => {
+        ipcRenderer.on('window:maximize-changed', (_event, maximized) => callback(maximized));
+    },
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -180,5 +190,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...fileseederBridge,
     ...locBridge,
     ...dbInspectorBridge,
+    windowControls,
 });
 
