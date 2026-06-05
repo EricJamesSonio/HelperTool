@@ -14,28 +14,42 @@ class GitOperations {
 
   /**
    * Get current status in porcelain format
-   * Returns array of {file, status}
+   * Returns {workingFiles, stagedFiles} arrays of {file, status}
    */
   async getStatus() {
     try {
       const status = await this.git.status();
       
-      const files = [];
+      const workingFiles = [];
+      const stagedFiles = [];
       
-      // Add modified and untracked files from working directory
       if (status.files) {
         status.files.forEach(fileStatus => {
-          const code = fileStatus.working_dir || fileStatus.index;
-          files.push({
-            file: fileStatus.path,
-            status: this.parseStatusCode(code)
-          });
+          const workingDirCode = fileStatus.working_dir && fileStatus.working_dir.trim();
+          const indexCode = fileStatus.index && fileStatus.index.trim();
+          
+          if (workingDirCode) {
+            workingFiles.push({
+              file: fileStatus.path,
+              status: this.parseStatusCode(workingDirCode)
+            });
+          }
+          
+          // Only staged files if the index has a real staged change
+          // '?' = untracked/not-in-index, '!' = ignored, '' = clean
+          if (indexCode && indexCode !== '?' && indexCode !== '!') {
+            stagedFiles.push({
+              file: fileStatus.path,
+              status: this.parseStatusCode(indexCode)
+            });
+          }
         });
       }
 
       return {
         success: true,
-        files,
+        workingFiles,
+        stagedFiles,
         branch: status.current,
         ahead: status.ahead,
         behind: status.behind

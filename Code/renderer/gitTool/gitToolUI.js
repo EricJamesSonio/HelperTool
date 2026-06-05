@@ -566,11 +566,12 @@ renderWorkingTree(files) {
       'U': 'Unmerged',
       '?': 'Untracked'
     };
-    return labels[status] || status;
+    return labels[status] || status || 'Unknown';
   }
 
   getStatusClass(status) {
-    const s = (status || '').toLowerCase();
+    const s = (status || '').toLowerCase().trim();
+    if (!s) return 'u';
     return s === '?' ? 'u' : s;
   }
 
@@ -578,6 +579,7 @@ renderWorkingTree(files) {
    * Helper: Extract file name from path
    */
   getFileName(filePath) {
+    if (!filePath) return '';
     return filePath.split('/').pop() || filePath;
   }
 

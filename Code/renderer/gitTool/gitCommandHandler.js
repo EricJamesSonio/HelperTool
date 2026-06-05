@@ -36,8 +36,9 @@ class GitCommandHandler {
       const result = await this.ipc.status(this.repoPath);
       if (result.error) return result;
 
-      // Update manager with fresh status
-      this.gitManager.updateWorkingTree(result.files || []);
+      // Update manager with fresh status (separate working/staged from git)
+      this.gitManager.updateWorkingTree(result.workingFiles || []);
+      this.gitManager.updateStagedFiles(result.stagedFiles || []);
       return result;
     } catch (error) {
       console.error('Error getting git status:', error);
@@ -201,8 +202,13 @@ class GitCommandHandler {
       }
 
       this.ipc.watch(repoPath, (result) => {
-        if (result.files) {
-          this.gitManager.updateWorkingTree(result.files);
+        if (result.workingFiles || result.stagedFiles) {
+          if (result.workingFiles) {
+            this.gitManager.updateWorkingTree(result.workingFiles);
+          }
+          if (result.stagedFiles) {
+            this.gitManager.updateStagedFiles(result.stagedFiles);
+          }
           if (onUpdate) onUpdate(this.gitManager.getState());
         }
       });

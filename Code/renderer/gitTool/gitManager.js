@@ -39,6 +39,7 @@ updateWorkingTree(files) {
   );
 
   this.workingTreeFiles = (files || []).map(incoming => {
+    if (!incoming.file) return incoming;
     const existing = existingMap.get(incoming.file);
     const isNew = !existing;
     const statusChanged = existing && existing.status !== incoming.status;
@@ -47,10 +48,23 @@ updateWorkingTree(files) {
       ...incoming,
       modifiedAt: (isNew || statusChanged) ? Date.now() : existing.modifiedAt
     };
-  });
+  }).filter(Boolean);
 
   return this.workingTreeFiles;
 }
+
+  /**
+   * Update staged files from git status output
+   * @param {Array} files - Array of {file: string, status: string}
+   */
+  updateStagedFiles(files) {
+    const seen = new Set();
+    this.stagedFiles = (files || []).map(f => ({
+      file: f.file,
+      status: f.status
+    })).filter(f => f.file && !seen.has(f.file) && seen.add(f.file));
+    return this.stagedFiles;
+  }
 
 getWorkingTreeGroupedByTime() {
   const sorted = [...this.workingTreeFiles].sort(
@@ -100,7 +114,8 @@ getTimeGroupLabel(ts) {
       return { error: 'File already staged' };
     }
 
-    this.stagedFiles.push({ ...file, originalIndex: fileIndex });
+    const stagedStatus = file.status === '?' ? 'A' : file.status;
+    this.stagedFiles.push({ ...file, status: stagedStatus, originalIndex: fileIndex });
     this.workingTreeFiles.splice(fileIndex, 1);
 
     return { success: true, staged: this.stagedFiles };
@@ -122,7 +137,12 @@ unstageFile(filePath) {
   if (fileIndex === -1) return { error: 'File not found in staged area' };
 
   const file = this.stagedFiles[fileIndex];
-  this.workingTreeFiles.push({ file: file.file, status: file.status, modifiedAt: file.modifiedAt });
+
+  // Only add to working tree if not already present (avoid duplicates)
+  if (!this.workingTreeFiles.some(f => f.file === filePath)) {
+    this.workingTreeFiles.push({ file: file.file, status: file.status, modifiedAt: file.modifiedAt });
+  }
+
   this.stagedFiles.splice(fileIndex, 1);
 
   return { success: true, working: this.workingTreeFiles };
