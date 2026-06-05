@@ -111,14 +111,11 @@
   transition: background 0.2s;
   overflow: auto;
   --tree-zoom: 1;
-<<<<<<< HEAD
-=======
 }
 
 #treeContainer.mode-list {
   padding: 10px 8px 24px;
   font-size: calc(12.5px * var(--tree-zoom));
->>>>>>> 25181852656c1a142ef0f64bbfad541a6a88bc82
 }
 #treeContainer::-webkit-scrollbar { width: 16px; height: 16px; }
 #treeContainer::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 99px; }
@@ -227,15 +224,7 @@
 
 #treeContainer.mode-list {
   padding: 10px 8px 24px;
-<<<<<<< HEAD
   font-size: calc(12.5px * var(--tree-zoom));
-=======
-  font-size: calc(12.5px * var(--tree-zoom, 1));
-}
-
-#treeContainer {
-  --tree-zoom: 1;
->>>>>>> 25181852656c1a142ef0f64bbfad541a6a88bc82
 }
 
 #treeContainer.mode-list .tree-root {

@@ -13,7 +13,6 @@ function setZoom(val) {
 }
 
 export function initZoomManager() {
-<<<<<<< HEAD
   const controls = document.getElementById('zoomControls');
   const treeContainer = document.getElementById('treeContainer');
 
@@ -28,22 +27,6 @@ export function initZoomManager() {
   });
   if (treeContainer) {
     observer.observe(treeContainer, { childList: true, subtree: false, characterData: false });
-=======
-  const treeContainer = document.getElementById('treeContainer');
-
-  // Only show zoom controls when there's a tree
-  const controls = document.getElementById('zoomControls');
-  const show = () => { if (controls) controls.style.display = ''; };
-  const hide = () => { if (controls) controls.style.display = 'none'; };
-
-  const observer = new MutationObserver(() => {
-    const hasContent = treeContainer?.children.length > 0;
-    if (hasContent) show(); else hide();
-  });
-  if (treeContainer) {
-    observer.observe(treeContainer, { childList: true, subtree: false });
-    if (treeContainer.children.length > 0) show();
->>>>>>> 25181852656c1a142ef0f64bbfad541a6a88bc82
   }
 
   // Buttons
@@ -51,11 +34,7 @@ export function initZoomManager() {
   document.getElementById('zoomOutBtn')?.addEventListener('click', () => setZoom(_zoom - ZOOM_STEP));
   document.getElementById('zoomResetBtn')?.addEventListener('click', () => setZoom(1));
 
-<<<<<<< HEAD
   // Keyboard shortcuts — skip when canvas panel is open or typing in inputs
-=======
-  // Keyboard shortcuts — skip when canvas tool is active
->>>>>>> 25181852656c1a142ef0f64bbfad541a6a88bc82
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
     const canvasPanel = document.getElementById('canvasPanelWrapper');
