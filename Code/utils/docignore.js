@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const micromatch = require('micromatch');
-const { app } = require('electron');
+const { app, dialog, shell } = require('electron');
 
 const globalIgnorePath = path.join(app.getPath('userData'), 'global-docignore.json');
 
@@ -27,6 +27,19 @@ function loadGlobalIgnoreRules() {
         return cachedGlobalRules;
     } catch (err) {
         console.error('[Docignore] Failed to read global ignore:', err);
+        const btn = dialog.showMessageBoxSync({
+            type: 'error',
+            title: 'Invalid Global Docignore',
+            message: `The global docignore file has invalid JSON:\n\n${err.message}\n\nOpen the file to fix it?`,
+            buttons: ['Open File', 'Exit App'],
+            defaultId: 0,
+            cancelId: 1,
+        });
+        if (btn === 0) {
+            shell.openPath(globalIgnorePath);
+        } else {
+            app.quit();
+        }
         cachedGlobalRules = [];
         return cachedGlobalRules;
     }

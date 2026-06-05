@@ -12,6 +12,21 @@ import * as fileSeederTool                from '../fileSeederTool.js';
 import * as locDetector    from '../locDetector.js'; 
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
+
+const ICONS = {
+  api: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="19"/><line x1="1" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="19" y2="10"/></svg>',
+  prompt: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/></svg>',
+  git: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="4" r="2"/><circle cx="14" cy="10" r="2"/><circle cx="6" cy="16" r="2"/><line x1="6" y1="6" x2="6" y2="14"/><line x1="8" y1="4" x2="12" y2="10"/></svg>',
+  fileSeeder: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h5l2 2h5a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><line x1="10" y1="8" x2="10" y2="12"/><line x1="8" y1="10" x2="12" y2="10"/></svg>',
+  loc: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="9" x2="14" y2="9"/><line x1="3" y1="13" x2="17" y2="13"/><line x1="3" y1="17" x2="11" y2="17"/></svg>',
+  settings: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.93 3.93l1.41 1.41M14.66 14.66l1.41 1.41M3.93 16.07l1.41-1.41M14.66 5.34l1.41-1.41"/></svg>',
+  secret: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="11" r="2"/><path d="M5 11V6a5 5 0 0 1 10 0v5"/><rect x="3" y="11" width="14" height="8" rx="1"/></svg>',
+  cli: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M6 8l3 2-3 2M11 12h3"/></svg>',
+  workspace: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>',
+  symbolIndex: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><line x1="13" y1="13" x2="18" y2="18"/></svg>',
+  canvas: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
+  db: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
+};
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
   createGitPanel,
@@ -55,7 +70,7 @@ function populateSidebar() {
   body.innerHTML = '';
 
   if (_feats.apiTool) {
-    const item = createSidebarItem('\uD83D\uDD0C', 'API Tool', 'Test & manage REST endpoints', () => {
+    const item = createSidebarItem(ICONS.api, 'API Tool', 'Test & manage REST endpoints', () => {
       if (_apiTool?.isApiToolPanelOpen?.()) { _apiTool.closeApiToolPanel(); item.classList.remove('active'); return; }
       _registry.closeAll();
       _apiTool?.openApiToolPanel?.();
@@ -64,7 +79,7 @@ function populateSidebar() {
     body.appendChild(item);
   }
 
-  body.appendChild(createSidebarItem('\uD83E\uDDE9', 'Prompt Tool', 'Manage custom AI prompts', async () => {
+  body.appendChild(createSidebarItem(ICONS.prompt, 'Prompt Tool', 'Manage custom AI prompts', async () => {
     const existing = document.getElementById('promptToolModal');
     if (existing && existing.style.display !== 'none') { existing.style.display = 'none'; return; }
     _registry.closeAll();
@@ -72,7 +87,7 @@ function populateSidebar() {
     catch (err) { console.error('[Tools] Prompt Tool:', err); }
   }));
 
-  body.appendChild(createSidebarItem('\uD83D\uDD00', 'Git Tool', 'Stage, commit & push changes', () => {
+  body.appendChild(createSidebarItem(ICONS.git, 'Git Tool', 'Stage, commit & push changes', () => {
     if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_gitPanel) _initGitPanel();
@@ -81,20 +96,20 @@ function populateSidebar() {
     else if (state.selectedRepoPath) _initializeGitTool(state.selectedRepoPath);
   }));
 
-  body.appendChild(createSidebarItem('🌱', 'File Seeder', 'Seed files into a folder', () => {
+  body.appendChild(createSidebarItem(ICONS.fileSeeder, 'File Seeder', 'Seed files into a folder', () => {
     if (fileSeederTool.isOpen()) { fileSeederTool.close(); return; }
     _registry.closeAll();
     fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
   }));
 
-body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files by line count', () => {
+body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
   if (locDetector.isOpen()) { locDetector.close(); return; }
   _registry.closeAll();
   // Open without a pre-set path — user can right-click a folder to scan
   locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
 }));
 
-  body.appendChild(createSidebarItem('\uD83C\uDFA8', 'Settings', 'Appearance & features', () => {
+  body.appendChild(createSidebarItem(ICONS.settings, 'Settings', 'Appearance & features', () => {
     const full  = document.getElementById('settingsOverlay');
     const light = document.getElementById('lightSettingsOverlay');
     if (full?.classList.contains('open'))  { full.classList.remove('open');  return; }
@@ -104,17 +119,17 @@ body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files b
   }));
 
   if (_feats.secretHolder) {
-    body.appendChild(createSidebarItem('\uD83D\uDD10', 'Secret Holder', 'Manage API keys & secrets', async () => {
+    body.appendChild(createSidebarItem(ICONS.secret, 'Secret Holder', 'Manage API keys & secrets', async () => {
       if (_secretHolder?.isSecretHolderOpen?.()) { _secretHolder.closeSecretHolder(); return; }
       _registry.closeAll();
       await _secretHolder?.openSecretHolder?.();
     }));
   }
 
-  body.appendChild(createSidebarItem('\u2328\uFE0F', 'CLI Tool', 'Keyboard shortcuts config', () => openConfig()));
+  body.appendChild(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => openConfig()));
 
   if (_feats.workspaceTool) {
-    body.appendChild(createSidebarItem('\uD83D\uDC65', 'Workspace', 'Projects, tickets & workers', async () => {
+    body.appendChild(createSidebarItem(ICONS.workspace, 'Workspace', 'Projects, tickets & workers', async () => {
       if (_workspaceTool?.isWorkspacePanelOpen?.()) { _workspaceTool.closeWorkspacePanel(); return; }
       _registry.closeAll();
       await _workspaceTool?.openWorkspacePanel?.();
@@ -122,7 +137,7 @@ body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files b
   }
 
   if (_feats.symbolIndex) {
-    body.appendChild(createSidebarItem('\uD83D\uDD0D', 'Symbol Index', 'Search code symbols & navigate', () => {
+    body.appendChild(createSidebarItem(ICONS.symbolIndex, 'Symbol Index', 'Search code symbols & navigate', () => {
       if (_symbolIndexPanel?.classList.contains('open')) { _symbolIndexPanel.classList.remove('open'); return; }
       _registry.closeAll();
       if (!_symbolIndexPanel) _initSymbolIndexPanel();
@@ -133,7 +148,7 @@ body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files b
   }
 
   if (_feats.canvasTool) {
-    body.appendChild(createSidebarItem('\uD83C\uDFA8', 'Canvas', 'Draw diagrams & sketches', () => {
+    body.appendChild(createSidebarItem(ICONS.canvas, 'Canvas', 'Draw diagrams & sketches', () => {
       if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
       _registry.closeAll();
       _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
@@ -141,7 +156,7 @@ body.appendChild(createSidebarItem('📏', 'LOC Detector', 'Find bloated files b
   }
 
   if (_feats.dbInspector) {
-    body.appendChild(createSidebarItem('\uD83D\uDDC3\uFE0F', 'DB Inspector', 'View & explore database schemas', () => {
+    body.appendChild(createSidebarItem(ICONS.db, 'DB Inspector', 'View & explore database schemas', () => {
       if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
       _registry.closeAll();
       _dbInspector?.openDbInspectorPanel?.();
@@ -334,10 +349,11 @@ export async function initTools(feats, settingsManager) {
       console.log('[Tools] API Tool initialised');
     } catch (err) { console.error('[Tools] API Tool failed:', err); }
 
+    let _prevSidebarItems = null;
     document.addEventListener('keydown', () => {
-      if (_apiTool && !_apiTool.isApiToolPanelOpen?.()) {
-        document.querySelectorAll('.tools-sidebar-item').forEach(el => el.classList.remove('active'));
-      }
+      if (!_apiTool || _apiTool.isApiToolPanelOpen?.()) return;
+      if (!_prevSidebarItems) _prevSidebarItems = [...document.querySelectorAll('.tools-sidebar-item')];
+      _prevSidebarItems.forEach(el => el.classList.remove('active'));
     });
   }
 

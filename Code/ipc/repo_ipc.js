@@ -73,7 +73,7 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
             if (!repoPath) return false;
             const docignoreFile = path.join(repoPath, '.docignore');
             if (!fs.existsSync(docignoreFile)) {
-                fs.writeFileSync(docignoreFile, '# Add patterns to ignore files/folders\n', 'utf-8');
+                fs.writeFileSync(docignoreFile, '[]\n', 'utf-8');
             }
             shell.openPath(docignoreFile);
             return true;

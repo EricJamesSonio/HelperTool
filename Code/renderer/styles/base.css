@@ -709,12 +709,13 @@ body {
   width: 4px;
   flex-shrink: 0;
   background: var(--bg-surface);
-  border-right: 1px solid var(--border-subtle);
-  transition: width 0.2s ease;
+  border-right: 2px solid var(--border-strong);
+  transition: width 0.12s ease;
   overflow: hidden;
   white-space: nowrap;
   display: flex;
   flex-direction: column;
+  contain: paint;
 }
 
 .tools-sidebar.expanded,
@@ -776,7 +777,8 @@ body {
   flex-direction: column;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.1s ease;
+  contain: layout style;
 }
 
 .tools-sidebar.expanded .tools-sidebar-body,
@@ -797,19 +799,35 @@ body {
   text-align: left;
   font-family: inherit;
   font-size: 14px;
-  transition: background 0.15s;
+  transition: background 0.1s;
   flex-shrink: 0;
+  border-left: 2px solid transparent;
 }
 
 .tools-sidebar-item:hover {
-  background: var(--blue-dim);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+
+.tools-sidebar-item.active {
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+  color: var(--accent);
 }
 
 .tools-sidebar-item-icon {
-  font-size: 18px;
-  flex-shrink: 0;
   width: 24px;
-  text-align: center;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tools-sidebar-item-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  stroke: currentColor;
 }
 
 .tools-sidebar-item-info {

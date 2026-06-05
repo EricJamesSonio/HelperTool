@@ -74,7 +74,10 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         wrapper.dataset.nodePath = normPath(node.path);
         wrapper.dataset.nodeName = node.name;
         // Set depth-level color attribute on every node
-        wrapper.dataset.depthLevel = depth;
+        wrapper.dataset.depthLevel = depth % 5;
+        if (node.type === 'file' && depth > 0) {
+            wrapper.dataset.parentDepth = (depth - 1) % 5;
+        }
 
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
@@ -100,8 +103,8 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
             childrenContainer.style.display = 'flex';
-            // Pass depth+1 so children know their level
-            node.children.forEach(child => {
+            const sorted = [...node.children].sort((a, b) => a.type === 'file' ? -1 : 1);
+            sorted.forEach(child => {
                 const childEl = createNode(child, depth + 1);
                 if (childEl) childrenContainer.appendChild(childEl);
             });
@@ -130,7 +133,7 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
 
     const root = document.createElement('div');
     root.className = 'tree-root';
-    treeData.forEach(node => {
+    [...treeData].sort((a, b) => a.type === 'file' ? -1 : 1).forEach(node => {
         const el = createNode(node, 0);
         if (el) root.appendChild(el);
     });
@@ -174,7 +177,10 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
         wrapper.className = 'node-wrapper';
         wrapper.dataset.nodePath = normPath(node.path);
         wrapper.dataset.nodeName = node.name;
-        wrapper.dataset.depthLevel = depth;
+        wrapper.dataset.depthLevel = depth % 5;
+        if (node.type === 'file' && depth > 0) {
+            wrapper.dataset.parentDepth = (depth - 1) % 5;
+        }
 
         const el = document.createElement('div');
         el.classList.add('tree-node', node.type);
@@ -198,7 +204,8 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
         if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
-            node.children.forEach(child => {
+            const sorted = [...node.children].sort((a, b) => a.type === 'file' ? -1 : 1);
+            sorted.forEach(child => {
                 const childEl = createNode(child, depth + 1);
                 if (childEl) childrenContainer.appendChild(childEl);
             });
@@ -227,7 +234,7 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
 
     const root = document.createElement('div');
     root.className = 'tree-root';
-    treeData.forEach(node => {
+    [...treeData].sort((a, b) => a.type === 'file' ? -1 : 1).forEach(node => {
         const el = createNode(node, 0);
         if (el) root.appendChild(el);
     });

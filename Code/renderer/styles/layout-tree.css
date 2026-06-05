@@ -429,13 +429,12 @@
   background: var(--dl4-line);
 }
 
-/* depth 5+ — plain, muted */
-#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder,
-#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder,
-#treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder {
-  color: var(--text-muted);
-  font-weight: 500;
-}
+/* depth 5+ — cycle colors (depth % 5) */
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder { color: var(--dl0-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder { color: var(--dl1-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder { color: var(--dl2-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="8"] > .tree-node.folder { color: var(--dl3-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="9"] > .tree-node.folder { color: var(--dl4-color); font-weight: 500; }
 
 /* ── DEPTH-COHESIVE SELECTION — toned-down solid fill ────────
    ~45% opacity background + full-color border + bright text.
@@ -496,16 +495,45 @@
   font-weight: 700;
 }
 
-/* depth 5+ fallback — use accent */
+/* depth 5+ — cycle colors (depth % 5) */
 #treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder.selected,
-#treeContainer.mode-list [data-depth-level="5"] > .tree-node.file.file-selected,
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.file.file-selected {
+  background: rgba(240, 180, 41, 0.28) !important;
+  border-color: var(--dl0-color) !important;
+  color: var(--dl0-color) !important;
+  font-weight: 700;
+}
 #treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="6"] > .tree-node.file.file-selected {
-  background: var(--accent-dim) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
+  background: rgba(56, 189, 248, 0.22) !important;
+  border-color: var(--dl1-color) !important;
+  color: var(--dl1-color) !important;
+  font-weight: 700;
+}
+#treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder.selected,
+#treeContainer.mode-list [data-depth-level="7"] > .tree-node.file.file-selected {
+  background: rgba(167, 139, 250, 0.22) !important;
+  border-color: var(--dl2-color) !important;
+  color: var(--dl2-color) !important;
+  font-weight: 700;
+}
+#treeContainer.mode-list [data-depth-level="8"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="8"] > .tree-node.folder.selected,
+#treeContainer.mode-list [data-depth-level="8"] > .tree-node.file.file-selected {
+  background: rgba(45, 212, 191, 0.20) !important;
+  border-color: var(--dl3-color) !important;
+  color: var(--dl3-color) !important;
+  font-weight: 700;
+}
+#treeContainer.mode-list [data-depth-level="9"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-list [data-depth-level="9"] > .tree-node.folder.selected,
+#treeContainer.mode-list [data-depth-level="9"] > .tree-node.file.file-selected {
+  background: rgba(251, 113, 133, 0.22) !important;
+  border-color: var(--dl4-color) !important;
+  color: var(--dl4-color) !important;
   font-weight: 700;
 }
 
@@ -610,6 +638,28 @@
 #treeContainer.mode-tree .tree-node.file::before {
   content: "· "; font-size: 16px; color: var(--text-muted); line-height: 0; vertical-align: middle;
 }
+
+/* ── FILE PARENT-DOT — colored dot matching parent folder's depth ── */
+#treeContainer .node-wrapper[data-parent-depth] > .tree-node.file::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+#treeContainer .node-wrapper[data-parent-depth="0"] > .tree-node.file::before { background: var(--dl0-color); }
+#treeContainer .node-wrapper[data-parent-depth="1"] > .tree-node.file::before { background: var(--dl1-color); }
+#treeContainer .node-wrapper[data-parent-depth="2"] > .tree-node.file::before { background: var(--dl2-color); }
+#treeContainer .node-wrapper[data-parent-depth="3"] > .tree-node.file::before { background: var(--dl3-color); }
+#treeContainer .node-wrapper[data-parent-depth="4"] > .tree-node.file::before { background: var(--dl4-color); }
+#treeContainer .node-wrapper[data-parent-depth="5"] > .tree-node.file::before { background: var(--dl0-color); }
+#treeContainer .node-wrapper[data-parent-depth="6"] > .tree-node.file::before { background: var(--dl1-color); }
+#treeContainer .node-wrapper[data-parent-depth="7"] > .tree-node.file::before { background: var(--dl2-color); }
+#treeContainer .node-wrapper[data-parent-depth="8"] > .tree-node.file::before { background: var(--dl3-color); }
+#treeContainer .node-wrapper[data-parent-depth="9"] > .tree-node.file::before { background: var(--dl4-color); }
 
 /* ── DEPTH-LEVEL COLORS: folder nodes in mode-tree ───────── */
 
@@ -721,16 +771,45 @@
   font-weight: 700;
 }
 
-/* depth 5+ fallback */
+/* depth 5+ — cycle colors (depth % 5) */
 #treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder.selected,
-#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.file.file-selected,
+#treeContainer.mode-tree [data-depth-level="5"] > .tree-node.file.file-selected {
+  background: rgba(240, 180, 41, 0.28) !important;
+  border-color: var(--dl0-color) !important;
+  color: var(--dl0-color) !important;
+  font-weight: 700;
+}
 #treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="6"] > .tree-node.file.file-selected {
-  background: var(--accent-dim) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
+  background: rgba(56, 189, 248, 0.22) !important;
+  border-color: var(--dl1-color) !important;
+  color: var(--dl1-color) !important;
+  font-weight: 700;
+}
+#treeContainer.mode-tree [data-depth-level="7"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="7"] > .tree-node.folder.selected,
+#treeContainer.mode-tree [data-depth-level="7"] > .tree-node.file.file-selected {
+  background: rgba(167, 139, 250, 0.22) !important;
+  border-color: var(--dl2-color) !important;
+  color: var(--dl2-color) !important;
+  font-weight: 700;
+}
+#treeContainer.mode-tree [data-depth-level="8"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="8"] > .tree-node.folder.selected,
+#treeContainer.mode-tree [data-depth-level="8"] > .tree-node.file.file-selected {
+  background: rgba(45, 212, 191, 0.20) !important;
+  border-color: var(--dl3-color) !important;
+  color: var(--dl3-color) !important;
+  font-weight: 700;
+}
+#treeContainer.mode-tree [data-depth-level="9"] > .tree-node.folder.folder-selected,
+#treeContainer.mode-tree [data-depth-level="9"] > .tree-node.folder.selected,
+#treeContainer.mode-tree [data-depth-level="9"] > .tree-node.file.file-selected {
+  background: rgba(251, 113, 133, 0.22) !important;
+  border-color: var(--dl4-color) !important;
+  color: var(--dl4-color) !important;
   font-weight: 700;
 }
 
