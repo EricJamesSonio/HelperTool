@@ -30,24 +30,66 @@ export function getPanelHTML() {
             class="fs-textarea"
             placeholder="Paste or type your file structure here…"
             spellcheck="false"
-        >src/
-  index.js
-  components/
-    Button.jsx
-    Card.jsx
-  utils/
-    helpers.js
-  styles/
-    app.css
-
-public/
-  index.html
-
-tests/
-  app.test.js
-
-config/
-  settings.json</textarea>
+        >app/
+├── Modules/
+│   ├── Auth/
+│   │   ├── Controllers/
+│   │   ├── Services/
+│   │   ├── Requests/
+│   │   ├── Resources/
+│   │   ├── Models/
+│   │   ├── Policies/
+│   │   ├── DTOs/
+│   │   ├── Exceptions/
+│   │   └── routes.php
+│   │
+│   ├── User/
+│   │   ├── Controllers/
+│   │   ├── Services/
+│   │   ├── Requests/
+│   │   ├── Resources/
+│   │   ├── Models/
+│   │   ├── DTOs/
+│   │   ├── Policies/
+│   │   ├── Exceptions/
+│   │   └── routes.php
+│   │
+│   ├── Product/
+│   │   ├── Controllers/
+│   │   ├── Services/
+│   │   ├── Requests/
+│   │   ├── Resources/
+│   │   ├── Models/
+│   │   ├── DTOs/
+│   │   ├── Policies/
+│   │   ├── Exceptions/
+│   │   └── routes.php
+│   │
+│   └── Order/
+│       ├── Controllers/
+│       ├── Services/
+│       ├── Requests/
+│       ├── Resources/
+│       ├── Models/
+│       ├── DTOs/
+│       ├── Policies/
+│       ├── Exceptions/
+│       └── routes.php
+│
+├── Shared/
+│   ├── Base/
+│   │   ├── BaseController.php
+│   │   ├── BaseService.php
+│   │   └── BaseRepository.php
+│   │
+│   ├── Traits/
+│   ├── Helpers/
+│   ├── Enums/
+│   ├── Exceptions/
+│   ├── Middleware/
+│   └── Services/
+│
+└── Providers/</textarea>
         <div class="fs-input-actions">
             <button class="fs-btn fs-btn-secondary" id="fsResetBtn">↺ Reset</button>
             <button class="fs-btn fs-btn-secondary" id="fsClearBtn">Clear</button>

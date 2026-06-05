@@ -9,8 +9,7 @@ export default class LocScanner {
     const response = await window.electronAPI.scan({
       rootPath,
       threshold,
-      mode,
-      ignorePatterns: []
+      mode
     });
 
     if (!response.success) {

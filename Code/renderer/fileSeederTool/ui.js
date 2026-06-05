@@ -92,26 +92,7 @@ export function wireUI(onClose) {
     // Reset to default example
     document.getElementById('fsResetBtn')?.addEventListener('click', () => {
         const ta = document.getElementById('fsInput');
-        if (ta) {
-            ta.value = `src/
-  index.js
-  components/
-    Button.jsx
-    Card.jsx
-  utils/
-    helpers.js
-  styles/
-    app.css
-
-public/
-  index.html
-
-tests/
-  app.test.js
-
-config/
-  settings.json`;
-        }
+        if (ta) ta.value = DEFAULT_EXAMPLE;
         state.rawInput = ta?.value ?? '';
     });
 
@@ -201,24 +182,66 @@ config/
     });
 }
 
-const DEFAULT_EXAMPLE = `src/
-  index.js
-  components/
-    Button.jsx
-    Card.jsx
-  utils/
-    helpers.js
-  styles/
-    app.css
-
-public/
-  index.html
-
-tests/
-  app.test.js
-
-config/
-  settings.json`;
+const DEFAULT_EXAMPLE = `app/
+├── Modules/
+│   ├── Auth/
+│   │   ├── Controllers/
+│   │   ├── Services/
+│   │   ├── Requests/
+│   │   ├── Resources/
+│   │   ├── Models/
+│   │   ├── Policies/
+│   │   ├── DTOs/
+│   │   ├── Exceptions/
+│   │   └── routes.php
+│   │
+│   ├── User/
+│   │   ├── Controllers/
+│   │   ├── Services/
+│   │   ├── Requests/
+│   │   ├── Resources/
+│   │   ├── Models/
+│   │   ├── DTOs/
+│   │   ├── Policies/
+│   │   ├── Exceptions/
+│   │   └── routes.php
+│   │
+│   ├── Product/
+│   │   ├── Controllers/
+│   │   ├── Services/
+│   │   ├── Requests/
+│   │   ├── Resources/
+│   │   ├── Models/
+│   │   ├── DTOs/
+│   │   ├── Policies/
+│   │   ├── Exceptions/
+│   │   └── routes.php
+│   │
+│   └── Order/
+│       ├── Controllers/
+│       ├── Services/
+│       ├── Requests/
+│       ├── Resources/
+│       ├── Models/
+│       ├── DTOs/
+│       ├── Policies/
+│       ├── Exceptions/
+│       └── routes.php
+│
+├── Shared/
+│   ├── Base/
+│   │   ├── BaseController.php
+│   │   ├── BaseService.php
+│   │   └── BaseRepository.php
+│   │
+│   ├── Traits/
+│   ├── Helpers/
+│   ├── Enums/
+│   ├── Exceptions/
+│   ├── Middleware/
+│   └── Services/
+│
+└── Providers/`;
 
 export function resetUI() {
     showStage('fsInputStage');

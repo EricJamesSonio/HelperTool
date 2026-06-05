@@ -13,12 +13,7 @@ const SUPPORTED_EXTENSIONS = [
   '.md', '.txt'
 ];
 
-const DEFAULT_IGNORE = ['node_modules', '.git', 'dist', 'build', '.cache', 'coverage', '.next', 'out'];
-
-function shouldIgnore(name, relativePath, extraPatterns = []) {
-  if (DEFAULT_IGNORE.includes(name)) return true;
-  return extraPatterns.some(p => relativePath.includes(p) || name === p);
-}
+const DEFAULT_IGNORE = new Set(['node_modules', '.git', 'dist', 'build', '.cache', 'coverage', '.next', 'out']);
 
 async function countLines(filePath) {
   try {
@@ -33,7 +28,7 @@ async function countLines(filePath) {
   }
 }
 
-async function scanDirectory(rootPath, ignorePatterns = []) {
+async function scanDirectory(rootPath, docignoreUtils) {
   const results = [];
 
   async function walk(currentPath) {
@@ -46,11 +41,12 @@ async function scanDirectory(rootPath, ignorePatterns = []) {
 
     for (const entry of entries) {
       const fullPath = path.join(currentPath, entry.name);
-      const relativePath = path.relative(rootPath, fullPath);
-      if (shouldIgnore(entry.name, relativePath, ignorePatterns)) continue;
+      if (DEFAULT_IGNORE.has(entry.name)) continue;
+      if (docignoreUtils?.isIgnored(fullPath, rootPath)) continue;
       if (entry.isDirectory()) {
         dirs.push(fullPath);
       } else if (entry.isFile()) {
+        const relativePath = path.relative(rootPath, fullPath);
         files.push({ fullPath, name: entry.name, relativePath });
       }
     }
@@ -76,13 +72,14 @@ async function scanDirectory(rootPath, ignorePatterns = []) {
   return results;
 }
 
-function register(shared) {
-  ipcMain.handle('loc:scan', async (event, { rootPath, threshold, mode, ignorePatterns }) => {
+function register({ docignoreUtils }) {
+  ipcMain.handle('loc:scan', async (event, { rootPath, threshold, mode }) => {
     try {
       if (!rootPath || !fs.existsSync(rootPath)) {
         return { success: false, error: 'Invalid directory path.' };
       }
-      const allFiles = await scanDirectory(rootPath, ignorePatterns || []);
+      await docignoreUtils.getIgnoreRules(rootPath);
+      const allFiles = await scanDirectory(rootPath, docignoreUtils);
       const filtered = allFiles.filter(file =>
         mode === 'above' ? file.lines >= threshold : file.lines < threshold
       );
