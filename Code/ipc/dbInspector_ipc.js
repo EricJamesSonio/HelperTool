@@ -91,7 +91,6 @@ function register(shared) {
       const password = conn.encrypted_password ? decryptPassword(conn.encrypted_password) : '';
       const client = await connect({ ...conn, password });
       const schema = await extractSchema(client, conn.type);
-      await client.end();
 
       const oldTableNames = dbi.getSnapshotTableNames(snapshotId);
       const newTableNames = schema.tables.map(t => t.name);

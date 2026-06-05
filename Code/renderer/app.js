@@ -107,7 +107,7 @@ refreshBtn.addEventListener('click', async () => {
             if (feats.folderFilters) renderFolderPanel(state.cachedTree);
         }
         renderRootJumper(state.cachedTree);
-        displayTree();
+        displayTree(false);
     } catch (err) {
         console.error('[UI] Refresh failed:', err);
     } finally {

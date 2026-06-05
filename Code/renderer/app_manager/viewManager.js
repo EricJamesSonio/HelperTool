@@ -17,6 +17,7 @@ export function displayTree(resetScroll = true) {
         treeContainer.textContent = 'No data available';
         return;
     }
+    const scrollPos = treeContainer.scrollTop;
     const visibleTree = filterTree(state.cachedTree);
     renderTree(
         visibleTree,
@@ -28,6 +29,8 @@ export function displayTree(resetScroll = true) {
     );
     if (resetScroll) {
         treeContainer.scrollTo(0, 0);
+    } else {
+        treeContainer.scrollTop = scrollPos;
     }
 }
 

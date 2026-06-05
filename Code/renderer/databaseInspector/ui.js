@@ -1,5 +1,5 @@
 import { state, setState } from './state.js';
-import { getPanelTemplate, getScanDialogHtml, getTableDetailHtml } from './template.js';
+import { getPanelTemplate, getScanDialogHtml, getTableDetailHtml, getConnectionManagerHtml, getConnectionListHtml, getConnectionEditHtml } from './template.js';
 import { openScannerModal } from './scanner.js';
 import { renderDetails } from './detailsPanel.js';
 import { initGraph, updateGraph } from './graph-bundle.js';
@@ -22,7 +22,18 @@ export function createPanel() {
 
   window.__dbiSelectTable = (tableName) => selectTable(tableName);
 
+  const connCenter = wrapper.querySelector('.dbi-header-center');
+  if (connCenter) {
+    const gear = document.createElement('button');
+    gear.id = 'dbiManageConnBtn';
+    gear.className = 'dbi-btn-icon dbi-manage-btn';
+    gear.title = 'Manage Connections';
+    gear.textContent = '⚙️';
+    connCenter.appendChild(gear);
+  }
+
   setupEventListeners(wrapper);
+
   return wrapper;
 }
 
@@ -50,6 +61,8 @@ function setupEventListeners(wrapper) {
     const connId = e.target.value;
     if (connId) loadSnapshots(connId);
   });
+
+  wrapper.querySelector('#dbiManageConnBtn')?.addEventListener('click', () => openConnectionManager());
 
   // Past connection click
   wrapper.querySelector('#dbiPastConnections').addEventListener('click', (e) => {
@@ -263,6 +276,8 @@ async function loadSnapshot(snapshotId) {
 
 async function refreshCurrent() {
   if (!state.currentSnapshotId) return;
+  const btn = _panel?.querySelector('#dbiRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⟳ Refreshing…'; }
   try {
     const result = await window.electronAPI.dbInspector.refreshSnapshot(state.currentSnapshotId);
     if (result.success) {
@@ -273,9 +288,18 @@ async function refreshCurrent() {
       if (state.selectedTable) selectTable(state.selectedTable);
       await loadSeeds();
       _savePanelState();
+    } else {
+      console.error('[DBI] Refresh failed:', result.error);
+      const status = _panel?.querySelector('#dbiDiffBar');
+      if (status) {
+        status.innerHTML = `<span style="color:var(--red,#f87171)">Refresh failed: ${esc(result.error)}</span> <span class="dbi-diff-dismiss">✕</span>`;
+        status.style.display = 'flex';
+      }
     }
   } catch (err) {
     console.error('[DBI] Refresh failed:', err);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⟳ Refresh'; }
   }
 }
 
@@ -704,6 +728,144 @@ function _savePanelState() {
     };
     localStorage.setItem('dbi_panel_state', JSON.stringify(data));
   } catch (_) {}
+}
+
+// ── Connection Manager ────────────────────────────────────────
+
+async function openConnectionManager() {
+  const existing = document.getElementById('dbiManagerOverlay');
+  if (existing) existing.remove();
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = getConnectionManagerHtml();
+  document.body.appendChild(wrapper);
+
+  const overlay = wrapper.firstElementChild;
+  const body = overlay.querySelector('#dbiManagerBody');
+  const closeBtn = overlay.querySelector('#dbiManagerClose');
+
+  const close = () => { overlay.remove(); };
+
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  const conns = await window.electronAPI.dbInspector.listConnections();
+  body.innerHTML = getConnectionListHtml(conns);
+
+  body.addEventListener('click', async (e) => {
+    const editBtn = e.target.closest('.dbi-manager-edit-btn');
+    const deleteBtn = e.target.closest('.dbi-manager-delete-btn');
+    if (editBtn) {
+      const connId = editBtn.dataset.connId;
+      openConnectionEdit(connId, body, close);
+    } else if (deleteBtn) {
+      const connId = deleteBtn.dataset.connId;
+      await deleteConnection(connId, body);
+    }
+  });
+}
+
+async function openConnectionEdit(connId, body, closeManager) {
+  const conns = await window.electronAPI.dbInspector.listConnections();
+  const conn = conns.find(c => c.id === connId);
+  if (!conn) { body.innerHTML = '<div class="dbi-manager-empty">Connection not found</div>'; return; }
+
+  body.innerHTML = getConnectionEditHtml(conn);
+
+  const isSqlite = conn.type === 'sqlite';
+  const isMongo = conn.type === 'mongodb';
+
+  body.querySelector('#dbiEditHostRow').style.display = (isSqlite || isMongo) ? 'none' : '';
+  body.querySelector('#dbiEditPortRow').style.display = (isSqlite || isMongo) ? 'none' : '';
+  body.querySelector('#dbiEditDbRow').style.display = isSqlite ? 'none' : '';
+  body.querySelector('#dbiEditUserRow').style.display = isSqlite ? 'none' : '';
+  body.querySelector('#dbiEditPasswordRow').style.display = isSqlite ? 'none' : '';
+  body.querySelector('#dbiEditFilePathRow').style.display = isSqlite ? '' : 'none';
+  body.querySelector('#dbiEditConnStrRow').style.display = isMongo ? '' : 'none';
+
+  body.querySelector('#dbiEditBrowseBtn')?.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.db,.sqlite,.sqlite3';
+    input.addEventListener('change', () => {
+      if (input.files[0]) {
+        body.querySelector('#dbiEditFilePath').value = input.files[0].path;
+      }
+    });
+    input.click();
+  });
+
+  body.querySelector('#dbiEditBackBtn').addEventListener('click', async () => {
+    const conns = await window.electronAPI.dbInspector.listConnections();
+    body.innerHTML = getConnectionListHtml(conns);
+  });
+
+  body.querySelector('#dbiEditTestBtn').addEventListener('click', async () => {
+    const statusEl = body.querySelector('#dbiManagerStatus');
+    statusEl.textContent = 'Testing…';
+    const updated = collectEditForm(conn);
+    try {
+      const res = await window.electronAPI.dbInspector.testConnection(updated);
+      statusEl.textContent = res.success ? 'Connected successfully' : 'Failed: ' + res.error;
+      statusEl.style.color = res.success ? 'var(--green, #34d399)' : 'var(--red, #f87171)';
+    } catch (err) {
+      statusEl.textContent = 'Error: ' + err.message;
+      statusEl.style.color = 'var(--red, #f87171)';
+    }
+  });
+
+  body.querySelector('#dbiEditSaveBtn').addEventListener('click', async () => {
+    const statusEl = body.querySelector('#dbiManagerStatus');
+    const updated = collectEditForm(conn);
+    try {
+      const res = await window.electronAPI.dbInspector.saveConnection(updated);
+      if (res.success) {
+        statusEl.textContent = 'Saved';
+        statusEl.style.color = 'var(--green, #34d399)';
+        await refreshConnections();
+        const conns = await window.electronAPI.dbInspector.listConnections();
+        body.innerHTML = getConnectionListHtml(conns);
+      } else {
+        statusEl.textContent = 'Error: ' + res.error;
+        statusEl.style.color = 'var(--red, #f87171)';
+      }
+    } catch (err) {
+      statusEl.textContent = 'Error: ' + err.message;
+      statusEl.style.color = 'var(--red, #f87171)';
+    }
+  });
+}
+
+function collectEditForm(origConn) {
+  return {
+    id: origConn.id,
+    name: document.getElementById('dbiEditName')?.value?.trim() || origConn.name,
+    type: origConn.type,
+    host: document.getElementById('dbiEditHost')?.value?.trim() || null,
+    port: parseInt(document.getElementById('dbiEditPort')?.value, 10) || null,
+    database: document.getElementById('dbiEditDatabase')?.value?.trim() || null,
+    username: document.getElementById('dbiEditUser')?.value?.trim() || null,
+    password: document.getElementById('dbiEditPassword')?.value || null,
+    encrypted_password: document.getElementById('dbiEditPassword')?.value ? null : origConn.encrypted_password,
+    file_path: document.getElementById('dbiEditFilePath')?.value?.trim() || null,
+    connection_string: document.getElementById('dbiEditConnStr')?.value?.trim() || null,
+  };
+}
+
+async function deleteConnection(connId, body) {
+  const conns = await window.electronAPI.dbInspector.listConnections();
+  const conn = conns.find(c => c.id === connId);
+  if (!conn) return;
+  const ok = await confirmDialog(`Delete connection "${conn.name}"? This will also remove all its snapshots.`);
+  if (!ok) return;
+  try {
+    await window.electronAPI.dbInspector.deleteConnection(connId);
+    await refreshConnections();
+    const updated = await window.electronAPI.dbInspector.listConnections();
+    body.innerHTML = getConnectionListHtml(updated);
+  } catch (err) {
+    body.innerHTML += `<div class="dbi-manager-status" style="color:var(--red,#f87171)">Error: ${err.message}</div>`;
+  }
 }
 
 export function restorePanelState() {

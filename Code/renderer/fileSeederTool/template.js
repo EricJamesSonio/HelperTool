@@ -22,13 +22,13 @@ export function getPanelHTML() {
     <div class="fs-stage" id="fsInputStage">
         <div class="fs-section-label">Paste file structure below</div>
         <div class="fs-hint">
-            Supports flat lists <code>file.ts</code> or tree format
-            <code>├── folder/ └── file.ts</code>. Messy paste is fine.
+            Supports flat lists, indented trees, and box-drawing trees.
+            Same indent = siblings, deeper indent = children. Comments start with <code>#</code>.
         </div>
         <textarea
             id="fsInput"
             class="fs-textarea"
-            placeholder="product.controller.ts&#10;product.service.ts&#10;&#10;— or tree format —&#10;src/&#10;├── app.ts&#10;├── config/&#10;│   └── env.ts"
+            placeholder="app.css&#10;&#10;tokens/&#10;  _tokens.css&#10;  _typography.css&#10;&#10;base/&#10;  _reset.css&#10;  _utilities.css&#10;&#10;components/&#10;  _button.css&#10;  _card.css&#10;  _section.css&#10;  _navbar.css&#10;  _footer.css&#10;&#10;sections/&#10;  _hero.css&#10;  _features.css&#10;  _about.css&#10;  _pricing.css&#10;  _resources.css"
             spellcheck="false"
         ></textarea>
         <div class="fs-input-actions">

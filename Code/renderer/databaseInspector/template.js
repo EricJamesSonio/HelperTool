@@ -242,3 +242,98 @@ export function getTableDetailHtml(details) {
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function getConnIcon(type) {
+  const icons = { postgres: '🐘', mysql: '🐬', sqlite: '🗄️', mongodb: '🍃' };
+  return icons[type] || '🗃️';
+}
+
+export function getConnectionManagerHtml() {
+  return `
+    <div class="dbi-manager-overlay" id="dbiManagerOverlay">
+      <div class="dbi-manager-modal">
+        <div class="dbi-manager-header">
+          <span class="dbi-manager-title">Connection Manager</span>
+          <button class="dbi-btn-icon" id="dbiManagerClose">✕</button>
+        </div>
+        <div class="dbi-manager-body" id="dbiManagerBody"></div>
+      </div>
+    </div>
+  `;
+}
+
+export function getConnectionListHtml(connections) {
+  if (!connections || !connections.length) {
+    return '<div class="dbi-manager-empty">No saved connections</div>';
+  }
+  return connections.map(c => `
+    <div class="dbi-manager-card" data-conn-id="${c.id}">
+      <div class="dbi-manager-card-icon">${getConnIcon(c.type)}</div>
+      <div class="dbi-manager-card-info">
+        <div class="dbi-manager-card-name">${esc(c.name)}</div>
+        <div class="dbi-manager-card-meta">
+          ${esc(c.type)}${c.host ? ' &middot; ' + esc(c.host) : ''}${c.port ? ':' + c.port : ''}
+          ${c.database ? ' &middot; ' + esc(c.database) : ''}
+        </div>
+        <div class="dbi-manager-card-date">Created ${c.created_at || 'N/A'}</div>
+      </div>
+      <div class="dbi-manager-card-actions">
+        <button class="dbi-btn dbi-manager-edit-btn" data-conn-id="${c.id}">&#9998; Edit</button>
+        <button class="dbi-btn dbi-btn-secondary dbi-manager-delete-btn" data-conn-id="${c.id}">&#128465; Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+export function getConnectionEditHtml(conn) {
+  return `
+    <div class="dbi-manager-edit">
+      <div class="dbi-manager-edit-title">Edit Connection</div>
+      <div class="dbi-form-row">
+        <label class="dbi-form-label">Name</label>
+        <input type="text" class="dbi-input" id="dbiEditName" value="${esc(conn.name)}" />
+      </div>
+      <div class="dbi-form-row">
+        <label class="dbi-form-label">Type</label>
+        <input type="text" class="dbi-input" value="${esc(conn.type)}" disabled />
+      </div>
+      <div class="dbi-form-row" id="dbiEditHostRow">
+        <label class="dbi-form-label">Host</label>
+        <input type="text" class="dbi-input" id="dbiEditHost" value="${esc(conn.host || '')}" />
+      </div>
+      <div class="dbi-form-row" id="dbiEditPortRow">
+        <label class="dbi-form-label">Port</label>
+        <input type="number" class="dbi-input" id="dbiEditPort" value="${conn.port || ''}" />
+      </div>
+      <div class="dbi-form-row" id="dbiEditDbRow">
+        <label class="dbi-form-label">Database</label>
+        <input type="text" class="dbi-input" id="dbiEditDatabase" value="${esc(conn.database || '')}" />
+      </div>
+      <div class="dbi-form-row" id="dbiEditUserRow">
+        <label class="dbi-form-label">Username</label>
+        <input type="text" class="dbi-input" id="dbiEditUser" value="${esc(conn.username || '')}" />
+      </div>
+      <div class="dbi-form-row" id="dbiEditPasswordRow">
+        <label class="dbi-form-label">Password</label>
+        <input type="password" class="dbi-input" id="dbiEditPassword" placeholder="Leave blank to keep current" />
+      </div>
+      <div class="dbi-form-row" id="dbiEditFilePathRow" style="display:none">
+        <label class="dbi-form-label">File Path</label>
+        <div class="dbi-file-row">
+          <input type="text" class="dbi-input" id="dbiEditFilePath" value="${esc(conn.file_path || '')}" />
+          <button class="dbi-btn" id="dbiEditBrowseBtn">Browse</button>
+        </div>
+      </div>
+      <div class="dbi-form-row" id="dbiEditConnStrRow" style="display:none">
+        <label class="dbi-form-label">Connection String</label>
+        <input type="text" class="dbi-input" id="dbiEditConnStr" value="${esc(conn.connection_string || '')}" />
+      </div>
+      <div class="dbi-manager-edit-actions">
+        <button class="dbi-btn" id="dbiEditBackBtn">&larr; Back</button>
+        <button class="dbi-btn dbi-btn-secondary" id="dbiEditTestBtn">&#128268; Test</button>
+        <button class="dbi-btn dbi-btn-primary" id="dbiEditSaveBtn">&#128190; Save</button>
+      </div>
+      <div class="dbi-manager-status" id="dbiManagerStatus"></div>
+    </div>
+  `;
+}
