@@ -1,3 +1,5 @@
+import * as state from './state.js';
+
 let _nextElId = 1;
 function nextId() { return 'el_' + (_nextElId++); }
 
@@ -12,10 +14,54 @@ function dist(a, b) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
+function _estimateWrappedLines(text, maxWidth, fontSize) {
+  const charWidth = fontSize * 0.5;
+  const charsPerLine = Math.max(1, Math.floor(maxWidth / charWidth));
+  const paragraphs = text.split('\n');
+  let lineCount = 0;
+  for (const para of paragraphs) {
+    if (!para) { lineCount++; continue; }
+    const words = para.split(' ');
+    let lineLen = 0;
+    for (const word of words) {
+      const wordLen = word.length;
+      if (lineLen + wordLen + (lineLen > 0 ? 1 : 0) > charsPerLine && lineLen > 0) {
+        lineCount++;
+        lineLen = wordLen;
+      } else {
+        lineLen += wordLen + (lineLen > 0 ? 1 : 0);
+      }
+    }
+    if (lineLen > 0) lineCount++;
+  }
+  return lineCount;
+}
+
+function _parentTextWidth(el) {
+  const st = state.getState();
+  const parent = st.elements.find(e => e.id === el.parentId);
+  if (parent) return Math.max(0, parent.x + parent.width - 4 - el.x);
+  return null;
+}
+
 function textWidth(el) {
+  if (el.parentId) {
+    const w = _parentTextWidth(el);
+    if (w !== null) return w;
+  }
   return (el.text || '').length * (el.fontSize || 20) * 0.5;
 }
+
 function textHeight(el) {
+  if (el.parentId) {
+    const st = state.getState();
+    const parent = st.elements.find(e => e.id === el.parentId);
+    if (parent) {
+      const maxWidth = Math.max(20, parent.x + parent.width - 4 - el.x);
+      const lines = _estimateWrappedLines(el.text || '', maxWidth, el.fontSize || 20);
+      return lines * (el.fontSize || 20) * 1.2;
+    }
+  }
   const lines = (el.text || '').split('\n');
   return lines.length * (el.fontSize || 20) * 1.2;
 }
@@ -559,10 +605,7 @@ function getElementBBox(el) {
              w: Math.abs(el.end.x - el.start.x), h: Math.abs(el.end.y - el.start.y) };
   }
   if (el.type === 'text') {
-    const fs = el.fontSize || 20;
-    const w = (el.text || '').length * fs * 0.5;
-    const h = (el.text || '').split('\n').length * fs * 1.2;
-    return { x: el.x, y: el.y, w, h };
+    return { x: el.x, y: el.y, w: textWidth(el), h: textHeight(el) };
   }
   if (el.type === 'pen' && el.points) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;

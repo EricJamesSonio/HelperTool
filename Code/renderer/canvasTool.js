@@ -21,6 +21,7 @@ let _listenersAttached = false;
 let _captureKeyHandler = null;
 let _textOverlay = null;
 let _textCommitting = false;
+let _clipboard = null;
 
 export function initCanvasTool() {
   state.onChange(handleStateChange);
@@ -292,6 +293,18 @@ function addKeyGuard() {
       return;
     }
 
+    // Copy / Paste
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault(); e.stopPropagation();
+      _copySelected();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+      e.preventDefault(); e.stopPropagation();
+      _pasteClipboard();
+      return;
+    }
+
     // Delete / Backspace
     if (e.key === 'Delete' || e.key === 'Backspace') {
       const st = state.getState();
@@ -348,7 +361,7 @@ async function commitTextOverlay() {
   removeTextOverlay();
   if (!text.trim()) return;
 
-  // Check if text position is inside a shape
+  // Check if text position is inside a shape — auto-attach without asking
   const st = state.getState();
   let parentId = null;
   for (let i = st.elements.length - 1; i >= 0; i--) {
@@ -356,10 +369,7 @@ async function commitTextOverlay() {
     if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
         el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') {
       if (worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
-        // Ask user if they want the text to stick to this shape
-        parentId = await confirmDialog(
-          `Stick this text to "${el.type}" shape so it moves with it?`
-        ) ? el.id : null;
+        parentId = el.id;
         break;
       }
     }
@@ -373,6 +383,7 @@ async function commitTextOverlay() {
     text,
     fontSize,
     color,
+    align: 'left',
     opacity: state.getState().opacity,
     parentId,
   });
@@ -381,10 +392,6 @@ async function commitTextOverlay() {
 
 function createTextOverlay(worldX, worldY, clientX, clientY) {
   removeTextOverlay();
-  const vp = _panel.querySelector('#canvasViewport');
-  const vpRect = vp.getBoundingClientRect();
-  const relX = clientX - vpRect.left;
-  const relY = clientY - vpRect.top;
 
   const overlay = document.createElement('div');
   overlay.className = 'canvas-text-overlay';
@@ -392,8 +399,25 @@ function createTextOverlay(worldX, worldY, clientX, clientY) {
   overlay.dataset.worldY = worldY;
   overlay.dataset.color = state.getState().color;
   overlay.dataset.fontSize = '20';
-  overlay.style.left = relX + 'px';
-  overlay.style.top = relY + 'px';
+
+  const vp = _panel.querySelector('#canvasViewport');
+  const vpRect = vp.getBoundingClientRect();
+  overlay.style.left = (clientX - vpRect.left) + 'px';
+  overlay.style.top = (clientY - vpRect.top) + 'px';
+
+  // If inside a shape, constrain width from click to shape's right edge
+  const st2 = state.getState();
+  for (let i = st2.elements.length - 1; i >= 0; i--) {
+    const el = st2.elements[i];
+    if ((el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
+         el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') &&
+        worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
+      const v = engine.getViewport();
+      const remainingPx = (el.x + el.width - worldX) * v.zoom - 4;
+      overlay.style.width = Math.max(60, remainingPx) + 'px';
+      break;
+    }
+  }
 
   overlay.innerHTML = '<textarea class="canvas-text-input" rows="1" placeholder="Type..." spellcheck="false"></textarea>';
   _panel.querySelector('#canvasViewport').appendChild(overlay);
@@ -417,6 +441,56 @@ function createTextOverlay(worldX, worldY, clientX, clientY) {
     textarea.style.height = 'auto';
     textarea.style.height = textarea.scrollHeight + 'px';
   });
+}
+
+// ── Copy / Paste ───────────────────────────────────────────────────────────────
+
+function _copySelected() {
+  const st = state.getState();
+  if (st.selectedIds.length === 0) return;
+  const selected = st.elements.filter(e => st.selectedIds.includes(e.id));
+  // Include child text elements of selected shapes
+  const childTexts = st.elements.filter(e =>
+    e.type === 'text' && e.parentId &&
+    st.selectedIds.includes(e.parentId) && !st.selectedIds.includes(e.id)
+  );
+  const all = [...selected, ...childTexts];
+  // Deduplicate by id (in case a text element was already selected)
+  const seen = new Set();
+  _clipboard = [];
+  for (const el of all) {
+    if (!seen.has(el.id)) { seen.add(el.id); _clipboard.push(JSON.parse(JSON.stringify(el))); }
+  }
+}
+
+function _pasteClipboard() {
+  if (!_clipboard || _clipboard.length === 0) return;
+
+  const idMap = {};
+  const now = Date.now();
+  const newElements = _clipboard.map(el => {
+    const newId = 'el_' + now + '_' + Math.random().toString(36).slice(2, 8);
+    idMap[el.id] = newId;
+    const copy = JSON.parse(JSON.stringify(el));
+    copy.id = newId;
+    return copy;
+  });
+
+  const OFFSET = 30;
+  newElements.forEach(el => {
+    if (el.x !== undefined) el.x += OFFSET;
+    if (el.y !== undefined) el.y += OFFSET;
+    if (el.parentId && idMap[el.parentId]) {
+      el.parentId = idMap[el.parentId];
+    }
+  });
+
+  state.pushAndApply(() => {
+    const st = state.getState();
+    newElements.forEach(el => st.elements.push(el));
+    st.selectedIds = newElements.map(e => e.id);
+  });
+  boards.markDirty();
 }
 
 function activateTool(toolName) {

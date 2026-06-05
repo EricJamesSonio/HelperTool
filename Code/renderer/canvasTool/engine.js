@@ -426,15 +426,55 @@ function drawArrowhead(ctx, from, to, el) {
   ctx.fill();
 }
 
+function wrapTextToWidth(ctx, text, maxWidth) {
+  const paragraphs = text.split('\n');
+  const result = [];
+  for (const para of paragraphs) {
+    if (!para) { result.push(''); continue; }
+    const words = para.split(' ');
+    let line = '';
+    for (const word of words) {
+      const testLine = line ? line + ' ' + word : word;
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        result.push(line);
+        line = word;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) result.push(line);
+  }
+  return result;
+}
+
 function drawText(ctx, el) {
   const fontSize = el.fontSize || 20;
   ctx.font = `${fontSize}px 'Segoe UI', sans-serif`;
   ctx.fillStyle = el.color || '#ffffff';
   ctx.textBaseline = 'top';
-  const lines = (el.text || '').split('\n');
+  const align = el.align || 'left';
+  let lines, effectiveWidth;
+  if (el.parentId) {
+    const st = state.getState();
+    const parent = st.elements.find(e => e.id === el.parentId);
+    if (parent) {
+      effectiveWidth = Math.max(20, parent.x + parent.width - 4 - el.x);
+      lines = wrapTextToWidth(ctx, el.text || '', effectiveWidth);
+    } else {
+      lines = (el.text || '').split('\n');
+    }
+  } else {
+    lines = (el.text || '').split('\n');
+  }
   const lineHeight = fontSize * 1.2;
   lines.forEach((line, i) => {
-    ctx.fillText(line, el.x, el.y + i * lineHeight);
+    let x = el.x;
+    if (effectiveWidth !== undefined && align === 'center') {
+      x = el.x + (effectiveWidth - ctx.measureText(line).width) / 2;
+    } else if (effectiveWidth !== undefined && align === 'right') {
+      x = el.x + effectiveWidth - ctx.measureText(line).width;
+    }
+    ctx.fillText(line, x, el.y + i * lineHeight);
   });
 }
 
@@ -444,8 +484,23 @@ function drawSelection(ctx, el) {
   ctx.setLineDash([4 / viewport.zoom, 4 / viewport.zoom]);
   if (el.type === 'text') {
     const fontSize = el.fontSize || 20;
-    const w = (el.text || '').length * fontSize * 0.5;
-    const h = (el.text || '').split('\n').length * fontSize * 1.2;
+    let w, h;
+    if (el.parentId) {
+      const st = state.getState();
+      const parent = st.elements.find(e => e.id === el.parentId);
+      if (parent) {
+        const effectiveWidth = Math.max(20, parent.x + parent.width - 4 - el.x);
+        const lines = wrapTextToWidth(ctx, el.text || '', effectiveWidth);
+        w = effectiveWidth;
+        h = lines.length * fontSize * 1.2;
+      } else {
+        w = (el.text || '').length * fontSize * 0.5;
+        h = (el.text || '').split('\n').length * fontSize * 1.2;
+      }
+    } else {
+      w = (el.text || '').length * fontSize * 0.5;
+      h = (el.text || '').split('\n').length * fontSize * 1.2;
+    }
     ctx.strokeRect(el.x - 4, el.y - 4, w + 8, h + 8);
   } else {
     ctx.strokeRect(el.x - 4, el.y - 4, el.width + 8, el.height + 8);
