@@ -54,6 +54,20 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    ipcMain.handle('get-recent-repos', async () => {
+        try {
+            const cfg = config.readConfig();
+            return Object.entries(cfg.projects || {})
+                .map(([repoPath, data]) => ({ repoPath, ...data }))
+                .filter(r => r.lastUsed)
+                .sort((a, b) => new Date(b.lastUsed) - new Date(a.lastUsed))
+                .slice(0, 10);
+        } catch (err) {
+            console.error('[IPC] get-recent-repos error:', err);
+            return [];
+        }
+    });
+
     ipcMain.handle('getFolderTree', async (event, repoPath) => {
         try {
             if (!repoPath) return [];

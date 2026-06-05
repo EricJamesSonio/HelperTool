@@ -112,6 +112,83 @@ selectRepoBtn.addEventListener('click', async () => {
     }
 });
 
+selectRepoBtn.addEventListener('contextmenu', async (e) => {
+    e.preventDefault();
+    document.getElementById('repoDropdown')?.remove();
+
+    const repos = await window.electronAPI.getRecentRepos?.() || [];
+
+    const dropdown = document.createElement('div');
+    dropdown.id = 'repoDropdown';
+    dropdown.className = 'repo-dropdown';
+
+    const rect = selectRepoBtn.getBoundingClientRect();
+    dropdown.style.top = rect.bottom + 4 + 'px';
+    dropdown.style.left = rect.left + 'px';
+
+    if (repos.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'repo-dropdown-item repo-dropdown-empty';
+        empty.textContent = 'No recent repos';
+        dropdown.appendChild(empty);
+    } else {
+        repos.forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'repo-dropdown-item';
+            if (r.repoPath === state.selectedRepoPath) {
+                item.classList.add('repo-dropdown-item--active');
+            }
+            item.innerHTML = `
+                <div class="repo-dropdown-item-name">${r.repoPath.split(/[/\\]/).pop()}</div>
+                <div class="repo-dropdown-item-path">${r.repoPath}</div>
+            `;
+            item.addEventListener('click', () => {
+                dropdown.remove();
+                if (r.repoPath !== state.selectedRepoPath) {
+                    loadRepo(r.repoPath);
+                }
+            });
+            dropdown.appendChild(item);
+        });
+    }
+
+    const divider = document.createElement('div');
+    divider.className = 'repo-dropdown-divider';
+    dropdown.appendChild(divider);
+
+    const browse = document.createElement('div');
+    browse.className = 'repo-dropdown-item';
+    browse.innerHTML = '<span style="margin-right:6px">📁</span> Browse for another folder...';
+    browse.addEventListener('click', async () => {
+        dropdown.remove();
+        const repoPath = await window.electronAPI.selectRepo();
+        if (repoPath) await loadRepo(repoPath);
+    });
+    dropdown.appendChild(browse);
+
+    document.body.appendChild(dropdown);
+
+    const closeDropdown = (ev) => {
+        if (!dropdown.contains(ev.target) && ev.target !== selectRepoBtn) {
+            dropdown.remove();
+            document.removeEventListener('click', closeDropdown);
+            document.removeEventListener('keydown', closeOnEscape);
+        }
+    };
+    const closeOnEscape = (ev) => {
+        if (ev.key === 'Escape') {
+            dropdown.remove();
+            document.removeEventListener('click', closeDropdown);
+            document.removeEventListener('keydown', closeOnEscape);
+        }
+    };
+
+    setTimeout(() => {
+        document.addEventListener('click', closeDropdown);
+        document.addEventListener('keydown', closeOnEscape);
+    }, 0);
+});
+
 refreshBtn.addEventListener('click', async () => {
     if (!state.selectedRepoPath) return;
     refreshBtn.classList.add('spinning');

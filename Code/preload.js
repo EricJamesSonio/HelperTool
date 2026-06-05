@@ -18,6 +18,7 @@ const repoBridge = {
     setIgnoredExtensions: (exts)         => ipcRenderer.invoke('set-ignored-extensions', exts),
     getFolderFilters:    ()              => ipcRenderer.invoke('get-folder-filters'),
     setFolderFilters:    (filters)       => ipcRenderer.invoke('set-folder-filters', filters),
+    getRecentRepos:      ()              => ipcRenderer.invoke('get-recent-repos'),
 };
 
 const generateBridge = {

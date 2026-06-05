@@ -21,6 +21,7 @@
     transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 .at-panel.at-visible {
+    display: flex !important;
     opacity: 1 !important;
     pointer-events: all !important;
     visibility: visible;

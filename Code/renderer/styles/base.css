@@ -993,3 +993,64 @@ body {
   content: '';
   display: none;
 }
+
+/* ── Repo dropdown ──────────────────────────────────── */
+.repo-dropdown {
+  position: fixed;
+  z-index: 99999;
+  min-width: 280px;
+  max-width: 420px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px 0;
+  overflow: hidden;
+}
+.repo-dropdown-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.repo-dropdown-item:hover {
+  background: var(--accent-dim);
+}
+.repo-dropdown-item--active {
+  border-left: 3px solid var(--accent);
+  padding-left: 11px;
+}
+.repo-dropdown-item-name {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.repo-dropdown-item-path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.repo-dropdown-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+  cursor: default;
+  flex-direction: row;
+}
+.repo-dropdown-empty:hover {
+  background: transparent;
+}
+.repo-dropdown-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 0;
+}
