@@ -110,6 +110,7 @@
   border: 1px solid var(--border-subtle);
   transition: background 0.2s;
   overflow: auto;
+  --tree-zoom: 1;
 }
 #treeContainer::-webkit-scrollbar { width: 16px; height: 16px; }
 #treeContainer::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 99px; }
@@ -218,7 +219,7 @@
 
 #treeContainer.mode-list {
   padding: 10px 8px 24px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--tree-zoom));
 }
 
 #treeContainer.mode-list .tree-root {
@@ -558,7 +559,7 @@
 
 #treeContainer.mode-tree {
   padding: 20px 24px;
-  font-size: 14px;
+  font-size: calc(14px * var(--tree-zoom));
 }
 
 #treeContainer.mode-tree .tree-root {
