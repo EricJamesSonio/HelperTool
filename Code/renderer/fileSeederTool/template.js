@@ -28,10 +28,28 @@ export function getPanelHTML() {
         <textarea
             id="fsInput"
             class="fs-textarea"
-            placeholder="app.css&#10;&#10;tokens/&#10;  _tokens.css&#10;  _typography.css&#10;&#10;base/&#10;  _reset.css&#10;  _utilities.css&#10;&#10;components/&#10;  _button.css&#10;  _card.css&#10;  _section.css&#10;  _navbar.css&#10;  _footer.css&#10;&#10;sections/&#10;  _hero.css&#10;  _features.css&#10;  _about.css&#10;  _pricing.css&#10;  _resources.css"
+            placeholder="Paste or type your file structure here…"
             spellcheck="false"
-        ></textarea>
+        >src/
+  index.js
+  components/
+    Button.jsx
+    Card.jsx
+  utils/
+    helpers.js
+  styles/
+    app.css
+
+public/
+  index.html
+
+tests/
+  app.test.js
+
+config/
+  settings.json</textarea>
         <div class="fs-input-actions">
+            <button class="fs-btn fs-btn-secondary" id="fsResetBtn">↺ Reset</button>
             <button class="fs-btn fs-btn-secondary" id="fsClearBtn">Clear</button>
             <button class="fs-btn fs-btn-primary"   id="fsParseBtn">Parse &amp; Preview →</button>
         </div>

@@ -55,7 +55,6 @@ export function open(folderPath, folderName) {
   _ensurePanel();
   _ui.setRootPath(folderPath, folderName || folderPath.split(/[\\/]/).pop());
   _panel.classList.add('open');
-  _ui.autoScan();
 }
 
 export function close() {

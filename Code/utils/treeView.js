@@ -72,6 +72,7 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         wrapper.className = 'node-wrapper';
         wrapper.style.setProperty('--depth', depth);
         wrapper.dataset.nodePath = normPath(node.path);
+        wrapper.dataset.nodeName = node.name;
         // Set depth-level color attribute on every node
         wrapper.dataset.depthLevel = depth;
 
@@ -172,6 +173,7 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
         const wrapper = document.createElement('div');
         wrapper.className = 'node-wrapper';
         wrapper.dataset.nodePath = normPath(node.path);
+        wrapper.dataset.nodeName = node.name;
         wrapper.dataset.depthLevel = depth;
 
         const el = document.createElement('div');

@@ -1,20 +1,27 @@
-/**
- * locResultsRenderer.js
- * Responsible for rendering scan results into the DOM.
- * Single responsibility: display logic only.
- */
-
 export default class LocResultsRenderer {
-  constructor(container) {
+  constructor(container, onFileClick) {
     this.container = container;
+    this.onFileClick = onFileClick;
+    this._currentFiles = [];
+
+    this.container.addEventListener('click', (e) => {
+      const row = e.target.closest('.loc-file-row');
+      if (!row || !this.onFileClick) return;
+      const idx = parseInt(row.dataset.index, 10);
+      if (!isNaN(idx) && this._currentFiles[idx]) {
+        this.onFileClick(this._currentFiles[idx]);
+      }
+    });
   }
 
   renderEmpty() {
+    this._currentFiles = [];
     this.container.innerHTML =
       `<div class="loc-empty-state">Enter a path and hit Scan to detect file sizes.</div>`;
   }
 
   renderNoMatch() {
+    this._currentFiles = [];
     this.container.innerHTML =
       `<div class="loc-empty-results">No files matched your criteria.</div>`;
   }
@@ -31,20 +38,20 @@ export default class LocResultsRenderer {
   }
 
   renderResults(files, sortBy, extFilter) {
-    const list = this._filterAndSort(files, sortBy, extFilter);
+    this._currentFiles = this._filterAndSort(files, sortBy, extFilter);
 
-    if (!list.length) {
+    if (!this._currentFiles.length) {
       this.renderNoMatch();
       return;
     }
 
-    const maxLines = Math.max(...list.map(f => f.lines), 1);
+    const maxLines = Math.max(...this._currentFiles.map(f => f.lines), 1);
 
-    this.container.innerHTML = list.map(file => {
+    this.container.innerHTML = this._currentFiles.map((file, idx) => {
       const barWidth = Math.round((file.lines / maxLines) * 100);
       const sev = this._severity(file.lines);
       return `
-        <div class="loc-file-row">
+        <div class="loc-file-row" data-index="${idx}">
           <div class="loc-file-info">
             <span class="loc-file-name">${this._esc(file.name)}</span>
             <span class="loc-file-path">${this._esc(file.path)}</span>

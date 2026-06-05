@@ -143,6 +143,7 @@ const fileseederBridge = {
 
 const locBridge = {
     scan: (options) => ipcRenderer.invoke('loc:scan', options),
+    openFile: (filePath) => ipcRenderer.invoke('loc:openFile', filePath),
 };
 
 const dbInspectorBridge = {

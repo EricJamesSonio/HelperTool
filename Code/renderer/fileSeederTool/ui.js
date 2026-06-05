@@ -89,6 +89,32 @@ export function wireUI(onClose) {
     // Close button
     document.getElementById('fsCloseBtn')?.addEventListener('click', onClose);
 
+    // Reset to default example
+    document.getElementById('fsResetBtn')?.addEventListener('click', () => {
+        const ta = document.getElementById('fsInput');
+        if (ta) {
+            ta.value = `src/
+  index.js
+  components/
+    Button.jsx
+    Card.jsx
+  utils/
+    helpers.js
+  styles/
+    app.css
+
+public/
+  index.html
+
+tests/
+  app.test.js
+
+config/
+  settings.json`;
+        }
+        state.rawInput = ta?.value ?? '';
+    });
+
     // Clear
     document.getElementById('fsClearBtn')?.addEventListener('click', () => {
         const ta = document.getElementById('fsInput');
@@ -175,10 +201,30 @@ export function wireUI(onClose) {
     });
 }
 
+const DEFAULT_EXAMPLE = `src/
+  index.js
+  components/
+    Button.jsx
+    Card.jsx
+  utils/
+    helpers.js
+  styles/
+    app.css
+
+public/
+  index.html
+
+tests/
+  app.test.js
+
+config/
+  settings.json`;
+
 export function resetUI() {
     showStage('fsInputStage');
     const ta = document.getElementById('fsInput');
-    if (ta) ta.value = '';
+    if (ta) ta.value = DEFAULT_EXAMPLE;
+    state.rawInput = DEFAULT_EXAMPLE;
     const summary = document.getElementById('fsPreviewSummary');
     const list    = document.getElementById('fsPreviewList');
     if (summary) summary.innerHTML = '';

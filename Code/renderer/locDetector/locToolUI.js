@@ -20,7 +20,7 @@ export default class LocToolUI {
   render(container) {
     this.container = container;
     container.innerHTML = this._template();
-    this.renderer = new LocResultsRenderer(this._el('locResults'));
+    this.renderer = new LocResultsRenderer(this._el('locResults'), (file) => this._openFile(file));
     this._bindEvents();
     this._applySettings();
     this.renderer.renderEmpty();
@@ -31,11 +31,6 @@ export default class LocToolUI {
     this._rootPath = folderPath;
     const label = this._el('locFolderLabel');
     if (label) label.textContent = folderName || folderPath;
-  }
-
-  /** Auto-trigger scan when panel opens */
-  autoScan() {
-    if (this._rootPath) this._startScan();
   }
 
   _template() {
@@ -116,6 +111,15 @@ export default class LocToolUI {
     this._el('locModeLabel').textContent = mode === 'above'
       ? `Show files with ${val}+ lines`
       : `Show files with fewer than ${val} lines`;
+  }
+
+  async _openFile(file) {
+    const fullPath = this._rootPath.replace(/[\\/]$/, '') + '/' + file.path;
+    try {
+      await window.electronAPI.openFile(fullPath);
+    } catch (err) {
+      console.error('[LOC] Failed to open file:', err);
+    }
   }
 
   async _startScan() {
