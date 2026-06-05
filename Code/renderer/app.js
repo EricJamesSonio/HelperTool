@@ -67,6 +67,8 @@ import {
     handleRepoChange
 } from './app_manager/toolsManager.js';
 
+import { initZoomManager } from './app_manager/zoomManager.js';
+
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
 const selectRepoBtn  = document.getElementById('selectRepoBtn');
@@ -183,6 +185,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // View mode
     initViewMode();
+
+    // Zoom controls
+    initZoomManager();
 
     // Tools (apiTool, secretHolder, workspaceTool, gitTool)
     await initTools(feats, settingsManager);
