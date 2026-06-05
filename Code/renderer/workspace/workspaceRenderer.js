@@ -4,7 +4,7 @@
  * All UI rendering. No business logic — imports managers for data/mutations.
  */
 
-import { state }                                                  from './workspaceStore.js';
+import { state, genId }                                           from './workspaceStore.js';
 import { getAllProjects, createProject, updateProject, deleteProject,
          assignWorkerToProject, removeWorkerFromProject,
          PROJECT_STATUSES, getProjectById }                       from './projectManager.js';
@@ -20,6 +20,7 @@ import { confirmDialog }                                          from '../utils
 let _view            = 'home';
 let _selectedProject = null;
 let _projectTab      = 'overview';
+let _selectedNoteId  = null;
 
 // ─── Entry ────────────────────────────────────────────────────────────────────
 
@@ -478,7 +479,8 @@ function _renderProjectDetails(body) {
     { key: 'tickets',  label: '🎫 Tickets'   },
     { key: 'db',       label: '🗄️ Database'  },
     { key: 'folders',  label: '📂 Folders'   },
-    { key: 'logs',     label: '📋 Logs'      },
+    { key: 'plannings', label: '📝 Plannings' },
+    { key: 'logs',      label: '📋 Logs'     },
   ];
 
   const tabBar = document.createElement('div');
@@ -501,7 +503,8 @@ function _renderProjectDetails(body) {
     case 'tickets':  _renderTabTickets(content);      break;
     case 'db':       _renderTabDb(content);            break;
     case 'folders':  _renderTabFolders(content);      break;
-    case 'logs':     _renderTabProjectLogs(content);  break;
+    case 'plannings': _renderTabPlannings(content);   break;
+    case 'logs':      _renderTabProjectLogs(content); break;
   }
   body.appendChild(content);
 }
@@ -905,6 +908,122 @@ function _renderTabFolders(el) {
     });
     render();
   });
+}
+
+// ── Tab: Plannings ──────────────────────────────────────────────────────────────
+
+function _renderTabPlannings(el) {
+  const p = _selectedProject;
+  const notes = Array.isArray(p.planningNotes) ? p.planningNotes : [];
+
+  // Reset selection if the selected note no longer exists
+  if (!notes.find(n => n.id === _selectedNoteId)) {
+    _selectedNoteId = notes.length > 0 ? notes[0].id : null;
+  }
+
+  const container = document.createElement('div');
+  container.style.cssText = 'display:flex;gap:16px;flex:1;min-height:0;';
+
+  // ── Left sidebar ──
+  const sidebar = document.createElement('div');
+  sidebar.style.cssText = 'width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;background:var(--bg-elevated,#111d34);border:1px solid var(--border-default,rgba(255,255,255,0.09));border-radius:14px;padding:14px;overflow-y:auto;';
+
+  const sidebarTitle = document.createElement('div');
+  sidebarTitle.style.cssText = 'font-weight:600;font-size:0.85rem;color:var(--text-secondary,#a0b0d8);padding-bottom:8px;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;';
+  sidebarTitle.textContent = 'Plans';
+  sidebar.appendChild(sidebarTitle);
+
+  notes.forEach((note, i) => {
+    const item = document.createElement('div');
+    const displayName = note.title || note.content?.split('\n')[0]?.trim() || `Note ${i + 1}`;
+    item.textContent = displayName;
+    const selected = note.id === _selectedNoteId;
+    item.style.cssText = `padding:8px 10px;border-radius:8px;cursor:pointer;font-size:0.83rem;word-break:break-word;transition:all 0.12s;${selected ? 'background:var(--accent,#f0b429);color:#000;font-weight:600;' : 'color:var(--text-primary,#eef2ff);background:transparent;'}`;
+    if (!selected) {
+      item.addEventListener('mouseenter', () => { item.style.background = 'rgba(255,255,255,0.06)'; });
+      item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+    }
+    item.addEventListener('click', () => { _selectedNoteId = note.id; render(); });
+    sidebar.appendChild(item);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ Add';
+  addBtn.className = 'workspace-btn-add';
+  addBtn.style.cssText = 'margin-top:auto;width:100%;flex-shrink:0;';
+  addBtn.addEventListener('click', () => {
+    if (!Array.isArray(p.planningNotes)) p.planningNotes = [];
+    const newNote = { id: genId(), title: '', content: '' };
+    p.planningNotes.push(newNote);
+    _selectedNoteId = newNote.id;
+    updateProject(p.id, { planningNotes: p.planningNotes });
+    render();
+  });
+  sidebar.appendChild(addBtn);
+  container.appendChild(sidebar);
+
+  // ── Right panel ──
+  const right = document.createElement('div');
+  right.style.cssText = 'flex:1;display:flex;flex-direction:column;background:var(--bg-elevated,#111d34);border:1px solid var(--border-default,rgba(255,255,255,0.09));border-radius:14px;padding:22px 24px;gap:14px;min-height:0;';
+
+  const selectedNote = _selectedNoteId ? notes.find(n => n.id === _selectedNoteId) : notes[0] || null;
+
+  if (selectedNote) {
+    if (!_selectedNoteId) _selectedNoteId = selectedNote.id;
+
+    const rightHeader = document.createElement('div');
+    rightHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-shrink:0;';
+
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.className = 'workspace-input';
+    titleInput.value = selectedNote.title || '';
+    titleInput.placeholder = 'Note title...';
+    titleInput.style.cssText = 'font-size:1rem;font-weight:600;padding:10px 14px;flex:1;';
+    rightHeader.appendChild(titleInput);
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.style.cssText = 'background:transparent;border:1px solid rgba(255,80,80,0.3);color:#ff5050;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:0.85rem;margin-left:10px;flex-shrink:0;';
+    delBtn.addEventListener('mouseenter', () => { delBtn.style.background = 'rgba(255,80,80,0.1)'; });
+    delBtn.addEventListener('mouseleave', () => { delBtn.style.background = 'transparent'; });
+    delBtn.addEventListener('click', () => {
+      p.planningNotes = notes.filter(n => n.id !== selectedNote.id);
+      _selectedNoteId = null;
+      updateProject(p.id, { planningNotes: p.planningNotes });
+      render();
+    });
+    rightHeader.appendChild(delBtn);
+    right.appendChild(rightHeader);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'ws-fullheight-textarea';
+    textarea.value = selectedNote.content || '';
+    textarea.placeholder = 'Write your planning notes...';
+    right.appendChild(textarea);
+
+    const footer = document.createElement('div');
+    footer.style.cssText = 'display:flex;justify-content:flex-end;flex-shrink:0;';
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'workspace-btn-add';
+    saveBtn.addEventListener('click', () => {
+      selectedNote.title = titleInput.value;
+      selectedNote.content = textarea.value;
+      updateProject(p.id, { planningNotes: p.planningNotes });
+      render();
+    });
+    footer.appendChild(saveBtn);
+    right.appendChild(footer);
+  } else {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-secondary,#a0b0d8);font-size:0.9rem;';
+    empty.textContent = 'No plans yet. Click "+ Add" to create one.';
+    right.appendChild(empty);
+  }
+
+  container.appendChild(right);
+  el.appendChild(container);
 }
 
 // ── Tab: Project Logs ─────────────────────────────────────────────────────────

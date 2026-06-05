@@ -42,6 +42,7 @@ export function createProject(title, description = '') {
     // Legacy field kept for backward-compat with any saved data
     folderStructure: '',
     databaseInfo: '',
+    planningNotes: [],
     status: 'planning',
     assignedWorkerIds: [],
     projectLogs: [],
@@ -65,7 +66,7 @@ export function updateProject(id, fields) {
     'title', 'description', 'overview',
     'folderMain', 'folderFrontend', 'folderBackend',
     'folderStructure', // legacy
-    'databaseInfo', 'status',
+    'databaseInfo', 'planningNotes', 'status',
   ];
   allowed.forEach(key => {
     if (fields[key] !== undefined) project[key] = fields[key];
