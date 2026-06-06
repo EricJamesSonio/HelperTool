@@ -1,0 +1,212 @@
+/* ════════════════════════════════════════════════════════════
+   SESSION-NOTES.CSS
+   Slide-over panel from the right with password lock
+   ════════════════════════════════════════════════════════════ */
+
+.sn-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(520px, 90vw);
+  height: 100vh;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+  pointer-events: none;
+}
+.sn-panel.open {
+  transform: translateX(0);
+  pointer-events: all;
+}
+
+.sn-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.sn-panel.open .sn-backdrop {
+  opacity: 1;
+}
+
+.sn-container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-default);
+  box-shadow: var(--shadow-lg);
+}
+
+.sn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 44px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.sn-header-title {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-header-icon {
+  font-size: 16px;
+}
+.sn-header-actions {
+  display: flex;
+  gap: 6px;
+}
+.sn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+.sn-btn:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.sn-btn-icon {
+  width: 30px;
+  padding: 0;
+  font-size: 14px;
+}
+.sn-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sn-btn-primary:hover {
+  filter: brightness(1.15);
+}
+.sn-btn-ghost {
+  border: none;
+  color: var(--text-muted);
+}
+.sn-btn-ghost:hover {
+  color: var(--accent);
+  background: transparent;
+}
+
+.sn-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Textarea ────────────────────────────────────────── */
+.sn-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  background: var(--bg-base);
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  tab-size: 2;
+}
+.sn-textarea::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-style: italic;
+}
+.sn-textarea:disabled {
+  opacity: 0;
+}
+
+/* ── Lock overlay ────────────────────────────────────── */
+.sn-lock-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  z-index: 2;
+  padding: 32px;
+  gap: 8px;
+}
+.sn-lock-icon {
+  font-size: 36px;
+  margin-bottom: 4px;
+}
+.sn-lock-title {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.sn-lock-subtitle {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.sn-lock-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.sn-lock-row--alt {
+  margin-top: 8px;
+  gap: 12px;
+}
+.sn-password-input {
+  width: 200px;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.1s;
+}
+.sn-password-input:focus {
+  border-color: var(--accent);
+}
+.sn-password-input::placeholder {
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+}
+.sn-lock-error {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--red);
+  min-height: 1.2em;
+  margin-top: 4px;
+}

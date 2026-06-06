@@ -192,6 +192,59 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
             console.error('[IPC] set-folder-filters error:', err);
         }
     });
+
+    // ── Session Notes ───────────────────────────────────────────────────────
+
+    ipcMain.handle('get-session-notes', () => {
+        try {
+            const cfg = config.readConfig();
+            const activePath = cfg.activeProject;
+            if (!activePath || !cfg.projects[activePath]) return { text: '', locked: false };
+            return {
+                text: cfg.projects[activePath].sessionNotes || '',
+                locked: !!cfg.projects[activePath].sessionNotesLock,
+            };
+        } catch (err) {
+            console.error('[IPC] get-session-notes error:', err);
+            return { text: '', locked: false };
+        }
+    });
+
+    ipcMain.handle('set-session-notes', (event, text) => {
+        try {
+            const cfg = config.readConfig();
+            const activePath = cfg.activeProject;
+            if (!activePath || !cfg.projects[activePath]) return;
+            cfg.projects[activePath].sessionNotes = text || '';
+            config.writeConfig(cfg);
+        } catch (err) {
+            console.error('[IPC] set-session-notes error:', err);
+        }
+    });
+
+    ipcMain.handle('set-session-notes-password', (event, hash) => {
+        try {
+            const cfg = config.readConfig();
+            const activePath = cfg.activeProject;
+            if (!activePath || !cfg.projects[activePath]) return;
+            cfg.projects[activePath].sessionNotesLock = hash || null;
+            config.writeConfig(cfg);
+        } catch (err) {
+            console.error('[IPC] set-session-notes-password error:', err);
+        }
+    });
+
+    ipcMain.handle('get-session-notes-password', () => {
+        try {
+            const cfg = config.readConfig();
+            const activePath = cfg.activeProject;
+            if (!activePath || !cfg.projects[activePath]) return null;
+            return cfg.projects[activePath].sessionNotesLock || null;
+        } catch (err) {
+            console.error('[IPC] get-session-notes-password error:', err);
+            return null;
+        }
+    });
 }
 
 module.exports = { register };

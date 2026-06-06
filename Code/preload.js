@@ -19,6 +19,10 @@ const repoBridge = {
     getFolderFilters:    ()              => ipcRenderer.invoke('get-folder-filters'),
     setFolderFilters:    (filters)       => ipcRenderer.invoke('set-folder-filters', filters),
     getRecentRepos:      ()              => ipcRenderer.invoke('get-recent-repos'),
+    getSessionNotes:     ()              => ipcRenderer.invoke('get-session-notes'),
+    setSessionNotes:     (text)          => ipcRenderer.invoke('set-session-notes', text),
+    setSessionNotesPassword: (hash)      => ipcRenderer.invoke('set-session-notes-password', hash),
+    getSessionNotesPassword: ()          => ipcRenderer.invoke('get-session-notes-password'),
 };
 
 const generateBridge = {
