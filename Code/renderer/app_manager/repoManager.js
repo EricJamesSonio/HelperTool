@@ -31,6 +31,9 @@ export function updateActiveRepo(name) {
 
 export async function loadRepo(repoPath, resetSel = true) {
     state.selectedRepoPath = repoPath;
+    // Notify tools BEFORE updating activeProject so they save to the old repo
+    _onRepoChange?.(repoPath);
+    await window.electronAPI.setActiveProject(repoPath);
 
     if (resetSel) {
         state.selectedItems.length = 0;
@@ -53,9 +56,6 @@ export async function loadRepo(repoPath, resetSel = true) {
 
     renderRootJumper(state.cachedTree);
     displayTree();
-
-    // Notify toolsManager (git tool reinit, etc.)
-    _onRepoChange?.(repoPath);
 }
 
 export async function loadLastActiveRepo() {

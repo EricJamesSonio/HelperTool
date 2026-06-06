@@ -178,6 +178,19 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    ipcMain.handle('set-active-project', (event, repoPath) => {
+        try {
+            const cfg = config.readConfig();
+            if (cfg.projects[repoPath]) {
+                cfg.projects[repoPath].lastUsed = new Date().toISOString();
+            }
+            cfg.activeProject = repoPath;
+            config.writeConfig(cfg);
+        } catch (err) {
+            console.error('[IPC] set-active-project error:', err);
+        }
+    });
+
     ipcMain.handle('set-folder-filters', (event, filters) => {
         try {
             const cfg = config.readConfig();

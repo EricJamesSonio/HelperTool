@@ -36,6 +36,8 @@ export function initSessionNotes() {}
 export function openSessionNotes() {
   if (!_panel) _injectPanel();
   if (_panelOpen) { closeSessionNotes(); return; }
+  _clearEditorDOM();
+  _unlocked = false;
   _panel.classList.add('open');
   _panelOpen = true;
   _loadNotes();
@@ -44,6 +46,7 @@ export function openSessionNotes() {
 export function closeSessionNotes() {
   if (!_panelOpen) return;
   _saveCurrentNote();
+  _persistNotes();
   _panel.classList.remove('open');
   _panelOpen = false;
   clearTimeout(_saveTimer);
@@ -54,12 +57,17 @@ export function isSessionNotesOpen() {
   return _panelOpen;
 }
 
-export async function handleRepoChange() {
+export async function handleRepoChange(newRepoPath) {
   if (_panelOpen) {
     _saveCurrentNote();
+    await window.electronAPI.setActiveProject(newRepoPath);
+    _clearEditorDOM();
     _notes = [];
     _activeNoteId = null;
+    _unlocked = false;
     _loadNotes();
+  } else {
+    _unlocked = false;
   }
 }
 
@@ -128,11 +136,12 @@ function _injectPanel() {
       </div>
       <div class="sn-editor-active" id="snEditorActive">
         <input class="sn-editor-title" id="snEditorTitle" type="text" placeholder="Note title" />
-        <div class="sn-editor-toolbar">
-          <button class="sn-btn sn-btn-primary sn-btn-save" id="snSaveBtn">${ICON_SAVE} Save</button>
-          <span class="sn-save-status" id="snSaveStatus"></span>
-        </div>
         <textarea class="sn-editor-textarea" id="snEditorText" placeholder="Start writing..."></textarea>
+        <div class="sn-editor-actions">
+          <span class="sn-save-status" id="snSaveStatus"></span>
+          <div style="flex:1"></div>
+          <button class="sn-btn sn-btn-primary sn-btn-save" id="snSaveBtn">${ICON_SAVE} Save</button>
+        </div>
       </div>
     </div>
     <div class="sn-lock-overlay" id="snLockOverlay">
@@ -197,9 +206,13 @@ function _injectPanel() {
 // ── Data operations ────────────────────────────────────────────
 
 async function _loadNotes() {
-  const result = await window.electronAPI.getSessionNotes();
-  _notes = Array.isArray(result.notes) ? result.notes : [];
-  _repoLocked = !!result.locked;
+  try {
+    const result = await window.electronAPI.getSessionNotes();
+    _notes = Array.isArray(result.notes) ? result.notes : [];
+    _repoLocked = !!result.locked;
+  } catch (err) {
+    console.error('[SessionNotes] load error:', err);
+  }
 
   if (_repoLocked && !_unlocked) {
     _lockOverlay.style.display = 'flex';
@@ -224,7 +237,19 @@ async function _loadNotes() {
 
   if (_notes.length > 0) {
     _activeNoteId = _notes[_notes.length - 1].id;
-    _selectNote(_activeNoteId);
+    const note = _notes.find(n => n.id === _activeNoteId);
+    if (note) {
+      _showEmptyEditor(false);
+      _showActiveEditor(true);
+      _editorTitle.value = note.title || '';
+      _editorText.value = note.content || '';
+      _editorTitle.disabled = false;
+      _editorText.disabled = false;
+      _dirty = false;
+      _showSaveStatus('Saved', 'saved');
+    }
+    _renderNoteList();
+    _editorTitle.focus();
   } else {
     _activeNoteId = null;
     _showEmptyEditor(true);
@@ -242,6 +267,7 @@ function _saveCurrentNote() {
   _persistNotes();
   _dirty = false;
   _showSaveStatus('Saved', 'saved');
+  _renderNoteList();
 }
 
 function _persistNotes() {
@@ -276,6 +302,15 @@ function _handleSave() {
   _saveStatusTimer = setTimeout(() => {
     _showSaveStatus('', '');
   }, 2000);
+}
+
+function _clearEditorDOM() {
+  _editorTitle.value = '';
+  _editorText.value = '';
+  _noteList.innerHTML = '';
+  _showSaveStatus('', '');
+  _showEmptyEditor(false);
+  _showActiveEditor(false);
 }
 
 function _showSaveStatus(text, cls) {
