@@ -398,11 +398,13 @@ function _scrollToDiff(dir) {
     if (!el.classList.contains('dv-line-gap')) el.classList.add('dv-line-active');
   });
 
-  // Scroll both panels to the block
+  // Scroll both panels so the block is centered
   const leftTarget = leftBody.querySelector(`[data-block="${id}"]`);
-  const rightTarget = rightBody.querySelector(`[data-block="${id}"]`);
-  if (leftTarget) leftTarget.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  if (rightTarget) rightTarget.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (leftTarget) {
+    leftTarget.scrollIntoView({ block: 'center', behavior: 'auto' });
+    // Sync right panel immediately (layout was flushed by scrollIntoView)
+    rightBody.scrollTop = leftBody.scrollTop;
+  }
 
   document.getElementById('dvNavCount').textContent = `${_diffBlockIndex + 1} of ${blockIds.length}`;
 }
