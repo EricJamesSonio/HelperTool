@@ -250,15 +250,6 @@ class GitToolUI {
 
     commitBtn?.addEventListener('click', () => this.handleCommit());
 
-    const enterHandler = (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (!commitBtn.disabled) this.handleCommit();
-      }
-    };
-    messageInput?.addEventListener('keydown', enterHandler);
-    descInput?.addEventListener('keydown', enterHandler);
-
     const pushAllBtn = this.container.querySelector('#pushAllBtn');
     pushAllBtn?.addEventListener('click', () => this.handlePushAll());
 
