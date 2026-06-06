@@ -91,14 +91,33 @@ class GitToolUI {
                 <div class="empty-state">Select files to stage</div>
               </div>
               
-              <!-- Commit Message Box -->
+              <!-- Commit Template Box -->
               <div class="commit-box">
-                <textarea
-                  id="commitMessageInput"
-                  class="commit-input"
-                  placeholder="Type commit message…"
-                  rows="4"
-                ></textarea>
+                <div class="commit-form-row">
+                  <label class="commit-form-label">Type</label>
+                  <select id="commitType" class="commit-select">
+                    <option value="">Select type…</option>
+                    <option value="Feature">Feature</option>
+                    <option value="Fix">Fix</option>
+                    <option value="Refactor">Refactor</option>
+                    <option value="Performance">Performance</option>
+                    <option value="Docs">Docs</option>
+                    <option value="Test">Test</option>
+                    <option value="Build">Build</option>
+                  </select>
+                </div>
+                <div class="commit-form-row">
+                  <label class="commit-form-label">Module</label>
+                  <input type="text" id="commitModule" class="commit-input-text" placeholder="e.g. Authentication" />
+                </div>
+                <div class="commit-form-row">
+                  <label class="commit-form-label">Description</label>
+                  <textarea id="commitDescription" class="commit-description" placeholder="- Describe your changes&#10;- Use bullet points for multiple items" rows="3"></textarea>
+                </div>
+                <div class="commit-files-section" id="commitFilesSection" style="display:none">
+                  <div class="commit-form-label">Files Included</div>
+                  <div id="commitFilesList" class="commit-files-list"></div>
+                </div>
                 <div class="commit-actions">
                   <label class="push-toggle">
                     <input type="checkbox" id="pushAfterCommit" />
@@ -170,16 +189,21 @@ class GitToolUI {
 
     // Commit actions
     const commitBtn = this.container.querySelector('#commitBtn');
-    const commitInput = this.container.querySelector('#commitMessageInput');
+    const typeSelect = this.container.querySelector('#commitType');
+    const descInput = this.container.querySelector('#commitDescription');
 
-    commitInput?.addEventListener('input', () => {
-      const hasMessage = commitInput.value.trim().length > 0;
+    const updateCommitBtn = () => {
+      const hasType = typeSelect.value.trim().length > 0;
+      const hasDesc = descInput.value.trim().length > 0;
       const hasStaged = this.gitManager.stagedFiles.length > 0;
-      commitBtn.disabled = !(hasMessage && hasStaged);
-    });
+      commitBtn.disabled = !(hasType && hasDesc && hasStaged);
+    };
+
+    typeSelect?.addEventListener('change', updateCommitBtn);
+    descInput?.addEventListener('input', updateCommitBtn);
 
     commitBtn?.addEventListener('click', () => this.handleCommit());
-    commitInput?.addEventListener('keydown', (e) => {
+    descInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (!commitBtn.disabled) this.handleCommit();
@@ -280,14 +304,33 @@ class GitToolUI {
    */
   async handleCommit() {
     const commitBtn = this.container.querySelector('#commitBtn');
-    const messageInput = this.container.querySelector('#commitMessageInput');
+    const typeSelect = this.container.querySelector('#commitType');
+    const moduleInput = this.container.querySelector('#commitModule');
+    const descInput = this.container.querySelector('#commitDescription');
     const pushCheckbox = this.container.querySelector('#pushAfterCommit');
-    const message = messageInput.value.trim();
+    const stagedFiles = this.gitManager.stagedFiles;
 
-    if (!message) {
-      this.showError('Please enter a commit message');
+    const type = typeSelect.value.trim();
+    const module = moduleInput.value.trim();
+    const description = descInput.value.trim();
+
+    if (!type) {
+      this.showError('Please select a commit type');
       return;
     }
+    if (!description) {
+      this.showError('Please enter a description');
+      return;
+    }
+
+    let message = `Type: ${type}\n`;
+    if (module) message += `Module: ${module}\n`;
+    message += `\nDescription:\n${description}\n\n`;
+    message += `Files Included:\n`;
+    stagedFiles.forEach(f => {
+      message += `- ${f.file}\n`;
+    });
+    message = message.trim();
 
     this.setButtonLoading(commitBtn, true);
 
@@ -298,7 +341,9 @@ class GitToolUI {
     this.setButtonLoading(commitBtn, false);
 
     if (result.success) {
-      messageInput.value = '';
+      typeSelect.value = '';
+      moduleInput.value = '';
+      descInput.value = '';
       pushCheckbox.checked = false;
       this.refreshUI();
       this.showSuccess('Commit created successfully!');
@@ -402,10 +447,12 @@ class GitToolUI {
 
     // Update commit button state
     const commitBtn = this.container.querySelector('#commitBtn');
-    const messageInput = this.container.querySelector('#commitMessageInput');
-    if (commitBtn && messageInput) {
+    const typeSelect = this.container.querySelector('#commitType');
+    const descInput = this.container.querySelector('#commitDescription');
+    if (commitBtn && typeSelect && descInput) {
       commitBtn.disabled = !(
-        messageInput.value.trim().length > 0 &&
+        typeSelect.value.trim().length > 0 &&
+        descInput.value.trim().length > 0 &&
         state.staged.length > 0
       );
     }
@@ -469,10 +516,13 @@ renderWorkingTree(files) {
   renderStagedFiles(files) {
     const list = this.container.querySelector('#stagedFilesList');
     const count = this.container.querySelector('#stagedCount');
+    const filesSection = this.container.querySelector('#commitFilesSection');
+    const filesList = this.container.querySelector('#commitFilesList');
 
     if (files.length === 0) {
       list.innerHTML = '<div class="empty-state">Select files to stage</div>';
       count.textContent = '0 files';
+      if (filesSection) filesSection.style.display = 'none';
       return;
     }
 
@@ -489,6 +539,16 @@ renderWorkingTree(files) {
         </button>
       </div>
     `).join('');
+
+    if (filesSection && filesList) {
+      filesSection.style.display = '';
+      filesList.innerHTML = files.map(f => `
+        <div class="commit-file-entry" title="${this.escapeHtml(f.file)}">
+          <span class="file-status-badge status-${this.getStatusClass(f.status)}">${this.getStatusLabel(f.status)}</span>
+          <span class="file-path">${this.escapeHtml(f.file)}</span>
+        </div>
+      `).join('');
+    }
   }
 
   /**
