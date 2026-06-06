@@ -224,11 +224,20 @@
 }
 .dv-line-active.dv-line-removed {
   outline-color: var(--red, #f85149);
-  background: var(--red-dim, rgba(248,81,73,0.13));
+  background: rgba(248,81,73,0.2);
 }
 .dv-line-active.dv-line-added {
   outline-color: var(--green, #2dd4b0);
-  background: var(--green-dim, rgba(45,212,176,0.13));
+  background: rgba(45,212,176,0.2);
+}
+.dv-line-active.dv-line-context {
+  outline-color: var(--accent, #22d3ee);
+  background: var(--accent-dim, rgba(34,211,238,0.12));
+}
+.dv-line-active.dv-line-gap {
+  outline: 2px solid var(--accent, #22d3ee);
+  outline-offset: -2px;
+  background: var(--accent-dim, rgba(34,211,238,0.08));
 }
 .dv-line-gap {
   background: transparent;

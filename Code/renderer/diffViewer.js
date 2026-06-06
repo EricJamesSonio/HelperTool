@@ -275,38 +275,93 @@ function _renderDiff() {
   const stats = document.getElementById('dvStats');
   const navCount = document.getElementById('dvNavCount');
 
+  // Compute blocks: groups of consecutive non-context (removed/added) lines
+  const blocks = [];
+  let currentBlock = -1;
+  for (let i = 0; i < _diffLines.length; i++) {
+    const t = _diffLines[i].type;
+    if (t === 'context' || t === 'hunk' || t === 'note') {
+      currentBlock = -1;
+    } else {
+      if (currentBlock < 0) {
+        currentBlock = blocks.length;
+        blocks.push({ start: i, end: i });
+      } else {
+        blocks[currentBlock].end = i;
+      }
+    }
+  }
+
   let leftHtml = '';
   let rightHtml = '';
   let added = 0;
   let removed = 0;
-  let diffBlocks = [];
 
-  for (const line of _diffLines) {
-    if (line.type === 'hunk') {
-      diffBlocks.push({ index: leftHtml.length });
-      continue;
-    }
+  for (let i = 0; i < _diffLines.length; i++) {
+    const line = _diffLines[i];
+    const blockId = blocks.findIndex(b => i >= b.start && i <= b.end);
+    const blockAttr = blockId >= 0 ? ` data-block="${blockId}"` : '';
+
+    if (line.type === 'hunk' || line.type === 'note') continue;
+
     if (line.type === 'context') {
-      leftHtml += `<div class="dv-line dv-line-context"><span class="dv-ln">${line.oldLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
-      rightHtml += `<div class="dv-line dv-line-context"><span class="dv-ln">${line.newLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
+      leftHtml += `<div class="dv-line dv-line-context"${blockAttr}><span class="dv-ln">${line.oldLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
+      rightHtml += `<div class="dv-line dv-line-context"${blockAttr}><span class="dv-ln">${line.newLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
     } else if (line.type === 'removed') {
       removed++;
-      leftHtml += `<div class="dv-line dv-line-removed"><span class="dv-ln">${line.oldLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
-      rightHtml += `<div class="dv-line dv-line-gap"></div>`;
+      leftHtml += `<div class="dv-line dv-line-removed"${blockAttr}><span class="dv-ln">${line.oldLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
+      rightHtml += `<div class="dv-line dv-line-gap"${blockAttr}></div>`;
     } else if (line.type === 'added') {
       added++;
-      leftHtml += `<div class="dv-line dv-line-gap"></div>`;
-      rightHtml += `<div class="dv-line dv-line-added"><span class="dv-ln">${line.newLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
+      leftHtml += `<div class="dv-line dv-line-gap"${blockAttr}></div>`;
+      rightHtml += `<div class="dv-line dv-line-added"${blockAttr}><span class="dv-ln">${line.newLine}</span><span class="dv-text">${_escape(line.text)}</span></div>`;
     }
   }
 
   leftBody.innerHTML = leftHtml || '<div class="dv-empty">No content</div>';
   rightBody.innerHTML = rightHtml || '<div class="dv-empty">No content</div>';
 
+  _syncPanels();
+  _diffBlockIndex = -1;
+
   footer.style.display = '';
   stats.textContent = `+${added} / -${removed} lines`;
-  navCount.textContent = diffBlocks.length > 0 ? `1 of ${diffBlocks.length}` : '';
+  navCount.textContent = blocks.length > 0 ? `1 of ${blocks.length}` : '';
 }
+
+let _syncing = false;
+
+function _syncPanels() {
+  const leftBody = document.getElementById('dvLeftBody');
+  const rightBody = document.getElementById('dvRightBody');
+  if (!leftBody || !rightBody) return;
+
+  // Remove old listeners and attach synced scroll
+  leftBody.removeEventListener('scroll', _onLeftScroll);
+  rightBody.removeEventListener('scroll', _onRightScroll);
+
+  _onLeftScroll = () => {
+    if (_syncing) return;
+    _syncing = true;
+    rightBody.scrollTop = leftBody.scrollTop;
+    rightBody.scrollLeft = leftBody.scrollLeft;
+    _syncing = false;
+  };
+
+  _onRightScroll = () => {
+    if (_syncing) return;
+    _syncing = true;
+    leftBody.scrollTop = rightBody.scrollTop;
+    leftBody.scrollLeft = rightBody.scrollLeft;
+    _syncing = false;
+  };
+
+  leftBody.addEventListener('scroll', _onLeftScroll, { passive: true });
+  rightBody.addEventListener('scroll', _onRightScroll, { passive: true });
+}
+
+let _onLeftScroll = null;
+let _onRightScroll = null;
 
 function _scrollToPrevDiff() {
   _scrollToDiff(-1);
@@ -316,17 +371,40 @@ function _scrollToNextDiff() {
   _scrollToDiff(1);
 }
 
-let _diffIndex = 0;
+let _diffBlockIndex = -1;
 
 function _scrollToDiff(dir) {
   const leftBody = document.getElementById('dvLeftBody');
-  const lines = leftBody.querySelectorAll('.dv-line-removed, .dv-line-added');
-  if (!lines.length) return;
+  const rightBody = document.getElementById('dvRightBody');
+  const blocks = leftBody.querySelectorAll('[data-block]');
+  if (!blocks.length) return;
 
-  _diffIndex = (_diffIndex + dir + lines.length) % lines.length;
-  lines[_diffIndex].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  // Determine unique block IDs (numeric sort)
+  const blockIds = [...new Set([...blocks].map(el => +el.dataset.block))].sort((a, b) => a - b);
+  if (!blockIds.length) return;
 
-  document.getElementById('dvNavCount').textContent = `${_diffIndex + 1} of ${lines.length}`;
+  _diffBlockIndex = (_diffBlockIndex + dir + blockIds.length) % blockIds.length;
+  const id = blockIds[_diffBlockIndex];
+
+  // Clear previous highlight
+  leftBody.querySelectorAll('.dv-line-active').forEach(el => el.classList.remove('dv-line-active'));
+  rightBody.querySelectorAll('.dv-line-active').forEach(el => el.classList.remove('dv-line-active'));
+
+  // Highlight code lines in this block (skip gap spacers)
+  leftBody.querySelectorAll(`[data-block="${id}"]`).forEach(el => {
+    if (!el.classList.contains('dv-line-gap')) el.classList.add('dv-line-active');
+  });
+  rightBody.querySelectorAll(`[data-block="${id}"]`).forEach(el => {
+    if (!el.classList.contains('dv-line-gap')) el.classList.add('dv-line-active');
+  });
+
+  // Scroll both panels to the block
+  const leftTarget = leftBody.querySelector(`[data-block="${id}"]`);
+  const rightTarget = rightBody.querySelector(`[data-block="${id}"]`);
+  if (leftTarget) leftTarget.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (rightTarget) rightTarget.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+  document.getElementById('dvNavCount').textContent = `${_diffBlockIndex + 1} of ${blockIds.length}`;
 }
 
 // ── Comment detection ────────────────────────────────────────────
