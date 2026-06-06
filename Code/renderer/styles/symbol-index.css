@@ -6,10 +6,10 @@
 /* ══ PANEL OVERLAY ══ */
 .symbol-index-panel {
   position: fixed;
-  top: 0;
+  top: var(--titlebar-h);
   right: 0;
   width: min(680px, 90vw);
-  height: 100vh;
+  height: calc(100vh - var(--titlebar-h));
   background: var(--bg-surface, #0c1427);
   border-left: 1px solid var(--border-default, rgba(255,255,255,0.10));
   box-shadow: -8px 0 40px rgba(0,0,0,0.4);

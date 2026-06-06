@@ -1,11 +1,11 @@
 /* ══ DEPENDENCIES PANEL ══ */
 .deps-panel {
   position: fixed;
-  top: 0;
+  top: var(--titlebar-h);
   right: -480px;
   width: 480px;
   max-width: 90vw;
-  height: 100vh;
+  height: calc(100vh - var(--titlebar-h));
   background: var(--bg-panel, #1a1d27);
   border-left: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
   z-index: 9999;

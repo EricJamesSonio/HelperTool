@@ -5,6 +5,7 @@
 .fs-overlay {
     position: fixed;
     inset: 0;
+    top: var(--titlebar-h);
     z-index: 1200;
     background: rgba(0, 0, 0, 0.55);
     display: flex;

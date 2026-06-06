@@ -6,6 +6,7 @@
 .settings-overlay {
   position: fixed;
   inset: 0;
+  top: var(--titlebar-h);
   background: rgba(0,0,0,0.60);
   backdrop-filter: blur(6px);
   z-index: 9000;

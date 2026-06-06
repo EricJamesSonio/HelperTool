@@ -5,7 +5,7 @@
 
 /* ─── Container & layout ──────────────────────────────────────────────────── */
 .workspace-container {
-  position: fixed; inset: 0; z-index: 9999;
+  position: fixed; inset: 0; top: var(--titlebar-h); z-index: 9999;
   background: linear-gradient(135deg, var(--bg-base, #0a0f1a) 0%, var(--bg-elevated, #111d34) 100%);
   display: none; flex-direction: column;
 }
@@ -551,7 +551,7 @@
 
 /* ─── Modal ──────────────────────────────────────────────────────────────── */
 .workspace-modal-overlay {
-  position: fixed; inset: 0; z-index: 10000;
+  position: fixed; inset: 0; top: var(--titlebar-h); z-index: 10000;
   background: rgba(0,0,0,0.62); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   animation: overlayFadeIn 0.18s ease-out;

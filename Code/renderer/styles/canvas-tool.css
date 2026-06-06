@@ -1,10 +1,10 @@
 /* ══ CANVAS TOOL PANEL ══ */
 .canvas-panel {
   position: fixed;
-  top: 0;
+  top: var(--titlebar-h);
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: calc(100vh - var(--titlebar-h));
   background: var(--bg-base, #010409);
   z-index: 9999;
   display: flex;

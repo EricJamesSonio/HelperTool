@@ -360,6 +360,7 @@
 .sw-overlay {
     position: fixed;
     inset: 0;
+    top: var(--titlebar-h);
     z-index: 10001; /* above at-panel (9999) and sh-panel (10000) */
     display: flex;
     align-items: center;

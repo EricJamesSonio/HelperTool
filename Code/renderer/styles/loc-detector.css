@@ -4,6 +4,7 @@
 .loc-detector-panel {
   position: fixed;
   inset: 0;
+  top: var(--titlebar-h);
   z-index: 9999;
   background: rgba(0, 0, 0, 0.6);
   display: none;
