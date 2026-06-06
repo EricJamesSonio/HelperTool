@@ -113,7 +113,6 @@ async function _load() {
   }
 
   _commits = result.commits;
-  _populateSelects();
 
   if (_commits.length >= 2) {
     _rightHash = _commits[0].hash;
@@ -127,25 +126,42 @@ async function _load() {
   await _loadDiff();
 }
 
-function _populateSelects() {
-  const leftSelect = document.getElementById('dvLeftSelect');
-  const rightSelect = document.getElementById('dvRightSelect');
-  const opts = _commits.map(c => {
-    const label = c.hash.substring(0, 7) + ' - ' + (c.message.length > 50 ? c.message.substring(0, 50) + '…' : c.message);
-    return `<option value="${c.hash}">${label}</option>`;
-  }).join('');
-  leftSelect.innerHTML = opts;
-  rightSelect.innerHTML = opts;
-}
-
 function _updateSelects() {
   const leftSelect = document.getElementById('dvLeftSelect');
   const rightSelect = document.getElementById('dvRightSelect');
-  if (_leftHash) leftSelect.value = _leftHash;
-  if (_rightHash) rightSelect.value = _rightHash;
-
   const leftMsg = document.getElementById('dvLeftMsg');
   const rightMsg = document.getElementById('dvRightMsg');
+
+  const leftIdx = _leftHash ? _commits.findIndex(c => c.hash === _leftHash) : -1;
+  const rightIdx = _rightHash ? _commits.findIndex(c => c.hash === _rightHash) : -1;
+
+  // Left older panel: only shows commits older (higher index) than right
+  let leftCandidates = rightIdx >= 0 ? _commits.filter((_, i) => i > rightIdx) : [..._commits];
+  // Right newer panel: only shows commits newer (lower index) than left
+  let rightCandidates = leftIdx >= 0 ? _commits.filter((_, i) => i < leftIdx) : [..._commits];
+
+  // Fallback for edge case (e.g. single commit)
+  if (leftCandidates.length === 0) leftCandidates = [..._commits];
+  if (rightCandidates.length === 0) rightCandidates = [..._commits];
+
+  const optFor = c => {
+    const lbl = c.hash.substring(0, 7) + ' - ' + (c.message.length > 50 ? c.message.substring(0, 50) + '…' : c.message);
+    return `<option value="${c.hash}">${lbl}</option>`;
+  };
+  leftSelect.innerHTML = leftCandidates.map(optFor).join('');
+  rightSelect.innerHTML = rightCandidates.map(optFor).join('');
+
+  // Auto-adjust selection if current hash was filtered out
+  if (!leftCandidates.some(c => c.hash === _leftHash)) {
+    _leftHash = leftCandidates.length > 0 ? leftCandidates[leftCandidates.length - 1].hash : _commits[0].hash;
+  }
+  if (!rightCandidates.some(c => c.hash === _rightHash)) {
+    _rightHash = rightCandidates.length > 0 ? rightCandidates[0].hash : _commits[0].hash;
+  }
+
+  leftSelect.value = _leftHash;
+  rightSelect.value = _rightHash;
+
   const leftCommit = _commits.find(c => c.hash === _leftHash);
   const rightCommit = _commits.find(c => c.hash === _rightHash);
   leftMsg.textContent = leftCommit ? leftCommit.message : '';
