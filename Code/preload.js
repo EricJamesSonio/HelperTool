@@ -23,6 +23,7 @@ const repoBridge = {
     setSessionNotes:     (text)          => ipcRenderer.invoke('set-session-notes', text),
     setSessionNotesPassword: (hash)      => ipcRenderer.invoke('set-session-notes-password', hash),
     getSessionNotesPassword: ()          => ipcRenderer.invoke('get-session-notes-password'),
+    verifySessionNotesPassword: (password) => ipcRenderer.invoke('verify-session-notes-password', password),
 };
 
 const generateBridge = {

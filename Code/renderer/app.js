@@ -64,14 +64,18 @@ import {
 
 import {
     initTools,
-    handleRepoChange
+    handleRepoChange,
+    closeAllPanels
 } from './app_manager/toolsManager.js';
+
+import * as sessionNotes from './sessionNotes.js';
 
 import { initZoomManager } from './app_manager/zoomManager.js';
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
 const selectRepoBtn  = document.getElementById('selectRepoBtn');
+const notesBtn       = document.getElementById('notesBtn');
 const refreshBtn     = document.getElementById('refreshBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
 const treeContainer  = document.getElementById('treeContainer');
@@ -218,6 +222,15 @@ editDocignoreBtn.addEventListener('click', async () => {
         if (!ok) alert('Failed to open global ignore file.');
     } catch (err) {
         console.error('[UI] Error opening .docignore:', err);
+    }
+});
+
+notesBtn.addEventListener('click', () => {
+    if (sessionNotes.isSessionNotesOpen()) {
+        sessionNotes.closeSessionNotes();
+    } else {
+        closeAllPanels();
+        sessionNotes.openSessionNotes();
     }
 });
 

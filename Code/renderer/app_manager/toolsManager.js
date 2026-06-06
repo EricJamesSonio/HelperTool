@@ -9,7 +9,8 @@ import { initShortcutManager, openConfig } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
 import DependenciesUI                     from '../dependencies/dependenciesUI.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
-import * as locDetector    from '../locDetector.js'; 
+import * as locDetector    from '../locDetector.js';
+import * as sessionNotes   from '../sessionNotes.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 
@@ -321,7 +322,12 @@ function _buildShortcutActions() {
 
 // ---- Public API ------------------------------------------------------------
 
+export function closeAllPanels() {
+  _registry.closeAll();
+}
+
 export function handleRepoChange(newRepoPath) {
+  sessionNotes.handleRepoChange(newRepoPath);
   _destroyGitTool();
   _destroySymbolIndexTool();
   _initializeGitTool(newRepoPath);
@@ -337,6 +343,8 @@ export async function initTools(feats, settingsManager) {
   _settingsManager = settingsManager;
 
   fileSeederTool.init();
+  sessionNotes.initSessionNotes();
+  _registry.setSessionNotes(sessionNotes);
   initSidebar();
   populateSidebar();
 

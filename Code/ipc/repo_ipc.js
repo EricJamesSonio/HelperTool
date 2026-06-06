@@ -1,6 +1,7 @@
 const { ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 /**
  * @param {{ app, config, fileOps, docignoreUtils, getMainWindow }} deps
@@ -199,35 +200,42 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         try {
             const cfg = config.readConfig();
             const activePath = cfg.activeProject;
-            if (!activePath || !cfg.projects[activePath]) return { text: '', locked: false };
+            if (!activePath || !cfg.projects[activePath]) return { notes: [], locked: false };
+            let notes = [];
+            try {
+                notes = JSON.parse(cfg.projects[activePath].sessionNotesData || '[]');
+            } catch (e) {
+                notes = [];
+            }
             return {
-                text: cfg.projects[activePath].sessionNotes || '',
+                notes: Array.isArray(notes) ? notes : [],
                 locked: !!cfg.projects[activePath].sessionNotesLock,
             };
         } catch (err) {
             console.error('[IPC] get-session-notes error:', err);
-            return { text: '', locked: false };
+            return { notes: [], locked: false };
         }
     });
 
-    ipcMain.handle('set-session-notes', (event, text) => {
+    ipcMain.handle('set-session-notes', (event, notesData) => {
         try {
             const cfg = config.readConfig();
             const activePath = cfg.activeProject;
             if (!activePath || !cfg.projects[activePath]) return;
-            cfg.projects[activePath].sessionNotes = text || '';
+            cfg.projects[activePath].sessionNotesData = JSON.stringify(notesData || []);
             config.writeConfig(cfg);
         } catch (err) {
             console.error('[IPC] set-session-notes error:', err);
         }
     });
 
-    ipcMain.handle('set-session-notes-password', (event, hash) => {
+    ipcMain.handle('set-session-notes-password', (event, password) => {
         try {
             const cfg = config.readConfig();
             const activePath = cfg.activeProject;
             if (!activePath || !cfg.projects[activePath]) return;
-            cfg.projects[activePath].sessionNotesLock = hash || null;
+            const hash = password ? crypto.createHash('sha256').update(password).digest('hex') : null;
+            cfg.projects[activePath].sessionNotesLock = hash;
             config.writeConfig(cfg);
         } catch (err) {
             console.error('[IPC] set-session-notes-password error:', err);
@@ -243,6 +251,21 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         } catch (err) {
             console.error('[IPC] get-session-notes-password error:', err);
             return null;
+        }
+    });
+
+    ipcMain.handle('verify-session-notes-password', (event, password) => {
+        try {
+            const cfg = config.readConfig();
+            const activePath = cfg.activeProject;
+            if (!activePath || !cfg.projects[activePath]) return { ok: false };
+            const stored = cfg.projects[activePath].sessionNotesLock;
+            if (!stored) return { ok: false };
+            const hash = crypto.createHash('sha256').update(password || '').digest('hex');
+            return { ok: hash === stored };
+        } catch (err) {
+            console.error('[IPC] verify-session-notes-password error:', err);
+            return { ok: false };
         }
     });
 }
