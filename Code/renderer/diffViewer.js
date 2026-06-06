@@ -10,6 +10,7 @@ let _contentLeft = [];
 let _contentRight = [];
 
 const CLOSE_SVG = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5l-10 10"/></svg>';
+const COPY_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="10" height="12" rx="1"/><path d="M2 5v8a1 1 0 0 0 1 1h7"/></svg>';
 
 export function isOpen() {
   return _open;
@@ -57,6 +58,7 @@ function _buildPanel() {
           <span class="dv-panel-label">Older</span>
           <select class="dv-commit-select" id="dvLeftSelect"></select>
           <span class="dv-commit-msg" id="dvLeftMsg"></span>
+          <button class="dv-btn dv-btn-copy" id="dvCopyLeft" title="Copy content">${COPY_SVG}</button>
         </div>
         <div class="dv-panel-body" id="dvLeftBody">
           <div class="dv-loading">Select a commit to view</div>
@@ -68,6 +70,7 @@ function _buildPanel() {
           <span class="dv-panel-label">Newer</span>
           <select class="dv-commit-select" id="dvRightSelect"></select>
           <span class="dv-commit-msg" id="dvRightMsg"></span>
+          <button class="dv-btn dv-btn-copy" id="dvCopyRight" title="Copy content">${COPY_SVG}</button>
         </div>
         <div class="dv-panel-body" id="dvRightBody">
           <div class="dv-loading">Select a commit to view</div>
@@ -96,6 +99,8 @@ function _buildPanel() {
   document.getElementById('dvRightSelect').addEventListener('change', _onRightChange);
   document.getElementById('dvPrevDiff').addEventListener('click', _scrollToPrevDiff);
   document.getElementById('dvNextDiff').addEventListener('click', _scrollToNextDiff);
+  document.getElementById('dvCopyLeft').addEventListener('click', () => _copyPanel('left'));
+  document.getElementById('dvCopyRight').addEventListener('click', () => _copyPanel('right'));
 }
 
 function _escHandler(e) {
@@ -178,6 +183,19 @@ function _onRightChange() {
   _rightHash = document.getElementById('dvRightSelect').value;
   _updateSelects();
   _loadDiff();
+}
+
+function _copyPanel(side) {
+  const body = document.getElementById(side === 'left' ? 'dvLeftBody' : 'dvRightBody');
+  const text = [...body.querySelectorAll('.dv-line')]
+    .map(el => el.querySelector('.dv-text')?.textContent || '')
+    .join('\n');
+  if (!text) return;
+  navigator.clipboard.writeText(text).catch(() => {});
+  const btn = document.getElementById(side === 'left' ? 'dvCopyLeft' : 'dvCopyRight');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span style="font-size:11px">Copied!</span>';
+  setTimeout(() => btn.innerHTML = orig, 1200);
 }
 
 async function _loadDiff() {
@@ -311,6 +329,44 @@ function _scrollToDiff(dir) {
   document.getElementById('dvNavCount').textContent = `${_diffIndex + 1} of ${lines.length}`;
 }
 
+// ── Comment detection ────────────────────────────────────────────
+
+function _isCommentLine(line) {
+  const s = line.trim();
+  if (!s) return true;
+
+  // Single-line comment starters (language-agnostic)
+  const commentPatterns = [
+    /^\/\//,      // C, C++, Java, JS, TS, Go, Rust, C#, Swift, etc.
+    /^#/,         // Python, Ruby, Shell, YAML, R, Perl, Makefile
+    /^--/,        // SQL, Lua, Ada, Haskell, VHDL
+    /^%/,         // MATLAB, Erlang, LaTeX, TeX
+    /^\/\*/,      // Block comment start (C-family)
+    /^\*/,        // Block comment continuation (C-family)
+    /^\*\/$/,     // Block comment end
+    /^;\s*/,      // Lisp, Scheme, Clojure, Assembly
+    /^'/,         // Visual Basic, VBA
+    /^REM\s/i,    // BASIC, VBScript
+    /^<!--/,      // HTML, XML, SVG
+    /^\{#/,       // Jinja, Nunjucks comment
+    /^#\{/,       // Elixir comment
+  ];
+  for (const p of commentPatterns) {
+    if (p.test(s)) return true;
+  }
+
+  // Multi-line comment delimiters (if the line is solely a delimiter)
+  if (/^\*\/$/.test(s)) return true;
+  if (/^\/\*\*?$/.test(s)) return true;
+  if (/^<\/?!--$/.test(s)) return true;
+
+  // Python/JS/Ruby docstrings on their own line
+  if (/^(""".*"""|'''')$/.test(s)) return true;
+  if (/^"""$/.test(s) || /^'''$/.test(s)) return true;
+
+  return false;
+}
+
 // ── Impact Analysis ────────────────────────────────────────────
 
 function _runAnalysis(diffText) {
@@ -325,11 +381,12 @@ function _runAnalysis(diffText) {
   const removedLines = _diffLines.filter(l => l.type === 'removed').map(l => l.text);
   const addedLines = _diffLines.filter(l => l.type === 'added').map(l => l.text);
 
-  const allChanged = [...removedLines, ...addedLines];
-  const allChangedText = allChanged.join('\n');
-  const removedText = removedLines.join('\n');
-  const addedText = addedLines.join('\n');
+  // Strip comment lines before analysis
+  const codeRemovedLines = removedLines.filter(l => !_isCommentLine(l));
+  const codeAddedLines = addedLines.filter(l => !_isCommentLine(l));
 
+  const allChanged = [...codeRemovedLines, ...codeAddedLines];
+  const allChangedText = allChanged.join('\n');
   // API call scanner
   const apiPatterns = [
     /\.(post|get|put|patch|delete|fetch)\s*\(/gi,
@@ -377,11 +434,11 @@ function _runAnalysis(diffText) {
   const removedNames = new Set();
   const addedNames = new Set();
   const namePattern = /\b[a-z]\w+(?:[A-Z]\w+)*\b/g;
-  for (const line of removedLines) {
+  for (const line of codeRemovedLines) {
     const names = line.match(namePattern);
     if (names) names.forEach(n => removedNames.add(n));
   }
-  for (const line of addedLines) {
+  for (const line of codeAddedLines) {
     const names = line.match(namePattern);
     if (names) names.forEach(n => addedNames.add(n));
   }
@@ -415,11 +472,11 @@ function _runAnalysis(diffText) {
   const propRemoved = [];
   const propAdded = [];
   const propPattern = /(\w+)=['"]/
-  for (const line of removedLines) {
+  for (const line of codeRemovedLines) {
     const pm = line.match(/(\w+)=['"]/g);
     if (pm) pm.forEach(p => propRemoved.push(p));
   }
-  for (const line of addedLines) {
+  for (const line of codeAddedLines) {
     const pm = line.match(/(\w+)=['"]/g);
     if (pm) pm.forEach(p => propAdded.push(p));
   }
@@ -437,8 +494,8 @@ function _runAnalysis(diffText) {
   }
 
   // Import/export detection
-  const importChanged = removedLines.some(l => /^import\s/.test(l)) || addedLines.some(l => /^import\s/.test(l));
-  const exportChanged = removedLines.some(l => /^export\s/.test(l)) || addedLines.some(l => /^export\s/.test(l));
+  const importChanged = codeRemovedLines.some(l => /^import\s/.test(l)) || codeAddedLines.some(l => /^import\s/.test(l));
+  const exportChanged = codeRemovedLines.some(l => /^export\s/.test(l)) || codeAddedLines.some(l => /^export\s/.test(l));
   if (importChanged || exportChanged) {
     findings.push({
       icon: '📦',
@@ -449,7 +506,7 @@ function _runAnalysis(diffText) {
   }
 
   // TYPESCRIPT type/interface changes
-  const typeChanged = removedLines.some(l => /^(type|interface)\s/.test(l)) || addedLines.some(l => /^(type|interface)\s/.test(l));
+  const typeChanged = codeRemovedLines.some(l => /^(type|interface)\s/.test(l)) || codeAddedLines.some(l => /^(type|interface)\s/.test(l));
   if (typeChanged) {
     findings.push({
       icon: '📐',

@@ -4,11 +4,11 @@
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
   flex-direction: column;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  color: #e0e0e0;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  color: var(--text-primary, #f0f6fc);
 }
 .dv-overlay.dv-open {
   display: flex;
@@ -20,8 +20,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background: #1e1e1e;
-  border-bottom: 1px solid #333;
+  background: var(--bg-surface, #0a0c10);
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
   flex-shrink: 0;
 }
 .dv-header-left {
@@ -40,6 +40,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text-primary, #f0f6fc);
 }
 .dv-header-actions {
   display: flex;
@@ -50,18 +51,19 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 12px;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background: #2a2a2a;
-  color: #ccc;
+  padding: 5px 10px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: var(--r-xs, 4px);
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-secondary, #b1bac4);
   cursor: pointer;
   font-size: 12px;
   white-space: nowrap;
+  font-family: inherit;
 }
 .dv-btn:hover {
-  background: #3a3a3a;
-  color: #fff;
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+  color: var(--text-primary, #f0f6fc);
 }
 .dv-btn-close {
   width: 32px;
@@ -70,16 +72,31 @@
   justify-content: center;
   border: none;
   background: transparent;
-  color: #888;
+  color: var(--text-muted, #8b949e);
   font-size: 20px;
 }
 .dv-btn-close:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #f0f6fc);
+  background: var(--bg-hover, rgba(255,255,255,0.05));
 }
 .dv-btn-close svg {
   width: 20px;
   height: 20px;
+}
+.dv-btn-copy {
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #8b949e);
+}
+.dv-btn-copy:hover {
+  color: var(--accent, #22d3ee);
+  background: var(--accent-dim, rgba(34,211,238,0.12));
+}
+.dv-btn-copy svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ── Body ── */
@@ -88,61 +105,63 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  background: var(--bg-base, #010409);
 }
 .dv-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #1a1a1a;
+  background: var(--bg-base, #010409);
 }
 .dv-panel-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: #252525;
-  border-bottom: 1px solid #333;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-elevated, #0f1117);
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
   flex-shrink: 0;
   font-size: 12px;
 }
 .dv-panel-label {
   font-weight: 600;
-  color: #999;
+  color: var(--text-muted, #8b949e);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 .dv-commit-select {
   flex: 1;
   min-width: 0;
   padding: 3px 6px;
-  border: 1px solid #444;
-  border-radius: 3px;
-  background: #333;
-  color: #ddd;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: var(--r-xs, 4px);
+  background: var(--bg-overlay, #15181d);
+  color: var(--text-primary, #f0f6fc);
   font-size: 11px;
-  font-family: 'Consolas', 'Courier New', monospace;
+  font-family: var(--font-mono, 'Consolas', monospace);
   cursor: pointer;
-  max-width: 280px;
+  max-width: 260px;
 }
 .dv-commit-select:focus {
   outline: none;
-  border-color: #4e9aff;
+  border-color: var(--accent, #22d3ee);
 }
 .dv-commit-msg {
-  color: #888;
+  color: var(--text-muted, #8b949e);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 200px;
+  max-width: 180px;
   flex-shrink: 1;
 }
 .dv-panel-body {
   flex: 1;
   overflow-y: auto;
-  font-family: 'Consolas', 'Courier New', 'Menlo', monospace;
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
   font-size: 13px;
   line-height: 1.5;
   padding: 0;
@@ -151,7 +170,7 @@
 /* ── Divider ── */
 .dv-divider {
   width: 1px;
-  background: #333;
+  background: var(--border-subtle, rgba(255,255,255,0.07));
   flex-shrink: 0;
 }
 
@@ -160,7 +179,7 @@
   display: flex;
   min-height: 20px;
   padding: 0 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
 }
 .dv-ln {
   display: inline-block;
@@ -168,7 +187,7 @@
   min-width: 48px;
   text-align: right;
   padding-right: 12px;
-  color: #555;
+  color: var(--text-faint, #545d68);
   font-size: 11px;
   user-select: none;
   flex-shrink: 0;
@@ -180,24 +199,39 @@
 }
 .dv-line-context {
   background: transparent;
-  color: #c0c0c0;
+  color: var(--text-secondary, #b1bac4);
 }
 .dv-line-removed {
-  background: rgba(255, 60, 60, 0.15);
-  color: #f88;
+  background: var(--red-dim, rgba(248,81,73,0.13));
+  color: var(--red, #f85149);
 }
 .dv-line-removed .dv-ln {
-  color: #f66;
+  color: var(--red, #f85149);
 }
 .dv-line-added {
-  background: rgba(60, 200, 60, 0.15);
-  color: #8c8;
+  background: var(--green-dim, rgba(45,212,176,0.13));
+  color: var(--green, #2dd4b0);
 }
 .dv-line-added .dv-ln {
-  color: #6c6;
+  color: var(--green, #2dd4b0);
+}
+.dv-line-active {
+  outline: 2px solid var(--accent, #22d3ee);
+  outline-offset: -2px;
+  background: var(--accent-dim, rgba(34,211,238,0.12));
+  position: relative;
+  z-index: 1;
+}
+.dv-line-active.dv-line-removed {
+  outline-color: var(--red, #f85149);
+  background: var(--red-dim, rgba(248,81,73,0.13));
+}
+.dv-line-active.dv-line-added {
+  outline-color: var(--green, #2dd4b0);
+  background: var(--green-dim, rgba(45,212,176,0.13));
 }
 .dv-line-gap {
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
 }
 .dv-line-gap .dv-ln {
   visibility: hidden;
@@ -209,11 +243,11 @@
 .dv-error {
   padding: 40px 20px;
   text-align: center;
-  color: #888;
+  color: var(--text-muted, #8b949e);
   font-size: 13px;
 }
 .dv-error {
-  color: #e55;
+  color: var(--red, #f85149);
 }
 
 /* ── Footer ── */
@@ -222,13 +256,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 16px;
-  background: #1e1e1e;
-  border-top: 1px solid #333;
+  background: var(--bg-surface, #0a0c10);
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
   flex-shrink: 0;
   font-size: 12px;
+  color: var(--text-secondary, #b1bac4);
 }
 .dv-stats {
-  color: #aaa;
+  color: var(--text-muted, #8b949e);
 }
 .dv-nav {
   display: flex;
@@ -240,7 +275,7 @@
   padding: 3px 10px;
 }
 .dv-nav-count {
-  color: #888;
+  color: var(--text-muted, #8b949e);
   font-size: 11px;
   min-width: 40px;
   text-align: center;
@@ -251,24 +286,24 @@
   flex-shrink: 0;
   max-height: 200px;
   overflow-y: auto;
-  background: #1e1e1e;
-  border-top: 1px solid #333;
+  background: var(--bg-surface, #0a0c10);
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
 }
 .dv-analysis-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 6px 16px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
   position: sticky;
   top: 0;
-  background: #1e1e1e;
+  background: var(--bg-surface, #0a0c10);
   z-index: 1;
 }
 .dv-analysis-title {
   font-size: 12px;
   font-weight: 600;
-  color: #bbb;
+  color: var(--text-secondary, #b1bac4);
 }
 .dv-risk {
   font-size: 11px;
@@ -277,16 +312,16 @@
   border-radius: 8px;
 }
 .dv-risk-high {
-  background: rgba(255, 60, 60, 0.2);
-  color: #f66;
+  background: var(--red-dim, rgba(248,81,73,0.13));
+  color: var(--red, #f85149);
 }
 .dv-risk-medium {
-  background: rgba(255, 180, 60, 0.2);
-  color: #fa0;
+  background: var(--yellow-dim, rgba(210,153,34,0.13));
+  color: var(--yellow, #d29922);
 }
 .dv-risk-low {
-  background: rgba(60, 200, 60, 0.2);
-  color: #6c6;
+  background: var(--green-dim, rgba(45,212,176,0.13));
+  color: var(--green, #2dd4b0);
 }
 .dv-analysis-body {
   padding: 4px 0;
@@ -299,13 +334,13 @@
   font-size: 12px;
 }
 .dv-finding-low {
-  color: #aaa;
+  color: var(--text-secondary, #b1bac4);
 }
 .dv-finding-medium {
-  color: #fa0;
+  color: var(--yellow, #d29922);
 }
 .dv-finding-high {
-  color: #f66;
+  color: var(--red, #f85149);
 }
 .dv-finding-icon {
   font-size: 13px;
