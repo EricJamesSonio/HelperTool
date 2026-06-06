@@ -93,31 +93,52 @@ class GitToolUI {
               
               <!-- Commit Template Box -->
               <div class="commit-box">
-                <div class="commit-form-row">
-                  <label class="commit-form-label">Type</label>
-                  <select id="commitType" class="commit-select">
-                    <option value="">Select type…</option>
-                    <option value="Feature">Feature</option>
-                    <option value="Fix">Fix</option>
-                    <option value="Refactor">Refactor</option>
-                    <option value="Performance">Performance</option>
-                    <option value="Docs">Docs</option>
-                    <option value="Test">Test</option>
-                    <option value="Build">Build</option>
-                  </select>
+                <div class="commit-template-toggle">
+                  <button id="useTemplateBtn" class="commit-toggle-btn" title="Toggle commit template">
+                    <span class="toggle-icon">☰</span>
+                    <span class="toggle-label">Use Template</span>
+                  </button>
                 </div>
-                <div class="commit-form-row">
-                  <label class="commit-form-label">Module</label>
-                  <input type="text" id="commitModule" class="commit-input-text" placeholder="e.g. Authentication" />
+
+                <!-- Free-form commit message -->
+                <div id="commitFreeForm" class="commit-free-form">
+                  <textarea
+                    id="commitMessageInput"
+                    class="commit-input"
+                    placeholder="Type commit message…"
+                    rows="4"
+                  ></textarea>
                 </div>
-                <div class="commit-form-row">
-                  <label class="commit-form-label">Description</label>
-                  <textarea id="commitDescription" class="commit-description" placeholder="- Describe your changes&#10;- Use bullet points for multiple items" rows="3"></textarea>
+
+                <!-- Structured template form -->
+                <div id="commitTemplateForm" class="commit-template-form" style="display:none">
+                  <div class="commit-form-row">
+                    <label class="commit-form-label">Type</label>
+                    <select id="commitType" class="commit-select">
+                      <option value="">Select type…</option>
+                      <option value="Feature">Feature</option>
+                      <option value="Fix">Fix</option>
+                      <option value="Refactor">Refactor</option>
+                      <option value="Performance">Performance</option>
+                      <option value="Docs">Docs</option>
+                      <option value="Test">Test</option>
+                      <option value="Build">Build</option>
+                    </select>
+                  </div>
+                  <div class="commit-form-row">
+                    <label class="commit-form-label">Module</label>
+                    <input type="text" id="commitModule" class="commit-input-text" placeholder="e.g. Authentication" />
+                  </div>
+                  <div class="commit-form-row">
+                    <label class="commit-form-label">Description</label>
+                    <textarea id="commitDescription" class="commit-description" placeholder="- Describe your changes&#10;- Use bullet points for multiple items" rows="3"></textarea>
+                  </div>
+                  <div class="commit-files-section" id="commitFilesSection" style="display:none">
+                    <div class="commit-form-label">Files Included</div>
+                    <div id="commitFilesList" class="commit-files-list"></div>
+                  </div>
                 </div>
-                <div class="commit-files-section" id="commitFilesSection" style="display:none">
-                  <div class="commit-form-label">Files Included</div>
-                  <div id="commitFilesList" class="commit-files-list"></div>
-                </div>
+
                 <div class="commit-actions">
                   <label class="push-toggle">
                     <input type="checkbox" id="pushAfterCommit" />
@@ -189,26 +210,54 @@ class GitToolUI {
 
     // Commit actions
     const commitBtn = this.container.querySelector('#commitBtn');
+    const freeForm = this.container.querySelector('#commitFreeForm');
+    const templateForm = this.container.querySelector('#commitTemplateForm');
+    const toggleBtn = this.container.querySelector('#useTemplateBtn');
+    const messageInput = this.container.querySelector('#commitMessageInput');
     const typeSelect = this.container.querySelector('#commitType');
     const descInput = this.container.querySelector('#commitDescription');
 
+    let useTemplate = false;
+
     const updateCommitBtn = () => {
-      const hasType = typeSelect.value.trim().length > 0;
-      const hasDesc = descInput.value.trim().length > 0;
       const hasStaged = this.gitManager.stagedFiles.length > 0;
-      commitBtn.disabled = !(hasType && hasDesc && hasStaged);
+      if (useTemplate) {
+        const hasType = typeSelect.value.trim().length > 0;
+        const hasDesc = descInput.value.trim().length > 0;
+        commitBtn.disabled = !(hasType && hasDesc && hasStaged);
+      } else {
+        const hasMessage = messageInput.value.trim().length > 0;
+        commitBtn.disabled = !(hasMessage && hasStaged);
+      }
     };
 
+    toggleBtn?.addEventListener('click', () => {
+      useTemplate = !useTemplate;
+      toggleBtn.classList.toggle('active', useTemplate);
+      if (useTemplate) {
+        freeForm.style.display = 'none';
+        templateForm.style.display = '';
+      } else {
+        freeForm.style.display = '';
+        templateForm.style.display = 'none';
+      }
+      updateCommitBtn();
+    });
+
+    messageInput?.addEventListener('input', updateCommitBtn);
     typeSelect?.addEventListener('change', updateCommitBtn);
     descInput?.addEventListener('input', updateCommitBtn);
 
     commitBtn?.addEventListener('click', () => this.handleCommit());
-    descInput?.addEventListener('keydown', (e) => {
+
+    const enterHandler = (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (!commitBtn.disabled) this.handleCommit();
       }
-    });
+    };
+    messageInput?.addEventListener('keydown', enterHandler);
+    descInput?.addEventListener('keydown', enterHandler);
 
     const pushAllBtn = this.container.querySelector('#pushAllBtn');
     pushAllBtn?.addEventListener('click', () => this.handlePushAll());
@@ -304,33 +353,48 @@ class GitToolUI {
    */
   async handleCommit() {
     const commitBtn = this.container.querySelector('#commitBtn');
+    const toggleBtn = this.container.querySelector('#useTemplateBtn');
+    const freeForm = this.container.querySelector('#commitFreeForm');
+    const templateForm = this.container.querySelector('#commitTemplateForm');
+    const messageInput = this.container.querySelector('#commitMessageInput');
     const typeSelect = this.container.querySelector('#commitType');
     const moduleInput = this.container.querySelector('#commitModule');
     const descInput = this.container.querySelector('#commitDescription');
     const pushCheckbox = this.container.querySelector('#pushAfterCommit');
     const stagedFiles = this.gitManager.stagedFiles;
+    const useTemplate = toggleBtn?.classList.contains('active');
 
-    const type = typeSelect.value.trim();
-    const module = moduleInput.value.trim();
-    const description = descInput.value.trim();
+    let message;
 
-    if (!type) {
-      this.showError('Please select a commit type');
-      return;
+    if (useTemplate) {
+      const type = typeSelect.value.trim();
+      const module = moduleInput.value.trim();
+      const description = descInput.value.trim();
+
+      if (!type) {
+        this.showError('Please select a commit type');
+        return;
+      }
+      if (!description) {
+        this.showError('Please enter a description');
+        return;
+      }
+
+      message = `Type: ${type}\n`;
+      if (module) message += `Module: ${module}\n`;
+      message += `\nDescription:\n${description}\n\n`;
+      message += `Files Included:\n`;
+      stagedFiles.forEach(f => {
+        message += `- ${f.file}\n`;
+      });
+      message = message.trim();
+    } else {
+      message = messageInput.value.trim();
+      if (!message) {
+        this.showError('Please enter a commit message');
+        return;
+      }
     }
-    if (!description) {
-      this.showError('Please enter a description');
-      return;
-    }
-
-    let message = `Type: ${type}\n`;
-    if (module) message += `Module: ${module}\n`;
-    message += `\nDescription:\n${description}\n\n`;
-    message += `Files Included:\n`;
-    stagedFiles.forEach(f => {
-      message += `- ${f.file}\n`;
-    });
-    message = message.trim();
 
     this.setButtonLoading(commitBtn, true);
 
@@ -341,9 +405,13 @@ class GitToolUI {
     this.setButtonLoading(commitBtn, false);
 
     if (result.success) {
-      typeSelect.value = '';
-      moduleInput.value = '';
-      descInput.value = '';
+      if (useTemplate) {
+        typeSelect.value = '';
+        moduleInput.value = '';
+        descInput.value = '';
+      } else {
+        messageInput.value = '';
+      }
       pushCheckbox.checked = false;
       this.refreshUI();
       this.showSuccess('Commit created successfully!');
@@ -447,14 +515,21 @@ class GitToolUI {
 
     // Update commit button state
     const commitBtn = this.container.querySelector('#commitBtn');
+    const toggleBtn = this.container.querySelector('#useTemplateBtn');
+    const messageInput = this.container.querySelector('#commitMessageInput');
     const typeSelect = this.container.querySelector('#commitType');
     const descInput = this.container.querySelector('#commitDescription');
-    if (commitBtn && typeSelect && descInput) {
-      commitBtn.disabled = !(
-        typeSelect.value.trim().length > 0 &&
-        descInput.value.trim().length > 0 &&
-        state.staged.length > 0
-      );
+    if (commitBtn) {
+      const useTemplate = toggleBtn?.classList.contains('active');
+      const hasStaged = state.staged.length > 0;
+      if (useTemplate) {
+        const hasType = typeSelect.value.trim().length > 0;
+        const hasDesc = descInput.value.trim().length > 0;
+        commitBtn.disabled = !(hasType && hasDesc && hasStaged);
+      } else {
+        const hasMessage = messageInput.value.trim().length > 0;
+        commitBtn.disabled = !(hasMessage && hasStaged);
+      }
     }
   }
 

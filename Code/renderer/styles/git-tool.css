@@ -690,6 +690,50 @@
   min-height: 0;
 }
 
+/* ══ COMMIT TEMPLATE TOGGLE ══ */
+.commit-template-toggle {
+  margin-bottom: 10px;
+}
+
+.commit-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.commit-toggle-btn:hover {
+  border-color: var(--accent, #f0b429);
+  color: var(--text-primary, #eef2ff);
+}
+
+.commit-toggle-btn.active {
+  background: var(--accent, #f0b429);
+  color: #1a1a2e;
+  border-color: var(--accent, #f0b429);
+}
+
+.commit-toggle-btn .toggle-icon {
+  font-size: 13px;
+}
+
+.commit-free-form {
+  margin-bottom: 0;
+}
+
+.commit-template-form {
+  margin-bottom: 0;
+}
+
 /* ══ COMMIT TEMPLATE FORM ══ */
 .commit-form-row {
   margin-bottom: 10px;
