@@ -345,6 +345,9 @@ body {
   transition: all var(--ease);
   flex-shrink: 0;
 }
+.tool-btn svg {
+  display: block;
+}
 .tool-btn:hover {
   background: var(--bg-hover);
   border-color: var(--border-strong);
