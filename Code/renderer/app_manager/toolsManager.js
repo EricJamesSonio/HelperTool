@@ -12,6 +12,7 @@ import * as fileSeederTool                from '../fileSeederTool.js';
 import * as locDetector    from '../locDetector.js';
 import * as sessionNotes   from '../sessionNotes.js';
 import * as diffViewer     from '../diffViewer.js';
+import * as fileViewer     from '../fileViewer.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 
@@ -326,6 +327,7 @@ function _buildShortcutActions() {
 export function closeAllPanels() {
   _registry.closeAll();
   if (diffViewer.isOpen()) diffViewer.close();
+  if (fileViewer.isOpen()) fileViewer.close();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -348,6 +350,7 @@ export async function initTools(feats, settingsManager) {
   sessionNotes.initSessionNotes();
   _registry.setSessionNotes(sessionNotes);
   _registry.setDiffViewer(diffViewer);
+  _registry.setFileViewer(fileViewer);
   initSidebar();
   populateSidebar();
 
@@ -432,6 +435,11 @@ export async function initTools(feats, settingsManager) {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       diffViewer.open(filePath, state.selectedRepoPath);
+    },
+    (filePath) => {                        // onFileView
+      if (!state.selectedRepoPath) return;
+      _registry.closeAll();
+      fileViewer.open(filePath, state.selectedRepoPath);
     }
   );
 

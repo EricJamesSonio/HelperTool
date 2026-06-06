@@ -1,0 +1,202 @@
+/* ── File Viewer Overlay ── */
+.fv-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: var(--titlebar-h);
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
+  flex-direction: column;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  color: var(--text-primary, #f0f6fc);
+}
+.fv-overlay.fv-open {
+  display: flex;
+}
+
+/* ── Header ── */
+.fv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--bg-surface, #0a0c10);
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  flex-shrink: 0;
+}
+.fv-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.fv-file-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.fv-file-path {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary, #f0f6fc);
+}
+.fv-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.fv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: var(--r-xs, 4px);
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-secondary, #b1bac4);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.fv-btn:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+  color: var(--text-primary, #f0f6fc);
+}
+.fv-btn-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #8b949e);
+  font-size: 20px;
+}
+.fv-btn-close:hover {
+  color: var(--text-primary, #f0f6fc);
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+}
+.fv-btn-close svg {
+  width: 20px;
+  height: 20px;
+}
+.fv-btn-copy {
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #8b949e);
+}
+.fv-btn-copy:hover {
+  color: var(--accent, #22d3ee);
+  background: var(--accent-dim, rgba(34,211,238,0.12));
+}
+.fv-btn-copy svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Panel Header ── */
+.fv-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-elevated, #0f1117);
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.fv-panel-label {
+  font-weight: 600;
+  color: var(--text-muted, #8b949e);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.fv-commit-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 400px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: var(--r-xs, 4px);
+  background: var(--bg-overlay, #15181d);
+  color: var(--text-primary, #f0f6fc);
+  font-size: 11px;
+  font-family: var(--font-mono, 'Consolas', monospace);
+  cursor: pointer;
+}
+.fv-commit-select:focus {
+  outline: none;
+  border-color: var(--accent, #22d3ee);
+}
+.fv-commit-msg {
+  color: var(--text-muted, #8b949e);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+  flex-shrink: 1;
+}
+
+/* ── Body ── */
+.fv-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base, #010409);
+}
+.fv-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Lines ── */
+.fv-line {
+  display: flex;
+  min-height: 20px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
+  color: var(--text-secondary, #b1bac4);
+}
+.fv-ln {
+  display: inline-block;
+  width: 48px;
+  min-width: 48px;
+  text-align: right;
+  padding-right: 12px;
+  color: var(--text-faint, #545d68);
+  font-size: 11px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.fv-text {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ── States ── */
+.fv-loading,
+.fv-empty,
+.fv-error {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted, #8b949e);
+  font-size: 13px;
+}
+.fv-error {
+  color: var(--red, #f85149);
+}
