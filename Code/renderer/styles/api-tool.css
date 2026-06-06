@@ -11,6 +11,7 @@
 .at-panel {
     position: fixed !important;
     inset: 0 !important;
+    top: var(--titlebar-h) !important;
     z-index: 9999 !important;
     display: none !important;
     align-items: center !important;
