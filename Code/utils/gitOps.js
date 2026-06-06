@@ -4,6 +4,7 @@
  * Uses simple-git library
  */
 
+const path = require('path');
 const simpleGit = require('simple-git');
 
 class GitOperations {
@@ -261,7 +262,8 @@ class GitOperations {
    */
   async getFileLog(filePath, maxCount = 50) {
     try {
-      const log = await this.git.log(['--oneline', `-${maxCount}`, '--', filePath]);
+      const relPath = path.relative(this.repoPath, filePath);
+      const log = await this.git.log({ maxCount, file: relPath });
       return {
         success: true,
         commits: log.all.map(c => ({
@@ -281,7 +283,8 @@ class GitOperations {
    */
   async getFileContentAtCommit(commitHash, filePath) {
     try {
-      const content = await this.git.show([`${commitHash}:${filePath}`]);
+      const relPath = path.relative(this.repoPath, filePath);
+      const content = await this.git.show([`${commitHash}:${relPath}`]);
       return {
         success: true,
         content,
@@ -298,7 +301,8 @@ class GitOperations {
    */
   async getDiffBetweenCommits(oldCommit, newCommit, filePath) {
     try {
-      const diff = await this.git.diff([oldCommit, newCommit, '--', filePath]);
+      const relPath = path.relative(this.repoPath, filePath);
+      const diff = await this.git.diff([oldCommit, newCommit, '--', relPath]);
       return {
         success: true,
         diff,
