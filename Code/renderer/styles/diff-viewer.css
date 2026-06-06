@@ -1,0 +1,330 @@
+/* ── Diff Viewer Overlay ── */
+.dv-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  flex-direction: column;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #e0e0e0;
+}
+.dv-overlay.dv-open {
+  display: flex;
+}
+
+/* ── Header ── */
+.dv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #1e1e1e;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+.dv-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.dv-file-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.dv-file-path {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.dv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #2a2a2a;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dv-btn:hover {
+  background: #3a3a3a;
+  color: #fff;
+}
+.dv-btn-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 20px;
+}
+.dv-btn-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.dv-btn-close svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Body ── */
+.dv-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.dv-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #1a1a1a;
+}
+.dv-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #252525;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.dv-panel-label {
+  font-weight: 600;
+  color: #999;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.dv-commit-select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid #444;
+  border-radius: 3px;
+  background: #333;
+  color: #ddd;
+  font-size: 11px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  cursor: pointer;
+  max-width: 280px;
+}
+.dv-commit-select:focus {
+  outline: none;
+  border-color: #4e9aff;
+}
+.dv-commit-msg {
+  color: #888;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  flex-shrink: 1;
+}
+.dv-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  font-family: 'Consolas', 'Courier New', 'Menlo', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 0;
+}
+
+/* ── Divider ── */
+.dv-divider {
+  width: 1px;
+  background: #333;
+  flex-shrink: 0;
+}
+
+/* ── Diff lines ── */
+.dv-line {
+  display: flex;
+  min-height: 20px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+.dv-ln {
+  display: inline-block;
+  width: 48px;
+  min-width: 48px;
+  text-align: right;
+  padding-right: 12px;
+  color: #555;
+  font-size: 11px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.dv-text {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.dv-line-context {
+  background: transparent;
+  color: #c0c0c0;
+}
+.dv-line-removed {
+  background: rgba(255, 60, 60, 0.15);
+  color: #f88;
+}
+.dv-line-removed .dv-ln {
+  color: #f66;
+}
+.dv-line-added {
+  background: rgba(60, 200, 60, 0.15);
+  color: #8c8;
+}
+.dv-line-added .dv-ln {
+  color: #6c6;
+}
+.dv-line-gap {
+  background: rgba(255, 255, 255, 0.02);
+}
+.dv-line-gap .dv-ln {
+  visibility: hidden;
+}
+
+/* ── States ── */
+.dv-loading,
+.dv-empty,
+.dv-error {
+  padding: 40px 20px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+}
+.dv-error {
+  color: #e55;
+}
+
+/* ── Footer ── */
+.dv-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  background: #1e1e1e;
+  border-top: 1px solid #333;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.dv-stats {
+  color: #aaa;
+}
+.dv-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dv-btn-nav {
+  font-size: 11px;
+  padding: 3px 10px;
+}
+.dv-nav-count {
+  color: #888;
+  font-size: 11px;
+  min-width: 40px;
+  text-align: center;
+}
+
+/* ── Analysis Panel ── */
+.dv-analysis {
+  flex-shrink: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #1e1e1e;
+  border-top: 1px solid #333;
+}
+.dv-analysis-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  border-bottom: 1px solid #333;
+  position: sticky;
+  top: 0;
+  background: #1e1e1e;
+  z-index: 1;
+}
+.dv-analysis-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #bbb;
+}
+.dv-risk {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.dv-risk-high {
+  background: rgba(255, 60, 60, 0.2);
+  color: #f66;
+}
+.dv-risk-medium {
+  background: rgba(255, 180, 60, 0.2);
+  color: #fa0;
+}
+.dv-risk-low {
+  background: rgba(60, 200, 60, 0.2);
+  color: #6c6;
+}
+.dv-analysis-body {
+  padding: 4px 0;
+}
+.dv-finding {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 16px;
+  font-size: 12px;
+}
+.dv-finding-low {
+  color: #aaa;
+}
+.dv-finding-medium {
+  color: #fa0;
+}
+.dv-finding-high {
+  color: #f66;
+}
+.dv-finding-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.dv-finding-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.dv-finding-label {
+  font-weight: 500;
+}
+.dv-finding-detail {
+  font-size: 11px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -75,6 +75,36 @@ function register(_deps) {
             return { error: err.message, success: false };
         }
     });
+
+    ipcMain.handle('git:file-log', async (event, repoPath, filePath, maxCount) => {
+        try {
+            const gitOps = new GitOperations(repoPath);
+            return await gitOps.getFileLog(filePath, maxCount || 50);
+        } catch (err) {
+            console.error('[IPC] git:file-log error:', err);
+            return { error: err.message, success: false };
+        }
+    });
+
+    ipcMain.handle('git:file-content', async (event, repoPath, commitHash, filePath) => {
+        try {
+            const gitOps = new GitOperations(repoPath);
+            return await gitOps.getFileContentAtCommit(commitHash, filePath);
+        } catch (err) {
+            console.error('[IPC] git:file-content error:', err);
+            return { error: err.message, success: false };
+        }
+    });
+
+    ipcMain.handle('git:diff-commits', async (event, repoPath, oldCommit, newCommit, filePath) => {
+        try {
+            const gitOps = new GitOperations(repoPath);
+            return await gitOps.getDiffBetweenCommits(oldCommit, newCommit, filePath);
+        } catch (err) {
+            console.error('[IPC] git:diff-commits error:', err);
+            return { error: err.message, success: false };
+        }
+    });
 }
 
 module.exports = { register };

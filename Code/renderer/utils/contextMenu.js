@@ -2,11 +2,13 @@ let _activeMenu   = null;
 let _onFileDeps   = null;
 let _onFolderSeed = null;
 let _onFolderLoc  = null;
+let _onFileDiff   = null;
 
-export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc) {
+export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff) {
   _onFileDeps   = onFileDeps;
   _onFolderSeed = onFolderSeed;
   _onFolderLoc  = onFolderLoc;
+  _onFileDiff   = onFileDiff;
 
   document.addEventListener('contextmenu', (e) => {
     const wrapper = e.target.closest('.node-wrapper');
@@ -42,6 +44,11 @@ function showFileMenu(x, y, filePath) {
   menu.innerHTML = `
     <div class="context-menu-header">${escapeHtml(filePath.split('/').pop())}</div>
     <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="file-diff">
+      <span class="context-menu-icon">📊</span>
+      <span class="context-menu-label">View Diff</span>
+      <span class="context-menu-hint">File</span>
+    </div>
     <div class="context-menu-item" data-action="file-deps">
       <span class="context-menu-icon">🔗</span>
       <span class="context-menu-label">Find Dependencies</span>
@@ -57,6 +64,7 @@ function showFileMenu(x, y, filePath) {
   menu.addEventListener('click', (e) => {
     const item = e.target.closest('.context-menu-item');
     if (!item || item.classList.contains('context-menu-item-disabled')) return;
+    if (item.dataset.action === 'file-diff' && _onFileDiff) _onFileDiff(filePath);
     if (item.dataset.action === 'file-deps' && _onFileDeps) _onFileDeps(filePath);
     closeMenu();
   });

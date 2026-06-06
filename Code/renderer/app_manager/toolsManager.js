@@ -11,6 +11,7 @@ import DependenciesUI                     from '../dependencies/dependenciesUI.j
 import * as fileSeederTool                from '../fileSeederTool.js';
 import * as locDetector    from '../locDetector.js';
 import * as sessionNotes   from '../sessionNotes.js';
+import * as diffViewer     from '../diffViewer.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 
@@ -324,6 +325,7 @@ function _buildShortcutActions() {
 
 export function closeAllPanels() {
   _registry.closeAll();
+  if (diffViewer.isOpen()) diffViewer.close();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -345,6 +347,7 @@ export async function initTools(feats, settingsManager) {
   fileSeederTool.init();
   sessionNotes.initSessionNotes();
   _registry.setSessionNotes(sessionNotes);
+  _registry.setDiffViewer(diffViewer);
   initSidebar();
   populateSidebar();
 
@@ -421,9 +424,14 @@ export async function initTools(feats, settingsManager) {
       _registry.closeAll();
       fileSeederTool.open(folderPath, folderName);
     },
-    (folderPath, folderName) => {          // ADD: onFolderLoc
+    (folderPath, folderName) => {          // onFolderLoc
       _registry.closeAll();
       locDetector.open(folderPath, folderName);
+    },
+    (filePath) => {                        // onFileDiff
+      if (!state.selectedRepoPath) return;
+      _registry.closeAll();
+      diffViewer.open(filePath, state.selectedRepoPath);
     }
   );
 

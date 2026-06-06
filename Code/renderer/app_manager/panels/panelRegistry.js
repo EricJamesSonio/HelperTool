@@ -15,6 +15,7 @@ export default class PanelRegistry {
     this._workspaceTool = null;
     this._canvasTool    = null;
     this._dbInspector   = null;
+    this._diffViewer    = null;
   }
 
   // Register external tools that don't use a panel element
@@ -24,6 +25,7 @@ export default class PanelRegistry {
   setWorkspaceTool(t)  { this._workspaceTool = t; }
   setCanvasTool(t)     { this._canvasTool = t; }
   setDbInspector(t)    { this._dbInspector = t; }
+  setDiffViewer(t)     { this._diffViewer = t; }
 
   // Register a panel element by name
   register(name, panel) {
@@ -54,5 +56,8 @@ export default class PanelRegistry {
 
     // File Seeder
     if (fileSeederTool.isOpen()) fileSeederTool.close();
+
+    // Diff Viewer
+    if (this._diffViewer?.isOpen?.()) this._diffViewer.close();
   }
 }

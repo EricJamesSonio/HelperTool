@@ -255,6 +255,61 @@ class GitOperations {
     };
     return codes[code] || code;
   }
+
+  /**
+   * Get commit log for a specific file
+   */
+  async getFileLog(filePath, maxCount = 50) {
+    try {
+      const log = await this.git.log(['--oneline', `-${maxCount}`, '--', filePath]);
+      return {
+        success: true,
+        commits: log.all.map(c => ({
+          hash: c.hash,
+          message: c.message,
+          date: c.date,
+          author: c.author_name
+        }))
+      };
+    } catch (error) {
+      return { error: error.message, success: false };
+    }
+  }
+
+  /**
+   * Get file content at a specific commit
+   */
+  async getFileContentAtCommit(commitHash, filePath) {
+    try {
+      const content = await this.git.show([`${commitHash}:${filePath}`]);
+      return {
+        success: true,
+        content,
+        hash: commitHash,
+        file: filePath
+      };
+    } catch (error) {
+      return { error: error.message, success: false };
+    }
+  }
+
+  /**
+   * Get diff between two commits for a file
+   */
+  async getDiffBetweenCommits(oldCommit, newCommit, filePath) {
+    try {
+      const diff = await this.git.diff([oldCommit, newCommit, '--', filePath]);
+      return {
+        success: true,
+        diff,
+        oldCommit,
+        newCommit,
+        file: filePath
+      };
+    } catch (error) {
+      return { error: error.message, success: false };
+    }
+  }
 }
 
 module.exports = GitOperations;
