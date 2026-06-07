@@ -1,5 +1,6 @@
 import { getData, getSelectedCategoryId, getModal } from './state.js';
 import { escapeHtml } from './utils.js';
+import { ICON_STAR, ICON_STAR_FILLED, ICON_PIN } from './template.js';
 
 export function renderPromptList() {
     const list = document.getElementById('promptList');
@@ -55,8 +56,8 @@ export function setSelectedPrompt(p) {
     window.__promptToolSelectedPromptId = p.id;
 
     document.getElementById('promptDelete').style.display = 'inline-flex';
-    document.getElementById('promptToggleFavorite').textContent = p.isFavorite ? '★ Favorited' : '☆ Favorite';
-    document.getElementById('promptTogglePin').textContent = p.pinnedAt ? '📌 Pinned' : '📌 Pin';
+    document.getElementById('promptToggleFavorite').innerHTML = p.isFavorite ? `${ICON_STAR_FILLED} Favorited` : `${ICON_STAR} Favorite`;
+    document.getElementById('promptTogglePin').innerHTML = p.pinnedAt ? `${ICON_PIN} Pinned` : `${ICON_PIN} Pin`;
 }
 
 export function clearEditor() {
@@ -66,6 +67,6 @@ export function clearEditor() {
     window.__promptToolSelectedPromptId = null;
 
     document.getElementById('promptDelete').style.display = 'none';
-    document.getElementById('promptToggleFavorite').textContent = '☆ Favorite';
-    document.getElementById('promptTogglePin').textContent = '📌 Pin';
+    document.getElementById('promptToggleFavorite').innerHTML = `${ICON_STAR} Favorite`;
+    document.getElementById('promptTogglePin').innerHTML = `${ICON_PIN} Pin`;
 }

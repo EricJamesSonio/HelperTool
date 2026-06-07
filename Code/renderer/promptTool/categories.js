@@ -1,6 +1,7 @@
 import { getData, getSelectedCategoryId, setSelectedCategoryId } from './state.js';
 import { renderPromptList } from './prompts.js';
 import { escapeHtml } from './utils.js';
+import { ICON_EDIT } from './template.js';
 
 export function renderCategories(onRefresh) {
     const wrap = document.getElementById('promptCats');
@@ -22,7 +23,7 @@ export function renderCategories(onRefresh) {
         
         btn.innerHTML = `
             <span style="flex:1; text-align:left;">${escapeHtml(c.name)}</span>
-            <span class="pt-cat-rename" style="opacity:0.5; font-size:10px;">✎</span>
+            <span class="pt-cat-rename" style="opacity:0.5;">${ICON_EDIT}</span>
         `;
         
         btn.addEventListener('click', () => {

@@ -1,5 +1,6 @@
 import { getData, getSelectedCategoryId, setSelectedCategoryId } from './state.js';
 import { clearEditor, setSelectedPrompt, renderPromptList } from './prompts.js';
+import { ICON_STAR, ICON_STAR_FILLED, ICON_PIN } from './template.js';
 
 export function wirePromptSave(onRefresh) {
     const saveBtn = document.getElementById('promptSave');
@@ -69,15 +70,14 @@ export function wirePromptFavoritePin(onRefresh) {
         const id = window.__promptToolSelectedPromptId;
         if (!id) return;
         const p = await window.electronAPI.prompts.toggleFavorite({ id });
-        // update button text
-        favBtn.textContent = p.isFavorite ? '★ Favorited' : '☆ Favorite';
+        favBtn.innerHTML = p.isFavorite ? `${ICON_STAR_FILLED} Favorited` : `${ICON_STAR} Favorite`;
     });
 
     pinBtn.addEventListener('click', async () => {
         const id = window.__promptToolSelectedPromptId;
         if (!id) return;
         const p = await window.electronAPI.prompts.togglePin({ id });
-        pinBtn.textContent = p.pinnedAt ? '📌 Pinned' : '📌 Pin';
+        pinBtn.innerHTML = p.pinnedAt ? `${ICON_PIN} Pinned` : `${ICON_PIN} Pin`;
         await onRefresh();
     });
 }
