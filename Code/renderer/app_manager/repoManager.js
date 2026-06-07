@@ -13,8 +13,7 @@ import {
     loadIgnoredExtensions,
     loadFolderFilters,
 } from '../filterManager.js';
-import { invalidateFlatCache } from '../searchManager.js';
-import { getFeatures }         from '../featureManager.js';
+import { getFeatures } from '../featureManager.js';
 import { state }               from './appState.js';
 import { renderRootJumper, displayTree } from './viewManager.js';
 
@@ -46,7 +45,6 @@ export async function loadRepo(repoPath, resetSel = true) {
 
     activeExtensions.clear();
     renderFilterChips();
-    invalidateFlatCache();
 
     const feats = getFeatures();
     if (state.cachedTree) {

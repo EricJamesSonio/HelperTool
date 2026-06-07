@@ -43,7 +43,7 @@ export function createGitPanel() {
   return createPanel({
     id:          'gitToolPanel',
     className:   'git-tool-panel',
-    title:       '\uD83D\uDD00 Git Tool',
+    title:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"><circle cx="5" cy="4" r="2"/><circle cx="15" cy="16" r="2"/><path d="M5 6v8a4 4 0 0 0 4 4h6"/></svg> Git Tool',
     containerId: 'gitToolContainer',
     closeBtnId:  'closeGitToolBtn'
   });

@@ -3,21 +3,12 @@ import { levenshteinDistance } from './shortcutMode/levenshtein.js';
 const treeSearchInput   = document.getElementById('treeSearchInput');
 const searchSuggestions = document.getElementById('searchSuggestions');
 
-let _getCachedTree   = null;
 let _getFilteredTree = null;
 let _treeContainer   = null;
-let _flatCache        = null;
-let _flatCacheTreeRef = null;
-
-export function invalidateFlatCache() {
-  _flatCache        = null;
-  _flatCacheTreeRef = null;
-}
 
 export function getFlatList() {
-  const tree = _getCachedTree?.();
+  const tree = _getFilteredTree?.();
   if (!tree) return [];
-  if (tree === _flatCacheTreeRef && _flatCache) return _flatCache;
 
   const result = [];
   function flatten(nodes, parentPath = '') {
@@ -28,8 +19,6 @@ export function getFlatList() {
     }
   }
   flatten(tree);
-  _flatCache        = result;
-  _flatCacheTreeRef = tree;
   return result;
 }
 
@@ -68,60 +57,66 @@ function expandPathParents(nodePath) {
 
 export function selectSearchItem(path) {
   const np = normPath(path);
-  expandPathParents(path);
-  setTimeout(() => {
+
+  function tryScroll(retries = 10) {
+    expandPathParents(path);
     const wrapper  = document.querySelector(`[data-node-path='${CSS.escape(np)}']`);
-    if (!wrapper) return;
-    const treeNode = wrapper.querySelector(':scope > .tree-node');
-    if (!treeNode) return;
+    if (wrapper) {
+      const treeNode = wrapper.querySelector(':scope > .tree-node');
+      if (!treeNode) return;
 
-    treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    const orig = {
-      bg:        treeNode.style.background,
-      shadow:    treeNode.style.boxShadow,
-      border:    treeNode.style.borderColor,
-      color:     treeNode.style.color,
-      transform: treeNode.style.transform,
-      transition:treeNode.style.transition,
-    };
+      const orig = {
+        bg:        treeNode.style.background,
+        shadow:    treeNode.style.boxShadow,
+        border:    treeNode.style.borderColor,
+        color:     treeNode.style.color,
+        transform: treeNode.style.transform,
+        transition:treeNode.style.transition,
+      };
 
-    treeNode.style.transition  = 'all 0.3s ease';
-    treeNode.style.background  = 'linear-gradient(135deg, #9c27b0 0%, #6a1b9a 100%)';
-    treeNode.style.boxShadow   = '0 0 0 6px rgba(156,39,176,0.8), 0 0 35px rgba(106,27,154,1)';
-    treeNode.style.borderColor = '#9c27b0';
-    treeNode.style.color       = '#fff';
-    treeNode.style.transform   = 'scale(1.2)';
-    treeNode.style.zIndex      = '1000';
+      treeNode.style.transition  = 'all 0.3s ease';
+      treeNode.style.background  = 'linear-gradient(135deg, #9c27b0 0%, #6a1b9a 100%)';
+      treeNode.style.boxShadow   = '0 0 0 6px rgba(156,39,176,0.8), 0 0 35px rgba(106,27,154,1)';
+      treeNode.style.borderColor = '#9c27b0';
+      treeNode.style.color       = '#fff';
+      treeNode.style.transform   = 'scale(1.2)';
+      treeNode.style.zIndex      = '1000';
 
-    setTimeout(() => {
-      treeNode.style.transition = 'all 1s ease';
-      treeNode.style.background = 'linear-gradient(135deg, #ba68c8 0%, #9c27b0 100%)';
-      treeNode.style.boxShadow  = '0 0 0 4px rgba(156,39,176,0.6), 0 0 25px rgba(106,27,154,0.7)';
-      treeNode.style.transform  = 'scale(1.15)';
-    }, 800);
-
-    setTimeout(() => {
-      treeNode.style.background = 'linear-gradient(135deg, #ce93d8 0%, #ba68c8 100%)';
-      treeNode.style.boxShadow  = '0 0 0 2px rgba(156,39,176,0.4), 0 0 15px rgba(106,27,154,0.5)';
-      treeNode.style.transform  = 'scale(1.08)';
-    }, 1600);
-
-    setTimeout(() => {
-      treeNode.style.transition = 'all 0.5s ease';
-      Object.assign(treeNode.style, {
-        background:  orig.bg,
-        boxShadow:   orig.shadow,
-        borderColor: orig.border,
-        color:       orig.color,
-        transform:   orig.transform,
-        zIndex:      '',
-      });
       setTimeout(() => {
-        treeNode.style.transition = orig.transition;
-      }, 500);
-    }, 2500);
-  }, 150);
+        treeNode.style.transition = 'all 1s ease';
+        treeNode.style.background = 'linear-gradient(135deg, #ba68c8 0%, #9c27b0 100%)';
+        treeNode.style.boxShadow  = '0 0 0 4px rgba(156,39,176,0.6), 0 0 25px rgba(106,27,154,0.7)';
+        treeNode.style.transform  = 'scale(1.15)';
+      }, 800);
+
+      setTimeout(() => {
+        treeNode.style.background = 'linear-gradient(135deg, #ce93d8 0%, #ba68c8 100%)';
+        treeNode.style.boxShadow  = '0 0 0 2px rgba(156,39,176,0.4), 0 0 15px rgba(106,27,154,0.5)';
+        treeNode.style.transform  = 'scale(1.08)';
+      }, 1600);
+
+      setTimeout(() => {
+        treeNode.style.transition = 'all 0.5s ease';
+        Object.assign(treeNode.style, {
+          background:  orig.bg,
+          boxShadow:   orig.shadow,
+          borderColor: orig.border,
+          color:       orig.color,
+          transform:   orig.transform,
+          zIndex:      '',
+        });
+        setTimeout(() => {
+          treeNode.style.transition = orig.transition;
+        }, 500);
+      }, 2500);
+    } else if (retries > 0) {
+      setTimeout(() => tryScroll(retries - 1), 100);
+    }
+  }
+
+  tryScroll();
 }
 
 function scoreMatch(query, name, displayPath) {
@@ -201,14 +196,10 @@ function searchTree(query) {
     scoreBadge.textContent = m.score + '%';
     scoreBadge.style.cssText = 'font-size:0.65rem;color:var(--text-muted);margin-left:auto;flex-shrink:0';
 
+    li.dataset.filepath = node.path;
     li.appendChild(nameSpan);
     li.appendChild(pathSpan);
     li.appendChild(scoreBadge);
-    li.addEventListener('click', () => {
-      selectSearchItem(node.path);
-      searchSuggestions.style.display = 'none';
-      treeSearchInput.value = '';
-    });
     searchSuggestions.appendChild(li);
   });
 
@@ -223,8 +214,7 @@ function positionSuggestions() {
   searchSuggestions.style.width = Math.max(rect.width, 360) + 'px';
 }
 
-export function setupSearch(getCachedTree, getFilteredTree, treeContainer) {
-  _getCachedTree   = getCachedTree;
+export function setupSearch(_getCachedTree, getFilteredTree, treeContainer) {
   _getFilteredTree = getFilteredTree;
   _treeContainer   = treeContainer;
 
@@ -239,6 +229,17 @@ export function setupSearch(getCachedTree, getFilteredTree, treeContainer) {
     setTimeout(() => {
       searchSuggestions.style.display = 'none';
     }, 200);
+  });
+
+  searchSuggestions.addEventListener('mousedown', (e) => {
+    const li = e.target.closest('.search-result-item');
+    if (!li) return;
+    const path = li.dataset.filepath;
+    if (!path) return;
+    e.preventDefault();
+    selectSearchItem(path);
+    searchSuggestions.style.display = 'none';
+    treeSearchInput.value = '';
   });
 }
 

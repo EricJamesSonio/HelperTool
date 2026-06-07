@@ -14,10 +14,7 @@ import {
     renderFolderPanel
 } from './filterManager.js';
 
-import {
-    invalidateFlatCache,
-    setupSearch
-} from './searchManager.js';
+import { setupSearch } from './searchManager.js';
 
 import {
     initShortcutMode
@@ -199,7 +196,6 @@ refreshBtn.addEventListener('click', async () => {
     refreshBtn.disabled = true;
     try {
         state.cachedTree = await window.electronAPI.getFolderTree(state.selectedRepoPath);
-        invalidateFlatCache();
         renderFilterChips();
         const feats = getFeatures();
         if (state.cachedTree) {
@@ -284,7 +280,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 
     setupFilterInput(() => state.cachedTree, displayTree);
-    setupSearch(() => state.cachedTree, () => filterTree(state.cachedTree), treeContainer);
+    setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
 
     // Shortcut mode
     initShortcutMode();

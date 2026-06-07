@@ -4,6 +4,18 @@
  * Manages the 3-panel interface: Working Tree | Staged | History
  */
 
+const ICON_GIT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="4" r="2"/><circle cx="15" cy="16" r="2"/><path d="M5 6v8a4 4 0 0 0 4 4h6"/></svg>';
+const ICON_FILE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h4.5L15 7.5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M10.5 2v5.5H16"/></svg>';
+const ICON_STAGED = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="15" rx="2"/><path d="M8 1v4h4V1"/><path d="m7 11 2 2 4-4"/></svg>';
+const ICON_HISTORY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M10 6v4l3 3"/></svg>';
+const ICON_FOLDER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4 4 8-8"/></svg>';
+const ICON_ARROW_RIGHT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10h10"/><path d="m10 5 5 5-5 5"/></svg>';
+const ICON_ARROW_LEFT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10H5"/><path d="m10 5-5 5 5 5"/></svg>';
+const ICON_ARROW_UP = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15V5"/><path d="m5 10 5-5 5 5"/></svg>';
+const ICON_MENU = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12"/><path d="M4 10h12"/><path d="M4 14h12"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12"/><path d="M4 10h12"/></svg>';
+
 class GitToolUI {
   constructor(gitManager, gitCommandHandler) {
     this.gitManager = gitManager;
@@ -34,7 +46,7 @@ class GitToolUI {
         <!-- Header -->
         <div class="git-header">
           <h2 class="git-title">
-            <span class="git-icon">🔀</span> Git Tool
+            <span class="git-icon">${ICON_GIT}</span> Git Tool
           </h2>
           <div class="git-stats">
             <span class="stat-item">
@@ -62,14 +74,14 @@ class GitToolUI {
           <div class="git-panel git-panel-working">
             <div class="panel-header">
               <h3 class="panel-title">
-                <span class="panel-icon">🔴</span> Working Tree
+                <span class="panel-icon">${ICON_FILE}</span> Working Tree
               </h3>
               <span class="panel-count" id="workingCount">0 files</span>
             </div>
             <div class="panel-body">
               <div class="stage-all-row" id="stageAllRow" style="display:none">
                 <button id="stageAllBtn" class="btn btn-primary stage-all-btn">
-                  <span>+</span> Stage All
+                  <span class="btn-icon">${ICON_PLUS}</span> Stage All
                 </button>
               </div>
               <div id="workingTreeList" class="file-list">
@@ -82,7 +94,7 @@ class GitToolUI {
           <div class="git-panel git-panel-staged">
             <div class="panel-header">
               <h3 class="panel-title">
-                <span class="panel-icon">🟡</span> Staged & Commit
+                <span class="panel-icon">${ICON_STAGED}</span> Staged & Commit
               </h3>
               <span class="panel-count" id="stagedCount">0 files</span>
             </div>
@@ -95,7 +107,7 @@ class GitToolUI {
               <div class="commit-box">
                 <div class="commit-template-toggle">
                   <button id="useTemplateBtn" class="commit-toggle-btn" title="Toggle commit template">
-                    <span class="toggle-icon">☰</span>
+                    <span class="toggle-icon">${ICON_MENU}</span>
                     <span class="toggle-label">Use Template</span>
                   </button>
                 </div>
@@ -145,7 +157,7 @@ class GitToolUI {
                     <span>Push after commit</span>
                   </label>
                   <button id="commitBtn" class="btn btn-primary commit-btn" disabled>
-                    <span class="btn-icon">✓</span> Commit
+                    <span class="btn-icon">${ICON_CHECK}</span> Commit
                   </button>
                 </div>
               </div>
@@ -157,7 +169,7 @@ class GitToolUI {
             <div class="panel-header">
               <div class="panel-title-row">
                 <h3 class="panel-title">
-                  <span class="panel-icon">🟢</span> Commits
+                  <span class="panel-icon">${ICON_HISTORY}</span> Commits
                 </h3>
                 <div class="history-view-switcher">
                   <button class="view-tab" data-view="history">History</button>
@@ -169,7 +181,7 @@ class GitToolUI {
             <div class="panel-body">
               <div class="push-all-row" id="pushAllRow" style="display:none">
                 <button id="pushAllBtn" class="btn btn-primary push-all-btn">
-                  <span>↑</span> Push All Unpushed
+                  <span class="btn-icon">${ICON_ARROW_UP}</span> Push All Unpushed
                 </button>
               </div>
               <div id="commitHistoryList" class="commit-list">
@@ -480,7 +492,8 @@ class GitToolUI {
 
     const isHidden = filesDiv.style.display === 'none';
     filesDiv.style.display = isHidden ? 'block' : 'none';
-    btn.innerHTML = isHidden ? '<span>📁</span> Hide Files' : '<span>📁</span> View Files';
+    const folderIcon = '<span class="btn-icon">' + ICON_FOLDER + '</span>';
+    btn.innerHTML = isHidden ? folderIcon + ' Hide Files' : folderIcon + ' View Files';
   }
 
   /**
@@ -568,7 +581,7 @@ renderWorkingTree(files) {
           </span>
           <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
           <button class="stage-btn btn-icon-small" data-file="${file.file}" title="Stage file">
-            <span>→</span>
+            ${ICON_ARROW_RIGHT}
           </button>
         </div>
       `).join('')}
@@ -601,7 +614,7 @@ renderWorkingTree(files) {
         </span>
         <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
         <button class="unstage-btn btn-icon-small" data-file="${file.file}" title="Unstage file">
-          <span>←</span>
+          ${ICON_ARROW_LEFT}
         </button>
       </div>
     `).join('');
@@ -656,11 +669,11 @@ renderWorkingTree(files) {
         <div class="commit-message">${this.escapeHtml(commit.message)}</div>
         <div class="commit-actions">
           <button class="view-files-btn btn btn-small" data-commit-id="${commit.id}" title="View files">
-            <span>📁</span> View Files
+            <span class="btn-icon">${ICON_FOLDER}</span> View Files
           </button>
           ${!commit.pushed && !isHistory ? `
             <button class="push-btn btn btn-small" data-commit-id="${commit.id}" title="Push commit">
-              <span>↑</span> Push
+              <span class="btn-icon">${ICON_ARROW_UP}</span> Push
             </button>
           ` : ''}
         </div>

@@ -114,11 +114,6 @@ class GitOperations {
    */
   async commit(message, filePaths = []) {
     try {
-      // Stage files if provided
-      if (filePaths.length > 0) {
-        await this.git.add(filePaths);
-      }
-
       const result = await this.git.commit(message);
       
       return {

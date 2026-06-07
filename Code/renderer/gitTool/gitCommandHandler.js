@@ -56,18 +56,19 @@ class GitCommandHandler {
       }
 
       // First try actual git staging if available
-      let gitResult = null;
       if (this.ipc?.stage) {
-        gitResult = await this.ipc.stage(this.repoPath, filePaths);
+        const gitResult = await this.ipc.stage(this.repoPath, filePaths);
+        if (!gitResult.success) {
+          return { error: gitResult.error || 'Failed to stage files' };
+        }
       }
 
-      // Also update local state
+      // Update local state
       const localResult = this.gitManager.stageFiles(filePaths);
       
       return {
         success: true,
         staged: this.gitManager.stagedFiles,
-        gitResult
       };
     } catch (error) {
       console.error('Error staging files:', error);
@@ -86,7 +87,10 @@ class GitCommandHandler {
 
       // Try actual git unstaging if available
       if (this.ipc?.unstage) {
-        await this.ipc.unstage(this.repoPath, filePaths);
+        const gitResult = await this.ipc.unstage(this.repoPath, filePaths);
+        if (!gitResult.success) {
+          return { error: gitResult.error || 'Failed to unstage files' };
+        }
       }
 
       // Update local state
@@ -116,26 +120,30 @@ class GitCommandHandler {
       }
 
       // Try actual git commit if available
-      let gitResult = null;
       if (this.ipc?.commit) {
         const stagedPaths = this.gitManager.stagedFiles.map(f => f.file);
-        gitResult = await this.ipc.commit(this.repoPath, message, stagedPaths);
+        const gitResult = await this.ipc.commit(this.repoPath, message, stagedPaths);
+        if (!gitResult.success) {
+          return { error: gitResult.error || 'Commit failed' };
+        }
       }
 
       // Update local state
       const commit = this.gitManager.createCommit(message, options);
 
+      // Re-sync with real git state after commit
+      await this.getStatus();
+
       // If push after commit is enabled
       if (options.pushAfter && this.ipc?.push) {
-        await this.ipc.push(this.repoPath);
-        if (commit.commit) {
+        const pushResult = await this.ipc.push(this.repoPath);
+        if (pushResult.success && commit.commit) {
           commit.commit.pushed = true;
         }
       }
 
       return {
-        ...commit,
-        gitResult
+        ...commit
       };
     } catch (error) {
       console.error('Error creating commit:', error);

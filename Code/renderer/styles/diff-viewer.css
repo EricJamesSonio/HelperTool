@@ -373,3 +373,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.dv-finding-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+.dv-finding-clickable:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+}
+
+/* -- View Mode: single panel fills full width -- */
+.dv-panel-full {
+  flex: 1 1 100%;
+  max-width: 100%;
+  width: 100%;
+}

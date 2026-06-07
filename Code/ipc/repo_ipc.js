@@ -137,6 +137,15 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    ipcMain.handle('read-file', async (event, filePath) => {
+        try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            return { success: true, content };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
     ipcMain.handle('save-file-dialog', async () => {
         const tempFile = path.join(app.getPath('temp'), 'helper-output.txt');
         return { filePath: tempFile };
