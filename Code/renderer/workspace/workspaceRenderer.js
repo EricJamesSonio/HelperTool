@@ -15,6 +15,26 @@ import { getTicketsByProject, createTicket, updateTicket,
          TICKET_PRIORITIES, STATUS_COLORS, PRIORITY_COLORS }      from './ticketManager.js';
 import { confirmDialog }                                          from '../utils/confirmDialog.js';
 
+// ─── SVG Icons ───────────────────────────────────────────────────────────────
+
+const ICON_HOME = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l7-7 7 7"/><path d="M5 7v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7"/></svg>';
+const ICON_PROJECTS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/></svg>';
+const ICON_WORKERS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M14 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M1 18v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M14 14a4 4 0 0 1 4 4v2"/></svg>';
+const ICON_LOGS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="15" rx="2"/><path d="M8 1v4h4V1"/><path d="M7 9h6"/><path d="M7 12h6"/><path d="M7 15h4"/></svg>';
+const ICON_ARROW_RIGHT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10h10"/><path d="m10 5 5 5-5 5"/></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3.5a2.12 2.12 0 0 1 3 3L5.5 19l-4 1 1-4Z"/></svg>';
+const ICON_DELETE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M5 5v11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V5"/></svg>';
+const ICON_DATABASE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v12c0 1.1 3.1 2 7 2s7-.9 7-2V4"/><path d="M3 10c0 1.1 3.1 2 7 2s7-.9 7-2"/></svg>';
+const ICON_FOLDER_OPEN = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg>';
+const ICON_PLANNING = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h4.5L15 7.5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M10.5 2v5.5H16"/><path d="M7 11h4"/><path d="M7 14h4"/></svg>';
+const ICON_TICKET = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 8h4"/><path d="M8 11h4"/><path d="M8 14h2"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12"/><path d="M4 10h12"/></svg>';
+const ICON_CODEBASE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12v12H4z"/><path d="M8 8h4"/><path d="M8 11h4"/><path d="M8 14h2"/></svg>';
+const ICON_DESIGN = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 2v8"/><path d="M10 10a4 4 0 0 1 4 4"/><path d="M2 10h6"/><path d="M12 10h6"/></svg>';
+const ICON_GEAR = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v3"/><path d="M10 16v3"/><path d="M3.5 3.5l2 2"/><path d="M14.5 14.5l2 2"/><path d="M1 10h3"/><path d="M16 10h3"/><path d="M3.5 16.5l2-2"/><path d="M14.5 5.5l2-2"/></svg>';
+const ICON_BACK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10H5"/><path d="m10 5-5 5 5 5"/></svg>';
+const ICON_REMOVE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
+
 // ─── Nav state ────────────────────────────────────────────────────────────────
 
 let _view            = 'home';
@@ -50,15 +70,15 @@ function _renderNavbar() {
   if (!nav) return;
 
   nav.innerHTML = `
-    ${_view !== 'home' ? `<button class="workspace-back-btn" id="wsBackBtn">← Back</button>` : ''}
+    ${_view !== 'home' ? `<button class="workspace-back-btn" id="wsBackBtn">${ICON_BACK} Back</button>` : ''}
     <h1 class="workspace-title">${_getNavTitle()}</h1>
     <div class="workspace-navbar-right">
       ${_view === 'home' ? `
-        <button class="workspace-nav-chip" data-goto="projects">📁 Projects</button>
-        <button class="workspace-nav-chip" data-goto="workers">👥 Workers</button>
-        <button class="workspace-nav-chip" data-goto="logs">📋 Logs</button>
+        <button class="workspace-nav-chip" data-goto="projects">${ICON_PROJECTS} Projects</button>
+        <button class="workspace-nav-chip" data-goto="workers">${ICON_WORKERS} Workers</button>
+        <button class="workspace-nav-chip" data-goto="logs">${ICON_LOGS} Logs</button>
       ` : ''}
-      <button class="workspace-close-btn" id="wsCloseBtn">✕</button>
+      <button class="workspace-close-btn" id="wsCloseBtn">${ICON_REMOVE}</button>
     </div>
   `;
 
@@ -77,11 +97,11 @@ function _renderNavbar() {
 
 function _getNavTitle() {
   switch (_view) {
-    case 'home':           return '🏠 Workspace';
-    case 'projects':       return '📁 Projects';
-    case 'workers':        return '👥 Workers';
-    case 'logs':           return '📋 Global Logs';
-    case 'project-details':return _selectedProject ? `📁 ${_selectedProject.title}` : '📁 Project';
+    case 'home':           return `${ICON_HOME} Workspace`;
+    case 'projects':       return `${ICON_PROJECTS} Projects`;
+    case 'workers':        return `${ICON_WORKERS} Workers`;
+    case 'logs':           return `${ICON_LOGS} Global Logs`;
+    case 'project-details':return _selectedProject ? `${ICON_PROJECTS} ${_selectedProject.title}` : `${ICON_PROJECTS} Project`;
     default:               return 'Workspace';
   }
 }
@@ -146,33 +166,33 @@ function _renderHome(body) {
         <div class="ws-home-nav-cards">
           <button class="ws-home-card" data-goto="projects">
             <div class="ws-home-card-left">
-              <span class="ws-home-card-icon">📁</span>
+              <span class="ws-home-card-icon">${ICON_PROJECTS}</span>
               <div>
                 <div class="ws-home-card-label">Projects</div>
                 <div class="ws-home-card-sub">${state.projects.length} total · ${activeProjects} active</div>
               </div>
             </div>
-            <span class="ws-home-card-arrow">→</span>
+            <span class="ws-home-card-arrow">${ICON_ARROW_RIGHT}</span>
           </button>
           <button class="ws-home-card" data-goto="workers">
             <div class="ws-home-card-left">
-              <span class="ws-home-card-icon">👥</span>
+              <span class="ws-home-card-icon">${ICON_WORKERS}</span>
               <div>
                 <div class="ws-home-card-label">Workers</div>
                 <div class="ws-home-card-sub">${state.workers.length} team members</div>
               </div>
             </div>
-            <span class="ws-home-card-arrow">→</span>
+            <span class="ws-home-card-arrow">${ICON_ARROW_RIGHT}</span>
           </button>
           <button class="ws-home-card" data-goto="logs">
             <div class="ws-home-card-left">
-              <span class="ws-home-card-icon">📋</span>
+              <span class="ws-home-card-icon">${ICON_LOGS}</span>
               <div>
                 <div class="ws-home-card-label">Activity Log</div>
                 <div class="ws-home-card-sub">${state.globalLogs.length} events</div>
               </div>
             </div>
-            <span class="ws-home-card-arrow">→</span>
+            <span class="ws-home-card-arrow">${ICON_ARROW_RIGHT}</span>
           </button>
         </div>
 
@@ -196,7 +216,7 @@ function _renderHome(body) {
           }
         </div>
         ${state.globalLogs.length > 4 ? `
-          <button class="ws-home-view-all" data-goto="logs">View all activity →</button>
+          <button class="ws-home-view-all" data-goto="logs">View all activity ${ICON_ARROW_RIGHT}</button>
         ` : ''}
       </div>
 
@@ -218,7 +238,7 @@ function _renderProjectsList(body) {
     <div class="ws-add-project-form">
       <input type="text" id="newProjectTitle" placeholder="Project title..." class="workspace-input" />
       <input type="text" id="newProjectDesc"  placeholder="Short description (optional)..." class="workspace-input" />
-      <button class="workspace-btn-add" id="addProjectBtn">+ Add Project</button>
+      <button class="workspace-btn-add" id="addProjectBtn">${ICON_PLUS} Add Project</button>
     </div>
     <div class="workspace-form-error" id="addProjectError"></div>
   `;
@@ -262,14 +282,14 @@ function _buildProjectCard(project) {
   card.innerHTML = `
     <div class="workspace-card-header">
       <div class="workspace-card-title">${project.title}</div>
-      <button class="workspace-card-edit" title="Edit">✏️</button>
-      <button class="workspace-card-delete" title="Delete">🗑️</button>
+      <button class="workspace-card-edit" title="Edit">${ICON_EDIT}</button>
+      <button class="workspace-card-delete" title="Delete">${ICON_DELETE}</button>
     </div>
-    ${project.description ? `<div class="ws-project-desc">${project.description}</div>` : ''}
+    <div class="ws-project-desc">${_esc(project.description) || ''}</div>
     <div class="ws-project-status-badge ws-status-${project.status}">${project.status}</div>
     <div class="ws-project-meta">
-      <span>👥 ${workerCnt} worker${workerCnt !== 1 ? 's' : ''}</span>
-      <span>🎫 ${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}</span>
+      <span>${ICON_WORKERS} ${workerCnt} worker${workerCnt !== 1 ? 's' : ''}</span>
+      <span>${ICON_TICKET} ${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}</span>
     </div>
     <div class="ws-progress-bar-wrap"><div class="ws-progress-bar" style="width:${progress}%"></div></div>
     <div class="ws-progress-label">${progress}% complete</div>
@@ -345,7 +365,7 @@ function _renderWorkersList(body) {
         <option value="">Select role...</option>
         ${WORKER_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}
       </select>
-      <button class="workspace-btn-add" id="addWorkerBtn">+ Add Worker</button>
+      <button class="workspace-btn-add" id="addWorkerBtn">${ICON_PLUS} Add Worker</button>
     </div>
     <div class="workspace-form-error" id="addWorkerError"></div>
   `;
@@ -389,8 +409,8 @@ function _buildWorkerCard(worker) {
     <div class="workspace-card-header">
       <div class="ws-worker-avatar" style="background:${worker.avatarColor}">${worker.name.charAt(0).toUpperCase()}</div>
       <div class="workspace-card-title">${worker.name}</div>
-      <button class="workspace-card-edit" title="Edit">✏️</button>
-      <button class="workspace-card-delete" title="Delete">🗑️</button>
+      <button class="workspace-card-edit" title="Edit">${ICON_EDIT}</button>
+      <button class="workspace-card-delete" title="Delete">${ICON_DELETE}</button>
     </div>
     <div class="workspace-card-role">${worker.role}</div>
     <div class="workspace-card-stats">
@@ -474,13 +494,13 @@ function _renderProjectDetails(body) {
   if (!_selectedProject) { _view = 'projects'; render(); return; }
 
   const tabs = [
-    { key: 'overview', label: '📄 Overview'  },
-    { key: 'workers',  label: '👥 Workers'   },
-    { key: 'tickets',  label: '🎫 Tickets'   },
-    { key: 'db',       label: '🗄️ Database'  },
-    { key: 'folders',  label: '📂 Folders'   },
-    { key: 'plannings', label: '📝 Plannings' },
-    { key: 'logs',      label: '📋 Logs'     },
+    { key: 'overview', label: 'Overview'  },
+    { key: 'workers',  label: `${ICON_WORKERS} Workers`   },
+    { key: 'tickets',  label: `${ICON_TICKET} Tickets`   },
+    { key: 'db',       label: `${ICON_DATABASE} Database`  },
+    { key: 'folders',  label: `${ICON_FOLDER_OPEN} Folders`   },
+    { key: 'plannings', label: `${ICON_PLANNING} Plannings` },
+    { key: 'logs',      label: `${ICON_LOGS} Logs`     },
   ];
 
   const tabBar = document.createElement('div');
@@ -488,7 +508,8 @@ function _renderProjectDetails(body) {
   tabs.forEach(t => {
     const btn = document.createElement('button');
     btn.className = `ws-tab-btn ${_projectTab === t.key ? 'active' : ''}`;
-    btn.textContent = t.label;
+    btn.dataset.key = t.key;
+    btn.innerHTML = t.label;
     btn.addEventListener('click', () => { _projectTab = t.key; render(); });
     tabBar.appendChild(btn);
   });
@@ -561,7 +582,7 @@ function _renderTabWorkers(el) {
         <option value="">${unassigned.length === 0 ? 'All workers assigned' : 'Select worker...'}</option>
         ${unassigned.map(w => `<option value="${w.id}">${w.name} — ${w.role}</option>`).join('')}
       </select>
-      <button class="workspace-btn-add" id="assignWorkerBtn" ${unassigned.length === 0 ? 'disabled' : ''}>+ Assign</button>
+      <button class="workspace-btn-add" id="assignWorkerBtn" ${unassigned.length === 0 ? 'disabled' : ''}>${ICON_PLUS} Assign</button>
       <div class="workspace-form-error" id="assignWorkerError"></div>
     </div>
   `;
@@ -600,7 +621,7 @@ function _renderTabWorkers(el) {
           <span class="ws-assigned-role">${worker.role}</span>
         </div>
         <span class="ws-assigned-tickets">${ticketCount} ticket${ticketCount !== 1 ? 's' : ''}</span>
-        <button class="workspace-card-delete ws-remove-worker-btn" data-wid="${wid}" title="Remove">✕</button>
+        <button class="workspace-card-delete ws-remove-worker-btn" data-wid="${wid}" title="Remove">${ICON_REMOVE}</button>
       `;
       row.querySelector('.ws-remove-worker-btn').addEventListener('click', async () => {
         const ok = await confirmDialog(`Remove ${worker.name} from this project?`);
@@ -638,7 +659,7 @@ function _renderTabTickets(el) {
         <option value="high">High</option>
         <option value="critical">Critical</option>
       </select>
-      <button class="workspace-btn-add" id="addTicketBtn">+ Add</button>
+      <button class="workspace-btn-add" id="addTicketBtn">${ICON_PLUS} Add</button>
     </div>
     <textarea id="newTicketDesc" placeholder="Description (optional)..." class="workspace-textarea" rows="2" style="margin-top:10px;width:100%;box-sizing:border-box"></textarea>
     <div class="workspace-form-error" id="addTicketError"></div>
@@ -705,8 +726,8 @@ function _buildKanbanCard(ticket, workers, project) {
         ${ticket.priority}
       </span>
       <div class="ws-kanban-card-actions">
-        <button class="workspace-ticket-edit"   title="Edit">✏️</button>
-        <button class="workspace-ticket-delete" title="Delete">🗑️</button>
+        <button class="workspace-ticket-edit"   title="Edit">${ICON_EDIT}</button>
+        <button class="workspace-ticket-delete" title="Delete">${ICON_DELETE}</button>
       </div>
     </div>
 
@@ -859,7 +880,7 @@ function _renderTabFolders(el) {
 
       <div class="ws-folder-panel">
         <div class="ws-folder-panel-header">
-          <span class="ws-folder-panel-icon">🗂️</span>
+          <span class="ws-folder-panel-icon">${ICON_CODEBASE}</span>
           <div>
             <div class="ws-folder-panel-title">Full Codebase</div>
             <div class="ws-folder-panel-sub">Root / monorepo structure</div>
@@ -871,7 +892,7 @@ function _renderTabFolders(el) {
 
       <div class="ws-folder-panel">
         <div class="ws-folder-panel-header">
-          <span class="ws-folder-panel-icon">🎨</span>
+          <span class="ws-folder-panel-icon">${ICON_DESIGN}</span>
           <div>
             <div class="ws-folder-panel-title">Frontend</div>
             <div class="ws-folder-panel-sub">UI / client-side structure</div>
@@ -883,7 +904,7 @@ function _renderTabFolders(el) {
 
       <div class="ws-folder-panel">
         <div class="ws-folder-panel-header">
-          <span class="ws-folder-panel-icon">⚙️</span>
+          <span class="ws-folder-panel-icon">${ICON_GEAR}</span>
           <div>
             <div class="ws-folder-panel-title">Backend</div>
             <div class="ws-folder-panel-sub">Server / API structure</div>
@@ -924,12 +945,11 @@ function _renderTabPlannings(el) {
   const container = document.createElement('div');
   container.style.cssText = 'display:flex;gap:16px;flex:1;min-height:0;';
 
-  // ── Left sidebar ──
   const sidebar = document.createElement('div');
   sidebar.style.cssText = 'width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;background:var(--bg-elevated,#111d34);border:1px solid var(--border-default,rgba(255,255,255,0.09));border-radius:14px;padding:14px;overflow-y:auto;';
 
   const sidebarTitle = document.createElement('div');
-  sidebarTitle.style.cssText = 'font-weight:600;font-size:0.85rem;color:var(--text-secondary,#a0b0d8);padding-bottom:8px;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;';
+  sidebarTitle.style.cssText = 'font-weight:600;font-size:0.85rem;color:var(--text-secondary,#a0b0d8);padding-bottom:8px;margin-bottom:2px;border-bottom:1px solid var(--border-subtle,rgba(255,255,255,0.07));flex-shrink:0;';
   sidebarTitle.textContent = 'Plans';
   sidebar.appendChild(sidebarTitle);
 
@@ -938,7 +958,7 @@ function _renderTabPlannings(el) {
     const displayName = note.title || note.content?.split('\n')[0]?.trim() || `Note ${i + 1}`;
     item.textContent = displayName;
     const selected = note.id === _selectedNoteId;
-    item.style.cssText = `padding:8px 10px;border-radius:8px;cursor:pointer;font-size:0.83rem;word-break:break-word;transition:all 0.12s;${selected ? 'background:var(--accent,#f0b429);color:#000;font-weight:600;' : 'color:var(--text-primary,#eef2ff);background:transparent;'}`;
+    item.style.cssText = `padding:8px 10px;border-radius:8px;cursor:pointer;font-size:0.83rem;word-break:break-word;transition:all 0.12s;${selected ? 'background:var(--accent);color:var(--accent-text,#000);font-weight:600;' : 'color:var(--text-primary,#eef2ff);background:transparent;'}`;
     if (!selected) {
       item.addEventListener('mouseenter', () => { item.style.background = 'rgba(255,255,255,0.06)'; });
       item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
@@ -948,7 +968,7 @@ function _renderTabPlannings(el) {
   });
 
   const addBtn = document.createElement('button');
-  addBtn.textContent = '+ Add';
+  addBtn.innerHTML = `${ICON_PLUS} Add`;
   addBtn.className = 'workspace-btn-add';
   addBtn.style.cssText = 'margin-top:auto;width:100%;flex-shrink:0;';
   addBtn.addEventListener('click', () => {
@@ -983,8 +1003,8 @@ function _renderTabPlannings(el) {
     rightHeader.appendChild(titleInput);
 
     const delBtn = document.createElement('button');
-    delBtn.textContent = '✕';
-    delBtn.style.cssText = 'background:transparent;border:1px solid rgba(255,80,80,0.3);color:#ff5050;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:0.85rem;margin-left:10px;flex-shrink:0;';
+    delBtn.innerHTML = ICON_REMOVE;
+    delBtn.style.cssText = 'background:transparent;border:1px solid var(--red-dim,rgba(255,80,80,0.3));color:var(--red,#ff5050);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:0.85rem;margin-left:10px;flex-shrink:0;';
     delBtn.addEventListener('mouseenter', () => { delBtn.style.background = 'rgba(255,80,80,0.1)'; });
     delBtn.addEventListener('mouseleave', () => { delBtn.style.background = 'transparent'; });
     delBtn.addEventListener('click', () => {
@@ -1075,7 +1095,7 @@ function _createModal(title, bodyHtml, onSave) {
     <div class="workspace-modal">
       <div class="workspace-modal-header">
         <h2>${title}</h2>
-        <button class="workspace-modal-close">✕</button>
+        <button class="workspace-modal-close">${ICON_REMOVE}</button>
       </div>
       <div class="workspace-modal-form">${bodyHtml}</div>
       <div class="workspace-form-error" id="${errId}"></div>

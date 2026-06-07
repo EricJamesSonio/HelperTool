@@ -11,6 +11,17 @@
 
 import { confirmDialog } from './utils/confirmDialog.js';
 
+const ICON_WORKERS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M14 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M1 18v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M14 14a4 4 0 0 1 4 4v2"/></svg>';
+const ICON_LOGS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="15" rx="2"/><path d="M8 1v4h4V1"/><path d="M7 9h6"/><path d="M7 12h6"/><path d="M7 15h4"/></svg>';
+const ICON_ARROW_LEFT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10H5"/><path d="m10 5-5 5 5 5"/></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3.5a2.12 2.12 0 0 1 3 3L5.5 19l-4 1 1-4Z"/></svg>';
+const ICON_DELETE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M5 5v11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V5"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12"/><path d="M4 10h12"/></svg>';
+const ICON_USER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M3 18v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/></svg>';
+const ICON_TICKET = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 8h4"/><path d="M8 11h4"/><path d="M8 14h2"/></svg>';
+const ICON_SYNC = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10a8 8 0 0 1 16 0"/><path d="M18 10a8 8 0 0 1-16 0"/><path d="M18 6v4h-4"/><path d="M2 14v-4h4"/></svg>';
+const ICON_NOTE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h4.5L15 7.5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M10.5 2v5.5H16"/><path d="M7 11h6"/><path d="M7 14h4"/></svg>';
+
 const WORKER_ROLES = [
   'developer',
   'product manager',
@@ -312,10 +323,10 @@ function _ensureWorkspacePanel() {
   container.innerHTML = `
     <div class="workspace-content">
       <div class="workspace-navbar">
-        <button class="workspace-back-btn" id="workspaceBackBtn" style="display:none;">← Back</button>
-        <h1 class="workspace-title" id="workspaceTitle">👥 Workers</h1>
+        <button class="workspace-back-btn" id="workspaceBackBtn" style="display:none;">${ICON_ARROW_LEFT} Back</button>
+        <h1 class="workspace-title" id="workspaceTitle">${ICON_WORKERS} Workers</h1>
         <div class="workspace-navbar-right">
-          <button class="workspace-logs-btn" id="workspaceLogsBtn" title="View audit logs">📋 Logs</button>
+          <button class="workspace-logs-btn" id="workspaceLogsBtn" title="View audit logs">${ICON_LOGS} Logs</button>
           <button class="workspace-close-btn" id="workspaceCloseBtn">✕</button>
         </div>
       </div>
@@ -348,7 +359,7 @@ function _renderWorkersList() {
   const body = document.getElementById('workspaceBody');
 
   if (backBtn) backBtn.style.display = 'none';
-  if (titleEl) titleEl.textContent = '👥 Workers';
+  if (titleEl) titleEl.innerHTML = ICON_WORKERS + ' Workers';
 
   body.innerHTML = '';
 
@@ -368,7 +379,7 @@ function _renderWorkersList() {
         ${WORKER_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}
       </select>
       <div class="workspace-form-error" id="addWorkerError"></div>
-      <button type="submit" class="workspace-btn-add">+ Add Worker</button>
+      <button type="submit" class="workspace-btn-add">${ICON_PLUS} Add Worker</button>
     </form>
   `;
   body.appendChild(formSection);
@@ -413,8 +424,8 @@ function _createWorkerCard(worker) {
   card.innerHTML = `
     <div class="workspace-card-header">
       <div class="workspace-card-title">${worker.name}</div>
-      <button class="workspace-card-edit" title="Edit worker">✏️</button>
-      <button class="workspace-card-delete" title="Delete worker">🗑️</button>
+      <button class="workspace-card-edit" title="Edit worker">${ICON_EDIT}</button>
+      <button class="workspace-card-delete" title="Delete worker">${ICON_DELETE}</button>
     </div>
     <div class="workspace-card-role">${worker.role}</div>
     <div class="workspace-card-stats">
@@ -423,7 +434,7 @@ function _createWorkerCard(worker) {
         <span class="workspace-stat-label">Tickets</span>
       </div>
       <div class="workspace-stat">
-        <span class="workspace-stat-value" style="color: #34d399;">${completedCount}</span>
+        <span class="workspace-stat-value" style="color: var(--green);">${completedCount}</span>
         <span class="workspace-stat-label">Completed</span>
       </div>
     </div>
@@ -524,9 +535,6 @@ function _renderWorkerDetails() {
 
   body.innerHTML = '';
 
-  const formSection = document.createElement('div');
-  formSection.className = 'workspace-form-section';
-  
 // ... (existing code above) ...
 
   const formSection = document.createElement('div');
@@ -552,7 +560,7 @@ function _renderWorkerDetails() {
           ></textarea>
         </div>
         <div class="workspace-form-error" id="ticketFormError"></div>
-        <button type="submit" class="workspace-btn-add">+ Create Ticket</button>
+        <button type="submit" class="workspace-btn-add">${ICON_PLUS} Create Ticket</button>
       </form>
     `;
   
@@ -658,27 +666,26 @@ function _showEditTicketModal(ticket) {
 function _createTicketElement(ticket) {
   const el = document.createElement('div');
   el.className = `workspace-ticket-item status-${ticket.status}`;
-  el.style.borderLeftColor = STATUS_COLORS[ticket.status];
 
   el.innerHTML = `
     <div class="workspace-ticket-content">
       <div class="workspace-ticket-title">${ticket.title}</div>
       ${ticket.notes ? `<div class="workspace-ticket-notes">${ticket.notes}</div>` : ''}
       <div class="workspace-ticket-meta">
-        <span class="workspace-ticket-status" style="background-color: ${STATUS_COLORS[ticket.status]}40;">
+        <span class="workspace-ticket-status ws-status-${ticket.status}">
           ${ticket.status}
         </span>
         <span class="workspace-ticket-date">${new Date(ticket.updatedAt).toLocaleDateString()}</span>
       </div>
     </div>
     <div class="workspace-ticket-actions">
-      <button class="workspace-ticket-edit" title="Edit ticket">✏️</button>
+      <button class="workspace-ticket-edit" title="Edit ticket">${ICON_EDIT}</button>
       <select class="workspace-status-select" value="${ticket.status}">
         <option value="pending">pending</option>
         <option value="in-progress">in-progress</option>
         <option value="complete">complete</option>
       </select>
-      <button class="workspace-ticket-delete" title="Delete ticket">🗑️</button>
+      <button class="workspace-ticket-delete" title="Delete ticket">${ICON_DELETE}</button>
     </div>
   `;
 
@@ -709,7 +716,7 @@ function _showAuditLogs() {
   modal.innerHTML = `
     <div class="workspace-modal workspace-modal-logs">
       <div class="workspace-modal-header">
-        <h2>📋 Audit Logs</h2>
+        <h2>${ICON_LOGS} Audit Logs</h2>
         <button class="workspace-modal-close">✕</button>
       </div>
       <div class="workspace-logs-container" id="logsContainer"></div>
@@ -743,37 +750,37 @@ function _createLogElement(log) {
   const timeStr = date.toLocaleTimeString();
   const dateStr = date.toLocaleDateString();
   
-  let icon = '📝';
+  let icon = ICON_NOTE;
   let message = '';
   const d = log.details;
 
   switch (log.action) {
     case 'WORKER_CREATED':
-      icon = '👤';
+      icon = ICON_USER;
       message = `Created worker <strong>${d.workerName}</strong> (${d.workerRole})`;
       break;
     case 'WORKER_UPDATED':
-      icon = '✏️';
+      icon = ICON_EDIT;
       message = `Updated worker <strong>${d.newName}</strong>: ${d.oldName !== d.newName ? `name changed, ` : ''}role ${d.oldRole} → ${d.newRole}`;
       break;
     case 'WORKER_DELETED':
-      icon = '🗑️';
+      icon = ICON_DELETE;
       message = `Deleted worker <strong>${d.workerName}</strong> (${d.affectedTicketsCount} tickets removed)`;
       break;
     case 'TICKET_CREATED':
-      icon = '🎫';
+      icon = ICON_TICKET;
       message = `Created ticket <strong>"${d.ticketTitle}"</strong> for <strong>${d.workerName}</strong>`;
       break;
     case 'TICKET_UPDATED':
-      icon = '✏️';
+      icon = ICON_EDIT;
       message = `Updated ticket <strong>"${d.ticketTitle}"</strong>: ${d.changes}`;
       break;
     case 'TICKET_STATUS_CHANGED':
-      icon = '🔄';
+      icon = ICON_SYNC;
       message = `Status changed for <strong>"${d.ticketTitle}"</strong>: ${d.oldStatus} → ${d.newStatus}`;
       break;
     case 'TICKET_DELETED':
-      icon = '🗑️';
+      icon = ICON_DELETE;
       message = `Deleted ticket <strong>"${d.ticketTitle}"</strong> from ${d.workerName}`;
       break;
   }

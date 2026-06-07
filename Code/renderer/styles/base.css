@@ -1057,3 +1057,19 @@ body {
   background: var(--border-subtle);
   margin: 4px 0;
 }
+
+/* ── Icon System ──────────────────────────────────────────── */
+/* Sizes */
+.icon--xs { width: 14px; height: 14px; }
+.icon--sm { width: 16px; height: 16px; }
+.icon--md { width: 20px; height: 20px; }
+.icon--lg { width: 24px; height: 24px; }
+
+/* Colors (for SVG parents with currentColor) */
+.icon-accent { color: var(--accent) !important; }
+.icon-green  { color: var(--green) !important; }
+.icon-red    { color: var(--red) !important; }
+.icon-gold   { color: var(--yellow) !important; }
+.icon-blue   { color: var(--blue) !important; }
+.icon-purple { color: var(--purple) !important; }
+.icon-muted  { color: var(--text-muted) !important; }

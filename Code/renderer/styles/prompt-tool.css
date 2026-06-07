@@ -26,6 +26,7 @@
     font-family: var(--font-ui); font-size: 16px; font-weight: 700;
     color: var(--text-primary);
 }
+.pt-title svg { width: 20px; height: 20px; display: block; color: var(--accent); }
 
 .pt-main {
     display: flex; flex: 1;
@@ -46,19 +47,21 @@
     padding: 12px 14px;
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border-subtle);
-    display: flex; align-items: center;
+    display: flex; align-items: center; gap: 8px;
 }
 
 .pt-sidebar-title {
     font-family: var(--font-ui); font-size: 11px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent);
 }
 
 .pt-back-btn {
     background: none; border: none; color: var(--text-secondary);
     cursor: pointer; font-size: 12px; padding: 2px 0; margin-right: 8px;
     font-family: var(--font-ui);
+    display: inline-flex; align-items: center; gap: 4px;
 }
+.pt-back-btn svg { width: 14px; height: 14px; display: block; }
 .pt-back-btn:hover { color: var(--accent); }
 
 .pt-cat-list { flex: 1; overflow-y: auto; padding: 6px; }
@@ -105,7 +108,8 @@
     align-items: center; justify-content: center;
     gap: 12px; color: var(--text-muted);
 }
-.pt-no-cat-icon { font-size: 32px; opacity: 0.5; }
+.pt-no-cat-icon { display: flex; align-items: center; opacity: 0.5; }
+.pt-no-cat-icon svg { width: 32px; height: 32px; display: block; }
 .pt-no-cat-text { font-size: 14px; }
 
 .pt-prompt-list-wrap {
@@ -160,6 +164,19 @@
 
 .pt-actions { display: flex; gap: 10px; margin-top: 10px; }
 
+/* SVG sizing for buttons */
+.pt-add-cat .sh-btn svg,
+.pt-actions .sh-btn svg,
+.pt-editor-row .sh-btn svg { width: 14px; height: 14px; display: block; }
+
+/* Modal close btn SVG */
+.modal-close-btn { display: flex; align-items: center; justify-content: center; }
+.modal-close-btn svg { width: 14px; height: 14px; display: block; }
+
+/* Cat rename SVG */
+.pt-cat-rename svg { width: 12px; height: 12px; display: block; color: var(--text-muted); }
+.pt-cat-item:hover .pt-cat-rename svg { color: var(--accent); }
+
 /* PICKER MODAL */
 .pt-selection-modal {
     width: 90%; max-width: 1000px; height: 80vh;
@@ -168,6 +185,9 @@
 .pt-selection-body { display: flex; gap: 16px; flex: 1; overflow: hidden; padding: 16px; }
 .pt-selection-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .pt-selection-preview { width: 380px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Selection modal SVG sizing */
+.pt-selection-modal .modal-actions .modal-btn svg { width: 14px; height: 14px; display: block; }
 
 .pt-select-item {
     display: flex; gap: 12px; padding: 8px 12px; border-radius: var(--r-md);
