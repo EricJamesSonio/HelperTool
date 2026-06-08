@@ -7,11 +7,11 @@
   right: 0;
   height: 260px;
   z-index: 900;
-  background: var(--bg-surface);
-  border-top: 1px solid var(--border-default);
+  background: #0c0c0c;
+  border-top: 1px solid #333;
   display: none;
   flex-direction: column;
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
   animation: terminalSlideUp 0.18s ease-out;
 }
 
@@ -24,20 +24,23 @@
   display: flex;
 }
 
-/* ── Resize Handle ── */
+/* ── Resize Handle (always visible accent line) ── */
 .terminal-resize-handle {
   position: absolute;
-  top: -4px;
+  top: 0;
   left: 0;
   right: 0;
-  height: 8px;
+  height: 3px;
   cursor: ns-resize;
   z-index: 10;
   flex-shrink: 0;
+  background: #4a4a4a;
+  transition: background 0.15s;
 }
 .terminal-resize-handle:hover,
 .terminal-resize-handle:active {
-  background: var(--accent-dim);
+  background: var(--accent);
+  height: 4px;
 }
 
 /* ── Tab Bar ── */
@@ -45,10 +48,10 @@
   display: flex;
   align-items: center;
   gap: 0;
-  height: 36px;
-  padding: 0 8px;
-  background: var(--bg-base);
-  border-bottom: 1px solid var(--border-subtle);
+  min-height: 36px;
+  padding: 0 4px;
+  background: #1a1a1a;
+  border-bottom: 1px solid #333;
   flex-shrink: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -61,40 +64,58 @@
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 12px;
-  margin: 0 1px;
-  border: none;
-  border-radius: var(--r-xs) var(--r-xs) 0 0;
+  padding: 0 10px;
+  margin: 3px 0 0 2px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
   background: transparent;
-  color: var(--text-muted);
+  color: #999;
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
-  font-family: var(--font-mono);
-  transition: all var(--ease);
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  transition: all 0.1s;
   flex-shrink: 0;
+  position: relative;
 }
 .terminal-tab:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: #2a2a2a;
+  color: #ddd;
 }
 .terminal-tab.active {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
-  border-bottom-color: var(--bg-surface);
+  background: #0c0c0c;
+  color: #fff;
+  border-color: #444;
+  border-bottom-color: #0c0c0c;
+}
+.terminal-tab.active::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
 }
 
 .terminal-tab-icon {
   display: inline-flex;
   align-items: center;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 .terminal-tab-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   display: block;
+}
+
+.terminal-tab-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .terminal-tab-close {
@@ -106,20 +127,20 @@
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: var(--text-faint);
+  color: #666;
   cursor: pointer;
-  opacity: 0;
-  transition: all var(--ease);
+  opacity: 0.4;
+  transition: all 0.1s;
   flex-shrink: 0;
 }
 .terminal-tab:hover .terminal-tab-close,
 .terminal-tab.active .terminal-tab-close {
-  opacity: 0.6;
+  opacity: 0.7;
 }
 .terminal-tab-close:hover {
   opacity: 1 !important;
-  background: var(--red-dim);
-  color: var(--red);
+  background: rgba(241, 76, 76, 0.25);
+  color: #f14c4c;
 }
 .terminal-tab-close svg {
   width: 12px;
@@ -127,35 +148,63 @@
   display: block;
 }
 
+/* ── Add Terminal Button (+ Shell Name) ── */
 .terminal-tab-add {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: var(--r-xs);
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   background: transparent;
-  color: var(--text-muted);
+  color: #999;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all var(--ease);
-  margin-left: 4px;
+  transition: all 0.1s;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .terminal-tab-add:hover {
-  background: var(--bg-hover);
-  color: var(--accent);
+  background: #2a2a2a;
+  color: #fff;
+  border-color: #555;
 }
-.terminal-tab-add svg {
+.terminal-tab-add-icon {
+  display: inline-flex;
+  align-items: center;
+  width: 16px;
+  height: 16px;
+}
+.terminal-tab-add-icon svg {
   width: 16px;
   height: 16px;
   display: block;
 }
-
-.terminal-tab-shell {
+.terminal-tab-add-label {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.terminal-tab-add-chevron {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  width: 12px;
+  height: 12px;
+}
+.terminal-tab-add-chevron svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* ── Tab left spacer ── */
+.terminal-tabs-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 /* ── Tab right spacer ── */
@@ -163,22 +212,77 @@
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
-/* ── Dropdown (Shell Selector) ── */
+/* ── Shell Selector Button ── */
+.terminal-shell-select-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+.terminal-shell-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #999;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.terminal-shell-btn:hover {
+  background: #2a2a2a;
+  color: #ddd;
+  border-color: #555;
+}
+.terminal-shell-btn-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+}
+.terminal-shell-btn-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.terminal-shell-btn-label {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.terminal-shell-btn-chevron {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  align-items: center;
+}
+.terminal-shell-btn-chevron svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* ── Shell Dropdown (fixed position, placed by JS) ── */
 .terminal-shell-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 100;
+  position: fixed;
+  z-index: 9999;
   min-width: 180px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-lg);
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.5);
   padding: 4px;
   display: none;
+}
+.terminal-shell-dropdown.open {
+  display: block;
 }
 .terminal-shell-dropdown.open {
   display: block;
@@ -189,23 +293,28 @@
   gap: 8px;
   padding: 8px 12px;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: 4px;
   background: transparent;
-  color: var(--text-primary);
+  color: #ccc;
   font-size: 13px;
   cursor: pointer;
   width: 100%;
   text-align: left;
-  transition: background var(--ease);
+  transition: background 0.1s;
 }
 .terminal-shell-option:hover {
-  background: var(--bg-hover);
+  background: #2a2a2a;
+  color: #fff;
 }
-.terminal-shell-option svg {
+.terminal-shell-option-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+.terminal-shell-option-icon svg {
   width: 16px;
   height: 16px;
   display: block;
-  flex-shrink: 0;
 }
 
 /* ── Terminal Body ── */
@@ -231,7 +340,7 @@
 /* ── xterm overrides ── */
 .terminal-instance .xterm {
   height: 100%;
-  padding: 4px 0;
+  padding: 4px 0 4px 4px;
 }
 .terminal-instance .xterm-viewport {
   scrollbar-width: thin;
@@ -244,11 +353,11 @@
   background: transparent;
 }
 .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb {
-  background: var(--border-default);
+  background: #444;
   border-radius: 99px;
 }
 .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
+  background: #666;
 }
 
 /* ── Close Terminal Panel button ── */
@@ -256,18 +365,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: var(--r-xs);
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   background: transparent;
-  color: var(--text-muted);
+  color: #999;
   cursor: pointer;
-  transition: all var(--ease);
+  transition: all 0.1s;
 }
 .terminal-panel-close:hover {
-  background: var(--red-dim);
-  color: var(--red);
+  background: rgba(241, 76, 76, 0.2);
+  color: #f14c4c;
+  border-color: rgba(241, 76, 76, 0.3);
 }
 .terminal-panel-close svg {
   width: 16px;

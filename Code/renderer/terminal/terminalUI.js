@@ -11,7 +11,7 @@ async function ensureXterm() {
 
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = '../../node_modules/@xterm/xterm/css/xterm.css';
+  link.href = '../node_modules/@xterm/xterm/css/xterm.css';
   document.head.appendChild(link);
 
   xtermLoaded = true;
@@ -19,27 +19,27 @@ async function ensureXterm() {
 
 function getDarkTheme() {
   return {
-    background: '#1a1b26',
-    foreground: '#a9b1d6',
-    cursor: '#c0caf5',
-    cursorAccent: '#1a1b26',
-    selectionBackground: '#33467c',
-    black: '#1d202f',
-    red: '#f7768e',
-    green: '#9ece6a',
-    yellow: '#e0af68',
-    blue: '#7aa2f7',
-    magenta: '#bb9af7',
-    cyan: '#7dcfff',
-    white: '#a9b1d6',
-    brightBlack: '#414868',
-    brightRed: '#f7768e',
-    brightGreen: '#9ece6a',
-    brightYellow: '#e0af68',
-    brightBlue: '#7aa2f7',
-    brightMagenta: '#bb9af7',
-    brightCyan: '#7dcfff',
-    brightWhite: '#c0caf5',
+    background: '#0c0c0c',
+    foreground: '#f2f2f2',
+    cursor: '#f2f2f2',
+    cursorAccent: '#0c0c0c',
+    selectionBackground: '#264f78',
+    black: '#1a1a1a',
+    red: '#f14c4c',
+    green: '#23d18b',
+    yellow: '#f5f543',
+    blue: '#3b8eea',
+    magenta: '#d670d6',
+    cyan: '#29b8db',
+    white: '#e0e0e0',
+    brightBlack: '#5a5a5a',
+    brightRed: '#f14c4c',
+    brightGreen: '#23d18b',
+    brightYellow: '#f5f543',
+    brightBlue: '#3b8eea',
+    brightMagenta: '#d670d6',
+    brightCyan: '#29b8db',
+    brightWhite: '#ffffff',
   };
 }
 
@@ -69,13 +69,13 @@ function getLightTheme() {
   };
 }
 
-const SHELL_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M6 8l3 2-3 2M11 12h3"/></svg>';
+const ICON_SHELL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M6 8l3 2-3 2M11 12h3"/></svg>';
 
 const ICON_PLUS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>';
 
 const ICON_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
 
-const ICON_CHEVRON_DOWN = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>';
+const ICON_CHEVRON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M6 8l4 4 4-4"/></svg>';
 
 export default class TerminalUI {
   constructor() {
@@ -86,7 +86,10 @@ export default class TerminalUI {
     this.activeId = null;
     this.nextId = 1;
     this.shells = [];
-    this._resizeStart = null;
+    this._lastCwd = '';
+    this._selectedShell = null;
+    this._addBtn = null;
+    this._addLabel = null;
     this._shellDropdown = null;
   }
 
@@ -97,6 +100,7 @@ export default class TerminalUI {
     if (!this.shells || this.shells.length === 0) {
       this.shells = [{ name: 'PowerShell', cmd: 'powershell.exe', args: ['-NoLogo'] }];
     }
+    this._selectedShell = this.shells[0];
 
     this._createPanel();
 
@@ -110,7 +114,6 @@ export default class TerminalUI {
     window.electronAPI.onTerminalExit(({ id, exitCode }) => {
       const inst = this.instances.get(id);
       if (inst) {
-        inst.exitCode = exitCode;
         if (inst.terminal) {
           inst.terminal.write(`\r\n\x1b[31mProcess exited with code ${exitCode}\x1b[0m\r\n`);
         }
@@ -126,11 +129,19 @@ export default class TerminalUI {
     this.panel.innerHTML = `
       <div class="terminal-resize-handle"></div>
       <div class="terminal-tabs" id="terminalTabs">
+        <div class="terminal-tabs-left">
+          <button class="terminal-tab-add" id="terminalTabAdd" title="Left-click: new terminal · Right-click: select shell">
+            <span class="terminal-tab-add-icon">${ICON_PLUS}</span>
+            <span class="terminal-tab-add-label">${this._selectedShell.name}</span>
+            <span class="terminal-tab-add-chevron">${ICON_CHEVRON}</span>
+          </button>
+        </div>
         <div class="terminal-tabs-right">
           <button class="terminal-panel-close" id="terminalPanelClose" title="Close terminal panel">${ICON_CLOSE}</button>
         </div>
       </div>
       <div class="terminal-body" id="terminalBody"></div>
+      <div class="terminal-shell-dropdown" id="terminalShellDropdown"></div>
     `;
     document.body.appendChild(this.panel);
 
@@ -140,7 +151,53 @@ export default class TerminalUI {
 
     this.panel.querySelector('#terminalPanelClose').addEventListener('click', () => this.close());
 
+    this._addBtn = this.panel.querySelector('#terminalTabAdd');
+    this._addLabel = this.panel.querySelector('.terminal-tab-add-label');
+    this._shellDropdown = this.panel.querySelector('#terminalShellDropdown');
+    this._buildShellDropdown();
+
+    this._addBtn.addEventListener('click', (e) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      if (e.target.closest('.terminal-tab-add-chevron')) {
+        this._openDropdown();
+      } else {
+        this._addTerminal(this._lastCwd);
+      }
+    });
+    document.addEventListener('click', () => {
+      this._shellDropdown.classList.remove('open');
+    });
+
     this._initResize();
+  }
+
+  _openDropdown() {
+    this._shellDropdown.classList.toggle('open');
+    if (this._shellDropdown.classList.contains('open')) {
+      const rect = this._addBtn.getBoundingClientRect();
+      this._shellDropdown.style.left = rect.left + 'px';
+      this._shellDropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    }
+  }
+
+  _buildShellDropdown() {
+    this._shellDropdown.innerHTML = '';
+    this.shells.forEach((s) => {
+      const opt = document.createElement('button');
+      opt.className = 'terminal-shell-option';
+      opt.innerHTML = `
+        <span class="terminal-shell-option-icon">${ICON_SHELL}</span>
+        <span class="terminal-shell-option-label">${s.name}</span>
+      `;
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._shellDropdown.classList.remove('open');
+        this._selectedShell = s;
+        this._addLabel.textContent = s.name;
+      });
+      this._shellDropdown.appendChild(opt);
+    });
   }
 
   _initResize() {
@@ -166,10 +223,11 @@ export default class TerminalUI {
 
   open(cwd) {
     if (this.panel.classList.contains('open')) return;
+    this._lastCwd = cwd || this._lastCwd;
     this.panel.classList.add('open');
     this.panel.style.height = '';
     if (this.instances.size === 0) {
-      this._addTerminal(cwd);
+      this._addTerminal(this._lastCwd);
     }
     requestAnimationFrame(() => this._fitActive());
   }
@@ -183,14 +241,14 @@ export default class TerminalUI {
   }
 
   openTerminalHere(folderPath) {
+    this._lastCwd = folderPath;
     this.open();
     this._addTerminal(folderPath);
   }
 
-  async _addTerminal(cwd) {
+  async _addTerminal(cwd, shell) {
     const id = this.nextId++;
-    const defaultShell = this.shells[0];
-    const shell = defaultShell;
+    const useShell = shell || this._selectedShell || this.shells[0];
 
     const inst = document.createElement('div');
     inst.className = 'terminal-instance';
@@ -218,8 +276,8 @@ export default class TerminalUI {
     tab.dataset.terminalId = id;
     tab.innerHTML = `
       <span class="terminal-tab-shell">
-        <span class="terminal-tab-icon">${SHELL_ICON}</span>
-        ${shell.name}
+        <span class="terminal-tab-icon">${ICON_SHELL}</span>
+        <span class="terminal-tab-name">${useShell.name}</span>
       </span>
       <span class="terminal-tab-close">${ICON_CLOSE}</span>
     `;
@@ -230,17 +288,14 @@ export default class TerminalUI {
     tab.addEventListener('click', () => this._activateTerminal(id));
     this.tabBar.insertBefore(tab, this.tabBar.querySelector('.terminal-tabs-right'));
 
-    this.instances.set(id, { terminal, fitAddon, shell, tab, inst, cwd });
+    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd });
 
     try {
-      const result = await window.electronAPI.terminalSpawn({
+      await window.electronAPI.terminalSpawn({
         cwd: cwd || '',
-        shell: shell.cmd,
-        args: shell.args,
+        shell: useShell.cmd,
+        args: useShell.args,
       });
-      if (result) {
-        this.instances.get(id).cwd = result.cwd;
-      }
     } catch (err) {
       terminal.write(`\r\n\x1b[31mFailed to spawn terminal: ${err.message}\x1b[0m\r\n`);
     }

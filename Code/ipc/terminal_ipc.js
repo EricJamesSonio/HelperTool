@@ -14,8 +14,8 @@ function detectShells() {
   const isWin = process.platform === 'win32';
 
   if (isWin) {
+    shells.push({ name: 'PowerShell', cmd: 'powershell.exe', args: ['-NoLogo'] });
     const candidates = [
-      { name: 'PowerShell',  cmd: 'powershell.exe',        args: ['-NoLogo'] },
       { name: 'Command Prompt', cmd: 'cmd.exe',             args: [] },
       { name: 'Git Bash',    cmd: 'bash.exe',               args: ['--login'] },
     ];
@@ -42,9 +42,6 @@ function detectShells() {
         shells.push({ name: 'WSL / Ubuntu', cmd: 'wsl.exe', args: ['--cd', '~'] });
       }
     } catch { }
-    if (shells.length === 0) {
-      shells.push({ name: 'PowerShell', cmd: 'powershell.exe', args: ['-NoLogo'] });
-    }
   } else {
     const candidates = [
       { name: 'bash', cmd: 'bash', args: ['--login'] },
