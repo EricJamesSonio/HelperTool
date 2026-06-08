@@ -56,6 +56,11 @@ Builds the Windows `.exe` installer.
 
 ---
 
+## Create a Release Tag
+
+git tag v1.0.0 <commit-hash>
+git push origin v1.0.0
+
 ## Open DevTools (Electron)
 
 ```
