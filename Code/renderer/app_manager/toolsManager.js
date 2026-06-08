@@ -265,6 +265,8 @@ function _buildShortcutActions() {
 
   actions.shortcutTool = () => openConfig();
 
+  actions.exitInput = () => document.activeElement?.blur();
+
   actions.gitTool = () => {
     if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
     _registry.closeAll();

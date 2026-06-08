@@ -156,6 +156,7 @@
 .shortcut-row[data-feature="dbInspector"]   .shortcut-row-icon svg { color: var(--blue); }
 .shortcut-row[data-feature="locDetector"]   .shortcut-row-icon svg { color: var(--green); }
 .shortcut-row[data-feature="terminalTool"]  .shortcut-row-icon svg { color: var(--accent); }
+.shortcut-row[data-feature="exitInput"]     .shortcut-row-icon svg { color: var(--yellow); }
 
 .shortcuts-modal-footer {
   padding: 16px 20px;

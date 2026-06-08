@@ -13,6 +13,7 @@ const ICONS = {
   canvas: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
   db: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
   loc: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="9" x2="14" y2="9"/><line x1="3" y1="13" x2="17" y2="13"/><line x1="3" y1="17" x2="11" y2="17"/></svg>',
+  exit: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"/><polyline points="13 7 17 11 13 15"/><line x1="17" y1="11" x2="9" y2="11"/></svg>',
 };
 
 const FEATURES = [
@@ -28,6 +29,7 @@ const FEATURES = [
   { id: 'dbInspector',   icon: ICONS.db,        name: 'DB Inspector' },
   { id: 'locDetector',   icon: ICONS.loc,       name: 'LOC Detector' },
   { id: 'terminalTool',  icon: ICONS.cli,       name: 'Terminal' },
+  { id: 'exitInput',     icon: ICONS.exit,      name: 'Exit Input' },
 ];
 
 let _modal = null;

@@ -25,6 +25,16 @@ function handleKeyDown(e) {
   // If the shortcut modal is open, only allow the shortcutTool shortcut to proceed
   if (document.querySelector('.shortcuts-modal-overlay.open') && !isShortcutToolCombo) return;
 
+  // Always allow exitInput shortcut even when an input/textarea/select is focused
+  if (S.shortcuts.exitInput && combo === S.shortcuts.exitInput) {
+    if (_actions.exitInput) {
+      e.preventDefault();
+      e.stopPropagation();
+      _actions.exitInput();
+      return;
+    }
+  }
+
   const tag = document.activeElement ? document.activeElement.tagName : '';
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
   if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') return;
@@ -43,6 +53,16 @@ function handleKeyDown(e) {
 function initListener() {
   if (_initialized) return;
   document.addEventListener('keydown', handleKeyDown);
+  document.addEventListener('keydown', (e) => {
+    if (!S.shortcuts.exitInput || !_actions.exitInput) return;
+    const combo = eventToString(e);
+    if (!combo) return;
+    if (combo === S.shortcuts.exitInput) {
+      e.preventDefault();
+      e.stopPropagation();
+      _actions.exitInput();
+    }
+  }, true);
   _initialized = true;
 }
 
