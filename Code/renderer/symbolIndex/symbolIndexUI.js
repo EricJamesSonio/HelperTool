@@ -1,5 +1,16 @@
 import { confirmDialog } from '../utils/confirmDialog.js';
 
+const ICON_SEARCH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg>';
+const ICON_GEAR = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v3"/><path d="M10 16v3"/><path d="M3.5 3.5l2 2"/><path d="M14.5 14.5l2 2"/><path d="M1 10h3"/><path d="M16 10h3"/><path d="M3.5 16.5l2-2"/><path d="M14.5 5.5l2-2"/></svg>';
+const ICON_LIGHTBULB = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13v2a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-2"/><path d="M10 3a5 5 0 0 0-3 8.9V13a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1.1A5 5 0 0 0 10 3z"/></svg>';
+const ICON_LIGHTNING = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 11h5l-2 7 9-9h-5l2-7z"/></svg>';
+const ICON_RADAR = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="1.5"/><path d="M14 6a6 6 0 0 1 0 8"/><path d="M6 6a6 6 0 0 0 0 8"/><path d="M17 3a10 10 0 0 1 0 14"/><path d="M3 3a10 10 0 0 0 0 14"/></svg>';
+const ICON_REFRESH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 0 1 11.7-4.7"/><path d="M17 10a7 7 0 0 1-11.7 4.7"/><path d="M14.5 2v4h-4"/><path d="M5.5 18v-4h4"/></svg>';
+const ICON_CHEVRON_RIGHT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg>';
+const ICON_CHEVRON_DOWN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>';
+const ICON_REMOVE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
+const ICON_DELETE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M5 5v11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V5"/></svg>';
+
 class SymbolIndexUI {
   constructor(manager, handler) {
     this.manager = manager;
@@ -34,7 +45,7 @@ class SymbolIndexUI {
       <div class="symbol-index-wrapper">
         <div class="si-header">
           <h2 class="si-title">
-            <span class="si-icon">🔍</span> Symbol Index
+            <span class="si-icon">${ICON_SEARCH}</span> Symbol Index
           </h2>
           <div class="si-stats">
             <span class="stat-item">
@@ -56,13 +67,13 @@ class SymbolIndexUI {
           <div class="si-panel si-panel-search">
             <div class="panel-header">
               <h3 class="panel-title">
-                <span class="panel-icon">🔎</span> Search Symbols
+                <span class="panel-icon">${ICON_SEARCH}</span> Search Symbols
               </h3>
             </div>
             <div class="panel-body">
               <div class="si-search-box">
                 <input type="text" id="siSearchInput" class="si-search-input" placeholder="Type to search functions, classes, symbols…" autocomplete="off" />
-                <span class="si-search-icon">⌕</span>
+                <span class="si-search-icon">${ICON_SEARCH}</span>
               </div>
               <div id="siSearchResults" class="si-search-results">
                 <div class="empty-state">Start typing to search symbols</div>
@@ -73,17 +84,17 @@ class SymbolIndexUI {
           <div class="si-panel si-panel-config">
             <div class="panel-header">
               <h3 class="panel-title">
-                <span class="panel-icon">⚙️</span> Management
+                <span class="panel-icon">${ICON_GEAR}</span> Management
               </h3>
             </div>
             <div class="panel-body">
               <!-- Unindexed state -->
               <div id="siUnindexedState" class="si-state-block" style="display:none">
-                <div class="si-info-icon">💡</div>
+                <div class="si-info-icon">${ICON_LIGHTBULB}</div>
                 <p class="si-info-text">This repository hasn't been indexed yet.</p>
                 <p class="si-info-desc">Ignores follow <code>.docignore</code> patterns at repo root.</p>
                 <button id="siStartIndexingBtn" class="btn btn-primary si-action-btn">
-                  <span class="btn-icon">⚡</span> Start Indexing
+                  <span class="btn-icon">${ICON_LIGHTNING}</span> Start Indexing
                 </button>
               </div>
 
@@ -96,7 +107,7 @@ class SymbolIndexUI {
 
                 <div class="si-watcher-box">
                   <div class="si-watcher-box-header">
-                    <span class="si-watcher-box-title">📡 File Watcher</span>
+                    <span class="si-watcher-box-title">${ICON_RADAR} File Watcher</span>
                     <span class="si-watcher-dot" id="siWatcherDot"></span>
                   </div>
                   <div class="si-watcher-box-body">
@@ -105,7 +116,7 @@ class SymbolIndexUI {
                       <span id="siDirtyCount" class="si-dirty-badge">0</span>
                       <span class="si-dirty-label">modified files</span>
                       <span class="si-watcher-spacer"></span>
-                      <button id="siReindexDirtyBtn" class="btn btn-small si-reindex-btn">↻ Reindex All</button>
+                      <button id="siReindexDirtyBtn" class="btn btn-small si-reindex-btn">${ICON_REFRESH} Reindex All</button>
                     </div>
                   </div>
                 </div>
@@ -118,7 +129,7 @@ class SymbolIndexUI {
                       Select all
                     </label>
                     <button id="siReindexSelectedBtn" class="btn btn-small si-reindex-btn">
-                      <span>↻</span> Reindex Selected
+                      ${ICON_REFRESH} Reindex Selected
                     </button>
                   </div>
                   <div id="siDirtyFilesList" class="si-dirty-files-list"></div>
@@ -126,13 +137,13 @@ class SymbolIndexUI {
 
                 <div class="si-actions">
                   <button id="siFullReindexBtn" class="btn btn-small">
-                    <span>↻</span> Full Reindex
+                    ${ICON_REFRESH} Full Reindex
                   </button>
                   <button id="siResetBtn" class="btn btn-small si-danger-btn">
-                    <span>✖</span> Reset
+                    ${ICON_REMOVE} Reset
                   </button>
                   <button id="siDeleteBtn" class="btn btn-small si-danger-btn">
-                    <span>🗑️</span> Delete Index
+                    ${ICON_DELETE} Delete Index
                   </button>
                 </div>
               </div>
@@ -369,7 +380,7 @@ class SymbolIndexUI {
       div.dataset.file = f.path;
       div.innerHTML = `
         <div class="si-browse-file-header">
-          <span class="si-browse-toggle">▶</span>
+          <span class="si-browse-toggle">${ICON_CHEVRON_RIGHT}</span>
           <span class="si-browse-file-path">${escapedPath}</span>
           ${lang}
           <span class="si-browse-file-count">${symbolCount} symbol${symbolCount !== 1 ? 's' : ''}</span>
@@ -416,13 +427,13 @@ class SymbolIndexUI {
         const toggle = fileRow.querySelector('.si-browse-toggle');
         const isOpen = fileRow.classList.contains('si-browse-file-open');
 
-        if (isOpen) {
-          // Collapse — remove symbol DOM to free memory
-          symContainer.innerHTML = '';
-          fileRow.classList.remove('si-browse-file-open');
-          symContainer.style.display = 'none';
-          if (toggle) toggle.textContent = '▶';
-        } else {
+    if (isOpen) {
+      // Collapse — remove symbol DOM to free memory
+      symContainer.innerHTML = '';
+      fileRow.classList.remove('si-browse-file-open');
+      symContainer.style.display = 'none';
+      if (toggle) toggle.innerHTML = ICON_CHEVRON_RIGHT;
+    } else {
           // Lazy-load symbols on expand
           this._loadAndRenderFileSymbols(filePath, symContainer, toggle, fileRow);
         }
@@ -448,7 +459,7 @@ class SymbolIndexUI {
     symContainer.innerHTML = '<div class="si-browse-empty">Loading symbols…</div>';
     symContainer.style.display = 'block';
     fileRow.classList.add('si-browse-file-open');
-    if (toggle) toggle.textContent = '▼';
+    if (toggle) toggle.innerHTML = ICON_CHEVRON_DOWN;
 
     try {
       const { symbols } = await this.handler.getFileSymbols(this._activeRepoPath, filePath);

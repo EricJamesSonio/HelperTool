@@ -13,7 +13,7 @@ export function createPanel({ id, className, title, containerId, closeBtnId }) {
       `<div class="${className}-navbar">` +
         `<h1 class="${className}-title">${title}</h1>` +
         `<div class="${className}-navbar-right">` +
-          `<button class="${className}-close-btn" id="${closeBtnId}">✕</button>` +
+          `<button class="${className}-close-btn" id="${closeBtnId}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></button>` +
         `</div>` +
       `</div>` +
       `<div class="${className}-body" id="${containerId}"></div>` +
@@ -53,7 +53,7 @@ export function createSymbolIndexPanel() {
   return createPanel({
     id:          'symbolIndexPanel',
     className:   'symbol-index-panel',
-    title:       '\uD83D\uDD0D Symbol Index',
+    title:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg> Symbol Index',
     containerId: 'symbolIndexContainer',
     closeBtnId:  'closeSymbolIndexBtn'
   });
