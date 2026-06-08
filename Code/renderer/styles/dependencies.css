@@ -309,8 +309,14 @@
 }
 
 .context-menu-icon {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
+}
+.context-menu-icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .context-menu-label {
@@ -407,8 +413,14 @@
 }
 
 .rf-folder-icon {
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
+}
+.rf-folder-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .rf-folder-name {
@@ -449,8 +461,14 @@
 }
 
 .rf-tool-icon {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
+}
+.rf-tool-icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .rf-tool-label {

@@ -159,7 +159,7 @@ selectRepoBtn.addEventListener('contextmenu', async (e) => {
 
     const browse = document.createElement('div');
     browse.className = 'repo-dropdown-item';
-    browse.innerHTML = '<span style="margin-right:6px">📁</span> Browse for another folder...';
+    browse.innerHTML = '<span style="margin-right:6px"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg></span> Browse for another folder...';
     browse.addEventListener('click', async () => {
         dropdown.remove();
         const repoPath = await window.electronAPI.selectRepo();

@@ -8,6 +8,11 @@
  *  - When a folder is focused/ignored, all its subfolders are also added
  */
 
+const ICON_FM_REMOVE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
+const ICON_FM_BAN = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><circle cx="10" cy="10" r="7"/><path d="M6 6l8 8"/></svg>';
+const ICON_FM_FOLDER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:4px"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg>';
+const ICON_FM_TARGET = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><circle cx="10" cy="10" r="2"/><circle cx="10" cy="10" r="6"/><circle cx="10" cy="10" r="9"/></svg>';
+
 // ── Filter Ext panel ─────────────────────────────────────
 const filterToggleBtn       = document.getElementById('filterToggleBtn');
 const filterPanel           = document.getElementById('filterPanel');
@@ -266,7 +271,7 @@ function renderFilterPanel(tree) {
 
             const btn = document.createElement('button');
             btn.className = 'chip-remove-btn';
-            btn.textContent = '✕';
+            btn.innerHTML = ICON_FM_REMOVE;
             btn.addEventListener('click', () => {
                 activeExtensions.delete(ext);
                 renderFilterPanel(tree);
@@ -346,7 +351,7 @@ export function renderIgnorePanel(tree) {
 
             const btn = document.createElement('button');
             btn.className = 'chip-remove-btn';
-            btn.textContent = '✕';
+            btn.innerHTML = ICON_FM_REMOVE;
             btn.addEventListener('click', () => {
                 ignoredExtensions.delete(ext);
                 renderIgnorePanel(tree);
@@ -407,14 +412,14 @@ export function renderFolderPanel(tree) {
 
             const name = document.createElement('span');
             name.className = 'folder-row-name';
-            name.textContent = '📁 ' + folder.name;
+            name.innerHTML = ICON_FM_FOLDER + ' ' + folder.name;
 
             const actions = document.createElement('div');
             actions.className = 'folder-row-actions';
 
             const ignBtn = document.createElement('button');
             ignBtn.className = 'folder-btn folder-btn-ignore';
-            ignBtn.textContent = '🚫 Ignore';
+            ignBtn.innerHTML = ICON_FM_BAN + ' Ignore';
             ignBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 // Add folder + all subfolders
@@ -433,7 +438,7 @@ export function renderFolderPanel(tree) {
 
             const focBtn = document.createElement('button');
             focBtn.className = 'folder-btn folder-btn-focus';
-            focBtn.textContent = '🎯 Focus';
+            focBtn.innerHTML = ICON_FM_TARGET + ' Focus';
             focBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 focusedFolders.add(folder.path);
@@ -479,11 +484,11 @@ export function renderFolderPanel(tree) {
 
                 const label = document.createElement('span');
                 label.className = 'chip-label';
-                label.textContent = '📁 ' + name;
+                label.innerHTML = ICON_FM_FOLDER + ' ' + name;
 
                 const btn = document.createElement('button');
                 btn.className = 'chip-remove-btn';
-                btn.textContent = '✕';
+                btn.innerHTML = ICON_FM_REMOVE;
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     ignoredFolders.delete(fp);
@@ -534,11 +539,11 @@ export function renderFolderPanel(tree) {
 
                 const label = document.createElement('span');
                 label.className = 'chip-label';
-                label.textContent = '📁 ' + name;
+                label.innerHTML = ICON_FM_FOLDER + ' ' + name;
 
                 const btn = document.createElement('button');
                 btn.className = 'chip-remove-btn';
-                btn.textContent = '✕';
+                btn.innerHTML = ICON_FM_REMOVE;
                 btn.title = 'Remove from focus (moves to ignored)';
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();

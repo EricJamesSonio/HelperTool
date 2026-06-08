@@ -126,26 +126,26 @@
   --text-muted:     #64748b;
   --text-faint:     #94a3b8;
 
-  --accent:         #0d9488;
-  --accent-dim:     rgba(13,148,136,0.12);
-  --accent-glow:    rgba(13,148,136,0.22);
-  --accent-border:  rgba(13,148,136,0.32);
+  --accent:         #0891b2;
+  --accent-dim:     rgba(8,145,178,0.12);
+  --accent-glow:    rgba(8,145,178,0.20);
+  --accent-border:  rgba(8,145,178,0.30);
 
-  --green:          #059669;
-  --green-dim:      rgba(5,150,105,0.12);
+  --green:          #16a34a;
+  --green-dim:      rgba(22,163,74,0.12);
   --red:            #dc2626;
   --red-dim:        rgba(220,38,38,0.10);
   --blue:           #2563eb;
   --blue-dim:       rgba(37,99,235,0.10);
   --purple:         #7c3aed;
   --purple-dim:     rgba(124,58,237,0.10);
-  --yellow:         #d97706;
-  --yellow-dim:     rgba(217,119,6,0.12);
+  --yellow:         #ca8a04;
+  --yellow-dim:     rgba(202,138,4,0.12);
 
   --node-folder:          #2563eb;
   --node-file:            #475569;
-  --node-selected-file:   #d97706;
-  --node-selected-folder: #059669;
+  --node-selected-file:   #ca8a04;
+  --node-selected-folder: #16a34a;
 
   --folder-bg:           rgba(37,99,235,0.07);
   --folder-border:       rgba(37,99,235,0.20);
@@ -687,7 +687,17 @@ body {
 .result-item.found .result-item-status { color: var(--green); }
 .result-item.not-found .result-item-status { color: var(--red); }
 
-.btn-icon { font-size: 14px; line-height: 1; }
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  line-height: 1;
+}
+.btn-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
 
 /* ── Status / filter bar ─────────────────────────────────── */
 .status-filter-bar {
@@ -1073,3 +1083,45 @@ body {
 .icon-blue   { color: var(--blue) !important; }
 .icon-purple { color: var(--purple) !important; }
 .icon-muted  { color: var(--text-muted) !important; }
+
+/* ── Folder icons throughout the UI ── */
+.rf-folder-icon svg         { color: var(--accent); }
+.root-jumper-pill svg       { color: var(--accent); }
+.folder-row-name svg        { color: var(--accent); }
+.result-path svg            { color: var(--accent); }
+.repo-dropdown-item svg     { color: var(--accent); }
+
+/* ── Sidebar per-tool icon colors ── */
+.tools-sidebar-item[data-tool="api"]        .tools-sidebar-item-icon svg { color: var(--blue); }
+.tools-sidebar-item[data-tool="prompt"]     .tools-sidebar-item-icon svg { color: var(--purple); }
+.tools-sidebar-item[data-tool="git"]        .tools-sidebar-item-icon svg { color: var(--red); }
+.tools-sidebar-item[data-tool="fileSeeder"] .tools-sidebar-item-icon svg { color: var(--yellow); }
+.tools-sidebar-item[data-tool="loc"]        .tools-sidebar-item-icon svg { color: var(--green); }
+.tools-sidebar-item[data-tool="settings"]   .tools-sidebar-item-icon svg { color: var(--yellow); }
+.tools-sidebar-item[data-tool="secret"]     .tools-sidebar-item-icon svg { color: var(--accent); }
+.tools-sidebar-item[data-tool="cli"]        .tools-sidebar-item-icon svg { color: var(--green); }
+.tools-sidebar-item[data-tool="workspace"]  .tools-sidebar-item-icon svg { color: var(--accent); }
+.tools-sidebar-item[data-tool="symbolIndex"].tools-sidebar-item-icon svg { color: var(--blue); }
+.tools-sidebar-item[data-tool="canvas"]     .tools-sidebar-item-icon svg { color: var(--purple); }
+.tools-sidebar-item[data-tool="db"]         .tools-sidebar-item-icon svg { color: var(--blue); }
+
+/* ── Main screen toolbar icon colors ── */
+#selectRepoBtn     .btn-icon svg { color: var(--accent); }
+#viewModeBtn       svg           { color: var(--blue); }
+#themeToggleBtn    svg           { color: var(--yellow); }
+#notesBtn          .btn-icon svg { color: var(--purple); }
+#refreshBtn        .btn-icon svg { color: var(--green); }
+#editDocignoreBtn  .btn-icon svg { color: var(--red); }
+#filterToggleBtn   svg           { color: var(--blue); }
+#ignoreToggleBtn   svg           { color: var(--red); }
+#folderToggleBtn   svg           { color: var(--accent); }
+#zoomResetBtn      svg           { color: var(--green); }
+#clearSelectionBtn .btn-icon svg { color: var(--red); }
+
+/* Generate mode icons */
+.generate-mode-item[data-mode="normal"]   .gm-icon svg { color: var(--green); }
+.generate-mode-item[data-mode="minified"] .gm-icon svg { color: var(--yellow); }
+.generate-mode-item[data-mode="prompt"]   .gm-icon svg { color: var(--purple); }
+
+/* View switcher in viewManager — tree icon color */
+.view-mode-btn svg { color: var(--blue); }

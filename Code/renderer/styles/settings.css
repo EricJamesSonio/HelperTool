@@ -58,7 +58,15 @@
   align-items: center;
   gap: 8px;
 }
-.settings-title-icon { font-size: 17px; }
+.settings-title-icon {
+  display: inline-flex;
+  align-items: center;
+}
+.settings-title-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
 
 .settings-close-btn {
   display: inline-flex;

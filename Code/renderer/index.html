@@ -45,7 +45,7 @@
     <div class="titlebar-controls">
       <button class="titlebar-btn titlebar-minimize" title="Minimize">─</button>
       <button class="titlebar-btn titlebar-maximize" id="titlebarMaxBtn" title="Maximize">□</button>
-      <button class="titlebar-btn titlebar-close" title="Close">✕</button>
+      <button class="titlebar-btn titlebar-close" title="Close"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></button>
     </div>
   </div>
 
@@ -57,13 +57,13 @@
         <button id="shortcutModeBtn" class="shortcut-mode-btn" title="Shortcut Mode - Paste file list to auto-select">
           <span class="shortcut-label">Shortcut</span>
         </button>
-        <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon">✕</span></button>
+        <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></span></button>
       </div>
     </div>
 
     <div class="navbar-section">
       <button id="selectRepoBtn" class="primary-btn">
-        <span class="btn-icon">📁</span>Select Repo
+        <span class="btn-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg></span>Select Repo
       </button>
       <span id="activeRepoName" class="repo-name">No repo selected</span>
     </div>
@@ -84,21 +84,21 @@
         </button>
         <div class="generate-mode-menu" id="generateModeMenu">
           <button class="generate-mode-item active" data-mode="normal">
-            <span class="gm-icon">📄</span>
+            <span class="gm-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="10" y2="13"/></svg></span>
             <div class="gm-info">
               <span class="gm-name">Normal</span>
               <span class="gm-desc">Full source, comments &amp; spacing kept</span>
             </div>
           </button>
           <button class="generate-mode-item" data-mode="minified">
-            <span class="gm-icon">⚡</span>
+            <span class="gm-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M13 2L4 11h5l-2 7 9-9h-5l2-7z"/></svg></span>
             <div class="gm-info">
               <span class="gm-name">Minified</span>
               <span class="gm-desc">No blank lines, no comments</span>
             </div>
           </button>
           <button class="generate-mode-item" data-mode="prompt">
-            <span class="gm-icon">🧩</span>
+            <span class="gm-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/></svg></span>
             <div class="gm-info">
               <span class="gm-name">Prompt</span>
               <span class="gm-desc">Choose applicable prompts</span>
@@ -110,10 +110,10 @@
 
     <div class="navbar-section">
       <button id="viewModeBtn" class="view-mode-btn active-list" title="Switch to Tree mode">
-        ☰ Roof Mode
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:4px"><line x1="3" y1="4" x2="17" y2="4"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="16" x2="17" y2="16"/></svg> Roof Mode
       </button>
       <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle light/dark theme">
-        <span id="themeIcon">☀️</span>
+        <span id="themeIcon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/></svg></span>
         <span class="theme-label" id="themeLabel">Theme</span>
       </button>
     </div>
@@ -129,9 +129,9 @@
         </svg>
       </button>
       <button id="refreshBtn" class="tool-btn refresh-btn" title="Refresh">
-        <span class="btn-icon refresh-icon">🔄</span>
+        <span class="btn-icon refresh-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M3 10a7 7 0 0 1 11.7-4.7"/><path d="M17 10a7 7 0 0 1-11.7 4.7"/><path d="M14.5 2v4h-4"/><path d="M5.5 18v-4h4"/></svg></span>
       </button>
-      <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore"><span class="btn-icon">⚙️</span></button>
+      <button id="editDocignoreBtn" class="tool-btn" title="Edit Global Ignore"><span class="btn-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.93 3.93l1.41 1.41M14.66 14.66l1.41 1.41M3.93 16.07l1.41-1.41M14.66 5.34l1.41-1.41"/></svg></span></button>
     </div>
   </div>
 
@@ -156,21 +156,21 @@
       <!-- ══ ROW 3: Status + Filter bar ══ -->
       <div class="status-filter-bar">
         <div class="selection-counter" id="selectionCounterEl">
-          <span class="counter-icon">✓</span>
+          <span class="counter-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="m4 10 4 4 8-8"/></svg></span>
           <span id="selectionCount">0</span>
           <span class="counter-label">selected</span>
         </div>
         <div class="bar-right">
           <button id="filterToggleBtn" class="panel-toggle-btn filter-toggle-btn" title="Filter by extension">
-            <span>⌕ Filter Ext</span>
+            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg> Filter Ext</span>
             <span class="toggle-badge filter-badge" style="display:none"></span>
           </button>
           <button id="ignoreToggleBtn" class="panel-toggle-btn" title="Manage ignored extensions">
-            <span>🚫 Ext</span>
+            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><circle cx="10" cy="10" r="7"/><path d="M6 6l8 8"/></svg> Ext</span>
             <span class="toggle-badge ignore-badge" style="display:none"></span>
           </button>
           <button id="folderToggleBtn" class="panel-toggle-btn folder-toggle-btn" title="Manage folder filters">
-            <span>📁 Folders</span>
+            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg> Folders</span>
             <span class="toggle-badge folder-badge" style="display:none"></span>
           </button>
           <div class="bar-divider"></div>
@@ -183,7 +183,7 @@
             <button class="zoom-btn" id="zoomOutBtn" title="Zoom out (Ctrl+-)">−</button>
             <span class="zoom-level" id="zoomLevel">100%</span>
             <button class="zoom-btn" id="zoomInBtn" title="Zoom in (Ctrl+=)">+</button>
-            <button class="zoom-btn zoom-reset" id="zoomResetBtn" title="Reset zoom (Ctrl+0)">⟲</button>
+            <button class="zoom-btn zoom-reset" id="zoomResetBtn" title="Reset zoom (Ctrl+0)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle"><path d="M3 10a7 7 0 0 1 11.7-4.7"/><path d="M17 10a7 7 0 0 1-11.7 4.7"/><path d="M14.5 2v4h-4"/><path d="M5.5 18v-4h4"/></svg></button>
           </div>
         </div>
       </div>
@@ -268,7 +268,7 @@
   <div id="shortcutInputModal" class="modal-overlay">
     <div class="modal-content shortcut-input-modal">
       <div class="modal-header">
-        <h3 class="modal-title">⚡ Shortcut Mode - Paste File List</h3>
+        <h3 class="modal-title"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:6px"><path d="M13 2L4 11h5l-2 7 9-9h-5l2-7z"/></svg> Shortcut Mode - Paste File List</h3>
         <button class="modal-close-btn" id="shortcutInputCloseBtn">×</button>
       </div>
       <div class="modal-body">
@@ -287,7 +287,7 @@
   <div id="shortcutResultsModal" class="modal-overlay">
     <div class="modal-content shortcut-results-modal">
       <div class="modal-header">
-        <h3 class="modal-title">✓ Selection Results</h3>
+        <h3 class="modal-title"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:6px"><path d="m4 10 4 4 8-8"/></svg> Selection Results</h3>
         <button class="modal-close-btn" id="shortcutResultsCloseBtn">×</button>
       </div>
       <div class="modal-body">

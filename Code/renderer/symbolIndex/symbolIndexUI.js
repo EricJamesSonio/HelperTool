@@ -92,7 +92,7 @@ class SymbolIndexUI {
               <div id="siUnindexedState" class="si-state-block" style="display:none">
                 <div class="si-info-icon">${ICON_LIGHTBULB}</div>
                 <p class="si-info-text">This repository hasn't been indexed yet.</p>
-                <p class="si-info-desc">Ignores follow <code>.docignore</code> patterns at repo root.</p>
+                <p class="si-info-desc">Ignores follow <code>global-docignore.json</code> patterns.</p>
                 <button id="siStartIndexingBtn" class="btn btn-primary si-action-btn">
                   <span class="btn-icon">${ICON_LIGHTNING}</span> Start Indexing
                 </button>
@@ -101,7 +101,7 @@ class SymbolIndexUI {
               <!-- Indexed state -->
               <div id="siIndexedState" class="si-state-block" style="display:none">
                 <p class="si-info-desc" style="margin-bottom:12px">
-                  Files filtered by <code>.docignore</code> —
+                  Files filtered by <code>global-docignore.json</code> —
                   <button class="btn-link" id="siEditDocignoreBtn">edit</button>
                 </p>
 
@@ -540,8 +540,8 @@ class SymbolIndexUI {
   }
 
   async openDocignore() {
-    if (!this._activeRepoPath || !window.electronAPI?.openDocignore) return;
-    await window.electronAPI.openDocignore(this._activeRepoPath);
+    if (!window.electronAPI?.openGlobalDocignore) return;
+    await window.electronAPI.openGlobalDocignore();
   }
 
   async startIndexing() {

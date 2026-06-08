@@ -32,9 +32,10 @@ export function initSidebar() {
   }
 }
 
-export function createSidebarItem(icon, name, desc, onClick) {
+export function createSidebarItem(icon, name, desc, onClick, toolKey) {
   const el = document.createElement('button');
   el.className = 'tools-sidebar-item';
+  if (toolKey) el.setAttribute('data-tool', toolKey);
   el.innerHTML =
     '<span class="tools-sidebar-item-icon">' + icon + '</span>' +
     '<div class="tools-sidebar-item-info">' +

@@ -71,74 +71,86 @@ function _showWizard() {
   });
 }
 
+const ICON_FW_API = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="10" cy="10" r="3"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="19"/><line x1="1" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="19" y2="10"/></svg>';
+const ICON_FW_SECRET = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="10" cy="11" r="2"/><path d="M5 11V6a5 5 0 0 1 10 0v5"/><rect x="3" y="11" width="14" height="8" rx="1"/></svg>';
+const ICON_FW_PALETTE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="10" cy="10" r="7.5"/><circle cx="7" cy="8" r="1" fill="currentColor"/><circle cx="13" cy="8" r="1" fill="currentColor"/><circle cx="10" cy="14" r="1" fill="currentColor"/><path d="M10 3v-1"/><path d="M15 5.5l.5-.5"/><path d="M5 5.5l-.5-.5"/></svg>';
+const ICON_FW_FOLDER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg>';
+const ICON_FW_LIGHTNING = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M13 2L4 11h5l-2 7 9-9h-5l2-7z"/></svg>';
+const ICON_FW_WORKSPACE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>';
+const ICON_FW_SEARCH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="9" cy="9" r="5"/><line x1="13" y1="13" x2="18" y2="18"/></svg>';
+const ICON_FW_DB = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>';
+const ICON_FW_LIGHTBULB = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M8 13v2a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-2"/><path d="M10 3a5 5 0 0 0-3 8.9V13a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1.1A5 5 0 0 0 10 3z"/></svg>';
+
 function _injectWizard() {
   if (document.getElementById('featureWizard')) return;
 
   const FEATURES_META = [
     {
       id: 'apiTool',
-      icon: '🔌',
+      icon: ICON_FW_API,
       label: 'API Tool',
       desc: 'Built-in Postman-like tester with Swagger import. Skip to save ~30 KB JS + CSS.',
       heavy: true,
     },
     {
       id: 'secretHolder',
-      icon: '🔐',
+      icon: ICON_FW_SECRET,
       label: 'Secret Holder',
       desc: 'Password-protected vault for API keys & notes. Skippable if you don\'t need it.',
       heavy: false,
     },
     {
       id: 'themeEngine',
-      icon: '🎨',
+      icon: ICON_FW_PALETTE,
       label: 'Full Theme Engine',
       desc: '20 themes + accent pickers. Disable for a single optimised dark theme — saves ~15 KB.',
       heavy: true,
     },
     {
       id: 'folderFilters',
-      icon: '📁',
+      icon: ICON_FW_FOLDER,
       label: 'Folder Filters',
       desc: 'Ignore / Focus folder panels. Disable if you only use extension filters.',
       heavy: false,
     },
     {
       id: 'swagger',
-      icon: '⚡',
+      icon: ICON_FW_LIGHTNING,
       label: 'Swagger / OpenAPI Import',
       desc: 'Auto-import endpoints from OpenAPI specs. Only useful alongside the API Tool.',
       heavy: false,
     },
   {
     id: 'workspaceTool',
-    icon: '👥',
+    icon: ICON_FW_WORKSPACE,
     label: 'Workspace Tool',
     desc: 'Manage workers and project tickets. Assign tasks and track status.',
     heavy: false,
   },
   {
     id: 'symbolIndex',
-    icon: '🔍',
+    icon: ICON_FW_SEARCH,
     label: 'Symbol Index',
     desc: 'AST-based code symbol search with SQLite indexing. Requires initial index.',
     heavy: true,
   },
   {
     id: 'canvasTool',
-    icon: '🎨',
+    icon: ICON_FW_PALETTE,
     label: 'Canvas Tool',
     desc: 'Infinite canvas for drawing diagrams, flowcharts & sketches with pen, shapes & arrows.',
     heavy: false,
   },
   {
     id: 'dbInspector',
-    icon: '🗃️',
+    icon: ICON_FW_DB,
     label: 'Database Inspector',
     desc: 'Connect to databases, scan schema, visualize tables & relationships.',
     heavy: false,
   },
   ];
+
+  const FW_LOGO = ICON_FW_LIGHTNING;
 
   const el = document.createElement('div');
   el.id = 'featureWizard';
@@ -146,7 +158,7 @@ function _injectWizard() {
     <div class="fw-overlay">
       <div class="fw-modal">
         <div class="fw-header">
-          <div class="fw-logo">⚡</div>
+          <div class="fw-logo">${FW_LOGO}</div>
           <h1 class="fw-title">Welcome to Helper Tool</h1>
           <p class="fw-subtitle">Choose which features to load. You can change this any time in <strong>Settings → Features</strong>.</p>
         </div>
@@ -172,7 +184,7 @@ function _injectWizard() {
         </div>
 
         <div class="fw-footer">
-          <span class="fw-footer-note">💡 Disabled features won't be loaded at startup — they can be re-enabled in Settings.</span>
+          <span class="fw-footer-note">${ICON_FW_LIGHTBULB} Disabled features won't be loaded at startup — they can be re-enabled in Settings.</span>
           <button id="fwConfirm" class="fw-confirm-btn">Save &amp; Launch →</button>
         </div>
       </div>
@@ -210,7 +222,8 @@ function _injectWizard() {
       border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
       text-align: center;
     }
-    .fw-logo { font-size: 2.2rem; margin-bottom: 8px; }
+    .fw-logo { display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
+    .fw-logo svg { width:32px; height:32px; display:block; }
     .fw-title {
       margin: 0 0 6px;
       font-size: 1.3rem;
@@ -251,7 +264,8 @@ function _injectWizard() {
     .fw-feature-left {
       display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0;
     }
-    .fw-feature-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+    .fw-feature-icon { display:inline-flex; align-items:center; flex-shrink:0; margin-top:1px; }
+    .fw-feature-icon svg { width:20px; height:20px; display:block; }
     .fw-feature-info { display: flex; flex-direction: column; gap: 2px; }
     .fw-feature-label {
       font-size: 0.88rem;
@@ -319,11 +333,15 @@ function _injectWizard() {
       gap: 12px;
     }
     .fw-footer-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       flex: 1;
       font-size: 0.74rem;
       color: var(--text-faint, #364060);
       line-height: 1.4;
     }
+    .fw-footer-note svg { width:14px; height:14px; display:block; flex-shrink:0; }
     .fw-confirm-btn {
       flex-shrink: 0;
       padding: 9px 20px;

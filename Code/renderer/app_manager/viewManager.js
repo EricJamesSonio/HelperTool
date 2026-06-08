@@ -59,7 +59,7 @@ function _appendFolderItems(container, folders) {
     item.className = 'rf-folder-item';
     item.dataset.path = f.path;
     item.innerHTML = `
-      <span class="rf-folder-icon">📁</span>
+      <span class="rf-folder-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg></span>
       <span class="rf-folder-name">${_escapeHtml(f.name)}</span>
       ${hasChildren ? '<span class="rf-arrow">▸</span>' : ''}`;
 
@@ -160,11 +160,11 @@ function _showRootFolderDropdown(event, rootPath, rootName) {
   // tools
   let toolHtml = '<div class="context-menu-divider"></div>';
   toolHtml += `<div class="rf-tool-item" data-action="seed" data-path="${_escapeHtml(rootPath)}">
-    <span class="rf-tool-icon">🌱</span>
+    <span class="rf-tool-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M10 3c-4 0-6 2-6 6v2c0 4 2 6 6 6s6-2 6-6V9c0-4-2-6-6-6z"/><line x1="10" y1="3" x2="10" y2="17"/></svg></span>
     <span class="rf-tool-label">File Seeder</span>
   </div>`;
   toolHtml += `<div class="rf-tool-item" data-action="loc" data-path="${_escapeHtml(rootPath)}">
-    <span class="rf-tool-icon">📏</span>
+    <span class="rf-tool-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="9" x2="14" y2="9"/><line x1="3" y1="13" x2="17" y2="13"/><line x1="3" y1="17" x2="11" y2="17"/></svg></span>
     <span class="rf-tool-label">LOC Detector</span>
   </div>`;
   menu.insertAdjacentHTML('beforeend', toolHtml);
@@ -246,7 +246,7 @@ export function renderRootJumper(tree) {
     roots.forEach(node => {
         const btn = document.createElement('button');
         btn.className   = 'root-jumper-pill';
-        btn.textContent = `📁 ${node.name}`;
+        btn.innerHTML = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:4px"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg> ${_escapeHtml(node.name)}`;
         btn.title       = `Jump to ${node.name}`;
         btn.addEventListener('click', () => selectSearchItem(node.path));
         btn.addEventListener('contextmenu', (e) => _showRootFolderDropdown(e, node.path, node.name));
@@ -258,11 +258,11 @@ export function applyViewMode(mode) {
     state.viewMode = mode;
     localStorage.setItem('helpertool-viewmode', mode);
     if (mode === 'tree') {
-        viewModeBtn.textContent = '🌳 Tree Mode';
+        viewModeBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:4px"><path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"/></svg> Tree Mode';
         viewModeBtn.className   = 'view-mode-btn active-tree';
         viewModeBtn.title       = 'Switch to List mode';
     } else {
-        viewModeBtn.textContent = '☰ Roof Mode';
+        viewModeBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:4px"><line x1="3" y1="4" x2="17" y2="4"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="16" x2="17" y2="16"/></svg> Roof Mode';
         viewModeBtn.className   = 'view-mode-btn active-list';
         viewModeBtn.title       = 'Switch to Tree mode';
     }

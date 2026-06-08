@@ -78,7 +78,7 @@ function populateSidebar() {
       _registry.closeAll();
       _apiTool?.openApiToolPanel?.();
       item.classList.add('active');
-    });
+    }, 'api');
     body.appendChild(item);
   }
 
@@ -87,8 +87,8 @@ function populateSidebar() {
     if (existing && existing.style.display !== 'none') { existing.style.display = 'none'; return; }
     _registry.closeAll();
     try { const { openPromptToolModal } = await import('../promptTool.js'); openPromptToolModal(); }
-    catch (err) { console.error('[Tools] Prompt Tool:', err); }
-  }));
+      catch (err) { console.error('[Tools] Prompt Tool:', err); }
+  }, 'prompt'));
 
   body.appendChild(createSidebarItem(ICONS.git, 'Git Tool', 'Stage, commit & push changes', () => {
     if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
@@ -96,21 +96,21 @@ function populateSidebar() {
     if (!_gitPanel) _initGitPanel();
     _gitPanel.classList.add('open');
     if (_gitTool?.isInitialized) _gitTool.refresh();
-    else if (state.selectedRepoPath) _initializeGitTool(state.selectedRepoPath);
-  }));
+      else if (state.selectedRepoPath) _initializeGitTool(state.selectedRepoPath);
+  }, 'git'));
 
   body.appendChild(createSidebarItem(ICONS.fileSeeder, 'File Seeder', 'Seed files into a folder', () => {
     if (fileSeederTool.isOpen()) { fileSeederTool.close(); return; }
     _registry.closeAll();
     fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
-  }));
+  }, 'fileSeeder'));
 
 body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
   if (locDetector.isOpen()) { locDetector.close(); return; }
   _registry.closeAll();
   // Open without a pre-set path — user can right-click a folder to scan
   locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
-}));
+}, 'loc'));
 
   body.appendChild(createSidebarItem(ICONS.settings, 'Settings', 'Appearance & features', () => {
     const full  = document.getElementById('settingsOverlay');
@@ -119,24 +119,24 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
     if (light?.classList.contains('open')) { light.classList.remove('open'); return; }
     _registry.closeAll();
     _settingsManager?.openSettings?.();
-  }));
+  }, 'settings'));
 
   if (_feats.secretHolder) {
     body.appendChild(createSidebarItem(ICONS.secret, 'Secret Holder', 'Manage API keys & secrets', async () => {
       if (_secretHolder?.isSecretHolderOpen?.()) { _secretHolder.closeSecretHolder(); return; }
       _registry.closeAll();
       await _secretHolder?.openSecretHolder?.();
-    }));
+    }, 'secret'));
   }
 
-  body.appendChild(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => openConfig()));
+  body.appendChild(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => openConfig(), 'cli'));
 
   if (_feats.workspaceTool) {
     body.appendChild(createSidebarItem(ICONS.workspace, 'Workspace', 'Projects, tickets & workers', async () => {
       if (_workspaceTool?.isWorkspacePanelOpen?.()) { _workspaceTool.closeWorkspacePanel(); return; }
       _registry.closeAll();
       await _workspaceTool?.openWorkspacePanel?.();
-    }));
+    }, 'workspace'));
   }
 
   if (_feats.symbolIndex) {
@@ -147,7 +147,7 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _symbolIndexPanel.classList.add('open');
       if (_symbolIndexTool?.isInitialized) _symbolIndexTool.refresh();
       else if (state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
-    }));
+    }, 'symbolIndex'));
   }
 
   if (_feats.canvasTool) {
@@ -155,7 +155,7 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
       _registry.closeAll();
       _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
-    }));
+    }, 'canvas'));
   }
 
   if (_feats.dbInspector) {
@@ -163,7 +163,7 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
       _registry.closeAll();
       _dbInspector?.openDbInspectorPanel?.();
-    }));
+    }, 'db'));
   }
 }
 

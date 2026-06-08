@@ -1,3 +1,15 @@
+.modal-title-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.modal-title-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 .shortcuts-modal-overlay .shortcuts-modal {
   max-width: 640px;
 }
@@ -36,10 +48,16 @@
 }
 
 .shortcut-row-icon {
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 24px;
-  text-align: center;
   flex-shrink: 0;
+}
+.shortcut-row-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .shortcut-row-name {
@@ -124,6 +142,19 @@
   font-size: 12.5px;
   display: none;
 }
+
+/* ── Shortcuts per-feature icon colors ── */
+.shortcut-row[data-feature="shortcutTool"]  .shortcut-row-icon svg { color: var(--green); }
+.shortcut-row[data-feature="apiTool"]       .shortcut-row-icon svg { color: var(--blue); }
+.shortcut-row[data-feature="gitTool"]       .shortcut-row-icon svg { color: var(--red); }
+.shortcut-row[data-feature="promptTool"]    .shortcut-row-icon svg { color: var(--purple); }
+.shortcut-row[data-feature="settings"]      .shortcut-row-icon svg { color: var(--yellow); }
+.shortcut-row[data-feature="secretHolder"]  .shortcut-row-icon svg { color: var(--accent); }
+.shortcut-row[data-feature="workspaceTool"] .shortcut-row-icon svg { color: var(--accent); }
+.shortcut-row[data-feature="symbolIndex"]   .shortcut-row-icon svg { color: var(--blue); }
+.shortcut-row[data-feature="canvasTool"]    .shortcut-row-icon svg { color: var(--purple); }
+.shortcut-row[data-feature="dbInspector"]   .shortcut-row-icon svg { color: var(--blue); }
+.shortcut-row[data-feature="locDetector"]   .shortcut-row-icon svg { color: var(--green); }
 
 .shortcuts-modal-footer {
   padding: 16px 20px;
