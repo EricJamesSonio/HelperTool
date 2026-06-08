@@ -21,6 +21,7 @@ const fileseederIpc  = require('./ipc/fileseeder_ipc.js');
 const locIpc       = require('./ipc/loc_ipc.js');
 const dbInspectorIpc = require('./ipc/dbInspector_ipc.js');
 const terminalIpc  = require('./ipc/terminal_ipc.js');
+const portManagerIpc = require('./ipc/portManager.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
