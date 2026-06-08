@@ -13,6 +13,7 @@ import * as locDetector    from '../locDetector.js';
 import * as sessionNotes   from '../sessionNotes.js';
 import * as diffViewer     from '../diffViewer.js';
 import * as fileViewer     from '../fileViewer.js';
+import TerminalUI          from '../terminal/terminalUI.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 
@@ -29,6 +30,7 @@ const ICONS = {
   symbolIndex: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><line x1="13" y1="13" x2="18" y2="18"/></svg>',
   canvas: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
   db: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
+  terminal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -61,6 +63,8 @@ let _depsContainer = null;
 
 let _locPanel     = null;
 let _locContainer = null;
+
+let _terminalUI   = null;
 
 let _feats    = {};
 let _registry = new PanelRegistry();
@@ -137,6 +141,18 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       await _workspaceTool?.openWorkspacePanel?.();
     }, 'workspace'));
+  }
+
+  if (_feats.terminalTool) {
+    body.appendChild(createSidebarItem(ICONS.terminal, 'Terminal', 'Integrated command-line terminal', async () => {
+      if (!_terminalUI) {
+        _terminalUI = new TerminalUI();
+        await _terminalUI.init();
+      }
+      if (_terminalUI.isOpen()) { _terminalUI.close(); return; }
+      _registry.closeAll();
+      _terminalUI.open(state.selectedRepoPath);
+    }, 'terminal'));
   }
 
   if (_feats.symbolIndex) {
@@ -305,6 +321,18 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.terminalTool) {
+    actions.terminalTool = async () => {
+      if (!_terminalUI) {
+        _terminalUI = new TerminalUI();
+        await _terminalUI.init();
+      }
+      if (_terminalUI.isOpen()) { _terminalUI.close(); return; }
+      _registry.closeAll();
+      _terminalUI.open(state.selectedRepoPath);
+    };
+  }
+
   if (_feats.canvasTool) {
     actions.canvasTool = () => {
       if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
@@ -440,6 +468,14 @@ export async function initTools(feats, settingsManager) {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       fileViewer.open(filePath, state.selectedRepoPath);
+    },
+    async (folderPath) => {                 // onFolderTerminal
+      if (!_terminalUI) {
+        _terminalUI = new TerminalUI();
+        await _terminalUI.init();
+      }
+      _registry.closeAll();
+      _terminalUI.openTerminalHere(folderPath);
     }
   );
 

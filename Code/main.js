@@ -18,8 +18,9 @@ const promptsIpc     = require('./ipc/prompts_ipc.js');
 const symbolIndexIpc = require('./ipc/symbolIndex_ipc.js');
 const canvasIpc      = require('./ipc/canvas_ipc.js');
 const fileseederIpc  = require('./ipc/fileseeder_ipc.js');
-const locIpc         = require('./ipc/loc_ipc.js');
+const locIpc       = require('./ipc/loc_ipc.js');
 const dbInspectorIpc = require('./ipc/dbInspector_ipc.js');
+const terminalIpc  = require('./ipc/terminal_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
@@ -106,6 +107,7 @@ function registerAllIpc() {
     canvasIpc.register();
     fileseederIpc.register(shared);
     locIpc.register(shared);
+    terminalIpc.register(shared);
     dbInspectorIpc.register(shared);
 }
 

@@ -5,19 +5,23 @@ const ICON_WRENCH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" 
 const ICON_SEED = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M10 3c-4 0-6 2-6 6v2c0 4 2 6 6 6s6-2 6-6V9c0-4-2-6-6-6z"/><line x1="10" y1="3" x2="10" y2="17"/></svg>';
 const ICON_RULER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="9" x2="14" y2="9"/><line x1="3" y1="13" x2="17" y2="13"/><line x1="3" y1="17" x2="11" y2="17"/></svg>';
 
+const ICON_TERMINAL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>';
+
 let _activeMenu   = null;
 let _onFileDeps   = null;
 let _onFolderSeed = null;
 let _onFolderLoc  = null;
 let _onFileDiff   = null;
 let _onFileView   = null;
+let _onFolderTerminal = null;
 
-export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView) {
+export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal) {
   _onFileDeps   = onFileDeps;
   _onFolderSeed = onFolderSeed;
   _onFolderLoc  = onFolderLoc;
   _onFileDiff   = onFileDiff;
   _onFileView   = onFileView;
+  _onFolderTerminal = onFolderTerminal;
 
   document.addEventListener('contextmenu', (e) => {
     const wrapper = e.target.closest('.node-wrapper');
@@ -105,6 +109,12 @@ function showFolderMenu(x, y, folderPath, folderName) {
       <span class="context-menu-label">LOC Detector</span>
       <span class="context-menu-hint">Folder</span>
     </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="folder-terminal">
+      <span class="context-menu-icon">${ICON_TERMINAL}</span>
+      <span class="context-menu-label">Open Terminal Here</span>
+      <span class="context-menu-hint">Folder</span>
+    </div>
   `;
 
   menu.addEventListener('click', (e) => {
@@ -112,6 +122,7 @@ function showFolderMenu(x, y, folderPath, folderName) {
     if (!item || item.classList.contains('context-menu-item-disabled')) return;
     if (item.dataset.action === 'folder-seed' && _onFolderSeed) _onFolderSeed(folderPath, folderName);
     if (item.dataset.action === 'folder-loc'  && _onFolderLoc)  _onFolderLoc(folderPath, folderName);
+    if (item.dataset.action === 'folder-terminal' && _onFolderTerminal) _onFolderTerminal(folderPath);
     closeMenu();
   });
 

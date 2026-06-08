@@ -1,0 +1,276 @@
+/* ── Terminal Bottom Panel ──────────────────────────────── */
+
+.terminal-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 260px;
+  z-index: 900;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+  display: none;
+  flex-direction: column;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+  animation: terminalSlideUp 0.18s ease-out;
+}
+
+@keyframes terminalSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.terminal-panel.open {
+  display: flex;
+}
+
+/* ── Resize Handle ── */
+.terminal-resize-handle {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  z-index: 10;
+  flex-shrink: 0;
+}
+.terminal-resize-handle:hover,
+.terminal-resize-handle:active {
+  background: var(--accent-dim);
+}
+
+/* ── Tab Bar ── */
+.terminal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 36px;
+  padding: 0 8px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.terminal-tabs::-webkit-scrollbar { display: none; }
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  margin: 0 1px;
+  border: none;
+  border-radius: var(--r-xs) var(--r-xs) 0 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  transition: all var(--ease);
+  flex-shrink: 0;
+}
+.terminal-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.terminal-tab.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-bottom-color: var(--bg-surface);
+}
+
+.terminal-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  width: 14px;
+  height: 14px;
+}
+.terminal-tab-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.terminal-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--ease);
+  flex-shrink: 0;
+}
+.terminal-tab:hover .terminal-tab-close,
+.terminal-tab.active .terminal-tab-close {
+  opacity: 0.6;
+}
+.terminal-tab-close:hover {
+  opacity: 1 !important;
+  background: var(--red-dim);
+  color: var(--red);
+}
+.terminal-tab-close svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+.terminal-tab-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--ease);
+  margin-left: 4px;
+}
+.terminal-tab-add:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+.terminal-tab-add svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.terminal-tab-shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Tab right spacer ── */
+.terminal-tabs-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Dropdown (Shell Selector) ── */
+.terminal-shell-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  min-width: 180px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  display: none;
+}
+.terminal-shell-dropdown.open {
+  display: block;
+}
+.terminal-shell-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background var(--ease);
+}
+.terminal-shell-option:hover {
+  background: var(--bg-hover);
+}
+.terminal-shell-option svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ── Terminal Body ── */
+.terminal-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.terminal-instance {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: none;
+}
+.terminal-instance.active {
+  display: block;
+}
+
+/* ── xterm overrides ── */
+.terminal-instance .xterm {
+  height: 100%;
+  padding: 4px 0;
+}
+.terminal-instance .xterm-viewport {
+  scrollbar-width: thin;
+}
+.terminal-instance .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.terminal-instance .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.terminal-instance .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 99px;
+}
+.terminal-instance .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* ── Close Terminal Panel button ── */
+.terminal-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--ease);
+}
+.terminal-panel-close:hover {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.terminal-panel-close svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}

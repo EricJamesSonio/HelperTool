@@ -14,6 +14,7 @@ const DEFAULT_FEATURES = {
   folderFilters: true,
   swagger:       true,
   workspaceTool: true,
+  terminalTool:  true,
   symbolIndex:   true,
   canvasTool:    true,
   dbInspector:   true,
@@ -125,6 +126,13 @@ function _injectWizard() {
     icon: ICON_FW_WORKSPACE,
     label: 'Workspace Tool',
     desc: 'Manage workers and project tickets. Assign tasks and track status.',
+    heavy: false,
+  },
+  {
+    id: 'terminalTool',
+    icon: ICON_FW_LIGHTNING,
+    label: 'Terminal',
+    desc: 'Integrated terminal with multiple tabs, shell selection & adjustable panel.',
     heavy: false,
   },
   {

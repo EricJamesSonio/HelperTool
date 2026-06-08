@@ -1101,6 +1101,7 @@ body {
 .tools-sidebar-item[data-tool="secret"]     .tools-sidebar-item-icon svg { color: var(--accent); }
 .tools-sidebar-item[data-tool="cli"]        .tools-sidebar-item-icon svg { color: var(--green); }
 .tools-sidebar-item[data-tool="workspace"]  .tools-sidebar-item-icon svg { color: var(--accent); }
+.tools-sidebar-item[data-tool="terminal"]   .tools-sidebar-item-icon svg { color: var(--accent); }
 .tools-sidebar-item[data-tool="symbolIndex"].tools-sidebar-item-icon svg { color: var(--blue); }
 .tools-sidebar-item[data-tool="canvas"]     .tools-sidebar-item-icon svg { color: var(--purple); }
 .tools-sidebar-item[data-tool="db"]         .tools-sidebar-item-icon svg { color: var(--blue); }

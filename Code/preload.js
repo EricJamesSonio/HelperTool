@@ -177,6 +177,22 @@ const dbInspectorBridge = {
     },
 };
 
+const terminalBridge = {
+    terminalSpawn:  (options) => ipcRenderer.invoke('terminal:spawn', options),
+    terminalWrite:  (payload) => ipcRenderer.invoke('terminal:write', payload),
+    terminalResize: (payload) => ipcRenderer.invoke('terminal:resize', payload),
+    terminalKill:   (id)      => ipcRenderer.invoke('terminal:kill', id),
+    terminalListShells: ()    => ipcRenderer.invoke('terminal:listShells'),
+    onTerminalData: (callback) => {
+        ipcRenderer.removeAllListeners('terminal:data');
+        ipcRenderer.on('terminal:data', (_, payload) => callback(payload));
+    },
+    onTerminalExit: (callback) => {
+        ipcRenderer.removeAllListeners('terminal:exit');
+        ipcRenderer.on('terminal:exit', (_, payload) => callback(payload));
+    },
+};
+
 // ── Window controls ──
 const windowControls = {
     minimize: () => ipcRenderer.send('window:minimize'),
@@ -202,6 +218,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...fileseederBridge,
     ...locBridge,
     ...dbInspectorBridge,
+    ...terminalBridge,
     windowControls,
 });
 

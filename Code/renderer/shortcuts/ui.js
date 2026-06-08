@@ -27,6 +27,7 @@ const FEATURES = [
   { id: 'canvasTool',    icon: ICONS.canvas,    name: 'Canvas' },
   { id: 'dbInspector',   icon: ICONS.db,        name: 'DB Inspector' },
   { id: 'locDetector',   icon: ICONS.loc,       name: 'LOC Detector' },
+  { id: 'terminalTool',  icon: ICONS.cli,       name: 'Terminal' },
 ];
 
 let _modal = null;
