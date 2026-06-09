@@ -14,6 +14,7 @@ let _drillKey = null;
 let _commitFilterText = '';
 let _diffCache = {};
 let _visibleCount = 50;
+let _profileContributor = null;
 
 const TA_SUMMARY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>';
 const TA_REFRESH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 0 1 11.7-4.7"/><path d="M17 10a7 7 0 0 1-11.7 4.7"/><path d="M14.5 2v4h-4"/><path d="M5.5 18v-4h4"/></svg>';
@@ -167,6 +168,7 @@ function _buildPanel() {
       _selectedGraphKey = null;
       _drillOriginalMode = null;
       _drillKey = null;
+      _profileContributor = null;
       _renderCommits();
       _renderGraph();
     });
@@ -296,7 +298,7 @@ function _renderContributors() {
   allInfo.appendChild(allStat);
   allItem.appendChild(allAvatar);
   allItem.appendChild(allInfo);
-  allItem.addEventListener('click', () => { _selectedContributor = null; _renderContributors(); _renderCommits(); _renderGraph(); });
+  allItem.addEventListener('click', () => { _selectedContributor = null; _profileContributor = null; _renderContributors(); _renderCommits(); _renderGraph(); });
   list.appendChild(allItem);
 
   for (const [name, data] of entries) {
@@ -316,7 +318,8 @@ function _renderContributors() {
     item.appendChild(avatar);
     item.appendChild(info);
     item.appendChild(last);
-    item.addEventListener('click', () => { _selectedContributor = name; _renderContributors(); _renderCommits(); _renderGraph(); });
+    item.addEventListener('click', () => { _selectedContributor = name; _profileContributor = null; _renderContributors(); _renderCommits(); _renderGraph(); });
+    item.addEventListener('dblclick', () => { _profileContributor = name; _selectedContributor = name; _renderContributors(); _renderCommits(); _renderGraph(); });
     list.appendChild(item);
   }
 }
@@ -415,6 +418,7 @@ function _updateGraphToggleButtons() {
 function _resetGraphFilter() {
   _selectedGraphKey = null;
   _selectedContributor = null;
+  _profileContributor = null;
   if (_drillOriginalMode) {
     _graphViewMode = _drillOriginalMode;
     _drillOriginalMode = null;
@@ -429,6 +433,15 @@ function _resetGraphFilter() {
 function _renderGraph() {
   window.__tafBarClick = _onBarClick;
   const wrap = _panel.querySelector('#tafGraph');
+  const mainEl = _panel.querySelector('.taf-main');
+
+  // Show profile view if a contributor is double-clicked
+  if (_profileContributor) {
+    mainEl.classList.add('in-profile');
+    _renderProfile(wrap);
+    return;
+  }
+  mainEl.classList.remove('in-profile');
 
   const graphCommits = _getGraphCommits();
 
@@ -444,6 +457,75 @@ function _renderGraph() {
   }
 
   _drawBarChart(wrap, data, _graphViewMode);
+}
+
+function _renderProfile(wrap) {
+  const data = _contributors[_profileContributor];
+  if (!data) { wrap.innerHTML = ''; return; }
+
+  // Compute extra stats from commits
+  const authorCommits = _commits.filter(c => c.author === _profileContributor);
+  let firstDate = null;
+  let totalFiles = 0;
+  for (const c of authorCommits) {
+    if (!firstDate || c.date < firstDate) firstDate = c.date;
+    totalFiles += c.filesChanged || 0;
+  }
+  const activeDays = firstDate && data.lastCommit
+    ? Math.max(1, Math.ceil((new Date(data.lastCommit) - new Date(firstDate)) / 86400000))
+    : 1;
+  const commitsPerWeek = activeDays > 0 ? ((data.commits / activeDays) * 7).toFixed(1) : '0';
+
+  const net = data.linesAdded - data.linesRemoved;
+  const netStr = net >= 0 ? `+${_n(net)}` : `-${_n(Math.abs(net))}`;
+
+  wrap.innerHTML = `
+    <div class="taf-profile">
+      <div class="taf-profile-avatar" style="background:${data.color || '#888'}">${_initials(_profileContributor)}</div>
+      <div class="taf-profile-name">${_esc(_profileContributor)}</div>
+      <div class="taf-profile-email">${_esc(data.email)}</div>
+      <div class="taf-profile-stats-grid">
+        <div class="taf-profile-stat">
+          <span class="taf-profile-stat-value">${_n(data.commits)}</span>
+          <span class="taf-profile-stat-label">Total Commits</span>
+        </div>
+        <div class="taf-profile-stat">
+          <span class="taf-profile-stat-value" style="color:var(--green, #34d399)">+${_n(data.linesAdded)}</span>
+          <span class="taf-profile-stat-label">Lines Added</span>
+        </div>
+        <div class="taf-profile-stat">
+          <span class="taf-profile-stat-value" style="color:var(--red, #f87171)">-${_n(data.linesRemoved)}</span>
+          <span class="taf-profile-stat-label">Lines Removed</span>
+        </div>
+        <div class="taf-profile-stat">
+          <span class="taf-profile-stat-value">${netStr}</span>
+          <span class="taf-profile-stat-label">Net Changes</span>
+        </div>
+        <div class="taf-profile-stat">
+          <span class="taf-profile-stat-value">${_n(totalFiles)}</span>
+          <span class="taf-profile-stat-label">Files Changed</span>
+        </div>
+        <div class="taf-profile-stat">
+          <span class="taf-profile-stat-value">${commitsPerWeek}</span>
+          <span class="taf-profile-stat-label">Avg / Week</span>
+        </div>
+      </div>
+      <div class="taf-profile-timeline">
+        <div class="taf-profile-tl-item">
+          <span class="taf-profile-tl-label">First Commit</span>
+          <span class="taf-profile-tl-value">${firstDate ? new Date(firstDate).toLocaleDateString() : '—'}</span>
+        </div>
+        <div class="taf-profile-tl-item">
+          <span class="taf-profile-tl-label">Last Commit</span>
+          <span class="taf-profile-tl-value">${data.lastCommit ? new Date(data.lastCommit).toLocaleDateString() : '—'}</span>
+        </div>
+        <div class="taf-profile-tl-item">
+          <span class="taf-profile-tl-label">Active Period</span>
+          <span class="taf-profile-tl-value">${_n(activeDays)} days</span>
+        </div>
+      </div>
+      <div class="taf-profile-hint">Double-click another contributor or click Reset to return</div>
+    </div>`;
 }
 
 function _buildGraphData(commits, mode) {
