@@ -287,9 +287,9 @@
   overflow: hidden;
 }
 .taf-graph-canvas-wrap svg {
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
 }
 
 /* ── Commit list ── */
@@ -511,13 +511,58 @@
   overflow: hidden;
 }
 .taf-file-header {
-  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-muted);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   background: var(--bg-base);
+  min-height: 28px;
+}
+.taf-diff-legend {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  font-family: var(--font-ui);
+  user-select: none;
+}
+.taf-legend-added { color: #34d399; }
+.taf-legend-removed { color: #f87171; }
+.taf-legend-hunk { color: #60a5fa; }
+.taf-header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.taf-copy-btn {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.taf-copy-btn[data-copy="raw"] {
+  border-color: var(--blue, #60a5fa);
+  color: var(--blue, #60a5fa);
+}
+.taf-copy-btn[data-copy="raw"]:hover {
+  background: rgba(96, 165, 250, 0.15);
+}
+.taf-copy-btn[data-copy="content"] {
+  border-color: var(--green, #34d399);
+  color: var(--green, #34d399);
+}
+.taf-copy-btn[data-copy="content"]:hover {
+  background: rgba(52, 211, 153, 0.15);
 }
 .taf-drawer-sidebar {
   width: 240px;

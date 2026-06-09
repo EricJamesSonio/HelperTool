@@ -363,17 +363,20 @@ function _renderGraph() {
     return;
   }
 
-  const grouped = _groupByTime(filtered, _graphViewMode);
-  if (!Object.keys(grouped).length) {
+  const data = _buildGraphData(filtered, _graphViewMode);
+  if (!data.length) {
     wrap.innerHTML = '<div class="taf-empty">No data</div>';
     return;
   }
 
-  _drawBarChart(wrap, grouped);
+  _drawBarChart(wrap, data, _graphViewMode);
 }
 
-function _groupByTime(commits, mode) {
-  const map = {};
+function _buildGraphData(commits, mode) {
+  if (!commits.length) return [];
+
+  // Group commits by their time bucket
+  const grouped = {};
   for (const c of commits) {
     const d = new Date(c.date);
     let key;
@@ -386,64 +389,115 @@ function _groupByTime(commits, mode) {
     } else {
       key = d.toISOString().slice(0, 7);
     }
-    if (!map[key]) map[key] = { key, label: key, count: 0, commits: [] };
-    map[key].count++;
-    map[key].commits.push(c);
+    if (!grouped[key]) grouped[key] = { key, label: key, count: 0, commits: [] };
+    grouped[key].count++;
+    grouped[key].commits.push(c);
   }
-  return map;
+
+  // Determine date range from the commits themselves
+  let minDate = new Date(commits[0].date);
+  let maxDate = new Date(commits[0].date);
+  for (const c of commits) {
+    const d = new Date(c.date);
+    if (d < minDate) minDate = d;
+    if (d > maxDate) maxDate = d;
+  }
+
+  // Build all buckets from minDate to maxDate
+  const result = [];
+  const cursor = new Date(minDate);
+
+  if (mode === 'day') {
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor <= maxDate) {
+      const key = cursor.toISOString().slice(0, 10);
+      result.push(grouped[key] || { key, label: key, count: 0, commits: [] });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  } else if (mode === 'week') {
+    cursor.setDate(cursor.getDate() - cursor.getDay());
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor <= maxDate) {
+      const key = cursor.toISOString().slice(0, 10);
+      result.push(grouped[key] || { key, label: key, count: 0, commits: [] });
+      cursor.setDate(cursor.getDate() + 7);
+    }
+  } else {
+    cursor.setDate(1);
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor <= maxDate) {
+      const key = cursor.toISOString().slice(0, 7);
+      result.push(grouped[key] || { key, label: key, count: 0, commits: [] });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+
+  return result;
 }
 
-function _drawBarChart(wrap, grouped) {
-  const keys = Object.keys(grouped).sort();
-  if (!keys.length) { wrap.innerHTML = ''; return; }
+function _drawBarChart(wrap, data, mode) {
+  if (!data.length) { wrap.innerHTML = ''; return; }
 
   const contributors = Object.keys(_contributors);
-  const w = Math.max(keys.length * 30, 300);
-  const h = 140;
-  const barPad = 4;
-  const barW = Math.max(4, Math.min(20, (w / keys.length) - barPad));
   const contributorColors = {};
   contributors.forEach((name, i) => {
     contributorColors[name] = _contributors[name]?.color || '#888';
   });
 
-  let maxCount = 0;
-  for (const k of keys) maxCount = Math.max(maxCount, grouped[k].count);
+  // Dynamic bar sizing from container width
+  const containerW = wrap.clientWidth || 600;
+  const padL = 36;
+  const padR = 12;
+  const availW = containerW - padL - padR;
+  const minBarW = 4;
+  const maxBarW = 28;
+  const gap = 2;
+  const stepNoGap = availW / data.length;
+  const barW = Math.max(minBarW, Math.min(maxBarW, stepNoGap - gap));
+  const step = barW + gap;
+  const h = 180;
+  const graphH = h - 22;
+  const totalW = Math.max(padL + data.length * step + padR, containerW);
 
-  let svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">`;
-  const graphH = h - 20;
+  let maxCount = 0;
+  for (const d of data) maxCount = Math.max(maxCount, d.count);
+
+  const isFiltered = _selectedGraphKey !== null;
+
+  let svg = `<svg viewBox="0 0 ${totalW} ${h}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="overflow:visible">`;
 
   // Grid lines
   const gridLines = 4;
   for (let i = 0; i <= gridLines; i++) {
     const y = graphH - (graphH / gridLines) * i;
-    svg += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="var(--border-subtle)" stroke-width="0.5"/>`;
-    svg += `<text x="-4" y="${y + 3}" fill="var(--text-faint)" font-size="8" text-anchor="end">${Math.round((maxCount / gridLines) * i)}</text>`;
+    svg += `<line x1="${padL - 4}" y1="${y}" x2="${totalW - padR}" y2="${y}" stroke="var(--border-subtle)" stroke-width="0.5"/>`;
+    svg += `<text x="${padL - 8}" y="${y + 3}" fill="var(--text-faint)" font-size="8" text-anchor="end">${Math.round((maxCount / gridLines) * i)}</text>`;
   }
 
-  const isFiltered = _selectedGraphKey !== null;
-
   // Bars
-  keys.forEach((key, ki) => {
-    const g = grouped[key];
-    const x = ki * (barW + barPad) + 4;
+  data.forEach((g, ki) => {
+    const x = padL + ki * step;
     const barH = maxCount > 0 ? (g.count / maxCount) * graphH : 0;
     const y = graphH - barH;
-    const isActive = key === _selectedGraphKey;
+    const isActive = g.key === _selectedGraphKey;
     const opacity = isFiltered ? (isActive ? 1.0 : 0.2) : 0.85;
     const stroke = isActive ? 'var(--accent)' : 'none';
     const strokeW = isActive ? 2 : 0;
     const cursor = 'pointer';
+    const onclick = `try{window.__tafBarClick && window.__tafBarClick('${g.key}')}catch(e){}`;
 
-    const onclick = `try{window.__tafBarClick && window.__tafBarClick('${key}')}catch(e){}`;
-
-    if (_selectedContributor) {
-      svg += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${contributorColors[_selectedContributor] || 'var(--accent)'}" rx="2" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}" style="cursor:${cursor}" onclick="${onclick}">
-        <title>${key}: ${g.count} commits</title>
+    if (g.count === 0) {
+      // Empty bar — faint marker so you see the gap
+      svg += `<rect x="${x}" y="${graphH - 2}" width="${barW}" height="2" fill="var(--border-subtle)" rx="1" style="cursor:${cursor}" onclick="${onclick}">
+        <title>${g.key}: 0 commits</title>
+      </rect>`;
+    } else if (_selectedContributor) {
+      svg += `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH, 2)}" fill="${contributorColors[_selectedContributor] || 'var(--accent)'}" rx="2" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}" style="cursor:${cursor}" onclick="${onclick}">
+        <title>${g.key}: ${g.count} commits</title>
       </rect>`;
     } else if (contributors.length === 1) {
-      svg += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${contributorColors[contributors[0]] || 'var(--accent)'}" rx="2" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}" style="cursor:${cursor}" onclick="${onclick}">
-        <title>${key}: ${g.count} commits</title>
+      svg += `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH, 2)}" fill="${contributorColors[contributors[0]] || 'var(--accent)'}" rx="2" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}" style="cursor:${cursor}" onclick="${onclick}">
+        <title>${g.key}: ${g.count} commits</title>
       </rect>`;
     } else {
       const contribCounts = {};
@@ -459,18 +513,22 @@ function _drawBarChart(wrap, grouped) {
         const color = contributorColors[name] || '#888';
         const tooltip = `${name}: ${cnt} commits`;
         svg += `<rect x="${x}" y="${yOff}" width="${barW}" height="${Math.max(segH, 1)}" fill="${color}" rx="1" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}" style="cursor:${cursor}" onclick="${onclick}">
-          <title>${key} — ${tooltip}</title>
+          <title>${g.key} — ${tooltip}</title>
         </rect>`;
       }
     }
 
     // X axis label
-    const skip = Math.max(1, Math.floor(keys.length / 10));
+    const skip = Math.max(1, Math.floor(data.length / 12));
     if (ki % skip === 0) {
-      const label = key.slice(5);
-      svg += `<text x="${x + barW / 2}" y="${h - 2}" fill="${isActive ? 'var(--accent)' : 'var(--text-faint)'}" font-size="7" text-anchor="middle" font-weight="${isActive ? 700 : 400}">${_esc(label)}</text>`;
+      const label = mode === 'month' ? g.key.slice(5) : g.key.slice(5);
+      svg += `<text x="${x + barW / 2}" y="${h - 3}" fill="${isActive ? 'var(--accent)' : 'var(--text-faint)'}" font-size="7" text-anchor="middle" font-weight="${isActive ? 700 : 400}">${_esc(label)}</text>`;
     }
   });
+
+  // Y axis label
+  const dateRange = `${data[0].key} – ${data[data.length - 1].key}`;
+  svg += `<text x="${padL}" y="10" fill="var(--text-faint)" font-size="8">${_esc(dateRange)}</text>`;
 
   svg += '</svg>';
   wrap.innerHTML = svg;
@@ -635,24 +693,60 @@ function _closeDrawer() {
 async function _loadFileAtCommit(hash, filePath) {
   const el = _panel.querySelector('#tafDrawerDiff');
   const fileHeader = _panel.querySelector('#tafFileHeader');
-  fileHeader.textContent = `Changes in ${filePath} at ${_shortHash(hash)}`;
   el.innerHTML = '<div class="taf-drawer-diff-loading">Loading diff\u2026</div>';
 
-  const cacheKey = 'diff:' + hash + '::' + filePath;
-  if (_diffCache[cacheKey]) {
-    _renderDiffContent(el, _diffCache[cacheKey]);
+  const diffKey = 'diff:' + hash + '::' + filePath;
+  const rawKey  = 'raw:' + hash + '::' + filePath;
+
+  if (_diffCache[diffKey] && _diffCache[rawKey]) {
+    _renderFileHeader(fileHeader, filePath, hash, _diffCache[diffKey], _diffCache[rawKey]);
+    _renderDiffContent(el, _diffCache[diffKey]);
     return;
   }
 
   try {
     const repoPath = _panel.dataset.repoPath;
-    const result = await window.electronAPI.teamActivityDiff(repoPath, hash, filePath);
-    const diff = result.diff || '';
-    _diffCache[cacheKey] = diff;
+    const [diffResult, rawResult] = await Promise.all([
+      window.electronAPI.teamActivityDiff(repoPath, hash, filePath),
+      window.electronAPI.teamActivityFileAtCommit(repoPath, hash, filePath),
+    ]);
+    const diff = diffResult.diff || '';
+    const raw = rawResult.content || '';
+    _diffCache[diffKey] = diff;
+    _diffCache[rawKey] = raw;
+    _renderFileHeader(fileHeader, filePath, hash, diff, raw);
     _renderDiffContent(el, diff);
   } catch {
     el.innerHTML = '<div class="taf-drawer-diff-loading">Failed to load diff</div>';
   }
+}
+
+function _renderFileHeader(headerEl, filePath, hash, diffText, rawContent) {
+  headerEl.innerHTML = `
+    <span style="flex-shrink:0">${_esc(filePath)} at ${_shortHash(hash)}</span>
+    <span class="taf-diff-legend">
+      <span class="taf-legend-added">+ added</span>
+      <span class="taf-legend-removed">- removed</span>
+      <span class="taf-legend-hunk">@@ hunk</span>
+    </span>
+    <span class="taf-header-actions">
+      <button class="taf-copy-btn" data-copy="raw">Copy Raw</button>
+      <button class="taf-copy-btn" data-copy="content">Copy Content</button>
+    </span>`;
+
+  headerEl.querySelectorAll('.taf-copy-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const type = btn.dataset.copy;
+      const text = type === 'raw' ? diffText : rawContent;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = type === 'raw' ? 'Copy Raw' : 'Copy Content'; }, 1500);
+      }).catch(() => {
+        btn.textContent = 'Failed';
+      });
+    });
+  });
 }
 
 function _renderDiffContent(el, diffText) {
