@@ -690,6 +690,14 @@ function _drawBarChart(wrap, data, mode) {
 function _renderCommits() {
   const list = _panel.querySelector('#tafCommitList');
   const countEl = _panel.querySelector('#tafCommitCount');
+
+  // Hide commit list when viewing a profile
+  if (_profileContributor) {
+    list.innerHTML = '';
+    countEl.textContent = '';
+    return;
+  }
+
   const filtered = _getFilteredCommits();
   const shown = filtered.slice(0, _visibleCount);
 
