@@ -18,6 +18,7 @@ export default class PanelRegistry {
     this._portManagerTool = null;
     this._diffViewer    = null;
     this._fileViewer    = null;
+    this._teamActivity  = null;
   }
 
   // Register external tools that don't use a panel element
@@ -30,6 +31,7 @@ export default class PanelRegistry {
   setPortManagerTool(t){ this._portManagerTool = t; }
   setDiffViewer(t)     { this._diffViewer = t; }
   setFileViewer(t)     { this._fileViewer = t; }
+  setTeamActivity(t)   { this._teamActivity = t; }
 
   // Register a panel element by name
   register(name, panel) {
@@ -66,5 +68,7 @@ export default class PanelRegistry {
     if (this._diffViewer?.isOpen?.()) this._diffViewer.close();
     // File Viewer
     if (this._fileViewer?.isOpen?.()) this._fileViewer.close();
+    // Team Activity
+    if (this._teamActivity?.isOpen?.()) this._teamActivity.close();
   }
 }

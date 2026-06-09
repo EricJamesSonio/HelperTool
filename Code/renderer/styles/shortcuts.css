@@ -158,6 +158,7 @@
 .shortcut-row[data-feature="terminalTool"]  .shortcut-row-icon svg { color: var(--accent); }
 .shortcut-row[data-feature="exitInput"]     .shortcut-row-icon svg { color: var(--yellow); }
 .shortcut-row[data-feature="portManagerTool"] .shortcut-row-icon svg { color: var(--blue); }
+.shortcut-row[data-feature="teamActivityTool"] .shortcut-row-icon svg { color: var(--green); }
 
 .shortcuts-modal-footer {
   padding: 16px 20px;

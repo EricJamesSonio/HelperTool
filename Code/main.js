@@ -23,6 +23,7 @@ const dbInspectorIpc = require('./ipc/dbInspector_ipc.js');
 const terminalIpc  = require('./ipc/terminal_ipc.js');
 const portManagerIpc = require('./ipc/portManager.js');
 const docignoreManagerIpc = require('./ipc/docignoreManager_ipc.js');
+const teamActivityFeedIpc = require('./ipc/teamActivityFeed.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
@@ -113,6 +114,7 @@ function registerAllIpc() {
     portManagerIpc.register();
     dbInspectorIpc.register(shared);
     docignoreManagerIpc.register(shared);
+    teamActivityFeedIpc.register();
 }
 
 // ----------------------------

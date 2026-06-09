@@ -14,6 +14,7 @@ import * as sessionNotes   from '../sessionNotes.js';
 import * as diffViewer     from '../diffViewer.js';
 import * as fileViewer     from '../fileViewer.js';
 import TerminalUI          from '../terminal/terminalUI.js';
+import * as teamActivity   from '../teamActivityFeed.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 
@@ -32,6 +33,7 @@ const ICONS = {
   db: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
   terminal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>',
   port: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10M5 13h10"/><path d="M7 7V3M13 7V3M7 13v4M13 13v4"/><rect x="3" y="7" width="14" height="6" rx="1"/></svg>',
+  team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -163,6 +165,14 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       _portManagerTool?.openPortManagerPanel?.();
     }, 'port'));
+  }
+
+  if (_feats.teamActivityTool) {
+    body.appendChild(createSidebarItem(ICONS.team, 'Team Activity', 'Contributor stats & commit timeline', () => {
+      if (teamActivity.isOpen()) { teamActivity.close(); return; }
+      _registry.closeAll();
+      teamActivity.open(state.selectedRepoPath);
+    }, 'team'));
   }
 
   if (_feats.symbolIndex) {
@@ -366,6 +376,14 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.teamActivityTool) {
+    actions.teamActivityTool = () => {
+      if (teamActivity.isOpen()) { teamActivity.close(); return; }
+      _registry.closeAll();
+      teamActivity.open(state.selectedRepoPath);
+    };
+  }
+
   return actions;
 }
 
@@ -375,6 +393,7 @@ export function closeAllPanels() {
   _registry.closeAll();
   if (diffViewer.isOpen()) diffViewer.close();
   if (fileViewer.isOpen()) fileViewer.close();
+  if (teamActivity.isOpen()) teamActivity.close();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -461,6 +480,13 @@ export async function initTools(feats, settingsManager) {
       _registry.setPortManagerTool(_portManagerTool);
       console.log('[Tools] Port Manager initialised');
     } catch (err) { console.error('[Tools] Port Manager failed:', err); }
+  }
+
+  if (feats.teamActivityTool) {
+    try {
+      _registry.setTeamActivity(teamActivity);
+      console.log('[Tools] Team Activity initialised');
+    } catch (err) { console.error('[Tools] Team Activity failed:', err); }
   }
 
   initContextMenu(
