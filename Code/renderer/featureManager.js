@@ -20,6 +20,7 @@ const DEFAULT_FEATURES = {
   dbInspector:   true,
   portManagerTool: true,
   teamActivityTool: true,
+  blueprintLibraryTool: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -66,6 +67,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-db-inspector',   !_features.dbInspector);
   document.body.classList.toggle('feat-no-port-manager',   !_features.portManagerTool);
   document.body.classList.toggle('feat-no-team-activity', !_features.teamActivityTool);
+  document.body.classList.toggle('feat-no-blueprint-library', !_features.blueprintLibraryTool);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────

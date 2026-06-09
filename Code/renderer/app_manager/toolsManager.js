@@ -15,6 +15,7 @@ import * as diffViewer     from '../diffViewer.js';
 import * as fileViewer     from '../fileViewer.js';
 import TerminalUI          from '../terminal/terminalUI.js';
 import * as teamActivity   from '../teamActivityFeed.js';
+import * as blueprintLibrary from '../blueprintLibrary.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 
@@ -34,6 +35,7 @@ const ICONS = {
   terminal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>',
   port: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10M5 13h10"/><path d="M7 7V3M13 7V3M7 13v4M13 13v4"/><rect x="3" y="7" width="14" height="6" rx="1"/></svg>',
   team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>',
+  blueprint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -174,6 +176,14 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       teamActivity.open(state.selectedRepoPath);
     }, 'team'));
+  }
+
+  if (_feats.blueprintLibraryTool) {
+    body.appendChild(createSidebarItem(ICONS.blueprint, 'Blueprint Library', 'Architecture patterns & code structure guides', () => {
+      if (blueprintLibrary.isOpen()) { blueprintLibrary.close(); return; }
+      _registry.closeAll();
+      blueprintLibrary.open();
+    }, 'blueprint'));
   }
 
   if (_feats.symbolIndex) {
@@ -386,6 +396,14 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.blueprintLibraryTool) {
+    actions.blueprintLibraryTool = () => {
+      if (blueprintLibrary.isOpen()) { blueprintLibrary.close(); return; }
+      _registry.closeAll();
+      blueprintLibrary.open();
+    };
+  }
+
   return actions;
 }
 
@@ -396,6 +414,7 @@ export function closeAllPanels() {
   if (diffViewer.isOpen()) diffViewer.close();
   if (fileViewer.isOpen()) fileViewer.close();
   if (teamActivity.isOpen()) teamActivity.close();
+  if (blueprintLibrary.isOpen()) blueprintLibrary.close();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -489,6 +508,13 @@ export async function initTools(feats, settingsManager) {
       _registry.setTeamActivity(teamActivity);
       console.log('[Tools] Team Activity initialised');
     } catch (err) { console.error('[Tools] Team Activity failed:', err); }
+  }
+
+  if (feats.blueprintLibraryTool) {
+    try {
+      _registry.setBlueprintLibrary(blueprintLibrary);
+      console.log('[Tools] Blueprint Library initialised');
+    } catch (err) { console.error('[Tools] Blueprint Library failed:', err); }
   }
 
   initContextMenu(

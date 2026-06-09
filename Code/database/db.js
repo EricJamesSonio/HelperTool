@@ -132,6 +132,29 @@ function createSchema() {
   `);
   _db.run('CREATE INDEX IF NOT EXISTS idx_boards_repo ON boards(repo_path)');
 
+  // ── Blueprint Library ────────────────────────────────────────────────
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS blueprint_categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      type       TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS blueprints (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER REFERENCES blueprint_categories(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      description TEXT,
+      pseudo_code TEXT NOT NULL,
+      tags        TEXT,
+      created_at  TEXT DEFAULT (datetime('now')),
+      updated_at  TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   const row = _db.exec("SELECT name FROM sqlite_master WHERE type='trigger' AND name='symbols_ai'");
   const hasFts = _db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols_fts'");
   if (row.length === 0 && hasFts.length > 0) {

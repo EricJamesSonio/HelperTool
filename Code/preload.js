@@ -215,6 +215,22 @@ const teamActivityBridge = {
   teamActivityCommitFiles: (repoPath, hash) => ipcRenderer.invoke('team-activity:commit-files', { repoPath, hash }),
 };
 
+const blueprintBridge = {
+  blueprint: {
+    getCategories:    ()                 => ipcRenderer.invoke('blueprint:getCategories'),
+    createCategory:   (name, type)       => ipcRenderer.invoke('blueprint:createCategory', { name, type }),
+    renameCategory:   (id, name)         => ipcRenderer.invoke('blueprint:renameCategory', { id, name }),
+    deleteCategory:   (id)               => ipcRenderer.invoke('blueprint:deleteCategory', { id }),
+    getByCategory:    (categoryId)       => ipcRenderer.invoke('blueprint:getByCategory', { categoryId }),
+    getOne:           (id)               => ipcRenderer.invoke('blueprint:getOne', { id }),
+    create:           (data)             => ipcRenderer.invoke('blueprint:create', data),
+    update:           (data)             => ipcRenderer.invoke('blueprint:update', data),
+    delete:           (id)               => ipcRenderer.invoke('blueprint:delete', { id }),
+    search:           (query)            => ipcRenderer.invoke('blueprint:search', { query }),
+    seed:             ()                 => ipcRenderer.invoke('blueprint:seed'),
+  },
+};
+
 const docignoreManagerBridge = {
     getGlobalDocignore: () => ipcRenderer.invoke('docignore:get-global'),
     setGlobalDocignore: (payload) => ipcRenderer.invoke('docignore:set-global', payload),
@@ -242,6 +258,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...terminalBridge,
     ...docignoreManagerBridge,
     ...teamActivityBridge,
+    ...blueprintBridge,
     windowControls,
 });
 
