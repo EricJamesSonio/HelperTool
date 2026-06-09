@@ -21,6 +21,7 @@ const DEFAULT_FEATURES = {
   portManagerTool: true,
   teamActivityTool: true,
   blueprintLibraryTool: true,
+  profileTool: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };

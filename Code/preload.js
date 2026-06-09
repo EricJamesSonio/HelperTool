@@ -231,6 +231,21 @@ const blueprintBridge = {
   },
 };
 
+const profileBridge = {
+  profile: {
+    get:          ()             => ipcRenderer.invoke('profile:get'),
+    update:       (data)         => ipcRenderer.invoke('profile:update', data),
+    getHeatmap:   (year)         => ipcRenderer.invoke('profile:getHeatmap', { year }),
+    getStats:     (range)        => ipcRenderer.invoke('profile:getStats', { range }),
+    getDonutData: (range)        => ipcRenderer.invoke('profile:getDonutData', { range }),
+    getHistory:   (page, repo)   => ipcRenderer.invoke('profile:getHistory', { page, repoPath: repo }),
+    getDayDetail: (date)         => ipcRenderer.invoke('profile:getDayDetail', { date }),
+    syncCommits:  ()             => ipcRenderer.invoke('profile:syncCommits'),
+    initWatcher:  ()             => ipcRenderer.invoke('profile:initWatcher'),
+    stopWatcher:  ()             => ipcRenderer.invoke('profile:stopWatcher'),
+  },
+};
+
 const docignoreManagerBridge = {
     getGlobalDocignore: () => ipcRenderer.invoke('docignore:get-global'),
     setGlobalDocignore: (payload) => ipcRenderer.invoke('docignore:set-global', payload),
@@ -259,6 +274,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...docignoreManagerBridge,
     ...teamActivityBridge,
     ...blueprintBridge,
+    ...profileBridge,
     windowControls,
 });
 
