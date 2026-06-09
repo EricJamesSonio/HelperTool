@@ -55,7 +55,7 @@ function _buildPanel() {
         <span class="dv-file-path" id="dvFilePath"></span>
       </div>
       <div class="dv-header-actions">
-        <button class="dv-btn dv-btn-toggle" id="dvToggleBtn" style="display:none">History</button>
+        <button class="dv-btn dv-btn-toggle" id="dvToggleBtn">View Diff</button>
         <button class="dv-btn dv-btn-close" id="dvCloseBtn">${CLOSE_SVG}</button>
       </div>
     </div>
@@ -136,40 +136,53 @@ function _applyViewMode() {
 }
 
 function _applyContentMode() {
-  if (!_viewMode) return;
   const leftLabel = document.querySelector('.dv-panel-left .dv-panel-label');
+  const leftPanel = document.querySelector('.dv-panel-left');
   const leftSelect = document.getElementById('dvLeftSelect');
   const leftMsg = document.getElementById('dvLeftMsg');
+  const rightPanel = document.querySelector('.dv-panel-right');
+  const divider = document.querySelector('.dv-divider');
+  const footer = document.getElementById('dvFooter');
+  const analysis = document.getElementById('dvAnalysis');
   const toggleBtn = document.getElementById('dvToggleBtn');
 
   if (_showContent) {
     if (leftLabel) leftLabel.textContent = 'File Content';
     if (leftSelect) leftSelect.style.display = 'none';
     if (leftMsg) leftMsg.style.display = 'none';
-    toggleBtn.textContent = 'History';
+    if (rightPanel) rightPanel.style.display = 'none';
+    if (divider) divider.style.display = 'none';
+    if (footer) footer.style.display = 'none';
+    if (analysis) analysis.style.display = 'none';
+    if (leftPanel) leftPanel.classList.add('dv-panel-full');
+    if (toggleBtn) toggleBtn.textContent = 'View Diff';
   } else {
-    if (leftLabel) leftLabel.textContent = 'Commit';
+    if (leftLabel) leftLabel.textContent = _viewMode ? 'Commit' : 'Older';
     if (leftSelect) leftSelect.style.display = '';
     if (leftMsg) leftMsg.style.display = '';
-    toggleBtn.textContent = 'Content';
+    if (rightPanel) rightPanel.style.display = _viewMode ? 'none' : '';
+    if (divider) divider.style.display = _viewMode ? 'none' : '';
+    if (footer) footer.style.display = _viewMode ? 'none' : '';
+    if (analysis) analysis.style.display = _viewMode ? 'none' : '';
+    if (leftPanel) leftPanel.classList.remove('dv-panel-full');
+    if (toggleBtn) toggleBtn.textContent = 'View File';
   }
 }
 
 function _toggleContentHistory() {
-  if (!_viewMode) return;
-  _showContent = !_showContent;
   if (_showContent) {
-    _loadContent();
-  } else {
-    if (!_commits.length || !_leftHash) {
-      _showContent = true;
+    if (!_commits.length) {
+      _showError('No commit history available for this file');
       return;
     }
+    _viewMode = false;
+    _showContent = false;
     _updateSelects();
-    const commit = _commits.find(c => c.hash === _leftHash);
-    const leftMsg = document.getElementById('dvLeftMsg');
-    if (leftMsg) leftMsg.textContent = commit ? commit.message : '';
     _loadDiff();
+  } else {
+    _viewMode = true;
+    _showContent = true;
+    _loadContent();
   }
   _applyContentMode();
 }
@@ -214,10 +227,8 @@ async function _load() {
     _updateSelects();
   }
 
-  const toggleBtn = document.getElementById('dvToggleBtn');
   if (_showContent) {
     await _loadContent();
-    if (toggleBtn) toggleBtn.style.display = _commits.length ? '' : 'none';
   } else if (_commits.length) {
     await _loadDiff();
   } else {
