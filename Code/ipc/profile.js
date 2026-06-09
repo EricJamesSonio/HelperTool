@@ -93,25 +93,26 @@ function _startWatcher(repoPath, repoName) {
 }
 
 function register(shared) {
-  ipcMain.handle('profile:get', () => {
-    const rows = db().exec('SELECT * FROM profile WHERE id=1');
-    if (!rows.length || !rows[0].values.length) {
-      let name = '', email = '';
-      try {
-        const repos = _getIndexedRepos();
-        if (repos.length) {
-          const git = simpleGit(repos[0].repoPath);
-          name = (git.listConfig() || {}).values?.['user.name'] || '';
-          email = (git.listConfig() || {}).values?.['user.email'] || '';
-        }
-      } catch (_) {}
-      db().run('INSERT INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
-      save();
-      return { id: 1, name, email, avatarColor: '#4F8EF7', facebook: '', tiktok: '', linkedin: '', wakatime: '' };
-    }
-    const r = rows[0].values[0];
-    return { id: r[0], name: r[1], email: r[2], avatarColor: r[3], facebook: r[4], tiktok: r[5], linkedin: r[6], wakatime: r[7] };
-  });
+ipcMain.handle('profile:get', async () => {
+  const rows = db().exec('SELECT * FROM profile WHERE id=1');
+  if (!rows.length || !rows[0].values.length) {
+    let name = '', email = '';
+    try {
+      const repos = _getIndexedRepos();
+      if (repos.length) {
+        const git = simpleGit(repos[0].repoPath);
+        const config = await git.listConfig();
+        name = config.all['user.name'] || '';
+        email = config.all['user.email'] || '';
+      }
+    } catch (_) {}
+    db().run('INSERT OR IGNORE INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
+    save();
+    return { id: 1, name, email, avatarColor: '#4F8EF7', facebook: '', tiktok: '', linkedin: '', wakatime: '' };
+  }
+  const r = rows[0].values[0];
+  return { id: r[0], name: r[1], email: r[2], avatarColor: r[3], facebook: r[4], tiktok: r[5], linkedin: r[6], wakatime: r[7] };
+});
 
   ipcMain.handle('profile:update', (event, data) => {
     db().run(`UPDATE profile SET name=?, email=?, avatar_color=?, facebook=?, tiktok=?, linkedin=?, wakatime=?, updated_at=datetime('now') WHERE id=1`,
@@ -167,7 +168,10 @@ function register(shared) {
       FROM activity_days ${dateFilter}`);
     let c = 0, s = 0, f = 0;
     if (typeRows.length && typeRows[0].values.length) {
-      c = typeRows[0].values[0] || 0; s = typeRows[0].values[1] || 0; f = typeRows[0].values[2] || 0;
+      const typeRow = typeRows[0].values[0];
+c = typeRow[0] || 0;
+s = typeRow[1] || 0;
+f = typeRow[2] || 0;
     }
     const typeData = [
       { label: 'File Saves', value: s },

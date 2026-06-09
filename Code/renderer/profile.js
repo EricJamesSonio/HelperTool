@@ -86,7 +86,8 @@ async function _load() {
     await _sync();
     _renderBody();
   } catch (err) {
-    _panel.querySelector('#pfBody').innerHTML = '<div class="pf-error">Failed to load profile</div>';
+    console.error('[Profile] Failed to load:', err);
+    _panel.querySelector('#pfBody').innerHTML = '<div class="pf-error">Failed to load profile: ' + err.message + '</div>';
   }
 }
 
@@ -95,15 +96,15 @@ async function _sync() {
   try { await window.electronAPI.profile.initWatcher(); } catch (_) {}
 }
 
-function _renderBody() {
+async function _renderBody() {
   if (_dayDetail) { _renderDayDetail(); return; }
   const body = _panel.querySelector('#pfBody');
   body.innerHTML = '';
   body.appendChild(_renderProfileCard());
-  body.appendChild(_renderStatsBar());
-  body.appendChild(_renderHeatmap());
-  body.appendChild(_renderDonuts());
-  body.appendChild(_renderHistory());
+  body.appendChild(await _renderStatsBar());
+  body.appendChild(await _renderHeatmap());
+  body.appendChild(await _renderDonuts());
+  body.appendChild(await _renderHistory());
 }
 
 function _initials(name) {
@@ -306,7 +307,7 @@ async function _renderDonuts() {
   const donutColors = ['#4F8EF7', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#fbbf24', '#f87171', '#2dd4bf'];
 
   function buildDonut(id, title, items, valueKey) {
-    const total = items.reduce((s, i) => s + (i.value || 0), 0);
+    const total = items.reduce((s, i) => s + (Number(i.value) || 0), 0);
     const wrap = _el('div', { className: 'pf-donut-wrap' });
     if (!total) {
       wrap.innerHTML = `<div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-empty">No data</div>`;
@@ -316,7 +317,7 @@ async function _renderDonuts() {
     const cx = 60, cy = 60;
     let html = `<div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-chart"><svg viewBox="0 0 120 120" width="120" height="120">`;
     let angle = -Math.PI / 2;
-    const slices = items.slice(0, 7);
+    const slices = items.filter(i => (Number(i.value) || 0) > 0).slice(0, 7);
     slices.forEach((item, i) => {
       const pct = item.value / total;
       const endAngle = angle + pct * 2 * Math.PI;
