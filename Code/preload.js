@@ -177,6 +177,11 @@ const dbInspectorBridge = {
     },
 };
 
+const portManagerBridge = {
+    portManagerList: () => ipcRenderer.invoke('port-manager:list'),
+    portManagerKill: (pid) => ipcRenderer.invoke('port-manager:kill', { pid }),
+};
+
 const terminalBridge = {
     terminalSpawn:  (options) => ipcRenderer.invoke('terminal:spawn', options),
     terminalWrite:  (payload) => ipcRenderer.invoke('terminal:write', payload),
@@ -203,6 +208,14 @@ const windowControls = {
     },
 };
 
+const docignoreManagerBridge = {
+    getGlobalDocignore: () => ipcRenderer.invoke('docignore:get-global'),
+    setGlobalDocignore: (payload) => ipcRenderer.invoke('docignore:set-global', payload),
+    getRepoDocignore: (payload) => ipcRenderer.invoke('docignore:get-repo', payload),
+    setRepoDocignore: (payload) => ipcRenderer.invoke('docignore:set-repo', payload),
+    clearDocignoreCache: (repoPath) => ipcRenderer.invoke('docignore:clear-cache', repoPath),
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -218,7 +231,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...fileseederBridge,
     ...locBridge,
     ...dbInspectorBridge,
+    ...portManagerBridge,
     ...terminalBridge,
+    ...docignoreManagerBridge,
     windowControls,
 });
 

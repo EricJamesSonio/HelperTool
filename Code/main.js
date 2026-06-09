@@ -22,6 +22,7 @@ const locIpc       = require('./ipc/loc_ipc.js');
 const dbInspectorIpc = require('./ipc/dbInspector_ipc.js');
 const terminalIpc  = require('./ipc/terminal_ipc.js');
 const portManagerIpc = require('./ipc/portManager.js');
+const docignoreManagerIpc = require('./ipc/docignoreManager_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
@@ -109,7 +110,9 @@ function registerAllIpc() {
     fileseederIpc.register(shared);
     locIpc.register(shared);
     terminalIpc.register(shared);
+    portManagerIpc.register();
     dbInspectorIpc.register(shared);
+    docignoreManagerIpc.register(shared);
 }
 
 // ----------------------------

@@ -216,6 +216,16 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    ipcMain.handle('docignore:clear-cache', async (event, repoPath) => {
+        try {
+            docignoreUtils.clearCache(repoPath || null);
+            return { success: true };
+        } catch (err) {
+            console.error('[IPC] docignore:clear-cache error:', err);
+            return { success: false, error: err.message };
+        }
+    });
+
     // ── Session Notes ───────────────────────────────────────────────────────
 
     ipcMain.handle('get-session-notes', () => {

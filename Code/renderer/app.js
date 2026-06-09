@@ -69,6 +69,8 @@ import * as sessionNotes from './sessionNotes.js';
 
 import { initZoomManager } from './app_manager/zoomManager.js';
 
+import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
+
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
 const selectRepoBtn  = document.getElementById('selectRepoBtn');
@@ -195,6 +197,7 @@ refreshBtn.addEventListener('click', async () => {
     refreshBtn.classList.add('spinning');
     refreshBtn.disabled = true;
     try {
+        await window.electronAPI.clearDocignoreCache(state.selectedRepoPath);
         state.cachedTree = await window.electronAPI.getFolderTree(state.selectedRepoPath);
         renderFilterChips();
         const feats = getFeatures();
@@ -213,12 +216,11 @@ refreshBtn.addEventListener('click', async () => {
 });
 
 editDocignoreBtn.addEventListener('click', async () => {
-    try {
-        const ok = await window.electronAPI.openGlobalDocignore();
-        if (!ok) alert('Failed to open global ignore file.');
-    } catch (err) {
-        console.error('[UI] Error opening .docignore:', err);
+    if (isDocignoreManagerOpen()) {
+        closeDocignoreManager();
+        return;
     }
+    openDocignoreManager(state.selectedRepoPath || null);
 });
 
 notesBtn.addEventListener('click', () => {

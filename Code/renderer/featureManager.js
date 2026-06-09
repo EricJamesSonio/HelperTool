@@ -18,6 +18,7 @@ const DEFAULT_FEATURES = {
   symbolIndex:   true,
   canvasTool:    true,
   dbInspector:   true,
+  portManagerTool: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -62,6 +63,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-folder-filters', !_features.folderFilters);
   document.body.classList.toggle('feat-no-symbol-index',   !_features.symbolIndex);
   document.body.classList.toggle('feat-no-db-inspector',   !_features.dbInspector);
+  document.body.classList.toggle('feat-no-port-manager',   !_features.portManagerTool);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────
@@ -154,6 +156,13 @@ function _injectWizard() {
     icon: ICON_FW_DB,
     label: 'Database Inspector',
     desc: 'Connect to databases, scan schema, visualize tables & relationships.',
+    heavy: false,
+  },
+  {
+    id: 'portManagerTool',
+    icon: ICON_FW_LIGHTNING,
+    label: 'Port Manager',
+    desc: 'View & kill processes listening on ports. Lists all TCP/UDP ports with process names.',
     heavy: false,
   },
   ];

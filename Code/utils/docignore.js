@@ -13,8 +13,8 @@ let cachedGlobalRules = null;
 const repoRulesCache = new Map();        // repo path -> combined rules
 const compiledMatchersCache = new Map(); // repo path -> compiled matcher functions
 
-function loadGlobalIgnoreRules() {
-    if (cachedGlobalRules) return cachedGlobalRules;
+function loadGlobalIgnoreRules(force) {
+    if (cachedGlobalRules && !force) return cachedGlobalRules;
 
     if (!fs.existsSync(globalIgnorePath)) {
         cachedGlobalRules = [];
@@ -86,4 +86,15 @@ function isIgnored(fullPath, repoPath) {
 }
 
 
-module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules };
+function clearCache(repoPath) {
+    cachedGlobalRules = null;
+    if (repoPath) {
+        repoRulesCache.delete(repoPath);
+        compiledMatchersCache.delete(repoPath);
+    } else {
+        repoRulesCache.clear();
+        compiledMatchersCache.clear();
+    }
+}
+
+module.exports = { isIgnored, loadGlobalIgnoreRules, getIgnoreRules, clearCache };

@@ -1,0 +1,478 @@
+/* ── Docignore Manager Modal ──────────────────────────── */
+
+.dm-overlay {
+  position: fixed;
+  inset: 0;
+  top: var(--titlebar-h, 32px);
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+.dm-overlay.dm-open {
+  display: flex;
+  opacity: 1;
+  pointer-events: all;
+  visibility: visible;
+}
+
+.dm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+}
+
+.dm-container {
+  position: relative;
+  width: 85%;
+  max-width: 1000px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  animation: dmFadeIn 0.15s ease-out;
+}
+
+@keyframes dmFadeIn {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Header ── */
+.dm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+.dm-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dm-header h2 svg {
+  width: 18px;
+  height: 18px;
+  color: var(--red);
+}
+.dm-header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dm-repo-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 3px 8px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--border-subtle);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dm-btn-close {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.dm-btn-close:hover {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: var(--red);
+}
+.dm-btn-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Toolbar ── */
+.dm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+}
+.dm-tabs {
+  display: flex;
+  gap: 2px;
+}
+.dm-tab {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.dm-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.dm-tab.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+.dm-filter {
+  margin-left: auto;
+  height: 28px;
+  width: 200px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.dm-filter:focus {
+  border-color: var(--accent);
+}
+.dm-filter::placeholder {
+  color: var(--text-faint);
+}
+.dm-count {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* ── Body ── */
+.dm-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px;
+}
+
+/* ── Entry List ── */
+.dm-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  transition: background 0.1s;
+}
+.dm-entry:hover {
+  background: var(--bg-hover);
+}
+.dm-entry-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.dm-entry-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.dm-entry-icon.file svg { color: var(--blue); }
+.dm-entry-icon.folder svg { color: var(--yellow); }
+.dm-entry-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dm-entry-scope {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.dm-entry-scope.global {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.dm-entry-scope.specific {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.dm-entry-path {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dm-entry-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.1s;
+  flex-shrink: 0;
+}
+.dm-entry:hover .dm-entry-delete {
+  opacity: 0.6;
+}
+.dm-entry-delete:hover {
+  opacity: 1 !important;
+  background: var(--red-dim);
+  color: var(--red);
+}
+.dm-entry-delete svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.dm-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 8px 0;
+}
+
+/* ── Empty state ── */
+.dm-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── Add Rule Form ── */
+.dm-add-form {
+  border-top: 1px solid var(--border-subtle);
+  padding: 14px 20px;
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+.dm-add-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dm-add-name {
+  flex: 1;
+  min-width: 160px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: var(--font-mono);
+}
+.dm-add-name:focus {
+  border-color: var(--accent);
+}
+.dm-add-name::placeholder {
+  color: var(--text-faint);
+  font-family: var(--font-base);
+}
+.dm-add-type-group,
+.dm-add-scope-group {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+  padding: 2px;
+}
+.dm-add-type-btn,
+.dm-add-scope-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.dm-add-type-btn:hover,
+.dm-add-scope-btn:hover {
+  color: var(--text-primary);
+}
+.dm-add-type-btn.active,
+.dm-add-scope-btn.active {
+  background: var(--accent);
+  color: var(--accent-text, #fff);
+}
+.dm-add-specific-path {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  font-family: var(--font-mono);
+  width: 140px;
+  display: none;
+}
+.dm-add-specific-path:focus {
+  border-color: var(--accent);
+}
+.dm-add-specific-path.show {
+  display: inline-flex;
+}
+.dm-add-preview {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  padding: 4px 10px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-xs);
+  white-space: nowrap;
+}
+.dm-add-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.dm-add-cancel {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.dm-add-cancel:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.dm-add-submit {
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-text, #fff);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.dm-add-submit:hover {
+  opacity: 0.9;
+}
+.dm-add-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Footer ── */
+.dm-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+.dm-footer-left {
+  flex: 1;
+}
+.dm-toast {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--r-xs);
+  animation: dmToastIn 0.15s ease-out;
+}
+.dm-toast.error {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.dm-toast.success {
+  background: var(--green-dim);
+  color: var(--green);
+}
+@keyframes dmToastIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.dm-footer-right {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.dm-btn {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.dm-btn-secondary {
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-primary);
+}
+.dm-btn-secondary:hover {
+  background: var(--bg-hover);
+}
+.dm-btn-primary {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text, #fff);
+}
+.dm-btn-primary:hover {
+  opacity: 0.9;
+}
