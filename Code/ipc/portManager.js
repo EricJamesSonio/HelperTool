@@ -6,6 +6,55 @@ const execAsync = util.promisify(exec);
 
 const PROTECTED_NAMES = ['system', 'svchost', 'lsass', 'csrss', 'wininit', 'services', 'smss'];
 
+// ── Process metadata cache ──────────────────────────────────
+const _pidMetaCache = new Map(); // pid -> { name, startTime }
+let _lastFullRefresh = 0;
+let _cachedResponse = null;
+const FULL_REFRESH_MS = 60_000;
+
+function _buildGroups(byPid) {
+  const groups = {};
+  let totalProcesses = 0;
+
+  for (const [pidStr, info] of Object.entries(byPid)) {
+    const pid = Number(pidStr);
+    const meta = _pidMetaCache.get(pid) || {};
+    const name = meta.name || 'Unknown';
+    const startTime = meta.startTime || null;
+    const protected_flag = isProtected(pid, name);
+
+    for (const port of info.ports) {
+      if (!groups[port]) groups[port] = [];
+      groups[port].push({ pid, name, protected: protected_flag, startTime });
+      totalProcesses++;
+    }
+  }
+
+  const sortedPorts = Object.keys(groups).sort((a, b) => {
+    const aMaxTime = groups[a].reduce((max, e) => e.startTime ? Math.max(max, new Date(e.startTime).getTime()) : max, 0);
+    const bMaxTime = groups[b].reduce((max, e) => e.startTime ? Math.max(max, new Date(e.startTime).getTime()) : max, 0);
+    if (aMaxTime !== bMaxTime) return bMaxTime - aMaxTime;
+    const aMaxPid = Math.max(...groups[a].map(e => e.pid));
+    const bMaxPid = Math.max(...groups[b].map(e => e.pid));
+    return bMaxPid - aMaxPid;
+  });
+
+  const sorted = {};
+  for (const port of sortedPorts) {
+    sorted[port] = groups[port].slice().sort((a, b) => {
+      const aT = a.startTime ? new Date(a.startTime).getTime() : 0;
+      const bT = b.startTime ? new Date(b.startTime).getTime() : 0;
+      if (aT !== bT) return bT - aT;
+      return b.pid - a.pid;
+    });
+  }
+
+  return {
+    groups: sorted,
+    counts: { ports: Object.keys(sorted).length, processes: totalProcesses },
+  };
+}
+
 function isProtected(pid, name) {
   if (pid <= 4) return true;
   const lower = (name || '').toLowerCase().replace('.exe', '');
@@ -67,62 +116,56 @@ async function getProcessCreationTime(pid) {
   }
 }
 
-async function listHandler() {
-  const byPid = await parseListeningPorts();
-  const pids = Object.keys(byPid).map(Number);
-
-  const metaMap = {};
+async function _fetchNewPids(pidList) {
   const BATCH_SIZE = 10;
-  for (let i = 0; i < pids.length; i += BATCH_SIZE) {
-    const batch = pids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < pidList.length; i += BATCH_SIZE) {
+    const batch = pidList.slice(i, i + BATCH_SIZE);
     const nameResults = await Promise.allSettled(batch.map(pid => getProcessName(pid)));
     const timeResults = await Promise.allSettled(batch.map(pid => getProcessCreationTime(pid)));
     nameResults.forEach((r, idx) => {
       const pid = batch[idx];
       const name = r.status === 'fulfilled' ? r.value : 'Unknown';
       const startTime = timeResults[idx]?.status === 'fulfilled' ? timeResults[idx].value : null;
-      metaMap[pid] = { name, startTime };
+      _pidMetaCache.set(pid, { name, startTime });
     });
   }
+}
 
-  const groups = {};
-  let totalProcesses = 0;
+async function listHandler() {
+  const now = Date.now();
+  const byPid = await parseListeningPorts();
+  const currentPids = new Set(Object.keys(byPid).map(Number));
 
-  for (const [pidStr, info] of Object.entries(byPid)) {
-    const pid = Number(pidStr);
-    const { name, startTime } = metaMap[pid] || {};
-    const protected_flag = isProtected(pid, name);
+  // ── Full refresh every FULL_REFRESH_MS ──
+  const forceFull = (now - _lastFullRefresh) > FULL_REFRESH_MS;
 
-    for (const port of info.ports) {
-      if (!groups[port]) groups[port] = [];
-      groups[port].push({ pid, name, protected: protected_flag, startTime });
-      totalProcesses++;
+  // ── Find new PIDs not yet in cache ──
+  const newPids = [];
+  for (const pid of currentPids) {
+    if (!_pidMetaCache.has(pid) || forceFull) {
+      newPids.push(pid);
     }
   }
 
-  const sortedPorts = Object.keys(groups).sort((a, b) => {
-    const aMaxTime = groups[a].reduce((max, e) => e.startTime ? Math.max(max, new Date(e.startTime).getTime()) : max, 0);
-    const bMaxTime = groups[b].reduce((max, e) => e.startTime ? Math.max(max, new Date(e.startTime).getTime()) : max, 0);
-    if (aMaxTime !== bMaxTime) return bMaxTime - aMaxTime;
-    const aMaxPid = Math.max(...groups[a].map(e => e.pid));
-    const bMaxPid = Math.max(...groups[b].map(e => e.pid));
-    return bMaxPid - aMaxPid;
-  });
-
-  const sorted = {};
-  for (const port of sortedPorts) {
-    sorted[port] = groups[port].slice().sort((a, b) => {
-      const aT = a.startTime ? new Date(a.startTime).getTime() : 0;
-      const bT = b.startTime ? new Date(b.startTime).getTime() : 0;
-      if (aT !== bT) return bT - aT;
-      return b.pid - a.pid;
-    });
+  // ── Remove stale PIDs from cache ──
+  for (const pid of _pidMetaCache.keys()) {
+    if (!currentPids.has(pid)) {
+      _pidMetaCache.delete(pid);
+    }
   }
 
-  return {
-    groups: sorted,
-    counts: { ports: Object.keys(sorted).length, processes: totalProcesses },
-  };
+  // ── Fetch metadata only for new / force-full PIDs ──
+  if (newPids.length > 0) {
+    await _fetchNewPids(newPids);
+  }
+
+  if (forceFull) {
+    _lastFullRefresh = now;
+  }
+
+  // ── Build response from cache ──
+  _cachedResponse = _buildGroups(byPid);
+  return _cachedResponse;
 }
 
 async function killHandler({ pid }) {
