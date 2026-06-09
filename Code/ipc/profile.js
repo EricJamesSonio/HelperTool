@@ -95,25 +95,45 @@ function _startWatcher(repoPath, repoName) {
 function register(shared) {
 ipcMain.handle('profile:get', async () => {
   const rows = db().exec('SELECT * FROM profile WHERE id=1');
-  if (!rows.length || !rows[0].values.length) {
+
+  // always attempt to backfill if email is missing
+  const stored = rows.length && rows[0].values.length ? rows[0].values[0] : null;
+  const storedEmail = stored ? stored[2] : '';
+
+  if (!stored || !storedEmail) {
     let name = '', email = '';
     try {
-      const repos = _getIndexedRepos();
-      if (repos.length) {
-        const git = simpleGit(repos[0].repoPath);
-        const config = await git.listConfig();
-        name = config.all['user.name'] || '';
-        email = config.all['user.email'] || '';
-      }
+      const git = simpleGit();
+      const config = await git.listConfig('global');
+      name = config.all['user.name'] || '';
+      email = config.all['user.email'] || '';
     } catch (_) {}
-    db().run('INSERT OR IGNORE INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
-    save();
-    return { id: 1, name, email, avatarColor: '#4F8EF7', facebook: '', tiktok: '', linkedin: '', wakatime: '' };
-  }
-  const r = rows[0].values[0];
-  return { id: r[0], name: r[1], email: r[2], avatarColor: r[3], facebook: r[4], tiktok: r[5], linkedin: r[6], wakatime: r[7] };
-});
 
+    if (!stored) {
+      db().run('INSERT OR IGNORE INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
+    } else {
+      db().run('UPDATE profile SET name=?, email=? WHERE id=1', [name || stored[1], email]);
+    }
+    save();
+
+    return {
+      id: 1,
+      name: name || (stored ? stored[1] : ''),
+      email,
+      avatarColor: stored ? stored[3] : '#4F8EF7',
+      facebook: stored ? stored[4] : null,
+      tiktok: stored ? stored[5] : null,
+      linkedin: stored ? stored[6] : null,
+      wakatime: stored ? stored[7] : null,
+    };
+  }
+
+  return {
+    id: stored[0], name: stored[1], email: stored[2],
+    avatarColor: stored[3], facebook: stored[4],
+    tiktok: stored[5], linkedin: stored[6], wakatime: stored[7],
+  };
+});
   ipcMain.handle('profile:update', (event, data) => {
     db().run(`UPDATE profile SET name=?, email=?, avatar_color=?, facebook=?, tiktok=?, linkedin=?, wakatime=?, updated_at=datetime('now') WHERE id=1`,
       [data.name || '', data.email || '', data.avatarColor || '#4F8EF7', data.facebook || '',
