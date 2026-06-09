@@ -9,6 +9,8 @@ let _selectedGraphKey = null;
 let _selectedCommit = null;
 let _selectedFile = null;
 let _graphViewMode = 'day';
+let _drillOriginalMode = null;
+let _drillKey = null;
 let _commitFilterText = '';
 let _diffCache = {};
 let _visibleCount = 50;
@@ -114,6 +116,7 @@ function _buildPanel() {
                 <button class="taf-graph-toggle active" data-mode="day">Day</button>
                 <button class="taf-graph-toggle" data-mode="week">Week</button>
                 <button class="taf-graph-toggle" data-mode="month">Month</button>
+                <button class="taf-graph-reset" id="tafGraphReset">Reset</button>
               </div>
             </div>
             <div class="taf-graph-canvas-wrap" id="tafGraph"></div>
@@ -154,11 +157,17 @@ function _buildPanel() {
   _panel.querySelector('#tafCommitFilter').addEventListener('input', _onFilter);
   _panel.querySelector('#tafDrawerClose').addEventListener('click', _closeDrawer);
 
+  _panel.querySelector('#tafGraphReset').addEventListener('click', _resetGraphFilter);
+
   _panel.querySelectorAll('.taf-graph-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
       _panel.querySelectorAll('.taf-graph-toggle').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _graphViewMode = btn.dataset.mode;
+      _selectedGraphKey = null;
+      _drillOriginalMode = null;
+      _drillKey = null;
+      _renderCommits();
       _renderGraph();
     });
   });
@@ -314,13 +323,43 @@ function _renderContributors() {
 
 // ── Graph ─────────────────────────────────────────────────────
 
-function _getFilteredCommits() {
-  let filtered = _commits;
+function _getGraphCommits() {
+  let commits = _commits;
   if (_selectedContributor) {
-    filtered = filtered.filter(c => c.author === _selectedContributor);
+    commits = commits.filter(c => c.author === _selectedContributor);
   }
+  // In drill-down mode, scope graph to the selected month/week range
+  if (_drillOriginalMode && _drillKey) {
+    if (_drillOriginalMode === 'month') {
+      const monthKey = _drillKey.slice(0, 7);
+      commits = commits.filter(c => c.date.startsWith(monthKey));
+    } else if (_drillOriginalMode === 'week') {
+      const wkStart = new Date(_drillKey.slice(0, 10));
+      const wkEnd = new Date(wkStart);
+      wkEnd.setDate(wkEnd.getDate() + 7);
+      commits = commits.filter(c => {
+        const d = new Date(c.date);
+        return d >= wkStart && d < wkEnd;
+      });
+    }
+  }
+  return commits;
+}
+
+function _getFilteredCommits() {
+  let filtered = _getGraphCommits();
+  // Further filter by the selected bar
   if (_selectedGraphKey) {
-    filtered = filtered.filter(c => _dateToGraphKey(c.date, _graphViewMode) === _selectedGraphKey);
+    if (_drillOriginalMode) {
+      // In drill-down, selected key is a day within the drill range
+      if (_drillOriginalMode === 'month') {
+        filtered = filtered.filter(c => c.date.startsWith(_selectedGraphKey));
+      } else if (_drillOriginalMode === 'week') {
+        filtered = filtered.filter(c => c.date.startsWith(_selectedGraphKey));
+      }
+    } else {
+      filtered = filtered.filter(c => _dateToGraphKey(c.date, _graphViewMode) === _selectedGraphKey);
+    }
   }
   if (_commitFilterText) {
     const ft = _commitFilterText.toLowerCase();
@@ -346,10 +385,43 @@ function _dateToGraphKey(dateStr, mode) {
 
 function _onBarClick(key) {
   if (_selectedGraphKey === key) {
+    // Toggle off
     _selectedGraphKey = null;
+    if (_drillOriginalMode) {
+      _graphViewMode = _drillOriginalMode;
+      _drillOriginalMode = null;
+      _drillKey = null;
+      _updateGraphToggleButtons();
+    }
   } else {
     _selectedGraphKey = key;
+    if (!_drillOriginalMode && (_graphViewMode === 'month' || _graphViewMode === 'week')) {
+      _drillOriginalMode = _graphViewMode;
+      _drillKey = key;
+      _graphViewMode = 'day';
+      _updateGraphToggleButtons();
+    }
   }
+  _renderCommits();
+  _renderGraph();
+}
+
+function _updateGraphToggleButtons() {
+  _panel.querySelectorAll('.taf-graph-toggle').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === _graphViewMode);
+  });
+}
+
+function _resetGraphFilter() {
+  _selectedGraphKey = null;
+  _selectedContributor = null;
+  if (_drillOriginalMode) {
+    _graphViewMode = _drillOriginalMode;
+    _drillOriginalMode = null;
+    _drillKey = null;
+    _updateGraphToggleButtons();
+  }
+  _panel.querySelectorAll('.taf-contributor').forEach(el => el.classList.remove('active'));
   _renderCommits();
   _renderGraph();
 }
@@ -357,13 +429,15 @@ function _onBarClick(key) {
 function _renderGraph() {
   window.__tafBarClick = _onBarClick;
   const wrap = _panel.querySelector('#tafGraph');
-  const filtered = _getFilteredCommits();
-  if (!filtered.length) {
+
+  const graphCommits = _getGraphCommits();
+
+  if (!graphCommits.length) {
     wrap.innerHTML = '<div class="taf-empty">No data</div>';
     return;
   }
 
-  const data = _buildGraphData(filtered, _graphViewMode);
+  const data = _buildGraphData(graphCommits, _graphViewMode);
   if (!data.length) {
     wrap.innerHTML = '<div class="taf-empty">No data</div>';
     return;
@@ -444,34 +518,29 @@ function _drawBarChart(wrap, data, mode) {
     contributorColors[name] = _contributors[name]?.color || '#888';
   });
 
-  // Dynamic bar sizing from container width
-  const containerW = wrap.clientWidth || 600;
+  // Fixed bar sizing — same size for all modes, pure horizontal scroll
+  const barW = 30;
+  const gap = 30;
+  const step = barW + gap;
   const padL = 36;
   const padR = 12;
-  const availW = containerW - padL - padR;
-  const minBarW = 4;
-  const maxBarW = 28;
-  const gap = 2;
-  const stepNoGap = availW / data.length;
-  const barW = Math.max(minBarW, Math.min(maxBarW, stepNoGap - gap));
-  const step = barW + gap;
-  const h = 180;
-  const graphH = h - 22;
-  const totalW = Math.max(padL + data.length * step + padR, containerW);
+  const h = 280;
+  const graphH = h - 28;
+  const totalW = padL + data.length * step + padR;
 
   let maxCount = 0;
   for (const d of data) maxCount = Math.max(maxCount, d.count);
 
   const isFiltered = _selectedGraphKey !== null;
 
-  let svg = `<svg viewBox="0 0 ${totalW} ${h}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="overflow:visible">`;
+  let svg = `<svg viewBox="0 0 ${totalW} ${h}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">`;
 
   // Grid lines
   const gridLines = 4;
   for (let i = 0; i <= gridLines; i++) {
     const y = graphH - (graphH / gridLines) * i;
     svg += `<line x1="${padL - 4}" y1="${y}" x2="${totalW - padR}" y2="${y}" stroke="var(--border-subtle)" stroke-width="0.5"/>`;
-    svg += `<text x="${padL - 8}" y="${y + 3}" fill="var(--text-faint)" font-size="8" text-anchor="end">${Math.round((maxCount / gridLines) * i)}</text>`;
+    svg += `<text x="${padL - 8}" y="${y + 3}" fill="var(--text-faint)" font-size="9" text-anchor="end">${Math.round((maxCount / gridLines) * i)}</text>`;
   }
 
   // Bars
@@ -519,16 +588,16 @@ function _drawBarChart(wrap, data, mode) {
     }
 
     // X axis label
-    const skip = Math.max(1, Math.floor(data.length / 12));
+    const skip = Math.max(1, Math.floor(data.length / 14));
     if (ki % skip === 0) {
       const label = mode === 'month' ? g.key.slice(5) : g.key.slice(5);
-      svg += `<text x="${x + barW / 2}" y="${h - 3}" fill="${isActive ? 'var(--accent)' : 'var(--text-faint)'}" font-size="7" text-anchor="middle" font-weight="${isActive ? 700 : 400}">${_esc(label)}</text>`;
+      svg += `<text x="${x + barW / 2}" y="${h - 8}" fill="${isActive ? 'var(--accent)' : '#22d3ee'}" font-size="11" text-anchor="middle" font-weight="${isActive ? 700 : 400}">${_esc(label)}</text>`;
     }
   });
 
   // Y axis label
   const dateRange = `${data[0].key} – ${data[data.length - 1].key}`;
-  svg += `<text x="${padL}" y="10" fill="var(--text-faint)" font-size="8">${_esc(dateRange)}</text>`;
+  svg += `<text x="${padL}" y="14" fill="#22d3ee" font-size="12" font-weight="600">${_esc(dateRange)}</text>`;
 
   svg += '</svg>';
   wrap.innerHTML = svg;
