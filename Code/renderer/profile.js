@@ -82,6 +82,7 @@ function _escHandler(e) {
 async function _load() {
   try {
     const p = await window.electronAPI.profile.get();
+    console.log('[Profile] loaded:', p); 
     if (p) _profile = p;
     await _sync();
     _renderBody();
