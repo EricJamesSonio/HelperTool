@@ -19,6 +19,7 @@ const DEFAULT_FEATURES = {
   canvasTool:    true,
   dbInspector:   true,
   portManagerTool: true,
+  teamActivityTool: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -64,6 +65,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-symbol-index',   !_features.symbolIndex);
   document.body.classList.toggle('feat-no-db-inspector',   !_features.dbInspector);
   document.body.classList.toggle('feat-no-port-manager',   !_features.portManagerTool);
+  document.body.classList.toggle('feat-no-team-activity', !_features.teamActivityTool);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────
@@ -175,6 +177,14 @@ function _injectWizard() {
     desc: 'View & kill processes listening on ports. Lists all TCP/UDP ports with process names.',
     heavy: false,
     color: 'var(--blue)',
+  },
+  {
+    id: 'teamActivityTool',
+    icon: ICON_FW_WORKSPACE,
+    label: 'Team Activity Feed',
+    desc: 'View contributor stats, commit timeline, and per-file diffs from git history.',
+    heavy: false,
+    color: 'var(--green)',
   },
   ];
 

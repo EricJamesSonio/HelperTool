@@ -11,6 +11,7 @@ const DEFAULT_SHORTCUTS = {
   canvasTool:    null,
   exitInput:     null,
   portManagerTool: null,
+  teamActivityTool: null,
 };
 
 const S = { shortcuts: {} };

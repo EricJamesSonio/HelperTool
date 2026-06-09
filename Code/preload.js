@@ -208,6 +208,11 @@ const windowControls = {
     },
 };
 
+const teamActivityBridge = {
+  teamActivityLog: (repoPath) => ipcRenderer.invoke('team-activity:log', { repoPath }),
+  teamActivityDiff: (repoPath, hash, filePath) => ipcRenderer.invoke('team-activity:diff', { repoPath, hash, filePath }),
+};
+
 const docignoreManagerBridge = {
     getGlobalDocignore: () => ipcRenderer.invoke('docignore:get-global'),
     setGlobalDocignore: (payload) => ipcRenderer.invoke('docignore:set-global', payload),
@@ -234,6 +239,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...portManagerBridge,
     ...terminalBridge,
     ...docignoreManagerBridge,
+    ...teamActivityBridge,
     windowControls,
 });
 

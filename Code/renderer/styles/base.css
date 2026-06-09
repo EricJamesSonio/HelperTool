@@ -1106,6 +1106,7 @@ body {
 .tools-sidebar-item[data-tool="canvas"]     .tools-sidebar-item-icon svg { color: var(--purple); }
 .tools-sidebar-item[data-tool="db"]          .tools-sidebar-item-icon svg { color: var(--blue); }
 .tools-sidebar-item[data-tool="port"]        .tools-sidebar-item-icon svg { color: var(--blue); }
+.tools-sidebar-item[data-tool="team"]        .tools-sidebar-item-icon svg { color: var(--green); }
 
 /* ── Main screen toolbar icon colors ── */
 #selectRepoBtn     .btn-icon svg { color: var(--accent); }

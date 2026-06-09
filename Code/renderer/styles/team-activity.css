@@ -1,0 +1,634 @@
+/* ── Team Activity Feed ──────────────────────────── */
+
+.taf-overlay {
+  position: fixed;
+  inset: 0;
+  top: var(--titlebar-h, 32px);
+  z-index: 9998;
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+.taf-overlay.taf-open {
+  display: flex;
+  opacity: 1;
+  pointer-events: all;
+  visibility: visible;
+}
+
+.taf-backdrop {
+  display: none;
+}
+.taf-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  overflow: hidden;
+  animation: tafFadeIn 0.15s ease-out;
+}
+@keyframes tafFadeIn {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Header ── */
+.taf-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-base);
+  min-height: 48px;
+}
+.taf-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.taf-header h2 svg {
+  width: 18px;
+  height: 18px;
+}
+.taf-header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.taf-btn-close {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.taf-btn-close:hover {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: var(--red);
+}
+.taf-btn-close svg { width: 16px; height: 16px; }
+.taf-refresh-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.taf-refresh-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.taf-refresh-btn svg { width: 14px; height: 14px; }
+.taf-refresh-btn.spinning svg { animation: tafSpin 0.6s linear infinite; }
+@keyframes tafSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Summary bar ── */
+.taf-summary {
+  display: flex;
+  gap: 2px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+}
+.taf-summary-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+}
+.taf-summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.taf-summary-label {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.taf-summary-range {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: center;
+  padding-top: 2px;
+}
+
+/* ── Body: two-column ── */
+.taf-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Left sidebar: contributors ── */
+.taf-contributors {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+}
+.taf-contributors-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.taf-contributors-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 6px;
+}
+.taf-contributor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+  border: 1px solid transparent;
+}
+.taf-contributor:hover {
+  background: var(--bg-hover);
+}
+.taf-contributor.active {
+  background: var(--bg-active);
+  border-color: var(--border-default);
+}
+.taf-contributor-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.taf-contributor-info {
+  flex: 1;
+  min-width: 0;
+}
+.taf-contributor-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taf-contributor-stats {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.taf-contributor-last {
+  font-size: 10px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+/* ── Main content ── */
+.taf-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Graph section ── */
+.taf-graph-section {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+.taf-graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.taf-graph-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.taf-graph-toggles {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+  padding: 2px;
+}
+.taf-graph-toggle {
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.1s;
+  font-weight: 500;
+}
+.taf-graph-toggle:hover { color: var(--text-primary); }
+.taf-graph-toggle.active {
+  background: var(--accent);
+  color: var(--accent-text, #fff);
+}
+.taf-graph-canvas-wrap {
+  position: relative;
+  height: 140px;
+  overflow: hidden;
+}
+.taf-graph-canvas-wrap svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Commit list ── */
+.taf-commit-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.taf-commit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+}
+.taf-commit-count {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.taf-commit-filter {
+  margin-left: auto;
+  height: 24px;
+  width: 140px;
+  padding: 0 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 11px;
+  outline: none;
+}
+.taf-commit-filter:focus {
+  border-color: var(--accent);
+}
+.taf-commit-filter::placeholder {
+  color: var(--text-faint);
+}
+.taf-commit-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px;
+}
+.taf-commit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 12px;
+}
+.taf-commit-row:hover {
+  background: var(--bg-hover);
+}
+.taf-commit-row.active {
+  background: var(--bg-active);
+}
+.taf-commit-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.taf-commit-hash {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  width: 48px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.taf-commit-hash:hover {
+  color: var(--accent);
+}
+.taf-commit-msg {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.taf-commit-author {
+  font-size: 10px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taf-commit-date {
+  font-size: 10px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  width: 70px;
+  text-align: right;
+}
+.taf-commit-stats {
+  font-size: 10px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  text-align: right;
+}
+.taf-commit-view-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.1s;
+  flex-shrink: 0;
+}
+.taf-commit-view-btn:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.taf-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.taf-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── Commit detail drawer ── */
+.taf-drawer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 480px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-default);
+  box-shadow: -8px 0 24px rgba(0,0,0,0.2);
+  display: none;
+  flex-direction: column;
+  z-index: 10;
+  animation: tafDrawerIn 0.15s ease-out;
+}
+@keyframes tafDrawerIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.taf-drawer.open {
+  display: flex;
+}
+.taf-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.taf-drawer-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.taf-drawer-close {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.taf-drawer-close:hover {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.taf-drawer-close svg { width: 14px; height: 14px; }
+.taf-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+.taf-drawer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.taf-drawer-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.taf-drawer-meta-row strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  min-width: 44px;
+}
+.taf-drawer-files {
+  margin-bottom: 12px;
+}
+.taf-drawer-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 12px;
+}
+.taf-drawer-file:hover {
+  background: var(--bg-hover);
+}
+.taf-drawer-file-status {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  flex-shrink: 0;
+  width: 40px;
+  text-align: center;
+}
+.taf-drawer-file-status.added {
+  background: var(--green-dim);
+  color: var(--green);
+}
+.taf-drawer-file-status.modified {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+.taf-drawer-file-status.deleted {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.taf-drawer-file-status.unchanged {
+  background: var(--bg-elevated);
+  color: var(--text-faint);
+}
+.taf-drawer-file-path {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taf-drawer-file-stats {
+  font-size: 10px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.taf-drawer-diff {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.taf-drawer-diff-line {
+  display: flex;
+  padding: 0 8px;
+  min-height: 20px;
+  align-items: center;
+}
+.taf-drawer-diff-line.added {
+  background: rgba(52, 211, 153, 0.12);
+}
+.taf-drawer-diff-line.removed {
+  background: rgba(248, 113, 113, 0.12);
+}
+.taf-drawer-diff-line.hunk {
+  background: var(--bg-elevated);
+  color: var(--text-faint);
+}
+.taf-drawer-diff-line.header {
+  color: var(--text-faint);
+  background: var(--bg-elevated);
+}
+.taf-drawer-diff-line.context {
+  color: var(--text-muted);
+}
+.taf-drawer-diff-line .taf-diff-sign {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.taf-drawer-diff-line .taf-diff-text {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.taf-drawer-diff-loading {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+/* ── Empty state ── */
+.taf-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── Dark mode specific tweaks ── */
+.taf-summary-item { background: var(--bg-raised); }
+.taf-contributor-avatar { font-size: 10px; }
