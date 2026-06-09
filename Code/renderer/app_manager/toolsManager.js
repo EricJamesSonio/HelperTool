@@ -16,6 +16,7 @@ import * as fileViewer     from '../fileViewer.js';
 import TerminalUI          from '../terminal/terminalUI.js';
 import * as teamActivity   from '../teamActivityFeed.js';
 import * as blueprintLibrary from '../blueprintLibrary.js';
+import * as profileTool from '../profile.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 
@@ -34,8 +35,9 @@ const ICONS = {
   db: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
   terminal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>',
   port: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10M5 13h10"/><path d="M7 7V3M13 7V3M7 13v4M13 13v4"/><rect x="3" y="7" width="14" height="6" rx="1"/></svg>',
-  team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>',
-  blueprint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>',
+   team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>',
+   blueprint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>',
+   profile: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M2 18a8 8 0 0 1 16 0"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -184,6 +186,14 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       blueprintLibrary.open();
     }, 'blueprint'));
+  }
+
+  if (_feats.profileTool) {
+    body.appendChild(createSidebarItem(ICONS.profile, 'Profile', 'Personal stats & activity heatmap', () => {
+      if (profileTool.isOpen()) { profileTool.close(); return; }
+      _registry.closeAll();
+      profileTool.open();
+    }, 'profile'));
   }
 
   if (_feats.symbolIndex) {
@@ -404,6 +414,14 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.profileTool) {
+    actions.profileTool = () => {
+      if (profileTool.isOpen()) { profileTool.close(); return; }
+      _registry.closeAll();
+      profileTool.open();
+    };
+  }
+
   return actions;
 }
 
@@ -415,6 +433,7 @@ export function closeAllPanels() {
   if (fileViewer.isOpen()) fileViewer.close();
   if (teamActivity.isOpen()) teamActivity.close();
   if (blueprintLibrary.isOpen()) blueprintLibrary.close();
+  if (profileTool.isOpen()) profileTool.close();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -515,6 +534,13 @@ export async function initTools(feats, settingsManager) {
       _registry.setBlueprintLibrary(blueprintLibrary);
       console.log('[Tools] Blueprint Library initialised');
     } catch (err) { console.error('[Tools] Blueprint Library failed:', err); }
+  }
+
+  if (feats.profileTool) {
+    try {
+      _registry.setProfileTool(profileTool);
+      console.log('[Tools] Profile initialised');
+    } catch (err) { console.error('[Tools] Profile failed:', err); }
   }
 
   initContextMenu(

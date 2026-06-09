@@ -21,6 +21,7 @@ export default class PanelRegistry {
     this._fileViewer    = null;
     this._teamActivity  = null;
     this._blueprintLibrary = null;
+    this._profileTool = null;
   }
 
   // Register external tools that don't use a panel element
@@ -35,6 +36,7 @@ export default class PanelRegistry {
   setFileViewer(t)     { this._fileViewer = t; }
   setTeamActivity(t)      { this._teamActivity = t; }
   setBlueprintLibrary(t)  { this._blueprintLibrary = t; }
+  setProfileTool(t)       { this._profileTool = t; }
   setTerminalUI(t)        { this._terminalUI = t; }
 
   // Register a panel element by name
@@ -79,6 +81,8 @@ export default class PanelRegistry {
     if (this._teamActivity?.isOpen?.()) this._teamActivity.close();
     // Blueprint Library
     if (this._blueprintLibrary?.isOpen?.()) this._blueprintLibrary.close();
+    // Profile
+    if (this._profileTool?.isOpen?.()) this._profileTool.close();
 
     // Terminal
     if (this._terminalUI?.isOpen?.()) this._terminalUI.close();

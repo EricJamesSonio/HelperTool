@@ -173,6 +173,50 @@ function createSchema() {
       console.log('[DB] FTS5 triggers skipped:', e.message);
     }
   }
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS profile (
+      id            INTEGER PRIMARY KEY DEFAULT 1,
+      name          TEXT,
+      email         TEXT,
+      avatar_color  TEXT DEFAULT '#4F8EF7',
+      facebook      TEXT,
+      tiktok        TEXT,
+      linkedin      TEXT,
+      wakatime      TEXT,
+      created_at    TEXT DEFAULT (datetime('now')),
+      updated_at    TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS activity_days (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      date            TEXT NOT NULL,
+      repo_path       TEXT NOT NULL,
+      repo_name       TEXT NOT NULL,
+      commits         INTEGER DEFAULT 0,
+      files_touched   INTEGER DEFAULT 0,
+      file_saves      INTEGER DEFAULT 0,
+      lines_added     INTEGER DEFAULT 0,
+      lines_removed   INTEGER DEFAULT 0,
+      UNIQUE(date, repo_path)
+    )
+  `);
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS file_save_events (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp       TEXT NOT NULL,
+      repo_path       TEXT NOT NULL,
+      repo_name       TEXT NOT NULL,
+      file_path       TEXT NOT NULL,
+      file_ext        TEXT NOT NULL
+    )
+  `);
+
+  _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_date ON activity_days(date)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_file_save_events_ts ON file_save_events(timestamp)');
 }
 
 function getDb() {
