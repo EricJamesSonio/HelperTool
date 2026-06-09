@@ -5,6 +5,7 @@
  */
 
 import * as fileSeederTool from '../../fileSeederTool.js';
+import * as locDetector from '../../locDetector.js';
 
 export default class PanelRegistry {
   constructor() {
@@ -32,6 +33,7 @@ export default class PanelRegistry {
   setDiffViewer(t)     { this._diffViewer = t; }
   setFileViewer(t)     { this._fileViewer = t; }
   setTeamActivity(t)   { this._teamActivity = t; }
+  setTerminalUI(t)     { this._terminalUI = t; }
 
   // Register a panel element by name
   register(name, panel) {
@@ -64,11 +66,17 @@ export default class PanelRegistry {
     // File Seeder
     if (fileSeederTool.isOpen()) fileSeederTool.close();
 
+    // LOC Detector
+    if (locDetector.isOpen()) locDetector.close();
+
     // Diff Viewer
     if (this._diffViewer?.isOpen?.()) this._diffViewer.close();
     // File Viewer
     if (this._fileViewer?.isOpen?.()) this._fileViewer.close();
     // Team Activity
     if (this._teamActivity?.isOpen?.()) this._teamActivity.close();
+
+    // Terminal
+    if (this._terminalUI?.isOpen?.()) this._terminalUI.close();
   }
 }
