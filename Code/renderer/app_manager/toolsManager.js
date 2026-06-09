@@ -31,6 +31,7 @@ const ICONS = {
   canvas: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
   db: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
   terminal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>',
+  port: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10M5 13h10"/><path d="M7 7V3M13 7V3M7 13v4M13 13v4"/><rect x="3" y="7" width="14" height="6" rx="1"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -47,6 +48,7 @@ let _secretHolder  = null;
 let _workspaceTool = null;
 let _canvasTool    = null;
 let _dbInspector   = null;
+let _portManagerTool = null;
 let _settingsManager = null;
 
 let _gitTool       = null;
@@ -153,6 +155,14 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       _terminalUI.open(state.selectedRepoPath);
     }, 'terminal'));
+  }
+
+  if (_feats.portManagerTool) {
+    body.appendChild(createSidebarItem(ICONS.port, 'Port Manager', 'View & kill processes on ports', () => {
+      if (_portManagerTool?.isPortManagerPanelOpen?.()) { _portManagerTool.closePortManagerPanel(); return; }
+      _registry.closeAll();
+      _portManagerTool?.openPortManagerPanel?.();
+    }, 'port'));
   }
 
   if (_feats.symbolIndex) {
@@ -349,6 +359,13 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.portManagerTool) {
+    actions.portManagerTool = () => {
+      if (_portManagerTool?.isPortManagerPanelOpen?.()) { _portManagerTool.closePortManagerPanel(); return; }
+      _registry.closeAll(); _portManagerTool?.openPortManagerPanel?.();
+    };
+  }
+
   return actions;
 }
 
@@ -435,6 +452,15 @@ export async function initTools(feats, settingsManager) {
       _registry.setDbInspector(_dbInspector);
       console.log('[Tools] DB Inspector initialised');
     } catch (err) { console.error('[Tools] DB Inspector failed:', err); }
+  }
+
+  if (feats.portManagerTool) {
+    try {
+      _portManagerTool = await import('../portManagerTool.js');
+      _portManagerTool.initPortManager();
+      _registry.setPortManagerTool(_portManagerTool);
+      console.log('[Tools] Port Manager initialised');
+    } catch (err) { console.error('[Tools] Port Manager failed:', err); }
   }
 
   initContextMenu(

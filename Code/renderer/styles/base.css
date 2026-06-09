@@ -1104,7 +1104,8 @@ body {
 .tools-sidebar-item[data-tool="terminal"]   .tools-sidebar-item-icon svg { color: var(--accent); }
 .tools-sidebar-item[data-tool="symbolIndex"].tools-sidebar-item-icon svg { color: var(--blue); }
 .tools-sidebar-item[data-tool="canvas"]     .tools-sidebar-item-icon svg { color: var(--purple); }
-.tools-sidebar-item[data-tool="db"]         .tools-sidebar-item-icon svg { color: var(--blue); }
+.tools-sidebar-item[data-tool="db"]          .tools-sidebar-item-icon svg { color: var(--blue); }
+.tools-sidebar-item[data-tool="port"]        .tools-sidebar-item-icon svg { color: var(--blue); }
 
 /* ── Main screen toolbar icon colors ── */
 #selectRepoBtn     .btn-icon svg { color: var(--accent); }

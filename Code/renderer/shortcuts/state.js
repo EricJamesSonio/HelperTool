@@ -10,6 +10,7 @@ const DEFAULT_SHORTCUTS = {
   symbolIndex:   null,
   canvasTool:    null,
   exitInput:     null,
+  portManagerTool: null,
 };
 
 const S = { shortcuts: {} };

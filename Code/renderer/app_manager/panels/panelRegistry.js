@@ -15,6 +15,7 @@ export default class PanelRegistry {
     this._workspaceTool = null;
     this._canvasTool    = null;
     this._dbInspector   = null;
+    this._portManagerTool = null;
     this._diffViewer    = null;
     this._fileViewer    = null;
   }
@@ -26,6 +27,7 @@ export default class PanelRegistry {
   setWorkspaceTool(t)  { this._workspaceTool = t; }
   setCanvasTool(t)     { this._canvasTool = t; }
   setDbInspector(t)    { this._dbInspector = t; }
+  setPortManagerTool(t){ this._portManagerTool = t; }
   setDiffViewer(t)     { this._diffViewer = t; }
   setFileViewer(t)     { this._fileViewer = t; }
 
@@ -42,6 +44,7 @@ export default class PanelRegistry {
     if (this._workspaceTool?.isWorkspacePanelOpen?.()) this._workspaceTool.closeWorkspacePanel();
     if (this._canvasTool?.isCanvasPanelOpen?.()) this._canvasTool.closeCanvasPanel();
     if (this._dbInspector?.isDbInspectorPanelOpen?.()) this._dbInspector.closeDbInspectorPanel();
+    if (this._portManagerTool?.isPortManagerPanelOpen?.()) this._portManagerTool.closePortManagerPanel();
 
     // Modal overlays
     const promptModal  = document.getElementById('promptToolModal');
