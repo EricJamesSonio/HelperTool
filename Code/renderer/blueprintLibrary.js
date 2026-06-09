@@ -381,7 +381,7 @@ function _renderSetupSteps(el, bp) {
         if (item.text.trim()) html += '<div class="bp-step-text">' + _esc(item.text) + '</div>';
       } else {
         const codeId = 'bpStepCode_' + step.num + '_' + (codeIdx++);
-        html += '<div class="bp-step-code-wrap"><div class="bp-step-code-header"><span>' + _esc(item.lang || 'code') + '</span><button class="bp-step-copy-btn" data-codeid="' + codeId + '">Copy</button></div><pre><code class="bp-step-code" id="' + codeId + '">' + _esc(item.code) + '</code></pre></div>';
+        html += '<div class="bp-step-code-wrap"><div class="bp-step-code-header"><span>' + (item.lang ? _esc(item.lang) : '&#8203;') + '</span><button class="bp-step-copy-btn" data-codeid="' + codeId + '">Copy</button></div><pre class="bp-step-code" id="' + codeId + '">' + _esc(item.code) + '</pre></div>';
       }
     }
     card.innerHTML = html;
