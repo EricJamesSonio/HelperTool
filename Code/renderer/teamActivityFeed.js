@@ -132,10 +132,16 @@ function _buildPanel() {
           <h3 id="tafDrawerHash"></h3>
           <button class="taf-drawer-close" id="tafDrawerClose">${TA_CLOSE}</button>
         </div>
-        <div class="taf-drawer-body" id="tafDrawerBody">
-          <div class="taf-drawer-meta" id="tafDrawerMeta"></div>
-          <div class="taf-drawer-files" id="tafDrawerFiles"></div>
-          <div class="taf-drawer-diff" id="tafDrawerDiff"></div>
+        <div class="taf-drawer-meta" id="tafDrawerMeta"></div>
+        <div class="taf-drawer-body">
+          <div class="taf-drawer-content">
+            <div class="taf-file-header" id="tafFileHeader"></div>
+            <div class="taf-drawer-diff" id="tafDrawerDiff"></div>
+          </div>
+          <div class="taf-drawer-sidebar">
+            <div class="taf-sidebar-header" id="tafSidebarHeader">Files</div>
+            <div class="taf-drawer-files" id="tafDrawerFiles"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -553,19 +559,23 @@ async function _openDrawer(commit) {
 
   _panel.querySelector('#tafDrawerHash').textContent = _shortHash(commit.hash);
 
-  // Meta
+  // Meta bar (inline below header)
   const meta = _panel.querySelector('#tafDrawerMeta');
   const dateStr = commit.date ? new Date(commit.date).toLocaleString() : '—';
   meta.innerHTML = `
-    <div class="taf-drawer-meta-row"><strong>Hash</strong> <code style="font-family:var(--font-mono);font-size:11px">${_esc(commit.hash)}</code></div>
-    <div class="taf-drawer-meta-row"><strong>Author</strong> ${_esc(commit.author)} &lt;${_esc(commit.email)}&gt;</div>
-    <div class="taf-drawer-meta-row"><strong>Date</strong> ${_esc(dateStr)}</div>
-    <div class="taf-drawer-meta-row"><strong>Message</strong> ${_esc(commit.message)}</div>
+    <span><strong>${_esc(commit.author)}</strong> &lt;${_esc(commit.email)}&gt;</span>
+    <span>${_esc(dateStr)}</span>
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(commit.message)}</span>
   `;
 
-  // Files — always fetch fresh from git diff-tree for accuracy
+  // Sidebar: fetch files
   const filesEl = _panel.querySelector('#tafDrawerFiles');
+  const sidebarHeader = _panel.querySelector('#tafSidebarHeader');
+  const fileHeader = _panel.querySelector('#tafFileHeader');
   filesEl.innerHTML = '<div style="font-size:11px;color:var(--text-faint);padding:8px">Loading files\u2026</div>';
+  fileHeader.textContent = '';
+  _panel.querySelector('#tafDrawerDiff').innerHTML = '';
+
   const repoPath = _panel.dataset.repoPath;
   let files = commit.files && commit.files.length ? commit.files : [];
   try {
@@ -578,6 +588,7 @@ async function _openDrawer(commit) {
   }
 
   if (files.length) {
+    sidebarHeader.textContent = `Files (${files.length})`;
     let fhtml = '';
     for (const f of files) {
       const statusClass = f.status || 'modified';
@@ -590,20 +601,25 @@ async function _openDrawer(commit) {
       </div>`;
     }
     filesEl.innerHTML = fhtml;
+
     filesEl.querySelectorAll('.taf-drawer-file').forEach(el => {
       el.addEventListener('click', () => {
         const filePath = el.dataset.file;
         _loadFileAtCommit(commit.hash, filePath);
-        filesEl.querySelectorAll('.taf-drawer-file').forEach(e => e.style.background = '');
-        el.style.background = 'var(--bg-active)';
+        filesEl.querySelectorAll('.taf-drawer-file').forEach(e => e.classList.remove('active'));
+        el.classList.add('active');
       });
     });
+
+    // Auto-select first file
+    const firstFile = files[0].path;
+    const firstEl = filesEl.querySelector('.taf-drawer-file');
+    if (firstEl) firstEl.classList.add('active');
+    _loadFileAtCommit(commit.hash, firstFile);
   } else {
+    sidebarHeader.textContent = 'Files';
     filesEl.innerHTML = '<div style="font-size:11px;color:var(--text-faint);padding:8px">No file changes</div>';
   }
-
-  // Content area
-  _panel.querySelector('#tafDrawerDiff').innerHTML = '';
 }
 
 function _closeDrawer() {
@@ -611,43 +627,57 @@ function _closeDrawer() {
   _selectedFile = null;
   _panel.querySelector('#tafDrawer').classList.remove('open');
   _panel.querySelector('#tafDrawerDiff').innerHTML = '';
+  _panel.querySelector('#tafDrawerFiles').innerHTML = '';
+  _panel.querySelector('#tafFileHeader').textContent = '';
   _renderCommits();
 }
 
 async function _loadFileAtCommit(hash, filePath) {
   const el = _panel.querySelector('#tafDrawerDiff');
-  el.innerHTML = '<div class="taf-drawer-diff-loading">Loading file\u2026</div>';
+  const fileHeader = _panel.querySelector('#tafFileHeader');
+  fileHeader.textContent = `Changes in ${filePath} at ${_shortHash(hash)}`;
+  el.innerHTML = '<div class="taf-drawer-diff-loading">Loading diff\u2026</div>';
 
-  const cacheKey = 'file:' + hash + '::' + filePath;
+  const cacheKey = 'diff:' + hash + '::' + filePath;
   if (_diffCache[cacheKey]) {
-    _renderFileContent(el, _diffCache[cacheKey], hash, filePath);
+    _renderDiffContent(el, _diffCache[cacheKey]);
     return;
   }
 
   try {
     const repoPath = _panel.dataset.repoPath;
-    const result = await window.electronAPI.teamActivityFileAtCommit(repoPath, hash, filePath);
-    const content = result.content || '';
-    _diffCache[cacheKey] = content;
-    _renderFileContent(el, content, hash, filePath);
+    const result = await window.electronAPI.teamActivityDiff(repoPath, hash, filePath);
+    const diff = result.diff || '';
+    _diffCache[cacheKey] = diff;
+    _renderDiffContent(el, diff);
   } catch {
-    el.innerHTML = '<div class="taf-drawer-diff-loading">Failed to load file</div>';
+    el.innerHTML = '<div class="taf-drawer-diff-loading">Failed to load diff</div>';
   }
 }
 
-function _renderFileContent(el, content, hash, filePath) {
-  if (!content) {
-    el.innerHTML = '<div class="taf-drawer-diff-loading">No content available</div>';
+function _renderDiffContent(el, diffText) {
+  if (!diffText) {
+    el.innerHTML = '<div class="taf-drawer-diff-loading">No diff available</div>';
     return;
   }
 
-  const lines = content.split('\n');
-  let html = `<div style="font-size:10px;color:var(--text-faint);padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-family:var(--font-mono)">Viewing ${_esc(filePath)} at ${_shortHash(hash)}</div>`;
-  for (let i = 0; i < lines.length; i++) {
-    html += `<div class="taf-drawer-diff-line context">
-      <span class="taf-diff-sign" style="width:0;padding:0"></span>
-      <span class="taf-diff-text" style="display:flex"><span style="width:40px;flex-shrink:0;text-align:right;color:var(--text-faint);padding-right:12px;user-select:none">${i + 1}</span>${_esc(lines[i]) || '&nbsp;'}</span>
+  const lines = diffText.split('\n');
+  let html = '';
+  for (const line of lines) {
+    const ch = line.charAt(0);
+    let cls = 'context';
+    let sign = ch;
+    if (ch === '+') { cls = 'added'; sign = '+'; }
+    else if (ch === '-') { cls = 'removed'; sign = '-'; }
+    else if (ch === '@') { cls = 'hunk'; sign = '@'; }
+    else if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) { cls = 'header'; sign = ''; }
+    else if (ch === '\\') { cls = 'context'; sign = ''; }
+    else { sign = ' '; }
+
+    html += `<div class="taf-drawer-diff-line ${cls}">
+      <span class="taf-diff-sign">${sign}</span>
+      <span class="taf-diff-text">${_esc(cls === 'header' || cls === 'hunk' ? line : line.substring(1))}</span>
     </div>`;
   }
-  el.innerHTML = html || '<div class="taf-drawer-diff-loading">Empty file</div>';
+  el.innerHTML = html || '<div class="taf-drawer-diff-loading">No diff available</div>';
 }

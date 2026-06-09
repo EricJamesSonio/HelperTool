@@ -151,6 +151,7 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
     body.appendChild(createSidebarItem(ICONS.terminal, 'Terminal', 'Integrated command-line terminal', async () => {
       if (!_terminalUI) {
         _terminalUI = new TerminalUI();
+        _registry.setTerminalUI(_terminalUI);
         await _terminalUI.init();
       }
       if (_terminalUI.isOpen()) { _terminalUI.close(); return; }
@@ -347,6 +348,7 @@ function _buildShortcutActions() {
     actions.terminalTool = async () => {
       if (!_terminalUI) {
         _terminalUI = new TerminalUI();
+        _registry.setTerminalUI(_terminalUI);
         await _terminalUI.init();
       }
       if (_terminalUI.isOpen()) { _terminalUI.close(); return; }
@@ -526,6 +528,7 @@ export async function initTools(feats, settingsManager) {
     async (folderPath) => {                 // onFolderTerminal
       if (!_terminalUI) {
         _terminalUI = new TerminalUI();
+        _registry.setTerminalUI(_terminalUI);
         await _terminalUI.init();
       }
       _registry.closeAll();
