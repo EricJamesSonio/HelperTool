@@ -137,10 +137,12 @@ async function logHandler({ repoPath }) {
   }
 
   const git = simpleGit(repoPath);
-  const logFormat = ['--all', '--numstat', '--format=%H|%an|%ae|%aI|%s', '--date=iso'];
+  const logFormat = ['--all', '--numstat', '--format=%H|%an|%ae|%aI|%s'];
   const stdout = await git.raw(['log', ...logFormat]);
 
   const result = _parseLog(stdout);
+
+  console.log(`[TeamActivity] Parsed ${result.commits.length} commits, ${Object.keys(result.contributors).length} contributors`);
 
   _cache.set(repoPath, {
     commits: result.commits,
@@ -149,6 +151,39 @@ async function logHandler({ repoPath }) {
   });
 
   return result;
+}
+
+async function commitFilesHandler({ repoPath, hash }) {
+  if (!repoPath || !hash) throw new Error('repoPath and hash are required');
+
+  const git = simpleGit(repoPath);
+  const stdout = await git.raw(['diff-tree', '--no-commit-id', '-r', '--numstat', hash]);
+  const files = [];
+  for (const line of stdout.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split('\t');
+    if (parts.length < 3) continue;
+    const added = parseInt(parts[0], 10);
+    const removed = parseInt(parts[1], 10);
+    const filePath = parts[2];
+    if (isNaN(added) || isNaN(removed)) continue;
+    const status = added > 0 && removed === 0 ? 'added' : added === 0 && removed > 0 ? 'deleted' : 'modified';
+    files.push({ path: filePath, added, removed, status });
+  }
+  return { files };
+}
+
+async function fileAtCommitHandler({ repoPath, hash, filePath }) {
+  if (!repoPath || !hash || !filePath) throw new Error('repoPath, hash, and filePath are required');
+
+  const git = simpleGit(repoPath);
+  try {
+    const stdout = await git.raw(['show', `${hash}:${filePath}`]);
+    return { content: stdout };
+  } catch (err) {
+    return { content: '', error: err.message };
+  }
 }
 
 async function diffHandler({ repoPath, hash, filePath }) {
@@ -184,6 +219,22 @@ function register() {
       return await diffHandler({ repoPath, hash, filePath });
     } catch (err) {
       return { diff: '', error: err.message };
+    }
+  });
+
+  ipcMain.handle('team-activity:file-at-commit', async (event, { repoPath, hash, filePath }) => {
+    try {
+      return await fileAtCommitHandler({ repoPath, hash, filePath });
+    } catch (err) {
+      return { content: '', error: err.message };
+    }
+  });
+
+  ipcMain.handle('team-activity:commit-files', async (event, { repoPath, hash }) => {
+    try {
+      return await commitFilesHandler({ repoPath, hash });
+    } catch (err) {
+      return { files: [], error: err.message };
     }
   });
 }
