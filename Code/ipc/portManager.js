@@ -53,18 +53,35 @@ async function getProcessName(pid) {
   }
 }
 
+async function getProcessCreationTime(pid) {
+  try {
+    const { stdout } = await execAsync(`wmic process where "ProcessId=${pid}" get CreationDate /FORMAT:VALUE`, { timeout: 3000 });
+    const match = stdout.match(/CreationDate=(\d{14})/);
+    if (match) {
+      const s = match[1];
+      return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}T${s.slice(8,10)}:${s.slice(10,12)}:${s.slice(12,14)}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function listHandler() {
   const byPid = await parseListeningPorts();
   const pids = Object.keys(byPid).map(Number);
 
-  const nameMap = {};
+  const metaMap = {};
   const BATCH_SIZE = 10;
   for (let i = 0; i < pids.length; i += BATCH_SIZE) {
     const batch = pids.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map(pid => getProcessName(pid)));
-    results.forEach((r, idx) => {
+    const nameResults = await Promise.allSettled(batch.map(pid => getProcessName(pid)));
+    const timeResults = await Promise.allSettled(batch.map(pid => getProcessCreationTime(pid)));
+    nameResults.forEach((r, idx) => {
       const pid = batch[idx];
-      nameMap[pid] = r.status === 'fulfilled' ? r.value : 'Unknown';
+      const name = r.status === 'fulfilled' ? r.value : 'Unknown';
+      const startTime = timeResults[idx]?.status === 'fulfilled' ? timeResults[idx].value : null;
+      metaMap[pid] = { name, startTime };
     });
   }
 
@@ -73,20 +90,33 @@ async function listHandler() {
 
   for (const [pidStr, info] of Object.entries(byPid)) {
     const pid = Number(pidStr);
-    const name = nameMap[pid];
+    const { name, startTime } = metaMap[pid] || {};
     const protected_flag = isProtected(pid, name);
 
     for (const port of info.ports) {
       if (!groups[port]) groups[port] = [];
-      groups[port].push({ pid, name, protected: protected_flag });
+      groups[port].push({ pid, name, protected: protected_flag, startTime });
       totalProcesses++;
     }
   }
 
-  const sortedPorts = Object.keys(groups).sort((a, b) => Number(a) - Number(b));
+  const sortedPorts = Object.keys(groups).sort((a, b) => {
+    const aMaxTime = groups[a].reduce((max, e) => e.startTime ? Math.max(max, new Date(e.startTime).getTime()) : max, 0);
+    const bMaxTime = groups[b].reduce((max, e) => e.startTime ? Math.max(max, new Date(e.startTime).getTime()) : max, 0);
+    if (aMaxTime !== bMaxTime) return bMaxTime - aMaxTime;
+    const aMaxPid = Math.max(...groups[a].map(e => e.pid));
+    const bMaxPid = Math.max(...groups[b].map(e => e.pid));
+    return bMaxPid - aMaxPid;
+  });
+
   const sorted = {};
   for (const port of sortedPorts) {
-    sorted[port] = groups[port];
+    sorted[port] = groups[port].slice().sort((a, b) => {
+      const aT = a.startTime ? new Date(a.startTime).getTime() : 0;
+      const bT = b.startTime ? new Date(b.startTime).getTime() : 0;
+      if (aT !== bT) return bT - aT;
+      return b.pid - a.pid;
+    });
   }
 
   return {
