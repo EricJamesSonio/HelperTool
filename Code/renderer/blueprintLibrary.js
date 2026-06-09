@@ -8,6 +8,13 @@ let _selectedBlueprint = null;
 let _editing = false;
 let _searchQuery = '';
 let _initialized = false;
+let _catFilter = 'code';
+
+const CAT_FILTERS = [
+  { id: 'code', label: 'Code' },
+  { id: 'structure', label: 'Structure' },
+  { id: 'setup-steps', label: 'Setup Steps' },
+];
 
 const BP_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>';
 const BP_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5l-10 10"/></svg>';
@@ -39,6 +46,8 @@ export async function open() {
     await _seedIfEmpty();
     _initialized = true;
   }
+  _catFilter = 'code';
+  _renderCatFilter();
   await _loadData();
 }
 
@@ -69,6 +78,7 @@ function _buildPanel() {
             <span>Categories</span>
             <button class="bp-cat-add-btn" id="bpCatAddBtn" title="New category">+</button>
           </div>
+          <div class="bp-cat-filter" id="bpCatFilter"></div>
           <div class="bp-cat-list" id="bpCatList"></div>
         </div>
         <div class="bp-list" id="bpList">
@@ -118,8 +128,8 @@ async function _loadData() {
       if (!stillExists) _selectedCategory = null;
     }
     if (!_selectedCategory && _categories.length) {
-      const firstCode = _categories.find(c => c.type === 'code');
-      _selectedCategory = firstCode || _categories[0];
+      const firstMatch = _categories.find(c => c.type === _catFilter);
+      _selectedCategory = firstMatch || _categories[0];
       _panel.querySelector('#bpSearch').value = '';
       _searchQuery = '';
     }
@@ -137,25 +147,49 @@ async function _loadData() {
 
 // ── Categories ──
 
+function _renderCatFilter() {
+  const el = _panel.querySelector('#bpCatFilter');
+  if (!el) return;
+  el.innerHTML = CAT_FILTERS.map(f =>
+    `<button class="bp-cat-filter-btn${_catFilter === f.id ? ' active' : ''}" data-filter="${f.id}">${f.label}</button>`
+  ).join('');
+  el.querySelectorAll('.bp-cat-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.filter;
+      if (id === _catFilter) return;
+      _catFilter = id;
+      _renderCatFilter();
+      _selectedCategory = null;
+      const first = _categories.find(c => c.type === _catFilter);
+      if (first) {
+        _selectedCategory = first;
+        _panel.querySelector('#bpSearch').value = '';
+        _searchQuery = '';
+      }
+      _renderCategories();
+      if (_selectedCategory) {
+        _loadBlueprints(_selectedCategory.id);
+      } else {
+        _blueprints = [];
+        _renderBlueprintList();
+        _renderDetailEmpty();
+      }
+    });
+  });
+}
+
 function _renderCategories() {
   const list = _panel.querySelector('#bpCatList');
-  const codeCats = _categories.filter(c => c.type === 'code');
-  const structCats = _categories.filter(c => c.type === 'structure');
-  const setupCats = _categories.filter(c => c.type === 'setup-steps');
+  const filtered = _catFilter === 'all'
+    ? _categories
+    : _categories.filter(c => c.type === _catFilter);
 
   list.innerHTML = '';
-  if (codeCats.length) {
-    list.appendChild(_el('div', { className: 'bp-cat-group-label', textContent: 'Code Blueprints' }));
-    for (const cat of codeCats) _appendCatItem(list, cat);
+  if (!filtered.length) {
+    list.innerHTML = '<div class="bp-empty" style="height:auto;padding:20px 8px;font-size:11px">No categories</div>';
+    return;
   }
-  if (structCats.length) {
-    list.appendChild(_el('div', { className: 'bp-cat-group-label', textContent: 'Folder Structures' }));
-    for (const cat of structCats) _appendCatItem(list, cat);
-  }
-  if (setupCats.length) {
-    list.appendChild(_el('div', { className: 'bp-cat-group-label', textContent: 'Setup Steps' }));
-    for (const cat of setupCats) _appendCatItem(list, cat);
-  }
+  for (const cat of filtered) _appendCatItem(list, cat);
 }
 
 function _appendCatItem(list, cat) {
@@ -294,15 +328,13 @@ function _renderSetupSteps(el, bp) {
   const content = bp.pseudoCode || bp.pseudo_code || '';
 
   const steps = [];
-  const stepRegex = /##\s*(?:Step\s*(\d+)[:\s]*)?([^\n]*)/gi;
-  let lastIdx = 0;
   let currentStep = null;
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const match = new RegExp('##\\s*(?:Step\\s*(\\d+)[:\\s]*)?(.+)', 'i').exec(lines[i]);
     if (match) {
       if (currentStep) steps.push(currentStep);
-      currentStep = { num: match[1] || String(steps.length + 1), title: match[2].trim(), codeBlocks: [], body: [] };
+      currentStep = { num: match[1] || String(steps.length + 1), title: match[2].trim(), items: [] };
     } else if (currentStep) {
       const codeMatch = lines[i].match(/^```(\w*)/);
       if (codeMatch) {
@@ -313,9 +345,9 @@ function _renderSetupSteps(el, bp) {
           codeLines.push(lines[i]);
           i++;
         }
-        currentStep.codeBlocks.push({ lang, code: codeLines.join('\n') });
+        currentStep.items.push({ type: 'code', lang, code: codeLines.join('\n') });
       } else {
-        currentStep.body.push(lines[i]);
+        currentStep.items.push({ type: 'text', text: lines[i] });
       }
     }
   }
@@ -342,13 +374,15 @@ function _renderSetupSteps(el, bp) {
   const contentEl = el.querySelector('#bpStepsContent');
   for (const step of steps) {
     const card = _el('div', { className: 'bp-step-card' });
+    let codeIdx = 0;
     let html = '<div class="bp-step-header"><span class="bp-step-num">' + step.num + '</span><span class="bp-step-title">' + _esc(step.title) + '</span></div>';
-    for (const bodyLine of step.body) {
-      if (bodyLine.trim()) html += '<div class="bp-step-text">' + _esc(bodyLine) + '</div>';
-    }
-    for (const cb of step.codeBlocks) {
-      const codeId = 'bpStepCode_' + step.num + '_' + step.codeBlocks.indexOf(cb);
-      html += '<div class="bp-step-code-wrap"><div class="bp-step-code-header"><span>' + _esc(cb.lang || 'code') + '</span><button class="bp-step-copy-btn" data-codeid="' + codeId + '">Copy</button></div><pre><code class="bp-step-code" id="' + codeId + '">' + _esc(cb.code) + '</code></pre></div>';
+    for (const item of step.items) {
+      if (item.type === 'text') {
+        if (item.text.trim()) html += '<div class="bp-step-text">' + _esc(item.text) + '</div>';
+      } else {
+        const codeId = 'bpStepCode_' + step.num + '_' + (codeIdx++);
+        html += '<div class="bp-step-code-wrap"><div class="bp-step-code-header"><span>' + _esc(item.lang || 'code') + '</span><button class="bp-step-copy-btn" data-codeid="' + codeId + '">Copy</button></div><pre><code class="bp-step-code" id="' + codeId + '">' + _esc(item.code) + '</code></pre></div>';
+      }
     }
     card.innerHTML = html;
     contentEl.appendChild(card);

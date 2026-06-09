@@ -123,6 +123,35 @@
   color: var(--accent);
   border-color: var(--accent);
 }
+.bp-cat-filter {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  flex-shrink: 0;
+}
+.bp-cat-filter-btn {
+  flex: 1;
+  height: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.bp-cat-filter-btn:hover {
+  color: var(--text-muted);
+  border-color: var(--border-default);
+}
+.bp-cat-filter-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
 .bp-cat-list {
   flex: 1;
   overflow-y: auto;
