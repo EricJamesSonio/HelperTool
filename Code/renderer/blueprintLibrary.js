@@ -16,6 +16,8 @@ const CAT_FILTERS = [
   { id: 'setup-steps', label: 'Setup Steps' },
 ];
 
+const STEP_COLORS = ['c-green', 'c-blue', 'c-purple', 'c-yellow', 'c-red'];
+
 const BP_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>';
 const BP_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5l-10 10"/></svg>';
 
@@ -189,12 +191,13 @@ function _renderCategories() {
     list.innerHTML = '<div class="bp-empty" style="height:auto;padding:20px 8px;font-size:11px">No categories</div>';
     return;
   }
-  for (const cat of filtered) _appendCatItem(list, cat);
+  for (let i = 0; i < filtered.length; i++) _appendCatItem(list, filtered[i], i);
 }
 
-function _appendCatItem(list, cat) {
+function _appendCatItem(list, cat, idx) {
   const active = _selectedCategory && _selectedCategory.id === cat.id;
-  const item = _el('div', { className: 'bp-cat-item' + (active ? ' active' : ''), dataset: { id: cat.id } });
+  const colorClass = STEP_COLORS[idx % STEP_COLORS.length];
+  const item = _el('div', { className: 'bp-cat-item' + (active ? ' active' : '') + ' ' + colorClass, dataset: { id: cat.id } });
   item.innerHTML = `
     <span class="bp-cat-item-name">${_esc(cat.name)}</span>
     <span class="bp-cat-item-count">${cat.blueprintCount}</span>
@@ -247,7 +250,9 @@ function _renderBlueprintList() {
   list.innerHTML = '';
   for (const bp of items) {
     const active = _selectedBlueprint && _selectedBlueprint.id === bp.id;
-    const card = _el('div', { className: 'bp-card' + (active ? ' active' : '') });
+    const bpCat = _categories.find(c => c.id === bp.categoryId);
+    const typeClass = bpCat?.type === 'code' ? 'c-blue' : bpCat?.type === 'structure' ? 'c-purple' : bpCat?.type === 'setup-steps' ? 'c-green' : '';
+    const card = _el('div', { className: 'bp-card' + (active ? ' active' : '') + (typeClass ? ' ' + typeClass : '') });
     const tags = (bp.tags || '').split(',').filter(Boolean);
     card.innerHTML = `
       <div class="bp-card-name">${_esc(bp.name)}</div>
@@ -372,10 +377,12 @@ function _renderSetupSteps(el, bp) {
   el.querySelector('#bpDeleteBtn').addEventListener('click', _deleteBlueprint);
 
   const contentEl = el.querySelector('#bpStepsContent');
-  for (const step of steps) {
-    const card = _el('div', { className: 'bp-step-card' });
+  for (let si = 0; si < steps.length; si++) {
+    const step = steps[si];
+    const colorClass = STEP_COLORS[si % STEP_COLORS.length];
+    const card = _el('div', { className: 'bp-step-card ' + colorClass });
     let codeIdx = 0;
-    let html = '<div class="bp-step-header"><span class="bp-step-num">' + step.num + '</span><span class="bp-step-title">' + _esc(step.title) + '</span></div>';
+    let html = '<div class="bp-step-header"><span class="bp-step-num ' + colorClass + '">' + step.num + '</span><span class="bp-step-title">' + _esc(step.title) + '</span></div>';
     for (const item of step.items) {
       if (item.type === 'text') {
         if (item.text.trim()) html += '<div class="bp-step-text">' + _esc(item.text) + '</div>';
