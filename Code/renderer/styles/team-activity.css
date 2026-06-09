@@ -237,6 +237,18 @@
   flex-direction: column;
   overflow: hidden;
 }
+.taf-main.in-profile .taf-graph-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.taf-main.in-profile .taf-graph-canvas-wrap {
+  flex: 1;
+  height: auto;
+}
+.taf-main.in-profile .taf-commit-section {
+  display: none;
+}
 
 /* ── Graph section ── */
 .taf-graph-section {

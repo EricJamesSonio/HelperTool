@@ -23,94 +23,53 @@ function _hashColor(email) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function _parseLog(stdout) {
+function _parseMeta(stdout) {
   const commits = [];
   const contributors = {};
-  let current = null;
 
   for (const line of stdout.split('\n')) {
-    if (!line.trim()) {
-      if (current) {
-        current.filesChanged = current.files.length;
-        commits.push(current);
-        current = null;
-      }
-      continue;
-    }
+    const trimmed = line.trim();
+    if (!trimmed) continue;
 
-    if (line.includes('|')) {
-      // Commit header line
-      if (current) {
-        current.filesChanged = current.files.length;
-        commits.push(current);
-      }
+    // Format: %H|%an|%ae|%aI|%s
+    const parts = trimmed.split('|');
+    if (parts.length < 5) continue;
 
-      const pipeIdx = line.indexOf('|');
-      const hash = line.substring(0, pipeIdx).trim();
-      const rest = line.substring(pipeIdx + 1);
+    const hash = parts[0];
+    const author = parts[1];
+    const email = parts[2];
+    const date = parts[3];
+    const message = parts.slice(4).join('|');
 
-      const parts = rest.split('|');
-      if (parts.length < 4) continue;
+    commits.push({
+      hash,
+      author,
+      email,
+      date: new Date(date).toISOString(),
+      message,
+      filesChanged: 0,
+      linesAdded: 0,
+      linesRemoved: 0,
+      files: [],
+      color: _hashColor(email),
+    });
 
-      const author = parts[0].trim();
-      const email = parts[1].trim();
-      const date = parts[2].trim();
-      const message = parts.slice(3).join('|').trim();
-
-      current = {
-        hash,
-        author,
+    if (!contributors[author]) {
+      contributors[author] = {
         email,
-        date: new Date(date).toISOString(),
-        message,
-        filesChanged: 0,
+        commits: 0,
         linesAdded: 0,
         linesRemoved: 0,
-        files: [],
+        lastCommit: null,
         color: _hashColor(email),
       };
-
-      if (!contributors[author]) {
-        contributors[author] = {
-          email,
-          commits: 0,
-          linesAdded: 0,
-          linesRemoved: 0,
-          lastCommit: null,
-          color: _hashColor(email),
-        };
-      }
-    } else if (current) {
-      // Numstat line: added\tremoved\tpath
-      const parts2 = line.trim().split('\t');
-      if (parts2.length < 3) continue;
-      const added = parseInt(parts2[0], 10);
-      const removed = parseInt(parts2[1], 10);
-      const filePath = parts2[2];
-
-      if (isNaN(added) || isNaN(removed)) continue;
-
-      current.files.push({ path: filePath, added, removed, status: _detectStatus(added, removed) });
-      current.linesAdded += added;
-      current.linesRemoved += removed;
-
-      if (contributors[current.author]) {
-        contributors[current.author].linesAdded += added;
-        contributors[current.author].linesRemoved += removed;
-      }
     }
   }
 
-  // Push last commit
-  if (current) {
-    current.filesChanged = current.files.length;
-    commits.push(current);
-  }
-
-  // Finalize contributor stats
+  // Count commits and set lastCommit per contributor
   for (const commit of commits) {
-    if (contributors[commit.author]) {
-      const c = contributors[commit.author];
+    const c = contributors[commit.author];
+    if (c) {
       c.commits++;
       if (!c.lastCommit || new Date(commit.date) > new Date(c.lastCommit)) {
         c.lastCommit = commit.date;
@@ -119,6 +78,48 @@ function _parseLog(stdout) {
   }
 
   return { commits, contributors };
+}
+
+function _parseNumstat(stdout, commits, contributors) {
+  const commitMap = {};
+  for (const c of commits) commitMap[c.hash] = c;
+
+  let currentHash = null;
+
+  for (const line of stdout.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue; // blank lines within a commit section don't reset hash
+
+    // Git log --format=%H outputs only the 40-char hash, followed by a blank line,
+    // then numstat lines. Next commit hash follows the last numstat line directly.
+    if (!trimmed.includes('\t') && /^[0-9a-f]{40}$/i.test(trimmed)) {
+      currentHash = trimmed;
+      continue;
+    }
+
+    // Numstat line: added\tremoved\tpath
+    const parts = trimmed.split('\t');
+    if (parts.length < 3) continue;
+
+    const added = parseInt(parts[0], 10);
+    const removed = parseInt(parts[1], 10);
+    const filePath = parts[2];
+
+    if (isNaN(added) || isNaN(removed)) continue;
+
+    const commit = currentHash ? commitMap[currentHash] : null;
+    if (!commit) continue;
+
+    commit.files.push({ path: filePath, added, removed, status: _detectStatus(added, removed) });
+    commit.linesAdded += added;
+    commit.linesRemoved += removed;
+    commit.filesChanged = commit.files.length;
+
+    if (contributors[commit.author]) {
+      contributors[commit.author].linesAdded += added;
+      contributors[commit.author].linesRemoved += removed;
+    }
+  }
 }
 
 function _detectStatus(added, removed) {
@@ -137,20 +138,25 @@ async function logHandler({ repoPath }) {
   }
 
   const git = simpleGit(repoPath);
-  const logFormat = ['--all', '--numstat', '--format=%H|%an|%ae|%aI|%s'];
-  const stdout = await git.raw(['log', ...logFormat]);
 
-  const result = _parseLog(stdout);
+  // Step 1: Get commit metadata (no numstat — clean format-only output)
+  const metaStdout = await git.raw(['log', '--all', '--format=%H|%an|%ae|%aI|%s']);
+  const { commits, contributors } = _parseMeta(metaStdout);
 
-  console.log(`[TeamActivity] Parsed ${result.commits.length} commits, ${Object.keys(result.contributors).length} contributors`);
+  // Step 2: Get per-commit file/line stats via separate log call with --numstat
+  // Using --format=%H gives us clean hash headers between numstat blocks
+  const numstatStdout = await git.raw(['log', '--all', '--numstat', '--format=%H']);
+  _parseNumstat(numstatStdout, commits, contributors);
+
+  console.log(`[TeamActivity] Parsed ${commits.length} commits, ${Object.keys(contributors).length} contributors`);
 
   _cache.set(repoPath, {
-    commits: result.commits,
-    contributors: result.contributors,
+    commits,
+    contributors,
     timestamp: Date.now(),
   });
 
-  return result;
+  return { commits, contributors };
 }
 
 async function commitFilesHandler({ repoPath, hash }) {
