@@ -94,6 +94,7 @@ function _injectWizard() {
       label: 'API Tool',
       desc: 'Built-in Postman-like tester with Swagger import. Skip to save ~30 KB JS + CSS.',
       heavy: true,
+      color: 'var(--blue)',
     },
     {
       id: 'secretHolder',
@@ -101,6 +102,7 @@ function _injectWizard() {
       label: 'Secret Holder',
       desc: 'Password-protected vault for API keys & notes. Skippable if you don\'t need it.',
       heavy: false,
+      color: 'var(--accent)',
     },
     {
       id: 'themeEngine',
@@ -108,6 +110,7 @@ function _injectWizard() {
       label: 'Full Theme Engine',
       desc: '20 themes + accent pickers. Disable for a single optimised dark theme — saves ~15 KB.',
       heavy: true,
+      color: 'var(--yellow)',
     },
     {
       id: 'folderFilters',
@@ -115,6 +118,7 @@ function _injectWizard() {
       label: 'Folder Filters',
       desc: 'Ignore / Focus folder panels. Disable if you only use extension filters.',
       heavy: false,
+      color: 'var(--yellow)',
     },
     {
       id: 'swagger',
@@ -122,6 +126,7 @@ function _injectWizard() {
       label: 'Swagger / OpenAPI Import',
       desc: 'Auto-import endpoints from OpenAPI specs. Only useful alongside the API Tool.',
       heavy: false,
+      color: 'var(--yellow)',
     },
   {
     id: 'workspaceTool',
@@ -129,6 +134,7 @@ function _injectWizard() {
     label: 'Workspace Tool',
     desc: 'Manage workers and project tickets. Assign tasks and track status.',
     heavy: false,
+    color: 'var(--accent)',
   },
   {
     id: 'terminalTool',
@@ -136,6 +142,7 @@ function _injectWizard() {
     label: 'Terminal',
     desc: 'Integrated terminal with multiple tabs, shell selection & adjustable panel.',
     heavy: false,
+    color: 'var(--accent)',
   },
   {
     id: 'symbolIndex',
@@ -143,6 +150,7 @@ function _injectWizard() {
     label: 'Symbol Index',
     desc: 'AST-based code symbol search with SQLite indexing. Requires initial index.',
     heavy: true,
+    color: 'var(--blue)',
   },
   {
     id: 'canvasTool',
@@ -150,6 +158,7 @@ function _injectWizard() {
     label: 'Canvas Tool',
     desc: 'Infinite canvas for drawing diagrams, flowcharts & sketches with pen, shapes & arrows.',
     heavy: false,
+    color: 'var(--purple)',
   },
   {
     id: 'dbInspector',
@@ -157,6 +166,7 @@ function _injectWizard() {
     label: 'Database Inspector',
     desc: 'Connect to databases, scan schema, visualize tables & relationships.',
     heavy: false,
+    color: 'var(--blue)',
   },
   {
     id: 'portManagerTool',
@@ -164,6 +174,7 @@ function _injectWizard() {
     label: 'Port Manager',
     desc: 'View & kill processes listening on ports. Lists all TCP/UDP ports with process names.',
     heavy: false,
+    color: 'var(--blue)',
   },
   ];
 
@@ -182,7 +193,7 @@ function _injectWizard() {
 
         <div class="fw-features">
           ${FEATURES_META.map(f => `
-            <label class="fw-feature" data-id="${f.id}">
+            <label class="fw-feature" data-id="${f.id}" data-feature="${f.id}">
               <div class="fw-feature-left">
                 <span class="fw-feature-icon">${f.icon}</span>
                 <div class="fw-feature-info">
@@ -374,6 +385,19 @@ function _injectWizard() {
     }
     .fw-confirm-btn:hover { opacity: 0.88; transform: scale(1.02); }
     .fw-confirm-btn:active { transform: scale(0.98); }
+
+    /* feature icon colors — matches shortcuts & sidebar convention */
+    .fw-feature[data-feature="apiTool"]       .fw-feature-icon svg { color: var(--blue); }
+    .fw-feature[data-feature="secretHolder"]  .fw-feature-icon svg { color: var(--accent); }
+    .fw-feature[data-feature="themeEngine"]   .fw-feature-icon svg { color: var(--yellow); }
+    .fw-feature[data-feature="folderFilters"] .fw-feature-icon svg { color: var(--yellow); }
+    .fw-feature[data-feature="swagger"]       .fw-feature-icon svg { color: var(--yellow); }
+    .fw-feature[data-feature="workspaceTool"] .fw-feature-icon svg { color: var(--accent); }
+    .fw-feature[data-feature="terminalTool"]  .fw-feature-icon svg { color: var(--accent); }
+    .fw-feature[data-feature="symbolIndex"]   .fw-feature-icon svg { color: var(--blue); }
+    .fw-feature[data-feature="canvasTool"]    .fw-feature-icon svg { color: var(--purple); }
+    .fw-feature[data-feature="dbInspector"]   .fw-feature-icon svg { color: var(--blue); }
+    .fw-feature[data-feature="portManagerTool"] .fw-feature-icon svg { color: var(--blue); }
   `;
 
   document.head.appendChild(style);
