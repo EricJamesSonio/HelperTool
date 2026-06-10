@@ -26,6 +26,7 @@ const docignoreManagerIpc = require('./ipc/docignoreManager_ipc.js');
 const teamActivityFeedIpc = require('./ipc/teamActivityFeed.js');
 const blueprintLibraryIpc = require('./ipc/blueprintLibrary.js');
 const profileIpc = require('./ipc/profile.js');
+const dockerIpc = require('./ipc/docker_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
@@ -119,6 +120,7 @@ function registerAllIpc() {
     teamActivityFeedIpc.register();
     blueprintLibraryIpc.register();
     profileIpc.register(shared);
+    dockerIpc.register();
 }
 
 // ----------------------------

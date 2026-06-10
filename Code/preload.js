@@ -259,6 +259,20 @@ const docignoreManagerBridge = {
     clearDocignoreCache: (repoPath) => ipcRenderer.invoke('docignore:clear-cache', repoPath),
 };
 
+// Docker bridge (separate API, not under electronAPI)
+const dockerBridge = {
+    ping:            ()             => ipcRenderer.invoke('docker:ping'),
+    listContainers:  ()             => ipcRenderer.invoke('docker:listContainers'),
+    startContainer:  (id)           => ipcRenderer.invoke('docker:startContainer', id),
+    stopContainer:   (id)           => ipcRenderer.invoke('docker:stopContainer', id),
+    restartContainer:(id)           => ipcRenderer.invoke('docker:restartContainer', id),
+    removeContainer: (id)           => ipcRenderer.invoke('docker:removeContainer', id),
+    listImages:      ()             => ipcRenderer.invoke('docker:listImages'),
+    removeImage:     (id)           => ipcRenderer.invoke('docker:removeImage', id),
+    getStats:        (id)           => ipcRenderer.invoke('docker:getStats', id),
+    getLogs:         (id, tail)     => ipcRenderer.invoke('docker:getLogs', id, tail),
+};
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
@@ -282,4 +296,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...profileBridge,
     windowControls,
 });
+
+contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
 

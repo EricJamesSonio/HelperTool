@@ -38,6 +38,7 @@ const ICONS = {
    team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>',
    blueprint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>',
    profile: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M2 18a8 8 0 0 1 16 0"/></svg>',
+   docker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -73,6 +74,7 @@ let _locPanel     = null;
 let _locContainer = null;
 
 let _terminalUI   = null;
+let _dockerTool  = null;
 
 let _feats    = {};
 let _registry = new PanelRegistry();
@@ -194,6 +196,14 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       profileTool.open();
     }, 'profile'));
+  }
+
+  if (_feats.dockerTool) {
+    body.appendChild(createSidebarItem(ICONS.docker, 'Docker', 'Manage containers & images', () => {
+      if (_dockerTool?.isOpen?.()) { _dockerTool.close(); return; }
+      _registry.closeAll();
+      _dockerTool?.open?.();
+    }, 'docker'));
   }
 
   if (_feats.symbolIndex) {
@@ -422,6 +432,14 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.dockerTool) {
+    actions.dockerTool = () => {
+      if (_dockerTool?.isOpen?.()) { _dockerTool.close(); return; }
+      _registry.closeAll();
+      _dockerTool?.open?.();
+    };
+  }
+
   return actions;
 }
 
@@ -434,6 +452,7 @@ export function closeAllPanels() {
   if (teamActivity.isOpen()) teamActivity.close();
   if (blueprintLibrary.isOpen()) blueprintLibrary.close();
   if (profileTool.isOpen()) profileTool.close();
+  if (_dockerTool?.isOpen?.()) _dockerTool.close();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -541,6 +560,14 @@ export async function initTools(feats, settingsManager) {
       _registry.setProfileTool(profileTool);
       console.log('[Tools] Profile initialised');
     } catch (err) { console.error('[Tools] Profile failed:', err); }
+  }
+
+  if (feats.dockerTool) {
+    try {
+      _dockerTool = await import('../dockerTool.js');
+      _registry.setDockerTool(_dockerTool);
+      console.log('[Tools] Docker initialised');
+    } catch (err) { console.error('[Tools] Docker failed:', err); }
   }
 
   initContextMenu(
