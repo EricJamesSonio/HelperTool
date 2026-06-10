@@ -233,6 +233,7 @@ const blueprintBridge = {
 
 const profileBridge = {
   profile: {
+    getAll:       (opts)         => ipcRenderer.invoke('profile:getAll', opts),
     get:          ()             => ipcRenderer.invoke('profile:get'),
     update:       (data)         => ipcRenderer.invoke('profile:update', data),
     getHeatmap:   (year)         => ipcRenderer.invoke('profile:getHeatmap', { year }),

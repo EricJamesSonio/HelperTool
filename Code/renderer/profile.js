@@ -14,16 +14,30 @@ const PROFILE_COLORS = ['#4F8EF7', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '
 
 const HEATMAP_COLORS = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'];
 
-// data cache to avoid re-fetching unchanged data
+// data cache with TTL and stale-while-revalidate
 let _cache = {};
 
-function _cached(key, fetcher) {
-  if (_cache[key] !== undefined) return _cache[key];
-  _cache[key] = fetcher();
-  return _cache[key];
+function _cached(key, fetcher, ttlMs) {
+  const entry = _cache[key];
+  const now = Date.now();
+  if (entry !== undefined) {
+    if (now - entry.fetchedAt < entry.ttl) {
+      return entry.data;
+    }
+    // stale-while-revalidate: fetch fresh in bg, return stale for this caller
+    const stale = entry.data;
+    _cache[key] = { data: fetcher().catch(() => null), fetchedAt: now, ttl: ttlMs || 30000 };
+    return stale;
+  }
+  const promise = fetcher().catch(() => null);
+  _cache[key] = { data: promise, fetchedAt: now, ttl: ttlMs || 30000 };
+  return promise;
 }
 
-function _clearCache() { _cache = {}; }
+function _clearCache(forceFull) {
+  if (forceFull) { _cache = {}; return; }
+  for (const key of Object.keys(_cache)) _cache[key].ttl = 0;
+}
 
 function _el(tag, attrs, children) {
   const el = document.createElement(tag);
@@ -131,27 +145,41 @@ async function _load() {
     _bodyEls[el.dataset.section] = el;
   });
 
-  // Fetch profile + avatar in parallel, then render card
-  Promise.all([
-    window.electronAPI.profile.get().catch(() => null),
-    window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
-  ]).then(([p, av]) => {
-    if (p) _profile = p;
-    _avatarDataUrl = av ? av.dataUrl : null;
-    const newCard = _renderProfileCard();
-    if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
-  });
-
   // Start watcher in background (fire-and-forget)
   window.electronAPI.profile.initWatcher().catch(() => {});
 
-  // Fire all 4 data sections in parallel — each populates independently
+  // Single batched IPC call for all data + profile
   Promise.all([
-    _renderStatsBar().then(el => { if (_bodyEls.stats) { _bodyEls.stats.replaceWith(el); _bodyEls.stats = el; } }).catch(() => {}),
-    _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {}),
-    _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {}),
-    _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {}),
-  ]);
+    window.electronAPI.profile.getAll({
+      statsRange: _statsRange,
+      heatmapYear: _heatmapYear,
+      donutRange: _donutRange,
+      historyPage: _historyPage,
+      historyRepo: _historyRepo,
+    }).catch(() => null),
+    window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
+  ]).then(([all, av]) => {
+    if (!all) return;
+    if (all.profile) _profile = all.profile;
+    _avatarDataUrl = av ? av.dataUrl : null;
+
+    // Populate cache with batched results
+    _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: Date.now(), ttl: 30000 };
+    _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: Date.now(), ttl: 60000 };
+    _cache['donuts:' + _donutRange] = { data: Promise.resolve(all.donuts), fetchedAt: Date.now(), ttl: 30000 };
+    const histKey = 'history:' + _historyPage + ':' + _historyRepo;
+    _cache[histKey] = { data: Promise.resolve(all.history), fetchedAt: Date.now(), ttl: 10000 };
+
+    // Render card
+    const newCard = _renderProfileCard();
+    if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
+
+    // Render all 4 sections from cached data
+    _renderStatsBar().then(el => { if (_bodyEls.stats) { _bodyEls.stats.replaceWith(el); _bodyEls.stats = el; } }).catch(() => {});
+    _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
+    _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
+    _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {});
+  });
 }
 
 let _bodyEls = {};
@@ -306,7 +334,7 @@ function _socialLink(platform, url) {
 
 async function _renderStatsBar() {
   const section = _el('div', { className: 'pf-section' });
-  const stats = await _cached('stats:' + _statsRange, () => window.electronAPI.profile.getStats(_statsRange));
+  const stats = await _cached('stats:' + _statsRange, () => window.electronAPI.profile.getStats(_statsRange), 30000);
   const items = [
     { label: 'File Saves', value: (stats.saves || 0).toLocaleString() },
     { label: 'Files Touched', value: (stats.files || 0).toLocaleString() },
@@ -338,21 +366,23 @@ async function _renderStatsBar() {
 
 async function _renderHeatmap() {
   const section = _el('div', { className: 'pf-section' });
-  const heatmap = await _cached('heatmap:' + _heatmapYear, () => window.electronAPI.profile.getHeatmap(_heatmapYear)) || {};
+  const heatmap = await _cached('heatmap:' + _heatmapYear, () => window.electronAPI.profile.getHeatmap(_heatmapYear), 60000) || {};
   const year = _heatmapYear;
   const start = new Date(year, 0, 1);
   const end = new Date(year, 11, 31);
   const startDow = start.getDay();
   const totalDays = Math.ceil((end - start) / 86400000) + 1;
-  const maxVal = Math.max(1, ...Object.values(heatmap).map(v => v.total || 0));
+
+  let maxVal = 1;
+  for (const v of Object.values(heatmap)) { const t = v.total || 0; if (t > maxVal) maxVal = t; }
 
   const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
   const weeks = Math.ceil((totalDays + startDow) / 7);
 
-  let cellsHtml = '';
+  const cells = [];
+  const date = new Date(start);
   for (let d = 0; d < totalDays; d++) {
-    const date = new Date(start);
-    date.setDate(date.getDate() + d);
+    date.setDate(start.getDate() + d);
     const dateStr = date.toISOString().slice(0, 10);
     const dayData = heatmap[dateStr];
     const val = dayData ? dayData.total : 0;
@@ -360,7 +390,7 @@ async function _renderHeatmap() {
     const col = Math.floor((d + startDow) / 7) + 2;
     const row = date.getDay() + 1;
     const tip = val > 0 ? `${dateStr} — ${val} total · ${dayData.saves || 0} saves` : dateStr;
-    cellsHtml += `<div class="pf-hm-cell lvl-${level}" style="grid-row:${row};grid-column:${col}" title="${_esc(tip)}" data-date="${dateStr}"></div>`;
+    cells.push(`<div class="pf-hm-cell lvl-${level}" style="grid-row:${row};grid-column:${col}" title="${_esc(tip)}" data-date="${dateStr}"></div>`);
   }
 
   section.innerHTML = `
@@ -372,7 +402,7 @@ async function _renderHeatmap() {
     <div class="pf-heatmap-wrap">
       <div class="pf-heatmap-grid" style="grid-template-columns: 28px repeat(${weeks}, 12px);grid-template-rows: repeat(7, 12px)">
         ${dayLabels.map((l, ri) => `<div class="pf-hm-day-label" style="grid-row:${ri+1};grid-column:1">${l}</div>`).join('')}
-        ${cellsHtml}
+        ${cells.join('')}
       </div>
     </div>
     <div class="pf-hm-legend"><span>Less</span>${[0,1,2,3,4].map(l => `<div class="pf-hm-cell lvl-${l}"></div>`).join('')}<span>More</span></div>
@@ -389,14 +419,16 @@ async function _renderHeatmap() {
     _renderBody('heatmap');
   });
 
-  section.querySelectorAll('.pf-hm-cell[data-date]').forEach(cell => {
-    cell.addEventListener('click', async () => {
-      const date = cell.dataset.date;
-      try {
-        const detail = await window.electronAPI.profile.getDayDetail(date);
-        if (detail) { _dayDetail = { date, ...detail }; _renderDayDetail(); }
-      } catch (_) {}
-    });
+  // single delegated click listener on the heatmap wrap
+  const wrap = section.querySelector('.pf-heatmap-wrap');
+  wrap.addEventListener('click', async (e) => {
+    const cell = e.target.closest('.pf-hm-cell[data-date]');
+    if (!cell) return;
+    const date = cell.dataset.date;
+    try {
+      const detail = await window.electronAPI.profile.getDayDetail(date);
+      if (detail) { _dayDetail = { date, ...detail }; _renderDayDetail(); }
+    } catch (_) {}
   });
 
   return section;
@@ -434,7 +466,7 @@ function _buildDonutHTML(title, items) {
 
 async function _renderDonuts() {
   const section = _el('div', { className: 'pf-section' });
-  const data = await _cached('donuts:' + _donutRange, () => window.electronAPI.profile.getDonutData(_donutRange)) || { repo: [], ext: [], type: [] };
+  const data = await _cached('donuts:' + _donutRange, () => window.electronAPI.profile.getDonutData(_donutRange), 30000) || { repo: [], ext: [], type: [] };
 
   const ranges = [
     { id: 'week', label: 'Week' },
@@ -462,7 +494,7 @@ async function _renderDonuts() {
 async function _renderHistory() {
   const section = _el('div', { className: 'pf-section' });
   const cacheKey = 'history:' + _historyPage + ':' + _historyRepo;
-  const result = await _cached(cacheKey, () => window.electronAPI.profile.getHistory(_historyPage, _historyRepo)) || { items: [], total: 0, page: 1, pageSize: 20 };
+  const result = await _cached(cacheKey, () => window.electronAPI.profile.getHistory(_historyPage, _historyRepo), 10000) || { items: [], total: 0, page: 1, pageSize: 20 };
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   const itemsHtml = result.items.length ? result.items.map(item => `

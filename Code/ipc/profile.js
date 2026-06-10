@@ -1,12 +1,15 @@
 const { ipcMain, app } = require('electron');
 const { getDb, save } = require('../database/db.js');
 const simpleGit = require('simple-git');
+const gitService = require('./gitService.js');
 const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
 
 let _watchers = [];
 let _saveDebounce = {};
+let _lastSyncHash = null;
+let _syncInProgress = false;
 
 function db() { return getDb(); }
 
@@ -51,12 +54,14 @@ function _startWatcher(repoPath, repoName) {
     if (last && (now - last) < 2000) return;
     _saveDebounce[key] = now;
 
+    db().run('BEGIN');
     db().run('INSERT INTO file_save_events (timestamp, repo_path, repo_name, file_path, file_ext) VALUES (?, ?, ?, ?, ?)',
       [ts, repoPath, repoName, filePath, ext]);
     db().run(`INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched)
               VALUES (?, ?, ?, 1, 1)
               ON CONFLICT(date, repo_path) DO UPDATE SET file_saves=file_saves+1, files_touched=files_touched+1`,
       [date, repoPath, repoName]);
+    db().run('COMMIT');
     save();
   });
   _watchers.push(watcher);
@@ -216,8 +221,11 @@ f = typeRow[2] || 0;
     try {
       const repo = _getActiveRepo(config);
       if (!repo) return [];
-      const git = simpleGit(repo.repoPath);
-      const log = await git.raw(['log', '--format=%H|%at|%s', '--since=' + date + 'T00:00:00', '--until=' + date + 'T23:59:59']);
+      const rp = repo.repoPath;
+      const log = await gitService.getCommits(rp, {
+        format: '%H|%at|%s', since: date + 'T00:00:00', until: date + 'T23:59:59',
+        noMerges: false, ttl: 30000,
+      });
       if (!log.trim()) return [];
       const commits = log.trim().split('\n').map(line => {
         const [hash, at, ...msgParts] = line.split('|');
@@ -225,13 +233,15 @@ f = typeRow[2] || 0;
         const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         return { hash, shortHash: hash.substring(0, 7), time: timeStr, timestamp: parseInt(at), message: msgParts.join('|') || '(no message)' };
       });
-      for (const c of commits) {
-        const diffTree = await git.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', c.hash]);
-        c.files = diffTree.trim().split('\n').filter(Boolean).map(line => {
-          const [status, ...pathParts] = line.split('\t');
-          return { status, path: pathParts.join('\t') };
-        });
-      }
+      const fileResults = await Promise.all(commits.map(c =>
+        gitService.getCommitFiles(rp, c.hash, { ttl: 60000 })
+          .then(out => out.trim().split('\n').filter(Boolean).map(line => {
+            const [status, ...pathParts] = line.split('\t');
+            return { status, path: pathParts.join('\t') };
+          }))
+          .catch(() => [])
+      ));
+      for (let i = 0; i < commits.length; i++) commits[i].files = fileResults[i];
       return commits;
     } catch (err) {
       return [];
@@ -241,17 +251,22 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:fileDiff', async (event, { filePath, repoPath, commitHash }) => {
     try {
       const repoDir = repoPath || path.dirname(filePath);
-      const git = simpleGit(repoDir);
       const relPath = path.relative(repoDir, filePath).replace(/\\/g, '/');
       let diff, content;
       if (commitHash) {
-        const raw = await git.raw(['show', commitHash, '--', filePath]);
+        const [raw, cnt] = await Promise.all([
+          gitService.show(repoDir, commitHash, { filePath, ttl: 30000 }),
+          gitService.showFileAtCommit(repoDir, commitHash, relPath, { ttl: 60000 }),
+        ]);
         const idx = raw.indexOf('\ndiff --git');
         diff = idx >= 0 ? raw.substring(idx + 1) : raw;
-        content = await git.raw(['show', commitHash + ':' + relPath]).catch(() => '');
+        content = cnt;
       } else {
-        diff = await git.raw(['diff', 'HEAD', '--', filePath]);
-        content = await git.raw(['show', 'HEAD:' + relPath]).catch(() => '');
+        const [d, c] = await Promise.all([
+          gitService.diff(repoDir, ['HEAD', '--', filePath], { ttl: 10000 }),
+          gitService.showFileAtCommit(repoDir, 'HEAD', relPath, { ttl: 60000 }),
+        ]);
+        diff = d; content = c;
       }
       return { diff, content };
     } catch (err) {
@@ -288,32 +303,115 @@ f = typeRow[2] || 0;
     }
   });
 
-  async function _syncCommits(repoPath, repoName) {
+  async function _syncCommits(repoPath, repoName, force) {
+    if (_syncInProgress) return;
+    _syncInProgress = true;
     try {
-      const git = simpleGit(repoPath);
-      const log = await git.raw(['log', '--after=365.days.ago', '--format=%ad', '--date=short', '--no-merges']);
-      if (!log.trim()) return;
-      const dateCounts = {};
-      for (const line of log.trim().split('\n')) {
-        const date = line.trim();
-        if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
+      let since = '';
+      if (!force && _lastSyncHash) {
+        try {
+          const parent = await gitService.revParse(repoPath, _lastSyncHash + '~1', { ttl: 120000 });
+          since = '--after=' + parent.trim();
+        } catch (_) { since = '--after=365.days.ago'; }
+      } else {
+        since = '--after=365.days.ago';
       }
+      const log = await gitService.raw(repoPath, ['log', since, '--format=%H|%ad', '--date=short', '--no-merges'], 120000);
+      if (!log.trim()) { _syncInProgress = false; return; }
+      const dateCounts = {};
+      let latestHash = _lastSyncHash;
+      for (const line of log.trim().split('\n')) {
+        const pipeIdx = line.indexOf('|');
+        if (pipeIdx < 0) continue;
+        const hash = line.substring(0, pipeIdx);
+        const date = line.substring(pipeIdx + 1);
+        if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
+        if (!latestHash) latestHash = hash;
+      }
+      db().run('BEGIN');
       for (const [date, count] of Object.entries(dateCounts)) {
         db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits)
                   VALUES (?, ?, ?, ?)
                   ON CONFLICT(date, repo_path) DO UPDATE SET commits=?`,
           [date, repoPath, repoName, count, count]);
       }
+      db().run('COMMIT');
       save();
+      if (latestHash) _lastSyncHash = latestHash;
     } catch (_) {}
+    _syncInProgress = false;
   }
 
-  ipcMain.handle('profile:initWatcher', async () => {
+  ipcMain.handle('profile:getAll', (event, { statsRange, heatmapYear, donutRange, historyPage, historyRepo }) => {
+    const y = heatmapYear || new Date().getFullYear();
+    const statsDateFilter = '';
+    const donutDateFilter = '';
+    const heatmapStart = y + '-01-01';
+    const heatmapEnd = y + '-12-31';
+
+    // profile
+    const pRows = db().exec('SELECT * FROM profile WHERE id=1');
+    const stored = pRows.length && pRows[0].values.length ? pRows[0].values[0] : null;
+
+    // stats
+    let sFilter = '';
+    if (statsRange === 'week') sFilter = "WHERE date >= datetime('now', '-7 days')";
+    else if (statsRange === 'month') sFilter = "WHERE date >= datetime('now', '-30 days')";
+    else if (statsRange === 'year') sFilter = "WHERE date >= datetime('now', '-365 days')";
+    const sRows = db().exec(`SELECT COALESCE(SUM(commits),0), COALESCE(SUM(files_touched),0), COALESCE(SUM(file_saves),0),
+                             COUNT(DISTINCT repo_path) FROM activity_days ${sFilter}`);
+
+    // heatmap
+    const hRows = _query(`SELECT date, SUM(commits + file_saves + files_touched) AS total,
+                          SUM(commits) AS commits, SUM(file_saves) AS saves, SUM(files_touched) AS files
+                          FROM activity_days WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date`,
+      [heatmapStart, heatmapEnd]);
+    const heatmap = {};
+    if (hRows.length) for (const r of hRows[0].values) heatmap[r[0]] = { total: r[1] || 0, commits: r[2] || 0, saves: r[3] || 0, files: r[4] || 0 };
+
+    // donuts
+    let dFilter = '';
+    if (donutRange === 'week') dFilter = "WHERE date >= datetime('now', '-7 days')";
+    else if (donutRange === 'month') dFilter = "WHERE date >= datetime('now', '-30 days')";
+    else if (donutRange === 'year') dFilter = "WHERE date >= datetime('now', '-365 days')";
+    const repoRows = db().exec(`SELECT repo_name, SUM(commits+file_saves+files_touched) AS total FROM activity_days ${dFilter} GROUP BY repo_path ORDER BY total DESC`);
+    const extRows = db().exec(`SELECT file_ext, COUNT(*) AS cnt FROM file_save_events GROUP BY file_ext ORDER BY cnt DESC LIMIT 10`);
+    const typeRows = db().exec(`SELECT COALESCE(SUM(commits),0) AS c, COALESCE(SUM(file_saves),0) AS s, COALESCE(SUM(files_touched),0) AS f FROM activity_days ${dFilter}`);
+
+    // history
+    const pageSize = 20;
+    const offset = ((historyPage || 1) - 1) * pageSize;
+    let hWhere = '';
+    const hParams = [];
+    if (historyRepo) { hWhere = 'WHERE repo_path=?'; hParams.push(historyRepo); }
+    const histRows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${hWhere} ORDER BY date DESC LIMIT ? OFFSET ?`, [...hParams, pageSize, offset]);
+    const countRows = _query(`SELECT COUNT(*) FROM activity_days ${hWhere}`, hParams);
+
+    const stats = (sRows.length && sRows[0].values.length) ? { commits: sRows[0].values[0][0], files: sRows[0].values[0][1], saves: sRows[0].values[0][2], repos: sRows[0].values[0][3] } : { commits: 0, files: 0, saves: 0, repos: 0 };
+    const donuts = {
+      repo: repoRows.length ? repoRows[0].values.map(r => ({ label: r[0], value: r[1] || 0 })) : [],
+      ext: extRows.length ? extRows[0].values.map(r => ({ label: r[0] || '(none)', value: r[1] || 0 })) : [],
+      type: (typeRows.length && typeRows[0].values.length) ? [
+        { label: 'File Saves', value: typeRows[0].values[0][1] || 0 },
+        { label: 'Commits', value: typeRows[0].values[0][0] || 0 },
+        { label: 'Files Touched', value: typeRows[0].values[0][2] || 0 },
+      ] : [],
+    };
+    const history = {
+      items: histRows.length ? histRows[0].values.map(r => ({ date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0 })) : [],
+      total: (countRows.length && countRows[0].values.length) ? countRows[0].values[0][0] : 0,
+      page: historyPage || 1, pageSize,
+    };
+
+    return { profile: stored ? { id: stored[0], name: stored[1], email: stored[2], avatarColor: stored[3], facebook: stored[4], tiktok: stored[5], linkedin: stored[6], wakatime: stored[7], bio: stored[10] || '', website: stored[11] || '' } : null, avatar: null, stats, heatmap, donuts, history };
+  });
+
+  ipcMain.handle('profile:initWatcher', () => {
     const repo = _getActiveRepo(config);
     if (!repo) return { watching: 0 };
     const alreadyWatching = _watchers.some(w => w._watchingPaths?.has?.(repo.repoPath));
     if (!alreadyWatching) _startWatcher(repo.repoPath, repo.name);
-    await _syncCommits(repo.repoPath, repo.name);
+    setImmediate(() => _syncCommits(repo.repoPath, repo.name, false));
     return { watching: 1 };
   });
 

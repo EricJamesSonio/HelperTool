@@ -7,6 +7,8 @@ const DB_FILE = 'index.db';
 
 let _db = null;
 let _appRef = null;
+let _saveTimer = null;
+let _pendingSave = false;
 
 function getDbPath() {
   const dir = path.join(_appRef.getPath('userData'), DB_DIR);
@@ -218,7 +220,9 @@ function createSchema() {
   `);
 
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_date ON activity_days(date)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_repo_path ON activity_days(repo_path)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_file_save_events_ts ON file_save_events(timestamp)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_file_save_events_ext ON file_save_events(file_ext)');
 }
 
 function getDb() {
@@ -226,17 +230,32 @@ function getDb() {
   return _db;
 }
 
-function save() {
+function _flush() {
   if (!_db) return;
+  _pendingSave = false;
   const data = _db.export();
   const buffer = Buffer.from(data);
   const dbPath = getDbPath();
   fs.writeFileSync(dbPath, buffer);
 }
 
+function save() {
+  if (!_db) return;
+  if (_saveTimer) { _pendingSave = true; return; }
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    _flush();
+    if (_pendingSave) {
+      _pendingSave = false;
+      _saveTimer = setTimeout(() => { _saveTimer = null; _flush(); }, 5000);
+    }
+  }, 5000);
+}
+
 function close() {
   if (_db) {
-    save();
+    if (_saveTimer) clearTimeout(_saveTimer);
+    _flush();
     _db.close();
     _db = null;
   }
