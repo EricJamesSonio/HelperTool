@@ -22,6 +22,7 @@ const DEFAULT_FEATURES = {
   teamActivityTool: true,
   blueprintLibraryTool: true,
   profileTool: true,
+  dockerTool: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -69,6 +70,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-port-manager',   !_features.portManagerTool);
   document.body.classList.toggle('feat-no-team-activity', !_features.teamActivityTool);
   document.body.classList.toggle('feat-no-blueprint-library', !_features.blueprintLibraryTool);
+  document.body.classList.toggle('feat-no-docker', !_features.dockerTool);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────
@@ -188,6 +190,14 @@ function _injectWizard() {
     desc: 'View contributor stats, commit timeline, and per-file diffs from git history.',
     heavy: false,
     color: 'var(--green)',
+  },
+  {
+    id: 'dockerTool',
+    icon: ICON_FW_DB,
+    label: 'Docker Manager',
+    desc: 'Manage Docker containers, images & stats via Windows named pipes.',
+    heavy: false,
+    color: 'var(--blue)',
   },
   ];
 
@@ -411,6 +421,7 @@ function _injectWizard() {
     .fw-feature[data-feature="canvasTool"]    .fw-feature-icon svg { color: var(--purple); }
     .fw-feature[data-feature="dbInspector"]   .fw-feature-icon svg { color: var(--blue); }
     .fw-feature[data-feature="portManagerTool"] .fw-feature-icon svg { color: var(--blue); }
+  .fw-feature[data-feature="dockerTool"] .fw-feature-icon svg { color: var(--blue); }
   `;
 
   document.head.appendChild(style);

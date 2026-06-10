@@ -22,6 +22,7 @@ export default class PanelRegistry {
     this._teamActivity  = null;
     this._blueprintLibrary = null;
     this._profileTool = null;
+    this._dockerTool = null;
   }
 
   // Register external tools that don't use a panel element
@@ -37,6 +38,7 @@ export default class PanelRegistry {
   setTeamActivity(t)      { this._teamActivity = t; }
   setBlueprintLibrary(t)  { this._blueprintLibrary = t; }
   setProfileTool(t)       { this._profileTool = t; }
+  setDockerTool(t)        { this._dockerTool = t; }
   setTerminalUI(t)        { this._terminalUI = t; }
 
   // Register a panel element by name
@@ -83,6 +85,8 @@ export default class PanelRegistry {
     if (this._blueprintLibrary?.isOpen?.()) this._blueprintLibrary.close();
     // Profile
     if (this._profileTool?.isOpen?.()) this._profileTool.close();
+    // Docker
+    if (this._dockerTool?.isOpen?.()) this._dockerTool.close();
 
     // Terminal
     if (this._terminalUI?.isOpen?.()) this._terminalUI.close();
