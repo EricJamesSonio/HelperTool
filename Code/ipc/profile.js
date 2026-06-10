@@ -23,6 +23,9 @@ function _startWatcher(repoPath, repoName) {
   const ignores = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/target/**', '**/.next/**'];
   const watcher = chokidar.watch(repoPath, { ignored: ignores, ignoreInitial: true, persistent: true });
   watcher.on('change', (filePath) => {
+    const normalized = filePath.replace(/\\/g, '/');
+    if (normalized.includes('/.git/')) return;
+
     const now = new Date();
     const date = now.toISOString().slice(0, 10);
     const ts = now.toISOString();
@@ -185,6 +188,17 @@ f = typeRow[2] || 0;
     const files = saveRows.length ? saveRows[0].values.map(r => ({ path: r[0], repo: r[1], saves: r[2] || 0 })) : [];
 
     return { repos, files };
+  });
+
+  ipcMain.handle('profile:fileDiff', async (event, { filePath, repoPath }) => {
+    try {
+      const git = simpleGit(repoPath || path.dirname(filePath));
+      const diff = await git.raw(['diff', 'HEAD', '--', filePath]);
+      const content = await git.raw(['show', 'HEAD:' + filePath]).catch(() => '');
+      return { diff, content };
+    } catch (err) {
+      return { diff: '', content: '', error: err.message };
+    }
   });
 
   ipcMain.handle('profile:resetStats', () => {

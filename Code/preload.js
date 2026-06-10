@@ -240,6 +240,7 @@ const profileBridge = {
     getDonutData: (range)        => ipcRenderer.invoke('profile:getDonutData', { range }),
     getHistory:   (page, repo)   => ipcRenderer.invoke('profile:getHistory', { page, repoPath: repo }),
     getDayDetail: (date)         => ipcRenderer.invoke('profile:getDayDetail', { date }),
+    fileDiff:     (filePath, repoPath) => ipcRenderer.invoke('profile:fileDiff', { filePath, repoPath }),
     resetStats:   ()             => ipcRenderer.invoke('profile:resetStats'),
     initWatcher:  ()             => ipcRenderer.invoke('profile:initWatcher'),
     stopWatcher:  ()             => ipcRenderer.invoke('profile:stopWatcher'),
