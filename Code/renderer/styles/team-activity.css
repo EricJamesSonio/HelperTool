@@ -183,13 +183,13 @@
 .taf-lb-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 6px;
+  gap: 8px;
+  padding: 9px 8px;
   border-radius: var(--r-sm);
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s;
   border: 1px solid transparent;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 .taf-lb-item:hover {
   background: var(--bg-hover);
@@ -203,12 +203,12 @@
 }
 
 .taf-lb-rank {
-  width: 28px;
+  width: 32px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
   text-align: center;
@@ -220,17 +220,17 @@
   justify-content: center;
 }
 .taf-lb-crown svg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 .taf-lb-all-avatar {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
@@ -241,10 +241,10 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 .taf-lb-name {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -252,7 +252,7 @@
   white-space: nowrap;
 }
 .taf-lb-stats {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
@@ -260,11 +260,11 @@
 }
 
 .taf-lb-bar-wrap {
-  width: 36px;
-  height: 4px;
+  width: 48px;
+  height: 6px;
   flex-shrink: 0;
   background: var(--bg-elevated);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
   opacity: 0.6;
   transition: opacity 0.1s;
@@ -274,15 +274,15 @@
 }
 .taf-lb-bar {
   height: 100%;
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.3s ease;
   min-width: 2px;
 }
 
 .taf-lb-score {
-  width: 42px;
+  width: 52px;
   flex-shrink: 0;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-faint);
   text-align: right;
