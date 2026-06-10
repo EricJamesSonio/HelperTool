@@ -19,6 +19,7 @@ let _profileContributor = null;
 const TA_SUMMARY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>';
 const TA_REFRESH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 0 1 11.7-4.7"/><path d="M17 10a7 7 0 0 1-11.7 4.7"/><path d="M14.5 2v4h-4"/><path d="M5.5 18v-4h4"/></svg>';
 const TA_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5l-10 10"/></svg>';
+const TA_CROWN = '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3.5 15.5L1 6l4 2 5-5 5 5 4-2-2.5 9.5H3.5z"/></svg>';
 
 function _el(tag, attrs, children) {
   const el = document.createElement(tag);
@@ -277,50 +278,80 @@ function _renderSummary() {
   `;
 }
 
-// ── Contributors ──────────────────────────────────────────────
+// ── Leaderboard ──────────────────────────────────────────────
+
+function _computeScore(data) {
+  return data.commits * 10 + data.linesAdded + data.linesRemoved;
+}
+
+function _renderLeaderboardItem(name, data, rank, maxScore, isAll, active) {
+  const item = _el('div', { className: 'taf-lb-item' + (active ? ' active' : '') });
+  if (active) item.dataset.active = '1';
+
+  const rankEl = _el('div', { className: 'taf-lb-rank' });
+  if (isAll) {
+    const avatar = _el('div', { className: 'taf-lb-all-avatar', style: 'background:var(--accent)' });
+    avatar.textContent = 'A';
+    rankEl.appendChild(avatar);
+  } else if (rank === 0) {
+    rankEl.innerHTML = `<span class="taf-lb-crown">${TA_CROWN}</span>`;
+  } else {
+    rankEl.textContent = `#${rank + 1}`;
+  }
+
+  const info = _el('div', { className: 'taf-lb-info' });
+  const nameEl = _el('div', { className: 'taf-lb-name' });
+  nameEl.textContent = isAll ? 'All' : name;
+  const statEl = _el('div', { className: 'taf-lb-stats' });
+  if (isAll) {
+    statEl.textContent = Object.keys(_contributors).length + ' contributors';
+  } else {
+    statEl.textContent = `${data.commits} commits · +${_n(data.linesAdded)} / -${_n(data.linesRemoved)}`;
+  }
+  info.appendChild(nameEl);
+  info.appendChild(statEl);
+
+  const barWrap = _el('div', { className: 'taf-lb-bar-wrap' });
+  if (!isAll && maxScore > 0) {
+    const pct = Math.round((_computeScore(data) / maxScore) * 100);
+    const bar = _el('div', { className: 'taf-lb-bar', style: `width:${pct}%;background:${data.color || '#888'}` });
+    barWrap.appendChild(bar);
+  }
+
+  const scoreEl = _el('div', { className: 'taf-lb-score' });
+  if (!isAll) {
+    scoreEl.textContent = _computeScore(data) + ' pts';
+  }
+
+  item.appendChild(rankEl);
+  item.appendChild(info);
+  item.appendChild(barWrap);
+  item.appendChild(scoreEl);
+
+  if (isAll) {
+    item.addEventListener('click', () => { _selectedContributor = null; _profileContributor = null; _renderContributors(); _renderCommits(); _renderGraph(); });
+  } else {
+    item.addEventListener('click', () => { _selectedContributor = name; _profileContributor = null; _renderContributors(); _renderCommits(); _renderGraph(); });
+    item.addEventListener('dblclick', () => { _profileContributor = name; _selectedContributor = name; _renderContributors(); _renderCommits(); _renderGraph(); });
+  }
+  return item;
+}
 
 function _renderContributors() {
   const list = _panel.querySelector('#tafContributorsList');
-  const entries = Object.entries(_contributors);
-
-  const allActive = !_selectedContributor;
   list.innerHTML = '';
 
-  const allItem = _el('div', { className: 'taf-contributor' + (allActive ? ' active' : '') });
-  const allAvatar = _el('div', { className: 'taf-contributor-avatar', style: 'background:var(--accent)' });
-  allAvatar.textContent = 'A';
-  const allInfo = _el('div', { className: 'taf-contributor-info' });
-  const allName = _el('div', { className: 'taf-contributor-name' });
-  allName.textContent = 'All';
-  const allStat = _el('div', { className: 'taf-contributor-stats' });
-  allStat.textContent = entries.length + ' contributors';
-  allInfo.appendChild(allName);
-  allInfo.appendChild(allStat);
-  allItem.appendChild(allAvatar);
-  allItem.appendChild(allInfo);
-  allItem.addEventListener('click', () => { _selectedContributor = null; _profileContributor = null; _renderContributors(); _renderCommits(); _renderGraph(); });
-  list.appendChild(allItem);
+  const allActive = !_selectedContributor;
+  list.appendChild(_renderLeaderboardItem(null, null, 0, 0, true, allActive));
 
-  for (const [name, data] of entries) {
-    const active = _selectedContributor === name;
-    const item = _el('div', { className: 'taf-contributor' + (active ? ' active' : '') });
-    const avatar = _el('div', { className: 'taf-contributor-avatar', style: `background:${data.color || '#888'}` });
-    avatar.textContent = _initials(name);
-    const info = _el('div', { className: 'taf-contributor-info' });
-    const nameEl = _el('div', { className: 'taf-contributor-name' });
-    nameEl.textContent = name;
-    const stat = _el('div', { className: 'taf-contributor-stats' });
-    stat.textContent = `${data.commits} commits · +${_n(data.linesAdded)} / -${_n(data.linesRemoved)}`;
-    info.appendChild(nameEl);
-    info.appendChild(stat);
-    const last = _el('div', { className: 'taf-contributor-last' });
-    last.textContent = data.lastCommit ? _timeAgo(data.lastCommit) : '';
-    item.appendChild(avatar);
-    item.appendChild(info);
-    item.appendChild(last);
-    item.addEventListener('click', () => { _selectedContributor = name; _profileContributor = null; _renderContributors(); _renderCommits(); _renderGraph(); });
-    item.addEventListener('dblclick', () => { _profileContributor = name; _selectedContributor = name; _renderContributors(); _renderCommits(); _renderGraph(); });
-    list.appendChild(item);
+  const ranked = Object.entries(_contributors)
+    .map(([name, data]) => ({ name, data, score: _computeScore(data) }))
+    .sort((a, b) => b.score - a.score);
+
+  const maxScore = ranked.length > 0 ? ranked[0].score : 0;
+  for (let i = 0; i < ranked.length; i++) {
+    const active = _selectedContributor === ranked[i].name;
+    list.appendChild(_renderLeaderboardItem(ranked[i].name, ranked[i].data, i, maxScore, false, active));
   }
 }
 
