@@ -240,7 +240,7 @@ const profileBridge = {
     getDonutData: (range)        => ipcRenderer.invoke('profile:getDonutData', { range }),
     getHistory:   (page, repo)   => ipcRenderer.invoke('profile:getHistory', { page, repoPath: repo }),
     getDayDetail: (date)         => ipcRenderer.invoke('profile:getDayDetail', { date }),
-    syncCommits:  ()             => ipcRenderer.invoke('profile:syncCommits'),
+    resetStats:   ()             => ipcRenderer.invoke('profile:resetStats'),
     initWatcher:  ()             => ipcRenderer.invoke('profile:initWatcher'),
     stopWatcher:  ()             => ipcRenderer.invoke('profile:stopWatcher'),
   },
