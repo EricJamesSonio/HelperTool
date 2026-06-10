@@ -1,74 +1,81 @@
 import { state, setState } from './state.js';
-import { getPanelTemplate } from './template.js';
+import { getPanelContent } from './template.js';
 import { render as renderList } from './list.js';
 import { open as openCreate } from './createFlow.js';
 import { push, pull, fetch, deleteBranch, deleteRemote } from './remoteOps.js';
 import { open as openMerge } from './mergeFlow.js';
 import { open as openGraph } from './graph.js';
-import { slideIn } from './animations.js';
 
-let _panel = null;
+let _container = null;
 let _repoPath = null;
+let _onClose = null;
+let _dropdownWired = false;
 
-export function open(repoPath) {
-  console.log('[BranchManager] open called with repoPath:', repoPath);
+export function open(container, repoPath, onClose) {
+  _container = container;
   _repoPath = repoPath;
-  setState({ repoPath, open: true, error: null, confirm: null });
-  if (!_panel) {
-    console.log('[BranchManager] building panel...');
-    _buildPanel();
-    console.log('[BranchManager] panel built, _panel:', _panel);
-  }
-  _panel.classList.add('open');
-  console.log('[BranchManager] panel classList after open:', _panel.className);
-  slideIn(_panel);
+  _onClose = onClose || null;
+  _dropdownWired = false;
+  setState({ repoPath, open: true, error: null, confirm: null, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false });
+  _render();
+  _wireEvents();
   _load();
 }
 
 export function close() {
   setState({ open: false, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false });
-  if (_panel) _panel.classList.remove('open');
+  _onClose?.();
+  _container = null;
+  _onClose = null;
+  _dropdownWired = false;
 }
 
 export function isOpen() {
   return state.open;
 }
 
-function _buildPanel() {
-  const div = document.createElement('div');
-  div.innerHTML = getPanelTemplate();
-  _panel = div.firstElementChild;
-  document.body.appendChild(_panel);
+export function showRight(html) {
+  const el = _container?.querySelector('#bmRightPanel');
+  if (el) el.innerHTML = html;
+}
 
-  _panel.querySelector('#bmCloseBtn').addEventListener('click', close);
+function _render() {
+  if (!_container) return;
+  const mode = localStorage.getItem('helpertool-branch-mode') !== 'pro' ? 'beginner' : 'pro';
+  _container.innerHTML = getPanelContent(mode);
+}
 
-  _panel.querySelector('#bmNewBranchBtn').addEventListener('click', () => openCreate());
+function _wireEvents() {
+  if (!_container) return;
 
-  _panel.querySelector('#bmFetchBtn').addEventListener('click', async () => {
+  _container.querySelector('#bmCloseBtn')?.addEventListener('click', close);
+
+  _container.querySelector('#bmNewBranchBtn')?.addEventListener('click', () => openCreate());
+
+  _container.querySelector('#bmFetchBtn')?.addEventListener('click', async () => {
     await fetch();
     await renderList();
   });
 
-  document.getElementById('bmSearch')?.addEventListener('input', () => {
+  _container.querySelector('#bmSearch')?.addEventListener('input', () => {
     renderList();
   });
 
-  _panel.querySelectorAll('.bm-mode-btn').forEach(btn => {
+  _container.querySelectorAll('.bm-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
       localStorage.setItem('helpertool-branch-mode', mode);
-      _panel.querySelectorAll('.bm-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+      _container.querySelectorAll('.bm-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
       setState({ mode });
     });
   });
 
   _wireBranchListEvents();
   _wireDropdowns();
-  _wireConfirm();
 }
 
 function _wireBranchListEvents() {
-  document.getElementById('bmBranchList')?.addEventListener('click', async (e) => {
+  _container?.querySelector('#bmBranchList')?.addEventListener('click', async (e) => {
     const actionBtn = e.target.closest('[data-action]');
     if (!actionBtn) return;
     const row = actionBtn.closest('[data-name]');
@@ -110,9 +117,11 @@ function _wireBranchListEvents() {
 }
 
 function _wireDropdowns() {
-  document.addEventListener('click', (e) => {
+  if (_dropdownWired) return;
+  _dropdownWired = true;
+  _container?.addEventListener('click', (e) => {
     const toggle = e.target.closest('.bm-dropdown-toggle');
-    document.querySelectorAll('.bm-dropdown-menu').forEach(m => {
+    _container?.querySelectorAll('.bm-dropdown-menu').forEach(m => {
       if (toggle && m.closest('.bm-dropdown') === toggle.closest('.bm-dropdown')) return;
       m.classList.remove('open');
     });
@@ -120,12 +129,6 @@ function _wireDropdowns() {
     e.stopPropagation();
     const menu = toggle.closest('.bm-dropdown')?.querySelector('.bm-dropdown-menu');
     if (menu) menu.classList.toggle('open');
-  });
-}
-
-function _wireConfirm() {
-  document.getElementById('bmConfirmOverlay')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) setState({ confirm: null });
   });
 }
 
@@ -146,16 +149,17 @@ export function _confirm(opts) {
   el.style.display = opts ? '' : 'none';
 
   if (opts) {
-    document.getElementById('bmConfirmCancel')?.addEventListener('click', () => opts.onCancel?.());
-    document.getElementById('bmConfirmOk')?.addEventListener('click', () => opts.onConfirm?.());
+    el.querySelector('#bmConfirmCancel')?.addEventListener('click', () => opts.onCancel?.());
+    el.querySelector('#bmConfirmOk')?.addEventListener('click', () => opts.onConfirm?.());
   }
 }
 
 function _showToast(msg) {
+  if (!_container) return;
   const toast = document.createElement('div');
   toast.className = 'bm-toast bm-toast-success';
   toast.textContent = msg;
-  _panel.appendChild(toast);
+  _container.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('bm-toast-show'));
   setTimeout(() => toast.remove(), 2500);
 }

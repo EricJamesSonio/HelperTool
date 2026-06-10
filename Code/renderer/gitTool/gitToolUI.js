@@ -276,12 +276,10 @@ class GitToolUI {
 
     const branchesBtn = this.container.querySelector('#gitBranchesBtn');
     branchesBtn?.addEventListener('click', () => {
-      try {
-        console.log('[GitToolUI] Opening Branch Manager for:', this.gitHandler.repoPath);
-        branchManager.open(this.gitHandler.repoPath);
-      } catch (e) {
-        console.error('[GitToolUI] Branch Manager error:', e);
-      }
+      const bodyEl = this.container.querySelector('.git-content');
+      if (!bodyEl) return;
+      this._savedContent = bodyEl.innerHTML;
+      branchManager.open(bodyEl, this.gitHandler.repoPath, () => this.restoreContent());
     });
   }
 
@@ -770,6 +768,14 @@ renderWorkingTree(files) {
       "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
+  restoreContent() {
+    const bodyEl = this.container?.querySelector('.git-content');
+    if (bodyEl && this._savedContent) {
+      bodyEl.innerHTML = this._savedContent;
+      this._savedContent = null;
+    }
   }
 
   /**

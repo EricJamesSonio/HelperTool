@@ -3,14 +3,11 @@ import { getBranchRow, getRemoteRow } from './template.js';
 import { branchColor, escHtml } from './utils.js';
 
 export async function render() {
-  console.log('[BranchManager] render() called, repoPath:', state.repoPath);
   const el = document.getElementById('bmBranchList');
-  if (!el) { console.log('[BranchManager] bmBranchList element not found!'); return; }
+  if (!el) return;
   setState({ loading: { ...state.loading, branches: true } });
   try {
-    console.log('[BranchManager] calling gitBranches IPC...');
     const r = await window.electronAPI.gitBranches(state.repoPath);
-    console.log('[BranchManager] gitBranches result:', r);
     if (!r.success) { el.innerHTML = '<div class="bm-empty">Failed to load branches</div>'; return; }
     setState({ current: r.current, local: r.local, remote: r.remote });
 

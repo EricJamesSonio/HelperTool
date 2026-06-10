@@ -1,35 +1,33 @@
-import { branchColor } from './utils.js';
+import { isAnimated } from './utils.js';
 
-export function getPanelTemplate() {
-  const mode = localStorage.getItem('helpertool-branch-mode') !== 'pro' ? 'beginner' : 'pro';
+export function getPanelContent(mode) {
   return `
-    <div class="bm-overlay" id="bmOverlay">
-      <div class="bm-panel" id="bmPanel">
-        <div class="bm-header">
-          <div class="bm-header-left">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-              <line x1="6" y1="4" x2="6" y2="16"/><line x1="14" y1="4" x2="14" y2="16"/>
-              <polyline points="6,4 14,4"/><polyline points="6,16 14,16"/>
-            </svg>
-            <span class="bm-title">Branch Manager</span>
-          </div>
-          <div class="bm-header-actions">
-            <button class="bm-mode-btn ${mode === 'beginner' ? 'active' : ''}" data-mode="beginner" title="Beginner mode with animations">🎓 Beginner</button>
-            <button class="bm-mode-btn ${mode === 'pro' ? 'active' : ''}" data-mode="pro" title="Pro mode, no animations">⚡ Pro</button>
-            <button class="bm-btn bm-btn-icon" id="bmCloseBtn">&times;</button>
-          </div>
+    <div class="bm-panel bm-panel-inline">
+      <div class="bm-header">
+        <div class="bm-header-left">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <line x1="6" y1="4" x2="6" y2="16"/><line x1="14" y1="4" x2="14" y2="16"/>
+            <polyline points="6,4 14,4"/><polyline points="6,16 14,16"/>
+          </svg>
+          <span class="bm-title">Branch Manager</span>
         </div>
-        <div class="bm-toolbar">
-          <button class="bm-btn bm-btn-primary" id="bmNewBranchBtn">+ New Branch</button>
-          <button class="bm-btn" id="bmFetchBtn">⟳ Fetch</button>
-          <input class="bm-search" id="bmSearch" placeholder="Filter branches\u2026">
+        <div class="bm-header-actions">
+          <button class="bm-mode-btn ${mode === 'beginner' ? 'active' : ''}" data-mode="beginner" title="Beginner mode with animations">🎓 Beginner</button>
+          <button class="bm-mode-btn ${mode === 'pro' ? 'active' : ''}" data-mode="pro" title="Pro mode, no animations">⚡ Pro</button>
+          <button class="bm-btn bm-btn-sm" id="bmCloseBtn">&larr; Back to Git</button>
         </div>
-        <div class="bm-body" id="bmBody">
+      </div>
+      <div class="bm-toolbar">
+        <button class="bm-btn bm-btn-primary" id="bmNewBranchBtn">+ New Branch</button>
+        <button class="bm-btn" id="bmFetchBtn">⟳ Fetch</button>
+        <input class="bm-search" id="bmSearch" placeholder="Filter branches\u2026">
+      </div>
+      <div class="bm-body">
+        <div class="bm-left" id="bmLeft">
           <div id="bmBranchList"></div>
-          <div id="bmCreateForm" style="display:none"></div>
-          <div id="bmMergeFlow" style="display:none"></div>
-          <div id="bmGraphView" style="display:none"></div>
-          <div id="bmConfirmOverlay" style="display:none"></div>
+        </div>
+        <div class="bm-right" id="bmRightPanel">
+          <div class="bm-empty">Select an action to view details</div>
         </div>
       </div>
     </div>
@@ -122,34 +120,47 @@ export function getCreateForm() {
   `;
 }
 
-export function getMergeStep1(from, into, fromColor, intoColor) {
-  return `
-    <div class="bm-merge-flow">
-      <div class="bm-merge-diagram" id="bmMergeDiagram">
-        <svg viewBox="0 0 300 120" class="bm-merge-svg">
-          <circle cx="80" cy="30" r="10" fill="${fromColor}" stroke="#fff" stroke-width="2"/>
-          <text x="80" y="55" text-anchor="middle" fill="${fromColor}" font-size="11" font-weight="600">${from}</text>
-          <circle cx="220" cy="30" r="10" fill="${intoColor}" stroke="#fff" stroke-width="2"/>
-          <text x="220" y="55" text-anchor="middle" fill="${intoColor}" font-size="11" font-weight="600">${into}</text>
-          <path class="bm-merge-arrow" d="M90 30 Q150 30 150 80 Q150 120 220 100" fill="none" stroke="${fromColor}" stroke-width="2" stroke-dasharray="400" stroke-dashoffset="400"/>
-        </svg>
+export function getMergeConfirm(from, into, fromColor, intoColor) {
+  const animated = isAnimated();
+  if (animated) {
+    return `
+      <div class="bm-merge-flow">
+        <div class="bm-merge-diagram" id="bmMergeDiagram">
+          <svg viewBox="0 0 300 120" class="bm-merge-svg">
+            <circle cx="80" cy="30" r="10" fill="${fromColor}" stroke="#fff" stroke-width="2"/>
+            <text x="80" y="55" text-anchor="middle" fill="${fromColor}" font-size="11" font-weight="600">${from}</text>
+            <circle cx="220" cy="30" r="10" fill="${intoColor}" stroke="#fff" stroke-width="2"/>
+            <text x="220" y="55" text-anchor="middle" fill="${intoColor}" font-size="11" font-weight="600">${into}</text>
+            <path class="bm-merge-arrow" d="M90 30 Q150 30 150 80 Q150 120 220 100" fill="none" stroke="${fromColor}" stroke-width="2" stroke-dasharray="400" stroke-dashoffset="400"/>
+          </svg>
+        </div>
+        <div class="bm-merge-info">
+          Merge <strong style="color:${fromColor}">${from}</strong> into <strong style="color:${intoColor}">${into}</strong>
+        </div>
+        <div class="bm-merge-actions">
+          <button class="bm-btn" id="bmMergeCancel">Cancel</button>
+          <button class="bm-btn bm-btn-primary" id="bmMergeStart">Start Merge →</button>
+        </div>
       </div>
+    `;
+  }
+  return `
+    <div class="bm-merge-flow bm-merge-pro">
       <div class="bm-merge-info">
         Merge <strong style="color:${fromColor}">${from}</strong> into <strong style="color:${intoColor}">${into}</strong>
       </div>
       <div class="bm-merge-actions">
         <button class="bm-btn" id="bmMergeCancel">Cancel</button>
-        <button class="bm-btn bm-btn-primary" id="bmMergeStart">Start Merge →</button>
+        <button class="bm-btn bm-btn-primary" id="bmMergeStart">Merge</button>
       </div>
     </div>
   `;
 }
 
-export function getMergeSuccess() {
+export function getMergeSuccessText(from, into) {
   return `
     <div class="bm-merge-result bm-merge-success">
-      <div class="bm-merge-result-icon">✓</div>
-      <div class="bm-merge-result-text">Merged successfully</div>
+      <div class="bm-merge-result-text"><strong>${from}</strong> → <strong>${into}</strong> merged successfully ✓</div>
       <button class="bm-btn bm-btn-primary" id="bmMergeDone">Done</button>
     </div>
   `;
@@ -189,7 +200,7 @@ export function getConflictResolver(conflicts, from, into) {
 export function getGraphView(branch, commits, page, totalPages) {
   const commitRows = commits.map(c => `
     <div class="bm-graph-row">
-      <span class="bm-graph-dot" style="color:${branchColor(branch)}">●</span>
+      <span class="bm-graph-dot" style="color:${branch}">●</span>
       <span class="bm-graph-hash">${c.hash.substring(0, 7)}</span>
       <span class="bm-graph-msg">${c.message}</span>
       <span class="bm-graph-author">${c.author}</span>
@@ -206,7 +217,7 @@ export function getGraphView(branch, commits, page, totalPages) {
   return `
     <div class="bm-graph-wrap">
       <div class="bm-graph-header">
-        <span class="bm-graph-title" style="color:${branchColor(branch)}">${branch} — ${totalPages * 20}+ commits</span>
+        <span class="bm-graph-title">${branch} — ${totalPages * 20}+ commits</span>
         <button class="bm-btn" id="bmGraphClose">Back</button>
       </div>
       <div class="bm-graph-list">${commitRows || '<div class="bm-empty">No commits</div>'}</div>

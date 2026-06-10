@@ -2,14 +2,14 @@ import { state, setState } from './state.js';
 import { getCreateForm } from './template.js';
 import { slideIn } from './animations.js';
 import { render } from './list.js';
+import { showRight } from './index.js';
 
 export function open() {
   setState({ createOpen: true, createPrefix: 'feature/', createName: '' });
-  const el = document.getElementById('bmCreateForm');
-  if (!el) return;
-  el.innerHTML = getCreateForm();
-  el.style.display = '';
-  slideIn(el);
+  showRight(getCreateForm());
+
+  const container = document.getElementById('bmRightPanel');
+  if (!container) return;
 
   const base = document.getElementById('bmCreateBase');
   if (base) {
@@ -22,18 +22,18 @@ export function open() {
   const preview = document.getElementById('bmCreatePreview');
   let prefix = 'feature/';
 
-  document.getElementById('bmPrefixChips')?.addEventListener('click', (e) => {
+  container.querySelector('#bmPrefixChips')?.addEventListener('click', (e) => {
     const chip = e.target.closest('.bm-prefix-chip');
     if (!chip) return;
-    document.querySelectorAll('.bm-prefix-chip').forEach(c => c.classList.remove('active'));
+    container.querySelectorAll('.bm-prefix-chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
     prefix = chip.dataset.prefix;
     setState({ createPrefix: prefix });
     updatePreview();
   });
 
-  document.getElementById('bmPrefixFree')?.addEventListener('input', (e) => {
-    document.querySelectorAll('.bm-prefix-chip').forEach(c => c.classList.remove('active'));
+  container.querySelector('#bmPrefixFree')?.addEventListener('input', (e) => {
+    container.querySelectorAll('.bm-prefix-chip').forEach(c => c.classList.remove('active'));
     prefix = e.target.value;
     setState({ createPrefix: prefix });
     updatePreview();
@@ -49,7 +49,7 @@ export function open() {
     if (preview) preview.textContent = full || 'feature/my-branch-name';
   }
 
-  document.getElementById('bmCreateSubmit')?.addEventListener('click', async () => {
+  container.querySelector('#bmCreateSubmit')?.addEventListener('click', async () => {
     const name = (nameInput?.value || '').trim();
     const errorEl = document.getElementById('bmCreateError');
     if (!name) { if (errorEl) errorEl.textContent = 'Branch name is required'; return; }
@@ -60,13 +60,12 @@ export function open() {
       const r = await window.electronAPI.gitCreateBranch(state.repoPath, fullName, baseBranch);
       if (!r.success) { if (errorEl) errorEl.textContent = r.error; return; }
       setState({ createOpen: false, createName: '' });
-      el.style.display = 'none';
+      showRight('<div class="bm-empty">Select an action to view details</div>');
       await render();
-      const panel = document.getElementById('bmPanel');
       const toast = document.createElement('div');
       toast.className = 'bm-toast bm-toast-success';
       toast.textContent = '✓ Branch created and switched';
-      panel.appendChild(toast);
+      (container.closest('.bm-panel-inline') || document.body).appendChild(toast);
       requestAnimationFrame(() => toast.classList.add('bm-toast-show'));
       setTimeout(() => toast.remove(), 2500);
     } catch (err) {
@@ -74,9 +73,8 @@ export function open() {
     }
   });
 
-  document.getElementById('bmCreateCancel')?.addEventListener('click', () => {
+  container.querySelector('#bmCreateCancel')?.addEventListener('click', () => {
     setState({ createOpen: false, createName: '' });
-    el.style.display = 'none';
-    el.innerHTML = '';
+    showRight('<div class="bm-empty">Select an action to view details</div>');
   });
 }
