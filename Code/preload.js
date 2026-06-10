@@ -260,6 +260,40 @@ const docignoreManagerBridge = {
 };
 
 // Docker bridge (separate API, not under electronAPI)
+// Branch Manager bridge (flat methods on electronAPI)
+const branchBridge = {
+    gitBranches:          (repoPath) =>
+      ipcRenderer.invoke('git:branches', { repoPath }),
+    gitCreateBranch:      (repoPath, name, fromBranch) =>
+      ipcRenderer.invoke('git:createBranch', { repoPath, name, fromBranch }),
+    gitSwitchBranch:      (repoPath, name) =>
+      ipcRenderer.invoke('git:switchBranch', { repoPath, name }),
+    gitDeleteBranch:      (repoPath, name, force) =>
+      ipcRenderer.invoke('git:deleteBranch', { repoPath, name, force }),
+    gitDeleteRemoteBranch:(repoPath, remote, name) =>
+      ipcRenderer.invoke('git:deleteRemoteBranch', { repoPath, remote, name }),
+    gitPushBranch:        (repoPath, name, remote) =>
+      ipcRenderer.invoke('git:pushBranch', { repoPath, name, remote }),
+    gitPullBranch:        (repoPath, name, remote) =>
+      ipcRenderer.invoke('git:pullBranch', { repoPath, name, remote }),
+    gitFetchRemote:       (repoPath, remote) =>
+      ipcRenderer.invoke('git:fetchRemote', { repoPath, remote }),
+    gitMergeBranch:       (repoPath, from, into) =>
+      ipcRenderer.invoke('git:mergeBranch', { repoPath, from, into }),
+    gitGetConflictDiff:   (repoPath, filePath) =>
+      ipcRenderer.invoke('git:getConflictDiff', { repoPath, filePath }),
+    gitAcceptIncoming:    (repoPath, files) =>
+      ipcRenderer.invoke('git:acceptIncoming', { repoPath, files }),
+    gitAcceptCurrent:     (repoPath, files) =>
+      ipcRenderer.invoke('git:acceptCurrent', { repoPath, files }),
+    gitMarkResolved:      (repoPath, filePath) =>
+      ipcRenderer.invoke('git:markResolved', { repoPath, filePath }),
+    gitCompleteMerge:     (repoPath, message) =>
+      ipcRenderer.invoke('git:completeMerge', { repoPath, message }),
+    gitBranchGraph:       (repoPath, branch, page) =>
+      ipcRenderer.invoke('git:branchGraph', { repoPath, branch, page }),
+};
+
 const dockerBridge = {
     ping:            ()             => ipcRenderer.invoke('docker:ping'),
     listContainers:  ()             => ipcRenderer.invoke('docker:listContainers'),
@@ -294,6 +328,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...teamActivityBridge,
     ...blueprintBridge,
     ...profileBridge,
+    ...branchBridge,
     windowControls,
 });
 

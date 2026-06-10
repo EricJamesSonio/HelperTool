@@ -15,6 +15,9 @@ const ICON_ARROW_LEFT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentCol
 const ICON_ARROW_UP = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15V5"/><path d="m5 10 5-5 5 5"/></svg>';
 const ICON_MENU = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12"/><path d="M4 10h12"/><path d="M4 14h12"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12"/><path d="M4 10h12"/></svg>';
+const ICON_BRANCH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="4" x2="6" y2="16"/><line x1="14" y1="4" x2="14" y2="16"/><polyline points="6,4 14,4"/><polyline points="6,16 14,16"/></svg>';
+
+import * as branchManager from './branchManager.js';
 
 class GitToolUI {
   constructor(gitManager, gitCommandHandler) {
@@ -45,8 +48,11 @@ class GitToolUI {
       <div class="git-tool-wrapper">
         <!-- Header -->
         <div class="git-header">
-          <h2 class="git-title">
+          <h2 class="git-title" style="display:flex;align-items:center;gap:8px">
             <span class="git-icon">${ICON_GIT}</span> Git Tool
+            <button class="btn btn-small" id="gitBranchesBtn" title="Manage branches">
+              <span class="btn-icon">${ICON_BRANCH}</span> Branches
+            </button>
           </h2>
           <div class="git-stats">
             <span class="stat-item">
@@ -267,6 +273,16 @@ class GitToolUI {
 
     const stageAllBtn = this.container.querySelector('#stageAllBtn');
     stageAllBtn?.addEventListener('click', () => this.handleStageAll());
+
+    const branchesBtn = this.container.querySelector('#gitBranchesBtn');
+    branchesBtn?.addEventListener('click', () => {
+      try {
+        console.log('[GitToolUI] Opening Branch Manager for:', this.gitHandler.repoPath);
+        branchManager.open(this.gitHandler.repoPath);
+      } catch (e) {
+        console.error('[GitToolUI] Branch Manager error:', e);
+      }
+    });
   }
 
   /**
