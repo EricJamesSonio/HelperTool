@@ -1,6 +1,7 @@
 let _panel = null;
 let _open = false;
 let _profile = null;
+let _avatarDataUrl = null;
 let _heatmapYear = new Date().getFullYear();
 let _statsRange = 'all';
 let _donutRange = 'all';
@@ -40,6 +41,25 @@ function _esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function _resizeImage(file, maxSize) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > maxSize) { h *= maxSize / w; w = maxSize; } }
+      else { if (h > maxSize) { w *= maxSize / h; h = maxSize; } }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/png'));
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => resolve(null);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export function isOpen() { return _open; }
 
 export function open() {
@@ -74,11 +94,22 @@ function _buildPanel() {
       <div class="pf-body" id="pfBody">
         <div class="pf-loading">Loading\u2026</div>
       </div>
+      <input type="file" accept="image/*" id="pfAvatarInput" hidden>
     </div>
   `;
   document.body.appendChild(_panel);
   _panel.querySelector('#pfCloseBtn').addEventListener('click', close);
   _panel.querySelector('#pfRefreshBtn').addEventListener('click', () => { _clearCache(); _load(); });
+  _panel.querySelector('#pfAvatarInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await _resizeImage(file, 200);
+    const result = await window.electronAPI.profile.uploadAvatar(dataUrl);
+    if (result && result.success) {
+      _avatarDataUrl = dataUrl;
+      _renderBody('card');
+    }
+  });
   document.addEventListener('keydown', _escHandler);
 }
 
@@ -95,16 +126,21 @@ async function _load() {
   body.innerHTML = _buildSkeleton();
   _bodyEls = {};
   _cache = {};
+  _avatarDataUrl = null;
   body.querySelectorAll('.pf-section').forEach(el => {
     _bodyEls[el.dataset.section] = el;
   });
 
-  // Fetch profile in background
-  window.electronAPI.profile.get().then(p => {
+  // Fetch profile + avatar in parallel, then render card
+  Promise.all([
+    window.electronAPI.profile.get().catch(() => null),
+    window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
+  ]).then(([p, av]) => {
     if (p) _profile = p;
+    _avatarDataUrl = av ? av.dataUrl : null;
     const newCard = _renderProfileCard();
     if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
-  }).catch(() => {});
+  });
 
   // Start watcher in background (fire-and-forget)
   window.electronAPI.profile.initWatcher().catch(() => {});
@@ -122,23 +158,27 @@ let _bodyEls = {};
 
 function _buildSkeleton() {
   return `
-    <div class="pf-section" data-section="card">
-      <div class="pf-card pf-skel"><div class="pf-avatar pf-skel-avatar"></div><div class="pf-info"><div class="pf-skel-line" style="width:40%"></div><div class="pf-skel-line" style="width:60%"></div></div></div>
+    <div class="pf-body-sidebar">
+      <div class="pf-section" data-section="card">
+        <div class="pf-card-vertical pf-skel"><div class="pf-skel-avatar pf-skel-avatar-lg" style="margin:0 auto 8px"></div><div class="pf-skel-line" style="width:50%;margin:0 auto"></div><div class="pf-skel-line" style="width:70%;margin:6px auto 0"></div></div>
+      </div>
     </div>
-    <div class="pf-section" data-section="stats">
-      <div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div>
-    </div>
-    <div class="pf-section" data-section="heatmap">
-      <div class="pf-heatmap-header"><div class="pf-skel-line" style="width:120px;height:16px"></div></div>
-      <div class="pf-heatmap-wrap"><div class="pf-skel-line" style="width:100%;height:100px"></div></div>
-    </div>
-    <div class="pf-section" data-section="donuts">
-      <div class="pf-donuts-row"><div class="pf-donut-wrap pf-skel"><div class="pf-skel-line" style="width:60%;margin:0 auto"></div></div><div class="pf-donut-wrap pf-skel"><div class="pf-skel-line" style="width:60%;margin:0 auto"></div></div><div class="pf-donut-wrap pf-skel"><div class="pf-skel-line" style="width:60%;margin:0 auto"></div></div></div>
-    </div>
-    <div class="pf-section" data-section="history">
-      <div class="pf-skel-line" style="width:200px;height:16px;margin-bottom:8px"></div>
-      <div class="pf-skel-line" style="width:100%;height:40px"></div>
-      <div class="pf-skel-line" style="width:100%;height:40px;margin-top:4px"></div>
+    <div class="pf-body-main">
+      <div class="pf-section" data-section="stats">
+        <div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div>
+      </div>
+      <div class="pf-section" data-section="heatmap">
+        <div class="pf-heatmap-header"><div class="pf-skel-line" style="width:120px;height:16px"></div></div>
+        <div class="pf-heatmap-wrap"><div class="pf-skel-line" style="width:100%;height:100px"></div></div>
+      </div>
+      <div class="pf-section" data-section="donuts">
+        <div class="pf-donuts-row"><div class="pf-donut-wrap pf-skel"><div class="pf-skel-line" style="width:60%;margin:0 auto"></div></div><div class="pf-donut-wrap pf-skel"><div class="pf-skel-line" style="width:60%;margin:0 auto"></div></div><div class="pf-donut-wrap pf-skel"><div class="pf-skel-line" style="width:60%;margin:0 auto"></div></div></div>
+      </div>
+      <div class="pf-section" data-section="history">
+        <div class="pf-skel-line" style="width:200px;height:16px;margin-bottom:8px"></div>
+        <div class="pf-skel-line" style="width:100%;height:40px"></div>
+        <div class="pf-skel-line" style="width:100%;height:40px;margin-top:4px"></div>
+      </div>
     </div>`;
 }
 
@@ -172,14 +212,23 @@ function _initials(name) {
 
 // ── Profile Card ──
 
+const SOCIAL_ICONS = {
+  facebook: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>',
+  tiktok: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>',
+  linkedin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>',
+  wakatime: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>',
+};
+
 function _renderProfileCard() {
   const section = _el('div', { className: 'pf-section' });
   if (_editingProfile) {
     section.innerHTML = `
-      <div class="pf-card">
+      <div class="pf-card pf-card-vertical">
         <div class="pf-edit-form">
           <div class="pf-edit-field"><label>Name</label><input class="pf-edit-input" id="pfEditName" value="${_esc(_profile.name || '')}"></div>
           <div class="pf-edit-field"><label>Email</label><input class="pf-edit-input" id="pfEditEmail" value="${_esc(_profile.email || '')}"></div>
+          <div class="pf-edit-field"><label>Bio</label><textarea class="pf-edit-textarea" id="pfEditBio" rows="3">${_esc(_profile.bio || '')}</textarea></div>
+          <div class="pf-edit-field"><label>Website</label><input class="pf-edit-input" id="pfEditWeb" value="${_esc(_profile.website || '')}"></div>
           <div class="pf-edit-field"><label>Avatar Color</label><div class="pf-color-picker" id="pfColorPicker">${PROFILE_COLORS.map(c => `<button class="pf-color-swatch${c === _profile.avatarColor ? ' active' : ''}" data-color="${c}" style="background:${c}"></button>`).join('')}</div></div>
           <div class="pf-edit-field"><label>Facebook URL</label><input class="pf-edit-input" id="pfEditFb" value="${_esc(_profile.facebook || '')}"></div>
           <div class="pf-edit-field"><label>TikTok URL</label><input class="pf-edit-input" id="pfEditTt" value="${_esc(_profile.tiktok || '')}"></div>
@@ -200,6 +249,8 @@ function _renderProfileCard() {
       await window.electronAPI.profile.update({
         name: section.querySelector('#pfEditName').value,
         email: section.querySelector('#pfEditEmail').value,
+        bio: section.querySelector('#pfEditBio').value,
+        website: section.querySelector('#pfEditWeb').value,
         avatarColor: colorBtn ? colorBtn.dataset.color : '#4F8EF7',
         facebook: section.querySelector('#pfEditFb').value,
         tiktok: section.querySelector('#pfEditTt').value,
@@ -216,24 +267,39 @@ function _renderProfileCard() {
   }
 
   const c = _profile.avatarColor || '#4F8EF7';
+  const hasSocial = _profile.facebook || _profile.tiktok || _profile.linkedin || _profile.wakatime;
+  const avatarContent = _avatarDataUrl
+    ? `<img src="${_esc(_avatarDataUrl)}" alt="">`
+    : _initials(_profile.name);
   section.innerHTML = `
-    <div class="pf-card">
-      <div class="pf-avatar" style="background:${c};color:#fff">${_initials(_profile.name)}</div>
-      <div class="pf-info">
-        <div class="pf-name">${_esc(_profile.name || 'Unnamed')}</div>
-        <div class="pf-email">${_esc(_profile.email || '')}</div>
+    <div class="pf-card pf-card-vertical">
+      <div class="pf-card-avatar-wrap">
+        <div class="pf-avatar" style="background:${c};color:#fff">${avatarContent}</div>
+        <div class="pf-avatar-overlay">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
       </div>
-      <button class="pf-btn primary" id="pfEditBtn">Edit Profile</button>
+      <div class="pf-card-name">${_esc(_profile.name || 'Unnamed')}</div>
+      <div class="pf-card-email">${_esc(_profile.email || '')}</div>
+      ${_profile.bio ? `<div class="pf-card-bio">${_esc(_profile.bio)}</div>` : ''}
+      ${_profile.website ? `<a class="pf-card-website" href="${_esc(_profile.website)}" target="_blank" rel="noopener"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M10 6v8M6 10h8"/></svg>${_esc(_profile.website)}</a>` : ''}
+      ${hasSocial ? `<div class="pf-socials">${_socialLink('facebook', _profile.facebook)}${_socialLink('tiktok', _profile.tiktok)}${_socialLink('linkedin', _profile.linkedin)}${_socialLink('wakatime', _profile.wakatime)}</div>` : ''}
+      <button class="pf-btn primary pf-card-edit-btn" id="pfEditBtn">Edit Profile</button>
     </div>
-    <div class="pf-socials">${_socialLink('facebook', _profile.facebook)}${_socialLink('tiktok', _profile.tiktok)}${_socialLink('linkedin', _profile.linkedin)}${_socialLink('wakatime', _profile.wakatime)}</div>
   `;
   section.querySelector('#pfEditBtn').addEventListener('click', () => { _editingProfile = true; _renderBody('card'); });
+  section.querySelector('.pf-card-avatar-wrap').addEventListener('click', () => {
+    const input = _panel.querySelector('#pfAvatarInput');
+    input.value = '';
+    input.click();
+  });
   return section;
 }
 
 function _socialLink(platform, url) {
   if (!url) return '';
-  return `<a class="pf-social-link" href="${_esc(url)}" target="_blank" title="${platform}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M10 6v8M6 10h8"/></svg><span>${platform}</span></a>`;
+  const icon = SOCIAL_ICONS[platform] || '';
+  return `<a class="pf-social-link" href="${_esc(url)}" target="_blank" rel="noopener" title="${platform}">${icon}<span>${platform}</span></a>`;
 }
 
 // ── Stats Bar ──
@@ -454,6 +520,7 @@ async function _renderHistory() {
 
 let _dayDetailFile = null;
 let _dayDetailDiff = null;
+let _dayDetailContent = null;
 
 function _isGitPath(p) {
   return p.replace(/\\/g, '/').includes('/.git/');
@@ -462,14 +529,16 @@ function _isGitPath(p) {
 async function _loadFileDiff(filePath, repoName) {
   _dayDetailFile = filePath;
   _dayDetailDiff = null;
+  _dayDetailContent = null;
   const el = _panel.querySelector('#pfDiffContent');
   if (el) el.innerHTML = '<div class="pf-diff-loading">Loading diff\u2026</div>';
 
   try {
     const result = await window.electronAPI.profile.fileDiff(filePath);
     _dayDetailDiff = result.diff || '';
+    _dayDetailContent = result.content || '';
     const activeEl = _panel.querySelector('#pfDiffContent');
-    if (activeEl) activeEl.innerHTML = _renderDiffHTML(result.diff || '');
+    if (activeEl) activeEl.innerHTML = _renderDiffHTML(result.diff || '', result.content || '');
     _panel.querySelectorAll('.pf-detail-file').forEach(e => e.classList.toggle('active', e.dataset.path === filePath));
   } catch {
     const activeEl = _panel.querySelector('#pfDiffContent');
@@ -477,8 +546,11 @@ async function _loadFileDiff(filePath, repoName) {
   }
 }
 
-function _renderDiffHTML(diffText) {
-  if (!diffText) return '<div class="pf-diff-empty">No uncommitted changes</div>';
+function _renderDiffHTML(diffText, contentText) {
+  if (!diffText) {
+    if (contentText) return `<pre class="pf-diff-content-text">${_esc(contentText)}</pre>`;
+    return '<div class="pf-diff-empty">No uncommitted changes</div>';
+  }
   const lines = diffText.split('\n');
   let html = '';
   for (const line of lines) {
@@ -500,10 +572,9 @@ function _renderDayDetail() {
   if (!_dayDetail) { _renderBody('full'); return; }
   const body = _panel.querySelector('#pfBody');
   const d = _dayDetail;
-  const totalSaves = d.repos ? d.repos.reduce((s, r) => s + (r.saves || 0), 0) : 0;
-  const totalFiles = d.repos ? d.repos.reduce((s, r) => s + (r.files || 0), 0) : 0;
-
   const files = (d.files || []).filter(f => !_isGitPath(f.path));
+  const totalSaves = files.reduce((s, f) => s + f.saves, 0);
+  const totalFiles = files.length;
 
   body.innerHTML = `
     <div class="pf-day-detail">
@@ -534,14 +605,14 @@ function _renderDayDetail() {
             </span>
           </div>
           <div class="pf-diff-content" id="pfDiffContent">
-            ${_dayDetailFile && _dayDetailDiff !== null ? _renderDiffHTML(_dayDetailDiff) : '<div class="pf-diff-select-prompt">Click a file to view its changes</div>'}
+            ${_dayDetailFile && _dayDetailDiff !== null ? _renderDiffHTML(_dayDetailDiff, _dayDetailContent) : '<div class="pf-diff-select-prompt">Click a file to view its changes</div>'}
           </div>
         </div>
       </div>
     </div>
   `;
 
-  body.querySelector('#pfDayClose').addEventListener('click', () => { _dayDetail = null; _dayDetailFile = null; _dayDetailDiff = null; _renderBody('full'); });
+  body.querySelector('#pfDayClose').addEventListener('click', () => { _dayDetail = null; _dayDetailFile = null; _dayDetailDiff = null; _dayDetailContent = null; _renderBody('full'); });
 
   body.querySelectorAll('.pf-detail-file').forEach(el => {
     el.addEventListener('click', () => {

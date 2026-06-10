@@ -244,6 +244,8 @@ const profileBridge = {
     resetStats:   ()             => ipcRenderer.invoke('profile:resetStats'),
     initWatcher:  ()             => ipcRenderer.invoke('profile:initWatcher'),
     stopWatcher:  ()             => ipcRenderer.invoke('profile:stopWatcher'),
+    getAvatar:    ()             => ipcRenderer.invoke('profile:getAvatar'),
+    uploadAvatar: (dataUrl)      => ipcRenderer.invoke('profile:uploadAvatar', { dataUrl }),
   },
 };
 
