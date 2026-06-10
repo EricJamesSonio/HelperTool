@@ -187,19 +187,58 @@ f = typeRow[2] || 0;
       repo: r[0], commits: r[1] || 0, files: r[2] || 0, saves: r[3] || 0, added: r[4] || 0, removed: r[5] || 0,
     })) : [];
 
-    const saveRows = db().exec(`SELECT file_path, repo_name, COUNT(*) AS cnt FROM file_save_events
+    const saveRows = db().exec(`SELECT file_path, repo_name, repo_path, COUNT(*) AS cnt FROM file_save_events
                                 WHERE timestamp >= ? AND timestamp < ? GROUP BY file_path ORDER BY cnt DESC LIMIT 30`,
       [date + 'T00:00:00', date + 'T23:59:59']);
-    const files = saveRows.length ? saveRows[0].values.map(r => ({ path: r[0], repo: r[1], saves: r[2] || 0 })) : [];
+    const files = saveRows.length ? saveRows[0].values.map(r => ({
+      path: path.relative(r[2], r[0]).replace(/\\/g, '/'),
+      repo: r[1], saves: r[3] || 0,
+    })) : [];
 
     return { repos, files };
   });
 
-  ipcMain.handle('profile:fileDiff', async (event, { filePath, repoPath }) => {
+  ipcMain.handle('profile:getDayCommits', async (event, { date }) => {
     try {
-      const git = simpleGit(repoPath || path.dirname(filePath));
-      const diff = await git.raw(['diff', 'HEAD', '--', filePath]);
-      const content = await git.raw(['show', 'HEAD:' + filePath]).catch(() => '');
+      const repo = _getActiveRepo(config);
+      if (!repo) return [];
+      const git = simpleGit(repo.repoPath);
+      const log = await git.raw(['log', '--format=%H|%at|%s', '--since=' + date + 'T00:00:00', '--until=' + date + 'T23:59:59']);
+      if (!log.trim()) return [];
+      const commits = log.trim().split('\n').map(line => {
+        const [hash, at, ...msgParts] = line.split('|');
+        const time = new Date(parseInt(at) * 1000);
+        const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return { hash, shortHash: hash.substring(0, 7), time: timeStr, timestamp: parseInt(at), message: msgParts.join('|') || '(no message)' };
+      });
+      for (const c of commits) {
+        const diffTree = await git.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', c.hash]);
+        c.files = diffTree.trim().split('\n').filter(Boolean).map(line => {
+          const [status, ...pathParts] = line.split('\t');
+          return { status, path: pathParts.join('\t') };
+        });
+      }
+      return commits;
+    } catch (err) {
+      return [];
+    }
+  });
+
+  ipcMain.handle('profile:fileDiff', async (event, { filePath, repoPath, commitHash }) => {
+    try {
+      const repoDir = repoPath || path.dirname(filePath);
+      const git = simpleGit(repoDir);
+      const relPath = path.relative(repoDir, filePath).replace(/\\/g, '/');
+      let diff, content;
+      if (commitHash) {
+        const raw = await git.raw(['show', commitHash, '--', filePath]);
+        const idx = raw.indexOf('\ndiff --git');
+        diff = idx >= 0 ? raw.substring(idx + 1) : raw;
+        content = await git.raw(['show', commitHash + ':' + relPath]).catch(() => '');
+      } else {
+        diff = await git.raw(['diff', 'HEAD', '--', filePath]);
+        content = await git.raw(['show', 'HEAD:' + relPath]).catch(() => '');
+      }
       return { diff, content };
     } catch (err) {
       return { diff: '', content: '', error: err.message };

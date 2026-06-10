@@ -521,25 +521,29 @@ async function _renderHistory() {
 let _dayDetailFile = null;
 let _dayDetailDiff = null;
 let _dayDetailContent = null;
+let _dayDetailCommitHash = null;
+let _dayCommits = null;
 
 function _isGitPath(p) {
-  return p.replace(/\\/g, '/').includes('/.git/');
+  const n = p.replace(/\\/g, '/');
+  return n.includes('/.git/') || n.startsWith('.git/');
 }
 
-async function _loadFileDiff(filePath, repoName) {
+async function _loadFileDiff(filePath, commitHash) {
   _dayDetailFile = filePath;
   _dayDetailDiff = null;
   _dayDetailContent = null;
+  _dayDetailCommitHash = commitHash || null;
   const el = _panel.querySelector('#pfDiffContent');
   if (el) el.innerHTML = '<div class="pf-diff-loading">Loading diff\u2026</div>';
 
   try {
-    const result = await window.electronAPI.profile.fileDiff(filePath);
+    const result = await window.electronAPI.profile.fileDiff(filePath, null, commitHash);
     _dayDetailDiff = result.diff || '';
     _dayDetailContent = result.content || '';
     const activeEl = _panel.querySelector('#pfDiffContent');
     if (activeEl) activeEl.innerHTML = _renderDiffHTML(result.diff || '', result.content || '');
-    _panel.querySelectorAll('.pf-detail-file').forEach(e => e.classList.toggle('active', e.dataset.path === filePath));
+    _panel.querySelectorAll('.pf-commit-file').forEach(e => e.classList.toggle('active', e.dataset.path === filePath && e.dataset.hash === (commitHash || '')));
   } catch {
     const activeEl = _panel.querySelector('#pfDiffContent');
     if (activeEl) activeEl.innerHTML = '<div class="pf-diff-loading">Failed to load diff</div>';
@@ -549,7 +553,7 @@ async function _loadFileDiff(filePath, repoName) {
 function _renderDiffHTML(diffText, contentText) {
   if (!diffText) {
     if (contentText) return `<pre class="pf-diff-content-text">${_esc(contentText)}</pre>`;
-    return '<div class="pf-diff-empty">No uncommitted changes</div>';
+    return '<div class="pf-diff-empty">No changes in this commit</div>';
   }
   const lines = diffText.split('\n');
   let html = '';
@@ -565,39 +569,60 @@ function _renderDiffHTML(diffText, contentText) {
     else { sign = ' '; }
     html += `<div class="pf-diff-line ${cls}"><span class="pf-diff-sign">${sign}</span><span class="pf-diff-text">${_esc(cls === 'header' || cls === 'hunk' ? line : line.substring(1))}</span></div>`;
   }
-  return html || '<div class="pf-diff-empty">No uncommitted changes</div>';
+  return html || '<div class="pf-diff-empty">No changes in this commit</div>';
 }
 
-function _renderDayDetail() {
+function _renderCommitSidebar(commits) {
+  let html = '';
+  if (!commits || !commits.length) {
+    return '<div class="pf-commit-empty">No commits on this day</div>';
+  }
+  for (const c of commits) {
+    const files = (c.files || []).filter(f => !_isGitPath(f.path));
+    html += `<div class="pf-commit-group">
+      <div class="pf-commit-header">
+        <span class="pf-commit-hash">${_esc(c.shortHash)}</span>
+        <span class="pf-commit-time">${_esc(c.time)}</span>
+      </div>
+      <div class="pf-commit-msg">${_esc(c.message)}</div>
+      <div class="pf-commit-files">`;
+    for (const f of files) {
+      const statusClass = f.status === 'A' ? 'pf-cs-added' : f.status === 'D' ? 'pf-cs-deleted' : 'pf-cs-modified';
+      const statusLabel = f.status === 'A' ? 'A' : f.status === 'D' ? 'D' : 'M';
+      html += `<div class="pf-commit-file" data-path="${_esc(f.path)}" data-hash="${_esc(c.hash)}">
+        <span class="pf-commit-file-status ${statusClass}">${statusLabel}</span>
+        <span class="pf-commit-file-path">${_esc(f.path)}</span>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+  return html;
+}
+
+async function _renderDayDetail() {
   if (!_dayDetail) { _renderBody('full'); return; }
   const body = _panel.querySelector('#pfBody');
   const d = _dayDetail;
-  const files = (d.files || []).filter(f => !_isGitPath(f.path));
-  const totalSaves = files.reduce((s, f) => s + f.saves, 0);
-  const totalFiles = files.length;
+  const commitCount = _dayCommits ? _dayCommits.length : '...';
 
   body.innerHTML = `
     <div class="pf-day-detail">
       <div class="pf-day-detail-header">
         <span class="pf-day-detail-title">${d.date}</span>
-        <div class="pf-day-summary">${totalSaves} saves · ${totalFiles} files</div>
+        <div class="pf-day-summary">${commitCount} commits</div>
         <button class="pf-btn" id="pfDayClose">← Back</button>
       </div>
       <div class="pf-detail-body">
         <div class="pf-detail-sidebar">
-          <div class="pf-detail-sidebar-title">Files Touched (${files.length})</div>
-          <div class="pf-detail-files-list">
-            ${files.length ? files.map(f => `
-              <div class="pf-detail-file" data-path="${_esc(f.path)}" data-repo="${_esc(f.repo || '')}">
-                <span class="pf-detail-file-path">${_esc(f.path)}</span>
-                <span class="pf-detail-file-count">${f.saves} saves</span>
-              </div>
-            `).join('') : '<div class="pf-detail-empty">No files</div>'}
+          <div class="pf-detail-sidebar-title">Commits (${commitCount})</div>
+          <div class="pf-commits-list" id="pfCommitsList">
+            <div class="pf-diff-loading">Loading commits\u2026</div>
           </div>
         </div>
         <div class="pf-detail-main">
           <div class="pf-diff-header">
             <span class="pf-diff-header-path">${_dayDetailFile ? _esc(_dayDetailFile) : 'Select a file'}</span>
+            ${_dayDetailCommitHash ? `<span class="pf-diff-commit-hash">${_esc(_dayDetailCommitHash.substring(0, 7))}</span>` : ''}
             <span class="pf-diff-legend">
               <span class="pf-diff-legend-added">+ added</span>
               <span class="pf-diff-legend-removed">- removed</span>
@@ -612,13 +637,48 @@ function _renderDayDetail() {
     </div>
   `;
 
-  body.querySelector('#pfDayClose').addEventListener('click', () => { _dayDetail = null; _dayDetailFile = null; _dayDetailDiff = null; _dayDetailContent = null; _renderBody('full'); });
+  body.querySelector('#pfDayClose').addEventListener('click', () => {
+    _dayDetail = null; _dayDetailFile = null; _dayDetailDiff = null;
+    _dayDetailContent = null; _dayDetailCommitHash = null; _dayCommits = null;
+    _renderBody('full');
+  });
 
-  body.querySelectorAll('.pf-detail-file').forEach(el => {
+  // Fetch commits in background and populate sidebar
+  if (!_dayCommits) {
+    window.electronAPI.profile.getDayCommits(d.date).then(commits => {
+      _dayCommits = commits || [];
+      const list = body.querySelector('#pfCommitsList');
+      if (list) {
+        list.innerHTML = _renderCommitSidebar(_dayCommits);
+        _attachCommitFileClicks(body);
+        // Update header count
+        const sumEl = body.querySelector('.pf-day-summary');
+        if (sumEl) sumEl.textContent = _dayCommits.length + ' commits';
+        const titleEl = body.querySelector('.pf-detail-sidebar-title');
+        if (titleEl) titleEl.textContent = 'Commits (' + _dayCommits.length + ')';
+      }
+    }).catch(() => {
+      const list = body.querySelector('#pfCommitsList');
+      if (list) list.innerHTML = '<div class="pf-commit-empty">Failed to load commits</div>';
+    });
+  } else {
+    const list = body.querySelector('#pfCommitsList');
+    if (list) {
+      list.innerHTML = _renderCommitSidebar(_dayCommits);
+      _attachCommitFileClicks(body);
+    }
+  }
+}
+
+function _attachCommitFileClicks(body) {
+  body.querySelectorAll('.pf-commit-file').forEach(el => {
     el.addEventListener('click', () => {
       const filePath = el.dataset.path;
-      _loadFileDiff(filePath);
+      const hash = el.dataset.hash;
+      _loadFileDiff(filePath, hash || null);
     });
-    if (el.dataset.path === _dayDetailFile) el.classList.add('active');
+    if (el.dataset.path === _dayDetailFile && el.dataset.hash === (_dayDetailCommitHash || '')) {
+      el.classList.add('active');
+    }
   });
 }

@@ -469,6 +469,7 @@
   gap: 12px;
   height: 100%;
   min-height: 0;
+  width: 100%;
 }
 .pf-day-detail-header {
   display: flex;
@@ -619,6 +620,101 @@
 .pf-diff-line.context { color: var(--text-muted); }
 .pf-diff-line .pf-diff-sign { width: 14px; flex-shrink: 0; text-align: center; color: var(--text-faint); font-weight: 600; }
 .pf-diff-line .pf-diff-text { white-space: pre-wrap; word-break: break-all; }
+
+/* ── Commit Groups ── */
+.pf-commits-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 6px;
+}
+.pf-commit-group {
+  margin-bottom: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.pf-commit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pf-commit-hash {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.pf-commit-time {
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-left: auto;
+}
+.pf-commit-msg {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 3px 10px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pf-commit-files {
+  background: var(--bg-elevated);
+}
+.pf-commit-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-left: 2px solid transparent;
+}
+.pf-commit-file:hover { background: var(--bg-hover); }
+.pf-commit-file.active { background: var(--bg-active); border-left-color: var(--accent); }
+.pf-commit-file-status {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+}
+.pf-cs-added { color: #34d399; }
+.pf-cs-modified { color: #fbbf24; }
+.pf-cs-deleted { color: #f87171; }
+.pf-commit-file-path {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.pf-commit-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.pf-diff-commit-hash {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
 
 .pf-empty {
   display: flex;
