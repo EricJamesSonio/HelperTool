@@ -10,6 +10,20 @@ let _saveDebounce = {};
 
 function db() { return getDb(); }
 
+function _query(sql, params) {
+  if (!params || params.length === 0) return db().exec(sql);
+  const stmt = db().prepare(sql);
+  stmt.bind(params);
+  let columns = [];
+  const values = [];
+  while (stmt.step()) {
+    if (columns.length === 0) columns = stmt.getColumnNames();
+    values.push(stmt.get());
+  }
+  stmt.free();
+  return columns.length > 0 ? [{ columns, values }] : [];
+}
+
 function _getActiveRepo(config) {
   try {
     const cfg = config ? config.readConfig() : null;
@@ -108,9 +122,9 @@ ipcMain.handle('profile:get', async () => {
     const y = year || new Date().getFullYear();
     const start = y + '-01-01';
     const end = y + '-12-31';
-    const rows = db().exec(`SELECT date, SUM(commits + file_saves + files_touched) AS total,
-                            SUM(commits) AS commits, SUM(file_saves) AS saves, SUM(files_touched) AS files
-                            FROM activity_days WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date`,
+    const rows = _query(`SELECT date, SUM(commits + file_saves + files_touched) AS total,
+                         SUM(commits) AS commits, SUM(file_saves) AS saves, SUM(files_touched) AS files
+                         FROM activity_days WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date`,
       [start, end]);
     const map = {};
     if (rows.length) {
@@ -170,9 +184,9 @@ f = typeRow[2] || 0;
     let where = '';
     const params = [];
     if (repoPath) { where = 'WHERE repo_path=?'; params.push(repoPath); }
-    const rows = db().exec(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
+    const rows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]);
-    const countRows = db().exec(`SELECT COUNT(*) FROM activity_days ${where}`, params);
+    const countRows = _query(`SELECT COUNT(*) FROM activity_days ${where}`, params);
     const total = (countRows.length && countRows[0].values.length) ? countRows[0].values[0][0] : 0;
     const items = rows.length ? rows[0].values.map(r => ({
       date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0,
@@ -181,14 +195,14 @@ f = typeRow[2] || 0;
   });
 
   ipcMain.handle('profile:getDayDetail', (event, { date }) => {
-    const rows = db().exec(`SELECT repo_name, commits, files_touched, file_saves, lines_added, lines_removed
-                            FROM activity_days WHERE date=?`, [date]);
+    const rows = _query(`SELECT repo_name, commits, files_touched, file_saves, lines_added, lines_removed
+                         FROM activity_days WHERE date=?`, [date]);
     const repos = rows.length ? rows[0].values.map(r => ({
       repo: r[0], commits: r[1] || 0, files: r[2] || 0, saves: r[3] || 0, added: r[4] || 0, removed: r[5] || 0,
     })) : [];
 
-    const saveRows = db().exec(`SELECT file_path, repo_name, repo_path, COUNT(*) AS cnt FROM file_save_events
-                                WHERE timestamp >= ? AND timestamp < ? GROUP BY file_path ORDER BY cnt DESC LIMIT 30`,
+    const saveRows = _query(`SELECT file_path, repo_name, repo_path, COUNT(*) AS cnt FROM file_save_events
+                             WHERE timestamp >= ? AND timestamp < ? GROUP BY file_path ORDER BY cnt DESC LIMIT 30`,
       [date + 'T00:00:00', date + 'T23:59:59']);
     const files = saveRows.length ? saveRows[0].values.map(r => ({
       path: path.relative(r[2], r[0]).replace(/\\/g, '/'),
