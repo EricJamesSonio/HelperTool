@@ -188,6 +188,8 @@ function createSchema() {
       updated_at    TEXT DEFAULT (datetime('now'))
     )
   `);
+  try { _db.run("ALTER TABLE profile ADD COLUMN bio TEXT DEFAULT ''"); } catch (e) {}
+  try { _db.run("ALTER TABLE profile ADD COLUMN website TEXT DEFAULT ''"); } catch (e) {}
 
   _db.run(`
     CREATE TABLE IF NOT EXISTS activity_days (

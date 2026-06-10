@@ -1,8 +1,9 @@
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 const { getDb, save } = require('../database/db.js');
 const simpleGit = require('simple-git');
 const chokidar = require('chokidar');
 const path = require('path');
+const fs = require('fs');
 
 let _watchers = [];
 let _saveDebounce = {};
@@ -82,6 +83,8 @@ ipcMain.handle('profile:get', async () => {
       tiktok: stored ? stored[5] : null,
       linkedin: stored ? stored[6] : null,
       wakatime: stored ? stored[7] : null,
+      bio: stored ? stored[10] || '' : '',
+      website: stored ? stored[11] || '' : '',
     };
   }
 
@@ -89,12 +92,14 @@ ipcMain.handle('profile:get', async () => {
     id: stored[0], name: stored[1], email: stored[2],
     avatarColor: stored[3], facebook: stored[4],
     tiktok: stored[5], linkedin: stored[6], wakatime: stored[7],
+    bio: stored[10] || '', website: stored[11] || '',
   };
 });
   ipcMain.handle('profile:update', (event, data) => {
-    db().run(`UPDATE profile SET name=?, email=?, avatar_color=?, facebook=?, tiktok=?, linkedin=?, wakatime=?, updated_at=datetime('now') WHERE id=1`,
+    db().run(`UPDATE profile SET name=?, email=?, avatar_color=?, facebook=?, tiktok=?, linkedin=?, wakatime=?, bio=?, website=?, updated_at=datetime('now') WHERE id=1`,
       [data.name || '', data.email || '', data.avatarColor || '#4F8EF7', data.facebook || '',
-       data.tiktok || '', data.linkedin || '', data.wakatime || '']);
+       data.tiktok || '', data.linkedin || '', data.wakatime || '',
+       data.bio || '', data.website || '']);
     save();
     return { success: true };
   });
@@ -206,6 +211,28 @@ f = typeRow[2] || 0;
     db().run('DELETE FROM file_save_events');
     save();
     return { success: true };
+  });
+
+  const AVATAR_PATH = path.join(app.getPath('userData'), 'profile-avatar.png');
+
+  ipcMain.handle('profile:getAvatar', async () => {
+    try {
+      if (fs.existsSync(AVATAR_PATH)) {
+        const data = fs.readFileSync(AVATAR_PATH, { encoding: 'base64' });
+        return { dataUrl: 'data:image/png;base64,' + data };
+      }
+    } catch (_) {}
+    return { dataUrl: null };
+  });
+
+  ipcMain.handle('profile:uploadAvatar', async (event, { dataUrl }) => {
+    try {
+      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+      fs.writeFileSync(AVATAR_PATH, Buffer.from(base64, 'base64'));
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   ipcMain.handle('profile:initWatcher', () => {
