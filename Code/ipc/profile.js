@@ -288,11 +288,32 @@ f = typeRow[2] || 0;
     }
   });
 
-  ipcMain.handle('profile:initWatcher', () => {
+  async function _syncCommits(repoPath, repoName) {
+    try {
+      const git = simpleGit(repoPath);
+      const log = await git.raw(['log', '--after=365.days.ago', '--format=%ad', '--date=short', '--no-merges']);
+      if (!log.trim()) return;
+      const dateCounts = {};
+      for (const line of log.trim().split('\n')) {
+        const date = line.trim();
+        if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
+      }
+      for (const [date, count] of Object.entries(dateCounts)) {
+        db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits)
+                  VALUES (?, ?, ?, ?)
+                  ON CONFLICT(date, repo_path) DO UPDATE SET commits=?`,
+          [date, repoPath, repoName, count, count]);
+      }
+      save();
+    } catch (_) {}
+  }
+
+  ipcMain.handle('profile:initWatcher', async () => {
     const repo = _getActiveRepo(config);
     if (!repo) return { watching: 0 };
     const alreadyWatching = _watchers.some(w => w._watchingPaths?.has?.(repo.repoPath));
     if (!alreadyWatching) _startWatcher(repo.repoPath, repo.name);
+    await _syncCommits(repo.repoPath, repo.name);
     return { watching: 1 };
   });
 
