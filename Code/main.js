@@ -118,7 +118,7 @@ function registerAllIpc() {
     docignoreManagerIpc.register(shared);
     teamActivityFeedIpc.register();
     blueprintLibraryIpc.register();
-    profileIpc.register();
+    profileIpc.register(shared);
 }
 
 // ----------------------------

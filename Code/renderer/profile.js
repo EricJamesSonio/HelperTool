@@ -67,14 +67,14 @@ function _buildPanel() {
   `;
   document.body.appendChild(_panel);
   _panel.querySelector('#pfCloseBtn').addEventListener('click', close);
-  _panel.querySelector('#pfRefreshBtn').addEventListener('click', () => { _sync(); _load(); });
+  _panel.querySelector('#pfRefreshBtn').addEventListener('click', () => { _load(); });
   document.addEventListener('keydown', _escHandler);
 }
 
-function _escHandler(e) {
+async function _escHandler(e) {
   if (e.key === 'Escape' && _open) {
-    if (_dayDetail) { _dayDetail = null; _renderBody(); return; }
-    if (_editingProfile) { _editingProfile = false; _renderBody(); return; }
+    if (_dayDetail) { _dayDetail = null; await _renderBody(); return; }
+    if (_editingProfile) { _editingProfile = false; await _renderBody(); return; }
     close();
   }
 }
@@ -82,19 +82,13 @@ function _escHandler(e) {
 async function _load() {
   try {
     const p = await window.electronAPI.profile.get();
-    console.log('[Profile] loaded:', p); 
     if (p) _profile = p;
-    await _sync();
-    _renderBody();
+    try { await window.electronAPI.profile.initWatcher(); } catch (_) {}
+    await _renderBody();
   } catch (err) {
     console.error('[Profile] Failed to load:', err);
     _panel.querySelector('#pfBody').innerHTML = '<div class="pf-error">Failed to load profile: ' + err.message + '</div>';
   }
-}
-
-async function _sync() {
-  try { await window.electronAPI.profile.syncCommits(); } catch (_) {}
-  try { await window.electronAPI.profile.initWatcher(); } catch (_) {}
 }
 
 async function _renderBody() {

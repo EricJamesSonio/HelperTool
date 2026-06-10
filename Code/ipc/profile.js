@@ -9,62 +9,14 @@ let _saveDebounce = {};
 
 function db() { return getDb(); }
 
-function _getIndexedRepos() {
-  const rows = db().exec('SELECT repo_path, name FROM repositories');
-  if (!rows.length) return [];
-  return rows[0].values.map(r => ({ repoPath: r[0], name: r[1] }));
-}
-
-async function _syncRepoCommits(repoPath, repoName, email) {
-  if (!email) return;
+function _getActiveRepo(config) {
   try {
-    const git = simpleGit(repoPath);
-    const raw = await git.raw(['log', `--author=${email}`, '--format=%H|%aI', '--numstat', '--max-count=200']);
-    if (!raw) return;
-    const lines = raw.split('\n');
-    let currentHash = '';
-    let filesTouched = 0, linesAdded = 0, linesRemoved = 0;
-    let date = '';
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (trimmed.includes('|')) {
-        if (currentHash && date) {
-          _upsertActivity(repoPath, repoName, date, 1, filesTouched, linesAdded, linesRemoved);
-        }
-        const parts = trimmed.split('|');
-        currentHash = parts[0];
-        date = parts[1] ? parts[1].slice(0, 10) : '';
-        filesTouched = 0; linesAdded = 0; linesRemoved = 0;
-      } else if (trimmed.includes('\t')) {
-        const parts = trimmed.split('\t');
-        const add = parseInt(parts[0], 10);
-        const rem = parseInt(parts[1], 10);
-        if (!isNaN(add)) linesAdded += add;
-        if (!isNaN(rem)) linesRemoved += rem;
-        filesTouched++;
-      }
+    const cfg = config ? config.readConfig() : null;
+    if (cfg && cfg.activeProject) {
+      return { repoPath: cfg.activeProject, name: path.basename(cfg.activeProject) };
     }
-    if (currentHash && date) {
-      _upsertActivity(repoPath, repoName, date, 1, filesTouched, linesAdded, linesRemoved);
-    }
-    save();
-  } catch (err) {
-    console.warn('[Profile] Git sync error for', repoPath, err.message);
-  }
-}
-
-function _upsertActivity(repoPath, repoName, date, commits, filesTouched, linesAdded, linesRemoved) {
-  const rows = db().exec('SELECT commits, files_touched, lines_added, lines_removed FROM activity_days WHERE date=? AND repo_path=?', [date, repoPath]);
-  if (rows.length && rows[0].values.length) {
-    const r = rows[0].values[0];
-    db().run(`UPDATE activity_days SET commits=?, files_touched=?, lines_added=?, lines_removed=?
-               WHERE date=? AND repo_path=?`,
-      [r[0] + commits, r[1] + filesTouched, r[2] + linesAdded, r[3] + linesRemoved, date, repoPath]);
-  } else {
-    db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits, files_touched, lines_added, lines_removed)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`, [date, repoPath, repoName, commits, filesTouched, linesAdded, linesRemoved]);
-  }
+  } catch (_) {}
+  return null;
 }
 
 function _startWatcher(repoPath, repoName) {
@@ -93,6 +45,8 @@ function _startWatcher(repoPath, repoName) {
 }
 
 function register(shared) {
+  const config = shared ? shared.config : null;
+
 ipcMain.handle('profile:get', async () => {
   const rows = db().exec('SELECT * FROM profile WHERE id=1');
 
@@ -233,26 +187,19 @@ f = typeRow[2] || 0;
     return { repos, files };
   });
 
-  ipcMain.handle('profile:syncCommits', async () => {
-    const profileRows = db().exec('SELECT email FROM profile WHERE id=1');
-    const email = profileRows.length && profileRows[0].values.length ? profileRows[0].values[0][0] : '';
-    if (!email) return { synced: 0 };
-    const repos = _getIndexedRepos();
-    let count = 0;
-    for (const repo of repos) {
-      await _syncRepoCommits(repo.repoPath, repo.name, email);
-      count++;
-    }
-    return { synced: count };
+  ipcMain.handle('profile:resetStats', () => {
+    db().run('DELETE FROM activity_days');
+    db().run('DELETE FROM file_save_events');
+    save();
+    return { success: true };
   });
 
   ipcMain.handle('profile:initWatcher', () => {
-    const repos = _getIndexedRepos();
-    for (const repo of repos) {
-      const alreadyWatching = _watchers.some(w => w._watchingPaths?.has?.(repo.repoPath));
-      if (!alreadyWatching) _startWatcher(repo.repoPath, repo.name);
-    }
-    return { watching: repos.length };
+    const repo = _getActiveRepo(config);
+    if (!repo) return { watching: 0 };
+    const alreadyWatching = _watchers.some(w => w._watchingPaths?.has?.(repo.repoPath));
+    if (!alreadyWatching) _startWatcher(repo.repoPath, repo.name);
+    return { watching: 1 };
   });
 
   ipcMain.handle('profile:stopWatcher', () => {
