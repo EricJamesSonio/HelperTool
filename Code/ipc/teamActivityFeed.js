@@ -1,6 +1,6 @@
 const { ipcMain } = require('electron');
 const path = require('path');
-const simpleGit = require('simple-git');
+const gitService = require('./gitService.js');
 
 // ── In-memory cache ──────────────────────────────────────────
 const _cache = new Map(); // repoPath -> { commits, contributors, timestamp }
@@ -137,15 +137,15 @@ async function logHandler({ repoPath }) {
     return { commits: cached.commits, contributors: cached.contributors };
   }
 
-  const git = simpleGit(repoPath);
-
   // Step 1: Get commit metadata (no numstat — clean format-only output)
-  const metaStdout = await git.raw(['log', '--all', '--format=%H|%an|%ae|%aI|%s']);
+  const metaStdout = await gitService.getCommits(repoPath, {
+    format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: 120000,
+  });
   const { commits, contributors } = _parseMeta(metaStdout);
 
   // Step 2: Get per-commit file/line stats via separate log call with --numstat
   // Using --format=%H gives us clean hash headers between numstat blocks
-  const numstatStdout = await git.raw(['log', '--all', '--numstat', '--format=%H']);
+  const numstatStdout = await gitService.raw(repoPath, ['log', '--all', '--numstat', '--format=%H'], 120000);
   _parseNumstat(numstatStdout, commits, contributors);
 
   console.log(`[TeamActivity] Parsed ${commits.length} commits, ${Object.keys(contributors).length} contributors`);
@@ -162,8 +162,7 @@ async function logHandler({ repoPath }) {
 async function commitFilesHandler({ repoPath, hash }) {
   if (!repoPath || !hash) throw new Error('repoPath and hash are required');
 
-  const git = simpleGit(repoPath);
-  const stdout = await git.raw(['diff-tree', '--no-commit-id', '-r', '--numstat', hash]);
+  const stdout = await gitService.getNumstat(repoPath, hash, { ttl: 60000 });
   const files = [];
   for (const line of stdout.split('\n')) {
     const trimmed = line.trim();
@@ -183,9 +182,8 @@ async function commitFilesHandler({ repoPath, hash }) {
 async function fileAtCommitHandler({ repoPath, hash, filePath }) {
   if (!repoPath || !hash || !filePath) throw new Error('repoPath, hash, and filePath are required');
 
-  const git = simpleGit(repoPath);
   try {
-    const stdout = await git.raw(['show', `${hash}:${filePath}`]);
+    const stdout = await gitService.showFileAtCommit(repoPath, hash, filePath, { ttl: 60000 });
     return { content: stdout };
   } catch (err) {
     return { content: '', error: err.message };
@@ -195,8 +193,7 @@ async function fileAtCommitHandler({ repoPath, hash, filePath }) {
 async function diffHandler({ repoPath, hash, filePath }) {
   if (!repoPath || !hash || !filePath) throw new Error('repoPath, hash, and filePath are required');
 
-  const git = simpleGit(repoPath);
-  const stdout = await git.raw(['show', hash, '--', filePath]);
+  const stdout = await gitService.show(repoPath, hash, { filePath, ttl: 30000 });
 
   // Parse diff lines with +/- prefixes
   const lines = stdout.split('\n');
