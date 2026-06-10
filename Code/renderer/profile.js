@@ -491,10 +491,80 @@ async function _renderDonuts() {
 
 // ── History ──
 
+let _historyNavTimer = null;
+
+function _buildPageButtons(totalPages) {
+  const cur = _historyPage;
+  const parts = [];
+  const addPage = (p) => { parts.push(`<button class="pf-page-btn${p === cur ? ' active' : ''}" data-page="${p}">${p}</button>`); };
+  const addDots = () => { parts.push('<span class="pf-page-dots">\u2026</span>'); };
+
+  if (totalPages <= 9) {
+    for (let i = 1; i <= totalPages; i++) addPage(i);
+  } else {
+    addPage(1);
+    if (cur > 4) addDots();
+    const start = Math.max(2, cur - 2);
+    const end = Math.min(totalPages - 1, cur + 2);
+    for (let i = start; i <= end; i++) addPage(i);
+    if (cur < totalPages - 3) addDots();
+    addPage(totalPages);
+  }
+
+  parts.unshift(`<button class="pf-page-nav" data-page="prev" ${cur <= 1 ? 'disabled' : ''}>\u25C0</button>`);
+  parts.push(`<button class="pf-page-nav" data-page="next" ${cur >= totalPages ? 'disabled' : ''}>\u25B6</button>`);
+  return parts.join('');
+}
+
+function _wireHistoryEvents(section) {
+  section.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pf-history-view-btn');
+    if (btn) {
+      window.electronAPI.profile.getDayDetail(btn.dataset.date).then(detail => {
+        if (detail) { _dayDetail = { date: btn.dataset.date, ...detail }; _renderDayDetail(); }
+      }).catch(() => {});
+      return;
+    }
+
+    const pageBtn = e.target.closest('.pf-page-btn, .pf-page-nav');
+    if (!pageBtn || pageBtn.disabled) return;
+
+    clearTimeout(_historyNavTimer);
+    _historyNavTimer = setTimeout(() => {
+      let targetPage;
+      if (pageBtn.dataset.page === 'prev') targetPage = _historyPage - 1;
+      else if (pageBtn.dataset.page === 'next') targetPage = _historyPage + 1;
+      else targetPage = parseInt(pageBtn.dataset.page);
+
+      if (!targetPage || targetPage < 1 || targetPage > Math.ceil(_lastHistoryTotal / 20)) return;
+      _historyPage = targetPage;
+      delete _cache['history:' + _historyPage + ':' + _historyRepo];
+      _renderBody('history');
+    }, 80);
+  });
+
+  const searchInput = section.querySelector('#pfHistorySearch');
+  if (searchInput) {
+    let timer;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        _historyRepo = searchInput.value;
+        _historyPage = 1;
+        delete _cache['history:1:' + _historyRepo];
+        _renderBody('history');
+      }, 300);
+    });
+  }
+}
+
+let _lastHistoryTotal = 0;
+
 async function _renderHistory() {
   const section = _el('div', { className: 'pf-section' });
   const cacheKey = 'history:' + _historyPage + ':' + _historyRepo;
   const result = await _cached(cacheKey, () => window.electronAPI.profile.getHistory(_historyPage, _historyRepo), 10000) || { items: [], total: 0, page: 1, pageSize: 20 };
+  _lastHistoryTotal = result.total;
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   const itemsHtml = result.items.length ? result.items.map(item => `
@@ -506,33 +576,18 @@ async function _renderHistory() {
     </div>
   `).join('') : '<div class="pf-empty">No activity yet</div>';
 
-  const pagesHtml = totalPages > 1 ? Array.from({length: totalPages}, (_, i) => `<button class="pf-page-btn${_historyPage === i+1 ? ' active' : ''}" data-page="${i+1}">${i+1}</button>`).join('') : '';
+  const pagesHtml = totalPages > 1 ? _buildPageButtons(totalPages) : '';
 
   section.innerHTML = `
     <div class="pf-history-header">
-      <span class="pf-section-title">Activity History</span>
+      <span class="pf-section-title">Activity History <span class="pf-history-count">(${result.total} days)</span></span>
       <input class="pf-history-search" id="pfHistorySearch" placeholder="Filter by repo\u2026" value="${_esc(_historyRepo)}">
     </div>
     <div class="pf-history-list">${itemsHtml}</div>
-    ${pagesHtml ? `<div class="pf-history-pages">${pagesHtml}</div>` : ''}
+    ${pagesHtml ? `<div class="pf-history-pages" id="pfHistoryPages">${pagesHtml}</div>` : ''}
   `;
 
-  section.querySelectorAll('.pf-history-view-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      try {
-        const detail = await window.electronAPI.profile.getDayDetail(btn.dataset.date);
-        if (detail) { _dayDetail = { date: btn.dataset.date, ...detail }; _renderDayDetail(); }
-      } catch (_) {}
-    });
-  });
-
-  section.querySelectorAll('.pf-page-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      _historyPage = parseInt(btn.dataset.page);
-      delete _cache['history:' + _historyPage + ':' + _historyRepo];
-      _renderBody('history');
-    });
-  });
+  _wireHistoryEvents(section);
 
   let searchTimer;
   section.querySelector('#pfHistorySearch').addEventListener('input', (e) => {

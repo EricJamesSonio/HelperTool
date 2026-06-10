@@ -461,6 +461,34 @@
 }
 .pf-page-btn:hover { background: var(--bg-hover); }
 .pf-page-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.pf-page-nav {
+  width: 24px; height: 24px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.pf-page-nav:hover:not(:disabled) { background: var(--bg-hover); }
+.pf-page-nav:disabled { opacity: 0.3; cursor: default; }
+.pf-page-dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.pf-history-count {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  margin-left: 4px;
+}
 
 /* ── Day Detail + Diff Viewer ── */
 .pf-day-detail {

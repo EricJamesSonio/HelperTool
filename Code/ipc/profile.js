@@ -183,16 +183,24 @@ f = typeRow[2] || 0;
     return { repo: repoData, ext: extData, type: typeData };
   });
 
+  let _histCountCache = { val: 0, ts: 0 };
+
   ipcMain.handle('profile:getHistory', (event, { page, repoPath }) => {
     const pageSize = 20;
     const offset = ((page || 1) - 1) * pageSize;
     let where = '';
     const params = [];
     if (repoPath) { where = 'WHERE repo_path=?'; params.push(repoPath); }
+    const cacheKey = repoPath || '__all__';
+    const now = Date.now();
+    let total = _histCountCache.val;
+    if (_histCountCache.cacheKey !== cacheKey || now - _histCountCache.ts > 5000) {
+      const countRows = _query(`SELECT COUNT(*) FROM activity_days ${where}`, params);
+      total = (countRows.length && countRows[0].values.length) ? countRows[0].values[0][0] : 0;
+      _histCountCache = { val: total, ts: now, cacheKey };
+    }
     const rows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]);
-    const countRows = _query(`SELECT COUNT(*) FROM activity_days ${where}`, params);
-    const total = (countRows.length && countRows[0].values.length) ? countRows[0].values[0][0] : 0;
     const items = rows.length ? rows[0].values.map(r => ({
       date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0,
     })) : [];
