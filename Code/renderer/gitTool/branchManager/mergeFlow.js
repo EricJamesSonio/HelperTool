@@ -3,7 +3,7 @@ import { getMergeConfirm, getMergeSuccessText } from './template.js';
 import { animateMergeDiagram, flashSuccess } from './animations.js';
 import { isAnimated, branchColor } from './utils.js';
 import { render } from './list.js';
-import { showRight } from './index.js';
+import { showRight, showError } from './index.js';
 
 export function open(fromBranch) {
   const into = state.current;
@@ -40,7 +40,15 @@ async function _executeMerge() {
     const r = await window.electronAPI.gitMergeBranch(state.repoPath, mf.from, mf.into);
     if (r.success) {
       mf.step = 'success';
-      showRight(getMergeSuccessText(mf.from, mf.into));
+      let detail;
+      if (r.isUpToDate) {
+        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> — already up to date`;
+      } else if (r.updates?.length) {
+        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> merged (${r.updates.length} file${r.updates.length !== 1 ? 's' : ''} updated)`;
+      } else {
+        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> merged successfully ✓`;
+      }
+      showRight(getMergeSuccessText(mf.from, mf.into, detail));
       flashSuccess(document.getElementById('bmRightPanel'));
       document.getElementById('bmMergeDone')?.addEventListener('click', () => {
         close();
@@ -51,12 +59,12 @@ async function _executeMerge() {
       setState({ conflicts, mergeFlow: { ...mf, step: 'conflicts' } });
       import('./conflictViewer.js').then(m => m.render());
     } else {
-      setState({ error: r.error });
-      close();
+      setState({ mergeFlow: null, conflicts: [], selectedConflicts: [], activeConflictFile: null });
+      showError(r.error);
     }
   } catch (err) {
-    setState({ error: err.message });
-    close();
+    setState({ mergeFlow: null, conflicts: [], selectedConflicts: [], activeConflictFile: null });
+    showError(err.message);
   }
 }
 

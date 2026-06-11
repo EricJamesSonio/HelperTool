@@ -158,10 +158,10 @@ export function getMergeConfirm(from, into, fromColor, intoColor) {
   `;
 }
 
-export function getMergeSuccessText(from, into) {
+export function getMergeSuccessText(from, into, detail) {
   return `
     <div class="bm-merge-result bm-merge-success">
-      <div class="bm-merge-result-text"><strong>${from}</strong> → <strong>${into}</strong> merged successfully ✓</div>
+      <div class="bm-merge-result-text">${detail || `<strong>${from}</strong> → <strong>${into}</strong> merged successfully ✓`}</div>
       <button class="bm-btn bm-btn-primary" id="bmMergeDone">Done</button>
     </div>
   `;

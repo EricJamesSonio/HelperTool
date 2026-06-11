@@ -211,8 +211,13 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.checkout(into);
-            await git.mergeFromTo(from, into);
-            return { success: true };
+            const result = await git.mergeFromTo(from, into);
+            return {
+                success: true,
+                result: result?.result || 'Merge successful',
+                isUpToDate: !!result?.isAlreadyUpToDate,
+                updates: (result?.updates || []).map(u => u.path)
+            };
         } catch (err) {
             const msg = err.message || '';
             if (msg.includes('CONFLICT') || msg.includes('conflict')) {
