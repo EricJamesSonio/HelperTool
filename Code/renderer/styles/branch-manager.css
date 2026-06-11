@@ -354,24 +354,37 @@
 
 /* ── Merge flow (right column) ── */
 .bm-merge-flow {
-  padding: 16px 0;
+  padding: 32px 16px;
   text-align: center;
 }
 .bm-merge-pro {
-  padding: 24px 0;
+  padding: 32px 16px;
 }
-.bm-merge-diagram { margin-bottom: 12px; }
-.bm-merge-svg { width: 100%; max-width: 280px; height: 100px; }
+.bm-merge-diagram { margin-bottom: 16px; }
+.bm-merge-svg { width: 100%; max-width: 460px; height: auto; min-height: 160px; }
 .bm-merge-arrow { transition: stroke-dashoffset 0.8s ease-in-out; }
 .bm-merge-info {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   color: var(--text-primary,#eef2ff);
-  margin-bottom: 16px;
+  margin-bottom: 6px;
+}
+.bm-merge-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted,#556080);
+  margin-bottom: 20px;
+  max-width: 380px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.4;
 }
 .bm-merge-actions {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   justify-content: center;
+}
+.bm-merge-actions .bm-btn {
+  padding: 8px 22px;
+  font-size: 0.9rem;
 }
 .bm-merge-result {
   display: flex;
