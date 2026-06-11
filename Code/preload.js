@@ -313,6 +313,16 @@ const dockerBridge = {
     getLogs:         (id, tail)     => ipcRenderer.invoke('docker:getLogs', id, tail),
 };
 
+const envBridge = {
+    listFiles:  (repoPath)              => ipcRenderer.invoke('env:listFiles', { repoPath }),
+    readFile:   (repoPath, fileName)    => ipcRenderer.invoke('env:readFile', { repoPath, fileName }),
+    saveFile:   (repoPath, fileName, entries) => ipcRenderer.invoke('env:saveFile', { repoPath, fileName, entries }),
+    createFile: (repoPath, fileName)    => ipcRenderer.invoke('env:createFile', { repoPath, fileName }),
+    deleteFile: (repoPath, fileName)    => ipcRenderer.invoke('env:deleteFile', { repoPath, fileName }),
+};
+
+contextBridge.exposeInMainWorld('envAPI', envBridge);
+
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     ...repoBridge,
