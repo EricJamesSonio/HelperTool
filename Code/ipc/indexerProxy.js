@@ -13,6 +13,7 @@ let _restartTimer = null;
 let _restartDelay = 1000;
 let _ready = false;
 let _queue = [];
+let _dbPath = null;
 const _events = new EventEmitter();
 
 function _getIndexerPath() {
@@ -23,7 +24,9 @@ function _spawn() {
   if (_child) { try { _child.kill(); } catch (_) {}; _child = null; }
 
   const indexPath = _getIndexerPath();
-  _child = spawn('node', [indexPath], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  const args = [indexPath];
+  if (_dbPath) args.push(_dbPath);
+  _child = spawn('node', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   _ready = false;
 
   _rl = readline.createInterface({ input: _child.stdout, terminal: false });
@@ -98,7 +101,7 @@ function _queueOrSend(msg, timeout) {
 
 // ── Public API ──
 
-function start() { if (!_child) _spawn(); }
+function start(dbPath) { _dbPath = dbPath; if (!_child) _spawn(); }
 
 function stop() {
   if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }

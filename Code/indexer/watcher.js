@@ -1,23 +1,8 @@
 const chokidar = require('chokidar');
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-const fileDb = require('../database/indexedFiles');
 const repoDb = require('../database/repositories');
-const db = require('../database/db');
 
 let _watchers = new Map();
-let _saveTimers = new Map();
-
-function debouncedSave(repoPath) {
-  if (_saveTimers.has(repoPath)) {
-    clearTimeout(_saveTimers.get(repoPath));
-  }
-  _saveTimers.set(repoPath, setTimeout(() => {
-    db.save();
-    _saveTimers.delete(repoPath);
-  }, 300));
-}
 
 function createWatcher(repoPath, onDirty, onError) {
   destroyWatcher(repoPath);
@@ -40,63 +25,28 @@ function createWatcher(repoPath, onDirty, onError) {
 
   watcher.on('change', (filePath) => {
     const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
-
-    // If file isn't in the index yet, insert it first (was created before watcher started)
-    const existing = fileDb.getByRepoAndPath(repo.id, relPath);
-    if (!existing) {
-      const ext = path.extname(relPath).toLowerCase();
-      const langMap = { '.js': 'javascript', '.ts': 'typescript', '.tsx': 'tsx', '.py': 'python', '.html': 'html', '.css': 'css' };
-      const language = langMap[ext] || null;
-      try {
-        const stat = fs.statSync(filePath);
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const hash = crypto.createHash('md5').update(content).digest('hex');
-        fileDb.insert(repo.id, relPath, language, hash, stat.mtime.toISOString());
-      } catch (e) {}
-    }
-
-    fileDb.markDirty(repo.id, relPath);
-    debouncedSave(repoPath);
-    const count = fileDb.countDirtyByRepo(repo.id);
-    if (onDirty) onDirty(count);
+    if (onDirty) onDirty(repoPath, relPath);
   });
 
   watcher.on('add', (filePath) => {
     const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
-    const existing = fileDb.getByRepoAndPath(repo.id, relPath);
-    if (existing) {
-      fileDb.markDirty(repo.id, relPath);
-      debouncedSave(repoPath);
-    } else {
-      const ext = path.extname(relPath).toLowerCase();
-      const langMap = { '.js': 'javascript', '.ts': 'typescript', '.tsx': 'tsx', '.py': 'python', '.html': 'html', '.css': 'css' };
-      const language = langMap[ext] || null;
-
-      const now = new Date().toISOString();
-      try {
-        const stat = fs.statSync(filePath);
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const hash = crypto.createHash('md5').update(content).digest('hex');
-
-        fileDb.insert(repo.id, relPath, language, hash, stat.mtime.toISOString());
-        fileDb.markDirty(repo.id, relPath);
-        debouncedSave(repoPath);
-      } catch (e) {}
-    }
-    const count = fileDb.countDirtyByRepo(repo.id);
-    if (onDirty) onDirty(count);
+    if (onDirty) onDirty(repoPath, relPath);
   });
 
   watcher.on('unlink', (filePath) => {
     const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
-    fileDb.removeByPath(repo.id, relPath);
-    debouncedSave(repoPath);
-    const count = fileDb.countDirtyByRepo(repo.id);
-    if (onDirty) onDirty(count);
+    if (onDirty) onDirty(repoPath, relPath);
   });
 
   watcher.on('error', (err) => {
     if (onError) onError(err.message);
+  });
+
+  watcher.on('raw', (event, filePath) => {
+    if (event === 'rename' && filePath) {
+      const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
+      if (onDirty) onDirty(repoPath, relPath);
+    }
   });
 
   _watchers.set(repoPath, watcher);
@@ -109,11 +59,6 @@ function destroyWatcher(repoPath) {
     existing.close();
     _watchers.delete(repoPath);
   }
-  if (_saveTimers.has(repoPath)) {
-    clearTimeout(_saveTimers.get(repoPath));
-    db.save();
-    _saveTimers.delete(repoPath);
-  }
 }
 
 function destroyAllWatchers() {
@@ -121,11 +66,6 @@ function destroyAllWatchers() {
     watcher.close();
   }
   _watchers.clear();
-  for (const [repoPath, timer] of _saveTimers) {
-    clearTimeout(timer);
-  }
-  _saveTimers.clear();
-  db.save();
 }
 
 module.exports = { createWatcher, destroyWatcher, destroyAllWatchers };

@@ -84,7 +84,8 @@ if (!gotTheLock) {
             console.error('[Main] Failed to init DB:', err);
         }
 
-        indexerProxy.start();
+        const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+        indexerProxy.start(indexerDbPath);
         console.log('[Main] Indexer service started');
 
         app.on('activate', () => {

@@ -6,12 +6,402 @@ const path = require('path');
 const crypto = require('crypto');
 
 const cache = new SymbolCache();
+let _db = null;
+let _flushTimer = null;
+let _pendingFlush = false;
+let _dbDirty = false;
 
 function respond(msg) {
   process.stdout.write(JSON.stringify(msg) + '\n');
 }
 
-// ── Sync handlers ──
+function initDb(dbPath) {
+  const initSqlJs = require('../node_modules/sql.js/dist/sql-wasm.js');
+  initSqlJs().then(SQL => {
+    let buffer = null;
+    if (fs.existsSync(dbPath)) {
+      buffer = fs.readFileSync(dbPath);
+    }
+    _db = new SQL.Database(buffer);
+    _db.run('PRAGMA journal_mode=WAL');
+    createSchema();
+    flushDb();
+    process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: true } }) + '\n');
+  }).catch(err => {
+    process.stderr.write(`[indexer] DB init error: ${err.message}\n`);
+    process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: false } }) + '\n');
+  });
+}
+
+function createSchema() {
+  _db.run(`CREATE TABLE IF NOT EXISTS repositories (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_path     TEXT UNIQUE NOT NULL,
+    name          TEXT NOT NULL,
+    indexed       INTEGER DEFAULT 0,
+    last_indexed  TEXT,
+    total_files   INTEGER DEFAULT 0,
+    total_symbols INTEGER DEFAULT 0,
+    config_json   TEXT DEFAULT '{}',
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now'))
+  )`);
+  _db.run(`CREATE TABLE IF NOT EXISTS indexed_files (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    path          TEXT NOT NULL,
+    language      TEXT,
+    file_hash     TEXT,
+    last_modified TEXT,
+    indexed_at    TEXT,
+    is_dirty      INTEGER DEFAULT 0,
+    UNIQUE(repo_id, path)
+  )`);
+  _db.run(`CREATE TABLE IF NOT EXISTS symbols (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    file_id       INTEGER NOT NULL REFERENCES indexed_files(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    type          TEXT NOT NULL,
+    line          INTEGER,
+    column        INTEGER,
+    is_exported   INTEGER DEFAULT 0,
+    class_name    TEXT,
+    language      TEXT,
+    signature     TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+  )`);
+  _db.run(`CREATE TABLE IF NOT EXISTS file_imports (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    file_id       INTEGER NOT NULL REFERENCES indexed_files(id) ON DELETE CASCADE,
+    import_path   TEXT NOT NULL,
+    import_type   TEXT NOT NULL,
+    resolved_file_id INTEGER,
+    imported_symbols TEXT,
+    line          INTEGER,
+    column        INTEGER
+  )`);
+  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_repo_id ON symbols(repo_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_type ON symbols(type)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_indexed_files_repo_dirty ON indexed_files(repo_id, is_dirty)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_file ON file_imports(file_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_resolved ON file_imports(resolved_file_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_repo ON file_imports(repo_id)');
+}
+
+function flushDb() {
+  if (!_db) return;
+  _pendingFlush = false;
+  _dbDirty = false;
+  const data = _db.export();
+  const buffer = Buffer.from(data);
+  const dbPath = process.argv[2];
+  if (dbPath) {
+    try { fs.writeFileSync(dbPath, buffer); } catch (e) { process.stderr.write(`[indexer] DB write error: ${e.message}\n`); }
+  }
+}
+
+function scheduleFlush() {
+  if (!_db) return;
+  _dbDirty = true;
+  if (_flushTimer) { _pendingFlush = true; return; }
+  _flushTimer = setTimeout(() => {
+    _flushTimer = null;
+    flushDb();
+    if (_pendingFlush) {
+      _pendingFlush = false;
+      _flushTimer = setTimeout(() => { _flushTimer = null; flushDb(); }, 5000);
+    }
+  }, 5000);
+}
+
+// ── DB operation helpers ──
+
+function repoGetByPath(repoPath) {
+  const stmt = _db.prepare('SELECT * FROM repositories WHERE repo_path = ?');
+  stmt.bind([repoPath]);
+  if (stmt.step()) { const row = stmt.getAsObject(); stmt.free(); return row; }
+  stmt.free(); return null;
+}
+
+function repoUpsert(repoPath, name, configJson) {
+  const existing = repoGetByPath(repoPath);
+  if (existing) {
+    _db.run('UPDATE repositories SET name=?, config_json=?, updated_at=? WHERE id=?', [name, JSON.stringify(configJson), new Date().toISOString(), existing.id]);
+    return existing.id;
+  }
+  _db.run('INSERT INTO repositories (repo_path, name, config_json) VALUES (?, ?, ?)', [repoPath, name, JSON.stringify(configJson)]);
+  return _db.exec('SELECT last_insert_rowid()')[0].values[0][0];
+}
+
+function repoMarkIndexed(repoId, totalFiles, totalSymbols) {
+  const now = new Date().toISOString();
+  _db.run('UPDATE repositories SET indexed=1, last_indexed=?, total_files=?, total_symbols=?, updated_at=? WHERE id=?', [now, totalFiles, totalSymbols, now, repoId]);
+}
+
+function repoMarkUnindexed(repoId) {
+  _db.run('UPDATE repositories SET indexed=0, last_indexed=NULL, total_files=0, total_symbols=0, updated_at=? WHERE id=?', [new Date().toISOString(), repoId]);
+}
+
+function repoGetAll() {
+  const results = [];
+  const stmt = _db.prepare('SELECT * FROM repositories ORDER BY updated_at DESC');
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return results;
+}
+
+function fileInsert(repoId, filePath, language, fileHash, lastModified) {
+  const now = new Date().toISOString();
+  _db.run('INSERT OR REPLACE INTO indexed_files (repo_id, path, language, file_hash, last_modified, indexed_at, is_dirty) VALUES (?, ?, ?, ?, ?, ?, 0)', [repoId, filePath, language, fileHash, lastModified, now]);
+  return _db.exec('SELECT last_insert_rowid()')[0].values[0][0];
+}
+
+function fileGetByRepoAndPath(repoId, filePath) {
+  const stmt = _db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? AND path = ?');
+  stmt.bind([repoId, filePath]);
+  if (stmt.step()) { const row = stmt.getAsObject(); stmt.free(); return row; }
+  stmt.free(); return null;
+}
+
+function fileMarkDirty(repoId, filePath) {
+  _db.run('UPDATE indexed_files SET is_dirty=1 WHERE repo_id=? AND path=?', [repoId, filePath]);
+}
+
+function fileMarkClean(id) {
+  _db.run('UPDATE indexed_files SET is_dirty=0, indexed_at=? WHERE id=?', [new Date().toISOString(), id]);
+}
+
+function fileCountDirtyByRepo(repoId) {
+  const stmt = _db.prepare('SELECT COUNT(*) as cnt FROM indexed_files WHERE repo_id = ? AND is_dirty = 1');
+  stmt.bind([repoId]);
+  if (stmt.step()) { const row = stmt.getAsObject(); stmt.free(); return row.cnt; }
+  stmt.free(); return 0;
+}
+
+function fileGetDirtyByRepo(repoId) {
+  const results = [];
+  const stmt = _db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? AND is_dirty = 1 ORDER BY path');
+  stmt.bind([repoId]);
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return results;
+}
+
+function fileGetDirtyWithSymbols(repoId) {
+  const results = [];
+  const stmt = _db.prepare('SELECT f.id, f.path, f.language, f.last_modified, (SELECT COUNT(*) FROM symbols WHERE file_id = f.id) as symbol_count FROM indexed_files f WHERE f.repo_id = ? AND f.is_dirty = 1 ORDER BY f.path');
+  stmt.bind([repoId]);
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return results;
+}
+
+function fileCountByRepo(repoId) {
+  const stmt = _db.prepare('SELECT COUNT(*) as cnt FROM indexed_files WHERE repo_id = ?');
+  stmt.bind([repoId]);
+  if (stmt.step()) { const row = stmt.getAsObject(); stmt.free(); return row.cnt; }
+  stmt.free(); return 0;
+}
+
+function fileRemoveByPath(repoId, filePath) {
+  const stmt = _db.prepare('SELECT id FROM indexed_files WHERE repo_id = ? AND path = ?');
+  stmt.bind([repoId, filePath]);
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    _db.run('DELETE FROM symbols WHERE file_id = ?', [row.id]);
+    _db.run('DELETE FROM indexed_files WHERE id = ?', [row.id]);
+  }
+  stmt.free();
+}
+
+function clearRepoData(repoId) {
+  _db.run('DELETE FROM file_imports WHERE repo_id = ?', [repoId]);
+  _db.run('DELETE FROM symbols WHERE repo_id = ?', [repoId]);
+  _db.run('DELETE FROM indexed_files WHERE repo_id = ?', [repoId]);
+}
+
+// ── Sync DB handlers ──
+
+function h_dbInit(id, type, payload) {
+  return respond({ id, type, ok: true });
+}
+
+function h_dbCheckRepo(id, type, payload) {
+  const { repoPath } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: { indexed: false } });
+  return respond({ id, type, ok: true, data: { indexed: !!repo.indexed, total_files: repo.total_files, total_symbols: repo.total_symbols, last_indexed: repo.last_indexed } });
+}
+
+function h_dbGetStatus(id, type, payload) {
+  const { repoPath } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: { exists: false } });
+  const dirtyCount = fileCountDirtyByRepo(repo.id);
+  return respond({ id, type, ok: true, data: { exists: true, indexed: !!repo.indexed, total_files: repo.total_files, total_symbols: repo.total_symbols, last_indexed: repo.last_indexed, dirty_count: dirtyCount, repo_id: repo.id } });
+}
+
+function h_dbUpsertRepo(id, type, payload) {
+  const { repoPath, name, config } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repoId = repoUpsert(repoPath, name || path.basename(repoPath), config || {});
+  scheduleFlush();
+  return respond({ id, type, ok: true, data: { repo_id: repoId } });
+}
+
+function h_dbMarkIndexed(id, type, payload) {
+  const { repoId, totalFiles, totalSymbols } = payload || {};
+  if (!repoId) return respond({ id, type, ok: false, error: 'Missing repoId' });
+  repoMarkIndexed(repoId, totalFiles, totalSymbols);
+  scheduleFlush();
+  return respond({ id, type, ok: true });
+}
+
+function h_dbGetDirtyCount(id, type, payload) {
+  const { repoId } = payload || {};
+  if (!repoId) return respond({ id, type, ok: false, error: 'Missing repoId' });
+  const count = fileCountDirtyByRepo(repoId);
+  return respond({ id, type, ok: true, data: { count } });
+}
+
+function h_dbMarkDirty(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: false, error: 'Repo not found' });
+  const existing = fileGetByRepoAndPath(repo.id, filePath);
+  if (!existing) {
+    const ext = path.extname(filePath).toLowerCase();
+    const langMap = { '.js': 'javascript', '.ts': 'typescript', '.tsx': 'tsx', '.py': 'python', '.html': 'html', '.css': 'css' };
+    try {
+      const fullPath = path.join(repoPath, filePath);
+      const stat = fs.statSync(fullPath);
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      const hash = crypto.createHash('md5').update(content).digest('hex');
+      fileInsert(repo.id, filePath, langMap[ext] || null, hash, stat.mtime.toISOString());
+    } catch (_) {}
+  }
+  fileMarkDirty(repo.id, filePath);
+  const count = fileCountDirtyByRepo(repo.id);
+  scheduleFlush();
+  return respond({ id, type, ok: true, data: { dirty_count: count } });
+}
+
+function h_dbGetDirtyFiles(id, type, payload) {
+  const { repoId } = payload || {};
+  if (!repoId) return respond({ id, type, ok: false, error: 'Missing repoId' });
+  const files = fileGetDirtyWithSymbols(repoId);
+  return respond({ id, type, ok: true, data: { files } });
+}
+
+function h_dbMarkClean(id, type, payload) {
+  const { ids } = payload || {};
+  if (!ids || !Array.isArray(ids)) return respond({ id, type, ok: false, error: 'Missing ids array' });
+  for (const id of ids) fileMarkClean(id);
+  scheduleFlush();
+  return respond({ id, type, ok: true });
+}
+
+function h_dbReset(id, type, payload) {
+  const { repoPath } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repo = repoGetByPath(repoPath);
+  if (repo) {
+    clearRepoData(repo.id);
+    repoMarkUnindexed(repo.id);
+  }
+  cache.clear();
+  scheduleFlush();
+  return respond({ id, type, ok: true });
+}
+
+function h_dbDelete(id, type, payload) {
+  const { repoPath } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repo = repoGetByPath(repoPath);
+  if (repo) {
+    clearRepoData(repo.id);
+    _db.run('DELETE FROM repositories WHERE id=?', [repo.id]);
+  }
+  cache.clear();
+  scheduleFlush();
+  return respond({ id, type, ok: true });
+}
+
+function h_dbGetManaged(id, type) {
+  const repos = repoGetAll();
+  const map = {};
+  for (const r of repos) map[r.repo_path] = r.id;
+  return respond({ id, type, ok: true, data: { repos: map } });
+}
+
+function h_dbGetSymbolTypes(id, type, payload) {
+  const { repoId } = payload || {};
+  if (!repoId) return respond({ id, type, ok: false, error: 'Missing repoId' });
+  const results = [];
+  const stmt = _db.prepare('SELECT type, COUNT(*) as count FROM symbols WHERE repo_id=? GROUP BY type ORDER BY count DESC');
+  stmt.bind([repoId]);
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return respond({ id, type, ok: true, data: { types: results } });
+}
+
+function h_dbInsertFile(id, type, payload) {
+  const { repoPath, filePath, language, hash, lastModified } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: false, error: 'Repo not found' });
+  const fileId = fileInsert(repo.id, filePath, language || null, hash || null, lastModified || new Date().toISOString());
+  scheduleFlush();
+  return respond({ id, type, ok: true, data: { file_id: fileId } });
+}
+
+function h_dbReindexFile(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: false, error: 'Repo not found' });
+  const fullPath = path.join(repoPath, filePath);
+  try {
+    const content = fs.readFileSync(fullPath, 'utf-8');
+    const hash = crypto.createHash('md5').update(content).digest('hex');
+    const result = parseFile(content, filePath);
+    cache.set(filePath, result);
+    const existing = fileGetByRepoAndPath(repo.id, filePath);
+    if (existing) {
+      fileMarkClean(existing.id);
+      _db.run('DELETE FROM symbols WHERE file_id=?', [existing.id]);
+      _db.run('DELETE FROM file_imports WHERE file_id=?', [existing.id]);
+      _db.run('UPDATE indexed_files SET file_hash=?, last_modified=?, indexed_at=? WHERE id=?', [hash, new Date().toISOString(), new Date().toISOString(), existing.id]);
+    } else {
+      const langMap = { '.js': 'javascript', '.ts': 'typescript', '.tsx': 'tsx', '.py': 'python', '.html': 'html', '.css': 'css' };
+      const ext = path.extname(filePath).toLowerCase();
+      const fileId = fileInsert(repo.id, filePath, langMap[ext] || null, hash, new Date().toISOString());
+      _db.run('UPDATE indexed_files SET is_dirty=0 WHERE id=?', [fileId]);
+    }
+    scheduleFlush();
+    return respond({ id, type, ok: true, data: { symbols: result.symbols.length, imports: result.imports.length } });
+  } catch (err) {
+    return respond({ id, type, ok: false, error: err.message });
+  }
+}
+
+function h_dbGetFileByPathAndRepo(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: { file: null } });
+  const file = fileGetByRepoAndPath(repo.id, filePath);
+  return respond({ id, type, ok: true, data: { file: file || null } });
+}
+
+// ── Existing sync handlers ──
 
 function h_indexFile(id, type, payload) {
   const { filePath, content } = payload || {};
@@ -85,7 +475,7 @@ function h_getFileDeps(id, type, payload) {
   return respond({ id, type, ok: true, data: result });
 }
 
-// ── Async handlers (self-driven — send their own responses) ──
+// ── Async handlers ──
 
 async function h_indexStart(id, type, payload) {
   const { repoPath, files } = payload || {};
@@ -171,6 +561,25 @@ function handle(msg) {
 
   try {
     switch (type) {
+      // DB operations
+      case 'db:init': return h_dbInit(id, type, payload);
+      case 'db:checkRepo': return h_dbCheckRepo(id, type, payload);
+      case 'db:getStatus': return h_dbGetStatus(id, type, payload);
+      case 'db:upsertRepo': return h_dbUpsertRepo(id, type, payload);
+      case 'db:markIndexed': return h_dbMarkIndexed(id, type, payload);
+      case 'db:getDirtyCount': return h_dbGetDirtyCount(id, type, payload);
+      case 'db:markDirty': return h_dbMarkDirty(id, type, payload);
+      case 'db:getDirtyFiles': return h_dbGetDirtyFiles(id, type, payload);
+      case 'db:markClean': return h_dbMarkClean(id, type, payload);
+      case 'db:reset': return h_dbReset(id, type, payload);
+      case 'db:delete': return h_dbDelete(id, type, payload);
+      case 'db:getManaged': return h_dbGetManaged(id, type);
+      case 'db:getSymbolTypes': return h_dbGetSymbolTypes(id, type, payload);
+      case 'db:insertFile': return h_dbInsertFile(id, type, payload);
+      case 'db:reindexFile': return h_dbReindexFile(id, type, payload);
+      case 'db:getFileByPathAndRepo': return h_dbGetFileByPathAndRepo(id, type, payload);
+
+      // Existing operations
       case 'indexFile': return h_indexFile(id, type, payload);
       case 'indexFiles': return h_indexFiles(id, type, payload);
       case 'index:start': return h_indexStart(id, type, payload);
@@ -191,6 +600,14 @@ function handle(msg) {
 
 // ── Main loop ──
 
+const dbPath = process.argv[2];
+
+if (dbPath) {
+  initDb(dbPath);
+} else {
+  process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: false } }) + '\n');
+}
+
 const rl = readline.createInterface({ input: process.stdin, terminal: false });
 
 rl.on('line', (line) => {
@@ -205,7 +622,6 @@ rl.on('line', (line) => {
 });
 
 rl.on('close', () => {
+  if (_db) { flushDb(); _db.close(); }
   process.exit(0);
 });
-
-process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true }) + '\n');
