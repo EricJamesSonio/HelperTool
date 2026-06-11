@@ -71,9 +71,10 @@ function h_clear(id, type) {
   return respond({ id, type, ok: true });
 }
 
-function h_getFileList(id, type) {
-  const list = cache.getFileList();
-  return respond({ id, type, ok: true, data: { files: list } });
+function h_getFileList(id, type, payload) {
+  const { limit, offset } = payload || {};
+  const result = cache.getFileList(limit, offset);
+  return respond({ id, type, ok: true, data: result });
 }
 
 function h_getFileDeps(id, type, payload) {
@@ -97,6 +98,7 @@ async function h_indexStart(id, type, payload) {
   let totalSymbols = 0;
   const total = files.length;
 
+  let lastProgress = 0;
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     const batch = files.slice(i, i + BATCH_SIZE);
 
@@ -113,10 +115,14 @@ async function h_indexStart(id, type, payload) {
 
     indexedCount += batch.length;
 
-    respond({
-      id: 'progress', type: 'progress',
-      data: { current: indexedCount, total, percent: Math.round((indexedCount / total) * 100) },
-    });
+    const now = Date.now();
+    if (now - lastProgress > 100) {
+      lastProgress = now;
+      respond({
+        id: 'progress', type: 'progress',
+        data: { current: indexedCount, total, percent: Math.round((indexedCount / total) * 100) },
+      });
+    }
   }
 
   respond({ id, type, ok: true, data: { totalFiles: total, totalSymbols } });

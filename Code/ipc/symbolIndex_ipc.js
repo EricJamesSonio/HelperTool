@@ -262,23 +262,17 @@ async function register({ app, docignoreUtils, getMainWindow }) {
     }
   });
 
-  ipcMain.handle('symbolIndex:getIndexedFileList', async (_, repoPath) => {
+  ipcMain.handle('symbolIndex:getIndexedFileList', async (_, repoPath, limit, offset) => {
     try {
       if (indexerProxy.isReady()) {
         try {
-          const result = await indexerProxy.send('getFileList');
-          if (result && result.files && result.files.length > 0) {
-            const paths = result.files.map(f => ({ path: f.path }));
-            _fileListCache.set(repoPath, paths);
-            return { files: paths };
-          }
+          const result = await indexerProxy.send('getFileList', { limit: limit || 50, offset: offset || 0 });
+          if (result && result.files) return result;
         } catch (_) {}
       }
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { files: [] };
-      return { files: [] };
+      return { files: [], total: 0 };
     } catch (err) {
-      return { files: [], error: err.message };
+      return { files: [], error: err.message, total: 0 };
     }
   });
 

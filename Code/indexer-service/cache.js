@@ -68,13 +68,15 @@ class SymbolCache {
     return count;
   }
 
-  /** Return file list with per-file symbol count */
-  getFileList() {
-    const result = [];
-    for (const [filePath, entry] of this._store) {
-      result.push({ path: filePath, symbol_count: entry.symbols.length });
-    }
-    return result;
+  /** Return paginated file list with per-file symbol count */
+  getFileList(limit, offset) {
+    const all = Array.from(this._store.entries()).map(([filePath, entry]) => ({
+      path: filePath, symbol_count: entry.symbols.length,
+    }));
+    const total = all.length;
+    const start = offset || 0;
+    const end = limit ? start + limit : total;
+    return { files: all.slice(start, end), total };
   }
 
   /** Get dependency data for a file: imports + reverse deps, with optional symbol enrichment */
