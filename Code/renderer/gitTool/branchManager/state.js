@@ -19,6 +19,11 @@ export const state = {
   selectedConflicts: [],
   activeConflictFile: null,
 
+  pullRequests: [],
+  activePRTab: 'list',
+  activePRId: null,
+  prCreateData: null,
+
   loading: {
     branches: false,
     graph: false,

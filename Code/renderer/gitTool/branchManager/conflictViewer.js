@@ -1,7 +1,7 @@
 import { state, setState } from './state.js';
 import { getConflictResolver } from './template.js';
 import { flashSuccess } from './animations.js';
-import { render } from './list.js';
+import { render as renderList } from './list.js';
 import { showRight, close as closeMerge } from './index.js';
 
 export function render() {
@@ -81,7 +81,7 @@ function _wireEvents() {
       if (r.success) {
         flashSuccess(rightEl);
         closeMerge();
-        render();
+        renderList();
       } else {
         setState({ error: r.error });
       }

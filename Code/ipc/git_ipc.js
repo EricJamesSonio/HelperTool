@@ -265,6 +265,34 @@ function register(_deps) {
         }
     });
 
+    ipcMain.handle('git:branchFileDiff', async (_e, { repoPath, source, target, filePath }) => {
+        try {
+            const git = simpleGit(repoPath);
+            const diff = await git.diff([`${target}..${source}`, '--', filePath]);
+            return { success: true, diff };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('git:diffBranches', async (_e, { repoPath, source, target }) => {
+        try {
+            const git = simpleGit(repoPath);
+            const nameStatus = await git.raw(['diff', '--name-status', `${target}..${source}`]);
+            const files = nameStatus.split('\n')
+                .filter(l => l.trim())
+                .map(l => {
+                    const parts = l.split('\t');
+                    return { file: parts.slice(1).join('\t'), status: parts[0]?.trim() || 'M' };
+                });
+            const logResult = await git.log([`${target}..${source}`]);
+            const commits = logResult.all.map(c => ({ hash: c.hash, message: c.message }));
+            return { success: true, files, commits };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
     ipcMain.handle('git:getConflictDiff', async (_e, { repoPath, filePath }) => {
         try {
             const git = simpleGit(repoPath);

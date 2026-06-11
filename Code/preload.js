@@ -282,6 +282,10 @@ const branchBridge = {
       ipcRenderer.invoke('git:mergeBranch', { repoPath, from, into }),
     gitMergeBranchDiff:   (repoPath, filePath) =>
       ipcRenderer.invoke('git:mergeBranchDiff', { repoPath, filePath }),
+    gitBranchFileDiff:    (repoPath, source, target, filePath) =>
+      ipcRenderer.invoke('git:branchFileDiff', { repoPath, source, target, filePath }),
+    gitDiffBranches:      (repoPath, source, target) =>
+      ipcRenderer.invoke('git:diffBranches', { repoPath, source, target }),
     gitGetConflictDiff:   (repoPath, filePath) =>
       ipcRenderer.invoke('git:getConflictDiff', { repoPath, filePath }),
     gitAcceptIncoming:    (repoPath, files) =>
