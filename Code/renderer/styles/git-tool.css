@@ -403,13 +403,15 @@
 
 /* ══ COMMIT HISTORY ══ */
 .push-all-row,
-.stage-all-row {
+.stage-all-row,
+.unstage-all-row {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .push-all-btn,
-.stage-all-btn {
+.stage-all-btn,
+.unstage-all-btn {
   width: 100%;
   justify-content: center;
 }

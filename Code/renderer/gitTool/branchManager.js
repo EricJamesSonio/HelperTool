@@ -11,3 +11,7 @@ export function close() {
 export function isOpen() {
   return bm.isOpen();
 }
+
+export function showRight(html) {
+  bm.showRight(html);
+}

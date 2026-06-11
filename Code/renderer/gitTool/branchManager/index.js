@@ -3,19 +3,18 @@ import { getPanelContent } from './template.js';
 import { render as renderList } from './list.js';
 import { open as openCreate } from './createFlow.js';
 import { push, pull, fetch, deleteBranch, deleteRemote } from './remoteOps.js';
+import { escHtml } from './utils.js';
 import { open as openMerge } from './mergeFlow.js';
 import { open as openGraph } from './graph.js';
 
 let _container = null;
 let _repoPath = null;
 let _onClose = null;
-let _dropdownWired = false;
 
 export function open(container, repoPath, onClose) {
   _container = container;
   _repoPath = repoPath;
   _onClose = onClose || null;
-  _dropdownWired = false;
   setState({ repoPath, open: true, error: null, confirm: null, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false });
   _render();
   _wireEvents();
@@ -25,13 +24,30 @@ export function open(container, repoPath, onClose) {
 export function close() {
   setState({ open: false, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false });
   _onClose?.();
-  _container = null;
+  _repoPath = null;
   _onClose = null;
-  _dropdownWired = false;
+  _container = null;
 }
 
 export function isOpen() {
   return state.open;
+}
+
+export function showError(msg) {
+  showRight(`
+    <div class="bm-right-error">
+      <div class="bm-right-error-icon">!</div>
+      <div class="bm-right-error-msg">${escHtml(msg)}</div>
+      <button class="bm-btn" id="bmErrorDismiss">Dismiss</button>
+    </div>
+  `);
+  setTimeout(() => {
+    document.getElementById('bmErrorDismiss')?.addEventListener('click', hideError);
+  }, 0);
+}
+
+export function hideError() {
+  showRight('<div class="bm-empty">Select an action to view details</div>');
 }
 
 export function showRight(html) {
@@ -83,9 +99,10 @@ function _wireBranchListEvents() {
     const action = actionBtn.dataset.action;
 
     if (action === 'switch') {
+      hideError();
       const r = await window.electronAPI.gitSwitchBranch(_repoPath, name);
       if (r.success) { await renderList(); _showToast('Switched to ' + name); }
-      else { setState({ error: r.error }); }
+      else { showError(r.error); }
     } else if (action === 'merge') {
       openMerge(name);
     } else if (action === 'push') {
@@ -117,9 +134,9 @@ function _wireBranchListEvents() {
 }
 
 function _wireDropdowns() {
-  if (_dropdownWired) return;
-  _dropdownWired = true;
-  _container?.addEventListener('click', (e) => {
+  if (!_container || _container.dataset.bmDropdownWired) return;
+  _container.dataset.bmDropdownWired = '1';
+  _container.addEventListener('click', (e) => {
     const toggle = e.target.closest('.bm-dropdown-toggle');
     _container?.querySelectorAll('.bm-dropdown-menu').forEach(m => {
       if (toggle && m.closest('.bm-dropdown') === toggle.closest('.bm-dropdown')) return;

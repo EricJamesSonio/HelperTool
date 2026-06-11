@@ -105,6 +105,11 @@ class GitToolUI {
               <span class="panel-count" id="stagedCount">0 files</span>
             </div>
             <div class="panel-body">
+              <div class="unstage-all-row" id="unstageAllRow" style="display:none">
+                <button id="unstageAllBtn" class="btn btn-primary unstage-all-btn">
+                  <span class="btn-icon">${ICON_ARROW_LEFT}</span> Unstage All
+                </button>
+              </div>
               <div id="stagedFilesList" class="file-list">
                 <div class="empty-state">Select files to stage</div>
               </div>
@@ -274,12 +279,25 @@ class GitToolUI {
     const stageAllBtn = this.container.querySelector('#stageAllBtn');
     stageAllBtn?.addEventListener('click', () => this.handleStageAll());
 
+    const unstageAllBtn = this.container.querySelector('#unstageAllBtn');
+    unstageAllBtn?.addEventListener('click', () => this.handleUnstageAll());
+
     const branchesBtn = this.container.querySelector('#gitBranchesBtn');
     branchesBtn?.addEventListener('click', () => {
       const bodyEl = this.container.querySelector('.git-content');
       if (!bodyEl) return;
+
+      if (branchManager.isOpen()) {
+        branchManager.close();
+        return;
+      }
+
       this._savedContent = bodyEl.innerHTML;
-      branchManager.open(bodyEl, this.gitHandler.repoPath, () => this.restoreContent());
+      branchManager.open(bodyEl, this.gitHandler.repoPath, () => {
+        this.restoreContent();
+        branchesBtn.innerHTML = `<span class="btn-icon">${ICON_BRANCH}</span> Branches`;
+      });
+      branchesBtn.innerHTML = `<span class="btn-icon">&larr;</span> Git`;
     });
   }
 
@@ -319,6 +337,7 @@ class GitToolUI {
   async handleStageAll() {
     const state = this.gitManager.getState();
     const allPaths = (state.workingTree || []).map(f => f.file);
+    console.debug('[GitToolUI] Stage All:', { workingCount: state.workingTree.length, paths: allPaths });
     if (allPaths.length === 0) return;
 
     const btn = this.container.querySelector('#stageAllBtn');
@@ -332,6 +351,7 @@ class GitToolUI {
       this.refreshUI();
       this.showSuccess(`Staged ${allPaths.length} file${allPaths.length !== 1 ? 's' : ''}`);
     } else {
+      console.debug('[GitToolUI] Stage All failed:', result.error);
       this.showError(result.error || 'Failed to stage files');
     }
   }
@@ -348,6 +368,26 @@ class GitToolUI {
       this.refreshUI();
     } else {
       this.showError(result.error);
+    }
+  }
+
+  async handleUnstageAll() {
+    const state = this.gitManager.getState();
+    const allPaths = (state.staged || []).map(f => f.file);
+    if (allPaths.length === 0) return;
+
+    const btn = this.container.querySelector('#unstageAllBtn');
+    this.setButtonLoading(btn, true);
+
+    const result = await this.gitHandler.unstageFiles(allPaths);
+
+    this.setButtonLoading(btn, false);
+
+    if (result.success) {
+      this.refreshUI();
+      this.showSuccess(`Unstaged ${allPaths.length} file${allPaths.length !== 1 ? 's' : ''}`);
+    } else {
+      this.showError(result.error || 'Failed to unstage files');
     }
   }
 
@@ -555,10 +595,14 @@ class GitToolUI {
    * Update header stats
    */
   updateStats(stats) {
-    this.container.querySelector('#statWorking').textContent = stats.working;
-    this.container.querySelector('#statStaged').textContent = stats.staged;
-    this.container.querySelector('#statCommits').textContent = stats.commits;
-    this.container.querySelector('#statUnpushed').textContent = stats.unpushed;
+    const sw = this.container.querySelector('#statWorking');
+    const ss = this.container.querySelector('#statStaged');
+    const sc = this.container.querySelector('#statCommits');
+    const su = this.container.querySelector('#statUnpushed');
+    if (sw) sw.textContent = stats.working;
+    if (ss) ss.textContent = stats.staged;
+    if (sc) sc.textContent = stats.commits;
+    if (su) su.textContent = stats.unpushed;
   }
 
   /**
@@ -568,6 +612,8 @@ renderWorkingTree(files) {
   const list = this.container.querySelector('#workingTreeList');
   const count = this.container.querySelector('#workingCount');
   const stageAllRow = this.container.querySelector('#stageAllRow');
+
+  if (!list || !count) return;
 
   if (files.length === 0) {
     list.innerHTML = '<div class="empty-state">No changes</div>';
@@ -611,15 +657,20 @@ renderWorkingTree(files) {
     const count = this.container.querySelector('#stagedCount');
     const filesSection = this.container.querySelector('#commitFilesSection');
     const filesList = this.container.querySelector('#commitFilesList');
+    const unstageAllRow = this.container.querySelector('#unstageAllRow');
+
+    if (!list || !count) return;
 
     if (files.length === 0) {
       list.innerHTML = '<div class="empty-state">Select files to stage</div>';
       count.textContent = '0 files';
       if (filesSection) filesSection.style.display = 'none';
+      if (unstageAllRow) unstageAllRow.style.display = 'none';
       return;
     }
 
     count.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+    if (unstageAllRow) unstageAllRow.style.display = '';
     
     list.innerHTML = files.map(file => `
       <div class="file-item staged-file-item" data-file="${file.file}">
@@ -651,6 +702,8 @@ renderWorkingTree(files) {
     const list = this.container.querySelector('#commitHistoryList');
     const count = this.container.querySelector('#historyCount');
     const pushAllRow = this.container.querySelector('#pushAllRow');
+
+    if (!list || !count) return;
 
     const isHistory = this.historyViewMode === 'history';
     const filtered = commits.filter(c => isHistory ? c.pushed : !c.pushed);
@@ -776,6 +829,8 @@ renderWorkingTree(files) {
       bodyEl.innerHTML = this._savedContent;
       this._savedContent = null;
     }
+    const btn = this.container?.querySelector('#gitBranchesBtn');
+    if (btn) btn.innerHTML = `<span class="btn-icon">${ICON_BRANCH}</span> Branches`;
   }
 
   /**
