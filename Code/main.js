@@ -148,6 +148,9 @@ function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
+    // Start maximized (fills screen, keeps custom titlebar)
+    mainWindow.maximize();
+
     mainWindow.on('close', (e) => {
         e.preventDefault();
         mainWindow.hide();
@@ -159,6 +162,14 @@ function createWindow() {
     });
 
     mainWindow.on('restore', () => {
+        mainWindow.webContents.setFrameRate(60);
+    });
+
+    // Power save when hidden to tray (close button → hide → tray)
+    mainWindow.on('hide', () => {
+        mainWindow.webContents.setFrameRate(1);
+    });
+    mainWindow.on('show', () => {
         mainWindow.webContents.setFrameRate(60);
     });
 
