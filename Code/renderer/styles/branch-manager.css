@@ -361,6 +361,59 @@
   color: var(--text-primary,#eef2ff);
   margin-bottom: 20px;
 }
+.bm-merge-push-status {
+  font-size: 0.8rem;
+  color: var(--green,#22c55e);
+  margin-bottom: 8px;
+}
+.bm-merge-summary {
+  font-size: 0.78rem;
+  color: var(--text-muted,#8899bb);
+  margin-bottom: 12px;
+}
+.bm-merge-file-list {
+  text-align: left;
+  border: 1px solid var(--border-subtle,rgba(255,255,255,0.06));
+  border-radius: 6px;
+  margin-bottom: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.bm-merge-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle,rgba(255,255,255,0.04));
+}
+.bm-merge-file-row:last-child { border-bottom: none; }
+.bm-merge-file-status {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.bm-merge-ins { color: var(--green,#22c55e); }
+.bm-merge-del { color: var(--red,#ef4444); }
+.bm-merge-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary,#eef2ff);
+}
+.bm-merge-view-diff { flex-shrink: 0; }
+.bm-merge-diff-view {
+  text-align: left;
+  border: 1px solid var(--border-subtle,rgba(255,255,255,0.06));
+  border-radius: 6px;
+  margin-bottom: 12px;
+  max-height: 300px;
+  overflow: auto;
+  background: var(--bg-surface,#1a1f3a);
+}
+.bm-conflict-view-btn { flex-shrink: 0; margin-left: auto; }
 
 /* ── Conflict resolver (right column) ── */
 .bm-conflict-wrap { display: flex; flex-direction: column; height: 100%; }

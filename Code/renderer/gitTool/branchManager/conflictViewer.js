@@ -44,15 +44,11 @@ function _wireEvents() {
     }
   });
 
-  rightEl.querySelector('#bmConflictFileList')?.addEventListener('click', async (e) => {
-    const row = e.target.closest('.bm-conflict-file');
-    if (!row) return;
-    const file = row.dataset.file;
+  const loadConflictDiff = (file) => {
     setState({ activeConflictFile: file });
     const diffEl = document.getElementById('bmConflictDiff');
     if (diffEl) diffEl.innerHTML = '<div class="bm-conflict-diff-loading">Loading diff…</div>';
-    try {
-      const r = await window.electronAPI.gitGetConflictDiff(state.repoPath, file);
+    window.electronAPI.gitGetConflictDiff(state.repoPath, file).then(r => {
       if (diffEl) {
         if (r.success && r.diff) {
           diffEl.innerHTML = `<pre class="bm-diff-content">${r.diff}</pre>`;
@@ -60,10 +56,21 @@ function _wireEvents() {
           diffEl.innerHTML = '<div class="bm-conflict-diff-empty">No diff available</div>';
         }
       }
-    } catch (err) {
-      const diffEl = document.getElementById('bmConflictDiff');
+    }).catch(() => {
       if (diffEl) diffEl.innerHTML = '<div class="bm-conflict-diff-empty">Error loading diff</div>';
-    }
+    });
+  };
+
+  rightEl.querySelector('#bmConflictFileList')?.addEventListener('click', async (e) => {
+    const row = e.target.closest('.bm-conflict-file');
+    if (!row) return;
+    loadConflictDiff(row.dataset.file);
+  });
+
+  rightEl.querySelector('#bmConflictFileList')?.addEventListener('click', async (e) => {
+    const viewBtn = e.target.closest('.bm-conflict-view-btn');
+    if (!viewBtn) return;
+    loadConflictDiff(viewBtn.dataset.file);
   });
 
   document.getElementById('bmConflictCompleteMerge')?.addEventListener('click', async () => {

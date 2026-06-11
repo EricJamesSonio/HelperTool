@@ -280,6 +280,8 @@ const branchBridge = {
       ipcRenderer.invoke('git:fetchRemote', { repoPath, remote }),
     gitMergeBranch:       (repoPath, from, into) =>
       ipcRenderer.invoke('git:mergeBranch', { repoPath, from, into }),
+    gitMergeBranchDiff:   (repoPath, filePath) =>
+      ipcRenderer.invoke('git:mergeBranchDiff', { repoPath, filePath }),
     gitGetConflictDiff:   (repoPath, filePath) =>
       ipcRenderer.invoke('git:getConflictDiff', { repoPath, filePath }),
     gitAcceptIncoming:    (repoPath, files) =>

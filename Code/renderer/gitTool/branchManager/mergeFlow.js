@@ -44,13 +44,32 @@ async function _executeMerge() {
       let detail;
       if (r.isUpToDate) {
         detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> — already up to date`;
-      } else if (r.updates?.length) {
-        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> merged (${r.updates.length} file${r.updates.length !== 1 ? 's' : ''} updated)`;
       } else {
-        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> merged successfully ✓`;
+        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> merged (merge commit created)`;
       }
-      showRight(getMergeSuccessText(mf.from, mf.into, detail));
+      showRight(getMergeSuccessText(mf.from, mf.into, detail, r.files, r.summary, r.pushed));
       flashSuccess(document.getElementById('bmRightPanel'));
+
+      document.querySelectorAll('.bm-merge-view-diff').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const file = btn.dataset.file;
+          const diffView = document.getElementById('bmMergeDiffView');
+          if (!diffView) return;
+          diffView.style.display = 'block';
+          diffView.innerHTML = '<div class="bm-conflict-diff-loading">Loading diff…</div>';
+          try {
+            const diffR = await window.electronAPI.gitMergeBranchDiff(state.repoPath, file);
+            if (diffR.success && diffR.diff) {
+              diffView.innerHTML = `<pre class="bm-diff-content">${diffR.diff}</pre>`;
+            } else {
+              diffView.innerHTML = '<div class="bm-conflict-diff-empty">No diff available</div>';
+            }
+          } catch (err) {
+            diffView.innerHTML = '<div class="bm-conflict-diff-empty">Error loading diff</div>';
+          }
+        });
+      });
+
       document.getElementById('bmMergeDone')?.addEventListener('click', () => {
         close();
         render();
