@@ -116,6 +116,9 @@ const symbolIndexBridge = {
         getDirtyFiles:    (repoPath)               => ipcRenderer.invoke('symbolIndex:getDirtyFiles', repoPath),
         reindexFile:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:reindexFile', repoPath, filePath),
         getFileDeps:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:getFileDeps', repoPath, filePath),
+        proxyIndexFile:   (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:proxyIndexFile', repoPath, filePath),
+        proxySearch:      (query, limit)            => ipcRenderer.invoke('symbolIndex:proxySearch', query, limit),
+        proxyGetSymbols:  (filePath)                => ipcRenderer.invoke('symbolIndex:proxyGetSymbols', filePath),
         onProgress:       (callback) => {
             ipcRenderer.removeAllListeners('symbolIndex:progress');
             ipcRenderer.on('symbolIndex:progress', (_, data) => callback(data));

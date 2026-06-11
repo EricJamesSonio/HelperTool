@@ -28,6 +28,7 @@ const blueprintLibraryIpc = require('./ipc/blueprintLibrary.js');
 const profileIpc = require('./ipc/profile.js');
 const dockerIpc = require('./ipc/docker_ipc.js');
 const envIpc = require('./ipc/env_ipc.js');
+const indexerProxy = require('./ipc/indexerProxy.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
@@ -83,6 +84,9 @@ if (!gotTheLock) {
             console.error('[Main] Failed to init DB:', err);
         }
 
+        indexerProxy.start();
+        console.log('[Main] Indexer service started');
+
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
         });
@@ -93,6 +97,7 @@ if (!gotTheLock) {
         db.close();
         const watcher = require('./indexer/watcher.js');
         watcher.destroyAllWatchers();
+        indexerProxy.stop();
     });
 }
 

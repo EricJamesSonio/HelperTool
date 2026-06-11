@@ -146,6 +146,15 @@ class SymbolIndexUI {
                     ${ICON_DELETE} Delete Index
                   </button>
                 </div>
+
+                <div class="si-proxy-section" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-default,rgba(255,255,255,0.08))">
+                  <p class="si-info-desc" style="margin-bottom:8px;font-weight:600;font-size:0.72rem;letter-spacing:0.3px">INDEXER SERVICE (DEMO)</p>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button id="siProxyIndexBtn" class="btn btn-small">${ICON_LIGHTNING} Index Active File</button>
+                    <button id="siProxySearchBtn" class="btn btn-small">${ICON_SEARCH} Search via Proxy</button>
+                  </div>
+                  <div id="siProxyResult" class="si-proxy-result" style="margin-top:8px;font-size:0.75rem;color:var(--text-muted,#556080);white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
+                </div>
               </div>
 
               <!-- Progress bar -->
@@ -195,6 +204,9 @@ class SymbolIndexUI {
       const item = e.target.closest('.si-result-item');
       if (item) this.handleResultClick(item);
     });
+
+    this.container.querySelector('#siProxyIndexBtn')?.addEventListener('click', () => this.proxyIndexFile());
+    this.container.querySelector('#siProxySearchBtn')?.addEventListener('click', () => this.proxySearch());
 
     this.handler.onProgress((data) => this.handleProgress(data));
     this.handler.onDirtyChanged((count) => this.handleDirtyChanged(count));
@@ -629,6 +641,33 @@ class SymbolIndexUI {
     this.hideAllStates();
     this.showUnindexedState();
     this.showToast('Index deleted', 'success');
+  }
+
+  async proxyIndexFile() {
+    const el = this.container.querySelector('#siProxyResult');
+    if (!el) return;
+    if (!this._activeRepoPath) { el.textContent = 'No active repo'; return; }
+    el.textContent = 'Indexing active file via proxy...';
+    try {
+      const filePath = this.manager.getCurrentFilePath?.() || this._activeRepoPath;
+      const result = await window.symbolIndexBridge.proxyIndexFile(this._activeRepoPath, filePath);
+      el.textContent = JSON.stringify(result, null, 2);
+    } catch (err) {
+      el.textContent = 'Error: ' + err.message;
+    }
+  }
+
+  async proxySearch() {
+    const el = this.container.querySelector('#siProxyResult');
+    if (!el) return;
+    el.textContent = 'Searching via proxy...';
+    try {
+      const query = prompt('Enter search query (e.g. "function"):') || 'function';
+      const result = await window.symbolIndexBridge.proxySearch(query, 50);
+      el.textContent = JSON.stringify(result, null, 2);
+    } catch (err) {
+      el.textContent = 'Error: ' + err.message;
+    }
   }
 
   handleProgress(data) {
