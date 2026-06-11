@@ -381,12 +381,10 @@ class SymbolIndexUI {
       if (oldMore) oldMore.remove();
     }
 
-    // Append new file rows
+    // Append new file rows (lean — no metadata, loads symbols on click)
     const frag = document.createDocumentFragment();
     for (const f of newFiles) {
-      const symbolCount = parseInt(f.symbol_count, 10) || 0;
       const escapedPath = this.escapeHtml(f.path);
-      const lang = f.language ? `<span class="si-browse-lang">${this.escapeHtml(f.language)}</span>` : '';
       const div = document.createElement('div');
       div.className = 'si-browse-file';
       div.dataset.file = f.path;
@@ -394,8 +392,6 @@ class SymbolIndexUI {
         <div class="si-browse-file-header">
           <span class="si-browse-toggle">${ICON_CHEVRON_RIGHT}</span>
           <span class="si-browse-file-path">${escapedPath}</span>
-          ${lang}
-          <span class="si-browse-file-count">${symbolCount} symbol${symbolCount !== 1 ? 's' : ''}</span>
         </div>
         <div class="si-browse-symbols"></div>
       `;

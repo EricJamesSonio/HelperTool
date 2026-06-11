@@ -77,6 +77,54 @@ class SymbolCache {
     return result;
   }
 
+  /** Get dependency data for a file: imports + reverse deps, with optional symbol enrichment */
+  getFileDeps(filePath, mode) {
+    const entry = this._store.get(filePath);
+    if (!entry) return null;
+
+    const imports = entry.imports.map(imp => ({
+      import_path: imp.import_path, import_type: imp.import_type,
+      line: imp.line, imported_symbols: imp.imported_symbols || [],
+    }));
+
+    const imported_by = [];
+    for (const [srcPath, srcEntry] of this._store) {
+      if (srcPath === filePath) continue;
+      for (const imp of srcEntry.imports) {
+        if (imp.import_path === filePath || imp.import_path === filePath.split('/').pop() || filePath.endsWith('/' + imp.import_path)) {
+          imported_by.push({
+            source_path: srcPath, import_path: imp.import_path,
+            import_type: imp.import_type, imported_symbols: imp.imported_symbols || [],
+          });
+        }
+      }
+    }
+
+    if (mode === 'function') {
+      const funcImports = imports.map(imp => {
+        const resolvedEntry = this._store.get(imp.import_path);
+        const symbols = resolvedEntry
+          ? (imp.imported_symbols || []).length > 0
+            ? resolvedEntry.symbols.filter(s => (imp.imported_symbols || []).includes(s.name)).map(s => ({ name: s.name, type: s.type, line: s.line }))
+            : resolvedEntry.symbols.map(s => ({ name: s.name, type: s.type, line: s.line }))
+          : (imp.imported_symbols || []).map(n => ({ name: n, type: 'unknown', line: null }));
+        return { import_path: imp.import_path, import_type: imp.import_type, symbols };
+      });
+
+      const ourNames = new Set(entry.symbols.map(s => s.name));
+      const funcReverse = imported_by.map(rd => {
+        const symbols = (rd.imported_symbols || []).length > 0
+          ? entry.symbols.filter(s => (rd.imported_symbols || []).includes(s.name)).map(s => ({ name: s.name, type: s.type, line: s.line }))
+          : entry.symbols.map(s => ({ name: s.name, type: s.type, line: s.line }));
+        return { source_path: rd.source_path, import_type: rd.import_type, symbols };
+      });
+
+      return { imports, imported_by, funcImports, funcReverse };
+    }
+
+    return { imports, imported_by };
+  }
+
   /** Clear all data */
   clear() {
     this._store.clear();
