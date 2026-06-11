@@ -143,16 +143,19 @@ export function getMergeConfirm(from, into, fromColor, intoColor) {
     return `
       <div class="bm-merge-flow">
         <div class="bm-merge-diagram" id="bmMergeDiagram">
-          <svg viewBox="0 0 300 120" class="bm-merge-svg">
-            <circle cx="80" cy="30" r="10" fill="${fromColor}" stroke="#fff" stroke-width="2"/>
-            <text x="80" y="55" text-anchor="middle" fill="${fromColor}" font-size="11" font-weight="600">${from}</text>
-            <circle cx="220" cy="30" r="10" fill="${intoColor}" stroke="#fff" stroke-width="2"/>
-            <text x="220" y="55" text-anchor="middle" fill="${intoColor}" font-size="11" font-weight="600">${into}</text>
-            <path class="bm-merge-arrow" d="M90 30 Q150 30 150 80 Q150 120 220 100" fill="none" stroke="${fromColor}" stroke-width="2" stroke-dasharray="400" stroke-dashoffset="400"/>
+          <svg viewBox="0 0 500 200" class="bm-merge-svg">
+            <circle cx="120" cy="50" r="16" fill="${fromColor}" stroke="#fff" stroke-width="2.5"/>
+            <text x="120" y="80" text-anchor="middle" fill="${fromColor}" font-size="13" font-weight="700">${from}</text>
+            <circle cx="380" cy="50" r="16" fill="${intoColor}" stroke="#fff" stroke-width="2.5"/>
+            <text x="380" y="80" text-anchor="middle" fill="${intoColor}" font-size="13" font-weight="700">${into}</text>
+            <path class="bm-merge-arrow" d="M 136 50 C 220 50, 220 140, 364 50" fill="none" stroke="${fromColor}" stroke-width="3" stroke-linecap="round" stroke-dasharray="350" stroke-dashoffset="350"/>
           </svg>
         </div>
         <div class="bm-merge-info">
           Merge <strong style="color:${fromColor}">${from}</strong> into <strong style="color:${intoColor}">${into}</strong>
+        </div>
+        <div class="bm-merge-desc">
+          The commits from <strong style="color:${fromColor}">${from}</strong> will be merged into <strong style="color:${intoColor}">${into}</strong>, creating a merge commit.
         </div>
         <div class="bm-merge-actions">
           <button class="bm-btn" id="bmMergeCancel">Cancel</button>
@@ -165,6 +168,9 @@ export function getMergeConfirm(from, into, fromColor, intoColor) {
     <div class="bm-merge-flow bm-merge-pro">
       <div class="bm-merge-info">
         Merge <strong style="color:${fromColor}">${from}</strong> into <strong style="color:${intoColor}">${into}</strong>
+      </div>
+      <div class="bm-merge-desc">
+        The commits from <strong style="color:${fromColor}">${from}</strong> will be merged into <strong style="color:${intoColor}">${into}</strong>, creating a merge commit.
       </div>
       <div class="bm-merge-actions">
         <button class="bm-btn" id="bmMergeCancel">Cancel</button>
