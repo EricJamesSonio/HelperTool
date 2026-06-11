@@ -38,6 +38,7 @@ async function _executeMerge() {
   if (!mf) return;
   try {
     const r = await window.electronAPI.gitMergeBranch(state.repoPath, mf.from, mf.into);
+    console.debug('[mergeFlow] merge result:', r);
     if (r.success) {
       mf.step = 'success';
       let detail;

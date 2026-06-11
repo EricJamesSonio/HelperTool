@@ -211,15 +211,19 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.checkout(into);
-            const result = await git.mergeFromTo(from, into);
+            console.debug('[git:mergeBranch] merging', from, 'into', into, 'at', repoPath);
+            const result = await git.merge([from]);
+            console.debug('[git:mergeBranch] result:', result);
+            const noChanges = !result.merges?.length && !result.files?.length;
             return {
                 success: true,
                 result: result?.result || 'Merge successful',
-                isUpToDate: !!result?.isAlreadyUpToDate,
+                isUpToDate: !!result?.isAlreadyUpToDate || noChanges,
                 updates: (result?.updates || []).map(u => u.path)
             };
         } catch (err) {
             const msg = err.message || '';
+            console.debug('[git:mergeBranch] error:', msg);
             if (msg.includes('CONFLICT') || msg.includes('conflict')) {
                 const lines = msg.split('\n').filter(l => l.includes('CONFLICT'));
                 const files = lines.map(l => {

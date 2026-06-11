@@ -209,7 +209,6 @@ class GitToolUI {
    * Setup all event listeners
    */
   setupEventListeners() {
-    // Working tree file selection
     this.container.addEventListener('click', (e) => {
       if (e.target.closest('.working-file-item')) {
         this.handleFileSelection(e);
@@ -231,7 +230,28 @@ class GitToolUI {
       }
     });
 
-    // Commit actions
+    const branchesBtn = this.container.querySelector('#gitBranchesBtn');
+    branchesBtn?.addEventListener('click', () => {
+      const bodyEl = this.container.querySelector('.git-content');
+      if (!bodyEl) return;
+
+      if (branchManager.isOpen()) {
+        branchManager.close();
+        return;
+      }
+
+      this._savedContent = bodyEl.innerHTML;
+      branchManager.open(bodyEl, this.gitHandler.repoPath, () => {
+        this.restoreContent();
+        branchesBtn.innerHTML = `<span class="btn-icon">${ICON_BRANCH}</span> Branches`;
+      });
+      branchesBtn.innerHTML = `<span class="btn-icon">&larr;</span> Git`;
+    });
+
+    this._bindDirectListeners();
+  }
+
+  _bindDirectListeners() {
     const commitBtn = this.container.querySelector('#commitBtn');
     const freeForm = this.container.querySelector('#commitFreeForm');
     const templateForm = this.container.querySelector('#commitTemplateForm');
@@ -240,29 +260,31 @@ class GitToolUI {
     const typeSelect = this.container.querySelector('#commitType');
     const descInput = this.container.querySelector('#commitDescription');
 
-    let useTemplate = false;
+    let useTemplate = toggleBtn?.classList.contains('active') || false;
 
     const updateCommitBtn = () => {
       const hasStaged = this.gitManager.stagedFiles.length > 0;
+      const btn = this.container.querySelector('#commitBtn');
+      if (!btn) return;
       if (useTemplate) {
-        const hasType = typeSelect.value.trim().length > 0;
-        const hasDesc = descInput.value.trim().length > 0;
-        commitBtn.disabled = !(hasType && hasDesc && hasStaged);
+        const typeEl = this.container.querySelector('#commitType');
+        const descEl = this.container.querySelector('#commitDescription');
+        const hasType = (typeEl?.value || '').trim().length > 0;
+        const hasDesc = (descEl?.value || '').trim().length > 0;
+        btn.disabled = !(hasType && hasDesc && hasStaged);
       } else {
-        const hasMessage = messageInput.value.trim().length > 0;
-        commitBtn.disabled = !(hasMessage && hasStaged);
+        const msgEl = this.container.querySelector('#commitMessageInput');
+        const hasMessage = (msgEl?.value || '').trim().length > 0;
+        btn.disabled = !(hasMessage && hasStaged);
       }
     };
 
     toggleBtn?.addEventListener('click', () => {
       useTemplate = !useTemplate;
       toggleBtn.classList.toggle('active', useTemplate);
-      if (useTemplate) {
-        freeForm.style.display = 'none';
-        templateForm.style.display = '';
-      } else {
-        freeForm.style.display = '';
-        templateForm.style.display = 'none';
+      if (freeForm && templateForm) {
+        freeForm.style.display = useTemplate ? 'none' : '';
+        templateForm.style.display = useTemplate ? '' : 'none';
       }
       updateCommitBtn();
     });
@@ -281,24 +303,6 @@ class GitToolUI {
 
     const unstageAllBtn = this.container.querySelector('#unstageAllBtn');
     unstageAllBtn?.addEventListener('click', () => this.handleUnstageAll());
-
-    const branchesBtn = this.container.querySelector('#gitBranchesBtn');
-    branchesBtn?.addEventListener('click', () => {
-      const bodyEl = this.container.querySelector('.git-content');
-      if (!bodyEl) return;
-
-      if (branchManager.isOpen()) {
-        branchManager.close();
-        return;
-      }
-
-      this._savedContent = bodyEl.innerHTML;
-      branchManager.open(bodyEl, this.gitHandler.repoPath, () => {
-        this.restoreContent();
-        branchesBtn.innerHTML = `<span class="btn-icon">${ICON_BRANCH}</span> Branches`;
-      });
-      branchesBtn.innerHTML = `<span class="btn-icon">&larr;</span> Git`;
-    });
   }
 
   /**
@@ -831,6 +835,8 @@ renderWorkingTree(files) {
     }
     const btn = this.container?.querySelector('#gitBranchesBtn');
     if (btn) btn.innerHTML = `<span class="btn-icon">${ICON_BRANCH}</span> Branches`;
+    this._bindDirectListeners();
+    this.refreshUI();
   }
 
   /**
