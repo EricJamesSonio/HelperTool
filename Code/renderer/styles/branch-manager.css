@@ -133,11 +133,12 @@
   display: flex;
   flex-direction: row;
   min-height: 0;
+  overflow: hidden;
   position: relative;
 }
 
 .bm-left {
-  width: 280px;
+  width: 560px;
   flex-shrink: 0;
   overflow-y: auto;
   border-right: 1px solid var(--border-subtle,rgba(255,255,255,0.06));
