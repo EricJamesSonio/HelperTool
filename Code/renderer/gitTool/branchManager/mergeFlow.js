@@ -1,9 +1,22 @@
 import { state, setState } from './state.js';
 import { getMergeConfirm, getMergeSuccessText } from './template.js';
 import { animateMergeDiagram, flashSuccess } from './animations.js';
-import { isAnimated, branchColor } from './utils.js';
+import { isAnimated, branchColor, escHtml } from './utils.js';
 import { render } from './list.js';
 import { showRight, showError } from './index.js';
+
+function colorizeDiff(diff) {
+  if (!diff) return '';
+  return diff.split('\n').map(line => {
+    const escaped = escHtml(line);
+    let cls = 'diff-context';
+    if (line.startsWith('+') && !line.startsWith('+++')) cls = 'diff-add';
+    else if (line.startsWith('-') && !line.startsWith('---')) cls = 'diff-remove';
+    else if (line.startsWith('@@')) cls = 'diff-hunk';
+    else if (line.startsWith('diff --git') || line.startsWith('---') || line.startsWith('+++') || line.startsWith('index ')) cls = 'diff-header';
+    return `<span class="diff-line ${cls}">${escaped || ' '}</span>`;
+  }).join('\n');
+}
 
 export function open(fromBranch) {
   const into = state.current;
@@ -60,7 +73,7 @@ async function _executeMerge() {
           try {
             const diffR = await window.electronAPI.gitMergeBranchDiff(state.repoPath, file);
             if (diffR.success && diffR.diff) {
-              diffView.innerHTML = `<pre class="bm-diff-content">${diffR.diff}</pre>`;
+              diffView.innerHTML = colorizeDiff(diffR.diff);
             } else {
               diffView.innerHTML = '<div class="bm-conflict-diff-empty">No diff available</div>';
             }
