@@ -137,10 +137,29 @@ async function _escHandler(e) {
 
 async function _load() {
   const body = _panel.querySelector('#pfBody');
-  body.innerHTML = _buildSkeleton();
-  _bodyEls = {};
   _cache = {};
   _avatarDataUrl = null;
+
+  const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+  const cached = getPrefetchCache().get('profile');
+  if (cached && cached.all) {
+    const { all, avatar } = cached;
+    if (all.profile) _profile = all.profile;
+    _avatarDataUrl = avatar;
+    body.innerHTML = _buildBodyHtml(all);
+    _bodyEls = {};
+    body.querySelectorAll('.pf-section').forEach(el => { _bodyEls[el.dataset.section] = el; });
+    const newCard = _renderProfileCard();
+    if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
+    _renderStatsBar().then(el => { if (_bodyEls.stats) { _bodyEls.stats.replaceWith(el); _bodyEls.stats = el; } }).catch(() => {});
+    _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
+    _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
+    _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {});
+    return;
+  }
+
+  body.innerHTML = _buildSkeleton();
+  _bodyEls = {};
   body.querySelectorAll('.pf-section').forEach(el => {
     _bodyEls[el.dataset.section] = el;
   });
@@ -180,6 +199,22 @@ async function _load() {
     _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
     _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {});
   });
+}
+
+function _buildBodyHtml(all) {
+  return `
+    <div class="pf-body-sidebar">
+      <div class="pf-section" data-section="card">
+        <div class="pf-card-vertical pf-skel"><div class="pf-skel-avatar pf-skel-avatar-lg" style="margin:0 auto 8px"></div><div class="pf-skel-line" style="width:50%;margin:0 auto"></div><div class="pf-skel-line" style="width:70%;margin:6px auto 0"></div></div>
+      </div>
+    </div>
+    <div class="pf-body-main">
+      <div class="pf-section" data-section="stats"><div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div></div>
+      <div class="pf-section" data-section="heatmap"><div class="pf-skel-line" style="width:100%;height:140px"></div></div>
+      <div class="pf-section" data-section="donuts"><div class="pf-skel-donuts" style="display:flex;gap:16px"><div class="pf-skel-line" style="flex:1;height:120px"></div><div class="pf-skel-line" style="flex:1;height:120px"></div></div></div>
+      <div class="pf-section" data-section="history"><div class="pf-skel-line" style="width:100%;height:200px"></div></div>
+    </div>
+  `;
 }
 
 let _bodyEls = {};

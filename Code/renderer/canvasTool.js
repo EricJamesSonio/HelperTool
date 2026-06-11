@@ -567,7 +567,11 @@ async function handleCreateBoard() {
 async function refreshBoardList() {
   if (!_currentRepoPath) return;
   try {
-    const boardList = await boards.listBoards(_currentRepoPath);
+    const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+    let boardList = getPrefetchCache().get('canvasBoards');
+    if (!boardList) {
+      boardList = await boards.listBoards(_currentRepoPath);
+    }
     const container = _panel.querySelector('#canvasBoardsList');
     const currentId = boards.getCurrentBoardId();
     if (boardList.length === 0) {

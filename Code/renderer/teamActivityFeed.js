@@ -194,6 +194,22 @@ async function _loadData(repoPath) {
   const commitList = _panel.querySelector('#tafCommitList');
   const graph = _panel.querySelector('#tafGraph');
 
+  const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+  const cached = getPrefetchCache().get('teamActivity');
+  if (cached) {
+    _commits = cached.commits || [];
+    _contributors = cached.contributors || {};
+    _diffCache = {};
+    _visibleCount = 50;
+    _selectedContributor = null;
+    _selectedDateRange = null;
+    _renderSummary();
+    _renderContributors();
+    _renderCommits();
+    _renderGraph();
+    return;
+  }
+
   summary.innerHTML = '<div class="taf-loading">Loading\u2026</div>';
   contributorsList.innerHTML = '';
   commitList.innerHTML = '<div class="taf-loading">Loading commit history\u2026</div>';

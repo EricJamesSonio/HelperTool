@@ -17,6 +17,17 @@ export async function open() {
   if (!_panel) _buildPanel();
   _panel.classList.add('open');
   _open = true;
+
+  const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+  const cached = getPrefetchCache().get('docker');
+  if (cached) {
+    state.set('connected', cached.ping?.ok ?? false);
+    updateBadge(cached.ping?.ok ?? false);
+    containersTab.renderWithData(cached.containers);
+    imagesTab.renderWithData(cached.images);
+    return;
+  }
+
   await _checkConnection();
   await containersTab.render();
   imagesTab.render();

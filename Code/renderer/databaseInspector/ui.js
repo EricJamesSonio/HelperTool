@@ -221,6 +221,30 @@ async function openScanDialog() {
   }
 }
 
+export function refreshConnectionsWithData(conns) {
+  const select = _panel?.querySelector('#dbiConnectionSelect');
+  if (!select) return;
+  setState({ connections: conns });
+  const currentId = state.currentConnectionId;
+  select.innerHTML = '<option value="">\u2014 No connection \u2014</option>' +
+    conns.map(c => `<option value="${c.id}" ${c.id === currentId ? 'selected' : ''}>${esc(c.name)} (${c.type})</option>`).join('');
+  const pastList = _panel?.querySelector('#dbiPastConnections');
+  if (pastList) {
+    if (conns.length === 0) {
+      pastList.innerHTML = '';
+    } else {
+      pastList.innerHTML = '<div class="dbi-past-title">Recent Connections</div>' +
+        conns.map(c => `
+          <div class="dbi-past-item" data-conn-id="${c.id}">
+            <span class="dbi-past-item-icon">${c.type === 'postgres' ? '\uD83D\uDC18' : c.type === 'mysql' ? '\uD83D\uDC2C' : c.type === 'sqlite' ? '\uD83D\uDDC4\uFE0F' : '\uD83C\uDF43'}</span>
+            <span class="dbi-past-item-name">${esc(c.name)}</span>
+            <span class="dbi-past-item-type">${esc(c.type)}</span>
+          </div>
+        `).join('');
+    }
+  }
+}
+
 export async function refreshConnections() {
   const select = _panel?.querySelector('#dbiConnectionSelect');
   if (!select) return;

@@ -20,6 +20,7 @@ import * as profileTool from '../profile.js';
 import { openEnvManager } from '../envManager.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
+import { startPrefetch } from './prefetchManager.js';
 
 const ICONS = {
   api: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="19"/><line x1="1" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="19" y2="10"/></svg>',
@@ -476,6 +477,7 @@ export function handleRepoChange(newRepoPath) {
   _destroyGitTool();
   _destroySymbolIndexTool();
   _initializeGitTool(newRepoPath);
+  startPrefetch(newRepoPath);
 }
 
 window.addEventListener('beforeunload', () => {

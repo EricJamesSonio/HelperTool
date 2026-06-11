@@ -10,6 +10,14 @@ const ICON_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" s
 const ICON_PORT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10M5 13h10"/><path d="M7 7V3M13 7V3M7 13v4M13 13v4"/><rect x="3" y="7" width="14" height="6" rx="1"/></svg>';
 
 async function refresh() {
+  const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+  const cached = getPrefetchCache().get('portManager');
+  if (cached) {
+    _data = cached;
+    render();
+    return;
+  }
+
   const btn = _panel?.querySelector('.pm-btn-refresh');
   if (btn) btn.classList.add('spinning');
 

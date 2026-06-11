@@ -123,7 +123,13 @@ async function _seedIfEmpty() {
 
 async function _loadData() {
   try {
-    _categories = await window.electronAPI.blueprint.getCategories() || [];
+    const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+    const cached = getPrefetchCache().get('blueprintCategories');
+    if (cached) {
+      _categories = cached;
+    } else {
+      _categories = await window.electronAPI.blueprint.getCategories() || [];
+    }
     _renderCategories();
     if (_selectedCategory) {
       const stillExists = _categories.find(c => c.id === _selectedCategory.id);
