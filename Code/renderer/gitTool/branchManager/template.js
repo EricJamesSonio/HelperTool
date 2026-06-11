@@ -158,24 +158,47 @@ export function getMergeConfirm(from, into, fromColor, intoColor) {
   `;
 }
 
-export function getMergeSuccessText(from, into, detail) {
+export function getMergeSuccessText(from, into, detail, files, summary, pushed) {
+  const fileRows = (files || []).map(f => `
+    <div class="bm-merge-file-row" data-file="${f.file}">
+      <span class="bm-merge-file-status">
+        <span class="bm-merge-ins">+${f.insertions}</span>
+        <span class="bm-merge-del">-${f.deletions}</span>
+      </span>
+      <span class="bm-merge-file-name" title="${f.file}">${f.file}</span>
+      <button class="bm-btn bm-btn-sm bm-merge-view-diff" data-file="${f.file}">View Diff</button>
+    </div>
+  `).join('');
+
+  const summaryLine = summary ? `${summary.changes} file${summary.changes !== 1 ? 's' : ''} changed, ${summary.insertions} insertion${summary.insertions !== 1 ? 's' : ''}(+), ${summary.deletions} deletion${summary.deletions !== 1 ? 's' : ''}(-)` : '';
+
+  const hasChanges = (summary?.changes || 0) > 0;
+
   return `
     <div class="bm-merge-result bm-merge-success">
-      <div class="bm-merge-result-text">${detail || `<strong>${from}</strong> → <strong>${into}</strong> merged successfully ✓`}</div>
+      <div class="bm-merge-result-text">${detail}</div>
+      ${hasChanges ? `<div class="bm-merge-push-status">${pushed ? 'Pushed to remote ✓' : 'Merged locally (push failed)'}</div>` : ''}
+      ${summaryLine ? `<div class="bm-merge-summary">${summaryLine}</div>` : ''}
+      ${fileRows ? `<div class="bm-merge-file-list">${fileRows}</div>` : ''}
+      <div class="bm-merge-diff-view" id="bmMergeDiffView" style="display:none"></div>
       <button class="bm-btn bm-btn-primary" id="bmMergeDone">Done</button>
     </div>
   `;
 }
 
 export function getConflictResolver(conflicts, from, into) {
-  const fileList = conflicts.map(c => `
-    <div class="bm-conflict-file ${c.status === 'resolved' || c.status === 'accepted' ? 'bm-conflict-resolved' : ''}" data-file="${c.file}">
-      <input type="checkbox" class="bm-conflict-cb" data-file="${c.file}" ${c.status === 'resolved' || c.status === 'accepted' ? 'checked' : ''}>
-      <span class="bm-conflict-dot ${c.status === 'resolved' || c.status === 'accepted' ? 'bm-dot-resolved' : 'bm-dot-conflict'}"></span>
+  const fileList = conflicts.map(c => {
+    const resolved = c.status === 'resolved' || c.status === 'accepted';
+    return `
+    <div class="bm-conflict-file ${resolved ? 'bm-conflict-resolved' : ''}" data-file="${c.file}">
+      <input type="checkbox" class="bm-conflict-cb" data-file="${c.file}" ${resolved ? 'checked' : ''}>
+      <span class="bm-conflict-dot ${resolved ? 'bm-dot-resolved' : 'bm-dot-conflict'}"></span>
       <span class="bm-conflict-file-name">${c.file}</span>
-      <span class="bm-conflict-status">${c.status === 'resolved' || c.status === 'accepted' ? '✓ resolved' : '● conflict'}</span>
+      <span class="bm-conflict-status">${resolved ? '✓ resolved' : '● conflict'}</span>
+      <button class="bm-btn bm-btn-sm bm-conflict-view-btn" data-file="${c.file}">${resolved ? 'View' : 'Resolve'}</button>
     </div>
-  `).join('');
+    `;
+  }).join('');
   const allResolved = conflicts.every(c => c.status === 'resolved' || c.status === 'accepted');
   return `
     <div class="bm-conflict-wrap">
