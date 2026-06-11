@@ -6,6 +6,7 @@ import { push, pull, fetch, deleteBranch, deleteRemote } from './remoteOps.js';
 import { escHtml } from './utils.js';
 import { open as openMerge } from './mergeFlow.js';
 import { open as openGraph } from './graph.js';
+import { openCreate as openPRCreate, renderList as renderPRList } from './pullRequest.js';
 
 let _container = null;
 let _repoPath = null;
@@ -15,14 +16,14 @@ export function open(container, repoPath, onClose) {
   _container = container;
   _repoPath = repoPath;
   _onClose = onClose || null;
-  setState({ repoPath, open: true, error: null, confirm: null, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false });
+  setState({ repoPath, open: true, error: null, confirm: null, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false, activePRTab: 'list', activePRId: null, prCreateData: null });
   _render();
   _wireEvents();
   _load();
 }
 
 export function close() {
-  setState({ open: false, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false });
+  setState({ open: false, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false, activePRTab: 'list', activePRId: null, prCreateData: null });
   _onClose?.();
   _repoPath = null;
   _onClose = null;
@@ -71,6 +72,11 @@ function _wireEvents() {
   _container.querySelector('#bmFetchBtn')?.addEventListener('click', async () => {
     await fetch();
     await renderList();
+  });
+
+  _container.querySelector('#bmPRBtn')?.addEventListener('click', () => {
+    hideError();
+    renderPRList();
   });
 
   _container.querySelector('#bmSearch')?.addEventListener('input', () => {
@@ -129,6 +135,16 @@ function _wireBranchListEvents() {
         onConfirm: async () => { await deleteRemote(name); setState({ confirm: null }); },
         onCancel: () => setState({ confirm: null }),
       });
+    } else if (action === 'pr-behind') {
+      hideError();
+      const current = state.current;
+      if (name === current) { showError('Already on this branch'); return; }
+      openPRCreate(current, name);
+    } else if (action === 'pr-ahead' || action === 'create-pr') {
+      hideError();
+      const current = state.current;
+      if (name === current) { showError('Already on this branch'); return; }
+      openPRCreate(name, current);
     }
   });
 }

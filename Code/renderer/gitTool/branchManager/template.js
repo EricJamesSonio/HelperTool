@@ -1,4 +1,4 @@
-import { isAnimated } from './utils.js';
+import { isAnimated, escHtml } from './utils.js';
 
 export function getPanelContent(mode) {
   return `
@@ -20,6 +20,7 @@ export function getPanelContent(mode) {
       <div class="bm-toolbar">
         <button class="bm-btn bm-btn-primary" id="bmNewBranchBtn">+ New Branch</button>
         <button class="bm-btn" id="bmFetchBtn">⟳ Fetch</button>
+        <button class="bm-btn" id="bmPRBtn">Pull Requests</button>
         <input class="bm-search" id="bmSearch" placeholder="Filter branches\u2026">
       </div>
       <div class="bm-body">
@@ -35,19 +36,33 @@ export function getPanelContent(mode) {
   `;
 }
 
-export function getBranchRow(b, isCurrent, color) {
+export function getBranchRow(b, isCurrent, color, defaultBranch) {
   const dot = isCurrent ? '●' : '○';
-  const ahead = b.ahead ? `<span class="bm-ahead">↑${b.ahead}</span>` : '';
-  const behind = b.behind ? `<span class="bm-behind">↓${b.behind}</span>` : '';
+  const behind = b.behind ? `<button class="bm-behind bm-pr-trigger" data-action="pr-behind" title="Pull changes into this branch">↓${b.behind}</button>` : '';
+  const ahead = b.ahead ? `<button class="bm-ahead bm-pr-trigger" data-action="pr-ahead" title="Merge this branch into current">↑${b.ahead}</button>` : '';
   const lastCommit = b.lastCommit ? `<span class="bm-commit-hash">${b.lastCommit}</span>` : '';
   const msg = b.message ? `<span class="bm-commit-msg">${b.message}</span>` : '';
+
+  let vsDefaultText = '';
+  if (defaultBranch && b.name !== defaultBranch) {
+    const da = b.vsDefaultAhead || 0;
+    const db = b.vsDefaultBehind || 0;
+    if (da > 0 && db > 0) vsDefaultText = `${db} behind, ${da} ahead ${defaultBranch}`;
+    else if (db > 0) vsDefaultText = `${db} behind ${defaultBranch}`;
+    else if (da > 0) vsDefaultText = `${da} ahead ${defaultBranch}`;
+    else vsDefaultText = `up to date with ${defaultBranch}`;
+  } else if (defaultBranch && b.name === defaultBranch) {
+    vsDefaultText = 'default branch';
+  }
+
+  const prItem = !isCurrent ? `<button class="bm-dropdown-item" data-action="create-pr">Create Pull Request</button>` : '';
   return `
     <div class="bm-branch-row" data-name="${b.name}">
       <span class="bm-branch-dot" style="color:${color}">${dot}</span>
       <div class="bm-branch-info">
         <span class="bm-branch-name">${b.name}</span>
         <div class="bm-branch-meta">
-          ${ahead} ${behind} ${lastCommit} ${msg}
+          ${ahead} ${behind} ${vsDefaultText ? `<span class="bm-vs-default">${vsDefaultText}</span>` : ''} ${lastCommit} ${msg}
         </div>
       </div>
       <div class="bm-branch-actions">
@@ -56,6 +71,7 @@ export function getBranchRow(b, isCurrent, color) {
         <div class="bm-dropdown" data-name="${b.name}">
           <button class="bm-btn bm-btn-sm bm-dropdown-toggle">···</button>
           <div class="bm-dropdown-menu">
+            ${prItem}
             <button class="bm-dropdown-item" data-action="push">Push to remote</button>
             <button class="bm-dropdown-item" data-action="graph">View graph</button>
             <button class="bm-dropdown-item" data-action="delete">Delete</button>
@@ -246,6 +262,133 @@ export function getGraphView(branch, commits, page, totalPages) {
       </div>
       <div class="bm-graph-list">${commitRows || '<div class="bm-empty">No commits</div>'}</div>
       ${pageBtns.length ? `<div class="bm-graph-pages">${pageBtns.join('')}</div>` : ''}
+    </div>
+  `;
+}
+
+/* ── Pull Requests ── */
+
+export function getPRList(prs, current) {
+  if (!prs?.length) {
+    return `
+      <div class="bm-pr-list">
+        <div class="bm-pr-list-header">Pull Requests</div>
+        <div class="bm-empty">No pull requests yet</div>
+        <div class="bm-pr-hint">Click the behind (↓) or ahead (↑) badge on a branch to create one</div>
+      </div>
+    `;
+  }
+  const rows = prs.map(pr => {
+    const statusClass = pr.status === 'merged' ? 'bm-pr-merged' : pr.status === 'declined' ? 'bm-pr-declined' : 'bm-pr-open';
+    return `
+      <div class="bm-pr-row ${statusClass}" data-pr-id="${pr.id}">
+        <div class="bm-pr-row-title">${escHtml(pr.title)}</div>
+        <div class="bm-pr-row-meta">
+          <span class="bm-pr-row-branches">${pr.sourceBranch} → ${pr.targetBranch}</span>
+          <span class="bm-pr-row-status">${pr.status}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  return `
+    <div class="bm-pr-list">
+      <div class="bm-pr-list-header">Pull Requests (${prs.length})</div>
+      <div class="bm-pr-rows">${rows}</div>
+    </div>
+  `;
+}
+
+export function getPRCreateForm(source, target, files, commits) {
+  const fileRows = (files || []).map(f => `
+    <div class="bm-pr-create-file">
+      <span class="file-status-badge status-${f.status.toLowerCase()}">${f.status}</span>
+      <span class="bm-pr-create-file-name">${escHtml(f.file)}</span>
+    </div>
+  `).join('') || '<div class="bm-empty">No file changes</div>';
+
+  const commitRows = (commits || []).map(c => `
+    <div class="bm-pr-create-commit">
+      <span class="bm-pr-commit-hash">${c.hash.substring(0, 7)}</span>
+      <span class="bm-pr-commit-msg">${escHtml(c.message)}</span>
+    </div>
+  `).join('') || '<div class="bm-empty">No commits</div>';
+
+  return `
+    <div class="bm-pr-create">
+      <div class="bm-pr-create-header">Create Pull Request</div>
+      <div class="bm-pr-create-branches">
+        <strong>${escHtml(source)}</strong> → <strong>${escHtml(target)}</strong>
+      </div>
+      <div class="bm-pr-create-field">
+        <label class="bm-pr-create-label">Title</label>
+        <input class="bm-pr-create-input" id="bmPRCreateTitle" placeholder="Short description of this pull request" autofocus>
+      </div>
+      <div class="bm-pr-create-field">
+        <label class="bm-pr-create-label">Description</label>
+        <textarea class="bm-pr-create-textarea" id="bmPRCreateDesc" placeholder="Optional details…" rows="3"></textarea>
+      </div>
+      <div class="bm-pr-create-section">
+        <div class="bm-pr-create-section-title">Commits (${commits?.length || 0})</div>
+        <div class="bm-pr-create-commits">${commitRows}</div>
+      </div>
+      <div class="bm-pr-create-section">
+        <div class="bm-pr-create-section-title">Files (${files?.length || 0})</div>
+        <div class="bm-pr-create-files">${fileRows}</div>
+      </div>
+      <div class="bm-pr-create-actions">
+        <button class="bm-btn" id="bmPRCreateCancel">Cancel</button>
+        <button class="bm-btn bm-btn-primary" id="bmPRCreateSubmit">Create Pull Request</button>
+      </div>
+    </div>
+  `;
+}
+
+export function getPRDetail(pr) {
+  const statusLabel = pr.status === 'merged' ? 'Merged' : pr.status === 'declined' ? 'Declined' : 'Open';
+  const statusClass = pr.status === 'merged' ? 'bm-pr-merged' : pr.status === 'declined' ? 'bm-pr-declined' : 'bm-pr-open';
+
+  const fileRows = (pr.files || []).map(f => `
+    <div class="bm-pr-detail-file">
+      <span class="file-status-badge status-${(f.status || 'M').toLowerCase()}">${f.status || 'M'}</span>
+      <span class="bm-pr-detail-file-name">${escHtml(f.file)}</span>
+      <button class="bm-btn bm-btn-sm bm-pr-view-diff" data-file="${f.file}">View Diff</button>
+    </div>
+  `).join('') || '<div class="bm-empty">No files</div>';
+
+  const commitRows = (pr.commits || []).map(c => `
+    <div class="bm-pr-detail-commit">
+      <span class="bm-pr-commit-hash">${c.hash?.substring(0, 7) || ''}</span>
+      <span class="bm-pr-commit-msg">${escHtml(c.message || '')}</span>
+    </div>
+  `).join('');
+
+  const acceptBtn = pr.status === 'open' ? `
+    <button class="bm-btn bm-btn-primary" id="bmPRAccept">Accept & Merge</button>
+    <button class="bm-btn" id="bmPRDecline">Decline</button>
+  ` : '';
+
+  const mergeInfo = pr.status === 'merged' ? `<div class="bm-pr-merge-info">Merged ${pr.mergedAt ? new Date(pr.mergedAt).toLocaleString() : ''}</div>` : '';
+
+  return `
+    <div class="bm-pr-detail ${statusClass}">
+      <div class="bm-pr-detail-header">
+        <span class="bm-pr-detail-status">${statusLabel}</span>
+        <span class="bm-pr-detail-branches">${escHtml(pr.sourceBranch)} → ${escHtml(pr.targetBranch)}</span>
+      </div>
+      <div class="bm-pr-detail-title">${escHtml(pr.title)}</div>
+      ${pr.description ? `<div class="bm-pr-detail-desc">${escHtml(pr.description)}</div>` : ''}
+      ${mergeInfo}
+      <div class="bm-pr-detail-section">
+        <div class="bm-pr-detail-section-title">Commits (${(pr.commits || []).length})</div>
+        <div class="bm-pr-detail-commits">${commitRows}</div>
+      </div>
+      <div class="bm-pr-detail-section">
+        <div class="bm-pr-detail-section-title">Files (${(pr.files || []).length})</div>
+        <div class="bm-pr-detail-files">${fileRows}</div>
+      </div>
+      <div class="bm-pr-detail-diff" id="bmPRDiffView" style="display:none"></div>
+      <div class="bm-pr-detail-actions">${acceptBtn}</div>
+      <button class="bm-btn" id="bmPRBack">← Back to PR list</button>
     </div>
   `;
 }

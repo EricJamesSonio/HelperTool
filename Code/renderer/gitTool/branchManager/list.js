@@ -15,7 +15,7 @@ export async function render() {
 
     const localHtml = r.local
       .filter(b => !filter || b.name.toLowerCase().includes(filter))
-      .map(b => getBranchRow(b, b.name === r.current, branchColor(b.name)))
+      .map(b => getBranchRow(b, b.name === r.current, branchColor(b.name), r.defaultBranch))
       .join('');
 
     const remoteHtml = r.remote

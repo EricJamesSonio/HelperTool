@@ -131,7 +131,28 @@ function register(_deps) {
                     local.push({ name: displayName, ahead, behind, lastCommit: commitHash?.substring(0, 7) || '', message });
                 }
             }
-            return { success: true, current, local, remote };
+
+            const localNames = local.map(b => b.name);
+            const defaultBranch = localNames.includes('main') ? 'main'
+                : localNames.includes('master') ? 'master'
+                : null;
+
+            if (defaultBranch) {
+                const vsResults = await Promise.all(local.map(async (b) => {
+                    if (b.name === defaultBranch) return { name: b.name, vsDefaultAhead: 0, vsDefaultBehind: 0 };
+                    const [a, be] = await Promise.all([
+                        git.raw(['rev-list', '--count', `${defaultBranch}..${b.name}`]),
+                        git.raw(['rev-list', '--count', `${b.name}..${defaultBranch}`])
+                    ]);
+                    return { name: b.name, vsDefaultAhead: parseInt(a.trim()) || 0, vsDefaultBehind: parseInt(be.trim()) || 0 };
+                }));
+                for (const r of vsResults) {
+                    const b = local.find(l => l.name === r.name);
+                    if (b) { b.vsDefaultAhead = r.vsDefaultAhead; b.vsDefaultBehind = r.vsDefaultBehind; }
+                }
+            }
+
+            return { success: true, current, local, remote, defaultBranch };
         } catch (err) {
             return { success: false, error: err.message };
         }
@@ -260,6 +281,34 @@ function register(_deps) {
             const git = simpleGit(repoPath);
             const diff = await git.diff(['HEAD~1', '--', filePath]);
             return { success: true, diff };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('git:branchFileDiff', async (_e, { repoPath, source, target, filePath }) => {
+        try {
+            const git = simpleGit(repoPath);
+            const diff = await git.diff([`${target}..${source}`, '--', filePath]);
+            return { success: true, diff };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('git:diffBranches', async (_e, { repoPath, source, target }) => {
+        try {
+            const git = simpleGit(repoPath);
+            const nameStatus = await git.raw(['diff', '--name-status', `${target}..${source}`]);
+            const files = nameStatus.split('\n')
+                .filter(l => l.trim())
+                .map(l => {
+                    const parts = l.split('\t');
+                    return { file: parts.slice(1).join('\t'), status: parts[0]?.trim() || 'M' };
+                });
+            const logResult = await git.log([`${target}..${source}`]);
+            const commits = logResult.all.map(c => ({ hash: c.hash, message: c.message }));
+            return { success: true, files, commits };
         } catch (err) {
             return { success: false, error: err.message };
         }
