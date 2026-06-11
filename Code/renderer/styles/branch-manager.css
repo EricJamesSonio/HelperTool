@@ -194,6 +194,7 @@
 }
 .bm-ahead { color: var(--green,#22c55e); }
 .bm-behind { color: var(--red,#ef4444); }
+.bm-vs-default { color: var(--text-faint,#364060); font-size: 0.62rem; }
 .bm-pr-trigger {
   background: none;
   border: 1px solid transparent;
@@ -458,7 +459,8 @@
   font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
   font-size: 0.72rem;
   line-height: 1.6;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 .diff-line:empty { min-height: 1.6em; }
 

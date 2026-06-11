@@ -131,7 +131,28 @@ function register(_deps) {
                     local.push({ name: displayName, ahead, behind, lastCommit: commitHash?.substring(0, 7) || '', message });
                 }
             }
-            return { success: true, current, local, remote };
+
+            const localNames = local.map(b => b.name);
+            const defaultBranch = localNames.includes('main') ? 'main'
+                : localNames.includes('master') ? 'master'
+                : null;
+
+            if (defaultBranch) {
+                const vsResults = await Promise.all(local.map(async (b) => {
+                    if (b.name === defaultBranch) return { name: b.name, vsDefaultAhead: 0, vsDefaultBehind: 0 };
+                    const [a, be] = await Promise.all([
+                        git.raw(['rev-list', '--count', `${defaultBranch}..${b.name}`]),
+                        git.raw(['rev-list', '--count', `${b.name}..${defaultBranch}`])
+                    ]);
+                    return { name: b.name, vsDefaultAhead: parseInt(a.trim()) || 0, vsDefaultBehind: parseInt(be.trim()) || 0 };
+                }));
+                for (const r of vsResults) {
+                    const b = local.find(l => l.name === r.name);
+                    if (b) { b.vsDefaultAhead = r.vsDefaultAhead; b.vsDefaultBehind = r.vsDefaultBehind; }
+                }
+            }
+
+            return { success: true, current, local, remote, defaultBranch };
         } catch (err) {
             return { success: false, error: err.message };
         }

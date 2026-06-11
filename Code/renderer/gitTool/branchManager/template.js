@@ -36,12 +36,25 @@ export function getPanelContent(mode) {
   `;
 }
 
-export function getBranchRow(b, isCurrent, color) {
+export function getBranchRow(b, isCurrent, color, defaultBranch) {
   const dot = isCurrent ? '●' : '○';
   const behind = b.behind ? `<button class="bm-behind bm-pr-trigger" data-action="pr-behind" title="Pull changes into this branch">↓${b.behind}</button>` : '';
   const ahead = b.ahead ? `<button class="bm-ahead bm-pr-trigger" data-action="pr-ahead" title="Merge this branch into current">↑${b.ahead}</button>` : '';
   const lastCommit = b.lastCommit ? `<span class="bm-commit-hash">${b.lastCommit}</span>` : '';
   const msg = b.message ? `<span class="bm-commit-msg">${b.message}</span>` : '';
+
+  let vsDefaultText = '';
+  if (defaultBranch && b.name !== defaultBranch) {
+    const da = b.vsDefaultAhead || 0;
+    const db = b.vsDefaultBehind || 0;
+    if (da > 0 && db > 0) vsDefaultText = `${db} behind, ${da} ahead ${defaultBranch}`;
+    else if (db > 0) vsDefaultText = `${db} behind ${defaultBranch}`;
+    else if (da > 0) vsDefaultText = `${da} ahead ${defaultBranch}`;
+    else vsDefaultText = `up to date with ${defaultBranch}`;
+  } else if (defaultBranch && b.name === defaultBranch) {
+    vsDefaultText = 'default branch';
+  }
+
   const prItem = !isCurrent ? `<button class="bm-dropdown-item" data-action="create-pr">Create Pull Request</button>` : '';
   return `
     <div class="bm-branch-row" data-name="${b.name}">
@@ -49,7 +62,7 @@ export function getBranchRow(b, isCurrent, color) {
       <div class="bm-branch-info">
         <span class="bm-branch-name">${b.name}</span>
         <div class="bm-branch-meta">
-          ${ahead} ${behind} ${lastCommit} ${msg}
+          ${ahead} ${behind} ${vsDefaultText ? `<span class="bm-vs-default">${vsDefaultText}</span>` : ''} ${lastCommit} ${msg}
         </div>
       </div>
       <div class="bm-branch-actions">
