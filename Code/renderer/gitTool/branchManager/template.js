@@ -29,6 +29,7 @@ export function getPanelContent(mode) {
         <div class="bm-right" id="bmRightPanel">
           <div class="bm-empty">Select an action to view details</div>
         </div>
+        <div id="bmConfirmOverlay" style="display:none"></div>
       </div>
     </div>
   `;

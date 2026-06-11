@@ -2,22 +2,22 @@ import { state, setState } from './state.js';
 import { getConflictResolver } from './template.js';
 import { flashSuccess } from './animations.js';
 import { render } from './list.js';
-import { close } from './mergeFlow.js';
+import { showRight, close as closeMerge } from './index.js';
 
 export function render() {
-  const el = document.getElementById('bmMergeFlow');
-  if (!el) return;
-  el.style.display = '';
   const mf = state.mergeFlow;
-  if (!mf) return;
+  if (!mf) return showRight('<div class="bm-empty">Select an action to view details</div>');
 
-  el.innerHTML = getConflictResolver(state.conflicts, mf.from, mf.into);
-  _wireEvents(el);
+  showRight(getConflictResolver(state.conflicts, mf.from, mf.into));
+  _wireEvents();
 }
 
-function _wireEvents(el) {
+function _wireEvents() {
+  const rightEl = document.getElementById('bmRightPanel');
+  if (!rightEl) return;
+
   document.getElementById('bmConflictSelectAll')?.addEventListener('click', () => {
-    const cbs = el.querySelectorAll('.bm-conflict-cb');
+    const cbs = rightEl.querySelectorAll('.bm-conflict-cb');
     const allChecked = Array.from(cbs).every(cb => cb.checked);
     cbs.forEach(cb => cb.checked = !allChecked);
   });
@@ -44,7 +44,7 @@ function _wireEvents(el) {
     }
   });
 
-  el.querySelector('#bmConflictFileList')?.addEventListener('click', async (e) => {
+  rightEl.querySelector('#bmConflictFileList')?.addEventListener('click', async (e) => {
     const row = e.target.closest('.bm-conflict-file');
     if (!row) return;
     const file = row.dataset.file;
@@ -67,11 +67,13 @@ function _wireEvents(el) {
   });
 
   document.getElementById('bmConflictCompleteMerge')?.addEventListener('click', async () => {
+    const mf = state.mergeFlow;
+    if (!mf) return;
     try {
       const r = await window.electronAPI.gitCompleteMerge(state.repoPath, `Merge branch ${mf.from} into ${mf.into}`);
       if (r.success) {
-        flashSuccess(el);
-        close();
+        flashSuccess(rightEl);
+        closeMerge();
         render();
       } else {
         setState({ error: r.error });
@@ -102,7 +104,7 @@ function _markResolved(files) {
   });
   setState({ conflicts: updated });
   const mf = state.mergeFlow;
-  const conflictEl = document.getElementById('bmMergeFlow');
-  if (mf && conflictEl) conflictEl.innerHTML = getConflictResolver(updated, mf.from, mf.into);
-  _wireEvents(document.getElementById('bmMergeFlow'));
+  const rightEl = document.getElementById('bmRightPanel');
+  if (mf && rightEl) rightEl.innerHTML = getConflictResolver(updated, mf.from, mf.into);
+  _wireEvents();
 }
