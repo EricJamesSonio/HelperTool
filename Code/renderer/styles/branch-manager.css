@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
   position: relative;
   grid-column: 1 / -1;
 }
@@ -354,25 +355,33 @@
   justify-content: center;
 }
 .bm-merge-result {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   text-align: center;
   padding: 24px 0;
 }
 .bm-merge-result-text {
+  flex-shrink: 0;
   font-size: 1rem;
   color: var(--text-primary,#eef2ff);
   margin-bottom: 20px;
 }
 .bm-merge-push-status {
+  flex-shrink: 0;
   font-size: 0.8rem;
   color: var(--green,#22c55e);
   margin-bottom: 8px;
 }
 .bm-merge-summary {
+  flex-shrink: 0;
   font-size: 0.78rem;
   color: var(--text-muted,#8899bb);
   margin-bottom: 12px;
 }
 .bm-merge-file-list {
+  flex-shrink: 0;
   text-align: left;
   border: 1px solid var(--border-subtle,rgba(255,255,255,0.06));
   border-radius: 6px;
@@ -406,15 +415,34 @@
 }
 .bm-merge-view-diff { flex-shrink: 0; }
 .bm-merge-diff-view {
+  flex: 1;
+  min-height: 0;
   text-align: left;
   border: 1px solid var(--border-subtle,rgba(255,255,255,0.06));
   border-radius: 6px;
   margin-bottom: 12px;
-  max-height: 300px;
   overflow: auto;
   background: var(--bg-surface,#1a1f3a);
 }
 .bm-conflict-view-btn { flex-shrink: 0; margin-left: auto; }
+.bm-merge-result .bm-btn,
+.bm-merge-result .bm-btn-primary { flex-shrink: 0; }
+
+/* ── Diff syntax highlighting ── */
+.diff-add { background: rgba(34,197,94,0.12); color: #22c55e; }
+.diff-remove { background: rgba(239,68,68,0.12); color: #ef4444; }
+.diff-hunk { color: #60a5fa; }
+.diff-header { color: #667799; font-weight: 600; }
+.diff-context { color: var(--text-primary,#eef2ff); }
+.diff-line {
+  display: block;
+  padding: 0 8px;
+  font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  white-space: pre;
+}
+.diff-line:empty { min-height: 1.6em; }
 
 /* ── Conflict resolver (right column) ── */
 .bm-conflict-wrap { display: flex; flex-direction: column; height: 100%; }
