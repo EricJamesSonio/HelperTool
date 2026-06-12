@@ -88,6 +88,8 @@ function createSchema() {
   _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_type ON symbols(type)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_indexed_files_repo_dirty ON indexed_files(repo_id, is_dirty)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_files_path ON indexed_files(path)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_repo_name ON symbols(repo_id, name)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_name_nocase ON symbols(name COLLATE NOCASE)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_file ON file_imports(file_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_resolved ON file_imports(resolved_file_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_repo ON file_imports(repo_id)');
@@ -590,9 +592,14 @@ function h_symbolsGet(id, type, payload) {
 }
 
 function h_search(id, type, payload) {
-  const { query, limit, offset } = payload || {};
+  const { query, limit, offset, repoPath } = payload || {};
   if (!query) return respond({ id, type, ok: false, error: 'Missing query' });
-  const result = cache.searchFromDb(_db, query, limit, offset);
+  let repoId = null;
+  if (repoPath) {
+    const repo = repoGetByPath(repoPath);
+    if (repo) repoId = repo.id;
+  }
+  const result = cache.searchFromDb(_db, query, limit, offset, repoId);
   return respond({ id, type, ok: true, data: result });
 }
 

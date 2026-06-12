@@ -152,20 +152,23 @@ class SymbolCache {
     return { imports, imported_by };
   }
 
-  searchFromDb(db, query, limit, offset) {
+  searchFromDb(db, query, limit, offset, repoId) {
     const lmt = Math.min(limit || 50, 200);
-    const off = offset || 0;
-    const cacheKey = query + '|' + lmt + '|' + off;
+    const off = Math.min(offset || 0, 1000);
+    const cacheKey = query + '|' + lmt + '|' + off + '|' + (repoId || '');
 
     const cached = this._searchCache.get(cacheKey);
     if (cached) return cached;
 
     const escaped = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
+    const repoFilter = repoId ? 'repo_id = ? AND ' : '';
+    const bindPrefix = repoId ? [repoId, escaped + '%', lmt, off] : [escaped + '%', lmt, off];
+    const bindPrefixCount = repoId ? [repoId, escaped + '%'] : [escaped + '%'];
 
-    // Step 1: Fast prefix search (uses index on name)
-    const prefixLike = escaped + '%';
-    const prefixStmt = db.prepare('SELECT name, type, line, column, is_exported FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\' ORDER BY name LIMIT ? OFFSET ?');
-    prefixStmt.bind([prefixLike, lmt, off]);
+    // Step 1: Fast prefix search (uses idx_symbols_repo_name or idx_symbols_name_nocase)
+    const prefixSql = 'SELECT name, type, line, column, is_exported FROM symbols WHERE ' + repoFilter + "name LIKE ? ESCAPE '\\' COLLATE NOCASE ORDER BY name LIMIT ? OFFSET ?";
+    const prefixStmt = db.prepare(prefixSql);
+    prefixStmt.bind(bindPrefix);
     const results = [];
     while (prefixStmt.step()) {
       const row = prefixStmt.getAsObject();
@@ -175,8 +178,9 @@ class SymbolCache {
 
     // If prefix search returned enough, use it
     if (results.length >= lmt) {
-      const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\'');
-      countStmt.bind([prefixLike]);
+      const countSql = 'SELECT COUNT(*) as cnt FROM symbols WHERE ' + repoFilter + "name LIKE ? ESCAPE '\\' COLLATE NOCASE";
+      const countStmt = db.prepare(countSql);
+      countStmt.bind(bindPrefixCount);
       let total = 0;
       if (countStmt.step()) total = countStmt.getAsObject().cnt;
       countStmt.free();
@@ -185,16 +189,21 @@ class SymbolCache {
       return result;
     }
 
-    // Step 2: Fallback to infix search (broader, may scan)
+    // Step 2: Fallback — infix search (broader, may scan). Infix is a superset of prefix
+    // so we discard prefix results and use the full infix query for correctness.
     const infixLike = '%' + escaped + '%';
-    const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\'');
-    countStmt.bind([infixLike]);
+    const bindInfixCount = repoId ? [repoId, infixLike] : [infixLike];
+
+    const countSql = 'SELECT COUNT(*) as cnt FROM symbols WHERE ' + repoFilter + "name LIKE ? ESCAPE '\\'";
+    const countStmt = db.prepare(countSql);
+    countStmt.bind(bindInfixCount);
     let total = 0;
     if (countStmt.step()) total = countStmt.getAsObject().cnt;
     countStmt.free();
 
-    const stmt = db.prepare('SELECT name, type, line, column, is_exported FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\' ORDER BY name LIMIT ? OFFSET ?');
-    stmt.bind([infixLike, lmt, off]);
+    const stmt = db.prepare('SELECT name, type, line, column, is_exported FROM symbols WHERE ' + repoFilter + "name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ? OFFSET ?");
+    const bindInfill = repoId ? [repoId, infixLike, lmt, off] : [infixLike, lmt, off];
+    stmt.bind(bindInfill);
     const infillResults = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();

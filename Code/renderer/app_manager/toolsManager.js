@@ -215,8 +215,7 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       if (!_symbolIndexPanel) _initSymbolIndexPanel();
       _symbolIndexPanel.classList.add('open');
-      if (_symbolIndexTool?.isInitialized) _symbolIndexTool.refresh();
-      else if (state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
+      if (!_symbolIndexTool?.isInitialized && state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
     }, 'symbolIndex'));
   }
 

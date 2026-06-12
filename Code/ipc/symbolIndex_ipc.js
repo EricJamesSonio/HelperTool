@@ -182,7 +182,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
     try {
       if (indexerProxy.isReady()) {
         try {
-          const data = await indexerProxy.send('search', { query, limit: limit || 200, offset: 0 });
+          const data = await indexerProxy.send('search', { repoPath, query, limit: limit || 200, offset: 0 });
           if (data && Array.isArray(data.results)) return { results: data.results };
         } catch (_) {}
       }
