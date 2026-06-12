@@ -1,5 +1,6 @@
 import { state, setState } from './state.js';
 import { getPanelTemplate, getScanDialogHtml, getTableDetailHtml, getConnectionManagerHtml, getConnectionListHtml, getConnectionEditHtml } from './template.js';
+import { mount as mountQueryBuilder, unmount as unmountQueryBuilder, setSchema, getMode, setMode, getBuiltQuery } from './queryBuilder/index.js';
 import { openScannerModal } from './scanner.js';
 import { renderDetails } from './detailsPanel.js';
 import { initGraph, updateGraph } from './graph-bundle.js';
@@ -33,6 +34,8 @@ export function createPanel() {
   }
 
   setupEventListeners(wrapper);
+  initQueryMode(wrapper);
+  setSchema([], null, null);
 
   return wrapper;
 }
@@ -44,6 +47,7 @@ export function destroyPanel() {
   }
   _panel = null;
   _graphRoot = null;
+  unmountQueryBuilder();
 }
 
 function setupEventListeners(wrapper) {
@@ -133,6 +137,15 @@ function setupEventListeners(wrapper) {
     wrapper.querySelector('#dbiDiffBar').style.display = 'none';
   });
 
+  // Query mode toggle
+  wrapper.querySelectorAll('.qb-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      setMode(mode);
+      updateQueryModeUI();
+    });
+  });
+
   // Drag handles for resizable panels
   setupDragHandle(wrapper, '#dbiDragLeft', 0, 1);
   setupDragHandle(wrapper, '#dbiDragRight', 4, -1);
@@ -183,6 +196,30 @@ function setupDragHandle(wrapper, handleId, colIndex, dir) {
   };
 
   handle.addEventListener('mousedown', onMouseDown);
+}
+
+function initQueryMode() {
+  const mode = getMode();
+  setMode(mode);
+  updateQueryModeUI();
+}
+
+function updateQueryModeUI() {
+  const panel = _panel;
+  if (!panel) return;
+  const mode = getMode();
+  const isEasy = mode === 'easy';
+
+  panel.querySelectorAll('.qb-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  const builder = panel.querySelector('#dbiQueryBuilder');
+  const editor = panel.querySelector('#dbiQueryEditor');
+  if (builder) builder.style.display = isEasy ? 'flex' : 'none';
+  if (editor) editor.style.display = isEasy ? 'none' : '';
+
+  if (!isEasy) {
+    const q = getBuiltQuery();
+    if (q) editor.value = q;
+  }
 }
 
 async function openScanDialog() {
@@ -294,6 +331,13 @@ async function loadSnapshot(snapshotId) {
     populateTableList(graphData.nodes);
     hideWelcome();
     await loadSeeds();
+
+    // Update query builder schema
+    const conn = state.connections.find(c => c.id === state.currentConnectionId);
+    const dbType = conn ? conn.type : 'postgres';
+    const tables = (graphData.nodes || []).map(n => ({ name: n.data.label, rowCount: n.data.rowCount || 0, columns: [] }));
+    setSchema(tables, snapshotId, dbType);
+
     _savePanelState();
   } catch (_) {}
 }
@@ -311,6 +355,12 @@ async function refreshCurrent() {
       if (result.diff) showDiff(result.diff);
       if (state.selectedTable) selectTable(state.selectedTable);
       await loadSeeds();
+
+      const conn = state.connections.find(c => c.id === state.currentConnectionId);
+      const dbType = conn ? conn.type : 'postgres';
+      const tables = (result.graphData.nodes || []).map(n => ({ name: n.data.label, rowCount: n.data.rowCount || 0, columns: [] }));
+      setSchema(tables, result.snapshotId, dbType);
+
       _savePanelState();
     } else {
       console.error('[DBI] Refresh failed:', result.error);
@@ -417,6 +467,10 @@ function showLayout(result) {
   const graphData = result.graphData || { nodes: [], edges: [] };
   updateGraphView(graphData);
   populateTableList(graphData.nodes);
+  const conn = state.connections.find(c => c.id === state.currentConnectionId);
+  const dbType = conn ? conn.type : 'postgres';
+  const tables = (graphData.nodes || []).map(n => ({ name: n.data.label, rowCount: n.data.rowCount || 0, columns: [] }));
+  setSchema(tables, state.currentSnapshotId, dbType);
 }
 
 function closeScanDialog() {
@@ -434,19 +488,40 @@ function switchTab(tab) {
   panel.querySelector('#dbiDetailContent').style.display = tab === 'info' ? '' : 'none';
   panel.querySelector('#dbiQueryPanel').style.display = tab === 'query' ? 'flex' : 'none';
   panel.querySelector('#dbiSeedPanel').style.display = tab === 'seed' ? 'flex' : 'none';
+
+  if (tab === 'query') {
+    const queryBuilderEl = panel.querySelector('#dbiQueryBuilder');
+    if (queryBuilderEl && !queryBuilderEl.dataset.mounted) {
+      mountQueryBuilder(queryBuilderEl, (builtQuery) => {
+        _runQueryWithString(builtQuery);
+      });
+      queryBuilderEl.dataset.mounted = '1';
+    }
+    updateQueryModeUI();
+  }
   _savePanelState();
 }
 
 async function runQuery() {
+  if (getMode() === 'easy') {
+    const q = getBuiltQuery();
+    if (!q) { setQueryStatus('Complete the form first', true); return; }
+    await _runQueryWithString(q);
+  } else {
+    const editor = _panel?.querySelector('#dbiQueryEditor');
+    const q = editor?.value.trim();
+    if (!q) { setQueryStatus('Enter a query', true); return; }
+    await _runQueryWithString(q);
+  }
+}
+
+async function _runQueryWithString(query) {
   if (!state.currentSnapshotId) {
     setQueryStatus('No active snapshot', true);
     return;
   }
-  const editor = _panel?.querySelector('#dbiQueryEditor');
   const resultsEl = _panel?.querySelector('#dbiQueryResults');
-  if (!editor || !resultsEl) return;
-  const query = editor.value.trim();
-  if (!query) { setQueryStatus('Enter a query', true); return; }
+  if (!resultsEl) return;
 
   setQueryStatus('Running…', false);
   resultsEl.innerHTML = '';

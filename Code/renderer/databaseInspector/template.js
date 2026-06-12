@@ -53,6 +53,11 @@ export function getPanelTemplate() {
             </div>
             <div class="dbi-detail-content" id="dbiDetailContent" style="display:none"></div>
             <div class="dbi-query-panel" id="dbiQueryPanel" style="display:none">
+              <div class="qb-mode-toggle" id="qbModeToggle">
+                <button class="qb-mode-btn active" data-mode="easy">⚡ Easy Mode</button>
+                <button class="qb-mode-btn" data-mode="sql">&lt;/&gt; SQL Mode</button>
+              </div>
+              <div class="dbi-query-builder" id="dbiQueryBuilder" style="display:none"></div>
               <textarea class="dbi-query-editor" id="dbiQueryEditor" spellcheck="false" placeholder="SELECT * FROM table_name LIMIT 100"></textarea>
               <div class="dbi-query-toolbar">
                 <button class="dbi-btn dbi-btn-primary" id="dbiQueryRunBtn">▶ Run</button>
