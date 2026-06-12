@@ -27,6 +27,7 @@ function initDb(dbPath) {
     cleanupDotGit();
     flushDb();
     process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: true } }) + '\n');
+    setTimeout(() => cache.warmRecentFiles(_db, 10), 2000);
   }).catch(err => {
     process.stderr.write(`[indexer] DB init error: ${err.message}\n`);
     process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: false } }) + '\n');
@@ -587,7 +588,7 @@ function h_indexFiles(id, type, payload) {
 function h_symbolsGet(id, type, payload) {
   const { filePath, limit, offset } = payload || {};
   if (!filePath) return respond({ id, type, ok: false, error: 'Missing filePath' });
-  const result = cache.getFileSymbolsFromDb(_db, filePath, limit, offset);
+  const result = cache.getFileSymbolsHot(_db, filePath, limit, offset);
   return respond({ id, type, ok: true, data: result });
 }
 

@@ -29,7 +29,8 @@ class LRUCache {
 class SymbolCache {
   constructor() {
     this._store = new Map();
-    this._searchCache = new LRUCache(20);
+    this._searchCache = new LRUCache(50);
+    this._fileSymbolsCache = new LRUCache(100);
   }
 
   has(filePath) {
@@ -246,6 +247,45 @@ class SymbolCache {
     return { symbols, total };
   }
 
+  getFileSymbolsHot(db, filePath, limit, offset) {
+    const cached = this._fileSymbolsCache.get(filePath);
+    if (cached) {
+      const lmt = Math.min(limit || 1000, 200);
+      const off = offset || 0;
+      return { symbols: cached.slice(off, off + lmt), total: cached.length };
+    }
+    const full = this.getFileSymbolsFromDb(db, filePath, 1000, 0);
+    if (full && full.symbols.length > 0) {
+      this._fileSymbolsCache.set(filePath, full.symbols);
+    }
+    const lmt = Math.min(limit || 1000, 200);
+    const off = offset || 0;
+    return { symbols: full.symbols.slice(off, off + lmt), total: full.total };
+  }
+
+  getRecentFiles(db, count) {
+    const stmt = db.prepare('SELECT id, path FROM indexed_files ORDER BY indexed_at DESC LIMIT ?');
+    stmt.bind([count || 10]);
+    const files = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      files.push({ id: row.id, path: row.path });
+    }
+    stmt.free();
+    return files;
+  }
+
+  warmRecentFiles(db, count) {
+    const files = this.getRecentFiles(db, count || 10);
+    for (const file of files) {
+      if (this._fileSymbolsCache.get(file.path)) continue;
+      const result = this.getFileSymbolsFromDb(db, file.path, 1000, 0);
+      if (result && result.symbols.length > 0) {
+        this._fileSymbolsCache.set(file.path, result.symbols);
+      }
+    }
+  }
+
   getCountsFromDb(db) {
     const fileStmt = db.prepare('SELECT COUNT(*) as cnt FROM indexed_files');
     let indexedFiles = 0;
@@ -263,6 +303,7 @@ class SymbolCache {
   clear() {
     this._store.clear();
     this._searchCache.clear();
+    this._fileSymbolsCache.clear();
   }
 }
 
