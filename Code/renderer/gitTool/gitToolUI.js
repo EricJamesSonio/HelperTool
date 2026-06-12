@@ -50,28 +50,12 @@ class GitToolUI {
         <div class="git-header">
           <h2 class="git-title" style="display:flex;align-items:center;gap:8px">
             <span class="git-icon">${ICON_GIT}</span> Git Tool
+            <span class="git-stats-compact" id="gitStatsCompact"></span>
+            <span style="flex:1;min-width:8px"></span>
             <button class="btn btn-small" id="gitBranchesBtn" title="Manage branches">
               <span class="btn-icon">${ICON_BRANCH}</span> Branches
             </button>
           </h2>
-          <div class="git-stats">
-            <span class="stat-item">
-              <span class="stat-label">Working:</span>
-              <span class="stat-value" id="statWorking">0</span>
-            </span>
-            <span class="stat-item">
-              <span class="stat-label">Staged:</span>
-              <span class="stat-value" id="statStaged">0</span>
-            </span>
-            <span class="stat-item">
-              <span class="stat-label">Commits:</span>
-              <span class="stat-value" id="statCommits">0</span>
-            </span>
-            <span class="stat-item unpushed">
-              <span class="stat-label">Unpushed:</span>
-              <span class="stat-value" id="statUnpushed">0</span>
-            </span>
-          </div>
         </div>
 
         <!-- Main Content Area -->
@@ -596,17 +580,17 @@ class GitToolUI {
   }
 
   /**
-   * Update header stats
+   * Update header stats (compact inline format)
    */
   updateStats(stats) {
-    const sw = this.container.querySelector('#statWorking');
-    const ss = this.container.querySelector('#statStaged');
-    const sc = this.container.querySelector('#statCommits');
-    const su = this.container.querySelector('#statUnpushed');
-    if (sw) sw.textContent = stats.working;
-    if (ss) ss.textContent = stats.staged;
-    if (sc) sc.textContent = stats.commits;
-    if (su) su.textContent = stats.unpushed;
+    const el = this.container.querySelector('#gitStatsCompact');
+    if (!el) return;
+    const parts = [];
+    if (stats.working) parts.push(`${stats.working} working`);
+    if (stats.staged) parts.push(`${stats.staged} staged`);
+    parts.push(`${stats.commits} commits`);
+    if (stats.unpushed) parts.push(`${stats.unpushed} unpushed`);
+    el.textContent = parts.join(' · ');
   }
 
   /**

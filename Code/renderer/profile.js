@@ -283,6 +283,7 @@ const SOCIAL_ICONS = {
 };
 
 function _renderProfileCard() {
+  if (!_profile) _profile = {};
   const section = _el('div', { className: 'pf-section' });
   if (_editingProfile) {
     section.innerHTML = `
