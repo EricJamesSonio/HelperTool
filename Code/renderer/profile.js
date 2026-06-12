@@ -182,6 +182,10 @@ async function _load() {
     if (all.profile) _profile = all.profile;
     _avatarDataUrl = av ? av.dataUrl : null;
 
+    import('./app_manager/prefetchManager.js').then(mod => {
+      mod.getPrefetchCache().set('profile', { all, avatar: av?.dataUrl || null }, 300000);
+    });
+
     // Populate cache with batched results
     _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: Date.now(), ttl: 30000 };
     _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: Date.now(), ttl: 60000 };

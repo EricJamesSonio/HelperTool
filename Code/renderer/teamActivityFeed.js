@@ -232,6 +232,10 @@ async function _loadData(repoPath) {
     _renderContributors();
     _renderCommits();
     _renderGraph();
+
+    import('./app_manager/prefetchManager.js').then(mod => {
+      mod.getPrefetchCache().set('teamActivity', result, 300000);
+    });
   } catch (err) {
     summary.innerHTML = '<div class="taf-empty">Failed to load activity data</div>';
   }

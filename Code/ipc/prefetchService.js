@@ -1,3 +1,6 @@
+const { app } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const workerProxy = require('./workerProxy.js');
 
 const TTL = {
@@ -9,8 +12,52 @@ const TTL = {
 const _cache = new Map();
 let _dbPath = '';
 let _started = false;
+let _saveTimer = null;
+
+const _cachePath = (() => {
+  try {
+    return path.join(app.getPath('userData'), 'prefetch-cache.json');
+  } catch { return ''; }
+})();
 
 function _now() { return Date.now(); }
+
+function _loadDiskCache() {
+  if (!_cachePath) return;
+  try {
+    if (fs.existsSync(_cachePath)) {
+      const raw = fs.readFileSync(_cachePath, 'utf-8');
+      const entries = JSON.parse(raw);
+      for (const [key, entry] of Object.entries(entries)) {
+        if (_now() - entry.ts < entry.ttl) {
+          _cache.set(key, entry);
+        }
+      }
+      console.log('[Prefetch] Loaded', _cache.size, 'entries from disk cache');
+    }
+  } catch (err) {
+    console.warn('[Prefetch] Failed to load disk cache:', err.message);
+  }
+}
+
+function _saveDiskCache() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    try {
+      if (!_cachePath) return;
+      const obj = {};
+      for (const [key, entry] of _cache) {
+        if (_now() - entry.ts < entry.ttl) obj[key] = entry;
+      }
+      fs.writeFileSync(_cachePath, JSON.stringify(obj), 'utf-8');
+    } catch (err) {
+      console.warn('[Prefetch] Failed to save disk cache:', err.message);
+    }
+  }, 2000);
+}
+
+_loadDiskCache();
 
 function _isFresh(key) {
   const entry = _cache.get(key);
@@ -30,10 +77,12 @@ function _get(key) {
 
 function _set(key, data, ttl) {
   _cache.set(key, { data, ts: _now(), ttl: ttl || TTL.profile });
+  _saveDiskCache();
 }
 
 function _clearKey(key) {
   _cache.delete(key);
+  _saveDiskCache();
 }
 
 async function _fetchFromWorker(type, payload) {
@@ -95,13 +144,13 @@ function start(dbPath, repoPath) {
 }
 
 async function _doPrefetch(repoPath) {
-  console.log('[Prefetch] Starting background prefetch...');
+  console.log('[Prefetch] Starting background refresh...');
   await Promise.allSettled([
     _prefetchProfile(),
     _prefetchTeamActivity(repoPath),
     _prefetchPortManager(),
   ]);
-  console.log('[Prefetch] Background prefetch complete');
+  console.log('[Prefetch] Background refresh complete');
 }
 
 function get(key) {
@@ -114,15 +163,12 @@ async function refresh(key, repoPath) {
     case key === 'profile':
       await _prefetchProfile();
       return _get(key);
-
     case key.startsWith('teamActivity:'):
       await _prefetchTeamActivity(repoPath || key.replace('teamActivity:', ''));
       return _get(key);
-
     case key === 'portManager':
       await _prefetchPortManager();
       return _get(key);
-
     default:
       return null;
   }
@@ -135,6 +181,9 @@ function invalidate(key) {
 function stop() {
   _started = false;
   _cache.clear();
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = null;
+  try { if (_cachePath && fs.existsSync(_cachePath)) fs.unlinkSync(_cachePath); } catch (_) {}
 }
 
 module.exports = { start, get, refresh, invalidate, stop };
