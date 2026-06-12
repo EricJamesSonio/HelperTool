@@ -1,5 +1,12 @@
 /* ── Query Builder (matches DBI styling) ── */
 
+.dbi-query-builder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .qb-root {
   display: flex;
   flex-direction: column;
@@ -148,6 +155,11 @@
 .qb-type-btn:hover {
   border-color: var(--accent, #22d3ee);
   background: var(--bg-hover, rgba(255,255,255,0.08));
+}
+
+.qb-type-btn.active {
+  border-color: var(--accent, #22d3ee);
+  background: var(--accent-dim, rgba(34,211,238,0.12));
 }
 
 .qb-type-icon {

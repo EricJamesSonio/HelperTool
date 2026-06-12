@@ -1,5 +1,6 @@
 import { state, setState } from './state.js';
 import { render as renderPreview } from './sqlPreview.js';
+import { quoteId } from './utils.js';
 
 export function render(container) {
   if (state.dbType === 'mongodb') {
@@ -37,9 +38,10 @@ export function render(container) {
 
 function renderNoForm(container) {
   const label = state.selectedType === 'GET_ALL' ? 'GET ALL' : 'COUNT';
+  const t = quoteId(state.selectedTable);
   const q = state.selectedType === 'GET_ALL'
-    ? `SELECT * FROM ${state.selectedTable} LIMIT 100`
-    : `SELECT COUNT(*) FROM ${state.selectedTable}`;
+    ? `SELECT * FROM ${t} LIMIT 100`
+    : `SELECT COUNT(*) FROM ${t}`;
 
   setState({ builtQuery: q });
 
@@ -189,7 +191,8 @@ function renderGetColumns(container) {
   const updatePreview = () => {
     const checked = [];
     container.querySelectorAll('.qb-col-checkbox:checked').forEach(cb => checked.push(cb.value));
-    const q = checked.length > 0 ? `SELECT ${checked.join(', ')} FROM ${state.selectedTable} LIMIT 100` : `SELECT * FROM ${state.selectedTable} LIMIT 100`;
+    const cols = checked.length > 0 ? checked.map(quoteId).join(', ') : '*';
+    const q = `SELECT ${cols} FROM ${quoteId(state.selectedTable)} LIMIT 100`;
     setState({ selectedColumns: checked, builtQuery: q });
     renderPreview(container.querySelector('.qb-preview-wrap'));
   };
@@ -422,46 +425,47 @@ function readInputs(container, ids) {
 // ── Preview builders (called at runtime, read from args) ──
 
 function buildWherePreview(cond) {
-  if (!cond.column || !cond.value) return `SELECT * FROM ${state.selectedTable} LIMIT 100`;
+  if (!cond.column || !cond.value) return `SELECT * FROM ${quoteId(state.selectedTable)} LIMIT 100`;
   const val = isNumeric(cond.value) ? cond.value : `'${String(cond.value).replace(/'/g, "''")}'`;
-  return `SELECT * FROM ${state.selectedTable} WHERE ${cond.column} ${cond.operator} ${val} LIMIT 100`;
+  return `SELECT * FROM ${quoteId(state.selectedTable)} WHERE ${quoteId(cond.column)} ${cond.operator} ${val} LIMIT 100`;
 }
 
 function buildRangePreview(vals) {
   const from = parseInt(vals.qbRangeFrom) || 0;
   const to = parseInt(vals.qbRangeTo) || 100;
   const limit = to - from;
-  if (limit <= 0) return `SELECT * FROM ${state.selectedTable} ORDER BY ${vals.qbRangeOrderBy || (state.columns[0]?.name || '1')}`;
-  const col = vals.qbRangeOrderBy || (state.columns[0]?.name || '1');
-  return `SELECT * FROM ${state.selectedTable} ORDER BY ${col} LIMIT ${limit} OFFSET ${from}`;
+  const orderCol = vals.qbRangeOrderBy || (state.columns[0]?.name || '1');
+  const col = orderCol === '1' ? '1' : quoteId(orderCol);
+  if (limit <= 0) return `SELECT * FROM ${quoteId(state.selectedTable)} ORDER BY ${col}`;
+  return `SELECT * FROM ${quoteId(state.selectedTable)} ORDER BY ${col} LIMIT ${limit} OFFSET ${from}`;
 }
 
 function buildInsertPreview(form) {
   const cols = Object.keys(form).filter(k => form[k] !== '' && form[k] !== null && form[k] !== undefined);
-  if (cols.length === 0) return `INSERT INTO ${state.selectedTable} (col1, col2, ...) VALUES (...)`;
+  if (cols.length === 0) return `INSERT INTO ${quoteId(state.selectedTable)} (col1, col2, ...) VALUES (...)`;
   const vals = cols.map(c => {
     if (typeof form[c] === 'boolean') return form[c] ? '1' : '0';
     if (isNumeric(form[c])) return form[c];
     return `'${String(form[c]).replace(/'/g, "''")}'`;
   });
-  return `INSERT INTO ${state.selectedTable} (${cols.join(', ')}) VALUES (${vals.join(', ')})`;
+  return `INSERT INTO ${quoteId(state.selectedTable)} (${cols.map(quoteId).join(', ')}) VALUES (${vals.join(', ')})`;
 }
 
 function buildUpdatePreview(cond, setForm) {
   const setCols = Object.keys(setForm).filter(k => setForm[k] !== '' && setForm[k] !== null && setForm[k] !== undefined);
-  if (setCols.length === 0 || !cond.column || !cond.value) return `UPDATE ${state.selectedTable} SET ... WHERE ...`;
+  if (setCols.length === 0 || !cond.column || !cond.value) return `UPDATE ${quoteId(state.selectedTable)} SET ... WHERE ...`;
   const setClause = setCols.map(c => {
     const v = typeof setForm[c] === 'boolean' ? (setForm[c] ? '1' : '0') : (isNumeric(setForm[c]) ? setForm[c] : `'${String(setForm[c]).replace(/'/g, "''")}'`);
-    return `${c} = ${v}`;
+    return `${quoteId(c)} = ${v}`;
   }).join(', ');
   const wVal = isNumeric(cond.value) ? cond.value : `'${String(cond.value).replace(/'/g, "''")}'`;
-  return `UPDATE ${state.selectedTable} SET ${setClause} WHERE ${cond.column} ${cond.operator} ${wVal}`;
+  return `UPDATE ${quoteId(state.selectedTable)} SET ${setClause} WHERE ${quoteId(cond.column)} ${cond.operator} ${wVal}`;
 }
 
 function buildDeletePreview(cond) {
-  if (!cond.column || !cond.value) return `DELETE FROM ${state.selectedTable} WHERE ...`;
+  if (!cond.column || !cond.value) return `DELETE FROM ${quoteId(state.selectedTable)} WHERE ...`;
   const val = isNumeric(cond.value) ? cond.value : `'${String(cond.value).replace(/'/g, "''")}'`;
-  return `DELETE FROM ${state.selectedTable} WHERE ${cond.column} ${cond.operator} ${val}`;
+  return `DELETE FROM ${quoteId(state.selectedTable)} WHERE ${quoteId(cond.column)} ${cond.operator} ${val}`;
 }
 
 // ── Event wiring ──

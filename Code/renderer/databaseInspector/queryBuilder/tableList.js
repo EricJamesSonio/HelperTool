@@ -60,6 +60,10 @@ async function _loadColumns(tableName) {
 }
 
 function renderTableList(listEl, tables, query) {
+  if (!tables || tables.length === 0) {
+    listEl.innerHTML = '<div class="qb-empty">No tables loaded — scan a database first</div>';
+    return;
+  }
   const q = query.toLowerCase().trim();
   const filtered = q ? tables.filter(t => t.name.toLowerCase().includes(q)) : tables;
   if (filtered.length === 0) {

@@ -1,7 +1,17 @@
+import { state } from './state.js';
+
 function isNumeric(v) {
   if (v === '' || v === null || v === undefined) return false;
   if (typeof v === 'number') return true;
   return !isNaN(Number(v));
+}
+
+export function quoteId(name) {
+  if (!name) return name;
+  if (state.dbType === 'mysql') {
+    return '`' + name.replace(/`/g, '``') + '`';
+  }
+  return '"' + name.replace(/"/g, '""') + '"';
 }
 
 export function buildSqlQuery(type, table, columns, form, conditions, range) {
@@ -13,49 +23,55 @@ export function buildSqlQuery(type, table, columns, form, conditions, range) {
     return `'${String(v).replace(/'/g, "''")}'`;
   };
 
+  const t = quoteId(table);
+
   switch (type) {
     case 'GET_ALL':
-      return `SELECT * FROM ${table} LIMIT 100`;
+      return `SELECT * FROM ${t} LIMIT 100`;
 
     case 'GET_WHERE': {
-      if (!conditions.column || !conditions.value) return `SELECT * FROM ${table} LIMIT 100`;
+      if (!conditions.column || !conditions.value) return `SELECT * FROM ${t} LIMIT 100`;
       const val = escVal(conditions.value);
-      return `SELECT * FROM ${table} WHERE ${conditions.column} ${conditions.operator} ${val} LIMIT 100`;
+      return `SELECT * FROM ${t} WHERE ${quoteId(conditions.column)} ${conditions.operator} ${val} LIMIT 100`;
     }
 
     case 'GET_RANGE': {
       const from = parseInt(range.from) || 0;
       const to = parseInt(range.to) || 100;
       const limit = to - from;
-      return `SELECT * FROM ${table} ORDER BY ${form.orderBy || columns[0]?.name || '1'} LIMIT ${Math.max(0, limit)} OFFSET ${Math.max(0, from)}`;
+      const orderCol = form.orderBy || (columns[0] && columns[0].name) || '1';
+      const orderBy = orderCol === '1' ? '1' : quoteId(orderCol);
+      return `SELECT * FROM ${t} ORDER BY ${orderBy} LIMIT ${Math.max(0, limit)} OFFSET ${Math.max(0, from)}`;
     }
 
     case 'GET_COLUMNS': {
-      const cols = form.selectedColumns && form.selectedColumns.length > 0 ? form.selectedColumns.join(', ') : '*';
-      return `SELECT ${cols} FROM ${table} LIMIT 100`;
+      const cols = form.selectedColumns && form.selectedColumns.length > 0
+        ? form.selectedColumns.map(quoteId).join(', ')
+        : '*';
+      return `SELECT ${cols} FROM ${t} LIMIT 100`;
     }
 
     case 'COUNT':
-      return `SELECT COUNT(*) FROM ${table}`;
+      return `SELECT COUNT(*) FROM ${t}`;
 
     case 'INSERT': {
-      const cols = Object.keys(form).filter(k => form[k] !== '' && form[k] !== null && form[k] !== undefined);
-      const vals = cols.map(c => escVal(form[c]));
-      return `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${vals.join(', ')})`;
+      const formCols = Object.keys(form).filter(k => form[k] !== '' && form[k] !== null && form[k] !== undefined);
+      const vals = formCols.map(c => escVal(form[c]));
+      return `INSERT INTO ${t} (${formCols.map(quoteId).join(', ')}) VALUES (${vals.join(', ')})`;
     }
 
     case 'UPDATE': {
       const setCols = Object.keys(form.set || {}).filter(k => form.set[k] !== '' && form.set[k] !== null && form.set[k] !== undefined);
-      if (setCols.length === 0 || !conditions.column || !conditions.value) return `UPDATE ${table} SET ... WHERE ...`;
-      const setClause = setCols.map(c => `${c} = ${escVal(form.set[c])}`).join(', ');
+      if (setCols.length === 0 || !conditions.column || !conditions.value) return `UPDATE ${t} SET ... WHERE ...`;
+      const setClause = setCols.map(c => `${quoteId(c)} = ${escVal(form.set[c])}`).join(', ');
       const wVal = escVal(conditions.value);
-      return `UPDATE ${table} SET ${setClause} WHERE ${conditions.column} ${conditions.operator} ${wVal}`;
+      return `UPDATE ${t} SET ${setClause} WHERE ${quoteId(conditions.column)} ${conditions.operator} ${wVal}`;
     }
 
     case 'DELETE': {
-      if (!conditions.column || !conditions.value) return `DELETE FROM ${table} WHERE ...`;
+      if (!conditions.column || !conditions.value) return `DELETE FROM ${t} WHERE ...`;
       const wVal = escVal(conditions.value);
-      return `DELETE FROM ${table} WHERE ${conditions.column} ${conditions.operator} ${wVal}`;
+      return `DELETE FROM ${t} WHERE ${quoteId(conditions.column)} ${conditions.operator} ${wVal}`;
     }
 
     default:

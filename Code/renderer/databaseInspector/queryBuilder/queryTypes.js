@@ -30,7 +30,7 @@ export function render(container) {
     <div class="qb-step-title">What do you want to do?</div>
     <div class="qb-type-grid">
       ${types.map(t => `
-        <button class="qb-type-btn" data-type="${t.id}">
+        <button class="qb-type-btn${state.selectedType === t.id ? ' active' : ''}" data-type="${t.id}">
           <span class="qb-type-icon">${t.icon}</span>
           <span class="qb-type-label">${t.label}</span>
         </button>
@@ -44,6 +44,8 @@ export function render(container) {
 
   container.querySelectorAll('.qb-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      container.querySelectorAll('.qb-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
       setState({ selectedType: btn.dataset.type, step: 'form', builtQuery: '' });
     });
   });
