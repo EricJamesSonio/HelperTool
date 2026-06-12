@@ -102,7 +102,9 @@ async function _syncCommits(repoPath, repoName, force) {
     db().run('COMMIT');
     save();
     if (latestHash) _lastSyncHash = latestHash;
-  } catch (_) {}
+  } catch (err) {
+    console.error('[Profile] _syncCommits error:', err);
+  }
   _syncInProgress = false;
 }
 

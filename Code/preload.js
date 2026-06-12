@@ -251,6 +251,10 @@ const profileBridge = {
     stopWatcher:  ()             => ipcRenderer.invoke('profile:stopWatcher'),
     getAvatar:    ()             => ipcRenderer.invoke('profile:getAvatar'),
     uploadAvatar: (dataUrl)      => ipcRenderer.invoke('profile:uploadAvatar', { dataUrl }),
+    onDataChanged: (callback) => {
+      ipcRenderer.removeAllListeners('profile:dataChanged');
+      ipcRenderer.on('profile:dataChanged', () => callback());
+    },
   },
 };
 

@@ -44,7 +44,10 @@ function register(_deps) {
             const gitOps = new GitOperations(repoPath);
             const result = await gitOps.commit(message, filePaths);
             if (result.success !== false) {
-                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(() => {});
+                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
+                    console.error('[IPC] profile sync after commit:', err);
+                });
+                event.sender.send('profile:dataChanged');
             }
             return result;
         } catch (err) {
@@ -58,7 +61,10 @@ function register(_deps) {
             const gitOps = new GitOperations(repoPath);
             const result = await gitOps.push();
             if (result.success !== false) {
-                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(() => {});
+                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
+                    console.error('[IPC] profile sync after push:', err);
+                });
+                event.sender.send('profile:dataChanged');
             }
             return result;
         } catch (err) {

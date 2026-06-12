@@ -805,3 +805,16 @@ function _attachCommitFileClicks(body) {
     }
   });
 }
+
+// Listen for data changes from main process (commit/push events)
+if (window.electronAPI?.profile?.onDataChanged) {
+  window.electronAPI.profile.onDataChanged(() => {
+    import('./app_manager/prefetchManager.js').then(mod => {
+      mod.getPrefetchCache().delete('profile');
+    });
+    _cache = {};
+    if (_open) {
+      _load();
+    }
+  });
+}
