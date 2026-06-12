@@ -73,14 +73,15 @@ async function _syncCommits(repoPath, repoName, force) {
   try {
     let since = '';
     if (!force && _lastSyncHash) {
-      try {
-        const parent = await gitService.revParse(repoPath, _lastSyncHash + '~1', { ttl: 120000 });
-        since = '--after=' + parent.trim();
-      } catch (_) { since = '--after=1.days.ago'; }
-      } else {
-        since = '--after=1.days.ago';
-      }
-    const log = await gitService.raw(repoPath, ['log', since, '--format=%H|%ad', '--date=short', '--no-merges'], 120000);
+      since = _lastSyncHash;
+    }
+    const args = ['log', '--format=%H|%ad', '--date=short', '--no-merges'];
+    if (since) {
+      args.push(since + '..HEAD');
+    } else {
+      args.push('-20');
+    }
+    const log = await gitService.raw(repoPath, args, 120000);
     if (!log.trim()) { _syncInProgress = false; return; }
     const dateCounts = {};
     let latestHash = _lastSyncHash;
@@ -96,7 +97,7 @@ async function _syncCommits(repoPath, repoName, force) {
     for (const [date, count] of Object.entries(dateCounts)) {
       db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(date, repo_path) DO UPDATE SET commits=?`,
+                ON CONFLICT(date, repo_path) DO UPDATE SET commits=commits + ?`,
         [date, repoPath, repoName, count, count]);
     }
     db().run('COMMIT');
