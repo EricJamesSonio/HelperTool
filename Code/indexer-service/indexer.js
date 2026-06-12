@@ -10,7 +10,6 @@ let _db = null;
 let _flushTimer = null;
 let _pendingFlush = false;
 let _dbDirty = false;
-
 function respond(msg) {
   process.stdout.write(JSON.stringify(msg) + '\n');
 }
@@ -26,10 +25,6 @@ function initDb(dbPath) {
     _db.run('PRAGMA journal_mode=WAL');
     createSchema();
     cleanupDotGit();
-    const repos = repoGetAll();
-    for (const repo of repos) {
-      if (repo.indexed) cache.restoreFromDb(_db, repo.id);
-    }
     flushDb();
     process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: true } }) + '\n');
   }).catch(err => {
@@ -589,20 +584,20 @@ function h_indexFiles(id, type, payload) {
 function h_symbolsGet(id, type, payload) {
   const { filePath, limit, offset } = payload || {};
   if (!filePath) return respond({ id, type, ok: false, error: 'Missing filePath' });
-  const result = cache.getFileSymbols(filePath, limit, offset);
+  const result = cache.getFileSymbolsFromDb(_db, filePath, limit, offset);
   return respond({ id, type, ok: true, data: result });
 }
 
 function h_search(id, type, payload) {
   const { query, limit, offset } = payload || {};
   if (!query) return respond({ id, type, ok: false, error: 'Missing query' });
-  const result = cache.search(query, limit, offset);
+  const result = cache.searchFromDb(_db, query, limit, offset);
   return respond({ id, type, ok: true, data: result });
 }
 
 function h_status(id, type) {
-  const files = cache.getIndexedFiles();
-  return respond({ id, type, ok: true, data: { indexedFiles: files.length, totalSymbols: cache.getSymbolCount(), files } });
+  const counts = cache.getCountsFromDb(_db);
+  return respond({ id, type, ok: true, data: { indexedFiles: counts.indexedFiles, totalSymbols: counts.totalSymbols, files: [] } });
 }
 
 function h_removeFile(id, type, payload) {

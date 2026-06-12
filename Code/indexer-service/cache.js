@@ -1,7 +1,3 @@
-/**
- * In-memory symbol store for the indexer service.
- * key: filePath, value: { symbols: [], imports: [], mtime: number }
- */
 class SymbolCache {
   constructor() {
     this._store = new Map();
@@ -27,7 +23,6 @@ class SymbolCache {
     this._store.delete(filePath);
   }
 
-  /** Return symbols for a file with pagination */
   getFileSymbols(filePath, limit, offset) {
     const entry = this._store.get(filePath);
     if (!entry) return { symbols: [], total: 0 };
@@ -37,7 +32,6 @@ class SymbolCache {
     return { symbols: entry.symbols.slice(start, end), total };
   }
 
-  /** Search across all stored symbols */
   search(query, limit, offset) {
     const lower = query.toLowerCase();
     const all = [];
@@ -54,12 +48,10 @@ class SymbolCache {
     return { results: all.slice(start, end), total };
   }
 
-  /** Get all indexed file paths */
   getIndexedFiles() {
     return Array.from(this._store.keys());
   }
 
-  /** Total symbol count */
   getSymbolCount() {
     let count = 0;
     for (const entry of this._store.values()) {
@@ -68,7 +60,6 @@ class SymbolCache {
     return count;
   }
 
-  /** Return paginated file list with per-file symbol count */
   getFileList(limit, offset) {
     const all = Array.from(this._store.entries()).map(([filePath, entry]) => ({
       path: filePath, symbol_count: entry.symbols.length,
@@ -79,7 +70,6 @@ class SymbolCache {
     return { files: all.slice(start, end), total };
   }
 
-  /** Get dependency data for a file: imports + reverse deps, with optional symbol enrichment */
   getFileDeps(filePath, mode) {
     const entry = this._store.get(filePath);
     if (!entry) return null;
@@ -120,7 +110,6 @@ class SymbolCache {
         return { import_path: imp.import_path, import_type: imp.import_type, symbols };
       });
 
-      const ourNames = new Set(entry.symbols.map(s => s.name));
       const funcReverse = imported_by.map(rd => {
         const symbols = (rd.imported_symbols || []).length > 0
           ? entry.symbols.filter(s => (rd.imported_symbols || []).includes(s.name)).map(s => ({ name: s.name, type: s.type, line: s.line }))
@@ -134,53 +123,73 @@ class SymbolCache {
     return { imports, imported_by };
   }
 
-  /** Restore cache from DB on startup */
-  restoreFromDb(db, repoId) {
-    this._store.clear();
+  searchFromDb(db, query, limit, offset) {
+    const lmt = limit || 50;
+    const off = offset || 0;
+    const like = '%' + query.replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
 
-    const fileStmt = db.prepare('SELECT id, path FROM indexed_files WHERE repo_id = ?');
-    fileStmt.bind([repoId]);
-    const files = [];
-    while (fileStmt.step()) files.push(fileStmt.getAsObject());
-    fileStmt.free();
+    const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\'');
+    countStmt.bind([like]);
+    let total = 0;
+    if (countStmt.step()) total = countStmt.getAsObject().cnt;
+    countStmt.free();
 
-    const symStmt = db.prepare('SELECT file_id, name, type, line, column, is_exported FROM symbols WHERE repo_id = ? ORDER BY file_id');
-    symStmt.bind([repoId]);
-    const symbolsByFile = new Map();
-    while (symStmt.step()) {
-      const row = symStmt.getAsObject();
-      if (!symbolsByFile.has(row.file_id)) symbolsByFile.set(row.file_id, []);
-      symbolsByFile.get(row.file_id).push({
-        name: row.name, type: row.type, line: row.line, column: row.column,
-        isExport: !!row.is_exported,
-      });
+    const stmt = db.prepare('SELECT name, type, line, column, is_exported FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\' ORDER BY name LIMIT ? OFFSET ?');
+    stmt.bind([like, lmt, off]);
+    const results = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      results.push({ name: row.name, type: row.type, line: row.line, column: row.column, isExport: !!row.is_exported });
     }
-    symStmt.free();
+    stmt.free();
 
-    const impStmt = db.prepare('SELECT file_id, import_path, import_type, line, column, imported_symbols FROM file_imports WHERE repo_id = ? ORDER BY file_id');
-    impStmt.bind([repoId]);
-    const importsByFile = new Map();
-    while (impStmt.step()) {
-      const row = impStmt.getAsObject();
-      if (!importsByFile.has(row.file_id)) importsByFile.set(row.file_id, []);
-      importsByFile.get(row.file_id).push({
-        import_path: row.import_path, import_type: row.import_type,
-        line: row.line, column: row.column,
-        imported_symbols: row.imported_symbols ? JSON.parse(row.imported_symbols) : [],
-      });
-    }
-    impStmt.free();
-
-    for (const file of files) {
-      this._store.set(file.path, {
-        symbols: symbolsByFile.get(file.id) || [],
-        imports: importsByFile.get(file.id) || [],
-        mtime: Date.now(),
-      });
-    }
+    return { results, total };
   }
 
-  /** Clear all data */
+  getFileSymbolsFromDb(db, filePath, limit, offset) {
+    const lmt = limit || 1000;
+    const off = offset || 0;
+
+    const fileStmt = db.prepare('SELECT id FROM indexed_files WHERE path = ?');
+    fileStmt.bind([filePath]);
+    let fileId = null;
+    if (fileStmt.step()) fileId = fileStmt.getAsObject().id;
+    fileStmt.free();
+
+    if (!fileId) return { symbols: [], total: 0 };
+
+    const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM symbols WHERE file_id = ?');
+    countStmt.bind([fileId]);
+    let total = 0;
+    if (countStmt.step()) total = countStmt.getAsObject().cnt;
+    countStmt.free();
+
+    const stmt = db.prepare('SELECT name, type, line, column, is_exported FROM symbols WHERE file_id = ? ORDER BY line LIMIT ? OFFSET ?');
+    stmt.bind([fileId, lmt, off]);
+    const symbols = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      symbols.push({ name: row.name, type: row.type, line: row.line, column: row.column, isExport: !!row.is_exported });
+    }
+    stmt.free();
+
+    return { symbols, total };
+  }
+
+  getCountsFromDb(db) {
+    const fileStmt = db.prepare('SELECT COUNT(*) as cnt FROM indexed_files');
+    let indexedFiles = 0;
+    if (fileStmt.step()) indexedFiles = fileStmt.getAsObject().cnt;
+    fileStmt.free();
+
+    const symStmt = db.prepare('SELECT COUNT(*) as cnt FROM symbols');
+    let totalSymbols = 0;
+    if (symStmt.step()) totalSymbols = symStmt.getAsObject().cnt;
+    symStmt.free();
+
+    return { indexedFiles, totalSymbols };
+  }
+
   clear() {
     this._store.clear();
   }

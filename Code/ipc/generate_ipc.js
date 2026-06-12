@@ -2,10 +2,10 @@ const { ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
+const workerProxy = require('./workerProxy.js');
 
-/**
- * @param {{ app, config, fileOps, docignoreUtils, codeOps, getMainWindow }} deps
- */
+let _progressCallback = null;
+
 function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow }) {
 
     ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath, minify = false, promptText = '') => {
@@ -19,27 +19,23 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
 
             const mainWindow = getMainWindow();
 
-            if (actionType === 'structure') {
-                await fileOps.generateStructure(
-                    items,
-                    filePath,
-                    (percent) => {
-                        mainWindow.webContents.send('progress-update', percent);
-                    },
-                    promptText
-                );
-            } else if (actionType === 'code') {
-                await codeOps.generateCode(
-                    items,
-                    filePath,
-                    (percent) => { mainWindow.webContents.send('progress-update', percent); },
-                    repoPath,
-                    ignoreRules,
-                    minify,
-                    promptText
-                );
-            }
+            _progressCallback = (percent) => {
+                mainWindow.webContents.send('progress-update', percent);
+            };
+            workerProxy.onProgress(_progressCallback);
 
+            await workerProxy.send('generate', {
+                actionType,
+                items,
+                filePath,
+                promptText,
+                ignoreRules,
+                repoRoot: repoPath,
+                minify,
+            });
+
+            workerProxy.offProgress(_progressCallback);
+            _progressCallback = null;
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -56,6 +52,10 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
             return true;
         } catch (err) {
             console.error('[IPC] generate error:', err);
+            if (_progressCallback) {
+                workerProxy.offProgress(_progressCallback);
+                _progressCallback = null;
+            }
             dialog.showErrorBox('Generate Error', err.message);
             return false;
         }
