@@ -410,7 +410,7 @@ function h_indexFile(id, type, payload) {
   }
   const result = parseFile(content, filePath);
   cache.set(filePath, result);
-  const importData = result.imports.map(i => ({ import_path: i.import_path, import_type: i.import_type, line: i.line, column: i.column, imported_symbols: i.imported_symbols || [] }));
+  const importData = result.imports.map(i => ({ import_path: i.import_path ?? i.source, import_type: i.import_type ?? 'require', line: i.line ?? null, column: i.column ?? null, imported_symbols: i.imported_symbols ?? i.names ?? [] }));
   return respond({ id, type, ok: true, data: { symbols: result.symbols.length, imports: result.imports.length, importData } });
 }
 
@@ -424,7 +424,7 @@ function h_indexFiles(id, type, payload) {
     if (filePath && content != null) {
       const result = parseFile(content, filePath);
       cache.set(filePath, result);
-      results.push({ filePath, symbols: result.symbols.length, imports: result.imports.map(i => ({ import_path: i.import_path, import_type: i.import_type, line: i.line, column: i.column, imported_symbols: i.imported_symbols || [] })) });
+      results.push({ filePath, symbols: result.symbols.length, imports: result.imports.map(i => ({ import_path: i.import_path ?? i.source, import_type: i.import_type ?? 'require', line: i.line ?? null, column: i.column ?? null, imported_symbols: i.imported_symbols ?? i.names ?? [] })) });
     }
   }
   const totalSymbols = results.reduce((sum, r) => sum + r.symbols, 0);

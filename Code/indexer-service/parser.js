@@ -56,6 +56,25 @@ function extractJSTS(code, lang) {
       continue;
     }
 
+    const requireMatch = line.match(/(?:const|let|var)\s+(.+?)\s*=\s*require\(['"](\S+)['"]\)/);
+    if (requireMatch) {
+      const lhs = requireMatch[1].trim().replace(/\s+/g, '');
+      const names = lhs.startsWith('{') && lhs.endsWith('}')
+        ? lhs.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean)
+        : [lhs];
+      imports.push({ source: requireMatch[2], names });
+      for (const name of names) {
+        if (name) symbols.push({ name, type: 'variable', line: lineNum });
+      }
+      continue;
+    }
+
+    const importMatch = line.match(/import\s+(?:\{\s*(\w+)\s*\}|(\w+))\s+from\s+['"](\S+)['"]/);
+    if (importMatch) {
+      imports.push({ source: importMatch[3], names: [importMatch[1] || importMatch[2]] });
+      continue;
+    }
+
     const constMatch = line.match(/(?:export\s+)?(?:const|let|var)\s+(\w+)\s*[=:]/);
     if (constMatch) {
       symbols.push({ name: constMatch[1], type: 'variable', line: lineNum });
@@ -80,16 +99,6 @@ function extractJSTS(code, lang) {
       }
     }
 
-    const importMatch = line.match(/import\s+(?:\{\s*(\w+)\s*\}|(\w+))\s+from\s+['"](\S+)['"]/);
-    if (importMatch) {
-      imports.push({ source: importMatch[3], names: [importMatch[1] || importMatch[2]] });
-      continue;
-    }
-    const requireMatch = line.match(/(?:const|let|var)\s+(\w+)\s*=\s*require\(['"](\S+)['"]\)/);
-    if (requireMatch) {
-      imports.push({ source: requireMatch[2], names: [requireMatch[1]] });
-      continue;
-    }
     const exportDefault = line.match(/export\s+default\s+(?:function|class)\s+(\w+)/);
     if (exportDefault) {
       symbols.push({ name: exportDefault[1], type: 'function', line: lineNum });

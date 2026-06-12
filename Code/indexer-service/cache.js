@@ -84,19 +84,26 @@ class SymbolCache {
     const entry = this._store.get(filePath);
     if (!entry) return null;
 
-    const imports = entry.imports.map(imp => ({
-      import_path: imp.import_path, import_type: imp.import_type,
-      line: imp.line, imported_symbols: imp.imported_symbols || [],
-    }));
+    const imports = entry.imports.map(imp => {
+      const importPath = imp.import_path ?? imp.source;
+      const importType = imp.import_type ?? 'require';
+      const importedSymbols = imp.imported_symbols ?? imp.names ?? [];
+      return {
+        import_path: importPath, import_type: importType,
+        line: imp.line ?? null, imported_symbols: importedSymbols,
+      };
+    });
 
     const imported_by = [];
     for (const [srcPath, srcEntry] of this._store) {
       if (srcPath === filePath) continue;
       for (const imp of srcEntry.imports) {
-        if (imp.import_path === filePath || imp.import_path === filePath.split('/').pop() || filePath.endsWith('/' + imp.import_path)) {
+        const impPath = imp.import_path ?? imp.source;
+        if (impPath === filePath || impPath === filePath.split('/').pop() || filePath.endsWith('/' + impPath)) {
           imported_by.push({
-            source_path: srcPath, import_path: imp.import_path,
-            import_type: imp.import_type, imported_symbols: imp.imported_symbols || [],
+            source_path: srcPath, import_path: impPath,
+            import_type: imp.import_type ?? 'require',
+            imported_symbols: imp.imported_symbols ?? imp.names ?? [],
           });
         }
       }
