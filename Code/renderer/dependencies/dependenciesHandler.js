@@ -3,9 +3,9 @@ class DependenciesHandler {
     this.ipc = window.electronAPI?.symbolIndex;
   }
 
-  async getFileDeps(repoPath, filePath) {
+  async getFileDeps(repoPath, filePath, mode) {
     if (!this.ipc) return { exists: false };
-    return this.ipc.getFileDeps(repoPath, filePath);
+    return this.ipc.getFileDeps(repoPath, filePath, mode);
   }
 }
 

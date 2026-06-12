@@ -3,6 +3,17 @@ import { getContainerRow } from '../template.js';
 import { loading, showToast } from '../ui.js';
 import { openLogModal } from '../logs.js';
 
+export function renderWithData(list) {
+  const tab = document.getElementById('dtTabContainers');
+  if (!tab) return;
+  state.set('containers', list);
+  if (!list.length) {
+    tab.innerHTML = '<div class="dt-empty">No containers found</div>';
+    return;
+  }
+  tab.innerHTML = list.map(getContainerRow).join('');
+}
+
 export async function render() {
   const tab = document.getElementById('dtTabContainers');
   if (!tab) return;

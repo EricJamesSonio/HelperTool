@@ -2,6 +2,17 @@ import * as state from '../state.js';
 import { getImageRow } from '../template.js';
 import { loading, showToast } from '../ui.js';
 
+export function renderWithData(list) {
+  const tab = document.getElementById('dtTabImages');
+  if (!tab) return;
+  state.set('images', list);
+  if (!list.length) {
+    tab.innerHTML = '<div class="dt-empty">No images found</div>';
+    return;
+  }
+  tab.innerHTML = list.map(getImageRow).join('');
+}
+
 export async function render() {
   const tab = document.getElementById('dtTabImages');
   if (!tab) return;

@@ -1,97 +1,34 @@
 const { ipcMain } = require('electron');
-const fs = require('fs');
 const path = require('path');
-const db = require('../database/db');
-const repoDb = require('../database/repositories');
-const fileDb = require('../database/indexedFiles');
-const symbolDb = require('../database/symbols');
-const importDb = require('../database/imports');
-const indexer = require('../indexer/indexer');
 const parser = require('../indexer/parser');
+const indexer = require('../indexer/indexer');
 const watcher = require('../indexer/watcher');
+const indexerProxy = require('./indexerProxy.js');
 
 let _getMainWindow = null;
 let _activeRepoPath = null;
 let _userDataPath = null;
-let _ripgrep = null;
 
-// Main-process caches
-const _fileListCache = new Map();
-const _fileSymbolsCache = new Map();
-const _searchCache = new Map();
-const _SEARCH_CACHE_MAX = 20;
 const _statusCache = new Map();
-
-function _safeFilename(repoPath) {
-  return 'si-cache-' + Buffer.from(repoPath).toString('base64').replace(/[/+=]/g, '_');
-}
-
-function _tsvPath(repoPath) {
-  return path.join(_userDataPath, _safeFilename(repoPath) + '.tsv');
-}
-
-function _ensureSymbolTsv(repoPath) {
-  const tsv = _tsvPath(repoPath);
-  if (fs.existsSync(tsv)) return tsv;
-
-  const repo = repoDb.getByPath(repoPath);
-  if (!repo || !repo.indexed) return null;
-
-  const symbols = symbolDb.getAllByRepo(repo.id);
-  if (symbols.length === 0) return null;
-
-  const lines = symbols.map(s =>
-    [s.name || '', s.type || '', s.file_path || '', s.line || 0, s.signature || '', s.class_name || ''].join('\t')
-  ).join('\n');
-  if (lines) fs.writeFileSync(tsv, lines, 'utf8');
-  return lines ? tsv : null;
-}
-
-function _parseTsvLines(text) {
-  if (!text) return [];
-  return text.split('\n').filter(Boolean).map(line => {
-    const parts = line.split('\t');
-    if (parts.length < 4) return null;
-    return {
-      name: parts[0],
-      type: parts[1],
-      file_path: parts[2],
-      line: parseInt(parts[3], 10) || 0,
-      signature: parts[4] || undefined,
-      class_name: parts[5] || undefined,
-    };
-  }).filter(Boolean);
-}
-
-function _invalidateTsv(repoPath) {
-  try {
-    const tsv = _tsvPath(repoPath);
-    if (fs.existsSync(tsv)) fs.unlinkSync(tsv);
-  } catch (err) {
-    // silent
-  }
-}
+const _fileListCache = new Map();
 
 function invalidateCache(repoPath) {
   _statusCache.delete(repoPath);
   _fileListCache.delete(repoPath);
-  for (const key of _fileSymbolsCache.keys()) {
-    if (key.startsWith(repoPath + '::')) {
-      _fileSymbolsCache.delete(key);
-    }
-  }
-  _searchCache.clear();
-  if (_userDataPath) _invalidateTsv(repoPath);
+}
+
+function _detectLang(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const map = { '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript', '.ts': 'typescript', '.tsx': 'tsx', '.py': 'python', '.html': 'html', '.htm': 'html', '.css': 'css', '.scss': 'css', '.less': 'css' };
+  return map[ext] || '';
 }
 
 async function register({ app, docignoreUtils, getMainWindow }) {
   _getMainWindow = getMainWindow;
   _userDataPath = app.getPath('userData');
-  _ripgrep = (await import('ripgrep')).ripgrep;
 
   ipcMain.handle('symbolIndex:init', async () => {
     try {
-      await db.initDatabase(app);
       await parser.initParser();
       for (const ext of parser.SUPPORTED_LANGUAGES) {
         await parser.loadLanguage(ext);
@@ -104,14 +41,13 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:check', async (_, repoPath) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { indexed: false };
-      return {
-        indexed: !!repo.indexed,
-        total_files: repo.total_files,
-        total_symbols: repo.total_symbols,
-        last_indexed: repo.last_indexed,
-      };
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('db:checkRepo', { repoPath });
+          if (data) return data;
+        } catch (_) {}
+      }
+      return { indexed: false };
     } catch (err) {
       return { indexed: false, error: err.message };
     }
@@ -121,28 +57,75 @@ async function register({ app, docignoreUtils, getMainWindow }) {
     try {
       _activeRepoPath = repoPath;
       indexer.resetIndex(repoPath);
-      const result = await indexer.indexRepo(repoPath, docignoreUtils, (progress) => {
-        const win = getMainWindow();
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('symbolIndex:progress', progress);
-        }
-      }, (errorMsg) => {
-        const win = getMainWindow();
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('symbolIndex:error', errorMsg);
-        }
-      });
 
-      watcher.createWatcher(repoPath, (dirtyCount) => {
+      if (indexerProxy.isReady()) {
+        try { await indexerProxy.send('clear'); } catch (_) {}
+      }
+
+      const allFiles = [];
+      indexer.walkDir(repoPath, allFiles, repoPath, docignoreUtils);
+      const totalFiles = allFiles.length;
+
+      const repoName = path.basename(repoPath);
+      let repoId = null;
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('db:upsertRepo', { repoPath, name: repoName, config: {} });
+          repoId = data?.repo_id;
+        } catch (_) {}
+      }
+
+      if (indexerProxy.isReady()) {
+        const onProgress = (data) => {
+          const win = getMainWindow();
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('symbolIndex:progress', {
+              current: data.current, total: data.total, phase: 'indexing', percent: data.percent,
+            });
+          }
+        };
+        indexerProxy.onProgress(onProgress);
+        try {
+          const result = await indexerProxy.send('index:start', { repoPath, files: allFiles });
+          if (repoId && result) {
+            try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.totalSymbols || 0 }); } catch (_) {}
+          }
+          watcher.createWatcher(repoPath, (repoPath, relPath) => {
+            if (indexerProxy.isReady()) {
+              indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }).then(data => {
+                const count = data?.dirty_count ?? 0;
+                invalidateCache(repoPath);
+                const w = getMainWindow();
+                if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:dirtyChanged', count);
+              }).catch(() => {});
+            }
+          });
+          invalidateCache(repoPath);
+          return { success: true, totalFiles, symbolCount: result?.totalSymbols || 0 };
+        } finally {
+          indexerProxy.offProgress(onProgress);
+        }
+      } else {
+        const result = await indexer.indexRepo(repoPath, docignoreUtils,
+          (p) => { const w = getMainWindow(); if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:progress', p); },
+          (e) => { const w = getMainWindow(); if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:error', e); }
+        );
+        if (repoId && result) {
+          try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.symbolCount || 0 }); } catch (_) {}
+        }
+        watcher.createWatcher(repoPath, (repoPath, relPath) => {
+          if (indexerProxy.isReady()) {
+            indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }).then(data => {
+              const count = data?.dirty_count ?? 0;
+              invalidateCache(repoPath);
+              const w = getMainWindow();
+              if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:dirtyChanged', count);
+            }).catch(() => {});
+          }
+        });
         invalidateCache(repoPath);
-        const win = getMainWindow();
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('symbolIndex:dirtyChanged', dirtyCount);
-        }
-      });
-
-      invalidateCache(repoPath);
-      return { success: true, ...result };
+        return { success: true, totalFiles, symbolCount: result.symbolCount || 0 };
+      }
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -153,41 +136,43 @@ async function register({ app, docignoreUtils, getMainWindow }) {
       const cached = _statusCache.get(repoPath);
       if (cached) {
         if (cached.exists && cached.indexed) {
-          watcher.createWatcher(repoPath, (count) => {
-            invalidateCache(repoPath);
-            const w = getMainWindow();
-            if (w && !w.isDestroyed()) {
-              w.webContents.send('symbolIndex:dirtyChanged', count);
+          watcher.createWatcher(repoPath, (repoPath, relPath) => {
+            if (indexerProxy.isReady()) {
+              indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }).then(data => {
+                const count = data?.dirty_count ?? 0;
+                invalidateCache(repoPath);
+                const w = getMainWindow();
+                if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:dirtyChanged', count);
+              }).catch(() => {});
             }
           });
         }
         return cached;
       }
 
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { exists: false };
-      const dirtyCount = repo.id ? fileDb.countDirtyByRepo(repo.id) : 0;
-
-      if (repo.id && repo.indexed) {
-        watcher.createWatcher(repoPath, (count) => {
-          invalidateCache(repoPath);
-          const w = getMainWindow();
-          if (w && !w.isDestroyed()) {
-            w.webContents.send('symbolIndex:dirtyChanged', count);
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('db:getStatus', { repoPath });
+          if (data) {
+            if (data.exists && data.indexed) {
+              watcher.createWatcher(repoPath, (repoPath, relPath) => {
+                if (indexerProxy.isReady()) {
+                  indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }).then(data => {
+                    const count = data?.dirty_count ?? 0;
+                    invalidateCache(repoPath);
+                    const w = getMainWindow();
+                    if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:dirtyChanged', count);
+                  }).catch(() => {});
+                }
+              });
+            }
+            _statusCache.set(repoPath, data);
+            return data;
           }
-        });
+        } catch (_) {}
       }
 
-      const result = {
-        exists: true,
-        indexed: !!repo.indexed,
-        total_files: repo.total_files,
-        total_symbols: repo.total_symbols,
-        last_indexed: repo.last_indexed,
-        dirty_count: dirtyCount,
-      };
-      _statusCache.set(repoPath, result);
-      return result;
+      return { exists: false };
     } catch (err) {
       return { exists: false, error: err.message };
     }
@@ -195,53 +180,27 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:search', async (_, repoPath, query, limit) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { results: [] };
-
-      const cacheKey = repoPath + '::' + query + '::' + (limit || 200);
-      const cached = _searchCache.get(cacheKey);
-      if (cached) {
-        _searchCache.delete(cacheKey);
-        _searchCache.set(cacheKey, cached);
-        return { results: cached };
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('search', { repoPath, query, limit: limit || 200, offset: 0 });
+          if (data && Array.isArray(data.results)) return { results: data.results };
+        } catch (_) {}
       }
-
-      const tsv = _ensureSymbolTsv(repoPath);
-      if (!tsv) return { results: [] };
-
-      const args = ['-i', '-N', '--color', 'never', '--no-heading'];
-      if (limit) args.push('-m', String(limit));
-      args.push(query, tsv);
-
-      const { stdout } = await _ripgrep(args, { buffer: true });
-      const results = _parseTsvLines(stdout);
-
-      if (_searchCache.size >= _SEARCH_CACHE_MAX) {
-        const firstKey = _searchCache.keys().next().value;
-        _searchCache.delete(firstKey);
-      }
-      _searchCache.set(cacheKey, results);
-      return { results };
+      return { results: [] };
     } catch (err) {
-      // If ripgrep fails (e.g. WASM compile), fall back to SQL search
-      try {
-        const repo2 = repoDb.getByPath(repoPath);
-        if (!repo2) return { results: [] };
-        const all = symbolDb.getAllByRepo(repo2.id);
-        const lower = query.toLowerCase();
-        const results = all.filter(s => s.name.toLowerCase().includes(lower)).slice(0, limit || 200);
-        return { results };
-      } catch (err2) {
-        return { results: [], error: err2.message };
-      }
+      return { results: [], error: err.message };
     }
   });
 
   ipcMain.handle('symbolIndex:getDirtyCount', async (_, repoPath) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { count: 0 };
-      return { count: fileDb.countDirtyByRepo(repo.id) };
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('db:getStatus', { repoPath });
+          if (data) return { count: data.dirty_count || 0 };
+        } catch (_) {}
+      }
+      return { count: 0 };
     } catch (err) {
       return { count: 0, error: err.message };
     }
@@ -249,14 +208,54 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:reindexDirty', async (_, repoPath) => {
     try {
-      const result = await indexer.reindexDirty(repoPath, (progress) => {
-        const win = getMainWindow();
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('symbolIndex:progress', progress);
+      let repoId = null;
+      if (indexerProxy.isReady()) {
+        try {
+          const status = await indexerProxy.send('db:getStatus', { repoPath });
+          if (status && status.exists) repoId = status.repo_id;
+        } catch (_) {}
+      }
+      if (!repoId) return { success: true, totalFiles: 0, symbolCount: 0 };
+
+      let dirtyFiles = [];
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('db:getDirtyFiles', { repoId });
+          dirtyFiles = data?.files || [];
+        } catch (_) {}
+      }
+      const paths = dirtyFiles.map(df => df.path);
+
+      if (indexerProxy.isReady() && paths.length > 0) {
+        const onProgress = (data) => {
+          const win = getMainWindow();
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('symbolIndex:progress', {
+              current: data.current, total: data.total, phase: 'reindex-dirty', percent: data.percent,
+            });
+          }
+        };
+        indexerProxy.onProgress(onProgress);
+        try {
+          const result = await indexerProxy.send('index:files', { repoPath, files: paths });
+          if (dirtyFiles.length > 0) {
+            try { await indexerProxy.send('db:markClean', { ids: dirtyFiles.map(df => df.id) }); } catch (_) {}
+          }
+          invalidateCache(repoPath);
+          return { success: true, totalFiles: paths.length, symbolCount: result?.totalSymbols || 0 };
+        } finally {
+          indexerProxy.offProgress(onProgress);
         }
-      });
-      invalidateCache(repoPath);
-      return { success: true, ...result };
+      } else {
+        const result = await indexer.reindexDirty(repoPath, (p) => {
+          const w = getMainWindow(); if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:progress', p);
+        });
+        if (dirtyFiles.length > 0) {
+          try { await indexerProxy.send('db:markClean', { ids: dirtyFiles.map(df => df.id) }); } catch (_) {}
+        }
+        invalidateCache(repoPath);
+        return { success: true, totalFiles: paths.length, symbolCount: result.symbolCount || 0 };
+      }
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -265,6 +264,10 @@ async function register({ app, docignoreUtils, getMainWindow }) {
   ipcMain.handle('symbolIndex:reset', async (_, repoPath) => {
     try {
       indexer.resetIndex(repoPath);
+      if (indexerProxy.isReady()) {
+        try { await indexerProxy.send('clear'); } catch (_) {}
+        try { await indexerProxy.send('db:reset', { repoPath }); } catch (_) {}
+      }
       invalidateCache(repoPath);
       return { success: true };
     } catch (err) {
@@ -276,6 +279,10 @@ async function register({ app, docignoreUtils, getMainWindow }) {
     try {
       watcher.destroyWatcher(repoPath);
       indexer.deleteIndex(repoPath);
+      if (indexerProxy.isReady()) {
+        try { await indexerProxy.send('clear'); } catch (_) {}
+        try { await indexerProxy.send('db:delete', { repoPath }); } catch (_) {}
+      }
       invalidateCache(repoPath);
       if (_activeRepoPath === repoPath) _activeRepoPath = null;
       return { success: true };
@@ -292,84 +299,56 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:getManaged', async () => {
     try {
-      const repos = repoDb.getAll();
-      return { repos };
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('db:getManaged');
+          if (data && data.repos) {
+            const repos = Object.entries(data.repos).map(([repoPath, id]) => ({ repo_path: repoPath, id }));
+            return { repos };
+          }
+        } catch (_) {}
+      }
+      return { repos: [] };
     } catch (err) {
       return { repos: [], error: err.message };
     }
   });
 
-  ipcMain.handle('symbolIndex:getSymbolTypes', async (_, repoPath) => {
+  ipcMain.handle('symbolIndex:getIndexedFileList', async (_, repoPath, limit, offset) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { types: {} };
-      const types = symbolDb.countByType(repo.id);
-      return { types };
-    } catch (err) {
-      return { types: {}, error: err.message };
-    }
-  });
+      const lmt = limit || 50;
+      const off = offset || 0;
 
-  ipcMain.handle('symbolIndex:getIndexedFiles', async (_, repoPath) => {
-    try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { files: [] };
-      const files = symbolDb.getByRepoGrouped(repo.id);
-      return { files };
-    } catch (err) {
-      return { files: [], error: err.message };
-    }
-  });
+      // Cache hit: only for first page (most common call)
+      if (off === 0 && lmt <= 50 && _fileListCache.has(repoPath)) {
+        const cached = _fileListCache.get(repoPath);
+        return cached;
+      }
 
-  ipcMain.handle('symbolIndex:getIndexedFileList', async (_, repoPath) => {
-    try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { files: [] };
-      const cached = _fileListCache.get(repoPath);
-      if (cached) return { files: cached };
-      const files = symbolDb.getByRepoGroupedLight(repo.id);
-      _fileListCache.set(repoPath, files);
-      return { files };
+      if (indexerProxy.isReady()) {
+        try {
+          const result = await indexerProxy.send('db:getFileList', { repoPath, limit: lmt, offset: off });
+          if (result && result.files) {
+            if (off === 0) _fileListCache.set(repoPath, result);
+            return result;
+          }
+        } catch (_) {}
+      }
+      return { files: [], total: 0 };
     } catch (err) {
-      return { files: [], error: err.message };
+      return { files: [], error: err.message, total: 0 };
     }
   });
 
   ipcMain.handle('symbolIndex:getFileSymbols', async (_, repoPath, filePath) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { symbols: [] };
-
-      const cacheKey = repoPath + '::' + filePath;
-      const cached = _fileSymbolsCache.get(cacheKey);
-      if (cached) {
-        _fileSymbolsCache.delete(cacheKey);
-        _fileSymbolsCache.set(cacheKey, cached);
-        return { symbols: cached };
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('symbols:get', { filePath, limit: 200, offset: 0 });
+          if (data && Array.isArray(data.symbols)) return { symbols: data.symbols };
+        } catch (_) {}
       }
-
-      // Try TSV via ripgrep (fast file_path match)
-      const tsv = _ensureSymbolTsv(repoPath);
-      if (tsv) {
-        const args = ['-F', '-N', '--color', 'never', '--no-heading', '-m', '500', filePath, tsv];
-        const { stdout } = await _ripgrep(args, { buffer: true });
-        const symbols = _parseTsvLines(stdout).filter(s => s.file_path === filePath);
-        _fileSymbolsCache.set(cacheKey, symbols);
-        if (_fileSymbolsCache.size > 50) {
-          const firstKey = _fileSymbolsCache.keys().next().value;
-          _fileSymbolsCache.delete(firstKey);
-        }
-        return { symbols };
-      }
-
-      // Fallback to SQL
-      const symbols = symbolDb.getByRepoAndFile(repo.id, filePath);
-      _fileSymbolsCache.set(cacheKey, symbols);
-      if (_fileSymbolsCache.size > 50) {
-        const firstKey = _fileSymbolsCache.keys().next().value;
-        _fileSymbolsCache.delete(firstKey);
-      }
-      return { symbols };
+      return { symbols: [] };
     } catch (err) {
       return { symbols: [], error: err.message };
     }
@@ -377,10 +356,16 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:getDirtyFiles', async (_, repoPath) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { files: [] };
-      const files = fileDb.getDirtyWithSymbols(repo.id);
-      return { files };
+      if (indexerProxy.isReady()) {
+        try {
+          const status = await indexerProxy.send('db:getStatus', { repoPath });
+          if (status && status.repo_id) {
+            const data = await indexerProxy.send('db:getDirtyFiles', { repoId: status.repo_id });
+            if (data) return { files: data.files || [] };
+          }
+        } catch (_) {}
+      }
+      return { files: [] };
     } catch (err) {
       return { files: [], error: err.message };
     }
@@ -388,18 +373,19 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:reindexFile', async (_, repoPath, filePath) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { success: false, error: 'Repo not found' };
-      const result = await indexer.indexFile(repo.id, repoPath, filePath);
-      if (result && !result.error) {
       const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
-      const file = fileDb.getByRepoAndPath(repo.id, relPath);
-        if (file) fileDb.markClean(file.id);
-        db.save();
-        invalidateCache(repoPath);
-        return { success: true, symbolsCount: result.symbolsCount };
+
+      if (indexerProxy.isReady()) {
+        try {
+          const result = await indexerProxy.send('db:reindexFile', { repoPath, filePath: relPath });
+          if (result && result.ok !== false) {
+            invalidateCache(repoPath);
+            return { success: true, symbolsCount: result.symbols || 0 };
+          }
+        } catch (_) {}
       }
-      return { success: false, error: result?.error || 'Reindex failed' };
+
+      return { success: false, error: 'Indexer not available' };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -407,103 +393,106 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:getFileDeps', async (_, repoPath, filePath, mode) => {
     try {
-      const repo = repoDb.getByPath(repoPath);
-      if (!repo) return { exists: false };
       const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
-      const file = fileDb.getByRepoAndPath(repo.id, relPath);
-      if (!file) return { exists: false };
 
-      const imports = importDb.getByFile(file.id);
-      const reverseDeps = importDb.getReverseDeps(file.id, repo.id);
+      if (indexerProxy.isReady()) {
+        try {
+          const data = await indexerProxy.send('getFileDeps', { filePath: relPath, mode: mode || 'file' });
+          if (data) {
+            const result = { exists: true, file_path: filePath };
+            if (mode === 'function') {
+              Object.assign(result, { mode: 'function', funcImports: data.funcImports, funcReverse: data.funcReverse });
+            } else {
+              Object.assign(result, { imports: data.imports, imported_by: data.imported_by });
+            }
+            return result;
+          }
+        } catch (_) {}
 
-      if (mode === 'function') {
-        const funcData = buildFuncDeps(file, imports, reverseDeps, repo);
-        return {
-          exists: true,
-          file_path: filePath,
-          mode: 'function',
-          ...funcData,
-        };
+        try {
+          const dbData = await indexerProxy.send('db:getFileDeps', { repoPath, filePath: relPath, mode: mode || 'file' });
+          if (dbData && (dbData.imports?.length || dbData.imported_by?.length)) {
+            const result = { exists: true, file_path: filePath };
+            if (mode === 'function') {
+              Object.assign(result, { mode: 'function', funcImports: dbData.funcImports || [], funcReverse: dbData.funcReverse || [] });
+            } else {
+              Object.assign(result, { imports: dbData.imports || [], imported_by: dbData.imported_by || [] });
+            }
+            return result;
+          }
+        } catch (_) {}
       }
 
-      // File mode (default)
-      const enrichedImports = imports.map(imp => ({
-        import_path: imp.import_path,
-        import_type: imp.import_type,
-        line: imp.line,
-        resolved: !!imp.resolved_file_id,
-        resolved_path: imp.resolved_path || null,
-        imported_symbols: imp.imported_symbols || [],
-      }));
-
-      const enrichedReverse = reverseDeps.map(rd => ({
-        source_path: rd.source_path,
-        import_path: rd.import_path,
-        import_type: rd.import_type,
-        imported_symbols: rd.imported_symbols || [],
-      }));
-
-      return {
-        exists: true,
-        file_path: filePath,
-        imports: enrichedImports,
-        imported_by: enrichedReverse,
-      };
+      return { exists: false };
     } catch (err) {
       return { exists: false, error: err.message };
     }
   });
-}
 
-function buildFuncDeps(file, imports, reverseDeps, repo) {
-  const funcImports = [];
-  const funcReverse = [];
-
-  // For each resolved import, look up which symbols from the target are used
-  for (const imp of imports) {
-    if (!imp.resolved_file_id) continue;
-    const symbols = imp.imported_symbols || [];
-    if (symbols.length === 0) continue;
-
-    // Get the symbol details from the resolved file
-    const resolvedSymbols = symbolDb.getByFile(imp.resolved_file_id);
-    const matched = resolvedSymbols.filter(s => symbols.includes(s.name));
-    funcImports.push({
-      import_path: imp.import_path,
-      resolved_path: imp.resolved_path || imp.import_path,
-      import_type: imp.import_type,
-      symbols: matched.length > 0
-        ? matched.map(s => ({ name: s.name, type: s.type, line: s.line }))
-        : symbols.map(n => ({ name: n, type: 'unknown', line: null })),
-    });
-  }
-
-  // Reverse: for each file that imports this file, get which symbols of ours they use
-  const ourSymbols = symbolDb.getByFile(file.id);
-  const ourSymbolNames = new Set(ourSymbols.map(s => s.name));
-
-  for (const rd of reverseDeps) {
-    const symbols = rd.imported_symbols || [];
-    if (symbols.length === 0) {
-      // If no specific symbols imported, show all our exports
-      funcReverse.push({
-        source_path: rd.source_path,
-        import_type: rd.import_type,
-        symbols: ourSymbols.map(s => ({ name: s.name, type: s.type, line: s.line })),
-      });
-    } else {
-      const matched = ourSymbols.filter(s => symbols.includes(s.name));
-      funcReverse.push({
-        source_path: rd.source_path,
-        import_type: rd.import_type,
-        symbols: matched.length > 0
-          ? matched.map(s => ({ name: s.name, type: s.type, line: s.line }))
-          : symbols.map(n => ({ name: n, type: 'unknown', line: null })),
-      });
+  ipcMain.handle('symbolIndex:proxyIndexFile', async (_, repoPath, filePath) => {
+    try {
+      if (indexerProxy.isReady()) {
+        const fullPath = path.isAbsolute(filePath) ? filePath : path.join(repoPath, filePath);
+        const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
+        try {
+          const content = require('fs').readFileSync(fullPath, 'utf-8');
+          const result = await indexerProxy.send('indexFile', { filePath: relPath, content });
+          if (result) {
+            try { await indexerProxy.send('db:insertFile', { repoPath, filePath: relPath }); } catch (_) {}
+            try { await indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }); } catch (_) {}
+            invalidateCache(repoPath);
+          }
+          return { success: true, symbolsCount: result?.symbols || 0 };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      }
+      return { success: false, error: 'Indexer not available' };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
-  }
+  });
 
-  return { funcImports, funcReverse };
+  ipcMain.handle('symbolIndex:proxySearch', async (_, query, limit) => {
+    try {
+      if (indexerProxy.isReady()) {
+        const data = await indexerProxy.send('search', { query, limit: limit || 200, offset: 0 });
+        if (data && Array.isArray(data.results)) return { results: data.results };
+      }
+      return { results: [] };
+    } catch (err) {
+      return { results: [], error: err.message };
+    }
+  });
+
+  ipcMain.handle('symbolIndex:proxyGetSymbols', async (_, filePath) => {
+    try {
+      if (indexerProxy.isReady()) {
+        const data = await indexerProxy.send('symbols:get', { filePath, limit: 200, offset: 0 });
+        if (data && Array.isArray(data.symbols)) return { symbols: data.symbols };
+      }
+      return { symbols: [] };
+    } catch (err) {
+      return { symbols: [], error: err.message };
+    }
+  });
+
+  ipcMain.handle('symbolIndex:getSymbolTypes', async (_, repoPath) => {
+    try {
+      if (indexerProxy.isReady()) {
+        try {
+          const status = await indexerProxy.send('db:getStatus', { repoPath });
+          if (status && status.repo_id) {
+            const data = await indexerProxy.send('db:getSymbolTypes', { repoId: status.repo_id });
+            if (data) return { types: data.types || [] };
+          }
+        } catch (_) {}
+      }
+      return { types: [] };
+    } catch (err) {
+      return { types: [], error: err.message };
+    }
+  });
 }
 
 module.exports = { register };

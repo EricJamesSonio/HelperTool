@@ -1,6 +1,6 @@
 {
   "name": "helper-tool",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Tray-based helper tool",
   "author": "Eric Sonio",
   "main": "main.js",

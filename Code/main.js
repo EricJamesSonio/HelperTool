@@ -27,6 +27,9 @@ const teamActivityFeedIpc = require('./ipc/teamActivityFeed.js');
 const blueprintLibraryIpc = require('./ipc/blueprintLibrary.js');
 const profileIpc = require('./ipc/profile.js');
 const dockerIpc = require('./ipc/docker_ipc.js');
+const envIpc = require('./ipc/env_ipc.js');
+const indexerProxy = require('./ipc/indexerProxy.js');
+const workerProxy = require('./ipc/workerProxy.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
@@ -82,6 +85,13 @@ if (!gotTheLock) {
             console.error('[Main] Failed to init DB:', err);
         }
 
+        const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+        indexerProxy.start(indexerDbPath);
+        console.log('[Main] Indexer service started');
+
+        workerProxy.start();
+        console.log('[Main] Worker service started');
+
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
         });
@@ -92,6 +102,8 @@ if (!gotTheLock) {
         db.close();
         const watcher = require('./indexer/watcher.js');
         watcher.destroyAllWatchers();
+        workerProxy.stop();
+        indexerProxy.stop();
     });
 }
 
@@ -121,6 +133,7 @@ function registerAllIpc() {
     blueprintLibraryIpc.register();
     profileIpc.register(shared);
     dockerIpc.register();
+    envIpc.register();
 }
 
 // ----------------------------

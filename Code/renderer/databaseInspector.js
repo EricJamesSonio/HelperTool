@@ -15,6 +15,16 @@ export async function openDbInspectorPanel() {
   }
   _panelWrapper.style.display = '';
   _panelOpen = true;
+
+  const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+  const cached = getPrefetchCache().get('dbConnections');
+  if (cached) {
+    const { refreshConnectionsWithData } = await import('./databaseInspector/ui.js');
+    refreshConnectionsWithData(cached);
+    restorePanelState();
+    return;
+  }
+
   await refreshConnections();
   restorePanelState();
 }

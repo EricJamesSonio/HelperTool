@@ -17,8 +17,10 @@ import TerminalUI          from '../terminal/terminalUI.js';
 import * as teamActivity   from '../teamActivityFeed.js';
 import * as blueprintLibrary from '../blueprintLibrary.js';
 import * as profileTool from '../profile.js';
+import { openEnvManager } from '../envManager.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
+import { startPrefetch } from './prefetchManager.js';
 
 const ICONS = {
   api: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="19"/><line x1="1" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="19" y2="10"/></svg>',
@@ -39,6 +41,7 @@ const ICONS = {
    blueprint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>',
    profile: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M2 18a8 8 0 0 1 16 0"/></svg>',
    docker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></svg>',
+   env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><circle cx="10" cy="12" r="1"/><path d="M10 13v2"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -212,8 +215,7 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _registry.closeAll();
       if (!_symbolIndexPanel) _initSymbolIndexPanel();
       _symbolIndexPanel.classList.add('open');
-      if (_symbolIndexTool?.isInitialized) _symbolIndexTool.refresh();
-      else if (state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
+      if (!_symbolIndexTool?.isInitialized && state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
     }, 'symbolIndex'));
   }
 
@@ -232,6 +234,13 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
       _dbInspector?.openDbInspectorPanel?.();
     }, 'db'));
   }
+
+  body.appendChild(createSidebarItem(ICONS.env, 'Env Files', 'Manage .env configuration files', () => {
+    const existing = document.getElementById('envOverlay');
+    if (existing) { existing.remove(); return; }
+    _registry.closeAll();
+    openEnvManager(state.selectedRepoPath);
+  }, 'env'));
 }
 
 // ---- Panel init helpers ----------------------------------------------------
@@ -440,6 +449,13 @@ function _buildShortcutActions() {
     };
   }
 
+  actions.envManager = () => {
+    const existing = document.getElementById('envOverlay');
+    if (existing) { existing.remove(); return; }
+    _registry.closeAll();
+    openEnvManager(state.selectedRepoPath);
+  };
+
   return actions;
 }
 
@@ -460,6 +476,8 @@ export function handleRepoChange(newRepoPath) {
   _destroyGitTool();
   _destroySymbolIndexTool();
   _initializeGitTool(newRepoPath);
+  _initializeSymbolIndexTool(newRepoPath);
+  startPrefetch(newRepoPath);
 }
 
 window.addEventListener('beforeunload', () => {

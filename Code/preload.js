@@ -111,11 +111,14 @@ const symbolIndexBridge = {
         getManaged:       ()                       => ipcRenderer.invoke('symbolIndex:getManaged'),
         getSymbolTypes:   (repoPath)               => ipcRenderer.invoke('symbolIndex:getSymbolTypes', repoPath),
         getIndexedFiles:  (repoPath)               => ipcRenderer.invoke('symbolIndex:getIndexedFiles', repoPath),
-        getIndexedFileList: (repoPath)              => ipcRenderer.invoke('symbolIndex:getIndexedFileList', repoPath),
+        getIndexedFileList: (repoPath, limit, offset) => ipcRenderer.invoke('symbolIndex:getIndexedFileList', repoPath, limit, offset),
         getFileSymbols:   (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:getFileSymbols', repoPath, filePath),
         getDirtyFiles:    (repoPath)               => ipcRenderer.invoke('symbolIndex:getDirtyFiles', repoPath),
         reindexFile:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:reindexFile', repoPath, filePath),
-        getFileDeps:      (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:getFileDeps', repoPath, filePath),
+        getFileDeps:      (repoPath, filePath, mode) => ipcRenderer.invoke('symbolIndex:getFileDeps', repoPath, filePath, mode),
+        proxyIndexFile:   (repoPath, filePath)     => ipcRenderer.invoke('symbolIndex:proxyIndexFile', repoPath, filePath),
+        proxySearch:      (query, limit)            => ipcRenderer.invoke('symbolIndex:proxySearch', query, limit),
+        proxyGetSymbols:  (filePath)                => ipcRenderer.invoke('symbolIndex:proxyGetSymbols', filePath),
         onProgress:       (callback) => {
             ipcRenderer.removeAllListeners('symbolIndex:progress');
             ipcRenderer.on('symbolIndex:progress', (_, data) => callback(data));
@@ -312,6 +315,16 @@ const dockerBridge = {
     getStats:        (id)           => ipcRenderer.invoke('docker:getStats', id),
     getLogs:         (id, tail)     => ipcRenderer.invoke('docker:getLogs', id, tail),
 };
+
+const envBridge = {
+    listFiles:  (repoPath)              => ipcRenderer.invoke('env:listFiles', { repoPath }),
+    readFile:   (repoPath, fileName)    => ipcRenderer.invoke('env:readFile', { repoPath, fileName }),
+    saveFile:   (repoPath, fileName, entries) => ipcRenderer.invoke('env:saveFile', { repoPath, fileName, entries }),
+    createFile: (repoPath, fileName)    => ipcRenderer.invoke('env:createFile', { repoPath, fileName }),
+    deleteFile: (repoPath, fileName)    => ipcRenderer.invoke('env:deleteFile', { repoPath, fileName }),
+};
+
+contextBridge.exposeInMainWorld('envAPI', envBridge);
 
 // Expose everything to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {

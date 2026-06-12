@@ -12,6 +12,7 @@ const DEFAULT_SHORTCUTS = {
   exitInput:     null,
   portManagerTool: null,
   teamActivityTool: null,
+  envManager: null,
 };
 
 const S = { shortcuts: {} };
