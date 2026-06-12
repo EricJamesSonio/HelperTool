@@ -316,7 +316,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
     try {
       if (indexerProxy.isReady()) {
         try {
-          const result = await indexerProxy.send('getFileList', { limit: limit || 50, offset: offset || 0 });
+          const result = await indexerProxy.send('db:getFileList', { repoPath, limit: limit || 50, offset: offset || 0 });
           if (result && result.files) return result;
         } catch (_) {}
       }
@@ -390,6 +390,19 @@ async function register({ app, docignoreUtils, getMainWindow }) {
               Object.assign(result, { mode: 'function', funcImports: data.funcImports, funcReverse: data.funcReverse });
             } else {
               Object.assign(result, { imports: data.imports, imported_by: data.imported_by });
+            }
+            return result;
+          }
+        } catch (_) {}
+
+        try {
+          const dbData = await indexerProxy.send('db:getFileDeps', { repoPath, filePath: relPath, mode: mode || 'file' });
+          if (dbData && (dbData.imports?.length || dbData.imported_by?.length)) {
+            const result = { exists: true, file_path: filePath };
+            if (mode === 'function') {
+              Object.assign(result, { mode: 'function', funcImports: dbData.funcImports || [], funcReverse: dbData.funcReverse || [] });
+            } else {
+              Object.assign(result, { imports: dbData.imports || [], imported_by: dbData.imported_by || [] });
             }
             return result;
           }

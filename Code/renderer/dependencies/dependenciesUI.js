@@ -13,9 +13,6 @@ class DependenciesUI {
     return `
       <div class="deps-wrapper">
         <div class="deps-header">
-          <h2 class="deps-title">
-            <span class="deps-icon">🔗</span> Dependencies
-          </h2>
           <div class="deps-file-path" id="depsFilePath"></div>
         </div>
 

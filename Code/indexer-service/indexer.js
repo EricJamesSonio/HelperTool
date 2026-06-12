@@ -224,7 +224,31 @@ function clearRepoData(repoId) {
   _db.run('DELETE FROM indexed_files WHERE repo_id = ?', [repoId]);
 }
 
+function fileInsertSymbols(fileId, repoId, symbols) {
+  _db.run('DELETE FROM symbols WHERE file_id = ?', [fileId]);
+  for (const sym of symbols) {
+    _db.run('INSERT INTO symbols (repo_id, file_id, name, type, line, column, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [repoId, fileId, sym.name || 'anonymous', sym.type || 'unknown', sym.line ?? null, sym.column ?? null, sym.isExport ? 1 : 0]);
+  }
+}
+
+function fileInsertImports(fileId, repoId, imports) {
+  _db.run('DELETE FROM file_imports WHERE file_id = ?', [fileId]);
+  for (const imp of imports) {
+    const importPath = imp.import_path ?? imp.source;
+    const importType = imp.import_type ?? 'require';
+    const importedSymbols = JSON.stringify(imp.imported_symbols ?? imp.names ?? []);
+    _db.run('INSERT INTO file_imports (repo_id, file_id, import_path, import_type, imported_symbols, line, column) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [repoId, fileId, importPath, importType, importedSymbols, imp.line ?? null, imp.column ?? null]);
+  }
+}
+
 // ── Sync DB handlers ──
+
+function h_dbFlush(id, type) {
+  flushDb();
+  return respond({ id, type, ok: true });
+}
 
 function h_dbInit(id, type, payload) {
   return respond({ id, type, ok: true });
@@ -374,17 +398,21 @@ function h_dbReindexFile(id, type, payload) {
     const result = parseFile(content, filePath);
     cache.set(filePath, result);
     const existing = fileGetByRepoAndPath(repo.id, filePath);
+    let fileId;
     if (existing) {
-      fileMarkClean(existing.id);
-      _db.run('DELETE FROM symbols WHERE file_id=?', [existing.id]);
-      _db.run('DELETE FROM file_imports WHERE file_id=?', [existing.id]);
-      _db.run('UPDATE indexed_files SET file_hash=?, last_modified=?, indexed_at=? WHERE id=?', [hash, new Date().toISOString(), new Date().toISOString(), existing.id]);
+      fileId = existing.id;
+      fileMarkClean(fileId);
+      _db.run('DELETE FROM symbols WHERE file_id=?', [fileId]);
+      _db.run('DELETE FROM file_imports WHERE file_id=?', [fileId]);
+      _db.run('UPDATE indexed_files SET file_hash=?, last_modified=?, indexed_at=? WHERE id=?', [hash, new Date().toISOString(), new Date().toISOString(), fileId]);
     } else {
       const langMap = { '.js': 'javascript', '.ts': 'typescript', '.tsx': 'tsx', '.py': 'python', '.html': 'html', '.css': 'css' };
       const ext = path.extname(filePath).toLowerCase();
-      const fileId = fileInsert(repo.id, filePath, langMap[ext] || null, hash, new Date().toISOString());
+      fileId = fileInsert(repo.id, filePath, langMap[ext] || null, hash, new Date().toISOString());
       _db.run('UPDATE indexed_files SET is_dirty=0 WHERE id=?', [fileId]);
     }
+    fileInsertSymbols(fileId, repo.id, result.symbols);
+    fileInsertImports(fileId, repo.id, result.imports);
     scheduleFlush();
     return respond({ id, type, ok: true, data: { symbols: result.symbols.length, imports: result.imports.length } });
   } catch (err) {
@@ -399,6 +427,118 @@ function h_dbGetFileByPathAndRepo(id, type, payload) {
   if (!repo) return respond({ id, type, ok: true, data: { file: null } });
   const file = fileGetByRepoAndPath(repo.id, filePath);
   return respond({ id, type, ok: true, data: { file: file || null } });
+}
+
+function h_dbGetFileList(id, type, payload) {
+  const { repoPath, limit, offset } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: { files: [], total: 0 } });
+
+  const lmt = limit || 50;
+  const off = offset || 0;
+
+  const countStmt = _db.prepare('SELECT COUNT(*) as cnt FROM indexed_files WHERE repo_id = ?');
+  countStmt.bind([repo.id]);
+  let total = 0;
+  if (countStmt.step()) total = countStmt.getAsObject().cnt;
+  countStmt.free();
+
+  const stmt = _db.prepare('SELECT f.id, f.path, (SELECT COUNT(*) FROM symbols WHERE file_id = f.id) as symbol_count FROM indexed_files f WHERE f.repo_id = ? ORDER BY f.path LIMIT ? OFFSET ?');
+  stmt.bind([repo.id, lmt, off]);
+  const files = [];
+  while (stmt.step()) files.push(stmt.getAsObject());
+  stmt.free();
+
+  return respond({ id, type, ok: true, data: { files, total } });
+}
+
+function h_dbGetFileDeps(id, type, payload) {
+  const { repoPath, filePath, mode } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: { imports: [], imported_by: [] } });
+
+  const file = fileGetByRepoAndPath(repo.id, filePath);
+  if (!file) return respond({ id, type, ok: true, data: { imports: [], imported_by: [] } });
+
+  const importStmt = _db.prepare('SELECT import_path, import_type, line, column, imported_symbols FROM file_imports WHERE file_id = ?');
+  importStmt.bind([file.id]);
+  const imports = [];
+  while (importStmt.step()) {
+    const row = importStmt.getAsObject();
+    imports.push({
+      import_path: row.import_path,
+      import_type: row.import_type,
+      line: row.line,
+      imported_symbols: row.imported_symbols ? JSON.parse(row.imported_symbols) : [],
+    });
+  }
+  importStmt.free();
+
+  const allStmt = _db.prepare(`
+    SELECT fi.path as source_path, fi2.import_path, fi2.import_type, fi2.imported_symbols
+    FROM file_imports fi2
+    JOIN indexed_files fi ON fi.id = fi2.file_id
+    WHERE fi2.repo_id = ? AND fi.path != ?
+  `);
+  allStmt.bind([repo.id, filePath]);
+  const imported_by = [];
+  const fileName = filePath.split('/').pop();
+  while (allStmt.step()) {
+    const row = allStmt.getAsObject();
+    if (row.import_path === filePath || row.import_path === fileName || filePath.endsWith('/' + row.import_path)) {
+      imported_by.push({
+        source_path: row.source_path,
+        import_path: row.import_path,
+        import_type: row.import_type,
+        imported_symbols: row.imported_symbols ? JSON.parse(row.imported_symbols) : [],
+      });
+    }
+  }
+  allStmt.free();
+
+  const result = { imports, imported_by };
+
+  if (mode === 'function') {
+    const symbolStmt = _db.prepare('SELECT name, type, line, column FROM symbols WHERE file_id = ?');
+    symbolStmt.bind([file.id]);
+    const localSymbols = [];
+    while (symbolStmt.step()) localSymbols.push(symbolStmt.getAsObject());
+    symbolStmt.free();
+
+    const funcImports = imports.map(imp => {
+      const resolvedStmt = _db.prepare('SELECT id FROM indexed_files WHERE repo_id = ? AND (path = ? OR ? LIKE \'%/\' || path) LIMIT 1');
+      resolvedStmt.bind([repo.id, imp.import_path, imp.import_path]);
+      let resolvedSymbols = [];
+      const names = imp.imported_symbols || [];
+      if (resolvedStmt.step()) {
+        const resolvedFile = resolvedStmt.getAsObject();
+        const symStmt = _db.prepare('SELECT name, type, line FROM symbols WHERE file_id = ?');
+        symStmt.bind([resolvedFile.id]);
+        while (symStmt.step()) {
+          const s = symStmt.getAsObject();
+          if (names.length === 0 || names.includes(s.name)) resolvedSymbols.push({ name: s.name, type: s.type, line: s.line });
+        }
+        symStmt.free();
+      } else {
+        resolvedSymbols = names.map(n => ({ name: n, type: 'unknown', line: null }));
+      }
+      resolvedStmt.free();
+      return { import_path: imp.import_path, import_type: imp.import_type, symbols: resolvedSymbols };
+    });
+
+    const funcReverse = imported_by.map(rd => {
+      const symbols = (rd.imported_symbols || []).length > 0
+        ? localSymbols.filter(s => (rd.imported_symbols || []).includes(s.name)).map(s => ({ name: s.name, type: s.type, line: s.line }))
+        : localSymbols.map(s => ({ name: s.name, type: s.type, line: s.line }));
+      return { source_path: rd.source_path, import_type: rd.import_type, symbols };
+    });
+
+    return respond({ id, type, ok: true, data: { imports, imported_by, funcImports, funcReverse } });
+  }
+
+  return respond({ id, type, ok: true, data: result });
 }
 
 // ── Existing sync handlers ──
@@ -483,6 +623,9 @@ async function h_indexStart(id, type, payload) {
     return respond({ id, type, ok: false, error: 'Missing repoPath or files array' });
   }
 
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: false, error: 'Repo not found in DB' });
+
   const BATCH_SIZE = 10;
   let indexedCount = 0;
   let totalSymbols = 0;
@@ -499,6 +642,19 @@ async function h_indexStart(id, type, payload) {
         const hash = crypto.createHash('md5').update(content).digest('hex');
         const result = parseFile(content, filePath);
         cache.set(filePath, result);
+
+        const existing = fileGetByRepoAndPath(repo.id, filePath);
+        let fileId;
+        if (existing) {
+          fileId = existing.id;
+          fileMarkClean(fileId);
+          _db.run('UPDATE indexed_files SET file_hash=?, indexed_at=? WHERE id=?', [hash, new Date().toISOString(), fileId]);
+        } else {
+          fileId = fileInsert(repo.id, filePath, null, hash, new Date().toISOString());
+        }
+        fileInsertSymbols(fileId, repo.id, result.symbols);
+        fileInsertImports(fileId, repo.id, result.imports);
+
         totalSymbols += result.symbols.length;
       } catch (_) {}
     }));
@@ -515,6 +671,7 @@ async function h_indexStart(id, type, payload) {
     }
   }
 
+  scheduleFlush();
   respond({ id, type, ok: true, data: { totalFiles: total, totalSymbols } });
 }
 
@@ -577,7 +734,10 @@ function handle(msg) {
       case 'db:getSymbolTypes': return h_dbGetSymbolTypes(id, type, payload);
       case 'db:insertFile': return h_dbInsertFile(id, type, payload);
       case 'db:reindexFile': return h_dbReindexFile(id, type, payload);
+      case 'db:flush': return h_dbFlush(id, type);
       case 'db:getFileByPathAndRepo': return h_dbGetFileByPathAndRepo(id, type, payload);
+      case 'db:getFileList': return h_dbGetFileList(id, type, payload);
+      case 'db:getFileDeps': return h_dbGetFileDeps(id, type, payload);
 
       // Existing operations
       case 'indexFile': return h_indexFile(id, type, payload);

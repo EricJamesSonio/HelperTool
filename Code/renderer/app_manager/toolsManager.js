@@ -477,6 +477,7 @@ export function handleRepoChange(newRepoPath) {
   _destroyGitTool();
   _destroySymbolIndexTool();
   _initializeGitTool(newRepoPath);
+  _initializeSymbolIndexTool(newRepoPath);
   startPrefetch(newRepoPath);
 }
 
