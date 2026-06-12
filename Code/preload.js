@@ -301,6 +301,10 @@ const branchBridge = {
       ipcRenderer.invoke('git:completeMerge', { repoPath, message }),
     gitBranchGraph:       (repoPath, branch, page) =>
       ipcRenderer.invoke('git:branchGraph', { repoPath, branch, page }),
+    gitCommitDetail:       (repoPath, hash) =>
+      ipcRenderer.invoke('git:commitDetail', { repoPath, hash }),
+    gitCommitFileDiff:     (repoPath, hash, filePath) =>
+      ipcRenderer.invoke('git:commitFileDiff', { repoPath, hash, filePath }),
 };
 
 const dockerBridge = {

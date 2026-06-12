@@ -9,6 +9,13 @@ export const state = {
   graphBranch: null,
   graphPage: 1,
   graphCommits: [],
+  graphTotalPages: 0,
+  expandedCommit: null,
+  commitFiles: {},
+  loadingFiles: false,
+  commitDiffActive: null,
+  commitDiffs: {},
+  diffLoading: false,
 
   createOpen: false,
   createPrefix: 'feature/',

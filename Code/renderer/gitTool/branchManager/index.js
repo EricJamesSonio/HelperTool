@@ -16,14 +16,14 @@ export function open(container, repoPath, onClose) {
   _container = container;
   _repoPath = repoPath;
   _onClose = onClose || null;
-  setState({ repoPath, open: true, error: null, confirm: null, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false, activePRTab: 'list', activePRId: null, prCreateData: null });
+  setState({ repoPath, open: true, error: null, confirm: null, mergeFlow: null, conflicts: [], graphBranch: null, graphPage: 1, graphCommits: [], graphTotalPages: 0, expandedCommit: null, commitFiles: {}, loadingFiles: false, commitDiffActive: null, commitDiffs: {}, diffLoading: false, createOpen: false, activePRTab: 'list', activePRId: null, prCreateData: null });
   _render();
   _wireEvents();
   _load();
 }
 
 export function close() {
-  setState({ open: false, mergeFlow: null, conflicts: [], graphBranch: null, createOpen: false, activePRTab: 'list', activePRId: null, prCreateData: null });
+  setState({ open: false, mergeFlow: null, conflicts: [], graphBranch: null, graphPage: 1, graphCommits: [], graphTotalPages: 0, expandedCommit: null, commitFiles: {}, loadingFiles: false, commitDiffActive: null, commitDiffs: {}, diffLoading: false, createOpen: false, activePRTab: 'list', activePRId: null, prCreateData: null });
   _onClose?.();
   _repoPath = null;
   _onClose = null;
