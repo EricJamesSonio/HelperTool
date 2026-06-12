@@ -25,6 +25,7 @@ function initDb(dbPath) {
     _db = new SQL.Database(buffer);
     _db.run('PRAGMA journal_mode=WAL');
     createSchema();
+    cleanupDotGit();
     flushDb();
     process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: true } }) + '\n');
   }).catch(err => {
@@ -224,6 +225,12 @@ function clearRepoData(repoId) {
   _db.run('DELETE FROM indexed_files WHERE repo_id = ?', [repoId]);
 }
 
+function cleanupDotGit() {
+  _db.run("DELETE FROM file_imports WHERE file_id IN (SELECT id FROM indexed_files WHERE path LIKE '.git/%' OR path = '.git')");
+  _db.run("DELETE FROM symbols WHERE file_id IN (SELECT id FROM indexed_files WHERE path LIKE '.git/%' OR path = '.git')");
+  _db.run("DELETE FROM indexed_files WHERE path LIKE '.git/%' OR path = '.git'");
+}
+
 function fileInsertSymbols(fileId, repoId, symbols) {
   _db.run('DELETE FROM symbols WHERE file_id = ?', [fileId]);
   for (const sym of symbols) {
@@ -299,6 +306,7 @@ function h_dbMarkDirty(id, type, payload) {
   if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
   const repo = repoGetByPath(repoPath);
   if (!repo) return respond({ id, type, ok: false, error: 'Repo not found' });
+  if (filePath.startsWith('.git/') || filePath === '.git') return respond({ id, type, ok: true, data: { dirty_count: fileCountDirtyByRepo(repo.id) } });
   const existing = fileGetByRepoAndPath(repo.id, filePath);
   if (!existing) {
     const ext = path.extname(filePath).toLowerCase();
@@ -381,6 +389,7 @@ function h_dbInsertFile(id, type, payload) {
   if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
   const repo = repoGetByPath(repoPath);
   if (!repo) return respond({ id, type, ok: false, error: 'Repo not found' });
+  if (filePath.startsWith('.git/') || filePath === '.git') return respond({ id, type, ok: true, data: { file_id: null } });
   const fileId = fileInsert(repo.id, filePath, language || null, hash || null, lastModified || new Date().toISOString());
   scheduleFlush();
   return respond({ id, type, ok: true, data: { file_id: fileId } });
@@ -391,6 +400,7 @@ function h_dbReindexFile(id, type, payload) {
   if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
   const repo = repoGetByPath(repoPath);
   if (!repo) return respond({ id, type, ok: false, error: 'Repo not found' });
+  if (filePath.startsWith('.git/') || filePath === '.git') return respond({ id, type, ok: true, data: { symbols: 0, imports: 0 } });
   const fullPath = path.join(repoPath, filePath);
   try {
     const content = fs.readFileSync(fullPath, 'utf-8');
@@ -437,15 +447,16 @@ function h_dbGetFileList(id, type, payload) {
 
   const lmt = limit || 50;
   const off = offset || 0;
+  const excludePrefix = '.git';
 
-  const countStmt = _db.prepare('SELECT COUNT(*) as cnt FROM indexed_files WHERE repo_id = ?');
-  countStmt.bind([repo.id]);
+  const countStmt = _db.prepare("SELECT COUNT(*) as cnt FROM indexed_files WHERE repo_id = ? AND path NOT LIKE ? AND path != ?");
+  countStmt.bind([repo.id, excludePrefix + '/%', excludePrefix]);
   let total = 0;
   if (countStmt.step()) total = countStmt.getAsObject().cnt;
   countStmt.free();
 
-  const stmt = _db.prepare('SELECT f.id, f.path, (SELECT COUNT(*) FROM symbols WHERE file_id = f.id) as symbol_count FROM indexed_files f WHERE f.repo_id = ? ORDER BY f.path LIMIT ? OFFSET ?');
-  stmt.bind([repo.id, lmt, off]);
+  const stmt = _db.prepare("SELECT f.id, f.path, (SELECT COUNT(*) FROM symbols WHERE file_id = f.id) as symbol_count FROM indexed_files f WHERE f.repo_id = ? AND f.path NOT LIKE ? AND f.path != ? ORDER BY f.path LIMIT ? OFFSET ?");
+  stmt.bind([repo.id, excludePrefix + '/%', excludePrefix, lmt, off]);
   const files = [];
   while (stmt.step()) files.push(stmt.getAsObject());
   stmt.free();
