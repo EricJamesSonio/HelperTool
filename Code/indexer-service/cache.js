@@ -134,6 +134,52 @@ class SymbolCache {
     return { imports, imported_by };
   }
 
+  /** Restore cache from DB on startup */
+  restoreFromDb(db, repoId) {
+    this._store.clear();
+
+    const fileStmt = db.prepare('SELECT id, path FROM indexed_files WHERE repo_id = ?');
+    fileStmt.bind([repoId]);
+    const files = [];
+    while (fileStmt.step()) files.push(fileStmt.getAsObject());
+    fileStmt.free();
+
+    const symStmt = db.prepare('SELECT file_id, name, type, line, column, is_exported FROM symbols WHERE repo_id = ? ORDER BY file_id');
+    symStmt.bind([repoId]);
+    const symbolsByFile = new Map();
+    while (symStmt.step()) {
+      const row = symStmt.getAsObject();
+      if (!symbolsByFile.has(row.file_id)) symbolsByFile.set(row.file_id, []);
+      symbolsByFile.get(row.file_id).push({
+        name: row.name, type: row.type, line: row.line, column: row.column,
+        isExport: !!row.is_exported,
+      });
+    }
+    symStmt.free();
+
+    const impStmt = db.prepare('SELECT file_id, import_path, import_type, line, column, imported_symbols FROM file_imports WHERE repo_id = ? ORDER BY file_id');
+    impStmt.bind([repoId]);
+    const importsByFile = new Map();
+    while (impStmt.step()) {
+      const row = impStmt.getAsObject();
+      if (!importsByFile.has(row.file_id)) importsByFile.set(row.file_id, []);
+      importsByFile.get(row.file_id).push({
+        import_path: row.import_path, import_type: row.import_type,
+        line: row.line, column: row.column,
+        imported_symbols: row.imported_symbols ? JSON.parse(row.imported_symbols) : [],
+      });
+    }
+    impStmt.free();
+
+    for (const file of files) {
+      this._store.set(file.path, {
+        symbols: symbolsByFile.get(file.id) || [],
+        imports: importsByFile.get(file.id) || [],
+        mtime: Date.now(),
+      });
+    }
+  }
+
   /** Clear all data */
   clear() {
     this._store.clear();

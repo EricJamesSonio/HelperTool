@@ -26,6 +26,10 @@ function initDb(dbPath) {
     _db.run('PRAGMA journal_mode=WAL');
     createSchema();
     cleanupDotGit();
+    const repos = repoGetAll();
+    for (const repo of repos) {
+      if (repo.indexed) cache.restoreFromDb(_db, repo.id);
+    }
     flushDb();
     process.stdout.write(JSON.stringify({ id: 'bootstrap', type: 'ready', ok: true, data: { dbReady: true } }) + '\n');
   }).catch(err => {
