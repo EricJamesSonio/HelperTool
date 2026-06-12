@@ -2,6 +2,9 @@ const generateTask = require('./tasks/generate');
 const locTask = require('./tasks/loc');
 const dbInspectorTask = require('./tasks/dbInspector');
 const gitGraphTask = require('./tasks/gitGraph');
+const profileDataTask = require('./tasks/profileData');
+const teamActivityTask = require('./tasks/teamActivity');
+const portManagerTask = require('./tasks/portManager');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -32,6 +35,18 @@ process.on('message', async (msg) => {
 
       case 'gitGraph':
         result = await gitGraphTask(payload);
+        break;
+
+      case 'profileData':
+        result = await profileDataTask(payload);
+        break;
+
+      case 'teamActivity':
+        result = await teamActivityTask(payload);
+        break;
+
+      case 'portManager':
+        result = await portManagerTask(payload);
         break;
 
       default:

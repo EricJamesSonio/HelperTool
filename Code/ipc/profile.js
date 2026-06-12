@@ -5,6 +5,7 @@ const gitService = require('./gitService.js');
 const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
+const prefetchService = require('./prefetchService.js');
 
 let _watchers = [];
 let _saveDebounce = {};
@@ -102,6 +103,7 @@ async function _syncCommits(repoPath, repoName, force) {
     }
     db().run('COMMIT');
     save();
+    prefetchService.invalidate('profile');
     if (latestHash) _lastSyncHash = latestHash;
   } catch (err) {
     console.error('[Profile] _syncCommits error:', err);
@@ -354,6 +356,19 @@ f = typeRow[2] || 0;
   });
 
   ipcMain.handle('profile:getAll', (event, { statsRange, heatmapYear, donutRange, historyPage, historyRepo }) => {
+    const cached = prefetchService.get('profile');
+    if (cached) {
+      const defaultYear = new Date().getFullYear();
+      if (
+        (!statsRange || statsRange === 'all') &&
+        (!heatmapYear || heatmapYear === defaultYear) &&
+        (!donutRange || donutRange === 'all') &&
+        (!historyPage || historyPage === 1) &&
+        !historyRepo
+      ) {
+        return cached;
+      }
+    }
     const y = heatmapYear || new Date().getFullYear();
     const statsDateFilter = '';
     const donutDateFilter = '';

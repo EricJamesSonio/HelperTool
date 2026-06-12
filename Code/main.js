@@ -33,6 +33,7 @@ const workerProxy = require('./ipc/workerProxy.js');
 
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
+const prefetchService = require('./ipc/prefetchService.js');
 
 // ----------------------------
 // GPU / MEMORY REDUCTION FLAGS
@@ -91,6 +92,10 @@ if (!gotTheLock) {
 
         workerProxy.start();
         console.log('[Main] Worker service started');
+
+        const dbPath = path.join(app.getPath('userData'), 'helperTool.db');
+        prefetchService.start(dbPath, config.readConfig()?.activeProject || '');
+        console.log('[Main] Prefetch service started');
 
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();

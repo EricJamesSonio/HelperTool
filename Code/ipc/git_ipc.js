@@ -3,6 +3,7 @@ const GitOperations = require('../utils/gitOps');
 const simpleGit = require('simple-git');
 const path = require('path');
 const { triggerCommitSync } = require('./profile.js');
+const prefetchService = require('./prefetchService.js');
 
 /**
  * @param {{}} _deps - no shared deps needed; GitOperations is instantiated per-call
@@ -47,6 +48,8 @@ function register(_deps) {
                 triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
                     console.error('[IPC] profile sync after commit:', err);
                 });
+                prefetchService.invalidate('profile');
+                prefetchService.invalidate('teamActivity:' + repoPath);
                 event.sender.send('profile:dataChanged');
             }
             return result;
@@ -64,6 +67,8 @@ function register(_deps) {
                 triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
                     console.error('[IPC] profile sync after push:', err);
                 });
+                prefetchService.invalidate('profile');
+                prefetchService.invalidate('teamActivity:' + repoPath);
                 event.sender.send('profile:dataChanged');
             }
             return result;
