@@ -98,12 +98,7 @@ if (!gotTheLock) {
     });
 
     app.on('before-quit', () => {
-        const db = require('./database/db.js');
-        db.close();
-        const watcher = require('./indexer/watcher.js');
-        watcher.destroyAllWatchers();
-        workerProxy.stop();
-        indexerProxy.stop();
+        cleanupAndExit(false);
     });
 }
 
@@ -221,6 +216,7 @@ function createTray() {
             label: 'Exit',
             click: () => {
                 tray.destroy();
+                cleanupAndExit(true);
                 app.exit(0);
             }
         }
@@ -253,4 +249,19 @@ function getPreviousReposMenu() {
     }
 
     return submenu;
+}
+
+function cleanupAndExit(deleteIndex) {
+    try { const db = require('./database/db.js'); db.close(); } catch (_) {}
+    try { const watcher = require('./indexer/watcher.js'); watcher.destroyAllWatchers(); } catch (_) {}
+    try { workerProxy.stop(); } catch (_) {}
+    try { indexerProxy.stop(); } catch (_) {}
+    if (deleteIndex) {
+        process.once('exit', () => {
+            try {
+                const dir = path.join(app.getPath('userData'), 'symbol-index');
+                require('fs').rmSync(dir, { recursive: true, force: true });
+            } catch (_) {}
+        });
+    }
 }
