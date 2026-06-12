@@ -77,9 +77,9 @@ async function _syncCommits(repoPath, repoName, force) {
         const parent = await gitService.revParse(repoPath, _lastSyncHash + '~1', { ttl: 120000 });
         since = '--after=' + parent.trim();
       } catch (_) { since = '--after=365.days.ago'; }
-    } else {
-      since = '--after=365.days.ago';
-    }
+      } else {
+        since = '--after=1.days.ago';
+      }
     const log = await gitService.raw(repoPath, ['log', since, '--format=%H|%ad', '--date=short', '--no-merges'], 120000);
     if (!log.trim()) { _syncInProgress = false; return; }
     const dateCounts = {};

@@ -392,8 +392,8 @@ function register(_deps) {
             const git = simpleGit(repoPath);
             const p = page || 1;
             const skip = (p - 1) * 20;
-            const raw = await git.raw(['log', '--all', '--graph', '--max-count=20', `--skip=${skip}`, '--format=|||%H|%s|%an|%aI|%D']);
-            const total = await git.raw(['rev-list', '--count', '--all']);
+            const raw = await git.raw(['log', '--graph', branch, '--max-count=20', `--skip=${skip}`, '--format=|||%H|%s|%an|%aI|%D']);
+            const total = await git.raw(['rev-list', '--count', branch]);
             const lines = raw.split('\n');
             const commits = [];
             let currentGraph = [];

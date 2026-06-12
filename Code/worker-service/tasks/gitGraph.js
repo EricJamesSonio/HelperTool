@@ -12,8 +12,8 @@ function execGit(repoPath, args) {
 async function getBranchCommits({ repoPath, branch, page, pageSize }) {
   const ps = pageSize || 20;
   const skip = ((page || 1) - 1) * ps;
-  const logOut = await execGit(repoPath, ['log', '--all', '--graph', `--max-count=${ps}`, `--skip=${skip}`, '--format=|||%H|%s|%an|%aI|%D']);
-  const totalOut = await execGit(repoPath, ['rev-list', '--count', '--all']);
+  const logOut = await execGit(repoPath, ['log', '--graph', branch, `--max-count=${ps}`, `--skip=${skip}`, '--format=|||%H|%s|%an|%aI|%D']);
+  const totalOut = await execGit(repoPath, ['rev-list', '--count', branch]);
 
   const lines = logOut.split('\n');
   const commits = [];
