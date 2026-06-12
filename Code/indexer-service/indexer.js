@@ -87,6 +87,7 @@ function createSchema() {
   _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_type ON symbols(type)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_indexed_files_repo_dirty ON indexed_files(repo_id, is_dirty)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_files_path ON indexed_files(path)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_file ON file_imports(file_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_resolved ON file_imports(resolved_file_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_imports_repo ON file_imports(repo_id)');

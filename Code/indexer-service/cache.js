@@ -1,6 +1,35 @@
+class LRUCache {
+  constructor(maxSize) {
+    this.maxSize = maxSize;
+    this._map = new Map();
+  }
+
+  get(key) {
+    if (!this._map.has(key)) return undefined;
+    const value = this._map.get(key);
+    this._map.delete(key);
+    this._map.set(key, value);
+    return value;
+  }
+
+  set(key, value) {
+    if (this._map.has(key)) this._map.delete(key);
+    if (this._map.size >= this.maxSize) {
+      const first = this._map.keys().next().value;
+      this._map.delete(first);
+    }
+    this._map.set(key, value);
+  }
+
+  clear() {
+    this._map.clear();
+  }
+}
+
 class SymbolCache {
   constructor() {
     this._store = new Map();
+    this._searchCache = new LRUCache(20);
   }
 
   has(filePath) {
@@ -124,30 +153,62 @@ class SymbolCache {
   }
 
   searchFromDb(db, query, limit, offset) {
-    const lmt = limit || 50;
+    const lmt = Math.min(limit || 50, 200);
     const off = offset || 0;
-    const like = '%' + query.replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
+    const cacheKey = query + '|' + lmt + '|' + off;
 
+    const cached = this._searchCache.get(cacheKey);
+    if (cached) return cached;
+
+    const escaped = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
+
+    // Step 1: Fast prefix search (uses index on name)
+    const prefixLike = escaped + '%';
+    const prefixStmt = db.prepare('SELECT name, type, line, column, is_exported FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\' ORDER BY name LIMIT ? OFFSET ?');
+    prefixStmt.bind([prefixLike, lmt, off]);
+    const results = [];
+    while (prefixStmt.step()) {
+      const row = prefixStmt.getAsObject();
+      results.push({ name: row.name, type: row.type, line: row.line, column: row.column, isExport: !!row.is_exported });
+    }
+    prefixStmt.free();
+
+    // If prefix search returned enough, use it
+    if (results.length >= lmt) {
+      const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\'');
+      countStmt.bind([prefixLike]);
+      let total = 0;
+      if (countStmt.step()) total = countStmt.getAsObject().cnt;
+      countStmt.free();
+      const result = { results, total };
+      this._searchCache.set(cacheKey, result);
+      return result;
+    }
+
+    // Step 2: Fallback to infix search (broader, may scan)
+    const infixLike = '%' + escaped + '%';
     const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\'');
-    countStmt.bind([like]);
+    countStmt.bind([infixLike]);
     let total = 0;
     if (countStmt.step()) total = countStmt.getAsObject().cnt;
     countStmt.free();
 
     const stmt = db.prepare('SELECT name, type, line, column, is_exported FROM symbols WHERE name LIKE ? ESCAPE \'\\\\\' ORDER BY name LIMIT ? OFFSET ?');
-    stmt.bind([like, lmt, off]);
-    const results = [];
+    stmt.bind([infixLike, lmt, off]);
+    const infillResults = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
-      results.push({ name: row.name, type: row.type, line: row.line, column: row.column, isExport: !!row.is_exported });
+      infillResults.push({ name: row.name, type: row.type, line: row.line, column: row.column, isExport: !!row.is_exported });
     }
     stmt.free();
 
-    return { results, total };
+    const result = { results: infillResults, total };
+    this._searchCache.set(cacheKey, result);
+    return result;
   }
 
   getFileSymbolsFromDb(db, filePath, limit, offset) {
-    const lmt = limit || 1000;
+    const lmt = Math.min(limit || 1000, 200);
     const off = offset || 0;
 
     const fileStmt = db.prepare('SELECT id FROM indexed_files WHERE path = ?');
@@ -192,6 +253,7 @@ class SymbolCache {
 
   clear() {
     this._store.clear();
+    this._searchCache.clear();
   }
 }
 
