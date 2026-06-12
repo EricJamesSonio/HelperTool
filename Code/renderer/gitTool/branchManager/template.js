@@ -1,4 +1,4 @@
-import { isAnimated, escHtml } from './utils.js';
+import { isAnimated, escHtml, timeAgo, parseDiff } from './utils.js';
 
 export function getPanelContent(mode) {
   return `
@@ -243,34 +243,122 @@ export function getConflictResolver(conflicts, from, into) {
   `;
 }
 
-export function getGraphView(branch, commits, page, totalPages) {
-  const commitRows = commits.map(c => `
-    <div class="bm-graph-row">
-      <span class="bm-graph-dot" style="color:${branch}">●</span>
-      <span class="bm-graph-hash">${c.hash.substring(0, 7)}</span>
-      <span class="bm-graph-msg">${c.message}</span>
-      <span class="bm-graph-author">${c.author}</span>
-      <span class="bm-graph-date">${new Date(c.date).toLocaleDateString()}</span>
-    </div>
-  `).join('');
-  const pageBtns = [];
-  if (totalPages > 1) {
-    for (let i = 1; i <= Math.min(totalPages, 10); i++) {
-      pageBtns.push(`<button class="bm-page-btn${i === page ? ' active' : ''}" data-graph-page="${i}">${i}</button>`);
+export function getGraphView(branch, commits, page, totalPages, expandedCommit, commitFiles, loadingFiles, loadingMore, commitDiffActive, diffText, diffLoading) {
+  const commitRows = commits.map((c) => {
+    const isExpanded = expandedCommit === c.hash;
+    const files = commitFiles[c.hash];
+    const avatarLetter = (c.author || '?')[0].toUpperCase();
+    const shortHash = c.hash.substring(0, 7);
+
+    let filesHtml = '';
+    let diffHtml = '';
+    if (isExpanded) {
+      if (loadingFiles) {
+        filesHtml = '<div class="bm-graph-files-loading">Loading file changes\u2026</div>';
+      } else if (files && files.length) {
+        const totalAdd = files.reduce((s, f) => s + (f.additions || 0), 0);
+        const totalDel = files.reduce((s, f) => s + (f.deletions || 0), 0);
+        filesHtml = `
+          <div class="bm-graph-files">
+            <div class="bm-graph-files-summary">${files.length} file${files.length !== 1 ? 's' : ''} changed <span class="bm-graph-ins">+${totalAdd}</span> <span class="bm-graph-del">-${totalDel}</span></div>
+            ${files.map(f => {
+              const isActive = commitDiffActive && commitDiffActive.hash === c.hash && commitDiffActive.filePath === f.path;
+              return `
+                <div class="bm-graph-file-row${isActive ? ' active' : ''}" data-hash="${c.hash}" data-file="${f.path}" title="${escHtml(f.path)}">
+                  <span class="bm-graph-file-path">${escHtml(f.path)}</span>
+                  <span class="bm-graph-file-stats">
+                    ${f.additions > 0 ? `<span class="bm-graph-ins">+${f.additions}</span>` : ''}
+                    ${f.deletions > 0 ? `<span class="bm-graph-del">-${f.deletions}</span>` : ''}
+                  </span>
+                </div>
+              `;
+            }).join('')}
+          </div>`;
+
+        if (commitDiffActive && commitDiffActive.hash === c.hash) {
+          if (diffLoading && !diffText) {
+            diffHtml = '<div class="bm-graph-diff-loading">Loading diff\u2026</div>';
+          } else if (diffText) {
+            const parsed = parseDiff(diffText);
+            if (parsed.length) {
+              diffHtml = `
+                <div class="bm-graph-diff">
+                  ${parsed.map(d => {
+                    const lineNum = d.type === 'add' ? d.newLine : d.type === 'del' ? d.oldLine : (d.oldLine != null ? d.oldLine : '');
+                    const cls = 'bm-graph-diff-line type-' + d.type;
+                    return `<div class="${cls}"><span class="bm-graph-diff-ln">${lineNum != null ? lineNum : ''}</span><span class="bm-graph-diff-content">${escHtml(d.content)}</span></div>`;
+                  }).join('')}
+                </div>`;
+            } else {
+              diffHtml = '<div class="bm-graph-diff-empty">No diff content</div>';
+            }
+          }
+        }
+      } else if (files && !files.length) {
+        filesHtml = '<div class="bm-graph-files bm-graph-files-empty">No file changes</div>';
+      }
     }
-    if (totalPages > 10) pageBtns.push('<span class="bm-page-dots">…</span>');
-  }
+
+    // Parse refs
+    let refsHtml = '';
+    if (c.refs) {
+      const refs = c.refs.split(',').map(r => r.trim()).filter(Boolean);
+      refsHtml = refs.map(r => {
+        const isHead = r.startsWith('HEAD');
+        const isTag = r.startsWith('tag:');
+        const isRemote = r.includes('/');
+        const label = isHead ? 'HEAD' : isTag ? r.replace('tag:', '').trim() : r;
+        let cls = 'bm-ref-tag';
+        if (isHead) cls += ' bm-ref-head';
+        else if (isTag) cls += ' bm-ref-tag-badge';
+        else if (isRemote) cls += ' bm-ref-remote';
+        else cls += ' bm-ref-branch';
+        return `<span class="${cls}">${escHtml(label)}</span>`;
+      }).join(' ');
+    }
+
+    return `
+      <div class="bm-graph-commit ${isExpanded ? 'bm-graph-expanded' : ''}" data-hash="${c.hash}">
+        <div class="bm-graph-commit-line">
+          <span class="bm-graph-ascii">${escHtml(c.graph || '')}</span>
+          <span class="bm-graph-commit-dot"></span>
+          <span class="bm-graph-commit-avatar">${avatarLetter}</span>
+          <span class="bm-graph-commit-msg">${escHtml(c.message)}</span>
+          <span class="bm-graph-commit-hash">${shortHash}</span>
+          <span class="bm-graph-commit-meta">
+            <span class="bm-graph-commit-author">${escHtml(c.author)}</span>
+            <span class="bm-graph-commit-time">${timeAgo(c.date)}</span>
+          </span>
+        </div>
+        ${refsHtml ? `<div class="bm-graph-refs">${refsHtml}</div>` : ''}
+        ${filesHtml}
+        ${diffHtml}
+      </div>
+    `;
+  }).join('');
+
+  const hasMore = page < totalPages;
+  const loadMoreHtml = hasMore ? `
+    <button class="bm-btn bm-load-more" id="bmGraphLoadMore">
+      ${loadingMore ? 'Loading\u2026' : 'Load more commits'}
+    </button>
+  ` : '';
+
   return `
     <div class="bm-graph-wrap">
       <div class="bm-graph-header">
-        <span class="bm-graph-title">${branch} — ${totalPages * 20}+ commits</span>
+        <span class="bm-graph-title">${escHtml(branch)}</span>
         <button class="bm-btn" id="bmGraphClose">Back</button>
       </div>
-      <div class="bm-graph-list">${commitRows || '<div class="bm-empty">No commits</div>'}</div>
-      ${pageBtns.length ? `<div class="bm-graph-pages">${pageBtns.join('')}</div>` : ''}
+      <div class="bm-graph-timeline">
+        ${commitRows || '<div class="bm-empty">No commits</div>'}
+      </div>
+      ${loadMoreHtml}
     </div>
   `;
 }
+
+
 
 /* ── Pull Requests ── */
 

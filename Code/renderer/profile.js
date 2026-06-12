@@ -182,6 +182,10 @@ async function _load() {
     if (all.profile) _profile = all.profile;
     _avatarDataUrl = av ? av.dataUrl : null;
 
+    import('./app_manager/prefetchManager.js').then(mod => {
+      mod.getPrefetchCache().set('profile', { all, avatar: av?.dataUrl || null }, 300000);
+    });
+
     // Populate cache with batched results
     _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: Date.now(), ttl: 30000 };
     _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: Date.now(), ttl: 60000 };
@@ -283,6 +287,7 @@ const SOCIAL_ICONS = {
 };
 
 function _renderProfileCard() {
+  if (!_profile) _profile = {};
   const section = _el('div', { className: 'pf-section' });
   if (_editingProfile) {
     section.innerHTML = `
@@ -801,6 +806,19 @@ function _attachCommitFileClicks(body) {
     });
     if (el.dataset.path === _dayDetailFile && el.dataset.hash === (_dayDetailCommitHash || '')) {
       el.classList.add('active');
+    }
+  });
+}
+
+// Listen for data changes from main process (commit/push events)
+if (window.electronAPI?.profile?.onDataChanged) {
+  window.electronAPI.profile.onDataChanged(() => {
+    import('./app_manager/prefetchManager.js').then(mod => {
+      mod.getPrefetchCache().delete('profile');
+    });
+    _cache = {};
+    if (_open) {
+      _load();
     }
   });
 }

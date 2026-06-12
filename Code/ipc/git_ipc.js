@@ -1,6 +1,9 @@
 const { ipcMain } = require('electron');
 const GitOperations = require('../utils/gitOps');
 const simpleGit = require('simple-git');
+const path = require('path');
+const { triggerCommitSync } = require('./profile.js');
+const prefetchService = require('./prefetchService.js');
 
 /**
  * @param {{}} _deps - no shared deps needed; GitOperations is instantiated per-call
@@ -40,7 +43,16 @@ function register(_deps) {
     ipcMain.handle('git:commit', async (event, repoPath, message, filePaths) => {
         try {
             const gitOps = new GitOperations(repoPath);
-            return await gitOps.commit(message, filePaths);
+            const result = await gitOps.commit(message, filePaths);
+            if (result.success !== false) {
+                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
+                    console.error('[IPC] profile sync after commit:', err);
+                });
+                prefetchService.invalidate('profile');
+                prefetchService.invalidate('teamActivity:' + repoPath);
+                event.sender.send('profile:dataChanged');
+            }
+            return result;
         } catch (err) {
             console.error('[IPC] git:commit error:', err);
             return { error: err.message, success: false };
@@ -50,7 +62,16 @@ function register(_deps) {
     ipcMain.handle('git:push', async (event, repoPath) => {
         try {
             const gitOps = new GitOperations(repoPath);
-            return await gitOps.push();
+            const result = await gitOps.push();
+            if (result.success !== false) {
+                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
+                    console.error('[IPC] profile sync after push:', err);
+                });
+                prefetchService.invalidate('profile');
+                prefetchService.invalidate('teamActivity:' + repoPath);
+                event.sender.send('profile:dataChanged');
+            }
+            return result;
         } catch (err) {
             console.error('[IPC] git:push error:', err);
             return { error: err.message, success: false };
@@ -372,19 +393,90 @@ function register(_deps) {
 
     ipcMain.handle('git:branchGraph', async (_e, { repoPath, branch, page }) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                const r = await workerProxy.send('gitGraph', { action: 'branchCommits', repoPath, branch, page, pageSize: 20 });
+                return { success: true, ...r };
+            }
+        } catch (_) {}
+        try {
             const git = simpleGit(repoPath);
             const p = page || 1;
             const skip = (p - 1) * 20;
-            const log = await git.log([branch, '--max-count=20', `--skip=${skip}`, '--format=%H|%s|%an|%aI']);
+            const raw = await git.raw(['log', '--graph', branch, '--max-count=20', `--skip=${skip}`, '--format=|||%H|%s|%an|%aI|%D']);
             const total = await git.raw(['rev-list', '--count', branch]);
-            const commits = log.all.map(c => ({
-                hash: c.hash,
-                message: c.message,
-                author: c.author_name,
-                date: c.date,
-            }));
+            const lines = raw.split('\n');
+            const commits = [];
+            let currentGraph = [];
+            for (const line of lines) {
+                const delimIdx = line.indexOf('|||');
+                if (delimIdx >= 0) {
+                    const graphPrefix = line.substring(0, delimIdx);
+                    const dataPart = line.substring(delimIdx + 3);
+                    const idx = dataPart.indexOf('|');
+                    if (idx === -1) continue;
+                    const hash = dataPart.slice(0, idx);
+                    const rest = dataPart.slice(idx + 1);
+                    const parts = rest.split('|');
+                    const graphLines = currentGraph.length ? currentGraph.join('\n') + '\n' + graphPrefix : graphPrefix;
+                    commits.push({
+                        hash,
+                        message: parts[0] || '',
+                        author: parts[1] || '',
+                        date: parts[2] || '',
+                        refs: parts.slice(3).join('|') || '',
+                        graph: graphLines,
+                    });
+                    currentGraph = [];
+                } else {
+                    if (line.trim()) currentGraph.push(line);
+                }
+            }
             const totalCount = parseInt(total.trim()) || 0;
             return { success: true, commits, total: totalCount, page: p, totalPages: Math.max(1, Math.ceil(totalCount / 20)) };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('git:commitDetail', async (_e, { repoPath, hash }) => {
+        try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                const r = await workerProxy.send('gitGraph', { action: 'commitDetail', repoPath, hash });
+                return { success: true, ...r };
+            }
+        } catch (_) {}
+        try {
+            const git = simpleGit(repoPath);
+            const numstatRaw = await git.raw(['diff-tree', '--no-commit-id', '-r', '--numstat', hash]);
+            const files = numstatRaw.trim().split('\n').filter(Boolean).map(line => {
+                const parts = line.split('\t');
+                if (parts.length < 3) return null;
+                return {
+                    path: parts.slice(2).join('\t'),
+                    additions: parseInt(parts[0]) || 0,
+                    deletions: parseInt(parts[1]) || 0,
+                };
+            }).filter(Boolean);
+            return { success: true, files };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('git:commitFileDiff', async (_e, { repoPath, hash, filePath }) => {
+        try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                const r = await workerProxy.send('gitGraph', { action: 'fileDiff', repoPath, hash, filePath });
+                return { success: true, ...r };
+            }
+        } catch (_) {}
+        try {
+            const git = simpleGit(repoPath);
+            const diff = await git.raw(['diff-tree', '--no-commit-id', '-p', hash, '--', filePath]);
+            return { success: true, diff };
         } catch (err) {
             return { success: false, error: err.message };
         }

@@ -40,37 +40,12 @@
   color: var(--accent);
 }
 
-.git-stats {
-  display: flex;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  background: var(--bg-raised);
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.stat-item.unpushed {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-  border-color: rgba(210,153,34,0.25);
-}
-
-.stat-label {
-  opacity: 0.7;
+.git-stats-compact {
+  font-size: 12px;
+  color: var(--text-muted);
   font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.stat-value {
-  font-weight: 700;
-  color: var(--accent);
+  letter-spacing: normal;
+  white-space: nowrap;
 }
 
 /* ══ CONTENT AREA (3 PANELS) ══ */
@@ -845,12 +820,5 @@
   .git-panel-history {
     grid-column: 1;
     max-height: 250px;
-  }
-  .git-stats {
-    gap: 8px;
-    font-size: 12px;
-  }
-  .stat-item {
-    padding: 3px 8px;
   }
 }

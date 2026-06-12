@@ -1,6 +1,7 @@
 const { ipcMain } = require('electron');
 const { exec } = require('child_process');
 const util = require('util');
+const prefetchService = require('./prefetchService.js');
 
 const execAsync = util.promisify(exec);
 
@@ -132,6 +133,9 @@ async function _fetchNewPids(pidList) {
 }
 
 async function listHandler() {
+  const cached = prefetchService.get('portManager');
+  if (cached) return cached;
+
   const now = Date.now();
   const byPid = await parseListeningPorts();
   const currentPids = new Set(Object.keys(byPid).map(Number));

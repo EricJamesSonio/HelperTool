@@ -1,11 +1,10 @@
 const { ipcMain } = require('electron');
 const path = require('path');
 const gitService = require('./gitService.js');
+const prefetchService = require('./prefetchService.js');
 
-// ── In-memory cache ──────────────────────────────────────────
-const _cache = new Map(); // repoPath -> { commits, contributors, timestamp }
-
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const _cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000;
 
 function _hashColor(email) {
   let hash = 0;
@@ -132,9 +131,12 @@ function _detectStatus(added, removed) {
 async function logHandler({ repoPath }) {
   if (!repoPath) throw new Error('repoPath is required');
 
-  const cached = _cache.get(repoPath);
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    return { commits: cached.commits, contributors: cached.contributors };
+  const cached = prefetchService.get('teamActivity:' + repoPath);
+  if (cached) return { commits: cached.commits, contributors: cached.contributors };
+
+  const cached2 = _cache.get(repoPath);
+  if (cached2 && (Date.now() - cached2.timestamp) < CACHE_TTL) {
+    return { commits: cached2.commits, contributors: cached2.contributors };
   }
 
   // Step 1: Get commit metadata (no numstat — clean format-only output)

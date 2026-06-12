@@ -392,10 +392,47 @@ async function runSqliteQuery(client, query) {
 
 async function runMongoQuery(client, query) {
   const db = client.db();
-  const parsed = JSON.parse(query.replace(/'/g, '"'));
+  let parsed;
+
+  try {
+    parsed = JSON.parse(query.replace(/'/g, '"'));
+  } catch (_) {
+    // If it's not valid JSON, try as aggregate pipeline format
+    parsed = JSON.parse(query.replace(/'/g, '"'));
+  }
+
   const collName = parsed.collection;
   if (!collName) throw new Error('MongoDB query requires { collection, ... }');
   const coll = db.collection(collName);
+
+  if (parsed.method === 'insertOne') {
+    const result = await coll.insertOne(parsed.document || {});
+    return { columns: ['insertedId'], rows: [[result.insertedId]] };
+  }
+
+  if (parsed.method === 'updateOne') {
+    const result = await coll.updateOne(parsed.filter || {}, parsed.update || {});
+    return { columns: ['matchedCount', 'modifiedCount'],
+             rows: [[result.matchedCount, result.modifiedCount]] };
+  }
+
+  if (parsed.method === 'deleteOne') {
+    const result = await coll.deleteOne(parsed.filter || {});
+    return { columns: ['deletedCount'], rows: [[result.deletedCount]] };
+  }
+
+  if (parsed.method === 'countDocuments') {
+    const count = await coll.countDocuments(parsed.filter || {});
+    return { columns: ['count'], rows: [[count]] };
+  }
+
+  if (parsed.method === 'find') {
+    const docs = await coll.find(parsed.filter || {}).limit(100).toArray();
+    const columns = docs.length > 0 ? Object.keys(docs[0]) : [];
+    return { columns, rows: docs.map(d => columns.map(c => d[c])) };
+  }
+
+  // Fallback: aggregate pipeline
   const pipeline = parsed.pipeline || [];
   const docs = await coll.aggregate(pipeline).toArray();
   const columns = docs.length > 0 ? Object.keys(docs[0]) : [];
