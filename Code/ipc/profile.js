@@ -67,6 +67,45 @@ function _startWatcher(repoPath, repoName) {
   _watchers.push(watcher);
 }
 
+async function _syncCommits(repoPath, repoName, force) {
+  if (_syncInProgress) return;
+  _syncInProgress = true;
+  try {
+    let since = '';
+    if (!force && _lastSyncHash) {
+      try {
+        const parent = await gitService.revParse(repoPath, _lastSyncHash + '~1', { ttl: 120000 });
+        since = '--after=' + parent.trim();
+      } catch (_) { since = '--after=365.days.ago'; }
+    } else {
+      since = '--after=365.days.ago';
+    }
+    const log = await gitService.raw(repoPath, ['log', since, '--format=%H|%ad', '--date=short', '--no-merges'], 120000);
+    if (!log.trim()) { _syncInProgress = false; return; }
+    const dateCounts = {};
+    let latestHash = _lastSyncHash;
+    for (const line of log.trim().split('\n')) {
+      const pipeIdx = line.indexOf('|');
+      if (pipeIdx < 0) continue;
+      const hash = line.substring(0, pipeIdx);
+      const date = line.substring(pipeIdx + 1);
+      if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
+      if (!latestHash) latestHash = hash;
+    }
+    db().run('BEGIN');
+    for (const [date, count] of Object.entries(dateCounts)) {
+      db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(date, repo_path) DO UPDATE SET commits=?`,
+        [date, repoPath, repoName, count, count]);
+    }
+    db().run('COMMIT');
+    save();
+    if (latestHash) _lastSyncHash = latestHash;
+  } catch (_) {}
+  _syncInProgress = false;
+}
+
 function register(shared) {
   const config = shared ? shared.config : null;
 
@@ -311,45 +350,6 @@ f = typeRow[2] || 0;
     }
   });
 
-  async function _syncCommits(repoPath, repoName, force) {
-    if (_syncInProgress) return;
-    _syncInProgress = true;
-    try {
-      let since = '';
-      if (!force && _lastSyncHash) {
-        try {
-          const parent = await gitService.revParse(repoPath, _lastSyncHash + '~1', { ttl: 120000 });
-          since = '--after=' + parent.trim();
-        } catch (_) { since = '--after=365.days.ago'; }
-      } else {
-        since = '--after=365.days.ago';
-      }
-      const log = await gitService.raw(repoPath, ['log', since, '--format=%H|%ad', '--date=short', '--no-merges'], 120000);
-      if (!log.trim()) { _syncInProgress = false; return; }
-      const dateCounts = {};
-      let latestHash = _lastSyncHash;
-      for (const line of log.trim().split('\n')) {
-        const pipeIdx = line.indexOf('|');
-        if (pipeIdx < 0) continue;
-        const hash = line.substring(0, pipeIdx);
-        const date = line.substring(pipeIdx + 1);
-        if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
-        if (!latestHash) latestHash = hash;
-      }
-      db().run('BEGIN');
-      for (const [date, count] of Object.entries(dateCounts)) {
-        db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits)
-                  VALUES (?, ?, ?, ?)
-                  ON CONFLICT(date, repo_path) DO UPDATE SET commits=?`,
-          [date, repoPath, repoName, count, count]);
-      }
-      db().run('COMMIT');
-      save();
-      if (latestHash) _lastSyncHash = latestHash;
-    } catch (_) {}
-    _syncInProgress = false;
-  }
-
   ipcMain.handle('profile:getAll', (event, { statsRange, heatmapYear, donutRange, historyPage, historyRepo }) => {
     const y = heatmapYear || new Date().getFullYear();
     const statsDateFilter = '';
@@ -431,4 +431,4 @@ f = typeRow[2] || 0;
   });
 }
 
-module.exports = { register };
+module.exports = { register, triggerCommitSync: _syncCommits };

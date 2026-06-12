@@ -12,23 +12,37 @@ function execGit(repoPath, args) {
 async function getBranchCommits({ repoPath, branch, page, pageSize }) {
   const ps = pageSize || 20;
   const skip = ((page || 1) - 1) * ps;
-  const logOut = await execGit(repoPath, ['log', branch, `--max-count=${ps}`, `--skip=${skip}`, '--format=%H|%s|%an|%aI|%D']);
-  const totalOut = await execGit(repoPath, ['rev-list', '--count', branch]);
+  const logOut = await execGit(repoPath, ['log', '--all', '--graph', `--max-count=${ps}`, `--skip=${skip}`, '--format=|||%H|%s|%an|%aI|%D']);
+  const totalOut = await execGit(repoPath, ['rev-list', '--count', '--all']);
 
-  const commits = logOut.trim().split('\n').filter(Boolean).map(line => {
-    const idx = line.indexOf('|');
-    if (idx === -1) return null;
-    const hash = line.slice(0, idx);
-    const rest = line.slice(idx + 1);
-    const parts = rest.split('|');
-    return {
-      hash,
-      message: parts[0] || '',
-      author: parts[1] || '',
-      date: parts[2] || '',
-      refs: parts.slice(3).join('|') || '',
-    };
-  }).filter(Boolean);
+  const lines = logOut.split('\n');
+  const commits = [];
+  let currentGraph = [];
+
+  for (const line of lines) {
+    const delimIdx = line.indexOf('|||');
+    if (delimIdx >= 0) {
+      const graphPrefix = line.substring(0, delimIdx);
+      const dataPart = line.substring(delimIdx + 3);
+      const idx = dataPart.indexOf('|');
+      if (idx === -1) continue;
+      const hash = dataPart.slice(0, idx);
+      const rest = dataPart.slice(idx + 1);
+      const parts = rest.split('|');
+      const graphLines = currentGraph.length ? currentGraph.join('\n') + '\n' + graphPrefix : graphPrefix;
+      commits.push({
+        hash,
+        message: parts[0] || '',
+        author: parts[1] || '',
+        date: parts[2] || '',
+        refs: parts.slice(3).join('|') || '',
+        graph: graphLines,
+      });
+      currentGraph = [];
+    } else {
+      if (line.trim()) currentGraph.push(line);
+    }
+  }
 
   const totalCount = parseInt(totalOut.trim()) || 0;
   return {

@@ -833,9 +833,52 @@
   text-align: right;
 }
 
+/* ── Graph ASCII column ── */
+.bm-graph-ascii {
+  font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: pre;
+  color: var(--text-faint,#364060);
+  min-width: 60px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 4px;
+  user-select: none;
+}
+
+/* ── Ref name badges ── */
+.bm-graph-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 12px 6px 136px;
+}
+.bm-ref-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.bm-ref-branch {
+  background: rgba(79,142,247,0.15);
+  color: #7aa9f9;
+  border: 1px solid rgba(79,142,247,0.3);
+}
+.bm-ref-remote {
+  background: rgba(156,163,175,0.12);
+  color: #9ca3af;
+  border: 1px solid rgba(156,163,175,0.2);
+}
+.bm-ref-head { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+.bm-ref-tag-badge { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+
 /* ── Expanded commit files ── */
 .bm-graph-files {
-  padding: 0 10px 8px 52px;
+  padding: 0 12px 8px 136px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -855,7 +898,7 @@
 .bm-graph-files-loading {
   font-size: 0.82rem;
   color: var(--text-faint,#364060);
-  padding: 6px 0 8px 52px;
+  padding: 6px 0 8px 136px;
 }
 .bm-graph-file-row {
   display: flex;
@@ -917,7 +960,7 @@
   font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 0.8rem;
   line-height: 1.6;
-  margin: 0 10px 8px 52px;
+  margin: 0 10px 8px 136px;
   border: 1px solid var(--border-subtle,rgba(255,255,255,0.08));
   border-radius: 8px;
   overflow: hidden;
@@ -960,7 +1003,7 @@
 .bm-graph-diff-loading {
   font-size: 0.82rem;
   color: var(--text-faint,#364060);
-  padding: 10px 10px 8px 52px;
+  padding: 10px 10px 8px 136px;
 }
 .bm-graph-diff-empty {
   font-size: 0.82rem;

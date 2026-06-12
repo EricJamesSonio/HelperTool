@@ -299,9 +299,28 @@ export function getGraphView(branch, commits, page, totalPages, expandedCommit, 
       }
     }
 
+    // Parse refs
+    let refsHtml = '';
+    if (c.refs) {
+      const refs = c.refs.split(',').map(r => r.trim()).filter(Boolean);
+      refsHtml = refs.map(r => {
+        const isHead = r.startsWith('HEAD');
+        const isTag = r.startsWith('tag:');
+        const isRemote = r.includes('/');
+        const label = isHead ? 'HEAD' : isTag ? r.replace('tag:', '').trim() : r;
+        let cls = 'bm-ref-tag';
+        if (isHead) cls += ' bm-ref-head';
+        else if (isTag) cls += ' bm-ref-tag-badge';
+        else if (isRemote) cls += ' bm-ref-remote';
+        else cls += ' bm-ref-branch';
+        return `<span class="${cls}">${escHtml(label)}</span>`;
+      }).join(' ');
+    }
+
     return `
       <div class="bm-graph-commit ${isExpanded ? 'bm-graph-expanded' : ''}" data-hash="${c.hash}">
         <div class="bm-graph-commit-line">
+          <span class="bm-graph-ascii">${escHtml(c.graph || '')}</span>
           <span class="bm-graph-commit-dot"></span>
           <span class="bm-graph-commit-avatar">${avatarLetter}</span>
           <span class="bm-graph-commit-msg">${escHtml(c.message)}</span>
@@ -311,6 +330,7 @@ export function getGraphView(branch, commits, page, totalPages, expandedCommit, 
             <span class="bm-graph-commit-time">${timeAgo(c.date)}</span>
           </span>
         </div>
+        ${refsHtml ? `<div class="bm-graph-refs">${refsHtml}</div>` : ''}
         ${filesHtml}
         ${diffHtml}
       </div>

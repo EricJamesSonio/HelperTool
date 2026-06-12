@@ -1,6 +1,8 @@
 const { ipcMain } = require('electron');
 const GitOperations = require('../utils/gitOps');
 const simpleGit = require('simple-git');
+const path = require('path');
+const { triggerCommitSync } = require('./profile.js');
 
 /**
  * @param {{}} _deps - no shared deps needed; GitOperations is instantiated per-call
@@ -40,7 +42,11 @@ function register(_deps) {
     ipcMain.handle('git:commit', async (event, repoPath, message, filePaths) => {
         try {
             const gitOps = new GitOperations(repoPath);
-            return await gitOps.commit(message, filePaths);
+            const result = await gitOps.commit(message, filePaths);
+            if (result.success !== false) {
+                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(() => {});
+            }
+            return result;
         } catch (err) {
             console.error('[IPC] git:commit error:', err);
             return { error: err.message, success: false };
@@ -50,7 +56,11 @@ function register(_deps) {
     ipcMain.handle('git:push', async (event, repoPath) => {
         try {
             const gitOps = new GitOperations(repoPath);
-            return await gitOps.push();
+            const result = await gitOps.push();
+            if (result.success !== false) {
+                triggerCommitSync(repoPath, path.basename(repoPath), false).catch(() => {});
+            }
+            return result;
         } catch (err) {
             console.error('[IPC] git:push error:', err);
             return { error: err.message, success: false };
@@ -382,15 +392,35 @@ function register(_deps) {
             const git = simpleGit(repoPath);
             const p = page || 1;
             const skip = (p - 1) * 20;
-            const log = await git.log([branch, '--max-count=20', `--skip=${skip}`, '--format=%H|%s|%an|%aI']);
-            const total = await git.raw(['rev-list', '--count', branch]);
-            const commits = log.all.map(c => ({
-                hash: c.hash,
-                message: c.message,
-                author: c.author_name,
-                date: c.date,
-                refs: '',
-            }));
+            const raw = await git.raw(['log', '--all', '--graph', '--max-count=20', `--skip=${skip}`, '--format=|||%H|%s|%an|%aI|%D']);
+            const total = await git.raw(['rev-list', '--count', '--all']);
+            const lines = raw.split('\n');
+            const commits = [];
+            let currentGraph = [];
+            for (const line of lines) {
+                const delimIdx = line.indexOf('|||');
+                if (delimIdx >= 0) {
+                    const graphPrefix = line.substring(0, delimIdx);
+                    const dataPart = line.substring(delimIdx + 3);
+                    const idx = dataPart.indexOf('|');
+                    if (idx === -1) continue;
+                    const hash = dataPart.slice(0, idx);
+                    const rest = dataPart.slice(idx + 1);
+                    const parts = rest.split('|');
+                    const graphLines = currentGraph.length ? currentGraph.join('\n') + '\n' + graphPrefix : graphPrefix;
+                    commits.push({
+                        hash,
+                        message: parts[0] || '',
+                        author: parts[1] || '',
+                        date: parts[2] || '',
+                        refs: parts.slice(3).join('|') || '',
+                        graph: graphLines,
+                    });
+                    currentGraph = [];
+                } else {
+                    if (line.trim()) currentGraph.push(line);
+                }
+            }
             const totalCount = parseInt(total.trim()) || 0;
             return { success: true, commits, total: totalCount, page: p, totalPages: Math.max(1, Math.ceil(totalCount / 20)) };
         } catch (err) {
