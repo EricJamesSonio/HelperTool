@@ -10,9 +10,11 @@ let _activeRepoPath = null;
 let _userDataPath = null;
 
 const _statusCache = new Map();
+const _fileListCache = new Map();
 
 function invalidateCache(repoPath) {
   _statusCache.delete(repoPath);
+  _fileListCache.delete(repoPath);
 }
 
 function _detectLang(filePath) {
@@ -314,10 +316,22 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:getIndexedFileList', async (_, repoPath, limit, offset) => {
     try {
+      const lmt = limit || 50;
+      const off = offset || 0;
+
+      // Cache hit: only for first page (most common call)
+      if (off === 0 && lmt <= 50 && _fileListCache.has(repoPath)) {
+        const cached = _fileListCache.get(repoPath);
+        return cached;
+      }
+
       if (indexerProxy.isReady()) {
         try {
-          const result = await indexerProxy.send('db:getFileList', { repoPath, limit: limit || 50, offset: offset || 0 });
-          if (result && result.files) return result;
+          const result = await indexerProxy.send('db:getFileList', { repoPath, limit: lmt, offset: off });
+          if (result && result.files) {
+            if (off === 0) _fileListCache.set(repoPath, result);
+            return result;
+          }
         } catch (_) {}
       }
       return { files: [], total: 0 };
