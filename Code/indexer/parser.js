@@ -328,10 +328,15 @@ function extractPython(node, parentInfo, sourceCode) {
 }
 
 function extractCSS(node, parentInfo) {
-  if (node.type === 'class_name') {
+  const type = node.type;
+
+  // .className — node text is just the name without dot
+  if (type === 'class_selector') {
+    const classNameNode = node.namedChildren.find(c => c.type === 'class_name');
+    if (!classNameNode) return null;
     return {
-      name: '.' + node.text,
-      type: 'class',
+      name: '.' + classNameNode.text,
+      type: 'selector',
       line: node.startPosition.row + 1,
       column: node.startPosition.column + 1,
       is_exported: false,
@@ -339,10 +344,14 @@ function extractCSS(node, parentInfo) {
       signature: null,
     };
   }
-  if (node.type === 'id_name') {
+
+  // #idName
+  if (type === 'id_selector') {
+    const idNode = node.namedChildren.find(c => c.type === 'id_name');
+    if (!idNode) return null;
     return {
-      name: '#' + node.text,
-      type: 'id',
+      name: '#' + idNode.text,
+      type: 'selector',
       line: node.startPosition.row + 1,
       column: node.startPosition.column + 1,
       is_exported: false,
@@ -350,6 +359,50 @@ function extractCSS(node, parentInfo) {
       signature: null,
     };
   }
+
+  // element selector: button, div, h1, etc.
+  if (type === 'tag_name') {
+    return {
+      name: node.text,
+      type: 'selector',
+      line: node.startPosition.row + 1,
+      column: node.startPosition.column + 1,
+      is_exported: false,
+      class_name: null,
+      signature: null,
+    };
+  }
+
+  // @keyframes name
+  if (type === 'keyframes_statement') {
+    const nameNode = node.namedChildren.find(c => c.type === 'keyframes_name');
+    if (!nameNode) return null;
+    return {
+      name: '@keyframes ' + nameNode.text,
+      type: 'keyframes',
+      line: node.startPosition.row + 1,
+      column: node.startPosition.column + 1,
+      is_exported: false,
+      class_name: null,
+      signature: null,
+    };
+  }
+
+  // CSS custom property: --my-var
+  if (type === 'declaration') {
+    const propNode = node.namedChildren.find(c => c.type === 'property_name');
+    if (!propNode || !propNode.text.startsWith('--')) return null;
+    return {
+      name: propNode.text,
+      type: 'variable',
+      line: node.startPosition.row + 1,
+      column: node.startPosition.column + 1,
+      is_exported: false,
+      class_name: null,
+      signature: null,
+    };
+  }
+
   return null;
 }
 
