@@ -366,5 +366,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
 
-require('./preload/serviceTracker_bridge.js');
+contextBridge.exposeInMainWorld('serviceTrackerAPI', {
+  getAll:    () => ipcRenderer.invoke('serviceTracker:getAll'),
+  onUpdate:  (cb) => ipcRenderer.on('serviceTracker:update', (_, data) => cb(data)),
+  offUpdate: (cb) => ipcRenderer.removeListener('serviceTracker:update', cb),
+});
 
