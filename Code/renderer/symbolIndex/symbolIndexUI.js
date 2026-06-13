@@ -643,7 +643,7 @@ class SymbolIndexUI {
     el.textContent = 'Indexing active file via proxy...';
     try {
       const filePath = this.manager.getCurrentFilePath?.() || this._activeRepoPath;
-      const result = await window.symbolIndexBridge.proxyIndexFile(this._activeRepoPath, filePath);
+      const result = await window.electronAPI.symbolIndex.proxyIndexFile(this._activeRepoPath, filePath);
       el.textContent = JSON.stringify(result, null, 2);
     } catch (err) {
       el.textContent = 'Error: ' + err.message;

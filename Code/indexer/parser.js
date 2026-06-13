@@ -25,7 +25,9 @@ const _parserPool = new Map();
 
 async function initParser() {
   if (_initialized) return;
-  await Parser.init();
+  await Parser.init({
+    locateFile: (filePath) => path.join(__dirname, '..', 'node_modules', 'web-tree-sitter', filePath),
+  });
   _initialized = true;
 }
 

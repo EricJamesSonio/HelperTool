@@ -26,7 +26,7 @@ function _spawn() {
   const indexPath = _getIndexerPath();
   const args = [indexPath];
   if (_dbPath) args.push(_dbPath);
-  _child = spawn('node', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  _child = spawn(process.execPath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
   _ready = false;
 
   _rl = readline.createInterface({ input: _child.stdout, terminal: false });
