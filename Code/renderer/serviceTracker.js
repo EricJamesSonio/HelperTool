@@ -158,7 +158,7 @@ function _updateSummary() {
 function _allSettled() {
   return SERVICES.every(s => {
     const st = state.services[s.id]?.status;
-    return st === 'done' || st === 'failed' || !st;
+    return st === 'done' || st === 'failed';
   });
 }
 
@@ -181,12 +181,10 @@ export async function init() {
   _updateSummary();
 
   if (!state.autoOpened) {
-    for (const s of SERVICES) {
-      if (state.services[s.id]?.status === 'running') {
-        state.autoOpened = true;
-        open();
-        break;
-      }
+    const hasAnyState = SERVICES.some(s => state.services[s.id]?.status);
+    if (hasAnyState) {
+      state.autoOpened = true;
+      open();
     }
   }
 
@@ -200,7 +198,7 @@ export async function init() {
     _updateNavBtn();
     _updateSummary();
 
-    if (!state.autoOpened && data.status === 'running') {
+    if (!state.autoOpened) {
       state.autoOpened = true;
       open();
     }

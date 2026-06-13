@@ -79,27 +79,30 @@ if (!gotTheLock) {
         registerAllIpc();
         createTray();
         createWindow();
+        serviceTrackerIpc.setWindow(mainWindow);
 
-        serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
-        try {
-            await initDatabase(app);
-            createInspectorSchema();
-            serviceTrackerIpc.updateService('database', 'done');
-        } catch (err) {
-            console.error('[Main] Failed to init DB:', err);
-            serviceTrackerIpc.updateService('database', 'failed', err.message);
-        }
+        mainWindow.webContents.once('did-finish-load', async () => {
+            serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
+            try {
+                await initDatabase(app);
+                createInspectorSchema();
+                serviceTrackerIpc.updateService('database', 'done');
+            } catch (err) {
+                console.error('[Main] Failed to init DB:', err);
+                serviceTrackerIpc.updateService('database', 'failed', err.message);
+            }
 
-        const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
-        indexerProxy.start(indexerDbPath);
-        console.log('[Main] Indexer service started');
+            const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+            indexerProxy.start(indexerDbPath);
+            console.log('[Main] Indexer service started');
 
-        workerProxy.start();
-        console.log('[Main] Worker service started');
+            workerProxy.start();
+            console.log('[Main] Worker service started');
 
-        const dbPath = path.join(app.getPath('userData'), 'helperTool.db');
-        prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
-        console.log('[Main] Prefetch service started');
+            const dbPath = path.join(app.getPath('userData'), 'helperTool.db');
+            prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
+            console.log('[Main] Prefetch service started');
+        });
 
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
