@@ -2,7 +2,6 @@ const SERVICES = [
   { id: 'worker',         label: 'Worker Process',        group: 'Core' },
   { id: 'database',       label: 'Database Init',          group: 'Core' },
   { id: 'symbolIndexer',  label: 'Symbol Indexer',         group: 'Core' },
-  { id: 'gitWatcher',     label: 'Git File Watcher',       group: 'Git' },
   { id: 'profileSync',    label: 'Profile Commit Sync',    group: 'Profile' },
   { id: 'profileWatcher', label: 'Profile File Watcher',   group: 'Profile' },
   { id: 'prefetchProfile',label: 'Prefetch: Profile',      group: 'Prefetch' },
@@ -159,7 +158,7 @@ function _updateSummary() {
 function _allSettled() {
   return SERVICES.every(s => {
     const st = state.services[s.id]?.status;
-    return st === 'done' || st === 'failed';
+    return st === 'done' || st === 'failed' || !st;
   });
 }
 
@@ -169,14 +168,27 @@ export async function init() {
 
   try {
     const all = await window.serviceTrackerAPI.getAll();
+    console.log('[ServiceTracker] init: getAll returned', JSON.stringify(all));
     state.services = all || {};
-  } catch (_) {}
+  } catch (err) {
+    console.error('[ServiceTracker] init: getAll failed', err);
+  }
 
   for (const s of SERVICES) {
     _updateServiceRow(s.id);
   }
   _updateNavBtn();
   _updateSummary();
+
+  if (!state.autoOpened) {
+    for (const s of SERVICES) {
+      if (state.services[s.id]?.status === 'running') {
+        state.autoOpened = true;
+        open();
+        break;
+      }
+    }
+  }
 
   window.serviceTrackerAPI.onUpdate((data) => {
     state.services[data.id] = {
