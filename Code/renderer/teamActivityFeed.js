@@ -188,14 +188,23 @@ function _escHandler(e) {
 
 // ── Data loading ──────────────────────────────────────────────
 
-async function _loadData(repoPath) {
+async function _loadData(repoPath, force) {
+  if (!force && _commits.length > 0) {
+    _renderSummary();
+    _renderContributors();
+    _renderCommits();
+    _renderGraph();
+    return;
+  }
+
   const summary = _panel.querySelector('#tafSummary');
   const contributorsList = _panel.querySelector('#tafContributorsList');
   const commitList = _panel.querySelector('#tafCommitList');
   const graph = _panel.querySelector('#tafGraph');
 
+  const cacheKey = 'teamActivity:' + repoPath;
   const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
-  const cached = getPrefetchCache().get('teamActivity');
+  const cached = getPrefetchCache().get(cacheKey);
   if (cached) {
     _commits = cached.commits || [];
     _contributors = cached.contributors || {};
@@ -234,7 +243,7 @@ async function _loadData(repoPath) {
     _renderGraph();
 
     import('./app_manager/prefetchManager.js').then(mod => {
-      mod.getPrefetchCache().set('teamActivity', result, 300000);
+      mod.getPrefetchCache().set(cacheKey, result, 300000);
     });
   } catch (err) {
     summary.innerHTML = '<div class="taf-empty">Failed to load activity data</div>';
@@ -247,7 +256,7 @@ async function _onRefresh() {
   btn.disabled = true;
   try {
     const repo = _panel.dataset.repoPath;
-    if (repo) await _loadData(repo);
+    if (repo) await _loadData(repo, true);
   } finally {
     btn.classList.remove('spinning');
     btn.disabled = false;

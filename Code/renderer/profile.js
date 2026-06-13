@@ -151,6 +151,11 @@ async function _load() {
     body.querySelectorAll('.pf-section').forEach(el => { _bodyEls[el.dataset.section] = el; });
     const newCard = _renderProfileCard();
     if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
+    _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: Date.now(), ttl: 30000 };
+    _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: Date.now(), ttl: 60000 };
+    _cache['donuts:' + _donutRange] = { data: Promise.resolve(all.donuts), fetchedAt: Date.now(), ttl: 30000 };
+    const histKey = 'history:' + _historyPage + ':' + _historyRepo;
+    _cache[histKey] = { data: Promise.resolve(all.history), fetchedAt: Date.now(), ttl: 10000 };
     _renderStatsBar().then(el => { if (_bodyEls.stats) { _bodyEls.stats.replaceWith(el); _bodyEls.stats = el; } }).catch(() => {});
     _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
     _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});

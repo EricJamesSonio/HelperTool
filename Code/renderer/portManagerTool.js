@@ -9,7 +9,11 @@ const ICON_REFRESH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
 const ICON_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
 const ICON_PORT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10M5 13h10"/><path d="M7 7V3M13 7V3M7 13v4M13 13v4"/><rect x="3" y="7" width="14" height="6" rx="1"/></svg>';
 
-async function refresh() {
+async function refresh(force) {
+  if (!force && _data) {
+    render();
+    return;
+  }
   const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
   const cached = getPrefetchCache().get('portManager');
   if (cached) {
@@ -191,7 +195,7 @@ function wireEvents() {
 
   _panel.querySelector('#pmCloseBtn').addEventListener('click', closePortManagerPanel);
 
-  _panel.querySelector('#pmRefreshBtn').addEventListener('click', refresh);
+  _panel.querySelector('#pmRefreshBtn').addEventListener('click', () => refresh(true));
 
   const filterInput = _panel.querySelector('#pmFilter');
   filterInput.addEventListener('input', () => {
@@ -222,7 +226,7 @@ export async function openPortManagerPanel() {
 
   await refresh();
 
-  _refreshTimer = setInterval(refresh, 5000);
+  _refreshTimer = setInterval(() => refresh(true), 5000);
 }
 
 export function closePortManagerPanel() {
