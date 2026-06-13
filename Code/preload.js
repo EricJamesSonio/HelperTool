@@ -366,3 +366,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
 
+require('./preload/serviceTracker_bridge.js');
+

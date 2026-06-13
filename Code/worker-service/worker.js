@@ -5,6 +5,7 @@ const gitGraphTask = require('./tasks/gitGraph');
 const profileDataTask = require('./tasks/profileData');
 const teamActivityTask = require('./tasks/teamActivity');
 const portManagerTask = require('./tasks/portManager');
+const gitBranchesTask = require('./tasks/gitBranches');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -47,6 +48,10 @@ process.on('message', async (msg) => {
 
       case 'portManager':
         result = await portManagerTask(payload);
+        break;
+
+      case 'gitBranches':
+        result = await gitBranchesTask(payload);
         break;
 
       default:

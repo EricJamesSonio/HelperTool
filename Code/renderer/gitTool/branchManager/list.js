@@ -7,7 +7,16 @@ export async function render() {
   if (!el) return;
   setState({ loading: { ...state.loading, branches: true } });
   try {
-    const r = await window.electronAPI.gitBranches(state.repoPath);
+    const cacheKey = 'branches:' + state.repoPath;
+    let r = null;
+    const { getPrefetchCache } = await import('../../app_manager/prefetchManager.js');
+    const cached = getPrefetchCache().get(cacheKey);
+    if (cached) {
+      r = cached;
+    } else {
+      r = await window.electronAPI.gitBranches(state.repoPath);
+    }
+
     if (!r.success) { el.innerHTML = '<div class="bm-empty">Failed to load branches</div>'; return; }
     setState({ current: r.current, local: r.local, remote: r.remote });
 

@@ -69,6 +69,7 @@ import * as sessionNotes from './sessionNotes.js';
 
 import { initZoomManager } from './app_manager/zoomManager.js';
 import { getPrefetchCache } from './app_manager/prefetchManager.js';
+import { init as initServiceTracker } from './serviceTracker.js';
 
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 
@@ -290,6 +291,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
+
+    // Service tracker modal
+    initServiceTracker().catch(err => console.error('[ServiceTracker] init error:', err));
 
     // Shortcut mode
     initShortcutMode();

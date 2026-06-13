@@ -6,6 +6,7 @@ const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
 const prefetchService = require('./prefetchService.js');
+const { updateService } = require('./serviceTracker_ipc.js');
 
 let _watchers = [];
 let _saveDebounce = {};
@@ -67,11 +68,13 @@ function _startWatcher(repoPath, repoName) {
     }
   });
   _watchers.push(watcher);
+  updateService('profileWatcher', 'done');
 }
 
 async function _syncCommits(repoPath, repoName, force) {
   if (_syncInProgress && !force) return;
   _syncInProgress = true;
+  updateService('profileSync', 'running', 'Syncing commits...');
   try {
     const today = new Date().toISOString().slice(0, 10);
     const args = ['log', '--format=%H|%ad', '--date=short', '--no-merges'];
@@ -88,7 +91,7 @@ async function _syncCommits(repoPath, repoName, force) {
     const git = simpleGit(repoPath);
     const log = await git.raw(args);
 
-    if (!log.trim()) { _syncInProgress = false; return; }
+    if (!log.trim()) { _syncInProgress = false; updateService('profileSync', 'done'); return; }
 
     const dateCounts = {};
     for (const line of log.trim().split('\n')) {
@@ -109,9 +112,11 @@ async function _syncCommits(repoPath, repoName, force) {
     save();
 
     prefetchService.invalidate('profile');
+    updateService('profileSync', 'done');
   } catch (err) {
     console.error('[Profile] _syncCommits error:', err.message);
     try { db().run('ROLLBACK'); } catch (_) {}
+    updateService('profileSync', 'failed', err.message);
   }
   _syncInProgress = false;
 }

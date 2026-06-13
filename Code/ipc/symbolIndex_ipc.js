@@ -4,6 +4,7 @@ const parser = require('../indexer/parser');
 const indexer = require('../indexer/indexer');
 const watcher = require('../indexer/watcher');
 const indexerProxy = require('./indexerProxy.js');
+const { updateService } = require('./serviceTracker_ipc.js');
 
 let _getMainWindow = null;
 let _activeRepoPath = null;
@@ -54,6 +55,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
   });
 
   ipcMain.handle('symbolIndex:startIndexing', async (_, repoPath) => {
+    updateService('symbolIndexer', 'running', 'Indexing symbols...');
     try {
       _activeRepoPath = repoPath;
       indexer.resetIndex(repoPath);
@@ -101,6 +103,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             }
           });
           invalidateCache(repoPath);
+          updateService('symbolIndexer', 'done');
           return { success: true, totalFiles, symbolCount: result?.totalSymbols || 0 };
         } finally {
           indexerProxy.offProgress(onProgress);
@@ -127,6 +130,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         return { success: true, totalFiles, symbolCount: result.symbolCount || 0 };
       }
     } catch (err) {
+      updateService('symbolIndexer', 'failed', err.message);
       return { success: false, error: err.message };
     }
   });

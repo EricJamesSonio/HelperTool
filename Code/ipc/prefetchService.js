@@ -2,11 +2,13 @@ const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const workerProxy = require('./workerProxy.js');
+const { updateService } = require('./serviceTracker_ipc.js');
 
 const TTL = {
   profile: 5 * 60 * 1000,
   teamActivity: 5 * 60 * 1000,
   portManager: 60 * 1000,
+  branches: 30 * 1000,
 };
 
 const _cache = new Map();
@@ -103,6 +105,7 @@ async function _fetchFromWorker(type, payload) {
 }
 
 async function _prefetchProfile() {
+  updateService('prefetchProfile', 'running', 'Fetching profile data...');
   const data = await _fetchFromWorker('profileData', {
     action: 'getAll',
     dbPath: _dbPath,
@@ -111,23 +114,43 @@ async function _prefetchProfile() {
   if (data) {
     _set('profile', data, TTL.profile);
     console.log('[Prefetch] Profile data cached');
+    updateService('prefetchProfile', 'done');
+  } else {
+    updateService('prefetchProfile', 'failed', 'No data returned');
   }
 }
 
 async function _prefetchTeamActivity(repoPath) {
   if (!repoPath) return;
+  updateService('prefetchTeam', 'running', 'Fetching team activity...');
   const data = await _fetchFromWorker('teamActivity', { repoPath });
   if (data) {
     _set('teamActivity:' + repoPath, data, TTL.teamActivity);
     console.log('[Prefetch] Team activity cached for', repoPath);
+    updateService('prefetchTeam', 'done');
+  } else {
+    updateService('prefetchTeam', 'failed', 'No data returned');
   }
 }
 
 async function _prefetchPortManager() {
+  updateService('prefetchPorts', 'running', 'Scanning ports...');
   const data = await _fetchFromWorker('portManager', {});
   if (data) {
     _set('portManager', data, TTL.portManager);
     console.log('[Prefetch] Port manager data cached');
+    updateService('prefetchPorts', 'done');
+  } else {
+    updateService('prefetchPorts', 'failed', 'No data returned');
+  }
+}
+
+async function _prefetchBranches(repoPath) {
+  if (!repoPath) return;
+  const data = await _fetchFromWorker('gitBranches', { repoPath });
+  if (data) {
+    _set('branches:' + repoPath, data, TTL.branches);
+    console.log('[Prefetch] Branches cached for', repoPath);
   }
 }
 
@@ -168,6 +191,7 @@ async function _doPrefetch(repoPath) {
     _prefetchProfile(),
     _prefetchTeamActivity(repoPath),
     _prefetchPortManager(),
+    _prefetchBranches(repoPath),
   ]);
   console.log('[Prefetch] Background refresh complete');
 }
@@ -187,6 +211,9 @@ async function refresh(key, repoPath) {
       return _get(key);
     case key === 'portManager':
       await _prefetchPortManager();
+      return _get(key);
+    case key.startsWith('branches:'):
+      await _prefetchBranches(repoPath || key.replace('branches:', ''));
       return _get(key);
     default:
       return null;

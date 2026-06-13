@@ -34,6 +34,7 @@ const workerProxy = require('./ipc/workerProxy.js');
 const { initDatabase } = require('./database/db.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
 const prefetchService = require('./ipc/prefetchService.js');
+const serviceTrackerIpc = require('./ipc/serviceTracker_ipc.js');
 
 // ----------------------------
 // GPU / MEMORY REDUCTION FLAGS
@@ -79,11 +80,14 @@ if (!gotTheLock) {
         createTray();
         createWindow();
 
+        serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
         try {
             await initDatabase(app);
             createInspectorSchema();
+            serviceTrackerIpc.updateService('database', 'done');
         } catch (err) {
             console.error('[Main] Failed to init DB:', err);
+            serviceTrackerIpc.updateService('database', 'failed', err.message);
         }
 
         const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
@@ -134,6 +138,7 @@ function registerAllIpc() {
     profileIpc.register(shared);
     dockerIpc.register();
     envIpc.register();
+    serviceTrackerIpc.register();
 }
 
 // ----------------------------

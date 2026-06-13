@@ -52,6 +52,7 @@ function register(_deps) {
                 });
                 prefetchService.invalidate('profile');
                 prefetchService.invalidate('teamActivity:' + repoPath);
+                prefetchService.invalidate('branches:' + repoPath);
                 event.sender.send('profile:dataChanged');
             }
             return result;
@@ -72,6 +73,7 @@ function register(_deps) {
                 });
                 prefetchService.invalidate('profile');
                 prefetchService.invalidate('teamActivity:' + repoPath);
+                prefetchService.invalidate('branches:' + repoPath);
                 event.sender.send('profile:dataChanged');
             }
             return result;
@@ -134,6 +136,9 @@ function register(_deps) {
     // ── Branch Manager IPC handlers ──
 
     ipcMain.handle('git:branches', async (_e, { repoPath }) => {
+        const cached = prefetchService.get('branches:' + repoPath);
+        if (cached) return cached;
+
         try {
             const git = simpleGit(repoPath);
             const branchSummary = await git.branch(['-vv', '--all']);
@@ -176,7 +181,8 @@ function register(_deps) {
                 }
             }
 
-            return { success: true, current, local, remote, defaultBranch };
+            const result = { success: true, current, local, remote, defaultBranch };
+            return result;
         } catch (err) {
             return { success: false, error: err.message };
         }
@@ -186,6 +192,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.checkoutBranch(name, fromBranch || 'HEAD');
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true, name };
         } catch (err) {
             return { success: false, error: err.message };
@@ -196,6 +203,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.checkout(name);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -206,6 +214,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.deleteLocalBranch(name, force);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -216,6 +225,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.push(remote, `:${name}`);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -226,6 +236,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.push(remote || 'origin', name, ['--set-upstream']);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -236,6 +247,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.pull(remote || 'origin', name);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -246,6 +258,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.fetch(remote || 'origin', ['--prune']);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -276,6 +289,7 @@ function register(_deps) {
                     console.debug('[git:mergeBranch] push failed:', pushError);
                 }
             }
+            prefetchService.invalidate('branches:' + repoPath);
             return {
                 success: true,
                 isUpToDate: !!result?.isAlreadyUpToDate || noChanges,
