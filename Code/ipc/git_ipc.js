@@ -13,6 +13,12 @@ function register(_deps) {
 
     ipcMain.handle('git:status', async (event, repoPath) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'status', repoPath });
+            }
+        } catch (_) {}
+        try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getStatus();
         } catch (err) {
@@ -85,6 +91,12 @@ function register(_deps) {
 
     ipcMain.handle('git:diff', async (event, repoPath, filePath) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'diff', repoPath, filePath });
+            }
+        } catch (_) {}
+        try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getDiff(filePath);
         } catch (err) {
@@ -94,6 +106,12 @@ function register(_deps) {
     });
 
     ipcMain.handle('git:log', async (event, repoPath, maxCount) => {
+        try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'log', repoPath, maxCount: maxCount || 50 });
+            }
+        } catch (_) {}
         try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getLog(maxCount || 50);
@@ -105,6 +123,12 @@ function register(_deps) {
 
     ipcMain.handle('git:file-log', async (event, repoPath, filePath, maxCount) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'fileLog', repoPath, filePath, maxCount: maxCount || 50 });
+            }
+        } catch (_) {}
+        try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getFileLog(filePath, maxCount || 50);
         } catch (err) {
@@ -115,6 +139,12 @@ function register(_deps) {
 
     ipcMain.handle('git:file-content', async (event, repoPath, commitHash, filePath) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'fileContent', repoPath, commitHash, filePath });
+            }
+        } catch (_) {}
+        try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getFileContentAtCommit(commitHash, filePath);
         } catch (err) {
@@ -124,6 +154,12 @@ function register(_deps) {
     });
 
     ipcMain.handle('git:diff-commits', async (event, repoPath, oldCommit, newCommit, filePath) => {
+        try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'diffCommits', repoPath, oldCommit, newCommit, filePath });
+            }
+        } catch (_) {}
         try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getDiffBetweenCommits(oldCommit, newCommit, filePath);

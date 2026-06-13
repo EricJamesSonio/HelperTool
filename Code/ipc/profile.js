@@ -177,7 +177,14 @@ ipcMain.handle('profile:get', async () => {
     return { success: true };
   });
 
-  ipcMain.handle('profile:getHeatmap', (event, { year }) => {
+  ipcMain.handle('profile:getHeatmap', async (event, { year }) => {
+    try {
+      const workerProxy = require('./workerProxy');
+      if (workerProxy.isReady()) {
+        const dbPath = require('../database/db.js').getDbPath();
+        return await workerProxy.send('profileData', { action: 'getHeatmap', dbPath, params: { year } });
+      }
+    } catch (_) {}
     const y = year || new Date().getFullYear();
     const start = y + '-01-01';
     const end = y + '-12-31';
@@ -194,7 +201,14 @@ ipcMain.handle('profile:get', async () => {
     return map;
   });
 
-  ipcMain.handle('profile:getStats', (event, { range }) => {
+  ipcMain.handle('profile:getStats', async (event, { range }) => {
+    try {
+      const workerProxy = require('./workerProxy');
+      if (workerProxy.isReady()) {
+        const dbPath = require('../database/db.js').getDbPath();
+        return await workerProxy.send('profileData', { action: 'getStats', dbPath, params: { range: range || 'all' } });
+      }
+    } catch (_) {}
     let dateFilter = '';
     if (range === 'week') dateFilter = "WHERE date >= datetime('now', '-7 days')";
     else if (range === 'month') dateFilter = "WHERE date >= datetime('now', '-30 days')";
@@ -206,7 +220,14 @@ ipcMain.handle('profile:get', async () => {
     return { commits: r[0], files: r[1], saves: r[2], repos: r[3] };
   });
 
-  ipcMain.handle('profile:getDonutData', (event, { range }) => {
+  ipcMain.handle('profile:getDonutData', async (event, { range }) => {
+    try {
+      const workerProxy = require('./workerProxy');
+      if (workerProxy.isReady()) {
+        const dbPath = require('../database/db.js').getDbPath();
+        return await workerProxy.send('profileData', { action: 'getDonutData', dbPath, params: { range: range || 'all' } });
+      }
+    } catch (_) {}
     let dateFilter = '';
     if (range === 'week') dateFilter = "WHERE date >= datetime('now', '-7 days')";
     else if (range === 'month') dateFilter = "WHERE date >= datetime('now', '-30 days')";
@@ -239,7 +260,14 @@ f = typeRow[2] || 0;
 
   let _histCountCache = { val: 0, ts: 0 };
 
-  ipcMain.handle('profile:getHistory', (event, { page, repoPath }) => {
+  ipcMain.handle('profile:getHistory', async (event, { page, repoPath }) => {
+    try {
+      const workerProxy = require('./workerProxy');
+      if (workerProxy.isReady()) {
+        const dbPath = require('../database/db.js').getDbPath();
+        return await workerProxy.send('profileData', { action: 'getHistory', dbPath, params: { page, repoPath } });
+      }
+    } catch (_) {}
     const pageSize = 20;
     const offset = ((page || 1) - 1) * pageSize;
     let where = '';

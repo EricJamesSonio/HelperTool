@@ -33,6 +33,7 @@ async function initDatabase(app) {
   _db.run('PRAGMA foreign_keys=ON');
 
   createSchema();
+  _flush();
   save();
 
   return _db;
@@ -261,4 +262,4 @@ function close() {
   }
 }
 
-module.exports = { initDatabase, getDb, save, close };
+module.exports = { initDatabase, getDb, save, close, getDbPath };
