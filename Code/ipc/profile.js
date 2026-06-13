@@ -9,7 +9,6 @@ const prefetchService = require('./prefetchService.js');
 
 let _watchers = [];
 let _saveDebounce = {};
-let _lastSyncHash = null;
 let _syncInProgress = false;
 
 function db() { return getDb(); }
@@ -55,58 +54,64 @@ function _startWatcher(repoPath, repoName) {
     if (last && (now - last) < 2000) return;
     _saveDebounce[key] = now;
 
-    db().run('BEGIN');
-    db().run('INSERT INTO file_save_events (timestamp, repo_path, repo_name, file_path, file_ext) VALUES (?, ?, ?, ?, ?)',
-      [ts, repoPath, repoName, filePath, ext]);
-    db().run(`INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched)
-              VALUES (?, ?, ?, 1, 1)
-              ON CONFLICT(date, repo_path) DO UPDATE SET file_saves=file_saves+1, files_touched=files_touched+1`,
-      [date, repoPath, repoName]);
-    db().run('COMMIT');
-    save();
+    try {
+      db().run('INSERT INTO file_save_events (timestamp, repo_path, repo_name, file_path, file_ext) VALUES (?, ?, ?, ?, ?)',
+        [ts, repoPath, repoName, filePath, ext]);
+      db().run(`INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched)
+                VALUES (?, ?, ?, 1, 1)
+                ON CONFLICT(date, repo_path) DO UPDATE SET file_saves=file_saves+1, files_touched=files_touched+1`,
+        [date, repoPath, repoName]);
+      save();
+    } catch (err) {
+      console.warn('[Profile] watcher write error:', err.message);
+    }
   });
   _watchers.push(watcher);
 }
 
 async function _syncCommits(repoPath, repoName, force) {
-  if (_syncInProgress) return;
+  if (_syncInProgress && !force) return;
   _syncInProgress = true;
   try {
-    let since = '';
-    if (!force && _lastSyncHash) {
-      since = _lastSyncHash;
-    }
+    const today = new Date().toISOString().slice(0, 10);
     const args = ['log', '--format=%H|%ad', '--date=short', '--no-merges'];
-    if (since) {
-      args.push(since + '..HEAD');
+
+    if (force) {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      args.push('--after=' + d.toISOString().slice(0, 10));
     } else {
-      args.push('-20');
+      args.push('--after=' + today + 'T00:00:00');
+      args.push('--before=' + today + 'T23:59:59');
     }
-    const log = await gitService.raw(repoPath, args, 120000);
+
+    const git = simpleGit(repoPath);
+    const log = await git.raw(args);
+
     if (!log.trim()) { _syncInProgress = false; return; }
+
     const dateCounts = {};
-    let latestHash = _lastSyncHash;
     for (const line of log.trim().split('\n')) {
       const pipeIdx = line.indexOf('|');
       if (pipeIdx < 0) continue;
-      const hash = line.substring(0, pipeIdx);
-      const date = line.substring(pipeIdx + 1);
+      const date = line.substring(pipeIdx + 1).trim();
       if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
-      if (!latestHash) latestHash = hash;
     }
+
     db().run('BEGIN');
     for (const [date, count] of Object.entries(dateCounts)) {
       db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(date, repo_path) DO UPDATE SET commits=commits + ?`,
+                ON CONFLICT(date, repo_path) DO UPDATE SET commits=?`,
         [date, repoPath, repoName, count, count]);
     }
     db().run('COMMIT');
     save();
+
     prefetchService.invalidate('profile');
-    if (latestHash) _lastSyncHash = latestHash;
   } catch (err) {
-    console.error('[Profile] _syncCommits error:', err);
+    console.error('[Profile] _syncCommits error:', err.message);
+    try { db().run('ROLLBACK'); } catch (_) {}
   }
   _syncInProgress = false;
 }
@@ -437,7 +442,7 @@ f = typeRow[2] || 0;
     if (!repo) return { watching: 0 };
     const alreadyWatching = _watchers.some(w => w._watchingPaths?.has?.(repo.repoPath));
     if (!alreadyWatching) _startWatcher(repo.repoPath, repo.name);
-    setImmediate(() => _syncCommits(repo.repoPath, repo.name, false));
+    setImmediate(() => _syncCommits(repo.repoPath, repo.name, true));
     return { watching: 1 };
   });
 

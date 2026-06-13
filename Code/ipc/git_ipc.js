@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const GitOperations = require('../utils/gitOps');
 const simpleGit = require('simple-git');
 const path = require('path');
+const gitService = require('./gitService.js');
 const { triggerCommitSync } = require('./profile.js');
 const prefetchService = require('./prefetchService.js');
 
@@ -45,6 +46,7 @@ function register(_deps) {
             const gitOps = new GitOperations(repoPath);
             const result = await gitOps.commit(message, filePaths);
             if (result.success !== false) {
+                gitService.clearCache(repoPath);
                 triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
                     console.error('[IPC] profile sync after commit:', err);
                 });
@@ -64,6 +66,7 @@ function register(_deps) {
             const gitOps = new GitOperations(repoPath);
             const result = await gitOps.push();
             if (result.success !== false) {
+                gitService.clearCache(repoPath);
                 triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
                     console.error('[IPC] profile sync after push:', err);
                 });
