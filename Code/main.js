@@ -99,7 +99,7 @@ if (!gotTheLock) {
             workerProxy.start();
             console.log('[Main] Worker service started');
 
-            const dbPath = path.join(app.getPath('userData'), 'helperTool.db');
+            const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
             prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
             console.log('[Main] Prefetch service started');
         });

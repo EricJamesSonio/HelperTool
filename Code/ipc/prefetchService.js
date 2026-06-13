@@ -185,6 +185,38 @@ function start(dbPath, repoPath, getMainWindow) {
   }
 }
 
+async function _triggerProfileSync(repoPath) {
+  if (!repoPath) {
+    updateService('profileSync', 'failed', 'No repo selected');
+    return;
+  }
+  try {
+    updateService('profileSync', 'running', 'Syncing commits...');
+    const profileIpc = require('./profile.js');
+    const repoName = require('path').basename(repoPath);
+    await profileIpc.triggerCommitSync(repoPath, repoName, true);
+    updateService('profileSync', 'done');
+  } catch (err) {
+    updateService('profileSync', 'failed', err.message);
+  }
+}
+
+async function _startProfileWatcher(repoPath) {
+  if (!repoPath) {
+    updateService('profileWatcher', 'failed', 'No repo selected');
+    return;
+  }
+  try {
+    updateService('profileWatcher', 'running', 'Starting file watcher...');
+    const profileIpc = require('./profile.js');
+    const repoName = require('path').basename(repoPath);
+    profileIpc.startWatcher(repoPath, repoName);
+    updateService('profileWatcher', 'done');
+  } catch (err) {
+    updateService('profileWatcher', 'failed', err.message);
+  }
+}
+
 async function _doPrefetch(repoPath) {
   console.log('[Prefetch] Starting background refresh...');
   await Promise.allSettled([
@@ -192,6 +224,8 @@ async function _doPrefetch(repoPath) {
     _prefetchTeamActivity(repoPath),
     _prefetchPortManager(),
     _prefetchBranches(repoPath),
+    _startProfileWatcher(repoPath),
+    _triggerProfileSync(repoPath),
   ]);
   console.log('[Prefetch] Background refresh complete');
 }

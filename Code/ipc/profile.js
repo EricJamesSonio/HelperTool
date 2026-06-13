@@ -467,4 +467,4 @@ f = typeRow[2] || 0;
   } catch (_) {}
 }
 
-module.exports = { register, triggerCommitSync: _syncCommits };
+module.exports = { register, triggerCommitSync: _syncCommits, startWatcher: _startWatcher };
