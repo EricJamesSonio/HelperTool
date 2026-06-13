@@ -28,6 +28,7 @@ const blueprintLibraryIpc = require('./ipc/blueprintLibrary.js');
 const profileIpc = require('./ipc/profile.js');
 const dockerIpc = require('./ipc/docker_ipc.js');
 const envIpc = require('./ipc/env_ipc.js');
+const codebaseChatIpc = require('./ipc/codebbaseChat_ipc.js');
 const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
 
@@ -141,6 +142,7 @@ function registerAllIpc() {
     profileIpc.register(shared);
     dockerIpc.register();
     envIpc.register();
+    codebaseChatIpc.register();
     serviceTrackerIpc.register();
 }
 
