@@ -339,12 +339,18 @@ const envBridge = {
 
 const codebaseChatBridge = {
   codebaseChat: {
-    getFiles:       (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
-    getSymbols:     (opts) => ipcRenderer.invoke('codebaseChat:getSymbols', opts),
-    getDependencies:(opts) => ipcRenderer.invoke('codebaseChat:getDependencies', opts),
-    getDependents:  (opts) => ipcRenderer.invoke('codebaseChat:getDependents', opts),
-    getImportChain: (opts) => ipcRenderer.invoke('codebaseChat:getImportChain', opts),
-    getCircularDeps:(opts) => ipcRenderer.invoke('codebaseChat:getCircularDeps', opts),
+    getFiles:           (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
+    getSymbols:         (opts) => ipcRenderer.invoke('codebaseChat:getSymbols', opts),
+    getDependencies:    (opts) => ipcRenderer.invoke('codebaseChat:getDependencies', opts),
+    getDependents:      (opts) => ipcRenderer.invoke('codebaseChat:getDependents', opts),
+    getImportChain:     (opts) => ipcRenderer.invoke('codebaseChat:getImportChain', opts),
+    getCircularDeps:    (opts) => ipcRenderer.invoke('codebaseChat:getCircularDeps', opts),
+    getConversations:   (opts) => ipcRenderer.invoke('codebaseChat:getConversations', opts),
+    newConversation:    (opts) => ipcRenderer.invoke('codebaseChat:newConversation', opts),
+    getMessages:        (opts) => ipcRenderer.invoke('codebaseChat:getMessages', opts),
+    saveMessage:        (opts) => ipcRenderer.invoke('codebaseChat:saveMessage', opts),
+    renameConversation: (opts) => ipcRenderer.invoke('codebaseChat:renameConversation', opts),
+    deleteConversation: (opts) => ipcRenderer.invoke('codebaseChat:deleteConversation', opts),
   },
 };
 

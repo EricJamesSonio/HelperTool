@@ -220,6 +220,31 @@ function createSchema() {
     )
   `);
 
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS chat_conversations (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo_path   TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      created_at  TEXT DEFAULT (datetime('now')),
+      updated_at  TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+      role            TEXT NOT NULL CHECK(role IN ('user','bot')),
+      content         TEXT NOT NULL,
+      query_type      TEXT,
+      file_ref        TEXT,
+      created_at      TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_conv_repo ON chat_conversations(repo_path)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_msg_conv ON chat_messages(conversation_id)');
+
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_date ON activity_days(date)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_repo_path ON activity_days(repo_path)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_file_save_events_ts ON file_save_events(timestamp)');

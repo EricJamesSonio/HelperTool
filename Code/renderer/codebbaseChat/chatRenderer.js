@@ -1,86 +1,80 @@
-const ICON_USER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,14 10,10 14,14"/><line x1="10" y1="4" x2="10" y2="12"/></svg>';
-const ICON_BOT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h12"/><path d="M4 10h12"/><path d="M4 6h8"/></svg>';
-const ICON_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="12" cy="10" r="1.5"/><circle cx="8" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>';
 const ICON_COPY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="10" height="11" rx="1.5"/><path d="M7 6V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-2"/></svg>';
 const ICON_PROMPT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9l2 2-2 2"/><path d="M12 11h2"/></svg>';
 const ICON_COPIED = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4 4 8-8"/></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M6 7v5"/><path d="M10 7v5"/></svg>';
 
 function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-function formatMarkdown(text) {
+function formatContent(text) {
   const lines = text.split('\n');
   let html = '';
-  let inCodeBlock = false;
-
+  let inCode = false;
   for (const line of lines) {
     if (line.startsWith('```')) {
-      html += inCodeBlock ? '</code></pre>' : '<pre><code>';
-      inCodeBlock = !inCodeBlock;
+      html += inCode ? '</code></pre>' : '<pre><code>';
+      inCode = !inCode;
       continue;
     }
-    if (inCodeBlock) {
+    if (inCode) {
       html += escapeHtml(line) + '\n';
       continue;
     }
     if (line.startsWith('### ')) {
-      html += '<h4 class="cc-md-h4">' + escapeHtml(line.slice(4)) + '</h4>';
+      html += '<div class="cc-md-h3">' + escapeHtml(line.slice(4)) + '</div>';
     } else if (line.startsWith('## ')) {
-      html += '<h3 class="cc-md-h3">' + escapeHtml(line.slice(3)) + '</h3>';
+      html += '<div class="cc-md-h2">' + escapeHtml(line.slice(3)) + '</div>';
     } else if (line.startsWith('**') && line.endsWith('**')) {
-      html += '<p class="cc-md-bold">' + escapeHtml(line.slice(2, -2)) + '</p>';
+      html += '<div class="cc-md-bold">' + escapeHtml(line.slice(2, -2)) + '</div>';
     } else if (line.startsWith('• ') || line.startsWith('- ')) {
       html += '<div class="cc-md-item"><span class="cc-md-bullet">•</span> ' + escapeHtml(line.slice(2)) + '</div>';
     } else if (line.trim() === '') {
       html += '<div class="cc-md-spacer"></div>';
-    } else if (line.startsWith('✅') || line.startsWith('⚠️')) {
-      html += '<p class="cc-md-status">' + escapeHtml(line) + '</p>';
     } else {
-      html += '<p class="cc-md-line">' + escapeHtml(line) + '</p>';
+      html += '<div class="cc-md-line">' + escapeHtml(line) + '</div>';
     }
   }
   return html;
 }
 
-function renderMessage(msg) {
+function renderUserMessage(msg) {
   const div = document.createElement('div');
-  div.className = 'cc-msg cc-msg--' + msg.role;
+  div.className = 'cc-msg cc-msg--user';
 
-  const avatar = document.createElement('div');
-  avatar.className = 'cc-msg-avatar';
-  avatar.innerHTML = msg.role === 'user' ? ICON_USER : ICON_BOT;
-  div.appendChild(avatar);
+  const bubble = document.createElement('div');
+  bubble.className = 'cc-msg-bubble';
+  const label = (msg.file ? '@' + msg.file.split(/[/\\]/).pop() : '') + (msg.queryType ? ' → ' + msg.queryType : '');
+  bubble.textContent = label || 'Ask';
+  div.appendChild(bubble);
+
+  return div;
+}
+
+function renderBotMessage(msg) {
+  const div = document.createElement('div');
+  div.className = 'cc-msg cc-msg--bot';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'cc-msg-bubble';
+
+  const header = document.createElement('div');
+  header.className = 'cc-msg-header';
+  header.textContent = 'Codebase Chat';
+  bubble.appendChild(header);
 
   const content = document.createElement('div');
   content.className = 'cc-msg-content';
+  content.innerHTML = formatContent(msg.content || '');
+  bubble.appendChild(content);
 
-  if (msg.role === 'user') {
-    const fileTag = document.createElement('div');
-    fileTag.className = 'cc-msg-file-tag';
-    fileTag.textContent = msg.file || '';
-    content.appendChild(fileTag);
-
-    const queryTag = document.createElement('span');
-    queryTag.className = 'cc-msg-query-tag';
-    queryTag.textContent = msg.queryType || '';
-    content.appendChild(queryTag);
-  }
-
-  const body = document.createElement('div');
-  body.className = 'cc-msg-body';
-  body.innerHTML = msg.isLoading
-    ? '<span class="cc-thinking"><span class="cc-dot-pulse"></span> Thinking...</span>'
-    : formatMarkdown(msg.content || '');
-  content.appendChild(body);
-
-  if (msg.role === 'bot' && !msg.isLoading && msg.content) {
+  if (msg.content) {
     const actions = document.createElement('div');
     actions.className = 'cc-msg-actions';
 
     const copyBtn = document.createElement('button');
-    copyBtn.className = 'cc-action-btn';
+    copyBtn.className = 'cc-msg-action-btn';
     copyBtn.innerHTML = ICON_COPY + ' Copy';
     copyBtn.addEventListener('click', () => {
       navigator.clipboard.writeText(msg.content);
@@ -90,35 +84,121 @@ function renderMessage(msg) {
     actions.appendChild(copyBtn);
 
     const promptBtn = document.createElement('button');
-    promptBtn.className = 'cc-action-btn';
-    promptBtn.innerHTML = ICON_PROMPT + ' Copy as Prompt';
+    promptBtn.className = 'cc-msg-action-btn';
+    promptBtn.innerHTML = ICON_PROMPT + ' Prompt';
     promptBtn.addEventListener('click', () => {
-      const promptText = msg._promptText || msg.content;
-      navigator.clipboard.writeText(promptText);
+      const text = msg._promptText || msg.content;
+      navigator.clipboard.writeText(text);
       promptBtn.innerHTML = ICON_COPIED + ' Copied!';
-      setTimeout(() => { promptBtn.innerHTML = ICON_PROMPT + ' Copy as Prompt'; }, 2000);
+      setTimeout(() => { promptBtn.innerHTML = ICON_PROMPT + ' Prompt'; }, 2000);
     });
     actions.appendChild(promptBtn);
 
-    content.appendChild(actions);
+    bubble.appendChild(actions);
   }
 
-  div.appendChild(content);
+  div.appendChild(bubble);
+  return div;
+}
+
+function renderThinkingBubble() {
+  const div = document.createElement('div');
+  div.className = 'cc-msg cc-msg--bot cc-msg--thinking';
+  div.innerHTML = '<div class="cc-msg-bubble"><div class="cc-thinking-dots"><span></span><span></span><span></span></div></div>';
   return div;
 }
 
 function renderWelcome() {
   const div = document.createElement('div');
-  div.className = 'cc-welcome';
+  div.className = 'cc-empty-state';
   div.innerHTML = `
-    <div class="cc-welcome-icon">${ICON_CHAT}</div>
-    <h2 class="cc-welcome-title">Codebase Chat</h2>
-    <p class="cc-welcome-text">
-      Ask questions about your indexed codebase.
-      Type <strong>@</strong> to mention a file, then choose a query type.
-    </p>
+    <div class="cc-welcome-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="12" cy="10" r="1.5"/><circle cx="8" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>
+    </div>
+    <div class="cc-welcome-title">Codebase Chat</div>
+    <div class="cc-welcome-sub">Ask about your indexed codebase. Type <strong>@</strong> to mention a file, then choose a query.</div>
   `;
   return div;
 }
 
-export { renderMessage, renderWelcome };
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return mins + 'm';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h';
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return days + 'd';
+  return Math.floor(days / 7) + 'w';
+}
+
+function getGroupLabel(dateStr) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return 'Today';
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  if (d > weekAgo) return 'Previous 7 days';
+  return 'Older';
+}
+
+function renderConvItem(conv, isActive, onSelect, onDelete, confirmDeleteId) {
+  const div = document.createElement('div');
+  div.className = 'cc-conv-item' + (isActive ? ' cc-conv-item--active' : '');
+  div.dataset.id = conv.id;
+
+  const title = document.createElement('span');
+  title.className = 'cc-conv-item-title';
+  title.textContent = conv.title || 'New Chat';
+  div.appendChild(title);
+
+  const time = document.createElement('span');
+  time.className = 'cc-conv-item-time';
+  time.textContent = timeAgo(conv.updated_at || conv.created_at);
+  div.appendChild(time);
+
+  if (confirmDeleteId === conv.id) {
+    const sure = document.createElement('button');
+    sure.className = 'cc-conv-item-del cc-conv-item-del--sure';
+    sure.textContent = 'Sure?';
+    sure.addEventListener('click', (e) => { e.stopPropagation(); onDelete(conv.id); });
+    div.appendChild(sure);
+  } else {
+    const del = document.createElement('button');
+    del.className = 'cc-conv-item-del';
+    del.innerHTML = ICON_TRASH;
+    del.addEventListener('click', (e) => { e.stopPropagation(); onDelete(conv.id); });
+    div.appendChild(del);
+  }
+
+  div.addEventListener('click', () => onSelect(conv.id));
+  return div;
+}
+
+function renderConvGroup(label, items, activeId, onSelect, onDelete, confirmDeleteId) {
+  if (!items.length) return null;
+  const group = document.createElement('div');
+  group.className = 'cc-conv-group';
+
+  const header = document.createElement('div');
+  header.className = 'cc-conv-group-label';
+  header.textContent = label;
+  group.appendChild(header);
+
+  for (const item of items) {
+    group.appendChild(renderConvItem(item, item.id === activeId, onSelect, onDelete, confirmDeleteId));
+  }
+  return group;
+}
+
+export {
+  renderUserMessage,
+  renderBotMessage,
+  renderThinkingBubble,
+  renderWelcome,
+  renderConvGroup,
+  getGroupLabel,
+};
