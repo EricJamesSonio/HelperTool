@@ -94,7 +94,7 @@ if (!gotTheLock) {
         console.log('[Main] Worker service started');
 
         const dbPath = path.join(app.getPath('userData'), 'helperTool.db');
-        prefetchService.start(dbPath, config.readConfig()?.activeProject || '');
+        prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
         console.log('[Main] Prefetch service started');
 
         app.on('activate', () => {

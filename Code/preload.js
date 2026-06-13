@@ -39,6 +39,11 @@ const generateBridge = {
             callback(validPercent);
         });
     },
+
+    onPrefetchUpdate: (callback) => {
+        ipcRenderer.removeAllListeners('prefetch:update');
+        ipcRenderer.on('prefetch:update', (event, { key, data, ttl }) => callback(key, data, ttl));
+    },
 };
 
 const featuresBridge = {

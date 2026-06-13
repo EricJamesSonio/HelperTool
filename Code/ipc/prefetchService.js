@@ -13,6 +13,7 @@ const _cache = new Map();
 let _dbPath = '';
 let _started = false;
 let _saveTimer = null;
+let _getMainWindow = null;
 
 const _cachePath = (() => {
   try {
@@ -76,8 +77,13 @@ function _get(key) {
 }
 
 function _set(key, data, ttl) {
-  _cache.set(key, { data, ts: _now(), ttl: ttl || TTL.profile });
+  const resolvedTtl = ttl || TTL.profile;
+  _cache.set(key, { data, ts: _now(), ttl: resolvedTtl });
   _saveDiskCache();
+  try {
+    const w = typeof _getMainWindow === 'function' && _getMainWindow();
+    if (w && !w.isDestroyed()) w.webContents.send('prefetch:update', { key, data, ttl: resolvedTtl });
+  } catch (_) {}
 }
 
 function _clearKey(key) {
@@ -125,10 +131,23 @@ async function _prefetchPortManager() {
   }
 }
 
-function start(dbPath, repoPath) {
+function _pushCachedToRenderer() {
+  const w = typeof _getMainWindow === 'function' && _getMainWindow();
+  if (!w || w.isDestroyed()) return;
+  for (const [key, entry] of _cache) {
+    if (_now() - entry.ts < entry.ttl) {
+      w.webContents.send('prefetch:update', { key, data: entry.data, ttl: entry.ttl });
+    }
+  }
+}
+
+function start(dbPath, repoPath, getMainWindow) {
   if (_started) return;
   _started = true;
   _dbPath = dbPath || '';
+  _getMainWindow = getMainWindow || null;
+
+  _pushCachedToRenderer();
 
   if (!workerProxy.isReady()) {
     const check = setInterval(() => {

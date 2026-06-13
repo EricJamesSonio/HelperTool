@@ -68,6 +68,7 @@ import {
 import * as sessionNotes from './sessionNotes.js';
 
 import { initZoomManager } from './app_manager/zoomManager.js';
+import { getPrefetchCache } from './app_manager/prefetchManager.js';
 
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 
@@ -238,6 +239,12 @@ function applyFeatureVisibility(feats) {
     const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
     if (!feats.folderFilters) { hide('folderToggleBtn'); hide('folderPanel'); }
 }
+
+// ── Receive prefetch data from main process ──────────────────────────────────
+
+window.electronAPI.onPrefetchUpdate((key, data, ttl) => {
+    getPrefetchCache().set(key, data, ttl);
+});
 
 // ── DOMContentLoaded init ─────────────────────────────────────────────────────
 
