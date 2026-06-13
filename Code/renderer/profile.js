@@ -816,7 +816,7 @@ function _attachCommitFileClicks(body) {
 if (window.electronAPI?.profile?.onDataChanged) {
   window.electronAPI.profile.onDataChanged(() => {
     import('./app_manager/prefetchManager.js').then(mod => {
-      mod.getPrefetchCache().delete('profile');
+      mod.getPrefetchCache().invalidate('profile');
     });
     _cache = {};
     if (_open) {
