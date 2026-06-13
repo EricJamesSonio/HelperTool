@@ -240,15 +240,16 @@ f = typeRow[2] || 0;
     let where = '';
     const params = [];
     if (repoPath) { where = 'WHERE repo_path=?'; params.push(repoPath); }
+    const hasDataFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
     const cacheKey = repoPath || '__all__';
     const now = Date.now();
     let total = _histCountCache.val;
     if (_histCountCache.cacheKey !== cacheKey || now - _histCountCache.ts > 5000) {
-      const countRows = _query(`SELECT COUNT(*) FROM activity_days ${where}`, params);
+      const countRows = _query(`SELECT COUNT(*) FROM activity_days ${where ? where + ' AND' : 'WHERE'} ${hasDataFilter}`, params);
       total = (countRows.length && countRows[0].values.length) ? countRows[0].values[0][0] : 0;
       _histCountCache = { val: total, ts: now, cacheKey };
     }
-    const rows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
+    const rows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${where ? where + ' AND' : 'WHERE'} ${hasDataFilter} ORDER BY date DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]);
     const items = rows.length ? rows[0].values.map(r => ({
       date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0,
@@ -415,8 +416,9 @@ f = typeRow[2] || 0;
     let hWhere = '';
     const hParams = [];
     if (historyRepo) { hWhere = 'WHERE repo_path=?'; hParams.push(historyRepo); }
-    const histRows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${hWhere} ORDER BY date DESC LIMIT ? OFFSET ?`, [...hParams, pageSize, offset]);
-    const countRows = _query(`SELECT COUNT(*) FROM activity_days ${hWhere}`, hParams);
+    const hFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
+    const histRows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter} ORDER BY date DESC LIMIT ? OFFSET ?`, [...hParams, pageSize, offset]);
+    const countRows = _query(`SELECT COUNT(*) FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter}`, hParams);
 
     const stats = (sRows.length && sRows[0].values.length) ? { commits: sRows[0].values[0][0], files: sRows[0].values[0][1], saves: sRows[0].values[0][2], repos: sRows[0].values[0][3] } : { commits: 0, files: 0, saves: 0, repos: 0 };
     const donuts = {
@@ -452,6 +454,12 @@ f = typeRow[2] || 0;
     _saveDebounce = {};
     return { success: true };
   });
+
+  // Cleanup stale zero-rows inserted during partial syncs
+  try {
+    db().run(`DELETE FROM activity_days WHERE commits = 0 AND files_touched = 0 AND file_saves = 0`);
+    save();
+  } catch (_) {}
 }
 
 module.exports = { register, triggerCommitSync: _syncCommits };

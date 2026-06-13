@@ -421,21 +421,20 @@ async function _renderHeatmap() {
   let maxVal = 1;
   for (const v of Object.values(heatmap)) { const t = v.total || 0; if (t > maxVal) maxVal = t; }
 
-  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
-  const weeks = Math.ceil((totalDays + startDow) / 7);
+  const cellsArr = [];
+  for (let i = 0; i < startDow; i++) {
+    cellsArr.push(`<div class="pf-hm-cell lvl-0 pf-hm-empty"></div>`);
+  }
 
-  const cells = [];
-  const date = new Date(start);
-  for (let d = 0; d < totalDays; d++) {
-    date.setDate(start.getDate() + d);
-    const dateStr = date.toISOString().slice(0, 10);
+  const d = new Date(start);
+  for (let i = 0; i < totalDays; i++) {
+    d.setFullYear(year, 0, i + 1);
+    const dateStr = d.toISOString().slice(0, 10);
     const dayData = heatmap[dateStr];
     const val = dayData ? dayData.total : 0;
     const level = val === 0 ? 0 : val / maxVal <= 0.25 ? 1 : val / maxVal <= 0.5 ? 2 : val / maxVal <= 0.75 ? 3 : 4;
-    const col = Math.floor((d + startDow) / 7) + 2;
-    const row = date.getDay() + 1;
     const tip = val > 0 ? `${dateStr} — ${val} total · ${dayData.saves || 0} saves` : dateStr;
-    cells.push(`<div class="pf-hm-cell lvl-${level}" style="grid-row:${row};grid-column:${col}" title="${_esc(tip)}" data-date="${dateStr}"></div>`);
+    cellsArr.push(`<div class="pf-hm-cell lvl-${level}" title="${_esc(tip)}" data-date="${dateStr}"></div>`);
   }
 
   section.innerHTML = `
@@ -445,10 +444,8 @@ async function _renderHeatmap() {
       <button class="pf-heatmap-nav" id="pfHeatNext">▶</button>
     </div>
     <div class="pf-heatmap-wrap">
-      <div class="pf-heatmap-grid" style="grid-template-columns: 28px repeat(${weeks}, 12px);grid-template-rows: repeat(7, 12px)">
-        ${dayLabels.map((l, ri) => `<div class="pf-hm-day-label" style="grid-row:${ri+1};grid-column:1">${l}</div>`).join('')}
-        ${cells.join('')}
-      </div>
+      <div class="pf-hm-day-labels">${['', 'Mon', '', 'Wed', '', 'Fri', ''].map(l => `<div>${l}</div>`).join('')}</div>
+      <div class="pf-heatmap-grid-auto">${cellsArr.join('')}</div>
     </div>
     <div class="pf-hm-legend"><span>Less</span>${[0,1,2,3,4].map(l => `<div class="pf-hm-cell lvl-${l}"></div>`).join('')}<span>More</span></div>
   `;
