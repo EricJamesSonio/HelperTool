@@ -250,13 +250,13 @@ async function _doPrefetch(repoPath) {
     _startProfileWatcher(repoPath).catch(err =>
       console.warn('[Prefetch] Profile watcher failed:', err.message)
     );
-  }, 15000);
+  }, 5000);
 
   setTimeout(() => {
     _triggerProfileSync(repoPath).catch(err =>
       console.warn('[Prefetch] Profile sync failed:', err.message)
     );
-  }, 18000);
+  }, 8000);
 
   console.log('[Prefetch] Background refresh scheduled');
 }

@@ -1,12 +1,10 @@
 const SERVICES = [
-  { id: 'worker',         label: 'Worker Process',        group: 'Core' },
-  { id: 'database',       label: 'Database Init',          group: 'Core' },
-  { id: 'symbolIndexer',  label: 'Symbol Indexer',         group: 'Core' },
-  { id: 'profileSync',    label: 'Profile Commit Sync',    group: 'Profile' },
-  { id: 'profileWatcher', label: 'Profile File Watcher',   group: 'Profile' },
-  { id: 'prefetchProfile',label: 'Prefetch: Profile',      group: 'Prefetch' },
-  { id: 'prefetchTeam',   label: 'Prefetch: Team Activity',group: 'Prefetch' },
-  { id: 'prefetchPorts',  label: 'Prefetch: Port Manager', group: 'Prefetch' },
+  { id: 'worker',         label: 'Worker Process',        group: 'Core', icon: '⚙' },
+  { id: 'database',       label: 'Database Init',          group: 'Core', icon: '🗄' },
+  { id: 'symbolIndexer',  label: 'Symbol Indexer',         group: 'Core', icon: '🔍' },
+  { id: 'profileSync',    label: 'Profile Commit Sync',    group: 'Profile', icon: '🔄' },
+  { id: 'profileWatcher', label: 'Profile File Watcher',   group: 'Profile', icon: '👁' },
+  { id: 'prefetchProfile',label: 'Prefetch: Profile',      group: 'Prefetch', icon: '📥' },
 ];
 
 const state = {
@@ -38,7 +36,7 @@ function _buildModal() {
     bodyHtml += `<div class="st-group"><div class="st-group-title">${_esc(groupName)}</div>`;
     for (const s of svcs) {
       bodyHtml += `<div class="st-row st-row-idle" id="st-row-${s.id}">
-        <span class="st-icon st-idle">○</span>
+        <span class="st-icon st-idle" style="font-size:16px">${s.icon}</span>
         <span class="st-label">${_esc(s.label)}</span>
         <span class="st-status-text"></span>
       </div>`;
@@ -49,7 +47,7 @@ function _buildModal() {
   _overlay.innerHTML = `
     <div class="st-modal">
       <div class="st-modal-header">
-        <span class="st-modal-title">⚙ Background Services</span>
+        <span class="st-modal-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.93 3.93l1.41 1.41M14.66 14.66l1.41 1.41M3.93 16.07l1.41-1.41M14.66 5.34l1.41-1.41"/></svg> Background Services</span>
         <button class="st-modal-close" id="stCloseBtn">✕</button>
       </div>
       <div class="st-modal-body" id="stModalBody">${bodyHtml}</div>
@@ -101,13 +99,20 @@ function _statusIcon(status) {
   return '<span class="st-idle">○</span>';
 }
 
+const _statusIcons = {
+  running: '<svg class="st-spinner" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6" opacity="0.3"/><path d="M8 2a6 6 0 0 1 6 6" stroke-linecap="round"/></svg>',
+  done: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none"><circle cx="8" cy="8" r="6" fill="#3fb950"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  failed: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none"><circle cx="8" cy="8" r="6" fill="#f85149"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  idle: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5" opacity="0.4"/></svg>',
+};
+
 function _updateServiceRow(id) {
   const row = document.getElementById('st-row-' + id);
   if (!row) return;
   const s = state.services[id] || { status: 'idle', detail: '' };
   row.className = 'st-row st-row-' + s.status;
   const icon = row.querySelector('.st-icon');
-  if (icon) icon.innerHTML = _statusIcon(s.status);
+  if (icon) icon.innerHTML = _statusIcons[s.status] || _statusIcons.idle;
   const detail = row.querySelector('.st-status-text');
   if (detail) {
     if (s.status === 'failed' && s.detail) {

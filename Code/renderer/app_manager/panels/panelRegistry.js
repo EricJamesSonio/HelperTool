@@ -6,6 +6,7 @@
 
 import * as fileSeederTool from '../../fileSeederTool.js';
 import * as locDetector from '../../locDetector.js';
+import { close as closeServiceTracker } from '../../serviceTracker.js';
 
 export default class PanelRegistry {
   constructor() {
@@ -90,5 +91,8 @@ export default class PanelRegistry {
 
     // Terminal
     if (this._terminalUI?.isOpen?.()) this._terminalUI.close();
+
+    // Service tracker — close when any tool opens
+    closeServiceTracker();
   }
 }
