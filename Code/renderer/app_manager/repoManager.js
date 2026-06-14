@@ -12,6 +12,7 @@ import {
     renderFolderPanel,
     loadIgnoredExtensions,
     loadFolderFilters,
+    invalidateFilterCache,
 } from '../filterManager.js';
 import { getFeatures } from '../featureManager.js';
 import { state }               from './appState.js';
@@ -62,6 +63,7 @@ export async function loadRepo(repoPath, resetSel = true) {
     showTreeSkeleton();
     state.cachedTree = await window.electronAPI.getFolderTree(repoPath);
     hideTreeSkeleton();
+    invalidateFilterCache();
 
     activeExtensions.clear();
     renderFilterChips();

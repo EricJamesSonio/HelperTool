@@ -1,8 +1,3 @@
-/**
- * treeView.js
- * Dual-mode tree renderer with depth-level coloring.
- */
-
 const getAllFiles = (node) => {
     if (node.type === 'file') return [node];
     if (!node.children) return [];
@@ -22,12 +17,74 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
     container.classList.remove('mode-list', 'mode-tree');
     container.classList.add(viewMode === 'tree' ? 'mode-tree' : 'mode-list');
 
+    if (container._treeClickHandler) {
+        container.removeEventListener('click', container._treeClickHandler);
+    }
+
     if (viewMode === 'tree') {
         _renderTreeMode(treeData, container, selectedItems, actionType, onToggle);
     } else {
         _renderListMode(treeData, container, selectedItems, actionType, onToggle);
     }
 
+    container._treeClickHandler = (e) => {
+        const el = e.target.closest('.tree-node');
+        if (!el) return;
+        e.stopPropagation();
+        const wrapper = el.closest('.node-wrapper');
+        if (!wrapper) return;
+        const nodePath = wrapper.dataset.nodePath;
+        const nodeType = el.classList.contains('folder') ? 'folder' : 'file';
+        const node = { path: nodePath, type: nodeType, name: wrapper.dataset.nodeName };
+
+        if (nodeType === 'file') {
+            _togglePath(selectedItems, nodePath);
+        } else if (actionType === 'code') {
+            const filePaths = [...wrapper.querySelectorAll('.tree-node.file')]
+                .map(f => f.closest('.node-wrapper')?.dataset.nodePath)
+                .filter(Boolean);
+            const normSel = selectedItems.map(normPath);
+            const allSel = filePaths.every(fp => normSel.includes(normPath(fp)));
+            filePaths.forEach(fp => allSel ? _removePath(selectedItems, fp) : _addPath(selectedItems, fp));
+        } else {
+            _togglePath(selectedItems, nodePath);
+        }
+
+        _updateHighlightsForPaths(container, selectedItems, actionType);
+        onToggle?.(node);
+    };
+    container.addEventListener('click', container._treeClickHandler);
+
+    _updateHighlightsForPaths(container, selectedItems, actionType);
+}
+
+function _presortTree(nodes) {
+    for (const node of nodes) {
+        if (node.children?.length) {
+            node.children.sort((a, b) => {
+                if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+                return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+            });
+            _presortTree(node.children);
+        }
+    }
+}
+
+function _updateHighlightsForPaths(container, selectedItems, actionType) {
+    const normSel = new Set(selectedItems.map(normPath));
+    container.querySelectorAll('.tree-node').forEach(el => {
+        const wrapper = el.closest('.node-wrapper');
+        if (!wrapper) return;
+        const p = normPath(wrapper.dataset.nodePath || '');
+        const isFolder = el.classList.contains('folder');
+        el.classList.remove('selected', 'folder-selected', 'file-selected');
+        if (!normSel.has(p)) return;
+        if (isFolder) {
+            el.classList.add(actionType === 'code' ? 'folder-selected' : 'selected');
+        } else {
+            el.classList.add('file-selected');
+        }
+    });
     _updateGenerateState(selectedItems);
 }
 
@@ -36,35 +93,11 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
    ============================================================ */
 
 function _renderListMode(treeData, container, selectedItems, actionType, onToggle) {
+    _presortTree(treeData);
+
     if (!window._expandedFolders) window._expandedFolders = new Map();
     const expandedFolders = window._expandedFolders;
 
-    const normSelected = () => selectedItems.map(normPath);
-    const isSelected = (p) => normSelected().includes(normPath(p));
-
-    function applySelectionClass(el, node) {
-        el.classList.remove('selected', 'folder-selected', 'file-selected');
-        if (!isSelected(node.path)) return;
-        if (node.type === 'folder') {
-            el.classList.add(actionType === 'code' ? 'folder-selected' : 'selected');
-        } else {
-            el.classList.add('file-selected');
-        }
-    }
-
-    function updateAllHighlights() {
-        container.querySelectorAll('.tree-node').forEach(el => {
-            const wrapper = el.parentElement;
-            if (!wrapper?.dataset.nodePath) return;
-            applySelectionClass(el, {
-                path: wrapper.dataset.nodePath,
-                type: el.classList.contains('folder') ? 'folder' : 'file',
-            });
-        });
-        _updateGenerateState(selectedItems);
-    }
-
-    // depth = visual nesting depth (0 = root folders)
     function createNode(node, depth = 0) {
         if (actionType === 'structure' && node.type === 'file') return null;
 
@@ -73,7 +106,6 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         wrapper.style.setProperty('--depth', depth);
         wrapper.dataset.nodePath = normPath(node.path);
         wrapper.dataset.nodeName = node.name;
-        // Set depth-level color attribute on every node
         wrapper.dataset.depthLevel = depth % 5;
         if (node.type === 'file' && depth > 0) {
             wrapper.dataset.parentDepth = (depth - 1) % 5;
@@ -89,51 +121,32 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
 
         let label = node.name;
         if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
-            const count = countFiles(node);
-            if (count > 0) label += ` (${count})`;
+            if (!node._fileCount) node._fileCount = countFiles(node);
+            if (node._fileCount > 0) label += ` (${node._fileCount})`;
         }
-        if (node.type === 'folder' && actionType === 'code' && isSelected(node.path)) {
+        if (node.type === 'folder' && actionType === 'code' && selectedItems.map(normPath).includes(normPath(node.path))) {
             label += ' [ALL]';
         }
         el.textContent = label;
-        applySelectionClass(el, node);
         wrapper.appendChild(el);
 
         if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
             childrenContainer.style.display = 'flex';
-            const sorted = [...node.children].sort((a, b) => a.type === 'file' ? -1 : 1);
-            sorted.forEach(child => {
+            node.children.forEach(child => {
                 const childEl = createNode(child, depth + 1);
                 if (childEl) childrenContainer.appendChild(childEl);
             });
             wrapper.appendChild(childrenContainer);
         }
 
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (node.type === 'file') {
-                _togglePath(selectedItems, node.path);
-            } else if (actionType === 'code') {
-                const files = getAllFiles(node);
-                const allSel = files.every(f => isSelected(f.path));
-                files.forEach(f => allSel
-                    ? _removePath(selectedItems, f.path)
-                    : _addPath(selectedItems, f.path));
-            } else {
-                _togglePath(selectedItems, node.path);
-            }
-            updateAllHighlights();
-            onToggle?.(node);
-        });
-
         return wrapper;
     }
 
     const root = document.createElement('div');
     root.className = 'tree-root';
-    [...treeData].sort((a, b) => a.type === 'file' ? -1 : 1).forEach(node => {
+    treeData.forEach(node => {
         const el = createNode(node, 0);
         if (el) root.appendChild(el);
     });
@@ -145,30 +158,7 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
    ============================================================ */
 
 function _renderTreeMode(treeData, container, selectedItems, actionType, onToggle) {
-    const normSelected = () => selectedItems.map(normPath);
-    const isSelected = (p) => normSelected().includes(normPath(p));
-
-    function applySelectionClass(el, node) {
-        el.classList.remove('selected', 'folder-selected', 'file-selected');
-        if (!isSelected(node.path)) return;
-        if (node.type === 'folder') {
-            el.classList.add(actionType === 'code' ? 'folder-selected' : 'selected');
-        } else {
-            el.classList.add('file-selected');
-        }
-    }
-
-    function updateAllHighlights() {
-        container.querySelectorAll('.tree-node').forEach(el => {
-            const wrapper = el.closest('.node-wrapper');
-            if (!wrapper?.dataset.nodePath) return;
-            applySelectionClass(el, {
-                path: wrapper.dataset.nodePath,
-                type: el.classList.contains('folder') ? 'folder' : 'file',
-            });
-        });
-        _updateGenerateState(selectedItems);
-    }
+    _presortTree(treeData);
 
     function createNode(node, depth = 0) {
         if (actionType === 'structure' && node.type === 'file') return null;
@@ -191,50 +181,31 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
 
         let label = node.name;
         if (node.type === 'folder' && node.children?.length && actionType !== 'structure') {
-            const count = countFiles(node);
-            if (count > 0) label += ` (${count})`;
+            if (!node._fileCount) node._fileCount = countFiles(node);
+            if (node._fileCount > 0) label += ` (${node._fileCount})`;
         }
-        if (node.type === 'folder' && actionType === 'code' && isSelected(node.path)) {
+        if (node.type === 'folder' && actionType === 'code' && selectedItems.map(normPath).includes(normPath(node.path))) {
             label += ' [ALL]';
         }
         el.textContent = label;
-        applySelectionClass(el, node);
         wrapper.appendChild(el);
 
         if (node.type === 'folder' && node.children?.length) {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'children';
-            const sorted = [...node.children].sort((a, b) => a.type === 'file' ? -1 : 1);
-            sorted.forEach(child => {
+            node.children.forEach(child => {
                 const childEl = createNode(child, depth + 1);
                 if (childEl) childrenContainer.appendChild(childEl);
             });
             wrapper.appendChild(childrenContainer);
         }
 
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (node.type === 'file') {
-                _togglePath(selectedItems, node.path);
-            } else if (actionType === 'code') {
-                const files = getAllFiles(node);
-                const allSel = files.every(f => isSelected(f.path));
-                files.forEach(f => allSel
-                    ? _removePath(selectedItems, f.path)
-                    : _addPath(selectedItems, f.path));
-            } else {
-                _togglePath(selectedItems, node.path);
-            }
-            updateAllHighlights();
-            onToggle?.(node);
-        });
-
         return wrapper;
     }
 
     const root = document.createElement('div');
     root.className = 'tree-root';
-    [...treeData].sort((a, b) => a.type === 'file' ? -1 : 1).forEach(node => {
+    treeData.forEach(node => {
         const el = createNode(node, 0);
         if (el) root.appendChild(el);
     });
