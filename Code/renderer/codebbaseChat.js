@@ -50,6 +50,11 @@ class CodebaseChat {
   async refresh() {
     if (this.currentRepoPath) {
       try {
+        const ipc = window.electronAPI?.codebaseChat;
+        if (ipc) {
+          const files = await ipc.getFiles({ repoPath: this.currentRepoPath });
+          this.state.setFiles(files || []);
+        }
         const status = await window.electronAPI?.symbolIndex?.check(this.currentRepoPath);
         this.state.isIndexed = status?.indexed === true;
       } catch (_) {}

@@ -61,7 +61,7 @@ function renderBotMessage(msg) {
 
   const header = document.createElement('div');
   header.className = 'cc-msg-header';
-  header.textContent = 'Codebase Chat';
+  header.textContent = 'HelperChat';
   bubble.appendChild(header);
 
   const content = document.createElement('div');
@@ -115,8 +115,8 @@ function renderWelcome() {
     <div class="cc-welcome-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="12" cy="10" r="1.5"/><circle cx="8" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>
     </div>
-    <div class="cc-welcome-title">Codebase Chat</div>
-    <div class="cc-welcome-sub">Ask about your indexed codebase. Type <strong>@</strong> to mention a file, then choose a query.</div>
+    <div class="cc-welcome-title">HelperChat</div>
+    <div class="cc-welcome-sub">Ask about your indexed codebase. Type <strong>@</strong> to mention a file, then choose a query.<br><span class="cc-welcome-shortcut">Press <kbd>Ctrl+K</kbd> then assign a shortcut in <strong>CLI Tool</strong></span></div>
   `;
   return div;
 }

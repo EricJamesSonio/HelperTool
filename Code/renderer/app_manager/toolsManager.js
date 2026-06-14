@@ -241,7 +241,7 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
     }, 'db'));
   }
 
-  body.appendChild(createSidebarItem(ICONS.codebbaseChat, 'Codebase Chat', 'Query your codebase structure', () => {
+  body.appendChild(createSidebarItem(ICONS.codebbaseChat, 'HelperChat', 'Query your codebase structure', () => {
     if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_ccPanel) _initCCPanel();
