@@ -57,13 +57,29 @@ function _startWatcher(repoPath, repoName) {
     return;
   }
   _watchedPaths.add(repoPath);
-  const ignores = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/target/**', '**/.next/**'];
   const watcher = chokidar.watch(repoPath, {
-    ignored: ignores,
+    ignored: [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/target/**',
+      '**/.next/**',
+      '**/.nuxt/**',
+      '**/coverage/**',
+      '**/vendor/**',
+      /node_modules/,
+      /[\/\\]\.git[\/\\]/,
+    ],
     ignoreInitial: true,
     persistent: true,
     usePolling: false,
     awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
+    depth: 10,
+    disableGlobbing: false,
+  });
+  watcher.on('ready', () => {
+    updateService('profileWatcher', 'done');
   });
   watcher.on('change', (filePath) => {
     const normalized = filePath.replace(/\\/g, '/');
@@ -92,7 +108,6 @@ function _startWatcher(repoPath, repoName) {
     }
   });
   _watchers.push(watcher);
-  updateService('profileWatcher', 'done');
 }
 
 async function _syncCommits(repoPath, repoName) {
