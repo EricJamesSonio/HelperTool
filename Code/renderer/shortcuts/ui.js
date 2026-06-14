@@ -210,3 +210,5 @@ function closeConfig() {
   _modal.remove();
   _modal = null;
 }
+
+export { openConfig, isConfigOpen, closeConfig };

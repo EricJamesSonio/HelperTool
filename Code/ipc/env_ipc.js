@@ -4,23 +4,53 @@ const fs = require('fs');
 
 const ENV_PATTERNS = [
   '.env', '.env.local', '.env.development', '.env.production',
-  '.env.test', '.env.staging', '.env.sample', '.env.example'
+  '.env.test', '.env.staging', '.env.sample', '.env.example',
+  '.env.development.local', '.env.production.local', '.env.test.local',
 ];
+
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.cache', '__pycache__', 'venv', '.venv', 'env', '.env']);
+
+function isEnvFile(name) {
+  const lower = name.toLowerCase();
+  if (ENV_PATTERNS.includes(lower)) return true;
+  if (lower.startsWith('.env.')) return true;
+  return false;
+}
+
+function sortFiles(files) {
+  return files.sort((a, b) => {
+    if (a.toLowerCase() === '.env') return -1;
+    if (b.toLowerCase() === '.env') return 1;
+    return a.localeCompare(b);
+  });
+}
+
+function findEnvFiles(dir, depth = 0) {
+  if (depth > 5) return [];
+  const results = [];
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+  catch { return results; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS.has(entry.name)) {
+        results.push(...findEnvFiles(full, depth + 1));
+      }
+    } else if (entry.isFile() && isEnvFile(entry.name)) {
+      results.push(full);
+    }
+  }
+  return results;
+}
 
 function register() {
   ipcMain.handle('env:listFiles', async (_e, { repoPath }) => {
     try {
       if (!repoPath) return { success: false, error: 'No repo path' };
-      const files = fs.readdirSync(repoPath).filter(f => {
-        if (ENV_PATTERNS.includes(f)) return true;
-        if (f.startsWith('.env.')) return true;
-        return false;
-      }).sort((a, b) => {
-        if (a === '.env') return -1;
-        if (b === '.env') return 1;
-        return a.localeCompare(b);
-      });
-      return { success: true, files };
+      const found = findEnvFiles(repoPath);
+      const files = found.map(f => path.relative(repoPath, f));
+      return { success: true, files: sortFiles(files) };
     } catch (err) {
       return { success: false, error: err.message };
     }

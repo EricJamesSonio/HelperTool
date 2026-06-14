@@ -7,6 +7,7 @@
 import * as fileSeederTool from '../../fileSeederTool.js';
 import * as locDetector from '../../locDetector.js';
 import { close as closeServiceTracker } from '../../serviceTracker.js';
+import { closeConfig as closeCliConfig } from '../../shortcuts/ui.js';
 
 export default class PanelRegistry {
   constructor() {
@@ -64,6 +65,7 @@ export default class PanelRegistry {
     if (fullOverlay?.classList.contains('open')) fullOverlay.classList.remove('open');
     const lightOverlay = document.getElementById('lightSettingsOverlay');
     if (lightOverlay?.classList.contains('open')) lightOverlay.classList.remove('open');
+    closeCliConfig();
 
     // Registered panels
     this._panels.forEach((panel) => {

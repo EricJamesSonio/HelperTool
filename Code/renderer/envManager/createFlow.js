@@ -3,7 +3,7 @@ import { escHtml } from './utils.js';
 import { loadFile } from './index.js';
 import { renderFileList } from './fileList.js';
 
-const PRESET_NAMES = ['.env', '.env.local', '.env.production', '.env.development', '.env.test', '.env.staging', '.env.sample'];
+const PRESET_NAMES = ['.env', '.env.local', '.env.development', '.env.production', '.env.test', '.env.staging', '.env.sample', '.env.example'];
 
 export function openCreateForm() {
   setState({ creating: true, error: null });
@@ -76,7 +76,7 @@ async function doCreate() {
     if (r.success) {
       setState({ creating: false, error: null });
       const updated = [...state.files, fileName].sort((a, b) => {
-        if (a === '.env') return -1; if (b === '.env') return 1;
+        if (a.toLowerCase() === '.env') return -1; if (b.toLowerCase() === '.env') return 1;
         return a.localeCompare(b);
       });
       setState({ files: updated });
