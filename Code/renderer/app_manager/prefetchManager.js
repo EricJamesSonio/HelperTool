@@ -33,7 +33,8 @@ const cache = new PrefetchCache();
 
 export function startPrefetch(repoPath) {
   if (!repoPath) return;
-  cache.clear();
+  cache.invalidate('teamActivity:' + repoPath);
+  cache.invalidate('branches:' + repoPath);
 }
 
 export function getPrefetchCache() {

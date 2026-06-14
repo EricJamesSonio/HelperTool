@@ -93,19 +93,19 @@ if (!gotTheLock) {
             } catch (err) {
                 console.error('[Main] Failed to init DB:', err);
                 serviceTrackerIpc.updateService('database', 'failed', err.message);
+                return;
             }
 
-            // Defer indexer/worker/prefetch so renderer IPC is not blocked
+            // DB confirmed ready — now start worker and prefetch
             setImmediate(() => {
                 const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
                 indexerProxy.start(indexerDbPath);
                 workerProxy.start();
 
-                // Wait for worker to be ready before starting prefetch
                 setTimeout(() => {
                     const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
                     prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
-                }, 2000);
+                }, 800);
             });
         });
 

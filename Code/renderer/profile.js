@@ -147,8 +147,11 @@ async function _load() {
   _lastLoadTime = now;
 
   const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
-  const cached = getPrefetchCache().get('profile');
-  if (cached && cached.all) {
+  const rawCached = getPrefetchCache().get('profile');
+  const cached = rawCached
+    ? (rawCached.all ? rawCached : { all: rawCached, avatar: null })
+    : null;
+  if (cached?.all) {
     const { all, avatar } = cached;
     if (all.profile) _profile = all.profile;
     _avatarDataUrl = avatar;
