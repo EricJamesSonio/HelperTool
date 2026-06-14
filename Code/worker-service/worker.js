@@ -9,6 +9,7 @@ const gitBranchesTask = require('./tasks/gitBranches');
 const gitOperationsTask = require('./tasks/gitOperations');
 const walkDirTask = require('./tasks/walkDir');
 const folderTreeTask = require('./tasks/folderTree');
+const profileSyncTask = require('./tasks/profileSync');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -67,6 +68,10 @@ process.on('message', async (msg) => {
 
       case 'folderTree':
         result = await folderTreeTask(payload);
+        break;
+
+      case 'profileSync':
+        result = await profileSyncTask(payload);
         break;
 
       default:

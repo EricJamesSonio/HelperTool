@@ -92,55 +92,84 @@ async function _syncCommits(repoPath, repoName) {
   if (_syncInProgress) return;
   _syncInProgress = true;
   updateService('profileSync', 'running', 'Syncing commits...');
+
   try {
     const activationDate = _getOrSetActivationDate();
-    const today = new Date().toISOString().slice(0, 10);
+    const workerProxy = require('./workerProxy');
 
-    const args = [
-      'log', '--format=>>>%H|%ad', '--date=short', '--no-merges', '--name-only',
-      '--after=' + activationDate + 'T00:00:00',
-      '--before=' + today + 'T23:59:59',
-    ];
+    let dates = [];
 
-    const git = simpleGit(repoPath);
-    const log = await git.raw(args);
-
-    if (!log.trim()) { _syncInProgress = false; updateService('profileSync', 'done'); return; }
-
-    const dateCounts = {};
-    const dateFiles = {};
-    let currentDate = null;
-    for (const line of log.split('\n')) {
-      if (line.startsWith('>>>')) {
-        const pipeIdx = line.indexOf('|');
-        currentDate = pipeIdx >= 0 ? line.substring(pipeIdx + 1).trim() : null;
-        if (currentDate && currentDate >= activationDate) {
-          dateCounts[currentDate] = (dateCounts[currentDate] || 0) + 1;
-          if (!dateFiles[currentDate]) dateFiles[currentDate] = new Set();
+    if (workerProxy.isReady()) {
+      const result = await workerProxy.send('profileSync', {
+        repoPath,
+        activationDate,
+      }, 120000);
+      dates = result?.dates || [];
+    } else {
+      const git = simpleGit(repoPath);
+      const today = new Date().toISOString().slice(0, 10);
+      const log = await git.raw([
+        'log', '--format=>>>%H|%ad', '--date=short', '--no-merges', '--name-only',
+        '--after=' + activationDate + 'T00:00:00',
+        '--before=' + today + 'T23:59:59',
+      ]);
+      if (log.trim()) {
+        const dateCounts = {}, dateFiles = {};
+        let currentDate = null;
+        for (const line of log.split('\n')) {
+          if (line.startsWith('>>>')) {
+            const pipeIdx = line.indexOf('|');
+            currentDate = pipeIdx >= 0 ? line.substring(pipeIdx + 1).trim() : null;
+            if (currentDate && currentDate >= activationDate) {
+              dateCounts[currentDate] = (dateCounts[currentDate] || 0) + 1;
+              if (!dateFiles[currentDate]) dateFiles[currentDate] = new Set();
+            } else currentDate = null;
+          } else if (currentDate && line.trim()) {
+            dateFiles[currentDate].add(line.trim());
+          }
         }
-      } else if (currentDate && currentDate >= activationDate && line.trim()) {
-        dateFiles[currentDate].add(line.trim());
+        dates = Object.entries(dateCounts).map(([date, count]) => ({
+          date, commits: count, files: dateFiles[date]?.size || 0,
+        }));
       }
     }
 
+    if (!dates.length) {
+      updateService('profileSync', 'done');
+      _syncInProgress = false;
+      return;
+    }
+
+    const BATCH_SIZE = 10;
     db().run('BEGIN');
-    for (const [date, count] of Object.entries(dateCounts)) {
-      const files = dateFiles[date]?.size || 0;
-      db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits, files_touched)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(date, repo_path) DO UPDATE SET commits=?, files_touched=?`,
-        [date, repoPath, repoName, count, files, count, files]);
+    for (let i = 0; i < dates.length; i++) {
+      const { date, commits, files } = dates[i];
+      db().run(
+        `INSERT INTO activity_days (date, repo_path, repo_name, commits, files_touched)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(date, repo_path) DO UPDATE SET commits=?, files_touched=?`,
+        [date, repoPath, repoName, commits, files, commits, files]
+      );
+
+      if ((i + 1) % BATCH_SIZE === 0 && i + 1 < dates.length) {
+        db().run('COMMIT');
+        save();
+        await new Promise(r => setImmediate(r));
+        db().run('BEGIN');
+      }
     }
     db().run('COMMIT');
     save();
 
     prefetchService.invalidate('profile');
     updateService('profileSync', 'done');
+
   } catch (err) {
     console.error('[Profile] _syncCommits error:', err.message);
     try { db().run('ROLLBACK'); } catch (_) {}
     updateService('profileSync', 'failed', err.message);
   }
+
   _syncInProgress = false;
 }
 
