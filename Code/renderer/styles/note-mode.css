@@ -42,8 +42,6 @@
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
-[data-theme="light"] .sh-tab:hover { background: rgba(0,0,0,0.04); }
-
 /* ── Tab panels ──────────────────────────────────────────── */
 .sh-tab-panel {
   display: flex;
@@ -237,10 +235,6 @@
   background: var(--bg-base) !important;
   border-color: var(--border-strong) !important;
   color: var(--text-primary) !important;
-}
-[data-theme="light"] .sh-note-date-input {
-  color-scheme: light;
-  background: var(--bg-base) !important;
 }
 .sh-note-date-input:focus {
   border-color: var(--accent) !important;

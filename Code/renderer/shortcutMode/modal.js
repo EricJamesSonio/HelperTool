@@ -37,15 +37,29 @@ export function openShortcutResultsModal(results) {
       ? (result.alreadySelected ? 'Already selected' : `${result.matchType} (${Math.round(result.similarity * 100)}%)`)
       : 'Not found';
 
+    item.dataset.path = result.filePath || result.path || result.original;
     if (result.found) {
-      // Show the full matched path as primary text
       const matchedPath = result.path || result.original;
+      const unselectBtn = document.createElement('button');
+      unselectBtn.className = 'result-unselect-btn';
+      unselectBtn.textContent = '\u2716';
+      unselectBtn.title = 'Remove from selection';
+      unselectBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const { unselectMatchedFile } = await import('./core.js');
+        unselectMatchedFile(item.dataset.path);
+        item.classList.add('unselected');
+        unselectBtn.disabled = true;
+        item.querySelector('.result-item-status').textContent = 'Unselected';
+      });
+
       item.innerHTML = `
         <span class="result-item-icon">${icon}</span>
         <span class="result-item-name">${matchedPath}</span>
         <span class="result-item-status">${status}</span>
       `;
       item.title = `Searched: ${result.original}`;
+      item.appendChild(unselectBtn);
     } else {
       item.innerHTML = `
         <span class="result-item-icon">${icon}</span>

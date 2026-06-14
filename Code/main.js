@@ -24,7 +24,7 @@ const terminalIpc  = require('./ipc/terminal_ipc.js');
 const portManagerIpc = require('./ipc/portManager.js');
 const docignoreManagerIpc = require('./ipc/docignoreManager_ipc.js');
 const teamActivityFeedIpc = require('./ipc/teamActivityFeed.js');
-const blueprintLibraryIpc = require('./ipc/blueprintLibrary.js');
+const blueprintLibraryIpc = require('./ipc/blueprintLibrary/index.js');
 const profileIpc = require('./ipc/profile.js');
 const dockerIpc = require('./ipc/docker_ipc.js');
 const envIpc = require('./ipc/env_ipc.js');
@@ -89,23 +89,29 @@ if (!gotTheLock) {
                 await initDatabase(app);
                 await initChatDb(app);
                 createInspectorSchema();
+                const { getDb, getDbPath } = require('./database/db.js');
+                const _p = getDbPath();
+                const _s = require('fs').existsSync(_p) ? require('fs').statSync(_p).size : 0;
+                console.log('[DB] size:', (_s / 1024 / 1024).toFixed(2), 'MB at', _p);
                 serviceTrackerIpc.updateService('database', 'done');
             } catch (err) {
                 console.error('[Main] Failed to init DB:', err);
                 serviceTrackerIpc.updateService('database', 'failed', err.message);
+                return;
             }
 
-            // Defer indexer/worker/prefetch so renderer IPC is not blocked
+            // DB confirmed ready — now start worker and prefetch
             setImmediate(() => {
                 const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
                 indexerProxy.start(indexerDbPath);
                 workerProxy.start();
 
-                // Wait for worker to be ready before starting prefetch
+                prefetchService.registerIpc();
+
                 setTimeout(() => {
                     const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
                     prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
-                }, 2000);
+                }, 800);
             });
         });
 

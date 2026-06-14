@@ -1,4 +1,4 @@
-const DEFAULT_SETTINGS = { themeId: 'navy-dark', customAccent: null, fontSize: 14, compactMode: false };
+const DEFAULT_SETTINGS = { themeId: 'neon-dark', customAccent: null, fontSize: 14, compactMode: false };
 const STORAGE_KEY = 'helpertool-settings';
 
 const S = {
@@ -14,7 +14,7 @@ function loadSettings() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed.theme && !parsed.themeId) {
-        parsed.themeId = parsed.theme === 'light' ? 'cream-light' : 'navy-dark';
+        parsed.themeId = parsed.theme === 'light' ? 'neon-dark' : 'neon-dark';
         delete parsed.theme; delete parsed.accentId;
       }
       return { ...DEFAULT_SETTINGS, ...parsed };

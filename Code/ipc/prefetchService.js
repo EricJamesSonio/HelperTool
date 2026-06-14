@@ -83,7 +83,9 @@ function _set(key, data, ttl) {
   _saveDiskCache();
   try {
     const w = typeof _getMainWindow === 'function' && _getMainWindow();
-    if (w && !w.isDestroyed()) w.webContents.send('prefetch:update', { key, data, ttl: resolvedTtl });
+    if (w && !w.isDestroyed()) {
+      w.webContents.send('prefetch:ready', { key, ttl: resolvedTtl });
+    }
   } catch (_) {}
 }
 
@@ -104,6 +106,7 @@ async function _fetchFromWorker(type, payload) {
 }
 
 async function _prefetchProfile() {
+  console.time('[Prefetch] profile');
   updateService('prefetchProfile', 'running', 'Fetching profile data...');
   try {
     const dbPath = _dbPath;
@@ -129,9 +132,11 @@ async function _prefetchProfile() {
     console.error('[Prefetch] _prefetchProfile error:', err.message);
     updateService('prefetchProfile', 'failed', err.message);
   }
+  console.timeEnd('[Prefetch] profile');
 }
 
 async function _prefetchTeamActivity(repoPath) {
+  console.time('[Prefetch] teamActivity');
   if (!repoPath) return;
   updateService('prefetchTeam', 'running', 'Fetching team activity...');
   const data = await _fetchFromWorker('teamActivity', { repoPath });
@@ -142,9 +147,11 @@ async function _prefetchTeamActivity(repoPath) {
   } else {
     updateService('prefetchTeam', 'failed', 'No data returned');
   }
+  console.timeEnd('[Prefetch] teamActivity');
 }
 
 async function _prefetchPortManager() {
+  console.time('[Prefetch] portManager');
   updateService('prefetchPorts', 'running', 'Scanning ports...');
   const data = await _fetchFromWorker('portManager', {});
   if (data) {
@@ -154,6 +161,7 @@ async function _prefetchPortManager() {
   } else {
     updateService('prefetchPorts', 'failed', 'No data returned');
   }
+  console.timeEnd('[Prefetch] portManager');
 }
 
 async function _prefetchBranches(repoPath) {
@@ -170,7 +178,7 @@ function _pushCachedToRenderer() {
   if (!w || w.isDestroyed()) return;
   for (const [key, entry] of _cache) {
     if (_now() - entry.ts < entry.ttl) {
-      w.webContents.send('prefetch:update', { key, data: entry.data, ttl: entry.ttl });
+      w.webContents.send('prefetch:ready', { key, ttl: entry.ttl });
     }
   }
 }
@@ -185,7 +193,7 @@ async function start(dbPath, repoPath, getMainWindow) {
   _pushCachedToRenderer();
 
   const _launchPrefetch = () => {
-    setTimeout(() => _doPrefetch(repoPath), 1500);
+    setTimeout(() => _doPrefetch(repoPath), 8000);
   };
 
   if (!workerProxy.isReady()) {
@@ -207,11 +215,9 @@ async function _triggerProfileSync(repoPath) {
     return;
   }
   try {
-    updateService('profileSync', 'running', 'Syncing commits...');
     const profileIpc = require('./profile.js');
     const repoName = require('path').basename(repoPath);
     await profileIpc.triggerCommitSync(repoPath, repoName);
-    updateService('profileSync', 'done');
   } catch (err) {
     updateService('profileSync', 'failed', err.message);
   }
@@ -234,27 +240,17 @@ async function _startProfileWatcher(repoPath) {
 }
 
 async function _doPrefetch(repoPath) {
-  console.log('[Prefetch] Starting background refresh...');
+  console.log('[Prefetch] start', Date.now());
 
-  const phase1 = Promise.allSettled([
-    _prefetchProfile(),
-    _prefetchTeamActivity(repoPath),
-  ]);
+  await _prefetchProfile();
 
-  await new Promise(r => setTimeout(r, 500));
-
-  const phase2 = Promise.allSettled([
-    _prefetchPortManager(),
-    _prefetchBranches(repoPath),
-  ]);
-
-  await Promise.allSettled([phase1, phase2]);
+  await _prefetchBranches(repoPath);
 
   setTimeout(() => {
     _startProfileWatcher(repoPath).catch(err =>
       console.warn('[Prefetch] Profile watcher failed:', err.message)
     );
-  }, 3000);
+  }, 5000);
 
   setTimeout(() => {
     _triggerProfileSync(repoPath).catch(err =>
@@ -301,4 +297,14 @@ function stop() {
   try { if (_cachePath && fs.existsSync(_cachePath)) fs.unlinkSync(_cachePath); } catch (_) {}
 }
 
-module.exports = { start, get, refresh, invalidate, stop };
+function registerIpc() {
+  const { ipcMain } = require('electron');
+  ipcMain.handle('prefetch:get', (event, key) => {
+    const entry = _cache.get(key);
+    if (!entry) return null;
+    if (_now() - entry.ts > entry.ttl) { _cache.delete(key); return null; }
+    return entry.data;
+  });
+}
+
+module.exports = { start, get, refresh, invalidate, stop, registerIpc };

@@ -40,9 +40,16 @@ const generateBridge = {
         });
     },
 
+    onPrefetchReady: (callback) => {
+        ipcRenderer.removeAllListeners('prefetch:ready');
+        ipcRenderer.on('prefetch:ready', (event, { key, ttl }) => callback(key, ttl));
+    },
+
+    getPrefetchData: (key) => ipcRenderer.invoke('prefetch:get', key),
+
     onPrefetchUpdate: (callback) => {
-        ipcRenderer.removeAllListeners('prefetch:update');
-        ipcRenderer.on('prefetch:update', (event, { key, data, ttl }) => callback(key, data, ttl));
+        ipcRenderer.removeAllListeners('prefetch:ready');
+        ipcRenderer.on('prefetch:ready', (event, { key, ttl }) => callback(key, null, ttl));
     },
 };
 

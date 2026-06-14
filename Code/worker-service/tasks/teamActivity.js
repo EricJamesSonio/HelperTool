@@ -90,21 +90,39 @@ function parseNumstat(stdout, commits, contributors) {
   }
 }
 
-async function getTeamActivity(repoPath) {
+async function getTeamActivity(repoPath, opts = {}) {
+  const limit = opts.limit || 200;
+  const since = opts.since || (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 10);
+  })();
+
   const metaStdout = await execGit(repoPath, [
-    'log', `--format=%H|%an|%ae|%aI|%s`, '--all',
+    'log', '--format=%H|%an|%ae|%aI|%s',
+    '--all',
+    '--after=' + since,
+    '-n', String(limit),
   ]);
+
+  if (!metaStdout.trim()) return { commits: [], contributors: {} };
+
   const { commits, contributors } = parseMeta(metaStdout);
+  if (!commits.length) return { commits, contributors };
+
   const numstatStdout = await execGit(repoPath, [
-    'log', '--all', '--numstat', '--format=%H',
+    'log', '--numstat', '--format=%H',
+    '--all',
+    '--after=' + since,
+    '-n', String(limit),
   ]);
+
   parseNumstat(numstatStdout, commits, contributors);
   return { commits, contributors };
 }
 
 module.exports = async function handle(payload) {
-  const { repoPath } = payload || {};
+  const { repoPath, limit, since } = payload || {};
   if (!repoPath) throw new Error('repoPath is required for teamActivity task');
-  const result = await getTeamActivity(repoPath);
-  return result;
+  return getTeamActivity(repoPath, { limit, since });
 };

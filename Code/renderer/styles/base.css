@@ -103,70 +103,6 @@
   --ease: 0.15s ease;
 }
 
-/* ── Light theme overrides ──────────────────────────────── */
-[data-theme="light"] {
-  --bg-base:        #f0f4f8;
-  --bg-surface:     #ffffff;
-  --bg-elevated:    #f8fafc;
-  --bg-overlay:     #eef2f7;
-  --bg-hover:       rgba(0,0,0,0.04);
-  --bg-active:      rgba(0,0,0,0.07);
-  --bg-raised:      #e8eef6;
-  --bg-statusbar:   #f1f5fb;
-  --bg-root:        #e8edf5;
-  --bg-tree:        #f4f7fb;
-
-  --border-subtle:  rgba(0,0,0,0.06);
-  --border-default: rgba(0,0,0,0.10);
-  --border-strong:  rgba(0,0,0,0.18);
-  --border-mid:     rgba(0,0,0,0.12);
-
-  --text-primary:   #0f172a;
-  --text-secondary: #334155;
-  --text-muted:     #64748b;
-  --text-faint:     #94a3b8;
-
-  --accent:         #0891b2;
-  --accent-dim:     rgba(8,145,178,0.12);
-  --accent-glow:    rgba(8,145,178,0.20);
-  --accent-border:  rgba(8,145,178,0.30);
-
-  --green:          #16a34a;
-  --green-dim:      rgba(22,163,74,0.12);
-  --red:            #dc2626;
-  --red-dim:        rgba(220,38,38,0.10);
-  --blue:           #2563eb;
-  --blue-dim:       rgba(37,99,235,0.10);
-  --purple:         #7c3aed;
-  --purple-dim:     rgba(124,58,237,0.10);
-  --yellow:         #ca8a04;
-  --yellow-dim:     rgba(202,138,4,0.12);
-
-  --node-folder:          #2563eb;
-  --node-file:            #475569;
-  --node-selected-file:   #ca8a04;
-  --node-selected-folder: #16a34a;
-
-  --folder-bg:           rgba(37,99,235,0.07);
-  --folder-border:       rgba(37,99,235,0.20);
-  --folder-text:         #1d4ed8;
-  --folder-bg-h:         rgba(37,99,235,0.12);
-  --folder-hover-border: rgba(37,99,235,0.38);
-  --folder-hover-color:  #1e3a8a;
-  --file-bg:             rgba(71,85,105,0.05);
-  --file-border:         rgba(71,85,105,0.15);
-  --file-text:           #475569;
-  --file-bg-h:           rgba(71,85,105,0.10);
-  --file-hover-border:   rgba(71,85,105,0.28);
-  --file-hover-color:    #1e293b;
-  --connector-color:     rgba(0,0,0,0.12);
-
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
-  --shadow-xl: 0 24px 80px rgba(0,0,0,0.18);
-}
-
 /* ── Reset ───────────────────────────────────────────────── */
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
@@ -380,30 +316,6 @@ body {
   transform: translateY(-1px);
 }
 .nav-btn:active { transform: translateY(0); }
-
-/* ── Theme toggle ────────────────────────────────────────── */
-.theme-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-md);
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--ease);
-  white-space: nowrap;
-}
-.theme-toggle-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-}
 
 /* ── Search input ────────────────────────────────────────── */
 .search-section { max-width: 500px; position: relative; z-index: 99999; }
@@ -686,6 +598,20 @@ body {
 .result-item-status { font-size: 11px; font-weight: 600; flex-shrink: 0; }
 .result-item.found .result-item-status { color: var(--green); }
 .result-item.not-found .result-item-status { color: var(--red); }
+.result-item.found.unselected { opacity: 0.5; }
+.result-unselect-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.result-unselect-btn:hover { color: var(--red); background: rgba(248, 113, 113, 0.15); }
+.result-unselect-btn:disabled { opacity: 0.3; cursor: default; }
 
 .btn-icon {
   display: inline-flex;
@@ -877,12 +803,6 @@ body {
   flex-shrink: 0;
   z-index: 10010;
   padding: 0 0 0 10px;
-}
-
-[data-theme="light"] .app-titlebar {
-  background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, transparent 100%),
-              var(--bg-base);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 0 rgba(0,0,0,0.06);
 }
 
 .titlebar-drag-area {
@@ -1112,7 +1032,6 @@ body {
 /* ── Main screen toolbar icon colors ── */
 #selectRepoBtn     .btn-icon svg { color: var(--accent); }
 #viewModeBtn       svg           { color: var(--blue); }
-#themeToggleBtn    svg           { color: var(--yellow); }
 #notesBtn          .btn-icon svg { color: var(--purple); }
 #refreshBtn        .btn-icon svg { color: var(--green); }
 #editDocignoreBtn  .btn-icon svg { color: var(--red); }

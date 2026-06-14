@@ -147,8 +147,17 @@ async function _load() {
   _lastLoadTime = now;
 
   const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
-  const cached = getPrefetchCache().get('profile');
-  if (cached && cached.all) {
+  let rawCached = getPrefetchCache().get('profile');
+  if (!rawCached) {
+    try {
+      rawCached = await window.electronAPI.getPrefetchData('profile');
+      if (rawCached) getPrefetchCache().set('profile', rawCached, 300000);
+    } catch (_) {}
+  }
+  const cached = rawCached
+    ? (rawCached.all ? rawCached : { all: rawCached, avatar: null })
+    : null;
+  if (cached?.all) {
     const { all, avatar } = cached;
     if (all.profile) _profile = all.profile;
     _avatarDataUrl = avatar;

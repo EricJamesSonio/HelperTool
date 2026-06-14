@@ -5,7 +5,7 @@
  */
 
 import { state }                          from './appState.js';
-import { initShortcutManager, openConfig } from '../shortcutEntry.js';
+import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
 import DependenciesUI                     from '../dependencies/dependenciesUI.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
@@ -152,7 +152,11 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
     }, 'secret'));
   }
 
-  body.appendChild(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => openConfig(), 'cli'));
+  body.appendChild(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => {
+    if (isConfigOpen()) { closeConfig(); return; }
+    _registry.closeAll();
+    openConfig();
+  }, 'cli'));
 
   if (_feats.workspaceTool) {
     body.appendChild(createSidebarItem(ICONS.workspace, 'Workspace', 'Projects, tickets & workers', async () => {
@@ -366,7 +370,11 @@ function _buildShortcutActions() {
     };
   }
 
-  actions.shortcutTool = () => openConfig();
+  actions.shortcutTool = () => {
+    if (isConfigOpen()) { closeConfig(); return; }
+    _registry.closeAll();
+    openConfig();
+  };
 
   actions.exitInput = () => document.activeElement?.blur();
 
