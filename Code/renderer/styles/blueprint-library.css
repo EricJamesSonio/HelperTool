@@ -36,23 +36,23 @@
 .bp-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
+  gap: 14px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   background: var(--bg-base);
-  min-height: 48px;
+  min-height: 56px;
 }
 .bp-header h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
-.bp-header h2 svg { width: 18px; height: 18px; }
+.bp-header h2 svg { width: 22px; height: 22px; }
 .bp-header-right {
   margin-left: auto;
   display: flex;
@@ -60,7 +60,7 @@
   gap: 8px;
 }
 .bp-btn-close {
-  width: 30px; height: 30px;
+  width: 36px; height: 36px;
   display: inline-flex;
   align-items: center; justify-content: center;
   border: 1px solid transparent;
@@ -75,7 +75,7 @@
   color: var(--red);
   border-color: var(--red);
 }
-.bp-btn-close svg { width: 16px; height: 16px; }
+.bp-btn-close svg { width: 20px; height: 20px; }
 
 /* ── Body: three-column ── */
 .bp-body {
@@ -86,7 +86,7 @@
 
 /* ── Left: Category tree ── */
 .bp-categories {
-  width: 220px;
+  width: 260px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-subtle);
   display: flex;
@@ -94,8 +94,8 @@
   background: var(--bg-surface);
 }
 .bp-categories-header {
-  padding: 10px 14px;
-  font-size: 11px;
+  padding: 12px 16px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -107,7 +107,7 @@
   justify-content: space-between;
 }
 .bp-cat-add-btn {
-  width: 22px; height: 22px;
+  width: 26px; height: 26px;
   display: inline-flex;
   align-items: center; justify-content: center;
   border: 1px solid var(--border-subtle);
@@ -115,7 +115,7 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   transition: all 0.1s;
 }
 .bp-cat-add-btn:hover {
@@ -125,18 +125,18 @@
 }
 .bp-cat-filter {
   display: flex;
-  gap: 2px;
-  padding: 6px 8px 0;
+  gap: 4px;
+  padding: 8px 10px 4px;
   flex-shrink: 0;
 }
 .bp-cat-filter-btn {
   flex: 1;
-  height: 24px;
+  height: 30px;
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  border-radius: 5px;
   background: transparent;
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.1s;
@@ -165,11 +165,11 @@
 .bp-cat-list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 6px;
+  padding: 6px 8px;
 }
 .bp-cat-group-label {
-  padding: 8px 8px 4px;
-  font-size: 10px;
+  padding: 10px 10px 6px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-faint);
   text-transform: uppercase;
@@ -178,13 +178,13 @@
 .bp-cat-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 8px 10px;
   border-radius: var(--r-sm);
   cursor: pointer;
   border: 1px solid transparent;
   transition: background 0.1s;
-  font-size: 12px;
+  font-size: 14px;
 }
 .bp-cat-item:hover { background: var(--bg-hover); }
 .bp-cat-item.active {
@@ -210,7 +210,7 @@
 
 /* ── Center: Blueprint list ── */
 .bp-list {
-  width: 320px;
+  width: 380px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -220,33 +220,33 @@
 .bp-list-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   background: var(--bg-base);
 }
 .bp-search {
   flex: 1;
-  height: 26px;
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 10px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-xs);
   background: var(--bg-elevated);
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: 13px;
   outline: none;
 }
 .bp-search:focus { border-color: var(--accent); }
 .bp-search::placeholder { color: var(--text-faint); }
 .bp-blueprint-add-btn {
-  height: 26px;
-  padding: 0 10px;
+  height: 32px;
+  padding: 0 12px;
   border: 1px solid var(--accent);
   border-radius: var(--r-xs);
   background: transparent;
   color: var(--accent);
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.1s;
@@ -257,16 +257,16 @@
 .bp-blueprint-list {
   flex: 1;
   overflow-y: auto;
-  padding: 6px 8px;
+  padding: 8px 10px;
 }
 .bp-card {
-  padding: 10px 12px;
+  padding: 14px 16px;
   border-radius: var(--r-sm);
   border: 1px solid transparent;
-  border-left: 3px solid transparent;
+  border-left: 4px solid transparent;
   cursor: pointer;
   transition: all 0.1s;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .bp-card.c-blue   { border-left-color: var(--blue-dim);   }
 .bp-card.c-purple { border-left-color: var(--purple-dim); }
@@ -280,15 +280,15 @@
   border-color: var(--border-default);
 }
 .bp-card-name {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 .bp-card-desc {
-  font-size: 10px;
+  font-size: 13px;
   color: var(--text-faint);
-  line-height: 1.4;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -296,14 +296,14 @@
 }
 .bp-card-tags {
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 5px;
+  margin-top: 6px;
   flex-wrap: wrap;
 }
 .bp-card-tag {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 3px;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
   background: var(--bg-elevated);
   color: var(--text-faint);
   border: 1px solid var(--border-subtle);
@@ -314,7 +314,7 @@
   justify-content: center;
   height: 200px;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 15px;
 }
 
 /* ── Right: Detail / Editor ── */
@@ -329,15 +329,15 @@
 .bp-detail-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: 10px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   background: var(--bg-elevated);
-  min-height: 40px;
+  min-height: 48px;
 }
 .bp-detail-title {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   flex: 1;
@@ -347,17 +347,17 @@
 }
 .bp-detail-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 .bp-detail-btn {
-  height: 24px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 0 12px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-xs);
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.1s;
   white-space: nowrap;
@@ -381,9 +381,9 @@
 .bp-detail-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 16px;
-  font-size: 10px;
+  gap: 14px;
+  padding: 8px 18px;
+  font-size: 12px;
   color: var(--text-faint);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -393,10 +393,10 @@
 .bp-detail-content {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 20px;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--text-primary);
   white-space: pre-wrap;
 }
@@ -406,44 +406,44 @@
   justify-content: center;
   height: 100%;
   color: var(--text-faint);
-  font-size: 13px;
+  font-size: 15px;
 }
 
 /* ── Edit mode ── */
 .bp-edit-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: 5px;
+  margin-bottom: 14px;
 }
 .bp-edit-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 .bp-edit-input, .bp-edit-select {
-  height: 30px;
-  padding: 0 8px;
+  height: 36px;
+  padding: 0 10px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-xs);
   background: var(--bg-elevated);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 14px;
   outline: none;
 }
 .bp-edit-input:focus, .bp-edit-select:focus { border-color: var(--accent); }
 .bp-edit-textarea {
-  min-height: 300px;
-  padding: 10px;
+  min-height: 350px;
+  padding: 12px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-xs);
   background: var(--bg-elevated);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
   outline: none;
   resize: vertical;
 }
@@ -473,30 +473,30 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 12px;
-  padding: 20px;
-  width: 320px;
+  padding: 24px;
+  width: 360px;
   box-shadow: 0 16px 48px rgba(0,0,0,0.3);
 }
 .bp-cat-modal-title {
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .bp-cat-modal-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: flex-end;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 .bp-cat-modal-btn {
-  height: 28px;
-  padding: 0 14px;
+  height: 32px;
+  padding: 0 16px;
   border-radius: var(--r-xs);
   border: 1px solid var(--border-subtle);
   background: transparent;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
 }
 .bp-cat-modal-btn.primary {
@@ -507,13 +507,13 @@
 .bp-cat-modal-btn:hover { opacity: 0.85; }
 .bp-cat-select {
   width: 100%;
-  height: 30px;
-  padding: 0 8px;
+  height: 36px;
+  padding: 0 10px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-xs);
   background: var(--bg-elevated);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 14px;
   outline: none;
 }
 
@@ -524,17 +524,17 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 8px;
-  padding: 4px;
-  min-width: 140px;
+  padding: 6px;
+  min-width: 160px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
 }
 .bp-ctx-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  font-size: 13px;
   color: var(--text-primary);
   cursor: pointer;
   transition: background 0.1s;
@@ -547,17 +547,17 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 .bp-step-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   flex-shrink: 0;
-  border-left: 3px solid var(--border-subtle);
+  border-left: 4px solid var(--border-subtle);
 }
 .bp-step-card.c-green  { border-left-color: var(--green);  }
 .bp-step-card.c-blue   { border-left-color: var(--blue);  }
@@ -567,20 +567,20 @@
 .bp-step-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 12px 16px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
 }
 .bp-step-num {
-  width: 24px; height: 24px;
+  width: 30px; height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   background: var(--accent-dim);
   color: var(--accent);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -590,18 +590,18 @@
 .bp-step-num.c-yellow { background: var(--yellow-dim); color: var(--yellow);}
 .bp-step-num.c-red    { background: var(--red-dim);    color: var(--red);   }
 .bp-step-title {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 }
 .bp-step-text {
-  padding: 4px 14px;
-  font-size: 11px;
+  padding: 6px 16px;
+  font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 .bp-step-code-wrap {
-  margin: 6px 10px;
+  margin: 8px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   overflow: hidden;
@@ -621,19 +621,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 10px;
+  padding: 7px 12px;
   background: #161b22;
   border-bottom: 1px solid #30363d;
-  font-size: 10px;
+  font-size: 12px;
   color: #8b949e;
 }
 .bp-step-copy-btn {
-  padding: 2px 8px;
+  padding: 3px 10px;
   border: 1px solid #30363d;
   border-radius: 4px;
   background: transparent;
   color: #8b949e;
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.1s;
 }
@@ -645,10 +645,10 @@
   margin: 0;
 }
 .bp-step-code {
-  padding: 10px 14px;
+  padding: 12px 16px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.7;
   color: #c9d1d9;
   white-space: pre;
   overflow-x: auto;
