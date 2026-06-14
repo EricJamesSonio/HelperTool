@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const gitService = require('./gitService.js');
 const prefetchService = require('./prefetchService.js');
+const workerProxy = require('./workerProxy.js');
 
 const _cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
@@ -139,25 +140,30 @@ async function logHandler({ repoPath }) {
     return { commits: cached2.commits, contributors: cached2.contributors };
   }
 
-  // Step 1: Get commit metadata (no numstat — clean format-only output)
+  // Offload to worker — parsing happens in child process, not main process
+  if (workerProxy.isReady()) {
+    try {
+      const result = await workerProxy.send('teamActivity', { repoPath }, 120000);
+      if (result && result.commits) {
+        _cache.set(repoPath, { ...result, timestamp: Date.now() });
+        return { commits: result.commits, contributors: result.contributors };
+      }
+    } catch (err) {
+      console.warn('[TeamActivity] Worker failed, falling back:', err.message);
+    }
+  }
+
+  // Fallback: run in main process
   const metaStdout = await gitService.getCommits(repoPath, {
     format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: 120000,
   });
   const { commits, contributors } = _parseMeta(metaStdout);
-
-  // Step 2: Get per-commit file/line stats via separate log call with --numstat
-  // Using --format=%H gives us clean hash headers between numstat blocks
   const numstatStdout = await gitService.raw(repoPath, ['log', '--all', '--numstat', '--format=%H'], 120000);
   _parseNumstat(numstatStdout, commits, contributors);
 
   console.log(`[TeamActivity] Parsed ${commits.length} commits, ${Object.keys(contributors).length} contributors`);
 
-  _cache.set(repoPath, {
-    commits,
-    contributors,
-    timestamp: Date.now(),
-  });
-
+  _cache.set(repoPath, { commits, contributors, timestamp: Date.now() });
   return { commits, contributors };
 }
 

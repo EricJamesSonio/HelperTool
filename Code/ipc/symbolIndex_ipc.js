@@ -4,6 +4,7 @@ const parser = require('../indexer/parser');
 const indexer = require('../indexer/indexer');
 const watcher = require('../indexer/watcher');
 const indexerProxy = require('./indexerProxy.js');
+const workerProxy = require('./workerProxy.js');
 const { updateService } = require('./serviceTracker_ipc.js');
 
 let _getMainWindow = null;
@@ -64,9 +65,22 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try { await indexerProxy.send('clear'); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
 
-      const allFiles = [];
-      indexer.walkDir(repoPath, allFiles, repoPath, docignoreUtils);
-      const totalFiles = allFiles.length;
+      const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+      let allFiles = [];
+      let totalFiles = 0;
+      if (workerProxy.isReady()) {
+        try {
+          const walkResult = await workerProxy.send('walkDir', { repoPath, ignoreRules });
+          allFiles = walkResult?.files || [];
+          totalFiles = allFiles.length;
+        } catch (err) {
+          console.warn('[symbolIndex] walkDir worker failed, falling back:', err.message);
+        }
+      }
+      if (!allFiles.length) {
+        indexer.walkDir(repoPath, allFiles, repoPath, docignoreUtils);
+        totalFiles = allFiles.length;
+      }
 
       const repoName = path.basename(repoPath);
       let repoId = null;
@@ -439,7 +453,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         const fullPath = path.isAbsolute(filePath) ? filePath : path.join(repoPath, filePath);
         const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
         try {
-          const content = require('fs').readFileSync(fullPath, 'utf-8');
+          const content = await require('fs').promises.readFile(fullPath, 'utf-8');
           const result = await indexerProxy.send('indexFile', { filePath: relPath, content });
           if (result) {
             try { await indexerProxy.send('db:insertFile', { repoPath, filePath: relPath }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }

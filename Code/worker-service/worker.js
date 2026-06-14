@@ -7,6 +7,7 @@ const teamActivityTask = require('./tasks/teamActivity');
 const portManagerTask = require('./tasks/portManager');
 const gitBranchesTask = require('./tasks/gitBranches');
 const gitOperationsTask = require('./tasks/gitOperations');
+const walkDirTask = require('./tasks/walkDir');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -57,6 +58,10 @@ process.on('message', async (msg) => {
 
       case 'gitOperations':
         result = await gitOperationsTask(payload);
+        break;
+
+      case 'walkDir':
+        result = await walkDirTask(payload);
         break;
 
       default:

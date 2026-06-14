@@ -228,14 +228,15 @@ async function _doPrefetch(repoPath) {
     _prefetchBranches(repoPath),
   ]);
 
-  // Phase 2: main-process heavy tasks (SQLite writes, chokidar, git log)
-  // run after phase 1 so they don't compete with renderer IPC during startup
+  // Phase 2: watcher start — fast, just registers chokidar
   await _startProfileWatcher(repoPath);
 
-  // git sync is the heaviest — defer 5s so initial render finishes first
+  // Phase 3: git log + SQLite writes — delay 8s so renderer is fully settled
   setTimeout(() => {
-    _triggerProfileSync(repoPath);
-  }, 5000);
+    _triggerProfileSync(repoPath).catch(err =>
+      console.warn('[Prefetch] Profile sync failed:', err.message)
+    );
+  }, 8000);
 
   console.log('[Prefetch] Background refresh complete');
 }
