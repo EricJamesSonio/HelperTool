@@ -6,10 +6,12 @@ export async function push(branch) {
   hideError();
   setState({ loading: { ...state.loading, push: true } });
   try {
-    const r = await window.electronAPI.gitPushBranch(state.repoPath, branch, 'origin');
+    const remote = branch.includes('/') ? branch.split('/')[0] : 'origin';
+    const branchName = branch.includes('/') ? branch.split('/').slice(1).join('/') : branch;
+    const r = await window.electronAPI.gitPushBranch(state.repoPath, branchName, remote);
     if (!r.success) { showError(r.error); return; }
     await render();
-    _showToast('Pushed to origin');
+    _showToast('Pushed to ' + remote);
   } catch (err) {
     showError(err.message);
   } finally {
@@ -21,10 +23,12 @@ export async function pull(branch) {
   hideError();
   setState({ loading: { ...state.loading, pull: true } });
   try {
-    const r = await window.electronAPI.gitPullBranch(state.repoPath, branch, 'origin');
+    const remote = branch.includes('/') ? branch.split('/')[0] : 'origin';
+    const branchName = branch.includes('/') ? branch.split('/').slice(1).join('/') : branch;
+    const r = await window.electronAPI.gitPullBranch(state.repoPath, branchName, remote);
     if (!r.success) { showError(r.error); return; }
     await render();
-    _showToast('Pulled from origin');
+    _showToast('Pulled from ' + remote);
   } catch (err) {
     showError(err.message);
   } finally {
