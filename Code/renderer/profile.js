@@ -485,19 +485,25 @@ function _buildDonutHTML(title, items) {
   if (!total) return `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-empty">No data</div></div>`;
   const r = 50, cx = 60, cy = 60;
   let html = `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-chart"><svg viewBox="0 0 120 120" width="120" height="120">`;
-  let angle = -Math.PI / 2;
   const slices = items.filter(i => (Number(i.value) || 0) > 0).slice(0, 7);
-  slices.forEach((item, i) => {
-    const pct = item.value / total;
-    const endAngle = angle + pct * 2 * Math.PI;
-    const color = DONUT_COLORS[i % DONUT_COLORS.length];
-    const x1 = cx + r * Math.cos(angle);
-    const y1 = cy + r * Math.sin(angle);
-    const x2 = cx + r * Math.cos(endAngle);
-    const y2 = cy + r * Math.sin(endAngle);
-    html += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2},${y2} Z" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
-    angle = endAngle;
-  });
+
+  if (slices.length === 1) {
+    const color = DONUT_COLORS[0];
+    html += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
+  } else {
+    let angle = -Math.PI / 2;
+    slices.forEach((item, i) => {
+      const pct = item.value / total;
+      const endAngle = angle + pct * 2 * Math.PI;
+      const color = DONUT_COLORS[i % DONUT_COLORS.length];
+      const x1 = cx + r * Math.cos(angle);
+      const y1 = cy + r * Math.sin(angle);
+      const x2 = cx + r * Math.cos(endAngle);
+      const y2 = cy + r * Math.sin(endAngle);
+      html += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2},${y2} Z" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
+      angle = endAngle;
+    });
+  }
   html += `<circle cx="${cx}" cy="${cy}" r="28" fill="var(--bg-surface)"/></svg></div><div class="pf-donut-legend">`;
   slices.forEach((item, i) => {
     html += `<div class="pf-donut-legend-item"><span class="pf-donut-dot" style="background:${DONUT_COLORS[i % DONUT_COLORS.length]}"></span>${_esc(item.label)} <span class="pf-donut-pct">${((item.value / total) * 100).toFixed(1)}%</span></div>`;

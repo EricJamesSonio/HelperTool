@@ -195,6 +195,13 @@ function createSchema() {
   try { _db.run("ALTER TABLE profile ADD COLUMN website TEXT DEFAULT ''"); } catch (e) {}
 
   _db.run(`
+    CREATE TABLE IF NOT EXISTS profile_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `);
+
+  _db.run(`
     CREATE TABLE IF NOT EXISTS activity_days (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       date            TEXT NOT NULL,

@@ -14,6 +14,17 @@ let _syncInProgress = false;
 
 function db() { return getDb(); }
 
+function _getOrSetActivationDate() {
+  const rows = db().exec("SELECT value FROM profile_meta WHERE key='activation_date'");
+  if (rows.length && rows[0].values.length) {
+    return rows[0].values[0][0];
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  db().run("INSERT INTO profile_meta (key, value) VALUES ('activation_date', ?)", [today]);
+  save();
+  return today;
+}
+
 function _query(sql, params) {
   if (!params || params.length === 0) return db().exec(sql);
   const stmt = db().prepare(sql);
@@ -40,7 +51,13 @@ function _getActiveRepo(config) {
 
 function _startWatcher(repoPath, repoName) {
   const ignores = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/target/**', '**/.next/**'];
-  const watcher = chokidar.watch(repoPath, { ignored: ignores, ignoreInitial: true, persistent: true });
+  const watcher = chokidar.watch(repoPath, {
+    ignored: ignores,
+    ignoreInitial: true,
+    persistent: true,
+    usePolling: false,
+    awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
+  });
   watcher.on('change', (filePath) => {
     const normalized = filePath.replace(/\\/g, '/');
     if (normalized.includes('/.git/')) return;
@@ -71,22 +88,19 @@ function _startWatcher(repoPath, repoName) {
   updateService('profileWatcher', 'done');
 }
 
-async function _syncCommits(repoPath, repoName, force) {
-  if (_syncInProgress && !force) return;
+async function _syncCommits(repoPath, repoName) {
+  if (_syncInProgress) return;
   _syncInProgress = true;
   updateService('profileSync', 'running', 'Syncing commits...');
   try {
+    const activationDate = _getOrSetActivationDate();
     const today = new Date().toISOString().slice(0, 10);
-    const args = ['log', '--format=%H|%ad', '--date=short', '--no-merges'];
 
-    if (force) {
-      const d = new Date();
-      d.setDate(d.getDate() - 30);
-      args.push('--after=' + d.toISOString().slice(0, 10));
-    } else {
-      args.push('--after=' + today + 'T00:00:00');
-      args.push('--before=' + today + 'T23:59:59');
-    }
+    const args = [
+      'log', '--format=>>>%H|%ad', '--date=short', '--no-merges', '--name-only',
+      '--after=' + activationDate + 'T00:00:00',
+      '--before=' + today + 'T23:59:59',
+    ];
 
     const git = simpleGit(repoPath);
     const log = await git.raw(args);
@@ -94,19 +108,28 @@ async function _syncCommits(repoPath, repoName, force) {
     if (!log.trim()) { _syncInProgress = false; updateService('profileSync', 'done'); return; }
 
     const dateCounts = {};
-    for (const line of log.trim().split('\n')) {
-      const pipeIdx = line.indexOf('|');
-      if (pipeIdx < 0) continue;
-      const date = line.substring(pipeIdx + 1).trim();
-      if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
+    const dateFiles = {};
+    let currentDate = null;
+    for (const line of log.split('\n')) {
+      if (line.startsWith('>>>')) {
+        const pipeIdx = line.indexOf('|');
+        currentDate = pipeIdx >= 0 ? line.substring(pipeIdx + 1).trim() : null;
+        if (currentDate && currentDate >= activationDate) {
+          dateCounts[currentDate] = (dateCounts[currentDate] || 0) + 1;
+          if (!dateFiles[currentDate]) dateFiles[currentDate] = new Set();
+        }
+      } else if (currentDate && currentDate >= activationDate && line.trim()) {
+        dateFiles[currentDate].add(line.trim());
+      }
     }
 
     db().run('BEGIN');
     for (const [date, count] of Object.entries(dateCounts)) {
-      db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(date, repo_path) DO UPDATE SET commits=?`,
-        [date, repoPath, repoName, count, count]);
+      const files = dateFiles[date]?.size || 0;
+      db().run(`INSERT INTO activity_days (date, repo_path, repo_name, commits, files_touched)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(date, repo_path) DO UPDATE SET commits=?, files_touched=?`,
+        [date, repoPath, repoName, count, files, count, files]);
     }
     db().run('COMMIT');
     save();
@@ -368,6 +391,8 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:resetStats', () => {
     db().run('DELETE FROM activity_days');
     db().run('DELETE FROM file_save_events');
+    db().run("DELETE FROM profile_meta WHERE key='activation_date'");
+    _getOrSetActivationDate();
     save();
     return { success: true };
   });
@@ -394,7 +419,7 @@ f = typeRow[2] || 0;
     }
   });
 
-  ipcMain.handle('profile:getAll', (event, { statsRange, heatmapYear, donutRange, historyPage, historyRepo }) => {
+  ipcMain.handle('profile:getAll', async (event, { statsRange, heatmapYear, donutRange, historyPage, historyRepo }) => {
     const cached = prefetchService.get('profile');
     if (cached) {
       const defaultYear = new Date().getFullYear();
@@ -414,9 +439,29 @@ f = typeRow[2] || 0;
     const heatmapStart = y + '-01-01';
     const heatmapEnd = y + '-12-31';
 
-    // profile
-    const pRows = db().exec('SELECT * FROM profile WHERE id=1');
-    const stored = pRows.length && pRows[0].values.length ? pRows[0].values[0] : null;
+    // profile — backfill name/email from git global config if missing
+    let pRows = db().exec('SELECT * FROM profile WHERE id=1');
+    let stored = pRows.length && pRows[0].values.length ? pRows[0].values[0] : null;
+
+    if (!stored || !stored[2]) {
+      let name = '', email = '';
+      try {
+        const git = simpleGit();
+        const gitCfg = await git.listConfig('global');
+        name = gitCfg.all['user.name'] || '';
+        email = gitCfg.all['user.email'] || '';
+      } catch (_) {}
+
+      if (!stored) {
+        db().run('INSERT OR IGNORE INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
+      } else {
+        db().run('UPDATE profile SET name=?, email=? WHERE id=1', [name || stored[1], email]);
+      }
+      save();
+
+      const refreshed = db().exec('SELECT * FROM profile WHERE id=1');
+      stored = refreshed.length && refreshed[0].values.length ? refreshed[0].values[0] : stored;
+    }
 
     // stats
     let sFilter = '';
@@ -477,7 +522,7 @@ f = typeRow[2] || 0;
     if (!repo) return { watching: 0 };
     const alreadyWatching = _watchers.some(w => w._watchingPaths?.has?.(repo.repoPath));
     if (!alreadyWatching) _startWatcher(repo.repoPath, repo.name);
-    setImmediate(() => _syncCommits(repo.repoPath, repo.name, true));
+    setImmediate(() => _syncCommits(repo.repoPath, repo.name));
     return { watching: 1 };
   });
 

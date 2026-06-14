@@ -194,7 +194,7 @@ async function _triggerProfileSync(repoPath) {
     updateService('profileSync', 'running', 'Syncing commits...');
     const profileIpc = require('./profile.js');
     const repoName = require('path').basename(repoPath);
-    await profileIpc.triggerCommitSync(repoPath, repoName, true);
+    await profileIpc.triggerCommitSync(repoPath, repoName);
     updateService('profileSync', 'done');
   } catch (err) {
     updateService('profileSync', 'failed', err.message);
@@ -228,17 +228,21 @@ async function _doPrefetch(repoPath) {
     _prefetchBranches(repoPath),
   ]);
 
-  // Phase 2: watcher start — fast, just registers chokidar
-  await _startProfileWatcher(repoPath);
+  // Phase 2: delay both watcher and sync so renderer is fully settled
+  setTimeout(() => {
+    _startProfileWatcher(repoPath).catch(err =>
+      console.warn('[Prefetch] Profile watcher failed:', err.message)
+    );
+  }, 3000);
 
-  // Phase 3: git log + SQLite writes — delay 8s so renderer is fully settled
+  // Phase 3: git log + SQLite writes after watcher is established
   setTimeout(() => {
     _triggerProfileSync(repoPath).catch(err =>
       console.warn('[Prefetch] Profile sync failed:', err.message)
     );
   }, 8000);
 
-  console.log('[Prefetch] Background refresh complete');
+  console.log('[Prefetch] Background refresh scheduled');
 }
 
 function get(key) {
