@@ -1,6 +1,6 @@
 import { loadShortcuts } from './state.js';
 import { initListener, registerAction } from './listener.js';
-import { openConfig, closeConfig } from './ui.js';
+import { openConfig, closeConfig, isConfigOpen } from './ui.js';
 
 function initShortcutManager(actions, enabledFeats) {
   loadShortcuts();
@@ -17,4 +17,4 @@ function openConfigWithFeats() {
   openConfig(_enabledFeats);
 }
 
-export { initShortcutManager, openConfigWithFeats as openConfig, closeConfig };
+export { initShortcutManager, openConfigWithFeats as openConfig, closeConfig, isConfigOpen };
