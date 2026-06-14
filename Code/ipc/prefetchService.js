@@ -106,6 +106,7 @@ async function _fetchFromWorker(type, payload) {
 }
 
 async function _prefetchProfile() {
+  console.time('[Prefetch] profile');
   updateService('prefetchProfile', 'running', 'Fetching profile data...');
   try {
     const dbPath = _dbPath;
@@ -131,9 +132,11 @@ async function _prefetchProfile() {
     console.error('[Prefetch] _prefetchProfile error:', err.message);
     updateService('prefetchProfile', 'failed', err.message);
   }
+  console.timeEnd('[Prefetch] profile');
 }
 
 async function _prefetchTeamActivity(repoPath) {
+  console.time('[Prefetch] teamActivity');
   if (!repoPath) return;
   updateService('prefetchTeam', 'running', 'Fetching team activity...');
   const data = await _fetchFromWorker('teamActivity', { repoPath });
@@ -144,9 +147,11 @@ async function _prefetchTeamActivity(repoPath) {
   } else {
     updateService('prefetchTeam', 'failed', 'No data returned');
   }
+  console.timeEnd('[Prefetch] teamActivity');
 }
 
 async function _prefetchPortManager() {
+  console.time('[Prefetch] portManager');
   updateService('prefetchPorts', 'running', 'Scanning ports...');
   const data = await _fetchFromWorker('portManager', {});
   if (data) {
@@ -156,6 +161,7 @@ async function _prefetchPortManager() {
   } else {
     updateService('prefetchPorts', 'failed', 'No data returned');
   }
+  console.timeEnd('[Prefetch] portManager');
 }
 
 async function _prefetchBranches(repoPath) {
@@ -236,21 +242,26 @@ async function _startProfileWatcher(repoPath) {
 }
 
 async function _doPrefetch(repoPath) {
-  console.log('[Prefetch] Starting background refresh...');
+  console.time('[Prefetch] total');
+  console.log('[Prefetch] start', Date.now());
 
-  const phase1 = Promise.allSettled([
+  const phase1Start = Date.now();
+  await Promise.allSettled([
     _prefetchProfile(),
     _prefetchTeamActivity(repoPath),
   ]);
+  console.log('[Prefetch] phase1 done in', Date.now() - phase1Start, 'ms');
 
   await new Promise(r => setTimeout(r, 500));
 
-  const phase2 = Promise.allSettled([
+  const phase2Start = Date.now();
+  await Promise.allSettled([
     _prefetchPortManager(),
     _prefetchBranches(repoPath),
   ]);
+  console.log('[Prefetch] phase2 done in', Date.now() - phase2Start, 'ms');
 
-  await Promise.allSettled([phase1, phase2]);
+  console.timeEnd('[Prefetch] total');
 
   setTimeout(() => {
     _startProfileWatcher(repoPath).catch(err =>

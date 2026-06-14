@@ -89,6 +89,10 @@ if (!gotTheLock) {
                 await initDatabase(app);
                 await initChatDb(app);
                 createInspectorSchema();
+                const { getDb, getDbPath } = require('./database/db.js');
+                const _p = getDbPath();
+                const _s = require('fs').existsSync(_p) ? require('fs').statSync(_p).size : 0;
+                console.log('[DB] size:', (_s / 1024 / 1024).toFixed(2), 'MB at', _p);
                 serviceTrackerIpc.updateService('database', 'done');
             } catch (err) {
                 console.error('[Main] Failed to init DB:', err);
