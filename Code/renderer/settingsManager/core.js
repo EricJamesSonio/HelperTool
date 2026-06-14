@@ -4,7 +4,7 @@ import { FULL_THEMES } from './themes.js';
 
 function applySettings(s = S.settings) {
   const root      = document.documentElement;
-  const theme     = FULL_THEMES[s.themeId] || FULL_THEMES['navy-dark'];
+  const theme     = FULL_THEMES[s.themeId] || FULL_THEMES['neon-dark'];
   const accentHex = s.customAccent || theme.accent;
 
   const depths = s.customAccent

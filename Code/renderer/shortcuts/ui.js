@@ -201,4 +201,12 @@ function isConfigOpen() {
   return !!_modal;
 }
 
-export { openConfig, isConfigOpen };
+function closeConfig() {
+  if (!_modal) return;
+  flushPending();
+  document.removeEventListener('keydown', _docListener);
+  _docListener = null;
+  _capturingId = null;
+  _modal.remove();
+  _modal = null;
+}
