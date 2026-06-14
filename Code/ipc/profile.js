@@ -11,6 +11,8 @@ const { updateService } = require('./serviceTracker_ipc.js');
 let _watchers = [];
 let _saveDebounce = {};
 let _syncInProgress = false;
+let _lastSyncDate = null;
+const _watchedPaths = new Set();
 
 function db() { return getDb(); }
 
@@ -50,6 +52,11 @@ function _getActiveRepo(config) {
 }
 
 function _startWatcher(repoPath, repoName) {
+  if (_watchedPaths.has(repoPath)) {
+    updateService('profileWatcher', 'done');
+    return;
+  }
+  _watchedPaths.add(repoPath);
   const ignores = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/target/**', '**/.next/**'];
   const watcher = chokidar.watch(repoPath, {
     ignored: ignores,
@@ -89,8 +96,10 @@ function _startWatcher(repoPath, repoName) {
 }
 
 async function _syncCommits(repoPath, repoName) {
-  if (_syncInProgress) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (_syncInProgress || _lastSyncDate === today + repoPath) return;
   _syncInProgress = true;
+  _lastSyncDate = today + repoPath;
   updateService('profileSync', 'running', 'Syncing commits...');
 
   try {
@@ -552,7 +561,6 @@ f = typeRow[2] || 0;
     const alreadyWatching = _watchers.length > 0;
     if (alreadyWatching) return { watching: 1 };
     _startWatcher(repo.repoPath, repo.name);
-    setImmediate(() => _syncCommits(repo.repoPath, repo.name));
     return { watching: 1 };
   });
 
@@ -560,6 +568,8 @@ f = typeRow[2] || 0;
     for (const w of _watchers) { try { w.close(); } catch (_) {} }
     _watchers = [];
     _saveDebounce = {};
+    _watchedPaths.clear();
+    _lastSyncDate = null;
     return { success: true };
   });
 
