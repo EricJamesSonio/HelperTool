@@ -112,6 +112,32 @@
   padding: 14px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+}
+
+.cc-sidebar-header .cc-new-chat-btn {
+  flex: 1;
+}
+
+.cc-export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  padding: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.cc-export-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
 }
 
 .cc-new-chat-btn {
@@ -529,6 +555,34 @@
 @keyframes ccDotPulse {
   0%, 100% { opacity: 0.2; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* ── Follow-up chips ────────────────────────────────────────── */
+
+.cc-followup-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 0 8px 0;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.cc-chip-followup {
+  font-size: 13px;
+  padding: 6px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cc-chip-followup:hover {
+  background: var(--accent);
+  color: #010409;
+  border-color: var(--accent);
 }
 
 /* ── Not-indexed banner ─────────────────────────────────────── */

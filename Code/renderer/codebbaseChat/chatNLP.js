@@ -63,6 +63,25 @@ export function extractFile(text, allFiles) {
   return best;
 }
 
+export function findClosestFiles(text, allFiles, max = 3) {
+  const words = text.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+  if (!words.length) return [];
+  const scored = [];
+  for (const f of allFiles) {
+    const name = f.path.split(/[/\\]/).pop().toLowerCase();
+    let minDist = Infinity;
+    for (const word of words) {
+      const dist = levenshteinDistance(word, name);
+      if (dist < minDist) minDist = dist;
+    }
+    if (minDist <= 3) {
+      scored.push({ path: f.path, dist: minDist });
+    }
+  }
+  scored.sort((a, b) => a.dist - b.dist);
+  return scored.slice(0, max).map(s => s.path);
+}
+
 export function parseIntent(text, allFiles, selectedFile = null) {
   const lower = text.toLowerCase().trim();
 
@@ -93,7 +112,14 @@ export function parseIntent(text, allFiles, selectedFile = null) {
 
   if (file && queryType) return { type: 'query', file, queryType };
   if (file && !queryType) return { type: 'needsQuery', file };
-  if (!file && queryType) return { type: 'needsFile', queryType };
+  if (!file && queryType) {
+    const suggestions = findClosestFiles(text, allFiles);
+    if (suggestions.length) return { type: 'needsFile', queryType, suggestions };
+    return { type: 'needsFile', queryType };
+  }
+  // No file, no query — check for close file matches first
+  const suggestions = findClosestFiles(text, allFiles);
+  if (suggestions.length) return { type: 'didYouMean', suggestions };
   return { type: 'fallback' };
 }
 

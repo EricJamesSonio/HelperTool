@@ -165,6 +165,57 @@ class ChatQueryEngine {
     return md.trim();
   }
 
+  generateSummary(queryType, filePath, rawAnswer) {
+    switch (queryType) {
+      case 'dependencies': {
+        const resolved = (rawAnswer.match(/• \[/g) || []).length;
+        const unresolved = (rawAnswer.match(/• [^\[]/g) || []).filter(m => !m.includes('```')).length;
+        const total = resolved + unresolved;
+        if (total === 0) return null;
+        const warns = unresolved > 0 ? `${unresolved} are unresolved` : 'all resolved';
+        return `**Summary:** *${filePath.split(/[/\\]/).pop()} imports **${total}** thing${total !== 1 ? 's' : ''} — ${warns}.*`;
+      }
+      case 'dependents': {
+        const count = (rawAnswer.match(/• /g) || []).length;
+        if (count === 0) return null;
+        const label = count > 5 ? ' — high coupling' : count > 1 ? ' — shared utility' : ' — lightly used';
+        return `**Summary:** *${count} file${count !== 1 ? 's' : ''} depend on this${label}.*`;
+      }
+      case 'symbols': {
+        if (!rawAnswer.includes('**')) return null;
+        const funcs = rawAnswer.match(/\*\*Functions? \(\d+\):/);
+        const classes = rawAnswer.match(/\*\*Classes? \(\d+\):/);
+        const consts = rawAnswer.match(/\*\*Constants? \(\d+\):/);
+        const vars = rawAnswer.match(/\*\*Variables? \(\d+\):/);
+        const parts = [];
+        if (funcs) parts.push(funcs[0].match(/\d+/)[0] + ' functions');
+        if (classes) parts.push(classes[0].match(/\d+/)[0] + ' classes');
+        if (consts) parts.push(consts[0].match(/\d+/)[0] + ' constants');
+        if (vars) parts.push(vars[0].match(/\d+/)[0] + ' variables');
+        const all = parts.length ? parts.join(', ') : 'various exports';
+        return `**Summary:** *${all} defined in ${filePath.split(/[/\\]/).pop()}.*`;
+      }
+      case 'importChain': {
+        const maxDepth = (rawAnswer.match(/├── /g) || []).length;
+        const totalFiles = (rawAnswer.match(/└── /g) || []).length + maxDepth;
+        if (totalFiles === 0) return null;
+        return `**Summary:** *Chain spans **~${Math.max(1, maxDepth)}** levels deep, **${totalFiles}** files total.*`;
+      }
+      case 'circularDeps': {
+        if (rawAnswer.includes('✅')) return `**Summary:** *No circular dependencies. Clean!*`;
+        const match = rawAnswer.match(/⚠️ (\d+) cycle/);
+        if (match) {
+          const count = parseInt(match[1]);
+          const severity = count > 2 ? '⚠️⚠️ significant' : '⚠️ minor';
+          return `**Summary:** *${count} cycle${count !== 1 ? 's' : ''} found — ${severity} — could cause runtime issues.*`;
+        }
+        return null;
+      }
+      default:
+        return null;
+    }
+  }
+
   formatAsPrompt(filePath, queryType, answer) {
     const typeLabels = {
       dependencies: 'Find Dependencies',

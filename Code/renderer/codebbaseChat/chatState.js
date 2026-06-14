@@ -10,6 +10,9 @@ class ChatState {
     this.conversations = [];
     this.activeConversationId = null;
     this.conversationHistory = [];
+
+    this.lastFile = null;
+    this.lastQueryType = null;
   }
 
   get activeConversation() {
@@ -141,6 +144,8 @@ class ChatState {
     this.conversationHistory = [];
     this.selectedFile = null;
     this.selectedQuery = null;
+    this.lastFile = null;
+    this.lastQueryType = null;
     this.isLoading = false;
   }
 
