@@ -96,8 +96,13 @@ function _startWatcher(repoPath, repoName) {
 }
 
 async function _syncCommits(repoPath, repoName) {
+  console.log('[SyncCommits] called repoPath:', JSON.stringify(repoPath), 'inProgress:', _syncInProgress, 'lastSyncDate:', _lastSyncDate);
+  console.log('[SyncCommits] stack:', new Error().stack.split('\n').slice(1,4).join(' | '));
   const today = new Date().toISOString().slice(0, 10);
-  if (_syncInProgress || _lastSyncDate === today + repoPath) return;
+  if (_syncInProgress || _lastSyncDate === today + repoPath) {
+    console.log('[SyncCommits] SKIPPED');
+    return;
+  }
   _syncInProgress = true;
   _lastSyncDate = today + repoPath;
   updateService('profileSync', 'running', 'Syncing commits...');

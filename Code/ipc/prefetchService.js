@@ -193,7 +193,7 @@ async function start(dbPath, repoPath, getMainWindow) {
   _pushCachedToRenderer();
 
   const _launchPrefetch = () => {
-    setTimeout(() => _doPrefetch(repoPath), 1500);
+    setTimeout(() => _doPrefetch(repoPath), 8000);
   };
 
   if (!workerProxy.isReady()) {
@@ -215,11 +215,9 @@ async function _triggerProfileSync(repoPath) {
     return;
   }
   try {
-    updateService('profileSync', 'running', 'Syncing commits...');
     const profileIpc = require('./profile.js');
     const repoName = require('path').basename(repoPath);
     await profileIpc.triggerCommitSync(repoPath, repoName);
-    updateService('profileSync', 'done');
   } catch (err) {
     updateService('profileSync', 'failed', err.message);
   }
@@ -242,26 +240,11 @@ async function _startProfileWatcher(repoPath) {
 }
 
 async function _doPrefetch(repoPath) {
-  console.time('[Prefetch] total');
   console.log('[Prefetch] start', Date.now());
 
-  const phase1Start = Date.now();
-  await Promise.allSettled([
-    _prefetchProfile(),
-    _prefetchTeamActivity(repoPath),
-  ]);
-  console.log('[Prefetch] phase1 done in', Date.now() - phase1Start, 'ms');
+  await _prefetchProfile();
 
-  await new Promise(r => setTimeout(r, 500));
-
-  const phase2Start = Date.now();
-  await Promise.allSettled([
-    _prefetchPortManager(),
-    _prefetchBranches(repoPath),
-  ]);
-  console.log('[Prefetch] phase2 done in', Date.now() - phase2Start, 'ms');
-
-  console.timeEnd('[Prefetch] total');
+  await _prefetchBranches(repoPath);
 
   setTimeout(() => {
     _startProfileWatcher(repoPath).catch(err =>
@@ -273,7 +256,7 @@ async function _doPrefetch(repoPath) {
     _triggerProfileSync(repoPath).catch(err =>
       console.warn('[Prefetch] Profile sync failed:', err.message)
     );
-  }, 8000);
+  }, 5000);
 
   console.log('[Prefetch] Background refresh scheduled');
 }

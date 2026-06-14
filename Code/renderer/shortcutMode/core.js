@@ -164,6 +164,16 @@ function findBestMatch(candidate, flatList) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+export function unselectMatchedFile(filePath) {
+  const idx = state.selectedItems.findIndex(item => item.replace(/\\/g, '/') === filePath.replace(/\\/g, '/'));
+  if (idx !== -1) {
+    state.selectedItems.splice(idx, 1);
+    onSelectionChange();
+    updateGenerateState();
+    displayTree();
+  }
+}
+
 export function processShortcutInput(inputText) {
   const flatList = getFlatList();
   if (!flatList || flatList.length === 0) {
@@ -202,6 +212,7 @@ export function processShortcutInput(inputText) {
         original:        potentialFile,
         matched:         match.node.name,
         path:            match.node.displayPath,
+        filePath:        match.node.path,
         found:           true,
         matchType:       match.matchType,
         similarity:      match.similarity,

@@ -686,6 +686,20 @@ body {
 .result-item-status { font-size: 11px; font-weight: 600; flex-shrink: 0; }
 .result-item.found .result-item-status { color: var(--green); }
 .result-item.not-found .result-item-status { color: var(--red); }
+.result-item.found.unselected { opacity: 0.5; }
+.result-unselect-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.result-unselect-btn:hover { color: var(--red); background: rgba(248, 113, 113, 0.15); }
+.result-unselect-btn:disabled { opacity: 0.3; cursor: default; }
 
 .btn-icon {
   display: inline-flex;
