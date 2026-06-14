@@ -2,6 +2,7 @@ const ICON_COPY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" st
 const ICON_PROMPT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9l2 2-2 2"/><path d="M12 11h2"/></svg>';
 const ICON_COPIED = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4 4 8-8"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M6 7v5"/><path d="M10 7v5"/></svg>';
+const ICON_RENAME = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3z"/></svg>';
 
 function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
@@ -158,7 +159,7 @@ function getGroupLabel(dateStr) {
   return 'Older';
 }
 
-function renderConvItem(conv, isActive, onSelect, onDelete, confirmDeleteId) {
+function renderConvItem(conv, isActive, onSelect, onDelete, onRename, confirmDeleteId) {
   const div = document.createElement('div');
   div.className = 'cc-conv-item' + (isActive ? ' cc-conv-item--active' : '');
   div.dataset.id = conv.id;
@@ -172,6 +173,13 @@ function renderConvItem(conv, isActive, onSelect, onDelete, confirmDeleteId) {
   time.className = 'cc-conv-item-time';
   time.textContent = timeAgo(conv.updated_at || conv.created_at);
   div.appendChild(time);
+
+  const rename = document.createElement('button');
+  rename.className = 'cc-conv-item-rename';
+  rename.innerHTML = ICON_RENAME;
+  rename.title = 'Rename';
+  rename.addEventListener('click', (e) => { e.stopPropagation(); onRename?.(conv.id, conv.title); });
+  div.appendChild(rename);
 
   if (confirmDeleteId === conv.id) {
     const sure = document.createElement('button');
@@ -191,7 +199,7 @@ function renderConvItem(conv, isActive, onSelect, onDelete, confirmDeleteId) {
   return div;
 }
 
-function renderConvGroup(label, items, activeId, onSelect, onDelete, confirmDeleteId) {
+function renderConvGroup(label, items, activeId, onSelect, onDelete, onRename, confirmDeleteId) {
   if (!items.length) return null;
   const group = document.createElement('div');
   group.className = 'cc-conv-group';
@@ -202,7 +210,7 @@ function renderConvGroup(label, items, activeId, onSelect, onDelete, confirmDele
   group.appendChild(header);
 
   for (const item of items) {
-    group.appendChild(renderConvItem(item, item.id === activeId, onSelect, onDelete, confirmDeleteId));
+    group.appendChild(renderConvItem(item, item.id === activeId, onSelect, onDelete, onRename, confirmDeleteId));
   }
   return group;
 }

@@ -93,7 +93,7 @@ class ChatUI {
     let hasAny = false;
     for (const [label, items] of Object.entries(groups)) {
       const frag = renderConvGroup(label, items, this.state.activeConversationId,
-        (id) => this._selectConv(id), (id) => this._deleteConv(id), this._deleteConfirmId);
+        (id) => this._selectConv(id), (id) => this._deleteConv(id), (id, title) => this._renameConv(id, title), this._deleteConfirmId);
       if (frag) { list.appendChild(frag); hasAny = true; }
     }
     if (!hasAny) {
@@ -250,6 +250,16 @@ class ChatUI {
     }, 2000);
   }
 
+  async _renameConv(convId, currentTitle) {
+    const newTitle = prompt('Rename conversation:', currentTitle || '');
+    if (!newTitle || newTitle.trim() === '' || newTitle.trim() === currentTitle) return;
+    const trimmed = newTitle.trim();
+    const conv = this.state.conversations.find(c => c.id === convId);
+    if (conv) conv.title = trimmed;
+    await this.ipc.renameConversation({ conversationId: convId, title: trimmed });
+    this._renderSidebar();
+  }
+
   _handleInput() {
     const input = this.container.querySelector('#ccInput');
     const val = input.value;
@@ -330,7 +340,7 @@ class ChatUI {
     // If not both set via UI chips, try NLP on the raw text
     if (!filePath || !queryType) {
       const { parseIntent, getFallback } = await import('./chatNLP.js');
-      const intent = parseIntent(rawText, this.state.allFiles);
+      const intent = parseIntent(rawText, this.state.allFiles, this.state.selectedFile);
 
       if (intent.type === 'casual') {
         this.state.addMessage('user', rawText, null, null);
@@ -339,34 +349,42 @@ class ChatUI {
         this._updateLayout();
         this._scrollToBottom();
         input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, intent.reply, null);
         return;
       }
       if (intent.type === 'fallback') {
+        const reply = getFallback();
         this.state.addMessage('user', rawText, null, null);
-        this.state.addMessage('bot', getFallback(), null, null);
+        this.state.addMessage('bot', reply, null, null);
         this._renderAllMessages();
         this._updateLayout();
         this._scrollToBottom();
         input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, reply, null);
         return;
       }
       if (intent.type === 'needsQuery') {
         this.state.addMessage('user', rawText, null, null);
+        let reply;
         if (!this.state.isIndexed) {
-          this.state.addMessage('bot', `I found **${intent.file}** but file queries need Symbol Index to work. Run it first!`, null, null);
+          reply = `I found **${intent.file}** but file queries need Symbol Index to work. Run it first!`;
+          this.state.addMessage('bot', reply, null, null);
         } else {
-          this.state.addMessage('bot', `Got it — found **${intent.file}**. What do you want to know? (dependencies, symbols, who uses it, import chain, circular deps)`, null, null);
+          reply = `Got it — found **${intent.file}**. What do you want to know? (dependencies, symbols, who uses it, import chain, circular deps)`;
+          this.state.addMessage('bot', reply, null, null);
           this.state.selectedFile = intent.file;
         }
         this._renderAllMessages();
         this._updateLayout();
         this._scrollToBottom();
         input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, reply, intent.file);
         return;
       }
       if (intent.type === 'needsFile') {
+        const reply = `Sure! Which file? Type @ to pick one.`;
         this.state.addMessage('user', rawText, null, null);
-        this.state.addMessage('bot', `Sure! Which file? Type @ to pick one.`, null, null);
+        this.state.addMessage('bot', reply, null, null);
         this.state.selectedQuery = intent.queryType;
         this.container.querySelectorAll('.cc-chip').forEach(c => {
           c.classList.toggle('active', c.dataset.query === intent.queryType);
@@ -375,16 +393,19 @@ class ChatUI {
         this._updateLayout();
         this._scrollToBottom();
         input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, reply, null);
         return;
       }
       if (intent.type === 'query') {
         if (!this.state.isIndexed) {
+          const reply = "That query needs Symbol Index to work. Run Symbol Index first, then I can check that for you.";
           this.state.addMessage('user', rawText, null, null);
-          this.state.addMessage('bot', "That query needs Symbol Index to work. Run Symbol Index first, then I can check that for you.", null, null);
+          this.state.addMessage('bot', reply, null, null);
           this._renderAllMessages();
           this._updateLayout();
           this._scrollToBottom();
           input.value = '';
+          await this.state.saveFreeTextPair(this.ipc, rawText, reply, intent.file);
           return;
         }
         filePath = intent.file;
@@ -421,7 +442,7 @@ class ChatUI {
 
     this._renderSidebar();
 
-    await this.state.saveMessagePair(this.ipc, queryType, filePath, answer, promptText);
+    await this.state.saveMessagePair(this.ipc, queryType, filePath, answer, promptText, rawText);
   }
 
   _renderAllMessages() {

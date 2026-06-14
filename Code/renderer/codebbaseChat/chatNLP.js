@@ -1,9 +1,29 @@
+import { levenshteinDistance } from '../shortcutMode/levenshtein.js';
+
 const INTENT_MAP = [
-  { type: 'dependencies', patterns: ['depend', 'import', 'uses', 'require', 'needs', 'imports from'] },
-  { type: 'dependents',   patterns: ['who uses', 'who imports', 'used by', 'imported by', 'dependent'] },
-  { type: 'symbols',      patterns: ['symbol', 'function', 'class', 'method', 'export', 'what is in', 'what does'] },
-  { type: 'importChain',  patterns: ['chain', 'trace', 'tree', 'path', 'import chain'] },
-  { type: 'circularDeps', patterns: ['circular', 'cycle', 'loop', 'recursive import'] },
+  { type: 'dependencies', patterns: [
+    'depend', 'import', 'uses', 'require', 'needs', 'imports from',
+    'what does it use', 'what files does', 'relies on', 'built on',
+    'linked to', 'references', 'pulls in',
+  ]},
+  { type: 'dependents', patterns: [
+    'who uses', 'who imports', 'used by', 'imported by', 'dependent',
+    'what uses', 'what imports', 'which files use', 'consumers of',
+    'reverse dep', 'who depends on', 'what calls',
+  ]},
+  { type: 'symbols', patterns: [
+    'symbol', 'function', 'class', 'method', 'export', 'what is in',
+    'what does', 'show me', 'list', 'what functions', 'what classes',
+    'defined in', 'declarations', 'members', 'api of', 'interface of',
+  ]},
+  { type: 'importChain', patterns: [
+    'chain', 'trace', 'tree', 'path', 'import chain', 'full chain',
+    'how deep', 'transitive', 'all imports', 'import tree', 'dependency tree',
+  ]},
+  { type: 'circularDeps', patterns: [
+    'circular', 'cycle', 'loop', 'recursive import',
+    'circular dependency', 'circular ref', 'infinite loop', 'cycles in',
+  ]},
 ];
 
 const CASUAL_MAP = [
@@ -27,11 +47,33 @@ export function extractFile(text, allFiles) {
     const found = allFiles.find(f => f.path.toLowerCase().includes(word));
     if (found) return found.path;
   }
-  return null;
+  // Fuzzy fallback — closest filename edit-distance match
+  let best = null, bestScore = Infinity;
+  for (const word of words) {
+    if (word.length < 3) continue;
+    for (const f of allFiles) {
+      const name = f.path.split(/[/\\]/).pop().toLowerCase();
+      const dist = levenshteinDistance(word, name);
+      if (dist < bestScore && dist <= 2) {
+        bestScore = dist;
+        best = f.path;
+      }
+    }
+  }
+  return best;
 }
 
-export function parseIntent(text, allFiles) {
+export function parseIntent(text, allFiles, selectedFile = null) {
   const lower = text.toLowerCase().trim();
+
+  if (selectedFile) {
+    for (const entry of INTENT_MAP) {
+      if (entry.patterns.some(p => lower.includes(p))) {
+        return { type: 'query', file: selectedFile, queryType: entry.type };
+      }
+    }
+    return { type: 'needsQuery', file: selectedFile };
+  }
 
   for (const entry of CASUAL_MAP) {
     if (entry.patterns.some(p => lower.includes(p))) {

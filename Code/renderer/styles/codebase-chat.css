@@ -235,9 +235,35 @@
   background: var(--bg-hover);
 }
 
-.cc-conv-item-del svg {
+.cc-conv-item-del svg,
+.cc-conv-item-rename svg {
   width: 14px;
   height: 14px;
+}
+
+.cc-conv-item-rename {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--r-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.cc-conv-item:hover .cc-conv-item-rename {
+  opacity: 1;
+}
+
+.cc-conv-item-rename:hover {
+  color: var(--accent);
+  background: var(--bg-hover);
 }
 
 .cc-conv-item-del--sure {
