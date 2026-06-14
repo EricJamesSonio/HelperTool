@@ -73,7 +73,10 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         try {
             if (!repoPath) return [];
             const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-            console.log('[IPC] Ignore rules loaded:', ignoreRules.length);
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('folderTree', { repoPath, ignoreRules });
+            }
             return await fileOps.getFolderTree(repoPath);
         } catch (err) {
             console.error('[IPC] getFolderTree error:', err);

@@ -18,6 +18,23 @@ import { state }               from './appState.js';
 import { renderRootJumper, displayTree } from './viewManager.js';
 
 const activeRepoName = document.getElementById('activeRepoName');
+const treeContainer = document.getElementById('treeContainer');
+
+function showTreeSkeleton() {
+    if (!treeContainer) return;
+    const div = document.createElement('div');
+    div.className = 'tree-skeleton';
+    div.innerHTML = Array.from({ length: 8 }, (_, i) =>
+        `<div class="tree-skeleton-row" style="--sk-w: ${45 + Math.random() * 35}%"></div>`
+    ).join('');
+    treeContainer.innerHTML = '';
+    treeContainer.appendChild(div);
+}
+
+function hideTreeSkeleton() {
+    const sk = treeContainer?.querySelector('.tree-skeleton');
+    if (sk) sk.remove();
+}
 
 // Injected by app.js — called after every repo load so toolsManager
 // can reinitialise the git tool without a circular import.
@@ -32,16 +49,19 @@ export async function loadRepo(repoPath, resetSel = true) {
     state.selectedRepoPath = repoPath;
     // Notify tools BEFORE updating activeProject so they save to the old repo
     _onRepoChange?.(repoPath);
-    await window.electronAPI.setActiveProject(repoPath);
+    // Fire-and-forget — config writes that don't affect visible UI
+    window.electronAPI.setActiveProject(repoPath);
 
     if (resetSel) {
         state.selectedItems.length = 0;
-        await window.electronAPI.setLastSelected([]);
+        window.electronAPI.setLastSelected([]);
     }
 
     updateActiveRepo(repoPath.split(/[/\\]/).pop());
 
+    showTreeSkeleton();
     state.cachedTree = await window.electronAPI.getFolderTree(repoPath);
+    hideTreeSkeleton();
 
     activeExtensions.clear();
     renderFilterChips();

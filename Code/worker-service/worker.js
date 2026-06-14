@@ -8,6 +8,7 @@ const portManagerTask = require('./tasks/portManager');
 const gitBranchesTask = require('./tasks/gitBranches');
 const gitOperationsTask = require('./tasks/gitOperations');
 const walkDirTask = require('./tasks/walkDir');
+const folderTreeTask = require('./tasks/folderTree');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -62,6 +63,10 @@ process.on('message', async (msg) => {
 
       case 'walkDir':
         result = await walkDirTask(payload);
+        break;
+
+      case 'folderTree':
+        result = await folderTreeTask(payload);
         break;
 
       default:
