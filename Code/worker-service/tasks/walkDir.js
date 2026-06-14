@@ -28,7 +28,7 @@ module.exports = async function walkDirTask({ repoPath, ignoreRules }) {
       if (entry.isDirectory()) { walk(full); }
       else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
-        if (SUPPORTED_EXTS.has(ext)) files.push(full);
+        if (SUPPORTED_EXTS.has(ext)) files.push(rel);
       }
     }
   }
