@@ -199,6 +199,7 @@ export function getMergeSuccessText(from, into, detail, files, summary, pushed) 
   return `
     <div class="bm-merge-result bm-merge-success">
       <div class="bm-merge-result-text">${detail}</div>
+      <div class="bm-merge-no-conflicts">✓ No conflicts — merged cleanly</div>
       ${hasChanges ? `<div class="bm-merge-push-status">${pushed ? 'Pushed to remote ✓' : 'Merged locally (push failed)'}</div>` : ''}
       ${summaryLine ? `<div class="bm-merge-summary">${summaryLine}</div>` : ''}
       ${fileRows ? `<div class="bm-merge-file-list">${fileRows}</div>` : ''}
@@ -225,15 +226,19 @@ export function getConflictResolver(conflicts, from, into) {
   return `
     <div class="bm-conflict-wrap">
       <div class="bm-conflict-header">Resolving: ${from} → ${into}</div>
+      <div class="bm-conflict-legend">
+        <span class="bm-legend-ours">● Ours: ${into}</span>
+        <span class="bm-legend-incoming">● Incoming: ${from}</span>
+      </div>
       <div class="bm-conflict-bulk">
         <button class="bm-btn bm-btn-sm" id="bmConflictSelectAll">Select All</button>
-        <button class="bm-btn bm-btn-sm" id="bmConflictAcceptIncoming">Accept Incoming for Selected</button>
-        <button class="bm-btn bm-btn-sm" id="bmConflictAcceptOurs">Accept Ours for Selected</button>
+        <button class="bm-btn bm-btn-sm" id="bmConflictAcceptIncoming">Accept Incoming (${from}) for Selected</button>
+        <button class="bm-btn bm-btn-sm" id="bmConflictAcceptOurs">Accept Ours (${into}) for Selected</button>
       </div>
       <div class="bm-conflict-body">
         <div class="bm-conflict-file-list" id="bmConflictFileList">${fileList}</div>
         <div class="bm-conflict-diff" id="bmConflictDiff">
-          <div class="bm-conflict-diff-empty">Click a file to view conflict diff</div>
+          <div class="bm-conflict-diff-empty">Select a file and click Resolve to view its diff and accept a side</div>
         </div>
       </div>
       <div class="bm-conflict-actions">

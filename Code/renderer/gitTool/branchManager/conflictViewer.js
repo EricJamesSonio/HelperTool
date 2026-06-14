@@ -47,30 +47,57 @@ function _wireEvents() {
   const loadConflictDiff = (file) => {
     setState({ activeConflictFile: file });
     const diffEl = document.getElementById('bmConflictDiff');
-    if (diffEl) diffEl.innerHTML = '<div class="bm-conflict-diff-loading">Loading diff…</div>';
+    if (!diffEl) return;
+    let contentEl = diffEl.querySelector('.bm-conflict-diff-content');
+    if (!contentEl) {
+      contentEl = document.createElement('div');
+      contentEl.className = 'bm-conflict-diff-content';
+      diffEl.appendChild(contentEl);
+    }
+    contentEl.innerHTML = '<div class="bm-conflict-diff-loading">Loading diff…</div>';
     window.electronAPI.gitGetConflictDiff(state.repoPath, file).then(r => {
-      if (diffEl) {
-        if (r.success && r.diff) {
-          diffEl.innerHTML = `<pre class="bm-diff-content">${r.diff}</pre>`;
-        } else {
-          diffEl.innerHTML = '<div class="bm-conflict-diff-empty">No diff available</div>';
-        }
+      if (r.success && r.diff) {
+        contentEl.innerHTML = `<pre class="bm-diff-content">${r.diff}</pre>`;
+      } else {
+        contentEl.innerHTML = '<div class="bm-conflict-diff-empty">No diff available</div>';
       }
     }).catch(() => {
-      if (diffEl) diffEl.innerHTML = '<div class="bm-conflict-diff-empty">Error loading diff</div>';
+      contentEl.innerHTML = '<div class="bm-conflict-diff-empty">Error loading diff</div>';
     });
   };
 
   rightEl.querySelector('#bmConflictFileList')?.addEventListener('click', async (e) => {
+    const viewBtn = e.target.closest('.bm-conflict-view-btn');
+    if (viewBtn) {
+      const file = viewBtn.dataset.file;
+      const mf = state.mergeFlow;
+      loadConflictDiff(file);
+      const diffEl = document.getElementById('bmConflictDiff');
+      if (diffEl && mf) {
+        const alreadyResolved = state.conflicts.find(c => c.file === file)?.status !== 'unresolved';
+        const actionBar = alreadyResolved ? '' : `
+          <div class="bm-conflict-file-actions" id="bmFileActionBar" data-file="${file}">
+            <span class="bm-file-action-label">Resolve <strong>${file}</strong>:</span>
+            <button class="bm-btn bm-btn-sm" id="bmFileAcceptIncoming">Accept Incoming (${mf.from})</button>
+            <button class="bm-btn bm-btn-sm" id="bmFileAcceptOurs">Accept Ours (${mf.into})</button>
+          </div>
+        `;
+        const existingBar = diffEl.querySelector('#bmFileActionBar');
+        if (!existingBar && actionBar) diffEl.insertAdjacentHTML('afterbegin', actionBar);
+        document.getElementById('bmFileAcceptIncoming')?.addEventListener('click', async () => {
+          const r = await window.electronAPI.gitAcceptIncoming(state.repoPath, [file]);
+          if (r.success) _markResolved([file]);
+        });
+        document.getElementById('bmFileAcceptOurs')?.addEventListener('click', async () => {
+          const r = await window.electronAPI.gitAcceptCurrent(state.repoPath, [file]);
+          if (r.success) _markResolved([file]);
+        });
+      }
+      return;
+    }
     const row = e.target.closest('.bm-conflict-file');
     if (!row) return;
     loadConflictDiff(row.dataset.file);
-  });
-
-  rightEl.querySelector('#bmConflictFileList')?.addEventListener('click', async (e) => {
-    const viewBtn = e.target.closest('.bm-conflict-view-btn');
-    if (!viewBtn) return;
-    loadConflictDiff(viewBtn.dataset.file);
   });
 
   document.getElementById('bmConflictCompleteMerge')?.addEventListener('click', async () => {

@@ -188,8 +188,12 @@ export function processShortcutInput(inputText) {
   const results      = [];
   const newlySelected = [];
   const matchedPaths  = new Set(); // deduplicate matches pointing to the same file
+  const exactMatchedPaths = [];    // full paths with 100% exact match – skip shorter sub-candidates
 
   for (const potentialFile of potentialFiles) {
+    // Skip if this candidate is a suffix of an already exact-matched path
+    if (exactMatchedPaths.some(p => p.endsWith('/' + potentialFile))) continue;
+
     const match = findBestMatch(potentialFile, flatList);
 
     if (match) {
@@ -198,6 +202,11 @@ export function processShortcutInput(inputText) {
       // Skip if this file was already matched by a longer (more specific) candidate
       if (matchedPaths.has(normPath)) continue;
       matchedPaths.add(normPath);
+
+      // Remember full paths that matched exactly so shorter suffixes get skipped
+      if (match.similarity === 1) {
+        exactMatchedPaths.push(normPath);
+      }
 
       const alreadySelected = state.selectedItems.some(
         item => item.replace(/\\/g, '/') === normPath
