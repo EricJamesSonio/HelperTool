@@ -520,8 +520,9 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:initWatcher', () => {
     const repo = _getActiveRepo(config);
     if (!repo) return { watching: 0 };
-    const alreadyWatching = _watchers.some(w => w._watchingPaths?.has?.(repo.repoPath));
-    if (!alreadyWatching) _startWatcher(repo.repoPath, repo.name);
+    const alreadyWatching = _watchers.length > 0;
+    if (alreadyWatching) return { watching: 1 };
+    _startWatcher(repo.repoPath, repo.name);
     setImmediate(() => _syncCommits(repo.repoPath, repo.name));
     return { watching: 1 };
   });

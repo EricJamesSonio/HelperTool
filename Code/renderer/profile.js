@@ -2,6 +2,7 @@ let _panel = null;
 let _open = false;
 let _profile = null;
 let _avatarDataUrl = null;
+let _lastLoadTime = 0;
 let _heatmapYear = new Date().getFullYear();
 let _statsRange = 'all';
 let _donutRange = 'all';
@@ -137,8 +138,13 @@ async function _escHandler(e) {
 
 async function _load() {
   const body = _panel.querySelector('#pfBody');
-  _cache = {};
-  _avatarDataUrl = null;
+  const now = Date.now();
+  const cacheAge = _lastLoadTime ? now - _lastLoadTime : Infinity;
+  if (cacheAge > 60000) {
+    _cache = {};
+    _avatarDataUrl = null;
+  }
+  _lastLoadTime = now;
 
   const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
   const cached = getPrefetchCache().get('profile');
@@ -169,9 +175,6 @@ async function _load() {
     _bodyEls[el.dataset.section] = el;
   });
 
-  // Start watcher in background (fire-and-forget)
-  window.electronAPI.profile.initWatcher().catch(() => {});
-
   // Single batched IPC call for all data + profile
   Promise.all([
     window.electronAPI.profile.getAll({
@@ -181,7 +184,9 @@ async function _load() {
       historyPage: _historyPage,
       historyRepo: _historyRepo,
     }).catch(() => null),
-    window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
+    _avatarDataUrl
+      ? Promise.resolve({ dataUrl: _avatarDataUrl })
+      : window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
   ]).then(([all, av]) => {
     if (!all) return;
     if (all.profile) _profile = all.profile;

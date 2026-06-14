@@ -105,17 +105,29 @@ async function _fetchFromWorker(type, payload) {
 
 async function _prefetchProfile() {
   updateService('prefetchProfile', 'running', 'Fetching profile data...');
-  const data = await _fetchFromWorker('profileData', {
-    action: 'getAll',
-    dbPath: _dbPath,
-    params: { statsRange: 'all', heatmapYear: new Date().getFullYear(), donutRange: 'all', historyPage: 1, historyRepo: '' },
-  });
-  if (data) {
-    _set('profile', data, TTL.profile);
-    console.log('[Prefetch] Profile data cached');
-    updateService('prefetchProfile', 'done');
-  } else {
-    updateService('prefetchProfile', 'failed', 'No data returned');
+  try {
+    const dbPath = _dbPath;
+    const year = new Date().getFullYear();
+
+    const [profile, stats, heatmap, donuts, history] = await Promise.all([
+      _fetchFromWorker('profileData', { action: 'getProfile', dbPath, params: {} }),
+      _fetchFromWorker('profileData', { action: 'getStats', dbPath, params: { range: 'all' } }),
+      _fetchFromWorker('profileData', { action: 'getHeatmap', dbPath, params: { year } }),
+      _fetchFromWorker('profileData', { action: 'getDonutData', dbPath, params: { range: 'all' } }),
+      _fetchFromWorker('profileData', { action: 'getHistory', dbPath, params: { page: 1, repoPath: '' } }),
+    ]);
+
+    if (profile || stats) {
+      const data = { profile, avatar: null, stats, heatmap, donuts, history };
+      _set('profile', data, TTL.profile);
+      console.log('[Prefetch] Profile data cached');
+      updateService('prefetchProfile', 'done');
+    } else {
+      updateService('prefetchProfile', 'failed', 'No data returned');
+    }
+  } catch (err) {
+    console.error('[Prefetch] _prefetchProfile error:', err.message);
+    updateService('prefetchProfile', 'failed', err.message);
   }
 }
 
@@ -172,16 +184,20 @@ async function start(dbPath, repoPath, getMainWindow) {
   await _loadDiskCache();
   _pushCachedToRenderer();
 
+  const _launchPrefetch = () => {
+    setTimeout(() => _doPrefetch(repoPath), 1500);
+  };
+
   if (!workerProxy.isReady()) {
     const check = setInterval(() => {
       if (workerProxy.isReady()) {
         clearInterval(check);
-        _doPrefetch(repoPath);
+        _launchPrefetch();
       }
     }, 500);
     setTimeout(() => clearInterval(check), 30000);
   } else {
-    _doPrefetch(repoPath);
+    _launchPrefetch();
   }
 }
 
@@ -220,22 +236,26 @@ async function _startProfileWatcher(repoPath) {
 async function _doPrefetch(repoPath) {
   console.log('[Prefetch] Starting background refresh...');
 
-  // Phase 1: worker IPC tasks run in parallel — non-blocking to main process
-  await Promise.allSettled([
+  const phase1 = Promise.allSettled([
     _prefetchProfile(),
     _prefetchTeamActivity(repoPath),
+  ]);
+
+  await new Promise(r => setTimeout(r, 500));
+
+  const phase2 = Promise.allSettled([
     _prefetchPortManager(),
     _prefetchBranches(repoPath),
   ]);
 
-  // Phase 2: delay both watcher and sync so renderer is fully settled
+  await Promise.allSettled([phase1, phase2]);
+
   setTimeout(() => {
     _startProfileWatcher(repoPath).catch(err =>
       console.warn('[Prefetch] Profile watcher failed:', err.message)
     );
   }, 3000);
 
-  // Phase 3: git log + SQLite writes after watcher is established
   setTimeout(() => {
     _triggerProfileSync(repoPath).catch(err =>
       console.warn('[Prefetch] Profile sync failed:', err.message)
