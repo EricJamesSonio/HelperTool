@@ -171,6 +171,12 @@ class ChatUI {
 
     askBtn.addEventListener('click', () => this._handleAsk());
     pickerFilter.addEventListener('input', () => this._updatePickerList());
+    pickerFilter.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); this._movePickerSelection(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); this._movePickerSelection(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); this._selectActivePickerItem(); }
+      else if (e.key === 'Escape') { this._closePicker(); e.preventDefault(); this.container.querySelector('#ccInput').focus(); }
+    });
     sidebarToggle.addEventListener('click', () => this._toggleSidebar());
     newChatBtn.addEventListener('click', () => this._handleNewChat());
 
@@ -378,9 +384,6 @@ class ChatUI {
 
   async refresh() {
     await this.state.loadConversations(this.ipc);
-    if (this.state.conversations.length === 0) {
-      await this.state.createConversation(this.ipc);
-    }
     this._renderSidebar();
     this._renderAllMessages();
     this._updateLayout();

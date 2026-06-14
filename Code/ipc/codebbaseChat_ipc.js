@@ -2,8 +2,10 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const indexerProxy = require('./indexerProxy.js');
 const { getDb } = require('../database/db');
+const { getChatDb, save: saveChatDb } = require('../database/chatDb');
 
 function db() { return getDb(); }
+function cdb() { return getChatDb(); }
 
 function _getRepoId(repoPath) {
   const stmt = db().prepare('SELECT id FROM repositories WHERE repo_path = ?');
@@ -163,7 +165,7 @@ function register() {
 
   ipcMain.handle('codebaseChat:getConversations', async (event, { repoPath }) => {
     try {
-      const stmt = db().prepare('SELECT id, title, created_at, updated_at FROM chat_conversations WHERE repo_path = ? ORDER BY updated_at DESC');
+      const stmt = cdb().prepare('SELECT id, title, created_at, updated_at FROM chat_conversations WHERE repo_path = ? ORDER BY updated_at DESC');
       stmt.bind([repoPath]);
       const rows = [];
       while (stmt.step()) rows.push(stmt.getAsObject());
@@ -178,8 +180,9 @@ function register() {
   ipcMain.handle('codebaseChat:newConversation', async (event, { repoPath, title }) => {
     try {
       const now = new Date().toISOString();
-      db().run('INSERT INTO chat_conversations (repo_path, title, created_at, updated_at) VALUES (?, ?, ?, ?)', [repoPath, title, now, now]);
-      const id = db().exec('SELECT last_insert_rowid()')[0].values[0][0];
+      cdb().run('INSERT INTO chat_conversations (repo_path, title, created_at, updated_at) VALUES (?, ?, ?, ?)', [repoPath, title, now, now]);
+      const id = cdb().exec('SELECT last_insert_rowid()')[0].values[0][0];
+      saveChatDb();
       return { id, title, created_at: now };
     } catch (err) {
       console.error('[codebaseChat] newConversation error:', err);
@@ -189,7 +192,7 @@ function register() {
 
   ipcMain.handle('codebaseChat:getMessages', async (event, { conversationId }) => {
     try {
-      const stmt = db().prepare('SELECT id, role, content, query_type, file_ref, created_at FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC');
+      const stmt = cdb().prepare('SELECT id, role, content, query_type, file_ref, created_at FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC');
       stmt.bind([conversationId]);
       const rows = [];
       while (stmt.step()) rows.push(stmt.getAsObject());
@@ -204,9 +207,10 @@ function register() {
   ipcMain.handle('codebaseChat:saveMessage', async (event, { conversationId, role, content, queryType, fileRef }) => {
     try {
       const now = new Date().toISOString();
-      db().run('INSERT INTO chat_messages (conversation_id, role, content, query_type, file_ref, created_at) VALUES (?, ?, ?, ?, ?, ?)', [conversationId, role, content, queryType || null, fileRef || null, now]);
-      db().run('UPDATE chat_conversations SET updated_at = ? WHERE id = ?', [now, conversationId]);
-      const id = db().exec('SELECT last_insert_rowid()')[0].values[0][0];
+      cdb().run('INSERT INTO chat_messages (conversation_id, role, content, query_type, file_ref, created_at) VALUES (?, ?, ?, ?, ?, ?)', [conversationId, role, content, queryType || null, fileRef || null, now]);
+      cdb().run('UPDATE chat_conversations SET updated_at = ? WHERE id = ?', [now, conversationId]);
+      const id = cdb().exec('SELECT last_insert_rowid()')[0].values[0][0];
+      saveChatDb();
       return { id };
     } catch (err) {
       console.error('[codebaseChat] saveMessage error:', err);
@@ -216,7 +220,8 @@ function register() {
 
   ipcMain.handle('codebaseChat:renameConversation', async (event, { conversationId, title }) => {
     try {
-      db().run('UPDATE chat_conversations SET title = ? WHERE id = ?', [title, conversationId]);
+      cdb().run('UPDATE chat_conversations SET title = ? WHERE id = ?', [title, conversationId]);
+      saveChatDb();
       return { success: true };
     } catch (err) {
       console.error('[codebaseChat] renameConversation error:', err);
@@ -226,8 +231,9 @@ function register() {
 
   ipcMain.handle('codebaseChat:deleteConversation', async (event, { conversationId }) => {
     try {
-      db().run('DELETE FROM chat_messages WHERE conversation_id = ?', [conversationId]);
-      db().run('DELETE FROM chat_conversations WHERE id = ?', [conversationId]);
+      cdb().run('DELETE FROM chat_messages WHERE conversation_id = ?', [conversationId]);
+      cdb().run('DELETE FROM chat_conversations WHERE id = ?', [conversationId]);
+      saveChatDb();
       return { success: true };
     } catch (err) {
       console.error('[codebaseChat] deleteConversation error:', err);

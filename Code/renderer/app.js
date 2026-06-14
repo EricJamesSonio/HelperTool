@@ -292,19 +292,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
 
-    // Service tracker modal
-    initServiceTracker().catch(err => console.error('[ServiceTracker] init error:', err));
-
     // Shortcut mode
     initShortcutMode();
 
-    // Filters
-    await loadIgnoredExtensions();
-    if (feats.folderFilters) await loadFolderFilters();
+    // Restore last repo first — tree renders immediately
+    await loadLastActiveRepo();
 
     // View mode apply
     applyViewMode(state.viewMode);
 
-    // Restore last repo
-    await loadLastActiveRepo();
+    // Load filters in background — don't block the tree render
+    const filterPromises = [loadIgnoredExtensions()];
+    if (feats.folderFilters) filterPromises.push(loadFolderFilters());
+    Promise.all(filterPromises).catch(err => console.error('[Init] Filter load error:', err));
+
+    // Service tracker is non-critical — defer after layout
+    requestAnimationFrame(() => {
+        initServiceTracker().catch(err => console.error('[ServiceTracker] init error:', err));
+    });
 });

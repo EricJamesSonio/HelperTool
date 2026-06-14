@@ -25,21 +25,22 @@ const _cachePath = (() => {
 
 function _now() { return Date.now(); }
 
-function _loadDiskCache() {
+async function _loadDiskCache() {
   if (!_cachePath) return;
   try {
-    if (fs.existsSync(_cachePath)) {
-      const raw = fs.readFileSync(_cachePath, 'utf-8');
-      const entries = JSON.parse(raw);
-      for (const [key, entry] of Object.entries(entries)) {
-        if (_now() - entry.ts < entry.ttl) {
-          _cache.set(key, entry);
-        }
+    await fs.promises.access(_cachePath);
+    const raw = await fs.promises.readFile(_cachePath, 'utf-8');
+    const entries = JSON.parse(raw);
+    for (const [key, entry] of Object.entries(entries)) {
+      if (_now() - entry.ts < entry.ttl) {
+        _cache.set(key, entry);
       }
-      console.log('[Prefetch] Loaded', _cache.size, 'entries from disk cache');
     }
+    console.log('[Prefetch] Loaded', _cache.size, 'entries from disk cache');
   } catch (err) {
-    console.warn('[Prefetch] Failed to load disk cache:', err.message);
+    if (err.code !== 'ENOENT') {
+      console.warn('[Prefetch] Failed to load disk cache:', err.message);
+    }
   }
 }
 
@@ -59,8 +60,6 @@ function _saveDiskCache() {
     }
   }, 2000);
 }
-
-_loadDiskCache();
 
 function _isFresh(key) {
   const entry = _cache.get(key);
@@ -164,12 +163,13 @@ function _pushCachedToRenderer() {
   }
 }
 
-function start(dbPath, repoPath, getMainWindow) {
+async function start(dbPath, repoPath, getMainWindow) {
   if (_started) return;
   _started = true;
   _dbPath = dbPath || '';
   _getMainWindow = getMainWindow || null;
 
+  await _loadDiskCache();
   _pushCachedToRenderer();
 
   if (!workerProxy.isReady()) {
@@ -219,14 +219,24 @@ async function _startProfileWatcher(repoPath) {
 
 async function _doPrefetch(repoPath) {
   console.log('[Prefetch] Starting background refresh...');
+
+  // Phase 1: worker IPC tasks run in parallel — non-blocking to main process
   await Promise.allSettled([
     _prefetchProfile(),
     _prefetchTeamActivity(repoPath),
     _prefetchPortManager(),
     _prefetchBranches(repoPath),
-    _startProfileWatcher(repoPath),
-    _triggerProfileSync(repoPath),
   ]);
+
+  // Phase 2: main-process heavy tasks (SQLite writes, chokidar, git log)
+  // run after phase 1 so they don't compete with renderer IPC during startup
+  await _startProfileWatcher(repoPath);
+
+  // git sync is the heaviest — defer 5s so initial render finishes first
+  setTimeout(() => {
+    _triggerProfileSync(repoPath);
+  }, 5000);
+
   console.log('[Prefetch] Background refresh complete');
 }
 

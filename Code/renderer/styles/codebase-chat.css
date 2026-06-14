@@ -674,14 +674,15 @@
   left: 0;
   right: 0;
   margin-bottom: 8px;
-  background: var(--bg-overlay);
+  background: var(--bg-surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
   max-height: 320px;
   display: flex;
   flex-direction: column;
   z-index: 100;
+  overflow: hidden;
 }
 
 .cc-picker-filter {

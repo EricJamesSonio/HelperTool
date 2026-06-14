@@ -314,6 +314,7 @@ function _destroyGitTool() {
 }
 
 async function _initializeCCTool(repoPath) {
+  if (!repoPath) { console.warn('[Tools] _initializeCCTool skipped — no repoPath'); return; }
   try {
     const { default: CodebaseChat } = await import('../codebbaseChat.js');
     if (!_ccTool) _ccTool = new CodebaseChat();
