@@ -83,7 +83,9 @@ function _set(key, data, ttl) {
   _saveDiskCache();
   try {
     const w = typeof _getMainWindow === 'function' && _getMainWindow();
-    if (w && !w.isDestroyed()) w.webContents.send('prefetch:update', { key, data, ttl: resolvedTtl });
+    if (w && !w.isDestroyed()) {
+      w.webContents.send('prefetch:ready', { key, ttl: resolvedTtl });
+    }
   } catch (_) {}
 }
 
@@ -170,7 +172,7 @@ function _pushCachedToRenderer() {
   if (!w || w.isDestroyed()) return;
   for (const [key, entry] of _cache) {
     if (_now() - entry.ts < entry.ttl) {
-      w.webContents.send('prefetch:update', { key, data: entry.data, ttl: entry.ttl });
+      w.webContents.send('prefetch:ready', { key, ttl: entry.ttl });
     }
   }
 }
@@ -301,4 +303,14 @@ function stop() {
   try { if (_cachePath && fs.existsSync(_cachePath)) fs.unlinkSync(_cachePath); } catch (_) {}
 }
 
-module.exports = { start, get, refresh, invalidate, stop };
+function registerIpc() {
+  const { ipcMain } = require('electron');
+  ipcMain.handle('prefetch:get', (event, key) => {
+    const entry = _cache.get(key);
+    if (!entry) return null;
+    if (_now() - entry.ts > entry.ttl) { _cache.delete(key); return null; }
+    return entry.data;
+  });
+}
+
+module.exports = { start, get, refresh, invalidate, stop, registerIpc };

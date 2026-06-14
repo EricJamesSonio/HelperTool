@@ -243,8 +243,17 @@ function applyFeatureVisibility(feats) {
 
 // ── Receive prefetch data from main process ──────────────────────────────────
 
-window.electronAPI.onPrefetchUpdate((key, data, ttl) => {
-    getPrefetchCache().set(key, data, ttl);
+window.electronAPI.onPrefetchReady(async (key, ttl) => {
+    if (key === 'profile') {
+        const profileMod = await import('./profile.js').catch(() => null);
+        if (profileMod?.isOpen()) {
+            const data = await window.electronAPI.getPrefetchData(key);
+            if (data) getPrefetchCache().set(key, data, ttl);
+        }
+        return;
+    }
+    const data = await window.electronAPI.getPrefetchData(key);
+    if (data) getPrefetchCache().set(key, data, ttl);
 });
 
 // ── DOMContentLoaded init ─────────────────────────────────────────────────────

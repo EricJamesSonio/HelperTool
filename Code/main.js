@@ -102,6 +102,8 @@ if (!gotTheLock) {
                 indexerProxy.start(indexerDbPath);
                 workerProxy.start();
 
+                prefetchService.registerIpc();
+
                 setTimeout(() => {
                     const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
                     prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
