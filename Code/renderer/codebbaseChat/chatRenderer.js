@@ -8,6 +8,14 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
+function renderInline(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/`([^`]+)`/g, '<code class="cc-md-inline-code">$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  return s;
+}
+
 function formatContent(text) {
   const lines = text.split('\n');
   let html = '';
@@ -23,17 +31,17 @@ function formatContent(text) {
       continue;
     }
     if (line.startsWith('### ')) {
-      html += '<div class="cc-md-h3">' + escapeHtml(line.slice(4)) + '</div>';
+      html += '<div class="cc-md-h3">' + renderInline(line.slice(4)) + '</div>';
     } else if (line.startsWith('## ')) {
-      html += '<div class="cc-md-h2">' + escapeHtml(line.slice(3)) + '</div>';
+      html += '<div class="cc-md-h2">' + renderInline(line.slice(3)) + '</div>';
     } else if (line.startsWith('**') && line.endsWith('**')) {
       html += '<div class="cc-md-bold">' + escapeHtml(line.slice(2, -2)) + '</div>';
     } else if (line.startsWith('• ') || line.startsWith('- ')) {
-      html += '<div class="cc-md-item"><span class="cc-md-bullet">•</span> ' + escapeHtml(line.slice(2)) + '</div>';
+      html += '<div class="cc-md-item"><span class="cc-md-bullet">•</span> ' + renderInline(line.slice(2)) + '</div>';
     } else if (line.trim() === '') {
       html += '<div class="cc-md-spacer"></div>';
     } else {
-      html += '<div class="cc-md-line">' + escapeHtml(line) + '</div>';
+      html += '<div class="cc-md-line">' + renderInline(line) + '</div>';
     }
   }
   return html;
@@ -45,7 +53,12 @@ function renderUserMessage(msg) {
 
   const bubble = document.createElement('div');
   bubble.className = 'cc-msg-bubble';
-  const label = (msg.file ? '@' + msg.file.split(/[/\\]/).pop() : '') + (msg.queryType ? ' → ' + msg.queryType : '');
+  let label;
+  if (msg.content && msg.content.trim()) {
+    label = msg.content.trim();
+  } else {
+    label = (msg.file ? '@' + msg.file.split(/[/\\]/).pop() : '') + (msg.queryType ? ' → ' + msg.queryType : '');
+  }
   bubble.textContent = label || 'Ask';
   div.appendChild(bubble);
 

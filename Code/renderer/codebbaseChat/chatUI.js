@@ -58,7 +58,7 @@ class ChatUI {
           <div class="cc-input-area" id="ccInputArea">
             <div class="cc-not-indexed-banner" id="ccNotIndexedBanner" style="display:none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><line x1="10" y1="7" x2="10" y2="12"/><circle cx="10" cy="14" r="0.5" fill="currentColor"/></svg>
-              <span>Symbol index required — run Symbol Index first to enable Codebase Chat</span>
+              <span>Symbol Index not run yet — file queries (dependencies, symbols, etc.) won't work. Free chat is still available.</span>
             </div>
             <div class="cc-input-wrapper">
               <div class="cc-file-picker" id="ccFilePicker" style="display:none">
@@ -112,21 +112,27 @@ class ChatUI {
   }
 
   _updateIndexedState() {
-    const inputArea = this.container.querySelector('#ccInputArea');
     const input = this.container.querySelector('#ccInput');
     const askBtn = this.container.querySelector('#ccAskBtn');
     const chips = this.container.querySelectorAll('.cc-chip');
     const banner = this.container.querySelector('#ccNotIndexedBanner');
 
-    if (!inputArea) return;
+    if (!input) return;
 
-    const disabled = !this.state.isIndexed;
-    inputArea.classList.toggle('cc-disabled', disabled);
-    input.disabled = disabled;
-    input.placeholder = disabled ? 'Symbol index required' : 'Type @ to mention a file...';
-    askBtn.disabled = disabled;
-    for (const chip of chips) chip.disabled = disabled;
-    banner.style.display = disabled ? '' : 'none';
+    // Input + send always available
+    input.disabled = false;
+    askBtn.disabled = false;
+    input.placeholder = 'Ask anything, or type @ to mention a file...';
+
+    // Chips only work when indexed
+    const indexed = this.state.isIndexed;
+    for (const chip of chips) {
+      chip.disabled = !indexed;
+      chip.title = indexed ? '' : 'Run Symbol Index first to enable this';
+    }
+
+    // Banner only shows when not indexed, but doesn't block input
+    banner.style.display = indexed ? 'none' : '';
   }
 
   _bindEvents() {
@@ -317,14 +323,79 @@ class ChatUI {
 
   async _handleAsk() {
     const input = this.container.querySelector('#ccInput');
-    const filePath = this.state.selectedFile || input.value.trim();
-    const queryType = this.state.selectedQuery;
+    const rawText = input.value.trim();
+    let filePath = this.state.selectedFile;
+    let queryType = this.state.selectedQuery;
+
+    // If not both set via UI chips, try NLP on the raw text
+    if (!filePath || !queryType) {
+      const { parseIntent, getFallback } = await import('./chatNLP.js');
+      const intent = parseIntent(rawText, this.state.allFiles);
+
+      if (intent.type === 'casual') {
+        this.state.addMessage('user', rawText, null, null);
+        this.state.addMessage('bot', intent.reply, null, null);
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        return;
+      }
+      if (intent.type === 'fallback') {
+        this.state.addMessage('user', rawText, null, null);
+        this.state.addMessage('bot', getFallback(), null, null);
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        return;
+      }
+      if (intent.type === 'needsQuery') {
+        this.state.addMessage('user', rawText, null, null);
+        if (!this.state.isIndexed) {
+          this.state.addMessage('bot', `I found **${intent.file}** but file queries need Symbol Index to work. Run it first!`, null, null);
+        } else {
+          this.state.addMessage('bot', `Got it — found **${intent.file}**. What do you want to know? (dependencies, symbols, who uses it, import chain, circular deps)`, null, null);
+          this.state.selectedFile = intent.file;
+        }
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        return;
+      }
+      if (intent.type === 'needsFile') {
+        this.state.addMessage('user', rawText, null, null);
+        this.state.addMessage('bot', `Sure! Which file? Type @ to pick one.`, null, null);
+        this.state.selectedQuery = intent.queryType;
+        this.container.querySelectorAll('.cc-chip').forEach(c => {
+          c.classList.toggle('active', c.dataset.query === intent.queryType);
+        });
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        return;
+      }
+      if (intent.type === 'query') {
+        if (!this.state.isIndexed) {
+          this.state.addMessage('user', rawText, null, null);
+          this.state.addMessage('bot', "That query needs Symbol Index to work. Run Symbol Index first, then I can check that for you.", null, null);
+          this._renderAllMessages();
+          this._updateLayout();
+          this._scrollToBottom();
+          input.value = '';
+          return;
+        }
+        filePath = intent.file;
+        queryType = intent.queryType;
+      }
+    }
 
     if (!filePath || !queryType) return;
     if (!this.state.activeRepoPath) return;
-    if (!this.state.isIndexed) return;
 
-    this.state.addMessage('user', '', queryType, filePath);
+    this.state.addMessage('user', rawText || '', queryType, filePath);
     this.state.addMessage('bot', '', queryType, filePath);
     this.state.isLoading = true;
 
@@ -345,6 +416,8 @@ class ChatUI {
 
     input.value = '';
     this.state.selectedFile = null;
+    this.state.selectedQuery = null;
+    this.container.querySelectorAll('.cc-chip').forEach(c => c.classList.remove('active'));
 
     this._renderSidebar();
 
