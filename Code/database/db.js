@@ -33,6 +33,7 @@ async function initDatabase(app) {
   _db.run('PRAGMA foreign_keys=ON');
 
   createSchema();
+  _flush();
   save();
 
   return _db;
@@ -194,6 +195,13 @@ function createSchema() {
   try { _db.run("ALTER TABLE profile ADD COLUMN website TEXT DEFAULT ''"); } catch (e) {}
 
   _db.run(`
+    CREATE TABLE IF NOT EXISTS profile_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `);
+
+  _db.run(`
     CREATE TABLE IF NOT EXISTS activity_days (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       date            TEXT NOT NULL,
@@ -218,6 +226,31 @@ function createSchema() {
       file_ext        TEXT NOT NULL
     )
   `);
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS chat_conversations (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo_path   TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      created_at  TEXT DEFAULT (datetime('now')),
+      updated_at  TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+      role            TEXT NOT NULL CHECK(role IN ('user','bot')),
+      content         TEXT NOT NULL,
+      query_type      TEXT,
+      file_ref        TEXT,
+      created_at      TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_conv_repo ON chat_conversations(repo_path)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_msg_conv ON chat_messages(conversation_id)');
 
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_date ON activity_days(date)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_repo_path ON activity_days(repo_path)');
@@ -261,4 +294,4 @@ function close() {
   }
 }
 
-module.exports = { initDatabase, getDb, save, close };
+module.exports = { initDatabase, getDb, save, close, getDbPath };

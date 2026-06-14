@@ -442,6 +442,124 @@ function h_dbGetFileByPathAndRepo(id, type, payload) {
   return respond({ id, type, ok: true, data: { file: file || null } });
 }
 
+function h_dbGetFiles(id, type, payload) {
+  const { repoPath } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: [] });
+
+  const stmt = _db.prepare('SELECT id, path, language FROM indexed_files WHERE repo_id = ? ORDER BY path');
+  stmt.bind([repo.id]);
+  const files = [];
+  while (stmt.step()) files.push(stmt.getAsObject());
+  stmt.free();
+  return respond({ id, type, ok: true, data: files });
+}
+
+function h_dbGetChatSymbols(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: [] });
+  const file = fileGetByRepoAndPath(repo.id, filePath);
+  if (!file) return respond({ id, type, ok: true, data: [] });
+  const stmt = _db.prepare('SELECT name, type, line, signature FROM symbols WHERE file_id = ? ORDER BY line');
+  stmt.bind([file.id]);
+  const results = [];
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return respond({ id, type, ok: true, data: results });
+}
+
+function h_dbGetChatDependencies(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: [] });
+  const file = fileGetByRepoAndPath(repo.id, filePath);
+  if (!file) return respond({ id, type, ok: true, data: [] });
+  const stmt = _db.prepare(`SELECT fi.import_path, fi.import_type, fi.imported_symbols, f.path as resolved_path
+    FROM file_imports fi LEFT JOIN indexed_files f ON f.id = fi.resolved_file_id
+    WHERE fi.file_id = ? ORDER BY fi.line`);
+  stmt.bind([file.id]);
+  const results = [];
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return respond({ id, type, ok: true, data: results });
+}
+
+function h_dbGetChatDependents(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: [] });
+  const file = fileGetByRepoAndPath(repo.id, filePath);
+  if (!file) return respond({ id, type, ok: true, data: [] });
+  const stmt = _db.prepare(`SELECT f.path, fi.import_type, fi.imported_symbols
+    FROM file_imports fi JOIN indexed_files f ON f.id = fi.file_id
+    WHERE fi.resolved_file_id = ? AND fi.repo_id = ? ORDER BY f.path`);
+  stmt.bind([file.id, repo.id]);
+  const results = [];
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return respond({ id, type, ok: true, data: results });
+}
+
+function h_dbGetChatImportChain(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: null });
+  const visited = new Set();
+  const maxDepth = 6;
+  function dfs(path, depth) {
+    if (depth > maxDepth || visited.has(path)) return { path, children: [], cycle: visited.has(path) };
+    visited.add(path);
+    const f = fileGetByRepoAndPath(repo.id, path);
+    if (!f) return { path, children: [] };
+    const stmt = _db.prepare(`SELECT f.path FROM file_imports fi
+      JOIN indexed_files f ON f.id = fi.resolved_file_id
+      WHERE fi.file_id = ? AND fi.resolved_file_id IS NOT NULL`);
+    stmt.bind([f.id]);
+    const deps = [];
+    while (stmt.step()) deps.push(stmt.getAsObject());
+    stmt.free();
+    const children = deps.map(d => dfs(d.path, depth + 1));
+    return { path, children };
+  }
+  return respond({ id, type, ok: true, data: dfs(filePath, 0) });
+}
+
+function h_dbGetChatCircularDeps(id, type, payload) {
+  const { repoPath, filePath } = payload || {};
+  if (!repoPath || !filePath) return respond({ id, type, ok: false, error: 'Missing repoPath or filePath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: [] });
+  const cycles = [];
+  const visitStack = [];
+  const visited = new Set();
+  function dfs(path) {
+    if (visitStack.includes(path)) { const idx = visitStack.indexOf(path); cycles.push([...visitStack.slice(idx), path]); return; }
+    if (visited.has(path)) return;
+    visited.add(path);
+    visitStack.push(path);
+    const f = fileGetByRepoAndPath(repo.id, path);
+    if (f) {
+      const stmt = _db.prepare(`SELECT f.path FROM file_imports fi
+        JOIN indexed_files f ON f.id = fi.resolved_file_id
+        WHERE fi.file_id = ? AND fi.resolved_file_id IS NOT NULL`);
+      stmt.bind([f.id]);
+      const deps = [];
+      while (stmt.step()) deps.push(stmt.getAsObject());
+      stmt.free();
+      for (const d of deps) dfs(d.path);
+    }
+    visitStack.pop();
+  }
+  dfs(filePath);
+  return respond({ id, type, ok: true, data: cycles });
+}
+
 function h_dbGetFileList(id, type, payload) {
   const { repoPath, limit, offset } = payload || {};
   if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
@@ -755,6 +873,12 @@ function handle(msg) {
       case 'db:reindexFile': return h_dbReindexFile(id, type, payload);
       case 'db:flush': return h_dbFlush(id, type);
       case 'db:getFileByPathAndRepo': return h_dbGetFileByPathAndRepo(id, type, payload);
+      case 'db:getFiles': return h_dbGetFiles(id, type, payload);
+      case 'db:getChatSymbols': return h_dbGetChatSymbols(id, type, payload);
+      case 'db:getChatDependencies': return h_dbGetChatDependencies(id, type, payload);
+      case 'db:getChatDependents': return h_dbGetChatDependents(id, type, payload);
+      case 'db:getChatImportChain': return h_dbGetChatImportChain(id, type, payload);
+      case 'db:getChatCircularDeps': return h_dbGetChatCircularDeps(id, type, payload);
       case 'db:getFileList': return h_dbGetFileList(id, type, payload);
       case 'db:getFileDeps': return h_dbGetFileDeps(id, type, payload);
 

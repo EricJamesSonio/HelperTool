@@ -136,14 +136,22 @@ async function listHandler() {
   const cached = prefetchService.get('portManager');
   if (cached) return cached;
 
+  // Delegate to worker first
+  try {
+    const workerProxy = require('./workerProxy');
+    if (workerProxy.isReady()) {
+      const result = await workerProxy.send('portManager', {});
+      return result;
+    }
+  } catch (_) {}
+
+  // Fallback to main-process scanning
   const now = Date.now();
   const byPid = await parseListeningPorts();
   const currentPids = new Set(Object.keys(byPid).map(Number));
 
-  // ── Full refresh every FULL_REFRESH_MS ──
   const forceFull = (now - _lastFullRefresh) > FULL_REFRESH_MS;
 
-  // ── Find new PIDs not yet in cache ──
   const newPids = [];
   for (const pid of currentPids) {
     if (!_pidMetaCache.has(pid) || forceFull) {
@@ -151,14 +159,12 @@ async function listHandler() {
     }
   }
 
-  // ── Remove stale PIDs from cache ──
   for (const pid of _pidMetaCache.keys()) {
     if (!currentPids.has(pid)) {
       _pidMetaCache.delete(pid);
     }
   }
 
-  // ── Fetch metadata only for new / force-full PIDs ──
   if (newPids.length > 0) {
     await _fetchNewPids(newPids);
   }
@@ -167,7 +173,6 @@ async function listHandler() {
     _lastFullRefresh = now;
   }
 
-  // ── Build response from cache ──
   _cachedResponse = _buildGroups(byPid);
   return _cachedResponse;
 }

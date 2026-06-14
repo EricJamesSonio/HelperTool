@@ -949,3 +949,23 @@
   cursor: grabbing;
   user-select: none;
 }
+
+/* ── Tree skeleton shimmer ──────────────────────────────── */
+.tree-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 14px;
+}
+.tree-skeleton-row {
+  height: 14px;
+  width: var(--sk-w, 60%);
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-hover) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: tree-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes tree-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

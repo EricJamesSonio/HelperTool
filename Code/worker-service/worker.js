@@ -5,6 +5,10 @@ const gitGraphTask = require('./tasks/gitGraph');
 const profileDataTask = require('./tasks/profileData');
 const teamActivityTask = require('./tasks/teamActivity');
 const portManagerTask = require('./tasks/portManager');
+const gitBranchesTask = require('./tasks/gitBranches');
+const gitOperationsTask = require('./tasks/gitOperations');
+const walkDirTask = require('./tasks/walkDir');
+const folderTreeTask = require('./tasks/folderTree');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -47,6 +51,22 @@ process.on('message', async (msg) => {
 
       case 'portManager':
         result = await portManagerTask(payload);
+        break;
+
+      case 'gitBranches':
+        result = await gitBranchesTask(payload);
+        break;
+
+      case 'gitOperations':
+        result = await gitOperationsTask(payload);
+        break;
+
+      case 'walkDir':
+        result = await walkDirTask(payload);
+        break;
+
+      case 'folderTree':
+        result = await folderTreeTask(payload);
         break;
 
       default:

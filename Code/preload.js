@@ -39,6 +39,11 @@ const generateBridge = {
             callback(validPercent);
         });
     },
+
+    onPrefetchUpdate: (callback) => {
+        ipcRenderer.removeAllListeners('prefetch:update');
+        ipcRenderer.on('prefetch:update', (event, { key, data, ttl }) => callback(key, data, ttl));
+    },
 };
 
 const featuresBridge = {
@@ -332,6 +337,23 @@ const envBridge = {
     deleteFile: (repoPath, fileName)    => ipcRenderer.invoke('env:deleteFile', { repoPath, fileName }),
 };
 
+const codebaseChatBridge = {
+  codebaseChat: {
+    getFiles:           (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
+    getSymbols:         (opts) => ipcRenderer.invoke('codebaseChat:getSymbols', opts),
+    getDependencies:    (opts) => ipcRenderer.invoke('codebaseChat:getDependencies', opts),
+    getDependents:      (opts) => ipcRenderer.invoke('codebaseChat:getDependents', opts),
+    getImportChain:     (opts) => ipcRenderer.invoke('codebaseChat:getImportChain', opts),
+    getCircularDeps:    (opts) => ipcRenderer.invoke('codebaseChat:getCircularDeps', opts),
+    getConversations:   (opts) => ipcRenderer.invoke('codebaseChat:getConversations', opts),
+    newConversation:    (opts) => ipcRenderer.invoke('codebaseChat:newConversation', opts),
+    getMessages:        (opts) => ipcRenderer.invoke('codebaseChat:getMessages', opts),
+    saveMessage:        (opts) => ipcRenderer.invoke('codebaseChat:saveMessage', opts),
+    renameConversation: (opts) => ipcRenderer.invoke('codebaseChat:renameConversation', opts),
+    deleteConversation: (opts) => ipcRenderer.invoke('codebaseChat:deleteConversation', opts),
+  },
+};
+
 contextBridge.exposeInMainWorld('envAPI', envBridge);
 
 // Expose everything to the renderer
@@ -356,8 +378,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...blueprintBridge,
     ...profileBridge,
     ...branchBridge,
+    ...codebaseChatBridge,
     windowControls,
 });
 
 contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
+
+contextBridge.exposeInMainWorld('serviceTrackerAPI', {
+  getAll:    () => ipcRenderer.invoke('serviceTracker:getAll'),
+  onUpdate:  (cb) => ipcRenderer.on('serviceTracker:update', (_, data) => cb(data)),
+  offUpdate: (cb) => ipcRenderer.removeListener('serviceTracker:update', cb),
+});
 

@@ -327,3 +327,205 @@
 .deps-func-constant { background: var(--red-dim); color: var(--red, #f85149); }
 .deps-func-variable { background: var(--bg-raised, #1c2028); color: var(--text-secondary, #b1bac4); }
 .deps-func-unknown  { background: var(--bg-hover); color: var(--text-muted, #8b949e); }
+
+/* ── Fullscreen overlay ── */
+
+.deps-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deps-fullscreen-modal {
+  width: min(90vw, 960px);
+  height: min(85vh, 720px);
+  background: var(--bg-surface, #0a0c10);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.10));
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  animation: deps-fs-in 0.12s ease;
+}
+
+@keyframes deps-fs-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.deps-fullscreen-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated, #0f1117);
+  flex-shrink: 0;
+}
+
+.deps-fullscreen-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #f0f6fc);
+  white-space: nowrap;
+}
+
+.deps-fullscreen-file {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent, #22d3ee);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deps-fullscreen-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.deps-fullscreen-copy-btn,
+.deps-fullscreen-close-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-secondary, #b1bac4);
+  border-radius: var(--r-sm, 6px);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.deps-fullscreen-copy-btn:hover {
+  background: var(--accent-dim, rgba(34,211,238,0.12));
+  border-color: var(--accent-border, rgba(34,211,238,0.30));
+  color: var(--accent, #22d3ee);
+}
+
+.deps-fullscreen-close-btn:hover {
+  background: var(--red-dim);
+  border-color: var(--red-border, rgba(248,81,73,0.30));
+  color: var(--red, #f85149);
+}
+
+.deps-fullscreen-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated, #0f1117);
+  flex-shrink: 0;
+}
+
+.deps-fullscreen-tabs .deps-tab {
+  flex: 0 1 auto;
+  padding: 6px 16px;
+}
+
+.deps-fullscreen-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.deps-fullscreen-body .deps-section {
+  margin-bottom: 28px;
+}
+
+.deps-fullscreen-body .deps-section-title {
+  font-size: 13px;
+}
+
+.deps-fullscreen-body .deps-item {
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: var(--r-sm, 6px);
+}
+
+.deps-fullscreen-body .deps-item-path {
+  font-size: 13px;
+}
+
+.deps-fullscreen-body .deps-func-group {
+  padding: 10px 12px;
+  border-radius: var(--r-sm, 6px);
+}
+
+.deps-fullscreen-body .deps-func-source {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.deps-fullscreen-body .deps-func-symbol {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+
+/* ── Fullscreen button in slide panel header ── */
+
+.deps-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deps-header .deps-file-path {
+  flex: 1;
+}
+
+.deps-fullscreen-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-muted, #8b949e);
+  border-radius: var(--r-xs, 4px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.deps-fullscreen-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary, #f0f6fc);
+  border-color: var(--border-default);
+}
+
+/* ── Copy toast ── */
+
+.deps-copy-toast {
+  position: absolute;
+  top: 12px;
+  right: 80px;
+  padding: 6px 16px;
+  background: var(--green-dim, rgba(45,212,176,0.15));
+  border: 1px solid var(--green-border, rgba(45,212,176,0.30));
+  color: var(--green, #2dd4b0);
+  border-radius: var(--r-sm, 6px);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+  animation: deps-toast-in 0.2s ease;
+}
+
+@keyframes deps-toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

@@ -2,6 +2,7 @@ let _panel = null;
 let _open = false;
 let _profile = null;
 let _avatarDataUrl = null;
+let _lastLoadTime = 0;
 let _heatmapYear = new Date().getFullYear();
 let _statsRange = 'all';
 let _donutRange = 'all';
@@ -137,8 +138,13 @@ async function _escHandler(e) {
 
 async function _load() {
   const body = _panel.querySelector('#pfBody');
-  _cache = {};
-  _avatarDataUrl = null;
+  const now = Date.now();
+  const cacheAge = _lastLoadTime ? now - _lastLoadTime : Infinity;
+  if (cacheAge > 60000) {
+    _cache = {};
+    _avatarDataUrl = null;
+  }
+  _lastLoadTime = now;
 
   const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
   const cached = getPrefetchCache().get('profile');
@@ -151,6 +157,11 @@ async function _load() {
     body.querySelectorAll('.pf-section').forEach(el => { _bodyEls[el.dataset.section] = el; });
     const newCard = _renderProfileCard();
     if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
+    _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: Date.now(), ttl: 30000 };
+    _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: Date.now(), ttl: 60000 };
+    _cache['donuts:' + _donutRange] = { data: Promise.resolve(all.donuts), fetchedAt: Date.now(), ttl: 30000 };
+    const histKey = 'history:' + _historyPage + ':' + _historyRepo;
+    _cache[histKey] = { data: Promise.resolve(all.history), fetchedAt: Date.now(), ttl: 10000 };
     _renderStatsBar().then(el => { if (_bodyEls.stats) { _bodyEls.stats.replaceWith(el); _bodyEls.stats = el; } }).catch(() => {});
     _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
     _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
@@ -164,9 +175,6 @@ async function _load() {
     _bodyEls[el.dataset.section] = el;
   });
 
-  // Start watcher in background (fire-and-forget)
-  window.electronAPI.profile.initWatcher().catch(() => {});
-
   // Single batched IPC call for all data + profile
   Promise.all([
     window.electronAPI.profile.getAll({
@@ -176,7 +184,9 @@ async function _load() {
       historyPage: _historyPage,
       historyRepo: _historyRepo,
     }).catch(() => null),
-    window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
+    _avatarDataUrl
+      ? Promise.resolve({ dataUrl: _avatarDataUrl })
+      : window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
   ]).then(([all, av]) => {
     if (!all) return;
     if (all.profile) _profile = all.profile;
@@ -416,21 +426,20 @@ async function _renderHeatmap() {
   let maxVal = 1;
   for (const v of Object.values(heatmap)) { const t = v.total || 0; if (t > maxVal) maxVal = t; }
 
-  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
-  const weeks = Math.ceil((totalDays + startDow) / 7);
+  const cellsArr = [];
+  for (let i = 0; i < startDow; i++) {
+    cellsArr.push(`<div class="pf-hm-cell lvl-0 pf-hm-empty"></div>`);
+  }
 
-  const cells = [];
-  const date = new Date(start);
-  for (let d = 0; d < totalDays; d++) {
-    date.setDate(start.getDate() + d);
-    const dateStr = date.toISOString().slice(0, 10);
+  const d = new Date(start);
+  for (let i = 0; i < totalDays; i++) {
+    d.setFullYear(year, 0, i + 1);
+    const dateStr = d.toISOString().slice(0, 10);
     const dayData = heatmap[dateStr];
     const val = dayData ? dayData.total : 0;
     const level = val === 0 ? 0 : val / maxVal <= 0.25 ? 1 : val / maxVal <= 0.5 ? 2 : val / maxVal <= 0.75 ? 3 : 4;
-    const col = Math.floor((d + startDow) / 7) + 2;
-    const row = date.getDay() + 1;
     const tip = val > 0 ? `${dateStr} — ${val} total · ${dayData.saves || 0} saves` : dateStr;
-    cells.push(`<div class="pf-hm-cell lvl-${level}" style="grid-row:${row};grid-column:${col}" title="${_esc(tip)}" data-date="${dateStr}"></div>`);
+    cellsArr.push(`<div class="pf-hm-cell lvl-${level}" title="${_esc(tip)}" data-date="${dateStr}"></div>`);
   }
 
   section.innerHTML = `
@@ -440,10 +449,8 @@ async function _renderHeatmap() {
       <button class="pf-heatmap-nav" id="pfHeatNext">▶</button>
     </div>
     <div class="pf-heatmap-wrap">
-      <div class="pf-heatmap-grid" style="grid-template-columns: 28px repeat(${weeks}, 12px);grid-template-rows: repeat(7, 12px)">
-        ${dayLabels.map((l, ri) => `<div class="pf-hm-day-label" style="grid-row:${ri+1};grid-column:1">${l}</div>`).join('')}
-        ${cells.join('')}
-      </div>
+      <div class="pf-hm-day-labels">${['', 'Mon', '', 'Wed', '', 'Fri', ''].map(l => `<div>${l}</div>`).join('')}</div>
+      <div class="pf-heatmap-grid-auto">${cellsArr.join('')}</div>
     </div>
     <div class="pf-hm-legend"><span>Less</span>${[0,1,2,3,4].map(l => `<div class="pf-hm-cell lvl-${l}"></div>`).join('')}<span>More</span></div>
   `;
@@ -483,19 +490,25 @@ function _buildDonutHTML(title, items) {
   if (!total) return `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-empty">No data</div></div>`;
   const r = 50, cx = 60, cy = 60;
   let html = `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-chart"><svg viewBox="0 0 120 120" width="120" height="120">`;
-  let angle = -Math.PI / 2;
   const slices = items.filter(i => (Number(i.value) || 0) > 0).slice(0, 7);
-  slices.forEach((item, i) => {
-    const pct = item.value / total;
-    const endAngle = angle + pct * 2 * Math.PI;
-    const color = DONUT_COLORS[i % DONUT_COLORS.length];
-    const x1 = cx + r * Math.cos(angle);
-    const y1 = cy + r * Math.sin(angle);
-    const x2 = cx + r * Math.cos(endAngle);
-    const y2 = cy + r * Math.sin(endAngle);
-    html += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2},${y2} Z" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
-    angle = endAngle;
-  });
+
+  if (slices.length === 1) {
+    const color = DONUT_COLORS[0];
+    html += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
+  } else {
+    let angle = -Math.PI / 2;
+    slices.forEach((item, i) => {
+      const pct = item.value / total;
+      const endAngle = angle + pct * 2 * Math.PI;
+      const color = DONUT_COLORS[i % DONUT_COLORS.length];
+      const x1 = cx + r * Math.cos(angle);
+      const y1 = cy + r * Math.sin(angle);
+      const x2 = cx + r * Math.cos(endAngle);
+      const y2 = cy + r * Math.sin(endAngle);
+      html += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2},${y2} Z" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
+      angle = endAngle;
+    });
+  }
   html += `<circle cx="${cx}" cy="${cy}" r="28" fill="var(--bg-surface)"/></svg></div><div class="pf-donut-legend">`;
   slices.forEach((item, i) => {
     html += `<div class="pf-donut-legend-item"><span class="pf-donut-dot" style="background:${DONUT_COLORS[i % DONUT_COLORS.length]}"></span>${_esc(item.label)} <span class="pf-donut-pct">${((item.value / total) * 100).toFixed(1)}%</span></div>`;
@@ -814,7 +827,7 @@ function _attachCommitFileClicks(body) {
 if (window.electronAPI?.profile?.onDataChanged) {
   window.electronAPI.profile.onDataChanged(() => {
     import('./app_manager/prefetchManager.js').then(mod => {
-      mod.getPrefetchCache().delete('profile');
+      mod.getPrefetchCache().invalidate('profile');
     });
     _cache = {};
     if (_open) {

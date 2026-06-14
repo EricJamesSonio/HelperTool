@@ -13,6 +13,30 @@ const ICON_FM_BAN = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" 
 const ICON_FM_FOLDER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:4px"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg>';
 const ICON_FM_TARGET = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><circle cx="10" cy="10" r="2"/><circle cx="10" cy="10" r="6"/><circle cx="10" cy="10" r="9"/></svg>';
 
+let _extCache = null;
+let _folderCache = null;
+let _lastTreeRef = null;
+
+function _getExtensions(tree) {
+    if (_lastTreeRef === tree && _extCache) return _extCache;
+    _lastTreeRef = tree;
+    _extCache = [...collectExtensions(tree)].sort();
+    _folderCache = null;
+    return _extCache;
+}
+
+function _getFolders(tree) {
+    if (_lastTreeRef === tree && _folderCache) return _folderCache;
+    _folderCache = collectFolders(tree);
+    return _folderCache;
+}
+
+export function invalidateFilterCache() {
+    _extCache = null;
+    _folderCache = null;
+    _lastTreeRef = null;
+}
+
 // ── Filter Ext panel ─────────────────────────────────────
 const filterToggleBtn       = document.getElementById('filterToggleBtn');
 const filterPanel           = document.getElementById('filterPanel');
@@ -235,7 +259,7 @@ export function renderFilterChips() {
 function renderFilterPanel(tree) {
     if (!availableFilterExtsEl || !activeFilterExtsEl) return;
 
-    const allExts   = [...collectExtensions(tree)].sort();
+    const allExts   = _getExtensions(tree);
     const available = allExts.filter(e => !activeExtensions.has(e) && !ignoredExtensions.has(e));
 
     // ── Available column ──
@@ -311,7 +335,7 @@ function updateFilterBadge() {
 export function renderIgnorePanel(tree) {
     if (!availableExtsEl || !ignoredExtsEl) return;
 
-    const allExts  = [...collectExtensions(tree)].sort();
+    const allExts  = _getExtensions(tree);
     const available = allExts.filter(e => !ignoredExtensions.has(e));
 
     // ── Available column ──
@@ -395,8 +419,7 @@ function updateExtBadge() {
 export function renderFolderPanel(tree) {
     if (!availableFoldersEl) return;
 
-    // collectFolders already returns sorted alphabetically
-    const allFolders = collectFolders(tree);
+    const allFolders = _getFolders(tree);
     const usedPaths  = new Set([...ignoredFolders, ...focusedFolders]);
     const available  = allFolders.filter(f => !usedPaths.has(f.path));
 

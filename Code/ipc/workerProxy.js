@@ -1,6 +1,7 @@
 const { fork } = require('child_process');
 const path = require('path');
 const EventEmitter = require('events');
+const { updateService } = require('./serviceTracker_ipc.js');
 
 let _worker = null;
 let _pending = new Map();
@@ -22,6 +23,7 @@ function _spawn() {
     _worker = null;
   }
   _ready = false;
+  updateService('worker', 'running', 'Starting worker process...');
 
   const workerPath = _getWorkerPath();
   _worker = fork(workerPath, [], { silent: false });
@@ -31,6 +33,7 @@ function _spawn() {
       _ready = true;
       _restartDelay = 1000;
       _flushQueue();
+      updateService('worker', 'done');
       return;
     }
 
@@ -54,6 +57,7 @@ function _spawn() {
   _worker.on('exit', (code) => {
     console.warn(`[Worker] Exited with code ${code}`);
     _ready = false;
+    updateService('worker', 'failed', `Exited with code ${code}`);
     _worker = null;
     for (const [, p] of _pending) p.reject(new Error('Worker process exited'));
     _pending.clear();
@@ -64,6 +68,7 @@ function _spawn() {
 
   _worker.on('error', (err) => {
     console.error('[Worker] Spawn error:', err.message);
+    updateService('worker', 'failed', err.message);
     _scheduleRestart();
   });
 }

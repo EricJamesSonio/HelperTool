@@ -13,6 +13,7 @@ const DEFAULT_SHORTCUTS = {
   portManagerTool: null,
   teamActivityTool: null,
   envManager: null,
+  codebbaseChat: null,
 };
 
 const S = { shortcuts: {} };

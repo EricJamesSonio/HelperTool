@@ -28,12 +28,15 @@ const blueprintLibraryIpc = require('./ipc/blueprintLibrary.js');
 const profileIpc = require('./ipc/profile.js');
 const dockerIpc = require('./ipc/docker_ipc.js');
 const envIpc = require('./ipc/env_ipc.js');
+const codebaseChatIpc = require('./ipc/codebbaseChat_ipc.js');
 const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
 
 const { initDatabase } = require('./database/db.js');
+const { initChatDb, closeChatDb } = require('./database/chatDb.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
 const prefetchService = require('./ipc/prefetchService.js');
+const serviceTrackerIpc = require('./ipc/serviceTracker_ipc.js');
 
 // ----------------------------
 // GPU / MEMORY REDUCTION FLAGS
@@ -78,24 +81,33 @@ if (!gotTheLock) {
         registerAllIpc();
         createTray();
         createWindow();
+        serviceTrackerIpc.setWindow(mainWindow);
 
-        try {
-            await initDatabase(app);
-            createInspectorSchema();
-        } catch (err) {
-            console.error('[Main] Failed to init DB:', err);
-        }
+        mainWindow.webContents.once('did-finish-load', async () => {
+            serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
+            try {
+                await initDatabase(app);
+                await initChatDb(app);
+                createInspectorSchema();
+                serviceTrackerIpc.updateService('database', 'done');
+            } catch (err) {
+                console.error('[Main] Failed to init DB:', err);
+                serviceTrackerIpc.updateService('database', 'failed', err.message);
+            }
 
-        const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
-        indexerProxy.start(indexerDbPath);
-        console.log('[Main] Indexer service started');
+            // Defer indexer/worker/prefetch so renderer IPC is not blocked
+            setImmediate(() => {
+                const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+                indexerProxy.start(indexerDbPath);
+                workerProxy.start();
 
-        workerProxy.start();
-        console.log('[Main] Worker service started');
-
-        const dbPath = path.join(app.getPath('userData'), 'helperTool.db');
-        prefetchService.start(dbPath, config.readConfig()?.activeProject || '');
-        console.log('[Main] Prefetch service started');
+                // Wait for worker to be ready before starting prefetch
+                setTimeout(() => {
+                    const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+                    prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
+                }, 2000);
+            });
+        });
 
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -134,6 +146,8 @@ function registerAllIpc() {
     profileIpc.register(shared);
     dockerIpc.register();
     envIpc.register();
+    codebaseChatIpc.register();
+    serviceTrackerIpc.register();
 }
 
 // ----------------------------
@@ -258,6 +272,7 @@ function getPreviousReposMenu() {
 
 function cleanupAndExit(deleteIndex) {
     try { const db = require('./database/db.js'); db.close(); } catch (_) {}
+    try { closeChatDb(); } catch (_) {}
     try { const watcher = require('./indexer/watcher.js'); watcher.destroyAllWatchers(); } catch (_) {}
     try { workerProxy.stop(); } catch (_) {}
     try { indexerProxy.stop(); } catch (_) {}

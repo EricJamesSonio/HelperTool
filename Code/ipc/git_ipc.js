@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const GitOperations = require('../utils/gitOps');
 const simpleGit = require('simple-git');
 const path = require('path');
+const gitService = require('./gitService.js');
 const { triggerCommitSync } = require('./profile.js');
 const prefetchService = require('./prefetchService.js');
 
@@ -11,6 +12,12 @@ const prefetchService = require('./prefetchService.js');
 function register(_deps) {
 
     ipcMain.handle('git:status', async (event, repoPath) => {
+        try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'status', repoPath });
+            }
+        } catch (_) {}
         try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getStatus();
@@ -45,11 +52,13 @@ function register(_deps) {
             const gitOps = new GitOperations(repoPath);
             const result = await gitOps.commit(message, filePaths);
             if (result.success !== false) {
+                gitService.clearCache(repoPath);
                 triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
                     console.error('[IPC] profile sync after commit:', err);
                 });
                 prefetchService.invalidate('profile');
                 prefetchService.invalidate('teamActivity:' + repoPath);
+                prefetchService.invalidate('branches:' + repoPath);
                 event.sender.send('profile:dataChanged');
             }
             return result;
@@ -64,11 +73,13 @@ function register(_deps) {
             const gitOps = new GitOperations(repoPath);
             const result = await gitOps.push();
             if (result.success !== false) {
+                gitService.clearCache(repoPath);
                 triggerCommitSync(repoPath, path.basename(repoPath), false).catch(err => {
                     console.error('[IPC] profile sync after push:', err);
                 });
                 prefetchService.invalidate('profile');
                 prefetchService.invalidate('teamActivity:' + repoPath);
+                prefetchService.invalidate('branches:' + repoPath);
                 event.sender.send('profile:dataChanged');
             }
             return result;
@@ -80,6 +91,12 @@ function register(_deps) {
 
     ipcMain.handle('git:diff', async (event, repoPath, filePath) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'diff', repoPath, filePath });
+            }
+        } catch (_) {}
+        try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getDiff(filePath);
         } catch (err) {
@@ -89,6 +106,12 @@ function register(_deps) {
     });
 
     ipcMain.handle('git:log', async (event, repoPath, maxCount) => {
+        try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'log', repoPath, maxCount: maxCount || 50 });
+            }
+        } catch (_) {}
         try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getLog(maxCount || 50);
@@ -100,6 +123,12 @@ function register(_deps) {
 
     ipcMain.handle('git:file-log', async (event, repoPath, filePath, maxCount) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'fileLog', repoPath, filePath, maxCount: maxCount || 50 });
+            }
+        } catch (_) {}
+        try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getFileLog(filePath, maxCount || 50);
         } catch (err) {
@@ -110,6 +139,12 @@ function register(_deps) {
 
     ipcMain.handle('git:file-content', async (event, repoPath, commitHash, filePath) => {
         try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'fileContent', repoPath, commitHash, filePath });
+            }
+        } catch (_) {}
+        try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getFileContentAtCommit(commitHash, filePath);
         } catch (err) {
@@ -119,6 +154,12 @@ function register(_deps) {
     });
 
     ipcMain.handle('git:diff-commits', async (event, repoPath, oldCommit, newCommit, filePath) => {
+        try {
+            const workerProxy = require('./workerProxy');
+            if (workerProxy.isReady()) {
+                return await workerProxy.send('gitOperations', { action: 'diffCommits', repoPath, oldCommit, newCommit, filePath });
+            }
+        } catch (_) {}
         try {
             const gitOps = new GitOperations(repoPath);
             return await gitOps.getDiffBetweenCommits(oldCommit, newCommit, filePath);
@@ -131,6 +172,9 @@ function register(_deps) {
     // ── Branch Manager IPC handlers ──
 
     ipcMain.handle('git:branches', async (_e, { repoPath }) => {
+        const cached = prefetchService.get('branches:' + repoPath);
+        if (cached) return cached;
+
         try {
             const git = simpleGit(repoPath);
             const branchSummary = await git.branch(['-vv', '--all']);
@@ -173,7 +217,8 @@ function register(_deps) {
                 }
             }
 
-            return { success: true, current, local, remote, defaultBranch };
+            const result = { success: true, current, local, remote, defaultBranch };
+            return result;
         } catch (err) {
             return { success: false, error: err.message };
         }
@@ -183,6 +228,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.checkoutBranch(name, fromBranch || 'HEAD');
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true, name };
         } catch (err) {
             return { success: false, error: err.message };
@@ -193,6 +239,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.checkout(name);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -203,6 +250,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.deleteLocalBranch(name, force);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -213,6 +261,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.push(remote, `:${name}`);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -223,6 +272,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.push(remote || 'origin', name, ['--set-upstream']);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -233,6 +283,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.pull(remote || 'origin', name);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -243,6 +294,7 @@ function register(_deps) {
         try {
             const git = simpleGit(repoPath);
             await git.fetch(remote || 'origin', ['--prune']);
+            prefetchService.invalidate('branches:' + repoPath);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -273,6 +325,7 @@ function register(_deps) {
                     console.debug('[git:mergeBranch] push failed:', pushError);
                 }
             }
+            prefetchService.invalidate('branches:' + repoPath);
             return {
                 success: true,
                 isUpToDate: !!result?.isAlreadyUpToDate || noChanges,

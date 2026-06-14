@@ -27,6 +27,7 @@ class SymbolIndexUI {
     this._renderedCount = 0;
     this._dirtyDebounceTimer = null;
     this._lastDirtyCount = null;
+    this._searchFetchLimit = 200;
   }
 
   async render(containerElement, repoPath) {
@@ -329,9 +330,9 @@ class SymbolIndexUI {
     }
 
     try {
-      const { results } = await this.handler.search(this._activeRepoPath, query, 200);
-      this.manager.searchResults = results;
-      resultsEl.innerHTML = this._renderSearchResults(results);
+      const { results } = await this.handler.search(this._activeRepoPath, query, this._searchFetchLimit);
+      this.manager.searchResults = results || [];
+      resultsEl.innerHTML = this._renderSearchResults(results || []);
     } catch (err) {
       resultsEl.innerHTML = `<div class="empty-state error">${this.escapeHtml(err.message)}</div>`;
     }
@@ -358,7 +359,7 @@ class SymbolIndexUI {
   }
 
   async _loadMoreFiles(container) {
-    const PAGE = 50;
+    const PAGE = 15;
     try {
       const { files, total } = await this.handler.getIndexedFileList(this._activeRepoPath, PAGE, this._browseAllFiles.length);
       if (!files || files.length === 0) {
@@ -643,7 +644,7 @@ class SymbolIndexUI {
     el.textContent = 'Indexing active file via proxy...';
     try {
       const filePath = this.manager.getCurrentFilePath?.() || this._activeRepoPath;
-      const result = await window.symbolIndexBridge.proxyIndexFile(this._activeRepoPath, filePath);
+      const result = await window.electronAPI.symbolIndex.proxyIndexFile(this._activeRepoPath, filePath);
       el.textContent = JSON.stringify(result, null, 2);
     } catch (err) {
       el.textContent = 'Error: ' + err.message;

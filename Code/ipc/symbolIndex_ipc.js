@@ -4,6 +4,8 @@ const parser = require('../indexer/parser');
 const indexer = require('../indexer/indexer');
 const watcher = require('../indexer/watcher');
 const indexerProxy = require('./indexerProxy.js');
+const workerProxy = require('./workerProxy.js');
+const { updateService } = require('./serviceTracker_ipc.js');
 
 let _getMainWindow = null;
 let _activeRepoPath = null;
@@ -45,7 +47,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('db:checkRepo', { repoPath });
           if (data) return data;
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { indexed: false };
     } catch (err) {
@@ -54,17 +56,31 @@ async function register({ app, docignoreUtils, getMainWindow }) {
   });
 
   ipcMain.handle('symbolIndex:startIndexing', async (_, repoPath) => {
+    updateService('symbolIndexer', 'running', 'Indexing symbols...');
     try {
       _activeRepoPath = repoPath;
       indexer.resetIndex(repoPath);
 
       if (indexerProxy.isReady()) {
-        try { await indexerProxy.send('clear'); } catch (_) {}
+        try { await indexerProxy.send('clear'); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
 
-      const allFiles = [];
-      indexer.walkDir(repoPath, allFiles, repoPath, docignoreUtils);
-      const totalFiles = allFiles.length;
+      const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+      let allFiles = [];
+      let totalFiles = 0;
+      if (workerProxy.isReady()) {
+        try {
+          const walkResult = await workerProxy.send('walkDir', { repoPath, ignoreRules });
+          allFiles = walkResult?.files || [];
+          totalFiles = allFiles.length;
+        } catch (err) {
+          console.warn('[symbolIndex] walkDir worker failed, falling back:', err.message);
+        }
+      }
+      if (!allFiles.length) {
+        indexer.walkDir(repoPath, allFiles, repoPath, docignoreUtils);
+        totalFiles = allFiles.length;
+      }
 
       const repoName = path.basename(repoPath);
       let repoId = null;
@@ -72,7 +88,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('db:upsertRepo', { repoPath, name: repoName, config: {} });
           repoId = data?.repo_id;
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
 
       if (indexerProxy.isReady()) {
@@ -88,7 +104,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const result = await indexerProxy.send('index:start', { repoPath, files: allFiles });
           if (repoId && result) {
-            try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.totalSymbols || 0 }); } catch (_) {}
+            try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.totalSymbols || 0 }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
           }
           watcher.createWatcher(repoPath, (repoPath, relPath) => {
             if (indexerProxy.isReady()) {
@@ -101,6 +117,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             }
           });
           invalidateCache(repoPath);
+          updateService('symbolIndexer', 'done');
           return { success: true, totalFiles, symbolCount: result?.totalSymbols || 0 };
         } finally {
           indexerProxy.offProgress(onProgress);
@@ -111,7 +128,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
           (e) => { const w = getMainWindow(); if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:error', e); }
         );
         if (repoId && result) {
-          try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.symbolCount || 0 }); } catch (_) {}
+          try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.symbolCount || 0 }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
         }
         watcher.createWatcher(repoPath, (repoPath, relPath) => {
           if (indexerProxy.isReady()) {
@@ -127,6 +144,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         return { success: true, totalFiles, symbolCount: result.symbolCount || 0 };
       }
     } catch (err) {
+      updateService('symbolIndexer', 'failed', err.message);
       return { success: false, error: err.message };
     }
   });
@@ -169,7 +187,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             _statusCache.set(repoPath, data);
             return data;
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
 
       return { exists: false };
@@ -184,7 +202,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('search', { repoPath, query, limit: limit || 200, offset: 0 });
           if (data && Array.isArray(data.results)) return { results: data.results };
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { results: [] };
     } catch (err) {
@@ -198,7 +216,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('db:getStatus', { repoPath });
           if (data) return { count: data.dirty_count || 0 };
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { count: 0 };
     } catch (err) {
@@ -213,7 +231,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const status = await indexerProxy.send('db:getStatus', { repoPath });
           if (status && status.exists) repoId = status.repo_id;
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       if (!repoId) return { success: true, totalFiles: 0, symbolCount: 0 };
 
@@ -222,7 +240,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('db:getDirtyFiles', { repoId });
           dirtyFiles = data?.files || [];
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       const paths = dirtyFiles.map(df => df.path);
 
@@ -239,7 +257,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const result = await indexerProxy.send('index:files', { repoPath, files: paths });
           if (dirtyFiles.length > 0) {
-            try { await indexerProxy.send('db:markClean', { ids: dirtyFiles.map(df => df.id) }); } catch (_) {}
+            try { await indexerProxy.send('db:markClean', { ids: dirtyFiles.map(df => df.id) }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
           }
           invalidateCache(repoPath);
           return { success: true, totalFiles: paths.length, symbolCount: result?.totalSymbols || 0 };
@@ -251,7 +269,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
           const w = getMainWindow(); if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:progress', p);
         });
         if (dirtyFiles.length > 0) {
-          try { await indexerProxy.send('db:markClean', { ids: dirtyFiles.map(df => df.id) }); } catch (_) {}
+          try { await indexerProxy.send('db:markClean', { ids: dirtyFiles.map(df => df.id) }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
         }
         invalidateCache(repoPath);
         return { success: true, totalFiles: paths.length, symbolCount: result.symbolCount || 0 };
@@ -265,8 +283,8 @@ async function register({ app, docignoreUtils, getMainWindow }) {
     try {
       indexer.resetIndex(repoPath);
       if (indexerProxy.isReady()) {
-        try { await indexerProxy.send('clear'); } catch (_) {}
-        try { await indexerProxy.send('db:reset', { repoPath }); } catch (_) {}
+        try { await indexerProxy.send('clear'); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+        try { await indexerProxy.send('db:reset', { repoPath }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       invalidateCache(repoPath);
       return { success: true };
@@ -280,8 +298,8 @@ async function register({ app, docignoreUtils, getMainWindow }) {
       watcher.destroyWatcher(repoPath);
       indexer.deleteIndex(repoPath);
       if (indexerProxy.isReady()) {
-        try { await indexerProxy.send('clear'); } catch (_) {}
-        try { await indexerProxy.send('db:delete', { repoPath }); } catch (_) {}
+        try { await indexerProxy.send('clear'); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+        try { await indexerProxy.send('db:delete', { repoPath }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       invalidateCache(repoPath);
       if (_activeRepoPath === repoPath) _activeRepoPath = null;
@@ -306,7 +324,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             const repos = Object.entries(data.repos).map(([repoPath, id]) => ({ repo_path: repoPath, id }));
             return { repos };
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { repos: [] };
     } catch (err) {
@@ -332,7 +350,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             if (off === 0) _fileListCache.set(repoPath, result);
             return result;
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { files: [], total: 0 };
     } catch (err) {
@@ -346,7 +364,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('symbols:get', { filePath, limit: 200, offset: 0 });
           if (data && Array.isArray(data.symbols)) return { symbols: data.symbols };
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { symbols: [] };
     } catch (err) {
@@ -363,7 +381,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             const data = await indexerProxy.send('db:getDirtyFiles', { repoId: status.repo_id });
             if (data) return { files: data.files || [] };
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { files: [] };
     } catch (err) {
@@ -382,7 +400,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             invalidateCache(repoPath);
             return { success: true, symbolsCount: result.symbols || 0 };
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
 
       return { success: false, error: 'Indexer not available' };
@@ -407,7 +425,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             }
             return result;
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
 
         try {
           const dbData = await indexerProxy.send('db:getFileDeps', { repoPath, filePath: relPath, mode: mode || 'file' });
@@ -420,7 +438,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             }
             return result;
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
 
       return { exists: false };
@@ -435,11 +453,11 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         const fullPath = path.isAbsolute(filePath) ? filePath : path.join(repoPath, filePath);
         const relPath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
         try {
-          const content = require('fs').readFileSync(fullPath, 'utf-8');
+          const content = await require('fs').promises.readFile(fullPath, 'utf-8');
           const result = await indexerProxy.send('indexFile', { filePath: relPath, content });
           if (result) {
-            try { await indexerProxy.send('db:insertFile', { repoPath, filePath: relPath }); } catch (_) {}
-            try { await indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }); } catch (_) {}
+            try { await indexerProxy.send('db:insertFile', { repoPath, filePath: relPath }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+            try { await indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
             invalidateCache(repoPath);
           }
           return { success: true, symbolsCount: result?.symbols || 0 };
@@ -486,7 +504,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             const data = await indexerProxy.send('db:getSymbolTypes', { repoId: status.repo_id });
             if (data) return { types: data.types || [] };
           }
-        } catch (_) {}
+        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
       }
       return { types: [] };
     } catch (err) {

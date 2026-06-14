@@ -42,6 +42,7 @@ const ICONS = {
    profile: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M2 18a8 8 0 0 1 16 0"/></svg>',
    docker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></svg>',
    env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><circle cx="10" cy="12" r="1"/><path d="M10 13v2"/></svg>',
+   codebbaseChat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="10" cy="9" r="1.5"/><circle cx="6" cy="9" r="1.5"/><circle cx="14" cy="9" r="1.5"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -49,6 +50,7 @@ import {
   createSymbolIndexPanel,
   createDepsPanel,
   createLocPanel,
+  createCodebaseChatPanel,
 } from './panels/panelFactory.js';
 
 // ---- Tool handles ----------------------------------------------------------
@@ -75,6 +77,10 @@ let _depsContainer = null;
 
 let _locPanel     = null;
 let _locContainer = null;
+
+let _ccPanel      = null;
+let _ccContainer  = null;
+let _ccTool       = null;
 
 let _terminalUI   = null;
 let _dockerTool  = null;
@@ -235,6 +241,15 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
     }, 'db'));
   }
 
+  body.appendChild(createSidebarItem(ICONS.codebbaseChat, 'HelperChat', 'Query your codebase structure', () => {
+    if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_ccPanel) _initCCPanel();
+    _ccPanel.classList.add('open');
+    if (_ccTool?.isInitialized) _ccTool.refresh();
+    else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
+  }, 'codebbaseChat'));
+
   body.appendChild(createSidebarItem(ICONS.env, 'Env Files', 'Manage .env configuration files', () => {
     const existing = document.getElementById('envOverlay');
     if (existing) { existing.remove(); return; }
@@ -257,6 +272,13 @@ function _initSymbolIndexPanel() {
   _symbolIndexPanel = panel;
   _symbolIndexContainer = container;
   _registry.register('symbolIndex', _symbolIndexPanel);
+}
+
+function _initCCPanel() {
+  const { panel, container } = createCodebaseChatPanel();
+  _ccPanel = panel;
+  _ccContainer = container;
+  _registry.register('codebbaseChat', _ccPanel);
 }
 
 function _initLocPanel() {
@@ -289,6 +311,27 @@ function _destroyGitTool() {
   _gitTool?.destroy(); _gitTool = null;
   if (_gitContainer) _gitContainer.innerHTML = '';
   _gitPanel?.classList.remove('open');
+}
+
+async function _initializeCCTool(repoPath) {
+  if (!repoPath) { console.warn('[Tools] _initializeCCTool skipped — no repoPath'); return; }
+  try {
+    const { default: CodebaseChat } = await import('../codebbaseChat.js');
+    if (!_ccTool) _ccTool = new CodebaseChat();
+    const result = await _ccTool.initialize(repoPath);
+    if (!result.success) { console.error('[Tools] Codebase Chat init failed:', result.error); return; }
+    if (!_ccPanel) _initCCPanel();
+    await _ccTool.render(_ccContainer);
+    console.log('[Tools] Codebase Chat initialised');
+  } catch (err) {
+    console.error('[Tools] Codebase Chat error:', err);
+  }
+}
+
+function _destroyCCTool() {
+  _ccTool?.destroy(); _ccTool = null;
+  if (_ccContainer) _ccContainer.innerHTML = '';
+  _ccPanel?.classList.remove('open');
 }
 
 async function _initializeSymbolIndexTool(repoPath) {
@@ -449,6 +492,15 @@ function _buildShortcutActions() {
     };
   }
 
+  actions.codebbaseChat = () => {
+    if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_ccPanel) _initCCPanel();
+    _ccPanel.classList.add('open');
+    if (_ccTool?.isInitialized) _ccTool.refresh();
+    else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
+  };
+
   actions.envManager = () => {
     const existing = document.getElementById('envOverlay');
     if (existing) { existing.remove(); return; }
@@ -475,14 +527,17 @@ export function handleRepoChange(newRepoPath) {
   sessionNotes.handleRepoChange(newRepoPath);
   _destroyGitTool();
   _destroySymbolIndexTool();
+  _destroyCCTool();
   _initializeGitTool(newRepoPath);
   _initializeSymbolIndexTool(newRepoPath);
+  _initializeCCTool(newRepoPath);
   startPrefetch(newRepoPath);
 }
 
 window.addEventListener('beforeunload', () => {
   _gitTool?.destroy();
   _symbolIndexTool?.destroy();
+  _ccTool?.destroy();
 });
 
 export async function initTools(feats, settingsManager) {

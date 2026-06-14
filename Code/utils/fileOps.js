@@ -28,38 +28,33 @@ function getCommonAncestor(paths) {
 
 async function getFolderTree(dir, repoRoot) {
     if (!repoRoot) repoRoot = path.resolve(dir);
-
     if (isIgnored(dir, repoRoot)) return [];
 
     let entries;
     try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
     } catch {
         return [];
     }
 
-    const tree = [];
-    for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (isIgnored(fullPath, repoRoot)) continue;
+    const results = await Promise.all(
+        entries
+            .filter(entry => !isIgnored(path.join(dir, entry.name), repoRoot))
+            .map(async entry => {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    return {
+                        name: entry.name,
+                        path: fullPath,
+                        type: 'folder',
+                        children: await getFolderTree(fullPath, repoRoot),
+                    };
+                }
+                return { name: entry.name, path: fullPath, type: 'file' };
+            })
+    );
 
-        if (entry.isDirectory()) {
-            tree.push({
-                name: entry.name,
-                path: fullPath,
-                type: 'folder',
-                children: await getFolderTree(fullPath, repoRoot),
-            });
-        } else {
-            tree.push({
-                name: entry.name,
-                path: fullPath,
-                type: 'file',
-            });
-        }
-    }
-
-    return tree;
+    return results;
 }
 
 async function generateStructure(selectedPaths, outputFile, progressCallback = () => {}, promptText = '') {

@@ -68,6 +68,8 @@ import {
 import * as sessionNotes from './sessionNotes.js';
 
 import { initZoomManager } from './app_manager/zoomManager.js';
+import { getPrefetchCache } from './app_manager/prefetchManager.js';
+import { init as initServiceTracker } from './serviceTracker.js';
 
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 
@@ -239,6 +241,12 @@ function applyFeatureVisibility(feats) {
     if (!feats.folderFilters) { hide('folderToggleBtn'); hide('folderPanel'); }
 }
 
+// ── Receive prefetch data from main process ──────────────────────────────────
+
+window.electronAPI.onPrefetchUpdate((key, data, ttl) => {
+    getPrefetchCache().set(key, data, ttl);
+});
+
 // ── DOMContentLoaded init ─────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -287,13 +295,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Shortcut mode
     initShortcutMode();
 
-    // Filters
-    await loadIgnoredExtensions();
-    if (feats.folderFilters) await loadFolderFilters();
+    // Restore last repo first — tree renders immediately
+    await loadLastActiveRepo();
 
     // View mode apply
     applyViewMode(state.viewMode);
 
-    // Restore last repo
-    await loadLastActiveRepo();
+    // Load filters in background — don't block the tree render
+    const filterPromises = [loadIgnoredExtensions()];
+    if (feats.folderFilters) filterPromises.push(loadFolderFilters());
+    Promise.all(filterPromises).catch(err => console.error('[Init] Filter load error:', err));
+
+    // Service tracker is non-critical — defer after layout
+    requestAnimationFrame(() => {
+        initServiceTracker().catch(err => console.error('[ServiceTracker] init error:', err));
+    });
 });

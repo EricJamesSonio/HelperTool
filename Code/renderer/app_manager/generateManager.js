@@ -61,8 +61,9 @@ export function onSelectionChange() {
 
 export function initProgress() {
     window.electronAPI.onProgressUpdate(percent => {
-        progressBar.value        = percent;
-        progressText.textContent = `${percent}%`;
+        const p = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
+        progressBar.value        = p;
+        progressText.textContent = `${p}%`;
     });
 }
 

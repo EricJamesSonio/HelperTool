@@ -1,0 +1,189 @@
+const QUERY_TYPES = {
+  dependencies: 'dependencies',
+  dependents: 'dependents',
+  symbols: 'symbols',
+  importChain: 'importChain',
+  circularDeps: 'circularDeps',
+};
+
+function _fmtImportedSymbols(symbolsStr) {
+  if (!symbolsStr) return '';
+  try {
+    const arr = JSON.parse(symbolsStr);
+    if (!Array.isArray(arr) || arr.length === 0) return '';
+    return ' (' + arr.join(', ') + ')';
+  } catch { return ''; }
+}
+
+function _ext(filePath) {
+  const idx = filePath.lastIndexOf('.');
+  return idx >= 0 ? filePath.slice(idx + 1).toUpperCase() : '';
+}
+
+class ChatQueryEngine {
+  constructor(ipc) {
+    this.ipc = ipc;
+  }
+
+  async executeQuery(queryType, repoPath, filePath) {
+    switch (queryType) {
+      case QUERY_TYPES.dependencies:
+        return this._getDependencies(repoPath, filePath);
+      case QUERY_TYPES.dependents:
+        return this._getDependents(repoPath, filePath);
+      case QUERY_TYPES.symbols:
+        return this._getSymbols(repoPath, filePath);
+      case QUERY_TYPES.importChain:
+        return this._getImportChain(repoPath, filePath);
+      case QUERY_TYPES.circularDeps:
+        return this._getCircularDeps(repoPath, filePath);
+      default:
+        return 'Unknown query type.';
+    }
+  }
+
+  async _getDependencies(repoPath, filePath) {
+    const deps = await this.ipc.getDependencies({ repoPath, filePath });
+    if (!deps || deps.length === 0) {
+      return `## Dependencies of ${filePath}\n\nNo dependencies found.`;
+    }
+
+    const resolved = deps.filter(d => d.resolved_path);
+    const unresolved = deps.filter(d => !d.resolved_path);
+
+    let md = `## Dependencies of ${filePath}\n\n`;
+    if (resolved.length) {
+      md += `**Direct imports (${resolved.length}):**\n`;
+      for (const d of resolved) {
+        const syms = _fmtImportedSymbols(d.imported_symbols);
+        md += `• [${_ext(d.resolved_path)}] ${d.resolved_path}${syms}\n`;
+      }
+      md += '\n';
+    }
+    if (unresolved.length) {
+      md += `**Unresolved imports (${unresolved.length}):**\n`;
+      for (const d of unresolved) {
+        const syms = _fmtImportedSymbols(d.imported_symbols);
+        md += `• ${d.import_path}${syms}\n`;
+      }
+    }
+    return md.trim();
+  }
+
+  async _getDependents(repoPath, filePath) {
+    const deps = await this.ipc.getDependents({ repoPath, filePath });
+    if (!deps || deps.length === 0) {
+      return `## Files that import ${filePath}\n\nNo files import ${filePath} directly.\n\nThis is likely an entry point.`;
+    }
+
+    let md = `## Files that import ${filePath}\n\n`;
+    md += `**${deps.length} file${deps.length !== 1 ? 's' : ''}:**\n`;
+    for (const d of deps) {
+      const syms = _fmtImportedSymbols(d.imported_symbols);
+      md += `• [${_ext(d.path)}] ${d.path}${syms}\n`;
+    }
+    return md.trim();
+  }
+
+  async _getSymbols(repoPath, filePath) {
+    const symbols = await this.ipc.getSymbols({ repoPath, filePath });
+    if (!symbols || symbols.length === 0) {
+      return `## Symbols in ${filePath}\n\nNo symbols indexed for this file.`;
+    }
+
+    const byType = {};
+    for (const s of symbols) {
+      const t = s.type || 'other';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(s);
+    }
+
+    const typeLabels = {
+      function: 'Functions',
+      method: 'Methods',
+      class: 'Classes',
+      variable: 'Variables',
+      constant: 'Constants',
+      interface: 'Interfaces',
+      type: 'Types',
+      enum: 'Enums',
+      component: 'Components',
+      other: 'Other',
+    };
+
+    let md = `## Symbols in ${filePath}\n\n`;
+    for (const [type, items] of Object.entries(byType)) {
+      const label = typeLabels[type] || type.charAt(0).toUpperCase() + type.slice(1) + 's';
+      md += `**${label} (${items.length}):**\n`;
+      for (const s of items) {
+        const sig = s.signature ? ` \`${s.signature}\`` : '';
+        md += `• ${s.name} — line ${s.line}${sig}\n`;
+      }
+      md += '\n';
+    }
+    return md.trim();
+  }
+
+  async _getImportChain(repoPath, filePath) {
+    const tree = await this.ipc.getImportChain({ repoPath, filePath });
+    if (!tree) {
+      return `## Import Chain from ${filePath}\n\nNo import chain data available.`;
+    }
+
+    function renderNode(node, indent, seen) {
+      const s = new Set(seen);
+      let prefix = indent > 0 ? '│   '.repeat(indent - 1) + '├── ' : '';
+      let line = prefix + node.path;
+      if (s.has(node.path)) return line + ' _(already shown)_\n';
+      s.add(node.path);
+      let result = line + '\n';
+      if (node.children && node.children.length) {
+        for (const child of node.children) {
+          result += renderNode(child, indent + 1, s);
+        }
+      } else if (indent < 6) {
+        result += '│   '.repeat(indent) + '└── (no further imports)\n';
+      }
+      return result;
+    }
+
+    let md = `## Import Chain from ${filePath}\n\n`;
+    md += '```\n' + renderNode(tree, 0, new Set()) + '```';
+    return md.trim();
+  }
+
+  async _getCircularDeps(repoPath, filePath) {
+    const cycles = await this.ipc.getCircularDeps({ repoPath, filePath });
+    if (!cycles || cycles.length === 0) {
+      return `## Circular Dependencies involving ${filePath}\n\n✅ No circular dependencies found.`;
+    }
+
+    let md = `## Circular Dependencies involving ${filePath}\n\n⚠️ ${cycles.length} cycle${cycles.length !== 1 ? 's' : ''} detected:\n\n`;
+    for (let i = 0; i < cycles.length; i++) {
+      md += `**Cycle ${i + 1}:**\n  ${cycles[i].join(' → ')}\n\n`;
+    }
+    return md.trim();
+  }
+
+  formatAsPrompt(filePath, queryType, answer) {
+    const typeLabels = {
+      dependencies: 'Find Dependencies',
+      dependents: 'Find Dependents',
+      symbols: 'Find Symbols',
+      importChain: 'Trace Import Chain',
+      circularDeps: 'Find Circular Deps',
+    };
+    return `I need help with my codebase. Here is the context:
+
+FILE: ${filePath}
+QUERY: ${typeLabels[queryType] || queryType}
+
+RESULT:
+${answer}
+
+---
+Please help me understand this and suggest improvements.`;
+  }
+}
+
+export default ChatQueryEngine;
