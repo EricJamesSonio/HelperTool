@@ -398,6 +398,7 @@ const gmailBridge = {
         markRead:           (payload)          => ipcRenderer.invoke('gmail:markRead', payload),
         startPolling:       ()                 => ipcRenderer.invoke('gmail:startPolling'),
         stopPolling:        ()                 => ipcRenderer.invoke('gmail:stopPolling'),
+        checkNow:           ()                 => ipcRenderer.invoke('gmail:checkNow'),
         onPollResult:       (callback) => {
             ipcRenderer.removeAllListeners('gmail:pollResult');
             ipcRenderer.on('gmail:pollResult', (_event, data) => callback(data));

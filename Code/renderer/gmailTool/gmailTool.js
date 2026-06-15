@@ -78,7 +78,7 @@ export default class GmailTool {
     if (res.success) {
       this.state.accounts = res.accounts;
       if (this.state.accounts.length > 0) {
-        await this._handleRefresh();
+        await window.electronAPI.gmail.checkNow();
         await window.electronAPI.gmail.startPolling();
         this.state.polling = true;
       }
@@ -90,7 +90,7 @@ export default class GmailTool {
   async _handleAddAccount() {
     const res = await window.electronAPI.gmail.addAccount();
     if (res.success) {
-      await this._handleRefresh();
+      await window.electronAPI.gmail.checkNow();
       await window.electronAPI.gmail.startPolling();
       this.state.polling = true;
     } else {
@@ -224,7 +224,7 @@ export default class GmailTool {
 
   async _handleMarkRead(email, msgId) {
     await window.electronAPI.gmail.markRead(email, msgId);
-    await this._handleRefresh();
+    await window.electronAPI.gmail.checkNow();
   }
 
   _updateBadge() {
