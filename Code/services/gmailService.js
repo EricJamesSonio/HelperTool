@@ -6,47 +6,42 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const STORE_PATH = path.join(__dirname, '..', 'gmail-store.json');
-const TOKEN_KEY = 'gmail.accounts';
-const IGNORED_KEY = 'gmail.ignoredSenders';
-const SEEN_IDS_KEY = 'gmail.seenIds';           // FIX: persist seen IDs across restarts
+const STORE_PATH       = path.join(__dirname, '..', 'gmail-store.json');
+const TOKEN_KEY        = 'gmail.accounts';
+const IGNORED_KEY      = 'gmail.ignoredSenders';
+const HISTORY_ID_KEY   = 'gmail.historyIds';   // { [email]: lastHistoryId }
 const CREDENTIALS_PATH = path.join(__dirname, '..', 'credentials.json');
 
 // ─── Store helpers ────────────────────────────────────────────────────────────
 
 function readStore() {
-  try {
-    const raw = fs.readFileSync(STORE_PATH, 'utf8');
-    return JSON.parse(raw);
-  } catch { return {}; }
+  try { return JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')); }
+  catch { return {}; }
 }
 
 function writeStore(data) {
   fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2));
 }
 
-// ─── Seen-IDs: persisted so restarts don't flood notifications ───────────────
+// ─── History ID persistence ───────────────────────────────────────────────────
+// historyId is Gmail's cursor — it marks "I have seen everything up to here".
+// By storing it per-account we only fetch changes since the last poll.
 
-function loadSeenIds() {
-  const raw = readStore()[SEEN_IDS_KEY];
-  return new Set(Array.isArray(raw) ? raw : []);
+function getHistoryIds() {
+  return readStore()[HISTORY_ID_KEY] || {};
 }
 
-function saveSeenIds(set) {
-  // Keep only the most recent 500 to avoid unbounded growth
-  const arr = [...set].slice(-500);
+function saveHistoryId(email, historyId) {
   const data = readStore();
-  data[SEEN_IDS_KEY] = arr;
+  data[HISTORY_ID_KEY] = data[HISTORY_ID_KEY] || {};
+  data[HISTORY_ID_KEY][email] = historyId;
   writeStore(data);
 }
 
-// Initialise from disk on module load
-const _seenIds = loadSeenIds();
-
-// ─── Auth / credentials ───────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 
 let credentials = null;
-let pollTimer = null;
+let pollTimer    = null;
 let onNewMailCallback = null;
 
 function loadCredentials() {
@@ -60,13 +55,13 @@ function loadCredentials() {
 
 function getAuthClient(tokens) {
   const creds = loadCredentials();
-  const oauth2Client = new OAuth2(
+  const client = new OAuth2(
     creds.client_id,
     creds.client_secret,
     creds.redirect_uris?.[0] || 'http://localhost'
   );
-  if (tokens) oauth2Client.setCredentials(tokens);
-  return oauth2Client;
+  if (tokens) client.setCredentials(tokens);
+  return client;
 }
 
 function getGmail(auth) {
@@ -75,9 +70,7 @@ function getGmail(auth) {
 
 // ─── Account storage ──────────────────────────────────────────────────────────
 
-function getStoredAccounts() {
-  return readStore()[TOKEN_KEY] || [];
-}
+function getStoredAccounts() { return readStore()[TOKEN_KEY] || []; }
 
 function saveAccounts(accounts) {
   const data = readStore();
@@ -102,13 +95,13 @@ function startLocalServer() {
 async function startAuthFlow() {
   loadCredentials();
   const oauth2Client = getAuthClient();
-  const server = await startLocalServer();
-  const port = server.address().port;
-  const redirectUri = 'http://127.0.0.1:' + port;
+  const server       = await startLocalServer();
+  const port         = server.address().port;
+  const redirectUri  = 'http://127.0.0.1:' + port;
 
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    prompt: 'consent',
+    prompt:      'consent',
     scope: [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.modify',
@@ -130,7 +123,7 @@ async function startAuthFlow() {
         server.close();
         reject(new Error(query.error));
       } else {
-        res.end('Waiting for auth callback...');
+        res.end('Waiting...');
       }
     });
     setTimeout(() => reject(new Error('Auth timeout')), 120000);
@@ -139,147 +132,224 @@ async function startAuthFlow() {
   const { tokens } = await oauth2Client.getToken({ code, redirect_uri: redirectUri });
   oauth2Client.setCredentials(tokens);
 
-  const gmail = getGmail(oauth2Client);
+  const gmail   = getGmail(oauth2Client);
   const profile = await gmail.users.getProfile({ userId: 'me' });
-  const email = profile.data.emailAddress;
+  const email   = profile.data.emailAddress;
 
+  // Persist account
   const accounts = getStoredAccounts();
-  const existing = accounts.findIndex(a => a.email === email);
-  const entry = { email, tokens, addedAt: Date.now() };
-  if (existing >= 0) accounts[existing] = entry;
-  else accounts.push(entry);
+  const idx      = accounts.findIndex(a => a.email === email);
+  const entry    = { email, tokens, addedAt: Date.now() };
+  if (idx >= 0) accounts[idx] = entry; else accounts.push(entry);
   saveAccounts(accounts);
 
-  // Seed seen IDs with current inbox so we don't notify on first connect
-  await _seedSeenIds(oauth2Client);
+  // Seed the historyId so first poll doesn't flood notifications
+  await _seedHistoryId(email, gmail);
 
   return { email, tokens };
 }
 
 /**
- * Seed _seenIds with existing messages so the first poll after adding an
- * account doesn't treat every inbox message as "new".
+ * Get the current historyId from Gmail's profile and store it.
+ * This means "I acknowledge everything up to now — only tell me about NEW stuff."
  */
-async function _seedSeenIds(oauth2Client) {
+async function _seedHistoryId(email, gmail) {
   try {
-    const gmail = getGmail(oauth2Client);
-    const res = await gmail.users.messages.list({
-      userId: 'me',
-      maxResults: 100,
-      labelIds: ['INBOX'],
-    });
-    for (const m of res.data.messages || []) _seenIds.add(m.id);
-    saveSeenIds(_seenIds);
+    const profile = await gmail.users.getProfile({ userId: 'me' });
+    const historyId = profile.data.historyId;
+    if (historyId) {
+      saveHistoryId(email, historyId);
+      console.log(`[Gmail] Seeded historyId for ${email}: ${historyId}`);
+    }
   } catch (e) {
-    console.warn('[Gmail] Could not seed seenIds:', e.message);
+    console.warn('[Gmail] Could not seed historyId:', e.message);
   }
 }
 
 // ─── Token refresh ────────────────────────────────────────────────────────────
 
 async function refreshToken(account) {
-  const oauth2Client = getAuthClient(account.tokens);
-  const { credentials: newTokens } = await oauth2Client.refreshAccessToken();
+  const client = getAuthClient(account.tokens);
+  const { credentials: newTokens } = await client.refreshAccessToken();
   account.tokens = newTokens;
   const accounts = getStoredAccounts();
-  const idx = accounts.findIndex(a => a.email === account.email);
+  const idx      = accounts.findIndex(a => a.email === account.email);
   if (idx >= 0) { accounts[idx].tokens = newTokens; saveAccounts(accounts); }
   return account;
 }
 
 async function ensureValidTokens(account) {
-  const expiry = account.tokens.expiry_date || 0;
-  if (Date.now() >= expiry - 60000) return refreshToken(account);
+  if (Date.now() >= (account.tokens.expiry_date || 0) - 60000)
+    return refreshToken(account);
   return account;
 }
 
-// ─── Message fetching ─────────────────────────────────────────────────────────
+// ─── Core: History-based new-mail detection ───────────────────────────────────
+//
+// Instead of re-fetching the same N messages and guessing which are "new",
+// we use Gmail's history.list API which returns only changes since a given
+// historyId. This is accurate, quota-friendly, and truly detects new arrivals.
 
-/**
- * FIX: fetch only INBOX messages and detect genuinely new ones by comparing
- * against the persisted _seenIds set.
- */
-async function fetchRecentMessages(account, maxResults = 50) {
+async function fetchNewMessagesSinceLastCheck(account) {
   await ensureValidTokens(account);
-  const auth = getAuthClient(account.tokens);
-  const gmail = getGmail(auth);
+  const auth   = getAuthClient(account.tokens);
+  const gmail  = getGmail(auth);
+  const email  = account.email;
 
-  // FIX: scope to INBOX only so we don't pick up sent/drafts/spam
-  const listRes = await gmail.users.messages.list({
-    userId: 'me',
-    maxResults,
-    labelIds: ['INBOX'],
-  });
+  // Get stored cursor
+  const historyIds  = getHistoryIds();
+  const lastHistId  = historyIds[email];
 
-  const messages = listRes.data.messages || [];
-  if (messages.length === 0) {
-    return { account: account.email, unread: 0, messages: [], newIds: [] };
+  // If no cursor yet, seed it now (first run after update)
+  if (!lastHistId) {
+    await _seedHistoryId(email, gmail);
+    return { account: email, newMessages: [], historySeeded: true };
   }
 
-  const newIds = [];
-  const details = await Promise.all(messages.slice(0, 50).map(async (msg) => {
-    const isNew = !_seenIds.has(msg.id);
-    if (isNew) newIds.push(msg.id);
-    _seenIds.add(msg.id);
+  let newMessages = [];
 
+  try {
+    // Ask Gmail for everything that changed since lastHistId
+    // historyTypes: messagesAdded = new messages delivered to inbox
+    const histRes = await gmail.users.history.list({
+      userId:          'me',
+      startHistoryId:  lastHistId,
+      historyTypes:    ['messageAdded'],
+      labelId:         'INBOX',            // only care about inbox arrivals
+    });
+
+    const historyItems = histRes.data.history || [];
+    const newHistoryId = histRes.data.historyId;
+
+    // Collect all added message IDs
+    const addedIds = [];
+    for (const item of historyItems) {
+      for (const added of (item.messagesAdded || [])) {
+        // Double-check it's in INBOX (filter is advisory, not always strict)
+        const labelIds = added.message.labelIds || [];
+        if (labelIds.includes('INBOX')) {
+          addedIds.push(added.message.id);
+        }
+      }
+    }
+
+    // Fetch metadata for each new message
+    if (addedIds.length > 0) {
+      newMessages = await Promise.all(addedIds.map(async (msgId) => {
+        try {
+          const detail  = await gmail.users.messages.get({
+            userId: 'me',
+            id:     msgId,
+            format: 'metadata',
+            metadataHeaders: ['From', 'Subject', 'Date'],
+          });
+          const headers  = detail.data.payload?.headers || [];
+          const from     = headers.find(h => h.name === 'From')?.value    || 'Unknown';
+          const subject  = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
+          const date     = headers.find(h => h.name === 'Date')?.value    || '';
+          const snippet  = detail.data.snippet || '';
+          return { id: msgId, from, subject, date, snippet, threadId: detail.data.threadId };
+        } catch (e) {
+          return { id: msgId, from: 'Error', subject: 'Failed to load', date: '', snippet: '' };
+        }
+      }));
+    }
+
+    // Advance cursor so next poll picks up from here
+    if (newHistoryId) saveHistoryId(email, newHistoryId);
+
+  } catch (err) {
+    // historyId too old (410 Gone) — re-seed and try next cycle
+    if (err.code === 410 || (err.message && err.message.includes('Invalid historyId'))) {
+      console.warn(`[Gmail] historyId expired for ${email}, re-seeding`);
+      await _seedHistoryId(email, gmail);
+    } else {
+      throw err;
+    }
+  }
+
+  return { account: email, newMessages };
+}
+
+// ─── fetchRecentMessages: used for polling result + unread count ──────────────
+//
+// Still used to compute the unread badge count and populate the inbox UI.
+// Now also returns newMessages detected via history API.
+
+async function fetchRecentMessages(account, maxResults = 50) {
+  await ensureValidTokens(account);
+  const auth  = getAuthClient(account.tokens);
+  const gmail = getGmail(auth);
+
+  // Run history check and inbox fetch in parallel
+  const [historyResult, listRes] = await Promise.all([
+    fetchNewMessagesSinceLastCheck(account).catch(e => {
+      console.error('[Gmail] History check failed:', e.message);
+      return { account: account.email, newMessages: [] };
+    }),
+    gmail.users.messages.list({
+      userId:    'me',
+      maxResults,
+      labelIds:  ['INBOX'],
+      q:         'in:inbox',
+    }),
+  ]);
+
+  const messages = listRes.data.messages || [];
+
+  const details = await Promise.all(messages.slice(0, 50).map(async (msg) => {
     try {
-      const detail = await gmail.users.messages.get({
-        userId: 'me',
-        id: msg.id,
+      const detail   = await gmail.users.messages.get({
+        userId: 'me', id: msg.id,
         format: 'metadata',
         metadataHeaders: ['From', 'Subject', 'Date'],
       });
-      const headers = detail.data.payload?.headers || [];
-      const from    = headers.find(h => h.name === 'From')?.value    || 'Unknown';
-      const subject = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
-      const date    = headers.find(h => h.name === 'Date')?.value    || '';
-      const snippet = detail.data.snippet || '';
+      const headers  = detail.data.payload?.headers || [];
+      const from     = headers.find(h => h.name === 'From')?.value    || 'Unknown';
+      const subject  = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
+      const date     = headers.find(h => h.name === 'Date')?.value    || '';
+      const snippet  = detail.data.snippet || '';
       const labelIds = detail.data.labelIds || [];
-      return {
-        id: msg.id,
-        from, subject, date, snippet,
-        threadId: detail.data.threadId,
-        unread: labelIds.includes('UNREAD'),
-      };
+      return { id: msg.id, from, subject, date, snippet, threadId: detail.data.threadId, unread: labelIds.includes('UNREAD') };
     } catch (e) {
       return { id: msg.id, from: 'Error', subject: 'Failed to load', date: '', snippet: '', unread: false };
     }
   }));
 
-  // Persist updated seen set
-  saveSeenIds(_seenIds);
+  const unreadCount  = details.filter(d => d.unread).length;
+  const newMessages  = historyResult.newMessages || [];
 
-  const unreadCount = details.filter(d => d.unread).length;
-  return { account: account.email, unread: unreadCount, messages: details, newIds };
+  return {
+    account:     account.email,
+    unread:      unreadCount,
+    messages:    details,
+    newMessages,                          // ← used by IPC to fire notifications
+    newIds:      newMessages.map(m => m.id),
+  };
 }
 
-/**
- * FIX: also scope inbox view to INBOX label so counts/messages are consistent.
- */
 async function fetchInboxMessages(accountEmail, maxResults = 50) {
   const accounts = getStoredAccounts();
   const acct = accounts.find(a => a.email === accountEmail);
   if (!acct) throw new Error('Account not found');
   await ensureValidTokens(acct);
-  const auth = getAuthClient(acct.tokens);
+  const auth  = getAuthClient(acct.tokens);
   const gmail = getGmail(auth);
 
   const listRes = await gmail.users.messages.list({
-    userId: 'me',
-    maxResults,
-    labelIds: ['INBOX'],    // FIX: was missing
+    userId: 'me', maxResults,
+    labelIds: ['INBOX'],
+    q:        'in:inbox',
   });
 
   const messages = listRes.data.messages || [];
-  if (messages.length === 0)
-    return { account: accountEmail, unread: 0, messages: [] };
+  if (messages.length === 0) return { account: accountEmail, unread: 0, messages: [] };
 
   let unreadCount = 0;
   const details = await Promise.all(messages.slice(0, 50).map(async (msg) => {
     try {
-      const detail = await gmail.users.messages.get({
-        userId: 'me',
-        id: msg.id,
+      const detail  = await gmail.users.messages.get({
+        userId: 'me', id: msg.id,
         format: 'metadata',
         metadataHeaders: ['From', 'Subject', 'Date'],
       });
@@ -301,13 +371,12 @@ async function fetchInboxMessages(accountEmail, maxResults = 50) {
 
 async function fetchAllUnread() {
   const accounts = getStoredAccounts();
-  const results = [];
+  const results  = [];
   for (const acct of accounts) {
     try {
-      const res = await fetchRecentMessages(acct);
-      results.push(res);
+      results.push(await fetchRecentMessages(acct));
     } catch (e) {
-      results.push({ account: acct.email, unread: -1, messages: [], error: e.message, newIds: [] });
+      results.push({ account: acct.email, unread: -1, messages: [], newMessages: [], newIds: [], error: e.message });
     }
   }
   return results;
@@ -315,14 +384,8 @@ async function fetchAllUnread() {
 
 // ─── Polling ──────────────────────────────────────────────────────────────────
 
-/**
- * FIX: default interval reduced to 30 s (was 60 s in service, overridden to
- * 20 s in IPC — keep 30 s as a sensible default; the IPC layer can override).
- * Gmail push notifications via Pub/Sub would be the proper solution, but
- * polling at 30 s is a reasonable improvement over 60 s.
- */
-function startPolling(intervalMs = 30000) {
-  if (pollTimer) return;   // already running
+function startPolling(intervalMs = 15000) {   // 15 s — history API is cheap
+  if (pollTimer) return;
   pollTimer = setInterval(async () => {
     try {
       const results = await fetchAllUnread();
@@ -337,37 +400,29 @@ function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
-function setOnNewMail(cb) {
-  onNewMailCallback = cb;
-}
+function setOnNewMail(cb) { onNewMailCallback = cb; }
 
 // ─── Account management ───────────────────────────────────────────────────────
 
 function removeAccount(email) {
-  const accounts = getStoredAccounts().filter(a => a.email !== email);
-  saveAccounts(accounts);
-  if (accounts.length === 0) stopPolling();
+  saveAccounts(getStoredAccounts().filter(a => a.email !== email));
+  stopPolling();
 }
 
 async function markAsRead(accountEmail, messageId) {
-  const accounts = getStoredAccounts();
-  const acct = accounts.find(a => a.email === accountEmail);
+  const acct = findAccount(accountEmail);
   if (!acct) throw new Error('Account not found');
   await ensureValidTokens(acct);
-  const auth = getAuthClient(acct.tokens);
-  const gmail = getGmail(auth);
+  const gmail = getGmail(getAuthClient(acct.tokens));
   await gmail.users.messages.modify({
-    userId: 'me',
-    id: messageId,
+    userId: 'me', id: messageId,
     requestBody: { removeLabelIds: ['UNREAD'] },
   });
 }
 
 // ─── Ignored senders ──────────────────────────────────────────────────────────
 
-function getIgnoredSenders() {
-  return readStore()[IGNORED_KEY] || [];
-}
+function getIgnoredSenders() { return readStore()[IGNORED_KEY] || []; }
 
 function addIgnoredSender(sender) {
   const data = readStore();
@@ -384,19 +439,10 @@ function removeIgnoredSender(sender) {
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
-  getStoredAccounts,
-  findAccount,
-  startAuthFlow,
-  removeAccount,
-  fetchAllUnread,
-  fetchRecentMessages,
-  fetchInboxMessages,
-  startPolling,
-  stopPolling,
-  setOnNewMail,
-  markAsRead,
-  refreshToken,
-  getIgnoredSenders,
-  addIgnoredSender,
-  removeIgnoredSender,
+  getStoredAccounts, findAccount,
+  startAuthFlow, removeAccount,
+  fetchAllUnread, fetchRecentMessages, fetchInboxMessages,
+  startPolling, stopPolling, setOnNewMail,
+  markAsRead, refreshToken,
+  getIgnoredSenders, addIgnoredSender, removeIgnoredSender,
 };
