@@ -626,6 +626,4 @@
 .cp-br-label {
   display: none;
 }
-.cp-br-label:has(.cp-br[style*="inline-block"]) {
-  display: flex;
-}
+

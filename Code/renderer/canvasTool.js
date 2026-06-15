@@ -281,7 +281,7 @@ function attachListeners() {
     propsPanel.addEventListener('change', (e) => {
       const target = e.target;
       if (target.classList.contains('cp-prop') || target.classList.contains('cp-color')) {
-        if (!_propUndoPushed) { state.pushUndo(); boards.markDirty(); _propUndoPushed = true; }
+        if (!_propUndoPushed) { state.pushUndo(); _propUndoPushed = true; }
         handlePropertyChange(target.dataset.field, target.value);
       }
     });
@@ -745,7 +745,8 @@ function updatePropertiesPanel() {
     if (swInput) swInput.value = el.strokeWidth || 2;
     if (brInput) {
       brInput.value = el.borderRadius !== undefined ? el.borderRadius : 0;
-      brInput.style.display = el.type === 'rect' ? 'inline-block' : 'none';
+      const brLabel = brInput.closest('.cp-br-label');
+      if (brLabel) brLabel.style.display = el.type === 'rect' ? 'flex' : 'none';
     }
     if (fontSizeRow) fontSizeRow.style.display = el.type === 'text' ? 'flex' : 'none';
     if (fontSizeInput) fontSizeInput.value = el.fontSize || 20;
@@ -778,7 +779,6 @@ function handlePropertyChange(field, value) {
   if (st.selectedIds.length !== 1) return;
   const el = st.elements.find(e => e.id === st.selectedIds[0]);
   if (!el) return;
-  state.pushUndo();
   const num = parseFloat(value);
   switch (field) {
     case 'x': if (!isNaN(num)) el.x = num; break;
