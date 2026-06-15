@@ -1,4 +1,16 @@
 const FULL_THEMES = {
+  'github-hc-dark': {
+    label: 'GitHub Dark HC', emoji: '\u{1F7E6}', dark: true,
+    bg: { base:'#000000', surface:'#050505', elevated:'#0a0a0a', overlay:'#101010',
+          hover:'rgba(255,255,255,0.10)', active:'rgba(255,255,255,0.14)',
+          raised:'#181818', statusbar:'#000000', tree:'#000000' },
+    border: { subtle:'rgba(255,255,255,0.18)', default:'rgba(255,255,255,0.28)',
+              strong:'rgba(255,255,255,0.44)', mid:'rgba(255,255,255,0.22)' },
+    text: { primary:'#ffffff', secondary:'#e0e4e8', muted:'#a0a8b0', faint:'#707880' },
+    accent: '#2f81f7',
+    green:'#3fb950', red:'#ff6b69', blue:'#2f81f7', purple:'#bc8cff', yellow:'#d29922',
+    depths: ['#2f81f7','#bc8cff','#3fb950','#d29922','#ff6b69'],
+  },
   'navy-dark': {
     label: 'Navy Dark', emoji: '\u{1F30A}', dark: true,
     bg: { base:'#070d1a', surface:'#0c1427', elevated:'#111d34', overlay:'#162038',
