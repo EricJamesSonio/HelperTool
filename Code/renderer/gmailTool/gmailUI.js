@@ -1,4 +1,4 @@
-import { renderEmpty, renderAccountList, renderInboxView, renderLoading, renderError } from './gmailRenderer.js';
+import { renderEmpty, renderAccountList, renderInboxView, renderLoading, renderError, renderIgnoredManager } from './gmailRenderer.js';
 
 export default class GmailUI {
   constructor(state) {
@@ -14,6 +14,10 @@ export default class GmailUI {
     this._onBack = null;
     this._onFilterChange = null;
     this._onToggleExpand = null;
+    this._onIgnoreSender = null;
+    this._onOpenIgnoredManager = null;
+    this._onCloseIgnoredManager = null;
+    this._onUnignoreSender = null;
   }
 
   setCallbacks(cbs) {
@@ -26,6 +30,10 @@ export default class GmailUI {
     this._onBack = cbs.onBack || null;
     this._onFilterChange = cbs.onFilterChange || null;
     this._onToggleExpand = cbs.onToggleExpand || null;
+    this._onIgnoreSender = cbs.onIgnoreSender || null;
+    this._onOpenIgnoredManager = cbs.onOpenIgnoredManager || null;
+    this._onCloseIgnoredManager = cbs.onCloseIgnoredManager || null;
+    this._onUnignoreSender = cbs.onUnignoreSender || null;
   }
 
   render(container) {
@@ -50,35 +58,41 @@ export default class GmailUI {
 
     if (!st.accounts || st.accounts.length === 0) return renderEmpty();
 
+    if (st.showIgnoredManager) {
+      return renderIgnoredManager(st.ignoredSenders);
+    }
+
     if (st.view === 'inbox' && st.viewEmail) {
       const result = st.getResult(st.viewEmail);
       const messages = result && result.messages ? result.messages : [];
-      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0);
+      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0, st.ignoredSenders);
     }
 
+    const filteredResults = st.getFilteredResults();
     return `
       <div class="gm-toolbar">
         <button class="gm-tb-btn" id="gmAddAccount">${ICONS.plus} Add Account</button>
         <button class="gm-tb-btn" id="gmRefresh">${ICONS.refresh} Refresh</button>
+        <button class="gm-tb-btn" id="gmIgnoredBtn" title="Manage ignored senders">${ICONS.eyeOff} Ignored</button>
         <span class="gm-tb-status">${st.polling ? '● Live' : ''} ${st.totalUnread > 0 ? '· ' + st.totalUnread + ' unread' : ''}</span>
       </div>
       <div class="gm-accounts-list">
-        ${renderAccountList(st.accounts, st.results)}
+        ${renderAccountList(st.accounts, filteredResults)}
       </div>`;
   }
 
   _bindEvents() {
     if (!this._container) return;
 
-    // Account list — add account
     const addBtn = this._container.querySelector('#gmAddAccount');
     if (addBtn && this._onAddAccount) addBtn.addEventListener('click', () => this._onAddAccount());
 
-    // Account list — refresh
     const refBtn = this._container.querySelector('#gmRefresh');
     if (refBtn && this._onRefresh) refBtn.addEventListener('click', () => this._onRefresh());
 
-    // Account list — remove account
+    const ignoredBtn = this._container.querySelector('#gmIgnoredBtn');
+    if (ignoredBtn && this._onOpenIgnoredManager) ignoredBtn.addEventListener('click', () => this._onOpenIgnoredManager());
+
     this._container.querySelectorAll('.gm-account-remove').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -86,7 +100,6 @@ export default class GmailUI {
       });
     });
 
-    // Account list — click account to open inbox
     this._container.querySelectorAll('.gm-account').forEach(card => {
       card.addEventListener('click', (e) => {
         if (e.target.closest('.gm-account-remove')) return;
@@ -94,18 +107,15 @@ export default class GmailUI {
       });
     });
 
-    // Inbox view — back
     const backBtn = this._container.querySelector('#gmInboxBack');
     if (backBtn && this._onBack) backBtn.addEventListener('click', () => this._onBack());
 
-    // Inbox view — filter buttons
     this._container.querySelectorAll('.gm-filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         if (this._onFilterChange) this._onFilterChange(btn.dataset.filter);
       });
     });
 
-    // Inbox view — expand/collapse message
     this._container.querySelectorAll('.gm-message').forEach(msg => {
       msg.addEventListener('click', (e) => {
         if (e.target.closest('.gm-msg-actions')) return;
@@ -113,7 +123,6 @@ export default class GmailUI {
       });
     });
 
-    // Inbox view — open message
     this._container.querySelectorAll('.gm-msg-open').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -121,11 +130,26 @@ export default class GmailUI {
       });
     });
 
-    // Inbox view — mark read
     this._container.querySelectorAll('.gm-msg-read').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this._onMarkRead) this._onMarkRead(btn.dataset.email, btn.dataset.msgId);
+      });
+    });
+
+    this._container.querySelectorAll('.gm-msg-ignore').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this._onIgnoreSender) this._onIgnoreSender(btn.dataset.sender);
+      });
+    });
+
+    const ignoredClose = this._container.querySelector('#gmIgnoredClose');
+    if (ignoredClose && this._onCloseIgnoredManager) ignoredClose.addEventListener('click', () => this._onCloseIgnoredManager());
+
+    this._container.querySelectorAll('.gm-ignored-unignore').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this._onUnignoreSender) this._onUnignoreSender(btn.dataset.sender);
       });
     });
   }
@@ -134,4 +158,5 @@ export default class GmailUI {
 const ICONS = {
   plus: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
   refresh: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 10a7 7 0 1 1-2-5"/><path d="M17 3v5h-5"/></svg>',
+  eyeOff: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/><path d="M3 3l14 14"/></svg>',
 };

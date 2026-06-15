@@ -9,6 +9,7 @@ export default class GmailTool {
   }
 
   async init() {
+    await this._loadIgnoredSenders();
     await this._loadAccounts();
   }
 
@@ -16,21 +17,25 @@ export default class GmailTool {
     this._container = container;
     this.ui = new GmailUI(this.state);
     this.ui.setCallbacks({
-      onAddAccount:    () => this._handleAddAccount(),
-      onRemoveAccount: (email) => this._handleRemoveAccount(email),
-      onRefresh:       () => this._handleRefresh(),
-      onOpenMessage:   (email, msgId) => this._handleOpenMessage(email, msgId),
-      onMarkRead:      (email, msgId) => this._handleMarkRead(email, msgId),
-      onOpenInbox:     (email) => this._handleOpenInbox(email),
-      onBack:          () => this._handleBack(),
-      onFilterChange:  (filter) => this._handleFilterChange(filter),
-      onToggleExpand:  (msgId) => this._handleToggleExpand(msgId),
+      onAddAccount:        () => this._handleAddAccount(),
+      onRemoveAccount:     (email) => this._handleRemoveAccount(email),
+      onRefresh:           () => this._handleRefresh(),
+      onOpenMessage:       (email, msgId) => this._handleOpenMessage(email, msgId),
+      onMarkRead:          (email, msgId) => this._handleMarkRead(email, msgId),
+      onOpenInbox:         (email) => this._handleOpenInbox(email),
+      onBack:              () => this._handleBack(),
+      onFilterChange:      (filter) => this._handleFilterChange(filter),
+      onToggleExpand:      (msgId) => this._handleToggleExpand(msgId),
+      onIgnoreSender:      (sender) => this._handleIgnoreSender(sender),
+      onOpenIgnoredManager: () => this._handleOpenIgnoredManager(),
+      onCloseIgnoredManager: () => this._handleCloseIgnoredManager(),
+      onUnignoreSender:    (sender) => this._handleUnignoreSender(sender),
     });
     this.ui.render(container);
 
     window.electronAPI.gmail.onPollResult((data) => {
       this.state.results = data.results;
-      this.state.totalUnread = data.totalUnread;
+      this.state.totalUnread = data.results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
       this._updateBadge();
       if (this.ui) this.ui.update();
     });
@@ -48,6 +53,13 @@ export default class GmailTool {
     this.ui = null;
     this.state.reset();
     this._container = null;
+  }
+
+  async _loadIgnoredSenders() {
+    const res = await window.electronAPI.gmail.getIgnoredSenders();
+    if (res.success) {
+      this.state.ignoredSenders = res.senders;
+    }
   }
 
   async _loadAccounts() {
@@ -153,6 +165,31 @@ export default class GmailTool {
     } else {
       this.state.expandedMsgIds.add(msgId);
     }
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleIgnoreSender(sender) {
+    if (this.state.ignoredSenders.includes(sender)) return;
+    await window.electronAPI.gmail.addIgnoredSender({ sender });
+    this.state.ignoredSenders.push(sender);
+    this._updateBadge();
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleOpenIgnoredManager() {
+    this.state.showIgnoredManager = true;
+    if (this.ui) this.ui.update();
+  }
+
+  _handleCloseIgnoredManager() {
+    this.state.showIgnoredManager = false;
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleUnignoreSender(sender) {
+    await window.electronAPI.gmail.removeIgnoredSender({ sender });
+    this.state.ignoredSenders = this.state.ignoredSenders.filter(s => s !== sender);
+    this._updateBadge();
     if (this.ui) this.ui.update();
   }
 

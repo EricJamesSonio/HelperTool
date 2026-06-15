@@ -12,6 +12,9 @@ export default class GmailState {
     this.filter = 'all';
     this.expandedMsgIds = new Set();
     this.inboxMessages = [];
+
+    this.ignoredSenders = [];
+    this.showIgnoredManager = false;
   }
 
   reset() {
@@ -26,6 +29,8 @@ export default class GmailState {
     this.filter = 'all';
     this.expandedMsgIds = new Set();
     this.inboxMessages = [];
+    this.ignoredSenders = [];
+    this.showIgnoredManager = false;
   }
 
   getAccount(email) {
@@ -39,6 +44,7 @@ export default class GmailState {
   getFilteredMessages() {
     const now = Date.now();
     return this.inboxMessages.filter(msg => {
+      if (this._isIgnored(msg.from)) return false;
       const msgTime = msg.date ? new Date(msg.date).getTime() : 0;
       switch (this.filter) {
         case 'hour': return !isNaN(msgTime) && (now - msgTime) < 3600000;
@@ -47,5 +53,19 @@ export default class GmailState {
         default: return true;
       }
     });
+  }
+
+  getFilteredResults() {
+    return this.results.map(r => ({
+      ...r,
+      messages: (r.messages || []).filter(m => !this._isIgnored(m.from)),
+      unread: (r.messages || []).filter(m => !this._isIgnored(m.from)).length,
+    }));
+  }
+
+  _isIgnored(fromStr) {
+    if (!fromStr || this.ignoredSenders.length === 0) return false;
+    const lower = fromStr.toLowerCase();
+    return this.ignoredSenders.some(s => lower.includes(s.toLowerCase()));
   }
 }

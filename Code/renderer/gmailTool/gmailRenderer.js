@@ -7,6 +7,8 @@ const ICONS = {
   check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10l4 4 8-8"/></svg>',
   back: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4l-6 6 6 6"/></svg>',
   chevronDown: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 8l4 4 4-4"/></svg>',
+  eyeOff: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/><path d="M3 3l14 14"/></svg>',
+  settings: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.93 3.93l1.41 1.41M14.66 14.66l1.41 1.41M3.93 16.07l1.41-1.41M14.66 5.34l1.41-1.41"/></svg>',
 };
 
 function escapeHtml(text) {
@@ -51,6 +53,28 @@ export function renderEmpty() {
     </div>`;
 }
 
+export function renderIgnoredManager(senders) {
+  return `
+    <div class="gm-ignored-overlay">
+      <div class="gm-ignored-panel">
+        <div class="gm-ignored-header">
+          <span class="gm-ignored-title">Ignored Senders</span>
+          <button class="gm-ignored-close" id="gmIgnoredClose">${ICONS.back}</button>
+        </div>
+        <div class="gm-ignored-desc">Messages from these senders will be hidden from the inbox.</div>
+        <div class="gm-ignored-list">
+          ${senders.length === 0 ? '<div class="gm-no-msgs">No ignored senders.</div>' : ''}
+          ${senders.map(s => `
+            <div class="gm-ignored-item">
+              <span class="gm-ignored-name">${escapeHtml(s)}</span>
+              <button class="gm-ignored-unignore" data-sender="${escapeHtml(s)}">${ICONS.trash} Remove</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
 export function renderAccountList(accounts, results) {
   return accounts.map(acct => {
     const result = results.find(r => r.account === acct.email);
@@ -74,8 +98,8 @@ export function renderAccountList(accounts, results) {
   }).join('');
 }
 
-export function renderInboxView(email, messages, filter, expandedIds, unreadCount) {
-  const filtered = filterMessages(messages, filter);
+export function renderInboxView(email, messages, filter, expandedIds, unreadCount, ignoredSenders) {
+  const filtered = filterMessages(messages, filter, ignoredSenders);
   return `
     <div class="gm-inbox-header">
       <button class="gm-inbox-back" id="gmInboxBack">${ICONS.back} Back</button>
@@ -96,13 +120,14 @@ export function renderInboxView(email, messages, filter, expandedIds, unreadCoun
     </div>
     <div class="gm-inbox-list">
       ${filtered.length === 0 ? '<div class="gm-no-msgs">No messages match this filter</div>' : ''}
-      ${filtered.map(msg => renderMessage(msg, email, expandedIds.has(msg.id))).join('')}
+      ${filtered.map(msg => renderMessage(msg, email, expandedIds.has(msg.id), ignoredSenders)).join('')}
     </div>`;
 }
 
-function filterMessages(messages, filter) {
+function filterMessages(messages, filter, ignoredSenders) {
   const now = Date.now();
   return messages.filter(msg => {
+    if (isIgnored(msg.from, ignoredSenders)) return false;
     const msgTime = msg.date ? new Date(msg.date).getTime() : 0;
     switch (filter) {
       case 'hour': return !isNaN(msgTime) && (now - msgTime) < 3600000;
@@ -113,10 +138,17 @@ function filterMessages(messages, filter) {
   });
 }
 
-function renderMessage(msg, accountEmail, expanded) {
+function isIgnored(fromStr, ignoredSenders) {
+  if (!fromStr || !ignoredSenders || ignoredSenders.length === 0) return false;
+  const lower = fromStr.toLowerCase();
+  return ignoredSenders.some(s => lower.includes(s.toLowerCase()));
+}
+
+function renderMessage(msg, accountEmail, expanded, ignoredSenders) {
   const name = extractName(msg.from);
+  const ignored = isIgnored(msg.from, ignoredSenders);
   return `
-    <div class="gm-message ${expanded ? 'gm-message--expanded' : ''}" data-msg-id="${escapeHtml(msg.id)}">
+    <div class="gm-message ${expanded ? 'gm-message--expanded' : ''} ${ignored ? 'gm-message--ignored' : ''}" data-msg-id="${escapeHtml(msg.id)}">
       <div class="gm-msg-header">
         <div class="gm-msg-from">${escapeHtml(name)}</div>
         <div class="gm-msg-header-right">
@@ -129,6 +161,7 @@ function renderMessage(msg, accountEmail, expanded) {
       ${expanded ? `<div class="gm-msg-full-date">${formatFullDate(msg.date)}</div>` : ''}
       <div class="gm-msg-meta">
         <div class="gm-msg-actions">
+          <button class="gm-msg-ignore" data-msg-id="${escapeHtml(msg.id)}" data-sender="${escapeHtml(extractName(msg.from))}" title="Ignore this sender">${ICONS.eyeOff}</button>
           <button class="gm-msg-open" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" title="Open in browser">${ICONS.external}</button>
           <button class="gm-msg-read" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" title="Mark as read">${ICONS.check}</button>
         </div>

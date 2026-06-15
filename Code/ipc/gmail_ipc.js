@@ -97,6 +97,20 @@ function register({ getMainWindow }) {
     gmailService.stopPolling();
     return { success: true };
   });
+
+  ipcMain.handle('gmail:getIgnoredSenders', async () => {
+    return { success: true, senders: gmailService.getIgnoredSenders() };
+  });
+
+  ipcMain.handle('gmail:addIgnoredSender', async (event, { sender }) => {
+    gmailService.addIgnoredSender(sender);
+    return { success: true };
+  });
+
+  ipcMain.handle('gmail:removeIgnoredSender', async (event, { sender }) => {
+    gmailService.removeIgnoredSender(sender);
+    return { success: true };
+  });
 }
 
 module.exports = { register };

@@ -8,6 +8,7 @@ const fs = require('fs');
 
 const STORE_PATH = path.join(__dirname, '..', 'gmail-store.json');
 const TOKEN_KEY = 'gmail.accounts';
+const IGNORED_KEY = 'gmail.ignoredSenders';
 const CREDENTIALS_PATH = path.join(__dirname, '..', 'credentials.json');
 
 function readStore() {
@@ -270,6 +271,26 @@ async function markAsRead(accountEmail, messageId) {
   });
 }
 
+function getIgnoredSenders() {
+  return readStore()[IGNORED_KEY] || [];
+}
+
+function addIgnoredSender(sender) {
+  const data = readStore();
+  const list = data[IGNORED_KEY] || [];
+  if (!list.includes(sender)) {
+    list.push(sender);
+    data[IGNORED_KEY] = list;
+    writeStore(data);
+  }
+}
+
+function removeIgnoredSender(sender) {
+  const data = readStore();
+  data[IGNORED_KEY] = (data[IGNORED_KEY] || []).filter(s => s !== sender);
+  writeStore(data);
+}
+
 module.exports = {
   getStoredAccounts,
   findAccount,
@@ -283,4 +304,7 @@ module.exports = {
   setOnNewMail,
   markAsRead,
   refreshToken,
+  getIgnoredSenders,
+  addIgnoredSender,
+  removeIgnoredSender,
 };
