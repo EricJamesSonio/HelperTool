@@ -407,7 +407,7 @@ const gmailBridge = {
             ipcRenderer.removeAllListeners('gmail:accountsChanged');
             ipcRenderer.on('gmail:accountsChanged', (_event, data) => callback(data));
         },
-        getIgnoredSenders:      ()                => ipcRenderer.invoke('gmail:getIgnoredSenders'),
+        getIgnoredSenders:      (payload)         => ipcRenderer.invoke('gmail:getIgnoredSenders', payload),
         addIgnoredSender:       (payload)         => ipcRenderer.invoke('gmail:addIgnoredSender', payload),
         removeIgnoredSender:    (payload)         => ipcRenderer.invoke('gmail:removeIgnoredSender', payload),
     },

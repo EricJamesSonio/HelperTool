@@ -59,6 +59,9 @@
 .gm-inbox-back { display: flex; align-items: center; gap: 6px; background: none; border: 1px solid var(--border-default); border-radius: var(--r-sm); color: var(--text-primary); cursor: pointer; padding: 7px 14px; font-size: 14px; font-family: var(--font-ui); transition: border-color 0.15s, color 0.15s; }
 .gm-inbox-back:hover { border-color: var(--accent); color: var(--accent); }
 .gm-inbox-back svg { width: 18px; height: 18px; }
+.gm-inbox-ignored-btn { display: flex; align-items: center; gap: 6px; background: none; border: 1px solid var(--border-default); border-radius: var(--r-sm); color: var(--text-muted); cursor: pointer; padding: 7px 10px; font-size: 13px; font-family: var(--font-ui); margin-left: auto; transition: border-color 0.15s, color 0.15s; }
+.gm-inbox-ignored-btn:hover { border-color: var(--accent); color: var(--accent); }
+.gm-inbox-ignored-btn svg { width: 16px; height: 16px; }
 
 .gm-inbox-account { display: flex; align-items: center; gap: 12px; }
 .gm-inbox-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0; }
@@ -128,6 +131,9 @@
 .gm-ignored-close { display: flex; align-items: center; gap: 6px; background: none; border: 1px solid var(--border-default); border-radius: var(--r-sm); color: var(--text-primary); cursor: pointer; padding: 7px 14px; font-size: 14px; font-family: var(--font-ui); transition: border-color 0.15s; }
 .gm-ignored-close:hover { border-color: var(--accent); color: var(--accent); }
 .gm-ignored-close svg { width: 18px; height: 18px; }
+.gm-ignored-back { background: none; border: 1px solid var(--border-default); border-radius: var(--r-sm); color: var(--text-primary); cursor: pointer; padding: 7px 14px; font-size: 14px; font-family: var(--font-ui); transition: border-color 0.15s; }
+.gm-ignored-back:hover { border-color: var(--accent); color: var(--accent); }
+.gm-ignored-email { font-size: 13px; color: var(--text-muted); }
 .gm-ignored-desc { font-size: 13px; color: var(--text-secondary); padding: 12px 28px; border-bottom: 1px solid var(--border-subtle); }
 .gm-ignored-list { flex: 1; overflow-y: auto; padding: 12px 28px; display: flex; flex-direction: column; gap: 6px; }
 .gm-ignored-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border: 1px solid var(--border-default); border-radius: var(--r-md); background: var(--bg-surface); }

@@ -467,20 +467,65 @@ async function markAsRead(accountEmail, messageId) {
   });
 }
 
-// ─── Ignored senders ──────────────────────────────────────────────────────────
+// ─── Ignored senders (per-account) ─────────────────────────────────────────────
 
-function getIgnoredSenders() { return readStore()[IGNORED_KEY] || []; }
+// Storage format: { "[email]": ["sender1", "sender2", ...] }
+// Migrates from old flat-array format automatically.
 
-function addIgnoredSender(sender) {
-  const data = readStore();
-  const list = data[IGNORED_KEY] || [];
-  if (!list.includes(sender)) { list.push(sender); data[IGNORED_KEY] = list; writeStore(data); }
+function _migrateIgnoredIfNeeded(data) {
+  const raw = data[IGNORED_KEY];
+  if (!raw || Array.isArray(raw)) {
+    if (Array.isArray(raw)) {
+      const accounts = getStoredAccounts();
+      const migrated = {};
+      for (const acct of accounts) {
+        migrated[acct.email] = [...raw];
+      }
+      data[IGNORED_KEY] = migrated;
+      writeStore(data);
+      console.log('[Gmail] Migrated ignored senders from flat array to per-account format');
+    } else {
+      data[IGNORED_KEY] = {};
+      writeStore(data);
+    }
+    return true;
+  }
+  return false;
 }
 
-function removeIgnoredSender(sender) {
+function getIgnoredSenders(email) {
   const data = readStore();
-  data[IGNORED_KEY] = (data[IGNORED_KEY] || []).filter(s => s !== sender);
+  _migrateIgnoredIfNeeded(data);
+  const all = data[IGNORED_KEY] || {};
+  return all[email] || [];
+}
+
+function addIgnoredSender(email, sender) {
+  const data = readStore();
+  _migrateIgnoredIfNeeded(data);
+  const all = data[IGNORED_KEY] || {};
+  const list = all[email] || [];
+  if (!list.includes(sender)) {
+    list.push(sender);
+    all[email] = list;
+    data[IGNORED_KEY] = all;
+    writeStore(data);
+  }
+}
+
+function removeIgnoredSender(email, sender) {
+  const data = readStore();
+  _migrateIgnoredIfNeeded(data);
+  const all = data[IGNORED_KEY] || {};
+  all[email] = (all[email] || []).filter(s => s !== sender);
+  data[IGNORED_KEY] = all;
   writeStore(data);
+}
+
+function getAllIgnoredSendersMap() {
+  const data = readStore();
+  _migrateIgnoredIfNeeded(data);
+  return data[IGNORED_KEY] || {};
 }
 
 // ─── Exports ──────────────────────────────────────────────────────────────────
@@ -491,5 +536,5 @@ module.exports = {
   fetchAllUnread, fetchRecentMessages, fetchInboxMessages,
   startPolling, stopPolling, setOnNewMail,
   markAsRead, refreshToken,
-  getIgnoredSenders, addIgnoredSender, removeIgnoredSender,
+  getIgnoredSenders, addIgnoredSender, removeIgnoredSender, getAllIgnoredSendersMap,
 };

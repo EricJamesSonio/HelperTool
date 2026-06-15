@@ -111,10 +111,11 @@ function register({ getMainWindow }) {
       win.webContents.send('gmail:pollResult', { results, totalUnread });
 
       // Fire desktop notifications only for genuinely new messages (via History API)
-      const ignored = gmailService.getIgnoredSenders();
-      console.log(`[Gmail IPC] Ignored senders list: ${JSON.stringify(ignored)}`);
+      const ignoredMap = gmailService.getAllIgnoredSendersMap();
+      console.log(`[Gmail IPC] Ignored senders map: ${JSON.stringify(ignoredMap)}`);
       for (const r of results) {
         const newMsgs = r.newMessages || [];
+        const ignored = ignoredMap[r.account] || [];
         if (newMsgs.length === 0) {
           console.log(`[Gmail IPC] ${r.account}: no new messages, skipping notifications`);
           continue;
@@ -176,18 +177,18 @@ function register({ getMainWindow }) {
 
   // ── Ignored senders ───────────────────────────────────────────────────────
 
-  ipcMain.handle('gmail:getIgnoredSenders', async () => ({
+  ipcMain.handle('gmail:getIgnoredSenders', async (event, { email }) => ({
     success: true,
-    senders: gmailService.getIgnoredSenders(),
+    senders: gmailService.getIgnoredSenders(email),
   }));
 
-  ipcMain.handle('gmail:addIgnoredSender', async (event, { sender }) => {
-    gmailService.addIgnoredSender(sender);
+  ipcMain.handle('gmail:addIgnoredSender', async (event, { email, sender }) => {
+    gmailService.addIgnoredSender(email, sender);
     return { success: true };
   });
 
-  ipcMain.handle('gmail:removeIgnoredSender', async (event, { sender }) => {
-    gmailService.removeIgnoredSender(sender);
+  ipcMain.handle('gmail:removeIgnoredSender', async (event, { email, sender }) => {
+    gmailService.removeIgnoredSender(email, sender);
     return { success: true };
   });
 }

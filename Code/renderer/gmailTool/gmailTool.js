@@ -9,11 +9,9 @@ export default class GmailTool {
   }
 
   async init() {
-    // Register listeners BEFORE any IPC call that fires them (race condition fix)
     this._registerListeners();
-
-    await this._loadIgnoredSenders();
     await this._loadAccounts();
+    await this._loadIgnoredSenders();
   }
 
   _registerListeners() {
@@ -56,10 +54,10 @@ export default class GmailTool {
       onBack:              () => this._handleBack(),
       onFilterChange:      (filter) => this._handleFilterChange(filter),
       onToggleExpand:      (msgId) => this._handleToggleExpand(msgId),
-      onIgnoreSender:      (sender) => this._handleIgnoreSender(sender),
-      onOpenIgnoredManager: () => this._handleOpenIgnoredManager(),
+      onIgnoreSender:      (email, sender) => this._handleIgnoreSender(email, sender),
+      onOpenIgnoredManager: (email) => this._handleOpenIgnoredManager(email),
       onCloseIgnoredManager: () => this._handleCloseIgnoredManager(),
-      onUnignoreSender:    (sender) => this._handleUnignoreSender(sender),
+      onUnignoreSender:    (email, sender) => this._handleUnignoreSender(email, sender),
       onSenderFilter:      (sender) => this._handleSenderFilter(sender),
     });
     this.ui.render(container);
@@ -75,10 +73,12 @@ export default class GmailTool {
   }
 
   async _loadIgnoredSenders() {
-    const res = await window.electronAPI.gmail.getIgnoredSenders();
-    if (res.success) {
-      this.state.ignoredSenders = res.senders;
-      console.log('[GmailTool] Loaded ignored senders:', this.state.ignoredSenders);
+    for (const acct of this.state.accounts) {
+      const res = await window.electronAPI.gmail.getIgnoredSenders({ email: acct.email });
+      if (res.success) {
+        this.state.ignoredByAccount[acct.email] = res.senders || [];
+        console.log(`[GmailTool] Ignored senders for ${acct.email}:`, res.senders);
+      }
     }
   }
 
@@ -110,6 +110,8 @@ export default class GmailTool {
     const res = await window.electronAPI.gmail.addAccount();
     if (res.success) {
       console.log('[GmailTool] Account added, calling checkNow then startPolling');
+      // Reload ignored senders for the new account
+      await this._loadIgnoredSenders();
       await window.electronAPI.gmail.checkNow();
       await window.electronAPI.gmail.startPolling();
       this.state.polling = true;
@@ -125,6 +127,7 @@ export default class GmailTool {
     await window.electronAPI.gmail.removeAccount(email);
     this.state.accounts = this.state.accounts.filter(a => a.email !== email);
     this.state.results = this.state.results.filter(r => r.account !== email);
+    delete this.state.ignoredByAccount[email];
     this._updateBadge();
     if (this.state.accounts.length === 0) {
       await window.electronAPI.gmail.stopPolling();
@@ -208,27 +211,32 @@ export default class GmailTool {
     if (this.ui) this.ui.update();
   }
 
-  async _handleIgnoreSender(sender) {
-    if (this.state.ignoredSenders.includes(sender)) return;
-    await window.electronAPI.gmail.addIgnoredSender({ sender });
-    this.state.ignoredSenders.push(sender);
+  async _handleIgnoreSender(email, sender) {
+    if (!email) return;
+    const list = this.state.ignoredByAccount[email] || [];
+    if (list.includes(sender)) return;
+    await window.electronAPI.gmail.addIgnoredSender({ email, sender });
+    this.state.ignoredByAccount[email] = [...list, sender];
     this._updateBadge();
     if (this.ui) this.ui.update();
   }
 
-  async _handleOpenIgnoredManager() {
+  async _handleOpenIgnoredManager(email) {
+    this.state.ignoredManagerEmail = email;
     this.state.showIgnoredManager = true;
     if (this.ui) this.ui.update();
   }
 
   _handleCloseIgnoredManager() {
     this.state.showIgnoredManager = false;
+    this.state.ignoredManagerEmail = null;
     if (this.ui) this.ui.update();
   }
 
-  async _handleUnignoreSender(sender) {
-    await window.electronAPI.gmail.removeIgnoredSender({ sender });
-    this.state.ignoredSenders = this.state.ignoredSenders.filter(s => s !== sender);
+  async _handleUnignoreSender(email, sender) {
+    if (!email) return;
+    await window.electronAPI.gmail.removeIgnoredSender({ email, sender });
+    this.state.ignoredByAccount[email] = (this.state.ignoredByAccount[email] || []).filter(s => s !== sender);
     this._updateBadge();
     if (this.ui) this.ui.update();
   }
