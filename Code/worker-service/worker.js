@@ -10,14 +10,18 @@ const gitOperationsTask = require('./tasks/gitOperations');
 const walkDirTask = require('./tasks/walkDir');
 const folderTreeTask = require('./tasks/folderTree');
 const profileSyncTask = require('./tasks/profileSync');
+const videoCompressTask = require('./tasks/videoCompress');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
 process.on('message', async (msg) => {
   const { id, type, payload } = msg;
 
-  const onProgress = (percent) => {
-    if (process.send) process.send({ id, type: 'progress', data: { percent } });
+  const onProgress = (data) => {
+    if (process.send) {
+      const progressData = typeof data === 'object' ? data : { percent: data };
+      process.send({ id, type: 'progress', data: progressData });
+    }
   };
 
   try {
@@ -72,6 +76,10 @@ process.on('message', async (msg) => {
 
       case 'profileSync':
         result = await profileSyncTask(payload);
+        break;
+
+      case 'video:compress':
+        result = await videoCompressTask(payload, onProgress);
         break;
 
       default:

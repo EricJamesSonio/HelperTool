@@ -344,6 +344,20 @@ const envBridge = {
     deleteFile: (repoPath, fileName)    => ipcRenderer.invoke('env:deleteFile', { repoPath, fileName }),
 };
 
+const videoBridge = {
+    video: {
+        pickFile:       ()              => ipcRenderer.invoke('video:pickFile'),
+        pickOutputFolder: ()            => ipcRenderer.invoke('video:pickOutputFolder'),
+        getMetadata:    (payload)       => ipcRenderer.invoke('video:getMetadata', payload),
+        compress:       (payload)       => ipcRenderer.invoke('video:compress', payload),
+        revealFile:     (payload)       => ipcRenderer.invoke('video:revealFile', payload),
+        onProgress:     (callback) => {
+            ipcRenderer.removeAllListeners('video:progress');
+            ipcRenderer.on('video:progress', (_event, data) => callback(data));
+        },
+    },
+};
+
 const codebaseChatBridge = {
   codebaseChat: {
     getFiles:           (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
@@ -386,6 +400,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...profileBridge,
     ...branchBridge,
     ...codebaseChatBridge,
+    ...videoBridge,
     windowControls,
 });
 

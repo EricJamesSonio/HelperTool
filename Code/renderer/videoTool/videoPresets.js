@@ -1,0 +1,40 @@
+export const PRESETS = {
+  high: {
+    id: 'high',
+    label: 'High Quality',
+    description: 'Best quality, moderate size reduction',
+    icon: '🏆',
+    crf: 21,
+    maxHeight: 1080,
+    audioBitrate: '160k',
+    fps: null,
+    estimatedReduction: '20-40%',
+    reductionMidpoint: 0.30,
+  },
+  balanced: {
+    id: 'balanced',
+    label: 'Balanced',
+    description: 'Good quality, good size reduction',
+    icon: '⚖️',
+    crf: 25,
+    maxHeight: 1080,
+    audioBitrate: '128k',
+    fps: 30,
+    estimatedReduction: '40-60%',
+    reductionMidpoint: 0.50,
+  },
+  small: {
+    id: 'small',
+    label: 'Small Size',
+    description: 'Smallest file, some quality loss',
+    icon: '📦',
+    crf: 30,
+    maxHeight: 720,
+    audioBitrate: '96k',
+    fps: 24,
+    estimatedReduction: '60-80%',
+    reductionMidpoint: 0.70,
+  },
+};
+
+export const DEFAULT_PRESET = 'balanced';

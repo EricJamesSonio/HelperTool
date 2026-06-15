@@ -79,6 +79,16 @@ export function createLocPanel() {
   });
 }
 
+export function createVideoPanel() {
+  return createPanel({
+    id:          'videoToolPanel',
+    className:   'vt-panel',
+    title:       '🎬 Video Compressor',
+    containerId: 'videoToolContainer',
+    closeBtnId:  'closeVideoToolBtn',
+  });
+}
+
 export function createCodebaseChatPanel() {
   return createPanel({
     id:          'codebaseChatPanel',

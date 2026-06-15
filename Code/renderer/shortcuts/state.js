@@ -14,6 +14,7 @@ const DEFAULT_SHORTCUTS = {
   teamActivityTool: null,
   envManager: null,
   codebbaseChat: null,
+  videoTool: null,
 };
 
 const S = { shortcuts: {} };

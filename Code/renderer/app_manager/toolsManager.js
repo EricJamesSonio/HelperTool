@@ -50,6 +50,7 @@ import {
   createSymbolIndexPanel,
   createDepsPanel,
   createLocPanel,
+  createVideoPanel,
   createCodebaseChatPanel,
 } from './panels/panelFactory.js';
 
@@ -81,6 +82,10 @@ let _locContainer = null;
 let _ccPanel      = null;
 let _ccContainer  = null;
 let _ccTool       = null;
+
+let _videoTool    = null;
+let _videoPanel   = null;
+let _videoContainer = null;
 
 let _terminalUI   = null;
 let _dockerTool  = null;
@@ -128,7 +133,15 @@ function populateSidebar() {
     fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
   }, 'fileSeeder'));
 
-body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
+  body.appendChild(createSidebarItem('🎬', 'Video Compressor', 'Compress video files with FFmpeg', () => {
+    if (_videoPanel?.classList.contains('open')) { _videoPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_videoPanel) _initVideoPanel();
+    _videoPanel.classList.add('open');
+    if (!_videoTool) _initializeVideoTool();
+  }, 'video'));
+
+  body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
   if (locDetector.isOpen()) { locDetector.close(); return; }
   _registry.closeAll();
   // Open without a pre-set path — user can right-click a folder to scan
@@ -264,6 +277,13 @@ body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated file
 
 // ---- Panel init helpers ----------------------------------------------------
 
+function _initVideoPanel() {
+  const { panel, container } = createVideoPanel();
+  _videoPanel = panel;
+  _videoContainer = container;
+  _registry.register('video', _videoPanel);
+}
+
 function _initGitPanel() {
   const { panel, container } = createGitPanel();
   _gitPanel = panel;
@@ -356,6 +376,23 @@ function _destroySymbolIndexTool() {
   _symbolIndexTool?.destroy(); _symbolIndexTool = null;
   if (_symbolIndexContainer) _symbolIndexContainer.innerHTML = '';
   _symbolIndexPanel?.classList.remove('open');
+}
+
+function _initializeVideoTool() {
+  if (_videoTool) return;
+  import('../videoTool.js').then(mod => {
+    const VideoTool = mod.default;
+    _videoTool = new VideoTool();
+    _videoTool.initialize();
+    if (_videoContainer) _videoTool.render(_videoContainer);
+  }).catch(err => console.error('[Tools] Video Tool:', err));
+}
+
+function _destroyVideoTool() {
+  _videoTool?.destroy();
+  _videoTool = null;
+  if (_videoContainer) _videoContainer.innerHTML = '';
+  _videoPanel?.classList.remove('open');
 }
 
 // ---- Shortcut actions ------------------------------------------------------
@@ -516,6 +553,14 @@ function _buildShortcutActions() {
     openEnvManager(state.selectedRepoPath);
   };
 
+  actions.videoTool = () => {
+    if (_videoPanel?.classList.contains('open')) { _videoPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_videoPanel) _initVideoPanel();
+    _videoPanel.classList.add('open');
+    if (!_videoTool) _initializeVideoTool();
+  };
+
   return actions;
 }
 
@@ -546,6 +591,7 @@ window.addEventListener('beforeunload', () => {
   _gitTool?.destroy();
   _symbolIndexTool?.destroy();
   _ccTool?.destroy();
+  _destroyVideoTool();
 });
 
 export async function initTools(feats, settingsManager) {
