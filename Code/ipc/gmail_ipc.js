@@ -87,23 +87,38 @@ function register({ getMainWindow }) {
   ipcMain.handle('gmail:startPolling', async () => {
     gmailService.setOnNewMail((results) => {
       const win = getMainWindow();
-      if (!win || win.isDestroyed()) return;
+      if (!win || win.isDestroyed()) {
+        console.log('[Gmail IPC] onNewMail called but main window is gone');
+        return;
+      }
 
       const totalUnread = results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
+      const totalNewMsgs = results.reduce((sum, r) => sum + (r.newMessages?.length || 0), 0);
+      console.log(`[Gmail IPC] onNewMail fired: ${results.length} accounts, ${totalUnread} unread, ${totalNewMsgs} new messages`);
 
       // Send full poll result to renderer (updates badge + inbox list)
+      console.log('[Gmail IPC] Sending gmail:pollResult to renderer');
       win.webContents.send('gmail:pollResult', { results, totalUnread });
 
       // Fire desktop notifications only for genuinely new messages (via History API)
       const ignored = gmailService.getIgnoredSenders();
+      console.log(`[Gmail IPC] Ignored senders list: ${JSON.stringify(ignored)}`);
       for (const r of results) {
         const newMsgs = r.newMessages || [];
-        if (newMsgs.length === 0) continue;
+        if (newMsgs.length === 0) {
+          console.log(`[Gmail IPC] ${r.account}: no new messages, skipping notifications`);
+          continue;
+        }
+        console.log(`[Gmail IPC] ${r.account}: processing ${newMsgs.length} new messages for notifications`);
 
         for (const msg of newMsgs) {
-          if (isIgnored(msg.from, ignored)) continue;
+          if (isIgnored(msg.from, ignored)) {
+            console.log(`[Gmail IPC] Ignored notification for ${msg.from}: "${msg.subject}"`);
+            continue;
+          }
 
           const senderName = extractName(msg.from);
+          console.log(`[Gmail IPC] FIRING notification: ${senderName} — "${msg.subject}" (id=${msg.id})`);
           const notif = new Notification({
             title: senderName,
             body:  (msg.subject || '(no subject)') + (msg.snippet ? '\n' + msg.snippet.slice(0, 100) : ''),
@@ -115,25 +130,31 @@ function register({ getMainWindow }) {
             win.webContents.send('gmail:openMessage', { email: r.account, messageId: msg.id });
           });
           notif.show();
-          console.log(`[Gmail] New message notification: ${senderName} — ${msg.subject}`);
         }
       }
     });
 
-    // 15 s is fine because history.list is very quota-cheap
+    console.log('[Gmail IPC] Calling gmailService.startPolling(15000)');
     gmailService.startPolling(15000);
     return { success: true };
   });
 
   ipcMain.handle('gmail:checkNow', async () => {
     try {
+      console.log('[Gmail IPC] checkNow called');
       const results     = await gmailService.fetchAllUnread();
       const totalUnread = results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
+      console.log(`[Gmail IPC] checkNow results: ${results.length} accounts, ${totalUnread} unread`);
       const win = getMainWindow();
-      if (win && !win.isDestroyed())
+      if (win && !win.isDestroyed()) {
+        console.log('[Gmail IPC] checkNow sending gmail:pollResult to renderer');
         win.webContents.send('gmail:pollResult', { results, totalUnread });
+      } else {
+        console.log('[Gmail IPC] checkNow: main window unavailable');
+      }
       return { success: true, results, totalUnread };
     } catch (err) {
+      console.error('[Gmail IPC] checkNow error:', err.message);
       return { success: false, error: err.message };
     }
   });

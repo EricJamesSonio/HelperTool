@@ -35,6 +35,11 @@ export default class GmailTool {
     this.ui.render(container);
 
     window.electronAPI.gmail.onPollResult((data) => {
+      console.log('[GmailTool] onPollResult received:', JSON.stringify({
+        accounts: data.results?.length,
+        totalUnread: data.totalUnread,
+        newPerAccount: data.results?.map(r => ({ acct: r.account, new: r.newMessages?.length, unread: r.unread })),
+      }));
       this.state.results = data.results;
       this.state.totalUnread = data.results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
       for (const r of data.results) {
@@ -68,6 +73,7 @@ export default class GmailTool {
     const res = await window.electronAPI.gmail.getIgnoredSenders();
     if (res.success) {
       this.state.ignoredSenders = res.senders;
+      console.log('[GmailTool] Loaded ignored senders:', this.state.ignoredSenders);
     }
   }
 
@@ -77,22 +83,32 @@ export default class GmailTool {
     const res = await window.electronAPI.gmail.listAccounts();
     if (res.success) {
       this.state.accounts = res.accounts;
+      console.log('[GmailTool] Loaded accounts:', this.state.accounts.map(a => a.email));
       if (this.state.accounts.length > 0) {
+        console.log('[GmailTool] Accounts found, calling checkNow then startPolling');
         await window.electronAPI.gmail.checkNow();
         await window.electronAPI.gmail.startPolling();
         this.state.polling = true;
+        console.log('[GmailTool] Polling started');
+      } else {
+        console.log('[GmailTool] No accounts found, not starting polling');
       }
+    } else {
+      console.log('[GmailTool] Failed to load accounts:', res.error);
     }
     this.state.status = 'idle';
     if (this.ui) this.ui.update();
   }
 
   async _handleAddAccount() {
+    console.log('[GmailTool] Adding new account...');
     const res = await window.electronAPI.gmail.addAccount();
     if (res.success) {
+      console.log('[GmailTool] Account added, calling checkNow then startPolling');
       await window.electronAPI.gmail.checkNow();
       await window.electronAPI.gmail.startPolling();
       this.state.polling = true;
+      console.log('[GmailTool] Polling started after add account');
     } else {
       this.state.error = res.error;
       if (this.ui) this.ui.update();

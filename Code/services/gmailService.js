@@ -200,8 +200,11 @@ async function fetchNewMessagesSinceLastCheck(account) {
   const historyIds  = getHistoryIds();
   const lastHistId  = historyIds[email];
 
+  console.log(`[Gmail History] ${email}: stored historyId = ${lastHistId || 'NONE (will seed)'}`);
+
   // If no cursor yet, seed it now (first run after update)
   if (!lastHistId) {
+    console.log(`[Gmail History] ${email}: No historyId, seeding...`);
     await _seedHistoryId(email, gmail);
     return { account: email, newMessages: [], historySeeded: true };
   }
@@ -210,7 +213,7 @@ async function fetchNewMessagesSinceLastCheck(account) {
 
   try {
     // Ask Gmail for everything that changed since lastHistId
-    // historyTypes: messagesAdded = new messages delivered to inbox
+    console.log(`[Gmail History] ${email}: Calling history.list with startHistoryId=${lastHistId}`);
     const histRes = await gmail.users.history.list({
       userId:          'me',
       startHistoryId:  lastHistId,
@@ -220,6 +223,8 @@ async function fetchNewMessagesSinceLastCheck(account) {
 
     const historyItems = histRes.data.history || [];
     const newHistoryId = histRes.data.historyId;
+
+    console.log(`[Gmail History] ${email}: Got ${historyItems.length} history items, newHistoryId=${newHistoryId || 'N/A'}`);
 
     // Collect all added message IDs
     const addedIds = [];
@@ -232,6 +237,8 @@ async function fetchNewMessagesSinceLastCheck(account) {
         }
       }
     }
+
+    console.log(`[Gmail History] ${email}: Found ${addedIds.length} new messages via history API: ${JSON.stringify(addedIds)}`);
 
     // Fetch metadata for each new message
     if (addedIds.length > 0) {
@@ -256,7 +263,12 @@ async function fetchNewMessagesSinceLastCheck(account) {
     }
 
     // Advance cursor so next poll picks up from here
-    if (newHistoryId) saveHistoryId(email, newHistoryId);
+    if (newHistoryId) {
+      saveHistoryId(email, newHistoryId);
+      console.log(`[Gmail History] ${email}: Advanced historyId to ${newHistoryId}`);
+    } else {
+      console.log(`[Gmail History] ${email}: No newHistoryId in response, keeping old cursor`);
+    }
 
   } catch (err) {
     // historyId too old (410 Gone) — re-seed and try next cycle
@@ -268,6 +280,7 @@ async function fetchNewMessagesSinceLastCheck(account) {
     }
   }
 
+  console.log(`[Gmail History] ${email}: Returning ${newMessages.length} new messages`);
   return { account: email, newMessages };
 }
 
@@ -384,14 +397,24 @@ async function fetchAllUnread() {
 
 // ─── Polling ──────────────────────────────────────────────────────────────────
 
-function startPolling(intervalMs = 15000) {   // 15 s — history API is cheap
-  if (pollTimer) return;
+function startPolling(intervalMs = 15000) {
+  if (pollTimer) {
+    console.log('[Gmail Poll] startPolling called but timer already running');
+    return;
+  }
+  console.log(`[Gmail Poll] Starting polling at ${intervalMs}ms interval`);
   pollTimer = setInterval(async () => {
+    console.log('[Gmail Poll] Tick — fetching all accounts...');
     try {
       const results = await fetchAllUnread();
+      const totalNew = results.reduce((s, r) => s + (r.newMessages?.length || 0), 0);
+      console.log(`[Gmail Poll] fetchAllUnread returned ${results.length} accounts, ${totalNew} new messages across all`);
+      for (const r of results) {
+        console.log(`[Gmail Poll]   ${r.account}: unread=${r.unread}, newMessages=${r.newMessages?.length || 0}, newIds=${JSON.stringify(r.newIds || [])}`);
+      }
       if (onNewMailCallback) onNewMailCallback(results);
     } catch (e) {
-      console.error('[Gmail] Poll error:', e.message);
+      console.error('[Gmail Poll] Poll error:', e.message);
     }
   }, intervalMs);
 }
