@@ -148,6 +148,7 @@ export function renderAccountList(accounts, results) {
 
 export function renderInboxView(email, messages, filter, expandedIds, unreadCount, ignoredSenders, senderFilter) {
   const filtered = filterMessages(messages, filter, ignoredSenders, senderFilter);
+  const notIgnored = ignoredSenders?.length ? messages.filter(m => !isIgnored(m.from, ignoredSenders)) : messages;
   return `
     <div class="gm-inbox-header">
       <button class="gm-inbox-back" id="gmInboxBack">${ICONS.back} Back</button>
@@ -167,7 +168,7 @@ export function renderInboxView(email, messages, filter, expandedIds, unreadCoun
       <button class="gm-filter-btn ${filter === 'unread' ? 'gm-filter-btn--active' : ''}" data-filter="unread">Unread</button>
       <span class="gm-filter-count">${filtered.length} messages</span>
     </div>
-    ${renderSenderChips(messages, senderFilter)}
+    ${renderSenderChips(notIgnored, senderFilter)}
     <div class="gm-inbox-list">
       ${filtered.length === 0 ? '<div class="gm-no-msgs">No messages match this filter</div>' : ''}
       ${filtered.map(msg => renderMessage(msg, email, expandedIds.has(msg.id), ignoredSenders)).join('')}
