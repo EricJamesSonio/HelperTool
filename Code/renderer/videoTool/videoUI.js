@@ -1,10 +1,12 @@
 import { renderFileDropZone, renderPresetCards, renderOutputRow, renderCompressButton, renderProgress, renderResult, renderError } from './videoRenderer.js';
 import { renderImageDropZone, renderImageOutputRow, renderImageResult, renderImageProgress, renderImageError } from './imageRenderer.js';
+import { renderGifDropZone, renderGifOutputRow, renderGifLoading, renderGifPreviews, renderGifSettings, renderGifProgress, renderGifResult, renderGifError } from './gifRenderer.js';
 
 export default class VideoUI {
-  constructor(state, imageState) {
+  constructor(state, imageState, gifState) {
     this._state = state;
     this._imageState = imageState;
+    this._gifState = gifState;
     this._container = null;
     this._onPickFile = null;
     this._onRemoveFile = null;
@@ -23,6 +25,18 @@ export default class VideoUI {
     this._onImageOpenFile = null;
     this._onImageOpenFolder = null;
     this._onImageConvertAnother = null;
+    this._onGifPickFile = null;
+    this._onGifRemoveFile = null;
+    this._onGifChangeOutput = null;
+    this._onGifSelectClip = null;
+    this._onGifTimeChange = null;
+    this._onGifSpeedChange = null;
+    this._onGifPresetChange = null;
+    this._onGifGenerate = null;
+    this._onGifRetry = null;
+    this._onGifOpenFile = null;
+    this._onGifOpenFolder = null;
+    this._onGifNew = null;
     this._onTabChange = null;
   }
 
@@ -44,6 +58,18 @@ export default class VideoUI {
     this._onImageOpenFile = cbs.onImageOpenFile || null;
     this._onImageOpenFolder = cbs.onImageOpenFolder || null;
     this._onImageConvertAnother = cbs.onImageConvertAnother || null;
+    this._onGifPickFile = cbs.onGifPickFile || null;
+    this._onGifRemoveFile = cbs.onGifRemoveFile || null;
+    this._onGifChangeOutput = cbs.onGifChangeOutput || null;
+    this._onGifSelectClip = cbs.onGifSelectClip || null;
+    this._onGifTimeChange = cbs.onGifTimeChange || null;
+    this._onGifSpeedChange = cbs.onGifSpeedChange || null;
+    this._onGifPresetChange = cbs.onGifPresetChange || null;
+    this._onGifGenerate = cbs.onGifGenerate || null;
+    this._onGifRetry = cbs.onGifRetry || null;
+    this._onGifOpenFile = cbs.onGifOpenFile || null;
+    this._onGifOpenFolder = cbs.onGifOpenFolder || null;
+    this._onGifNew = cbs.onGifNew || null;
     this._onTabChange = cbs.onTabChange || null;
   }
 
@@ -65,22 +91,32 @@ export default class VideoUI {
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/></svg>
           Image to ICO
         </button>
+        <button class="vt-tab ${active === 'gif' ? 'vt-tab--active' : ''}" data-tab="gif">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><text x="5" y="14" font-size="8" font-weight="bold" stroke="none" fill="currentColor">GIF</text></svg>
+          Video to GIF
+        </button>
       </div>`;
   }
 
   _getTemplate() {
     const st = this._state;
     const im = this._imageState;
+    const gf = this._gifState;
 
-    if (!st.inputPath && !im.inputPath) {
+    if (!st.inputPath && !im.inputPath && !gf.inputPath) {
       const videoContent = renderFileDropZone(null, null);
       const imageContent = renderImageDropZone(im.inputPath, im.inputMeta);
-      const activeContent = st.activeSection === 'image' ? imageContent : videoContent;
+      const gifContent = renderGifDropZone(null, null);
+      let activeContent;
+      if (st.activeSection === 'image') activeContent = imageContent;
+      else if (st.activeSection === 'gif') activeContent = gifContent;
+      else activeContent = videoContent;
       return `<div class="vt-body">${this._renderTabs()}${activeContent}</div>`;
     }
 
     const isVideoActive = st.activeSection === 'video';
     const isImageActive = st.activeSection === 'image';
+    const isGifActive = st.activeSection === 'gif';
 
     let videoContent = '';
     if (isVideoActive) {
@@ -133,11 +169,38 @@ export default class VideoUI {
       imageContent = drop + inner;
     }
 
+    let gifContent = '';
+    if (isGifActive) {
+      const drop = renderGifDropZone(gf.inputPath, gf.inputMeta);
+      let inner = '';
+      if (gf.inputPath) {
+        const outputSection = renderGifOutputRow(gf.outputFolder);
+        const loadingSection = gf.status === 'loading' || gf.status === 'generating-previews' ? renderGifLoading() : '';
+        const previewsSection = gf.previews.length > 0 ? renderGifPreviews(gf.previews, gf.selectedClipId) : '';
+        const settingsSection = gf.selectedClip && gf.status !== 'generating' && gf.status !== 'done' ? renderGifSettings(gf.settings, gf.selectedClip) : '';
+        const progressSection = gf.status === 'generating' ? renderGifProgress(gf.progress) : '';
+        const resultSection = gf.status === 'done' && gf.result ? renderGifResult(gf.result) : '';
+        const errorSection = gf.status === 'error' ? renderGifError(gf.error) : '';
+        inner = `
+          <div class="gf-output-area">
+            <div class="vt-section">${outputSection}</div>
+            ${loadingSection ? `<div class="vt-section">${loadingSection}</div>` : ''}
+            ${previewsSection ? `<div class="vt-section">${previewsSection}</div>` : ''}
+            ${settingsSection ? `<div class="vt-section">${settingsSection}</div>` : ''}
+            ${progressSection ? `<div class="vt-section">${progressSection}</div>` : ''}
+            ${resultSection ? `<div class="vt-section">${resultSection}</div>` : ''}
+            ${errorSection ? `<div class="vt-section">${errorSection}</div>` : ''}
+          </div>`;
+      }
+      gifContent = drop + inner;
+    }
+
     return `
       <div class="vt-body">
         ${this._renderTabs()}
         ${videoContent}
         ${imageContent}
+        ${gifContent}
       </div>`;
   }
 
@@ -150,6 +213,7 @@ export default class VideoUI {
       });
     });
 
+    // ── Video events ──
     const vDrop = this._container.querySelector('#vtDropZone');
     if (vDrop) {
       vDrop.addEventListener('dragover', (e) => { e.preventDefault(); vDrop.classList.add('vt-drag-over'); });
@@ -189,6 +253,7 @@ export default class VideoUI {
     const caBtn = this._container.querySelector('#vtCompressAnotherBtn');
     if (caBtn && this._onCompressAnother) caBtn.addEventListener('click', () => this._onCompressAnother());
 
+    // ── Image events ──
     const imDrop = this._container.querySelector('#imDropZone');
     if (imDrop) {
       imDrop.addEventListener('dragover', (e) => { e.preventDefault(); imDrop.classList.add('im-drag-over'); });
@@ -223,6 +288,63 @@ export default class VideoUI {
 
     const imCA = this._container.querySelector('#imConvertAnotherBtn');
     if (imCA && this._onImageConvertAnother) imCA.addEventListener('click', () => this._onImageConvertAnother());
+
+    // ── GIF events ──
+    const gfDrop = this._container.querySelector('#gfDropZone');
+    if (gfDrop) {
+      gfDrop.addEventListener('dragover', (e) => { e.preventDefault(); gfDrop.classList.add('gf-drag-over'); });
+      gfDrop.addEventListener('dragleave', () => gfDrop.classList.remove('gf-drag-over'));
+      gfDrop.addEventListener('drop', (e) => {
+        e.preventDefault(); gfDrop.classList.remove('gf-drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.path && this._onGifPickFile) this._onGifPickFile(file.path);
+      });
+    }
+
+    const gfBtn = this._container.querySelector('#gfBrowseBtn');
+    if (gfBtn && this._onGifPickFile) gfBtn.addEventListener('click', () => this._onGifPickFile(null));
+
+    const gfRem = this._container.querySelector('#gfRemoveFile');
+    if (gfRem && this._onGifRemoveFile) gfRem.addEventListener('click', () => this._onGifRemoveFile());
+
+    const gfCoBtn = this._container.querySelector('#gfChangeOutputBtn');
+    if (gfCoBtn && this._onGifChangeOutput) gfCoBtn.addEventListener('click', () => this._onGifChangeOutput());
+
+    this._container.querySelectorAll('.gf-preview-card').forEach(c => {
+      c.addEventListener('click', () => { if (this._onGifSelectClip) this._onGifSelectClip(c.dataset.clipId); });
+    });
+
+    const gfStart = this._container.querySelector('#gfStartTime');
+    const gfEnd = this._container.querySelector('#gfEndTime');
+    if (gfStart && this._onGifTimeChange) {
+      gfStart.addEventListener('change', () => this._onGifTimeChange('start', parseFloat(gfStart.value) || 0));
+    }
+    if (gfEnd && this._onGifTimeChange) {
+      gfEnd.addEventListener('change', () => this._onGifTimeChange('end', parseFloat(gfEnd.value) || 0));
+    }
+
+    this._container.querySelectorAll('.gf-speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => { if (this._onGifSpeedChange) this._onGifSpeedChange(parseFloat(btn.dataset.speed)); });
+    });
+
+    this._container.querySelectorAll('.gf-preset-card').forEach(c => {
+      c.addEventListener('click', () => { if (this._onGifPresetChange) this._onGifPresetChange(c.dataset.preset); });
+    });
+
+    const gfGen = this._container.querySelector('#gfGenerateBtn');
+    if (gfGen && this._onGifGenerate) gfGen.addEventListener('click', () => this._onGifGenerate());
+
+    const gfRetry = this._container.querySelector('#gfRetryBtn');
+    if (gfRetry && this._onGifRetry) gfRetry.addEventListener('click', () => this._onGifRetry());
+
+    const gfOF = this._container.querySelector('#gfOpenFileBtn');
+    if (gfOF && this._onGifOpenFile) gfOF.addEventListener('click', () => this._onGifOpenFile());
+
+    const gfOFd = this._container.querySelector('#gfOpenFolderBtn');
+    if (gfOFd && this._onGifOpenFolder) gfOFd.addEventListener('click', () => this._onGifOpenFolder());
+
+    const gfNew = this._container.querySelector('#gfNewGifBtn');
+    if (gfNew && this._onGifNew) gfNew.addEventListener('click', () => this._onGifNew());
   }
 
   update() {

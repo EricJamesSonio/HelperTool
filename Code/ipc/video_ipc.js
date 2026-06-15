@@ -56,6 +56,25 @@ function register({ getMainWindow }) {
       return { success: false, error: err.message };
     }
   });
+
+  // ── GIF ──
+
+  ipcMain.handle('video:gif', async (event, payload) => {
+    const win = getMainWindow();
+    try {
+      const progressHandler = (progress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('video:gifProgress', progress);
+        }
+      };
+      workerProxy.onProgress(progressHandler);
+      const result = await workerProxy.send('video:gif', payload);
+      workerProxy.offProgress(progressHandler);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
 }
 
 module.exports = { register };

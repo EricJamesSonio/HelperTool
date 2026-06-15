@@ -12,6 +12,7 @@ const folderTreeTask = require('./tasks/folderTree');
 const profileSyncTask = require('./tasks/profileSync');
 const videoCompressTask = require('./tasks/videoCompress');
 const imageToIcoTask = require('./tasks/imageToIco');
+const videoToGifTask = require('./tasks/videoToGif');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -85,6 +86,10 @@ process.on('message', async (msg) => {
 
       case 'image:toIco':
         result = await imageToIcoTask(payload, onProgress);
+        break;
+
+      case 'video:gif':
+        result = await videoToGifTask(payload, onProgress);
         break;
 
       default:

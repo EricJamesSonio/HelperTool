@@ -369,6 +369,11 @@ const videoBridge = {
             ipcRenderer.removeAllListeners('video:progress');
             ipcRenderer.on('video:progress', (_event, data) => callback(data));
         },
+        gif:            (payload)       => ipcRenderer.invoke('video:gif', payload),
+        onGifProgress:  (callback) => {
+            ipcRenderer.removeAllListeners('video:gifProgress');
+            ipcRenderer.on('video:gifProgress', (_event, data) => callback(data));
+        },
     },
 };
 
