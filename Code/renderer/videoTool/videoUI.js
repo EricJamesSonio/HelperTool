@@ -120,6 +120,8 @@ export default class VideoUI {
     if (oldVideo) {
       slot.appendChild(oldVideo);
       this._videoEl = oldVideo;
+      const area = slot.closest('.tl-player-area');
+      if (area) area.classList.toggle('paused', oldVideo.paused);
     } else {
       this._createVideoElement(slot);
     }
@@ -129,7 +131,7 @@ export default class VideoUI {
     const video = document.createElement('video');
     video.id = 'tlVideo';
     video.className = 'tl-video';
-    video.controls = true;
+    video.controls = false;
     video.preload = 'auto';
     const st = this._state;
     if (st.inputPath) {
@@ -137,6 +139,10 @@ export default class VideoUI {
     }
     slot.appendChild(video);
     this._videoEl = video;
+
+    // Mark player as paused initially
+    const area = slot.closest('.tl-player-area');
+    if (area) area.classList.add('paused');
 
     this._previewSegId = null;
     video.addEventListener('timeupdate', () => {
@@ -183,7 +189,13 @@ export default class VideoUI {
       this._container.querySelectorAll('.tl-seg-bar').forEach(bar => {
         bar.classList.toggle('tl-seg-bar--selected', bar.dataset.segId === st.selectedSegmentId);
       });
+
+      // Update custom controls
+      this._updateControls(t, dur);
     });
+
+    video.addEventListener('play', () => this._updatePlayState(true));
+    video.addEventListener('pause', () => this._updatePlayState(false));
   }
 
   _renderTabs() {
@@ -308,6 +320,36 @@ export default class VideoUI {
       </div>`;
   }
 
+  _updateControls(t, dur) {
+    const fill = this._container ? this._container.querySelector('#tlPbFill') : null;
+    const thumb = this._container ? this._container.querySelector('#tlPbThumb') : null;
+    if (fill && dur > 0) fill.style.width = ((t / dur) * 100) + '%';
+    if (thumb && dur > 0) thumb.style.left = ((t / dur) * 100) + '%';
+
+    const timeEl = this._container ? this._container.querySelector('#tlPbTime') : null;
+    if (timeEl && dur > 0) {
+      const cur = this._formatTime(t);
+      const tot = this._formatTime(dur);
+      timeEl.textContent = cur + ' / ' + tot;
+    }
+  }
+
+  _updatePlayState(playing) {
+    const area = this._container ? this._container.querySelector('.tl-player-area') : null;
+    if (area) area.classList.toggle('paused', !playing);
+    const big = this._container ? this._container.querySelector('#tlBigPlay') : null;
+    const btn = this._container ? this._container.querySelector('#tlPbPlay') : null;
+    if (big) big.style.display = playing ? 'none' : 'flex';
+    if (btn) btn.textContent = playing ? '⏸' : '▶';
+  }
+
+  _formatTime(s) {
+    if (!s || s <= 0) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
   _bindEvents() {
     if (!this._container) return;
 
@@ -389,6 +431,26 @@ export default class VideoUI {
     if (undoBtn && this._onUndo) undoBtn.addEventListener('click', () => this._onUndo());
     const redoBtn = this._container.querySelector('#tlRedoBtn');
     if (redoBtn && this._onRedo) redoBtn.addEventListener('click', () => this._onRedo());
+
+    // ── Custom player controls ──
+    const video = this._videoEl;
+    const bigPlay = this._container.querySelector('#tlBigPlay');
+    if (bigPlay && video) bigPlay.addEventListener('click', () => { video.paused ? video.play() : video.pause(); });
+    const pbPlay = this._container.querySelector('#tlPbPlay');
+    if (pbPlay && video) pbPlay.addEventListener('click', () => { video.paused ? video.play() : video.pause(); });
+
+    const pbProgress = this._container.querySelector('#tlPbProgress');
+    if (pbProgress && video) {
+      pbProgress.addEventListener('click', (e) => {
+        const rect = pbProgress.getBoundingClientRect();
+        const pct = (e.clientX - rect.left) / rect.width;
+        const dur = this._state.inputMeta ? this._state.inputMeta.duration : 0;
+        if (dur > 0) video.currentTime = pct * dur;
+      });
+    }
+
+    const pbVol = this._container.querySelector('#tlPbVol');
+    if (pbVol && video) pbVol.addEventListener('click', () => { video.muted = !video.muted; pbVol.textContent = video.muted ? '🔇' : '🔊'; });
 
     // ── Quick Compress events ──
     this._container.querySelectorAll('.vt-preset-card').forEach(c => {

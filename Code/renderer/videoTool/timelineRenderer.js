@@ -75,7 +75,26 @@ export function renderOutputRow(outputFolder) {
 }
 
 export function renderPlayerSlot() {
-  return `<div id="tlPlayerSlot" class="tl-player-slot"></div>`;
+  return `
+    <div id="tlPlayerSlot" class="tl-player-slot"></div>
+    <div class="tl-player-controls">
+      <button class="tl-big-play" id="tlBigPlay">▶</button>
+      <div class="tl-bottom-bar">
+        <div class="tl-pb-progress" id="tlPbProgress">
+          <div class="tl-pb-fill" id="tlPbFill"></div>
+          <div class="tl-pb-thumb" id="tlPbThumb"></div>
+        </div>
+        <div class="tl-pb-row">
+          <div class="tl-pb-left">
+            <button class="tl-pb-btn" id="tlPbPlay">▶</button>
+            <span class="tl-pb-time" id="tlPbTime">0:00 / 0:00</span>
+          </div>
+          <div class="tl-pb-right">
+            <button class="tl-pb-btn" id="tlPbVol">🔊</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 export function renderTimeline(segments, duration, currentTime, selectedId, getColor, totalOutputDuration) {

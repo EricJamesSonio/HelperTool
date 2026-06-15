@@ -169,6 +169,29 @@
 .tl-player-slot { width: 100%; }
 .tl-video { width: 100%; max-height: 350px; display: block; background: #000; }
 
+/* ── Custom player controls ── */
+.tl-player-controls { position: absolute; inset: 0; pointer-events: none; }
+.tl-player-controls > * { pointer-events: auto; }
+
+.tl-big-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 64px; height: 64px; border-radius: 50%; border: none; background: rgba(0,0,0,0.6); color: #fff; font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.15s; z-index: 5; }
+.tl-big-play:hover { background: rgba(0,0,0,0.8); transform: translate(-50%,-50%) scale(1.08); }
+
+.tl-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.75)); padding: 24px 14px 10px; display: flex; flex-direction: column; gap: 6px; opacity: 0; transition: opacity 0.25s; }
+.tl-player-area:hover .tl-bottom-bar,
+.tl-player-area.paused .tl-bottom-bar { opacity: 1; }
+
+.tl-pb-progress { position: relative; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; cursor: pointer; margin: 0 2px; }
+.tl-pb-progress:hover { height: 6px; }
+.tl-pb-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); border-radius: 2px; pointer-events: none; }
+.tl-pb-thumb { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: #fff; transform: translate(-50%,-50%); pointer-events: none; box-shadow: 0 0 4px rgba(0,0,0,0.5); display: none; }
+.tl-pb-progress:hover .tl-pb-thumb { display: block; }
+
+.tl-pb-row { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
+.tl-pb-left, .tl-pb-right { display: flex; align-items: center; gap: 10px; }
+.tl-pb-btn { background: none; border: none; color: #fff; cursor: pointer; font-size: 14px; padding: 4px 6px; line-height: 1; opacity: 0.85; transition: opacity 0.15s; }
+.tl-pb-btn:hover { opacity: 1; }
+.tl-pb-time { font-size: 12px; color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
+
 .tl-timeline-wrapper { }
 
 .tl-timeline-section { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; background: var(--bg-surface); border-radius: var(--r-lg); border: 1px solid var(--border-default); }
