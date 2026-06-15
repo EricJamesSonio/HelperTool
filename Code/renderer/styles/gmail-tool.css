@@ -9,6 +9,7 @@
 .gm-panel-close-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
 .gm-panel-close-btn svg { width: 20px; height: 20px; }
 .gm-panel-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+#gmailToolContainer { position: relative; height: 100%; }
 
 /* ── Empty state ── */
 

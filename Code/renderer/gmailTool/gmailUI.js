@@ -76,10 +76,9 @@ export default class GmailUI {
     const filteredResults = st.getFilteredResults();
     return `
       <div class="gm-toolbar">
-        <button class="gm-tb-btn" id="gmCloseToolBtn" title="Close Gmail tool">${ICONS.back} Back</button>
+        <button class="gm-tb-btn" id="gmBackToMainBtn">&larr; Back</button>
         <button class="gm-tb-btn" id="gmAddAccount">${ICONS.plus} Add Account</button>
         <button class="gm-tb-btn" id="gmRefresh">${ICONS.refresh} Refresh</button>
-        <button class="gm-tb-btn" id="gmIgnoredBtnGlobal" title="Manage ignored senders">${ICONS.eyeOff} Ignored</button>
         <span class="gm-tb-status">${st.polling ? '● Live' : ''} ${st.totalUnread > 0 ? '· ' + st.totalUnread + ' unread' : ''}</span>
       </div>
       <div class="gm-accounts-list">
@@ -93,21 +92,13 @@ export default class GmailUI {
     const addBtn = this._container.querySelector('#gmAddAccount');
     if (addBtn && this._onAddAccount) addBtn.addEventListener('click', () => this._onAddAccount());
 
-    // Back button in accounts list closes the Gmail tool
-    const closeBtn = this._container.querySelector('#gmCloseToolBtn');
-    if (closeBtn) closeBtn.addEventListener('click', () => {
+    const backMainBtn = this._container.querySelector('#gmBackToMainBtn');
+    if (backMainBtn) backMainBtn.addEventListener('click', () => {
       document.getElementById('closeGmailToolBtn')?.click();
     });
 
     const refBtn = this._container.querySelector('#gmRefresh');
     if (refBtn && this._onRefresh) refBtn.addEventListener('click', () => this._onRefresh());
-
-    // Open ignored manager from accounts list (shows first account's ignored list)
-    const ignoredBtnGlobal = this._container.querySelector('#gmIgnoredBtnGlobal');
-    if (ignoredBtnGlobal && this._onOpenIgnoredManager) ignoredBtnGlobal.addEventListener('click', () => {
-      const firstEmail = this._state.accounts?.[0]?.email;
-      if (firstEmail) this._onOpenIgnoredManager(firstEmail);
-    });
 
     this._container.querySelectorAll('.gm-account-remove').forEach(btn => {
       btn.addEventListener('click', (e) => {
