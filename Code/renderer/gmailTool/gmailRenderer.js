@@ -43,6 +43,12 @@ function extractName(fromStr) {
   return match ? match[1].trim() : fromStr.split('@')[0];
 }
 
+function extractEmail(fromStr) {
+  if (!fromStr) return '';
+  const match = fromStr.match(/<([^>]+)>/);
+  return match ? match[1].trim().toLowerCase() : fromStr.toLowerCase();
+}
+
 const SENDER_COLORS = (() => {
   const colors = [];
   const hues = [0, 210, 120, 30, 270, 190, 340, 80, 160, 300, 50, 230, 100, 20, 280, 170, 350, 140, 250, 60];
@@ -209,11 +215,16 @@ function filterMessages(messages, filter, ignoredSenders, senderFilter) {
 function isIgnored(fromStr, ignoredSenders) {
   if (!fromStr || !ignoredSenders || ignoredSenders.length === 0) return false;
   const email = fromStr.match(/<([^>]+)>/)?.[1]?.toLowerCase() || fromStr.toLowerCase();
-  return ignoredSenders.some(s => email.includes(s.toLowerCase()));
+  const name = fromStr.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim().toLowerCase() || fromStr.toLowerCase();
+  return ignoredSenders.some(s => {
+    const term = s.toLowerCase();
+    return email.includes(term) || name === term;
+  });
 }
 
 function renderMessage(msg, accountEmail, expanded, ignoredSenders) {
   const name = extractName(msg.from);
+  const senderEmail = extractEmail(msg.from);
   const ignored = isIgnored(msg.from, ignoredSenders);
   const color = getSenderColor(msg.from || name);
   const bgTint = hexToRgba(color, 0.06);
@@ -231,7 +242,7 @@ function renderMessage(msg, accountEmail, expanded, ignoredSenders) {
       ${expanded ? `<div class="gm-msg-full-date">${formatFullDate(msg.date)}</div>` : ''}
       <div class="gm-msg-meta">
         <div class="gm-msg-actions">
-          <button class="gm-msg-ignore" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" data-sender="${escapeHtml(extractName(msg.from))}" title="Ignore this sender">${ICONS.eyeOff}</button>
+          <button class="gm-msg-ignore" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" data-sender="${escapeHtml(senderEmail)}" title="Ignore this sender">${ICONS.eyeOff}</button>
           <button class="gm-msg-open" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" title="Open in browser">${ICONS.external}</button>
           <button class="gm-msg-read" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" title="Mark as read">${ICONS.check}</button>
         </div>

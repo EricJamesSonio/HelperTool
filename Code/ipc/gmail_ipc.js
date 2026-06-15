@@ -16,7 +16,11 @@ function _extractEmail(fromStr) {
 function isIgnored(fromStr, ignored) {
   if (!fromStr || !ignored || ignored.length === 0) return false;
   const email = _extractEmail(fromStr);
-  const matched = ignored.some(s => email.includes(s.toLowerCase()));
+  const name = fromStr.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim().toLowerCase() || fromStr.toLowerCase();
+  const matched = ignored.some(s => {
+    const term = s.toLowerCase();
+    return email.includes(term) || name === term;
+  });
   if (matched) {
     console.log(`[Gmail IPC] isIgnored=true for "${fromStr}" (email="${email}" matches ignore list)`);
   }

@@ -75,7 +75,11 @@ export default class GmailState {
   _isIgnored(fromStr, ignoredList) {
     if (!fromStr || !ignoredList || ignoredList.length === 0) return false;
     const email = fromStr.match(/<([^>]+)>/)?.[1]?.toLowerCase() || fromStr.toLowerCase();
-    return ignoredList.some(s => email.includes(s.toLowerCase()));
+    const name = fromStr.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim().toLowerCase() || fromStr.toLowerCase();
+    return ignoredList.some(s => {
+      const term = s.toLowerCase();
+      return email.includes(term) || name === term;
+    });
   }
 
   _isNotIgnored(fromStr, accountEmail) {
