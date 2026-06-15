@@ -6,6 +6,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+credentials.json
+gmail-store.json
 # OS files
 .DS_Store
 Thumbs.db
