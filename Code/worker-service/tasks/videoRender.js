@@ -18,7 +18,7 @@ function runFFmpeg(args) {
 }
 
 async function videoRender(payload, onProgress) {
-  const { inputPath, segments, preset, outputPath: userOutputPath } = payload;
+  const { inputPath, segments, preset, outputPath: userOutputPath, preview } = payload;
 
   if (!inputPath || !fs.existsSync(inputPath)) throw new Error('Input file not found');
   if (!segments || segments.length === 0) throw new Error('No segments provided');
@@ -31,12 +31,19 @@ async function videoRender(payload, onProgress) {
   const outputPath = path.join(outputDir, `${baseName}_edited.mp4`);
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-  const presetMap = {
-    small:    { crf: 28, scale: '640:-2' },
-    balanced: { crf: 23, scale: '854:-2' },
-    high:     { crf: 18, scale: '1280:-2' },
-  };
-  const p = presetMap[preset] || presetMap.balanced;
+  let p, presetName;
+  if (preview) {
+    p = { crf: 35, scale: '320:-2' };
+    presetName = 'ultrafast';
+  } else {
+    const presetMap = {
+      small:    { crf: 28, scale: '640:-2' },
+      balanced: { crf: 23, scale: '854:-2' },
+      high:     { crf: 18, scale: '1280:-2' },
+    };
+    p = presetMap[preset] || presetMap.balanced;
+    presetName = 'fast';
+  }
 
   const n = activeSegs.length;
 
@@ -59,7 +66,7 @@ async function videoRender(payload, onProgress) {
   }
 
   // Concat all
-  const concatIn = inputLabels.join('');
+  const concatIn = inputLabels.join('][');
   const filterComplex = `${filterParts.join('; ')}; [${concatIn}]concat=n=${n}:v=1:a=0[vout]`;
 
   onProgress({ percent: 10, step: 'Processing segments...' });
@@ -69,7 +76,7 @@ async function videoRender(payload, onProgress) {
     '-filter_complex', filterComplex,
     '-map', '[vout]',
     '-crf', String(p.crf),
-    '-preset', 'fast',
+    '-preset', presetName,
     '-c:v', 'libx264',
     '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',

@@ -34,6 +34,8 @@ export default class VideoTool {
       onTimelineOpenFile: () => this._handleTimelineOpenFile(),
       onTimelineOpenFolder: () => this._handleTimelineOpenFolder(),
       onTimelineNew: () => this._handleTimelineNew(),
+      onUndo: () => this._handleUndo(),
+      onRedo: () => this._handleRedo(),
       // Quick Compress
       onCompress: () => this._startCompress(),
       onCompressRetry: () => this._handleCompressRetry(),
@@ -98,11 +100,22 @@ export default class VideoTool {
 
     st.status = 'idle';
     if (this.ui) this.ui.update();
+
+    // Set raw video as source (preview will replace it when ready)
+    const video = this.ui ? this.ui.getVideoElement() : null;
+    if (video) {
+      video.src = 'file://' + path.replace(/\\/g, '/');
+      video.load();
+    }
+
+    this._generatePreview();
   }
 
   _handleRemoveFile() {
     this.state.reset();
     if (this.ui) this.ui.update();
+    const video = this.ui ? this.ui.getVideoElement() : null;
+    if (video) { video.src = ''; video.load(); }
   }
 
   _handlePresetChange(preset) {
@@ -128,11 +141,13 @@ export default class VideoTool {
   _handleDelete(segId) {
     this.state.removeSegment(segId);
     if (this.ui) this.ui.update();
+    this._generatePreview();
   }
 
   _handleSpeedChange(segId, speed) {
     this.state.updateSegment(segId, { speed });
     if (this.ui) this.ui.update();
+    this._generatePreview();
   }
 
   _handleSelectSegment(segId) {
@@ -159,16 +174,24 @@ export default class VideoTool {
     }
     st.splitSegment(seg.id, splitTime);
     if (this.ui) this.ui.update();
+    this._generatePreview();
   }
 
   _handleTimelineClick(pct) {
     const st = this.state;
     const dur = st.inputMeta ? st.inputMeta.duration : 0;
     if (dur <= 0) return;
-    const targetTime = pct * dur;
+    const targetTime = pct * dur; // source-time position
     st.currentTime = targetTime;
     const video = this.ui ? this.ui.getVideoElement() : null;
-    if (video) video.currentTime = targetTime;
+    if (video) {
+      const isPreview = st.previewStatus === 'ready' && st.previewUrl;
+      if (isPreview) {
+        video.currentTime = st.getOutputTime(targetTime);
+      } else {
+        video.currentTime = targetTime;
+      }
+    }
     for (const seg of st.segments) {
       if (seg.enabled && targetTime >= seg.startTime && targetTime < seg.endTime) {
         st.selectedSegmentId = seg.id;
@@ -207,6 +230,7 @@ export default class VideoTool {
 
     const segmentsPayload = active.map(s => ({
       startTime: s.startTime,
+      endTime: s.endTime,
       duration: Math.round((s.endTime - s.startTime) * 10) / 10,
       speed: s.speed,
       enabled: true,
@@ -264,8 +288,80 @@ export default class VideoTool {
     }
   }
 
+  _handleUndo() {
+    if (this.state.undo() && this.ui) this.ui.update();
+    this._generatePreview();
+  }
+
+  _handleRedo() {
+    if (this.state.redo() && this.ui) this.ui.update();
+    this._generatePreview();
+  }
+
   _handleTimelineNew() {
     this.state.reset();
+    if (this.ui) this.ui.update();
+    const video = this.ui ? this.ui.getVideoElement() : null;
+    if (video) { video.src = ''; video.load(); }
+  }
+
+  // ── Live Preview (renders edited timeline as a low-res video) ──
+
+  async _generatePreview() {
+    const st = this.state;
+    const active = st.activeSegments;
+    if (active.length === 0 || !st.inputPath) return;
+
+    st.previewStatus = 'generating';
+    st.previewProgress = null;
+    // Revert to raw video while generating new preview
+    const curVideo = this.ui ? this.ui.getVideoElement() : null;
+    if (curVideo && st.inputPath) {
+      curVideo.src = 'file://' + st.inputPath.replace(/\\/g, '/');
+      curVideo.load();
+    }
+    if (this.ui) this.ui.update();
+
+    const segmentsPayload = active.map(s => ({
+      startTime: s.startTime,
+      endTime: s.endTime,
+      duration: Math.round((s.endTime - s.startTime) * 10) / 10,
+      speed: s.speed,
+      enabled: true,
+    }));
+
+    try {
+      window.electronAPI.video.onRenderProgress((data) => {
+        st.previewProgress = data;
+        if (this.ui) this.ui.update();
+      });
+
+      const result = await window.electronAPI.video.render({
+        inputPath: st.inputPath,
+        segments: segmentsPayload,
+        preview: true,
+      });
+
+      window.electronAPI.video.onRenderProgress(() => {});
+
+      if (result.success) {
+        st.previewUrl = result.outputPath;
+        st.previewStatus = 'ready';
+
+        const video = this.ui ? this.ui.getVideoElement() : null;
+        if (video) {
+          video.src = 'file://' + result.outputPath.replace(/\\/g, '/');
+          video.playbackRate = 1;
+          video.controls = true;
+          // Seek to the output-time corresponding to current source-time
+          if (st.currentTime > 0) video.currentTime = st.getOutputTime(st.currentTime);
+        }
+      } else {
+        st.previewStatus = 'error';
+      }
+    } catch (err) {
+      st.previewStatus = 'error';
+    }
     if (this.ui) this.ui.update();
   }
 

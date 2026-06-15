@@ -4,6 +4,7 @@ import {
   renderDropZone, renderFileInfo, renderOutputRow, renderPlayerSlot,
   renderTimeline, renderSegmentActions,
   renderPresets, renderExportButtons, renderProgress, renderResult, renderError,
+  renderPreviewOverlay,
 } from './timelineRenderer.js';
 
 export default class VideoUI {
@@ -28,6 +29,8 @@ export default class VideoUI {
     this._onTimelineOpenFile = null;
     this._onTimelineOpenFolder = null;
     this._onTimelineNew = null;
+    this._onUndo = null;
+    this._onRedo = null;
 
     this._onCompress = null;
     this._onCompressRetry = null;
@@ -63,6 +66,8 @@ export default class VideoUI {
     this._onTimelineOpenFile = cbs.onTimelineOpenFile || null;
     this._onTimelineOpenFolder = cbs.onTimelineOpenFolder || null;
     this._onTimelineNew = cbs.onTimelineNew || null;
+    this._onUndo = cbs.onUndo || null;
+    this._onRedo = cbs.onRedo || null;
 
     this._onCompress = cbs.onCompress || null;
     this._onCompressRetry = cbs.onCompressRetry || null;
@@ -134,16 +139,60 @@ export default class VideoUI {
     slot.appendChild(video);
     this._videoEl = video;
 
+    this._previewSegId = null;
     video.addEventListener('timeupdate', () => {
-      st.currentTime = video.currentTime;
-      const timeline = this._container.querySelector('#tlTimeline');
-      if (timeline) {
-        const playhead = timeline.querySelector('.tl-playhead');
-        const dur = st.inputMeta ? st.inputMeta.duration : 1;
-        if (playhead && dur > 0) {
-          playhead.style.left = ((video.currentTime / dur) * 100) + '%';
-        }
+      const t = video.currentTime;
+      const dur = st.inputMeta ? st.inputMeta.duration : 1;
+      const isPreview = st.previewStatus === 'ready' && st.previewUrl;
+
+      let sourceTime;
+      if (isPreview) {
+        // Preview video plays in output-time space → convert to source time
+        sourceTime = st.getSourceTime(t);
+      } else {
+        sourceTime = t;
       }
+
+      // Find current enabled segment (in source-time space)
+      const seg = st.segments.find(s => s.enabled && sourceTime >= s.startTime && sourceTime < s.endTime);
+
+      if (!seg && !isPreview) {
+        // Raw video mode: skip disabled/gap areas
+        const next = st.segments
+          .filter(s => s.enabled && s.startTime > sourceTime)
+          .sort((a, b) => a.startTime - b.startTime)[0];
+        if (next) {
+          video.currentTime = next.startTime;
+        } else {
+          video.pause();
+        }
+        return;
+      }
+
+      // Apply playback rate (only needed for raw mode; preview already has speed baked in)
+      if (!isPreview && seg && Math.abs(video.playbackRate - seg.speed) > 0.01) {
+        video.playbackRate = seg.speed;
+      }
+
+      // Update state
+      st.currentTime = sourceTime;
+
+      // Auto-select segment when crossing boundary
+      if (seg && seg.id !== this._previewSegId) {
+        this._previewSegId = seg.id;
+        st.selectedSegmentId = seg.id;
+      }
+
+      // Move playhead via direct DOM (no full re-render)
+      const playhead = this._container ? this._container.querySelector('.tl-playhead') : null;
+      if (playhead && dur > 0) {
+        playhead.style.left = ((sourceTime / dur) * 100) + '%';
+      }
+
+      // Update bar highlight
+      this._container.querySelectorAll('.tl-seg-bar').forEach(bar => {
+        bar.classList.toggle('tl-seg-bar--selected', bar.dataset.segId === st.selectedSegmentId);
+      });
     });
   }
 
@@ -179,7 +228,7 @@ export default class VideoUI {
         const outputRow = renderOutputRow(st.outputFolder);
         const playerSlot = renderPlayerSlot();
         const timeline = st.segments.length > 0 ? renderTimeline(
-          st.segments, st.inputMeta.duration, st.currentTime, st.selectedSegmentId, (i) => st.getSegmentColor(i)
+          st.segments, st.inputMeta.duration, st.currentTime, st.selectedSegmentId, (i) => st.getSegmentColor(i), st.totalDuration
         ) : '';
         const segActions = st.selectedSegment ? renderSegmentActions(st.selectedSegment, st.segments.indexOf(st.selectedSegment)) : '';
         const presets = st.status !== 'rendering' && st.status !== 'done'
@@ -194,7 +243,7 @@ export default class VideoUI {
           <div class="tl-file-info-wrapper">${fileInfo}</div>
           <div class="tl-output-area">
             ${outputRow}
-            <div class="tl-player-area">${playerSlot}</div>
+            <div class="tl-player-area">${playerSlot}${renderPreviewOverlay(st.previewStatus, st.previewProgress)}</div>
             ${timeline ? `<div class="tl-timeline-wrapper">${timeline}</div>` : ''}
             ${segActions ? `<div class="tl-seg-actions-wrapper">${segActions}</div>` : ''}
             ${presets}
@@ -346,6 +395,11 @@ export default class VideoUI {
     const tlNew = this._container.querySelector('#tlNewBtn');
     if (tlNew && this._onTimelineNew) tlNew.addEventListener('click', () => this._onTimelineNew());
 
+    const undoBtn = this._container.querySelector('#tlUndoBtn');
+    if (undoBtn && this._onUndo) undoBtn.addEventListener('click', () => this._onUndo());
+    const redoBtn = this._container.querySelector('#tlRedoBtn');
+    if (redoBtn && this._onRedo) redoBtn.addEventListener('click', () => this._onRedo());
+
     // ── Quick Compress events ──
     this._container.querySelectorAll('.vt-preset-card').forEach(c => {
       c.addEventListener('click', () => { if (this._onPresetChange) this._onPresetChange(c.dataset.preset); });
@@ -401,5 +455,22 @@ export default class VideoUI {
 
     const imCA = this._container.querySelector('#imConvertAnotherBtn');
     if (imCA && this._onImageConvertAnother) imCA.addEventListener('click', () => this._onImageConvertAnother());
+
+    if (this._onUndo || this._onRedo) {
+      if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
+      this._keyHandler = (e) => {
+        const panel = this._container;
+        if (!panel || !panel.classList.contains('open')) return;
+        const isCtrl = e.ctrlKey || e.metaKey;
+        if (isCtrl && e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          if (this._onUndo) this._onUndo();
+        } else if (isCtrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+          e.preventDefault();
+          if (this._onRedo) this._onRedo();
+        }
+      };
+      document.addEventListener('keydown', this._keyHandler);
+    }
   }
 }

@@ -78,7 +78,20 @@ export function renderPlayerSlot() {
   return `<div id="tlPlayerSlot" class="tl-player-slot"></div>`;
 }
 
-export function renderTimeline(segments, duration, currentTime, selectedId, getColor) {
+export function renderPreviewOverlay(previewStatus, previewProgress) {
+  if (previewStatus !== 'generating') return '';
+  const pct = previewProgress && previewProgress.percent ? previewProgress.percent : 0;
+  const step = previewProgress && previewProgress.step ? previewProgress.step : 'Generating preview...';
+  return `
+    <div class="tl-preview-overlay">
+      <div class="tl-preview-overlay-label">${step}</div>
+      <div class="tl-preview-overlay-bar">
+        <div class="tl-preview-overlay-fill" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+}
+
+export function renderTimeline(segments, duration, currentTime, selectedId, getColor, totalOutputDuration) {
   if (segments.length === 0) {
     return `<div class="tl-timeline-empty">No clips. Use suggestions or add clips below.</div>`;
   }
@@ -110,9 +123,16 @@ export function renderTimeline(segments, duration, currentTime, selectedId, getC
 
   const playheadPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  const durLabel = totalOutputDuration != null
+    ? `<span class="tl-timeline-duration">Original: ${formatDuration(duration)} · Output: ${formatDuration(totalOutputDuration)}</span>`
+    : '';
+
   return `
     <div class="tl-timeline-section">
-      <div class="tl-timeline-label">Timeline</div>
+      <div class="tl-timeline-label-row">
+        <div class="tl-timeline-label">Timeline</div>
+        ${durLabel}
+      </div>
       <div class="tl-timeline" id="tlTimeline">
         ${rulerHtml}
         <div class="tl-timeline-track">
@@ -133,11 +153,16 @@ export function renderSegmentActions(segment, index) {
       <select class="tl-speed-select">
         <option value="0.5" ${segment.speed === 0.5 ? 'selected' : ''}>0.5x</option>
         <option value="1" ${segment.speed === 1 ? 'selected' : ''}>1x</option>
+        <option value="1.5" ${segment.speed === 1.5 ? 'selected' : ''}>1.5x</option>
         <option value="2" ${segment.speed === 2 ? 'selected' : ''}>2x</option>
+        <option value="2.5" ${segment.speed === 2.5 ? 'selected' : ''}>2.5x</option>
         <option value="3" ${segment.speed === 3 ? 'selected' : ''}>3x</option>
       </select>
       <button class="tl-act-btn tl-act-split" id="tlSplitBtn">${ICONS.scissors} Split</button>
       <button class="tl-act-btn tl-act-delete" id="tlDeleteBtn">${ICONS.trash} Cut</button>
+      <span class="tl-sep"></span>
+      <button class="tl-act-btn" id="tlUndoBtn" title="Undo (Ctrl+Z)">Undo</button>
+      <button class="tl-act-btn" id="tlRedoBtn" title="Redo (Ctrl+Y)">Redo</button>
     </div>`;
 }
 

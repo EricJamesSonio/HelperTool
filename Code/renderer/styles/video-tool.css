@@ -165,14 +165,20 @@
 
 .tl-output-area { display: flex; flex-direction: column; gap: 18px; margin: 0 36px; padding: 0 0 28px; }
 
-.tl-player-area { background: var(--bg-base); border-radius: var(--r-lg); border: 1px solid var(--border-default); overflow: hidden; }
+.tl-player-area { position: relative; background: var(--bg-base); border-radius: var(--r-lg); border: 1px solid var(--border-default); overflow: hidden; }
 .tl-player-slot { width: 100%; }
 .tl-video { width: 100%; max-height: 350px; display: block; background: #000; }
+.tl-preview-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.7); z-index: 10; gap: 8px; }
+.tl-preview-overlay-label { font-size: 13px; color: var(--text-primary); }
+.tl-preview-overlay-bar { width: 160px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
+.tl-preview-overlay-fill { height: 100%; background: var(--accent); transition: width 0.3s; }
 
 .tl-timeline-wrapper { }
 
 .tl-timeline-section { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; background: var(--bg-surface); border-radius: var(--r-lg); border: 1px solid var(--border-default); }
+.tl-timeline-label-row { display: flex; align-items: center; gap: 12px; }
 .tl-timeline-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.tl-timeline-duration { font-size: 11px; color: var(--text-secondary); }
 .tl-timeline { position: relative; cursor: pointer; user-select: none; }
 .tl-timeline-ruler { position: relative; height: 20px; }
 .tl-ruler-mark { position: absolute; font-size: 10px; color: var(--text-muted); transform: translateX(-50%); top: 2px; }
@@ -197,6 +203,7 @@
 .tl-act-btn svg { width: 14px; height: 14px; }
 .tl-act-split:hover { border-color: var(--accent); color: var(--accent); }
 .tl-act-delete:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+.tl-sep { width: 1px; height: 20px; background: var(--border-default); flex-shrink: 0; }
 
 .tl-suggestions-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 16px; background: var(--bg-surface); border-radius: var(--r-lg); border: 1px solid var(--border-default); }
 .tl-suggestions-label { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }

@@ -21,19 +21,51 @@ export default class VideoState {
     this.selectedSegmentId = null;
     this.currentTime       = 0;
     this.previewUrl        = null;
+    this.previewStatus     = 'idle';
+    this.previewProgress   = null;
     this.exportMode        = 'mp4';
     this.suggestions       = [];
     this.compressStatus    = 'idle';
     this.compressProgress  = null;
     this.compressResult    = null;
     this.compressError     = null;
+
+    this._undoStack = [];
+    this._redoStack = [];
   }
 
   get selectedSegment() {
     return this.segments.find(s => s.id === this.selectedSegmentId) || null;
   }
 
+  _snapshot() {
+    this._undoStack.push(JSON.parse(JSON.stringify(this.segments)));
+    this._redoStack = [];
+  }
+
+  undo() {
+    if (this._undoStack.length === 0) return false;
+    this._redoStack.push(JSON.parse(JSON.stringify(this.segments)));
+    this.segments = this._undoStack.pop();
+    if (!this.segments.some(s => s.id === this.selectedSegmentId)) {
+      this.selectedSegmentId = this.segments.length > 0 ? this.segments[this.segments.length - 1].id : null;
+    }
+    return true;
+  }
+
+  redo() {
+    if (this._redoStack.length === 0) return false;
+    this._undoStack.push(JSON.parse(JSON.stringify(this.segments)));
+    this.segments = this._redoStack.pop();
+    if (!this.segments.some(s => s.id === this.selectedSegmentId)) {
+      this.selectedSegmentId = this.segments.length > 0 ? this.segments[this.segments.length - 1].id : null;
+    }
+    return true;
+  }
+
   reset() {
+    this._undoStack = [];
+    this._redoStack = [];
     this.inputPath = null;
     this.inputMeta = null;
     this.status = 'idle';
@@ -44,6 +76,8 @@ export default class VideoState {
     this.selectedSegmentId = null;
     this.currentTime = 0;
     this.previewUrl = null;
+    this.previewStatus = 'idle';
+    this.previewProgress = null;
     this.exportMode = 'mp4';
     this.suggestions = [];
     this.compressStatus = 'idle';
@@ -53,6 +87,7 @@ export default class VideoState {
   }
 
   addSegment(startTime, endTime, speed) {
+    this._snapshot();
     const seg = {
       id: 'seg-' + (++_segId),
       startTime: Math.round(startTime * 10) / 10,
@@ -66,6 +101,7 @@ export default class VideoState {
   }
 
   removeSegment(id) {
+    this._snapshot();
     const seg = this.segments.find(s => s.id === id);
     if (seg) seg.enabled = false;
     if (this.selectedSegmentId === id) {
@@ -75,6 +111,7 @@ export default class VideoState {
   }
 
   updateSegment(id, props) {
+    this._snapshot();
     const seg = this.segments.find(s => s.id === id);
     if (!seg) return;
     if (props.startTime !== undefined) seg.startTime = Math.round(parseFloat(props.startTime) * 10) / 10;
@@ -83,6 +120,7 @@ export default class VideoState {
   }
 
   splitSegment(id, splitTime) {
+    this._snapshot();
     const seg = this.segments.find(s => s.id === id);
     if (!seg) return null;
     if (splitTime <= seg.startTime || splitTime >= seg.endTime) return null;
@@ -109,6 +147,23 @@ export default class VideoState {
       const dur = s.endTime - s.startTime;
       return sum + (dur > 0 ? dur / s.speed : 0);
     }, 0);
+  }
+
+  getOutputTime(sourceTime) {
+    const active = this.activeSegments;
+    let outputTime = 0;
+    for (const seg of active) {
+      if (sourceTime > seg.endTime) {
+        outputTime += (seg.endTime - seg.startTime) / seg.speed;
+      } else if (sourceTime >= seg.startTime) {
+        const segOutput = (seg.endTime - seg.startTime) / seg.speed;
+        const ratio = (sourceTime - seg.startTime) / (seg.endTime - seg.startTime);
+        return outputTime + ratio * segOutput;
+      } else {
+        return outputTime;
+      }
+    }
+    return outputTime;
   }
 
   getSourceTime(outputTime) {
