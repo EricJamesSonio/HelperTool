@@ -18,6 +18,7 @@ export default class GmailUI {
     this._onOpenIgnoredManager = null;
     this._onCloseIgnoredManager = null;
     this._onUnignoreSender = null;
+    this._onSenderFilter = null;
   }
 
   setCallbacks(cbs) {
@@ -34,6 +35,7 @@ export default class GmailUI {
     this._onOpenIgnoredManager = cbs.onOpenIgnoredManager || null;
     this._onCloseIgnoredManager = cbs.onCloseIgnoredManager || null;
     this._onUnignoreSender = cbs.onUnignoreSender || null;
+    this._onSenderFilter = cbs.onSenderFilter || null;
   }
 
   render(container) {
@@ -65,7 +67,7 @@ export default class GmailUI {
     if (st.view === 'inbox' && st.viewEmail) {
       const result = st.getResult(st.viewEmail);
       const messages = result && result.messages ? result.messages : [];
-      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0, st.ignoredSenders);
+      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0, st.ignoredSenders, st.senderFilter);
     }
 
     const filteredResults = st.getFilteredResults();
@@ -150,6 +152,12 @@ export default class GmailUI {
     this._container.querySelectorAll('.gm-ignored-unignore').forEach(btn => {
       btn.addEventListener('click', () => {
         if (this._onUnignoreSender) this._onUnignoreSender(btn.dataset.sender);
+      });
+    });
+
+    this._container.querySelectorAll('.gm-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this._onSenderFilter) this._onSenderFilter(btn.dataset.sender);
       });
     });
   }

@@ -15,6 +15,7 @@ export default class GmailState {
 
     this.ignoredSenders = [];
     this.showIgnoredManager = false;
+    this.senderFilter = null;
   }
 
   reset() {
@@ -31,6 +32,7 @@ export default class GmailState {
     this.inboxMessages = [];
     this.ignoredSenders = [];
     this.showIgnoredManager = false;
+    this.senderFilter = null;
   }
 
   getAccount(email) {
@@ -45,6 +47,7 @@ export default class GmailState {
     const now = Date.now();
     return this.inboxMessages.filter(msg => {
       if (this._isIgnored(msg.from)) return false;
+      if (this.senderFilter && !msg.from?.toLowerCase().includes(this.senderFilter.toLowerCase())) return false;
       const msgTime = msg.date ? new Date(msg.date).getTime() : 0;
       switch (this.filter) {
         case 'hour': return !isNaN(msgTime) && (now - msgTime) < 3600000;

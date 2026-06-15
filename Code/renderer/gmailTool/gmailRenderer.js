@@ -139,8 +139,8 @@ export function renderAccountList(accounts, results) {
   }).join('');
 }
 
-export function renderInboxView(email, messages, filter, expandedIds, unreadCount, ignoredSenders) {
-  const filtered = filterMessages(messages, filter, ignoredSenders);
+export function renderInboxView(email, messages, filter, expandedIds, unreadCount, ignoredSenders, senderFilter) {
+  const filtered = filterMessages(messages, filter, ignoredSenders, senderFilter);
   return `
     <div class="gm-inbox-header">
       <button class="gm-inbox-back" id="gmInboxBack">${ICONS.back} Back</button>
@@ -159,16 +159,41 @@ export function renderInboxView(email, messages, filter, expandedIds, unreadCoun
       <button class="gm-filter-btn ${filter === 'unread' ? 'gm-filter-btn--active' : ''}" data-filter="unread">Unread</button>
       <span class="gm-filter-count">${filtered.length} messages</span>
     </div>
+    ${renderSenderChips(messages, senderFilter)}
     <div class="gm-inbox-list">
       ${filtered.length === 0 ? '<div class="gm-no-msgs">No messages match this filter</div>' : ''}
       ${filtered.map(msg => renderMessage(msg, email, expandedIds.has(msg.id), ignoredSenders)).join('')}
     </div>`;
 }
 
-function filterMessages(messages, filter, ignoredSenders) {
+function renderSenderChips(messages, activeSender) {
+  const seen = new Set();
+  const senders = [];
+  for (const msg of messages) {
+    const name = extractName(msg.from);
+    if (!seen.has(name)) {
+      seen.add(name);
+      senders.push(name);
+    }
+  }
+  senders.sort();
+  if (senders.length <= 1) return '';
+  return `
+    <div class="gm-chip-row">
+      ${senders.map(s => `
+        <button class="gm-chip ${s === activeSender ? 'gm-chip--active' : ''}" data-sender="${escapeHtml(s)}">${escapeHtml(s)}</button>
+      `).join('')}
+    </div>`;
+}
+
+function filterMessages(messages, filter, ignoredSenders, senderFilter) {
   const now = Date.now();
   return messages.filter(msg => {
     if (isIgnored(msg.from, ignoredSenders)) return false;
+    if (senderFilter) {
+      const name = extractName(msg.from);
+      if (name.toLowerCase() !== senderFilter.toLowerCase()) return false;
+    }
     const msgTime = msg.date ? new Date(msg.date).getTime() : 0;
     switch (filter) {
       case 'hour': return !isNaN(msgTime) && (now - msgTime) < 3600000;

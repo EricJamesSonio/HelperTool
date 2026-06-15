@@ -67,8 +67,17 @@
 
 /* ── Filter bar ── */
 
-.gm-filter-bar { display: flex; align-items: center; gap: 8px; padding: 12px 28px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); flex-shrink: 0; }
+.gm-filter-bar { display: flex; align-items: center; gap: 8px; padding: 12px 28px; border-bottom: none; background: var(--bg-surface); flex-shrink: 0; }
 .gm-filter-btn { background: none; border: 1px solid var(--border-default); border-radius: 16px; color: var(--text-secondary); cursor: pointer; padding: 5px 14px; font-size: 13px; font-family: var(--font-ui); transition: all 0.15s; font-weight: 500; }
+
+/* ── Sender chips row ── */
+
+.gm-chip-row { display: flex; gap: 6px; padding: 6px 28px 12px; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); }
+.gm-chip-row::-webkit-scrollbar { height: 4px; }
+.gm-chip-row::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+.gm-chip { flex-shrink: 0; padding: 4px 14px; border: 1px solid var(--border-default); border-radius: 14px; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 12px; font-family: var(--font-ui); white-space: nowrap; transition: all 0.15s; font-weight: 500; }
+.gm-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.gm-chip--active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .gm-filter-btn:hover { border-color: var(--accent); color: var(--accent); }
 .gm-filter-btn--active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .gm-filter-count { margin-left: auto; font-size: 13px; color: var(--text-muted); }

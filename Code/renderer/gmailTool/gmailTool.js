@@ -30,6 +30,7 @@ export default class GmailTool {
       onOpenIgnoredManager: () => this._handleOpenIgnoredManager(),
       onCloseIgnoredManager: () => this._handleCloseIgnoredManager(),
       onUnignoreSender:    (sender) => this._handleUnignoreSender(sender),
+      onSenderFilter:      (sender) => this._handleSenderFilter(sender),
     });
     this.ui.render(container);
 
@@ -190,6 +191,11 @@ export default class GmailTool {
     await window.electronAPI.gmail.removeIgnoredSender({ sender });
     this.state.ignoredSenders = this.state.ignoredSenders.filter(s => s !== sender);
     this._updateBadge();
+    if (this.ui) this.ui.update();
+  }
+
+  _handleSenderFilter(sender) {
+    this.state.senderFilter = this.state.senderFilter === sender ? null : sender;
     if (this.ui) this.ui.update();
   }
 

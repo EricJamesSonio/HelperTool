@@ -71,10 +71,26 @@ function register({ getMainWindow }) {
       const totalUnread = results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
       win.webContents.send('gmail:pollResult', { results, totalUnread });
 
-      // OS toast for new mail
+      const ignored = gmailService.getIgnoredSenders();
+
+      function isIgnored(fromStr) {
+        if (!fromStr || ignored.length === 0) return false;
+        const lower = fromStr.toLowerCase();
+        return ignored.some(s => lower.includes(s.toLowerCase()));
+      }
+
+      function extractName(fromStr) {
+        if (!fromStr) return 'Unknown';
+        const match = fromStr.match(/^"?(.+?)"?\s*</);
+        return match ? match[1].trim() : fromStr.split('@')[0];
+      }
+
       for (const r of results) {
         if (r.unread > 0 && r.messages && r.messages.length > 0) {
           const first = r.messages[0];
+          const senderName = extractName(first.from);
+          if (isIgnored(senderName)) continue;
+
           const notification = new Notification({
             title: first.from,
             body: first.subject + '\n' + (first.snippet || ''),
