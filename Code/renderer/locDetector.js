@@ -29,7 +29,7 @@ function _ensurePanel() {
   _panel.innerHTML = `
     <div class="loc-detector-content">
       <div class="loc-detector-navbar">
-        <h2 class="loc-detector-title">📏 LOC Detector</h2>
+        <h2 class="loc-detector-title">LOC Detector</h2>
         <div class="loc-detector-navbar-right">
           <button class="loc-detector-close-btn" id="locDetectorCloseBtn">✕</button>
         </div>
