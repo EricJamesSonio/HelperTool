@@ -175,22 +175,26 @@ export function renderInboxView(email, messages, filter, expandedIds, unreadCoun
 }
 
 function renderSenderChips(messages, activeSender) {
-  const seen = new Set();
-  const senders = [];
+  const groups = new Map();
   for (const msg of messages) {
     const name = extractName(msg.from);
-    if (!seen.has(name)) {
-      seen.add(name);
-      senders.push(name);
+    const firstWord = name.split(/\s+/)[0].toLowerCase();
+    if (!groups.has(firstWord)) {
+      groups.set(firstWord, new Set());
     }
+    groups.get(firstWord).add(name);
   }
-  senders.sort();
-  if (senders.length <= 1) return '';
+  if (groups.size <= 1) return '';
+  const sorted = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   return `
     <div class="gm-chip-row">
-      ${senders.map(s => `
-        <button class="gm-chip ${s === activeSender ? 'gm-chip--active' : ''}" data-sender="${escapeHtml(s)}">${escapeHtml(s)}</button>
-      `).join('')}
+      ${sorted.map(([firstWord, names]) => {
+        const label = names.size === 1
+          ? [...names][0]
+          : firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+        const isActive = activeSender && activeSender.toLowerCase() === firstWord;
+        return `<button class="gm-chip ${isActive ? 'gm-chip--active' : ''}" data-sender="${escapeHtml(firstWord)}">${escapeHtml(label)}</button>`;
+      }).join('')}
     </div>`;
 }
 
@@ -200,7 +204,7 @@ function filterMessages(messages, filter, ignoredSenders, senderFilter) {
     if (isIgnored(msg.from, ignoredSenders)) return false;
     if (senderFilter) {
       const name = extractName(msg.from);
-      if (name.toLowerCase() !== senderFilter.toLowerCase()) return false;
+      if (!name.toLowerCase().startsWith(senderFilter.toLowerCase())) return false;
     }
     const msgTime = msg.date ? new Date(msg.date).getTime() : 0;
     switch (filter) {

@@ -209,6 +209,9 @@ export default class GmailTool {
       this.state.expandedMsgIds.add(msgId);
     }
     if (this.ui) this.ui.update();
+    // Scroll the expanded message into view so user doesn't lose position
+    const expandedEl = this.ui?._container?.querySelector('.gm-message--expanded');
+    if (expandedEl) expandedEl.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }
 
   async _handleIgnoreSender(email, sender) {
