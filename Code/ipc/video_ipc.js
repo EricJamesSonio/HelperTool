@@ -75,6 +75,44 @@ function register({ getMainWindow }) {
       return { success: false, error: err.message };
     }
   });
+
+  // ── Timeline Render (MP4) ──
+
+  ipcMain.handle('video:render', async (event, payload) => {
+    const win = getMainWindow();
+    try {
+      const progressHandler = (progress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('video:renderProgress', progress);
+        }
+      };
+      workerProxy.onProgress(progressHandler);
+      const result = await workerProxy.send('video:render', payload);
+      workerProxy.offProgress(progressHandler);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── Timeline Preview ──
+
+  ipcMain.handle('video:preview', async (event, payload) => {
+    const win = getMainWindow();
+    try {
+      const progressHandler = (progress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('video:previewProgress', progress);
+        }
+      };
+      workerProxy.onProgress(progressHandler);
+      const result = await workerProxy.send('video:preview', payload);
+      workerProxy.offProgress(progressHandler);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
 }
 
 module.exports = { register };

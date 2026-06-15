@@ -13,6 +13,8 @@ const profileSyncTask = require('./tasks/profileSync');
 const videoCompressTask = require('./tasks/videoCompress');
 const imageToIcoTask = require('./tasks/imageToIco');
 const videoToGifTask = require('./tasks/videoToGif');
+const videoRenderTask = require('./tasks/videoRender');
+const videoPreviewTask = require('./tasks/videoPreview');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -90,6 +92,14 @@ process.on('message', async (msg) => {
 
       case 'video:gif':
         result = await videoToGifTask(payload, onProgress);
+        break;
+
+      case 'video:render':
+        result = await videoRenderTask(payload, onProgress);
+        break;
+
+      case 'video:preview':
+        result = await videoPreviewTask(payload, onProgress);
         break;
 
       default:
