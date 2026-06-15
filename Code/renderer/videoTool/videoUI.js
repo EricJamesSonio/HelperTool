@@ -1,6 +1,6 @@
 import { renderFileDropZone, renderPresetCards, renderOutputRow, renderCompressButton, renderProgress, renderResult, renderError } from './videoRenderer.js';
 import { renderImageDropZone, renderImageOutputRow, renderImageResult, renderImageProgress, renderImageError } from './imageRenderer.js';
-import { renderGifDropZone, renderGifOutputRow, renderGifLoading, renderGifPreviews, renderGifSettings, renderGifProgress, renderGifResult, renderGifError } from './gifRenderer.js';
+import { renderGifDropZone, renderGifFileInfo, renderGifOutputRow, renderGifPlayerSlot, renderGifTimeline, renderGifSegmentActions, renderGifSuggestions, renderGifAddClipButton, renderGifPresets, renderGifGenerateButton, renderGifProgress, renderGifResult, renderGifError } from './gifRenderer.js';
 
 export default class VideoUI {
   constructor(state, imageState, gifState) {
@@ -8,6 +8,7 @@ export default class VideoUI {
     this._imageState = imageState;
     this._gifState = gifState;
     this._container = null;
+    this._videoEl = null;
     this._onPickFile = null;
     this._onRemoveFile = null;
     this._onPresetChange = null;
@@ -28,9 +29,13 @@ export default class VideoUI {
     this._onGifPickFile = null;
     this._onGifRemoveFile = null;
     this._onGifChangeOutput = null;
-    this._onGifSelectClip = null;
-    this._onGifTimeChange = null;
-    this._onGifSpeedChange = null;
+    this._onGifAddSegment = null;
+    this._onGifRemoveSegment = null;
+    this._onGifUpdateSegment = null;
+    this._onGifAddSuggestion = null;
+    this._onGifSelectSegment = null;
+    this._onGifSplit = null;
+    this._onGifTimelineClick = null;
     this._onGifPresetChange = null;
     this._onGifGenerate = null;
     this._onGifRetry = null;
@@ -61,9 +66,13 @@ export default class VideoUI {
     this._onGifPickFile = cbs.onGifPickFile || null;
     this._onGifRemoveFile = cbs.onGifRemoveFile || null;
     this._onGifChangeOutput = cbs.onGifChangeOutput || null;
-    this._onGifSelectClip = cbs.onGifSelectClip || null;
-    this._onGifTimeChange = cbs.onGifTimeChange || null;
-    this._onGifSpeedChange = cbs.onGifSpeedChange || null;
+    this._onGifAddSegment = cbs.onGifAddSegment || null;
+    this._onGifRemoveSegment = cbs.onGifRemoveSegment || null;
+    this._onGifUpdateSegment = cbs.onGifUpdateSegment || null;
+    this._onGifAddSuggestion = cbs.onGifAddSuggestion || null;
+    this._onGifSelectSegment = cbs.onGifSelectSegment || null;
+    this._onGifSplit = cbs.onGifSplit || null;
+    this._onGifTimelineClick = cbs.onGifTimelineClick || null;
     this._onGifPresetChange = cbs.onGifPresetChange || null;
     this._onGifGenerate = cbs.onGifGenerate || null;
     this._onGifRetry = cbs.onGifRetry || null;
@@ -73,10 +82,66 @@ export default class VideoUI {
     this._onTabChange = cbs.onTabChange || null;
   }
 
+  getVideoElement() { return this._videoEl; }
+
   render(container) {
     this._container = container;
     container.innerHTML = this._getTemplate();
+    this._initVideoPlayer();
     this._bindEvents();
+  }
+
+  update() {
+    if (!this._container) return;
+    const oldVideo = this._videoEl;
+    this._videoEl = null;
+    this._container.innerHTML = this._getTemplate();
+    this._restoreVideoPlayer(oldVideo);
+    this._bindEvents();
+  }
+
+  _initVideoPlayer() {
+    const slot = this._container.querySelector('#gfPlayerSlot');
+    if (!slot) return;
+    this._createVideoElement(slot);
+  }
+
+  _restoreVideoPlayer(oldVideo) {
+    const slot = this._container.querySelector('#gfPlayerSlot');
+    if (!slot) return;
+    if (oldVideo) {
+      slot.appendChild(oldVideo);
+      this._videoEl = oldVideo;
+    } else {
+      this._createVideoElement(slot);
+    }
+  }
+
+  _createVideoElement(slot) {
+    const video = document.createElement('video');
+    video.id = 'gfVideo';
+    video.className = 'gf-video';
+    video.controls = true;
+    video.preload = 'auto';
+    const gs = this._gifState;
+    if (gs.inputPath) {
+      video.src = 'file://' + gs.inputPath.replace(/\\/g, '/');
+    }
+    slot.appendChild(video);
+    this._videoEl = video;
+    if (this._onGifVideoReady) this._onGifVideoReady(video);
+
+    video.addEventListener('timeupdate', () => {
+      this._gifState.currentTime = video.currentTime;
+      const timeline = this._container.querySelector('#gfTimeline');
+      if (timeline) {
+        const playhead = timeline.querySelector('.gf-playhead');
+        const dur = this._gifState.inputMeta ? this._gifState.inputMeta.duration : 1;
+        if (playhead && dur > 0) {
+          playhead.style.left = ((video.currentTime / dur) * 100) + '%';
+        }
+      }
+    });
   }
 
   _renderTabs() {
@@ -106,7 +171,7 @@ export default class VideoUI {
     if (!st.inputPath && !im.inputPath && !gf.inputPath) {
       const videoContent = renderFileDropZone(null, null);
       const imageContent = renderImageDropZone(im.inputPath, im.inputMeta);
-      const gifContent = renderGifDropZone(null, null);
+      const gifContent = renderGifDropZone();
       let activeContent;
       if (st.activeSection === 'image') activeContent = imageContent;
       else if (st.activeSection === 'gif') activeContent = gifContent;
@@ -171,28 +236,44 @@ export default class VideoUI {
 
     let gifContent = '';
     if (isGifActive) {
-      const drop = renderGifDropZone(gf.inputPath, gf.inputMeta);
-      let inner = '';
-      if (gf.inputPath) {
-        const outputSection = renderGifOutputRow(gf.outputFolder);
-        const loadingSection = gf.status === 'loading' || gf.status === 'generating-previews' ? renderGifLoading() : '';
-        const previewsSection = gf.previews.length > 0 ? renderGifPreviews(gf.previews, gf.selectedClipId) : '';
-        const settingsSection = gf.selectedClip && gf.status !== 'generating' && gf.status !== 'done' ? renderGifSettings(gf.settings, gf.selectedClip) : '';
+      if (!gf.inputPath) {
+        gifContent = renderGifDropZone();
+      } else {
+        const fileInfo = renderGifFileInfo(gf.inputPath, gf.inputMeta);
+        const outputRow = renderGifOutputRow(gf.outputFolder);
+        const playerSlot = renderGifPlayerSlot();
+        const timeline = gf.segments.length > 0 ? renderGifTimeline(
+          gf.segments, gf.inputMeta.duration, gf.currentTime, gf.selectedSegmentId, (i) => gf.getSegmentColor(i)
+        ) : '';
+        const segActions = gf.selectedSegment ? renderGifSegmentActions(gf.selectedSegment, gf.segments.indexOf(gf.selectedSegment)) : '';
+        const suggestions = gf.status !== 'generating' && gf.status !== 'done' && gf.suggestions.length > 0
+          ? renderGifSuggestions(gf.suggestions) : '';
+        const addClipBtn = gf.status !== 'generating' && gf.status !== 'done'
+          ? renderGifAddClipButton() : '';
+        const presets = gf.status !== 'generating' && gf.status !== 'done'
+          ? renderGifPresets(gf.preset) : '';
+        const generateBtn = gf.status !== 'generating' && gf.status !== 'done' && gf.segments.length > 0
+          ? renderGifGenerateButton() : '';
         const progressSection = gf.status === 'generating' ? renderGifProgress(gf.progress) : '';
         const resultSection = gf.status === 'done' && gf.result ? renderGifResult(gf.result) : '';
         const errorSection = gf.status === 'error' ? renderGifError(gf.error) : '';
-        inner = `
+
+        gifContent = `
+          <div class="gf-file-info-wrapper">${fileInfo}</div>
           <div class="gf-output-area">
-            <div class="vt-section">${outputSection}</div>
-            ${loadingSection ? `<div class="vt-section">${loadingSection}</div>` : ''}
-            ${previewsSection ? `<div class="vt-section">${previewsSection}</div>` : ''}
-            ${settingsSection ? `<div class="vt-section">${settingsSection}</div>` : ''}
-            ${progressSection ? `<div class="vt-section">${progressSection}</div>` : ''}
-            ${resultSection ? `<div class="vt-section">${resultSection}</div>` : ''}
-            ${errorSection ? `<div class="vt-section">${errorSection}</div>` : ''}
+            ${outputRow}
+            <div class="gf-player-area">${playerSlot}</div>
+            ${timeline ? `<div class="gf-timeline-wrapper">${timeline}</div>` : ''}
+            ${segActions ? `<div class="gf-seg-actions-wrapper">${segActions}</div>` : ''}
+            ${suggestions}
+            ${addClipBtn}
+            ${presets}
+            ${generateBtn}
+            ${progressSection}
+            ${resultSection}
+            ${errorSection}
           </div>`;
       }
-      gifContent = drop + inner;
     }
 
     return `
@@ -310,23 +391,51 @@ export default class VideoUI {
     const gfCoBtn = this._container.querySelector('#gfChangeOutputBtn');
     if (gfCoBtn && this._onGifChangeOutput) gfCoBtn.addEventListener('click', () => this._onGifChangeOutput());
 
-    this._container.querySelectorAll('.gf-preview-card').forEach(c => {
-      c.addEventListener('click', () => { if (this._onGifSelectClip) this._onGifSelectClip(c.dataset.clipId); });
+    // Segment bars on timeline
+    this._container.querySelectorAll('.gf-seg-bar').forEach(bar => {
+      bar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this._onGifSelectSegment) this._onGifSelectSegment(bar.dataset.segId);
+      });
     });
 
-    const gfStart = this._container.querySelector('#gfStartTime');
-    const gfEnd = this._container.querySelector('#gfEndTime');
-    if (gfStart && this._onGifTimeChange) {
-      gfStart.addEventListener('change', () => this._onGifTimeChange('start', parseFloat(gfStart.value) || 0));
-    }
-    if (gfEnd && this._onGifTimeChange) {
-      gfEnd.addEventListener('change', () => this._onGifTimeChange('end', parseFloat(gfEnd.value) || 0));
+    // Timeline click (seek)
+    const timeline = this._container.querySelector('#gfTimeline');
+    if (timeline && this._onGifTimelineClick) {
+      timeline.addEventListener('click', (e) => {
+        const rect = timeline.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const pct = x / rect.width;
+        if (this._onGifTimelineClick) this._onGifTimelineClick(pct);
+      });
     }
 
-    this._container.querySelectorAll('.gf-speed-btn').forEach(btn => {
-      btn.addEventListener('click', () => { if (this._onGifSpeedChange) this._onGifSpeedChange(parseFloat(btn.dataset.speed)); });
+    // Split / Delete buttons
+    const splitBtn = this._container.querySelector('#gfSplitBtn');
+    if (splitBtn && this._onGifSplit) splitBtn.addEventListener('click', () => this._onGifSplit());
+
+    const delBtn = this._container.querySelector('#gfDeleteBtn');
+    if (delBtn && this._onGifRemoveSegment) {
+      const segId = this._gifState.selectedSegmentId;
+      if (segId) delBtn.addEventListener('click', () => this._onGifRemoveSegment(segId));
+    }
+
+    // Suggestion pills
+    this._container.querySelectorAll('.gf-suggestion-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this._onGifAddSuggestion) {
+          const start = parseFloat(btn.dataset.start);
+          const dur = parseFloat(btn.dataset.dur);
+          this._onGifAddSuggestion(start, start + dur);
+        }
+      });
     });
 
+    // Add clip button
+    const addClipBtn = this._container.querySelector('#gfAddClipBtn');
+    if (addClipBtn && this._onGifAddSegment) addClipBtn.addEventListener('click', () => this._onGifAddSegment());
+
+    // Preset cards
     this._container.querySelectorAll('.gf-preset-card').forEach(c => {
       c.addEventListener('click', () => { if (this._onGifPresetChange) this._onGifPresetChange(c.dataset.preset); });
     });
@@ -345,11 +454,5 @@ export default class VideoUI {
 
     const gfNew = this._container.querySelector('#gfNewGifBtn');
     if (gfNew && this._onGifNew) gfNew.addEventListener('click', () => this._onGifNew());
-  }
-
-  update() {
-    if (!this._container) return;
-    this._container.innerHTML = this._getTemplate();
-    this._bindEvents();
   }
 }

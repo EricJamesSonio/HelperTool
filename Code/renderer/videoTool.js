@@ -41,9 +41,13 @@ export default class VideoTool {
       onGifPickFile: (path) => this._handleGifPickFile(path),
       onGifRemoveFile: () => this._handleGifRemoveFile(),
       onGifChangeOutput: () => this._handleGifChangeOutput(),
-      onGifSelectClip: (clipId) => this._handleGifSelectClip(clipId),
-      onGifTimeChange: (field, value) => this._handleGifTimeChange(field, value),
-      onGifSpeedChange: (speed) => this._handleGifSpeedChange(speed),
+      onGifAddSegment: () => this._handleGifAddSegment(),
+      onGifRemoveSegment: (segId) => this._handleGifRemoveSegment(segId),
+      onGifUpdateSegment: (segId, props) => this._handleGifUpdateSegment(segId, props),
+      onGifAddSuggestion: (start, end) => this._handleGifAddSuggestion(start, end),
+      onGifSelectSegment: (segId) => this._handleGifSelectSegment(segId),
+      onGifSplit: () => this._handleGifSplit(),
+      onGifTimelineClick: (pct) => this._handleGifTimelineClick(pct),
       onGifPresetChange: (preset) => this._handleGifPresetChange(preset),
       onGifGenerate: () => this._startGifGenerate(),
       onGifRetry: () => this._handleGifRetry(),
@@ -267,10 +271,16 @@ export default class VideoTool {
     this.state.activeSection = 'gif';
     if (this.ui) this.ui.update();
 
+    window.electronAPI.video.onGifProgress((data) => {
+      this.gifState.progress = data;
+      if (this.ui) this.ui.update();
+    });
+
     const meta = await window.electronAPI.video.getMetadata({ inputPath: path });
     if (!meta.success) {
       this.gifState.status = 'error';
       this.gifState.error = meta.error || 'Failed to read metadata';
+      window.electronAPI.video.onGifProgress(() => {});
       if (this.ui) this.ui.update();
       return;
     }
@@ -280,41 +290,18 @@ export default class VideoTool {
       fileSize: meta.originalSize,
     };
 
-    this.gifState.status = 'generating-previews';
-    if (this.ui) this.ui.update();
-
-    window.electronAPI.video.onGifProgress((data) => {
-      this.gifState.progress = data;
-      if (this.ui) this.ui.update();
-    });
-
     const analyzeResult = await window.electronAPI.video.gif({ mode: 'analyze', inputPath: path });
+    window.electronAPI.video.onGifProgress(() => {});
+
     if (!analyzeResult.success) {
       this.gifState.status = 'error';
       this.gifState.error = analyzeResult.error || 'Analysis failed';
-      window.electronAPI.video.onGifProgress(() => {});
-      if (this.ui) this.ui.update();
-      return;
-    }
-
-    const previewResult = await window.electronAPI.video.gif({
-      mode: 'previews',
-      inputPath: path,
-      clips: analyzeResult.suggestions || [],
-    });
-
-    window.electronAPI.video.onGifProgress(() => {});
-
-    if (!previewResult.success) {
-      this.gifState.status = 'error';
-      this.gifState.error = previewResult.error || 'Preview generation failed';
       if (this.ui) this.ui.update();
       return;
     }
 
     this.gifState.suggestions = analyzeResult.suggestions || [];
-    this.gifState.previews = previewResult.previews || [];
-    this.gifState.status = 'preview-ready';
+    this.gifState.status = 'idle';
     if (this.ui) this.ui.update();
   }
 
@@ -331,44 +318,95 @@ export default class VideoTool {
     }
   }
 
-  _handleGifSelectClip(clipId) {
-    const clip = this.gifState.previews.find(p => p.id === clipId);
-    if (!clip) return;
-    this.gifState.selectedClipId = clipId;
-    this.gifState.settings.startTime = clip.startTime;
-    this.gifState.settings.endTime = Math.round((clip.startTime + clip.duration) * 10) / 10;
+  _handleGifAddSegment() {
+    const gs = this.gifState;
+    const totalDur = gs.inputMeta ? gs.inputMeta.duration : 30;
+    const last = gs.segments[gs.segments.length - 1];
+    const defaultStart = last ? Math.min(last.endTime + 1, totalDur - 2) : 0;
+    const defaultEnd = Math.min(defaultStart + 3, totalDur);
+    if (defaultEnd > defaultStart) {
+      gs.addSegment(defaultStart, defaultEnd, 1);
+      if (this.ui) this.ui.update();
+    }
+  }
+
+  _handleGifRemoveSegment(segId) {
+    this.gifState.removeSegment(segId);
     if (this.ui) this.ui.update();
   }
 
-  _handleGifTimeChange(field, value) {
-    if (field === 'start') {
-      this.gifState.settings.startTime = value;
-    } else {
-      this.gifState.settings.endTime = value;
+  _handleGifUpdateSegment(segId, props) {
+    this.gifState.updateSegment(segId, props);
+    if (this.ui) this.ui.update();
+  }
+
+  _handleGifAddSuggestion(start, end) {
+    this.gifState.addSegment(start, end, 1);
+    if (this.ui) this.ui.update();
+  }
+
+  _handleGifSelectSegment(segId) {
+    this.gifState.selectedSegmentId = segId;
+    if (this.ui) this.ui.update();
+  }
+
+  _handleGifSplit() {
+    const gs = this.gifState;
+    const seg = gs.selectedSegment;
+    if (!seg) return;
+    const splitTime = gs.currentTime;
+    if (splitTime <= seg.startTime || splitTime >= seg.endTime) {
+      gs.error = 'Move playhead inside the clip to split';
+      gs.status = 'error';
+      if (this.ui) this.ui.update();
+      setTimeout(() => { if (gs.status === 'error' && gs.error === 'Move playhead inside the clip to split') { gs.status = 'idle'; gs.error = null; if (this.ui) this.ui.update(); } }, 2000);
+      return;
+    }
+    gs.splitSegment(seg.id, splitTime);
+    if (this.ui) this.ui.update();
+  }
+
+  _handleGifTimelineClick(pct) {
+    const gs = this.gifState;
+    const dur = gs.inputMeta ? gs.inputMeta.duration : 0;
+    if (dur <= 0) return;
+    const targetTime = pct * dur;
+    gs.currentTime = targetTime;
+    const video = this.ui ? this.ui.getVideoElement() : null;
+    if (video) {
+      video.currentTime = targetTime;
+    }
+    // Check which segment contains this time and select it
+    for (const seg of gs.segments) {
+      if (targetTime >= seg.startTime && targetTime < seg.endTime) {
+        gs.selectedSegmentId = seg.id;
+        break;
+      }
     }
     if (this.ui) this.ui.update();
   }
 
-  _handleGifSpeedChange(speed) {
-    this.gifState.settings.speed = speed;
-    if (this.ui) this.ui.update();
-  }
-
   _handleGifPresetChange(preset) {
-    this.gifState.settings.preset = preset;
+    this.gifState.preset = preset;
     if (this.ui) this.ui.update();
   }
 
   async _startGifGenerate() {
     const gs = this.gifState;
     if (!gs.inputPath || gs.status === 'generating') return;
-    const startTime = gs.settings.startTime;
-    const endTime = gs.settings.endTime;
-    if (endTime <= startTime) {
-      gs.error = 'End time must be after start time';
+    if (gs.segments.length === 0) {
+      gs.error = 'Add at least one clip';
       gs.status = 'error';
       if (this.ui) this.ui.update();
       return;
+    }
+    for (const seg of gs.segments) {
+      if (seg.endTime <= seg.startTime) {
+        gs.error = `Clip "${seg.id}": end must be after start`;
+        gs.status = 'error';
+        if (this.ui) this.ui.update();
+        return;
+      }
     }
     gs.status = 'generating';
     gs.progress = null;
@@ -384,10 +422,12 @@ export default class VideoTool {
     const result = await window.electronAPI.video.gif({
       mode: 'final',
       inputPath: gs.inputPath,
-      startTime,
-      duration: Math.round((endTime - startTime) * 10) / 10,
-      speed: gs.settings.speed,
-      preset: gs.settings.preset,
+      segments: gs.segments.map(s => ({
+        startTime: s.startTime,
+        duration: Math.round((s.endTime - s.startTime) * 10) / 10,
+        speed: s.speed,
+      })),
+      preset: gs.preset,
       outputPath: gs.outputFolder || undefined,
     });
 
@@ -404,7 +444,7 @@ export default class VideoTool {
   }
 
   _handleGifRetry() {
-    this.gifState.status = 'preview-ready';
+    this.gifState.status = 'idle';
     this.gifState.progress = null;
     this.gifState.error = null;
     if (this.ui) this.ui.update();

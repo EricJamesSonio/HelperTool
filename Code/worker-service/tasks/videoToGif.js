@@ -6,9 +6,9 @@ const fs = require('fs');
 const os = require('os');
 
 const PRESETS = {
-  small:    { width: 320, fps: 10, label: 'Small',  desc: '320p · 10fps' },
-  balanced: { width: 480, fps: 15, label: 'Balanced', desc: '480p · 15fps' },
-  high:     { width: 720, fps: 24, label: 'High Quality', desc: '720p · 24fps' },
+  small:    { width: 320, fps: 10 },
+  balanced: { width: 480, fps: 15 },
+  high:     { width: 720, fps: 24 },
 };
 const NUM_SUGGESTIONS = 3;
 
@@ -60,9 +60,43 @@ function generateSuggestions(duration) {
   for (let i = 0; i < numClips; i++) {
     const center = spacing * (i + 1);
     const start = Math.max(0, Math.round((center - clipDuration / 2) * 10) / 10);
-    clips.push({ id: `clip-${i}`, startTime: start, duration: clipDuration });
+    clips.push({ startTime: start, duration: clipDuration });
   }
   return clips;
+}
+
+// Build multi-segment FFmpeg filter_complex for GIF with palette
+function buildMultiSegmentGifCommand(inputPath, segments, preset, outputPath, palettePath) {
+  const p = PRESETS[preset] || PRESETS.balanced;
+  const n = segments.length;
+
+  // Input args: each segment gets its own -ss/-t/-i
+  const inputArgs = [];
+  for (const seg of segments) {
+    inputArgs.push('-ss', String(seg.startTime), '-t', String(seg.duration), '-i', inputPath);
+  }
+
+  // Per-segment filter strings
+  const filterParts = [];
+  const inputLabels = [];
+  for (let i = 0; i < n; i++) {
+    const seg = segments[i];
+    const speedFactor = seg.speed > 0 ? 1 / seg.speed : 1;
+    const label = `v${i}`;
+    inputLabels.push(label);
+    // For each input: apply setpts for speed, scale, fps, then reset PTS for concat
+    filterParts.push(`[${i}:v]setpts=${speedFactor}*PTS,scale=${p.width}:-1:flags=lanczos,fps=${p.fps},setpts=PTS-STARTPTS[${label}]`);
+  }
+
+  // Concat all inputs, split, palettegen, paletteuse
+  const concatIn = inputLabels.join('');
+  const filterComplex = `${filterParts.join('; ')}; [${concatIn}]concat=n=${n}:v=1:a=0,split[v0][v1]; [v0]palettegen=stats_mode=diff[pal]; [v1][pal]paletteuse=dither=bayer`;
+
+  return [
+    ...inputArgs,
+    '-filter_complex', filterComplex,
+    '-y', outputPath,
+  ];
 }
 
 async function videoToGif(payload, onProgress) {
@@ -84,70 +118,39 @@ async function videoToGif(payload, onProgress) {
     };
   }
 
-  if (mode === 'previews') {
-    const { clips } = payload;
-    const tmpDir = path.join(os.tmpdir(), 'opencode-gif-previews-' + Date.now());
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-
-    const results = [];
-    for (let i = 0; i < clips.length; i++) {
-      const clip = clips[i];
-      const gifPath = path.join(tmpDir, `preview_${clip.id}.gif`);
-      const args = [
-        '-ss', String(clip.startTime),
-        '-t', String(clip.duration),
-        '-i', inputPath,
-        '-vf', 'fps=10,scale=240:-1:flags=lanczos',
-        '-y', gifPath,
-      ];
-      await runFFmpeg(args);
-      results.push({ id: clip.id, startTime: clip.startTime, duration: clip.duration, gifPath });
-      onProgress({ percent: Math.round(((i + 1) / clips.length) * 100), step: `Preview ${i + 1}/${clips.length}` });
-    }
-    return { previews: results, previewDir: tmpDir };
-  }
-
   if (mode === 'final') {
-    const { startTime, duration, speed = 1, preset = 'balanced', outputPath: userOutputPath } = payload;
-    const p = PRESETS[preset] || PRESETS.balanced;
-    const speedFactor = speed > 0 ? 1 / speed : 1;
+    const { segments, preset = 'balanced', outputPath: userOutputPath } = payload;
+    if (!segments || segments.length === 0) throw new Error('No segments provided');
+
     const baseName = path.basename(inputPath, path.extname(inputPath));
     const outputDir = userOutputPath || os.tmpdir();
     const outputPath = path.join(outputDir, `${baseName}.gif`);
+    const palettePath = outputPath.replace('.gif', '_palette.png');
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-    const palettePath = outputPath.replace('.gif', '_palette.png');
-    const actualDuration = speedFactor !== 1 ? duration / speedFactor : duration;
+    // Calculate final duration for result
+    let totalOutputDur = 0;
+    for (const seg of segments) {
+      totalOutputDur += seg.duration / (seg.speed > 0 ? seg.speed : 1);
+    }
 
-    onProgress({ percent: 5, step: 'Generating palette...' });
-    const paletteArgs = [
-      '-ss', String(startTime),
-      '-t', String(duration),
-      '-i', inputPath,
-      '-vf', `fps=${p.fps},scale=${p.width}:-1:flags=lanczos,palettegen=stats_mode=diff`,
-      '-y', palettePath,
-    ];
-    await runFFmpeg(paletteArgs);
+    onProgress({ percent: 10, step: `Processing ${segments.length} clip(s)...` });
 
-    onProgress({ percent: 50, step: 'Applying palette...' });
-    const gifArgs = [
-      '-ss', String(startTime),
-      '-t', String(duration),
-      '-i', inputPath,
-      '-i', palettePath,
-      '-lavfi', `fps=${p.fps},scale=${p.width}:-1:flags=lanczos,setpts=${speedFactor}*PTS [x]; [x][1:v] paletteuse=dither=bayer`,
-      '-y', outputPath,
-    ];
-    await runFFmpeg(gifArgs);
+    const args = buildMultiSegmentGifCommand(inputPath, segments, preset, outputPath, palettePath);
+    await runFFmpeg(args);
 
-    if (fs.existsSync(palettePath)) fs.unlinkSync(palettePath);
+    // Clean up palette if it exists (FFmpeg generates it as side effect)
+    if (fs.existsSync(palettePath)) {
+      try { fs.unlinkSync(palettePath); } catch {}
+    }
 
+    const p = PRESETS[preset] || PRESETS.balanced;
     const gifStat = fs.statSync(outputPath);
     onProgress({ percent: 100, step: 'Done' });
     return {
       outputPath,
       fileSize: gifStat.size,
-      duration: Math.round(actualDuration * 10) / 10,
+      duration: Math.round(totalOutputDur * 10) / 10,
       resolution: `${p.width}x?`,
       fps: p.fps,
       preset,

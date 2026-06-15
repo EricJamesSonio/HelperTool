@@ -3,8 +3,11 @@ const ICONS = {
   gif: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><text x="5" y="14" font-size="8" font-weight="bold" stroke="none" fill="currentColor">GIF</text></svg>',
   x: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>',
   play: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,3 17,10 5,17"/></svg>',
-  clock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg>',
   download: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v12"/><path d="M5 10l5 5 5-5"/><path d="M3 15v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2"/></svg>',
+  plus: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
+  scissors: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l5 6"/><path d="M11 4l-5 6"/><circle cx="4" cy="15" r="2"/><circle cx="16" cy="15" r="2"/><path d="M11 10l5 5"/></svg>',
+  trash: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14"/><path d="M6 5V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v6"/><path d="M12 9v6"/><path d="M5 5l1 12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-12"/></svg>',
+  clock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg>',
 };
 
 function formatSize(bytes) {
@@ -29,6 +32,12 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+const PRESETS = [
+  { id: 'small',    label: 'Small',        desc: '320p · 10fps' },
+  { id: 'balanced', label: 'Balanced',     desc: '480p · 15fps' },
+  { id: 'high',     label: 'High Quality', desc: '720p · 24fps' },
+];
+
 export function renderGifOutputRow(outputFolder) {
   const displayPath = outputFolder || 'Temp folder (default)';
   return `
@@ -39,97 +48,126 @@ export function renderGifOutputRow(outputFolder) {
     </div>`;
 }
 
-export function renderGifDropZone(inputPath, inputMeta) {
-  if (inputPath && inputMeta) {
-    const name = inputPath.split(/[\\/]/).pop();
-    return `
-      <div class="gf-file-info">
-        <span class="gf-file-icon">${ICONS.film}</span>
-        <div class="gf-file-details">
-          <div class="gf-file-name">${escapeHtml(name)}</div>
-          <div class="gf-file-meta"><span>${formatDuration(inputMeta.duration)}</span><span class="vt-meta-sep">|</span><span>${inputMeta.resolution}</span><span class="vt-meta-sep">|</span><span>${formatSize(inputMeta.fileSize)}</span></div>
-        </div>
-        <button class="gf-file-remove" id="gfRemoveFile" title="Remove file">${ICONS.x}</button>
-      </div>`;
-  }
+export function renderGifDropZone() {
   return `
     <div class="gf-drop-zone" id="gfDropZone">
       <div class="gf-drop-icon">${ICONS.gif}</div>
       <div class="gf-drop-title">Create GIF from Video</div>
-      <div class="gf-drop-sub">Auto-generates clip suggestions &middot; Preview before exporting</div>
+      <div class="gf-drop-sub">Cut multiple clips &middot; Set speed per clip &middot; Concatenate into one GIF</div>
       <button class="gf-browse-btn" id="gfBrowseBtn">Select Video</button>
     </div>`;
 }
 
-export function renderGifLoading() {
+export function renderGifFileInfo(inputPath, inputMeta) {
+  const name = inputPath.split(/[\\/]/).pop();
+  const dur = inputMeta ? formatDuration(inputMeta.duration) : '...';
+  const res = inputMeta ? inputMeta.resolution : '...';
+  const size = inputMeta ? formatSize(inputMeta.fileSize) : '...';
   return `
-    <div class="gf-loading">
-      <div class="gf-loading-spinner"></div>
-      <div class="gf-loading-text">Generating preview clips...</div>
+    <div class="gf-file-info">
+      <span class="gf-file-icon">${ICONS.film}</span>
+      <div class="gf-file-details">
+        <div class="gf-file-name">${escapeHtml(name)}</div>
+        <div class="gf-file-meta"><span>${dur}</span><span class="vt-meta-sep">|</span><span>${res}</span><span class="vt-meta-sep">|</span><span>${size}</span></div>
+      </div>
+      <button class="gf-file-remove" id="gfRemoveFile" title="Remove file">${ICONS.x}</button>
     </div>`;
 }
 
-export function renderGifPreviews(previews, selectedId) {
-  if (!previews || previews.length === 0) return '';
+export function renderGifPlayerSlot() {
+  return `<div id="gfPlayerSlot" class="gf-player-slot"></div>`;
+}
+
+export function renderGifTimeline(segments, duration, currentTime, selectedId, getColor) {
+  if (segments.length === 0) {
+    return `<div class="gf-timeline-empty">No clips. Use suggestions or add clips below.</div>`;
+  }
+
+  let rulerHtml = '<div class="gf-timeline-ruler">';
+  const interval = duration > 120 ? 30 : duration > 60 ? 15 : duration > 30 ? 10 : 5;
+  for (let t = 0; t <= duration; t += interval) {
+    const pct = (t / duration) * 100;
+    rulerHtml += `<span class="gf-ruler-mark" style="left:${pct}%">${t}s</span>`;
+  }
+  rulerHtml += '</div>';
+
+  const barsHtml = segments.map((seg, i) => {
+    const left = (seg.startTime / duration) * 100;
+    const w = ((seg.endTime - seg.startTime) / duration) * 100;
+    const color = getColor ? getColor(i) : '#4fc3f7';
+    const isSelected = seg.id === selectedId;
+    const outDur = ((seg.endTime - seg.startTime) / seg.speed).toFixed(1);
+    return `
+      <div class="gf-seg-bar ${isSelected ? 'gf-seg-bar--selected' : ''}"
+           data-seg-id="${seg.id}"
+           style="left:${left}%;width:${w}%;background:${color}">
+        <span class="gf-seg-bar-label">#${i + 1} ${seg.speed !== 1 ? seg.speed + 'x' : ''}</span>
+        <span class="gf-seg-bar-time">${seg.startTime}s&ndash;${seg.endTime}s</span>
+        <span class="gf-seg-bar-out">${outDur}s out</span>
+      </div>`;
+  }).join('');
+
+  const playheadPct = duration > 0 ? (currentTime / duration) * 100 : 0;
+
   return `
-    <div class="gf-preview-section">
-      <div class="gf-section-label">Select a clip</div>
-      <div class="gf-preview-grid">
-        ${previews.map(p => `
-          <div class="gf-preview-card ${p.id === selectedId ? 'gf-preview-card--selected' : ''}" data-clip-id="${p.id}">
-            <img class="gf-preview-gif" src="file://${p.gifPath}" alt="Preview ${p.id}" />
-            <div class="gf-preview-info">
-              <span class="gf-preview-time">${ICONS.clock} ${p.startTime}s &ndash; ${(p.startTime + p.duration).toFixed(1)}s</span>
-              <span class="gf-preview-dur">${p.duration}s</span>
-            </div>
-          </div>
-        `).join('')}
+    <div class="gf-timeline-section">
+      <div class="gf-timeline-label">Timeline (source seconds)</div>
+      <div class="gf-timeline" id="gfTimeline">
+        ${rulerHtml}
+        <div class="gf-timeline-track">
+          ${barsHtml}
+          <div class="gf-playhead" style="left:${playheadPct}%"></div>
+        </div>
       </div>
     </div>`;
 }
 
-export function renderGifSettings(settings, selectedClip) {
-  const presets = [
-    { id: 'small',    label: 'Small',        desc: '320p · 10fps' },
-    { id: 'balanced', label: 'Balanced',     desc: '480p · 15fps' },
-    { id: 'high',     label: 'High Quality', desc: '720p · 24fps' },
-  ];
-  const speedOpts = [0.5, 1, 2, 3];
-  const start = selectedClip ? selectedClip.startTime : settings.startTime;
-  const end = selectedClip ? selectedClip.startTime + selectedClip.duration : settings.endTime;
-
+export function renderGifSegmentActions(segment, index) {
+  if (!segment) return '';
   return `
-    <div class="gf-settings-section">
-      <div class="gf-section-label">Clip Settings</div>
-      <div class="gf-settings-row">
-        <div class="gf-setting-group">
-          <label class="gf-setting-label">Start (s)</label>
-          <input class="gf-time-input" id="gfStartTime" type="number" step="0.1" min="0" value="${start}">
-        </div>
-        <div class="gf-setting-group">
-          <label class="gf-setting-label">End (s)</label>
-          <input class="gf-time-input" id="gfEndTime" type="number" step="0.1" min="0" value="${end}">
-        </div>
-        <div class="gf-setting-group">
-          <label class="gf-setting-label">Speed</label>
-          <div class="gf-speed-group" id="gfSpeedGroup">
-            ${speedOpts.map(s => `
-              <button class="gf-speed-btn ${s === settings.speed ? 'gf-speed-btn--active' : ''}" data-speed="${s}">${s}x</button>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-      <div class="gf-section-label" style="margin-top:16px">Quality Preset</div>
+    <div class="gf-seg-actions">
+      <span class="gf-seg-actions-label">Clip #${(index || 0) + 1}</span>
+      <span class="gf-seg-actions-dur">${segment.startTime}s &rarr; ${segment.endTime}s
+        ${segment.speed !== 1 ? ' @ ' + segment.speed + 'x' : ''}</span>
+      <button class="gf-act-btn gf-act-split" id="gfSplitBtn">${ICONS.scissors} Split</button>
+      <button class="gf-act-btn gf-act-delete" id="gfDeleteBtn">${ICONS.trash} Delete</button>
+    </div>`;
+}
+
+export function renderGifSuggestions(suggestions) {
+  if (!suggestions || suggestions.length === 0) return '';
+  return `
+    <div class="gf-suggestions-bar">
+      <span class="gf-suggestions-label">Quick add:</span>
+      ${suggestions.map(s => `
+        <button class="gf-suggestion-pill" data-start="${s.startTime}" data-dur="${s.duration}">
+          ${ICONS.plus} ${s.startTime}s &ndash; ${(s.startTime + s.duration).toFixed(1)}s
+        </button>
+      `).join('')}
+    </div>`;
+}
+
+export function renderGifAddClipButton() {
+  return `<button class="gf-add-clip-btn" id="gfAddClipBtn">${ICONS.plus} Add Clip</button>`;
+}
+
+export function renderGifPresets(selectedPreset) {
+  return `
+    <div class="gf-presets-section">
+      <div class="gf-section-label">Quality Preset</div>
       <div class="gf-preset-row">
-        ${presets.map(p => `
-          <div class="gf-preset-card ${p.id === settings.preset ? 'gf-preset-card--active' : ''}" data-preset="${p.id}">
+        ${PRESETS.map(p => `
+          <div class="gf-preset-card ${p.id === selectedPreset ? 'gf-preset-card--active' : ''}" data-preset="${p.id}">
             <div class="gf-preset-label">${p.label}</div>
             <div class="gf-preset-desc">${p.desc}</div>
           </div>
         `).join('')}
       </div>
-      <button class="gf-generate-btn" id="gfGenerateBtn">${ICONS.play} Generate GIF</button>
     </div>`;
+}
+
+export function renderGifGenerateButton() {
+  return `<button class="gf-generate-btn" id="gfGenerateBtn">${ICONS.play} Generate GIF</button>`;
 }
 
 export function renderGifProgress(progress) {
