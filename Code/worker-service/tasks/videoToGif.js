@@ -89,9 +89,9 @@ function buildMultiSegmentGifCommand(inputPath, segments, preset, outputPath, pa
   }
 
   // Concat all inputs, split, palettegen, paletteuse
-  const concatIn = inputLabels.join('');
-  const filterComplex = `${filterParts.join('; ')}; [${concatIn}]concat=n=${n}:v=1:a=0,split[v0][v1]; [v0]palettegen=stats_mode=diff[pal]; [v1][pal]paletteuse=dither=bayer`;
+  const concatIn = inputLabels.join('][');
 
+  const filterComplex = `${filterParts.join('; ')}; [${concatIn}]concat=n=${n}:v=1:a=0,split[v0][v1]; [v0]palettegen=stats_mode=diff[pal]; [v1][pal]paletteuse=dither=bayer`;
   return [
     ...inputArgs,
     '-filter_complex', filterComplex,
