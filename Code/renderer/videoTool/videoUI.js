@@ -1,12 +1,11 @@
 import { renderFileDropZone, renderPresetCards, renderOutputRow, renderCompressButton, renderProgress, renderResult, renderError } from './videoRenderer.js';
-import { renderImageDropZone, renderImageResult, renderImageProgress, renderImageError } from './imageRenderer.js';
+import { renderImageDropZone, renderImageOutputRow, renderImageResult, renderImageProgress, renderImageError } from './imageRenderer.js';
 
 export default class VideoUI {
   constructor(state, imageState) {
     this._state = state;
     this._imageState = imageState;
     this._container = null;
-    this._bodyEl = null;
     this._onPickFile = null;
     this._onRemoveFile = null;
     this._onPresetChange = null;
@@ -18,11 +17,13 @@ export default class VideoUI {
     this._onCompressAnother = null;
     this._onImagePickFile = null;
     this._onImageRemoveFile = null;
+    this._onImageChangeOutput = null;
     this._onImageConvert = null;
     this._onImageRetry = null;
     this._onImageOpenFile = null;
     this._onImageOpenFolder = null;
     this._onImageConvertAnother = null;
+    this._onTabChange = null;
   }
 
   setCallbacks(cbs) {
@@ -37,79 +38,117 @@ export default class VideoUI {
     this._onCompressAnother = cbs.onCompressAnother || null;
     this._onImagePickFile = cbs.onImagePickFile || null;
     this._onImageRemoveFile = cbs.onImageRemoveFile || null;
+    this._onImageChangeOutput = cbs.onImageChangeOutput || null;
     this._onImageConvert = cbs.onImageConvert || null;
     this._onImageRetry = cbs.onImageRetry || null;
     this._onImageOpenFile = cbs.onImageOpenFile || null;
     this._onImageOpenFolder = cbs.onImageOpenFolder || null;
     this._onImageConvertAnother = cbs.onImageConvertAnother || null;
+    this._onTabChange = cbs.onTabChange || null;
   }
 
   render(container) {
     this._container = container;
     container.innerHTML = this._getTemplate();
-    this._bodyEl = container.querySelector('.vt-body');
     this._bindEvents();
+  }
+
+  _renderTabs() {
+    const active = this._state.activeSection;
+    return `
+      <div class="vt-tabs">
+        <button class="vt-tab ${active === 'video' ? 'vt-tab--active' : ''}" data-tab="video">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M9 3v14"/><path d="M15 3v14"/><path d="M2 9h6"/><path d="M12 9h6"/><path d="M2 12h6"/><path d="M12 12h6"/><path d="M2 6h6"/><path d="M12 6h6"/></svg>
+          Video Compression
+        </button>
+        <button class="vt-tab ${active === 'image' ? 'vt-tab--active' : ''}" data-tab="image">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/></svg>
+          Image to ICO
+        </button>
+      </div>`;
   }
 
   _getTemplate() {
     const st = this._state;
     const im = this._imageState;
-    const fileSection = renderFileDropZone(st.inputPath, st.inputMeta);
 
-    let videoSection = '';
-    if (st.inputPath) {
-      const presetSection = renderPresetCards(st.selectedPreset, st.inputMeta);
-      const outputSection = renderOutputRow(st.outputFolder);
-      const compressSection = renderCompressButton(st.status);
-      const progressSection = st.status === 'compressing' ? renderProgress(st.progress) : '';
-      const resultSection = st.status === 'done' && st.result ? renderResult(st.result) : '';
-      const errorSection = st.status === 'error' ? renderError(st.error) : '';
-      videoSection = `
-        <div class="vt-section-label vt-sec-label">Video Compression</div>
-        <div class="vt-layout">
-          <div class="vt-sidebar">
-            <div class="vt-section-label">Preset</div>
-            <div class="vt-presets" id="vtPresets">${presetSection}</div>
-          </div>
-          <div class="vt-main">
-            ${outputSection ? `<div class="vt-section">${outputSection}</div>` : ''}
-            ${compressSection ? `<div class="vt-section">${compressSection}</div>` : ''}
+    if (!st.inputPath && !im.inputPath) {
+      const videoContent = renderFileDropZone(null, null);
+      const imageContent = renderImageDropZone(im.inputPath, im.inputMeta);
+      const activeContent = st.activeSection === 'image' ? imageContent : videoContent;
+      return `<div class="vt-body">${this._renderTabs()}${activeContent}</div>`;
+    }
+
+    const isVideoActive = st.activeSection === 'video';
+    const isImageActive = st.activeSection === 'image';
+
+    let videoContent = '';
+    if (isVideoActive) {
+      const fileSection = renderFileDropZone(st.inputPath, st.inputMeta);
+      let inner = '';
+      if (st.inputPath) {
+        const presetSection = renderPresetCards(st.selectedPreset, st.inputMeta);
+        const outputSection = renderOutputRow(st.outputFolder);
+        const compressSection = renderCompressButton(st.status);
+        const progressSection = st.status === 'compressing' ? renderProgress(st.progress) : '';
+        const resultSection = st.status === 'done' && st.result ? renderResult(st.result) : '';
+        const errorSection = st.status === 'error' ? renderError(st.error) : '';
+        inner = `
+          <div class="vt-layout">
+            <div class="vt-sidebar">
+              <div class="vt-section-label">Preset</div>
+              <div class="vt-presets" id="vtPresets">${presetSection}</div>
+            </div>
+            <div class="vt-main">
+              ${outputSection ? `<div class="vt-section">${outputSection}</div>` : ''}
+              ${compressSection ? `<div class="vt-section">${compressSection}</div>` : ''}
+              ${progressSection ? `<div class="vt-section">${progressSection}</div>` : ''}
+              ${resultSection ? `<div class="vt-section">${resultSection}</div>` : ''}
+              ${errorSection ? `<div class="vt-section">${errorSection}</div>` : ''}
+            </div>
+          </div>`;
+      }
+      videoContent = fileSection + inner;
+    }
+
+    let imageContent = '';
+    if (isImageActive) {
+      const drop = renderImageDropZone(im.inputPath, im.inputMeta);
+      let inner = '';
+      if (im.inputPath) {
+        const outputSection = renderImageOutputRow(im.outputFolder);
+        const convertSection = im.status !== 'done' ? `<button class="im-convert-btn" id="imConvertBtn">Convert to ICO</button>` : '';
+        const progressSection = im.status === 'converting' ? renderImageProgress(im.progress) : '';
+        const resultSection = im.status === 'done' && im.result ? renderImageResult(im.result) : '';
+        const errorSection = im.status === 'error' ? renderImageError(im.error) : '';
+        inner = `
+          <div class="im-output-area">
+            <div class="vt-section">${outputSection}</div>
+            ${convertSection ? `<div class="vt-section">${convertSection}</div>` : ''}
             ${progressSection ? `<div class="vt-section">${progressSection}</div>` : ''}
             ${resultSection ? `<div class="vt-section">${resultSection}</div>` : ''}
             ${errorSection ? `<div class="vt-section">${errorSection}</div>` : ''}
-          </div>
-        </div>`;
-    }
-
-    const imgDropSection = renderImageDropZone(im.inputPath, im.inputMeta);
-    let imageSection = '';
-    if (im.inputPath) {
-      const convertSection = im.status !== 'done' ? `<button class="im-convert-btn" id="imConvertBtn">Convert to ICO</button>` : '';
-      const progressSection = im.status === 'converting' ? renderImageProgress(im.progress) : '';
-      const resultSection = im.status === 'done' && im.result ? renderImageResult(im.result) : '';
-      const errorSection = im.status === 'error' ? renderImageError(im.error) : '';
-      imageSection = `
-        <div class="im-output-area">
-          ${convertSection ? `<div class="vt-section">${convertSection}</div>` : ''}
-          ${progressSection ? `<div class="vt-section">${progressSection}</div>` : ''}
-          ${resultSection ? `<div class="vt-section">${resultSection}</div>` : ''}
-          ${errorSection ? `<div class="vt-section">${errorSection}</div>` : ''}
-        </div>`;
+          </div>`;
+      }
+      imageContent = drop + inner;
     }
 
     return `
       <div class="vt-body">
-        ${fileSection}
-        ${videoSection}
-        <div class="vt-separator"></div>
-        <div class="vt-section-label vt-sec-label">Image to ICO</div>
-        ${imgDropSection}
-        ${imageSection}
+        ${this._renderTabs()}
+        ${videoContent}
+        ${imageContent}
       </div>`;
   }
 
   _bindEvents() {
     if (!this._container) return;
+
+    this._container.querySelectorAll('.vt-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (this._onTabChange) this._onTabChange(tab.dataset.tab);
+      });
+    });
 
     const vDrop = this._container.querySelector('#vtDropZone');
     if (vDrop) {
@@ -166,6 +205,9 @@ export default class VideoUI {
 
     const imRem = this._container.querySelector('#imRemoveFile');
     if (imRem && this._onImageRemoveFile) imRem.addEventListener('click', () => this._onImageRemoveFile());
+
+    const imCoBtn = this._container.querySelector('#imChangeOutputBtn');
+    if (imCoBtn && this._onImageChangeOutput) imCoBtn.addEventListener('click', () => this._onImageChangeOutput());
 
     const imConv = this._container.querySelector('#imConvertBtn');
     if (imConv && this._onImageConvert) imConv.addEventListener('click', () => this._onImageConvert());

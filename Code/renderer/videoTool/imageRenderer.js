@@ -12,6 +12,16 @@ function formatSize(bytes) {
   return (kb / 1024).toFixed(1) + ' MB';
 }
 
+export function renderImageOutputRow(outputFolder) {
+  const displayPath = outputFolder || 'Temp folder (default)';
+  return `
+    <div class="vt-output-row">
+      <span>Output:</span>
+      <span class="vt-output-path">${escapeHtml(displayPath)}</span>
+      <button class="vt-output-change-btn" id="imChangeOutputBtn">Change</button>
+    </div>`;
+}
+
 export function renderImageDropZone(inputPath, inputMeta) {
   if (inputPath && inputMeta) {
     const name = inputPath.split(/[\\/]/).pop();

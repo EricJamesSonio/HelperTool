@@ -8,6 +8,7 @@ export default class VideoState {
     this.progress      = null;
     this.result        = null;
     this.error         = null;
+    this.activeSection = 'video';
   }
 
   reset() {

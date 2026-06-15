@@ -30,11 +30,13 @@ export default class VideoTool {
       onCompressAnother: () => this._handleCompressAnother(),
       onImagePickFile: (path) => this._handleImagePickFile(path),
       onImageRemoveFile: () => this._handleImageRemoveFile(),
+      onImageChangeOutput: () => this._handleImageChangeOutput(),
       onImageConvert: () => this._startImageConvert(),
       onImageRetry: () => this._handleImageRetry(),
       onImageOpenFile: () => this._handleImageOpenFile(),
       onImageOpenFolder: () => this._handleImageOpenFolder(),
       onImageConvertAnother: () => this._handleImageConvertAnother(),
+      onTabChange: (tab) => this._handleTabChange(tab),
     });
     this.ui.render(container);
   }
@@ -69,6 +71,7 @@ export default class VideoTool {
     this.state.inputMeta = result;
     this.state.status = 'idle';
     this.state.selectedPreset = DEFAULT_PRESET;
+    this.state.activeSection = 'video';
     if (this.ui) this.ui.update();
   }
 
@@ -154,14 +157,26 @@ export default class VideoTool {
       path = picked;
     }
     this.imageState.inputPath = path;
-    this.imageState.inputMeta = { resolution: '?', fileSize: 0 };
+    this.imageState.status = 'loading';
+    if (this.ui) this.ui.update();
+    const meta = await window.electronAPI.image.getMetadata({ inputPath: path });
+    this.imageState.inputMeta = meta.success ? { resolution: meta.resolution, fileSize: meta.fileSize } : { resolution: '?', fileSize: 0 };
     this.imageState.status = 'idle';
+    this.state.activeSection = 'image';
     if (this.ui) this.ui.update();
   }
 
   _handleImageRemoveFile() {
     this.imageState.reset();
     if (this.ui) this.ui.update();
+  }
+
+  async _handleImageChangeOutput() {
+    const folder = await window.electronAPI.image.pickOutputFolder();
+    if (folder) {
+      this.imageState.outputFolder = folder;
+      if (this.ui) this.ui.update();
+    }
   }
 
   async _startImageConvert() {
@@ -183,6 +198,7 @@ export default class VideoTool {
 
     const result = await window.electronAPI.image.toIco({
       inputPath: this.imageState.inputPath,
+      outputPath: this.imageState.outputFolder || undefined,
     });
 
     window.electronAPI.image.onProgress(() => {});
@@ -218,6 +234,11 @@ export default class VideoTool {
 
   _handleImageConvertAnother() {
     this.imageState.reset();
+    if (this.ui) this.ui.update();
+  }
+
+  _handleTabChange(tab) {
+    this.state.activeSection = tab;
     if (this.ui) this.ui.update();
   }
 }
