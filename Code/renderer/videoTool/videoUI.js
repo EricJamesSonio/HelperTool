@@ -4,7 +4,6 @@ import {
   renderDropZone, renderFileInfo, renderOutputRow, renderPlayerSlot,
   renderTimeline, renderSegmentActions,
   renderPresets, renderExportButtons, renderProgress, renderResult, renderError,
-  renderPreviewOverlay,
 } from './timelineRenderer.js';
 
 export default class VideoUI {
@@ -143,23 +142,14 @@ export default class VideoUI {
     video.addEventListener('timeupdate', () => {
       const t = video.currentTime;
       const dur = st.inputMeta ? st.inputMeta.duration : 1;
-      const isPreview = st.previewStatus === 'ready' && st.previewUrl;
 
-      let sourceTime;
-      if (isPreview) {
-        // Preview video plays in output-time space → convert to source time
-        sourceTime = st.getSourceTime(t);
-      } else {
-        sourceTime = t;
-      }
+      // Find current enabled segment (source time = video time, raw source plays)
+      const seg = st.segments.find(s => s.enabled && t >= s.startTime && t < s.endTime);
 
-      // Find current enabled segment (in source-time space)
-      const seg = st.segments.find(s => s.enabled && sourceTime >= s.startTime && sourceTime < s.endTime);
-
-      if (!seg && !isPreview) {
-        // Raw video mode: skip disabled/gap areas
+      if (!seg) {
+        // Disabled/gap area → skip to next enabled segment
         const next = st.segments
-          .filter(s => s.enabled && s.startTime > sourceTime)
+          .filter(s => s.enabled && s.startTime > t)
           .sort((a, b) => a.startTime - b.startTime)[0];
         if (next) {
           video.currentTime = next.startTime;
@@ -169,16 +159,16 @@ export default class VideoUI {
         return;
       }
 
-      // Apply playback rate (only needed for raw mode; preview already has speed baked in)
-      if (!isPreview && seg && Math.abs(video.playbackRate - seg.speed) > 0.01) {
+      // Apply per-segment speed
+      if (Math.abs(video.playbackRate - seg.speed) > 0.01) {
         video.playbackRate = seg.speed;
       }
 
       // Update state
-      st.currentTime = sourceTime;
+      st.currentTime = t;
 
       // Auto-select segment when crossing boundary
-      if (seg && seg.id !== this._previewSegId) {
+      if (seg.id !== this._previewSegId) {
         this._previewSegId = seg.id;
         st.selectedSegmentId = seg.id;
       }
@@ -186,7 +176,7 @@ export default class VideoUI {
       // Move playhead via direct DOM (no full re-render)
       const playhead = this._container ? this._container.querySelector('.tl-playhead') : null;
       if (playhead && dur > 0) {
-        playhead.style.left = ((sourceTime / dur) * 100) + '%';
+        playhead.style.left = ((t / dur) * 100) + '%';
       }
 
       // Update bar highlight
@@ -243,7 +233,7 @@ export default class VideoUI {
           <div class="tl-file-info-wrapper">${fileInfo}</div>
           <div class="tl-output-area">
             ${outputRow}
-            <div class="tl-player-area">${playerSlot}${renderPreviewOverlay(st.previewStatus, st.previewProgress)}</div>
+            <div class="tl-player-area">${playerSlot}</div>
             ${timeline ? `<div class="tl-timeline-wrapper">${timeline}</div>` : ''}
             ${segActions ? `<div class="tl-seg-actions-wrapper">${segActions}</div>` : ''}
             ${presets}

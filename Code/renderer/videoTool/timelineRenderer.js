@@ -78,19 +78,6 @@ export function renderPlayerSlot() {
   return `<div id="tlPlayerSlot" class="tl-player-slot"></div>`;
 }
 
-export function renderPreviewOverlay(previewStatus, previewProgress) {
-  if (previewStatus !== 'generating') return '';
-  const pct = previewProgress && previewProgress.percent ? previewProgress.percent : 0;
-  const step = previewProgress && previewProgress.step ? previewProgress.step : 'Generating preview...';
-  return `
-    <div class="tl-preview-overlay">
-      <div class="tl-preview-overlay-label">${step}</div>
-      <div class="tl-preview-overlay-bar">
-        <div class="tl-preview-overlay-fill" style="width:${pct}%"></div>
-      </div>
-    </div>`;
-}
-
 export function renderTimeline(segments, duration, currentTime, selectedId, getColor, totalOutputDuration) {
   if (segments.length === 0) {
     return `<div class="tl-timeline-empty">No clips. Use suggestions or add clips below.</div>`;

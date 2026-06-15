@@ -20,9 +20,6 @@ export default class VideoState {
     this.segments          = [];
     this.selectedSegmentId = null;
     this.currentTime       = 0;
-    this.previewUrl        = null;
-    this.previewStatus     = 'idle';
-    this.previewProgress   = null;
     this.exportMode        = 'mp4';
     this.suggestions       = [];
     this.compressStatus    = 'idle';
@@ -75,9 +72,6 @@ export default class VideoState {
     this.segments = [];
     this.selectedSegmentId = null;
     this.currentTime = 0;
-    this.previewUrl = null;
-    this.previewStatus = 'idle';
-    this.previewProgress = null;
     this.exportMode = 'mp4';
     this.suggestions = [];
     this.compressStatus = 'idle';
