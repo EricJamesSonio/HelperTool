@@ -6,6 +6,8 @@ const defaultState = {
   strokeWidth: 2,
   fillColor: 'transparent',
   opacity: 1,
+  borderRadius: 0,
+  snapToGrid: false,
   elements: [],
   selectedIds: [],
   currentBoard: null,

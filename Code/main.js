@@ -29,6 +29,9 @@ const profileIpc = require('./ipc/profile.js');
 const dockerIpc = require('./ipc/docker_ipc.js');
 const envIpc = require('./ipc/env_ipc.js');
 const codebaseChatIpc = require('./ipc/codebbaseChat_ipc.js');
+const videoIpc = require('./ipc/video_ipc.js');
+const imageIpc = require('./ipc/image_ipc.js');
+const gmailIpc = require('./ipc/gmail_ipc.js');
 const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
 
@@ -153,6 +156,9 @@ function registerAllIpc() {
     dockerIpc.register();
     envIpc.register();
     codebaseChatIpc.register();
+    videoIpc.register(shared);
+    imageIpc.register(shared);
+    gmailIpc.register(shared);
     serviceTrackerIpc.register();
 }
 

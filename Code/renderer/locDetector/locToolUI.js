@@ -39,7 +39,7 @@ export default class LocToolUI {
 
         <div class="loc-toolbar">
           <span class="loc-toolbar-folder">
-            <span class="loc-toolbar-icon">📂</span>
+            <span class="loc-toolbar-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5z"/></svg></span>
             <span id="locFolderLabel" class="loc-toolbar-label">—</span>
           </span>
           <div class="loc-threshold-row">

@@ -79,6 +79,26 @@ export function createLocPanel() {
   });
 }
 
+export function createVideoPanel() {
+  return createPanel({
+    id:          'videoToolPanel',
+    className:   'vt-panel',
+    title:       '🎬 Video Compressor',
+    containerId: 'videoToolContainer',
+    closeBtnId:  'closeVideoToolBtn',
+  });
+}
+
+export function createGmailPanel() {
+  return createPanel({
+    id:          'gmailToolPanel',
+    className:   'gm-panel',
+    title:       'Gmail Inbox',
+    containerId: 'gmailToolContainer',
+    closeBtnId:  'closeGmailToolBtn',
+  });
+}
+
 export function createCodebaseChatPanel() {
   return createPanel({
     id:          'codebaseChatPanel',

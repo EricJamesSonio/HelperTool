@@ -1,7 +1,6 @@
-const { ipcMain, dialog, shell } = require('electron');
+const { ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
 const workerProxy = require('./workerProxy.js');
 
 let _progressCallback = null;
@@ -37,19 +36,12 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
             workerProxy.offProgress(_progressCallback);
             _progressCallback = null;
 
-            await new Promise(resolve => setTimeout(resolve, 100));
-
+            let content = '';
             if (fs.existsSync(filePath)) {
-                exec(`taskkill /FI "WINDOWTITLE eq helper-output*" /F`, () => {
-                    setTimeout(() => {
-                        exec(`notepad "${filePath}"`, (err) => {
-                            if (err) shell.openPath(filePath);
-                        });
-                    }, 300);
-                });
+                content = fs.readFileSync(filePath, 'utf-8');
             }
 
-            return true;
+            return { success: true, content, filePath };
         } catch (err) {
             console.error('[IPC] generate error:', err);
             if (_progressCallback) {
@@ -57,7 +49,7 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
                 _progressCallback = null;
             }
             dialog.showErrorBox('Generate Error', err.message);
-            return false;
+            return { success: false, content: '', filePath: '' };
         }
     });
 }

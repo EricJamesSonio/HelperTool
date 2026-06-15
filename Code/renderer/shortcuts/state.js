@@ -14,6 +14,8 @@ const DEFAULT_SHORTCUTS = {
   teamActivityTool: null,
   envManager: null,
   codebbaseChat: null,
+  videoTool: null,
+  gmailTool: null,
 };
 
 const S = { shortcuts: {} };

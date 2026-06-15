@@ -10,14 +10,22 @@ const gitOperationsTask = require('./tasks/gitOperations');
 const walkDirTask = require('./tasks/walkDir');
 const folderTreeTask = require('./tasks/folderTree');
 const profileSyncTask = require('./tasks/profileSync');
+const videoCompressTask = require('./tasks/videoCompress');
+const imageToIcoTask = require('./tasks/imageToIco');
+const videoToGifTask = require('./tasks/videoToGif');
+const videoRenderTask = require('./tasks/videoRender');
+const videoPreviewTask = require('./tasks/videoPreview');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
 process.on('message', async (msg) => {
   const { id, type, payload } = msg;
 
-  const onProgress = (percent) => {
-    if (process.send) process.send({ id, type: 'progress', data: { percent } });
+  const onProgress = (data) => {
+    if (process.send) {
+      const progressData = typeof data === 'object' ? data : { percent: data };
+      process.send({ id, type: 'progress', data: progressData });
+    }
   };
 
   try {
@@ -72,6 +80,26 @@ process.on('message', async (msg) => {
 
       case 'profileSync':
         result = await profileSyncTask(payload);
+        break;
+
+      case 'video:compress':
+        result = await videoCompressTask(payload, onProgress);
+        break;
+
+      case 'image:toIco':
+        result = await imageToIcoTask(payload, onProgress);
+        break;
+
+      case 'video:gif':
+        result = await videoToGifTask(payload, onProgress);
+        break;
+
+      case 'video:render':
+        result = await videoRenderTask(payload, onProgress);
+        break;
+
+      case 'video:preview':
+        result = await videoPreviewTask(payload, onProgress);
         break;
 
       default:

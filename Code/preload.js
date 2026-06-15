@@ -344,6 +344,74 @@ const envBridge = {
     deleteFile: (repoPath, fileName)    => ipcRenderer.invoke('env:deleteFile', { repoPath, fileName }),
 };
 
+const imageBridge = {
+    image: {
+        pickFile:       ()              => ipcRenderer.invoke('image:pickFile'),
+        pickOutputFolder: ()            => ipcRenderer.invoke('image:pickOutputFolder'),
+        getMetadata:    (payload)       => ipcRenderer.invoke('image:getMetadata', payload),
+        toIco:          (payload)       => ipcRenderer.invoke('image:toIco', payload),
+        revealFile:     (payload)       => ipcRenderer.invoke('image:revealFile', payload),
+        onProgress:     (callback) => {
+            ipcRenderer.removeAllListeners('image:progress');
+            ipcRenderer.on('image:progress', (_event, data) => callback(data));
+        },
+    },
+};
+
+const videoBridge = {
+    video: {
+        pickFile:       ()              => ipcRenderer.invoke('video:pickFile'),
+        pickOutputFolder: ()            => ipcRenderer.invoke('video:pickOutputFolder'),
+        getMetadata:    (payload)       => ipcRenderer.invoke('video:getMetadata', payload),
+        compress:       (payload)       => ipcRenderer.invoke('video:compress', payload),
+        revealFile:     (payload)       => ipcRenderer.invoke('video:revealFile', payload),
+        onProgress:     (callback) => {
+            ipcRenderer.removeAllListeners('video:progress');
+            ipcRenderer.on('video:progress', (_event, data) => callback(data));
+        },
+        gif:            (payload)       => ipcRenderer.invoke('video:gif', payload),
+        onGifProgress:  (callback) => {
+            ipcRenderer.removeAllListeners('video:gifProgress');
+            ipcRenderer.on('video:gifProgress', (_event, data) => callback(data));
+        },
+        render:         (payload)       => ipcRenderer.invoke('video:render', payload),
+        onRenderProgress: (callback) => {
+            ipcRenderer.removeAllListeners('video:renderProgress');
+            ipcRenderer.on('video:renderProgress', (_event, data) => callback(data));
+        },
+        preview:        (payload)       => ipcRenderer.invoke('video:preview', payload),
+        onPreviewProgress: (callback) => {
+            ipcRenderer.removeAllListeners('video:previewProgress');
+            ipcRenderer.on('video:previewProgress', (_event, data) => callback(data));
+        },
+    },
+};
+
+const gmailBridge = {
+    gmail: {
+        addAccount:         ()                 => ipcRenderer.invoke('gmail:addAccount'),
+        removeAccount:      (payload)          => ipcRenderer.invoke('gmail:removeAccount', payload),
+        listAccounts:       ()                 => ipcRenderer.invoke('gmail:listAccounts'),
+        fetchMessages:      (payload)          => ipcRenderer.invoke('gmail:fetchMessages', payload),
+        fetchInbox:         (payload)          => ipcRenderer.invoke('gmail:fetchInbox', payload),
+        fetchAll:           ()                 => ipcRenderer.invoke('gmail:fetchAll'),
+        markRead:           (payload)          => ipcRenderer.invoke('gmail:markRead', payload),
+        startPolling:       ()                 => ipcRenderer.invoke('gmail:startPolling'),
+        stopPolling:        ()                 => ipcRenderer.invoke('gmail:stopPolling'),
+        onPollResult:       (callback) => {
+            ipcRenderer.removeAllListeners('gmail:pollResult');
+            ipcRenderer.on('gmail:pollResult', (_event, data) => callback(data));
+        },
+        onAccountsChanged:  (callback) => {
+            ipcRenderer.removeAllListeners('gmail:accountsChanged');
+            ipcRenderer.on('gmail:accountsChanged', (_event, data) => callback(data));
+        },
+        getIgnoredSenders:      ()                => ipcRenderer.invoke('gmail:getIgnoredSenders'),
+        addIgnoredSender:       (payload)         => ipcRenderer.invoke('gmail:addIgnoredSender', payload),
+        removeIgnoredSender:    (payload)         => ipcRenderer.invoke('gmail:removeIgnoredSender', payload),
+    },
+};
+
 const codebaseChatBridge = {
   codebaseChat: {
     getFiles:           (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
@@ -386,6 +454,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...profileBridge,
     ...branchBridge,
     ...codebaseChatBridge,
+    ...imageBridge,
+    ...videoBridge,
+    ...gmailBridge,
     windowControls,
 });
 

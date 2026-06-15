@@ -151,6 +151,87 @@ export function initSplitModeButton() {
 
 }
 
+// ── Generated content viewer ──────────────────────────────────────────────────
+
+let _viewerOverlay = null;
+
+export function showGeneratedViewer(content, filePath) {
+  closeGeneratedViewer();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'gen-viewer-overlay';
+  overlay.innerHTML = `
+    <div class="gen-viewer">
+      <div class="gen-viewer-header">
+        <span class="gen-viewer-title">${escapeHtml(filePath || 'Generated Output')}</span>
+        <div class="gen-viewer-actions">
+          <button class="gen-viewer-btn gen-viewer-copy-btn" title="Copy all content">Copy</button>
+          <button class="gen-viewer-btn gen-viewer-close-btn" title="Close (Esc)">✕</button>
+        </div>
+      </div>
+      <div class="gen-viewer-body">
+        <textarea class="gen-viewer-content" readonly spellcheck="false" wrap="off"></textarea>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  _viewerOverlay = overlay;
+
+  const textarea = overlay.querySelector('.gen-viewer-content');
+  textarea.value = content;
+
+  requestAnimationFrame(() => {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  });
+
+  // Copy button
+  overlay.querySelector('.gen-viewer-copy-btn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      const btn = overlay.querySelector('.gen-viewer-copy-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    } catch {
+      textarea.select();
+      document.execCommand('copy');
+    }
+  });
+
+  // Close button
+  overlay.querySelector('.gen-viewer-close-btn').addEventListener('click', closeGeneratedViewer);
+
+  // Escape key
+  const keyHandler = (e) => {
+    if (e.key === 'Escape') { closeGeneratedViewer(); }
+  };
+  overlay._keyHandler = keyHandler;
+  document.addEventListener('keydown', keyHandler);
+
+  // Click backdrop
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeGeneratedViewer();
+  });
+}
+
+export function closeGeneratedViewer() {
+  if (_viewerOverlay) {
+    if (_viewerOverlay._keyHandler) {
+      document.removeEventListener('keydown', _viewerOverlay._keyHandler);
+    }
+    _viewerOverlay.remove();
+    _viewerOverlay = null;
+  }
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // ── Generate button ───────────────────────────────────────────────────────────
 
 export function initGenerateButton() {
@@ -169,7 +250,7 @@ export function initGenerateButton() {
             progressBar.value        = 0;
             progressText.textContent = '0%';
 
-            const success = await window.electronAPI.generate(
+            const result = await window.electronAPI.generate(
                 state.actionType,
                 state.selectedRepoPath,
                 state.selectedItems,
@@ -178,8 +259,11 @@ export function initGenerateButton() {
                 state.selectedPromptText || ''
             );
 
-
-            if (!success) alert('Generation failed.');
+            if (result && result.success && result.content) {
+                showGeneratedViewer(result.content, result.filePath);
+            } else if (!result || !result.success) {
+                alert('Generation failed.');
+            }
             resetSelection();
             displayTree(false);
         } catch (err) {

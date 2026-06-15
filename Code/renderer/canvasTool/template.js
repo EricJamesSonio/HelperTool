@@ -43,11 +43,20 @@ export function getPanelTemplate() {
             <button class="canvas-btn canvas-btn-icon" id="canvasRedoBtn" title="Redo (Ctrl+Shift+Z)" disabled>↪</button>
           </div>
           <div class="canvas-toolbar-group">
+            <button class="canvas-btn canvas-btn-icon" id="canvasSnapToggle" title="Snap to grid (off)">⊞</button>
+            <label class="canvas-label" title="Border radius">
+              <span class="canvas-label-text">R:</span>
+              <input type="range" id="canvasBorderRadius" class="canvas-range" min="0" max="40" value="0" />
+            </label>
+          </div>
+          <div class="canvas-toolbar-group">
             <button class="canvas-btn" id="canvasClearBtn" title="Clear all">🗑️ Clear</button>
             <button class="canvas-btn" id="canvasResetViewBtn" title="Reset view">⊞ Reset View</button>
+            <button class="canvas-btn" id="canvasFitBtn" title="Fit to screen (Ctrl+Shift+F)">⊡ Fit</button>
           </div>
           <div class="canvas-toolbar-group">
             <button class="canvas-btn canvas-btn-icon" id="canvasShortcutsBtn" title="Keyboard Shortcuts">⌨️</button>
+            <span class="canvas-zoom-indicator" id="canvasZoomIndicator" title="Click to reset zoom">100%</span>
           </div>
         </div>
         <div class="canvas-main">
@@ -63,7 +72,34 @@ export function getPanelTemplate() {
           <div class="canvas-viewport" id="canvasViewport">
             <canvas id="canvasElement"></canvas>
           </div>
-        </div>
+          <div class="canvas-props-panel" id="canvasPropertiesPanel" style="display:none">
+            <div class="canvas-props-header">Properties</div>
+            <div class="canvas-props-body">
+              <div class="cp-row cp-pos-fields">
+                <label class="cp-label">X <input class="cp-prop cp-x" data-field="x" type="number" step="1" /></label>
+                <label class="cp-label">Y <input class="cp-prop cp-y" data-field="y" type="number" step="1" /></label>
+                <label class="cp-label">W <input class="cp-prop cp-w" data-field="w" type="number" step="1" /></label>
+                <label class="cp-label">H <input class="cp-prop cp-h" data-field="h" type="number" step="1" /></label>
+              </div>
+              <div class="cp-row cp-startend-fields" style="display:none">
+                <label class="cp-label">SX <input class="cp-prop cp-start-x" data-field="startX" type="number" step="1" /></label>
+                <label class="cp-label">SY <input class="cp-prop cp-start-y" data-field="startY" type="number" step="1" /></label>
+                <label class="cp-label">EX <input class="cp-prop cp-end-x" data-field="endX" type="number" step="1" /></label>
+                <label class="cp-label">EY <input class="cp-prop cp-end-y" data-field="endY" type="number" step="1" /></label>
+              </div>
+              <div class="cp-row">
+                <label class="cp-label cp-color-label">Stroke <input class="cp-color cp-stroke" data-field="stroke" type="color" /></label>
+                <label class="cp-label cp-color-label">Fill <input class="cp-color cp-fill" data-field="fill" type="color" /></label>
+              </div>
+              <div class="cp-row">
+                <label class="cp-label">Width <input class="cp-prop cp-sw" data-field="strokeWidth" type="number" min="1" max="12" step="1" /></label>
+                <label class="cp-label cp-br-label">Radius <input class="cp-prop cp-br" data-field="borderRadius" type="number" min="0" max="40" step="1" /></label>
+              </div>
+              <div class="cp-row cp-fontsize-row" style="display:none">
+                <label class="cp-label">Font Size <input class="cp-prop cp-fontsize" data-field="fontSize" type="number" min="8" max="120" step="1" /></label>
+              </div>
+            </div>
+          </div>
       </div>
     </div>
 
