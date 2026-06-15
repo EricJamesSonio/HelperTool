@@ -209,6 +209,8 @@ export function createEllipseTool() {
   return {
     onPointerDown(state, viewport, canvas, e) {
       start = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const gridSize = state.snapToGrid ? 20 : 0;
+      start = snapToGrid(start, gridSize);
       currentEl = {
         id: nextId(),
         type: 'ellipse',
@@ -222,7 +224,9 @@ export function createEllipseTool() {
     },
     onPointerMove(state, viewport, canvas, e) {
       if (!currentEl || !start) return null;
-      const pos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const rawPos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const gridSize = state.snapToGrid ? 20 : 0;
+      const pos = snapToGrid(rawPos, gridSize);
       const x = Math.min(start.x, pos.x);
       const y = Math.min(start.y, pos.y);
       currentEl.x = x;
@@ -233,7 +237,9 @@ export function createEllipseTool() {
     },
     onPointerUp(state, viewport, canvas, e) {
       if (!currentEl || !start) return null;
-      const pos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const rawPos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const gridSize = state.snapToGrid ? 20 : 0;
+      const pos = snapToGrid(rawPos, gridSize);
       const x = Math.min(start.x, pos.x);
       const y = Math.min(start.y, pos.y);
       currentEl.x = x;
@@ -708,16 +714,39 @@ export function createSelectTool() {
   let moved = false;
   let resizing = false;
   let resizeData = null;
+  let marqueeStart = null;
+  let marqueeEnd = null;
+  let marqueeActive = false;
+
+  function snapToGrid(pos, gridSize) {
+    if (!gridSize || gridSize < 1) return pos;
+    return {
+      x: Math.round(pos.x / gridSize) * gridSize,
+      y: Math.round(pos.y / gridSize) * gridSize,
+    };
+  }
 
   return {
+    onDblClick(state, viewport, canvas, e, pos) {
+      for (let i = state.elements.length - 1; i >= 0; i--) {
+        const el = state.elements[i];
+        el._viewportZoom = viewport.zoom;
+        if (el.type === 'text' && hitTest(pos.x, pos.y, el)) {
+          return { action: 'edit-text', element: el, clientX: e.clientX, clientY: e.clientY, viewport };
+        }
+      }
+      return null;
+    },
     onPointerDown(state, viewport, canvas, e) {
-      const pos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const rawPos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const gridSize = state.snapToGrid ? 20 : 0;
+      const pos = snapToGrid(rawPos, gridSize);
 
       // Check resize handles on already-selected elements first
       if (state.selectedIds.length === 1) {
         const el = state.elements.find(e => e.id === state.selectedIds[0]);
         if (el) {
-          const handle = getResizeHandleAt(pos.x, pos.y, el, viewport);
+          const handle = getResizeHandleAt(rawPos.x, rawPos.y, el, viewport);
           if (handle) {
             resizing = true;
             resizeData = {
@@ -737,7 +766,7 @@ export function createSelectTool() {
       for (let i = state.elements.length - 1; i >= 0; i--) {
         const el = state.elements[i];
         el._viewportZoom = viewport.zoom;
-        if (hitTest(pos.x, pos.y, el)) {
+        if (hitTest(rawPos.x, rawPos.y, el)) {
           if (e.shiftKey) {
             const idx = state.selectedIds.indexOf(el.id);
             if (idx === -1) state.selectedIds.push(el.id);
@@ -764,8 +793,13 @@ export function createSelectTool() {
           return { action: 'select', element: el };
         }
       }
+
+      // No hit — start marquee
       state.selectedIds = [];
-      return { action: 'deselect' };
+      marqueeActive = true;
+      marqueeStart = { x: rawPos.x, y: rawPos.y };
+      marqueeEnd = { x: rawPos.x, y: rawPos.y };
+      return { action: 'marquee', rect: { x: rawPos.x, y: rawPos.y, w: 0, h: 0 } };
     },
     onPointerMove(state, viewport, canvas, e) {
       if (resizing && resizeData) {
@@ -781,6 +815,16 @@ export function createSelectTool() {
           updateArrowBindings(state);
         }
         return { action: 'move' };
+      }
+
+      if (marqueeActive) {
+        const rawPos = worldPos(canvas, viewport, e.clientX, e.clientY);
+        marqueeEnd = { x: rawPos.x, y: rawPos.y };
+        const x = Math.min(marqueeStart.x, marqueeEnd.x);
+        const y = Math.min(marqueeStart.y, marqueeEnd.y);
+        const w = Math.abs(marqueeEnd.x - marqueeStart.x);
+        const h = Math.abs(marqueeEnd.y - marqueeStart.y);
+        return { action: 'marquee', rect: { x, y, w, h } };
       }
 
       if (!dragging || state.selectedIds.length === 0) return null;
@@ -811,12 +855,32 @@ export function createSelectTool() {
       updateArrowBindings(state);
       return { action: 'move' };
     },
-    onPointerUp() {
+    onPointerUp(state, viewport, canvas, e) {
       if (resizing && moved) {
         resizing = false;
         return { action: 'commit-move' };
       }
       resizing = false;
+
+      if (marqueeActive) {
+        marqueeActive = false;
+        const x = Math.min(marqueeStart.x, marqueeEnd.x);
+        const y = Math.min(marqueeStart.y, marqueeEnd.y);
+        const w = Math.abs(marqueeEnd.x - marqueeStart.x);
+        const h = Math.abs(marqueeEnd.y - marqueeStart.y);
+        marqueeStart = null;
+        marqueeEnd = null;
+        if (w < 3 && h < 3) return { action: 'marquee-end', rect: null };
+        const selected = [];
+        for (const el of state.elements) {
+          const bb = getElementBBox(el);
+          const overlap = !(bb.x + bb.w < x || bb.x > x + w || bb.y + bb.h < y || bb.y > y + h);
+          if (overlap) selected.push(el.id);
+        }
+        state.selectedIds = selected;
+        return { action: 'marquee-end', rect: null };
+      }
+
       if (dragging && moved) {
         dragging = false;
         return { action: 'commit-move' };
@@ -824,7 +888,7 @@ export function createSelectTool() {
       dragging = false;
       return null;
     },
-    onPointerCancel() { dragging = false; moved = false; resizing = false; },
+    onPointerCancel() { dragging = false; moved = false; resizing = false; marqueeActive = false; marqueeStart = null; marqueeEnd = null; },
   };
 }
 
@@ -856,7 +920,9 @@ export function createShapeDrawTool(shapeType) {
   let current = null;
   return {
     onPointerDown(state, viewport, canvas, e) {
-      start = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const rawPos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const gridSize = state.snapToGrid ? 20 : 0;
+      start = snapToGrid(rawPos, gridSize);
       const base = {
         id: nextId(),
         type: shapeType,
@@ -872,7 +938,9 @@ export function createShapeDrawTool(shapeType) {
     },
     onPointerMove(state, viewport, canvas, e) {
       if (!current || !start) return null;
-      let pos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      let rawPos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const gridSize = state.snapToGrid ? 20 : 0;
+      let pos = snapToGrid(rawPos, gridSize);
       if (shapeType === 'circle') {
         const dx = Math.abs(pos.x - start.x);
         const dy = Math.abs(pos.y - start.y);
@@ -887,7 +955,9 @@ export function createShapeDrawTool(shapeType) {
     },
     onPointerUp(state, viewport, canvas, e) {
       if (!current || !start) return null;
-      let pos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      let rawPos = worldPos(canvas, viewport, e.clientX, e.clientY);
+      const gridSize = state.snapToGrid ? 20 : 0;
+      let pos = snapToGrid(rawPos, gridSize);
       if (shapeType === 'circle') {
         const dx = Math.abs(pos.x - start.x);
         const dy = Math.abs(pos.y - start.y);
@@ -904,6 +974,14 @@ export function createShapeDrawTool(shapeType) {
       return { action: 'commit', element: el };
     },
     onPointerCancel() { start = null; current = null; },
+  };
+}
+
+export function snapToGrid(pos, gridSize) {
+  if (!gridSize || gridSize < 1) return pos;
+  return {
+    x: Math.round(pos.x / gridSize) * gridSize,
+    y: Math.round(pos.y / gridSize) * gridSize,
   };
 }
 

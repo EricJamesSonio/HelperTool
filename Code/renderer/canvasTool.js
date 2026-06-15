@@ -53,6 +53,10 @@ export function openCanvasPanel(repoPath) {
   const canvas = _panel.querySelector('#canvasElement');
   engine.init(canvas);
 
+  engine.setZoomChangeCallback((zoom) => {
+    updateZoomIndicator(zoom);
+  });
+
   engine.setActionCallback((result) => {
     if (result.action === 'place-text') {
       if (_textOverlay) {
@@ -62,6 +66,23 @@ export function openCanvasPanel(repoPath) {
       }
       if (_textCommitting) return;
       createTextOverlay(result.x, result.y, result.clientX, result.clientY);
+    } else if (result.action === 'edit-text') {
+      if (_textOverlay) {
+        _textCommitting = true;
+        commitTextOverlay().finally(() => { _textCommitting = false; });
+        return;
+      }
+      const el = result.element;
+      const vp = _panel.querySelector('#canvasViewport');
+      const vpRect = vp.getBoundingClientRect();
+      const rawClientX = el.x * result.viewport.zoom + result.viewport.x + vpRect.left;
+      const rawClientY = el.y * result.viewport.zoom + result.viewport.y + vpRect.top;
+      createTextOverlay(el.x, el.y, rawClientX, rawClientY, el.text, el.fontSize || 20);
+    } else if (result.action === 'marquee') {
+      engine.setMarqueeRect(result.rect);
+    } else if (result.action === 'marquee-end') {
+      engine.setMarqueeRect(null);
+      updateUI();
     }
   });
 
@@ -390,7 +411,7 @@ async function commitTextOverlay() {
   boards.markDirty();
 }
 
-function createTextOverlay(worldX, worldY, clientX, clientY) {
+function createTextOverlay(worldX, worldY, clientX, clientY, existingText, existingFontSize) {
   removeTextOverlay();
 
   const overlay = document.createElement('div');
@@ -398,7 +419,7 @@ function createTextOverlay(worldX, worldY, clientX, clientY) {
   overlay.dataset.worldX = worldX;
   overlay.dataset.worldY = worldY;
   overlay.dataset.color = state.getState().color;
-  overlay.dataset.fontSize = '20';
+  overlay.dataset.fontSize = String(existingFontSize || 20);
 
   const vp = _panel.querySelector('#canvasViewport');
   const vpRect = vp.getBoundingClientRect();
@@ -423,10 +444,20 @@ function createTextOverlay(worldX, worldY, clientX, clientY) {
   _panel.querySelector('#canvasViewport').appendChild(overlay);
   _textOverlay = overlay;
 
+  if (existingText) {
+    const textarea = overlay.querySelector('textarea');
+    textarea.value = existingText;
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }
+
   setTimeout(() => { overlay.dataset.ready = '1'; }, 0);
 
   const textarea = overlay.querySelector('textarea');
   textarea.focus();
+  if (existingText) {
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }
 
   // Only Escape cancels — Enter inserts newline naturally
   textarea.addEventListener('keydown', (e) => {
@@ -622,6 +653,93 @@ function handleStateChange() {
   boards.markDirty();
 }
 
+function updateZoomIndicator(zoom) {
+  const el = _panel && _panel.querySelector('#canvasZoomIndicator');
+  if (el) el.textContent = Math.round(zoom * 100) + '%';
+}
+
+function updatePropertiesPanel() {
+  if (!_panel) return;
+  const st = state.getState();
+  const panel = _panel.querySelector('#canvasPropertiesPanel');
+  if (!panel) return;
+  if (st.selectedIds.length === 1) {
+    const el = st.elements.find(e => e.id === st.selectedIds[0]);
+    if (!el) { panel.style.display = 'none'; return; }
+    panel.style.display = 'flex';
+    const xInput = panel.querySelector('.cp-x');
+    const yInput = panel.querySelector('.cp-y');
+    const wInput = panel.querySelector('.cp-w');
+    const hInput = panel.querySelector('.cp-h');
+    const strokeInput = panel.querySelector('.cp-stroke');
+    const fillInput = panel.querySelector('.cp-fill');
+    const swInput = panel.querySelector('.cp-sw');
+    const brInput = panel.querySelector('.cp-br');
+    const fontSizeRow = panel.querySelector('.cp-fontsize-row');
+    const fontSizeInput = panel.querySelector('.cp-fontsize');
+
+    if (xInput) xInput.value = Math.round((el.x || 0) * 100) / 100;
+    if (yInput) yInput.value = Math.round((el.y || 0) * 100) / 100;
+    if (wInput) wInput.value = Math.round((el.width || 0) * 100) / 100;
+    if (hInput) hInput.value = Math.round((el.height || 0) * 100) / 100;
+    if (strokeInput) strokeInput.value = el.stroke || '#ffffff';
+    if (fillInput) fillInput.value = el.fill || '#000000';
+    if (swInput) swInput.value = el.strokeWidth || 2;
+    if (brInput) {
+      brInput.value = el.borderRadius !== undefined ? el.borderRadius : 0;
+      brInput.style.display = el.type === 'rect' ? 'inline-block' : 'none';
+    }
+    if (fontSizeRow) fontSizeRow.style.display = el.type === 'text' ? 'flex' : 'none';
+    if (fontSizeInput) fontSizeInput.value = el.fontSize || 20;
+
+    // Position fields for lines/arrows
+    const startXInput = panel.querySelector('.cp-start-x');
+    const startYInput = panel.querySelector('.cp-start-y');
+    const endXInput = panel.querySelector('.cp-end-x');
+    const endYInput = panel.querySelector('.cp-end-y');
+    const posFields = panel.querySelector('.cp-pos-fields');
+    const startEndFields = panel.querySelector('.cp-startend-fields');
+    if (el.type === 'line' || el.type === 'arrow') {
+      if (posFields) posFields.style.display = 'none';
+      if (startEndFields) startEndFields.style.display = 'block';
+      if (startXInput) startXInput.value = Math.round((el.start?.x || 0) * 100) / 100;
+      if (startYInput) startYInput.value = Math.round((el.start?.y || 0) * 100) / 100;
+      if (endXInput) endXInput.value = Math.round((el.end?.x || 0) * 100) / 100;
+      if (endYInput) endYInput.value = Math.round((el.end?.y || 0) * 100) / 100;
+    } else {
+      if (posFields) posFields.style.display = 'block';
+      if (startEndFields) startEndFields.style.display = 'none';
+    }
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function handlePropertyChange(field, value) {
+  const st = state.getState();
+  if (st.selectedIds.length !== 1) return;
+  const el = st.elements.find(e => e.id === st.selectedIds[0]);
+  if (!el) return;
+  state.pushUndo();
+  const num = parseFloat(value);
+  switch (field) {
+    case 'x': if (!isNaN(num)) el.x = num; break;
+    case 'y': if (!isNaN(num)) el.y = num; break;
+    case 'w': if (!isNaN(num)) el.width = num; break;
+    case 'h': if (!isNaN(num)) el.height = num; break;
+    case 'stroke': el.stroke = value; break;
+    case 'fill': el.fill = value; break;
+    case 'strokeWidth': if (!isNaN(num)) el.strokeWidth = num; break;
+    case 'borderRadius': if (!isNaN(num)) el.borderRadius = num; break;
+    case 'fontSize': if (!isNaN(num)) el.fontSize = num; break;
+    case 'startX': if (el.start && !isNaN(num)) el.start.x = num; break;
+    case 'startY': if (el.start && !isNaN(num)) el.start.y = num; break;
+    case 'endX': if (el.end && !isNaN(num)) el.end.x = num; break;
+    case 'endY': if (el.end && !isNaN(num)) el.end.y = num; break;
+  }
+  boards.markDirty();
+}
+
 function updateUI() {
   if (!_panel) return;
   const st = state.getState();
@@ -637,5 +755,15 @@ function updateUI() {
   if (undoBtn) undoBtn.disabled = !state.canUndo();
   if (redoBtn) redoBtn.disabled = !state.canRedo();
 
+  const snapBtn = _panel && _panel.querySelector('#canvasSnapToggle');
+  if (snapBtn) {
+    snapBtn.classList.toggle('active', st.snapToGrid);
+    snapBtn.title = st.snapToGrid ? 'Snap to grid (on)' : 'Snap to grid (off)';
+  }
+
+  const brRange = _panel && _panel.querySelector('#canvasBorderRadius');
+  if (brRange) brRange.value = st.borderRadius || 0;
+
   updateToolbarUI();
+  updatePropertiesPanel();
 }

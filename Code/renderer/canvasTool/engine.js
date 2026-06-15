@@ -20,9 +20,19 @@ let _toolInstance = null;
 let _activeToolName = 'select';
 let _spaceHeld = false;
 let _actionCallback = null;
+let _marqueeRect = null;
+let _zoomChangeCallback = null;
 
 export function setActionCallback(cb) {
   _actionCallback = cb;
+}
+
+export function setZoomChangeCallback(cb) {
+  _zoomChangeCallback = cb;
+}
+
+export function setMarqueeRect(rect) {
+  _marqueeRect = rect;
 }
 
 export function init(canvas) {
@@ -166,6 +176,22 @@ function render() {
   }
 
   _ctx.restore();
+
+  // Draw marquee selection rect
+  if (_marqueeRect) {
+    _ctx.save();
+    _ctx.strokeStyle = '#22d3ee';
+    _ctx.lineWidth = 1.5;
+    _ctx.setLineDash([4, 4]);
+    _ctx.fillStyle = 'rgba(34,211,238,0.08)';
+    const mx = _marqueeRect.x * viewport.zoom + viewport.x;
+    const my = _marqueeRect.y * viewport.zoom + viewport.y;
+    const mw = _marqueeRect.w * viewport.zoom;
+    const mh = _marqueeRect.h * viewport.zoom;
+    _ctx.fillRect(mx, my, mw, mh);
+    _ctx.strokeRect(mx, my, mw, mh);
+    _ctx.restore();
+  }
 }
 
 function isBindableShapeType(type) {
@@ -233,13 +259,26 @@ function drawPen(ctx, el) {
 }
 
 function drawRect(ctx, el) {
-  if (el.fill && el.fill !== 'transparent') {
-    ctx.fillStyle = el.fill;
-    ctx.fillRect(el.x, el.y, el.width, el.height);
+  const r = el.borderRadius || 0;
+  if (r > 0) {
+    ctx.beginPath();
+    ctx.roundRect(el.x, el.y, el.width, el.height, r);
+    if (el.fill && el.fill !== 'transparent') {
+      ctx.fillStyle = el.fill;
+      ctx.fill();
+    }
+    ctx.strokeStyle = el.stroke || '#ffffff';
+    ctx.lineWidth = el.strokeWidth || 2;
+    ctx.stroke();
+  } else {
+    if (el.fill && el.fill !== 'transparent') {
+      ctx.fillStyle = el.fill;
+      ctx.fillRect(el.x, el.y, el.width, el.height);
+    }
+    ctx.strokeStyle = el.stroke || '#ffffff';
+    ctx.lineWidth = el.strokeWidth || 2;
+    ctx.strokeRect(el.x, el.y, el.width, el.height);
   }
-  ctx.strokeStyle = el.stroke || '#ffffff';
-  ctx.lineWidth = el.strokeWidth || 2;
-  ctx.strokeRect(el.x, el.y, el.width, el.height);
 }
 
 function drawEllipse(ctx, el) {
@@ -544,6 +583,7 @@ function bindEvents() {
   _canvas.addEventListener('pointermove', onPointerMove);
   _canvas.addEventListener('pointerup', onPointerUp);
   _canvas.addEventListener('pointercancel', onPointerCancel);
+  _canvas.addEventListener('dblclick', onDblClick);
   _canvas.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('resize', resize);
   document.addEventListener('keyup', onKeyUp);
@@ -555,6 +595,7 @@ function unbindEvents() {
   _canvas.removeEventListener('pointermove', onPointerMove);
   _canvas.removeEventListener('pointerup', onPointerUp);
   _canvas.removeEventListener('pointercancel', onPointerCancel);
+  _canvas.removeEventListener('dblclick', onDblClick);
   _canvas.removeEventListener('wheel', onWheel);
   window.removeEventListener('resize', resize);
   document.removeEventListener('keyup', onKeyUp);
@@ -590,6 +631,7 @@ function onPointerMove(e) {
   if (_panning && _panStart && _panViewport) {
     viewport.x = _panViewport.x + (e.clientX - _panStart.x);
     viewport.y = _panViewport.y + (e.clientY - _panStart.y);
+    if (_zoomChangeCallback) _zoomChangeCallback(viewport.zoom);
     return;
   }
 
@@ -670,6 +712,17 @@ function onPointerCancel() {
   updateCursor();
 }
 
+function onDblClick(e) {
+  if (_toolInstance && _toolInstance.onDblClick) {
+    const st = state.getState();
+    const pos = worldPos(_canvas, viewport, e.clientX, e.clientY);
+    const result = _toolInstance.onDblClick(st, viewport, _canvas, e, pos);
+    if (result && _actionCallback) {
+      _actionCallback(result);
+    }
+  }
+}
+
 export function onKeyDown(e) {
   // Space bar → enter pan mode
   if (e.code === 'Space' && !e.repeat) {
@@ -711,6 +764,7 @@ function zoomAtCenter(factor) {
   viewport.x = mx - actualFactor * (mx - viewport.x);
   viewport.y = my - actualFactor * (my - viewport.y);
   viewport.zoom = newZoom;
+  if (_zoomChangeCallback) _zoomChangeCallback(viewport.zoom);
 }
 
 function onWheel(e) {
@@ -732,12 +786,54 @@ function onWheel(e) {
     viewport.x -= e.deltaX;
     viewport.y -= e.deltaY;
   }
+  if (_zoomChangeCallback) _zoomChangeCallback(viewport.zoom);
 }
 
 export function resetView() {
   viewport.x = 0;
   viewport.y = 0;
   viewport.zoom = 1;
+  if (_zoomChangeCallback) _zoomChangeCallback(viewport.zoom);
+}
+
+export function fitToScreen(padding) {
+  if (!_canvas) return;
+  padding = padding || 60;
+  const st = state.getState();
+  const elements = st.elements || [];
+  if (elements.length === 0) { resetView(); return; }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const el of elements) {
+    if (el.type === 'arrow' || el.type === 'line') {
+      minX = Math.min(minX, el.start.x, el.end.x);
+      minY = Math.min(minY, el.start.y, el.end.y);
+      maxX = Math.max(maxX, el.start.x, el.end.x);
+      maxY = Math.max(maxY, el.start.y, el.end.y);
+    } else if (el.type === 'pen' && el.points) {
+      for (const p of el.points) {
+        minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+      }
+    } else {
+      minX = Math.min(minX, el.x || 0);
+      minY = Math.min(minY, el.y || 0);
+      maxX = Math.max(maxX, (el.x || 0) + (el.width || 0));
+      maxY = Math.max(maxY, (el.y || 0) + (el.height || 0));
+    }
+  }
+  const bw = maxX - minX + padding * 2;
+  const bh = maxY - minY + padding * 2;
+  if (bw < 1 || bh < 1) { resetView(); return; }
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const canvasW = _canvas.width / (window.devicePixelRatio || 1);
+  const canvasH = _canvas.height / (window.devicePixelRatio || 1);
+  const zoomX = canvasW / bw;
+  const zoomY = canvasH / bh;
+  viewport.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(zoomX, zoomY)));
+  viewport.x = canvasW / 2 - centerX * viewport.zoom;
+  viewport.y = canvasH / 2 - centerY * viewport.zoom;
+  if (_zoomChangeCallback) _zoomChangeCallback(viewport.zoom);
 }
 
 export function getViewport() {
@@ -750,4 +846,5 @@ export function setViewport(vp) {
     viewport.y = vp.y || 0;
     viewport.zoom = vp.zoom || 1;
   }
+  if (_zoomChangeCallback) _zoomChangeCallback(viewport.zoom);
 }
