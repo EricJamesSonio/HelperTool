@@ -2,10 +2,19 @@ const ICON_COPY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" st
 const ICON_PROMPT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9l2 2-2 2"/><path d="M12 11h2"/></svg>';
 const ICON_COPIED = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4 4 8-8"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M6 7v5"/><path d="M10 7v5"/></svg>';
+const ICON_RENAME = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3z"/></svg>';
 
 function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function renderInline(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/`([^`]+)`/g, '<code class="cc-md-inline-code">$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  return s;
 }
 
 function formatContent(text) {
@@ -23,17 +32,17 @@ function formatContent(text) {
       continue;
     }
     if (line.startsWith('### ')) {
-      html += '<div class="cc-md-h3">' + escapeHtml(line.slice(4)) + '</div>';
+      html += '<div class="cc-md-h3">' + renderInline(line.slice(4)) + '</div>';
     } else if (line.startsWith('## ')) {
-      html += '<div class="cc-md-h2">' + escapeHtml(line.slice(3)) + '</div>';
+      html += '<div class="cc-md-h2">' + renderInline(line.slice(3)) + '</div>';
     } else if (line.startsWith('**') && line.endsWith('**')) {
       html += '<div class="cc-md-bold">' + escapeHtml(line.slice(2, -2)) + '</div>';
     } else if (line.startsWith('• ') || line.startsWith('- ')) {
-      html += '<div class="cc-md-item"><span class="cc-md-bullet">•</span> ' + escapeHtml(line.slice(2)) + '</div>';
+      html += '<div class="cc-md-item"><span class="cc-md-bullet">•</span> ' + renderInline(line.slice(2)) + '</div>';
     } else if (line.trim() === '') {
       html += '<div class="cc-md-spacer"></div>';
     } else {
-      html += '<div class="cc-md-line">' + escapeHtml(line) + '</div>';
+      html += '<div class="cc-md-line">' + renderInline(line) + '</div>';
     }
   }
   return html;
@@ -45,7 +54,12 @@ function renderUserMessage(msg) {
 
   const bubble = document.createElement('div');
   bubble.className = 'cc-msg-bubble';
-  const label = (msg.file ? '@' + msg.file.split(/[/\\]/).pop() : '') + (msg.queryType ? ' → ' + msg.queryType : '');
+  let label;
+  if (msg.content && msg.content.trim()) {
+    label = msg.content.trim();
+  } else {
+    label = (msg.file ? '@' + msg.file.split(/[/\\]/).pop() : '') + (msg.queryType ? ' → ' + msg.queryType : '');
+  }
   bubble.textContent = label || 'Ask';
   div.appendChild(bubble);
 
@@ -145,7 +159,7 @@ function getGroupLabel(dateStr) {
   return 'Older';
 }
 
-function renderConvItem(conv, isActive, onSelect, onDelete, confirmDeleteId) {
+function renderConvItem(conv, isActive, onSelect, onDelete, onRename, confirmDeleteId) {
   const div = document.createElement('div');
   div.className = 'cc-conv-item' + (isActive ? ' cc-conv-item--active' : '');
   div.dataset.id = conv.id;
@@ -159,6 +173,13 @@ function renderConvItem(conv, isActive, onSelect, onDelete, confirmDeleteId) {
   time.className = 'cc-conv-item-time';
   time.textContent = timeAgo(conv.updated_at || conv.created_at);
   div.appendChild(time);
+
+  const rename = document.createElement('button');
+  rename.className = 'cc-conv-item-rename';
+  rename.innerHTML = ICON_RENAME;
+  rename.title = 'Rename';
+  rename.addEventListener('click', (e) => { e.stopPropagation(); onRename?.(conv.id, conv.title); });
+  div.appendChild(rename);
 
   if (confirmDeleteId === conv.id) {
     const sure = document.createElement('button');
@@ -178,7 +199,7 @@ function renderConvItem(conv, isActive, onSelect, onDelete, confirmDeleteId) {
   return div;
 }
 
-function renderConvGroup(label, items, activeId, onSelect, onDelete, confirmDeleteId) {
+function renderConvGroup(label, items, activeId, onSelect, onDelete, onRename, confirmDeleteId) {
   if (!items.length) return null;
   const group = document.createElement('div');
   group.className = 'cc-conv-group';
@@ -189,7 +210,7 @@ function renderConvGroup(label, items, activeId, onSelect, onDelete, confirmDele
   group.appendChild(header);
 
   for (const item of items) {
-    group.appendChild(renderConvItem(item, item.id === activeId, onSelect, onDelete, confirmDeleteId));
+    group.appendChild(renderConvItem(item, item.id === activeId, onSelect, onDelete, onRename, confirmDeleteId));
   }
   return group;
 }

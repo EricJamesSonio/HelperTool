@@ -10,6 +10,9 @@ class ChatState {
     this.conversations = [];
     this.activeConversationId = null;
     this.conversationHistory = [];
+
+    this.lastFile = null;
+    this.lastQueryType = null;
   }
 
   get activeConversation() {
@@ -64,14 +67,28 @@ class ChatState {
     this.selectedQuery = null;
   }
 
-  async saveMessagePair(ipc, queryType, filePath, botContent, promptText) {
+  async saveMessagePair(ipc, queryType, filePath, botContent, promptText, userContent) {
     if (!this.activeConversationId) return;
-    await ipc.saveMessage({ conversationId: this.activeConversationId, role: 'user', content: '', queryType, fileRef: filePath });
+    await ipc.saveMessage({ conversationId: this.activeConversationId, role: 'user', content: userContent || '', queryType, fileRef: filePath });
     await ipc.saveMessage({ conversationId: this.activeConversationId, role: 'bot', content: botContent, queryType: queryType || null, fileRef: null });
     const conv = this.conversations.find(c => c.id === this.activeConversationId);
     if (conv && conv.title === 'New Chat') {
       conv.title = this.generateTitle(filePath, queryType);
       await ipc.renameConversation({ conversationId: this.activeConversationId, title: conv.title });
+    }
+  }
+
+  async saveFreeTextPair(ipc, userContent, botContent, fileRef) {
+    if (!this.activeConversationId) return;
+    await ipc.saveMessage({ conversationId: this.activeConversationId, role: 'user', content: userContent || '', queryType: null, fileRef: fileRef || null });
+    await ipc.saveMessage({ conversationId: this.activeConversationId, role: 'bot', content: botContent, queryType: null, fileRef: null });
+    const conv = this.conversations.find(c => c.id === this.activeConversationId);
+    if (conv && conv.title === 'New Chat') {
+      const title = fileRef
+        ? '@' + fileRef.split(/[/\\]/).pop()
+        : (userContent || '').slice(0, 40).trim() || 'New Chat';
+      conv.title = title;
+      await ipc.renameConversation({ conversationId: this.activeConversationId, title });
     }
   }
 
@@ -127,6 +144,8 @@ class ChatState {
     this.conversationHistory = [];
     this.selectedFile = null;
     this.selectedQuery = null;
+    this.lastFile = null;
+    this.lastQueryType = null;
     this.isLoading = false;
   }
 

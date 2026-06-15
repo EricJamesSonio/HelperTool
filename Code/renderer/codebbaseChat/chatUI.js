@@ -49,6 +49,7 @@ class ChatUI {
         <div class="cc-sidebar" id="ccSidebar">
           <div class="cc-sidebar-header">
             <button class="cc-new-chat-btn" id="ccNewChatBtn">${ICON_PLUS} New Chat</button>
+            <button class="cc-export-btn" id="ccExportBtn" title="Export conversation">↓</button>
           </div>
           <div class="cc-sidebar-list" id="ccSidebarList"></div>
         </div>
@@ -58,7 +59,7 @@ class ChatUI {
           <div class="cc-input-area" id="ccInputArea">
             <div class="cc-not-indexed-banner" id="ccNotIndexedBanner" style="display:none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><line x1="10" y1="7" x2="10" y2="12"/><circle cx="10" cy="14" r="0.5" fill="currentColor"/></svg>
-              <span>Symbol index required — run Symbol Index first to enable Codebase Chat</span>
+              <span>Symbol Index not run yet — file queries (dependencies, symbols, etc.) won't work. Free chat is still available.</span>
             </div>
             <div class="cc-input-wrapper">
               <div class="cc-file-picker" id="ccFilePicker" style="display:none">
@@ -93,7 +94,7 @@ class ChatUI {
     let hasAny = false;
     for (const [label, items] of Object.entries(groups)) {
       const frag = renderConvGroup(label, items, this.state.activeConversationId,
-        (id) => this._selectConv(id), (id) => this._deleteConv(id), this._deleteConfirmId);
+        (id) => this._selectConv(id), (id) => this._deleteConv(id), (id, title) => this._renameConv(id, title), this._deleteConfirmId);
       if (frag) { list.appendChild(frag); hasAny = true; }
     }
     if (!hasAny) {
@@ -112,21 +113,27 @@ class ChatUI {
   }
 
   _updateIndexedState() {
-    const inputArea = this.container.querySelector('#ccInputArea');
     const input = this.container.querySelector('#ccInput');
     const askBtn = this.container.querySelector('#ccAskBtn');
     const chips = this.container.querySelectorAll('.cc-chip');
     const banner = this.container.querySelector('#ccNotIndexedBanner');
 
-    if (!inputArea) return;
+    if (!input) return;
 
-    const disabled = !this.state.isIndexed;
-    inputArea.classList.toggle('cc-disabled', disabled);
-    input.disabled = disabled;
-    input.placeholder = disabled ? 'Symbol index required' : 'Type @ to mention a file...';
-    askBtn.disabled = disabled;
-    for (const chip of chips) chip.disabled = disabled;
-    banner.style.display = disabled ? '' : 'none';
+    // Input + send always available
+    input.disabled = false;
+    askBtn.disabled = false;
+    input.placeholder = 'Ask anything, or type @ to mention a file...';
+
+    // Chips only work when indexed
+    const indexed = this.state.isIndexed;
+    for (const chip of chips) {
+      chip.disabled = !indexed;
+      chip.title = indexed ? '' : 'Run Symbol Index first to enable this';
+    }
+
+    // Banner only shows when not indexed, but doesn't block input
+    banner.style.display = indexed ? 'none' : '';
   }
 
   _bindEvents() {
@@ -179,6 +186,7 @@ class ChatUI {
     });
     sidebarToggle.addEventListener('click', () => this._toggleSidebar());
     newChatBtn.addEventListener('click', () => this._handleNewChat());
+    this.container.querySelector('#ccExportBtn')?.addEventListener('click', () => this._exportConversation());
 
     this.container.querySelector('#ccQueryChips').addEventListener('click', (e) => {
       const chip = e.target.closest('.cc-chip');
@@ -214,6 +222,28 @@ class ChatUI {
     this.container.querySelector('.cc-layout').classList.remove('cc-sidebar-closed');
   }
 
+  async _exportConversation() {
+    const conv = this.state.activeConversation;
+    if (!conv || !this.state.conversationHistory.length) return;
+    const title = conv.title || 'conversation';
+    const lines = [`# ${title}\nGenerated ${new Date().toLocaleString()}\n`];
+    for (const msg of this.state.conversationHistory) {
+      if (msg.role === 'user') {
+        const label = msg.content || (msg.file ? `@${msg.file.split(/[/\\]/).pop()}` : '') + (msg.queryType ? ` → ${msg.queryType}` : '');
+        lines.push(`**You:** ${label}\n`);
+      } else {
+        lines.push(`**HelperChat:** ${msg.content || '*no content*'}\n`);
+      }
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async _selectConv(convId) {
     if (convId === this.state.activeConversationId) return;
     await this.state.selectConversation(this.ipc, convId);
@@ -242,6 +272,16 @@ class ChatUI {
       this._deleteConfirmId = null;
       this._renderSidebar();
     }, 2000);
+  }
+
+  async _renameConv(convId, currentTitle) {
+    const newTitle = prompt('Rename conversation:', currentTitle || '');
+    if (!newTitle || newTitle.trim() === '' || newTitle.trim() === currentTitle) return;
+    const trimmed = newTitle.trim();
+    const conv = this.state.conversations.find(c => c.id === convId);
+    if (conv) conv.title = trimmed;
+    await this.ipc.renameConversation({ conversationId: convId, title: trimmed });
+    this._renderSidebar();
   }
 
   _handleInput() {
@@ -317,14 +357,117 @@ class ChatUI {
 
   async _handleAsk() {
     const input = this.container.querySelector('#ccInput');
-    const filePath = this.state.selectedFile || input.value.trim();
-    const queryType = this.state.selectedQuery;
+    const rawText = input.value.trim();
+    let filePath = this.state.selectedFile;
+    let queryType = this.state.selectedQuery;
+
+    // If not both set via UI chips, try NLP on the raw text
+    if (!filePath || !queryType) {
+      const { parseIntent, getFallback } = await import('./chatNLP.js');
+      const intent = parseIntent(rawText, this.state.allFiles, this.state.selectedFile);
+
+      if (intent.type === 'casual') {
+        this.state.addMessage('user', rawText, null, null);
+        this.state.addMessage('bot', intent.reply, null, null);
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, intent.reply, null);
+        return;
+      }
+      if (intent.type === 'didYouMean') {
+        const reply = `I couldn't find that file. Did you mean:\n${intent.suggestions.map(s => `  • ${s}`).join('\n')}`;
+        this.state.addMessage('user', rawText, null, null);
+        this.state.addMessage('bot', reply, null, null);
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, reply, null);
+        return;
+      }
+      if (intent.type === 'fallback') {
+        const reply = getFallback();
+        this.state.addMessage('user', rawText, null, null);
+        this.state.addMessage('bot', reply, null, null);
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, reply, null);
+        return;
+      }
+      if (intent.type === 'needsQuery') {
+        this.state.addMessage('user', rawText, null, null);
+        let reply;
+        if (!this.state.isIndexed) {
+          reply = `I found **${intent.file}** but file queries need Symbol Index to work. Run it first!`;
+          this.state.addMessage('bot', reply, null, null);
+        } else {
+          reply = `Got it — found **${intent.file}**. What do you want to know? (dependencies, symbols, who uses it, import chain, circular deps)`;
+          this.state.addMessage('bot', reply, null, null);
+          this.state.selectedFile = intent.file;
+        }
+        this._renderAllMessages();
+        this._updateLayout();
+        this._scrollToBottom();
+        input.value = '';
+        await this.state.saveFreeTextPair(this.ipc, rawText, reply, intent.file);
+        return;
+      }
+      if (intent.type === 'needsFile') {
+        if (this.state.lastFile) {
+          // Context memory — carry over last file
+          filePath = this.state.lastFile;
+          queryType = intent.queryType;
+        } else if (intent.suggestions?.length) {
+          const reply = `I couldn't find that file. Did you mean:\n${intent.suggestions.map(s => `  • ${s}`).join('\n')}`;
+          this.state.addMessage('user', rawText, null, null);
+          this.state.addMessage('bot', reply, null, null);
+          this._renderAllMessages();
+          this._updateLayout();
+          this._scrollToBottom();
+          input.value = '';
+          await this.state.saveFreeTextPair(this.ipc, rawText, reply, null);
+          return;
+        } else {
+          const reply = `Sure! Which file? Type @ to pick one.`;
+          this.state.addMessage('user', rawText, null, null);
+          this.state.addMessage('bot', reply, null, null);
+          this.state.selectedQuery = intent.queryType;
+          this.container.querySelectorAll('.cc-chip').forEach(c => {
+            c.classList.toggle('active', c.dataset.query === intent.queryType);
+          });
+          this._renderAllMessages();
+          this._updateLayout();
+          this._scrollToBottom();
+          input.value = '';
+          await this.state.saveFreeTextPair(this.ipc, rawText, reply, null);
+          return;
+        }
+      }
+      if (intent.type === 'query') {
+        if (!this.state.isIndexed) {
+          const reply = "That query needs Symbol Index to work. Run Symbol Index first, then I can check that for you.";
+          this.state.addMessage('user', rawText, null, null);
+          this.state.addMessage('bot', reply, null, null);
+          this._renderAllMessages();
+          this._updateLayout();
+          this._scrollToBottom();
+          input.value = '';
+          await this.state.saveFreeTextPair(this.ipc, rawText, reply, intent.file);
+          return;
+        }
+        filePath = intent.file;
+        queryType = intent.queryType;
+      }
+    }
 
     if (!filePath || !queryType) return;
     if (!this.state.activeRepoPath) return;
-    if (!this.state.isIndexed) return;
 
-    this.state.addMessage('user', '', queryType, filePath);
+    this.state.addMessage('user', rawText || '', queryType, filePath);
     this.state.addMessage('bot', '', queryType, filePath);
     this.state.isLoading = true;
 
@@ -334,8 +477,9 @@ class ChatUI {
 
     const answer = await this.queryEngine.executeQuery(queryType, this.state.activeRepoPath, filePath);
     const promptText = this.queryEngine.formatAsPrompt(filePath, queryType, answer);
+    const summary = this.queryEngine.generateSummary(queryType, filePath, answer);
 
-    this.state.replaceLastBot(answer);
+    this.state.replaceLastBot(summary ? summary + '\n\n' + answer : answer);
     this.state.conversationHistory[this.state.getLastBotIndex()]._promptText = promptText;
     this.state.isLoading = false;
 
@@ -343,12 +487,64 @@ class ChatUI {
     this._updateLayout();
     this._scrollToBottom();
 
+    this._renderFollowUpChips(queryType, filePath);
+
     input.value = '';
     this.state.selectedFile = null;
+    this.state.selectedQuery = null;
+    this.state.lastFile = filePath;
+    this.state.lastQueryType = queryType;
+    this.container.querySelectorAll('.cc-chip').forEach(c => c.classList.remove('active'));
 
     this._renderSidebar();
 
-    await this.state.saveMessagePair(this.ipc, queryType, filePath, answer, promptText);
+    await this.state.saveMessagePair(this.ipc, queryType, filePath, answer, promptText, rawText);
+  }
+
+  _renderFollowUpChips(queryType, filePath) {
+    const followUps = {
+      dependencies: [
+        { query: 'dependents', label: 'Who uses these files?' },
+        { query: 'circularDeps', label: 'Any circular deps?' },
+      ],
+      dependents: [
+        { query: 'symbols', label: 'Show symbols' },
+        { query: 'importChain', label: 'Trace import chain' },
+      ],
+      symbols: [
+        { query: 'dependents', label: 'Who imports this?' },
+        { query: 'importChain', label: 'Trace import chain' },
+      ],
+      importChain: [
+        { query: 'symbols', label: 'Show symbols' },
+        { query: 'dependents', label: 'Who imports this?' },
+      ],
+      circularDeps: [
+        { query: 'dependents', label: 'Who depends on these?' },
+        { query: 'importChain', label: 'Show full chain' },
+      ],
+    };
+    const chips = followUps[queryType];
+    if (!chips || !chips.length) return;
+    const messages = this.container.querySelector('#ccMessages');
+    const container = document.createElement('div');
+    container.className = 'cc-followup-row';
+    for (const chip of chips) {
+      const btn = document.createElement('button');
+      btn.className = 'cc-chip cc-chip-followup';
+      btn.textContent = chip.label;
+      btn.dataset.query = chip.query;
+      btn.dataset.file = filePath;
+      btn.addEventListener('click', () => {
+        this.state.selectedFile = filePath;
+        this.state.selectedQuery = chip.query;
+        this.container.querySelector('#ccInput').value = '';
+        this._handleAsk();
+      });
+      container.appendChild(btn);
+    }
+    messages.appendChild(container);
+    this._scrollToBottom();
   }
 
   _renderAllMessages() {
