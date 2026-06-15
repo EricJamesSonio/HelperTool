@@ -16,6 +16,7 @@ export default class GmailState {
     this.ignoredSenders = [];
     this.showIgnoredManager = false;
     this.senderFilter = null;
+    this.inboxCache = {};
   }
 
   reset() {
@@ -33,6 +34,7 @@ export default class GmailState {
     this.ignoredSenders = [];
     this.showIgnoredManager = false;
     this.senderFilter = null;
+    this.inboxCache = {};
   }
 
   getAccount(email) {

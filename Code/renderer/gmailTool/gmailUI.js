@@ -65,8 +65,8 @@ export default class GmailUI {
     }
 
     if (st.view === 'inbox' && st.viewEmail) {
+      const messages = st.inboxMessages;
       const result = st.getResult(st.viewEmail);
-      const messages = result && result.messages ? result.messages : [];
       return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0, st.ignoredSenders, st.senderFilter);
     }
 

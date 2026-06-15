@@ -37,6 +37,14 @@ export default class GmailTool {
     window.electronAPI.gmail.onPollResult((data) => {
       this.state.results = data.results;
       this.state.totalUnread = data.results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
+      for (const r of data.results) {
+        if (r.messages && r.messages.length > 0) {
+          this.state.inboxCache[r.account] = r.messages;
+        }
+      }
+      if (this.state.view === 'inbox' && this.state.viewEmail && this.state.inboxCache[this.state.viewEmail]) {
+        this.state.inboxMessages = this.state.inboxCache[this.state.viewEmail];
+      }
       this._updateBadge();
       if (this.ui) this.ui.update();
     });
@@ -113,14 +121,16 @@ export default class GmailTool {
     if (this.ui) this.ui.update();
     const res = await window.electronAPI.gmail.fetchAll();
     if (res.success) {
+      for (const r of res.results) {
+        if (r.messages) {
+          this.state.inboxCache[r.account] = r.messages;
+        }
+      }
       this.state.results = res.results;
       this.state.totalUnread = res.results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
       this._updateBadge();
-      if (this.state.view === 'inbox' && this.state.viewEmail) {
-        const result = this.state.getResult(this.state.viewEmail);
-        if (result && result.messages) {
-          this.state.inboxMessages = result.messages;
-        }
+      if (this.state.view === 'inbox' && this.state.viewEmail && this.state.inboxCache[this.state.viewEmail]) {
+        this.state.inboxMessages = this.state.inboxCache[this.state.viewEmail];
       }
     } else {
       this.state.error = res.error;
@@ -134,12 +144,20 @@ export default class GmailTool {
     this.state.viewEmail = email;
     this.state.filter = 'all';
     this.state.expandedMsgIds = new Set();
+
+    if (this.state.inboxCache[email]) {
+      this.state.inboxMessages = this.state.inboxCache[email];
+      if (this.ui) this.ui.update();
+      return;
+    }
+
     this.state.status = 'loading';
     if (this.ui) this.ui.update();
 
     const res = await window.electronAPI.gmail.fetchInbox({ email, maxResults: 50 });
     if (res.success) {
       this.state.inboxMessages = res.messages || [];
+      this.state.inboxCache[email] = res.messages || [];
     } else {
       this.state.inboxMessages = [];
     }
