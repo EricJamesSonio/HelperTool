@@ -239,6 +239,57 @@ function attachListeners() {
       commitTextOverlay();
     }
   });
+
+  // Fit to screen button
+  const fitBtn = _panel.querySelector('#canvasFitBtn');
+  if (fitBtn) {
+    fitBtn.addEventListener('click', () => {
+      engine.fitToScreen();
+    });
+  }
+
+  // Zoom indicator reset on click (reset zoom)
+  const zoomInd = _panel.querySelector('#canvasZoomIndicator');
+  if (zoomInd) {
+    zoomInd.addEventListener('click', () => {
+      engine.resetView();
+    });
+  }
+
+  // Snap-to-grid toggle
+  const snapBtn = _panel.querySelector('#canvasSnapToggle');
+  if (snapBtn) {
+    snapBtn.addEventListener('click', () => {
+      const st = state.getState();
+      state.setState({ snapToGrid: !st.snapToGrid });
+      updateUI();
+    });
+  }
+
+  // Border radius slider
+  const brRange = _panel.querySelector('#canvasBorderRadius');
+  if (brRange) {
+    brRange.addEventListener('input', () => {
+      state.setState({ borderRadius: parseInt(brRange.value, 10) });
+    });
+  }
+
+  // Properties panel event delegation
+  const propsPanel = _panel.querySelector('#canvasPropertiesPanel');
+  if (propsPanel) {
+    let _propUndoPushed = false;
+    propsPanel.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target.classList.contains('cp-prop') || target.classList.contains('cp-color')) {
+        if (!_propUndoPushed) { state.pushUndo(); boards.markDirty(); _propUndoPushed = true; }
+        handlePropertyChange(target.dataset.field, target.value);
+      }
+    });
+    propsPanel.addEventListener('focusout', () => { _propUndoPushed = false; });
+  }
+
+  // Also handle fitToScreen shortcut in key guard: Ctrl+Shift+F
+  // (handled in addKeyGuard)
 }
 
 // ── Shortcut combo → canvas tool name ──
@@ -311,6 +362,13 @@ function addKeyGuard() {
       if (e.shiftKey) { state.redo(); } else { state.undo(); }
       boards.markDirty();
       updateUI();
+      return;
+    }
+
+    // Fit to screen Ctrl+Shift+F
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault(); e.stopPropagation();
+      engine.fitToScreen();
       return;
     }
 
