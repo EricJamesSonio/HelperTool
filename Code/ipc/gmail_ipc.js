@@ -7,10 +7,20 @@ function extractName(fromStr) {
   return match ? match[1].trim() : fromStr.split('@')[0];
 }
 
+function _extractEmail(fromStr) {
+  if (!fromStr) return '';
+  const match = fromStr.match(/<([^>]+)>/);
+  return match ? match[1].toLowerCase() : fromStr.toLowerCase();
+}
+
 function isIgnored(fromStr, ignored) {
   if (!fromStr || !ignored || ignored.length === 0) return false;
-  const lower = fromStr.toLowerCase();
-  return ignored.some(s => lower.includes(s.toLowerCase()));
+  const email = _extractEmail(fromStr);
+  const matched = ignored.some(s => email.includes(s.toLowerCase()));
+  if (matched) {
+    console.log(`[Gmail IPC] isIgnored=true for "${fromStr}" (email="${email}" matches ignore list)`);
+  }
+  return matched;
 }
 
 function register({ getMainWindow }) {

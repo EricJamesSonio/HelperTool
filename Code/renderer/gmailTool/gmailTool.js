@@ -9,31 +9,14 @@ export default class GmailTool {
   }
 
   async init() {
+    // Register listeners BEFORE any IPC call that fires them (race condition fix)
+    this._registerListeners();
+
     await this._loadIgnoredSenders();
     await this._loadAccounts();
   }
 
-  render(container) {
-    this._container = container;
-    this.ui = new GmailUI(this.state);
-    this.ui.setCallbacks({
-      onAddAccount:        () => this._handleAddAccount(),
-      onRemoveAccount:     (email) => this._handleRemoveAccount(email),
-      onRefresh:           () => this._handleRefresh(),
-      onOpenMessage:       (email, msgId) => this._handleOpenMessage(email, msgId),
-      onMarkRead:          (email, msgId) => this._handleMarkRead(email, msgId),
-      onOpenInbox:         (email) => this._handleOpenInbox(email),
-      onBack:              () => this._handleBack(),
-      onFilterChange:      (filter) => this._handleFilterChange(filter),
-      onToggleExpand:      (msgId) => this._handleToggleExpand(msgId),
-      onIgnoreSender:      (sender) => this._handleIgnoreSender(sender),
-      onOpenIgnoredManager: () => this._handleOpenIgnoredManager(),
-      onCloseIgnoredManager: () => this._handleCloseIgnoredManager(),
-      onUnignoreSender:    (sender) => this._handleUnignoreSender(sender),
-      onSenderFilter:      (sender) => this._handleSenderFilter(sender),
-    });
-    this.ui.render(container);
-
+  _registerListeners() {
     window.electronAPI.gmail.onPollResult((data) => {
       console.log('[GmailTool] onPollResult received:', JSON.stringify({
         accounts: data.results?.length,
@@ -58,6 +41,28 @@ export default class GmailTool {
       this.state.accounts = accounts;
       if (this.ui) this.ui.update();
     });
+  }
+
+  render(container) {
+    this._container = container;
+    this.ui = new GmailUI(this.state);
+    this.ui.setCallbacks({
+      onAddAccount:        () => this._handleAddAccount(),
+      onRemoveAccount:     (email) => this._handleRemoveAccount(email),
+      onRefresh:           () => this._handleRefresh(),
+      onOpenMessage:       (email, msgId) => this._handleOpenMessage(email, msgId),
+      onMarkRead:          (email, msgId) => this._handleMarkRead(email, msgId),
+      onOpenInbox:         (email) => this._handleOpenInbox(email),
+      onBack:              () => this._handleBack(),
+      onFilterChange:      (filter) => this._handleFilterChange(filter),
+      onToggleExpand:      (msgId) => this._handleToggleExpand(msgId),
+      onIgnoreSender:      (sender) => this._handleIgnoreSender(sender),
+      onOpenIgnoredManager: () => this._handleOpenIgnoredManager(),
+      onCloseIgnoredManager: () => this._handleCloseIgnoredManager(),
+      onUnignoreSender:    (sender) => this._handleUnignoreSender(sender),
+      onSenderFilter:      (sender) => this._handleSenderFilter(sender),
+    });
+    this.ui.render(container);
   }
 
   destroy() {

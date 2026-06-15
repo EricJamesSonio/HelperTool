@@ -70,7 +70,7 @@ export default class GmailState {
 
   _isIgnored(fromStr) {
     if (!fromStr || this.ignoredSenders.length === 0) return false;
-    const lower = fromStr.toLowerCase();
-    return this.ignoredSenders.some(s => lower.includes(s.toLowerCase()));
+    const email = fromStr.match(/<([^>]+)>/)?.[1]?.toLowerCase() || fromStr.toLowerCase();
+    return this.ignoredSenders.some(s => email.includes(s.toLowerCase()));
   }
 }

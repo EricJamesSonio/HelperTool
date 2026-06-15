@@ -43,6 +43,7 @@ function saveHistoryId(email, historyId) {
 let credentials = null;
 let pollTimer    = null;
 let onNewMailCallback = null;
+let _notifiedMessageIds = new Set(); // tracks IDs we've already notified across all accounts
 
 function loadCredentials() {
   if (credentials) return credentials;
@@ -330,14 +331,37 @@ async function fetchRecentMessages(account, maxResults = 50) {
   }));
 
   const unreadCount  = details.filter(d => d.unread).length;
-  const newMessages  = historyResult.newMessages || [];
+  const historyNew   = historyResult.newMessages || [];
+  const historyNewIds = new Set(historyNew.map(m => m.id));
+
+  // Find inbox messages that are NOT yet in _notifiedMessageIds and NOT already
+  // covered by the history API. This catches emails that arrived before seeding
+  // or in edge cases where history.list misses them.
+  const unseenMessages = details
+    .filter(d => !_notifiedMessageIds.has(d.id) && !historyNewIds.has(d.id))
+    .map(d => ({ id: d.id, from: d.from, subject: d.subject, date: d.date, snippet: d.snippet, threadId: d.threadId }));
+
+  if (unseenMessages.length > 0) {
+    console.log(`[Gmail] Adding ${unseenMessages.length} messages from inbox list that were not yet notified`);
+    for (const m of unseenMessages) {
+      console.log(`[Gmail]   Unseen: ${m.from} — "${m.subject}"`);
+    }
+  }
+
+  // Merge both sources, keeping history results first, then unseen inbox messages
+  const allNew = [...historyNew, ...unseenMessages];
+
+  // Track ALL message IDs so we never double-notify
+  for (const d of details) {
+    _notifiedMessageIds.add(d.id);
+  }
 
   return {
     account:     account.email,
     unread:      unreadCount,
     messages:    details,
-    newMessages,                          // ← used by IPC to fire notifications
-    newIds:      newMessages.map(m => m.id),
+    newMessages: allNew,
+    newIds:      allNew.map(m => m.id),
   };
 }
 

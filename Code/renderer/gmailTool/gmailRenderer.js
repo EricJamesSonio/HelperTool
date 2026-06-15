@@ -206,8 +206,8 @@ function filterMessages(messages, filter, ignoredSenders, senderFilter) {
 
 function isIgnored(fromStr, ignoredSenders) {
   if (!fromStr || !ignoredSenders || ignoredSenders.length === 0) return false;
-  const lower = fromStr.toLowerCase();
-  return ignoredSenders.some(s => lower.includes(s.toLowerCase()));
+  const email = fromStr.match(/<([^>]+)>/)?.[1]?.toLowerCase() || fromStr.toLowerCase();
+  return ignoredSenders.some(s => email.includes(s.toLowerCase()));
 }
 
 function renderMessage(msg, accountEmail, expanded, ignoredSenders) {
