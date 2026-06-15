@@ -43,6 +43,47 @@ function extractName(fromStr) {
   return match ? match[1].trim() : fromStr.split('@')[0];
 }
 
+const SENDER_COLORS = (() => {
+  const colors = [];
+  const hues = [0, 210, 120, 30, 270, 190, 340, 80, 160, 300, 50, 230, 100, 20, 280, 170, 350, 140, 250, 60];
+  const satLight = [
+    [75, 55], [70, 58], [70, 50], [80, 55], [65, 60],
+    [75, 50], [70, 55], [75, 52], [65, 48], [70, 58],
+    [80, 55], [65, 60], [70, 50], [75, 55], [70, 55],
+    [75, 50], [65, 55], [70, 58], [80, 52], [75, 55],
+  ];
+  for (let i = 0; i < hues.length; i++) {
+    colors.push(`hsl(${hues[i]}, ${satLight[i][0]}%, ${satLight[i][1]}%)`);
+  }
+  return colors;
+})();
+
+let _senderColorMap = {};
+
+function getSenderColor(sender) {
+  if (_senderColorMap[sender]) return _senderColorMap[sender];
+  let hash = 0;
+  for (let i = 0; i < sender.length; i++) {
+    hash = sender.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const idx = Math.abs(hash) % SENDER_COLORS.length;
+  const color = SENDER_COLORS[idx];
+  _senderColorMap[sender] = color;
+  return color;
+}
+
+function hexToRgba(hex, alpha) {
+  if (hex.startsWith('hsl')) {
+    const m = hex.match(/hsl\(([^,]+),([^,]+)%,([^)]+)%\)/);
+    if (m) return `hsla(${m[1]},${m[2]}%,${m[3]}%,${alpha})`;
+    return hex;
+  }
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function renderEmpty() {
   return `
     <div class="gm-empty">
@@ -147,10 +188,12 @@ function isIgnored(fromStr, ignoredSenders) {
 function renderMessage(msg, accountEmail, expanded, ignoredSenders) {
   const name = extractName(msg.from);
   const ignored = isIgnored(msg.from, ignoredSenders);
+  const color = getSenderColor(msg.from || name);
+  const bgTint = hexToRgba(color, 0.06);
   return `
-    <div class="gm-message ${expanded ? 'gm-message--expanded' : ''} ${ignored ? 'gm-message--ignored' : ''}" data-msg-id="${escapeHtml(msg.id)}">
+    <div class="gm-message ${expanded ? 'gm-message--expanded' : ''} ${ignored ? 'gm-message--ignored' : ''}" data-msg-id="${escapeHtml(msg.id)}" style="border-left: 4px solid ${color}; background: ${bgTint};${expanded ? ` box-shadow: 0 0 0 1px ${color};` : ''}">
       <div class="gm-msg-header">
-        <div class="gm-msg-from">${escapeHtml(name)}</div>
+        <div class="gm-msg-from" style="color:${color}">${escapeHtml(name)}</div>
         <div class="gm-msg-header-right">
           <span class="gm-msg-time">${formatTime(msg.date)}</span>
           <span class="gm-msg-chevron">${ICONS.chevronDown}</span>

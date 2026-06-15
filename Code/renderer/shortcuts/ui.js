@@ -45,6 +45,7 @@ const FEATURES = [
     { id: 'envManager',icon: ICONS.env,name: 'Env Manager' },
     { id: 'codebbaseChat',icon: ICONS.chat,name: 'HelperChat' },
     { id: 'videoTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,4 18,10 2,16"/></svg>',name: 'Video Compressor' },
+    { id: 'gmailTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="12" rx="2"/><polyline points="2,4 10,11 18,4"/></svg>',name: 'Gmail Inbox' },
 ];
 
 let _modal = null;

@@ -15,6 +15,7 @@ const DEFAULT_SHORTCUTS = {
   envManager: null,
   codebbaseChat: null,
   videoTool: null,
+  gmailTool: null,
 };
 
 const S = { shortcuts: {} };
