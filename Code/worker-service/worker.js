@@ -11,6 +11,7 @@ const walkDirTask = require('./tasks/walkDir');
 const folderTreeTask = require('./tasks/folderTree');
 const profileSyncTask = require('./tasks/profileSync');
 const videoCompressTask = require('./tasks/videoCompress');
+const imageToIcoTask = require('./tasks/imageToIco');
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -80,6 +81,10 @@ process.on('message', async (msg) => {
 
       case 'video:compress':
         result = await videoCompressTask(payload, onProgress);
+        break;
+
+      case 'image:toIco':
+        result = await imageToIcoTask(payload, onProgress);
         break;
 
       default:
