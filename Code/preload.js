@@ -398,6 +398,7 @@ const gmailBridge = {
         markRead:           (payload)          => ipcRenderer.invoke('gmail:markRead', payload),
         startPolling:       ()                 => ipcRenderer.invoke('gmail:startPolling'),
         stopPolling:        ()                 => ipcRenderer.invoke('gmail:stopPolling'),
+        checkNow:           ()                 => ipcRenderer.invoke('gmail:checkNow'),
         onPollResult:       (callback) => {
             ipcRenderer.removeAllListeners('gmail:pollResult');
             ipcRenderer.on('gmail:pollResult', (_event, data) => callback(data));
@@ -406,10 +407,20 @@ const gmailBridge = {
             ipcRenderer.removeAllListeners('gmail:accountsChanged');
             ipcRenderer.on('gmail:accountsChanged', (_event, data) => callback(data));
         },
-        getIgnoredSenders:      ()                => ipcRenderer.invoke('gmail:getIgnoredSenders'),
+        getIgnoredSenders:      (payload)         => ipcRenderer.invoke('gmail:getIgnoredSenders', payload),
         addIgnoredSender:       (payload)         => ipcRenderer.invoke('gmail:addIgnoredSender', payload),
         removeIgnoredSender:    (payload)         => ipcRenderer.invoke('gmail:removeIgnoredSender', payload),
     },
+};
+
+const automationBridge = {
+  automation: {
+    list:     ()                               => ipcRenderer.invoke('automation:list'),
+    load:     (payload)                        => ipcRenderer.invoke('automation:load', payload),
+    save:     (payload)                        => ipcRenderer.invoke('automation:save', payload),
+    delete:   (payload)                        => ipcRenderer.invoke('automation:delete', payload),
+    rename:   (payload)                        => ipcRenderer.invoke('automation:rename', payload),
+  },
 };
 
 const codebaseChatBridge = {
@@ -454,6 +465,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...profileBridge,
     ...branchBridge,
     ...codebaseChatBridge,
+    ...automationBridge,
     ...imageBridge,
     ...videoBridge,
     ...gmailBridge,

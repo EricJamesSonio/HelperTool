@@ -61,21 +61,24 @@ export default class GmailUI {
     if (!st.accounts || st.accounts.length === 0) return renderEmpty();
 
     if (st.showIgnoredManager) {
-      return renderIgnoredManager(st.ignoredSenders);
+      const email = st.ignoredManagerEmail;
+      const senders = email ? (st.ignoredByAccount[email] || []) : [];
+      return renderIgnoredManager(senders, email);
     }
 
     if (st.view === 'inbox' && st.viewEmail) {
+      const messages = st.inboxMessages;
       const result = st.getResult(st.viewEmail);
-      const messages = result && result.messages ? result.messages : [];
-      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0, st.ignoredSenders, st.senderFilter);
+      const ignoredList = st.ignoredByAccount[st.viewEmail] || [];
+      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0, ignoredList, st.senderFilter);
     }
 
     const filteredResults = st.getFilteredResults();
     return `
       <div class="gm-toolbar">
+        <button class="gm-tb-btn" id="gmBackToMainBtn">&larr; Back</button>
         <button class="gm-tb-btn" id="gmAddAccount">${ICONS.plus} Add Account</button>
         <button class="gm-tb-btn" id="gmRefresh">${ICONS.refresh} Refresh</button>
-        <button class="gm-tb-btn" id="gmIgnoredBtn" title="Manage ignored senders">${ICONS.eyeOff} Ignored</button>
         <span class="gm-tb-status">${st.polling ? '● Live' : ''} ${st.totalUnread > 0 ? '· ' + st.totalUnread + ' unread' : ''}</span>
       </div>
       <div class="gm-accounts-list">
@@ -89,11 +92,13 @@ export default class GmailUI {
     const addBtn = this._container.querySelector('#gmAddAccount');
     if (addBtn && this._onAddAccount) addBtn.addEventListener('click', () => this._onAddAccount());
 
+    const backMainBtn = this._container.querySelector('#gmBackToMainBtn');
+    if (backMainBtn) backMainBtn.addEventListener('click', () => {
+      document.getElementById('closeGmailToolBtn')?.click();
+    });
+
     const refBtn = this._container.querySelector('#gmRefresh');
     if (refBtn && this._onRefresh) refBtn.addEventListener('click', () => this._onRefresh());
-
-    const ignoredBtn = this._container.querySelector('#gmIgnoredBtn');
-    if (ignoredBtn && this._onOpenIgnoredManager) ignoredBtn.addEventListener('click', () => this._onOpenIgnoredManager());
 
     this._container.querySelectorAll('.gm-account-remove').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -142,18 +147,22 @@ export default class GmailUI {
     this._container.querySelectorAll('.gm-msg-ignore').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (this._onIgnoreSender) this._onIgnoreSender(btn.dataset.sender);
+        if (this._onIgnoreSender) this._onIgnoreSender(btn.dataset.email, btn.dataset.sender);
       });
     });
 
-    const ignoredClose = this._container.querySelector('#gmIgnoredClose');
-    if (ignoredClose && this._onCloseIgnoredManager) ignoredClose.addEventListener('click', () => this._onCloseIgnoredManager());
+    const ignoredBack = this._container.querySelector('#gmIgnoredBack');
+    if (ignoredBack && this._onCloseIgnoredManager) ignoredBack.addEventListener('click', () => this._onCloseIgnoredManager());
 
     this._container.querySelectorAll('.gm-ignored-unignore').forEach(btn => {
       btn.addEventListener('click', () => {
-        if (this._onUnignoreSender) this._onUnignoreSender(btn.dataset.sender);
+        if (this._onUnignoreSender) this._onUnignoreSender(btn.dataset.email, btn.dataset.sender);
       });
     });
+
+    // Open ignored manager from inbox view
+    const ignoredBtn = this._container.querySelector('#gmIgnoredBtnInbox');
+    if (ignoredBtn && this._onOpenIgnoredManager) ignoredBtn.addEventListener('click', () => this._onOpenIgnoredManager(ignoredBtn.dataset.email));
 
     this._container.querySelectorAll('.gm-chip').forEach(btn => {
       btn.addEventListener('click', () => {

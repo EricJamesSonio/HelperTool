@@ -1,13 +1,42 @@
 const { ipcMain, Notification } = require('electron');
 const gmailService = require('../services/gmailService');
 
+function extractName(fromStr) {
+  if (!fromStr) return 'Unknown';
+  const match = fromStr.match(/^"?(.+?)"?\s*</);
+  return match ? match[1].trim() : fromStr.split('@')[0];
+}
+
+function _extractEmail(fromStr) {
+  if (!fromStr) return '';
+  const match = fromStr.match(/<([^>]+)>/);
+  return match ? match[1].toLowerCase() : fromStr.toLowerCase();
+}
+
+function isIgnored(fromStr, ignored) {
+  if (!fromStr || !ignored || ignored.length === 0) return false;
+  const email = _extractEmail(fromStr);
+  const name = fromStr.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim().toLowerCase() || fromStr.toLowerCase();
+  const matched = ignored.some(s => {
+    const term = s.toLowerCase();
+    return email.includes(term) || name === term;
+  });
+  if (matched) {
+    console.log(`[Gmail IPC] isIgnored=true for "${fromStr}" (email="${email}" matches ignore list)`);
+  }
+  return matched;
+}
+
 function register({ getMainWindow }) {
+
+  // ── Accounts ──────────────────────────────────────────────────────────────
 
   ipcMain.handle('gmail:addAccount', async () => {
     try {
       const result = await gmailService.startAuthFlow();
       const win = getMainWindow();
-      if (win && !win.isDestroyed()) win.webContents.send('gmail:accountsChanged', gmailService.getStoredAccounts());
+      if (win && !win.isDestroyed())
+        win.webContents.send('gmail:accountsChanged', gmailService.getStoredAccounts());
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
@@ -17,19 +46,23 @@ function register({ getMainWindow }) {
   ipcMain.handle('gmail:removeAccount', async (event, { email }) => {
     gmailService.removeAccount(email);
     const win = getMainWindow();
-    if (win && !win.isDestroyed()) win.webContents.send('gmail:accountsChanged', gmailService.getStoredAccounts());
+    if (win && !win.isDestroyed())
+      win.webContents.send('gmail:accountsChanged', gmailService.getStoredAccounts());
     return { success: true };
   });
 
-  ipcMain.handle('gmail:listAccounts', async () => {
-    return { success: true, accounts: gmailService.getStoredAccounts().map(a => ({ email: a.email, addedAt: a.addedAt })) };
-  });
+  ipcMain.handle('gmail:listAccounts', async () => ({
+    success: true,
+    accounts: gmailService.getStoredAccounts().map(a => ({ email: a.email, addedAt: a.addedAt })),
+  }));
+
+  // ── Fetch ─────────────────────────────────────────────────────────────────
 
   ipcMain.handle('gmail:fetchMessages', async (event, { email, maxResults }) => {
     try {
       const acct = gmailService.findAccount(email);
       if (!acct) return { success: false, error: 'Account not found' };
-      const result = await gmailService.fetchUnreadMessages(acct, maxResults || 10);
+      const result = await gmailService.fetchRecentMessages(acct, maxResults || 10);
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
@@ -63,50 +96,82 @@ function register({ getMainWindow }) {
     }
   });
 
+  // ── Polling ───────────────────────────────────────────────────────────────
+
   ipcMain.handle('gmail:startPolling', async () => {
     gmailService.setOnNewMail((results) => {
       const win = getMainWindow();
-      if (!win || win.isDestroyed()) return;
+      if (!win || win.isDestroyed()) {
+        console.log('[Gmail IPC] onNewMail called but main window is gone');
+        return;
+      }
 
       const totalUnread = results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
+      const totalNewMsgs = results.reduce((sum, r) => sum + (r.newMessages?.length || 0), 0);
+      console.log(`[Gmail IPC] onNewMail fired: ${results.length} accounts, ${totalUnread} unread, ${totalNewMsgs} new messages`);
+
+      // Send full poll result to renderer (updates badge + inbox list)
+      console.log('[Gmail IPC] Sending gmail:pollResult to renderer');
       win.webContents.send('gmail:pollResult', { results, totalUnread });
 
-      const ignored = gmailService.getIgnoredSenders();
-
-      function isIgnored(fromStr) {
-        if (!fromStr || ignored.length === 0) return false;
-        const lower = fromStr.toLowerCase();
-        return ignored.some(s => lower.includes(s.toLowerCase()));
-      }
-
-      function extractName(fromStr) {
-        if (!fromStr) return 'Unknown';
-        const match = fromStr.match(/^"?(.+?)"?\s*</);
-        return match ? match[1].trim() : fromStr.split('@')[0];
-      }
-
+      // Fire desktop notifications only for genuinely new messages (via History API)
+      const ignoredMap = gmailService.getAllIgnoredSendersMap();
+      console.log(`[Gmail IPC] Ignored senders map: ${JSON.stringify(ignoredMap)}`);
       for (const r of results) {
-        if (r.unread > 0 && r.messages && r.messages.length > 0) {
-          const first = r.messages[0];
-          const senderName = extractName(first.from);
-          if (isIgnored(senderName)) continue;
+        const newMsgs = r.newMessages || [];
+        const ignored = ignoredMap[r.account] || [];
+        if (newMsgs.length === 0) {
+          console.log(`[Gmail IPC] ${r.account}: no new messages, skipping notifications`);
+          continue;
+        }
+        console.log(`[Gmail IPC] ${r.account}: processing ${newMsgs.length} new messages for notifications`);
 
-          const notification = new Notification({
-            title: first.from,
-            body: first.subject + '\n' + (first.snippet || ''),
+        for (const msg of newMsgs) {
+          if (isIgnored(msg.from, ignored)) {
+            console.log(`[Gmail IPC] Ignored notification for ${msg.from}: "${msg.subject}"`);
+            continue;
+          }
+
+          const senderName = extractName(msg.from);
+          console.log(`[Gmail IPC] FIRING notification: ${senderName} — "${msg.subject}" (id=${msg.id})`);
+          const notif = new Notification({
+            title: senderName,
+            body:  (msg.subject || '(no subject)') + (msg.snippet ? '\n' + msg.snippet.slice(0, 100) : ''),
             silent: false,
           });
-          notification.on('click', () => {
+          notif.on('click', () => {
             win.show();
             win.focus();
-            win.webContents.send('gmail:openMessage', { email: r.account, messageId: first.id });
+            win.webContents.send('gmail:openMessage', { email: r.account, messageId: msg.id });
           });
-          notification.show();
+          notif.show();
         }
       }
     });
-    gmailService.startPolling(60000);
+
+    console.log('[Gmail IPC] Calling gmailService.startPolling(15000)');
+    gmailService.startPolling(15000);
     return { success: true };
+  });
+
+  ipcMain.handle('gmail:checkNow', async () => {
+    try {
+      console.log('[Gmail IPC] checkNow called');
+      const results     = await gmailService.fetchAllUnread();
+      const totalUnread = results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
+      console.log(`[Gmail IPC] checkNow results: ${results.length} accounts, ${totalUnread} unread`);
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        console.log('[Gmail IPC] checkNow sending gmail:pollResult to renderer');
+        win.webContents.send('gmail:pollResult', { results, totalUnread });
+      } else {
+        console.log('[Gmail IPC] checkNow: main window unavailable');
+      }
+      return { success: true, results, totalUnread };
+    } catch (err) {
+      console.error('[Gmail IPC] checkNow error:', err.message);
+      return { success: false, error: err.message };
+    }
   });
 
   ipcMain.handle('gmail:stopPolling', async () => {
@@ -114,17 +179,20 @@ function register({ getMainWindow }) {
     return { success: true };
   });
 
-  ipcMain.handle('gmail:getIgnoredSenders', async () => {
-    return { success: true, senders: gmailService.getIgnoredSenders() };
-  });
+  // ── Ignored senders ───────────────────────────────────────────────────────
 
-  ipcMain.handle('gmail:addIgnoredSender', async (event, { sender }) => {
-    gmailService.addIgnoredSender(sender);
+  ipcMain.handle('gmail:getIgnoredSenders', async (event, { email }) => ({
+    success: true,
+    senders: gmailService.getIgnoredSenders(email),
+  }));
+
+  ipcMain.handle('gmail:addIgnoredSender', async (event, { email, sender }) => {
+    gmailService.addIgnoredSender(email, sender);
     return { success: true };
   });
 
-  ipcMain.handle('gmail:removeIgnoredSender', async (event, { sender }) => {
-    gmailService.removeIgnoredSender(sender);
+  ipcMain.handle('gmail:removeIgnoredSender', async (event, { email, sender }) => {
+    gmailService.removeIgnoredSender(email, sender);
     return { success: true };
   });
 }

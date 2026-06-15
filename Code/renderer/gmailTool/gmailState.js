@@ -13,9 +13,11 @@ export default class GmailState {
     this.expandedMsgIds = new Set();
     this.inboxMessages = [];
 
-    this.ignoredSenders = [];
+    this.ignoredByAccount = {};
     this.showIgnoredManager = false;
+    this.ignoredManagerEmail = null;
     this.senderFilter = null;
+    this.inboxCache = {};
   }
 
   reset() {
@@ -30,9 +32,11 @@ export default class GmailState {
     this.filter = 'all';
     this.expandedMsgIds = new Set();
     this.inboxMessages = [];
-    this.ignoredSenders = [];
+    this.ignoredByAccount = {};
     this.showIgnoredManager = false;
+    this.ignoredManagerEmail = null;
     this.senderFilter = null;
+    this.inboxCache = {};
   }
 
   getAccount(email) {
@@ -45,8 +49,10 @@ export default class GmailState {
 
   getFilteredMessages() {
     const now = Date.now();
+    const email = this.viewEmail;
+    const ignored = this.ignoredByAccount[email] || [];
     return this.inboxMessages.filter(msg => {
-      if (this._isIgnored(msg.from)) return false;
+      if (this._isIgnored(msg.from, ignored)) return false;
       if (this.senderFilter && !msg.from?.toLowerCase().includes(this.senderFilter.toLowerCase())) return false;
       const msgTime = msg.date ? new Date(msg.date).getTime() : 0;
       switch (this.filter) {
@@ -61,14 +67,23 @@ export default class GmailState {
   getFilteredResults() {
     return this.results.map(r => ({
       ...r,
-      messages: (r.messages || []).filter(m => !this._isIgnored(m.from)),
-      unread: (r.messages || []).filter(m => !this._isIgnored(m.from)).length,
+      messages: (r.messages || []).filter(m => this._isNotIgnored(m.from, r.account)),
+      unread: (r.messages || []).filter(m => this._isNotIgnored(m.from, r.account)).length,
     }));
   }
 
-  _isIgnored(fromStr) {
-    if (!fromStr || this.ignoredSenders.length === 0) return false;
-    const lower = fromStr.toLowerCase();
-    return this.ignoredSenders.some(s => lower.includes(s.toLowerCase()));
+  _isIgnored(fromStr, ignoredList) {
+    if (!fromStr || !ignoredList || ignoredList.length === 0) return false;
+    const email = fromStr.match(/<([^>]+)>/)?.[1]?.toLowerCase() || fromStr.toLowerCase();
+    const name = fromStr.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim().toLowerCase() || fromStr.toLowerCase();
+    return ignoredList.some(s => {
+      const term = s.toLowerCase();
+      return email.includes(term) || name === term;
+    });
+  }
+
+  _isNotIgnored(fromStr, accountEmail) {
+    const list = this.ignoredByAccount[accountEmail] || [];
+    return !this._isIgnored(fromStr, list);
   }
 }
