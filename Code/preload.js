@@ -413,6 +413,16 @@ const gmailBridge = {
     },
 };
 
+const automationBridge = {
+  automation: {
+    list:     ()                               => ipcRenderer.invoke('automation:list'),
+    load:     (payload)                        => ipcRenderer.invoke('automation:load', payload),
+    save:     (payload)                        => ipcRenderer.invoke('automation:save', payload),
+    delete:   (payload)                        => ipcRenderer.invoke('automation:delete', payload),
+    rename:   (payload)                        => ipcRenderer.invoke('automation:rename', payload),
+  },
+};
+
 const codebaseChatBridge = {
   codebaseChat: {
     getFiles:           (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
@@ -455,6 +465,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...profileBridge,
     ...branchBridge,
     ...codebaseChatBridge,
+    ...automationBridge,
     ...imageBridge,
     ...videoBridge,
     ...gmailBridge,
