@@ -15,7 +15,7 @@ export default class VideoState {
     this.progress      = null;
     this.result        = null;
     this.error         = null;
-    this.activeSection = 'video';
+    this.activeSection = 'timeline';
 
     this.segments          = [];
     this.selectedSegmentId = null;
@@ -23,6 +23,10 @@ export default class VideoState {
     this.previewUrl        = null;
     this.exportMode        = 'mp4';
     this.suggestions       = [];
+    this.compressStatus    = 'idle';
+    this.compressProgress  = null;
+    this.compressResult    = null;
+    this.compressError     = null;
   }
 
   get selectedSegment() {
@@ -42,6 +46,10 @@ export default class VideoState {
     this.previewUrl = null;
     this.exportMode = 'mp4';
     this.suggestions = [];
+    this.compressStatus = 'idle';
+    this.compressProgress = null;
+    this.compressResult = null;
+    this.compressError = null;
   }
 
   addSegment(startTime, endTime, speed) {

@@ -18,6 +18,7 @@ export default class VideoTool {
     this._container = container;
     this.ui = new VideoUI(this.state, this.imageState);
     this.ui.setCallbacks({
+      // Timeline
       onPickFile: (path) => this._handlePickFile(path),
       onRemoveFile: () => this._handleRemoveFile(),
       onPresetChange: (preset) => this._handlePresetChange(preset),
@@ -31,10 +32,17 @@ export default class VideoTool {
       onTimelineClick: (pct) => this._handleTimelineClick(pct),
       onExportMp4: () => this._startExport('mp4'),
       onExportGif: () => this._startExport('gif'),
-      onRetry: () => this._handleRetry(),
-      onOpenFile: () => this._handleOpenFile(),
-      onOpenFolder: () => this._handleOpenFolder(),
-      onNew: () => this._handleNew(),
+      onTimelineRetry: () => this._handleTimelineRetry(),
+      onTimelineOpenFile: () => this._handleTimelineOpenFile(),
+      onTimelineOpenFolder: () => this._handleTimelineOpenFolder(),
+      onTimelineNew: () => this._handleTimelineNew(),
+      // Quick Compress
+      onCompress: () => this._startCompress(),
+      onCompressRetry: () => this._handleCompressRetry(),
+      onCompressOpenFile: () => this._handleCompressOpenFile(),
+      onCompressOpenFolder: () => this._handleCompressOpenFolder(),
+      onCompressAnother: () => this._handleCompressAnother(),
+      // Image
       onImagePickFile: (path) => this._handleImagePickFile(path),
       onImageRemoveFile: () => this._handleImageRemoveFile(),
       onImageChangeOutput: () => this._handleImageChangeOutput(),
@@ -43,12 +51,14 @@ export default class VideoTool {
       onImageOpenFile: () => this._handleImageOpenFile(),
       onImageOpenFolder: () => this._handleImageOpenFolder(),
       onImageConvertAnother: () => this._handleImageConvertAnother(),
+      // Tab
       onTabChange: (tab) => this._handleTabChange(tab),
     });
     this.ui.render(container);
   }
 
   destroy() {
+    window.electronAPI.video.onProgress(() => {});
     window.electronAPI.image.onProgress(() => {});
     this.ui = null;
     this.state.reset();
@@ -56,7 +66,7 @@ export default class VideoTool {
     this._container = null;
   }
 
-  // ── Video / Timeline handlers ──
+  // ── Shared ──
 
   async _handlePickFile(path) {
     const st = this.state;
@@ -81,13 +91,13 @@ export default class VideoTool {
       duration: meta.duration,
       resolution: meta.originalResolution,
       fileSize: meta.originalSize,
+      originalSize: meta.originalSize,
+      originalResolution: meta.originalResolution,
     };
 
-    // Analyze for suggestions
     const analyzeResult = await window.electronAPI.video.gif({ mode: 'analyze', inputPath: path });
     st.suggestions = (analyzeResult && analyzeResult.success && analyzeResult.suggestions) ? analyzeResult.suggestions : [];
 
-    st.activeSection = 'video';
     st.status = 'idle';
     if (this.ui) this.ui.update();
   }
@@ -109,6 +119,13 @@ export default class VideoTool {
       if (this.ui) this.ui.update();
     }
   }
+
+  _handleTabChange(tab) {
+    this.state.activeSection = tab;
+    if (this.ui) this.ui.update();
+  }
+
+  // ── Timeline handlers ──
 
   _handleAddClip() {
     const st = this.state;
@@ -138,7 +155,8 @@ export default class VideoTool {
   }
 
   _handleSelectSegment(segId) {
-    this.state.selectedSegmentId = segId;
+    const st = this.state;
+    st.selectedSegmentId = segId;
     if (this.ui) this.ui.update();
   }
 
@@ -191,7 +209,7 @@ export default class VideoTool {
     }
     for (const seg of active) {
       if (seg.endTime <= seg.startTime) {
-        st.error = `Clip end must be after start`;
+        st.error = 'Clip end must be after start';
         st.status = 'error';
         if (this.ui) this.ui.update();
         return;
@@ -245,27 +263,96 @@ export default class VideoTool {
     if (this.ui) this.ui.update();
   }
 
-  _handleRetry() {
+  _handleTimelineRetry() {
     this.state.status = 'idle';
     this.state.progress = null;
     this.state.error = null;
     if (this.ui) this.ui.update();
   }
 
-  async _handleOpenFile() {
+  async _handleTimelineOpenFile() {
     if (this.state.result && this.state.result.outputPath) {
       await window.electronAPI.video.revealFile({ filePath: this.state.result.outputPath });
     }
   }
 
-  async _handleOpenFolder() {
+  async _handleTimelineOpenFolder() {
     if (this.state.result && this.state.result.outputPath) {
       await window.electronAPI.video.revealFile({ filePath: this.state.result.outputPath });
     }
   }
 
-  _handleNew() {
-    this.state.reset();
+  _handleTimelineNew() {
+    const st = this.state;
+    st.segments = [];
+    st.selectedSegmentId = null;
+    st.currentTime = 0;
+    st.status = 'idle';
+    st.progress = null;
+    st.result = null;
+    st.error = null;
+    if (this.ui) this.ui.update();
+  }
+
+  // ── Quick Compress handlers ──
+
+  async _startCompress() {
+    const st = this.state;
+    if (!st.inputPath || st.compressStatus === 'compressing') return;
+    st.compressStatus = 'compressing';
+    st.compressProgress = null;
+    st.compressResult = null;
+    st.compressError = null;
+    if (this.ui) this.ui.update();
+
+    window.electronAPI.video.onProgress((data) => {
+      st.compressProgress = data;
+      if (this.ui) this.ui.update();
+    });
+
+    const result = await window.electronAPI.video.compress({
+      inputPath: st.inputPath,
+      preset: st.selectedPreset,
+      outputPath: st.outputFolder,
+    });
+
+    window.electronAPI.video.onProgress(() => {});
+
+    if (result.success) {
+      st.compressStatus = 'compressed';
+      st.compressResult = result;
+    } else {
+      st.compressStatus = 'error';
+      st.compressError = result.error || 'Compression failed';
+    }
+    if (this.ui) this.ui.update();
+  }
+
+  _handleCompressRetry() {
+    this.state.compressStatus = 'idle';
+    this.state.compressProgress = null;
+    this.state.compressError = null;
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleCompressOpenFile() {
+    if (this.state.compressResult && this.state.compressResult.outputPath) {
+      await window.electronAPI.video.revealFile({ filePath: this.state.compressResult.outputPath });
+    }
+  }
+
+  async _handleCompressOpenFolder() {
+    if (this.state.compressResult && this.state.compressResult.outputPath) {
+      await window.electronAPI.video.revealFile({ filePath: this.state.compressResult.outputPath });
+    }
+  }
+
+  _handleCompressAnother() {
+    const st = this.state;
+    st.compressStatus = 'idle';
+    st.compressProgress = null;
+    st.compressResult = null;
+    st.compressError = null;
     if (this.ui) this.ui.update();
   }
 
@@ -348,11 +435,6 @@ export default class VideoTool {
 
   _handleImageConvertAnother() {
     this.imageState.reset();
-    if (this.ui) this.ui.update();
-  }
-
-  _handleTabChange(tab) {
-    this.state.activeSection = tab;
     if (this.ui) this.ui.update();
   }
 }
