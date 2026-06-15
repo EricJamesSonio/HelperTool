@@ -36,6 +36,15 @@ function register({ getMainWindow }) {
     }
   });
 
+  ipcMain.handle('gmail:fetchInbox', async (event, { email, maxResults }) => {
+    try {
+      const result = await gmailService.fetchInboxMessages(email, maxResults || 50);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('gmail:fetchAll', async () => {
     try {
       const results = await gmailService.fetchAllUnread();

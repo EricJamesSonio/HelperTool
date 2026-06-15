@@ -16,15 +16,18 @@ export default class GmailTool {
     this._container = container;
     this.ui = new GmailUI(this.state);
     this.ui.setCallbacks({
-      onAddAccount: () => this._handleAddAccount(),
+      onAddAccount:    () => this._handleAddAccount(),
       onRemoveAccount: (email) => this._handleRemoveAccount(email),
-      onRefresh: () => this._handleRefresh(),
-      onOpenMessage: (email, msgId) => this._handleOpenMessage(email, msgId),
-      onMarkRead: (email, msgId) => this._handleMarkRead(email, msgId),
+      onRefresh:       () => this._handleRefresh(),
+      onOpenMessage:   (email, msgId) => this._handleOpenMessage(email, msgId),
+      onMarkRead:      (email, msgId) => this._handleMarkRead(email, msgId),
+      onOpenInbox:     (email) => this._handleOpenInbox(email),
+      onBack:          () => this._handleBack(),
+      onFilterChange:  (filter) => this._handleFilterChange(filter),
+      onToggleExpand:  (msgId) => this._handleToggleExpand(msgId),
     });
     this.ui.render(container);
 
-    // Listen for poll updates from main process
     window.electronAPI.gmail.onPollResult((data) => {
       this.state.results = data.results;
       this.state.totalUnread = data.totalUnread;
@@ -32,7 +35,6 @@ export default class GmailTool {
       if (this.ui) this.ui.update();
     });
 
-    // Listen for account changes
     window.electronAPI.gmail.onAccountsChanged((accounts) => {
       this.state.accounts = accounts;
       if (this.ui) this.ui.update();
@@ -67,7 +69,6 @@ export default class GmailTool {
   async _handleAddAccount() {
     const res = await window.electronAPI.gmail.addAccount();
     if (res.success) {
-      // accountsChanged event will update the list
       await this._handleRefresh();
       await window.electronAPI.gmail.startPolling();
       this.state.polling = true;
@@ -87,6 +88,10 @@ export default class GmailTool {
       await window.electronAPI.gmail.stopPolling();
       this.state.polling = false;
     }
+    if (this.state.view === 'inbox' && this.state.viewEmail === email) {
+      this.state.view = 'accounts';
+      this.state.viewEmail = null;
+    }
     if (this.ui) this.ui.update();
   }
 
@@ -98,10 +103,56 @@ export default class GmailTool {
       this.state.results = res.results;
       this.state.totalUnread = res.results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
       this._updateBadge();
+      if (this.state.view === 'inbox' && this.state.viewEmail) {
+        const result = this.state.getResult(this.state.viewEmail);
+        if (result && result.messages) {
+          this.state.inboxMessages = result.messages;
+        }
+      }
     } else {
       this.state.error = res.error;
     }
     this.state.status = 'idle';
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleOpenInbox(email) {
+    this.state.view = 'inbox';
+    this.state.viewEmail = email;
+    this.state.filter = 'all';
+    this.state.expandedMsgIds = new Set();
+    this.state.status = 'loading';
+    if (this.ui) this.ui.update();
+
+    const res = await window.electronAPI.gmail.fetchInbox({ email, maxResults: 50 });
+    if (res.success) {
+      this.state.inboxMessages = res.messages || [];
+    } else {
+      this.state.inboxMessages = [];
+    }
+    this.state.status = 'idle';
+    if (this.ui) this.ui.update();
+  }
+
+  _handleBack() {
+    this.state.view = 'accounts';
+    this.state.viewEmail = null;
+    this.state.inboxMessages = [];
+    this.state.expandedMsgIds = new Set();
+    if (this.ui) this.ui.update();
+  }
+
+  _handleFilterChange(filter) {
+    this.state.filter = filter;
+    if (this.ui) this.ui.update();
+  }
+
+  _handleToggleExpand(msgId) {
+    if (this.state.expandedMsgIds.has(msgId)) {
+      this.state.expandedMsgIds.delete(msgId);
+    } else {
+      this.state.expandedMsgIds.add(msgId);
+    }
     if (this.ui) this.ui.update();
   }
 
@@ -112,7 +163,6 @@ export default class GmailTool {
 
   async _handleMarkRead(email, msgId) {
     await window.electronAPI.gmail.markRead(email, msgId);
-    // Refresh to update unread counts
     await this._handleRefresh();
   }
 

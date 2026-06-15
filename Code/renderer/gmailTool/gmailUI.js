@@ -1,4 +1,4 @@
-import { renderEmpty, renderAccountList, renderLoading, renderError } from './gmailRenderer.js';
+import { renderEmpty, renderAccountList, renderInboxView, renderLoading, renderError } from './gmailRenderer.js';
 
 export default class GmailUI {
   constructor(state) {
@@ -10,6 +10,10 @@ export default class GmailUI {
     this._onRefresh = null;
     this._onOpenMessage = null;
     this._onMarkRead = null;
+    this._onOpenInbox = null;
+    this._onBack = null;
+    this._onFilterChange = null;
+    this._onToggleExpand = null;
   }
 
   setCallbacks(cbs) {
@@ -18,6 +22,10 @@ export default class GmailUI {
     this._onRefresh = cbs.onRefresh || null;
     this._onOpenMessage = cbs.onOpenMessage || null;
     this._onMarkRead = cbs.onMarkRead || null;
+    this._onOpenInbox = cbs.onOpenInbox || null;
+    this._onBack = cbs.onBack || null;
+    this._onFilterChange = cbs.onFilterChange || null;
+    this._onToggleExpand = cbs.onToggleExpand || null;
   }
 
   render(container) {
@@ -42,6 +50,12 @@ export default class GmailUI {
 
     if (!st.accounts || st.accounts.length === 0) return renderEmpty();
 
+    if (st.view === 'inbox' && st.viewEmail) {
+      const result = st.getResult(st.viewEmail);
+      const messages = result && result.messages ? result.messages : [];
+      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0);
+    }
+
     return `
       <div class="gm-toolbar">
         <button class="gm-tb-btn" id="gmAddAccount">${ICONS.plus} Add Account</button>
@@ -49,22 +63,22 @@ export default class GmailUI {
         <span class="gm-tb-status">${st.polling ? '● Live' : ''} ${st.totalUnread > 0 ? '· ' + st.totalUnread + ' unread' : ''}</span>
       </div>
       <div class="gm-accounts-list">
-        ${renderAccountList(st.accounts, st.results, st.expandedEmail)}
+        ${renderAccountList(st.accounts, st.results)}
       </div>`;
   }
 
   _bindEvents() {
     if (!this._container) return;
 
-    // Add account
+    // Account list — add account
     const addBtn = this._container.querySelector('#gmAddAccount');
     if (addBtn && this._onAddAccount) addBtn.addEventListener('click', () => this._onAddAccount());
 
-    // Refresh
+    // Account list — refresh
     const refBtn = this._container.querySelector('#gmRefresh');
     if (refBtn && this._onRefresh) refBtn.addEventListener('click', () => this._onRefresh());
 
-    // Remove account — delegated via click on header buttons
+    // Account list — remove account
     this._container.querySelectorAll('.gm-account-remove').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -72,18 +86,34 @@ export default class GmailUI {
       });
     });
 
-    // Toggle expand/collapse on account header click
-    this._container.querySelectorAll('.gm-account-header').forEach(header => {
-      header.addEventListener('click', (e) => {
+    // Account list — click account to open inbox
+    this._container.querySelectorAll('.gm-account').forEach(card => {
+      card.addEventListener('click', (e) => {
         if (e.target.closest('.gm-account-remove')) return;
-        const email = header.dataset.email;
-        const st = this._state;
-        st.expandedEmail = st.expandedEmail === email ? null : email;
-        this.update();
+        if (this._onOpenInbox) this._onOpenInbox(card.dataset.email);
       });
     });
 
-    // Open message in browser
+    // Inbox view — back
+    const backBtn = this._container.querySelector('#gmInboxBack');
+    if (backBtn && this._onBack) backBtn.addEventListener('click', () => this._onBack());
+
+    // Inbox view — filter buttons
+    this._container.querySelectorAll('.gm-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this._onFilterChange) this._onFilterChange(btn.dataset.filter);
+      });
+    });
+
+    // Inbox view — expand/collapse message
+    this._container.querySelectorAll('.gm-message').forEach(msg => {
+      msg.addEventListener('click', (e) => {
+        if (e.target.closest('.gm-msg-actions')) return;
+        if (this._onToggleExpand) this._onToggleExpand(msg.dataset.msgId);
+      });
+    });
+
+    // Inbox view — open message
     this._container.querySelectorAll('.gm-msg-open').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -91,7 +121,7 @@ export default class GmailUI {
       });
     });
 
-    // Mark as read
+    // Inbox view — mark read
     this._container.querySelectorAll('.gm-msg-read').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();

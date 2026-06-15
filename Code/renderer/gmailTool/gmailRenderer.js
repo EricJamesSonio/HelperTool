@@ -5,6 +5,8 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 10a7 7 0 1 1-2-5"/><path d="M17 3v5h-5"/></svg>',
   external: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/><path d="M13 3h4v4"/><path d="M11 9l6-6"/></svg>',
   check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10l4 4 8-8"/></svg>',
+  back: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4l-6 6 6 6"/></svg>',
+  chevronDown: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 8l4 4 4-4"/></svg>',
 };
 
 function escapeHtml(text) {
@@ -26,6 +28,13 @@ function formatTime(dateStr) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function formatFullDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 function extractName(fromStr) {
   if (!fromStr) return 'Unknown';
   const match = fromStr.match(/^"?(.+?)"?\s*</);
@@ -42,17 +51,15 @@ export function renderEmpty() {
     </div>`;
 }
 
-export function renderAccountList(accounts, results, expandedEmail) {
+export function renderAccountList(accounts, results) {
   return accounts.map(acct => {
     const result = results.find(r => r.account === acct.email);
     const unread = result ? result.unread : 0;
-    const isExpanded = expandedEmail === acct.email;
-    const messages = result && result.messages ? result.messages : [];
     const errMsg = result && result.error ? result.error : null;
 
     return `
-      <div class="gm-account ${isExpanded ? 'gm-account--expanded' : ''}">
-        <div class="gm-account-header" data-email="${escapeHtml(acct.email)}">
+      <div class="gm-account" data-email="${escapeHtml(acct.email)}">
+        <div class="gm-account-header">
           <div class="gm-account-info">
             <div class="gm-account-avatar">${escapeHtml(acct.email[0].toUpperCase())}</div>
             <div class="gm-account-details">
@@ -62,24 +69,65 @@ export function renderAccountList(accounts, results, expandedEmail) {
           </div>
           <button class="gm-account-remove" data-email="${escapeHtml(acct.email)}" title="Remove account">${ICONS.trash}</button>
         </div>
-        <div class="gm-account-body">
-          ${errMsg ? `<div class="gm-error">${escapeHtml(errMsg)}</div>` : ''}
-          ${messages.slice(0, 10).map(msg => renderMessage(msg, acct.email)).join('')}
-          ${messages.length === 0 && !errMsg ? '<div class="gm-no-msgs">No unread messages</div>' : ''}
-        </div>
+        ${errMsg ? `<div class="gm-error">${escapeHtml(errMsg)}</div>` : ''}
       </div>`;
   }).join('');
 }
 
-function renderMessage(msg, accountEmail) {
+export function renderInboxView(email, messages, filter, expandedIds, unreadCount) {
+  const filtered = filterMessages(messages, filter);
+  return `
+    <div class="gm-inbox-header">
+      <button class="gm-inbox-back" id="gmInboxBack">${ICONS.back} Back</button>
+      <div class="gm-inbox-account">
+        <div class="gm-inbox-avatar">${escapeHtml(email[0].toUpperCase())}</div>
+        <div>
+          <div class="gm-inbox-email">${escapeHtml(email)}</div>
+          <div class="gm-inbox-subtitle">${unreadCount} unread · ${messages.length} total</div>
+        </div>
+      </div>
+    </div>
+    <div class="gm-filter-bar">
+      <button class="gm-filter-btn ${filter === 'all' ? 'gm-filter-btn--active' : ''}" data-filter="all">All</button>
+      <button class="gm-filter-btn ${filter === 'hour' ? 'gm-filter-btn--active' : ''}" data-filter="hour">Past Hour</button>
+      <button class="gm-filter-btn ${filter === 'today' ? 'gm-filter-btn--active' : ''}" data-filter="today">Today</button>
+      <button class="gm-filter-btn ${filter === 'unread' ? 'gm-filter-btn--active' : ''}" data-filter="unread">Unread</button>
+      <span class="gm-filter-count">${filtered.length} messages</span>
+    </div>
+    <div class="gm-inbox-list">
+      ${filtered.length === 0 ? '<div class="gm-no-msgs">No messages match this filter</div>' : ''}
+      ${filtered.map(msg => renderMessage(msg, email, expandedIds.has(msg.id))).join('')}
+    </div>`;
+}
+
+function filterMessages(messages, filter) {
+  const now = Date.now();
+  return messages.filter(msg => {
+    const msgTime = msg.date ? new Date(msg.date).getTime() : 0;
+    switch (filter) {
+      case 'hour': return !isNaN(msgTime) && (now - msgTime) < 3600000;
+      case 'today': return !isNaN(msgTime) && new Date(msgTime).toDateString() === new Date().toDateString();
+      case 'unread': return true;
+      default: return true;
+    }
+  });
+}
+
+function renderMessage(msg, accountEmail, expanded) {
   const name = extractName(msg.from);
   return `
-    <div class="gm-message" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}">
-      <div class="gm-msg-from">${escapeHtml(name)}</div>
+    <div class="gm-message ${expanded ? 'gm-message--expanded' : ''}" data-msg-id="${escapeHtml(msg.id)}">
+      <div class="gm-msg-header">
+        <div class="gm-msg-from">${escapeHtml(name)}</div>
+        <div class="gm-msg-header-right">
+          <span class="gm-msg-time">${formatTime(msg.date)}</span>
+          <span class="gm-msg-chevron">${ICONS.chevronDown}</span>
+        </div>
+      </div>
       <div class="gm-msg-subject">${escapeHtml(msg.subject || '(no subject)')}</div>
-      <div class="gm-msg-snippet">${escapeHtml(msg.snippet || '')}</div>
+      <div class="gm-msg-snippet">${expanded ? escapeHtml(msg.snippet || '') : truncate(escapeHtml(msg.snippet || ''), 120)}</div>
+      ${expanded ? `<div class="gm-msg-full-date">${formatFullDate(msg.date)}</div>` : ''}
       <div class="gm-msg-meta">
-        <span class="gm-msg-time">${formatTime(msg.date)}</span>
         <div class="gm-msg-actions">
           <button class="gm-msg-open" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" title="Open in browser">${ICONS.external}</button>
           <button class="gm-msg-read" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" title="Mark as read">${ICONS.check}</button>
@@ -88,8 +136,13 @@ function renderMessage(msg, accountEmail) {
     </div>`;
 }
 
+function truncate(str, max) {
+  if (!str || str.length <= max) return str;
+  return str.slice(0, max) + '...';
+}
+
 export function renderLoading() {
-  return '<div class="gm-loading">Loading accounts...</div>';
+  return '<div class="gm-loading">Loading...</div>';
 }
 
 export function renderError(msg) {

@@ -63,20 +63,8 @@ function findAccount(email) {
 
 function startLocalServer() {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      const query = url.parse(req.url, true).query;
-      if (query.code || query.error) {
-        res.end('<script>window.close()</script><p>Auth complete. You can close this tab.</p>');
-        server.close();
-        if (query.error) reject(new Error(query.error));
-        else resolve(query.code);
-      } else {
-        res.end('Waiting for auth callback...');
-      }
-    });
-    server.listen(0, '127.0.0.1', () => {
-      resolve(server);
-    });
+    const server = http.createServer();
+    server.listen(0, '127.0.0.1', () => resolve(server));
     server.on('error', reject);
   });
 }
@@ -97,19 +85,22 @@ async function startAuthFlow() {
 
   execSync('start "" "' + authUrl + '"', { shell: true, stdio: 'ignore' });
 
-  const code = await new Promise((resolve, reject) => {
+  const { code } = await new Promise((resolve, reject) => {
     server.on('request', (req, res) => {
       const query = url.parse(req.url, true).query;
       if (query.code) {
         res.end('<script>window.close()</script><p>Auth complete. You can close this tab.</p>');
         server.close();
-        resolve(query.code);
+        resolve({ code: query.code });
       } else if (query.error) {
         res.end('<p>Auth failed: ' + query.error + '</p>');
         server.close();
         reject(new Error(query.error));
+      } else {
+        res.end('Waiting for auth callback...');
       }
     });
+    setTimeout(() => reject(new Error('Auth timeout')), 120000);
   });
 
   const { tokens } = await oauth2Client.getToken({ code, redirect_uri: redirectUri });
@@ -154,7 +145,7 @@ async function ensureValidTokens(account) {
   return account;
 }
 
-async function fetchUnreadMessages(account, maxResults = 10) {
+async function fetchUnreadMessages(account, maxResults = 50) {
   await ensureValidTokens(account);
   const auth = getAuthClient(account.tokens);
   const gmail = getGmail(auth);
@@ -169,7 +160,7 @@ async function fetchUnreadMessages(account, maxResults = 10) {
 
   if (messages.length === 0) return { account: account.email, unread: 0, messages: [] };
 
-  const details = await Promise.all(messages.slice(0, 10).map(async (msg) => {
+  const details = await Promise.all(messages.slice(0, 50).map(async (msg) => {
     try {
       const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] });
       const headers = detail.data.payload?.headers || [];
@@ -184,6 +175,42 @@ async function fetchUnreadMessages(account, maxResults = 10) {
   }));
 
   return { account: account.email, unread: details.length, messages: details };
+}
+
+async function fetchInboxMessages(accountEmail, maxResults = 50) {
+  const accounts = getStoredAccounts();
+  const acct = accounts.find(a => a.email === accountEmail);
+  if (!acct) throw new Error('Account not found');
+  await ensureValidTokens(acct);
+  const auth = getAuthClient(acct.tokens);
+  const gmail = getGmail(auth);
+
+  const listRes = await gmail.users.messages.list({
+    userId: 'me',
+    maxResults: maxResults,
+  });
+
+  const messages = listRes.data.messages || [];
+  if (messages.length === 0) return { account: accountEmail, unread: 0, messages: [] };
+
+  let unreadCount = 0;
+  const details = await Promise.all(messages.slice(0, 50).map(async (msg) => {
+    try {
+      const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] });
+      const headers = detail.data.payload?.headers || [];
+      const from = headers.find(h => h.name === 'From')?.value || 'Unknown';
+      const subject = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
+      const date = headers.find(h => h.name === 'Date')?.value || '';
+      const snippet = detail.data.snippet || '';
+      const labelIds = detail.data.labelIds || [];
+      if (labelIds.includes('UNREAD')) unreadCount++;
+      return { id: msg.id, from, subject, date, snippet, threadId: detail.data.threadId };
+    } catch (e) {
+      return { id: msg.id, from: 'Error', subject: 'Failed to load', date: '', snippet: '' };
+    }
+  }));
+
+  return { account: accountEmail, unread: unreadCount, messages: details };
 }
 
 async function fetchAllUnread() {
@@ -250,6 +277,7 @@ module.exports = {
   removeAccount,
   fetchAllUnread,
   fetchUnreadMessages,
+  fetchInboxMessages,
   startPolling,
   stopPolling,
   setOnNewMail,

@@ -393,6 +393,7 @@ const gmailBridge = {
         removeAccount:      (payload)          => ipcRenderer.invoke('gmail:removeAccount', payload),
         listAccounts:       ()                 => ipcRenderer.invoke('gmail:listAccounts'),
         fetchMessages:      (payload)          => ipcRenderer.invoke('gmail:fetchMessages', payload),
+        fetchInbox:         (payload)          => ipcRenderer.invoke('gmail:fetchInbox', payload),
         fetchAll:           ()                 => ipcRenderer.invoke('gmail:fetchAll'),
         markRead:           (payload)          => ipcRenderer.invoke('gmail:markRead', payload),
         startPolling:       ()                 => ipcRenderer.invoke('gmail:startPolling'),
