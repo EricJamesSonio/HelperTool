@@ -141,23 +141,6 @@ export function renderSegmentActions(segment, index) {
     </div>`;
 }
 
-export function renderSuggestions(suggestions) {
-  if (!suggestions || suggestions.length === 0) return '';
-  return `
-    <div class="tl-suggestions-bar">
-      <span class="tl-suggestions-label">Quick add:</span>
-      ${suggestions.map(s => `
-        <button class="tl-suggestion-pill" data-start="${s.startTime}" data-dur="${s.duration}">
-          ${ICONS.plus} ${s.startTime}s &ndash; ${(s.startTime + s.duration).toFixed(1)}s
-        </button>
-      `).join('')}
-    </div>`;
-}
-
-export function renderAddClipButton() {
-  return `<button class="tl-add-clip-btn" id="tlAddClipBtn">${ICONS.plus} Add Clip</button>`;
-}
-
 export function renderPresets(selectedPreset) {
   return `
     <div class="tl-presets-section">

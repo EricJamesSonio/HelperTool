@@ -26,8 +26,6 @@ export default class VideoTool {
       onSplit: () => this._handleSplit(),
       onDelete: (segId) => this._handleDelete(segId),
       onSpeedChange: (segId, speed) => this._handleSpeedChange(segId, speed),
-      onAddSuggestion: (start, end) => this._handleAddSuggestion(start, end),
-      onAddClip: () => this._handleAddClip(),
       onSelectSegment: (segId) => this._handleSelectSegment(segId),
       onTimelineClick: (pct) => this._handleTimelineClick(pct),
       onExportMp4: () => this._startExport('mp4'),
@@ -95,8 +93,8 @@ export default class VideoTool {
       originalResolution: meta.originalResolution,
     };
 
-    const analyzeResult = await window.electronAPI.video.gif({ mode: 'analyze', inputPath: path });
-    st.suggestions = (analyzeResult && analyzeResult.success && analyzeResult.suggestions) ? analyzeResult.suggestions : [];
+    // Auto-add full video as initial segment (CapCut-style)
+    st.addSegment(0, st.inputMeta.duration, 1);
 
     st.status = 'idle';
     if (this.ui) this.ui.update();
@@ -127,18 +125,6 @@ export default class VideoTool {
 
   // ── Timeline handlers ──
 
-  _handleAddClip() {
-    const st = this.state;
-    const totalDur = st.inputMeta ? st.inputMeta.duration : 30;
-    const last = st.segments[st.segments.length - 1];
-    const defaultStart = last ? Math.min(last.endTime + 1, totalDur - 2) : 0;
-    const defaultEnd = Math.min(defaultStart + 3, totalDur);
-    if (defaultEnd > defaultStart) {
-      st.addSegment(defaultStart, defaultEnd, 1);
-      if (this.ui) this.ui.update();
-    }
-  }
-
   _handleDelete(segId) {
     this.state.removeSegment(segId);
     if (this.ui) this.ui.update();
@@ -146,11 +132,6 @@ export default class VideoTool {
 
   _handleSpeedChange(segId, speed) {
     this.state.updateSegment(segId, { speed });
-    if (this.ui) this.ui.update();
-  }
-
-  _handleAddSuggestion(start, end) {
-    this.state.addSegment(start, end, 1);
     if (this.ui) this.ui.update();
   }
 
@@ -165,7 +146,7 @@ export default class VideoTool {
     const seg = st.selectedSegment;
     if (!seg) return;
     const splitTime = st.currentTime;
-    if (splitTime <= seg.startTime || splitTime >= seg.endTime) {
+    if (isNaN(splitTime) || splitTime <= seg.startTime || splitTime >= seg.endTime) {
       st.error = 'Move playhead inside the clip to split';
       st.status = 'error';
       if (this.ui) this.ui.update();
@@ -208,8 +189,9 @@ export default class VideoTool {
       return;
     }
     for (const seg of active) {
-      if (seg.endTime <= seg.startTime) {
-        st.error = 'Clip end must be after start';
+      const dur = seg.endTime - seg.startTime;
+      if (isNaN(dur) || dur <= 0) {
+        st.error = 'Clip has invalid duration';
         st.status = 'error';
         if (this.ui) this.ui.update();
         return;
@@ -283,14 +265,7 @@ export default class VideoTool {
   }
 
   _handleTimelineNew() {
-    const st = this.state;
-    st.segments = [];
-    st.selectedSegmentId = null;
-    st.currentTime = 0;
-    st.status = 'idle';
-    st.progress = null;
-    st.result = null;
-    st.error = null;
+    this.state.reset();
     if (this.ui) this.ui.update();
   }
 

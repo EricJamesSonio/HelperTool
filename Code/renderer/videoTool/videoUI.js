@@ -2,7 +2,7 @@ import { renderFileDropZone, renderPresetCards, renderOutputRow as renderCompres
 import { renderImageDropZone, renderImageOutputRow, renderImageResult, renderImageProgress, renderImageError } from './imageRenderer.js';
 import {
   renderDropZone, renderFileInfo, renderOutputRow, renderPlayerSlot,
-  renderTimeline, renderSegmentActions, renderSuggestions, renderAddClipButton,
+  renderTimeline, renderSegmentActions,
   renderPresets, renderExportButtons, renderProgress, renderResult, renderError,
 } from './timelineRenderer.js';
 
@@ -20,8 +20,6 @@ export default class VideoUI {
     this._onSplit = null;
     this._onDelete = null;
     this._onSpeedChange = null;
-    this._onAddSuggestion = null;
-    this._onAddClip = null;
     this._onSelectSegment = null;
     this._onTimelineClick = null;
     this._onExportMp4 = null;
@@ -57,8 +55,6 @@ export default class VideoUI {
     this._onSplit = cbs.onSplit || null;
     this._onDelete = cbs.onDelete || null;
     this._onSpeedChange = cbs.onSpeedChange || null;
-    this._onAddSuggestion = cbs.onAddSuggestion || null;
-    this._onAddClip = cbs.onAddClip || null;
     this._onSelectSegment = cbs.onSelectSegment || null;
     this._onTimelineClick = cbs.onTimelineClick || null;
     this._onExportMp4 = cbs.onExportMp4 || null;
@@ -98,9 +94,13 @@ export default class VideoUI {
   update() {
     if (!this._container) return;
     const oldVideo = this._videoEl;
+    const oldBody = this._container.querySelector('.vt-body');
+    const scrollTop = oldBody ? oldBody.scrollTop : 0;
     this._videoEl = null;
     this._container.innerHTML = this._getTemplate();
     this._restoreVideoPlayer(oldVideo);
+    const newBody = this._container.querySelector('.vt-body');
+    if (newBody) newBody.scrollTop = scrollTop;
     this._bindEvents();
   }
 
@@ -182,10 +182,6 @@ export default class VideoUI {
           st.segments, st.inputMeta.duration, st.currentTime, st.selectedSegmentId, (i) => st.getSegmentColor(i)
         ) : '';
         const segActions = st.selectedSegment ? renderSegmentActions(st.selectedSegment, st.segments.indexOf(st.selectedSegment)) : '';
-        const suggestions = st.status !== 'rendering' && st.status !== 'done' && st.suggestions && st.suggestions.length > 0
-          ? renderSuggestions(st.suggestions) : '';
-        const addClipBtn = st.status !== 'rendering' && st.status !== 'done'
-          ? renderAddClipButton() : '';
         const presets = st.status !== 'rendering' && st.status !== 'done'
           ? renderPresets(st.selectedPreset) : '';
         const exportBtns = st.status !== 'rendering' && st.status !== 'done' && st.segments.length > 0
@@ -201,8 +197,6 @@ export default class VideoUI {
             <div class="tl-player-area">${playerSlot}</div>
             ${timeline ? `<div class="tl-timeline-wrapper">${timeline}</div>` : ''}
             ${segActions ? `<div class="tl-seg-actions-wrapper">${segActions}</div>` : ''}
-            ${suggestions}
-            ${addClipBtn}
             ${presets}
             ${exportBtns}
             ${progressSection}
@@ -306,13 +300,6 @@ export default class VideoUI {
     if (coBtn && this._onChangeOutput) coBtn.addEventListener('click', () => this._onChangeOutput());
 
     // ── Timeline Editor events ──
-    this._container.querySelectorAll('.tl-seg-bar').forEach(bar => {
-      bar.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (this._onSelectSegment) this._onSelectSegment(bar.dataset.segId);
-      });
-    });
-
     const timeline = this._container.querySelector('#tlTimeline');
     if (timeline && this._onTimelineClick) {
       timeline.addEventListener('click', (e) => {
@@ -336,19 +323,6 @@ export default class VideoUI {
     if (delBtn && this._onDelete && segId) {
       delBtn.addEventListener('click', () => this._onDelete(segId));
     }
-
-    this._container.querySelectorAll('.tl-suggestion-pill').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (this._onAddSuggestion) {
-          const start = parseFloat(btn.dataset.start);
-          const dur = parseFloat(btn.dataset.dur);
-          this._onAddSuggestion(start, start + dur);
-        }
-      });
-    });
-
-    const addBtn = this._container.querySelector('#tlAddClipBtn');
-    if (addBtn && this._onAddClip) addBtn.addEventListener('click', () => this._onAddClip());
 
     this._container.querySelectorAll('.tl-preset-card').forEach(c => {
       c.addEventListener('click', () => { if (this._onPresetChange) this._onPresetChange(c.dataset.preset); });
