@@ -89,6 +89,16 @@ export function createVideoPanel() {
   });
 }
 
+export function createGmailPanel() {
+  return createPanel({
+    id:          'gmailToolPanel',
+    className:   'gm-panel',
+    title:       'Gmail Inbox',
+    containerId: 'gmailToolContainer',
+    closeBtnId:  'closeGmailToolBtn',
+  });
+}
+
 export function createCodebaseChatPanel() {
   return createPanel({
     id:          'codebaseChatPanel',

@@ -387,6 +387,27 @@ const videoBridge = {
     },
 };
 
+const gmailBridge = {
+    gmail: {
+        addAccount:         ()                 => ipcRenderer.invoke('gmail:addAccount'),
+        removeAccount:      (payload)          => ipcRenderer.invoke('gmail:removeAccount', payload),
+        listAccounts:       ()                 => ipcRenderer.invoke('gmail:listAccounts'),
+        fetchMessages:      (payload)          => ipcRenderer.invoke('gmail:fetchMessages', payload),
+        fetchAll:           ()                 => ipcRenderer.invoke('gmail:fetchAll'),
+        markRead:           (payload)          => ipcRenderer.invoke('gmail:markRead', payload),
+        startPolling:       ()                 => ipcRenderer.invoke('gmail:startPolling'),
+        stopPolling:        ()                 => ipcRenderer.invoke('gmail:stopPolling'),
+        onPollResult:       (callback) => {
+            ipcRenderer.removeAllListeners('gmail:pollResult');
+            ipcRenderer.on('gmail:pollResult', (_event, data) => callback(data));
+        },
+        onAccountsChanged:  (callback) => {
+            ipcRenderer.removeAllListeners('gmail:accountsChanged');
+            ipcRenderer.on('gmail:accountsChanged', (_event, data) => callback(data));
+        },
+    },
+};
+
 const codebaseChatBridge = {
   codebaseChat: {
     getFiles:           (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
@@ -431,6 +452,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...codebaseChatBridge,
     ...imageBridge,
     ...videoBridge,
+    ...gmailBridge,
     windowControls,
 });
 

@@ -51,6 +51,7 @@ import {
   createDepsPanel,
   createLocPanel,
   createVideoPanel,
+  createGmailPanel,
   createCodebaseChatPanel,
 } from './panels/panelFactory.js';
 
@@ -86,6 +87,10 @@ let _ccTool       = null;
 let _videoTool    = null;
 let _videoPanel   = null;
 let _videoContainer = null;
+
+let _gmailTool    = null;
+let _gmailPanel   = null;
+let _gmailContainer = null;
 
 let _terminalUI   = null;
 let _dockerTool  = null;
@@ -140,6 +145,14 @@ function populateSidebar() {
     _videoPanel.classList.add('open');
     if (!_videoTool) _initializeVideoTool();
   }, 'video'));
+
+  body.appendChild(createSidebarItem(ICONS.api, 'Gmail Inbox', 'Check unread emails', () => {
+    if (_gmailPanel?.classList.contains('open')) { _gmailPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_gmailPanel) _initGmailPanel();
+    _gmailPanel.classList.add('open');
+    if (!_gmailTool) _initializeGmailTool();
+  }, 'gmail'));
 
   body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
   if (locDetector.isOpen()) { locDetector.close(); return; }
@@ -284,6 +297,13 @@ function _initVideoPanel() {
   _registry.register('video', _videoPanel);
 }
 
+function _initGmailPanel() {
+  const { panel, container } = createGmailPanel();
+  _gmailPanel = panel;
+  _gmailContainer = container;
+  _registry.register('gmail', _gmailPanel);
+}
+
 function _initGitPanel() {
   const { panel, container } = createGitPanel();
   _gitPanel = panel;
@@ -393,6 +413,23 @@ function _destroyVideoTool() {
   _videoTool = null;
   if (_videoContainer) _videoContainer.innerHTML = '';
   _videoPanel?.classList.remove('open');
+}
+
+function _initializeGmailTool() {
+  if (_gmailTool) return;
+  import('../gmailTool/gmailTool.js').then(async (mod) => {
+    const GmailTool = mod.default;
+    _gmailTool = new GmailTool();
+    await _gmailTool.init();
+    if (_gmailContainer) _gmailTool.render(_gmailContainer);
+  }).catch(err => console.error('[Tools] Gmail Tool:', err));
+}
+
+function _destroyGmailTool() {
+  _gmailTool?.destroy?.();
+  _gmailTool = null;
+  if (_gmailContainer) _gmailContainer.innerHTML = '';
+  _gmailPanel?.classList.remove('open');
 }
 
 // ---- Shortcut actions ------------------------------------------------------
@@ -561,6 +598,14 @@ function _buildShortcutActions() {
     if (!_videoTool) _initializeVideoTool();
   };
 
+  actions.gmailTool = () => {
+    if (_gmailPanel?.classList.contains('open')) { _gmailPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_gmailPanel) _initGmailPanel();
+    _gmailPanel.classList.add('open');
+    if (!_gmailTool) _initializeGmailTool();
+  };
+
   return actions;
 }
 
@@ -574,6 +619,7 @@ export function closeAllPanels() {
   if (blueprintLibrary.isOpen()) blueprintLibrary.close();
   if (profileTool.isOpen()) profileTool.close();
   if (_dockerTool?.isOpen?.()) _dockerTool.close();
+  _destroyGmailTool();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -592,6 +638,7 @@ window.addEventListener('beforeunload', () => {
   _symbolIndexTool?.destroy();
   _ccTool?.destroy();
   _destroyVideoTool();
+  _destroyGmailTool();
 });
 
 export async function initTools(feats, settingsManager) {
