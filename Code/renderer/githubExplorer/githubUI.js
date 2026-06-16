@@ -1,6 +1,6 @@
 import state from './githubState.js';
 import { buildTreeFromPaths, treeToFolderString, buildFilteredTree } from './githubTransformer.js';
-import { renderTree, updateFooter } from './githubTreeRenderer.js';
+import { renderTree } from './githubTreeRenderer.js';
 
 const RECENT_KEY = 'githubExplorer.recent';
 
@@ -209,12 +209,7 @@ function bindTreeEvents(container) {
   container.querySelector('#geCopyStructureBtn').addEventListener('click', () => {
     const root = buildTreeFromPaths(state.tree.filter(i => i.type === 'blob'));
     const text = treeToFolderString(root, state.repoName);
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = container.querySelector('#geCopyStructureBtn');
-      const original = btn.innerHTML;
-      btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
-      setTimeout(() => { btn.innerHTML = original; }, 2000);
-    });
+    showTreeViewer(text, state.repoName + ' (full tree)');
   });
 
   const searchInput = container.querySelector('#geSearchInput');
@@ -233,12 +228,7 @@ function bindTreeEvents(container) {
     if (selected.size === 0) return;
     const root = buildFilteredTree(state.tree, selected);
     const text = treeToFolderString(root, state.repoName);
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = container.querySelector('#geGenerateBtn');
-      const original = btn.innerHTML;
-      btn.innerHTML = 'Copied!';
-      setTimeout(() => { btn.innerHTML = original; }, 2000);
-    });
+    showTreeViewer(text, state.repoName + ' (selected)');
   });
 }
 
@@ -273,4 +263,71 @@ function filterTree(container) {
 function showError(el, msg) {
   el.textContent = msg;
   el.style.display = 'block';
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+let _treeViewerOverlay = null;
+
+function closeTreeViewer() {
+  if (_treeViewerOverlay) {
+    if (_treeViewerOverlay._keyHandler) {
+      document.removeEventListener('keydown', _treeViewerOverlay._keyHandler);
+    }
+    _treeViewerOverlay.remove();
+    _treeViewerOverlay = null;
+  }
+}
+
+function showTreeViewer(content, title) {
+  closeTreeViewer();
+  const overlay = document.createElement('div');
+  overlay.className = 'ge-viewer-overlay';
+  overlay.innerHTML = `
+    <div class="ge-viewer">
+      <div class="ge-viewer-header">
+        <span class="ge-viewer-title">${escapeHtml(title)}</span>
+        <div class="ge-viewer-actions">
+          <button class="ge-viewer-btn ge-viewer-copy-btn" title="Copy to clipboard">Copy to Clipboard</button>
+          <button class="ge-viewer-btn ge-viewer-close-btn" title="Close (Esc)">✕</button>
+        </div>
+      </div>
+      <div class="ge-viewer-body">
+        <textarea class="ge-viewer-content" readonly spellcheck="false" wrap="off"></textarea>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  _treeViewerOverlay = overlay;
+  const textarea = overlay.querySelector('.ge-viewer-content');
+  textarea.value = content;
+  requestAnimationFrame(() => {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  });
+  overlay.querySelector('.ge-viewer-copy-btn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      const btn = overlay.querySelector('.ge-viewer-copy-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy to Clipboard'; }, 1500);
+    } catch {
+      textarea.select();
+      document.execCommand('copy');
+    }
+  });
+  overlay.querySelector('.ge-viewer-close-btn').addEventListener('click', closeTreeViewer);
+  const keyHandler = (e) => {
+    if (e.key === 'Escape') closeTreeViewer();
+  };
+  overlay._keyHandler = keyHandler;
+  document.addEventListener('keydown', keyHandler);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeTreeViewer();
+  });
 }

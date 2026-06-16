@@ -552,3 +552,123 @@
 .ge-tree-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--text-faint);
 }
+
+/* ── Tree Viewer Overlay ─────────────────────────────────────── */
+
+.ge-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: overlayFadeIn 0.2s ease;
+}
+
+.ge-viewer {
+  background: var(--bg-base);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  width: 95vw;
+  max-width: 900px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ge-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ge-viewer-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ge-viewer-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ge-viewer-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  transition: all 0.15s ease;
+}
+
+.ge-viewer-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.ge-viewer-copy-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #010409;
+}
+
+.ge-viewer-copy-btn:hover {
+  opacity: 0.88;
+}
+
+.ge-viewer-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.ge-viewer-close-btn:hover {
+  color: var(--text-primary);
+}
+
+.ge-viewer-body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow: auto;
+}
+
+.ge-viewer-content {
+  width: 100%;
+  min-height: 200px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 16px;
+  resize: none;
+  outline: none;
+  tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.ge-viewer-content:focus {
+  border-color: var(--accent);
+}

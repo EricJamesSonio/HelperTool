@@ -17,6 +17,7 @@ const DEFAULT_SHORTCUTS = {
   videoTool: null,
   gmailTool: null,
   automationSketch: null,
+  githubExplorer: null,
 };
 
 const S = { shortcuts: {} };
