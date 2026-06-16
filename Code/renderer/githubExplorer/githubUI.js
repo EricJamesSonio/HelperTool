@@ -26,10 +26,12 @@ function addRecent(url) {
   state.recent = filtered;
 }
 
-export function initUI(container) {
+export async function initUI(container) {
   state.recent = loadRecent();
-  container.innerHTML = getInputTemplate(state.recent);
-
+  state.view = 'input';
+  const result = await window.electronAPI.github.listSaved();
+  state.savedTrees = result.success ? result.trees : [];
+  container.innerHTML = getInputTemplate(state);
   bindInputEvents(container);
   container.querySelector('#geUrlInput')?.focus();
 }
@@ -48,12 +50,41 @@ export function switchToTreeView(container) {
   if (treeContainer) renderTree(treeContainer);
 }
 
-function getInputTemplate(recent) {
-  const recentHtml = recent.length > 0
+function getInputTemplate(st) {
+  const recentHtml = st.recent.length > 0
     ? `<div class="ge-recent-label">Recent:</div>
        <div class="ge-recent-list">
-         ${recent.map(r => `<div class="ge-recent-item" data-url="https://github.com/${r}">${r}</div>`).join('')}
+         ${st.recent.map(r => `<div class="ge-recent-item" data-url="https://github.com/${r}">${r}</div>`).join('')}
        </div>`
+    : '';
+
+  const savedHtml = st.savedTrees.length > 0
+    ? `<div class="ge-saved-section">
+        <div class="ge-saved-header">
+          <div class="ge-saved-label">Saved Trees</div>
+          <div class="ge-saved-count">${st.savedTrees.length} repo${st.savedTrees.length !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="ge-saved-list">
+          ${st.savedTrees.map(t => `
+            <div class="ge-saved-item" data-url="${escapeAttr(t.repo_url)}">
+              <div class="ge-saved-item-info">
+                <div class="ge-saved-item-name">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l2 2h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
+                  ${escapeHtml(t.repo_name)}
+                </div>
+                <div class="ge-saved-item-meta">${t.total_files} files · ${escapeHtml(t.branch)} · ${escapeHtml(t.saved_at)}</div>
+              </div>
+              <div class="ge-saved-item-actions">
+                <button class="ge-saved-btn ge-saved-btn--load" data-action="load" title="Load from cache">Load</button>
+                <button class="ge-saved-btn ge-saved-btn--fetch" data-action="fetch" title="Fetch fresh from GitHub">Fetch Fresh</button>
+                <button class="ge-saved-btn ge-saved-btn--delete" data-action="delete" title="Delete from saved">
+                  <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h10M5 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4M11 4v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4"/></svg>
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`
     : '';
 
   return `
@@ -90,6 +121,8 @@ function getInputTemplate(recent) {
 
         ${recentHtml ? `<div class="ge-recent">${recentHtml}</div>` : ''}
       </div>
+
+      ${savedHtml}
     </div>
   `;
 }
@@ -169,17 +202,7 @@ function bindInputEvents(container) {
         return;
       }
 
-      state.url = url;
-      state.repoName = result.repoName;
-      state.branch = result.branch;
-      state.description = result.description || '';
-      state.tree = result.tree;
-      state.totalFiles = result.totalFiles;
-      state.truncated = result.truncated;
-      state.loading = false;
-      state.view = 'tree';
-
-      addRecent(url);
+      applyTreeResult(result, url);
       switchToTreeView(container);
     } catch (err) {
       showError(errorEl, err.message);
@@ -193,6 +216,53 @@ function bindInputEvents(container) {
       urlInput.value = item.dataset.url;
       state.url = item.dataset.url;
       loadBtn.click();
+    });
+  });
+
+  container.querySelectorAll('.ge-saved-item').forEach(item => {
+    const url = item.dataset.url;
+    item.querySelector('[data-action="load"]').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      state.loading = true;
+      loadingEl.style.display = 'flex';
+      errorEl.style.display = 'none';
+      const result = await window.electronAPI.github.loadSaved(url);
+      if (!result.success) {
+        showError(errorEl, result.error);
+        state.loading = false;
+        loadingEl.style.display = 'none';
+        return;
+      }
+      state.url = url;
+      state.repoName = result.repo_name;
+      state.branch = result.branch;
+      state.description = result.description || '';
+      state.tree = result.tree;
+      state.totalFiles = result.total_files;
+      state.truncated = result.truncated;
+      state.loading = false;
+      state.view = 'tree';
+      addRecent(url);
+      switchToTreeView(container);
+    });
+
+    item.querySelector('[data-action="fetch"]').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      urlInput.value = url;
+      state.url = url;
+      loadBtn.click();
+    });
+
+    item.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await window.electronAPI.github.deleteSaved(url);
+      state.savedTrees = state.savedTrees.filter(t => t.repo_url !== url);
+      const savedItem = item.closest('.ge-saved-item');
+      if (savedItem) savedItem.remove();
+      const savedSection = container.querySelector('.ge-saved-section');
+      if (savedSection && container.querySelectorAll('.ge-saved-item').length === 0) {
+        savedSection.remove();
+      }
     });
   });
 }
@@ -229,6 +299,30 @@ function bindTreeEvents(container) {
     const root = buildFilteredTree(state.tree, selected);
     const text = treeToFolderString(root, state.repoName);
     showTreeViewer(text, state.repoName + ' (selected)');
+  });
+}
+
+function applyTreeResult(result, url) {
+  state.url = url;
+  state.repoName = result.repoName;
+  state.branch = result.branch;
+  state.description = result.description || '';
+  state.tree = result.tree;
+  state.totalFiles = result.totalFiles;
+  state.truncated = result.truncated;
+  state.loading = false;
+  state.view = 'tree';
+
+  addRecent(url);
+
+  window.electronAPI.github.saveTree({
+    repo_url: url,
+    repo_name: result.repoName,
+    branch: result.branch,
+    description: result.description || '',
+    total_files: result.totalFiles,
+    truncated: result.truncated,
+    tree_data: result.tree,
   });
 }
 
@@ -270,6 +364,11 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeAttr(text) {
+  if (!text) return '';
+  return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 let _treeViewerOverlay = null;

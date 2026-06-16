@@ -271,6 +271,20 @@ function createSchema() {
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_repo_path ON activity_days(repo_path)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_file_save_events_ts ON file_save_events(timestamp)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_file_save_events_ext ON file_save_events(file_ext)');
+
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS github_repo_trees (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo_url    TEXT NOT NULL UNIQUE,
+      repo_name   TEXT NOT NULL,
+      branch      TEXT DEFAULT 'main',
+      description TEXT DEFAULT '',
+      total_files INTEGER DEFAULT 0,
+      truncated   INTEGER DEFAULT 0,
+      tree_data   TEXT NOT NULL,
+      saved_at    TEXT DEFAULT (datetime('now'))
+    )
+  `);
 }
 
 function getDb() {

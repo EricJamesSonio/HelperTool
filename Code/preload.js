@@ -417,6 +417,10 @@ const gmailBridge = {
 const githubBridge = {
   github: {
     loadTree: (payload) => ipcRenderer.invoke('github:loadTree', payload),
+    saveTree: (data) => ipcRenderer.invoke('github:saveTree', data),
+    listSaved: () => ipcRenderer.invoke('github:listSaved'),
+    loadSaved: (repoUrl) => ipcRenderer.invoke('github:loadSaved', repoUrl),
+    deleteSaved: (repoUrl) => ipcRenderer.invoke('github:deleteSaved', repoUrl),
   },
 };
 

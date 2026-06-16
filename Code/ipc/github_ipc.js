@@ -1,5 +1,6 @@
 const { ipcMain } = require('electron');
 const https = require('https');
+const { saveTree, listTrees, getTree, deleteTree } = require('../database/githubTrees');
 
 function githubApiGet(path, token) {
   return new Promise((resolve, reject) => {
@@ -61,6 +62,43 @@ function register() {
         tree: allItems,
         totalFiles: fileItems.length,
       };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('github:saveTree', async (event, data) => {
+    try {
+      saveTree(data);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('github:listSaved', async () => {
+    try {
+      const trees = listTrees();
+      return { success: true, trees };
+    } catch (err) {
+      return { success: false, error: err.message, trees: [] };
+    }
+  });
+
+  ipcMain.handle('github:loadSaved', async (event, repoUrl) => {
+    try {
+      const data = getTree(repoUrl);
+      if (!data) return { success: false, error: 'Not found in cache' };
+      return { success: true, ...data };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('github:deleteSaved', async (event, repoUrl) => {
+    try {
+      deleteTree(repoUrl);
+      return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }

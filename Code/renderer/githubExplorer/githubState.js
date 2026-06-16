@@ -15,6 +15,7 @@ const state = {
   totalFiles: 0,
   truncated: false,
   recent: [],
+  savedTrees: [],
 };
 
 export default state;
