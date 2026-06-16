@@ -120,16 +120,8 @@ function _parseNumstat(stdout, commits, contributors) {
   }
 }
 
-async function logHandler({ repoPath, limit, since }) {
+async function logHandler({ repoPath }) {
   if (!repoPath) throw new Error('repoPath is required');
-
-  const commitLimit = limit || 200;
-  const defaultSince = (() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return d.toISOString().slice(0, 10);
-  })();
-  const after = since || defaultSince;
 
   const cached = prefetchService.get('teamActivity:' + repoPath);
   if (cached) return { commits: cached.commits, contributors: cached.contributors };
@@ -142,7 +134,7 @@ async function logHandler({ repoPath, limit, since }) {
   // Offload to worker — parsing happens in child process, not main process
   if (workerProxy.isReady()) {
     try {
-      const result = await workerProxy.send('teamActivity', { repoPath, limit: commitLimit, since: after }, 120000);
+      const result = await workerProxy.send('teamActivity', { repoPath }, 120000);
       if (result && result.commits) {
         _cache.set(repoPath, { ...result, timestamp: Date.now() });
         return { commits: result.commits, contributors: result.contributors };
@@ -152,17 +144,13 @@ async function logHandler({ repoPath, limit, since }) {
     }
   }
 
-  // Fallback: run in main process with same bounds
+  // Fallback: run in main process
   const metaStdout = await gitService.getCommits(repoPath, {
     format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: 120000,
-    after,
-    maxCount: commitLimit,
   });
   const { commits, contributors } = _parseMeta(metaStdout);
   if (commits.length) {
-    const numstatStdout = await gitService.raw(repoPath, [
-      'log', '--numstat', '--format=%H', '--all', '--after=' + after, '-n', String(commitLimit),
-    ], 120000);
+    const numstatStdout = await gitService.raw(repoPath, ['log', '--numstat', '--format=%H', '--all'], 120000);
     _parseNumstat(numstatStdout, commits, contributors);
   }
 
@@ -222,9 +210,9 @@ async function diffHandler({ repoPath, hash, filePath }) {
 }
 
 function register() {
-  ipcMain.handle('team-activity:log', async (event, { repoPath, limit, since }) => {
+  ipcMain.handle('team-activity:log', async (event, { repoPath }) => {
     try {
-      return await logHandler({ repoPath, limit, since });
+      return await logHandler({ repoPath });
     } catch (err) {
       return { commits: [], contributors: {}, error: err.message };
     }

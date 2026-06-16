@@ -87,19 +87,10 @@ function parseNumstat(stdout, commits, contributors) {
   }
 }
 
-async function getTeamActivity(repoPath, opts = {}) {
-  const limit = opts.limit || 200;
-  const since = opts.since || (() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return d.toISOString().slice(0, 10);
-  })();
-
+async function getTeamActivity(repoPath) {
   const metaStdout = await execGit(repoPath, [
     'log', '--format=%H|%an|%ae|%aI|%s',
     '--all',
-    '--after=' + since,
-    '-n', String(limit),
   ]);
 
   if (!metaStdout.trim()) return { commits: [], contributors: {} };
@@ -110,8 +101,6 @@ async function getTeamActivity(repoPath, opts = {}) {
   const numstatStdout = await execGit(repoPath, [
     'log', '--numstat', '--format=%H',
     '--all',
-    '--after=' + since,
-    '-n', String(limit),
   ]);
 
   parseNumstat(numstatStdout, commits, contributors);
@@ -119,7 +108,7 @@ async function getTeamActivity(repoPath, opts = {}) {
 }
 
 module.exports = async function handle(payload) {
-  const { repoPath, limit, since } = payload || {};
+  const { repoPath } = payload || {};
   if (!repoPath) throw new Error('repoPath is required for teamActivity task');
-  return getTeamActivity(repoPath, { limit, since });
+  return getTeamActivity(repoPath);
 };
