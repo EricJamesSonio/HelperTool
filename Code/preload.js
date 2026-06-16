@@ -395,6 +395,7 @@ const gmailBridge = {
         fetchMessages:      (payload)          => ipcRenderer.invoke('gmail:fetchMessages', payload),
         fetchInbox:         (payload)          => ipcRenderer.invoke('gmail:fetchInbox', payload),
         fetchAll:           ()                 => ipcRenderer.invoke('gmail:fetchAll'),
+        fetchMessageBody:   (payload)          => ipcRenderer.invoke('gmail:fetchMessageBody', payload),
         markRead:           (payload)          => ipcRenderer.invoke('gmail:markRead', payload),
         startPolling:       ()                 => ipcRenderer.invoke('gmail:startPolling'),
         stopPolling:        ()                 => ipcRenderer.invoke('gmail:stopPolling'),
@@ -411,6 +412,16 @@ const gmailBridge = {
         addIgnoredSender:       (payload)         => ipcRenderer.invoke('gmail:addIgnoredSender', payload),
         removeIgnoredSender:    (payload)         => ipcRenderer.invoke('gmail:removeIgnoredSender', payload),
     },
+};
+
+const githubBridge = {
+  github: {
+    loadTree: (payload) => ipcRenderer.invoke('github:loadTree', payload),
+    saveTree: (data) => ipcRenderer.invoke('github:saveTree', data),
+    listSaved: () => ipcRenderer.invoke('github:listSaved'),
+    loadSaved: (repoUrl) => ipcRenderer.invoke('github:loadSaved', repoUrl),
+    deleteSaved: (repoUrl) => ipcRenderer.invoke('github:deleteSaved', repoUrl),
+  },
 };
 
 const automationBridge = {
@@ -440,6 +451,13 @@ const codebaseChatBridge = {
   },
 };
 
+const chatGmailBridge = {
+  chatGetEmailData: (email, queryType, params) =>
+    ipcRenderer.invoke('chat:getEmailData', { email, queryType, params }),
+  chatGetConnectedGmailAccounts: () =>
+    ipcRenderer.invoke('chat:getConnectedGmailAccounts'),
+};
+
 contextBridge.exposeInMainWorld('envAPI', envBridge);
 
 // Expose everything to the renderer
@@ -465,10 +483,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...profileBridge,
     ...branchBridge,
     ...codebaseChatBridge,
+    ...chatGmailBridge,
     ...automationBridge,
     ...imageBridge,
     ...videoBridge,
     ...gmailBridge,
+    ...githubBridge,
     windowControls,
 });
 

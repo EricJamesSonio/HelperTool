@@ -1,6 +1,6 @@
-export function _makeBtn(text, cls, title, onClick) {
+export function _makeBtn(html, cls, title, onClick) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = cls; b.title = title; b.textContent = text;
+    b.type = 'button'; b.className = cls; b.title = title; b.innerHTML = html;
     b.addEventListener('click', onClick);
     return b;
 }

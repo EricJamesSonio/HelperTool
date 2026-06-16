@@ -1,7 +1,7 @@
 import { NODE_TYPES } from '../nodes/nodeRegistry.js';
 
 const NODE_WIDTH = 200;
-const MIN_NODE_HEIGHT = 80;
+const MIN_NODE_HEIGHT = 70;
 
 export default class SketchState {
   constructor() {
@@ -34,7 +34,7 @@ export default class SketchState {
   getNodeHeight(node) {
     const typeDef = NODE_TYPES[node.type];
     const fieldCount = typeDef ? typeDef.fields.length : 1;
-    return Math.max(MIN_NODE_HEIGHT, 36 + fieldCount * 24 + 16);
+    return Math.max(MIN_NODE_HEIGHT, 28 + fieldCount * 22 + 16);
   }
 
   snapshot() {

@@ -37,8 +37,8 @@ export default class LocResultsRenderer {
       `<span class="loc-stat loc-stat-time">Last scan: ${new Date(response.scannedAt).toLocaleTimeString()}</span>`;
   }
 
-  renderResults(files, sortBy, extFilter) {
-    this._currentFiles = this._filterAndSort(files, sortBy, extFilter);
+  renderResults(files, sortBy, extFilter, searchQuery) {
+    this._currentFiles = this._filterAndSort(files, sortBy, extFilter, searchQuery);
 
     if (!this._currentFiles.length) {
       this.renderNoMatch();
@@ -79,8 +79,13 @@ export default class LocResultsRenderer {
     if (current && extSet.has(current)) selectEl.value = current;
   }
 
-  _filterAndSort(files, sortBy, extFilter) {
+  _filterAndSort(files, sortBy, extFilter, searchQuery) {
     let list = extFilter ? files.filter(f => f.ext === extFilter) : [...files];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase().trim();
+      if (q) list = list.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q));
+    }
 
     if (sortBy === 'lines-desc') list.sort((a, b) => b.lines - a.lines);
     else if (sortBy === 'lines-asc') list.sort((a, b) => a.lines - b.lines);

@@ -32,6 +32,8 @@ const codebaseChatIpc = require('./ipc/codebbaseChat_ipc.js');
 const videoIpc = require('./ipc/video_ipc.js');
 const imageIpc = require('./ipc/image_ipc.js');
 const gmailIpc = require('./ipc/gmail_ipc.js');
+const automationIpc = require('./ipc/automation_ipc.js');
+const githubIpc = require('./ipc/github_ipc.js');
 const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
 
@@ -159,6 +161,8 @@ function registerAllIpc() {
     videoIpc.register(shared);
     imageIpc.register(shared);
     gmailIpc.register(shared);
+    automationIpc.register();
+    githubIpc.register();
     serviceTrackerIpc.register();
 }
 
@@ -286,6 +290,7 @@ function cleanupAndExit(deleteIndex) {
     try { const db = require('./database/db.js'); db.close(); } catch (_) {}
     try { closeChatDb(); } catch (_) {}
     try { const watcher = require('./indexer/watcher.js'); watcher.destroyAllWatchers(); } catch (_) {}
+    try { require('./ipc/prefetchService.js').stop(); } catch (_) {}
     try { workerProxy.stop(); } catch (_) {}
     try { indexerProxy.stop(); } catch (_) {}
     if (deleteIndex) {

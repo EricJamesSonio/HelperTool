@@ -1,5 +1,7 @@
 import { NODE_TYPES } from '../nodes/nodeRegistry.js';
 
+const NODE_WIDTH = 200;
+
 export default class CanvasEngine {
   constructor(canvasEl, state) {
     this.canvas = canvasEl;
@@ -73,7 +75,7 @@ export default class CanvasEngine {
     const startX = Math.floor(left / gridSize) * gridSize;
     const startY = Math.floor(top / gridSize) * gridSize;
 
-    ctx.strokeStyle = 'rgba(128,128,128,0.15)';
+    ctx.strokeStyle = 'rgba(128,128,128,0.08)';
     ctx.lineWidth = 1;
 
     ctx.beginPath();
@@ -133,7 +135,7 @@ export default class CanvasEngine {
     ctx.beginPath();
     ctx.moveTo(fromX, fromY);
     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, toX, toY);
-    ctx.strokeStyle = isSelected ? '#4a9eff' : 'rgba(200,200,200,0.6)';
+    ctx.strokeStyle = isSelected ? '#ff6b4a' : 'rgba(200,200,200,0.25)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -175,41 +177,44 @@ export default class CanvasEngine {
 
     const w = NODE_WIDTH;
     const h = this._getNodeHeight(node);
-    const headerH = 36;
 
     if (isSelected) {
       ctx.save();
-      ctx.shadowColor = '#4a9eff';
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = 'rgba(74,158,255,0.3)';
-      roundRect(ctx, node.x - 2, node.y - 2, w + 4, h + 4, 8);
+      ctx.shadowColor = '#ff6b4a';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = 'rgba(255,107,74,0.12)';
+      roundRect(ctx, node.x - 2, node.y - 2, w + 4, h + 4, 6);
       ctx.fill();
       ctx.restore();
     }
 
     roundRect(ctx, node.x, node.y, w, h, 6);
-    ctx.fillStyle = 'var(--bg-surface, #1e1e2e)';
+    ctx.fillStyle = '#2b2b2b';
     ctx.fill();
-    ctx.strokeStyle = isSelected ? '#4a9eff' : 'var(--border-default, #3a3a4a)';
+    ctx.strokeStyle = isSelected ? '#ff6b4a' : '#3a3a4a';
     ctx.lineWidth = isSelected ? 2 : 1;
     ctx.stroke();
 
-    roundRect(ctx, node.x, node.y, w, headerH, [6, 6, 0, 0]);
+    ctx.save();
+    roundRect(ctx, node.x, node.y, 4, h, [4, 0, 0, 4]);
     ctx.fillStyle = def.color;
     ctx.fill();
+    ctx.restore();
 
-    ctx.fillStyle = '#fff';
-    ctx.font = '13px sans-serif';
+    this._drawNodeIcon(ctx, def, node.x + 14, node.y + 17);
+
+    ctx.fillStyle = '#cdd6f4';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const iconText = def.icon || '';
-    ctx.fillText(iconText + '  ' + node.label, node.x + 10, node.y + headerH / 2);
+    ctx.fillText(node.label, node.x + 30, node.y + 17);
 
     const firstFieldKey = def.fields?.[0];
     if (firstFieldKey && node.fields[firstFieldKey]) {
-      ctx.fillStyle = 'var(--text-secondary, #888)';
+      ctx.fillStyle = '#888';
       ctx.font = '11px sans-serif';
-      ctx.fillText(node.fields[firstFieldKey], node.x + 10, node.y + headerH + 18);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.fields[firstFieldKey], node.x + 14, node.y + 40);
     }
 
     this._drawPorts(node, def);
@@ -218,70 +223,96 @@ export default class CanvasEngine {
   _drawPorts(node, def) {
     const { ctx } = this;
     const h = this._getNodeHeight(node);
-
     const inCount = def.maxInputs || 0;
     const outCount = def.maxOutputs || 0;
-
-    const portR = 6;
-    const portSpacing = 20;
+    const portR = 4;
+    const portAreaTop = node.y + 36;
+    const portAreaHeight = h - 48;
 
     if (inCount > 0) {
-      const startY = node.y + 36 + 10;
+      const spacing = portAreaHeight / (inCount + 1);
       for (let i = 0; i < inCount; i++) {
-        const py = startY + i * portSpacing;
+        const py = portAreaTop + spacing * (i + 1);
         ctx.beginPath();
         ctx.arc(node.x, py, portR, 0, Math.PI * 2);
         ctx.fillStyle = def.color;
         ctx.fill();
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       }
     }
 
     if (outCount > 0) {
-      const startY = node.y + 36 + 10;
+      const spacing = portAreaHeight / (outCount + 1);
       for (let i = 0; i < outCount; i++) {
-        const py = startY + i * portSpacing;
+        const py = portAreaTop + spacing * (i + 1);
         ctx.beginPath();
         ctx.arc(node.x + NODE_WIDTH, py, portR, 0, Math.PI * 2);
         ctx.fillStyle = def.color;
         ctx.fill();
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
         if (outCount > 1) {
-          ctx.fillStyle = '#aaa';
+          ctx.fillStyle = '#888';
           ctx.font = '9px sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'middle';
-          ctx.fillText(i === 0 ? 'True' : 'False', node.x + NODE_WIDTH + 12, py);
+          ctx.fillText(i === 0 ? 'True' : 'False', node.x + NODE_WIDTH + 10, py);
         }
       }
     }
   }
 
+  _drawNodeIcon(ctx, def, cx, cy) {
+    if (!def.iconPath) return;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(0.7, 0.7);
+    ctx.translate(-8, -8);
+
+    const path = new Path2D(def.iconPath);
+    ctx.fillStyle = def.color;
+    ctx.strokeStyle = def.color;
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (def.iconPath.includes('z') || def.iconPath.includes('Z')) {
+      ctx.fill(path);
+    } else {
+      ctx.stroke(path);
+    }
+
+    ctx.restore();
+  }
+
   _getNodeHeight(node) {
     const def = NODE_TYPES[node.type];
     const fieldCount = def ? def.fields.length : 1;
-    return Math.max(80, 36 + fieldCount * 24 + 16);
+    return Math.max(70, 28 + fieldCount * 22 + 16);
   }
 
   _getOutputPort(node, portIndex) {
     const def = NODE_TYPES[node.type];
     if (!def || !def.maxOutputs) return null;
     const h = this._getNodeHeight(node);
-    const startY = node.y + 36 + 10;
-    return { x: node.x + NODE_WIDTH, y: startY + portIndex * 20 };
+    const portAreaTop = node.y + 36;
+    const portAreaHeight = h - 48;
+    const spacing = portAreaHeight / (def.maxOutputs + 1);
+    return { x: node.x + NODE_WIDTH, y: portAreaTop + spacing * (portIndex + 1) };
   }
 
   _getInputPort(node, portIndex) {
     const def = NODE_TYPES[node.type];
     if (!def || !def.maxInputs) return null;
     const h = this._getNodeHeight(node);
-    const startY = node.y + 36 + 10;
-    return { x: node.x, y: startY + portIndex * 20 };
+    const portAreaTop = node.y + 36;
+    const portAreaHeight = h - 48;
+    const spacing = portAreaHeight / (def.maxInputs + 1);
+    return { x: node.x, y: portAreaTop + spacing * (portIndex + 1) };
   }
 
   getNodeAtPoint(worldX, worldY) {
@@ -304,18 +335,28 @@ export default class CanvasEngine {
       const def = NODE_TYPES[node.type];
       if (!def) continue;
       const h = this._getNodeHeight(node);
-      const startY = node.y + 36 + 10;
+      const portAreaTop = node.y + 36;
+      const portAreaHeight = h - 48;
 
-      for (let i = 0; i < (def.maxInputs || 0); i++) {
-        const py = startY + i * 20;
-        if (Math.hypot(worldX - node.x, worldY - py) < hitR) {
-          return { node, portIndex: i, type: 'input' };
+      const inC = def.maxInputs || 0;
+      if (inC > 0) {
+        const spacing = portAreaHeight / (inC + 1);
+        for (let i = 0; i < inC; i++) {
+          const py = portAreaTop + spacing * (i + 1);
+          if (Math.hypot(worldX - node.x, worldY - py) < hitR) {
+            return { node, portIndex: i, type: 'input' };
+          }
         }
       }
-      for (let i = 0; i < (def.maxOutputs || 0); i++) {
-        const py = startY + i * 20;
-        if (Math.hypot(worldX - (node.x + NODE_WIDTH), worldY - py) < hitR) {
-          return { node, portIndex: i, type: 'output' };
+
+      const outC = def.maxOutputs || 0;
+      if (outC > 0) {
+        const spacing = portAreaHeight / (outC + 1);
+        for (let i = 0; i < outC; i++) {
+          const py = portAreaTop + spacing * (i + 1);
+          if (Math.hypot(worldX - (node.x + NODE_WIDTH), worldY - py) < hitR) {
+            return { node, portIndex: i, type: 'output' };
+          }
         }
       }
     }

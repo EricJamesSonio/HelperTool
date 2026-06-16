@@ -1,14 +1,14 @@
 const ICONS = {
-  gmail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8l10 6 10-6"/></svg>',
-  plus: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
-  trash: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h14"/><path d="M6 5V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v6"/><path d="M12 9v6"/><path d="M5 5l1 12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-12"/></svg>',
-  refresh: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 10a7 7 0 1 1-2-5"/><path d="M17 3v5h-5"/></svg>',
-  external: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/><path d="M13 3h4v4"/><path d="M11 9l6-6"/></svg>',
-  check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10l4 4 8-8"/></svg>',
-  back: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4l-6 6 6 6"/></svg>',
-  chevronDown: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 8l4 4 4-4"/></svg>',
-  eyeOff: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/><path d="M3 3l14 14"/></svg>',
-  settings: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.93 3.93l1.41 1.41M14.66 14.66l1.41 1.41M3.93 16.07l1.41-1.41M14.66 5.34l1.41-1.41"/></svg>',
+  gmail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8l10 6 10-6"/></svg>',
+  plus: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v14"/><path d="M3 10h14"/></svg>',
+  trash: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h14"/><path d="M6 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v5"/><path d="M12 9v5"/><path d="M5 6l1 10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-10"/></svg>',
+  refresh: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 1 1-1.6-4.5"/><path d="M17 3v5h-5"/></svg>',
+  external: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/><path d="M13 3h4v4"/><path d="M11 9l6-6"/></svg>',
+  check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>',
+  back: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg>',
+  chevronDown: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>',
+  eyeOff: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/><path d="M3 3l14 14"/></svg>',
+  settings: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2"/><path d="M10 17v2"/><path d="M1 10h2"/><path d="M17 10h2"/><path d="M3.93 3.93l1.41 1.41"/><path d="M14.66 14.66l1.41 1.41"/><path d="M3.93 16.07l1.41-1.41"/><path d="M14.66 5.34l1.41-1.41"/></svg>',
 };
 
 function escapeHtml(text) {
@@ -95,7 +95,7 @@ export function renderEmpty() {
     <div class="gm-empty">
       <div class="gm-empty-icon">${ICONS.gmail}</div>
       <div class="gm-empty-title">Gmail Inbox</div>
-      <div class="gm-empty-desc">Add a Gmail account to monitor your inbox</div>
+      <div class="gm-empty-desc">Monitor your inbox from the terminal.</div>
       <button class="gm-add-btn" id="gmAddAccount">${ICONS.plus} Add Gmail Account</button>
     </div>`;
 }
@@ -132,11 +132,11 @@ export function renderAccountList(accounts, results) {
     return `
       <div class="gm-account" data-email="${escapeHtml(acct.email)}">
         <div class="gm-account-header">
+          <div class="gm-account-avatar" style="background: linear-gradient(135deg, #5699ff, #6e44ff)">${escapeHtml(acct.email[0].toUpperCase())}</div>
           <div class="gm-account-info">
-            <div class="gm-account-avatar">${escapeHtml(acct.email[0].toUpperCase())}</div>
             <div class="gm-account-details">
               <div class="gm-account-email">${escapeHtml(acct.email)}</div>
-              ${unread > 0 ? `<div class="gm-account-badge">${unread}</div>` : '<div class="gm-account-badge gm-account-badge--none">0</div>'}
+              ${unread > 0 ? `<div class="gm-account-badge">${unread > 99 ? '99+' : unread}</div>` : '<div class="gm-account-badge gm-account-badge--none">0</div>'}
             </div>
           </div>
           <button class="gm-account-remove" data-email="${escapeHtml(acct.email)}" title="Remove account">${ICONS.trash}</button>
@@ -146,20 +146,57 @@ export function renderAccountList(accounts, results) {
   }).join('');
 }
 
-export function renderInboxView(email, messages, filter, expandedIds, unreadCount, ignoredSenders, senderFilter) {
+export function renderMessageModal(msg, email, accountIndex, body) {
+  if (!msg) return '';
+  const name = extractName(msg.from);
+  const senderEmail = extractEmail(msg.from);
+  const color = getSenderColor(msg.from || name);
+  const gmailUrl = `https://mail.google.com/mail/u/${Math.max(0, accountIndex)}/#inbox/${msg.id}`;
+  const displayBody = body || msg.snippet || '(no content)';
+  const loadingClass = !body && msg.snippet ? ' gm-modal-body--loading' : '';
+
+  return `
+    <div class="gm-modal-overlay" id="gmModalOverlay">
+      <div class="gm-modal">
+        <div class="gm-modal-header" style="border-left: 4px solid ${color}">
+          <div class="gm-modal-from" style="color:${color}">${escapeHtml(name)}</div>
+          <button class="gm-modal-close" id="gmModalClose">&times;</button>
+        </div>
+        <div class="gm-modal-subject">${escapeHtml(msg.subject || '(no subject)')}</div>
+        <div class="gm-modal-date">${formatFullDate(msg.date)}</div>
+        <div class="gm-modal-body${loadingClass}">${escapeHtml(displayBody)}</div>
+        <div class="gm-modal-footer">
+          <button class="gm-modal-btn gm-modal-btn--primary" id="gmModalOpenGmail" data-url="${escapeHtml(gmailUrl)}">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 7l8 5 8-5"/></svg>
+            Open in Gmail
+          </button>
+          <button class="gm-modal-btn" id="gmModalMarkRead" data-email="${escapeHtml(email)}" data-msg-id="${escapeHtml(msg.id)}">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M4 10l4 4 8-8"/></svg>
+            Mark Read
+          </button>
+          <button class="gm-modal-btn" id="gmModalIgnore" data-email="${escapeHtml(email)}" data-sender="${escapeHtml(senderEmail)}">
+            ${ICONS.eyeOff}
+            Ignore Sender
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+export function renderInboxView(email, messages, filter, unreadCount, ignoredSenders, senderFilter) {
   const filtered = filterMessages(messages, filter, ignoredSenders, senderFilter);
   const notIgnored = ignoredSenders?.length ? messages.filter(m => !isIgnored(m.from, ignoredSenders)) : messages;
   return `
     <div class="gm-inbox-header">
-      <button class="gm-inbox-back" id="gmInboxBack">${ICONS.back} Back</button>
+      <button class="gm-inbox-back" id="gmInboxBack">${ICONS.back}</button>
       <div class="gm-inbox-account">
-        <div class="gm-inbox-avatar">${escapeHtml(email[0].toUpperCase())}</div>
+        <div class="gm-inbox-avatar" style="background: linear-gradient(135deg, #5699ff, #6e44ff)">${escapeHtml(email[0].toUpperCase())}</div>
         <div>
           <div class="gm-inbox-email">${escapeHtml(email)}</div>
-          <div class="gm-inbox-subtitle">${unreadCount} unread · ${messages.length} total</div>
+          <div class="gm-inbox-subtitle"><span class="gm-inbox-count">${unreadCount} unread</span> · ${messages.length} total</div>
         </div>
       </div>
-      <button class="gm-tb-btn gm-inbox-ignored-btn" id="gmIgnoredBtnInbox" data-email="${escapeHtml(email)}" title="Manage ignored senders for this account">${ICONS.eyeOff}</button>
+      <button class="gm-tb-btn gm-inbox-ignored-btn" id="gmIgnoredBtnInbox" data-email="${escapeHtml(email)}" title="Manage ignored senders">${ICONS.eyeOff}</button>
     </div>
     <div class="gm-filter-bar">
       <button class="gm-filter-btn ${filter === 'all' ? 'gm-filter-btn--active' : ''}" data-filter="all">All</button>
@@ -171,7 +208,7 @@ export function renderInboxView(email, messages, filter, expandedIds, unreadCoun
     ${renderSenderChips(notIgnored, senderFilter)}
     <div class="gm-inbox-list">
       ${filtered.length === 0 ? '<div class="gm-no-msgs">No messages match this filter</div>' : ''}
-      ${filtered.map(msg => renderMessage(msg, email, expandedIds.has(msg.id), ignoredSenders)).join('')}
+      ${filtered.map(msg => renderMessage(msg, email, ignoredSenders)).join('')}
     </div>`;
 }
 
@@ -227,24 +264,21 @@ function isIgnored(fromStr, ignoredSenders) {
   });
 }
 
-function renderMessage(msg, accountEmail, expanded, ignoredSenders) {
+function renderMessage(msg, accountEmail, ignoredSenders) {
   const name = extractName(msg.from);
   const senderEmail = extractEmail(msg.from);
   const ignored = isIgnored(msg.from, ignoredSenders);
   const color = getSenderColor(msg.from || name);
-  const bgTint = hexToRgba(color, 0.06);
   return `
-    <div class="gm-message ${expanded ? 'gm-message--expanded' : ''} ${ignored ? 'gm-message--ignored' : ''}" data-msg-id="${escapeHtml(msg.id)}" style="border-left: 4px solid ${color}; background: ${bgTint};${expanded ? ` box-shadow: 0 0 0 1px ${color};` : ''}">
+    <div class="gm-message ${ignored ? 'gm-message--ignored' : ''}" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" style="border-left: 4px solid ${color}">
       <div class="gm-msg-header">
         <div class="gm-msg-from" style="color:${color}">${escapeHtml(name)}</div>
         <div class="gm-msg-header-right">
           <span class="gm-msg-time">${formatTime(msg.date)}</span>
-          <span class="gm-msg-chevron">${ICONS.chevronDown}</span>
         </div>
       </div>
       <div class="gm-msg-subject">${escapeHtml(msg.subject || '(no subject)')}</div>
-      <div class="gm-msg-snippet">${expanded ? escapeHtml(msg.snippet || '') : truncate(escapeHtml(msg.snippet || ''), 120)}</div>
-      ${expanded ? `<div class="gm-msg-full-date">${formatFullDate(msg.date)}</div>` : ''}
+      <div class="gm-msg-snippet gm-msg-snippet--clamp">${escapeHtml(msg.snippet || '')}</div>
       <div class="gm-msg-meta">
         <div class="gm-msg-actions">
           <button class="gm-msg-ignore" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" data-sender="${escapeHtml(senderEmail)}" title="Ignore this sender">${ICONS.eyeOff}</button>
@@ -260,8 +294,11 @@ function truncate(str, max) {
   return str.slice(0, max) + '...';
 }
 
-export function renderLoading() {
-  return '<div class="gm-loading">Loading...</div>';
+export function renderLoading(msg) {
+  return `<div class="gm-loading">
+    <div class="gm-loading-spinner"></div>
+    <div class="gm-loading-text">${escapeHtml(msg || 'Loading your inbox...')}</div>
+  </div>`;
 }
 
 export function renderError(msg) {

@@ -43,6 +43,8 @@ const ICONS = {
    docker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></svg>',
    env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><circle cx="10" cy="12" r="1"/><path d="M10 13v2"/></svg>',
    codebbaseChat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="10" cy="9" r="1.5"/><circle cx="6" cy="9" r="1.5"/><circle cx="14" cy="9" r="1.5"/></svg>',
+   flow: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',
+   github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>',
 };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -52,7 +54,9 @@ import {
   createLocPanel,
   createVideoPanel,
   createGmailPanel,
+  createAutomationPanel,
   createCodebaseChatPanel,
+  createGithubExplorerPanel,
 } from './panels/panelFactory.js';
 
 // ---- Tool handles ----------------------------------------------------------
@@ -91,6 +95,14 @@ let _videoContainer = null;
 let _gmailTool    = null;
 let _gmailPanel   = null;
 let _gmailContainer = null;
+
+let _automationTool    = null;
+let _automationPanel   = null;
+let _automationContainer = null;
+
+let _githubTool    = null;
+let _githubPanel   = null;
+let _githubContainer = null;
 
 let _terminalUI   = null;
 let _dockerTool  = null;
@@ -153,6 +165,22 @@ function populateSidebar() {
     _gmailPanel.classList.add('open');
     if (!_gmailTool) _initializeGmailTool();
   }, 'gmail'));
+
+  body.appendChild(createSidebarItem(ICONS.flow, 'Automation Sketch', 'Visual flow builder', () => {
+    if (_automationPanel?.classList.contains('open')) { _automationPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_automationPanel) _initAutomationPanel();
+    _automationPanel.classList.add('open');
+    if (!_automationTool) _initializeAutomationTool();
+  }, 'automation'));
+
+  body.appendChild(createSidebarItem(ICONS.github, 'GitHub Explorer', 'Browse any public repo file tree', () => {
+    if (_githubPanel?.classList.contains('open')) { _githubPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_githubPanel) _initGithubPanel();
+    _githubPanel.classList.add('open');
+    if (!_githubTool) _initializeGithubTool();
+  }, 'github'));
 
   body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
   if (locDetector.isOpen()) { locDetector.close(); return; }
@@ -304,6 +332,20 @@ function _initGmailPanel() {
   _registry.register('gmail', _gmailPanel);
 }
 
+function _initAutomationPanel() {
+  const { panel, container } = createAutomationPanel();
+  _automationPanel = panel;
+  _automationContainer = container;
+  _registry.register('automation', _automationPanel);
+}
+
+function _initGithubPanel() {
+  const { panel, container } = createGithubExplorerPanel();
+  _githubPanel = panel;
+  _githubContainer = container;
+  _registry.register('github', _githubPanel);
+}
+
 function _initGitPanel() {
   const { panel, container } = createGitPanel();
   _gitPanel = panel;
@@ -420,8 +462,8 @@ function _initializeGmailTool() {
   import('../gmailTool/gmailTool.js').then(async (mod) => {
     const GmailTool = mod.default;
     _gmailTool = new GmailTool();
-    await _gmailTool.init();
     if (_gmailContainer) _gmailTool.render(_gmailContainer);
+    await _gmailTool.init();
   }).catch(err => console.error('[Tools] Gmail Tool:', err));
 }
 
@@ -430,6 +472,42 @@ function _destroyGmailTool() {
   _gmailTool = null;
   if (_gmailContainer) _gmailContainer.innerHTML = '';
   _gmailPanel?.classList.remove('open');
+}
+
+function _initializeAutomationTool() {
+  if (_automationTool) return;
+  import('../automationSketch/automationSketch.js').then(async (mod) => {
+    const AutomationSketch = mod.default;
+    _automationTool = new AutomationSketch();
+    await _automationTool.init();
+    if (_automationContainer) _automationTool.render(_automationContainer);
+  }).catch(err => console.error('[Tools] Automation Sketch:', err));
+}
+
+function _destroyAutomationTool() {
+  if (_automationTool) {
+    const p = _automationTool.destroy();
+    if (p && p.then) p.catch(() => {});
+  }
+  _automationTool = null;
+  if (_automationContainer) _automationContainer.innerHTML = '';
+  _automationPanel?.classList.remove('open');
+}
+
+function _initializeGithubTool() {
+  if (_githubTool) return;
+  import('../githubExplorer/githubExplorer.js').then((mod) => {
+    const GithubExplorer = mod.default;
+    _githubTool = new GithubExplorer();
+    if (_githubContainer) _githubTool.init(_githubContainer);
+  }).catch(err => console.error('[Tools] GitHub Explorer:', err));
+}
+
+function _destroyGithubTool() {
+  _githubTool?.destroy();
+  _githubTool = null;
+  if (_githubContainer) _githubContainer.innerHTML = '';
+  _githubPanel?.classList.remove('open');
 }
 
 // ---- Shortcut actions ------------------------------------------------------
@@ -606,6 +684,22 @@ function _buildShortcutActions() {
     if (!_gmailTool) _initializeGmailTool();
   };
 
+  actions.automationSketch = () => {
+    if (_automationPanel?.classList.contains('open')) { _automationPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_automationPanel) _initAutomationPanel();
+    _automationPanel.classList.add('open');
+    if (!_automationTool) _initializeAutomationTool();
+  };
+
+  actions.githubExplorer = () => {
+    if (_githubPanel?.classList.contains('open')) { _githubPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_githubPanel) _initGithubPanel();
+    _githubPanel.classList.add('open');
+    if (!_githubTool) _initializeGithubTool();
+  };
+
   return actions;
 }
 
@@ -620,6 +714,8 @@ export function closeAllPanels() {
   if (profileTool.isOpen()) profileTool.close();
   if (_dockerTool?.isOpen?.()) _dockerTool.close();
   _destroyGmailTool();
+  _destroyAutomationTool();
+  _destroyGithubTool();
 }
 
 export function handleRepoChange(newRepoPath) {
@@ -639,6 +735,8 @@ window.addEventListener('beforeunload', () => {
   _ccTool?.destroy();
   _destroyVideoTool();
   _destroyGmailTool();
+  _destroyAutomationTool();
+  _destroyGithubTool();
 });
 
 export async function initTools(feats, settingsManager) {

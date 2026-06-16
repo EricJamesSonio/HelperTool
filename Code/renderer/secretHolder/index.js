@@ -33,8 +33,10 @@ function injectHTML() {
 function wireEvents() {
     togglePwBtn.addEventListener('click', () => {
         const show = pwInput.type === 'password';
-        pwInput.type        = show ? 'text' : 'password';
-        togglePwBtn.textContent = show ? '🙈' : '👁';
+        pwInput.type = show ? 'text' : 'password';
+        togglePwBtn.innerHTML = show
+            ? '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" width="18" height="18"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>'
+            : '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" width="18" height="18"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/><path d="M3 3l14 14"/></svg>';
     });
     pwSubmitBtn.addEventListener('click', handlePwSubmit);
     pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') handlePwSubmit(); });

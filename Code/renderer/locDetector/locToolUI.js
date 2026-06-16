@@ -62,6 +62,8 @@ export default class LocToolUI {
         </div>
 
         <div class="loc-filter-row">
+          <span class="loc-label">Search:</span>
+          <input id="locSearch" class="loc-search-input" type="text" placeholder="Filter by name or path…" autocomplete="off" />
           <span class="loc-label">Sort:</span>
           <select id="locSort" class="loc-sort-select">
             <option value="lines-desc">Most lines first</option>
@@ -89,12 +91,17 @@ export default class LocToolUI {
 
     this._el('locMode').addEventListener('change', () => this._updateModeLabel());
 
-    this._el('locSort').addEventListener('change', () =>
-      this.renderer.renderResults(this.results, this._el('locSort').value, this._el('locExtFilter').value)
-    );
+    this._el('locSearch').addEventListener('input', () => this._rerender());
+    this._el('locSort').addEventListener('change', () => this._rerender());
+    this._el('locExtFilter').addEventListener('change', () => this._rerender());
+  }
 
-    this._el('locExtFilter').addEventListener('change', () =>
-      this.renderer.renderResults(this.results, this._el('locSort').value, this._el('locExtFilter').value)
+  _rerender() {
+    this.renderer.renderResults(
+      this.results,
+      this._el('locSort').value,
+      this._el('locExtFilter').value,
+      this._el('locSearch').value
     );
   }
 
@@ -139,7 +146,7 @@ export default class LocToolUI {
       this.results = response.files;
       this.renderer.renderStats(response);
       this.renderer.populateExtFilter(response.files, this._el('locExtFilter'));
-      this.renderer.renderResults(response.files, this._el('locSort').value, this._el('locExtFilter').value);
+      this.renderer.renderResults(response.files, this._el('locSort').value, this._el('locExtFilter').value, this._el('locSearch').value);
     } catch (err) {
       this._showError(err.message);
     } finally {

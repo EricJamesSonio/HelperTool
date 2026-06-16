@@ -172,7 +172,8 @@
 
 .loc-mode-select,
 .loc-sort-select,
-.loc-ext-select {
+.loc-ext-select,
+.loc-search-input {
   padding: 6px 10px;
   border: 1px solid var(--border-default);
   border-radius: 6px;
@@ -184,9 +185,19 @@
   transition: border-color 0.15s;
 }
 
+.loc-search-input {
+  cursor: text;
+  min-width: 160px;
+  width: 200px;
+}
+.loc-search-input::placeholder {
+  color: var(--text-faint);
+}
+
 .loc-mode-select:focus,
 .loc-sort-select:focus,
-.loc-ext-select:focus {
+.loc-ext-select:focus,
+.loc-search-input:focus {
   border-color: var(--accent);
 }
 

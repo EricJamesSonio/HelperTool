@@ -120,12 +120,12 @@ export function handleNoteSave() {
     saveNotesToStorage();
     renderSidebar();
     highlightSidebarItem(S.editingNoteId);
-    noteSaveBtn.textContent          = '✓ Saved';
+    noteSaveBtn.textContent          = 'Saved';
     noteSaveBtn.style.background     = 'var(--green-dim)';
     noteSaveBtn.style.borderColor    = 'var(--green)';
     noteSaveBtn.style.color          = 'var(--green)';
     setTimeout(() => {
-        noteSaveBtn.textContent       = '💾 Save';
+        noteSaveBtn.innerHTML          = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M6 10h8"/><path d="M6 14h8"/><path d="M6 6h2"/></svg> Save';
         noteSaveBtn.style.background  = '';
         noteSaveBtn.style.borderColor = '';
         noteSaveBtn.style.color       = '';

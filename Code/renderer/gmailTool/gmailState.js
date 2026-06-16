@@ -18,6 +18,12 @@ export default class GmailState {
     this.ignoredManagerEmail = null;
     this.senderFilter = null;
     this.inboxCache = {};
+    this.loadingMessage = '';
+
+    this.showModal = false;
+    this.modalMessage = null;
+    this.modalEmail = null;
+    this.modalBody = '';
   }
 
   reset() {
@@ -37,6 +43,12 @@ export default class GmailState {
     this.ignoredManagerEmail = null;
     this.senderFilter = null;
     this.inboxCache = {};
+    this.loadingMessage = '';
+
+    this.showModal = false;
+    this.modalMessage = null;
+    this.modalEmail = null;
+    this.modalBody = '';
   }
 
   getAccount(email) {

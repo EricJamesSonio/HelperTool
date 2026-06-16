@@ -921,3 +921,94 @@
 .cc-messages::-webkit-scrollbar-thumb:hover {
   background: var(--text-faint);
 }
+
+/* ── Slash autocomplete dropdown (Gmail email queries) ──────── */
+
+.chat-slash-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.3);
+  z-index: 100;
+}
+
+.chat-slash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.chat-slash-item:last-child {
+  border-bottom: none;
+}
+
+.chat-slash-item:hover {
+  background: var(--bg-hover);
+}
+
+.chat-slash-icon {
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.chat-slash-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chat-slash-email {
+  flex: 1;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-slash-empty {
+  padding: 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── Predefined question chips (Gmail) ──────────────────────── */
+
+.chat-quick-questions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 0 2px;
+}
+
+.chat-quick-chip {
+  padding: 6px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.chat-quick-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}

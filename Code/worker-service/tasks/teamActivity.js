@@ -74,15 +74,12 @@ function parseNumstat(stdout, commits, contributors) {
     if (parts.length < 3) continue;
     const added = parseInt(parts[0], 10);
     const removed = parseInt(parts[1], 10);
-    const filePath = parts[2];
     if (isNaN(added) || isNaN(removed)) continue;
     const commit = currentHash ? commitMap[currentHash] : null;
     if (!commit) continue;
-    const status = added > 0 && removed === 0 ? 'added' : added === 0 && removed > 0 ? 'deleted' : 'modified';
-    commit.files.push({ path: filePath, added, removed, status });
     commit.linesAdded += added;
     commit.linesRemoved += removed;
-    commit.filesChanged = commit.files.length;
+    commit.filesChanged++;
     if (contributors[commit.author]) {
       contributors[commit.author].linesAdded += added;
       contributors[commit.author].linesRemoved += removed;
@@ -90,19 +87,10 @@ function parseNumstat(stdout, commits, contributors) {
   }
 }
 
-async function getTeamActivity(repoPath, opts = {}) {
-  const limit = opts.limit || 200;
-  const since = opts.since || (() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return d.toISOString().slice(0, 10);
-  })();
-
+async function getTeamActivity(repoPath) {
   const metaStdout = await execGit(repoPath, [
     'log', '--format=%H|%an|%ae|%aI|%s',
     '--all',
-    '--after=' + since,
-    '-n', String(limit),
   ]);
 
   if (!metaStdout.trim()) return { commits: [], contributors: {} };
@@ -113,8 +101,6 @@ async function getTeamActivity(repoPath, opts = {}) {
   const numstatStdout = await execGit(repoPath, [
     'log', '--numstat', '--format=%H',
     '--all',
-    '--after=' + since,
-    '-n', String(limit),
   ]);
 
   parseNumstat(numstatStdout, commits, contributors);
@@ -122,7 +108,7 @@ async function getTeamActivity(repoPath, opts = {}) {
 }
 
 module.exports = async function handle(payload) {
-  const { repoPath, limit, since } = payload || {};
+  const { repoPath } = payload || {};
   if (!repoPath) throw new Error('repoPath is required for teamActivity task');
-  return getTeamActivity(repoPath, { limit, since });
+  return getTeamActivity(repoPath);
 };

@@ -344,6 +344,8 @@ function _renderProfileCard() {
         linkedin: section.querySelector('#pfEditLi').value,
         wakatime: section.querySelector('#pfEditWk').value,
       });
+      const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+      getPrefetchCache().invalidate('profile');
       const p = await window.electronAPI.profile.get();
       if (p) _profile = p;
       _editingProfile = false;
@@ -366,8 +368,8 @@ function _renderProfileCard() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </div>
       </div>
-      <div class="pf-card-name">${_esc(_profile.name || 'Unnamed')}</div>
-      <div class="pf-card-email">${_esc(_profile.email || '')}</div>
+      <div class="pf-card-name">${_esc(_profile.name || _profile.email || 'Unnamed')}</div>
+      <div class="pf-card-email">${_profile.name ? _esc(_profile.email || '') : ''}</div>
       ${_profile.bio ? `<div class="pf-card-bio">${_esc(_profile.bio)}</div>` : ''}
       ${_profile.website ? `<a class="pf-card-website" href="${_esc(_profile.website)}" target="_blank" rel="noopener"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M10 6v8M6 10h8"/></svg>${_esc(_profile.website)}</a>` : ''}
       ${hasSocial ? `<div class="pf-socials">${_socialLink('facebook', _profile.facebook)}${_socialLink('tiktok', _profile.tiktok)}${_socialLink('linkedin', _profile.linkedin)}${_socialLink('wakatime', _profile.wakatime)}</div>` : ''}

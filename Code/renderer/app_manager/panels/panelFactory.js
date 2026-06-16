@@ -99,6 +99,16 @@ export function createGmailPanel() {
   });
 }
 
+export function createAutomationPanel() {
+  return createPanel({
+    id:          'automationSketchPanel',
+    className:   'as-panel',
+    title:       'Automation Sketch',
+    containerId: 'automationSketchContainer',
+    closeBtnId:  'closeAutomationSketchBtn',
+  });
+}
+
 export function createCodebaseChatPanel() {
   return createPanel({
     id:          'codebaseChatPanel',
@@ -106,5 +116,15 @@ export function createCodebaseChatPanel() {
     title:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="10" cy="9" r="1.5"/><circle cx="6" cy="9" r="1.5"/><circle cx="14" cy="9" r="1.5"/></svg> HelperChat',
     containerId: 'codebaseChatContainer',
     closeBtnId:  'closeCodebaseChatBtn',
+  });
+}
+
+export function createGithubExplorerPanel() {
+  return createPanel({
+    id:          'githubExplorerPanel',
+    className:   'ge-panel',
+    title:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg> GitHub Explorer',
+    containerId: 'githubExplorerContainer',
+    closeBtnId:  'closeGithubExplorerBtn',
   });
 }

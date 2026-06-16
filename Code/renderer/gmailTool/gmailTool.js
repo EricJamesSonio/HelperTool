@@ -32,12 +32,17 @@ export default class GmailTool {
         this.state.inboxMessages = this.state.inboxCache[this.state.viewEmail];
       }
       this._updateBadge();
-      if (this.ui) this.ui.update();
+      // Don't re-render while modal is open — avoids scroll jump and modal flicker
+      if (!this.state.showModal) {
+        if (this.ui) this.ui.update();
+      }
     });
 
     window.electronAPI.gmail.onAccountsChanged((accounts) => {
       this.state.accounts = accounts;
-      if (this.ui) this.ui.update();
+      if (!this.state.showModal) {
+        if (this.ui) this.ui.update();
+      }
     });
   }
 
@@ -59,6 +64,8 @@ export default class GmailTool {
       onCloseIgnoredManager: () => this._handleCloseIgnoredManager(),
       onUnignoreSender:    (email, sender) => this._handleUnignoreSender(email, sender),
       onSenderFilter:      (sender) => this._handleSenderFilter(sender),
+      onOpenModal:         (email, msgId) => this._handleOpenModal(email, msgId),
+      onCloseModal:        () => this._handleCloseModal(),
     });
     this.ui.render(container);
   }
@@ -84,12 +91,15 @@ export default class GmailTool {
 
   async _loadAccounts() {
     this.state.status = 'loading';
+    this.state.loadingMessage = 'Connecting to Gmail...';
     if (this.ui) this.ui.update();
     const res = await window.electronAPI.gmail.listAccounts();
     if (res.success) {
       this.state.accounts = res.accounts;
       console.log('[GmailTool] Loaded accounts:', this.state.accounts.map(a => a.email));
       if (this.state.accounts.length > 0) {
+        this.state.loadingMessage = 'Fetching latest messages...';
+        if (this.ui) this.ui.update();
         console.log('[GmailTool] Accounts found, calling checkNow then startPolling');
         await window.electronAPI.gmail.checkNow();
         await window.electronAPI.gmail.startPolling();
@@ -102,6 +112,7 @@ export default class GmailTool {
       console.log('[GmailTool] Failed to load accounts:', res.error);
     }
     this.state.status = 'idle';
+    this.state.loadingMessage = '';
     if (this.ui) this.ui.update();
   }
 
@@ -142,6 +153,7 @@ export default class GmailTool {
 
   async _handleRefresh() {
     this.state.status = 'loading';
+    this.state.loadingMessage = 'Refreshing messages...';
     if (this.ui) this.ui.update();
     const res = await window.electronAPI.gmail.fetchAll();
     if (res.success) {
@@ -160,6 +172,7 @@ export default class GmailTool {
       this.state.error = res.error;
     }
     this.state.status = 'idle';
+    this.state.loadingMessage = '';
     if (this.ui) this.ui.update();
   }
 
@@ -176,6 +189,7 @@ export default class GmailTool {
     }
 
     this.state.status = 'loading';
+    this.state.loadingMessage = 'Opening inbox...';
     if (this.ui) this.ui.update();
 
     const res = await window.electronAPI.gmail.fetchInbox({ email, maxResults: 50 });
@@ -186,6 +200,7 @@ export default class GmailTool {
       this.state.inboxMessages = [];
     }
     this.state.status = 'idle';
+    this.state.loadingMessage = '';
     if (this.ui) this.ui.update();
   }
 
@@ -209,9 +224,6 @@ export default class GmailTool {
       this.state.expandedMsgIds.add(msgId);
     }
     if (this.ui) this.ui.update();
-    // Scroll the expanded message into view so user doesn't lose position
-    const expandedEl = this.ui?._container?.querySelector('.gm-message--expanded');
-    if (expandedEl) expandedEl.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }
 
   async _handleIgnoreSender(email, sender) {
@@ -250,8 +262,34 @@ export default class GmailTool {
   }
 
   _handleOpenMessage(email, msgId) {
-    const url = 'https://mail.google.com/mail/u/0/#inbox/' + msgId;
+    const idx = this.state.accounts.findIndex(a => a.email === email);
+    const url = 'https://mail.google.com/mail/u/' + Math.max(0, idx) + '/#inbox/' + msgId;
     window.open(url, '_blank');
+  }
+
+  _handleOpenModal(email, msgId) {
+    const msg = this.state.inboxMessages.find(m => m.id === msgId);
+    if (!msg) return;
+    this.state.showModal = true;
+    this.state.modalMessage = msg;
+    this.state.modalEmail = email;
+    this.state.modalBody = '';
+    if (this.ui) this.ui.update();
+    window.electronAPI.gmail.fetchMessageBody({ email, messageId: msgId }).then(res => {
+      if (res.success && res.body) {
+        this.state.modalBody = res.body.body || '';
+        if (this.state.showModal && this.state.modalMessage?.id === msgId) {
+          if (this.ui) this.ui.update();
+        }
+      }
+    }).catch(() => {});
+  }
+
+  _handleCloseModal() {
+    this.state.showModal = false;
+    this.state.modalMessage = null;
+    this.state.modalEmail = null;
+    if (this.ui) this.ui.update();
   }
 
   async _handleMarkRead(email, msgId) {

@@ -255,6 +255,7 @@ ipcMain.handle('profile:get', async () => {
        data.tiktok || '', data.linkedin || '', data.wakatime || '',
        data.bio || '', data.website || '']);
     save();
+    prefetchService.invalidate('profile');
     return { success: true };
   });
 
@@ -389,16 +390,24 @@ f = typeRow[2] || 0;
     return { repos, files };
   });
 
+  let _dayCommitCache = {};
+  const DAY_COMMIT_CACHE_TTL = 300000; // 5 min
+
   ipcMain.handle('profile:getDayCommits', async (event, { date }) => {
     try {
       const repo = _getActiveRepo(config);
       if (!repo) return [];
       const rp = repo.repoPath;
+      const cacheKey = rp + '|' + date;
+      const cached = _dayCommitCache[cacheKey];
+      if (cached && Date.now() - cached.ts < DAY_COMMIT_CACHE_TTL) {
+        return cached.data;
+      }
       const log = await gitService.getCommits(rp, {
         format: '%H|%at|%s', since: date + 'T00:00:00', until: date + 'T23:59:59',
         noMerges: false, ttl: 30000,
       });
-      if (!log.trim()) return [];
+      if (!log.trim()) { _dayCommitCache[cacheKey] = { data: [], ts: Date.now() }; return []; }
       const commits = log.trim().split('\n').map(line => {
         const [hash, at, ...msgParts] = line.split('|');
         const time = new Date(parseInt(at) * 1000);
@@ -414,6 +423,7 @@ f = typeRow[2] || 0;
           .catch(() => [])
       ));
       for (let i = 0; i < commits.length; i++) commits[i].files = fileResults[i];
+      _dayCommitCache[cacheKey] = { data: commits, ts: Date.now() };
       return commits;
     } catch (err) {
       return [];
@@ -480,7 +490,9 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:getAll', async (event, { statsRange, heatmapYear, donutRange, historyPage, historyRepo }) => {
     const cached = prefetchService.get('profile');
     if (cached) {
+      cached._cachedAt = cached._cachedAt || Date.now();
       const defaultYear = new Date().getFullYear();
+      // Return cached immediately for default params (prefetch scenario); filter-change calls bypass cache
       if (
         (!statsRange || statsRange === 'all') &&
         (!heatmapYear || heatmapYear === defaultYear) &&
@@ -488,7 +500,9 @@ f = typeRow[2] || 0;
         (!historyPage || historyPage === 1) &&
         !historyRepo
       ) {
-        return cached;
+        if (Date.now() - (cached._cachedAt || 0) < 120000) {
+          return cached;
+        }
       }
     }
     const y = heatmapYear || new Date().getFullYear();
@@ -497,7 +511,7 @@ f = typeRow[2] || 0;
     const heatmapStart = y + '-01-01';
     const heatmapEnd = y + '-12-31';
 
-    // profile — backfill name/email from git global config if missing
+    // profile — backfill name/email from git global config if missing (must run first)
     let pRows = db().exec('SELECT * FROM profile WHERE id=1');
     let stored = pRows.length && pRows[0].values.length ? pRows[0].values[0] : null;
 
@@ -521,58 +535,71 @@ f = typeRow[2] || 0;
       stored = refreshed.length && refreshed[0].values.length ? refreshed[0].values[0] : stored;
     }
 
-    // stats
+    // Build filter clauses
     let sFilter = '';
     if (statsRange === 'week') sFilter = "WHERE date >= datetime('now', '-7 days')";
     else if (statsRange === 'month') sFilter = "WHERE date >= datetime('now', '-30 days')";
     else if (statsRange === 'year') sFilter = "WHERE date >= datetime('now', '-365 days')";
-    const sRows = db().exec(`SELECT COALESCE(SUM(commits),0), COALESCE(SUM(files_touched),0), COALESCE(SUM(file_saves),0),
-                             COUNT(DISTINCT repo_path) FROM activity_days ${sFilter}`);
 
-    // heatmap
-    const hRows = _query(`SELECT date, SUM(commits + file_saves + files_touched) AS total,
-                          SUM(commits) AS commits, SUM(file_saves) AS saves, SUM(files_touched) AS files
-                          FROM activity_days WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date`,
-      [heatmapStart, heatmapEnd]);
-    const heatmap = {};
-    if (hRows.length) for (const r of hRows[0].values) heatmap[r[0]] = { total: r[1] || 0, commits: r[2] || 0, saves: r[3] || 0, files: r[4] || 0 };
-
-    // donuts
     let dFilter = '';
     if (donutRange === 'week') dFilter = "WHERE date >= datetime('now', '-7 days')";
     else if (donutRange === 'month') dFilter = "WHERE date >= datetime('now', '-30 days')";
     else if (donutRange === 'year') dFilter = "WHERE date >= datetime('now', '-365 days')";
-    const repoRows = db().exec(`SELECT repo_name, SUM(commits+file_saves+files_touched) AS total FROM activity_days ${dFilter} GROUP BY repo_path ORDER BY total DESC`);
-    const extRows = db().exec(`SELECT file_ext, COUNT(*) AS cnt FROM file_save_events GROUP BY file_ext ORDER BY cnt DESC LIMIT 10`);
-    const typeRows = db().exec(`SELECT COALESCE(SUM(commits),0) AS c, COALESCE(SUM(file_saves),0) AS s, COALESCE(SUM(files_touched),0) AS f FROM activity_days ${dFilter}`);
 
-    // history
-    const pageSize = 20;
-    const offset = ((historyPage || 1) - 1) * pageSize;
-    let hWhere = '';
-    const hParams = [];
-    if (historyRepo) { hWhere = 'WHERE repo_path=?'; hParams.push(historyRepo); }
-    const hFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
-    const histRows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter} ORDER BY date DESC LIMIT ? OFFSET ?`, [...hParams, pageSize, offset]);
-    const countRows = _query(`SELECT COUNT(*) FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter}`, hParams);
+    // Run all data queries in parallel
+    const [sRes, hRes, repoRes, extRes, typeRes, histRes, countRes] = await Promise.all([
+      new Promise(r => r(db().exec(`SELECT COALESCE(SUM(commits),0), COALESCE(SUM(files_touched),0), COALESCE(SUM(file_saves),0), COUNT(DISTINCT repo_path) FROM activity_days ${sFilter}`))),
+      new Promise(r => r(_query(`SELECT date, SUM(commits + file_saves + files_touched) AS total, SUM(commits) AS commits, SUM(file_saves) AS saves, SUM(files_touched) AS files FROM activity_days WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date`, [heatmapStart, heatmapEnd]))),
+      new Promise(r => r(db().exec(`SELECT repo_name, SUM(commits+file_saves+files_touched) AS total FROM activity_days ${dFilter} GROUP BY repo_path ORDER BY total DESC`))),
+      new Promise(r => r(db().exec(`SELECT file_ext, COUNT(*) AS cnt FROM file_save_events GROUP BY file_ext ORDER BY cnt DESC LIMIT 10`))),
+      new Promise(r => r(db().exec(`SELECT COALESCE(SUM(commits),0) AS c, COALESCE(SUM(file_saves),0) AS s, COALESCE(SUM(files_touched),0) AS f FROM activity_days ${dFilter}`))),
+      (() => {
+        const pageSize = 20;
+        const offset = ((historyPage || 1) - 1) * pageSize;
+        let hWhere = '';
+        const hParams = [];
+        if (historyRepo) { hWhere = 'WHERE repo_path=?'; hParams.push(historyRepo); }
+        const hFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
+        return _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter} ORDER BY date DESC LIMIT ? OFFSET ?`, [...hParams, pageSize, offset]);
+      })(),
+      (() => {
+        let hWhere = '';
+        const hParams = [];
+        if (historyRepo) { hWhere = 'WHERE repo_path=?'; hParams.push(historyRepo); }
+        const hFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
+        return _query(`SELECT COUNT(*) FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter}`, hParams);
+      })(),
+    ]);
 
-    const stats = (sRows.length && sRows[0].values.length) ? { commits: sRows[0].values[0][0], files: sRows[0].values[0][1], saves: sRows[0].values[0][2], repos: sRows[0].values[0][3] } : { commits: 0, files: 0, saves: 0, repos: 0 };
+    // Process stats
+    const statsRows = sRes.length && sRes[0].values.length ? sRes[0].values : null;
+    const stats = statsRows ? { commits: statsRows[0][0], files: statsRows[0][1], saves: statsRows[0][2], repos: statsRows[0][3] } : { commits: 0, files: 0, saves: 0, repos: 0 };
+
+    // Process heatmap
+    const heatmap = {};
+    if (hRes.length && hRes[0].values) {
+      for (const r of hRes[0].values) heatmap[r[0]] = { total: r[1] || 0, commits: r[2] || 0, saves: r[3] || 0, files: r[4] || 0 };
+    }
+
+    // Process donuts
     const donuts = {
-      repo: repoRows.length ? repoRows[0].values.map(r => ({ label: r[0], value: r[1] || 0 })) : [],
-      ext: extRows.length ? extRows[0].values.map(r => ({ label: r[0] || '(none)', value: r[1] || 0 })) : [],
-      type: (typeRows.length && typeRows[0].values.length) ? [
-        { label: 'File Saves', value: typeRows[0].values[0][1] || 0 },
-        { label: 'Commits', value: typeRows[0].values[0][0] || 0 },
-        { label: 'Files Touched', value: typeRows[0].values[0][2] || 0 },
+      repo: repoRes.length && repoRes[0].values ? repoRes[0].values.map(r => ({ label: r[0], value: r[1] || 0 })) : [],
+      ext: extRes.length && extRes[0].values ? extRes[0].values.map(r => ({ label: r[0] || '(none)', value: r[1] || 0 })) : [],
+      type: (typeRes.length && typeRes[0].values.length) ? [
+        { label: 'File Saves', value: typeRes[0].values[0][1] || 0 },
+        { label: 'Commits', value: typeRes[0].values[0][0] || 0 },
+        { label: 'Files Touched', value: typeRes[0].values[0][2] || 0 },
       ] : [],
     };
+
+    // Process history
     const history = {
-      items: histRows.length ? histRows[0].values.map(r => ({ date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0 })) : [],
-      total: (countRows.length && countRows[0].values.length) ? countRows[0].values[0][0] : 0,
-      page: historyPage || 1, pageSize,
+      items: histRes.length && histRes[0].values ? histRes[0].values.map(r => ({ date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0 })) : [],
+      total: (countRes.length && countRes[0].values.length) ? countRes[0].values[0][0] : 0,
+      page: historyPage || 1, pageSize: 20,
     };
 
-    return { profile: stored ? { id: stored[0], name: stored[1], email: stored[2], avatarColor: stored[3], facebook: stored[4], tiktok: stored[5], linkedin: stored[6], wakatime: stored[7], bio: stored[10] || '', website: stored[11] || '' } : null, avatar: null, stats, heatmap, donuts, history };
+    return { profile: stored ? { id: stored[0], name: stored[1], email: stored[2], avatarColor: stored[3], facebook: stored[4], tiktok: stored[5], linkedin: stored[6], wakatime: stored[7], bio: stored[10] || '', website: stored[11] || '' } : null, avatar: null, stats, heatmap, donuts, history, _cachedAt: Date.now() };
   });
 
   ipcMain.handle('profile:initWatcher', () => {

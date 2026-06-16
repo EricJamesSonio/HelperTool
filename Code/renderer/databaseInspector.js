@@ -31,8 +31,17 @@ export async function openDbInspectorPanel() {
 
 export function closeDbInspectorPanel() {
   if (!_panelOpen) return;
-  if (_panelWrapper) _panelWrapper.style.display = 'none';
+  destroyPanel();
+  _panelWrapper = null;
   _panelOpen = false;
+  setState({
+    snapshots: [],
+    currentSnapshotId: null,
+    graphData: null,
+    selectedTable: null,
+    selectedTableDetails: null,
+    diffData: null,
+  });
 }
 
 export function isDbInspectorPanelOpen() {

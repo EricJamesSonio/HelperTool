@@ -1,5 +1,16 @@
 import { NODE_TYPES } from '../nodes/nodeRegistry.js';
 
+function iconSvg(path, color, size) {
+  if (!path) return '';
+  const isClosed = path.includes('z') || path.includes('Z');
+  const fill = isClosed ? 'currentColor' : 'none';
+  const stroke = isClosed ? 'none' : 'currentColor';
+  const s = size || 14;
+  return `<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:${color};vertical-align:middle;margin-right:4px">
+    <path d="${path}"/>
+  </svg>`;
+}
+
 export function renderInspector(state) {
   const node = state.selectedNode;
   if (!node) {
@@ -21,8 +32,8 @@ export function renderInspector(state) {
 
   return `<div class="as-inspector">
     <div class="as-inspector-title">Properties</div>
-    <div class="as-ip-header" style="border-left:3px solid ${def.color}">
-      <div class="as-ip-type">${def.icon} ${def.label}</div>
+    <div class="as-ip-header" style="border-left:4px solid ${def.color}">
+      <div class="as-ip-type">${iconSvg(def.iconPath, def.color, 14)}${def.label}</div>
       <div class="as-ip-id">${node.id}</div>
     </div>
     <div class="as-ip-body">

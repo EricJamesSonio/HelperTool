@@ -3,6 +3,7 @@ const path = require('path');
 const indexerProxy = require('./indexerProxy.js');
 const { getDb } = require('../database/db');
 const { getChatDb, save: saveChatDb } = require('../database/chatDb');
+const gmailIpc = require('./gmail_ipc.js');
 
 function db() { return getDb(); }
 function cdb() { return getChatDb(); }
@@ -162,6 +163,28 @@ function register() {
   });
 
   // ── Conversation persistence ──────────────────────────────────────────
+
+  ipcMain.handle('chat:getEmailData', async (event, { email, queryType, params }) => {
+    try {
+      if (email === 'all') {
+        const all = gmailIpc.getAllCachedMessages();
+        return { success: true, accounts: all };
+      }
+      const data = gmailIpc.getCachedMessages(email);
+      return { success: true, ...data };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('chat:getConnectedGmailAccounts', async () => {
+    try {
+      const accounts = gmailIpc.getConnectedAccounts();
+      return { success: true, accounts };
+    } catch (err) {
+      return { success: false, accounts: [] };
+    }
+  });
 
   ipcMain.handle('codebaseChat:getConversations', async (event, { repoPath }) => {
     try {

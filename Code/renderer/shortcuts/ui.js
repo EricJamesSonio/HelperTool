@@ -45,7 +45,9 @@ const FEATURES = [
     { id: 'envManager',icon: ICONS.env,name: 'Env Manager' },
     { id: 'codebbaseChat',icon: ICONS.chat,name: 'HelperChat' },
     { id: 'videoTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,4 18,10 2,16"/></svg>',name: 'Video Compressor' },
-    { id: 'gmailTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="12" rx="2"/><polyline points="2,4 10,11 18,4"/></svg>',name: 'Gmail Inbox' },
+     { id: 'gmailTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="12" rx="2"/><polyline points="2,4 10,11 18,4"/></svg>',name: 'Gmail Inbox' },
+      { id: 'automationSketch',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',name: 'Automation Sketch' },
+      { id: 'githubExplorer',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="5"/><path d="M2 10h3M15 10h3M10 2v3M10 15v3"/><circle cx="10" cy="10" r="1.5"/></svg>',name: 'GitHub Explorer' },
 ];
 
 let _modal = null;
