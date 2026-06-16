@@ -18,6 +18,7 @@ export default class GmailState {
     this.ignoredManagerEmail = null;
     this.senderFilter = null;
     this.inboxCache = {};
+    this.loadingMessage = '';
   }
 
   reset() {
@@ -37,6 +38,7 @@ export default class GmailState {
     this.ignoredManagerEmail = null;
     this.senderFilter = null;
     this.inboxCache = {};
+    this.loadingMessage = '';
   }
 
   getAccount(email) {

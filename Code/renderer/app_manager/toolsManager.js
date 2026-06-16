@@ -441,8 +441,8 @@ function _initializeGmailTool() {
   import('../gmailTool/gmailTool.js').then(async (mod) => {
     const GmailTool = mod.default;
     _gmailTool = new GmailTool();
-    await _gmailTool.init();
     if (_gmailContainer) _gmailTool.render(_gmailContainer);
+    await _gmailTool.init();
   }).catch(err => console.error('[Tools] Gmail Tool:', err));
 }
 

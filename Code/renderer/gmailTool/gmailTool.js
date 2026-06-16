@@ -84,12 +84,15 @@ export default class GmailTool {
 
   async _loadAccounts() {
     this.state.status = 'loading';
+    this.state.loadingMessage = 'Connecting to Gmail...';
     if (this.ui) this.ui.update();
     const res = await window.electronAPI.gmail.listAccounts();
     if (res.success) {
       this.state.accounts = res.accounts;
       console.log('[GmailTool] Loaded accounts:', this.state.accounts.map(a => a.email));
       if (this.state.accounts.length > 0) {
+        this.state.loadingMessage = 'Fetching latest messages...';
+        if (this.ui) this.ui.update();
         console.log('[GmailTool] Accounts found, calling checkNow then startPolling');
         await window.electronAPI.gmail.checkNow();
         await window.electronAPI.gmail.startPolling();
@@ -102,6 +105,7 @@ export default class GmailTool {
       console.log('[GmailTool] Failed to load accounts:', res.error);
     }
     this.state.status = 'idle';
+    this.state.loadingMessage = '';
     if (this.ui) this.ui.update();
   }
 
@@ -142,6 +146,7 @@ export default class GmailTool {
 
   async _handleRefresh() {
     this.state.status = 'loading';
+    this.state.loadingMessage = 'Refreshing messages...';
     if (this.ui) this.ui.update();
     const res = await window.electronAPI.gmail.fetchAll();
     if (res.success) {
@@ -160,6 +165,7 @@ export default class GmailTool {
       this.state.error = res.error;
     }
     this.state.status = 'idle';
+    this.state.loadingMessage = '';
     if (this.ui) this.ui.update();
   }
 
@@ -176,6 +182,7 @@ export default class GmailTool {
     }
 
     this.state.status = 'loading';
+    this.state.loadingMessage = 'Opening inbox...';
     if (this.ui) this.ui.update();
 
     const res = await window.electronAPI.gmail.fetchInbox({ email, maxResults: 50 });
@@ -186,6 +193,7 @@ export default class GmailTool {
       this.state.inboxMessages = [];
     }
     this.state.status = 'idle';
+    this.state.loadingMessage = '';
     if (this.ui) this.ui.update();
   }
 
