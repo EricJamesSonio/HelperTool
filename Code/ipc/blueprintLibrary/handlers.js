@@ -1,7 +1,7 @@
 const { ipcMain } = require('electron');
 const { save } = require('../../database/db.js');
 const { db } = require('./db.js');
-const { SEED_CATEGORIES, SEED_BLUEPRINTS } = require('./seed.js');
+const { loadRulesData } = require('./rulesLoader.js');
 
 function register() {
   // ── Category CRUD ──
@@ -109,6 +109,8 @@ function register() {
   // ── Seed ──
 
   ipcMain.handle('blueprint:seed', () => {
+    const { categories, blueprints } = loadRulesData();
+
     const existingRows = db().exec('SELECT name FROM blueprint_categories');
     const existingNames = existingRows.length
       ? existingRows[0].values.map(r => r[0])
@@ -118,7 +120,7 @@ function register() {
     let catCount = 0;
     let bpCount = 0;
 
-    for (const cat of SEED_CATEGORIES) {
+    for (const cat of categories) {
       if (existingNames.includes(cat.name)) {
         const row = db().exec('SELECT id FROM blueprint_categories WHERE name = ?', [cat.name]);
         if (row.length && row[0].values.length) catIdMap[cat.name] = row[0].values[0][0];
@@ -129,8 +131,8 @@ function register() {
       catIdMap[cat.name] = res[0].values[0][0];
       catCount++;
 
-      const blueprints = SEED_BLUEPRINTS[cat.name] || [];
-      for (const bp of blueprints) {
+      const bpList = blueprints[cat.name] || [];
+      for (const bp of bpList) {
         db().run(
           'INSERT INTO blueprints (category_id, name, description, pseudo_code, tags) VALUES (?, ?, ?, ?, ?)',
           [catIdMap[cat.name], bp.name, bp.description, bp.pseudo_code, bp.tags]
