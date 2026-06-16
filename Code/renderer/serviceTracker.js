@@ -185,14 +185,6 @@ export async function init() {
   _updateNavBtn();
   _updateSummary();
 
-  if (!state.autoOpened) {
-    const hasAnyState = SERVICES.some(s => state.services[s.id]?.status);
-    if (hasAnyState) {
-      state.autoOpened = true;
-      open();
-    }
-  }
-
   window.serviceTrackerAPI.onUpdate((data) => {
     state.services[data.id] = {
       status: data.status,
@@ -202,11 +194,6 @@ export async function init() {
     _updateServiceRow(data.id);
     _updateNavBtn();
     _updateSummary();
-
-    if (!state.autoOpened) {
-      state.autoOpened = true;
-      open();
-    }
 
     if (_allSettled()) {
       setTimeout(() => {

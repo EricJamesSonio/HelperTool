@@ -224,7 +224,7 @@ const windowControls = {
 };
 
 const teamActivityBridge = {
-  teamActivityLog: (repoPath) => ipcRenderer.invoke('team-activity:log', { repoPath }),
+  teamActivityLog: (repoPath, opts) => ipcRenderer.invoke('team-activity:log', { repoPath, limit: opts?.limit, since: opts?.since }),
   teamActivityDiff: (repoPath, hash, filePath) => ipcRenderer.invoke('team-activity:diff', { repoPath, hash, filePath }),
   teamActivityFileAtCommit: (repoPath, hash, filePath) => ipcRenderer.invoke('team-activity:file-at-commit', { repoPath, hash, filePath }),
   teamActivityCommitFiles: (repoPath, hash) => ipcRenderer.invoke('team-activity:commit-files', { repoPath, hash }),

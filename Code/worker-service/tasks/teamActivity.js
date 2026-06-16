@@ -74,15 +74,12 @@ function parseNumstat(stdout, commits, contributors) {
     if (parts.length < 3) continue;
     const added = parseInt(parts[0], 10);
     const removed = parseInt(parts[1], 10);
-    const filePath = parts[2];
     if (isNaN(added) || isNaN(removed)) continue;
     const commit = currentHash ? commitMap[currentHash] : null;
     if (!commit) continue;
-    const status = added > 0 && removed === 0 ? 'added' : added === 0 && removed > 0 ? 'deleted' : 'modified';
-    commit.files.push({ path: filePath, added, removed, status });
     commit.linesAdded += added;
     commit.linesRemoved += removed;
-    commit.filesChanged = commit.files.length;
+    commit.filesChanged++;
     if (contributors[commit.author]) {
       contributors[commit.author].linesAdded += added;
       contributors[commit.author].linesRemoved += removed;

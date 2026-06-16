@@ -88,7 +88,7 @@ function _parseNumstat(stdout, commits, contributors) {
 
   for (const line of stdout.split('\n')) {
     const trimmed = line.trim();
-    if (!trimmed) continue; // blank lines within a commit section don't reset hash
+    if (!trimmed) continue;
 
     // Git log --format=%H outputs only the 40-char hash, followed by a blank line,
     // then numstat lines. Next commit hash follows the last numstat line directly.
@@ -103,17 +103,15 @@ function _parseNumstat(stdout, commits, contributors) {
 
     const added = parseInt(parts[0], 10);
     const removed = parseInt(parts[1], 10);
-    const filePath = parts[2];
 
     if (isNaN(added) || isNaN(removed)) continue;
 
     const commit = currentHash ? commitMap[currentHash] : null;
     if (!commit) continue;
 
-    commit.files.push({ path: filePath, added, removed, status: _detectStatus(added, removed) });
     commit.linesAdded += added;
     commit.linesRemoved += removed;
-    commit.filesChanged = commit.files.length;
+    commit.filesChanged++;
 
     if (contributors[commit.author]) {
       contributors[commit.author].linesAdded += added;
@@ -122,15 +120,16 @@ function _parseNumstat(stdout, commits, contributors) {
   }
 }
 
-function _detectStatus(added, removed) {
-  if (added === 0 && removed === 0) return 'unchanged';
-  if (added > 0 && removed === 0) return 'added';
-  if (added === 0 && removed > 0) return 'deleted';
-  return 'modified';
-}
-
-async function logHandler({ repoPath }) {
+async function logHandler({ repoPath, limit, since }) {
   if (!repoPath) throw new Error('repoPath is required');
+
+  const commitLimit = limit || 200;
+  const defaultSince = (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 10);
+  })();
+  const after = since || defaultSince;
 
   const cached = prefetchService.get('teamActivity:' + repoPath);
   if (cached) return { commits: cached.commits, contributors: cached.contributors };
@@ -143,7 +142,7 @@ async function logHandler({ repoPath }) {
   // Offload to worker — parsing happens in child process, not main process
   if (workerProxy.isReady()) {
     try {
-      const result = await workerProxy.send('teamActivity', { repoPath }, 120000);
+      const result = await workerProxy.send('teamActivity', { repoPath, limit: commitLimit, since: after }, 120000);
       if (result && result.commits) {
         _cache.set(repoPath, { ...result, timestamp: Date.now() });
         return { commits: result.commits, contributors: result.contributors };
@@ -153,13 +152,19 @@ async function logHandler({ repoPath }) {
     }
   }
 
-  // Fallback: run in main process
+  // Fallback: run in main process with same bounds
   const metaStdout = await gitService.getCommits(repoPath, {
     format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: 120000,
+    after,
+    maxCount: commitLimit,
   });
   const { commits, contributors } = _parseMeta(metaStdout);
-  const numstatStdout = await gitService.raw(repoPath, ['log', '--all', '--numstat', '--format=%H'], 120000);
-  _parseNumstat(numstatStdout, commits, contributors);
+  if (commits.length) {
+    const numstatStdout = await gitService.raw(repoPath, [
+      'log', '--numstat', '--format=%H', '--all', '--after=' + after, '-n', String(commitLimit),
+    ], 120000);
+    _parseNumstat(numstatStdout, commits, contributors);
+  }
 
   console.log(`[TeamActivity] Parsed ${commits.length} commits, ${Object.keys(contributors).length} contributors`);
 
@@ -217,9 +222,9 @@ async function diffHandler({ repoPath, hash, filePath }) {
 }
 
 function register() {
-  ipcMain.handle('team-activity:log', async (event, { repoPath }) => {
+  ipcMain.handle('team-activity:log', async (event, { repoPath, limit, since }) => {
     try {
-      return await logHandler({ repoPath });
+      return await logHandler({ repoPath, limit, since });
     } catch (err) {
       return { commits: [], contributors: {}, error: err.message };
     }

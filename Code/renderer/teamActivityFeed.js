@@ -63,19 +63,25 @@ function _n(n) {
   return n.toLocaleString();
 }
 
+function defaultSince() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 3);
+  return d.toISOString().slice(0, 10);
+}
+
 // ── Open / Close ──────────────────────────────────────────────
 
 export function isOpen() {
   return _open;
 }
 
-export async function open(repoPath) {
+export async function open(repoPath, opts = {}) {
   if (_open) return;
   if (!_panel) _buildPanel();
   _panel.dataset.repoPath = repoPath || '';
   _panel.classList.add('taf-open');
   _open = true;
-  await _loadData(repoPath);
+  await _loadData(repoPath, false, opts);
 }
 
 export function close() {
@@ -188,7 +194,7 @@ function _escHandler(e) {
 
 // ── Data loading ──────────────────────────────────────────────
 
-async function _loadData(repoPath, force) {
+async function _loadData(repoPath, force, opts = {}) {
   if (!force && _commits.length > 0) {
     _renderSummary();
     _renderContributors();
@@ -225,7 +231,10 @@ async function _loadData(repoPath, force) {
   graph.innerHTML = '';
 
   try {
-    const result = await window.electronAPI.teamActivityLog(repoPath);
+    const result = await window.electronAPI.teamActivityLog(repoPath, {
+      limit: opts.limit || 200,
+      since: opts.since || defaultSince(),
+    });
     if (!result || result.error) {
       summary.innerHTML = '<div class="taf-empty">Error loading data</div>';
       return;
