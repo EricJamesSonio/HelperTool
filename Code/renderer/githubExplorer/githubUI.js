@@ -58,34 +58,10 @@ function getInputTemplate(st) {
        </div>`
     : '';
 
-  const savedHtml = st.savedTrees.length > 0
-    ? `<div class="ge-saved-section">
-        <div class="ge-saved-header">
-          <div class="ge-saved-label">Saved Trees</div>
-          <div class="ge-saved-count">${st.savedTrees.length} repo${st.savedTrees.length !== 1 ? 's' : ''}</div>
-        </div>
-        <div class="ge-saved-list">
-          ${st.savedTrees.map(t => `
-            <div class="ge-saved-item" data-url="${escapeAttr(t.repo_url)}">
-              <div class="ge-saved-item-info">
-                <div class="ge-saved-item-name">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l2 2h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
-                  ${escapeHtml(t.repo_name)}
-                </div>
-                <div class="ge-saved-item-meta">${t.total_files} files · ${escapeHtml(t.branch)} · ${escapeHtml(t.saved_at)}</div>
-              </div>
-              <div class="ge-saved-item-actions">
-                <button class="ge-saved-btn ge-saved-btn--load" data-action="load" title="Load from cache">Load</button>
-                <button class="ge-saved-btn ge-saved-btn--fetch" data-action="fetch" title="Fetch fresh from GitHub">Fetch Fresh</button>
-                <button class="ge-saved-btn ge-saved-btn--delete" data-action="delete" title="Delete from saved">
-                  <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h10M5 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4M11 4v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4"/></svg>
-                </button>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>`
-    : '';
+  const savedCount = st.savedTrees.length;
+  const savedBtnLabel = savedCount > 0
+    ? `<span>Saved Trees</span><span class="ge-saved-badge">${savedCount}</span>`
+    : '<span>Saved Trees</span>';
 
   return `
     <div class="ge-input-view">
@@ -113,6 +89,11 @@ function getInputTemplate(st) {
           Load Repository
         </button>
 
+        <button class="ge-btn" id="geSavedBtn">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l2 2h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
+          ${savedBtnLabel}
+        </button>
+
         <div class="ge-error" id="geError" style="display:none"></div>
         <div class="ge-loading" id="geLoading" style="display:none">
           <div class="ge-spinner"></div>
@@ -121,8 +102,6 @@ function getInputTemplate(st) {
 
         ${recentHtml ? `<div class="ge-recent">${recentHtml}</div>` : ''}
       </div>
-
-      ${savedHtml}
     </div>
   `;
 }
@@ -173,6 +152,7 @@ function bindInputEvents(container) {
   const loadBtn = container.querySelector('#geLoadBtn');
   const errorEl = container.querySelector('#geError');
   const loadingEl = container.querySelector('#geLoading');
+  const savedBtn = container.querySelector('#geSavedBtn');
 
   urlInput.addEventListener('input', () => { state.url = urlInput.value; });
   tokenInput.addEventListener('input', () => { state.token = tokenInput.value; });
@@ -211,58 +191,15 @@ function bindInputEvents(container) {
     }
   });
 
+  savedBtn.addEventListener('click', () => {
+    showSavedTreesModal(container);
+  });
+
   container.querySelectorAll('.ge-recent-item').forEach(item => {
     item.addEventListener('click', () => {
       urlInput.value = item.dataset.url;
       state.url = item.dataset.url;
       loadBtn.click();
-    });
-  });
-
-  container.querySelectorAll('.ge-saved-item').forEach(item => {
-    const url = item.dataset.url;
-    item.querySelector('[data-action="load"]').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      state.loading = true;
-      loadingEl.style.display = 'flex';
-      errorEl.style.display = 'none';
-      const result = await window.electronAPI.github.loadSaved(url);
-      if (!result.success) {
-        showError(errorEl, result.error);
-        state.loading = false;
-        loadingEl.style.display = 'none';
-        return;
-      }
-      state.url = url;
-      state.repoName = result.repo_name;
-      state.branch = result.branch;
-      state.description = result.description || '';
-      state.tree = result.tree;
-      state.totalFiles = result.total_files;
-      state.truncated = result.truncated;
-      state.loading = false;
-      state.view = 'tree';
-      addRecent(url);
-      switchToTreeView(container);
-    });
-
-    item.querySelector('[data-action="fetch"]').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      urlInput.value = url;
-      state.url = url;
-      loadBtn.click();
-    });
-
-    item.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await window.electronAPI.github.deleteSaved(url);
-      state.savedTrees = state.savedTrees.filter(t => t.repo_url !== url);
-      const savedItem = item.closest('.ge-saved-item');
-      if (savedItem) savedItem.remove();
-      const savedSection = container.querySelector('.ge-saved-section');
-      if (savedSection && container.querySelectorAll('.ge-saved-item').length === 0) {
-        savedSection.remove();
-      }
     });
   });
 }
@@ -299,6 +236,128 @@ function bindTreeEvents(container) {
     const root = buildFilteredTree(state.tree, selected);
     const text = treeToFolderString(root, state.repoName);
     showTreeViewer(text, state.repoName + ' (selected)');
+  });
+}
+
+let _savedModal = null;
+
+function closeSavedModal() {
+  if (_savedModal) {
+    if (_savedModal._keyHandler) {
+      document.removeEventListener('keydown', _savedModal._keyHandler);
+    }
+    _savedModal.remove();
+    _savedModal = null;
+  }
+}
+
+function showSavedTreesModal(container) {
+  closeSavedModal();
+
+  const trees = state.savedTrees;
+  const overlay = document.createElement('div');
+  overlay.className = 'ge-saved-modal-overlay';
+  overlay.innerHTML = `
+    <div class="ge-saved-modal">
+      <div class="ge-saved-modal-header">
+        <div class="ge-saved-modal-title">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l2 2h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
+          Saved Trees
+        </div>
+        <span class="ge-saved-modal-count">${trees.length} repo${trees.length !== 1 ? 's' : ''}</span>
+        <button class="ge-saved-modal-close-btn" title="Close (Esc)">✕</button>
+      </div>
+      <div class="ge-saved-modal-body">
+        ${trees.length === 0
+          ? '<div class="ge-saved-empty">No saved trees yet. Fetch a repository to save it automatically.</div>'
+          : `<div class="ge-saved-list ge-saved-list--modal">
+              ${trees.map(t => `
+                <div class="ge-saved-item" data-url="${escapeAttr(t.repo_url)}">
+                  <div class="ge-saved-item-info">
+                    <div class="ge-saved-item-name">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l2 2h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
+                      ${escapeHtml(t.repo_name)}
+                    </div>
+                    <div class="ge-saved-item-meta">${t.total_files} files · ${escapeHtml(t.branch)} · ${escapeHtml(t.saved_at)}</div>
+                  </div>
+                  <div class="ge-saved-item-actions">
+                    <button class="ge-saved-btn ge-saved-btn--load" data-action="load" title="Load from cache">Load</button>
+                    <button class="ge-saved-btn ge-saved-btn--fetch" data-action="fetch" title="Fetch fresh from GitHub">Fetch Fresh</button>
+                    <button class="ge-saved-btn ge-saved-btn--delete" data-action="delete" title="Delete from saved">
+                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h10M5 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4M11 4v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4"/></svg>
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>`}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  _savedModal = overlay;
+
+  overlay.querySelector('.ge-saved-modal-close-btn').addEventListener('click', closeSavedModal);
+
+  const keyHandler = (e) => {
+    if (e.key === 'Escape') closeSavedModal();
+  };
+  overlay._keyHandler = keyHandler;
+  document.addEventListener('keydown', keyHandler);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeSavedModal();
+  });
+
+  overlay.querySelectorAll('.ge-saved-item').forEach(item => {
+    const url = item.dataset.url;
+
+    item.querySelector('[data-action="load"]').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      closeSavedModal();
+      const loadingEl = container.querySelector('#geLoading');
+      loadingEl.style.display = 'flex';
+      const result = await window.electronAPI.github.loadSaved(url);
+      if (!result.success) {
+        const errorEl = container.querySelector('#geError');
+        showError(errorEl, result.error);
+        loadingEl.style.display = 'none';
+        return;
+      }
+      state.url = url;
+      state.repoName = result.repo_name;
+      state.branch = result.branch;
+      state.description = result.description || '';
+      state.tree = result.tree;
+      state.totalFiles = result.total_files;
+      state.truncated = result.truncated;
+      state.loading = false;
+      state.view = 'tree';
+      addRecent(url);
+      switchToTreeView(container);
+    });
+
+    item.querySelector('[data-action="fetch"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeSavedModal();
+      const urlInput = container.querySelector('#geUrlInput');
+      urlInput.value = url;
+      state.url = url;
+      container.querySelector('#geLoadBtn').click();
+    });
+
+    item.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await window.electronAPI.github.deleteSaved(url);
+      state.savedTrees = state.savedTrees.filter(t => t.repo_url !== url);
+      item.remove();
+      const countEl = overlay.querySelector('.ge-saved-modal-count');
+      if (countEl) countEl.textContent = state.savedTrees.length + ' repo' + (state.savedTrees.length !== 1 ? 's' : '');
+      if (state.savedTrees.length === 0) {
+        const body = overlay.querySelector('.ge-saved-modal-body');
+        if (body) body.innerHTML = '<div class="ge-saved-empty">No saved trees yet. Fetch a repository to save it automatically.</div>';
+      }
+    });
   });
 }
 
