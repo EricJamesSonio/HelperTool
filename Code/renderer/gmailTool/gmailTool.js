@@ -32,12 +32,17 @@ export default class GmailTool {
         this.state.inboxMessages = this.state.inboxCache[this.state.viewEmail];
       }
       this._updateBadge();
-      if (this.ui) this.ui.update();
+      // Don't re-render while modal is open — avoids scroll jump and modal flicker
+      if (!this.state.showModal) {
+        if (this.ui) this.ui.update();
+      }
     });
 
     window.electronAPI.gmail.onAccountsChanged((accounts) => {
       this.state.accounts = accounts;
-      if (this.ui) this.ui.update();
+      if (!this.state.showModal) {
+        if (this.ui) this.ui.update();
+      }
     });
   }
 
@@ -268,7 +273,16 @@ export default class GmailTool {
     this.state.showModal = true;
     this.state.modalMessage = msg;
     this.state.modalEmail = email;
+    this.state.modalBody = '';
     if (this.ui) this.ui.update();
+    window.electronAPI.gmail.fetchMessageBody({ email, messageId: msgId }).then(res => {
+      if (res.success && res.body) {
+        this.state.modalBody = res.body.body || '';
+        if (this.state.showModal && this.state.modalMessage?.id === msgId) {
+          if (this.ui) this.ui.update();
+        }
+      }
+    }).catch(() => {});
   }
 
   _handleCloseModal() {

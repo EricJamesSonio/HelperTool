@@ -395,6 +395,7 @@ const gmailBridge = {
         fetchMessages:      (payload)          => ipcRenderer.invoke('gmail:fetchMessages', payload),
         fetchInbox:         (payload)          => ipcRenderer.invoke('gmail:fetchInbox', payload),
         fetchAll:           ()                 => ipcRenderer.invoke('gmail:fetchAll'),
+        fetchMessageBody:   (payload)          => ipcRenderer.invoke('gmail:fetchMessageBody', payload),
         markRead:           (payload)          => ipcRenderer.invoke('gmail:markRead', payload),
         startPolling:       ()                 => ipcRenderer.invoke('gmail:startPolling'),
         stopPolling:        ()                 => ipcRenderer.invoke('gmail:stopPolling'),

@@ -87,6 +87,15 @@ function register({ getMainWindow }) {
     }
   });
 
+  ipcMain.handle('gmail:fetchMessageBody', async (event, { email, messageId }) => {
+    try {
+      const body = await gmailService.fetchMessageBody(email, messageId);
+      return { success: true, body };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('gmail:markRead', async (event, { email, messageId }) => {
     try {
       await gmailService.markAsRead(email, messageId);

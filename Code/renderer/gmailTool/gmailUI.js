@@ -54,10 +54,16 @@ export default class GmailUI {
     if (!this._container) return;
     const list = this._container.querySelector('.gm-inbox-list, .gm-accounts-list');
     const listScrollTop = list ? list.scrollTop : null;
+    const modalBody = this._container.querySelector('.gm-modal-body');
+    const modalBodyScrollTop = modalBody ? modalBody.scrollTop : null;
     this._container.innerHTML = this._getTemplate();
     if (listScrollTop !== null) {
       const newList = this._container.querySelector('.gm-inbox-list, .gm-accounts-list');
       if (newList) newList.scrollTop = listScrollTop;
+    }
+    if (modalBodyScrollTop !== null) {
+      const newModalBody = this._container.querySelector('.gm-modal-body');
+      if (newModalBody) newModalBody.scrollTop = modalBodyScrollTop;
     }
     this._bindEvents();
   }
@@ -94,7 +100,7 @@ export default class GmailUI {
 
     if (st.showModal && st.modalMessage && st.modalEmail) {
       const accountIndex = st.accounts.findIndex(a => a.email === st.modalEmail);
-      content += renderMessageModal(st.modalMessage, st.modalEmail, accountIndex);
+      content += renderMessageModal(st.modalMessage, st.modalEmail, accountIndex, st.modalBody);
     }
 
     return content;

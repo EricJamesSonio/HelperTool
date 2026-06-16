@@ -146,12 +146,14 @@ export function renderAccountList(accounts, results) {
   }).join('');
 }
 
-export function renderMessageModal(msg, email, accountIndex) {
+export function renderMessageModal(msg, email, accountIndex, body) {
   if (!msg) return '';
   const name = extractName(msg.from);
   const senderEmail = extractEmail(msg.from);
   const color = getSenderColor(msg.from || name);
   const gmailUrl = `https://mail.google.com/mail/u/${Math.max(0, accountIndex)}/#inbox/${msg.id}`;
+  const displayBody = body || msg.snippet || '(no content)';
+  const loadingClass = !body && msg.snippet ? ' gm-modal-body--loading' : '';
 
   return `
     <div class="gm-modal-overlay" id="gmModalOverlay">
@@ -162,7 +164,7 @@ export function renderMessageModal(msg, email, accountIndex) {
         </div>
         <div class="gm-modal-subject">${escapeHtml(msg.subject || '(no subject)')}</div>
         <div class="gm-modal-date">${formatFullDate(msg.date)}</div>
-        <div class="gm-modal-body">${escapeHtml(msg.snippet || '(no content)')}</div>
+        <div class="gm-modal-body${loadingClass}">${escapeHtml(displayBody)}</div>
         <div class="gm-modal-footer">
           <button class="gm-modal-btn gm-modal-btn--primary" id="gmModalOpenGmail" data-url="${escapeHtml(gmailUrl)}">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 7l8 5 8-5"/></svg>

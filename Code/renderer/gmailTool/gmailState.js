@@ -23,6 +23,7 @@ export default class GmailState {
     this.showModal = false;
     this.modalMessage = null;
     this.modalEmail = null;
+    this.modalBody = '';
   }
 
   reset() {
@@ -47,6 +48,7 @@ export default class GmailState {
     this.showModal = false;
     this.modalMessage = null;
     this.modalEmail = null;
+    this.modalBody = '';
   }
 
   getAccount(email) {

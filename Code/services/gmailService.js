@@ -449,6 +449,91 @@ function stopPolling() {
 
 function setOnNewMail(cb) { onNewMailCallback = cb; }
 
+// ─── Full message body fetching ─────────────────────────────────────────────
+
+function _decodeBase64(data) {
+  if (!data) return '';
+  try {
+    const padded = data.replace(/-/g, '+').replace(/_/g, '/');
+    return Buffer.from(padded, 'base64').toString('utf-8');
+  } catch {
+    return '';
+  }
+}
+
+function _extractBodyText(payload) {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    return _decodeBase64(payload.body.data);
+  }
+  if (payload.mimeType === 'text/html' && payload.body?.data) {
+    let html = _decodeBase64(payload.body.data);
+
+    // Strip non-content elements
+    html = html.replace(/<(?:style|script|link|meta|noscript|head|title|svg|path|g)[^>]*>[^<]*<\/(?:style|script|link|meta|noscript|head|title|svg|path|g)>/gi, '');
+    html = html.replace(/<(?:style|script|link|meta|noscript)[^>]*\/?>/gi, '');
+
+    // Insert newlines after block-level open tags
+    html = html.replace(/<(?:div|p|tr|li|h[1-6]|table|tbody|thead|tfoot|ul|ol|section|article|nav|header|footer|aside|blockquote|hr|br|dd|dt)[^>]*>/gi, '$&\n');
+    // Insert newlines after block-level close tags
+    html = html.replace(/<\/(?:div|p|tr|li|h[1-6]|table|tbody|thead|tfoot|ul|ol|section|article|nav|header|footer|aside|blockquote|dd|dt)[^>]*>/gi, '$&\n');
+
+    // Strip all remaining HTML tags
+    html = html.replace(/<[^>]+>/g, '');
+
+    // Decode common HTML entities
+    html = html.replace(/&nbsp;/g, ' ')
+               .replace(/&amp;/g, '&')
+               .replace(/&lt;/g, '<')
+               .replace(/&gt;/g, '>')
+               .replace(/&quot;/g, '"')
+               .replace(/&#39;/g, "'")
+               .replace(/&#x27;/g, "'");
+
+    // Split into lines, trim each, drop empties, rejoin
+    html = html.split('\n')
+               .map(l => l.trim())
+               .filter(l => l.length > 0)
+               .join('\n');
+
+    // Collapse excessive blank lines
+    html = html.replace(/\n{3,}/g, '\n\n');
+
+    // Shorten long tracking URLs — keep only domain for URLs over 100 chars
+    html = html.replace(/https?:\/\/[^\s]+/g, (match) => {
+      if (match.length <= 100) return match;
+      const domain = match.match(/https?:\/\/([^\/]+)/);
+      return domain ? domain[0] : match;
+    });
+
+    return html;
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      const text = _extractBodyText(part);
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+async function fetchMessageBody(accountEmail, messageId) {
+  const acct = findAccount(accountEmail);
+  if (!acct) throw new Error('Account not found');
+  await ensureValidTokens(acct);
+  const gmail = getGmail(getAuthClient(acct.tokens));
+  const res = await gmail.users.messages.get({
+    userId: 'me', id: messageId, format: 'full',
+  });
+  const payload = res.data.payload;
+  const body = _extractBodyText(payload);
+  const headers = payload?.headers || [];
+  const from    = headers.find(h => h.name === 'From')?.value    || 'Unknown';
+  const subject = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
+  const date    = headers.find(h => h.name === 'Date')?.value    || '';
+  return { id: messageId, from, subject, date, body: body || '(no content)' };
+}
+
 // ─── Account management ───────────────────────────────────────────────────────
 
 function removeAccount(email) {
@@ -533,7 +618,7 @@ function getAllIgnoredSendersMap() {
 module.exports = {
   getStoredAccounts, findAccount,
   startAuthFlow, removeAccount,
-  fetchAllUnread, fetchRecentMessages, fetchInboxMessages,
+  fetchAllUnread, fetchRecentMessages, fetchInboxMessages, fetchMessageBody,
   startPolling, stopPolling, setOnNewMail,
   markAsRead, refreshToken,
   getIgnoredSenders, addIgnoredSender, removeIgnoredSender, getAllIgnoredSendersMap,
