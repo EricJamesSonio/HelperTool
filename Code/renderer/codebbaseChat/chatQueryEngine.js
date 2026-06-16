@@ -237,4 +237,111 @@ Please help me understand this and suggest improvements.`;
   }
 }
 
+const EMAIL_SLASH_REGEX = /^\/(\S+@\S+\.\S+)\s+(.*)$/;
+const EMAIL_ALL_REGEX = /^\/all\s+(.*)$/i;
+
+export async function detectAndHandleEmailQuery(rawInput) {
+  let match = rawInput.match(EMAIL_SLASH_REGEX);
+  let targetEmail = null;
+  let question = '';
+
+  if (match) {
+    targetEmail = match[1];
+    question = match[2];
+  } else {
+    match = rawInput.match(EMAIL_ALL_REGEX);
+    if (match) {
+      targetEmail = 'all';
+      question = match[1];
+    }
+  }
+
+  if (!targetEmail) return null;
+
+  const data = await window.electronAPI.chatGetEmailData(targetEmail, null, {});
+  if (!data.success) {
+    return { isEmailQuery: true, response: 'Could not load email data: ' + (data.error || 'unknown error') };
+  }
+
+  return { isEmailQuery: true, response: answerEmailQuestion(question, targetEmail, data) };
+}
+
+function answerEmailQuestion(question, targetEmail, data) {
+  const q = question.toLowerCase().trim();
+
+  if (targetEmail === 'all') {
+    return answerAcrossAllAccounts(q, data.accounts);
+  }
+
+  const messages = data.messages || [];
+  const unreadMessages = messages.filter(m => m.isUnread);
+
+  if (q.includes('how many') && q.includes('unread')) {
+    return `You have **${data.totalUnread}** unread email${data.totalUnread !== 1 ? 's' : ''} in ${targetEmail}.`;
+  }
+
+  if (q.includes('summarize') || q.includes('summary')) {
+    return buildSummary(targetEmail, messages);
+  }
+
+  if (q.includes('latest') || q.includes('most recent') || q.includes('newest')) {
+    if (!messages.length) return `No recent emails found for ${targetEmail}.`;
+    const latest = messages[0];
+    return `Latest email in ${targetEmail}:\n**${latest.from}** — ${latest.subject}\n_${latest.snippet}_\n${formatRelativeTime(latest.date)}`;
+  }
+
+  const fromMatch = q.match(/from\s+(.+)/);
+  if (fromMatch) {
+    const senderQuery = fromMatch[1].trim();
+    const matches = messages.filter(m =>
+      m.from.toLowerCase().includes(senderQuery)
+    );
+    if (!matches.length) {
+      return `No emails found from "${senderQuery}" in ${targetEmail}.`;
+    }
+    return matches.map(m =>
+      `**${m.from}** — ${m.subject}\n_${m.snippet}_\n${formatRelativeTime(m.date)}`
+    ).join('\n\n');
+  }
+
+  return buildSummary(targetEmail, messages);
+}
+
+function buildSummary(email, messages) {
+  if (!messages.length) return `No fetched emails for ${email} yet.`;
+  const unread = messages.filter(m => m.isUnread).length;
+  const lines = messages.slice(0, 10).map(m =>
+    `${m.isUnread ? '●' : '○'} **${m.from}** — ${m.subject}`
+  );
+  return `**${email}** — ${unread} unread of ${messages.length} fetched:\n\n${lines.join('\n')}`;
+}
+
+function answerAcrossAllAccounts(q, accounts) {
+  const entries = Object.entries(accounts);
+  if (!entries.length) return 'No Gmail accounts connected yet.';
+
+  if (q.includes('how many') && q.includes('unread')) {
+    const total = entries.reduce((sum, [, d]) => sum + (d.totalUnread || 0), 0);
+    const breakdown = entries.map(([email, d]) => `  • ${email}: ${d.totalUnread} unread`).join('\n');
+    return `**${total}** total unread across all accounts:\n${breakdown}`;
+  }
+
+  if (q.includes('summarize') || q.includes('summary')) {
+    return entries.map(([email, d]) => buildSummary(email, d.messages)).join('\n\n---\n\n');
+  }
+
+  const total = entries.reduce((sum, [, d]) => sum + (d.totalUnread || 0), 0);
+  return `You have **${total}** unread emails across ${entries.length} connected account${entries.length !== 1 ? 's' : ''}.`;
+}
+
+function formatRelativeTime(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
 export default ChatQueryEngine;

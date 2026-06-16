@@ -1,4 +1,5 @@
 import { renderUserMessage, renderBotMessage, renderThinkingBubble, renderWelcome, renderConvGroup, getGroupLabel } from './chatRenderer.js';
+import { detectAndHandleEmailQuery } from './chatQueryEngine.js';
 
 const ICON_SEND = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v14"/><path d="m4 9 6-6 6 6"/></svg>';
 const ICON_SIDEBAR = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><line x1="9" y1="3" x2="9" y2="17"/></svg>';
@@ -66,9 +67,11 @@ class ChatUI {
                 <input type="text" class="cc-picker-filter" id="ccPickerFilter" placeholder="Filter files..." autocomplete="off">
                 <div class="cc-picker-list" id="ccPickerList"></div>
               </div>
-              <input type="text" class="cc-input" id="ccInput" placeholder='Type @ to mention a file...' autocomplete="off">
+              <div id="chatSlashDropdown" class="chat-slash-dropdown" style="display:none"></div>
+              <input type="text" class="cc-input" id="ccInput" placeholder='Ask anything, or type @ to mention a file, / to ask about email...' autocomplete="off">
               <button class="cc-ask-btn" id="ccAskBtn" title="Ask">${ICON_SEND}</button>
             </div>
+            <div id="chatQuickQuestions" class="chat-quick-questions" style="display:none"></div>
             <div class="cc-query-chips" id="ccQueryChips">
               ${QUERY_CHIPS.map(chip =>
                 `<button class="cc-chip" data-query="${chip.key}">${chip.label}</button>`
@@ -123,7 +126,7 @@ class ChatUI {
     // Input + send always available
     input.disabled = false;
     askBtn.disabled = false;
-    input.placeholder = 'Ask anything, or type @ to mention a file...';
+    input.placeholder = 'Ask anything, or type @ to mention a file, / to ask about email...';
 
     // Chips only work when indexed
     const indexed = this.state.isIndexed;
@@ -288,12 +291,28 @@ class ChatUI {
     const input = this.container.querySelector('#ccInput');
     const val = input.value;
     const atIdx = val.lastIndexOf('@');
+    const slashIdx = val.lastIndexOf('/');
 
-    if (atIdx >= 0) {
+    // @ file picker — only if @ comes after any /
+    if (atIdx >= 0 && atIdx > slashIdx) {
       this._pickerFilter = val.slice(atIdx + 1);
       this._openPicker();
     } else {
       this._closePicker();
+    }
+
+    // / slash autocomplete — only at very start, while still typing email (no space)
+    if (val.startsWith('/') && !val.includes(' ')) {
+      this._showSlashAutocomplete(val);
+      this._hidePredefinedQuestions();
+    } else if (val.startsWith('/') && val.includes(' ')) {
+      // Account selected, hide autocomplete, show quick questions
+      this._hideSlashAutocomplete();
+      const email = val.split(' ')[0].slice(1);
+      if (email) this._showPredefinedQuestions(email);
+    } else {
+      this._hideSlashAutocomplete();
+      this._hidePredefinedQuestions();
     }
   }
 
@@ -355,9 +374,140 @@ class ChatUI {
     input.focus();
   }
 
+  // ── Slash autocomplete (Gmail email queries) ─────────────────────────────
+
+  _gmailAccountsCache = null;
+
+  async _loadGmailAccounts() {
+    if (this._gmailAccountsCache) return this._gmailAccountsCache;
+    try {
+      const result = await window.electronAPI.chatGetConnectedGmailAccounts();
+      if (result.success) {
+        this._gmailAccountsCache = result.accounts.map(a => ({
+          email: a.email,
+          addedAt: a.addedAt,
+        }));
+      }
+    } catch (_) {}
+    return this._gmailAccountsCache || [];
+  }
+
+  async _showSlashAutocomplete(value) {
+    const query = value.slice(1).toLowerCase();
+    const accounts = await this._loadGmailAccounts();
+    const matches = accounts.filter(a =>
+      a.email.toLowerCase().includes(query)
+    );
+    this._renderSlashDropdown(matches, query);
+  }
+
+  _hideSlashAutocomplete() {
+    const dropdown = this.container.querySelector('#chatSlashDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+  }
+
+  _renderSlashDropdown(matches, query) {
+    const dropdown = this.container.querySelector('#chatSlashDropdown');
+    if (!dropdown) return;
+
+    if (matches.length === 0 && query.length > 0) {
+      dropdown.innerHTML = '<div class="chat-slash-empty">No matching accounts</div>';
+      dropdown.style.display = 'block';
+      return;
+    }
+
+    if (!matches.length) {
+      dropdown.style.display = 'none';
+      return;
+    }
+
+    dropdown.innerHTML = matches.map(acc => `
+      <div class="chat-slash-item" data-email="${acc.email}">
+        <span class="chat-slash-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M6 8h4"/><path d="M8 6v4"/></svg>
+        </span>
+        <span class="chat-slash-email">${acc.email}</span>
+      </div>
+    `).join('');
+
+    dropdown.style.display = 'block';
+
+    dropdown.querySelectorAll('.chat-slash-item').forEach(item => {
+      item.addEventListener('click', () => {
+        this._selectSlashAccount(item.dataset.email);
+      });
+    });
+  }
+
+  _selectSlashAccount(email) {
+    const input = this.container.querySelector('#ccInput');
+    input.value = '/' + email + ' ';
+    this._hideSlashAutocomplete();
+    this._showPredefinedQuestions(email);
+    input.focus();
+  }
+
+  // ── Predefined question chips ────────────────────────────────────────────
+
+  _PREDEFINED_QUESTIONS = [
+    { label: 'How many unread?', template: 'how many unread emails do I have' },
+    { label: 'Summarize today', template: 'summarize my inbox' },
+    { label: 'Latest email', template: 'what is the most recent email' },
+    { label: 'From a sender...', template: 'did I get anything from ', needsInput: true },
+  ];
+
+  _showPredefinedQuestions(email) {
+    const container = this.container.querySelector('#chatQuickQuestions');
+    if (!container) return;
+
+    container.innerHTML = this._PREDEFINED_QUESTIONS.map(q => `
+      <button class="chat-quick-chip" data-template="${q.template}" data-needs-input="${!!q.needsInput}">
+        ${q.label}
+      </button>
+    `).join('');
+
+    container.style.display = 'flex';
+
+    container.querySelectorAll('.chat-quick-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const template = chip.dataset.template;
+        const input = this.container.querySelector('#ccInput');
+        const current = input.value.split(' ')[0];
+        input.value = `${current} ${template}`;
+        if (chip.dataset.needsInput !== 'true') {
+          this._handleAsk();
+        } else {
+          input.focus();
+        }
+      });
+    });
+  }
+
+  _hidePredefinedQuestions() {
+    const container = this.container.querySelector('#chatQuickQuestions');
+    if (container) container.style.display = 'none';
+  }
+
   async _handleAsk() {
     const input = this.container.querySelector('#ccInput');
     const rawText = input.value.trim();
+    if (!rawText) return;
+
+    // Check email query first (/email@example.com question)
+    const emailResult = await detectAndHandleEmailQuery(rawText);
+    if (emailResult) {
+      this.state.addMessage('user', rawText, 'email', null);
+      this.state.addMessage('bot', emailResult.response, null, null);
+      this._renderAllMessages();
+      this._updateLayout();
+      this._scrollToBottom();
+      input.value = '';
+      this._hidePredefinedQuestions();
+      this._hideSlashAutocomplete();
+      await this.state.saveFreeTextPair(this.ipc, rawText, emailResult.response, null);
+      return;
+    }
+
     let filePath = this.state.selectedFile;
     let queryType = this.state.selectedQuery;
 

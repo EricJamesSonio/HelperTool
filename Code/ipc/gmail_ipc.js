@@ -27,6 +27,32 @@ function isIgnored(fromStr, ignored) {
   return matched;
 }
 
+const _messageCache = new Map();
+
+function updateMessageCache(email, messages, totalUnread) {
+  _messageCache.set(email, {
+    messages,
+    totalUnread,
+    lastFetched: new Date().toISOString(),
+  });
+}
+
+function getCachedMessages(email) {
+  return _messageCache.get(email) || { messages: [], totalUnread: 0, lastFetched: null };
+}
+
+function getAllCachedMessages() {
+  const result = {};
+  for (const [email, data] of _messageCache) {
+    result[email] = data;
+  }
+  return result;
+}
+
+function getConnectedAccounts() {
+  return gmailService.getStoredAccounts().map(a => ({ email: a.email, addedAt: a.addedAt }));
+}
+
 function register({ getMainWindow }) {
 
   // ── Accounts ──────────────────────────────────────────────────────────────
@@ -63,6 +89,9 @@ function register({ getMainWindow }) {
       const acct = gmailService.findAccount(email);
       if (!acct) return { success: false, error: 'Account not found' };
       const result = await gmailService.fetchRecentMessages(acct, maxResults || 10);
+      if (result.messages) {
+        updateMessageCache(email, result.messages, result.unread || 0);
+      }
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
@@ -72,6 +101,9 @@ function register({ getMainWindow }) {
   ipcMain.handle('gmail:fetchInbox', async (event, { email, maxResults }) => {
     try {
       const result = await gmailService.fetchInboxMessages(email, maxResults || 50);
+      if (result.messages) {
+        updateMessageCache(email, result.messages, result.unread || 0);
+      }
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
@@ -123,6 +155,13 @@ function register({ getMainWindow }) {
       console.log('[Gmail IPC] Sending gmail:pollResult to renderer');
       win.webContents.send('gmail:pollResult', { results, totalUnread });
 
+      // Update message cache for chat queries
+      for (const r of results) {
+        if (r.messages) {
+          updateMessageCache(r.account, r.messages, r.unread || 0);
+        }
+      }
+
       // Fire desktop notifications only for genuinely new messages (via History API)
       const ignoredMap = gmailService.getAllIgnoredSendersMap();
       console.log(`[Gmail IPC] Ignored senders map: ${JSON.stringify(ignoredMap)}`);
@@ -169,6 +208,12 @@ function register({ getMainWindow }) {
       const results     = await gmailService.fetchAllUnread();
       const totalUnread = results.reduce((sum, r) => sum + (r.unread > 0 ? r.unread : 0), 0);
       console.log(`[Gmail IPC] checkNow results: ${results.length} accounts, ${totalUnread} unread`);
+      // Update message cache for chat queries
+      for (const r of results) {
+        if (r.messages) {
+          updateMessageCache(r.account, r.messages, r.unread || 0);
+        }
+      }
       const win = getMainWindow();
       if (win && !win.isDestroyed()) {
         console.log('[Gmail IPC] checkNow sending gmail:pollResult to renderer');
@@ -206,4 +251,10 @@ function register({ getMainWindow }) {
   });
 }
 
-module.exports = { register };
+module.exports = {
+  register,
+  getCachedMessages,
+  getAllCachedMessages,
+  getConnectedAccounts,
+  updateMessageCache,
+};

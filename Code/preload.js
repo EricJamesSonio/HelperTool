@@ -441,6 +441,13 @@ const codebaseChatBridge = {
   },
 };
 
+const chatGmailBridge = {
+  chatGetEmailData: (email, queryType, params) =>
+    ipcRenderer.invoke('chat:getEmailData', { email, queryType, params }),
+  chatGetConnectedGmailAccounts: () =>
+    ipcRenderer.invoke('chat:getConnectedGmailAccounts'),
+};
+
 contextBridge.exposeInMainWorld('envAPI', envBridge);
 
 // Expose everything to the renderer
@@ -466,6 +473,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...profileBridge,
     ...branchBridge,
     ...codebaseChatBridge,
+    ...chatGmailBridge,
     ...automationBridge,
     ...imageBridge,
     ...videoBridge,
