@@ -19,6 +19,7 @@ export default class AutomationSketch {
     this._panStart = { x: 0, y: 0 };
     this._connectingPort = null;
     this._keydownHandler = null;
+    this._autoSaveTimer = null;
   }
 
   async init() {
@@ -182,6 +183,9 @@ export default class AutomationSketch {
         this.state.selectedEdgeId = null;
         this._renderInspector();
         this.canvasEngine.markDirty();
+        this._isPanning = true;
+        this._panStart = { x: e.clientX - this.state.viewport.x, y: e.clientY - this.state.viewport.y };
+        this._canvasEl.style.cursor = 'grabbing';
       }
     }
   }
@@ -345,6 +349,17 @@ export default class AutomationSketch {
     this._renderToolbar();
     this._renderInspector();
     this.canvasEngine?.markDirty();
+    this._scheduleAutoSave();
+  }
+
+  _scheduleAutoSave() {
+    if (this._autoSaveTimer) clearTimeout(this._autoSaveTimer);
+    if (!this.state.isDirty) return;
+    this._autoSaveTimer = setTimeout(() => {
+      if (this.state.view === 'editor' && this.state.isDirty) {
+        this._save();
+      }
+    }, 1500);
   }
 
   _zoomFit() {
@@ -445,12 +460,23 @@ export default class AutomationSketch {
   }
 
   async _goBack() {
+    if (this.state.isDirty && this.state.view === 'editor') {
+      await this._save();
+    }
     await this._loadSketches();
     this._destroyEditor();
     this._renderList();
   }
 
+  async _saveNow() {
+    if (this._autoSaveTimer) { clearTimeout(this._autoSaveTimer); this._autoSaveTimer = null; }
+    if (this.state.isDirty && this.state.view === 'editor') {
+      await this._save();
+    }
+  }
+
   _destroyEditor() {
+    if (this._autoSaveTimer) { clearTimeout(this._autoSaveTimer); this._autoSaveTimer = null; }
     if (this._keydownHandler) {
       document.removeEventListener('keydown', this._keydownHandler);
       this._keydownHandler = null;
@@ -467,7 +493,8 @@ export default class AutomationSketch {
     this._isPanning = false;
   }
 
-  destroy() {
+  async destroy() {
+    await this._saveNow();
     this._destroyEditor();
     this.state.reset();
     this._container = null;

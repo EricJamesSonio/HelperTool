@@ -464,7 +464,10 @@ function _initializeAutomationTool() {
 }
 
 function _destroyAutomationTool() {
-  _automationTool?.destroy?.();
+  if (_automationTool) {
+    const p = _automationTool.destroy();
+    if (p && p.then) p.catch(() => {});
+  }
   _automationTool = null;
   if (_automationContainer) _automationContainer.innerHTML = '';
   _automationPanel?.classList.remove('open');
