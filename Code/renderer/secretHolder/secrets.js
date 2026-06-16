@@ -1,6 +1,13 @@
 import { S, secretsList, addName, addValue, editModal, editName, editValue } from './state.js';
 import { _makeBtn } from './utils.js';
 
+const ICONS = {
+  copy:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="11" height="11" rx="1.5"/><path d="M4 11V4h7"/></svg>',
+  edit:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2l4 4-10 10H4v-4L14 2z"/></svg>',
+  trash: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h14"/><path d="M6 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v5"/><path d="M12 9v5"/><path d="M5 6l1 10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-10"/></svg>',
+  check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>',
+};
+
 export async function refreshSecrets() {
     try { S.secrets = await window.electronAPI.secretsGetAll(); }
     catch { S.secrets = []; }
@@ -40,15 +47,15 @@ export function renderSecrets() {
         info.appendChild(vl);
         const acts = document.createElement('div');
         acts.className = 'sh-row-acts';
-        const cpBtn = _makeBtn('📋', 'sh-btn sh-btn-ghost sh-btn-xs', 'Copy', () => {
+        const cpBtn = _makeBtn(ICONS.copy, 'sh-btn sh-btn-ghost sh-btn-xs', 'Copy', () => {
             navigator.clipboard.writeText(s.value).then(() => {
-                cpBtn.textContent = '✓';
+                cpBtn.innerHTML = ICONS.check;
                 cpBtn.style.color = 'var(--green)';
-                setTimeout(() => { cpBtn.textContent = '📋'; cpBtn.style.color = ''; }, 1400);
+                setTimeout(() => { cpBtn.innerHTML = ICONS.copy; cpBtn.style.color = ''; }, 1400);
             });
         });
-        const edBtn = _makeBtn('✏️', 'sh-btn sh-btn-ghost sh-btn-xs', 'Edit', () => openEditModal(s));
-        const dlBtn = _makeBtn('🗑', 'sh-btn sh-btn-danger sh-btn-xs', 'Delete', () => handleDelete(s.id, row));
+        const edBtn = _makeBtn(ICONS.edit, 'sh-btn sh-btn-ghost sh-btn-xs', 'Edit', () => openEditModal(s));
+        const dlBtn = _makeBtn(ICONS.trash, 'sh-btn sh-btn-danger sh-btn-xs', 'Delete', () => handleDelete(s.id, row));
         acts.appendChild(cpBtn); acts.appendChild(edBtn); acts.appendChild(dlBtn);
         row.appendChild(info); row.appendChild(acts);
         secretsList.appendChild(row);
