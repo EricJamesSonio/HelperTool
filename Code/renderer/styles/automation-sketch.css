@@ -1,4 +1,12 @@
 .as-panel {
+  position: fixed;
+  inset: 0;
+  top: var(--titlebar-h);
+  z-index: 9000;
+  background: var(--bg-base);
+  display: none;
+  flex-direction: column;
+  box-sizing: border-box;
   --as-bg: var(--bg-surface, #1e1e2e);
   --as-bg-alt: var(--bg-base, #181825);
   --as-border: var(--border-default, #3a3a4a);
@@ -8,11 +16,50 @@
   --as-header: var(--bg-surface-hover, #2a2a3e);
 }
 
-.as-panel .as-panel-content,
+.as-panel.open { display: flex; animation: overlayFadeIn 0.2s ease; }
+
 .as-panel-content {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
+}
+
+.as-panel-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.as-panel-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+
+.as-panel-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.as-panel-close-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.as-panel-close-btn svg { width: 20px; height: 20px; }
+
+.as-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* List view */

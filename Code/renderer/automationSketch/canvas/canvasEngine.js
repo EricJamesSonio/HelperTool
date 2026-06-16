@@ -1,5 +1,7 @@
 import { NODE_TYPES } from '../nodes/nodeRegistry.js';
 
+const NODE_WIDTH = 200;
+
 export default class CanvasEngine {
   constructor(canvasEl, state) {
     this.canvas = canvasEl;
