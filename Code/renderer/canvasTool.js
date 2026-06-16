@@ -682,7 +682,7 @@ async function handleBoardListClick(e) {
     const boardId = item.dataset.boardId;
     const name = item.querySelector('.canvas-board-item-name')?.textContent || '';
       if (await confirmDialog(`Delete board "${name}"?`)) {
-        boards.deleteBoard(boardId);
+        await boards.deleteBoard(boardId);
         await refreshBoardList();
       }
     return;
