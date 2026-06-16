@@ -1,4 +1,4 @@
-import { renderEmpty, renderAccountList, renderInboxView, renderLoading, renderError, renderIgnoredManager } from './gmailRenderer.js';
+import { renderEmpty, renderAccountList, renderInboxView, renderLoading, renderError, renderIgnoredManager, renderMessageModal } from './gmailRenderer.js';
 
 export default class GmailUI {
   constructor(state) {
@@ -19,6 +19,9 @@ export default class GmailUI {
     this._onCloseIgnoredManager = null;
     this._onUnignoreSender = null;
     this._onSenderFilter = null;
+    this._onOpenModal = null;
+    this._onCloseModal = null;
+    this._onOpenMessage = null;
   }
 
   setCallbacks(cbs) {
@@ -36,6 +39,9 @@ export default class GmailUI {
     this._onCloseIgnoredManager = cbs.onCloseIgnoredManager || null;
     this._onUnignoreSender = cbs.onUnignoreSender || null;
     this._onSenderFilter = cbs.onSenderFilter || null;
+    this._onOpenModal = cbs.onOpenModal || null;
+    this._onCloseModal = cbs.onCloseModal || null;
+    this._onOpenMessage = cbs.onOpenMessage || null;
   }
 
   render(container) {
@@ -46,44 +52,52 @@ export default class GmailUI {
 
   update() {
     if (!this._container) return;
-    const scrollTop = this._container.scrollTop;
+    const list = this._container.querySelector('.gm-inbox-list, .gm-accounts-list');
+    const listScrollTop = list ? list.scrollTop : null;
     this._container.innerHTML = this._getTemplate();
-    this._container.scrollTop = scrollTop;
+    if (listScrollTop !== null) {
+      const newList = this._container.querySelector('.gm-inbox-list, .gm-accounts-list');
+      if (newList) newList.scrollTop = listScrollTop;
+    }
     this._bindEvents();
   }
 
   _getTemplate() {
     const st = this._state;
+    let content = '';
 
-    if (st.status === 'loading') return renderLoading(st.loadingMessage);
-    if (st.error) return renderError(st.error);
-
-    if (!st.accounts || st.accounts.length === 0) return renderEmpty();
-
-    if (st.showIgnoredManager) {
+    if (st.status === 'loading') content = renderLoading(st.loadingMessage);
+    else if (st.error) content = renderError(st.error);
+    else if (!st.accounts || st.accounts.length === 0) content = renderEmpty();
+    else if (st.showIgnoredManager) {
       const email = st.ignoredManagerEmail;
       const senders = email ? (st.ignoredByAccount[email] || []) : [];
-      return renderIgnoredManager(senders, email);
-    }
-
-    if (st.view === 'inbox' && st.viewEmail) {
+      content = renderIgnoredManager(senders, email);
+    } else if (st.view === 'inbox' && st.viewEmail) {
       const messages = st.inboxMessages;
       const result = st.getResult(st.viewEmail);
       const ignoredList = st.ignoredByAccount[st.viewEmail] || [];
-      return renderInboxView(st.viewEmail, messages, st.filter, st.expandedMsgIds, result ? result.unread : 0, ignoredList, st.senderFilter);
+      content = renderInboxView(st.viewEmail, messages, st.filter, result ? result.unread : 0, ignoredList, st.senderFilter);
+    } else {
+      const filteredResults = st.getFilteredResults();
+      content = `
+        <div class="gm-toolbar">
+          <button class="gm-tb-btn" id="gmBackToMainBtn">&larr; Back</button>
+          <button class="gm-tb-btn" id="gmAddAccount">${ICONS.plus} Add Account</button>
+          <button class="gm-tb-btn" id="gmRefresh">${ICONS.refresh} Refresh</button>
+          <span class="gm-tb-status">${st.polling ? '● Live' : ''} ${st.totalUnread > 0 ? '· ' + st.totalUnread + ' unread' : ''}</span>
+        </div>
+        <div class="gm-accounts-list">
+          ${renderAccountList(st.accounts, filteredResults)}
+        </div>`;
     }
 
-    const filteredResults = st.getFilteredResults();
-    return `
-      <div class="gm-toolbar">
-        <button class="gm-tb-btn" id="gmBackToMainBtn">&larr; Back</button>
-        <button class="gm-tb-btn" id="gmAddAccount">${ICONS.plus} Add Account</button>
-        <button class="gm-tb-btn" id="gmRefresh">${ICONS.refresh} Refresh</button>
-        <span class="gm-tb-status">${st.polling ? '● Live' : ''} ${st.totalUnread > 0 ? '· ' + st.totalUnread + ' unread' : ''}</span>
-      </div>
-      <div class="gm-accounts-list">
-        ${renderAccountList(st.accounts, filteredResults)}
-      </div>`;
+    if (st.showModal && st.modalMessage && st.modalEmail) {
+      const accountIndex = st.accounts.findIndex(a => a.email === st.modalEmail);
+      content += renderMessageModal(st.modalMessage, st.modalEmail, accountIndex);
+    }
+
+    return content;
   }
 
   _bindEvents() {
@@ -126,7 +140,7 @@ export default class GmailUI {
     this._container.querySelectorAll('.gm-message').forEach(msg => {
       msg.addEventListener('click', (e) => {
         if (e.target.closest('.gm-msg-actions')) return;
-        if (this._onToggleExpand) this._onToggleExpand(msg.dataset.msgId);
+        if (this._onOpenModal) this._onOpenModal(msg.dataset.email, msg.dataset.msgId);
       });
     });
 
@@ -169,6 +183,40 @@ export default class GmailUI {
         if (this._onSenderFilter) this._onSenderFilter(btn.dataset.sender);
       });
     });
+
+    const modalOverlay = this._container.querySelector('#gmModalOverlay');
+    if (modalOverlay) {
+      modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay && this._onCloseModal) this._onCloseModal();
+      });
+    }
+
+    const modalClose = this._container.querySelector('#gmModalClose');
+    if (modalClose && this._onCloseModal) modalClose.addEventListener('click', () => this._onCloseModal());
+
+    const modalOpenGmail = this._container.querySelector('#gmModalOpenGmail');
+    if (modalOpenGmail) {
+      modalOpenGmail.addEventListener('click', () => {
+        window.open(modalOpenGmail.dataset.url, '_blank');
+        if (this._onCloseModal) this._onCloseModal();
+      });
+    }
+
+    const modalMarkRead = this._container.querySelector('#gmModalMarkRead');
+    if (modalMarkRead && this._onMarkRead) {
+      modalMarkRead.addEventListener('click', () => {
+        this._onMarkRead(modalMarkRead.dataset.email, modalMarkRead.dataset.msgId);
+        if (this._onCloseModal) this._onCloseModal();
+      });
+    }
+
+    const modalIgnore = this._container.querySelector('#gmModalIgnore');
+    if (modalIgnore && this._onIgnoreSender) {
+      modalIgnore.addEventListener('click', () => {
+        this._onIgnoreSender(modalIgnore.dataset.email, modalIgnore.dataset.sender);
+        if (this._onCloseModal) this._onCloseModal();
+      });
+    }
   }
 }
 

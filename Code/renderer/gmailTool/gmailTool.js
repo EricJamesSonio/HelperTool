@@ -59,6 +59,8 @@ export default class GmailTool {
       onCloseIgnoredManager: () => this._handleCloseIgnoredManager(),
       onUnignoreSender:    (email, sender) => this._handleUnignoreSender(email, sender),
       onSenderFilter:      (sender) => this._handleSenderFilter(sender),
+      onOpenModal:         (email, msgId) => this._handleOpenModal(email, msgId),
+      onCloseModal:        () => this._handleCloseModal(),
     });
     this.ui.render(container);
   }
@@ -217,9 +219,6 @@ export default class GmailTool {
       this.state.expandedMsgIds.add(msgId);
     }
     if (this.ui) this.ui.update();
-    // Scroll the expanded message into view so user doesn't lose position
-    const expandedEl = this.ui?._container?.querySelector('.gm-message--expanded');
-    if (expandedEl) expandedEl.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }
 
   async _handleIgnoreSender(email, sender) {
@@ -258,8 +257,25 @@ export default class GmailTool {
   }
 
   _handleOpenMessage(email, msgId) {
-    const url = 'https://mail.google.com/mail/u/0/#inbox/' + msgId;
+    const idx = this.state.accounts.findIndex(a => a.email === email);
+    const url = 'https://mail.google.com/mail/u/' + Math.max(0, idx) + '/#inbox/' + msgId;
     window.open(url, '_blank');
+  }
+
+  _handleOpenModal(email, msgId) {
+    const msg = this.state.inboxMessages.find(m => m.id === msgId);
+    if (!msg) return;
+    this.state.showModal = true;
+    this.state.modalMessage = msg;
+    this.state.modalEmail = email;
+    if (this.ui) this.ui.update();
+  }
+
+  _handleCloseModal() {
+    this.state.showModal = false;
+    this.state.modalMessage = null;
+    this.state.modalEmail = null;
+    if (this.ui) this.ui.update();
   }
 
   async _handleMarkRead(email, msgId) {

@@ -146,7 +146,42 @@ export function renderAccountList(accounts, results) {
   }).join('');
 }
 
-export function renderInboxView(email, messages, filter, expandedIds, unreadCount, ignoredSenders, senderFilter) {
+export function renderMessageModal(msg, email, accountIndex) {
+  if (!msg) return '';
+  const name = extractName(msg.from);
+  const senderEmail = extractEmail(msg.from);
+  const color = getSenderColor(msg.from || name);
+  const gmailUrl = `https://mail.google.com/mail/u/${Math.max(0, accountIndex)}/#inbox/${msg.id}`;
+
+  return `
+    <div class="gm-modal-overlay" id="gmModalOverlay">
+      <div class="gm-modal">
+        <div class="gm-modal-header" style="border-left: 4px solid ${color}">
+          <div class="gm-modal-from" style="color:${color}">${escapeHtml(name)}</div>
+          <button class="gm-modal-close" id="gmModalClose">&times;</button>
+        </div>
+        <div class="gm-modal-subject">${escapeHtml(msg.subject || '(no subject)')}</div>
+        <div class="gm-modal-date">${formatFullDate(msg.date)}</div>
+        <div class="gm-modal-body">${escapeHtml(msg.snippet || '(no content)')}</div>
+        <div class="gm-modal-footer">
+          <button class="gm-modal-btn gm-modal-btn--primary" id="gmModalOpenGmail" data-url="${escapeHtml(gmailUrl)}">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 7l8 5 8-5"/></svg>
+            Open in Gmail
+          </button>
+          <button class="gm-modal-btn" id="gmModalMarkRead" data-email="${escapeHtml(email)}" data-msg-id="${escapeHtml(msg.id)}">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M4 10l4 4 8-8"/></svg>
+            Mark Read
+          </button>
+          <button class="gm-modal-btn" id="gmModalIgnore" data-email="${escapeHtml(email)}" data-sender="${escapeHtml(senderEmail)}">
+            ${ICONS.eyeOff}
+            Ignore Sender
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+export function renderInboxView(email, messages, filter, unreadCount, ignoredSenders, senderFilter) {
   const filtered = filterMessages(messages, filter, ignoredSenders, senderFilter);
   const notIgnored = ignoredSenders?.length ? messages.filter(m => !isIgnored(m.from, ignoredSenders)) : messages;
   return `
@@ -171,7 +206,7 @@ export function renderInboxView(email, messages, filter, expandedIds, unreadCoun
     ${renderSenderChips(notIgnored, senderFilter)}
     <div class="gm-inbox-list">
       ${filtered.length === 0 ? '<div class="gm-no-msgs">No messages match this filter</div>' : ''}
-      ${filtered.map(msg => renderMessage(msg, email, expandedIds.has(msg.id), ignoredSenders)).join('')}
+      ${filtered.map(msg => renderMessage(msg, email, ignoredSenders)).join('')}
     </div>`;
 }
 
@@ -227,23 +262,21 @@ function isIgnored(fromStr, ignoredSenders) {
   });
 }
 
-function renderMessage(msg, accountEmail, expanded, ignoredSenders) {
+function renderMessage(msg, accountEmail, ignoredSenders) {
   const name = extractName(msg.from);
   const senderEmail = extractEmail(msg.from);
   const ignored = isIgnored(msg.from, ignoredSenders);
   const color = getSenderColor(msg.from || name);
   return `
-    <div class="gm-message ${expanded ? 'gm-message--expanded' : ''} ${ignored ? 'gm-message--ignored' : ''}" data-msg-id="${escapeHtml(msg.id)}" style="border-left: 4px solid ${color}">
+    <div class="gm-message ${ignored ? 'gm-message--ignored' : ''}" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" style="border-left: 4px solid ${color}">
       <div class="gm-msg-header">
         <div class="gm-msg-from" style="color:${color}">${escapeHtml(name)}</div>
         <div class="gm-msg-header-right">
           <span class="gm-msg-time">${formatTime(msg.date)}</span>
-          <span class="gm-msg-chevron ${expanded ? 'gm-msg-chevron--open' : ''}">${ICONS.chevronDown}</span>
         </div>
       </div>
       <div class="gm-msg-subject">${escapeHtml(msg.subject || '(no subject)')}</div>
-      <div class="gm-msg-snippet ${expanded ? '' : 'gm-msg-snippet--clamp'}">${escapeHtml(msg.snippet || '')}</div>
-      ${expanded ? `<div class="gm-msg-full-date">${formatFullDate(msg.date)}</div>` : ''}
+      <div class="gm-msg-snippet gm-msg-snippet--clamp">${escapeHtml(msg.snippet || '')}</div>
       <div class="gm-msg-meta">
         <div class="gm-msg-actions">
           <button class="gm-msg-ignore" data-msg-id="${escapeHtml(msg.id)}" data-email="${escapeHtml(accountEmail)}" data-sender="${escapeHtml(senderEmail)}" title="Ignore this sender">${ICONS.eyeOff}</button>

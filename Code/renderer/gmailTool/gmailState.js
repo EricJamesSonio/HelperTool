@@ -19,6 +19,10 @@ export default class GmailState {
     this.senderFilter = null;
     this.inboxCache = {};
     this.loadingMessage = '';
+
+    this.showModal = false;
+    this.modalMessage = null;
+    this.modalEmail = null;
   }
 
   reset() {
@@ -39,6 +43,10 @@ export default class GmailState {
     this.senderFilter = null;
     this.inboxCache = {};
     this.loadingMessage = '';
+
+    this.showModal = false;
+    this.modalMessage = null;
+    this.modalEmail = null;
   }
 
   getAccount(email) {
