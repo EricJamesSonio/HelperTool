@@ -13,8 +13,8 @@ export function renderSidebar() {
   const categories = getCategories();
   const catHtml = Object.entries(categories).map(([catName, nodes]) => {
     const itemsHtml = nodes.map(n => `
-      <div class="as-pl-item" data-type="${n.key}" draggable="true">
-        <span class="as-pl-item-icon" style="color:${n.color}">${iconSvg(n.iconPath, n.color)}</span>
+      <div class="as-pl-item" data-type="${n.key}" draggable="true" style="border-left:3px solid ${n.color}">
+        <span class="as-pl-item-icon">${iconSvg(n.iconPath, n.color)}</span>
         <span class="as-pl-item-label">${n.label}</span>
       </div>
     `).join('');

@@ -255,6 +255,7 @@ ipcMain.handle('profile:get', async () => {
        data.tiktok || '', data.linkedin || '', data.wakatime || '',
        data.bio || '', data.website || '']);
     save();
+    prefetchService.invalidate('profile');
     return { success: true };
   });
 

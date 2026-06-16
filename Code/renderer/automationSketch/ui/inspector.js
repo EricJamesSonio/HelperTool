@@ -32,8 +32,8 @@ export function renderInspector(state) {
 
   return `<div class="as-inspector">
     <div class="as-inspector-title">Properties</div>
-    <div class="as-ip-header" style="border-left:3px solid ${def.color}">
-      <div class="as-ip-type">${iconSvg(def.iconPath, def.color, 12)}${def.label}</div>
+    <div class="as-ip-header" style="border-left:4px solid ${def.color}">
+      <div class="as-ip-type">${iconSvg(def.iconPath, def.color, 14)}${def.label}</div>
       <div class="as-ip-id">${node.id}</div>
     </div>
     <div class="as-ip-body">

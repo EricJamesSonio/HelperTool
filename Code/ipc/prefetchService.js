@@ -44,6 +44,19 @@ async function _loadDiskCache() {
   }
 }
 
+function _saveDiskCacheSync() {
+  try {
+    if (!_cachePath) return;
+    const obj = {};
+    for (const [key, entry] of _cache) {
+      if (_now() - entry.ts < entry.ttl) obj[key] = entry;
+    }
+    fs.writeFileSync(_cachePath, JSON.stringify(obj), 'utf-8');
+  } catch (err) {
+    console.warn('[Prefetch] Failed to save disk cache sync:', err.message);
+  }
+}
+
 function _saveDiskCache() {
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
@@ -91,7 +104,7 @@ function _set(key, data, ttl) {
 
 function _clearKey(key) {
   _cache.delete(key);
-  _saveDiskCache();
+  _saveDiskCacheSync();
 }
 
 async function _fetchFromWorker(type, payload) {

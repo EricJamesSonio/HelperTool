@@ -288,6 +288,7 @@ function cleanupAndExit(deleteIndex) {
     try { const db = require('./database/db.js'); db.close(); } catch (_) {}
     try { closeChatDb(); } catch (_) {}
     try { const watcher = require('./indexer/watcher.js'); watcher.destroyAllWatchers(); } catch (_) {}
+    try { require('./ipc/prefetchService.js').stop(); } catch (_) {}
     try { workerProxy.stop(); } catch (_) {}
     try { indexerProxy.stop(); } catch (_) {}
     if (deleteIndex) {

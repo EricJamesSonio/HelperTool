@@ -344,6 +344,8 @@ function _renderProfileCard() {
         linkedin: section.querySelector('#pfEditLi').value,
         wakatime: section.querySelector('#pfEditWk').value,
       });
+      const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
+      getPrefetchCache().invalidate('profile');
       const p = await window.electronAPI.profile.get();
       if (p) _profile = p;
       _editingProfile = false;
