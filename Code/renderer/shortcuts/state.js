@@ -16,6 +16,7 @@ const DEFAULT_SHORTCUTS = {
   codebbaseChat: null,
   videoTool: null,
   gmailTool: null,
+  automationSketch: null,
 };
 
 const S = { shortcuts: {} };

@@ -99,6 +99,16 @@ export function createGmailPanel() {
   });
 }
 
+export function createAutomationPanel() {
+  return createPanel({
+    id:          'automationSketchPanel',
+    className:   'as-panel',
+    title:       'Automation Sketch',
+    containerId: 'automationSketchContainer',
+    closeBtnId:  'closeAutomationSketchBtn',
+  });
+}
+
 export function createCodebaseChatPanel() {
   return createPanel({
     id:          'codebaseChatPanel',
