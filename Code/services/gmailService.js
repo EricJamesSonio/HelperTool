@@ -461,11 +461,21 @@ function _decodeBase64(data) {
   }
 }
 
+function _shortenLongUrls(text) {
+  return text.replace(/https?:\/\/[^\s]+/g, (match) => {
+    if (match.length <= 100) return match;
+    const domain = match.match(/https?:\/\/([^\/]+)/);
+    return domain ? domain[0] : match;
+  });
+}
+
 function _extractBodyText(payload) {
   if (!payload) return '';
+
   if (payload.mimeType === 'text/plain' && payload.body?.data) {
-    return _decodeBase64(payload.body.data);
+    return _shortenLongUrls(_decodeBase64(payload.body.data));
   }
+
   if (payload.mimeType === 'text/html' && payload.body?.data) {
     let html = _decodeBase64(payload.body.data);
 
@@ -499,21 +509,16 @@ function _extractBodyText(payload) {
     // Collapse excessive blank lines
     html = html.replace(/\n{3,}/g, '\n\n');
 
-    // Shorten long tracking URLs — keep only domain for URLs over 100 chars
-    html = html.replace(/https?:\/\/[^\s]+/g, (match) => {
-      if (match.length <= 100) return match;
-      const domain = match.match(/https?:\/\/([^\/]+)/);
-      return domain ? domain[0] : match;
-    });
-
-    return html;
+    return _shortenLongUrls(html);
   }
+
   if (payload.parts) {
     for (const part of payload.parts) {
       const text = _extractBodyText(part);
       if (text) return text;
     }
   }
+
   return '';
 }
 
