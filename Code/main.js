@@ -33,6 +33,7 @@ const videoIpc = require('./ipc/video_ipc.js');
 const imageIpc = require('./ipc/image_ipc.js');
 const gmailIpc = require('./ipc/gmail_ipc.js');
 const automationIpc = require('./ipc/automation_ipc.js');
+const githubIpc = require('./ipc/github_ipc.js');
 const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
 
@@ -161,6 +162,7 @@ function registerAllIpc() {
     imageIpc.register(shared);
     gmailIpc.register(shared);
     automationIpc.register();
+    githubIpc.register();
     serviceTrackerIpc.register();
 }
 

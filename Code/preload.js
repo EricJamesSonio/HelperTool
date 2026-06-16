@@ -414,6 +414,12 @@ const gmailBridge = {
     },
 };
 
+const githubBridge = {
+  github: {
+    loadTree: (payload) => ipcRenderer.invoke('github:loadTree', payload),
+  },
+};
+
 const automationBridge = {
   automation: {
     list:     ()                               => ipcRenderer.invoke('automation:list'),
@@ -478,6 +484,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...imageBridge,
     ...videoBridge,
     ...gmailBridge,
+    ...githubBridge,
     windowControls,
 });
 

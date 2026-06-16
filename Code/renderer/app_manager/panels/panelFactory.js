@@ -118,3 +118,13 @@ export function createCodebaseChatPanel() {
     closeBtnId:  'closeCodebaseChatBtn',
   });
 }
+
+export function createGithubExplorerPanel() {
+  return createPanel({
+    id:          'githubExplorerPanel',
+    className:   'ge-panel',
+    title:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg> GitHub Explorer',
+    containerId: 'githubExplorerContainer',
+    closeBtnId:  'closeGithubExplorerBtn',
+  });
+}
