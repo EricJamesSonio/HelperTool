@@ -200,12 +200,13 @@ export default class CanvasEngine {
     ctx.fillStyle = def.color;
     ctx.fill();
 
+    this._drawNodeIcon(ctx, def, node.x + 10, node.y + headerH / 2);
+
     ctx.fillStyle = '#fff';
     ctx.font = '13px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const iconText = def.icon || '';
-    ctx.fillText(iconText + '  ' + node.label, node.x + 10, node.y + headerH / 2);
+    ctx.fillText(node.label, node.x + 28, node.y + headerH / 2);
 
     const firstFieldKey = def.fields?.[0];
     if (firstFieldKey && node.fields[firstFieldKey]) {
@@ -262,6 +263,29 @@ export default class CanvasEngine {
         }
       }
     }
+  }
+
+  _drawNodeIcon(ctx, def, cx, cy) {
+    if (!def.iconPath) return;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(0.8, 0.8);
+    ctx.translate(-8, -8);
+
+    const path = new Path2D(def.iconPath);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (def.iconPath.includes('z') || def.iconPath.includes('Z')) {
+      ctx.fill(path);
+    } else {
+      ctx.stroke(path);
+    }
+
+    ctx.restore();
   }
 
   _getNodeHeight(node) {
