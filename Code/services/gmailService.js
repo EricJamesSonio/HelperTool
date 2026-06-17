@@ -1,3 +1,4 @@
+const { app } = require('electron');
 const { google } = require('googleapis');
 const { OAuth2 } = google.auth;
 const http = require('http');
@@ -6,7 +7,7 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const STORE_PATH       = path.join(__dirname, '..', 'gmail-store.json');
+function getStorePath() { return path.join(app.getPath('userData'), 'gmail-store.json'); }
 const TOKEN_KEY        = 'gmail.accounts';
 const IGNORED_KEY      = 'gmail.ignoredSenders';
 const HISTORY_ID_KEY   = 'gmail.historyIds';   // { [email]: lastHistoryId }
@@ -15,12 +16,12 @@ const CREDENTIALS_PATH = path.join(__dirname, '..', 'credentials.json');
 // ─── Store helpers ────────────────────────────────────────────────────────────
 
 function readStore() {
-  try { return JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')); }
+  try { return JSON.parse(fs.readFileSync(getStorePath(), 'utf8')); }
   catch { return {}; }
 }
 
 function writeStore(data) {
-  fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2));
+  fs.writeFileSync(getStorePath(), JSON.stringify(data, null, 2));
 }
 
 // ─── History ID persistence ───────────────────────────────────────────────────
