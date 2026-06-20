@@ -526,35 +526,47 @@
 
 .cc-msg--thinking .cc-msg-bubble {
   padding: 18px 24px;
+}
+
+.cc-thinking-row {
   display: flex;
   align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.cc-thinking-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 .cc-thinking-dots {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
 }
 
 .cc-thinking-dots span {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--accent);
-  animation: ccDotPulse 0.8s ease-in-out infinite;
+  animation: ccDotPulse 1s ease-in-out infinite;
 }
 
 .cc-thinking-dots span:nth-child(2) {
-  animation-delay: 0.15s;
+  animation-delay: 0.2s;
 }
 
 .cc-thinking-dots span:nth-child(3) {
-  animation-delay: 0.3s;
+  animation-delay: 0.4s;
 }
 
 @keyframes ccDotPulse {
-  0%, 100% { opacity: 0.2; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.1); }
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 
 /* ── Follow-up chips ────────────────────────────────────────── */
