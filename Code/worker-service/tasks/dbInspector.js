@@ -195,21 +195,21 @@ async function extractMysqlSchema(client) {
     const [colRows] = await client.query(`
       SELECT column_name, data_type, is_nullable, column_default, ordinal_position, column_key
       FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position
-    `, [dbName, row.TABLE_NAME]);
+    `, [dbName, row.table_name]);
 
     for (const c of colRows) {
       totalColumns++;
       columns.push({
-        name: c.COLUMN_NAME,
-        dataType: c.DATA_TYPE,
-        nullable: c.IS_NULLABLE === 'YES',
-        isPk: c.COLUMN_KEY === 'PRI',
-        defaultValue: c.COLUMN_DEFAULT,
-        ordinal: c.ORDINAL_POSITION,
+        name: c.column_name,
+        dataType: c.data_type,
+        nullable: c.is_nullable === 'YES',
+        isPk: c.column_key === 'PRI',
+        defaultValue: c.column_default,
+        ordinal: c.ordinal_position,
       });
     }
 
-    const [idxRows] = await client.query(`SHOW INDEX FROM \`${row.TABLE_NAME}\` FROM \`${dbName}\``);
+    const [idxRows] = await client.query(`SHOW INDEX FROM \`${row.table_name}\` FROM \`${dbName}\``);
     const idxMap = {};
     for (const i of idxRows) {
       if (!idxMap[i.Key_name]) idxMap[i.Key_name] = { name: i.Key_name, columns: [], unique: !i.Non_unique };
@@ -219,7 +219,7 @@ async function extractMysqlSchema(client) {
       indexes.push(idxMap[key]);
     }
 
-    tables.push({ name: row.TABLE_NAME, rowCount: row.TABLE_ROWS || 0, schemaName: dbName, columns, indexes });
+    tables.push({ name: row.table_name, rowCount: row.table_rows || 0, schemaName: dbName, columns, indexes });
   }
 
   const [fkRows] = await client.query(`

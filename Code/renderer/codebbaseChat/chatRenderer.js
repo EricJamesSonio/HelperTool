@@ -118,8 +118,31 @@ function renderBotMessage(msg) {
 function renderThinkingBubble() {
   const div = document.createElement('div');
   div.className = 'cc-msg cc-msg--bot cc-msg--thinking';
-  div.innerHTML = '<div class="cc-msg-bubble"><div class="cc-thinking-dots"><span></span><span></span><span></span></div></div>';
+  div.innerHTML = `
+    <div class="cc-msg-bubble">
+      <div class="cc-msg-header">HelperChat</div>
+      <div class="cc-thinking-row">
+        <span class="cc-thinking-label">Thinking</span>
+        <span class="cc-thinking-dots"><span></span><span></span><span></span></span>
+      </div>
+    </div>`;
   return div;
+}
+
+function streamIntoElement(element, fullText, onProgress, onDone) {
+  const contentEl = element.querySelector('.cc-msg-content');
+  if (!contentEl) { onDone?.(); return; }
+  let idx = 0;
+  const len = fullText.length;
+  const speed = len > 1000 ? 5 : len > 500 ? 8 : len > 200 ? 12 : 20;
+  function type() {
+    if (idx > len) { onDone?.(); return; }
+    contentEl.innerHTML = formatContent(fullText.slice(0, idx));
+    idx++;
+    onProgress?.();
+    requestAnimationFrame(() => setTimeout(type, speed));
+  }
+  type();
 }
 
 function renderWelcome() {
@@ -222,4 +245,5 @@ export {
   renderWelcome,
   renderConvGroup,
   getGroupLabel,
+  streamIntoElement,
 };

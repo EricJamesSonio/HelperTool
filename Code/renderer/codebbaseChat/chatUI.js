@@ -1,4 +1,4 @@
-import { renderUserMessage, renderBotMessage, renderThinkingBubble, renderWelcome, renderConvGroup, getGroupLabel } from './chatRenderer.js';
+import { renderUserMessage, renderBotMessage, renderThinkingBubble, renderWelcome, renderConvGroup, getGroupLabel, streamIntoElement } from './chatRenderer.js';
 import { detectAndHandleEmailQuery } from './chatQueryEngine.js';
 
 const ICON_SEND = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v14"/><path d="m4 9 6-6 6 6"/></svg>';
@@ -618,7 +618,6 @@ class ChatUI {
     if (!this.state.activeRepoPath) return;
 
     this.state.addMessage('user', rawText || '', queryType, filePath);
-    this.state.addMessage('bot', '', queryType, filePath);
     this.state.isLoading = true;
 
     this._renderAllMessages();
@@ -628,16 +627,33 @@ class ChatUI {
     const answer = await this.queryEngine.executeQuery(queryType, this.state.activeRepoPath, filePath);
     const promptText = this.queryEngine.formatAsPrompt(filePath, queryType, answer);
     const summary = this.queryEngine.generateSummary(queryType, filePath, answer);
+    const finalContent = summary ? summary + '\n\n' + answer : answer;
 
-    this.state.replaceLastBot(summary ? summary + '\n\n' + answer : answer);
-    this.state.conversationHistory[this.state.getLastBotIndex()]._promptText = promptText;
     this.state.isLoading = false;
 
-    this._renderAllMessages();
-    this._updateLayout();
-    this._scrollToBottom();
+    const messages = this.container.querySelector('#ccMessages');
+    const thinkingEl = messages?.querySelector('.cc-msg--thinking');
+    if (thinkingEl) {
+      const botEl = renderBotMessage({ content: finalContent, _promptText: promptText });
+      const contentEl = botEl.querySelector('.cc-msg-content');
+      if (contentEl) contentEl.innerHTML = '';
+      thinkingEl.replaceWith(botEl);
+      this._scrollToBottom();
+      streamIntoElement(botEl, finalContent, () => {
+        this._scrollToBottom();
+      }, () => {
+        this.state.addMessage('bot', finalContent, queryType, filePath);
+        this.state.conversationHistory[this.state.getLastBotIndex()]._promptText = promptText;
+        this._renderFollowUpChips(queryType, filePath);
+        this._scrollToBottom();
+      });
+    } else {
+      this.state.addMessage('bot', finalContent, queryType, filePath);
+      this.state.conversationHistory[this.state.getLastBotIndex()]._promptText = promptText;
+      this._renderAllMessages();
+    }
 
-    this._renderFollowUpChips(queryType, filePath);
+    this._updateLayout();
 
     input.value = '';
     this.state.selectedFile = null;
@@ -648,7 +664,7 @@ class ChatUI {
 
     this._renderSidebar();
 
-    await this.state.saveMessagePair(this.ipc, queryType, filePath, answer, promptText, rawText);
+    await this.state.saveMessagePair(this.ipc, queryType, filePath, finalContent, promptText, rawText);
   }
 
   _renderFollowUpChips(queryType, filePath) {

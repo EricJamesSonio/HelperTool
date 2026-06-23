@@ -18,6 +18,7 @@
   flex-direction: column;
   will-change: transform;
   contain: layout style paint;
+  overflow: hidden;
 }
 
 .dbi-header {
@@ -77,6 +78,7 @@
   min-height: 0;
   display: flex;
   contain: layout style paint;
+  overflow: hidden;
 }
 
 .dbi-welcome {

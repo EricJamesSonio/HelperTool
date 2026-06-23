@@ -9,10 +9,12 @@
   top: var(--titlebar-h);
   background: rgba(0,0,0,0.60);
   backdrop-filter: blur(6px);
-  z-index: 9000;
+  z-index: 10000;
   display: none;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 10px;
+  overflow-y: auto;
 }
 .settings-overlay.open {
   display: flex;
@@ -92,6 +94,7 @@
 .settings-body {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding: 20px;
   display: flex;
   flex-direction: column;
