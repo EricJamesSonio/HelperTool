@@ -11,8 +11,10 @@
   backdrop-filter: blur(6px);
   z-index: 9000;
   display: none;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  overflow: hidden;
+  padding-top: 20px;
 }
 .settings-overlay.open {
   display: flex;

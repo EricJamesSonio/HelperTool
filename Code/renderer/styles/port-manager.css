@@ -6,12 +6,14 @@
   top: var(--titlebar-h, 32px);
   z-index: 9999;
   display: none;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease;
+  overflow: hidden;
+  padding-top: 16px;
 }
 .pm-panel.pm-open {
   display: flex;
