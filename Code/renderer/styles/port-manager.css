@@ -12,8 +12,8 @@
   pointer-events: none;
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease;
-  overflow: hidden;
   padding-top: 16px;
+  overflow-y: auto;
 }
 .pm-panel.pm-open {
   display: flex;
@@ -146,6 +146,7 @@
 .pm-body {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding: 12px 20px;
 }
 .pm-empty {
