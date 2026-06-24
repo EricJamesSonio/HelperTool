@@ -1,32 +1,33 @@
 .oc-panel {
   position: fixed;
-  top: 0; right: 0; bottom: 0;
-  width: 85vw;
-  max-width: 1100px;
-  min-width: 500px;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   background: var(--bg-base, #010409);
-  border-left: 1px solid var(--border-strong, rgba(255,255,255,0.15));
   z-index: 90000;
   display: flex;
   flex-direction: column;
-  transform: translateX(100%);
-  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
-  box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+  transform: scale(0.97);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  pointer-events: none;
 }
 
 .oc-panel.open {
-  transform: translateX(0);
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .oc-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 12px 20px;
   background: var(--bg-surface, #0a0c10);
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
   flex-shrink: 0;
-  min-height: 48px;
+  min-height: 52px;
 }
 
 .oc-header-left {
@@ -42,7 +43,7 @@
 
 .oc-title {
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary, #f0f6fc);
 }
@@ -58,11 +59,11 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 14px;
+  height: 34px;
+  padding: 0 16px;
   border-radius: var(--r-sm, 6px);
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid var(--border-default, rgba(255,255,255,0.1));
@@ -79,7 +80,7 @@
 }
 
 .oc-btn-icon {
-  width: 32px;
+  width: 34px;
   padding: 0;
   font-size: 16px;
 }
@@ -87,181 +88,9 @@
 .oc-body {
   flex: 1;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   min-height: 0;
-}
-
-.oc-sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-surface, #0a0c10);
-  border-right: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
-  overflow: hidden;
-}
-
-.oc-sidebar-top {
-  padding: 12px 10px 8px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.oc-repo-tabs {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.oc-repo-tab {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
-  background: transparent;
-  color: var(--text-muted, #8b949e);
-  transition: all var(--ease, 0.15s ease);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
-}
-
-.oc-repo-tab:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.05));
-  color: var(--text-secondary, #b1bac4);
-}
-
-.oc-repo-tab.active {
-  background: var(--accent-dim, rgba(34,211,238,0.12));
-  border-color: var(--accent-border, rgba(34,211,238,0.3));
-  color: var(--accent, #22d3ee);
-}
-
-.oc-repo-tab-add {
-  min-width: 28px;
-  max-width: 28px;
-  padding: 0;
-  font-size: 16px;
-  line-height: 1;
-  opacity: 0.6;
-}
-
-.oc-repo-tab-add:hover {
-  opacity: 1;
-}
-
-.oc-repo-count {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-faint, #545d68);
-  margin-left: 4px;
-}
-
-.oc-btn-new-chat {
-  width: 100%;
-  height: 32px;
-  border: 1px dashed var(--border-default, rgba(255,255,255,0.12));
-  background: transparent;
-  color: var(--text-muted, #8b949e);
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.oc-btn-new-chat:hover {
-  border-color: var(--accent, #22d3ee);
-  color: var(--accent, #22d3ee);
-  background: var(--accent-dim, rgba(34,211,238,0.08));
-}
-
-.oc-conv-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 8px;
-}
-
-.oc-conv-empty {
-  font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--text-faint, #545d68);
-  text-align: center;
-  padding: 24px 8px;
-  font-style: italic;
-}
-
-.oc-conv-group {
-  margin-bottom: 4px;
-}
-
-.oc-conv-group-label {
-  font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-faint, #545d68);
-  padding: 8px 10px 4px;
-}
-
-.oc-conv-item {
-  padding: 8px 10px;
-  border-radius: var(--r-sm, 6px);
-  cursor: pointer;
-  transition: background var(--ease, 0.15s ease);
-  border-left: 2px solid transparent;
-}
-
-.oc-conv-item:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.04));
-}
-
-.oc-conv-item.active {
-  background: var(--accent-dim, rgba(34,211,238,0.08));
-  border-left-color: var(--accent, #22d3ee);
-}
-
-.oc-conv-item-title {
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary, #f0f6fc);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.oc-conv-item-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 2px;
-}
-
-.oc-conv-item-time {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-faint, #545d68);
-}
-
-.oc-conv-item-count {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-muted, #8b949e);
-}
-
-.oc-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
 }
 
 .oc-welcome {
@@ -278,7 +107,7 @@
 
 .oc-welcome-content h2 {
   font-family: var(--font-ui);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--text-secondary, #b1bac4);
   margin: 12px 0 4px;
@@ -299,29 +128,29 @@
 }
 
 .oc-chat-header {
-  padding: 10px 20px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
   flex-shrink: 0;
 }
 
 .oc-chat-title {
   font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary, #f0f6fc);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted, #8b949e);
 }
 
 .oc-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
 .oc-bubble {
-  max-width: 85%;
+  max-width: min(90%, 800px);
   animation: ocFadeIn 0.2s ease;
 }
 
@@ -347,7 +176,7 @@
 
 .oc-bubble-author {
   font-family: var(--font-ui);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-muted, #8b949e);
 }
@@ -358,13 +187,13 @@
 
 .oc-bubble-time {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 10px;
   color: var(--text-faint, #545d68);
 }
 
 .oc-bubble-content {
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary, #f0f6fc);
 }
@@ -387,9 +216,9 @@
 }
 
 .oc-code-lang {
-  padding: 4px 12px;
+  padding: 6px 14px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-faint, #545d68);
   background: var(--bg-raised, #1c2028);
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
@@ -401,10 +230,10 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  height: 24px;
-  padding: 0 8px;
+  height: 26px;
+  padding: 0 10px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
@@ -425,9 +254,9 @@
 
 .oc-code {
   display: block;
-  padding: 12px 14px;
+  padding: 14px 16px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--text-secondary, #b1bac4);
   overflow-x: auto;
@@ -497,7 +326,7 @@
 
 .oc-input-area {
   flex-shrink: 0;
-  padding: 12px 20px;
+  padding: 16px 24px;
   border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
   background: var(--bg-surface, #0a0c10);
 }
@@ -517,15 +346,15 @@
 
 .oc-input {
   flex: 1;
-  min-height: 36px;
+  min-height: 40px;
   max-height: 200px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--r-sm, 6px);
   border: 1px solid var(--border-mid, rgba(255,255,255,0.14));
   background: var(--bg-elevated, #0f1117);
   color: var(--text-primary, #f0f6fc);
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
   resize: none;
   outline: none;
@@ -543,9 +372,9 @@
 
 .oc-btn-attach {
   flex-shrink: 0;
-  font-size: 16px;
-  width: 36px;
-  height: 36px;
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
   padding: 0;
 }
 

@@ -99,7 +99,7 @@ function createMessageBubble(msg) {
   const header = document.createElement('div');
   header.className = 'oc-bubble-header';
   header.innerHTML = `
-    <span class="oc-bubble-author">${isUser ? 'You' : 'OpenCode'}</span>
+    <span class="oc-bubble-author">${isUser ? 'You' : 'Code Swamp'}</span>
     <span class="oc-bubble-time">${msg.timestamp ? formatTime(msg.timestamp) : ''}</span>
   `;
   div.appendChild(header);

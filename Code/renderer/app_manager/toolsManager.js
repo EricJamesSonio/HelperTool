@@ -316,12 +316,15 @@ function populateSidebar() {
     openEnvManager(state.selectedRepoPath);
   }, 'env'));
 
-  body.appendChild(createSidebarItem(ICONS.opencode, 'OpenCode', 'Chat with AI via OpenCode', async () => {
+  body.appendChild(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
     _registry.closeAll();
     try {
       const oc = await import('../opencodeUI.js');
-      if (oc.isOpencodeOpen()) { oc.close(); return; }
-      await oc.open();
+      if (oc.isOpencodeOpen()) {
+        oc.close();
+      } else {
+        await oc.open();
+      }
     } catch (err) { console.error('[Tools] OpenCode:', err); }
   }, 'opencode'));
 }
@@ -714,8 +717,11 @@ function _buildShortcutActions() {
     _registry.closeAll();
     try {
       const oc = await import('../opencodeUI.js');
-      if (oc.isOpencodeOpen()) { oc.close(); return; }
-      await oc.open();
+      if (oc.isOpencodeOpen()) {
+        oc.close();
+      } else {
+        await oc.open();
+      }
     } catch (err) { console.error('[Shortcuts] OpenCode:', err); }
   };
 

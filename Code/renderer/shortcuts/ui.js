@@ -48,7 +48,7 @@ const FEATURES = [
      { id: 'gmailTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="12" rx="2"/><polyline points="2,4 10,11 18,4"/></svg>',name: 'Gmail Inbox' },
       { id: 'automationSketch',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',name: 'Automation Sketch' },
       { id: 'githubExplorer',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="5"/><path d="M2 10h3M15 10h3M10 2v3M10 15v3"/><circle cx="10" cy="10" r="1.5"/></svg>',name: 'GitHub Explorer' },
-      { id: 'opencodeChat',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',name: 'OpenCode Chat' },
+      { id: 'opencodeChat',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',name: 'Code Swamp' },
 ];
 
 let _modal = null;
