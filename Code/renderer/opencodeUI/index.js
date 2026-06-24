@@ -19,23 +19,35 @@ export async function initOpencodeUI() {
   }
 
   setupDom();
-
-  const info = await discoverOpencode();
-  state.opencodePath = info.binaryPath;
-  state.dataRoot = info.dataRoot;
-
-  const repos = await listRepos();
-  const activeRepo = await getActiveRepoPath();
-
-  if (activeRepo) {
-    await addRepo(activeRepo);
-  } else if (repos.length > 0) {
-    await addRepo(repos[0].repoPath);
-  }
-
   showWelcome();
   renderInput();
   setupStreamListeners();
+
+  // Fast IPC — blocks until active repo is set so New Chat / Send work immediately
+  const activeRepo = await getActiveRepoPath();
+  if (activeRepo) {
+    await addRepo(activeRepo);
+  }
+
+  // Defer slow CLI discovery + conversation listing
+  setTimeout(async () => {
+    try {
+      const info = await discoverOpencode();
+      state.opencodePath = info.binaryPath;
+      state.dataRoot = info.dataRoot;
+
+      const repos = await listRepos();
+      if (!state.activeTab && repos.length > 0) {
+        await addRepo(repos[0].repoPath);
+      }
+
+      if (state.activeTab) {
+        await refreshSidebar();
+      }
+    } catch (err) {
+      console.error('[CodeSwamp] Init error:', err);
+    }
+  }, 0);
 }
 
 function setupDom() {

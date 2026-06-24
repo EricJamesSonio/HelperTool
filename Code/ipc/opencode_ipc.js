@@ -1,8 +1,16 @@
 const { ipcMain, dialog } = require('electron');
-const { spawn, execSync } = require('child_process');
+const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+
+function execAsync(cmd, opts = {}) {
+  return new Promise((resolve) => {
+    exec(cmd, { timeout: opts.timeout || 10000, windowsHide: true, ...opts }, (err, stdout) => {
+      resolve(err ? null : stdout.trim());
+    });
+  });
+}
 
 let _activeProc = null;
 let _mainWindow = null;
@@ -19,7 +27,7 @@ function getStorageDir(repoPath) {
   return path.join(dataRoot, 'project', slug, 'storage');
 }
 
-function findOpencode() {
+async function findOpencode() {
   const isWin = process.platform === 'win32';
   const commonPaths = [
     'opencode',
@@ -33,28 +41,26 @@ function findOpencode() {
     ]),
   ];
   for (const bin of commonPaths) {
-    try {
-      execSync(`"${bin}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 3000, windowsHide: true });
-      return bin;
-    } catch (_) {}
+    const out = await execAsync(`"${bin}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 3000 });
+    if (out !== null) return bin;
   }
   return 'opencode';
 }
 
-function discover() {
-  const binaryPath = findOpencode();
+async function discover() {
+  const binaryPath = await findOpencode();
   let version = 'unknown';
   const isWin = process.platform === 'win32';
-  try {
-    version = execSync(`"${binaryPath}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { encoding: 'utf-8', timeout: 3000, windowsHide: true }).trim();
-  } catch (_) {}
+  const out = await execAsync(`"${binaryPath}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 3000 });
+  if (out) version = out;
   const dataRoot = getDataRoot();
   return { binaryPath, dataRoot, version };
 }
 
-function listViaCli(binaryPath) {
+async function listViaCli(binaryPath) {
   try {
-    const out = execSync(`"${binaryPath}" session list --json 2>${process.platform === 'win32' ? 'nul' : '/dev/null'}`, { encoding: 'utf-8', timeout: 10000, windowsHide: true });
+    const out = await execAsync(`"${binaryPath}" session list --json 2>${process.platform === 'win32' ? 'nul' : '/dev/null'}`, { timeout: 10000 });
+    if (!out) return null;
     const data = JSON.parse(out);
     if (Array.isArray(data)) return data;
     if (data.sessions && Array.isArray(data.sessions)) return data.sessions;
@@ -99,9 +105,9 @@ function register(shared) {
   });
 
   ipcMain.handle('opencode:listConversations', async (_, { repoPath }) => {
-    const { binaryPath } = discover();
+    const { binaryPath } = await discover();
 
-    const cliResult = listViaCli(binaryPath);
+    const cliResult = await listViaCli(binaryPath);
     if (cliResult && Array.isArray(cliResult)) {
       const np = repoPath ? normPath(repoPath) : null;
       return cliResult
@@ -121,14 +127,16 @@ function register(shared) {
 
   ipcMain.handle('opencode:getConversation', async (_, { convId }) => {
     if (!convId) return null;
-    const { binaryPath } = discover();
+    const { binaryPath } = await discover();
     const isWin = process.platform === 'win32';
 
-    try {
-      const out = execSync(`"${binaryPath}" session export ${convId} --json 2>${isWin ? 'nul' : '/dev/null'}`, { encoding: 'utf-8', timeout: 10000, windowsHide: true });
-      const data = JSON.parse(out);
-      return { id: convId, messages: data.messages || data.history || [] };
-    } catch (_) {}
+    const out = await execAsync(`"${binaryPath}" session export ${convId} --json 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 10000 });
+    if (out) {
+      try {
+        const data = JSON.parse(out);
+        return { id: convId, messages: data.messages || data.history || [] };
+      } catch (_) {}
+    }
 
     const dataRoot = getDataRoot();
     const candidates = [
@@ -165,7 +173,7 @@ function register(shared) {
   });
 
   ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv }) => {
-    const { binaryPath } = discover();
+    const { binaryPath } = await discover();
     const args = ['run', message];
 
     if (continueConv) args.push('-c');
@@ -224,8 +232,8 @@ function register(shared) {
   });
 
   ipcMain.handle('opencode:listRepos', async () => {
-    const { binaryPath } = discover();
-    const cliResult = listViaCli(binaryPath);
+    const { binaryPath } = await discover();
+    const cliResult = await listViaCli(binaryPath);
     if (cliResult && Array.isArray(cliResult)) {
       const repoMap = {};
       for (const s of cliResult) {
@@ -270,12 +278,10 @@ function register(shared) {
   });
 
   ipcMain.handle('opencode:deleteConversation', async (_, { convId }) => {
-    const { binaryPath } = discover();
+    const { binaryPath } = await discover();
     const isWin = process.platform === 'win32';
-    try {
-      execSync(`"${binaryPath}" session delete ${convId} 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 5000, windowsHide: true });
-      return { success: true };
-    } catch (_) {}
+    const out = await execAsync(`"${binaryPath}" session delete ${convId} 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 5000 });
+    if (out !== null) return { success: true };
 
     const dataRoot = getDataRoot();
     const projectDir = path.join(dataRoot, 'project');
