@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { listConversations } from './history.js';
-import { loadConvMessages, renderMessages, updateChatHeader, showWelcome } from './chat.js';
+import { loadConvMessages, clearTerminal } from './chat.js';
 import { renderConvList } from './repoTabs.js';
 
 export async function refreshSidebar() {
@@ -23,20 +23,25 @@ export async function loadConversation(convId) {
   const messages = await loadConvMessages(convId);
   state.messages[repoPath] = messages;
 
-  const conv = (state.conversations[repoPath] || []).find(c => c.id === convId);
-  updateChatHeader(conv ? conv.title : 'Chat');
-  renderMessages(messages);
   renderConvList();
 }
 
 export async function startNewChat() {
+  console.log('[CS] startNewChat called, activeTab:', state.activeTab);
   const repoPath = state.activeTab;
-  if (!repoPath) return;
+  if (!repoPath) {
+    console.log('[CS] startNewChat: no activeTab, returning');
+    return;
+  }
 
   state.activeConvId[repoPath] = 'new';
   state.messages[repoPath] = [];
 
-  updateChatHeader('New Chat');
-  showWelcome();
+  clearTerminal();
   renderConvList();
+
+  const input = document.getElementById('ocInput');
+  if (input) setTimeout(() => input.focus(), 50);
+
+  console.log('[CS] startNewChat done');
 }

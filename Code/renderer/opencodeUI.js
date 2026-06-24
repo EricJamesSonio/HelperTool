@@ -9,8 +9,17 @@ export async function init() {
 }
 
 export function open() {
-  if (!_initialized) init().then(() => openOpencodeUI());
-  else openOpencodeUI();
+  console.log('[CS] open(), _initialized:', _initialized);
+  if (!_initialized) {
+    console.log('[CS] first open — calling init');
+    init().then(() => {
+      console.log('[CS] init done, now openOpencodeUI');
+      openOpencodeUI();
+    });
+  } else {
+    console.log('[CS] already initialized, direct open');
+    openOpencodeUI();
+  }
 }
 
 export function close() {

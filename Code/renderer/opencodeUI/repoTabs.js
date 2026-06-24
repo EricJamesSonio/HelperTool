@@ -1,18 +1,21 @@
 import { state } from './state.js';
 import { refreshSidebar, loadConversation } from './sidebar.js';
-import { clearChat, showWelcome, renderMessages } from './chat.js';
+import { clearTerminal, loadConvMessages } from './chat.js';
 import { listConversations } from './history.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 
 export async function addRepo(repoPath) {
-  if (!repoPath) return;
+  console.log('[CS] addRepo:', repoPath);
+  if (!repoPath) { console.log('[CS] addRepo: no path, return'); return; }
   const existing = state.tabs.find(t => t.repoPath === repoPath);
   if (existing) {
+    console.log('[CS] addRepo: already exists, switching tab');
     switchTab(repoPath);
     return;
   }
 
   const label = repoPath.split(/[/\\]/).filter(Boolean).pop() || repoPath;
+  console.log('[CS] addRepo: label:', label);
   state.tabs.push({ repoPath, label, active: false });
   state.conversations[repoPath] = [];
   state.activeConvId[repoPath] = null;
@@ -31,10 +34,9 @@ export function switchTab(repoPath) {
   state.activeTab = repoPath;
   for (const tab of state.tabs) tab.active = tab.repoPath === repoPath;
 
-  if (!state.messages[repoPath] || state.messages[repoPath].length === 0) {
-    showWelcome();
-  } else {
-    renderMessages(state.messages[repoPath]);
+  clearTerminal();
+  if (state.messages[repoPath] && state.messages[repoPath].length > 0) {
+    loadConvMessages(state.messages[repoPath]);
   }
 
   updateRepoPath(repoPath);

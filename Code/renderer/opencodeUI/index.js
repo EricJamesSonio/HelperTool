@@ -4,29 +4,33 @@ import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
 import { refreshSidebar, startNewChat } from './sidebar.js';
 import { renderInput, setupStreamListeners } from './input.js';
 import { discoverOpencode, listRepos } from './history.js';
-import { showWelcome } from './chat.js';
+import { clearTerminal } from './chat.js';
 
 let _initialized = false;
 
 export async function initOpencodeUI() {
-  if (_initialized) return;
+  console.log('[CS] initOpencodeUI start');
+  if (_initialized) { console.log('[CS] initOpencodeUI already initialized, return'); return; }
   _initialized = true;
 
   const panel = document.getElementById('ocPanel');
   if (!panel) {
     const container = document.getElementById('ocPanelContainer') || document.body;
     container.insertAdjacentHTML('beforeend', getTemplate('content'));
+    console.log('[CS] template inserted');
   }
 
   setupDom();
-  showWelcome();
+  clearTerminal();
   renderInput();
   setupStreamListeners();
 
   // Fast IPC — blocks until active repo is set so New Chat / Send work immediately
   const activeRepo = await getActiveRepoPath();
+  console.log('[CS] activeRepo:', activeRepo);
   if (activeRepo) {
     await addRepo(activeRepo);
+    console.log('[CS] addRepo done, activeTab:', state.activeTab);
   }
 
   // Defer slow CLI discovery + conversation listing
@@ -51,8 +55,10 @@ export async function initOpencodeUI() {
 }
 
 function setupDom() {
+  const newChatBtn = document.getElementById('ocNewChatBtn');
+  console.log('[CS] setupDom — ocNewChatBtn found:', !!newChatBtn);
+  newChatBtn?.addEventListener('click', startNewChat);
   document.getElementById('ocCloseBtn')?.addEventListener('click', closeOpencodeUI);
-  document.getElementById('ocNewChatBtn')?.addEventListener('click', startNewChat);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -72,11 +78,16 @@ async function getActiveRepoPath() {
 }
 
 export function openOpencodeUI() {
+  console.log('[CS] openOpencodeUI, tabs.length:', state.tabs.length);
   const panel = document.getElementById('ocPanel');
+  console.log('[CS] panel found:', !!panel);
   if (panel) {
     panel.classList.add('open');
     state.open = true;
-    if (state.tabs.length === 0) initOpencodeUI();
+    if (state.tabs.length === 0) {
+      console.log('[CS] tabs empty, calling initOpencodeUI');
+      initOpencodeUI();
+    }
   }
 }
 

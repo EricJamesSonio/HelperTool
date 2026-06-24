@@ -1,89 +1,58 @@
 import { state } from './state.js';
 import { getConversation } from './history.js';
-import { extractSegments, escapeHtml, formatTime } from './utils.js';
 
-export function showWelcome() {
-  const welcome = document.getElementById('ocWelcome');
-  const chat = document.getElementById('ocChat');
-  if (welcome) welcome.style.display = '';
-  if (chat) chat.style.display = 'none';
+function getTerminal() {
+  return document.getElementById('ocTerminalOutput');
 }
 
-export function clearChat() {
-  const container = document.getElementById('ocMessages');
-  if (container) container.innerHTML = '';
+export function clearTerminal() {
+  const pre = getTerminal();
+  if (pre) pre.innerHTML = '';
 }
 
-export async function loadConvMessages(convId) {
-  const data = await getConversation(convId);
-  if (!data || !data.messages) return [];
-  return data.messages;
-}
-
-export function renderMessages(messages) {
-  const container = document.getElementById('ocMessages');
-  const welcome = document.getElementById('ocWelcome');
-  const chat = document.getElementById('ocChat');
-  if (!container) return;
-
-  if (welcome) welcome.style.display = 'none';
-  if (chat) chat.style.display = '';
-
-  container.innerHTML = '';
-
-  for (const msg of messages) {
-    const bubble = createMessageBubble(msg);
-    container.appendChild(bubble);
-  }
-
+export function appendToTerminal(text, className) {
+  const pre = getTerminal();
+  if (!pre) return;
+  const span = document.createElement('span');
+  if (className) span.className = className;
+  span.textContent = text;
+  pre.appendChild(span);
   scrollToBottom();
 }
 
-export function appendMessage(msg) {
-  const container = document.getElementById('ocMessages');
-  if (!container) return;
-  const bubble = createMessageBubble(msg);
-  container.appendChild(bubble);
-  scrollToBottom();
+export function appendUserMessage(text) {
+  appendToTerminal('$ ' + text + '\n', 'oc-term-user');
 }
 
-export function appendStreamChunk(content, isComplete = false) {
-  const container = document.getElementById('ocMessages');
-  if (!container) return;
+export function appendResponse(text) {
+  appendToTerminal(text);
+}
 
-  let lastBubble = container.lastElementChild;
-  if (!lastBubble || !lastBubble.classList.contains('oc-bubble-ai')) {
-    lastBubble = createMessageBubble({ role: 'assistant', content: '', timestamp: new Date().toISOString() });
-    lastBubble.classList.add('oc-bubble-streaming');
-    container.appendChild(lastBubble);
+export function appendStreamChunk(chunk) {
+  const pre = getTerminal();
+  if (!pre) return;
+
+  // If last child is a streaming response span, append to it
+  let last = pre.lastElementChild;
+  if (!last || !last.classList.contains('oc-term-streaming')) {
+    last = document.createElement('span');
+    last.className = 'oc-term-streaming';
+    pre.appendChild(last);
   }
 
-  const contentEl = lastBubble.querySelector('.oc-bubble-content');
-  if (contentEl) {
-    if (isComplete) {
-      contentEl.innerHTML = renderContent(content);
-      lastBubble.classList.remove('oc-bubble-streaming');
-    } else {
-      state.streamBuffer += content;
-      contentEl.innerHTML = renderContent(state.streamBuffer) + '<span class="oc-cursor">▋</span>';
-    }
-  }
-
+  last.textContent += chunk;
+  state.streamBuffer += chunk;
   scrollToBottom();
 }
 
 export function finalizeStream(fullContent) {
-  const container = document.getElementById('ocMessages');
-  if (!container) return;
+  const pre = getTerminal();
+  if (!pre) return;
 
-  const lastBubble = container.lastElementChild;
-  if (lastBubble && lastBubble.classList.contains('oc-bubble-streaming')) {
-    const contentEl = lastBubble.querySelector('.oc-bubble-content');
-    if (contentEl) {
-      contentEl.innerHTML = renderContent(fullContent);
-    }
-    lastBubble.classList.remove('oc-bubble-streaming');
-    lastBubble.classList.add('oc-bubble-ai');
+  let last = pre.lastElementChild;
+  if (last && last.classList.contains('oc-term-streaming')) {
+    last.classList.remove('oc-term-streaming');
+    last.textContent = fullContent;
   }
 
   state.streamBuffer = '';
@@ -91,69 +60,26 @@ export function finalizeStream(fullContent) {
   scrollToBottom();
 }
 
-function createMessageBubble(msg) {
-  const div = document.createElement('div');
-  const isUser = msg.role === 'user' || msg.role === 'human';
-  div.className = `oc-bubble ${isUser ? 'oc-bubble-user' : 'oc-bubble-ai'}`;
-
-  const header = document.createElement('div');
-  header.className = 'oc-bubble-header';
-  header.innerHTML = `
-    <span class="oc-bubble-author">${isUser ? 'You' : 'Code Swamp'}</span>
-    <span class="oc-bubble-time">${msg.timestamp ? formatTime(msg.timestamp) : ''}</span>
-  `;
-  div.appendChild(header);
-
-  const content = document.createElement('div');
-  content.className = 'oc-bubble-content';
-  content.innerHTML = renderContent(msg.content);
-  div.appendChild(content);
-
-  if (msg.files && msg.files.length) {
-    const files = document.createElement('div');
-    files.className = 'oc-bubble-files';
-    for (const f of msg.files) {
-      const chip = document.createElement('span');
-      chip.className = 'oc-file-chip';
-      chip.textContent = f.name || f;
-      files.appendChild(chip);
-    }
-    div.appendChild(files);
+export async function loadConvMessages(convIdOrMessages) {
+  let messages = convIdOrMessages;
+  if (typeof convIdOrMessages === 'string') {
+    const data = await getConversation(convIdOrMessages);
+    messages = data?.messages || [];
   }
-
-  return div;
-}
-
-function renderContent(text) {
-  if (!text) return '';
-  const segments = extractSegments(text);
-  return segments.map(seg => {
-    if (seg.type === 'code') {
-      const lang = seg.lang ? escapeHtml(seg.lang) : '';
-      return `<div class="oc-code-block">
-        ${lang ? `<div class="oc-code-lang">${lang}</div>` : ''}
-        <button class="oc-code-copy" onclick="
-          (async()=>{try{await navigator.clipboard.writeText(this.parentNode.querySelector('code').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)}catch(e){}})()
-        ">Copy</button>
-        <pre><code class="oc-code">${escapeHtml(seg.content)}</code></pre>
-      </div>`;
+  clearTerminal();
+  for (const msg of messages) {
+    if (msg.role === 'user' || msg.role === 'human') {
+      appendUserMessage(msg.content);
+    } else {
+      appendResponse(msg.content);
     }
-    if (seg.type === 'edit') {
-      return `<div class="oc-edit-notification">${escapeHtml(seg.content)}</div>`;
-    }
-    return `<p class="oc-text">${escapeHtml(seg.content)}</p>`;
-  }).join('');
+  }
+  return messages;
 }
 
 export function scrollToBottom() {
   requestAnimationFrame(() => {
-    const container = document.getElementById('ocMessages');
+    const container = document.getElementById('ocTerminal');
     if (container) container.scrollTop = container.scrollHeight;
   });
-}
-
-export function updateChatHeader(convTitle) {
-  const header = document.getElementById('ocChatHeader');
-  if (!header) return;
-  header.innerHTML = `<span class="oc-chat-title">${escapeHtml(convTitle || 'Chat')}</span>`;
 }

@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { appendStreamChunk, finalizeStream, appendMessage, scrollToBottom, showWelcome } from './chat.js';
+import { appendUserMessage, appendStreamChunk, finalizeStream, scrollToBottom } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 
 export function renderInput() {
@@ -76,19 +76,7 @@ async function sendMessage() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  const msg = {
-    role: 'user',
-    content: text,
-    timestamp: new Date().toISOString(),
-    files: state.pendingFiles.map(f => f.path),
-  };
-
-  appendMessage(msg);
-
-  const welcome = document.getElementById('ocWelcome');
-  const chat = document.getElementById('ocChat');
-  if (welcome) welcome.style.display = 'none';
-  if (chat) chat.style.display = '';
+  appendUserMessage(text);
 
   input.value = '';
   input.style.height = 'auto';
@@ -110,7 +98,7 @@ async function sendMessage() {
   try {
     await window.electronAPI.opencode.run(repoPath, text, files, continueConv);
   } catch (err) {
-    appendStreamChunk(`\n\nError: ${err.message}`, true);
+    appendStreamChunk(`\nError: ${err.message}`);
     finalizeStream(state.streamBuffer);
   }
 }
@@ -127,7 +115,7 @@ function stopStream() {
 
 export function setupStreamListeners() {
   window.electronAPI.opencode.onStream(({ chunk, isError }) => {
-    appendStreamChunk(chunk, false);
+    appendStreamChunk(chunk);
   });
 
   window.electronAPI.opencode.onDone(async ({ code }) => {

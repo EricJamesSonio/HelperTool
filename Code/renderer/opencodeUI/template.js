@@ -23,18 +23,10 @@ export function getTemplate(mode = 'full') {
     </div>
 
     <div class="oc-main" id="ocMain">
-      <div class="oc-welcome" id="ocWelcome">
-        <div class="oc-welcome-content">
-          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          <h2>Code Swamp</h2>
-          <p>Select a conversation or start a new chat.</p>
-        </div>
+      <div class="oc-terminal" id="ocTerminal">
+        <pre class="oc-terminal-output" id="ocTerminalOutput"><span class="oc-terminal-welcome">Code Swamp — type a message to start</span></pre>
       </div>
-      <div class="oc-chat" id="ocChat" style="display:none">
-        <div class="oc-chat-header" id="ocChatHeader"></div>
-        <div class="oc-messages" id="ocMessages"></div>
-        <div class="oc-input-area" id="ocInputArea"></div>
-      </div>
+      <div class="oc-input-area" id="ocInputArea"></div>
     </div>
   </div>
 </div>
