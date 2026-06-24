@@ -1,10 +1,11 @@
 import { state } from './state.js';
 import { getTemplate } from './template.js';
 import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
-import { refreshSidebar, startNewChat } from './sidebar.js';
-import { renderInput, setupStreamListeners } from './input.js';
+import { refreshSidebar, startNewChat, renderShellSelect } from './sidebar.js';
+import { renderInput } from './input.js';
 import { discoverOpencode, listRepos } from './history.js';
-import { clearTerminal } from './chat.js';
+import { showWelcome } from './chat.js';
+import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
 
 let _initialized = false;
 
@@ -21,11 +22,14 @@ export async function initOpencodeUI() {
   }
 
   setupDom();
-  clearTerminal();
+  showWelcome();
   renderInput();
-  setupStreamListeners();
+  setupTerminalDataHandler();
 
-  // Fast IPC — blocks until active repo is set so New Chat / Send work immediately
+  // Init xterm.js (async, fire-and-forget)
+  initXterm().catch(e => console.error('[CS] xterm init error:', e));
+
+  // Fast IPC — blocks until active repo is set
   const activeRepo = await getActiveRepoPath();
   console.log('[CS] activeRepo:', activeRepo);
   if (activeRepo) {
@@ -44,6 +48,13 @@ export async function initOpencodeUI() {
       if (!state.activeTab && repos.length > 0) {
         await addRepo(repos[0].repoPath);
       }
+
+      // List available shells
+      try {
+        const shells = await window.electronAPI.terminalListShells();
+        state.terminalShells = shells || [];
+        renderShellSelect();
+      } catch {}
 
       if (state.activeTab) {
         await refreshSidebar();

@@ -455,6 +455,15 @@ const opencodeBridge = {
     ipcRenderer.removeAllListeners('opencode:stream');
     ipcRenderer.removeAllListeners('opencode:done');
   },
+  // Terminal (PTY) methods
+  termSpawn:          (opts)                        => ipcRenderer.invoke('opencode:termSpawn', opts),
+  termWrite:          (payload)                     => ipcRenderer.invoke('opencode:termWrite', payload),
+  termResize:         (payload)                     => ipcRenderer.invoke('opencode:termResize', payload),
+  termKill:           (id)                          => ipcRenderer.invoke('opencode:termKill', id),
+  onTermData:         (callback) => {
+    ipcRenderer.removeAllListeners('opencode:termData');
+    ipcRenderer.on('opencode:termData', (_, data) => callback(data));
+  },
 };
 
 const codebaseChatBridge = {

@@ -4,6 +4,9 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+let pty = null;
+try { pty = require('node-pty'); } catch (e) { console.log('[CS-IPC] node-pty not available:', e.message); }
+
 function execAsync(cmd, opts = {}) {
   return new Promise((resolve) => {
     exec(cmd, { timeout: opts.timeout || 10000, windowsHide: true, ...opts }, (err, stdout) => {
@@ -353,6 +356,69 @@ function register(shared) {
       filters: [{ name: 'All Files', extensions: ['*'] }],
     });
     return result;
+  });
+
+  // ── Terminal (PTY) handlers for Code Swamp ──
+  const _csTerminals = new Map();
+  let _csTermNextId = 1;
+
+  ipcMain.handle('opencode:termSpawn', async (_, { cwd, shell, args }) => {
+    if (!pty) return { error: 'node-pty not available' };
+    const id = _csTermNextId++;
+    const win = _mainWindow;
+    const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
+
+    try {
+      const { binaryPath } = await discover();
+      const useShell = binaryPath || shell || 'opencode';
+      console.log(`[CS-IPC] termSpawn: id=${id} shell="${useShell}" cwd="${resolvedCwd}"`);
+
+      const term = pty.spawn(useShell, args || [], {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: resolvedCwd,
+        env: { ...process.env },
+      });
+
+      term.onData((data) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('opencode:termData', { id, data });
+        }
+      });
+
+      term.onExit(({ exitCode, signal }) => {
+        console.log(`[CS-IPC] termExit: id=${id} code=${exitCode}`);
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('opencode:termData', { id, data: `\r\n\x1b[31mProcess exited (${exitCode})\x1b[0m\r\n` });
+        }
+        _csTerminals.delete(id);
+      });
+
+      _csTerminals.set(id, { term, cwd: resolvedCwd });
+      return { id, cwd: resolvedCwd };
+    } catch (err) {
+      console.log(`[CS-IPC] termSpawn error: ${err.message}`);
+      return { error: err.message };
+    }
+  });
+
+  ipcMain.handle('opencode:termWrite', (_, { id, data }) => {
+    const t = _csTerminals.get(id);
+    if (t) t.term.write(data);
+  });
+
+  ipcMain.handle('opencode:termResize', (_, { id, cols, rows }) => {
+    const t = _csTerminals.get(id);
+    if (t) t.term.resize(cols, rows);
+  });
+
+  ipcMain.handle('opencode:termKill', (_, id) => {
+    const t = _csTerminals.get(id);
+    if (t) {
+      try { t.term.kill(); } catch {}
+      _csTerminals.delete(id);
+    }
   });
 }
 

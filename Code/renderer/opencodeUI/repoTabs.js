@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { refreshSidebar, loadConversation } from './sidebar.js';
-import { clearTerminal, loadConvMessages } from './chat.js';
+import { hasTerminalSession, showTerminalSession } from './terminalManager.js';
 import { listConversations } from './history.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 
@@ -33,9 +33,17 @@ export function switchTab(repoPath) {
   state.activeTab = repoPath;
   for (const tab of state.tabs) tab.active = tab.repoPath === repoPath;
 
-  clearTerminal();
-  if (state.messages[repoPath] && state.messages[repoPath].length > 0) {
-    loadConvMessages(state.messages[repoPath]);
+  if (hasTerminalSession(repoPath)) {
+    showTerminalSession(repoPath);
+    const welcome = document.getElementById('ocWelcome');
+    const terminal = document.getElementById('ocTerminal');
+    if (welcome) welcome.style.display = 'none';
+    if (terminal) terminal.style.display = '';
+  } else {
+    const welcome = document.getElementById('ocWelcome');
+    const terminal = document.getElementById('ocTerminal');
+    if (welcome) welcome.style.display = '';
+    if (terminal) terminal.style.display = 'none';
   }
 
   updateRepoPath(repoPath);

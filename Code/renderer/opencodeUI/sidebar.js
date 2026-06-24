@@ -1,7 +1,33 @@
 import { state } from './state.js';
 import { listConversations } from './history.js';
-import { loadConvMessages, clearTerminal } from './chat.js';
+import { openTerminalForRepo, closeTerminalSession } from './chat.js';
+import { hasTerminalSession } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
+
+export function renderShellSelect() {
+  const select = document.getElementById('ocShellSelect');
+  if (!select) return;
+  select.innerHTML = '';
+
+  const opt = document.createElement('option');
+  opt.value = 'opencode';
+  opt.textContent = 'opencode (default)';
+  const selectedShell = state.selectedShell || 'opencode';
+  if (selectedShell === 'opencode') opt.selected = true;
+  select.appendChild(opt);
+
+  for (const shell of state.terminalShells || []) {
+    const opt2 = document.createElement('option');
+    opt2.value = shell.cmd + '|' + (shell.args || []).join(' ');
+    opt2.textContent = shell.name + (shell.cmd !== 'opencode' ? ` (${shell.cmd})` : '');
+    if (selectedShell === opt2.value) opt2.selected = true;
+    select.appendChild(opt2);
+  }
+
+  select.addEventListener('change', () => {
+    state.selectedShell = select.value;
+  });
+}
 
 export async function refreshSidebar() {
   const repoPath = state.activeTab;
@@ -10,7 +36,6 @@ export async function refreshSidebar() {
   const convs = await listConversations(repoPath);
   const currentConvs = state.conversations[repoPath] || [];
 
-  // Merge server convs with local-only (synthetic) convs
   const serverIds = new Set(convs.map(c => c.id));
   const localOnly = currentConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
   state.conversations[repoPath] = [...localOnly, ...convs];
@@ -25,14 +50,8 @@ export async function loadConversation(convId) {
 
   state.activeConvId[repoPath] = convId;
 
-  if (convId.startsWith('local_')) {
-    // Load from local state
-    const msgs = state.messages[repoPath] || [];
-    loadConvMessages(msgs);
-  } else {
-    const messages = await loadConvMessages(convId);
-    state.messages[repoPath] = messages;
-  }
+  // Open terminal if not already open
+  await openTerminalForRepo(repoPath);
 
   renderConvList();
 }
@@ -48,11 +67,16 @@ export async function startNewChat() {
   state.activeConvId[repoPath] = 'new';
   state.messages[repoPath] = [];
 
-  clearTerminal();
+  // Kill old terminal session for this repo to start fresh
+  if (hasTerminalSession(repoPath)) {
+    closeTerminalSession(repoPath);
+  }
+
+  await openTerminalForRepo(repoPath);
   renderConvList();
 
   const input = document.getElementById('ocInput');
   if (input) setTimeout(() => input.focus(), 50);
 
-  console.log('[CS] startNewChat done');
+  console.log('[CS] startNewChat done, terminal open');
 }

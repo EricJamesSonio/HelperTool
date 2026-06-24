@@ -19,4 +19,8 @@ export const state = {
 
   opencodePath: null,
   dataRoot: null,
+
+  // Terminal settings
+  terminalShells: [],
+  selectedShell: null,
 };
