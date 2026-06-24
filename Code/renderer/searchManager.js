@@ -65,7 +65,14 @@ export function selectSearchItem(path) {
       const treeNode = wrapper.querySelector(':scope > .tree-node');
       if (!treeNode) return;
 
-      treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const treeContainer = document.getElementById('treeContainer');
+      if (treeContainer) {
+        treeContainer.scrollLeft = 0;
+        const nodeRect = treeNode.getBoundingClientRect();
+        const containerRect = treeContainer.getBoundingClientRect();
+        const targetTop = treeContainer.scrollTop + nodeRect.top - containerRect.top - (containerRect.height / 2) + (nodeRect.height / 2);
+        treeContainer.scrollTo({ top: targetTop, behavior: 'smooth' });
+      }
 
       const orig = {
         bg:        treeNode.style.background,

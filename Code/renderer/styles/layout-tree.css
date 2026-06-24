@@ -102,6 +102,7 @@
 
 #treeContainer {
   flex: 1;
+  min-width: 0;
   font-family: var(--font-mono);
   color: var(--text-secondary);
   line-height: 1.5;
@@ -109,7 +110,8 @@
   border-radius: var(--r-lg);
   border: 1px solid var(--border-subtle);
   transition: background 0.2s;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   --tree-zoom: 1;
 }
 
