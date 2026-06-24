@@ -463,6 +463,7 @@ const opencodeBridge = {
   onTermData:         (callback) => {
     ipcRenderer.removeAllListeners('opencode:termData');
     ipcRenderer.on('opencode:termData', (_, data) => callback(data));
+    
   },
 };
 

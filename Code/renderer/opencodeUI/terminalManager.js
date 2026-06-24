@@ -220,8 +220,11 @@ export function fitActiveTerminal() {
     });
   }
 }
+let _termDataHandlerSetup = false;
 
 export function setupTerminalDataHandler() {
+  if (_termDataHandlerSetup) return;
+  _termDataHandlerSetup = true;
   window.electronAPI.opencode.onTermData(({ id, data }) => {
     for (const rp of Object.keys(instances)) {
       if (instances[rp].id === id) {
