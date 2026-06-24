@@ -119,6 +119,30 @@
   overflow: hidden;
 }
 
+/* ── Repo path bar (top of sidebar) ─────────────── */
+
+.oc-repo-path-bar {
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted, #8b949e);
+  background: var(--bg-elevated, #0f1117);
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.oc-repo-path-bar:empty::before {
+  content: 'No repo selected';
+  color: var(--text-faint, #545d68);
+  font-style: italic;
+}
+
 .oc-sidebar-top {
   padding: 12px 10px 8px;
   flex-shrink: 0;
@@ -128,52 +152,7 @@
 }
 
 .oc-repo-tabs {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.oc-repo-tab {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
-  background: transparent;
-  color: var(--text-muted, #8b949e);
-  transition: all var(--ease, 0.15s ease);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
-}
-
-.oc-repo-tab:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.05));
-  color: var(--text-secondary, #b1bac4);
-}
-
-.oc-repo-tab.active {
-  background: var(--accent-dim, rgba(34,211,238,0.12));
-  border-color: var(--accent-border, rgba(34,211,238,0.3));
-  color: var(--accent, #22d3ee);
-}
-
-.oc-repo-tab-add {
-  min-width: 28px;
-  max-width: 28px;
-  padding: 0;
-  font-size: 16px;
-  line-height: 1;
-  opacity: 0.6;
-}
-
-.oc-repo-tab-add:hover {
-  opacity: 1;
+  display: none;
 }
 
 .oc-btn-new-chat {
@@ -191,6 +170,45 @@
   color: var(--accent, #22d3ee);
   background: var(--accent-dim, rgba(34,211,238,0.08));
 }
+
+/* ── Terminal settings (sidebar) ────────────────── */
+
+.oc-term-settings {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  flex-shrink: 0;
+}
+
+.oc-settings-label {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint, #545d68);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.oc-settings-select {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-secondary, #b1bac4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+
+.oc-settings-select:focus {
+  border-color: var(--accent, #22d3ee);
+}
+
+/* ── Conversation list ──────────────────────────── */
 
 .oc-conv-list {
   flex: 1;
@@ -272,10 +290,13 @@
 .oc-welcome {
   flex: 1;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  height: 100%;
 }
 
 .oc-welcome-content {
-  margin: auto;
   text-align: center;
   opacity: 0.5;
 }
@@ -317,6 +338,7 @@
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  height: 100%;
   background: #0c0c0c;
 }
 
@@ -326,41 +348,11 @@
   overflow: hidden;
 }
 
-/* ── Terminal settings (sidebar) ────────────────── */
-
-.oc-term-settings {
-  padding: 6px 10px;
-  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
-  flex-shrink: 0;
-}
-
-.oc-settings-label {
-  font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-faint, #545d68);
-  display: block;
-  margin-bottom: 4px;
-}
-
-.oc-settings-select {
-  width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
-  background: var(--bg-elevated, #0f1117);
-  color: var(--text-secondary, #b1bac4);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  cursor: pointer;
-  outline: none;
-}
-
-.oc-settings-select:focus {
-  border-color: var(--accent, #22d3ee);
+.oc-term-instance .xterm,
+.oc-term-instance .xterm-viewport,
+.oc-term-instance .xterm-screen {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* ── File chips ─────────────────────────────────── */
@@ -396,6 +388,8 @@
   opacity: 1;
   color: var(--red, #f85149);
 }
+
+/* ── Input area ─────────────────────────────────── */
 
 .oc-input-area {
   flex-shrink: 0;

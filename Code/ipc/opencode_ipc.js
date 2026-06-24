@@ -362,46 +362,72 @@ function register(shared) {
   const _csTerminals = new Map();
   let _csTermNextId = 1;
 
-  ipcMain.handle('opencode:termSpawn', async (_, { cwd, shell, args }) => {
-    if (!pty) return { error: 'node-pty not available' };
-    const id = _csTermNextId++;
-    const win = _mainWindow;
-    const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
+ipcMain.handle('opencode:termSpawn', async (_, { cwd, shell, args }) => {
+  if (!pty) return { error: 'node-pty not available' };
+  const id = _csTermNextId++;
+  const win = _mainWindow;
+  const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
 
-    try {
-      const { binaryPath } = await discover();
-      const useShell = binaryPath || shell || 'opencode';
-      console.log(`[CS-IPC] termSpawn: id=${id} shell="${useShell}" cwd="${resolvedCwd}"`);
+  try {
+    // Resolve full path for known shells on Windows
+    const isWin = process.platform === 'win32';
+    let useShell = shell || 'powershell.exe';
+    let useArgs = args && args.length ? args : [];
 
-      const term = pty.spawn(useShell, args || [], {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
-        cwd: resolvedCwd,
-        env: { ...process.env },
-      });
-
-      term.onData((data) => {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('opencode:termData', { id, data });
-        }
-      });
-
-      term.onExit(({ exitCode, signal }) => {
-        console.log(`[CS-IPC] termExit: id=${id} code=${exitCode}`);
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('opencode:termData', { id, data: `\r\n\x1b[31mProcess exited (${exitCode})\x1b[0m\r\n` });
-        }
-        _csTerminals.delete(id);
-      });
-
-      _csTerminals.set(id, { term, cwd: resolvedCwd });
-      return { id, cwd: resolvedCwd };
-    } catch (err) {
-      console.log(`[CS-IPC] termSpawn error: ${err.message}`);
-      return { error: err.message };
+    if (isWin) {
+      const shellMap = {
+        'powershell.exe': {
+          path: path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+          args: ['-NoLogo', '-NoExit'],
+        },
+        'cmd.exe': {
+          path: path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe'),
+          args: [],
+        },
+        'bash.exe': { path: 'bash.exe', args: [] },
+        'wsl.exe': { path: 'wsl.exe', args: [] },
+      };
+      const mapped = shellMap[useShell];
+      if (mapped) {
+        useShell = fs.existsSync(mapped.path) ? mapped.path : useShell;
+        useArgs = mapped.args;
+      }
     }
-  });
+
+    console.log(`[CS-IPC] termSpawn: id=${id} shell="${useShell}" args=${JSON.stringify(useArgs)} cwd="${resolvedCwd}"`);
+
+    const term = pty.spawn(useShell, useArgs, {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
+      cwd: resolvedCwd,
+      env: { ...process.env, TERM: 'xterm-256color' },
+    });
+
+    term.onData((data) => {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('opencode:termData', { id, data });
+      }
+    });
+
+    term.onExit(({ exitCode }) => {
+      console.log(`[CS-IPC] termExit: id=${id} code=${exitCode}`);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('opencode:termData', {
+          id,
+          data: `\r\n\x1b[31mProcess exited (${exitCode})\x1b[0m\r\n`,
+        });
+      }
+      _csTerminals.delete(id);
+    });
+
+    _csTerminals.set(id, { term, cwd: resolvedCwd });
+    return { id, cwd: resolvedCwd };
+  } catch (err) {
+    console.log(`[CS-IPC] termSpawn error: ${err.message}`);
+    return { error: err.message };
+  }
+});
 
   ipcMain.handle('opencode:termWrite', (_, { id, data }) => {
     const t = _csTerminals.get(id);

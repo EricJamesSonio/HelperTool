@@ -84,10 +84,14 @@ export async function createTerminalSession(repoPath) {
   await new Promise(r => setTimeout(r, 50));
   try { fitAddon.fit(); } catch {}
 
+  const { getSelectedShell } = await import('./sidebar.js');
+  const shell = getSelectedShell();
+  console.log('[CS] Spawning shell:', shell.cmd, shell.args);
+
   const result = await window.electronAPI.opencode.termSpawn({
     cwd: repoPath,
-    shell: 'opencode',
-    args: [],
+    shell: shell.cmd,
+    args: shell.args,
   });
 
   if (!result || result.error) {
@@ -114,7 +118,7 @@ export async function createTerminalSession(repoPath) {
 
   showTerminalSession(repoPath);
 
-  // Fit again after a frame
+  // Fit after a frame
   requestAnimationFrame(() => {
     try { fitAddon.fit(); } catch {}
     const dims = fitAddon.proposeDimensions();
@@ -123,10 +127,21 @@ export async function createTerminalSession(repoPath) {
     }
   });
 
+setTimeout(() => {
+  window.electronAPI.opencode.termWrite({ id: result.id, data: 'opencode\r' });
+}, 2000);
+
   return instance;
 }
 
 export function showTerminalSession(repoPath) {
+  // Show/hide the outer wrapper
+  const termWrapper = document.getElementById('ocTerminal');
+  const welcome = document.getElementById('ocWelcome');
+  if (termWrapper) termWrapper.style.display = '';
+  if (welcome) welcome.style.display = 'none';
+
+  // Show correct instance, hide others
   Object.keys(instances).forEach(rp => {
     const inst = instances[rp];
     if (inst.div) inst.div.style.display = rp === repoPath ? '' : 'none';

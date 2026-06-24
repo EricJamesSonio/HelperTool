@@ -4,9 +4,12 @@ export function getTemplate(mode = 'full') {
 <div class="oc-panel" id="ocPanel">
   <div class="oc-header">
     <div class="oc-header-left">
-      <svg class="oc-logo" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      <svg class="oc-logo" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
       <span class="oc-title">Code Swamp</span>
-      <span class="oc-repo-indicator" id="ocRepoPath"></span>
     </div>
     <div class="oc-header-right">
       <button class="oc-btn oc-btn-icon" id="ocCloseBtn" title="Close (Esc)">✕</button>
@@ -15,21 +18,30 @@ export function getTemplate(mode = 'full') {
 
   <div class="oc-body">
     <div class="oc-sidebar" id="ocSidebar">
+
+      <div class="oc-repo-path-bar" id="ocRepoPath"></div>
+
       <div class="oc-sidebar-top">
-        <div class="oc-repo-tabs" id="ocRepoTabs"></div>
+      <div class="oc-repo-tabs" id="ocRepoTabs" style="display:none"></div>
         <button class="oc-btn oc-btn-new-chat" id="ocNewChatBtn">+ New Chat</button>
       </div>
+
       <div class="oc-term-settings" id="ocTermSettings">
         <label class="oc-settings-label">Terminal</label>
         <select class="oc-settings-select" id="ocShellSelect"></select>
       </div>
+
       <div class="oc-conv-list" id="ocConvList"></div>
     </div>
 
     <div class="oc-main" id="ocMain">
       <div class="oc-welcome" id="ocWelcome">
         <div class="oc-welcome-content">
-          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
           <h2>Code Swamp</h2>
           <p>Start a new chat to open a terminal with opencode.</p>
         </div>
@@ -43,6 +55,5 @@ export function getTemplate(mode = 'full') {
 </div>
 `;
   }
-
   return '';
 }

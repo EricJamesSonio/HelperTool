@@ -9,24 +9,45 @@ export function renderShellSelect() {
   if (!select) return;
   select.innerHTML = '';
 
-  const opt = document.createElement('option');
-  opt.value = 'opencode';
-  opt.textContent = 'opencode (default)';
-  const selectedShell = state.selectedShell || 'opencode';
-  if (selectedShell === 'opencode') opt.selected = true;
-  select.appendChild(opt);
+  const shells = state.terminalShells && state.terminalShells.length > 0
+    ? state.terminalShells
+    : [
+        { name: 'PowerShell (powershell.exe)', cmd: 'powershell.exe', args: ['-NoLogo'] },
+        { name: 'Command Prompt (cmd.exe)', cmd: 'cmd.exe', args: [] },
+        { name: 'Git Bash (bash.exe)', cmd: 'bash.exe', args: [] },
+        { name: 'WSL / Ubuntu (wsl.exe)', cmd: 'wsl.exe', args: [] },
+      ];
 
-  for (const shell of state.terminalShells || []) {
-    const opt2 = document.createElement('option');
-    opt2.value = shell.cmd + '|' + (shell.args || []).join(' ');
-    opt2.textContent = shell.name + (shell.cmd !== 'opencode' ? ` (${shell.cmd})` : '');
-    if (selectedShell === opt2.value) opt2.selected = true;
-    select.appendChild(opt2);
+  for (const shell of shells) {
+    const opt = document.createElement('option');
+    opt.value = shell.cmd + '|' + (shell.args || []).join('||');
+    opt.textContent = shell.name;
+    select.appendChild(opt);
   }
 
+  if (!state.selectedShell) {
+    const s = shells[0];
+    state.selectedShell = s.cmd + '|' + (s.args || []).join('||');
+  }
+
+  select.value = state.selectedShell;
   select.addEventListener('change', () => {
     state.selectedShell = select.value;
   });
+}
+
+export function getSelectedShell() {
+  if (!state.selectedShell && state.terminalShells.length > 0) {
+    const s = state.terminalShells[0];
+    state.selectedShell = s.cmd + '|' + (s.args || []).join('||');
+  }
+  if (!state.selectedShell) {
+    return { cmd: 'powershell.exe', args: ['-NoLogo'] };
+  }
+  const parts = state.selectedShell.split('|');
+  const cmd = parts[0];
+  const args = parts.slice(1).filter(Boolean).map(a => a.replace(/\|\|/g, ' '));
+  return { cmd, args };
 }
 
 export async function refreshSidebar() {
@@ -50,7 +71,6 @@ export async function loadConversation(convId) {
 
   state.activeConvId[repoPath] = convId;
 
-  // Open terminal if not already open
   await openTerminalForRepo(repoPath);
 
   renderConvList();
@@ -67,7 +87,6 @@ export async function startNewChat() {
   state.activeConvId[repoPath] = 'new';
   state.messages[repoPath] = [];
 
-  // Kill old terminal session for this repo to start fresh
   if (hasTerminalSession(repoPath)) {
     closeTerminalSession(repoPath);
   }

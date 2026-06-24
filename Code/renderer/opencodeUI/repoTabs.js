@@ -26,7 +26,14 @@ export async function addRepo(repoPath) {
 export function updateRepoPath(repoPath) {
   const el = document.getElementById('ocRepoPath');
   if (!el) return;
-  el.textContent = repoPath || '';
+  if (repoPath) {
+    const parts = repoPath.replace(/\\/g, '/').split('/').filter(Boolean);
+    const short = parts.length > 2 ? '…/' + parts.slice(-2).join('/') : repoPath;
+    el.textContent = short;
+    el.title = repoPath;
+  } else {
+    el.textContent = '';
+  }
 }
 
 export function switchTab(repoPath) {
@@ -52,38 +59,10 @@ export function switchTab(repoPath) {
 }
 
 export function renderRepoTabs() {
+  // Tab row is hidden — we use the repo path bar instead.
+  // Keep the element check safe so nothing crashes if it's missing.
   const container = document.getElementById('ocRepoTabs');
-  if (!container) return;
-  container.innerHTML = '';
-
-  for (const tab of state.tabs) {
-    const el = document.createElement('button');
-    el.className = `oc-repo-tab ${tab.active ? 'active' : ''}`;
-    el.title = tab.repoPath;
-    el.innerHTML = escapeHtml(tab.label);
-    el.addEventListener('click', () => switchTab(tab.repoPath));
-    container.appendChild(el);
-  }
-
-  const addBtn = document.createElement('button');
-  addBtn.className = 'oc-repo-tab oc-repo-tab-add';
-  addBtn.textContent = '+';
-  addBtn.title = 'Add repo tab';
-  addBtn.addEventListener('click', async () => {
-    try {
-      const result = await window.electronAPI.selectRepo();
-      if (result) addRepo(result);
-    } catch {}
-  });
-  container.appendChild(addBtn);
-
-  if (state.activeTab) {
-    const convs = state.conversations[state.activeTab] || [];
-    const count = document.createElement('span');
-    count.className = 'oc-repo-count';
-    count.textContent = convs.length;
-    container.appendChild(count);
-  }
+  if (container) container.style.display = 'none';
 }
 
 export function renderConvList() {
