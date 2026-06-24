@@ -21,18 +21,24 @@ export async function loadConvMessages(convIdOrMessages) {
 }
 
 export async function openTerminalForRepo(repoPath) {
+  console.log('[CS] openTerminalForRepo called, repoPath:', repoPath);
   const welcome = document.getElementById('ocWelcome');
   const terminal = document.getElementById('ocTerminal');
+  console.log('[CS] welcome el:', !!welcome, 'terminal el:', !!terminal);
+
   if (welcome) welcome.style.display = 'none';
   if (terminal) terminal.style.display = '';
 
   const existing = hasTerminalSession(repoPath);
+  console.log('[CS] existing session:', existing);
   if (existing) {
     showTerminalSession(repoPath);
     return;
   }
 
+  console.log('[CS] calling createTerminalSession');
   await createTerminalSession(repoPath);
+  console.log('[CS] createTerminalSession done');
 }
 
 export function showWelcome() {

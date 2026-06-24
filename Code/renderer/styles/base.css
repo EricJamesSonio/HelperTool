@@ -112,7 +112,7 @@ body {
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: 14px;
-  zoom: 1.20;
+ 
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -141,6 +141,7 @@ body {
   flex-direction: column;
   height: 100%;
   overflow: visible;
+   zoom: 1.20;
 }
 
 .app-body {

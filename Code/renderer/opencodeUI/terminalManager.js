@@ -58,12 +58,32 @@ export async function createTerminalSession(repoPath) {
   await loadXterm();
 
   const container = document.getElementById('ocTerminalContainer');
+  console.log('[CS] ocTerminalContainer found:', !!container, container?.offsetWidth, container?.offsetHeight);
   if (!container) return null;
 
   const div = document.createElement('div');
   div.className = 'oc-term-instance';
   div.dataset.repo = repoPath;
+  // Set explicit size on div to match container — bypasses zoom measurement issues
+  div.style.width = '100%';
+  div.style.height = '100%';
+  div.style.position = 'absolute';
+  div.style.top = '0';
+  div.style.left = '0';
   container.appendChild(div);
+  console.log('[CS] term div appended, div size:', div.offsetWidth, div.offsetHeight);
+
+  // Get actual pixel dimensions accounting for zoom
+  const bodyZoom = parseFloat(document.body.style.zoom) || 1;
+  const containerW = container.offsetWidth;
+  const containerH = container.offsetHeight;
+
+  // Approximate char dimensions at fontSize 13
+  const charW = 7.8;
+  const charH = 17;
+  const initCols = Math.max(80, Math.floor(containerW / charW));
+  const initRows = Math.max(24, Math.floor(containerH / charH));
+  console.log('[CS] initial cols/rows:', initCols, initRows);
 
   const terminal = new TerminalClass({
     theme: getDarkTheme(),
@@ -73,16 +93,28 @@ export async function createTerminalSession(repoPath) {
     cursorStyle: 'bar',
     scrollback: 5000,
     allowTransparency: false,
-    minimumContrastRatio: 4.5,
+    cols: initCols,
+    rows: initRows,
   });
 
   const fitAddon = new FitAddonClass();
   terminal.loadAddon(fitAddon);
   terminal.open(div);
+  console.log('[CS] terminal.open() called');
 
-  // Small delay to let xterm render, then fit
-  await new Promise(r => setTimeout(r, 50));
-  try { fitAddon.fit(); } catch {}
+  // Force a visible character to trigger DOM renderer paint
+  terminal.write('\x1b[?25h');
+
+  await new Promise(r => setTimeout(r, 100));
+
+  try {
+    fitAddon.fit();
+    console.log('[CS] fitAddon.fit() OK');
+  } catch(e) {
+    console.log('[CS] fitAddon.fit() ERROR:', e.message);
+    // Fallback: manual resize
+    try { terminal.resize(initCols, initRows); } catch {}
+  }
 
   const { getSelectedShell } = await import('./sidebar.js');
   const shell = getSelectedShell();
@@ -94,18 +126,14 @@ export async function createTerminalSession(repoPath) {
     args: shell.args,
   });
 
+  console.log('[CS] termSpawn result:', JSON.stringify(result));
+
   if (!result || result.error) {
     terminal.write(`\r\n\x1b[31mFailed to start: ${result?.error || 'unknown'}\x1b[0m\r\n`);
     return null;
   }
 
-  const instance = {
-    id: result.id,
-    terminal,
-    fitAddon,
-    div,
-    repoPath,
-  };
+  const instance = { id: result.id, terminal, fitAddon, div, repoPath };
   instances[repoPath] = instance;
 
   terminal.onData((data) => {
@@ -116,32 +144,33 @@ export async function createTerminalSession(repoPath) {
     window.electronAPI.opencode.termResize({ id: result.id, cols, rows });
   });
 
+  console.log('[CS] calling showTerminalSession');
   showTerminalSession(repoPath);
 
-  // Fit after a frame
+  // Re-fit after show to get accurate dimensions
   requestAnimationFrame(() => {
     try { fitAddon.fit(); } catch {}
     const dims = fitAddon.proposeDimensions();
+    console.log('[CS] proposeDimensions after show:', dims);
     if (dims) {
       window.electronAPI.opencode.termResize({ id: result.id, cols: dims.cols, rows: dims.rows });
     }
   });
 
-setTimeout(() => {
-  window.electronAPI.opencode.termWrite({ id: result.id, data: 'opencode\r' });
-}, 2000);
+  // Auto-run opencode after shell is ready
+  setTimeout(() => {
+    window.electronAPI.opencode.termWrite({ id: result.id, data: 'opencode\r' });
+  }, 2000);
 
   return instance;
 }
 
 export function showTerminalSession(repoPath) {
-  // Show/hide the outer wrapper
   const termWrapper = document.getElementById('ocTerminal');
   const welcome = document.getElementById('ocWelcome');
   if (termWrapper) termWrapper.style.display = '';
   if (welcome) welcome.style.display = 'none';
 
-  // Show correct instance, hide others
   Object.keys(instances).forEach(rp => {
     const inst = instances[rp];
     if (inst.div) inst.div.style.display = rp === repoPath ? '' : 'none';
@@ -170,7 +199,7 @@ export function killTerminalSession(repoPath) {
   if (!inst) return;
   window.electronAPI.opencode.termKill(inst.id);
   try { inst.terminal.dispose(); } catch {}
-  if (inst.div.parentNode) inst.div.remove();
+  if (inst.div && inst.div.parentNode) inst.div.remove();
   delete instances[repoPath];
 }
 

@@ -9,8 +9,8 @@
   opacity: 0;
   transition: transform 0.2s ease, opacity 0.2s ease;
   pointer-events: none;
+  zoom: 1 ;/* ADD THIS — cancels body zoom:1.20 */
 }
-
 .oc-panel.open {
   transform: scale(1);
   opacity: 1;
@@ -340,7 +340,11 @@
   min-height: 0;
   height: 100%;
   background: #0c0c0c;
+  position: relative;   /* ADD — needed for absolute child */
+  zoom: normal;
 }
+
+Claude Fab
 
 .oc-term-instance {
   width: 100%;
@@ -353,6 +357,20 @@
 .oc-term-instance .xterm-screen {
   width: 100% !important;
   height: 100% !important;
+  overflow: hidden !important;
+}
+
+.oc-term-instance .xterm-viewport {
+  width: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* The real fix — xterm uses inline styles based on char size * cols,
+   but body zoom inflates char measurements. Force the wrapper to clip. */
+.oc-term-instance .terminal.xterm {
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
 }
 
 /* ── File chips ─────────────────────────────────── */

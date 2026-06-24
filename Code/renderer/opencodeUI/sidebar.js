@@ -9,14 +9,14 @@ export function renderShellSelect() {
   if (!select) return;
   select.innerHTML = '';
 
-  const shells = state.terminalShells && state.terminalShells.length > 0
-    ? state.terminalShells
-    : [
-        { name: 'PowerShell (powershell.exe)', cmd: 'powershell.exe', args: ['-NoLogo'] },
-        { name: 'Command Prompt (cmd.exe)', cmd: 'cmd.exe', args: [] },
-        { name: 'Git Bash (bash.exe)', cmd: 'bash.exe', args: [] },
-        { name: 'WSL / Ubuntu (wsl.exe)', cmd: 'wsl.exe', args: [] },
-      ];
+const shells = state.terminalShells && state.terminalShells.length > 0
+  ? state.terminalShells
+  : [
+      { name: 'PowerShell (powershell.exe)', cmd: 'powershell.exe', args: ['-NoLogo', '-NoExit'] },
+      { name: 'Command Prompt (cmd.exe)', cmd: 'cmd.exe', args: [] },
+      { name: 'Git Bash (bash.exe)', cmd: 'bash.exe', args: [] },
+      { name: 'WSL / Ubuntu (wsl.exe)', cmd: 'wsl.exe', args: [] },
+    ];
 
   for (const shell of shells) {
     const opt = document.createElement('option');
@@ -41,13 +41,25 @@ export function getSelectedShell() {
     const s = state.terminalShells[0];
     state.selectedShell = s.cmd + '|' + (s.args || []).join('||');
   }
+
+  // Fallback default
   if (!state.selectedShell) {
-    return { cmd: 'powershell.exe', args: ['-NoLogo'] };
+    return { cmd: 'powershell.exe', args: ['-NoLogo', '-NoExit'] };
   }
+
   const parts = state.selectedShell.split('|');
   const cmd = parts[0];
-  const args = parts.slice(1).filter(Boolean).map(a => a.replace(/\|\|/g, ' '));
-  return { cmd, args };
+  const rawArgs = parts.slice(1).filter(Boolean).map(a => a.replace(/\|\|/g, ' '));
+
+  // Always ensure -NoExit for powershell so it doesn't quit immediately
+  if (cmd.toLowerCase().includes('powershell')) {
+    const args = rawArgs.filter(a => a.trim());
+    if (!args.includes('-NoExit')) args.push('-NoExit');
+    if (!args.includes('-NoLogo')) args.push('-NoLogo');
+    return { cmd, args };
+  }
+
+  return { cmd, args: rawArgs };
 }
 
 export async function refreshSidebar() {
@@ -84,18 +96,17 @@ export async function startNewChat() {
     return;
   }
 
-  state.activeConvId[repoPath] = 'new';
-  state.messages[repoPath] = [];
-
+  console.log('[CS] startNewChat: killing existing session if any');
   if (hasTerminalSession(repoPath)) {
     closeTerminalSession(repoPath);
   }
 
+  console.log('[CS] startNewChat: calling openTerminalForRepo');
   await openTerminalForRepo(repoPath);
+  console.log('[CS] startNewChat: openTerminalForRepo done');
+
   renderConvList();
 
   const input = document.getElementById('ocInput');
   if (input) setTimeout(() => input.focus(), 50);
-
-  console.log('[CS] startNewChat done, terminal open');
 }
