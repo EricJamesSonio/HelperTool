@@ -36,6 +36,7 @@ const automationIpc = require('./ipc/automation_ipc.js');
 const githubIpc = require('./ipc/github_ipc.js');
 const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
+const opencodeIpc = require('./ipc/opencode_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { initChatDb, closeChatDb } = require('./database/chatDb.js');
@@ -164,6 +165,7 @@ function registerAllIpc() {
     automationIpc.register();
     githubIpc.register();
     serviceTrackerIpc.register();
+    opencodeIpc.register(shared);
 }
 
 // ----------------------------

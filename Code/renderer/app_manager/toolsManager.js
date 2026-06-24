@@ -44,8 +44,9 @@ const ICONS = {
    env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><circle cx="10" cy="12" r="1"/><path d="M10 13v2"/></svg>',
    codebbaseChat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="10" cy="9" r="1.5"/><circle cx="6" cy="9" r="1.5"/><circle cx="14" cy="9" r="1.5"/></svg>',
    flow: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',
-   github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>',
-};
+    github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>',
+    opencode: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',
+  };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
   createGitPanel,
@@ -314,6 +315,15 @@ function populateSidebar() {
     _registry.closeAll();
     openEnvManager(state.selectedRepoPath);
   }, 'env'));
+
+  body.appendChild(createSidebarItem(ICONS.opencode, 'OpenCode', 'Chat with AI via OpenCode', async () => {
+    _registry.closeAll();
+    try {
+      const oc = await import('../opencodeUI.js');
+      if (oc.isOpencodeOpen()) { oc.close(); return; }
+      await oc.open();
+    } catch (err) { console.error('[Tools] OpenCode:', err); }
+  }, 'opencode'));
 }
 
 // ---- Panel init helpers ----------------------------------------------------
@@ -698,6 +708,15 @@ function _buildShortcutActions() {
     if (!_githubPanel) _initGithubPanel();
     _githubPanel.classList.add('open');
     if (!_githubTool) _initializeGithubTool();
+  };
+
+  actions.opencodeChat = async () => {
+    _registry.closeAll();
+    try {
+      const oc = await import('../opencodeUI.js');
+      if (oc.isOpencodeOpen()) { oc.close(); return; }
+      await oc.open();
+    } catch (err) { console.error('[Shortcuts] OpenCode:', err); }
   };
 
   return actions;

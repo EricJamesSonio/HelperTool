@@ -128,3 +128,16 @@ export function createGithubExplorerPanel() {
     closeBtnId:  'closeGithubExplorerBtn',
   });
 }
+
+export function createOpencodePanel() {
+  const panel = document.createElement('div');
+  panel.id = 'ocPanel';
+  panel.className = 'oc-panel';
+  panel.innerHTML = `<div class="oc-panel-content" id="ocPanelContainer"></div>`;
+  document.body.appendChild(panel);
+  return { panel, container: panel.querySelector('#ocPanelContainer') };
+}
+
+export function getOpencodePanel() {
+  return document.getElementById('ocPanel');
+}

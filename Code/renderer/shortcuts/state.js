@@ -18,6 +18,7 @@ const DEFAULT_SHORTCUTS = {
   gmailTool: null,
   automationSketch: null,
   githubExplorer: null,
+  opencodeChat: null,
 };
 
 const S = { shortcuts: {} };
