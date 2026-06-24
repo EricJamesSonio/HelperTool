@@ -52,7 +52,8 @@ function setupDom() {
 
 async function getActiveRepoPath() {
   try {
-    return await window.electronAPI.getActiveProject?.() || null;
+    const result = await window.electronAPI.getActiveProject?.();
+    return result?.repoPath || result || null;
   } catch {
     return null;
   }

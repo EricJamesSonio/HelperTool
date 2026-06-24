@@ -33,6 +33,3 @@ export function getTemplate(mode = 'full') {
 
   return '';
 }
-
-  return '';
-}

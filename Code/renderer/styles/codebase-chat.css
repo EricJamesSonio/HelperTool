@@ -340,6 +340,8 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  height: 100%;
 }
 
 /* Empty state: center content when no messages */
@@ -347,6 +349,9 @@
 .cc-main:not(.cc-main--active) .cc-messages {
   justify-content: center;
   align-items: center;
+  height: 100%;
+  flex: 1;
+  box-sizing: border-box;
 }
 
 .cc-main:not(.cc-main--active) .cc-messages > * {

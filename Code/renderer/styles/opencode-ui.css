@@ -1,8 +1,6 @@
 .oc-panel {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
   background: var(--bg-base, #010409);
   z-index: 90000;
   display: flex;
@@ -96,11 +94,10 @@
 .oc-welcome {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .oc-welcome-content {
+  margin: auto;
   text-align: center;
   opacity: 0.5;
 }
