@@ -434,6 +434,39 @@ const automationBridge = {
   },
 };
 
+const opencodeBridge = {
+  discover:           ()                            => ipcRenderer.invoke('opencode:discover'),
+  listConversations:  (repoPath)                    => ipcRenderer.invoke('opencode:listConversations', { repoPath }),
+  getConversation:    (convId)                      => ipcRenderer.invoke('opencode:getConversation', { convId }),
+  run:                (repoPath, message, files, continueConv) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv }),
+  stop:               ()                            => ipcRenderer.invoke('opencode:stop'),
+  listRepos:          ()                            => ipcRenderer.invoke('opencode:listRepos'),
+  deleteConversation: (convId)                      => ipcRenderer.invoke('opencode:deleteConversation', { convId }),
+  selectFile:         ()                            => ipcRenderer.invoke('opencode:selectFile'),
+  onStream:           (callback) => {
+    ipcRenderer.removeAllListeners('opencode:stream');
+    ipcRenderer.on('opencode:stream', (_, data) => callback(data));
+  },
+  onDone:             (callback) => {
+    ipcRenderer.removeAllListeners('opencode:done');
+    ipcRenderer.on('opencode:done', (_, data) => callback(data));
+  },
+  removeStreamListeners: () => {
+    ipcRenderer.removeAllListeners('opencode:stream');
+    ipcRenderer.removeAllListeners('opencode:done');
+  },
+  // Terminal (PTY) methods
+  termSpawn:          (opts)                        => ipcRenderer.invoke('opencode:termSpawn', opts),
+  termWrite:          (payload)                     => ipcRenderer.invoke('opencode:termWrite', payload),
+  termResize:         (payload)                     => ipcRenderer.invoke('opencode:termResize', payload),
+  termKill:           (id)                          => ipcRenderer.invoke('opencode:termKill', id),
+  onTermData:         (callback) => {
+    ipcRenderer.removeAllListeners('opencode:termData');
+    ipcRenderer.on('opencode:termData', (_, data) => callback(data));
+    
+  },
+};
+
 const codebaseChatBridge = {
   codebaseChat: {
     getFiles:           (opts) => ipcRenderer.invoke('codebaseChat:getFiles', opts),
@@ -489,6 +522,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...videoBridge,
     ...gmailBridge,
     ...githubBridge,
+    opencode: opencodeBridge,
     windowControls,
 });
 
