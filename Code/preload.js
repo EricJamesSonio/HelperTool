@@ -461,7 +461,7 @@ const opencodeBridge = {
   termResize:         (payload)                     => ipcRenderer.invoke('opencode:termResize', payload),
   termKill:           (id)                          => ipcRenderer.invoke('opencode:termKill', id),
   onTermData:         (callback) => {
-    ipcRenderer.removeAllListeners('opencode:termData');
+    
     ipcRenderer.on('opencode:termData', (_, data) => callback(data));
     
   },

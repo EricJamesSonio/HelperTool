@@ -16,8 +16,12 @@ function execAsync(cmd, opts = {}) {
 }
 
 let _activeProc = null;
-let _mainWindow = null;
+let _getMainWindow = null;
 let _discoveryCache = null;
+
+function getWin() {
+  return _getMainWindow ? _getMainWindow() : null;
+}
 
 function getDataRoot() {
   const home = os.homedir();
@@ -116,7 +120,8 @@ function normPath(p) {
 }
 
 function register(shared) {
-  _mainWindow = shared.getMainWindow ? shared.getMainWindow() : null;
+  // Store getter instead of cached value — window doesn't exist yet at register time
+  _getMainWindow = shared.getMainWindow || null;
 
   ipcMain.handle('opencode:discover', async () => {
     return discover();
@@ -124,7 +129,6 @@ function register(shared) {
 
   ipcMain.handle('opencode:listConversations', async (_, { repoPath }) => {
     const { binaryPath } = await discover();
-
     const cliResult = await listViaCli(binaryPath);
     if (cliResult && Array.isArray(cliResult)) {
       const np = repoPath ? normPath(repoPath) : null;
@@ -138,7 +142,6 @@ function register(shared) {
           repoPath: s.repoPath || '',
         }));
     }
-
     const storageDir = getStorageDir(repoPath);
     return listViaStorage(storageDir, repoPath);
   });
@@ -186,7 +189,6 @@ function register(shared) {
         } catch (_) {}
       }
     }
-
     return null;
   });
 
@@ -212,9 +214,10 @@ function register(shared) {
         });
       } catch (spawnErr) {
         console.log(`[CS-IPC] run spawn failed: ${spawnErr.message}`);
-        if (_mainWindow && !_mainWindow.isDestroyed()) {
-          _mainWindow.webContents.send('opencode:stream', { chunk: `\n[Spawn Error] ${spawnErr.message}\n`, isError: true });
-          _mainWindow.webContents.send('opencode:done', { code: -1, error: spawnErr.message });
+        const w = getWin();
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('opencode:stream', { chunk: `\n[Spawn Error] ${spawnErr.message}\n`, isError: true });
+          w.webContents.send('opencode:done', { code: -1, error: spawnErr.message });
         }
         resolve({ code: -1, error: spawnErr.message });
         return;
@@ -225,9 +228,9 @@ function register(shared) {
 
       proc.stdout.on('data', (chunk) => {
         const text = chunk.toString();
-        console.log(`[CS-IPC] stdout: ${text.slice(0, 200)}`);
-        if (_mainWindow && !_mainWindow.isDestroyed()) {
-          _mainWindow.webContents.send('opencode:stream', { chunk: text });
+        const w = getWin();
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('opencode:stream', { chunk: text });
         }
       });
 
@@ -235,20 +238,21 @@ function register(shared) {
       proc.stderr.on('data', (chunk) => {
         const text = chunk.toString();
         stderrBuf += text;
-        console.log(`[CS-IPC] stderr: ${text.slice(0, 200)}`);
-        if (_mainWindow && !_mainWindow.isDestroyed()) {
-          _mainWindow.webContents.send('opencode:stream', { chunk: text, isError: true });
+        const w = getWin();
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('opencode:stream', { chunk: text, isError: true });
         }
       });
 
       proc.on('close', (code) => {
         console.log(`[CS-IPC] close: code=${code} stderrLen=${stderrBuf.length}`);
         _activeProc = null;
-        if (_mainWindow && !_mainWindow.isDestroyed()) {
+        const w = getWin();
+        if (w && !w.isDestroyed()) {
           if (code !== 0 && !stderrBuf) {
-            _mainWindow.webContents.send('opencode:stream', { chunk: `\n[Process exited with code ${code}]\n`, isError: true });
+            w.webContents.send('opencode:stream', { chunk: `\n[Process exited with code ${code}]\n`, isError: true });
           }
-          _mainWindow.webContents.send('opencode:done', { code, stderr: stderrBuf });
+          w.webContents.send('opencode:done', { code, stderr: stderrBuf });
         }
         resolve({ code });
       });
@@ -256,9 +260,10 @@ function register(shared) {
       proc.on('error', (err) => {
         console.log(`[CS-IPC] error: ${err.message}`);
         _activeProc = null;
-        if (_mainWindow && !_mainWindow.isDestroyed()) {
-          _mainWindow.webContents.send('opencode:stream', { chunk: `\n[Error] ${err.message}\n`, isError: true });
-          _mainWindow.webContents.send('opencode:done', { code: -1, error: err.message });
+        const w = getWin();
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('opencode:stream', { chunk: `\n[Error] ${err.message}\n`, isError: true });
+          w.webContents.send('opencode:done', { code: -1, error: err.message });
         }
         resolve({ code: -1, error: err.message });
       });
@@ -303,9 +308,7 @@ function register(shared) {
             const storagePath = path.join(projectDir, proj.name, 'storage');
             if (fs.existsSync(storagePath)) {
               const files = fs.readdirSync(storagePath).filter(f => f.endsWith('.json') || f.endsWith('.session'));
-              if (files.length > 0) {
-                repoSet.add(proj.name);
-              }
+              if (files.length > 0) repoSet.add(proj.name);
             }
           }
         }
@@ -344,12 +347,11 @@ function register(shared) {
         }
       } catch (_) {}
     }
-
     return { success: false, error: 'Conversation not found' };
   });
 
   ipcMain.handle('opencode:selectFile', async () => {
-    const win = _mainWindow;
+    const win = getWin();
     if (!win) return null;
     const result = await dialog.showOpenDialog(win, {
       properties: ['openFile'],
@@ -358,76 +360,77 @@ function register(shared) {
     return result;
   });
 
-  // ── Terminal (PTY) handlers for Code Swamp ──
+  // ── Terminal (PTY) handlers ──
   const _csTerminals = new Map();
   let _csTermNextId = 1;
 
-ipcMain.handle('opencode:termSpawn', async (_, { cwd, shell, args }) => {
-  if (!pty) return { error: 'node-pty not available' };
-  const id = _csTermNextId++;
-  const win = _mainWindow;
-  const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
+  ipcMain.handle('opencode:termSpawn', async (_, { cwd, shell, args }) => {
+    if (!pty) return { error: 'node-pty not available' };
+    const id = _csTermNextId++;
+    const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
 
-  try {
-    // Resolve full path for known shells on Windows
-    const isWin = process.platform === 'win32';
-    let useShell = shell || 'powershell.exe';
-    let useArgs = args && args.length ? args : [];
+    try {
+      const isWin = process.platform === 'win32';
+      let useShell = shell || 'powershell.exe';
+      let useArgs = args && args.length ? args : [];
 
-    if (isWin) {
-      const shellMap = {
-        'powershell.exe': {
-          path: path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-          args: ['-NoLogo', '-NoExit'],
-        },
-        'cmd.exe': {
-          path: path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe'),
-          args: [],
-        },
-        'bash.exe': { path: 'bash.exe', args: [] },
-        'wsl.exe': { path: 'wsl.exe', args: [] },
-      };
-      const mapped = shellMap[useShell];
-      if (mapped) {
-        useShell = fs.existsSync(mapped.path) ? mapped.path : useShell;
-        useArgs = mapped.args;
+      if (isWin) {
+        const shellMap = {
+          'powershell.exe': {
+            path: path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+            args: ['-NoLogo', '-NoExit'],
+          },
+          'cmd.exe': {
+            path: path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe'),
+            args: [],
+          },
+          'bash.exe': { path: 'bash.exe', args: [] },
+          'wsl.exe':  { path: 'wsl.exe',  args: [] },
+        };
+        const mapped = shellMap[useShell];
+        if (mapped) {
+          useShell = fs.existsSync(mapped.path) ? mapped.path : useShell;
+          useArgs = mapped.args;
+        }
       }
+
+      console.log(`[CS-IPC] termSpawn: id=${id} shell="${useShell}" args=${JSON.stringify(useArgs)} cwd="${resolvedCwd}"`);
+
+      const term = pty.spawn(useShell, useArgs, {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: resolvedCwd,
+        env: { ...process.env, TERM: 'xterm-256color' },
+      });
+
+      term.onData((data) => {
+        const w = getWin();
+        console.log(`[CS-IPC] termData: id=${id} len=${data.length} win=${!!w}`);
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('opencode:termData', { id, data });
+        }
+      });
+
+      term.onExit(({ exitCode }) => {
+        console.log(`[CS-IPC] termExit: id=${id} code=${exitCode}`);
+        const w = getWin();
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('opencode:termData', {
+            id,
+            data: `\r\n\x1b[31mProcess exited (${exitCode})\x1b[0m\r\n`,
+          });
+        }
+        _csTerminals.delete(id);
+      });
+
+      _csTerminals.set(id, { term, cwd: resolvedCwd });
+      return { id, cwd: resolvedCwd };
+    } catch (err) {
+      console.log(`[CS-IPC] termSpawn error: ${err.message}`);
+      return { error: err.message };
     }
-
-    console.log(`[CS-IPC] termSpawn: id=${id} shell="${useShell}" args=${JSON.stringify(useArgs)} cwd="${resolvedCwd}"`);
-
-    const term = pty.spawn(useShell, useArgs, {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd: resolvedCwd,
-      env: { ...process.env, TERM: 'xterm-256color' },
-    });
-
-    term.onData((data) => {
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('opencode:termData', { id, data });
-      }
-    });
-
-    term.onExit(({ exitCode }) => {
-      console.log(`[CS-IPC] termExit: id=${id} code=${exitCode}`);
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('opencode:termData', {
-          id,
-          data: `\r\n\x1b[31mProcess exited (${exitCode})\x1b[0m\r\n`,
-        });
-      }
-      _csTerminals.delete(id);
-    });
-
-    _csTerminals.set(id, { term, cwd: resolvedCwd });
-    return { id, cwd: resolvedCwd };
-  } catch (err) {
-    console.log(`[CS-IPC] termSpawn error: ${err.message}`);
-    return { error: err.message };
-  }
-});
+  });
 
   ipcMain.handle('opencode:termWrite', (_, { id, data }) => {
     const t = _csTerminals.get(id);
