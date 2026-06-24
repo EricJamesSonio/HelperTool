@@ -26,8 +26,7 @@ export async function addRepo(repoPath) {
 export function updateRepoPath(repoPath) {
   const el = document.getElementById('ocRepoPath');
   if (!el) return;
-  const label = repoPath ? repoPath.split(/[/\\]/).filter(Boolean).pop() || repoPath : '';
-  el.textContent = label ? `/${label}` : '';
+  el.textContent = repoPath || '';
 }
 
 export function switchTab(repoPath) {

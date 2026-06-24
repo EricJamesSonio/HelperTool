@@ -2,6 +2,9 @@ import { state } from './state.js';
 import { appendUserMessage, appendStreamChunk, finalizeStream, scrollToBottom } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 
+let _lastUserText = '';
+let _lastResponse = '';
+
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
   if (!area) return;
@@ -76,6 +79,16 @@ async function sendMessage() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
+  if (!state.messages[repoPath]) state.messages[repoPath] = [];
+  state.messages[repoPath].push({
+    role: 'user',
+    content: text,
+    timestamp: new Date().toISOString(),
+  });
+
+  _lastUserText = text;
+  _lastResponse = '';
+
   appendUserMessage(text);
 
   input.value = '';
@@ -99,6 +112,7 @@ async function sendMessage() {
     await window.electronAPI.opencode.run(repoPath, text, files, continueConv);
   } catch (err) {
     appendStreamChunk(`\nError: ${err.message}`);
+    _lastResponse = err.message;
     finalizeStream(state.streamBuffer);
   }
 }
@@ -107,6 +121,7 @@ function stopStream() {
   window.electronAPI.opencode.stop();
   document.getElementById('ocStopBtn').style.display = 'none';
   document.getElementById('ocSendBtn').style.display = '';
+  _lastResponse = state.streamBuffer;
   if (state.streamBuffer) {
     finalizeStream(state.streamBuffer);
   }
@@ -122,9 +137,34 @@ export function setupStreamListeners() {
     document.getElementById('ocStopBtn').style.display = 'none';
     document.getElementById('ocSendBtn').style.display = '';
 
-    finalizeStream(state.streamBuffer);
+    const fullResponse = state.streamBuffer;
+    _lastResponse = fullResponse;
+    finalizeStream(fullResponse);
 
     const repoPath = state.activeTabForStream || state.activeTab;
+    if (repoPath && fullResponse) {
+      if (!state.messages[repoPath]) state.messages[repoPath] = [];
+      state.messages[repoPath].push({
+        role: 'assistant',
+        content: fullResponse,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (state.activeConvId[repoPath] === 'new' || !state.activeConvId[repoPath]) {
+        const convId = 'local_' + Date.now();
+        const title = _lastUserText.slice(0, 60) || 'Chat';
+        state.activeConvId[repoPath] = convId;
+        if (!state.conversations[repoPath]) state.conversations[repoPath] = [];
+        state.conversations[repoPath].unshift({
+          id: convId,
+          title,
+          date: new Date().toISOString(),
+          messageCount: state.messages[repoPath].length,
+          repoPath,
+        });
+      }
+    }
+
     if (repoPath) {
       await refreshSidebar();
     }

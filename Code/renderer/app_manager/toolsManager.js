@@ -752,6 +752,11 @@ export function handleRepoChange(newRepoPath) {
   _initializeSymbolIndexTool(newRepoPath);
   _initializeCCTool(newRepoPath);
   startPrefetch(newRepoPath);
+
+  // Update Code Swamp active repo
+  import('../opencodeUI.js').then(mod => {
+    mod.handleRepoChange?.(newRepoPath);
+  }).catch(() => {});
 }
 
 window.addEventListener('beforeunload', () => {

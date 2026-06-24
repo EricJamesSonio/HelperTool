@@ -14,6 +14,7 @@ function execAsync(cmd, opts = {}) {
 
 let _activeProc = null;
 let _mainWindow = null;
+let _discoveryCache = null;
 
 function getDataRoot() {
   const home = os.homedir();
@@ -47,14 +48,17 @@ async function findOpencode() {
   return 'opencode';
 }
 
-async function discover() {
+async function discover(force = false) {
+  if (_discoveryCache && !force) return _discoveryCache;
   const binaryPath = await findOpencode();
   let version = 'unknown';
   const isWin = process.platform === 'win32';
   const out = await execAsync(`"${binaryPath}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 3000 });
   if (out) version = out;
   const dataRoot = getDataRoot();
-  return { binaryPath, dataRoot, version };
+  _discoveryCache = { binaryPath, dataRoot, version };
+  console.log(`[CS-IPC] discover: binaryPath="${binaryPath}" version="${version}" dataRoot="${dataRoot}"`);
+  return _discoveryCache;
 }
 
 async function listViaCli(binaryPath) {
@@ -78,11 +82,22 @@ function listViaStorage(storageDir, repoPath) {
         try {
           const filePath = path.join(storageDir, entry.name);
           const stat = fs.statSync(filePath);
+          const raw = fs.readFileSync(filePath, 'utf-8');
+          let title = entry.name.replace(/\.[^/.]+$/, '');
+          let messageCount = 0;
+          let date = stat.mtime.toISOString();
+          try {
+            const data = JSON.parse(raw);
+            const messages = data.messages || data.history || [];
+            messageCount = messages.length;
+            if (data.title || data.name) title = data.title || data.name;
+            if (data.date || data.createdAt || data.timestamp) date = data.date || data.createdAt || data.timestamp;
+          } catch (_) {}
           results.push({
             id: path.basename(entry.name, path.extname(entry.name)),
-            title: entry.name.replace(/\.[^/.]+$/, ''),
-            date: stat.mtime.toISOString(),
-            messageCount: 0,
+            title,
+            date,
+            messageCount,
             repoPath: repoPath || '',
           });
         } catch (_) {}
@@ -174,48 +189,72 @@ function register(shared) {
 
   ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv }) => {
     const { binaryPath } = await discover();
-    const args = ['run', message];
+    const args = ['run', '--format', 'default', message];
 
     if (continueConv) args.push('-c');
     if (files && files.length) {
       for (const f of files) args.push('--file', f);
     }
 
+    console.log(`[CS-IPC] run: binary="${binaryPath}" args=${JSON.stringify(args)} cwd="${repoPath}"`);
+
     return new Promise((resolve) => {
-      const proc = spawn(binaryPath, args, {
-        cwd: repoPath,
-        env: { ...process.env },
-        windowsHide: true,
-        shell: process.platform === 'win32',
-      });
+      let proc;
+      try {
+        proc = spawn(binaryPath, args, {
+          cwd: repoPath,
+          env: { ...process.env },
+          windowsHide: true,
+          shell: process.platform === 'win32',
+        });
+      } catch (spawnErr) {
+        console.log(`[CS-IPC] run spawn failed: ${spawnErr.message}`);
+        if (_mainWindow && !_mainWindow.isDestroyed()) {
+          _mainWindow.webContents.send('opencode:stream', { chunk: `\n[Spawn Error] ${spawnErr.message}\n`, isError: true });
+          _mainWindow.webContents.send('opencode:done', { code: -1, error: spawnErr.message });
+        }
+        resolve({ code: -1, error: spawnErr.message });
+        return;
+      }
 
       _activeProc = proc;
+      console.log(`[CS-IPC] run spawned PID: ${proc.pid}`);
 
       proc.stdout.on('data', (chunk) => {
+        const text = chunk.toString();
+        console.log(`[CS-IPC] stdout: ${text.slice(0, 200)}`);
         if (_mainWindow && !_mainWindow.isDestroyed()) {
-          _mainWindow.webContents.send('opencode:stream', { chunk: chunk.toString() });
+          _mainWindow.webContents.send('opencode:stream', { chunk: text });
         }
       });
 
       let stderrBuf = '';
       proc.stderr.on('data', (chunk) => {
-        stderrBuf += chunk.toString();
+        const text = chunk.toString();
+        stderrBuf += text;
+        console.log(`[CS-IPC] stderr: ${text.slice(0, 200)}`);
         if (_mainWindow && !_mainWindow.isDestroyed()) {
-          _mainWindow.webContents.send('opencode:stream', { chunk: chunk.toString(), isError: true });
+          _mainWindow.webContents.send('opencode:stream', { chunk: text, isError: true });
         }
       });
 
       proc.on('close', (code) => {
+        console.log(`[CS-IPC] close: code=${code} stderrLen=${stderrBuf.length}`);
         _activeProc = null;
         if (_mainWindow && !_mainWindow.isDestroyed()) {
+          if (code !== 0 && !stderrBuf) {
+            _mainWindow.webContents.send('opencode:stream', { chunk: `\n[Process exited with code ${code}]\n`, isError: true });
+          }
           _mainWindow.webContents.send('opencode:done', { code, stderr: stderrBuf });
         }
         resolve({ code });
       });
 
       proc.on('error', (err) => {
+        console.log(`[CS-IPC] error: ${err.message}`);
         _activeProc = null;
         if (_mainWindow && !_mainWindow.isDestroyed()) {
+          _mainWindow.webContents.send('opencode:stream', { chunk: `\n[Error] ${err.message}\n`, isError: true });
           _mainWindow.webContents.send('opencode:done', { code: -1, error: err.message });
         }
         resolve({ code: -1, error: err.message });

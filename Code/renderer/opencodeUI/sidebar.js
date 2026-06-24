@@ -8,7 +8,12 @@ export async function refreshSidebar() {
   if (!repoPath) return;
 
   const convs = await listConversations(repoPath);
-  state.conversations[repoPath] = convs;
+  const currentConvs = state.conversations[repoPath] || [];
+
+  // Merge server convs with local-only (synthetic) convs
+  const serverIds = new Set(convs.map(c => c.id));
+  const localOnly = currentConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
+  state.conversations[repoPath] = [...localOnly, ...convs];
 
   if (!state.messages[repoPath]) state.messages[repoPath] = [];
   renderConvList();
@@ -20,8 +25,14 @@ export async function loadConversation(convId) {
 
   state.activeConvId[repoPath] = convId;
 
-  const messages = await loadConvMessages(convId);
-  state.messages[repoPath] = messages;
+  if (convId.startsWith('local_')) {
+    // Load from local state
+    const msgs = state.messages[repoPath] || [];
+    loadConvMessages(msgs);
+  } else {
+    const messages = await loadConvMessages(convId);
+    state.messages[repoPath] = messages;
+  }
 
   renderConvList();
 }

@@ -1,4 +1,6 @@
 import { initOpencodeUI, openOpencodeUI, closeOpencodeUI, isOpen } from './opencodeUI/index.js';
+import { addRepo } from './opencodeUI/repoTabs.js';
+import { refreshSidebar } from './opencodeUI/sidebar.js';
 
 let _initialized = false;
 
@@ -28,4 +30,15 @@ export function close() {
 
 export function isOpencodeOpen() {
   return isOpen();
+}
+
+export async function handleRepoChange(repoPath) {
+  console.log('[CS] handleRepoChange:', repoPath);
+  if (!repoPath) return;
+  if (!_initialized) {
+    console.log('[CS] handleRepoChange: not initialized yet, initializing');
+    await init();
+  }
+  await addRepo(repoPath);
+  await refreshSidebar();
 }
