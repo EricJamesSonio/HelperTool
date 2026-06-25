@@ -438,7 +438,7 @@ const opencodeBridge = {
   discover:           ()                            => ipcRenderer.invoke('opencode:discover'),
   listConversations:  (repoPath)                    => ipcRenderer.invoke('opencode:listConversations', { repoPath }),
   getConversation:    (convId)                      => ipcRenderer.invoke('opencode:getConversation', { convId }),
-  run:                (repoPath, message, files, continueConv) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv }),
+  run:                (repoPath, message, files, continueConv, sessionId) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv, sessionId }),
   stop:               ()                            => ipcRenderer.invoke('opencode:stop'),
   listRepos:          ()                            => ipcRenderer.invoke('opencode:listRepos'),
   deleteConversation: (convId)                      => ipcRenderer.invoke('opencode:deleteConversation', { convId }),
@@ -464,6 +464,33 @@ const opencodeBridge = {
     
     ipcRenderer.on('opencode:termData', (_, data) => callback(data));
     
+  },
+};
+
+const chatAPIBridge = {
+  createSession:    (repoPath, model)        => ipcRenderer.invoke('chat:create-session', { repoPath, model }),
+  getSessions:      (repoPath)                => ipcRenderer.invoke('chat:get-sessions', { repoPath }),
+  getMessages:      (sessionId)               => ipcRenderer.invoke('chat:get-messages', { sessionId }),
+  deleteSession:    (sessionId)               => ipcRenderer.invoke('chat:delete-session', { sessionId }),
+  sendMessage:      (sessionId, content, attachments, repoPath) => ipcRenderer.invoke('chat:send-message', { sessionId, content, attachments, repoPath }),
+  pickFiles:        ()                        => ipcRenderer.invoke('chat:pick-files'),
+  readFileBase64:   (filePath)                => ipcRenderer.invoke('chat:read-file-base64', { filePath }),
+  onStreamChunk:    (callback) => {
+    ipcRenderer.removeAllListeners('chat:stream-chunk');
+    ipcRenderer.on('chat:stream-chunk', (_, data) => callback(data));
+  },
+  onStreamDone:     (callback) => {
+    ipcRenderer.removeAllListeners('chat:stream-done');
+    ipcRenderer.on('chat:stream-done', (_, data) => callback(data));
+  },
+  onSessionUpdated: (callback) => {
+    ipcRenderer.removeAllListeners('chat:session-updated');
+    ipcRenderer.on('chat:session-updated', (_, data) => callback(data));
+  },
+  removeStreamListeners: () => {
+    ipcRenderer.removeAllListeners('chat:stream-chunk');
+    ipcRenderer.removeAllListeners('chat:stream-done');
+    ipcRenderer.removeAllListeners('chat:session-updated');
   },
 };
 
@@ -527,6 +554,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
+
+contextBridge.exposeInMainWorld('chatAPI', chatAPIBridge);
 
 contextBridge.exposeInMainWorld('serviceTrackerAPI', {
   getAll:    () => ipcRenderer.invoke('serviceTracker:getAll'),

@@ -1,13 +1,13 @@
-import { initOpencodeUI, openOpencodeUI, closeOpencodeUI, isOpen } from './opencodeUI/index.js';
-import { addRepo } from './opencodeUI/repoTabs.js';
-import { refreshSidebar } from './opencodeUI/sidebar.js';
+import { initCodeSwampUI, openCodeSwampUI, closeCodeSwampUI, isOpen } from './codeswampUI/index.js';
+import { addRepo } from './codeswampUI/repoTabs.js';
+import { refreshSidebar } from './codeswampUI/sidebar.js';
 
 let _initialized = false;
 
 export async function init() {
   if (_initialized) return;
   _initialized = true;
-  await initOpencodeUI();
+  await initCodeSwampUI();
 }
 
 export function open() {
@@ -15,20 +15,20 @@ export function open() {
   if (!_initialized) {
     console.log('[CS] first open — calling init');
     init().then(() => {
-      console.log('[CS] init done, now openOpencodeUI');
-      openOpencodeUI();
+      console.log('[CS] init done, now openCodeSwampUI');
+      openCodeSwampUI();
     });
   } else {
     console.log('[CS] already initialized, direct open');
-    openOpencodeUI();
+    openCodeSwampUI();
   }
 }
 
 export function close() {
-  closeOpencodeUI();
+  closeCodeSwampUI();
 }
 
-export function isOpencodeOpen() {
+export function isCodeSwampOpen() {
   return isOpen();
 }
 

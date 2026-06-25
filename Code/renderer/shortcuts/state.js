@@ -18,7 +18,7 @@ const DEFAULT_SHORTCUTS = {
   gmailTool: null,
   automationSketch: null,
   githubExplorer: null,
-  opencodeChat: null,
+  codeswampChat: null,
 };
 
 const S = { shortcuts: {} };
@@ -26,7 +26,18 @@ const S = { shortcuts: {} };
 function loadShortcuts() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    S.shortcuts = raw ? { ...DEFAULT_SHORTCUTS, ...JSON.parse(raw) } : { ...DEFAULT_SHORTCUTS };
+    let data = raw ? JSON.parse(raw) : {};
+
+    // Migrate old opencodeChat → codeswampChat
+    if (data.opencodeChat !== undefined) {
+      if (data.codeswampChat === undefined || data.codeswampChat === null) {
+        data.codeswampChat = data.opencodeChat;
+      }
+      delete data.opencodeChat;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    S.shortcuts = { ...DEFAULT_SHORTCUTS, ...data };
   } catch {
     S.shortcuts = { ...DEFAULT_SHORTCUTS };
   }

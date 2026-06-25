@@ -7,6 +7,8 @@ const os = require('os');
 let pty = null;
 try { pty = require('node-pty'); } catch (e) { console.log('[CS-IPC] node-pty not available:', e.message); }
 
+const { createSession, getSessions, getMessages, saveMessage, updateSessionTitle, updateSessionTimestamp, deleteSession, getSession, setOpencodeSessionId } = require('../database/chatDb');
+
 function execAsync(cmd, opts = {}) {
   return new Promise((resolve) => {
     exec(cmd, { timeout: opts.timeout || 10000, windowsHide: true, ...opts }, (err, stdout) => {
@@ -133,17 +135,35 @@ function register(shared) {
     if (cliResult && Array.isArray(cliResult)) {
       const np = repoPath ? normPath(repoPath) : null;
       return cliResult
-        .filter(s => !np || (s.repoPath && normPath(s.repoPath) === np))
+        .filter(s => !np || !s.repoPath || normPath(s.repoPath) === np)
         .map(s => ({
           id: s.id || s.sessionId || '',
           title: s.title || s.name || 'Untitled',
           date: s.date || s.createdAt || s.timestamp || '',
           messageCount: s.messageCount || s.messages?.length || 0,
-          repoPath: s.repoPath || '',
+          repoPath: s.repoPath || repoPath || '',
         }));
     }
     const storageDir = getStorageDir(repoPath);
-    return listViaStorage(storageDir, repoPath);
+    const results = listViaStorage(storageDir, repoPath);
+    if (results.length > 0) return results;
+    // Fallback: search all project storage dirs for session files
+    const dataRoot = getDataRoot();
+    const projectDir = path.join(dataRoot, 'project');
+    if (fs.existsSync(projectDir)) {
+      const all = [];
+      try {
+        const projects = fs.readdirSync(projectDir, { withFileTypes: true });
+        for (const proj of projects) {
+          if (proj.isDirectory()) {
+            const sp = path.join(projectDir, proj.name, 'storage');
+            all.push(...listViaStorage(sp, ''));
+          }
+        }
+      } catch (_) {}
+      return all;
+    }
+    return results;
   });
 
   ipcMain.handle('opencode:getConversation', async (_, { convId }) => {
@@ -192,11 +212,15 @@ function register(shared) {
     return null;
   });
 
-  ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv }) => {
+  ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv, sessionId }) => {
     const { binaryPath } = await discover();
     const args = ['run', '--format', 'default', message];
 
-    if (continueConv) args.push('-c');
+    if (sessionId) {
+      args.push('-s', sessionId);
+    } else if (continueConv) {
+      args.push('-c');
+    }
     if (files && files.length) {
       for (const f of files) args.push('--file', f);
     }
@@ -358,6 +382,183 @@ function register(shared) {
       filters: [{ name: 'All Files', extensions: ['*'] }],
     });
     return result;
+  });
+
+  // ── Chat session IPC handlers ──
+
+  ipcMain.handle('chat:create-session', async (_, { repoPath, model }) => {
+    try {
+      const session = createSession(repoPath, model);
+      return session;
+    } catch (err) {
+      console.error('[CS-IPC] chat:create-session error:', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('chat:get-sessions', async (_, { repoPath }) => {
+    try {
+      return getSessions(repoPath);
+    } catch (err) {
+      console.error('[CS-IPC] chat:get-sessions error:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('chat:get-messages', async (_, { sessionId }) => {
+    try {
+      return getMessages(sessionId);
+    } catch (err) {
+      console.error('[CS-IPC] chat:get-messages error:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('chat:delete-session', async (_, { sessionId }) => {
+    try {
+      deleteSession(sessionId);
+      return { success: true };
+    } catch (err) {
+      console.error('[CS-IPC] chat:delete-session error:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('chat:pick-files', async () => {
+    const win = getWin();
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Attach Files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'All Supported', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'js', 'ts', 'jsx', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'cs', 'swift', 'kt', 'css', 'html', 'json', 'yaml', 'yml', 'toml', 'xml', 'md', 'sh', 'bash', 'txt', 'env', 'sql'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths.length) return [];
+    return result.filePaths;
+  });
+
+  ipcMain.handle('chat:read-file-base64', async (_, { filePath }) => {
+    try {
+      const data = fs.readFileSync(filePath);
+      const base64 = data.toString('base64');
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes = {
+        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif', '.webp': 'image/webp',
+      };
+      const mime = mimeTypes[ext] || 'application/octet-stream';
+      return { success: true, base64, mime };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('chat:send-message', async (_, { sessionId, content, attachments, repoPath }) => {
+    const { binaryPath } = await discover();
+    const w = getWin();
+
+    try {
+      saveMessage(sessionId, 'user', content, attachments || []);
+
+      // Auto-title on first message
+      const msgs = getMessages(sessionId);
+      if (msgs.length === 1) {
+        const title = content.length > 40 ? content.substring(0, 40) + '...' : content;
+        updateSessionTitle(sessionId, title);
+        if (w && !w.isDestroyed()) w.webContents.send('chat:session-updated', { sessionId, title });
+      }
+
+      // Get existing opencode session id if any
+      const session = getSession(sessionId);
+      const opencodeId = session ? session.opencode_session_id : null;
+
+      const isWin = process.platform === 'win32';
+      const args = opencodeId
+        ? ['run', '--format', 'default', '-s', opencodeId, content]
+        : ['run', '--format', 'default', content];
+
+      if (attachments && attachments.length) {
+        for (const a of attachments) {
+          if (a.path) args.push('--file', a.path);
+        }
+      }
+
+      console.log('[CS-IPC] chat:send-message args:', args, 'cwd:', repoPath);
+
+      const proc = spawn(binaryPath, args, {
+        cwd: repoPath,
+        env: { ...process.env },
+        windowsHide: true,
+        shell: isWin,
+      });
+
+      let fullResponse = '';
+      let fullStdout = '';
+
+      proc.stdout.on('data', (chunk) => {
+        const text = chunk.toString();
+        fullResponse += text;
+        fullStdout += text;
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('chat:stream-chunk', { sessionId, chunk: text });
+        }
+      });
+
+      proc.stderr.on('data', (chunk) => {
+        const text = chunk.toString();
+        if (w && !w.isDestroyed()) {
+          w.webContents.send('chat:stream-chunk', { sessionId, chunk: text, isError: true });
+        }
+      });
+
+      return new Promise((resolve) => {
+        proc.on('close', (code) => {
+          // If this was the first message, try to parse opencode's session ID from output
+          if (!opencodeId) {
+            const match = fullStdout.match(/session[_\s-]?id[:\s]+([a-zA-Z0-9_-]{8,})/i)
+                      || fullStdout.match(/^([a-f0-9-]{36})/m);
+            if (match && match[1]) {
+              setOpencodeSessionId(sessionId, match[1]);
+              console.log('[CS-IPC] captured opencode session id:', match[1]);
+            }
+          }
+
+          if (fullResponse.trim()) {
+            saveMessage(sessionId, 'assistant', fullResponse.trim());
+            updateSessionTimestamp(sessionId);
+            if (w && !w.isDestroyed()) {
+              w.webContents.send('chat:session-updated', { sessionId, timestamp: Math.floor(Date.now() / 1000) });
+            }
+          } else if (code === 0 && w && !w.isDestroyed()) {
+            w.webContents.send('chat:stream-chunk', {
+              sessionId,
+              chunk: '[No output received from OpenCode. Check that opencode CLI is available: run `opencode --version` in a terminal]',
+              isError: true,
+            });
+          }
+
+          if (w && !w.isDestroyed()) {
+            w.webContents.send('chat:stream-done', { sessionId, code });
+          }
+          resolve({ code, sessionId });
+        });
+
+        proc.on('error', (err) => {
+          console.error('[CS-IPC] spawn error:', err.message);
+          if (w && !w.isDestroyed()) {
+            w.webContents.send('chat:stream-chunk', { sessionId, chunk: `\n[Error] ${err.message}\n`, isError: true });
+            w.webContents.send('chat:stream-done', { sessionId, code: -1, error: err.message });
+          }
+          resolve({ code: -1, error: err.message, sessionId });
+        });
+      });
+    } catch (err) {
+      console.error('[CS-IPC] chat:send-message error:', err);
+      if (w && !w.isDestroyed()) {
+        w.webContents.send('chat:stream-done', { sessionId, code: -1, error: err.message });
+      }
+      return { code: -1, error: err.message, sessionId };
+    }
   });
 
   // ── Terminal (PTY) handlers ──

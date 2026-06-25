@@ -43,7 +43,7 @@ export function getTemplate(mode = 'full') {
             <path d="M2 12l10 5 10-5"/>
           </svg>
           <h2>Code Swamp</h2>
-          <p>Start a new chat to open a terminal with opencode.</p>
+          <p>Start a new chat to open a terminal with CodeSwamp.</p>
         </div>
       </div>
       <div class="oc-terminal" id="ocTerminal" style="display:none">

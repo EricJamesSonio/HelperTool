@@ -1,3 +1,5 @@
+import { state } from './state.js';
+
 const instances = {};
 
 let TerminalClass = null;
@@ -157,9 +159,11 @@ export async function createTerminalSession(repoPath) {
     }
   });
 
-  // Auto-run opencode after shell is ready
+  // Auto-run opencode after shell is ready — resume specific conversation if set
   setTimeout(() => {
-    window.electronAPI.opencode.termWrite({ id: result.id, data: 'opencode\r' });
+    const convId = state.activeConvId[repoPath];
+    const cmd = convId ? `opencode -c ${convId}\r` : 'opencode\r';
+    window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
   }, 2000);
 
   return instance;
