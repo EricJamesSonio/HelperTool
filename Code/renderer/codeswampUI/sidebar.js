@@ -88,7 +88,7 @@ export async function loadConversation(convId) {
 
   // If terminal already existed, tell opencode CLI to switch to this session
   if (hadSession) {
-    writeToTerminal(repoPath, `opencode -c ${convId}\n`);
+    writeToTerminal(repoPath, `opencode -s ${convId}\n`);
   }
 
   renderConvList();
@@ -102,14 +102,17 @@ export async function startNewChat() {
     return;
   }
 
-  // Clear active conversation and messages
   state.activeConvId[repoPath] = null;
   state.messages[repoPath] = [];
   state.messageCache[repoPath] = [];
 
   console.log('[CS] startNewChat: killing existing terminal session if any');
   if (hasTerminalSession(repoPath)) {
+    writeToTerminal(repoPath, '/exit\n');
+    await new Promise(r => setTimeout(r, 2000));
     closeTerminalSession(repoPath);
+    await new Promise(r => setTimeout(r, 1000));
+    await refreshSidebar();
   }
 
   showWelcome();

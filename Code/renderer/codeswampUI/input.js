@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { writeToTerminal, hasTerminalSession } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
+import { renderConvList } from './repoTabs.js';
 
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
@@ -74,6 +75,8 @@ async function sendMessage() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
+  const isNewChat = !hasTerminalSession(repoPath);
+
   if (!hasTerminalSession(repoPath)) {
     await openTerminalForRepo(repoPath);
     await new Promise(r => setTimeout(r, 300));
@@ -85,12 +88,31 @@ async function sendMessage() {
     msg += ' --file ' + files.join(' --file ');
   }
 
+  const prevCount = (state.conversations[repoPath] || []).length;
+
   writeToTerminal(repoPath, msg + '\n');
 
-  setTimeout(() => refreshSidebar(), 1500);
+  if (isNewChat) {
+    pollForNewSession(repoPath, prevCount);
+  } else {
+    setTimeout(() => refreshSidebar(), 1500);
+  }
 
   input.value = '';
   input.style.height = 'auto';
   state.pendingFiles = [];
   renderPendingFiles();
+}
+
+async function pollForNewSession(repoPath, prevCount, maxAttempts = 6, interval = 2000) {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, interval));
+    await refreshSidebar();
+    const convs = state.conversations[repoPath] || [];
+    if (convs.length > prevCount && convs[0] && !state.activeConvId[repoPath]) {
+      state.activeConvId[repoPath] = convs[0].id;
+      renderConvList();
+      return;
+    }
+  }
 }

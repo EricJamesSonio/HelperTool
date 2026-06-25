@@ -72,7 +72,7 @@ async function discover(force = false) {
 
 async function listViaCli(binaryPath) {
   try {
-    const out = await execAsync(`"${binaryPath}" session list --json 2>${process.platform === 'win32' ? 'nul' : '/dev/null'}`, { timeout: 10000 });
+    const out = await execAsync(`"${binaryPath}" session list --format json 2>${process.platform === 'win32' ? 'nul' : '/dev/null'}`, { timeout: 10000 });
     if (!out) return null;
     const data = JSON.parse(out);
     if (Array.isArray(data)) return data;
@@ -135,13 +135,13 @@ function register(shared) {
     if (cliResult && Array.isArray(cliResult)) {
       const np = repoPath ? normPath(repoPath) : null;
       return cliResult
-        .filter(s => !np || !s.repoPath || normPath(s.repoPath) === np)
+        .filter(s => !np || (s.directory && normPath(s.directory) === np))
         .map(s => ({
-          id: s.id || s.sessionId || '',
-          title: s.title || s.name || 'Untitled',
-          date: s.date || s.createdAt || s.timestamp || '',
-          messageCount: s.messageCount || s.messages?.length || 0,
-          repoPath: s.repoPath || repoPath || '',
+          id: s.id || '',
+          title: s.title || 'Untitled',
+          date: s.created ? new Date(s.created).toISOString() : (s.updated ? new Date(s.updated).toISOString() : ''),
+          messageCount: 0,
+          repoPath: s.directory || repoPath || '',
         }));
     }
     const storageDir = getStorageDir(repoPath);

@@ -8,6 +8,7 @@ import { showWelcome } from './chat.js';
 import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
 
 let _initialized = false;
+let _refreshInterval = null;
 
 export async function initCodeSwampUI() {
   console.log('[CS] initCodeSwampUI start');
@@ -69,6 +70,14 @@ export async function initCodeSwampUI() {
       if (state.activeTab) {
         await refreshSidebar();
       }
+
+      if (!_refreshInterval) {
+        _refreshInterval = setInterval(() => {
+          if (state.open && state.activeTab) {
+            refreshSidebar().catch(() => {});
+          }
+        }, 15000);
+      }
     } catch (err) {
       console.error('[CodeSwamp] Init error:', err);
     }
@@ -117,6 +126,10 @@ export function closeCodeSwampUI() {
   if (panel) {
     panel.classList.remove('open');
     state.open = false;
+  }
+  if (_refreshInterval) {
+    clearInterval(_refreshInterval);
+    _refreshInterval = null;
   }
 }
 

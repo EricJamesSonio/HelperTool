@@ -162,7 +162,7 @@ export async function createTerminalSession(repoPath) {
   // Auto-run opencode after shell is ready — resume specific conversation if set
   setTimeout(() => {
     const convId = state.activeConvId[repoPath];
-    const cmd = convId ? `opencode -c ${convId}\r` : 'opencode\r';
+    const cmd = convId ? `opencode -s ${convId}\r` : 'opencode\r';
     window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
   }, 2000);
 
