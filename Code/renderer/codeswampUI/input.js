@@ -3,6 +3,7 @@ import { writeToTerminal, hasTerminalSession } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 import { renderConvList } from './repoTabs.js';
+import { getLoadingController } from './loading.js';
 
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
@@ -78,8 +79,15 @@ async function sendMessage() {
   const isNewChat = !hasTerminalSession(repoPath);
 
   if (!hasTerminalSession(repoPath)) {
-    await openTerminalForRepo(repoPath);
-    await new Promise(r => setTimeout(r, 300));
+    const lc = getLoadingController();
+    lc.start('Starting terminal...');
+    try {
+      await openTerminalForRepo(repoPath);
+      await lc.finish('Ready', 2000);
+    } catch (e) {
+      lc.hide();
+      return;
+    }
   }
 
   let msg = text;

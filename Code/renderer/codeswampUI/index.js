@@ -6,6 +6,7 @@ import { renderInput } from './input.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
 import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
+import { getLoadingController } from './loading.js';
 
 let _initialized = false;
 let _refreshInterval = null;
@@ -22,6 +23,7 @@ export async function initCodeSwampUI() {
     console.log('[CS] template inserted');
   }
 
+  getLoadingController(); // warm up loading controller singleton
   setupDom();
   showWelcome();
   renderInput();

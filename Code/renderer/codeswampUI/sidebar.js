@@ -3,6 +3,7 @@ import { listConversations, getConversation } from './history.js';
 import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.js';
 import { hasTerminalSession, writeToTerminal } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
+import { getLoadingController } from './loading.js';
 
 export function renderShellSelect() {
   const select = document.getElementById('ocShellSelect');
@@ -83,14 +84,20 @@ export async function loadConversation(convId) {
 
   state.activeConvId[repoPath] = convId;
 
-  const hadSession = hasTerminalSession(repoPath);
-  await openTerminalForRepo(repoPath);
+  const lc = getLoadingController();
+  lc.start('Loading conversation...');
 
-  // If terminal already existed, tell opencode CLI to switch to this session
-  if (hadSession) {
-    writeToTerminal(repoPath, `opencode -s ${convId}\n`);
+  if (hasTerminalSession(repoPath)) {
+    closeTerminalSession(repoPath);
   }
 
+  try {
+    await openTerminalForRepo(repoPath);
+    await lc.finish('Ready', 2000);
+  } catch (e) {
+    console.error('[CS] loadConversation error:', e);
+    lc.hide();
+  }
   renderConvList();
 }
 

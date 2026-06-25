@@ -35,6 +35,13 @@ export function getTemplate(mode = 'full') {
     </div>
 
     <div class="oc-main" id="ocMain">
+      <div class="oc-loading-overlay" id="ocLoadingOverlay">
+        <div class="oc-loading-spinner"></div>
+        <div class="oc-loading-progress">
+          <div class="oc-loading-bar" id="ocLoadingBar"></div>
+        </div>
+        <div class="oc-loading-label" id="ocLoadingLabel">Starting...</div>
+      </div>
       <div class="oc-welcome" id="ocWelcome">
         <div class="oc-welcome-content">
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">

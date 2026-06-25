@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { getLoadingController } from './loading.js';
 
 const instances = {};
 
@@ -135,6 +136,9 @@ export async function createTerminalSession(repoPath) {
     return null;
   }
 
+  const lc = getLoadingController();
+  lc.setProgress('Starting shell...', 0.35);
+
   const instance = { id: result.id, terminal, fitAddon, div, repoPath };
   instances[repoPath] = instance;
 
@@ -159,12 +163,12 @@ export async function createTerminalSession(repoPath) {
     }
   });
 
-  // Auto-run opencode after shell is ready — resume specific conversation if set
-  setTimeout(() => {
-    const convId = state.activeConvId[repoPath];
-    const cmd = convId ? `opencode -s ${convId}\r` : 'opencode\r';
-    window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
-  }, 2000);
+  // Write opencode command immediately (pty buffers input until shell is ready)
+  const convId = state.activeConvId[repoPath];
+  const cmd = convId ? `opencode -s ${convId}\r` : 'opencode\r';
+  window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
+
+  lc.advanceTo('Starting opencode...', 0.60, 400);
 
   return instance;
 }
