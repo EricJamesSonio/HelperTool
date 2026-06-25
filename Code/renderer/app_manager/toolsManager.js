@@ -316,16 +316,14 @@ function populateSidebar() {
     openEnvManager(state.selectedRepoPath);
   }, 'env'));
 
+
   body.appendChild(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
-    _registry.closeAll();
     try {
       const oc = await import('../codeswampUI.js');
-      if (oc.isCodeSwampOpen()) {
-        oc.close();
-      } else {
-        await oc.open();
-      }
-    } catch (err) { console.error('[Tools] CodeSwamp:', err); }
+      if (oc.isCodeSwampOpen()) { oc.close(); return; }
+      _registry.closeAll();
+      await oc.open();
+    } catch (err) {  console.error('[Tools] CodeSwamp:', err) }
   }, 'opencode'));
 }
 
@@ -713,15 +711,15 @@ function _buildShortcutActions() {
     if (!_githubTool) _initializeGithubTool();
   };
 
-  actions.codeswampChat = async () => {
-    _registry.closeAll();
+actions.codeswampChat = async () => {
     try {
       const oc = await import('../codeswampUI.js');
       if (oc.isCodeSwampOpen()) {
         oc.close();
-      } else {
-        await oc.open();
+        return;
       }
+      _registry.closeAll();
+      await oc.open();
     } catch (err) { console.error('[Shortcuts] CodeSwamp:', err); }
   };
 
