@@ -767,3 +767,121 @@
   .ws-edit-ticket-grid { grid-template-columns: 1fr; }
   .ws-edit-ticket-right textarea { min-height: 160px; }
 }
+
+/* ── Infinity Stones ─────────────────────────────────── */
+
+.ws-stones-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 4px 0;
+}
+
+@media (max-width: 900px) {
+  .ws-stones-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .ws-stones-grid { grid-template-columns: 1fr; }
+}
+
+.ws-stone-card {
+  background: var(--bg-elevated, #111d34);
+  border: 1px solid var(--stone-color, #60a5fa44);
+  border-top: 3px solid var(--stone-color, #60a5fa);
+  border-radius: 14px;
+  padding: 20px 18px 16px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 140px;
+}
+
+.ws-stone-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--stone-color) 30%, transparent);
+  background: var(--bg-hover, #162040);
+}
+
+.ws-stone-gem {
+  display: flex;
+  align-items: center;
+}
+
+.ws-stone-label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--stone-color);
+  letter-spacing: 0.01em;
+}
+
+.ws-stone-preview {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0b0d8);
+  line-height: 1.5;
+  flex: 1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.ws-stone-empty {
+  opacity: 0.45;
+  font-style: italic;
+}
+
+/* Modal */
+.ws-stone-modal {
+  width: min(720px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-stone-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ws-stone-modal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ws-stone-modal-body {
+  flex: 1;
+  padding: 20px 24px;
+  overflow: hidden;
+  display: flex;
+}
+
+.ws-stone-textarea {
+  width: 100%;
+  flex: 1;
+  background: var(--bg-base, #0d1526);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+  border-radius: 10px;
+  color: var(--text-primary, #eef2ff);
+  font-size: 0.9rem;
+  line-height: 1.7;
+  padding: 16px;
+  resize: none;
+  font-family: inherit;
+  min-height: 340px;
+}
+
+.ws-stone-textarea:focus {
+  outline: none;
+  border-color: var(--accent, #5b8af5);
+}
+
+.ws-stone-char-count {
+  font-size: 0.75rem;
+  color: var(--text-faint, #5a6a9a);
+  margin-right: auto;
+}

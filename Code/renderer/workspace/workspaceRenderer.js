@@ -500,6 +500,7 @@ function _renderProjectDetails(body) {
     { key: 'db',       label: `${ICON_DATABASE} Database`  },
     { key: 'folders',  label: `${ICON_FOLDER_OPEN} Folders`   },
     { key: 'plannings', label: `${ICON_PLANNING} Plannings` },
+    { key: 'stones', label: '💎 Infinity Stones' },
     { key: 'logs',      label: `${ICON_LOGS} Logs`     },
   ];
 
@@ -525,7 +526,9 @@ function _renderProjectDetails(body) {
     case 'db':       _renderTabDb(content);            break;
     case 'folders':  _renderTabFolders(content);      break;
     case 'plannings': _renderTabPlannings(content);   break;
+    case 'stones':    _renderTabStones(content);      break;
     case 'logs':      _renderTabProjectLogs(content); break;
+    
   }
   body.appendChild(content);
 }
@@ -1044,6 +1047,107 @@ function _renderTabPlannings(el) {
 
   container.appendChild(right);
   el.appendChild(container);
+}
+
+const STONES = [
+  { key: 'stoneCodeStandards',  label: 'Code Standards',      color: '#60a5fa', placeholder: 'ESLint rules, naming conventions, formatting standards, code review checklist...' },
+  { key: 'stoneProjectOverview', label: 'Project Overview',   color: '#f87171', placeholder: 'What this project does, goals, non-goals, target users, key decisions...' },
+  { key: 'stoneProgressTracker', label: 'Progress Tracker',   color: '#34d399', placeholder: 'Current milestone, what is done, what is next, blockers...' },
+  { key: 'stoneUIContext',       label: 'UI Context',         color: '#fbbf24', placeholder: 'Design system, component library, color tokens, layout rules, UX patterns...' },
+  { key: 'stoneArchitecture',    label: 'Architecture Context', color: '#c0c0c0', placeholder: 'System design, services, data flow, tech stack, infra decisions...' },
+  { key: 'stoneAIWorkflow',      label: 'AI Workflow Rules',  color: '#a78bfa', placeholder: 'How to prompt AI for this project, rules it must follow, context to always include...' },
+];
+
+function _renderTabStones(el) {
+  const p = _selectedProject;
+
+  // Grid of 6 stone cards
+  const grid = document.createElement('div');
+  grid.className = 'ws-stones-grid';
+
+  STONES.forEach(stone => {
+    const value = p[stone.key] || '';
+    const preview = value.trim()
+      ? value.trim().slice(0, 120) + (value.length > 120 ? '…' : '')
+      : null;
+
+    const card = document.createElement('div');
+    card.className = 'ws-stone-card';
+    card.style.setProperty('--stone-color', stone.color);
+    card.innerHTML = `
+      <div class="ws-stone-gem">
+        <svg viewBox="0 0 40 40" width="32" height="32">
+          <polygon points="20,4 36,14 36,26 20,36 4,26 4,14" 
+            fill="${stone.color}22" stroke="${stone.color}" stroke-width="1.5"/>
+          <polygon points="20,4 36,14 20,18" fill="${stone.color}44"/>
+          <polygon points="20,18 36,14 36,26 20,36" fill="${stone.color}33"/>
+        </svg>
+      </div>
+      <div class="ws-stone-label">${stone.label}</div>
+      <div class="ws-stone-preview">${preview ? _esc(preview) : '<span class="ws-stone-empty">Click to add context…</span>'}</div>
+    `;
+
+    card.addEventListener('click', () => _openStoneModal(p, stone));
+    grid.appendChild(card);
+  });
+
+  el.appendChild(grid);
+}
+
+function _openStoneModal(project, stone) {
+  const existing = project[stone.key] || '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'workspace-modal-overlay ws-stone-modal-overlay';
+  overlay.innerHTML = `
+    <div class="workspace-modal ws-stone-modal">
+      <div class="workspace-modal-header" style="border-bottom-color:${stone.color}44">
+        <div class="ws-stone-modal-title">
+          <span class="ws-stone-modal-dot" style="background:${stone.color}"></span>
+          <h2>${stone.label}</h2>
+        </div>
+        <button class="workspace-modal-close">${ICON_REMOVE}</button>
+      </div>
+      <div class="ws-stone-modal-body">
+        <textarea class="ws-stone-textarea" id="wsStoneTextarea"
+          placeholder="${stone.placeholder}"
+          spellcheck="true"
+        >${_esc(existing)}</textarea>
+      </div>
+      <div class="workspace-modal-footer">
+        <span class="ws-stone-char-count" id="wsStoneCharCount">${existing.length} chars</span>
+        <button class="workspace-btn-cancel ws-stone-cancel-btn">Cancel</button>
+        <button class="workspace-btn-add ws-stone-save-btn" style="background:${stone.color};color:#000">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const textarea = overlay.querySelector('#wsStoneTextarea');
+  const charCount = overlay.querySelector('#wsStoneCharCount');
+
+  textarea.addEventListener('input', () => {
+    charCount.textContent = textarea.value.length + ' chars';
+  });
+
+  const close = () => overlay.remove();
+
+  overlay.querySelector('.workspace-modal-close').addEventListener('click', close);
+  overlay.querySelector('.ws-stone-cancel-btn').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('.ws-stone-save-btn').addEventListener('click', () => {
+    updateProject(project.id, { [stone.key]: textarea.value });
+    _selectedProject = getProjectById(project.id);
+    close();
+    // Re-render the stones tab to show updated preview
+    const content = document.querySelector('.ws-tab-content');
+    if (content) { content.innerHTML = ''; _renderTabStones(content); }
+  });
+
+  // Focus textarea
+  requestAnimationFrame(() => textarea.focus());
 }
 
 // ── Tab: Project Logs ─────────────────────────────────────────────────────────
