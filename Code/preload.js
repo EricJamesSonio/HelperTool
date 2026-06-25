@@ -467,6 +467,11 @@ const opencodeBridge = {
   },
 };
 
+const geminiBridge = {
+  discover:           ()                            => ipcRenderer.invoke('gemini:discover'),
+  listConversations:  (repoPath)                    => ipcRenderer.invoke('gemini:listConversations', { repoPath }),
+};
+
 
 
 const codebaseChatBridge = {
@@ -525,6 +530,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...gmailBridge,
     ...githubBridge,
     opencode: opencodeBridge,
+    gemini: geminiBridge,
     windowControls,
 });
 

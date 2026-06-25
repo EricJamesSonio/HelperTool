@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { getLoadingController } from './loading.js';
+import { getProvider } from './providers.js';
 
 const instances = {};
 const _loadingTerminalIds = new Set();
@@ -164,9 +165,10 @@ export async function createTerminalSession(repoPath) {
     }
   });
 
-  // Write opencode command immediately (pty buffers input until shell is ready)
+  // Write AI provider command immediately (pty buffers input until shell is ready)
+  const provider = getProvider(state.selectedProvider);
   const convId = state.activeConvId[repoPath];
-  const cmd = convId ? `opencode -s ${convId}\r` : 'opencode\r';
+  const cmd = convId ? provider.resumeCmd(convId) : provider.newChatCmd();
   window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
 
   lc.advanceTo('Starting opencode...', 0.60, 400);

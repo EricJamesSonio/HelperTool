@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { getTemplate } from './template.js';
 import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
-import { refreshSidebar, startNewChat, renderShellSelect } from './sidebar.js';
+import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle } from './sidebar.js';
 import { renderInput } from './input.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
@@ -24,6 +24,8 @@ export async function initCodeSwampUI() {
   }
 
   getLoadingController(); // warm up loading controller singleton
+  renderAIProviderSelect();
+  renderSidebarToggle();
   setupDom();
   showWelcome();
   renderInput();

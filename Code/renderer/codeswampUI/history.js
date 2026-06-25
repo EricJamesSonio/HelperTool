@@ -6,16 +6,23 @@ export async function discoverOpencode() {
   }
 }
 
-export async function listConversations(repoPath) {
+export async function listConversations(repoPath, provider = 'opencode') {
   try {
-    return await window.electronAPI.opencode.listConversations(repoPath);
+    let convs;
+    if (provider === 'gemini') {
+      convs = await window.electronAPI.gemini.listConversations(repoPath);
+    } else {
+      convs = await window.electronAPI.opencode.listConversations(repoPath);
+    }
+    return (convs || []).map(c => ({ ...c, provider }));
   } catch {
     return [];
   }
 }
 
-export async function getConversation(convId) {
+export async function getConversation(convId, provider = 'opencode') {
   try {
+    if (provider === 'gemini') return null; // Gemini doesn't support message export
     return await window.electronAPI.opencode.getConversation(convId);
   } catch {
     return null;

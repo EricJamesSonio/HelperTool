@@ -31,8 +31,14 @@ export function getTemplate(mode = 'full') {
         <select class="oc-settings-select" id="ocShellSelect"></select>
       </div>
 
+      <div class="oc-term-settings" id="ocAISettings">
+        <label class="oc-settings-label">AI Provider</label>
+        <select class="oc-settings-select" id="ocAIProviderSelect"></select>
+      </div>
+
       <div class="oc-conv-list" id="ocConvList"></div>
     </div>
+    <button class="oc-sidebar-toggle" id="ocSidebarToggle" title="Toggle sidebar">◀</button>
 
     <div class="oc-main" id="ocMain">
       <div class="oc-loading-overlay" id="ocLoadingOverlay">

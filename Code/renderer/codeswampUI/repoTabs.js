@@ -3,6 +3,7 @@ import { refreshSidebar, loadConversation } from './sidebar.js';
 import { hasTerminalSession, showTerminalSession } from './terminalManager.js';
 import { listConversations } from './history.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
+import { getProvider } from './providers.js';
 
 export async function addRepo(repoPath) {
   console.log('[CS] addRepo:', repoPath);
@@ -75,10 +76,13 @@ export function renderConvList(loading) {
     return;
   }
 
-  const convs = state.conversations[state.activeTab] || [];
+  const allConvs = state.conversations[state.activeTab] || [];
+  const selectedProvider = state.selectedProvider;
+  const convs = allConvs.filter(c => (c.provider || 'opencode') === selectedProvider);
 
   if (!convs.length) {
-    list.innerHTML = '<div class="oc-conv-empty">No conversations yet</div>';
+    const prov = getProvider(selectedProvider);
+    list.innerHTML = `<div class="oc-conv-empty">No ${prov.label} conversations yet</div>`;
     return;
   }
 
@@ -106,8 +110,12 @@ export function renderConvList(loading) {
       const item = document.createElement('div');
       const activeConvId = state.activeConvId[state.activeTab];
       item.className = `oc-conv-item ${conv.id === activeConvId ? 'active' : ''}`;
+      const prov = getProvider(conv.provider || 'opencode');
       item.innerHTML = `
-        <div class="oc-conv-item-title">${escapeHtml(conv.title)}</div>
+        <div class="oc-conv-item-title">
+          <span class="oc-conv-provider-tag oc-provider-${prov.id}">${prov.shortLabel}</span>
+          ${escapeHtml(conv.title)}
+        </div>
         <div class="oc-conv-item-meta">
           <span class="oc-conv-item-time">${formatTime(conv.date)}</span>
           ${conv.messageCount > 0 ? `<span class="oc-conv-item-count">${conv.messageCount} msgs</span>` : ''}

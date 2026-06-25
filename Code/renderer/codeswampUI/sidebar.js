@@ -4,6 +4,7 @@ import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.j
 import { hasTerminalSession, writeToTerminal } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
+import { getProvider, getProviderList } from './providers.js';
 
 export function renderShellSelect() {
   const select = document.getElementById('ocShellSelect');
@@ -63,16 +64,49 @@ export function getSelectedShell() {
   return { cmd, args: rawArgs };
 }
 
-export async function refreshSidebar() {
+export function renderAIProviderSelect() {
+  const select = document.getElementById('ocAIProviderSelect');
+  if (!select) return;
+  select.innerHTML = '';
+
+  const providers = getProviderList();
+  for (const p of providers) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.label;
+    select.appendChild(opt);
+  }
+
+  select.value = state.selectedProvider;
+  select.addEventListener('change', () => {
+    state.selectedProvider = select.value;
+    refreshSidebar(true);
+  });
+}
+
+export function renderSidebarToggle() {
+  const btn = document.getElementById('ocSidebarToggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    const sidebar = document.getElementById('ocSidebar');
+    const main = document.getElementById('ocMain');
+    if (sidebar) sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
+    if (main) main.classList.toggle('expanded', state.sidebarCollapsed);
+    if (btn) btn.textContent = state.sidebarCollapsed ? '▶' : '◀';
+  });
+}
+
+export async function refreshSidebar(forceLoading = false) {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
   const cached = state.conversations[repoPath] || [];
-  if (cached.length === 0) {
+  if (cached.length === 0 || forceLoading) {
     renderConvList(true);
   }
 
-  const convs = await listConversations(repoPath);
+  const convs = await listConversations(repoPath, state.selectedProvider);
   const currentConvs = state.conversations[repoPath] || [];
 
   const serverIds = new Set(convs.map(c => c.id));
