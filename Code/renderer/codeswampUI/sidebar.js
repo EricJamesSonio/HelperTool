@@ -67,6 +67,11 @@ export async function refreshSidebar() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
+  const cached = state.conversations[repoPath] || [];
+  if (cached.length === 0) {
+    renderConvList(true);
+  }
+
   const convs = await listConversations(repoPath);
   const currentConvs = state.conversations[repoPath] || [];
 
@@ -93,7 +98,6 @@ export async function loadConversation(convId) {
 
   try {
     await openTerminalForRepo(repoPath);
-    await lc.finish('Ready', 2000);
   } catch (e) {
     console.error('[CS] loadConversation error:', e);
     lc.hide();

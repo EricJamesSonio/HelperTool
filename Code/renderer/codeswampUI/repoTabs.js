@@ -65,10 +65,15 @@ export function renderRepoTabs() {
   if (container) container.style.display = 'none';
 }
 
-export function renderConvList() {
+export function renderConvList(loading) {
   const list = document.getElementById('ocConvList');
   if (!list) return;
   list.innerHTML = '';
+
+  if (loading) {
+    list.innerHTML = '<div class="oc-conv-loading"><span class="oc-conv-loading-spinner"></span>Loading conversations...</div>';
+    return;
+  }
 
   const convs = state.conversations[state.activeTab] || [];
 

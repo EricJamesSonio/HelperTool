@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { getLoadingController } from './loading.js';
 
 const instances = {};
+const _loadingTerminalIds = new Set();
 
 let TerminalClass = null;
 let FitAddonClass = null;
@@ -169,6 +170,15 @@ export async function createTerminalSession(repoPath) {
   window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
 
   lc.advanceTo('Starting opencode...', 0.60, 400);
+  _loadingTerminalIds.add(result.id);
+
+  // Safety timeout: force-hide overlay if no output arrives within 8s
+  setTimeout(() => {
+    if (_loadingTerminalIds.has(result.id)) {
+      _loadingTerminalIds.delete(result.id);
+      getLoadingController().finish('Ready', 600);
+    }
+  }, 8000);
 
   return instance;
 }
@@ -205,6 +215,10 @@ export function writeToTerminal(repoPath, text) {
 export function killTerminalSession(repoPath) {
   const inst = instances[repoPath];
   if (!inst) return;
+  if (_loadingTerminalIds.has(inst.id)) {
+    _loadingTerminalIds.delete(inst.id);
+    getLoadingController().hide();
+  }
   window.electronAPI.opencode.termKill(inst.id);
   try { inst.terminal.dispose(); } catch {}
   if (inst.div && inst.div.parentNode) inst.div.remove();
@@ -234,6 +248,10 @@ export function setupTerminalDataHandler() {
   if (_termDataHandlerSetup) return;
   _termDataHandlerSetup = true;
   window.electronAPI.opencode.onTermData(({ id, data }) => {
+    if (_loadingTerminalIds.has(id)) {
+      _loadingTerminalIds.delete(id);
+      getLoadingController().finish('Ready', 600);
+    }
     for (const rp of Object.keys(instances)) {
       if (instances[rp].id === id) {
         instances[rp].terminal.write(data);

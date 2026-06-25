@@ -83,7 +83,6 @@ async function sendMessage() {
     lc.start('Starting terminal...');
     try {
       await openTerminalForRepo(repoPath);
-      await lc.finish('Ready', 2000);
     } catch (e) {
       lc.hide();
       return;
