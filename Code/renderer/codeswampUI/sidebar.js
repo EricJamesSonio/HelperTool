@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { listConversations, getConversation } from './history.js';
 import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.js';
-import { hasTerminalSession, writeToTerminal } from './terminalManager.js';
+import { hasTerminalSession, writeToTerminal, fitActiveTerminal } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
 import { getProvider, getProviderList } from './providers.js';
@@ -95,6 +95,15 @@ export function renderSidebarToggle() {
     if (main) main.classList.toggle('expanded', state.sidebarCollapsed);
     if (btn) btn.textContent = state.sidebarCollapsed ? '▶' : '◀';
   });
+
+  const main = document.getElementById('ocMain');
+  if (main) {
+    main.addEventListener('transitionend', (e) => {
+      if (e.propertyName === 'padding-left') {
+        fitActiveTerminal();
+      }
+    });
+  }
 }
 
 export async function refreshSidebar(forceLoading = false) {
