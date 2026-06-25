@@ -141,7 +141,7 @@ body {
   flex-direction: column;
   height: 100%;
   overflow: visible;
-   zoom: 1.20;
+   zoom: 1;
 }
 
 .app-body {
