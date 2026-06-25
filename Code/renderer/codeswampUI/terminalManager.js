@@ -1,4 +1,9 @@
+import { state } from './state.js';
+import { getLoadingController } from './loading.js';
+import { getProvider } from './providers.js';
+
 const instances = {};
+const _loadingTerminalIds = new Set();
 
 let TerminalClass = null;
 let FitAddonClass = null;
@@ -133,6 +138,9 @@ export async function createTerminalSession(repoPath) {
     return null;
   }
 
+  const lc = getLoadingController();
+  lc.setProgress('Starting shell...', 0.35);
+
   const instance = { id: result.id, terminal, fitAddon, div, repoPath };
   instances[repoPath] = instance;
 
@@ -157,10 +165,22 @@ export async function createTerminalSession(repoPath) {
     }
   });
 
-  // Auto-run opencode after shell is ready
+  // Write AI provider command immediately (pty buffers input until shell is ready)
+  const provider = getProvider(state.selectedProvider);
+  const convId = state.activeConvId[repoPath];
+  const cmd = convId ? provider.resumeCmd(convId) : provider.newChatCmd();
+  window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
+
+  lc.advanceTo('Starting opencode...', 0.60, 400);
+  _loadingTerminalIds.add(result.id);
+
+  // Safety timeout: force-hide overlay if no output arrives within 8s
   setTimeout(() => {
-    window.electronAPI.opencode.termWrite({ id: result.id, data: 'opencode\r' });
-  }, 2000);
+    if (_loadingTerminalIds.has(result.id)) {
+      _loadingTerminalIds.delete(result.id);
+      getLoadingController().finish('Ready', 600);
+    }
+  }, 8000);
 
   return instance;
 }
@@ -197,6 +217,10 @@ export function writeToTerminal(repoPath, text) {
 export function killTerminalSession(repoPath) {
   const inst = instances[repoPath];
   if (!inst) return;
+  if (_loadingTerminalIds.has(inst.id)) {
+    _loadingTerminalIds.delete(inst.id);
+    getLoadingController().hide();
+  }
   window.electronAPI.opencode.termKill(inst.id);
   try { inst.terminal.dispose(); } catch {}
   if (inst.div && inst.div.parentNode) inst.div.remove();
@@ -226,6 +250,10 @@ export function setupTerminalDataHandler() {
   if (_termDataHandlerSetup) return;
   _termDataHandlerSetup = true;
   window.electronAPI.opencode.onTermData(({ id, data }) => {
+    if (_loadingTerminalIds.has(id)) {
+      _loadingTerminalIds.delete(id);
+      getLoadingController().finish('Ready', 600);
+    }
     for (const rp of Object.keys(instances)) {
       if (instances[rp].id === id) {
         instances[rp].terminal.write(data);

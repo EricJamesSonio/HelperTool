@@ -1,17 +1,19 @@
 import { state } from './state.js';
 import { getTemplate } from './template.js';
 import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
-import { refreshSidebar, startNewChat, renderShellSelect } from './sidebar.js';
+import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle } from './sidebar.js';
 import { renderInput } from './input.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
 import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
+import { getLoadingController } from './loading.js';
 
 let _initialized = false;
+let _refreshInterval = null;
 
-export async function initOpencodeUI() {
-  console.log('[CS] initOpencodeUI start');
-  if (_initialized) { console.log('[CS] initOpencodeUI already initialized, return'); return; }
+export async function initCodeSwampUI() {
+  console.log('[CS] initCodeSwampUI start');
+  if (_initialized) { console.log('[CS] initCodeSwampUI already initialized, return'); return; }
   _initialized = true;
 
   const panel = document.getElementById('ocPanel');
@@ -21,6 +23,9 @@ export async function initOpencodeUI() {
     console.log('[CS] template inserted');
   }
 
+  getLoadingController(); // warm up loading controller singleton
+  renderAIProviderSelect();
+  renderSidebarToggle();
   setupDom();
   showWelcome();
   renderInput();
@@ -37,6 +42,17 @@ export async function initOpencodeUI() {
     console.log('[CS] addRepo done, activeTab:', state.activeTab);
   }
 
+  // Listen for repo switches
+  document.addEventListener('repo:switched', async (e) => {
+    const { repoPath } = e.detail;
+    if (!repoPath) return;
+    state.activeTab = repoPath;
+    showWelcome();
+    if (state.activeTab) {
+      await refreshSidebar();
+    }
+  });
+
   // Defer slow CLI discovery + conversation listing
   setTimeout(async () => {
     try {
@@ -49,7 +65,6 @@ export async function initOpencodeUI() {
         await addRepo(repos[0].repoPath);
       }
 
-      // List available shells
       try {
         const shells = await window.electronAPI.terminalListShells();
         state.terminalShells = shells || [];
@@ -58,6 +73,14 @@ export async function initOpencodeUI() {
 
       if (state.activeTab) {
         await refreshSidebar();
+      }
+
+      if (!_refreshInterval) {
+        _refreshInterval = setInterval(() => {
+          if (state.open && state.activeTab) {
+            refreshSidebar().catch(() => {});
+          }
+        }, 15000);
       }
     } catch (err) {
       console.error('[CodeSwamp] Init error:', err);
@@ -69,12 +92,12 @@ function setupDom() {
   const newChatBtn = document.getElementById('ocNewChatBtn');
   console.log('[CS] setupDom — ocNewChatBtn found:', !!newChatBtn);
   newChatBtn?.addEventListener('click', startNewChat);
-  document.getElementById('ocCloseBtn')?.addEventListener('click', closeOpencodeUI);
+  document.getElementById('ocCloseBtn')?.addEventListener('click', closeCodeSwampUI);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       const panel = document.getElementById('ocPanel');
-      if (panel && panel.classList.contains('open')) closeOpencodeUI();
+      if (panel && panel.classList.contains('open')) closeCodeSwampUI();
     }
   });
 }
@@ -88,25 +111,29 @@ async function getActiveRepoPath() {
   }
 }
 
-export function openOpencodeUI() {
-  console.log('[CS] openOpencodeUI, tabs.length:', state.tabs.length);
+export function openCodeSwampUI() {
+  console.log('[CS] openCodeSwampUI, tabs.length:', state.tabs.length);
   const panel = document.getElementById('ocPanel');
   console.log('[CS] panel found:', !!panel);
   if (panel) {
     panel.classList.add('open');
     state.open = true;
     if (state.tabs.length === 0) {
-      console.log('[CS] tabs empty, calling initOpencodeUI');
-      initOpencodeUI();
+      console.log('[CS] tabs empty, calling initCodeSwampUI');
+      initCodeSwampUI();
     }
   }
 }
 
-export function closeOpencodeUI() {
+export function closeCodeSwampUI() {
   const panel = document.getElementById('ocPanel');
   if (panel) {
     panel.classList.remove('open');
     state.open = false;
+  }
+  if (_refreshInterval) {
+    clearInterval(_refreshInterval);
+    _refreshInterval = null;
   }
 }
 

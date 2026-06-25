@@ -31,10 +31,23 @@ export function getTemplate(mode = 'full') {
         <select class="oc-settings-select" id="ocShellSelect"></select>
       </div>
 
+      <div class="oc-term-settings" id="ocAISettings">
+        <label class="oc-settings-label">AI Provider</label>
+        <select class="oc-settings-select" id="ocAIProviderSelect"></select>
+      </div>
+
       <div class="oc-conv-list" id="ocConvList"></div>
     </div>
+    <button class="oc-sidebar-toggle" id="ocSidebarToggle" title="Toggle sidebar">◀</button>
 
     <div class="oc-main" id="ocMain">
+      <div class="oc-loading-overlay" id="ocLoadingOverlay">
+        <div class="oc-loading-spinner"></div>
+        <div class="oc-loading-progress">
+          <div class="oc-loading-bar" id="ocLoadingBar"></div>
+        </div>
+        <div class="oc-loading-label" id="ocLoadingLabel">Starting...</div>
+      </div>
       <div class="oc-welcome" id="ocWelcome">
         <div class="oc-welcome-content">
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
@@ -43,7 +56,7 @@ export function getTemplate(mode = 'full') {
             <path d="M2 12l10 5 10-5"/>
           </svg>
           <h2>Code Swamp</h2>
-          <p>Start a new chat to open a terminal with opencode.</p>
+          <p>Start a new chat to open a terminal with CodeSwamp.</p>
         </div>
       </div>
       <div class="oc-terminal" id="ocTerminal" style="display:none">

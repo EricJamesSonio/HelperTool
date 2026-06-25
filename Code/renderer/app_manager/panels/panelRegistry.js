@@ -8,6 +8,7 @@ import * as fileSeederTool from '../../fileSeederTool.js';
 import * as locDetector from '../../locDetector.js';
 import { close as closeServiceTracker } from '../../serviceTracker.js';
 import { closeConfig as closeCliConfig } from '../../shortcuts/ui.js';
+import { state as csState } from '../../codeswampUI/state.js';
 
 export default class PanelRegistry {
   constructor() {
@@ -42,6 +43,7 @@ export default class PanelRegistry {
   setProfileTool(t)       { this._profileTool = t; }
   setDockerTool(t)        { this._dockerTool = t; }
   setTerminalUI(t)        { this._terminalUI = t; }
+
 
   // Register a panel element by name
   register(name, panel) {
@@ -93,6 +95,13 @@ export default class PanelRegistry {
 
     // Terminal
     if (this._terminalUI?.isOpen?.()) this._terminalUI.close();
+
+    // Code Swamp — close panel when any other tool opens (keep running in bg)
+    const ocPanel = document.getElementById('ocPanel');
+    if (ocPanel?.classList.contains('open')) {
+      ocPanel.classList.remove('open');
+      csState.open = false;
+    }
 
     // Service tracker — close when any tool opens
     closeServiceTracker();

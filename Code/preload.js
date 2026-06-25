@@ -438,7 +438,7 @@ const opencodeBridge = {
   discover:           ()                            => ipcRenderer.invoke('opencode:discover'),
   listConversations:  (repoPath)                    => ipcRenderer.invoke('opencode:listConversations', { repoPath }),
   getConversation:    (convId)                      => ipcRenderer.invoke('opencode:getConversation', { convId }),
-  run:                (repoPath, message, files, continueConv) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv }),
+  run:                (repoPath, message, files, continueConv, sessionId) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv, sessionId }),
   stop:               ()                            => ipcRenderer.invoke('opencode:stop'),
   listRepos:          ()                            => ipcRenderer.invoke('opencode:listRepos'),
   deleteConversation: (convId)                      => ipcRenderer.invoke('opencode:deleteConversation', { convId }),
@@ -466,6 +466,13 @@ const opencodeBridge = {
     
   },
 };
+
+const geminiBridge = {
+  discover:           ()                            => ipcRenderer.invoke('gemini:discover'),
+  listConversations:  (repoPath)                    => ipcRenderer.invoke('gemini:listConversations', { repoPath }),
+};
+
+
 
 const codebaseChatBridge = {
   codebaseChat: {
@@ -523,6 +530,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...gmailBridge,
     ...githubBridge,
     opencode: opencodeBridge,
+    gemini: geminiBridge,
     windowControls,
 });
 

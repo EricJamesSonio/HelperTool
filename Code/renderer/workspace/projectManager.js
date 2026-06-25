@@ -62,12 +62,15 @@ export function updateProject(id, fields) {
   const project = getProjectById(id);
   if (!project) throw new Error('Project not found');
 
-  const allowed = [
-    'title', 'description', 'overview',
-    'folderMain', 'folderFrontend', 'folderBackend',
-    'folderStructure', // legacy
-    'databaseInfo', 'planningNotes', 'status',
-  ];
+const allowed = [
+  'title', 'description', 'overview',
+  'folderMain', 'folderFrontend', 'folderBackend',
+  'folderStructure', // legacy
+  'databaseInfo', 'planningNotes', 'status',
+  // Infinity Stones
+  'stoneCodeStandards', 'stoneProjectOverview', 'stoneProgressTracker',
+  'stoneUIContext', 'stoneArchitecture', 'stoneAIWorkflow',
+];
   allowed.forEach(key => {
     if (fields[key] !== undefined) project[key] = fields[key];
   });

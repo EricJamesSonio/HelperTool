@@ -1,8 +1,10 @@
 import { state } from './state.js';
-import { listConversations } from './history.js';
-import { openTerminalForRepo, closeTerminalSession } from './chat.js';
-import { hasTerminalSession } from './terminalManager.js';
+import { listConversations, getConversation } from './history.js';
+import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.js';
+import { hasTerminalSession, writeToTerminal, fitActiveTerminal } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
+import { getLoadingController } from './loading.js';
+import { getProvider, getProviderList } from './providers.js';
 
 export function renderShellSelect() {
   const select = document.getElementById('ocShellSelect');
@@ -62,11 +64,58 @@ export function getSelectedShell() {
   return { cmd, args: rawArgs };
 }
 
-export async function refreshSidebar() {
+export function renderAIProviderSelect() {
+  const select = document.getElementById('ocAIProviderSelect');
+  if (!select) return;
+  select.innerHTML = '';
+
+  const providers = getProviderList();
+  for (const p of providers) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.label;
+    select.appendChild(opt);
+  }
+
+  select.value = state.selectedProvider;
+  select.addEventListener('change', () => {
+    state.selectedProvider = select.value;
+    refreshSidebar(true);
+  });
+}
+
+export function renderSidebarToggle() {
+  const btn = document.getElementById('ocSidebarToggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    const sidebar = document.getElementById('ocSidebar');
+    const main = document.getElementById('ocMain');
+    if (sidebar) sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
+    if (main) main.classList.toggle('expanded', state.sidebarCollapsed);
+    if (btn) btn.textContent = state.sidebarCollapsed ? '▶' : '◀';
+  });
+
+  const main = document.getElementById('ocMain');
+  if (main) {
+    main.addEventListener('transitionend', (e) => {
+      if (e.propertyName === 'padding-left') {
+        fitActiveTerminal();
+      }
+    });
+  }
+}
+
+export async function refreshSidebar(forceLoading = false) {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  const convs = await listConversations(repoPath);
+  const cached = state.conversations[repoPath] || [];
+  if (cached.length === 0 || forceLoading) {
+    renderConvList(true);
+  }
+
+  const convs = await listConversations(repoPath, state.selectedProvider);
   const currentConvs = state.conversations[repoPath] || [];
 
   const serverIds = new Set(convs.map(c => c.id));
@@ -83,8 +132,19 @@ export async function loadConversation(convId) {
 
   state.activeConvId[repoPath] = convId;
 
-  await openTerminalForRepo(repoPath);
+  const lc = getLoadingController();
+  lc.start('Loading conversation...');
 
+  if (hasTerminalSession(repoPath)) {
+    closeTerminalSession(repoPath);
+  }
+
+  try {
+    await openTerminalForRepo(repoPath);
+  } catch (e) {
+    console.error('[CS] loadConversation error:', e);
+    lc.hide();
+  }
   renderConvList();
 }
 
@@ -96,17 +156,29 @@ export async function startNewChat() {
     return;
   }
 
-  console.log('[CS] startNewChat: killing existing session if any');
+  state.activeConvId[repoPath] = null;
+  state.messages[repoPath] = [];
+  state.messageCache[repoPath] = [];
+
+  console.log('[CS] startNewChat: killing existing terminal session if any');
   if (hasTerminalSession(repoPath)) {
+    writeToTerminal(repoPath, '/exit\n');
+    await new Promise(r => setTimeout(r, 2000));
     closeTerminalSession(repoPath);
+    await new Promise(r => setTimeout(r, 1000));
+    await refreshSidebar();
   }
 
-  console.log('[CS] startNewChat: calling openTerminalForRepo');
-  await openTerminalForRepo(repoPath);
-  console.log('[CS] startNewChat: openTerminalForRepo done');
-
+  showWelcome();
   renderConvList();
 
   const input = document.getElementById('ocInput');
   if (input) setTimeout(() => input.focus(), 50);
 }
+
+export async function refreshSidebarAfterDelay(delay = 1500) {
+  setTimeout(async () => {
+    await refreshSidebar();
+  }, delay);
+}
+

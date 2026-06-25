@@ -76,6 +76,8 @@ export async function loadRepo(repoPath, resetSel = true) {
 
     renderRootJumper(state.cachedTree);
     displayTree();
+
+    document.dispatchEvent(new CustomEvent('repo:switched', { detail: { repoPath } }));
 }
 
 export async function loadLastActiveRepo() {

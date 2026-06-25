@@ -7,6 +7,8 @@ const os = require('os');
 let pty = null;
 try { pty = require('node-pty'); } catch (e) { console.log('[CS-IPC] node-pty not available:', e.message); }
 
+
+
 function execAsync(cmd, opts = {}) {
   return new Promise((resolve) => {
     exec(cmd, { timeout: opts.timeout || 10000, windowsHide: true, ...opts }, (err, stdout) => {
@@ -70,7 +72,7 @@ async function discover(force = false) {
 
 async function listViaCli(binaryPath) {
   try {
-    const out = await execAsync(`"${binaryPath}" session list --json 2>${process.platform === 'win32' ? 'nul' : '/dev/null'}`, { timeout: 10000 });
+    const out = await execAsync(`"${binaryPath}" session list --format json 2>${process.platform === 'win32' ? 'nul' : '/dev/null'}`, { timeout: 10000 });
     if (!out) return null;
     const data = JSON.parse(out);
     if (Array.isArray(data)) return data;
@@ -133,17 +135,35 @@ function register(shared) {
     if (cliResult && Array.isArray(cliResult)) {
       const np = repoPath ? normPath(repoPath) : null;
       return cliResult
-        .filter(s => !np || (s.repoPath && normPath(s.repoPath) === np))
+        .filter(s => !np || (s.directory && normPath(s.directory) === np))
         .map(s => ({
-          id: s.id || s.sessionId || '',
-          title: s.title || s.name || 'Untitled',
-          date: s.date || s.createdAt || s.timestamp || '',
-          messageCount: s.messageCount || s.messages?.length || 0,
-          repoPath: s.repoPath || '',
+          id: s.id || '',
+          title: s.title || 'Untitled',
+          date: s.created ? new Date(s.created).toISOString() : (s.updated ? new Date(s.updated).toISOString() : ''),
+          messageCount: 0,
+          repoPath: s.directory || repoPath || '',
         }));
     }
     const storageDir = getStorageDir(repoPath);
-    return listViaStorage(storageDir, repoPath);
+    const results = listViaStorage(storageDir, repoPath);
+    if (results.length > 0) return results;
+    // Fallback: search all project storage dirs for session files
+    const dataRoot = getDataRoot();
+    const projectDir = path.join(dataRoot, 'project');
+    if (fs.existsSync(projectDir)) {
+      const all = [];
+      try {
+        const projects = fs.readdirSync(projectDir, { withFileTypes: true });
+        for (const proj of projects) {
+          if (proj.isDirectory()) {
+            const sp = path.join(projectDir, proj.name, 'storage');
+            all.push(...listViaStorage(sp, ''));
+          }
+        }
+      } catch (_) {}
+      return all;
+    }
+    return results;
   });
 
   ipcMain.handle('opencode:getConversation', async (_, { convId }) => {
@@ -192,11 +212,15 @@ function register(shared) {
     return null;
   });
 
-  ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv }) => {
+  ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv, sessionId }) => {
     const { binaryPath } = await discover();
     const args = ['run', '--format', 'default', message];
 
-    if (continueConv) args.push('-c');
+    if (sessionId) {
+      args.push('-s', sessionId);
+    } else if (continueConv) {
+      args.push('-c');
+    }
     if (files && files.length) {
       for (const f of files) args.push('--file', f);
     }
@@ -359,6 +383,8 @@ function register(shared) {
     });
     return result;
   });
+
+
 
   // ── Terminal (PTY) handlers ──
   const _csTerminals = new Map();

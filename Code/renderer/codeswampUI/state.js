@@ -23,4 +23,15 @@ export const state = {
   // Terminal settings
   terminalShells: [],
   selectedShell: null,
+
+  // AI provider
+  selectedProvider: 'opencode',
+
+  // Sidebar
+  sidebarCollapsed: false,
+
+  // CLI mode
+  cliMode: 'plan',
 };
+
+

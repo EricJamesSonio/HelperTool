@@ -1,6 +1,9 @@
 import { state } from './state.js';
 import { writeToTerminal, hasTerminalSession } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
+import { refreshSidebar } from './sidebar.js';
+import { renderConvList } from './repoTabs.js';
+import { getLoadingController } from './loading.js';
 
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
@@ -13,12 +16,14 @@ export function renderInput() {
       <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
     </div>
     <div class="oc-input-actions">
+      <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
       <button class="oc-btn oc-btn-send" id="ocSendBtn">Send</button>
     </div>
   `;
 
   const input = document.getElementById('ocInput');
   const sendBtn = document.getElementById('ocSendBtn');
+  const modeBtn = document.getElementById('ocModeBtn');
   const attachBtn = document.getElementById('ocAttachBtn');
 
   input.addEventListener('input', () => {
@@ -32,6 +37,8 @@ export function renderInput() {
       sendMessage();
     }
   });
+
+  modeBtn.addEventListener('click', toggleMode);
 
   sendBtn.addEventListener('click', sendMessage);
 
@@ -64,6 +71,18 @@ function renderPendingFiles() {
   }
 }
 
+function toggleMode() {
+  const repoPath = state.activeTab;
+  if (!repoPath || !hasTerminalSession(repoPath)) return;
+  writeToTerminal(repoPath, '\t');
+  state.cliMode = state.cliMode === 'plan' ? 'code' : 'plan';
+  const btn = document.getElementById('ocModeBtn');
+  if (btn) {
+    btn.textContent = state.cliMode === 'plan' ? 'Plan' : 'Code';
+    btn.className = `oc-btn oc-btn-mode ${state.cliMode}`;
+  }
+}
+
 async function sendMessage() {
   const input = document.getElementById('ocInput');
   if (!input) return;
@@ -73,24 +92,50 @@ async function sendMessage() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  // Auto-create terminal if one doesn't exist yet
+  const isNewChat = !hasTerminalSession(repoPath);
+
   if (!hasTerminalSession(repoPath)) {
-    await openTerminalForRepo(repoPath);
-    // Short delay to let terminal initialize before sending first message
-    await new Promise(r => setTimeout(r, 300));
+    const lc = getLoadingController();
+    lc.start('Starting terminal...');
+    try {
+      await openTerminalForRepo(repoPath);
+    } catch (e) {
+      lc.hide();
+      return;
+    }
   }
 
-  // Build the message with file attachments
   let msg = text;
   const files = state.pendingFiles.map(f => f.path);
   if (files.length > 0) {
     msg += ' --file ' + files.join(' --file ');
   }
 
-  writeToTerminal(repoPath, msg + '\n');
+  const prevCount = (state.conversations[repoPath] || []).length;
+
+  writeToTerminal(repoPath, msg + '\r');
+
+  if (isNewChat) {
+    pollForNewSession(repoPath, prevCount);
+  } else {
+    setTimeout(() => refreshSidebar(), 1500);
+  }
 
   input.value = '';
   input.style.height = 'auto';
   state.pendingFiles = [];
   renderPendingFiles();
+}
+
+async function pollForNewSession(repoPath, prevCount, maxAttempts = 6, interval = 2000) {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, interval));
+    await refreshSidebar();
+    const convs = state.conversations[repoPath] || [];
+    if (convs.length > prevCount && convs[0] && !state.activeConvId[repoPath]) {
+      state.activeConvId[repoPath] = convs[0].id;
+      renderConvList();
+      return;
+    }
+  }
 }
