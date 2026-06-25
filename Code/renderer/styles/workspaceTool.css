@@ -824,9 +824,6 @@
   line-height: 1.5;
   flex: 1;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
 }
 
 .ws-stone-empty {
@@ -834,10 +831,9 @@
   font-style: italic;
 }
 
-/* Modal */
 .ws-stone-modal {
-  width: min(720px, 92vw);
-  max-height: 88vh;
+  width: min(920px, 96vw);      /* was 720px, 92vw */
+  max-height: 96vh;             /* was 88vh */
   display: flex;
   flex-direction: column;
 }
@@ -874,7 +870,7 @@
   padding: 16px;
   resize: none;
   font-family: inherit;
-  min-height: 340px;
+  min-height: 520px;
 }
 
 .ws-stone-textarea:focus {
