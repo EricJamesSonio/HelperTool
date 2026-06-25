@@ -29,6 +29,9 @@ export const state = {
 
   // Sidebar
   sidebarCollapsed: false,
+
+  // CLI mode
+  cliMode: 'plan',
 };
 
 

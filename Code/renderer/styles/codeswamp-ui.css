@@ -585,6 +585,31 @@ Claude Fab
   background: rgba(248,81,73,0.2);
 }
 
+.oc-btn-mode {
+  min-width: 56px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.oc-btn-mode.plan {
+  border-color: var(--accent, #22d3ee);
+  color: var(--accent, #22d3ee);
+  background: rgba(34,211,238,0.08);
+}
+.oc-btn-mode.plan:hover {
+  background: rgba(34,211,238,0.15);
+}
+.oc-btn-mode.code {
+  border-color: var(--amber, #d4a72c);
+  color: var(--amber, #d4a72c);
+  background: rgba(212,167,44,0.08);
+}
+.oc-btn-mode.code:hover {
+  background: rgba(212,167,44,0.15);
+}
+
 /* ── Loading overlay ────────────────────────────── */
 
 .oc-loading-overlay {

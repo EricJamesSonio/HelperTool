@@ -16,12 +16,14 @@ export function renderInput() {
       <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
     </div>
     <div class="oc-input-actions">
+      <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
       <button class="oc-btn oc-btn-send" id="ocSendBtn">Send</button>
     </div>
   `;
 
   const input = document.getElementById('ocInput');
   const sendBtn = document.getElementById('ocSendBtn');
+  const modeBtn = document.getElementById('ocModeBtn');
   const attachBtn = document.getElementById('ocAttachBtn');
 
   input.addEventListener('input', () => {
@@ -35,6 +37,8 @@ export function renderInput() {
       sendMessage();
     }
   });
+
+  modeBtn.addEventListener('click', toggleMode);
 
   sendBtn.addEventListener('click', sendMessage);
 
@@ -64,6 +68,18 @@ function renderPendingFiles() {
       renderPendingFiles();
     });
     container.appendChild(chip);
+  }
+}
+
+function toggleMode() {
+  const repoPath = state.activeTab;
+  if (!repoPath || !hasTerminalSession(repoPath)) return;
+  writeToTerminal(repoPath, '\t');
+  state.cliMode = state.cliMode === 'plan' ? 'code' : 'plan';
+  const btn = document.getElementById('ocModeBtn');
+  if (btn) {
+    btn.textContent = state.cliMode === 'plan' ? 'Plan' : 'Code';
+    btn.className = `oc-btn oc-btn-mode ${state.cliMode}`;
   }
 }
 
@@ -97,7 +113,7 @@ async function sendMessage() {
 
   const prevCount = (state.conversations[repoPath] || []).length;
 
-  writeToTerminal(repoPath, msg + '\n');
+  writeToTerminal(repoPath, msg + '\r');
 
   if (isNewChat) {
     pollForNewSession(repoPath, prevCount);
