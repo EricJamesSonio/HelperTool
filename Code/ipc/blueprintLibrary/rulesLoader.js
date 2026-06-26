@@ -69,7 +69,8 @@ function loadRulesData() {
 
     if (!seenCat.has(categoryName)) {
       seenCat.add(categoryName);
-      categories.push({ name: categoryName, type: 'code' });
+      const type = categoryKey === 'framework-setup' ? 'setup-steps' : 'code';
+      categories.push({ name: categoryName, type });
     }
     if (!blueprints[categoryName]) blueprints[categoryName] = [];
 
