@@ -499,6 +499,12 @@ const chatGmailBridge = {
     ipcRenderer.invoke('chat:getConnectedGmailAccounts'),
 };
 
+const codebaseMapBridge = {
+  codebaseMap: {
+    generate: (opts) => ipcRenderer.invoke('codebaseMap:generate', opts),
+  },
+};
+
 contextBridge.exposeInMainWorld('envAPI', envBridge);
 
 // Expose everything to the renderer
@@ -525,6 +531,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...branchBridge,
     ...codebaseChatBridge,
     ...chatGmailBridge,
+    ...codebaseMapBridge,
     ...automationBridge,
     ...imageBridge,
     ...videoBridge,
