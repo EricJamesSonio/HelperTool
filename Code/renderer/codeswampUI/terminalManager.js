@@ -97,6 +97,7 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
   div.className = `oc-term-instance slot-${slotIndex}`;
   div.dataset.repo = repoPath;
   div.dataset.slot = String(slotIndex);
+  div.style.overflow = 'hidden';
   if (!state.parallelMode) {
     div.style.position = 'absolute';
     div.style.top = '0';
@@ -109,13 +110,24 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
     if (state.parallelMode) activateSlot(slotIndex);
   });
 
+  // Force reflow so container has final grid dimensions
+  void container.offsetWidth;
+
   const containerW = container.offsetWidth;
   const containerH = container.offsetHeight;
 
   const charW = 7.8;
   const charH = 17;
-  const initCols = Math.max(80, Math.floor(containerW / charW));
-  const initRows = Math.max(24, Math.floor(containerH / charH));
+  let cellW = containerW;
+  let cellH = containerH;
+  if (state.parallelMode && state.parallelSlots > 1) {
+    const cols = 2;
+    const rows = state.parallelSlots <= 2 ? 1 : 2;
+    cellW = Math.floor(containerW / cols);
+    cellH = Math.floor(containerH / rows);
+  }
+  const initCols = Math.max(40, Math.floor(cellW / charW));
+  const initRows = Math.max(12, Math.floor(cellH / charH));
 
   const terminal = new TerminalClass({
     theme: getDarkTheme(),
@@ -174,10 +186,22 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
   showSlot(slotIndex);
 
   requestAnimationFrame(() => {
-    try { fitAddon.fit(); } catch {}
-    const dims = fitAddon.proposeDimensions();
-    if (dims) {
-      window.electronAPI.opencode.termResize({ id: result.id, cols: dims.cols, rows: dims.rows });
+    if (state.parallelMode) {
+      Object.values(instances).forEach(inst => {
+        if (inst && inst.fitAddon) {
+          try { inst.fitAddon.fit(); } catch {}
+          const d = inst.fitAddon.proposeDimensions();
+          if (d) {
+            window.electronAPI.opencode.termResize({ id: inst.id, cols: d.cols, rows: d.rows });
+          }
+        }
+      });
+    } else {
+      try { fitAddon.fit(); } catch {}
+      const dims = fitAddon.proposeDimensions();
+      if (dims) {
+        window.electronAPI.opencode.termResize({ id: result.id, cols: dims.cols, rows: dims.rows });
+      }
     }
   });
 
