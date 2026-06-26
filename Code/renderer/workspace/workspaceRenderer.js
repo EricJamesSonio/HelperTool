@@ -1127,9 +1127,7 @@ function _renderTabStones(el) {
 
   STONES.forEach(stone => {
     const value = p[stone.key] || '';
-    const preview = value.trim()
-      ? value.trim().slice(0, 120) + (value.length > 120 ? '…' : '')
-      : null;
+    const empty = !value.trim();
 
     const card = document.createElement('div');
     card.className = 'ws-stone-card';
@@ -1144,7 +1142,7 @@ function _renderTabStones(el) {
         </svg>
       </div>
       <div class="ws-stone-label">${stone.label}</div>
-      <div class="ws-stone-preview">${preview ? _esc(preview) : '<span class="ws-stone-empty">Click to add context…</span>'}</div>
+      <div class="ws-stone-preview ${empty ? 'ws-stone-empty' : ''}">${empty ? 'Click to add context…' : _esc(value.trim())}</div>
     `;
 
     card.addEventListener('click', () => _openStoneModal(p, stone));
