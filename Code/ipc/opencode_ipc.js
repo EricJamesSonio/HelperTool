@@ -118,7 +118,7 @@ function listViaStorage(storageDir, repoPath) {
 }
 
 function normPath(p) {
-  return (p || '').replace(/\\/g, '/');
+  return (p || '').replace(/\\/g, '/').toLowerCase();
 }
 
 function register(shared) {
@@ -131,25 +131,39 @@ function register(shared) {
 
   ipcMain.handle('opencode:listConversations', async (_, { repoPath }) => {
     const { binaryPath } = await discover();
+    console.log(`[CS-IPC] listConversations: binary="${binaryPath}" repoPath="${repoPath}"`);
     const cliResult = await listViaCli(binaryPath);
     if (cliResult && Array.isArray(cliResult)) {
+      console.log(`[CS-IPC] listConversations: CLI returned ${cliResult.length} sessions`);
       const np = repoPath ? normPath(repoPath) : null;
-      return cliResult
-        .filter(s => !np || (s.directory && normPath(s.directory) === np))
-        .map(s => ({
+      const filtered = cliResult.filter(s => !np || (s.directory && normPath(s.directory) === np));
+      console.log(`[CS-IPC] listConversations: after directory filter: ${filtered.length}/${cliResult.length}`);
+      if (filtered.length > 0) {
+        return filtered.map(s => ({
           id: s.id || '',
           title: s.title || 'Untitled',
           date: s.created ? new Date(s.created).toISOString() : (s.updated ? new Date(s.updated).toISOString() : ''),
           messageCount: 0,
           repoPath: s.directory || repoPath || '',
         }));
+      }
+      // CLI returned sessions but none matched our repo — log sample for debugging
+      if (cliResult.length > 0) {
+        console.log(`[CS-IPC] listConversations: sample session fields:`, Object.keys(cliResult[0]));
+        console.log(`[CS-IPC] listConversations: sample session directory:`, cliResult[0].directory);
+        console.log(`[CS-IPC] listConversations: normalized target path:`, np);
+      }
+    } else {
+      console.log(`[CS-IPC] listConversations: CLI returned null/empty, falling back to storage`);
     }
     const storageDir = getStorageDir(repoPath);
     const results = listViaStorage(storageDir, repoPath);
+    console.log(`[CS-IPC] listConversations: storage scan at "${storageDir}" found ${results.length} sessions`);
     if (results.length > 0) return results;
     // Fallback: search all project storage dirs for session files
     const dataRoot = getDataRoot();
     const projectDir = path.join(dataRoot, 'project');
+    console.log(`[CS-IPC] listConversations: fallback: scanning "${projectDir}"`);
     if (fs.existsSync(projectDir)) {
       const all = [];
       try {
@@ -157,11 +171,16 @@ function register(shared) {
         for (const proj of projects) {
           if (proj.isDirectory()) {
             const sp = path.join(projectDir, proj.name, 'storage');
-            all.push(...listViaStorage(sp, ''));
+            const found = listViaStorage(sp, '');
+            if (found.length > 0) console.log(`[CS-IPC] listConversations: found ${found.length} in "${proj.name}"`);
+            all.push(...found);
           }
         }
       } catch (_) {}
+      console.log(`[CS-IPC] listConversations: fallback total: ${all.length} sessions`);
       return all;
+    } else {
+      console.log(`[CS-IPC] listConversations: project dir does not exist at "${projectDir}"`);
     }
     return results;
   });
@@ -306,24 +325,28 @@ function register(shared) {
     const { binaryPath } = await discover();
     const cliResult = await listViaCli(binaryPath);
     if (cliResult && Array.isArray(cliResult)) {
+      console.log(`[CS-IPC] listRepos: CLI returned ${cliResult.length} sessions`);
       const repoMap = {};
       for (const s of cliResult) {
-        const rp = s.repoPath || '';
+        const rp = s.directory || s.repoPath || '';
         if (rp) {
           const np = normPath(rp);
           repoMap[np] = (repoMap[np] || 0) + 1;
         }
       }
-      return Object.entries(repoMap).map(([repoPath, convoCount]) => ({
+      const entries = Object.entries(repoMap).map(([repoPath, convoCount]) => ({
         repoPath,
         label: path.basename(repoPath) || repoPath,
         convoCount,
       }));
+      console.log(`[CS-IPC] listRepos: derived ${entries.length} unique repos`);
+      return entries;
     }
 
     const dataRoot = getDataRoot();
     const repoSet = new Set();
     const projectDir = path.join(dataRoot, 'project');
+    console.log(`[CS-IPC] listRepos: scanning project storage at "${projectDir}"`);
     if (fs.existsSync(projectDir)) {
       try {
         const projects = fs.readdirSync(projectDir, { withFileTypes: true });
@@ -332,18 +355,25 @@ function register(shared) {
             const storagePath = path.join(projectDir, proj.name, 'storage');
             if (fs.existsSync(storagePath)) {
               const files = fs.readdirSync(storagePath).filter(f => f.endsWith('.json') || f.endsWith('.session'));
-              if (files.length > 0) repoSet.add(proj.name);
+              if (files.length > 0) {
+                console.log(`[CS-IPC] listRepos: found ${files.length} files in "${proj.name}"`);
+                repoSet.add(proj.name);
+              }
             }
           }
         }
       } catch (_) {}
+    } else {
+      console.log(`[CS-IPC] listRepos: project dir does not exist at "${projectDir}"`);
     }
 
-    return Array.from(repoSet).map(slug => ({
+    const entries = Array.from(repoSet).map(slug => ({
       repoPath: slug,
       label: slug,
       convoCount: 0,
     }));
+    console.log(`[CS-IPC] listRepos: returning ${entries.length} repos from storage`);
+    return entries;
   });
 
   ipcMain.handle('opencode:deleteConversation', async (_, { convId }) => {

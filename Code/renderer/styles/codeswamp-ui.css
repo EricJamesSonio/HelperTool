@@ -444,6 +444,39 @@ Claude Fab
   width: 100%;
   height: 100%;
   overflow: hidden;
+  cursor: pointer;
+}
+.oc-term-instance.active {
+  outline: 2px solid var(--accent, #22d3ee);
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+/* Parallel mode grid */
+.oc-terminal-container.parallel-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.oc-terminal-container.parallel-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.oc-terminal-container.parallel-3 .oc-term-instance:nth-child(3) {
+  grid-column: 1 / -1;
+}
+.oc-terminal-container.parallel-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.oc-terminal-container.parallel-2 .oc-term-instance,
+.oc-terminal-container.parallel-3 .oc-term-instance,
+.oc-terminal-container.parallel-4 .oc-term-instance {
+  position: relative;
+  top: auto;
+  left: auto;
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
 .oc-term-instance .xterm,
@@ -663,4 +696,128 @@ Claude Fab
   font-family: var(--font-ui);
   font-size: 12px;
   color: var(--text-muted, #8b949e);
+}
+
+/* ── Parallel mode controls ────────────────────── */
+
+.oc-parallel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.oc-parallel-select {
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-secondary, #b1bac4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+.oc-parallel-select:disabled {
+  opacity: 0.4;
+}
+
+/* Toggle switch */
+.oc-toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.oc-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.oc-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--bg-elevated, #0f1117);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+  border-radius: 20px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.oc-toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-faint, #545d68);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.oc-toggle input:checked + .oc-toggle-slider {
+  background: var(--accent-dim, rgba(34,211,238,0.15));
+  border-color: var(--accent, #22d3ee);
+}
+.oc-toggle input:checked + .oc-toggle-slider::before {
+  transform: translateX(14px);
+  background: var(--accent, #22d3ee);
+}
+
+/* ── Replace dialog ────────────────────────────── */
+
+.oc-replace-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.oc-replace-dialog {
+  background: var(--bg-surface, #0a0c10);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.oc-replace-title {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary, #f0f6fc);
+}
+.oc-replace-text {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-muted, #8b949e);
+}
+.oc-replace-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.oc-replace-option {
+  flex: 1;
+  min-width: 80px;
+  height: 36px;
+  font-size: 12px;
+  font-weight: 600;
+  border-color: var(--border-default, rgba(255,255,255,0.12));
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-secondary, #b1bac4);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.oc-replace-option:hover {
+  border-color: var(--accent, #22d3ee);
+  background: var(--accent-dim, rgba(34,211,238,0.08));
+  color: var(--accent, #22d3ee);
+}
+.oc-replace-cancel {
+  width: 100%;
+  height: 32px;
+  font-size: 12px;
 }
