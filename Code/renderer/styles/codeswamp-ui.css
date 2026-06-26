@@ -833,7 +833,7 @@ Claude Fab
 }
 
 /* ─── Prompt Picker ────────────────────────────────────────────────────── */
-.oc-prompt-picker-overlay {
+.oc-pp-overlay {
   position: fixed;
   inset: 0;
   z-index: 99999;
@@ -842,30 +842,48 @@ Claude Fab
   align-items: center;
   justify-content: center;
 }
-.oc-prompt-picker {
+.oc-pp-modal {
   background: var(--bg-elevated, #0f1117);
   border: 1px solid var(--border-default, rgba(255,255,255,0.12));
   border-radius: 14px;
-  width: min(480px, 92vw);
+  width: min(700px, 94vw);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
-.oc-prompt-picker-header {
+.oc-pp-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
   flex-shrink: 0;
 }
-.oc-prompt-picker-title {
+.oc-pp-title {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-primary, #f0f6fc);
+  flex: 1;
 }
-.oc-prompt-picker-close {
+.oc-pp-back {
+  border: none;
+  background: var(--bg-raised, #161b22);
+  color: var(--text-secondary, #b1bac4);
+  font-size: 0.83rem;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.oc-pp-back:hover {
+  background: var(--bg-hover, #1c2333);
+  color: var(--text-primary, #f0f6fc);
+}
+.oc-pp-close {
   width: 28px;
   height: 28px;
   border: none;
@@ -877,43 +895,198 @@ Claude Fab
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
-.oc-prompt-picker-close:hover {
+.oc-pp-close:hover {
   background: var(--bg-hover, #1c2333);
   color: var(--text-primary, #f0f6fc);
 }
-.oc-prompt-picker-list {
+.oc-pp-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 20px 20px;
+  padding: 20px;
 }
-.oc-pp-group {
-  margin-bottom: 16px;
+
+/* ─── Category Grid ────────────────────────────────────────────────────── */
+.oc-pp-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
 }
-.oc-pp-cat-name {
-  font-size: 0.74rem;
+.oc-pp-cat-card {
+  background: var(--bg-elevated, #111d34);
+  border: 1px solid color-mix(in srgb, var(--pp-color) 30%, transparent);
+  border-top: 3px solid var(--pp-color);
+  border-radius: 14px;
+  padding: 18px 16px 14px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.oc-pp-cat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--pp-color) 30%, transparent);
+  background: var(--bg-hover, #1c2333);
+}
+.oc-pp-cat-gem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.oc-pp-cat-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--pp-color);
+  letter-spacing: 0.01em;
+}
+.oc-pp-cat-count {
+  font-size: 0.75rem;
+  color: var(--text-muted, #8b949e);
+}
+
+/* ─── Prompt Grid ──────────────────────────────────────────────────────── */
+.oc-pp-prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.oc-pp-prompt-card {
+  background: var(--bg-elevated, #111d34);
+  border: 1px solid color-mix(in srgb, var(--pp-color) 25%, transparent);
+  border-left: 3px solid var(--pp-color);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 160px;
+  overflow: hidden;
+}
+.oc-pp-prompt-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--pp-color) 25%, transparent);
+  background: var(--bg-hover, #1c2333);
+}
+.oc-pp-prompt-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-primary, #f0f6fc);
+  flex-shrink: 0;
+}
+.oc-pp-prompt-preview {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #a0b0d8);
+  line-height: 1.5;
+  flex: 1;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.oc-pp-empty-inline {
+  opacity: 0.45;
+  font-style: italic;
+}
+
+/* ─── Prompt Detail ────────────────────────────────────────────────────── */
+.oc-pp-detail-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-elevated, #0f1117);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  z-index: 10;
+}
+.oc-pp-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.oc-pp-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  flex-shrink: 0;
+}
+.oc-pp-detail-cat {
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: var(--text-muted, #8b949e);
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  margin-bottom: 4px;
 }
-.oc-pp-item {
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.oc-pp-item:hover {
-  background: var(--bg-hover, #1c2333);
-}
-.oc-pp-item-title {
-  font-size: 0.88rem;
+.oc-pp-detail-title {
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--text-primary, #f0f6fc);
-  font-weight: 500;
 }
+.oc-pp-detail-body {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.oc-pp-detail-text {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 10px;
+  background: var(--bg-raised, #161b22);
+  color: var(--text-primary, #f0f6fc);
+  font-family: var(--font-mono, 'SFMono-Regular', Consolas, monospace);
+  font-size: 0.83rem;
+  line-height: 1.6;
+  padding: 14px;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+}
+.oc-pp-detail-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  flex-shrink: 0;
+}
+.oc-pp-btn-cancel {
+  padding: 8px 16px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary, #b1bac4);
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.oc-pp-btn-cancel:hover {
+  background: var(--bg-hover, #1c2333);
+  color: var(--text-primary, #f0f6fc);
+}
+.oc-pp-btn-use {
+  padding: 8px 20px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 0.83rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+.oc-pp-btn-use:hover {
+  filter: brightness(1.2);
+}
+
+/* ─── Empty state ──────────────────────────────────────────────────────── */
 .oc-pp-empty {
   padding: 32px 16px;
   text-align: center;
