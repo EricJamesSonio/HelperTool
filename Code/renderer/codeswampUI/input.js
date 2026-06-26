@@ -4,6 +4,7 @@ import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
+import { openPromptPicker } from './promptPicker.js';
 
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
@@ -14,6 +15,7 @@ export function renderInput() {
     <div class="oc-input-row">
       <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="1"></textarea>
       <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
+      <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">📋</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
@@ -25,6 +27,7 @@ export function renderInput() {
   const sendBtn = document.getElementById('ocSendBtn');
   const modeBtn = document.getElementById('ocModeBtn');
   const attachBtn = document.getElementById('ocAttachBtn');
+  const promptBtn = document.getElementById('ocPromptBtn');
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';
@@ -53,6 +56,8 @@ export function renderInput() {
       }
     } catch {}
   });
+
+  promptBtn.addEventListener('click', openPromptPicker);
 }
 
 function renderPendingFiles() {
