@@ -97,11 +97,13 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
   div.className = `oc-term-instance slot-${slotIndex}`;
   div.dataset.repo = repoPath;
   div.dataset.slot = String(slotIndex);
-  div.style.width = '100%';
-  div.style.height = '100%';
-  div.style.position = 'absolute';
-  div.style.top = '0';
-  div.style.left = '0';
+  if (!state.parallelMode) {
+    div.style.position = 'absolute';
+    div.style.top = '0';
+    div.style.left = '0';
+    div.style.width = '100%';
+    div.style.height = '100%';
+  }
   container.appendChild(div);
   div.addEventListener('click', () => {
     if (state.parallelMode) activateSlot(slotIndex);

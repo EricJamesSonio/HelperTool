@@ -456,6 +456,7 @@ Claude Fab
 .oc-terminal-container.parallel-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
 }
 .oc-terminal-container.parallel-3 {
   display: grid;
