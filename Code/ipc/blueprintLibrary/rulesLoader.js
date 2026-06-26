@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const { app } = require('electron');
 
-const RULES_DIR = path.join(__dirname, '..', '..', '..', '.Resources', 'Rules');
+const RULES_DIR = app.isPackaged
+  ? path.join(process.resourcesPath, '.Resources', 'Rules')
+  : path.join(__dirname, '..', '..', '..', '.Resources', 'Rules');
 
 function _displayName(key) {
   if (key === 'ddd') return 'DDD';
@@ -66,7 +69,8 @@ function loadRulesData() {
 
     if (!seenCat.has(categoryName)) {
       seenCat.add(categoryName);
-      categories.push({ name: categoryName, type: 'code' });
+      const type = categoryKey === 'framework-setup' ? 'setup-steps' : 'code';
+      categories.push({ name: categoryName, type });
     }
     if (!blueprints[categoryName]) blueprints[categoryName] = [];
 

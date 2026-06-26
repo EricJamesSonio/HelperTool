@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { getTemplate } from './template.js';
 import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
-import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle } from './sidebar.js';
+import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle, renderParallelModeControls } from './sidebar.js';
 import { renderInput } from './input.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
@@ -25,6 +25,7 @@ export async function initCodeSwampUI() {
 
   getLoadingController(); // warm up loading controller singleton
   renderAIProviderSelect();
+  renderParallelModeControls();
   renderSidebarToggle();
   setupDom();
   showWelcome();
@@ -135,6 +136,8 @@ export function closeCodeSwampUI() {
     clearInterval(_refreshInterval);
     _refreshInterval = null;
   }
+  const picker = document.getElementById('ocPromptPickerModal');
+  if (picker) picker.remove();
 }
 
 export function isOpen() {

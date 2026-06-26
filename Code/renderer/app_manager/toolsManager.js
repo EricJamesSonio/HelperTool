@@ -46,6 +46,7 @@ const ICONS = {
    flow: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',
     github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>',
     opencode: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',
+    map: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 7 10 4 17 7"/><polyline points="3 17 10 14 17 17"/><line x1="10" y1="4" x2="10" y2="14"/><path d="M3 7v10"/><path d="M17 7v10"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -308,6 +309,15 @@ function populateSidebar() {
     if (_ccTool?.isInitialized) _ccTool.refresh();
     else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
   }, 'codebbaseChat'));
+
+  body.appendChild(createSidebarItem(ICONS.map, 'Codebase Map', 'Visual codebase structure & dependencies', async () => {
+    try {
+      const m = await import('../codebaseMap.js');
+      if (m.isOpen()) { m.closeCodebaseMap(); return; }
+      _registry.closeAll();
+      await m.openCodebaseMap();
+    } catch (err) { console.error('[Tools] Codebase Map:', err); }
+  }, 'codebaseMap'));
 
   body.appendChild(createSidebarItem(ICONS.env, 'Env Files', 'Manage .env configuration files', () => {
     const existing = document.getElementById('envOverlay');
@@ -670,6 +680,15 @@ function _buildShortcutActions() {
     _ccPanel.classList.add('open');
     if (_ccTool?.isInitialized) _ccTool.refresh();
     else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
+  };
+
+  actions.codebaseMap = async () => {
+    try {
+      const m = await import('../codebaseMap.js');
+      if (m.isOpen()) { m.closeCodebaseMap(); return; }
+      _registry.closeAll();
+      await m.openCodebaseMap();
+    } catch (err) { console.error('[Shortcuts] Codebase Map:', err); }
   };
 
   actions.envManager = () => {

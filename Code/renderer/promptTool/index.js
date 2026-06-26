@@ -1,8 +1,7 @@
 import { setModal, getModal, setData } from './state.js';
 import { getMainTemplate } from './template.js';
-import { renderCategories } from './categories.js';
+import { renderCategories, wireCategoryAdd } from './categories.js';
 import { renderPromptList } from './prompts.js';
-import { wireCategoryAdd } from './categories.js';
 import { wirePromptSave, wirePromptDelete, wirePromptFavoritePin, wireBackButton } from './wiring.js';
 import { openPromptSelectionModal } from './selectionModal.js';
 
@@ -14,6 +13,13 @@ async function refresh() {
     }
     renderCategories(refresh);
     renderPromptList();
+}
+
+function showCatPhase() {
+    const cats = document.getElementById('ptPhaseCats');
+    const prompts = document.getElementById('ptPhasePrompts');
+    if (cats) cats.style.display = 'flex';
+    if (prompts) prompts.style.display = 'none';
 }
 
 export function openPromptToolModal() {
@@ -42,9 +48,10 @@ export function openPromptToolModal() {
     wirePromptSave(refresh);
     wirePromptDelete(refresh);
     wirePromptFavoritePin(refresh);
-    wireBackButton();
+    wireBackButton(showCatPhase);
 
     refresh();
+    showCatPhase();
     modal.style.display = 'flex';
 }
 

@@ -38,6 +38,7 @@ const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
 const opencodeIpc = require('./ipc/opencode_ipc.js');
 const geminiIpc = require('./ipc/gemini_ipc.js');
+const codebaseMapIpc = require('./ipc/codebaseMap_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { initChatDb, closeChatDb } = require('./database/chatDb.js');
@@ -168,6 +169,7 @@ function registerAllIpc() {
     serviceTrackerIpc.register();
     opencodeIpc.register(shared);
     geminiIpc.register();
+    codebaseMapIpc.register();
 }
 
 // ----------------------------
@@ -291,18 +293,27 @@ function getPreviousReposMenu() {
 }
 
 function cleanupAndExit(deleteIndex) {
+    if (deleteIndex) {
+        try {
+            const dbModule = require('./database/db.js');
+            const db = dbModule.getDb();
+            if (db) {
+                db.run('PRAGMA foreign_keys=ON');
+                db.run('DELETE FROM repositories');
+                dbModule.save();
+            }
+        } catch (_) {}
+        try {
+            const flagsPath = path.join(app.getPath('userData'), 'symbol-index', '.restore-flags.json');
+            if (require('fs').existsSync(flagsPath)) {
+                require('fs').unlinkSync(flagsPath);
+            }
+        } catch (_) {}
+    }
     try { const db = require('./database/db.js'); db.close(); } catch (_) {}
     try { closeChatDb(); } catch (_) {}
     try { const watcher = require('./indexer/watcher.js'); watcher.destroyAllWatchers(); } catch (_) {}
     try { require('./ipc/prefetchService.js').stop(); } catch (_) {}
     try { workerProxy.stop(); } catch (_) {}
     try { indexerProxy.stop(); } catch (_) {}
-    if (deleteIndex) {
-        process.once('exit', () => {
-            try {
-                const dir = path.join(app.getPath('userData'), 'symbol-index');
-                require('fs').rmSync(dir, { recursive: true, force: true });
-            } catch (_) {}
-        });
-    }
 }

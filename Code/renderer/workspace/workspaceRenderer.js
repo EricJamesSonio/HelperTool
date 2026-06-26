@@ -7,7 +7,7 @@
 import { state, genId }                                           from './workspaceStore.js';
 import { getAllProjects, createProject, updateProject, deleteProject,
          assignWorkerToProject, removeWorkerFromProject,
-         PROJECT_STATUSES, getProjectById }                       from './projectManager.js';
+         PROJECT_STATUSES, getProjectById, getProjectByRepoPath }                       from './projectManager.js';
 import { getAllWorkers, createWorker, updateWorker, deleteWorker,
          WORKER_ROLES }                                           from './workerManager.js';
 import { getTicketsByProject, createTicket, updateTicket,
@@ -34,6 +34,7 @@ const ICON_DESIGN = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" 
 const ICON_GEAR = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v3"/><path d="M10 16v3"/><path d="M3.5 3.5l2 2"/><path d="M14.5 14.5l2 2"/><path d="M1 10h3"/><path d="M16 10h3"/><path d="M3.5 16.5l2-2"/><path d="M14.5 5.5l2-2"/></svg>';
 const ICON_BACK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10H5"/><path d="m10 5-5 5 5 5"/></svg>';
 const ICON_REMOVE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
+const ICON_REPO = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10"/><path d="M10 17V3"/><path d="M6 7h4"/><path d="M6 11h4"/></svg>';
 
 // ─── Nav state ────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,15 @@ export function ensurePanel() {
     </div>
   `;
   document.body.appendChild(el);
+}
+
+export function navigateToProject(projectId) {
+  const p = getProjectById(projectId);
+  if (!p) return;
+  _selectedProject = p;
+  _projectTab = 'overview';
+  _view = 'project-details';
+  render();
 }
 
 export function render() {
@@ -238,22 +248,43 @@ function _renderProjectsList(body) {
     <div class="ws-add-project-form">
       <input type="text" id="newProjectTitle" placeholder="Project title..." class="workspace-input" />
       <input type="text" id="newProjectDesc"  placeholder="Short description (optional)..." class="workspace-input" />
+      <div class="ws-repo-picker-row">
+        <span class="ws-repo-picker-label">Link to a repo folder</span>
+        <div class="ws-repo-picker-controls">
+          <input type="text" id="addProjRepoPath" class="workspace-input ws-repo-picker-input" placeholder="No folder selected" readonly />
+          <button class="workspace-btn-icon" id="addProjBrowseBtn" title="Browse for folder">${ICON_FOLDER_OPEN} Browse</button>
+          <button class="workspace-btn-icon workspace-btn-clear" id="addProjClearBtn" title="Clear">&times;</button>
+        </div>
+      </div>
       <button class="workspace-btn-add" id="addProjectBtn">${ICON_PLUS} Add Project</button>
     </div>
     <div class="workspace-form-error" id="addProjectError"></div>
   `;
   body.appendChild(form);
 
-  form.querySelector('#addProjectBtn').addEventListener('click', () => {
+  // Browse button for repo path
+  const browseBtn = form.querySelector('#addProjBrowseBtn');
+  const repoPathInput = form.querySelector('#addProjRepoPath');
+  const clearBtn = form.querySelector('#addProjClearBtn');
+  browseBtn.addEventListener('click', async () => {
+    const p = await window.electronAPI.selectFolder();
+    if (p) { repoPathInput.value = p; repoPathInput.title = p; }
+  });
+  clearBtn.addEventListener('click', () => { repoPathInput.value = ''; repoPathInput.title = ''; });
+
+  form.querySelector('#addProjectBtn').addEventListener('click', async () => {
     const errEl = document.getElementById('addProjectError');
     try {
+      const repoPath = document.getElementById('addProjRepoPath').value || null;
       createProject(
         document.getElementById('newProjectTitle').value,
         document.getElementById('newProjectDesc').value,
+        repoPath,
       );
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       document.getElementById('newProjectTitle').value = '';
       document.getElementById('newProjectDesc').value  = '';
+      document.getElementById('addProjRepoPath').value = '';
       render();
     } catch (err) {
       if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
@@ -279,9 +310,13 @@ function _buildProjectCard(project) {
 
   const card = document.createElement('div');
   card.className = 'workspace-project-card';
+  const repoBadge = project.repoPath
+    ? `<span class="ws-repo-badge" title="${_esc(project.repoPath)}">${ICON_REPO}</span>`
+    : '';
   card.innerHTML = `
     <div class="workspace-card-header">
-      <div class="workspace-card-title">${project.title}</div>
+      <div class="workspace-card-title">${project.title}${repoBadge}</div>
+      <div class="workspace-card-spacer"></div>
       <button class="workspace-card-edit" title="Edit">${ICON_EDIT}</button>
       <button class="workspace-card-delete" title="Delete">${ICON_DELETE}</button>
     </div>
@@ -335,12 +370,34 @@ function _showEditProjectModal(project) {
         ${PROJECT_STATUSES.map(s => `<option value="${s}" ${s === project.status ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
     </div>
+    <div class="workspace-form-group">
+      <label>Linked repo folder</label>
+      <div class="ws-repo-picker-controls">
+        <input type="text" id="editProjRepoPath" class="workspace-input ws-repo-picker-input" value="${_esc(project.repoPath || '')}" placeholder="No folder selected" readonly />
+        <button class="workspace-btn-icon" id="editProjBrowseBtn" title="Browse for folder">${ICON_FOLDER_OPEN} Browse</button>
+        <button class="workspace-btn-icon workspace-btn-clear" id="editProjClearBtn" title="Clear">&times;</button>
+      </div>
+    </div>
   `, errEl => {
+    // Browse + Clear buttons wired after modal mount
+    const browseBtn = modal.querySelector('#editProjBrowseBtn');
+    const clearBtn = modal.querySelector('#editProjClearBtn');
+    const repoInput = modal.querySelector('#editProjRepoPath');
+    if (browseBtn) {
+      browseBtn.addEventListener('click', async () => {
+        const p = await window.electronAPI.selectFolder();
+        if (p) { repoInput.value = p; repoInput.title = p; }
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => { repoInput.value = ''; repoInput.title = ''; });
+    }
     try {
       updateProject(project.id, {
         title:       document.getElementById('editProjTitle').value,
         description: document.getElementById('editProjDesc').value,
         status:      document.getElementById('editProjStatus').value,
+        repoPath:    document.getElementById('editProjRepoPath').value || null,
       });
       modal.remove();
       render();
@@ -409,6 +466,7 @@ function _buildWorkerCard(worker) {
     <div class="workspace-card-header">
       <div class="ws-worker-avatar" style="background:${worker.avatarColor}">${worker.name.charAt(0).toUpperCase()}</div>
       <div class="workspace-card-title">${worker.name}</div>
+      <div class="workspace-card-spacer"></div>
       <button class="workspace-card-edit" title="Edit">${ICON_EDIT}</button>
       <button class="workspace-card-delete" title="Delete">${ICON_DELETE}</button>
     </div>
@@ -502,6 +560,7 @@ function _renderProjectDetails(body) {
     { key: 'plannings', label: `${ICON_PLANNING} Plannings` },
     { key: 'stones', label: '💎 Infinity Stones' },
     { key: 'logs',      label: `${ICON_LOGS} Logs`     },
+    { key: 'repo',      label: `${ICON_REPO} Repo`      },
   ];
 
   const tabBar = document.createElement('div');
@@ -528,6 +587,7 @@ function _renderProjectDetails(body) {
     case 'plannings': _renderTabPlannings(content);   break;
     case 'stones':    _renderTabStones(content);      break;
     case 'logs':      _renderTabProjectLogs(content); break;
+    case 'repo':      _renderTabRepo(content);         break;
     
   }
   body.appendChild(content);
@@ -1067,9 +1127,7 @@ function _renderTabStones(el) {
 
   STONES.forEach(stone => {
     const value = p[stone.key] || '';
-    const preview = value.trim()
-      ? value.trim().slice(0, 120) + (value.length > 120 ? '…' : '')
-      : null;
+    const empty = !value.trim();
 
     const card = document.createElement('div');
     card.className = 'ws-stone-card';
@@ -1084,7 +1142,7 @@ function _renderTabStones(el) {
         </svg>
       </div>
       <div class="ws-stone-label">${stone.label}</div>
-      <div class="ws-stone-preview">${preview ? _esc(preview) : '<span class="ws-stone-empty">Click to add context…</span>'}</div>
+      <div class="ws-stone-preview ${empty ? 'ws-stone-empty' : ''}">${empty ? 'Click to add context…' : _esc(value.trim())}</div>
     `;
 
     card.addEventListener('click', () => _openStoneModal(p, stone));
@@ -1162,6 +1220,41 @@ function _renderTabProjectLogs(el) {
   list.className = 'workspace-logs-container';
   logs.forEach(log => list.appendChild(_buildLogItem(log)));
   el.appendChild(list);
+}
+
+// ── Tab: Repo ─────────────────────────────────────────────────────────────────
+
+function _renderTabRepo(el) {
+  const p = _selectedProject;
+  const linked = p.repoPath;
+  el.innerHTML = `
+    <div class="ws-repo-tab-card">
+      <div class="ws-repo-tab-header">
+        <label>Linked Folder</label>
+        <span class="ws-repo-tab-status ${linked ? '' : 'ws-repo-tab-unlinked'}">
+          ${linked ? `${ICON_REPO} Linked` : `${ICON_REMOVE} Not linked`}
+        </span>
+      </div>
+      ${linked ? `<div class="ws-repo-tab-path" title="${_esc(linked)}">${_esc(linked)}</div>` : ''}
+      <div class="ws-repo-tab-actions">
+        <button class="workspace-btn-add" id="repoTabBrowseBtn" style="display:inline-flex;align-items:center;gap:6px">${ICON_FOLDER_OPEN} ${linked ? 'Change Folder' : 'Select Folder'}</button>
+        ${linked ? `<button class="workspace-btn-cancel" id="repoTabClearBtn" style="display:inline-flex;align-items:center;gap:6px">${ICON_REMOVE} Unlink</button>` : ''}
+      </div>
+    </div>
+  `;
+  el.querySelector('#repoTabBrowseBtn')?.addEventListener('click', async () => {
+    const rp = await window.electronAPI.selectFolder();
+    if (rp) {
+      updateProject(p.id, { repoPath: rp });
+      _selectedProject = getProjectById(p.id);
+      _renderTabRepo(el);
+    }
+  });
+  el.querySelector('#repoTabClearBtn')?.addEventListener('click', () => {
+    updateProject(p.id, { repoPath: null });
+    _selectedProject = getProjectById(p.id);
+    _renderTabRepo(el);
+  });
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────

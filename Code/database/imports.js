@@ -105,7 +105,32 @@ function countByRepo(repoId) {
   return 0;
 }
 
+function getAllByRepo(repoId) {
+  const db = getDb();
+  const results = [];
+  const stmt = db.prepare(`
+    SELECT fi.*, f.path as source_path, rf.path as resolved_path
+    FROM file_imports fi
+    JOIN indexed_files f ON f.id = fi.file_id
+    LEFT JOIN indexed_files rf ON rf.id = fi.resolved_file_id
+    WHERE fi.repo_id = ?
+    ORDER BY f.path, fi.line
+  `);
+  stmt.bind([repoId]);
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    if (row.imported_symbols) {
+      try { row.imported_symbols = JSON.parse(row.imported_symbols); } catch (e) { row.imported_symbols = []; }
+    } else {
+      row.imported_symbols = [];
+    }
+    results.push(row);
+  }
+  stmt.free();
+  return results;
+}
+
 module.exports = {
   insertBatch, getByFile, getReverseDeps, getByRepoAndResolvedPath,
-  deleteByFile, deleteByRepo, countByRepo,
+  deleteByFile, deleteByRepo, countByRepo, getAllByRepo,
 };

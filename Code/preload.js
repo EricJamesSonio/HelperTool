@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const repoBridge = {
     selectRepo:          ()              => ipcRenderer.invoke('select-repo'),
+    selectFolder:        ()              => ipcRenderer.invoke('select-folder'),
     getFolderTree:       (repoPath)      => ipcRenderer.invoke('getFolderTree', repoPath),
     getUserDataPath:     ()              => ipcRenderer.invoke('get-user-data-path'),
     openDocignore:       (repoPath)      => ipcRenderer.invoke('open-docignore', repoPath),
@@ -498,6 +499,12 @@ const chatGmailBridge = {
     ipcRenderer.invoke('chat:getConnectedGmailAccounts'),
 };
 
+const codebaseMapBridge = {
+  codebaseMap: {
+    generate: (opts) => ipcRenderer.invoke('codebaseMap:generate', opts),
+  },
+};
+
 contextBridge.exposeInMainWorld('envAPI', envBridge);
 
 // Expose everything to the renderer
@@ -524,6 +531,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...branchBridge,
     ...codebaseChatBridge,
     ...chatGmailBridge,
+    ...codebaseMapBridge,
     ...automationBridge,
     ...imageBridge,
     ...videoBridge,

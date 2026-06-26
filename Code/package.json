@@ -27,6 +27,13 @@
       "node_modules/sql.js/**",
       "node_modules/tree-sitter-*/**"
     ],
+    "extraResources": [
+      {
+        "from": "../.Resources/Rules",
+        "to": ".Resources/Rules",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"

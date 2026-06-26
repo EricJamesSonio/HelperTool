@@ -18,7 +18,6 @@ export function wirePromptSave(onRefresh) {
         const body = document.getElementById('promptBody').value;
         const supports = document.getElementById('promptSupports').value;
 
-        // Preserve favorite/pin from currently selected prompt if editing
         let isFavorite = false;
         let pinnedAt = null;
         if (selectedId) {
@@ -39,7 +38,6 @@ export function wirePromptSave(onRefresh) {
 
         await onRefresh();
 
-        // reselect editor prompt if editing
         const pid = selectedId;
         if (pid) {
             const p = (getData().prompts || []).find(x => x.id === pid);
@@ -82,11 +80,12 @@ export function wirePromptFavoritePin(onRefresh) {
     });
 }
 
-export function wireBackButton() {
+export function wireBackButton(showCatPhase) {
     const btn = document.getElementById('promptBackToCats');
     if (!btn) return;
     btn.addEventListener('click', () => {
         setSelectedCategoryId(null);
-        renderPromptList();
+        clearEditor();
+        showCatPhase();
     });
 }

@@ -63,6 +63,8 @@ export default class PanelRegistry {
     // Modal overlays
     const promptModal  = document.getElementById('promptToolModal');
     if (promptModal && promptModal.style.display !== 'none') promptModal.style.display = 'none';
+    const cmOverlay  = document.querySelector('.cm-overlay');
+    if (cmOverlay) cmOverlay.remove();
     const fullOverlay  = document.getElementById('settingsOverlay');
     if (fullOverlay?.classList.contains('open')) fullOverlay.classList.remove('open');
     const lightOverlay = document.getElementById('lightSettingsOverlay');

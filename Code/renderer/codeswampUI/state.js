@@ -32,6 +32,12 @@ export const state = {
 
   // CLI mode
   cliMode: 'plan',
+
+  // Parallel mode
+  parallelMode: false,
+  parallelSlots: 2,
+  activeSlotIndex: 0,
+  slotData: {},
 };
 
 

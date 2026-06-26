@@ -9,7 +9,8 @@
  */
 
 import { loadAll }            from './workspaceStore.js';
-import { ensurePanel, render } from './workspaceRenderer.js';
+import { ensurePanel, render, navigateToProject } from './workspaceRenderer.js';
+import { getProjectByRepoPath } from './projectManager.js';
 
 let _isOpen = false;
 
@@ -28,6 +29,16 @@ export async function openWorkspacePanel() {
   await loadAll();          // always reload fresh data from disk
   ensurePanel();
   render();
+
+  // Auto-navigate to project linked to the active repo
+  try {
+    const active = await window.electronAPI.getActiveProject();
+    if (active?.repoPath) {
+      const linked = getProjectByRepoPath(active.repoPath);
+      if (linked) navigateToProject(linked.id);
+    }
+  } catch {}
+
   document.getElementById('workspaceContainer')?.classList.add('open');
   _isOpen = true;
 }

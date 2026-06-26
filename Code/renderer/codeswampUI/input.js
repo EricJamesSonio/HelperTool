@@ -1,9 +1,10 @@
 import { state } from './state.js';
-import { writeToTerminal, hasTerminalSession } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, activateSlot, getActiveSlots } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
+import { openPromptPicker } from './promptPicker.js';
 
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
@@ -14,6 +15,7 @@ export function renderInput() {
     <div class="oc-input-row">
       <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="1"></textarea>
       <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
+      <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">📋</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
@@ -25,6 +27,7 @@ export function renderInput() {
   const sendBtn = document.getElementById('ocSendBtn');
   const modeBtn = document.getElementById('ocModeBtn');
   const attachBtn = document.getElementById('ocAttachBtn');
+  const promptBtn = document.getElementById('ocPromptBtn');
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';
@@ -53,6 +56,8 @@ export function renderInput() {
       }
     } catch {}
   });
+
+  promptBtn.addEventListener('click', openPromptPicker);
 }
 
 function renderPendingFiles() {
@@ -73,8 +78,15 @@ function renderPendingFiles() {
 
 function toggleMode() {
   const repoPath = state.activeTab;
-  if (!repoPath || !hasTerminalSession(repoPath)) return;
-  writeToTerminal(repoPath, '\t');
+  if (!repoPath) return;
+  if (state.parallelMode) {
+    const inst = Object.values(getActiveSlots()).find(s => s && s.slotIndex === state.activeSlotIndex);
+    if (!inst) return;
+    writeToSlot(state.activeSlotIndex, '\t');
+  } else {
+    if (!hasTerminalSession(repoPath)) return;
+    writeToTerminal(repoPath, '\t');
+  }
   state.cliMode = state.cliMode === 'plan' ? 'code' : 'plan';
   const btn = document.getElementById('ocModeBtn');
   if (btn) {
@@ -92,13 +104,15 @@ async function sendMessage() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  const isNewChat = !hasTerminalSession(repoPath);
+  const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
+  const hasSession = state.parallelMode ? !!getActiveSlots()[slotIndex] : hasTerminalSession(repoPath);
+  const isNewChat = !hasSession;
 
-  if (!hasTerminalSession(repoPath)) {
+  if (!hasSession) {
     const lc = getLoadingController();
     lc.start('Starting terminal...');
     try {
-      await openTerminalForRepo(repoPath);
+      await openTerminalForRepo(repoPath, slotIndex);
     } catch (e) {
       lc.hide();
       return;
@@ -113,7 +127,11 @@ async function sendMessage() {
 
   const prevCount = (state.conversations[repoPath] || []).length;
 
-  writeToTerminal(repoPath, msg + '\r');
+  if (state.parallelMode) {
+    writeToSlot(slotIndex, msg + '\r');
+  } else {
+    writeToTerminal(repoPath, msg + '\r');
+  }
 
   if (isNewChat) {
     pollForNewSession(repoPath, prevCount);

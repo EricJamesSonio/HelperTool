@@ -50,45 +50,84 @@ function getDarkTheme() {
   };
 }
 
+function _findSlotByRepoPath(repoPath) {
+  for (const [slot, inst] of Object.entries(instances)) {
+    if (inst && inst.repoPath === repoPath) return Number(slot);
+  }
+  return -1;
+}
+
+function _getSlotDiv(slotIndex) {
+  return document.querySelector(`.oc-term-instance.slot-${slotIndex}`);
+}
+
+function _updateContainerGrid() {
+  const container = document.getElementById('ocTerminalContainer');
+  if (!container) return;
+  container.classList.remove('parallel-2', 'parallel-3', 'parallel-4');
+  if (state.parallelMode && state.parallelSlots > 1) {
+    container.classList.add(`parallel-${state.parallelSlots}`);
+  }
+}
+
+function _highlightActiveSlot() {
+  document.querySelectorAll('.oc-term-instance').forEach(el => {
+    el.classList.toggle('active', el.dataset.slot === String(state.activeSlotIndex));
+  });
+}
+
 export async function initXterm() {
   await loadXterm();
 }
 
-export async function createTerminalSession(repoPath) {
-  if (instances[repoPath]) {
-    showTerminalSession(repoPath);
-    return instances[repoPath];
+export async function createTerminalSession(repoPath, slotIndex = 0) {
+  if (instances[slotIndex]) {
+    return instances[slotIndex];
   }
 
   await loadXterm();
 
   const container = document.getElementById('ocTerminalContainer');
-  console.log('[CS] ocTerminalContainer found:', !!container, container?.offsetWidth, container?.offsetHeight);
   if (!container) return null;
 
-  const div = document.createElement('div');
-  div.className = 'oc-term-instance';
-  div.dataset.repo = repoPath;
-  // Set explicit size on div to match container — bypasses zoom measurement issues
-  div.style.width = '100%';
-  div.style.height = '100%';
-  div.style.position = 'absolute';
-  div.style.top = '0';
-  div.style.left = '0';
-  container.appendChild(div);
-  console.log('[CS] term div appended, div size:', div.offsetWidth, div.offsetHeight);
+  const existing = _getSlotDiv(slotIndex);
+  if (existing) existing.remove();
 
-  // Get actual pixel dimensions accounting for zoom
-  const bodyZoom = parseFloat(document.body.style.zoom) || 1;
+  const div = document.createElement('div');
+  div.className = `oc-term-instance slot-${slotIndex}`;
+  div.dataset.repo = repoPath;
+  div.dataset.slot = String(slotIndex);
+  div.style.overflow = 'hidden';
+  if (!state.parallelMode) {
+    div.style.position = 'absolute';
+    div.style.top = '0';
+    div.style.left = '0';
+    div.style.width = '100%';
+    div.style.height = '100%';
+  }
+  container.appendChild(div);
+  div.addEventListener('click', () => {
+    if (state.parallelMode) activateSlot(slotIndex);
+  });
+
+  // Force reflow so container has final grid dimensions
+  void container.offsetWidth;
+
   const containerW = container.offsetWidth;
   const containerH = container.offsetHeight;
 
-  // Approximate char dimensions at fontSize 13
   const charW = 7.8;
   const charH = 17;
-  const initCols = Math.max(80, Math.floor(containerW / charW));
-  const initRows = Math.max(24, Math.floor(containerH / charH));
-  console.log('[CS] initial cols/rows:', initCols, initRows);
+  let cellW = containerW;
+  let cellH = containerH;
+  if (state.parallelMode && state.parallelSlots > 1) {
+    const cols = 2;
+    const rows = state.parallelSlots <= 2 ? 1 : 2;
+    cellW = Math.floor(containerW / cols);
+    cellH = Math.floor(containerH / rows);
+  }
+  const initCols = Math.max(40, Math.floor(cellW / charW));
+  const initRows = Math.max(12, Math.floor(cellH / charH));
 
   const terminal = new TerminalClass({
     theme: getDarkTheme(),
@@ -105,33 +144,25 @@ export async function createTerminalSession(repoPath) {
   const fitAddon = new FitAddonClass();
   terminal.loadAddon(fitAddon);
   terminal.open(div);
-  console.log('[CS] terminal.open() called');
 
-  // Force a visible character to trigger DOM renderer paint
   terminal.write('\x1b[?25h');
 
   await new Promise(r => setTimeout(r, 100));
 
   try {
     fitAddon.fit();
-    console.log('[CS] fitAddon.fit() OK');
   } catch(e) {
-    console.log('[CS] fitAddon.fit() ERROR:', e.message);
-    // Fallback: manual resize
     try { terminal.resize(initCols, initRows); } catch {}
   }
 
   const { getSelectedShell } = await import('./sidebar.js');
   const shell = getSelectedShell();
-  console.log('[CS] Spawning shell:', shell.cmd, shell.args);
 
   const result = await window.electronAPI.opencode.termSpawn({
     cwd: repoPath,
     shell: shell.cmd,
     args: shell.args,
   });
-
-  console.log('[CS] termSpawn result:', JSON.stringify(result));
 
   if (!result || result.error) {
     terminal.write(`\r\n\x1b[31mFailed to start: ${result?.error || 'unknown'}\x1b[0m\r\n`);
@@ -141,8 +172,8 @@ export async function createTerminalSession(repoPath) {
   const lc = getLoadingController();
   lc.setProgress('Starting shell...', 0.35);
 
-  const instance = { id: result.id, terminal, fitAddon, div, repoPath };
-  instances[repoPath] = instance;
+  const instance = { id: result.id, terminal, fitAddon, div, repoPath, slotIndex };
+  instances[slotIndex] = instance;
 
   terminal.onData((data) => {
     window.electronAPI.opencode.termWrite({ id: result.id, data });
@@ -152,29 +183,36 @@ export async function createTerminalSession(repoPath) {
     window.electronAPI.opencode.termResize({ id: result.id, cols, rows });
   });
 
-  console.log('[CS] calling showTerminalSession');
-  showTerminalSession(repoPath);
+  showSlot(slotIndex);
 
-  // Re-fit after show to get accurate dimensions
   requestAnimationFrame(() => {
-    try { fitAddon.fit(); } catch {}
-    const dims = fitAddon.proposeDimensions();
-    console.log('[CS] proposeDimensions after show:', dims);
-    if (dims) {
-      window.electronAPI.opencode.termResize({ id: result.id, cols: dims.cols, rows: dims.rows });
+    if (state.parallelMode) {
+      Object.values(instances).forEach(inst => {
+        if (inst && inst.fitAddon) {
+          try { inst.fitAddon.fit(); } catch {}
+          const d = inst.fitAddon.proposeDimensions();
+          if (d) {
+            window.electronAPI.opencode.termResize({ id: inst.id, cols: d.cols, rows: d.rows });
+          }
+        }
+      });
+    } else {
+      try { fitAddon.fit(); } catch {}
+      const dims = fitAddon.proposeDimensions();
+      if (dims) {
+        window.electronAPI.opencode.termResize({ id: result.id, cols: dims.cols, rows: dims.rows });
+      }
     }
   });
 
-  // Write AI provider command immediately (pty buffers input until shell is ready)
   const provider = getProvider(state.selectedProvider);
-  const convId = state.activeConvId[repoPath];
+  const convId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
   const cmd = convId ? provider.resumeCmd(convId) : provider.newChatCmd();
   window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
 
   lc.advanceTo('Starting opencode...', 0.60, 400);
   _loadingTerminalIds.add(result.id);
 
-  // Safety timeout: force-hide overlay if no output arrives within 8s
   setTimeout(() => {
     if (_loadingTerminalIds.has(result.id)) {
       _loadingTerminalIds.delete(result.id);
@@ -185,18 +223,19 @@ export async function createTerminalSession(repoPath) {
   return instance;
 }
 
-export function showTerminalSession(repoPath) {
+export function showSlot(slotIndex) {
   const termWrapper = document.getElementById('ocTerminal');
   const welcome = document.getElementById('ocWelcome');
   if (termWrapper) termWrapper.style.display = '';
   if (welcome) welcome.style.display = 'none';
 
-  Object.keys(instances).forEach(rp => {
-    const inst = instances[rp];
-    if (inst.div) inst.div.style.display = rp === repoPath ? '' : 'none';
-  });
+  if (!state.parallelMode) {
+    Object.values(instances).forEach(inst => {
+      if (inst.div) inst.div.style.display = inst.slotIndex === slotIndex ? '' : 'none';
+    });
+  }
 
-  const inst = instances[repoPath];
+  const inst = instances[slotIndex];
   if (inst && inst.fitAddon) {
     requestAnimationFrame(() => {
       try { inst.fitAddon.fit(); } catch {}
@@ -206,16 +245,29 @@ export function showTerminalSession(repoPath) {
       }
     });
   }
+
+  _highlightActiveSlot();
+}
+
+export function showTerminalSession(repoPath) {
+  const slot = _findSlotByRepoPath(repoPath);
+  if (slot >= 0) showSlot(slot);
 }
 
 export function writeToTerminal(repoPath, text) {
-  const inst = instances[repoPath];
+  const inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
   if (!inst) return;
   window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
 }
 
-export function killTerminalSession(repoPath) {
-  const inst = instances[repoPath];
+export function writeToSlot(slotIndex, text) {
+  const inst = instances[slotIndex];
+  if (!inst) return;
+  window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
+}
+
+export function killSlot(slotIndex) {
+  const inst = instances[slotIndex];
   if (!inst) return;
   if (_loadingTerminalIds.has(inst.id)) {
     _loadingTerminalIds.delete(inst.id);
@@ -224,26 +276,43 @@ export function killTerminalSession(repoPath) {
   window.electronAPI.opencode.termKill(inst.id);
   try { inst.terminal.dispose(); } catch {}
   if (inst.div && inst.div.parentNode) inst.div.remove();
-  delete instances[repoPath];
+  delete instances[slotIndex];
+  delete state.slotData[slotIndex];
+}
+
+export function killTerminalSession(repoPath) {
+  const slot = _findSlotByRepoPath(repoPath);
+  if (slot >= 0) killSlot(slot);
 }
 
 export function hasTerminalSession(repoPath) {
-  return !!instances[repoPath];
+  return _findSlotByRepoPath(repoPath) >= 0;
 }
 
 export function fitActiveTerminal() {
   const container = document.getElementById('ocTerminalContainer');
   if (!container) return;
-  const visible = container.querySelector('.oc-term-instance:not([style*="display: none"])');
-  if (!visible) return;
-  const repoPath = visible.dataset.repo;
-  const inst = instances[repoPath];
-  if (inst && inst.fitAddon) {
-    requestAnimationFrame(() => {
-      try { inst.fitAddon.fit(); } catch {}
+  if (state.parallelMode) {
+    Object.values(instances).forEach(inst => {
+      if (inst && inst.fitAddon) {
+        requestAnimationFrame(() => {
+          try { inst.fitAddon.fit(); } catch {}
+        });
+      }
     });
+  } else {
+    const visible = container.querySelector('.oc-term-instance:not([style*="display: none"])');
+    if (!visible) return;
+    const slot = Number(visible.dataset.slot);
+    const inst = instances[slot];
+    if (inst && inst.fitAddon) {
+      requestAnimationFrame(() => {
+        try { inst.fitAddon.fit(); } catch {}
+      });
+    }
   }
 }
+
 let _termDataHandlerSetup = false;
 
 export function setupTerminalDataHandler() {
@@ -254,11 +323,80 @@ export function setupTerminalDataHandler() {
       _loadingTerminalIds.delete(id);
       getLoadingController().finish('Ready', 600);
     }
-    for (const rp of Object.keys(instances)) {
-      if (instances[rp].id === id) {
-        instances[rp].terminal.write(data);
+    for (const inst of Object.values(instances)) {
+      if (inst && inst.id === id) {
+        inst.terminal.write(data);
         break;
       }
     }
   });
+}
+
+export function getActiveSlots() {
+  const count = state.parallelMode ? state.parallelSlots : 1;
+  const result = [];
+  for (let i = 0; i < count; i++) {
+    const inst = instances[i];
+    const data = state.slotData[i];
+    result.push(data ? { repoPath: inst?.repoPath || data.repoPath, convId: data.convId, slotIndex: i } : null);
+  }
+  return result;
+}
+
+export function getFreeSlot() {
+  const count = state.parallelMode ? state.parallelSlots : 1;
+  for (let i = 0; i < count; i++) {
+    if (!instances[i]) return i;
+  }
+  return -1;
+}
+
+export function setParallelConfig(mode, count) {
+  state.parallelMode = mode;
+  state.parallelSlots = count;
+
+  if (!mode) {
+    Object.keys(instances).map(Number).sort().forEach(slot => {
+      if (slot > 0) killSlot(slot);
+    });
+    state.slotData = {};
+    state.activeSlotIndex = 0;
+    if (instances[0]) {
+      state.slotData[0] = { repoPath: instances[0].repoPath, convId: state.activeConvId[instances[0].repoPath] || null };
+    }
+  } else {
+    Object.keys(instances).map(Number).forEach(slot => {
+      if (slot >= count) killSlot(slot);
+    });
+    if (state.activeSlotIndex >= count) state.activeSlotIndex = 0;
+  }
+
+  _updateContainerGrid();
+  _highlightActiveSlot();
+
+  if (!mode) {
+    document.querySelectorAll('.oc-term-instance').forEach(el => {
+      el.style.position = 'absolute';
+      el.style.top = '0';
+      el.style.left = '0';
+      el.style.display = el.dataset.slot === '0' ? '' : 'none';
+    });
+  } else {
+    document.querySelectorAll('.oc-term-instance').forEach(el => {
+      el.style.position = 'relative';
+      el.style.top = '';
+      el.style.left = '';
+      el.style.display = '';
+    });
+  }
+
+  fitActiveTerminal();
+}
+
+export function activateSlot(slotIndex) {
+  if (slotIndex < 0 || (state.parallelMode && slotIndex >= state.parallelSlots)) return;
+  if (!state.parallelMode && slotIndex > 0) return;
+  state.activeSlotIndex = slotIndex;
+  _highlightActiveSlot();
+  showSlot(slotIndex);
 }

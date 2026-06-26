@@ -1,7 +1,10 @@
 import { state } from './state.js';
 import { listConversations, getConversation } from './history.js';
 import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.js';
-import { hasTerminalSession, writeToTerminal, fitActiveTerminal } from './terminalManager.js';
+import {
+  hasTerminalSession, writeToTerminal, writeToSlot, fitActiveTerminal,
+  getActiveSlots, getFreeSlot, killSlot, activateSlot, setParallelConfig
+} from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
 import { getProvider, getProviderList } from './providers.js';
@@ -130,29 +133,84 @@ export async function loadConversation(convId) {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  state.activeConvId[repoPath] = convId;
+  if (!state.parallelMode) {
+    state.activeConvId[repoPath] = convId;
 
-  const lc = getLoadingController();
-  lc.start('Loading conversation...');
+    const lc = getLoadingController();
+    lc.start('Loading conversation...');
 
-  if (hasTerminalSession(repoPath)) {
-    closeTerminalSession(repoPath);
+    if (hasTerminalSession(repoPath)) {
+      closeTerminalSession(repoPath);
+    }
+
+    try {
+      await openTerminalForRepo(repoPath);
+    } catch (e) {
+      console.error('[CS] loadConversation error:', e);
+      lc.hide();
+    }
+    renderConvList();
+    return;
   }
 
+  // Parallel mode
+  const slots = getActiveSlots();
+  const existingSlot = slots.findIndex(s => s && s.convId === convId);
+  if (existingSlot >= 0) {
+    state.activeSlotIndex = existingSlot;
+    activateSlot(existingSlot);
+    renderConvList();
+    return;
+  }
+
+  const freeSlot = getFreeSlot();
+  if (freeSlot >= 0) {
+    state.activeSlotIndex = freeSlot;
+    state.slotData[freeSlot] = { repoPath, convId };
+    state.activeConvId[repoPath] = convId;
+    try {
+      await openTerminalForRepo(repoPath, freeSlot);
+    } catch (e) {
+      console.error('[CS] loadConversation error:', e);
+    }
+    renderConvList();
+    return;
+  }
+
+  // All slots full — show replace dialog
+  const picked = await showReplaceDialog();
+  if (picked === null) {
+    renderConvList();
+    return;
+  }
+
+  killSlot(picked);
+  state.activeSlotIndex = picked;
+  state.slotData[picked] = { repoPath, convId };
+  state.activeConvId[repoPath] = convId;
   try {
-    await openTerminalForRepo(repoPath);
+    await openTerminalForRepo(repoPath, picked);
   } catch (e) {
     console.error('[CS] loadConversation error:', e);
-    lc.hide();
   }
   renderConvList();
 }
 
 export async function startNewChat() {
-  console.log('[CS] startNewChat called, activeTab:', state.activeTab);
   const repoPath = state.activeTab;
-  if (!repoPath) {
-    console.log('[CS] startNewChat: no activeTab, returning');
+  if (!repoPath) return;
+
+  if (state.parallelMode) {
+    const slotIndex = state.activeSlotIndex;
+    writeToSlot(slotIndex, '/exit\n');
+    await new Promise(r => setTimeout(r, 2000));
+    killSlot(slotIndex);
+    await new Promise(r => setTimeout(r, 1000));
+    state.slotData[slotIndex] = null;
+    await refreshSidebar();
+    renderConvList();
+    const input = document.getElementById('ocInput');
+    if (input) setTimeout(() => input.focus(), 50);
     return;
   }
 
@@ -160,7 +218,6 @@ export async function startNewChat() {
   state.messages[repoPath] = [];
   state.messageCache[repoPath] = [];
 
-  console.log('[CS] startNewChat: killing existing terminal session if any');
   if (hasTerminalSession(repoPath)) {
     writeToTerminal(repoPath, '/exit\n');
     await new Promise(r => setTimeout(r, 2000));
@@ -174,6 +231,84 @@ export async function startNewChat() {
 
   const input = document.getElementById('ocInput');
   if (input) setTimeout(() => input.focus(), 50);
+}
+
+function showReplaceDialog() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'oc-replace-overlay';
+    overlay.innerHTML = `
+      <div class="oc-replace-dialog">
+        <div class="oc-replace-title">Terminals full</div>
+        <div class="oc-replace-text">Replace which terminal?</div>
+        <div class="oc-replace-options"></div>
+        <button class="oc-btn oc-replace-cancel">Cancel</button>
+      </div>
+    `;
+
+    const optionsContainer = overlay.querySelector('.oc-replace-options');
+    const count = state.parallelSlots;
+    for (let i = 0; i < count; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'oc-btn oc-replace-option';
+      const data = state.slotData[i];
+      btn.textContent = data ? `Terminal ${i + 1}` : `Terminal ${i + 1} (empty)`;
+      btn.dataset.slot = i;
+      btn.addEventListener('click', () => {
+        overlay.remove();
+        resolve(i);
+      });
+      optionsContainer.appendChild(btn);
+    }
+
+    overlay.querySelector('.oc-replace-cancel').addEventListener('click', () => {
+      overlay.remove();
+      resolve(null);
+    });
+
+    document.body.appendChild(overlay);
+  });
+}
+
+export function renderParallelModeControls() {
+  const container = document.getElementById('ocAISettings');
+  if (!container) return;
+
+  const existing = document.getElementById('ocParallelSettings');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.className = 'oc-term-settings';
+  div.id = 'ocParallelSettings';
+  div.innerHTML = `
+    <label class="oc-settings-label">Parallel Mode</label>
+    <div class="oc-parallel-row">
+      <label class="oc-toggle">
+        <input type="checkbox" id="ocParallelToggle" ${state.parallelMode ? 'checked' : ''}>
+        <span class="oc-toggle-slider"></span>
+      </label>
+      <select class="oc-settings-select oc-parallel-select" id="ocParallelSelect" ${state.parallelMode ? '' : 'disabled'}>
+        <option value="2" ${state.parallelSlots === 2 ? 'selected' : ''}>2</option>
+        <option value="3" ${state.parallelSlots === 3 ? 'selected' : ''}>3</option>
+        <option value="4" ${state.parallelSlots === 4 ? 'selected' : ''}>4</option>
+      </select>
+    </div>
+  `;
+
+  container.after(div);
+
+  const toggle = document.getElementById('ocParallelToggle');
+  const select = document.getElementById('ocParallelSelect');
+
+  toggle.addEventListener('change', () => {
+    const mode = toggle.checked;
+    select.disabled = !mode;
+    setParallelConfig(mode, Number(select.value));
+  });
+
+  select.addEventListener('change', () => {
+    setParallelConfig(true, Number(select.value));
+  });
 }
 
 export async function refreshSidebarAfterDelay(delay = 1500) {

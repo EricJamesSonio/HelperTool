@@ -1,96 +1,51 @@
-import { getData, getSelectedCategoryId, setSelectedCategoryId } from './state.js';
+import { getData, getSelectedCategoryId, setSelectedCategoryId, setSelectedCategoryColor } from './state.js';
 import { renderPromptList } from './prompts.js';
 import { escapeHtml } from './utils.js';
-import { ICON_EDIT } from './template.js';
+
+const CAT_PALETTE = [
+  '#60a5fa', '#f87171', '#34d399', '#fbbf24', '#a78bfa',
+  '#f472b6', '#fb923c', '#2dd4bf', '#e879f9', '#38bdf8',
+];
 
 export function renderCategories(onRefresh) {
-    const wrap = document.getElementById('promptCats');
-    if (!wrap) return;
-    wrap.innerHTML = '';
+    const grid = document.getElementById('ptCatGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
 
     const cats = getData().categories || [];
     if (!cats.length) {
-        wrap.innerHTML = '<div class="pt-empty-list">No categories yet.</div>';
+        grid.innerHTML = '<div class="pt-empty-list">No categories yet.</div>';
         return;
     }
 
-    cats.forEach(c => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.id = `promptCatBtn_${c.id}`;
-        btn.dataset.catId = c.id;
-        btn.className = 'pt-cat-item prompt-cat-btn';
-        
-        btn.innerHTML = `
-            <span style="flex:1; text-align:left;">${escapeHtml(c.name)}</span>
-            <span class="pt-cat-rename" style="opacity:0.5;">${ICON_EDIT}</span>
+    cats.forEach((c, i) => {
+        const color = CAT_PALETTE[i % CAT_PALETTE.length];
+        const count = (getData().prompts || []).filter(p => p.categoryId === c.id).length;
+        const card = document.createElement('div');
+        card.className = 'pt-cat-card';
+        card.style.setProperty('--pt-color', color);
+        card.innerHTML = `
+          <div class="pt-cat-gem">
+            <svg viewBox="0 0 40 40" width="28" height="28">
+              <polygon points="20,4 36,14 36,26 20,36 4,26 4,14" fill="${color}22" stroke="${color}" stroke-width="1.5"/>
+              <polygon points="20,4 36,14 20,18" fill="${color}44"/>
+              <polygon points="20,18 36,14 36,26 20,36" fill="${color}33"/>
+            </svg>
+          </div>
+          <div class="pt-cat-label">${escapeHtml(c.name)}</div>
+          <div class="pt-cat-count">${count} prompt${count !== 1 ? 's' : ''}</div>
         `;
-        
-        btn.addEventListener('click', () => {
+        card.addEventListener('click', () => {
             setSelectedCategoryId(c.id);
+            setSelectedCategoryColor(color);
             renderPromptList();
+            document.getElementById('ptPhaseCats').style.display = 'none';
+            document.getElementById('ptPhasePrompts').style.display = 'flex';
+            const titleEl = document.getElementById('ptPhaseTitle');
+            if (titleEl) { titleEl.textContent = c.name; titleEl.style.color = color; }
         });
-
-        const renameBtn = btn.querySelector('.pt-cat-rename');
-        renameBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-
-            const span = btn.querySelector('span');
-            const originalText = c.name;
-            const input = document.createElement('input');
-            input.value = originalText;
-            input.style.width = '100%';
-            input.style.color = 'var(--text-primary)';
-            input.style.background = 'var(--bg-elevated)';
-            input.style.border = '1px solid var(--border-default)';
-            input.style.borderRadius = 'var(--r-sm)';
-            
-            btn.replaceChild(input, span);
-            input.focus();
-            input.select();
-
-            let isFinished = false;
-            const finishRename = async () => {
-                if (isFinished) return;
-                isFinished = true;
-
-                const newName = input.value.trim();
-                if (newName && newName !== originalText) {
-                    await window.electronAPI.prompts.updateCategory({ id: c.id, name: newName });
-                    if (onRefresh) await onRefresh();
-                } else {
-                    renderCategories(onRefresh);
-                }
-            };
-
-            input.addEventListener('blur', finishRename);
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') finishRename();
-                else if (e.key === 'Escape') {
-                    isFinished = true;
-                    renderCategories(onRefresh);
-                }
-            });
-        });
-
-        wrap.appendChild(btn);
+        grid.appendChild(card);
     });
-
-    restoreSelectedCategory();
-}
-
-export function restoreSelectedCategory() {
-    const catId = getSelectedCategoryId();
-    if (catId) {
-        const btn = document.getElementById(`promptCatBtn_${catId}`);
-        if (btn) {
-            document.querySelectorAll('.prompt-cat-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        } else {
-            // category no longer exists
-            setSelectedCategoryId(null);
-        }
-    }
 }
 
 export function wireCategoryAdd(onRefresh) {
