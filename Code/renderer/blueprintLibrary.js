@@ -7,7 +7,6 @@ let _selectedCategory = null;
 let _selectedBlueprint = null;
 let _editing = false;
 let _searchQuery = '';
-let _initialized = false;
 let _catFilter = 'code';
 
 const CAT_FILTERS = [
@@ -44,10 +43,7 @@ export async function open() {
   if (!_panel) _buildPanel();
   _panel.classList.add('open');
   _open = true;
-  if (!_initialized) {
-    await _seedIfEmpty();
-    _initialized = true;
-  }
+  await _seedIfEmpty();
   _catFilter = 'code';
   _renderCatFilter();
   await _loadData();
