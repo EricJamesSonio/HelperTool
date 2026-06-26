@@ -21,52 +21,49 @@ export function getMainTemplate() {
           <button class="modal-close-btn" id="promptToolCloseBtn">${ICON_REMOVE}</button>
         </div>
         <div class="modal-body pt-main">
-          <div class="pt-sidebar">
-            <div class="pt-sidebar-header">
-              <div class="pt-sidebar-title">Categories</div>
-            </div>
-            <div id="promptCats" class="pt-cat-list"></div>
+
+          <!-- Phase 1: Category Grid -->
+          <div class="pt-phase pt-phase-cats" id="ptPhaseCats">
+            <div class="pt-cat-grid" id="ptCatGrid"></div>
             <div class="pt-add-cat">
               <input id="promptCatName" class="sh-input sh-input-sm pt-input" placeholder="New category name" />
               <button id="promptCatAdd" class="sh-btn sh-btn-accent sh-btn-sm" type="button">${ICON_PLUS} Add</button>
             </div>
           </div>
 
-          <div class="pt-content">
-            <div class="pt-no-cat-message">
-              <div class="pt-no-cat-icon">${ICON_FOLDER}</div>
-              <div class="pt-no-cat-text">Select a category to manage prompts</div>
+          <!-- Phase 2: Prompts + Editor -->
+          <div class="pt-phase pt-phase-prompts" id="ptPhasePrompts" style="display:none">
+            <div class="pt-phase-header">
+              <button class="pt-back-btn" id="promptBackToCats" type="button">${ICON_BACK} Back</button>
+              <span class="pt-phase-title" id="ptPhaseTitle">Prompts</span>
+              <div style="flex:1"></div>
             </div>
-            <div class="pt-prompt-list-wrap">
-              <div class="pt-sidebar-header">
-                <button class="pt-back-btn" id="promptBackToCats" type="button">${ICON_BACK} Back</button>
-                <div class="pt-sidebar-title">Prompts</div>
+            <div class="pt-phase-body">
+              <div class="pt-prompt-grid" id="ptPromptGrid"></div>
+              <div class="pt-editor">
+                <div class="pt-editor-row">
+                  <div class="pt-editor-label">Applies to:</div>
+                  <select id="promptSupports" class="sh-input sh-input-sm pt-input">
+                    <option value="code">Code Mode</option>
+                    <option value="structure">Structure Mode</option>
+                    <option value="both" selected>Both</option>
+                  </select>
+                  <button id="promptResetEditor" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">New Prompt</button>
+                </div>
+                <input id="promptTitle" class="sh-input pt-input" placeholder="Prompt title" />
+                <textarea id="promptBody" class="sh-input pt-textarea" placeholder="Prompt text..."></textarea>
+                <div class="pt-actions">
+                  <button id="promptSave" class="sh-btn sh-btn-primary sh-btn-sm" type="button">${ICON_CHECK} Save</button>
+                  <button id="promptDelete" class="sh-btn sh-btn-danger sh-btn-sm" type="button" style="display:none;">${ICON_DELETE} Delete</button>
+                  <div style="flex:1"></div>
+                  <button id="promptToggleFavorite" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">${ICON_STAR} Favorite</button>
+                  <button id="promptTogglePin" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">${ICON_PIN} Pin</button>
+                </div>
+                <div style="font-size:12px; opacity:0.75;">Tip: Pins are per prompt and appear first in applicable results.</div>
               </div>
-              <div id="promptList" class="pt-prompt-list"></div>
-            </div>
-
-            <div class="pt-editor">
-              <div class="pt-editor-row">
-                <div class="pt-editor-label">Applies to:</div>
-                <select id="promptSupports" class="sh-input sh-input-sm pt-input">
-                  <option value="code">Code Mode</option>
-                  <option value="structure">Structure Mode</option>
-                  <option value="both" selected>Both</option>
-                </select>
-                <button id="promptResetEditor" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">New Prompt</button>
-              </div>
-              <input id="promptTitle" class="sh-input pt-input" placeholder="Prompt title" />
-              <textarea id="promptBody" class="sh-input pt-textarea" placeholder="Prompt text..."></textarea>
-              <div class="pt-actions">
-                <button id="promptSave" class="sh-btn sh-btn-primary sh-btn-sm" type="button">${ICON_CHECK} Save</button>
-                <button id="promptDelete" class="sh-btn sh-btn-danger sh-btn-sm" type="button" style="display:none;">${ICON_DELETE} Delete</button>
-                <div style="flex:1"></div>
-                <button id="promptToggleFavorite" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">${ICON_STAR} Favorite</button>
-                <button id="promptTogglePin" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">${ICON_PIN} Pin</button>
-              </div>
-              <div style="font-size:12px; opacity:0.75;">Tip: Pins are per prompt and appear first in applicable results.</div>
             </div>
           </div>
+
         </div>
       </div>
     `;

@@ -2,10 +2,6 @@ const CAT_PALETTE = [
   '#60a5fa', '#f87171', '#34d399', '#fbbf24', '#a78bfa',
   '#f472b6', '#fb923c', '#2dd4bf', '#e879f9', '#38bdf8',
 ];
-const MODAL_WIDTH  = 'min(700px, 94vw)';
-const MODAL_HEIGHT = '80vh';
-
-let _state = { phase: 'categories', catId: null, catColor: null };
 
 export async function openPromptPicker() {
   const existing = document.getElementById('ocPromptPickerModal');
@@ -106,50 +102,17 @@ export async function openPromptPicker() {
         <div class="oc-pp-prompt-title">${_esc(p.title || '(Untitled)')}</div>
         <div class="oc-pp-prompt-preview">${_esc((p.body || '').trim()) || '<span class="oc-pp-empty-inline">(empty)</span>'}</div>
       `;
-      card.addEventListener('click', () => showPromptDetail(p, color, categories, prompts, byCat));
+      card.addEventListener('click', () => {
+        const input = document.getElementById('ocInput');
+        if (input) {
+          input.value = p.body || '';
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+          input.focus();
+        }
+        close();
+      });
       grid.appendChild(card);
-    });
-  }
-
-  function showPromptDetail(p, color, categories, prompts, byCat) {
-    const cat = categories.find(c => c.id === p.categoryId);
-    const catName = cat?.name || 'Category';
-
-    const detailOverlay = document.createElement('div');
-    detailOverlay.className = 'oc-pp-detail-overlay';
-    detailOverlay.innerHTML = `
-      <div class="oc-pp-detail">
-        <div class="oc-pp-detail-header">
-          <div>
-            <div class="oc-pp-detail-cat" style="color:${color}">${_esc(catName)}</div>
-            <div class="oc-pp-detail-title">${_esc(p.title || '(Untitled)')}</div>
-          </div>
-          <button class="oc-pp-close" id="ocPpDetailClose">✕</button>
-        </div>
-        <div class="oc-pp-detail-body">
-          <textarea class="oc-pp-detail-text" readonly>${_esc(p.body || '')}</textarea>
-        </div>
-        <div class="oc-pp-detail-actions">
-          <button class="oc-pp-btn-cancel" id="ocPpDetailBack">Back</button>
-          <button class="oc-pp-btn-use" id="ocPpDetailUse" style="background:${color}33;border-color:${color};color:${color}">Use this Prompt</button>
-        </div>
-      </div>
-    `;
-
-    modal.appendChild(detailOverlay);
-
-    function closeDetail() { detailOverlay.remove(); }
-    detailOverlay.querySelector('#ocPpDetailClose').addEventListener('click', closeDetail);
-    detailOverlay.querySelector('#ocPpDetailBack').addEventListener('click', closeDetail);
-    detailOverlay.querySelector('#ocPpDetailUse').addEventListener('click', () => {
-      const input = document.getElementById('ocInput');
-      if (input) {
-        input.value = p.body || '';
-        input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 200) + 'px';
-        input.focus();
-      }
-      close();
     });
   }
 

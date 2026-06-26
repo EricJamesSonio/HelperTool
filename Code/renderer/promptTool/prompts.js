@@ -1,27 +1,25 @@
-import { getData, getSelectedCategoryId, getModal } from './state.js';
+import { getData, getSelectedCategoryId, getSelectedCategoryColor } from './state.js';
 import { escapeHtml } from './utils.js';
 import { ICON_STAR, ICON_STAR_FILLED, ICON_PIN } from './template.js';
 
 export function renderPromptList() {
-    const list = document.getElementById('promptList');
-    const content = document.querySelector('.pt-content');
-    if (!list || !content) return;
-    list.innerHTML = '';
+    const grid = document.getElementById('ptPromptGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
 
     const catId = getSelectedCategoryId();
-    content.classList.toggle('has-cat', !!catId);
     clearEditor();
 
     if (!catId) return;
 
+    const color = getSelectedCategoryColor() || '#60a5fa';
     const prompts = (getData().prompts || []).filter(p => p.categoryId === catId);
 
     if (!prompts.length) {
-        list.innerHTML = '<div class="pt-empty-list">No prompts in this category yet.</div>';
+        grid.innerHTML = '<div class="pt-empty-list">No prompts in this category yet.</div>';
         return;
     }
 
-    // Sort pinned first, then favorites, then newest
     prompts.sort((a, b) => {
         const ap = a.pinnedAt ? 1 : 0;
         const bp = b.pinnedAt ? 1 : 0;
@@ -31,22 +29,21 @@ export function renderPromptList() {
     });
 
     prompts.forEach(p => {
-        const row = document.createElement('div');
-        row.className = 'pt-prompt-item';
-        row.dataset.promptId = p.id;
-
-        row.innerHTML = `
-          <div class="pt-prompt-item-header">
-            <div class="pt-prompt-item-title">${escapeHtml(p.title || '(Untitled)')}</div>
-          </div>
+        const card = document.createElement('div');
+        card.className = 'pt-prompt-card';
+        card.dataset.promptId = p.id;
+        card.style.setProperty('--pt-color', color);
+        card.innerHTML = `
+          <div class="pt-prompt-card-title">${escapeHtml(p.title || '(Untitled)')}</div>
+          <div class="pt-prompt-card-preview">${escapeHtml((p.body || '').trim()) || '<span class="pt-empty-inline">(empty)</span>'}</div>
         `;
-
-        row.addEventListener('click', () => {
+        card.addEventListener('click', () => {
+            document.querySelectorAll('.pt-prompt-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
             setSelectedPrompt(p);
         });
-
-        list.appendChild(row);
-      });
+        grid.appendChild(card);
+    });
 }
 
 export function setSelectedPrompt(p) {
@@ -66,7 +63,12 @@ export function clearEditor() {
     document.getElementById('promptSupports').value = 'both';
     window.__promptToolSelectedPromptId = null;
 
-    document.getElementById('promptDelete').style.display = 'none';
-    document.getElementById('promptToggleFavorite').innerHTML = `${ICON_STAR} Favorite`;
-    document.getElementById('promptTogglePin').innerHTML = `${ICON_PIN} Pin`;
+    const delBtn = document.getElementById('promptDelete');
+    if (delBtn) delBtn.style.display = 'none';
+    const favBtn = document.getElementById('promptToggleFavorite');
+    if (favBtn) favBtn.innerHTML = `${ICON_STAR} Favorite`;
+    const pinBtn = document.getElementById('promptTogglePin');
+    if (pinBtn) pinBtn.innerHTML = `${ICON_PIN} Pin`;
+    const cards = document.querySelectorAll('.pt-prompt-card');
+    cards.forEach(c => c.classList.remove('active'));
 }

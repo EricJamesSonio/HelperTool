@@ -136,6 +136,8 @@ export function closeCodeSwampUI() {
     clearInterval(_refreshInterval);
     _refreshInterval = null;
   }
+  const picker = document.getElementById('ocPromptPickerModal');
+  if (picker) picker.remove();
 }
 
 export function isOpen() {
