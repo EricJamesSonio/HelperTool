@@ -25,15 +25,22 @@ export function getProjectById(id) {
   return state.projects.find(p => p.id === id) || null;
 }
 
+export function getProjectByRepoPath(repoPath) {
+  if (!repoPath) return null;
+  const np = repoPath.replace(/\\/g, '/').toLowerCase();
+  return state.projects.find(p => p.repoPath && p.repoPath.replace(/\\/g, '/').toLowerCase() === np) || null;
+}
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 
-export function createProject(title, description = '') {
+export function createProject(title, description = '', repoPath = null) {
   if (!title?.trim()) throw new Error('Project title is required');
 
   const project = {
     id: genId(),
     title: title.trim(),
     description: description.trim(),
+    repoPath: repoPath || null,
     overview: '',
     // 3-part folder structure
     folderMain: '',
@@ -66,7 +73,7 @@ const allowed = [
   'title', 'description', 'overview',
   'folderMain', 'folderFrontend', 'folderBackend',
   'folderStructure', // legacy
-  'databaseInfo', 'planningNotes', 'status',
+  'databaseInfo', 'planningNotes', 'status', 'repoPath',
   // Infinity Stones
   'stoneCodeStandards', 'stoneProjectOverview', 'stoneProgressTracker',
   'stoneUIContext', 'stoneArchitecture', 'stoneAIWorkflow',

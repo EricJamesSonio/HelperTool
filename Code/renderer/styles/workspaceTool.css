@@ -434,6 +434,28 @@
 }
 .workspace-card-edit svg,
 .workspace-card-delete svg { width: 14px; height: 14px; display: block; color: var(--text-muted); }
+.ws-repo-badge {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+  width: 16px;
+  height: 16px;
+  color: var(--cyan);
+  opacity: 0.7;
+}
+.ws-repo-link-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 4px 0;
+  cursor: pointer;
+}
+.ws-repo-link-row input[type="checkbox"] {
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
 .workspace-project-card:hover .workspace-card-edit,
 .workspace-project-card:hover .workspace-card-delete,
 .workspace-worker-card:hover  .workspace-card-edit,
