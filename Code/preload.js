@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const repoBridge = {
     selectRepo:          ()              => ipcRenderer.invoke('select-repo'),
+    selectFolder:        ()              => ipcRenderer.invoke('select-folder'),
     getFolderTree:       (repoPath)      => ipcRenderer.invoke('getFolderTree', repoPath),
     getUserDataPath:     ()              => ipcRenderer.invoke('get-user-data-path'),
     openDocignore:       (repoPath)      => ipcRenderer.invoke('open-docignore', repoPath),

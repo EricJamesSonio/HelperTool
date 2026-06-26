@@ -248,42 +248,34 @@ function _renderProjectsList(body) {
     <div class="ws-add-project-form">
       <input type="text" id="newProjectTitle" placeholder="Project title..." class="workspace-input" />
       <input type="text" id="newProjectDesc"  placeholder="Short description (optional)..." class="workspace-input" />
-      <label class="ws-repo-link-row">
-        <input type="checkbox" id="wsLinkToRepo" checked />
-        <span id="wsRepoLinkLabel">Link to current repo</span>
-      </label>
+      <div class="ws-repo-picker-row">
+        <span class="ws-repo-picker-label">Link to a repo folder</span>
+        <div class="ws-repo-picker-controls">
+          <input type="text" id="addProjRepoPath" class="workspace-input ws-repo-picker-input" placeholder="No folder selected" readonly />
+          <button class="workspace-btn-icon" id="addProjBrowseBtn" title="Browse for folder">${ICON_FOLDER_OPEN} Browse</button>
+          <button class="workspace-btn-icon workspace-btn-clear" id="addProjClearBtn" title="Clear">&times;</button>
+        </div>
+      </div>
       <button class="workspace-btn-add" id="addProjectBtn">${ICON_PLUS} Add Project</button>
     </div>
     <div class="workspace-form-error" id="addProjectError"></div>
   `;
   body.appendChild(form);
 
-  // Update the repo link label with the active repo path if available
-  (async () => {
-    try {
-      const active = await window.electronAPI.getActiveProject();
-      const rp = active?.repoPath;
-      const label = document.getElementById('wsRepoLinkLabel');
-      if (label && rp) {
-        const folder = rp.replace(/\\/g, '/').split('/').filter(Boolean).pop() || rp;
-        label.textContent = `Link to repo: ${folder}`;
-        label.title = rp;
-      } else if (label) {
-        label.textContent = 'Link to repo';
-      }
-    } catch {}
-  })();
+  // Browse button for repo path
+  const browseBtn = form.querySelector('#addProjBrowseBtn');
+  const repoPathInput = form.querySelector('#addProjRepoPath');
+  const clearBtn = form.querySelector('#addProjClearBtn');
+  browseBtn.addEventListener('click', async () => {
+    const p = await window.electronAPI.selectFolder();
+    if (p) { repoPathInput.value = p; repoPathInput.title = p; }
+  });
+  clearBtn.addEventListener('click', () => { repoPathInput.value = ''; repoPathInput.title = ''; });
 
   form.querySelector('#addProjectBtn').addEventListener('click', async () => {
     const errEl = document.getElementById('addProjectError');
     try {
-      let repoPath = null;
-      if (document.getElementById('wsLinkToRepo').checked) {
-        try {
-          const active = await window.electronAPI.getActiveProject();
-          repoPath = active?.repoPath || null;
-        } catch {}
-      }
+      const repoPath = document.getElementById('addProjRepoPath').value || null;
       createProject(
         document.getElementById('newProjectTitle').value,
         document.getElementById('newProjectDesc').value,
@@ -292,6 +284,7 @@ function _renderProjectsList(body) {
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       document.getElementById('newProjectTitle').value = '';
       document.getElementById('newProjectDesc').value  = '';
+      document.getElementById('addProjRepoPath').value = '';
       render();
     } catch (err) {
       if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
@@ -323,6 +316,7 @@ function _buildProjectCard(project) {
   card.innerHTML = `
     <div class="workspace-card-header">
       <div class="workspace-card-title">${project.title}${repoBadge}</div>
+      <div class="workspace-card-spacer"></div>
       <button class="workspace-card-edit" title="Edit">${ICON_EDIT}</button>
       <button class="workspace-card-delete" title="Delete">${ICON_DELETE}</button>
     </div>
@@ -377,10 +371,27 @@ function _showEditProjectModal(project) {
       </select>
     </div>
     <div class="workspace-form-group">
-      <label>Linked repo path</label>
-      <input type="text" id="editProjRepoPath" value="${_esc(project.repoPath || '')}" class="workspace-input" placeholder="e.g. C:/Users/me/project" />
+      <label>Linked repo folder</label>
+      <div class="ws-repo-picker-controls">
+        <input type="text" id="editProjRepoPath" class="workspace-input ws-repo-picker-input" value="${_esc(project.repoPath || '')}" placeholder="No folder selected" readonly />
+        <button class="workspace-btn-icon" id="editProjBrowseBtn" title="Browse for folder">${ICON_FOLDER_OPEN} Browse</button>
+        <button class="workspace-btn-icon workspace-btn-clear" id="editProjClearBtn" title="Clear">&times;</button>
+      </div>
     </div>
   `, errEl => {
+    // Browse + Clear buttons wired after modal mount
+    const browseBtn = modal.querySelector('#editProjBrowseBtn');
+    const clearBtn = modal.querySelector('#editProjClearBtn');
+    const repoInput = modal.querySelector('#editProjRepoPath');
+    if (browseBtn) {
+      browseBtn.addEventListener('click', async () => {
+        const p = await window.electronAPI.selectFolder();
+        if (p) { repoInput.value = p; repoInput.title = p; }
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => { repoInput.value = ''; repoInput.title = ''; });
+    }
     try {
       updateProject(project.id, {
         title:       document.getElementById('editProjTitle').value,
@@ -455,6 +466,7 @@ function _buildWorkerCard(worker) {
     <div class="workspace-card-header">
       <div class="ws-worker-avatar" style="background:${worker.avatarColor}">${worker.name.charAt(0).toUpperCase()}</div>
       <div class="workspace-card-title">${worker.name}</div>
+      <div class="workspace-card-spacer"></div>
       <button class="workspace-card-edit" title="Edit">${ICON_EDIT}</button>
       <button class="workspace-card-delete" title="Delete">${ICON_DELETE}</button>
     </div>
@@ -548,6 +560,7 @@ function _renderProjectDetails(body) {
     { key: 'plannings', label: `${ICON_PLANNING} Plannings` },
     { key: 'stones', label: '💎 Infinity Stones' },
     { key: 'logs',      label: `${ICON_LOGS} Logs`     },
+    { key: 'repo',      label: `${ICON_REPO} Repo`      },
   ];
 
   const tabBar = document.createElement('div');
@@ -574,6 +587,7 @@ function _renderProjectDetails(body) {
     case 'plannings': _renderTabPlannings(content);   break;
     case 'stones':    _renderTabStones(content);      break;
     case 'logs':      _renderTabProjectLogs(content); break;
+    case 'repo':      _renderTabRepo(content);         break;
     
   }
   body.appendChild(content);
@@ -1208,6 +1222,41 @@ function _renderTabProjectLogs(el) {
   list.className = 'workspace-logs-container';
   logs.forEach(log => list.appendChild(_buildLogItem(log)));
   el.appendChild(list);
+}
+
+// ── Tab: Repo ─────────────────────────────────────────────────────────────────
+
+function _renderTabRepo(el) {
+  const p = _selectedProject;
+  const linked = p.repoPath;
+  el.innerHTML = `
+    <div class="ws-repo-tab-card">
+      <div class="ws-repo-tab-header">
+        <label>Linked Folder</label>
+        <span class="ws-repo-tab-status ${linked ? '' : 'ws-repo-tab-unlinked'}">
+          ${linked ? `${ICON_REPO} Linked` : `${ICON_REMOVE} Not linked`}
+        </span>
+      </div>
+      ${linked ? `<div class="ws-repo-tab-path" title="${_esc(linked)}">${_esc(linked)}</div>` : ''}
+      <div class="ws-repo-tab-actions">
+        <button class="workspace-btn-add" id="repoTabBrowseBtn" style="display:inline-flex;align-items:center;gap:6px">${ICON_FOLDER_OPEN} ${linked ? 'Change Folder' : 'Select Folder'}</button>
+        ${linked ? `<button class="workspace-btn-cancel" id="repoTabClearBtn" style="display:inline-flex;align-items:center;gap:6px">${ICON_REMOVE} Unlink</button>` : ''}
+      </div>
+    </div>
+  `;
+  el.querySelector('#repoTabBrowseBtn')?.addEventListener('click', async () => {
+    const rp = await window.electronAPI.selectFolder();
+    if (rp) {
+      updateProject(p.id, { repoPath: rp });
+      _selectedProject = getProjectById(p.id);
+      _renderTabRepo(el);
+    }
+  });
+  el.querySelector('#repoTabClearBtn')?.addEventListener('click', () => {
+    updateProject(p.id, { repoPath: null });
+    _selectedProject = getProjectById(p.id);
+    _renderTabRepo(el);
+  });
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────

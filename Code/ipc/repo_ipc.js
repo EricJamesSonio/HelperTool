@@ -203,6 +203,17 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    ipcMain.handle('select-folder', async () => {
+        try {
+            const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+            if (result.canceled || !result.filePaths.length) return null;
+            return result.filePaths[0];
+        } catch (err) {
+            console.error('[IPC] select-folder error:', err);
+            return null;
+        }
+    });
+
     ipcMain.handle('set-folder-filters', (event, filters) => {
         try {
             const cfg = config.readConfig();
