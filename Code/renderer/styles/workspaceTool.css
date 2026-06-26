@@ -950,6 +950,7 @@
   flex: 1;
   overflow: hidden;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .ws-stone-empty {
