@@ -34,7 +34,6 @@ export async function openPromptPicker() {
   });
 
   function renderCategories() {
-    _state = { phase: 'categories', catId: null, catColor: null };
     modal.innerHTML = `
       <div class="oc-pp-header">
         <span class="oc-pp-title">Select a Category</span>
@@ -70,7 +69,6 @@ export async function openPromptPicker() {
   }
 
   function renderPrompts(catId, color, categories, prompts, byCat) {
-    _state = { phase: 'prompts', catId, catColor: color };
     const cat = categories.find(c => c.id === catId);
     const catName = cat?.name || 'Category';
     const list = byCat.get(catId) || [];
