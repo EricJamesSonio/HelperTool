@@ -19,6 +19,7 @@ export async function openCodebaseMap() {
         <div class="cm-title">${ICON_MAP} Codebase Map</div>
         <div class="cm-header-actions">
           <button class="cm-btn" id="cmCopyBtn">${ICON_COPY} Copy Map</button>
+          <button class="cm-btn" id="cmCopyStructureBtn">${ICON_COPY} Copy Structure</button>
           <button class="cm-btn-close" id="cmCloseBtn">✕</button>
         </div>
       </div>
@@ -31,6 +32,7 @@ export async function openCodebaseMap() {
 
   _overlay.querySelector('#cmCloseBtn').addEventListener('click', closeCodebaseMap);
   _overlay.querySelector('#cmCopyBtn')?.addEventListener('click', copyMap);
+  _overlay.querySelector('#cmCopyStructureBtn')?.addEventListener('click', copyStructure);
   _overlay.addEventListener('click', e => { if (e.target === _overlay) closeCodebaseMap(); });
   document.addEventListener('keydown', _escHandler);
 
@@ -200,17 +202,11 @@ function toggleModule(card, module, color) {
   const exp = card.querySelector('.cm-expanded');
   exp.style.display = 'grid';
 
-  // Files
+  // Files — tree view
   let filesHtml = '<div class="cm-expanded-section"><div class="cm-expanded-section-title">Files</div>';
-  for (const f of module.files) {
-    const exports = f.exports || [];
-    const exportHint = exports.length ? ` (${exports.length} exports)` : '';
-    filesHtml += `<div class="cm-expanded-file" data-path="${_esc(f.path)}">
-      <span class="cm-filename">${_esc(f.path)}${exportHint}</span>
-      <span class="cm-file-symcount">${f.symbolCount} syms</span>
-    </div>`;
-  }
-  filesHtml += '</div>';
+  filesHtml += '<div class="cm-tree">';
+  filesHtml += _renderTreeHTML(module.tree || []);
+  filesHtml += '</div></div>';
 
   // Dependencies
   let depsHtml = '<div class="cm-expanded-section"><div class="cm-expanded-section-title">Dependencies</div>';
@@ -236,12 +232,45 @@ function toggleModule(card, module, color) {
   exp.innerHTML = filesHtml + depsHtml;
 
   // Click file → navigate
-  exp.querySelectorAll('.cm-expanded-file[data-path]').forEach(el => {
+  exp.querySelectorAll('.cm-tree-file[data-path]').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       selectFileInTree(el.dataset.path);
     });
   });
+}
+
+function _renderTreeHTML(nodes, prefix = '') {
+  let html = '';
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const isLast = i === nodes.length - 1;
+    const connector = isLast ? '└── ' : '├── ';
+    const linePrefix = prefix + connector;
+    const childPrefix = prefix + (isLast ? '    ' : '│   ');
+
+    if (node.type === 'directory') {
+      html += `<div class="cm-tree-dir">
+        <span class="cm-tree-prefix">${_esc(linePrefix)}</span>
+        <span class="cm-tree-dirname">${_esc(node.name)}/</span>
+      </div>`;
+      html += _renderTreeHTML(node.children || [], childPrefix);
+    } else {
+      let tagStr = '';
+      if (node.symbolCount > 0) tagStr += `<span class="cm-tree-tag syms">${node.symbolCount} syms</span> `;
+      if (node.importCount > 0) tagStr += `<span class="cm-tree-tag imports">${node.importCount} imports</span> `;
+      if (node.dependentCount > 0) tagStr += `<span class="cm-tree-tag dependents">${node.dependentCount} dependents</span> `;
+      if (node.exports && node.exports.length > 0) tagStr += `<span class="cm-tree-tag exports">${node.exports.length} exports</span> `;
+      const roleStr = node.role && node.role !== 'module' ? ` <span class="cm-tree-tag role">← ${_esc(node.role)}</span>` : '';
+
+      html += `<div class="cm-tree-file" data-path="${_esc(node.path)}">
+        <span class="cm-tree-prefix">${_esc(linePrefix)}</span>
+        <span class="cm-tree-filename">${_esc(node.name)}</span>
+        ${tagStr}${roleStr}
+      </div>`;
+    }
+  }
+  return html;
 }
 
 function selectFileInTree(filePath) {
@@ -307,15 +336,74 @@ async function copyMap() {
     ta.remove();
   }
 
-  showToast();
+  showToast('Map copied to clipboard!');
 }
 
-function showToast() {
+async function copyStructure() {
+  if (!_data || !_data.modules) return;
+
+  const lines = [];
+  for (const mod of _data.modules) {
+    lines.push(`${mod.name}/`);
+    const childLines = _renderStructureLines(mod.tree || [], '');
+    for (const cl of childLines) lines.push(cl);
+    lines.push('');
+  }
+
+  const text = lines.join('\n');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+
+  showToast('Structure copied to clipboard!');
+}
+
+function _renderStructureLines(nodes, prefix) {
+  const lines = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const isLast = i === nodes.length - 1;
+    const connector = isLast ? '└── ' : '├── ';
+    const linePrefix = prefix + connector;
+    const childPrefix = prefix + (isLast ? '    ' : '│   ');
+
+    if (node.type === 'directory') {
+      lines.push(linePrefix + node.name + '/');
+      const childLines = _renderStructureLines(node.children || [], childPrefix);
+      for (const cl of childLines) lines.push(cl);
+    } else {
+      lines.push(linePrefix + node.name);
+    }
+  }
+  return lines;
+}
+
+function showToast(msg) {
   const modal = _overlay?.querySelector('.cm-modal');
   if (!modal) return;
   const toast = document.createElement('div');
   toast.className = 'cm-toast';
-  toast.textContent = 'Map copied to clipboard!';
+  toast.textContent = msg || 'Copied!';
   modal.appendChild(toast);
   setTimeout(() => toast.remove(), 1600);
 }

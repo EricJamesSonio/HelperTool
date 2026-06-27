@@ -158,6 +158,17 @@ function repoGetAll() {
   return results;
 }
 
+function detectLanguage(ext) {
+  const map = {
+    '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+    '.ts': 'typescript', '.tsx': 'tsx',
+    '.py': 'python',
+    '.html': 'html', '.htm': 'html',
+    '.css': 'css', '.scss': 'css', '.less': 'css',
+  };
+  return map[ext] || null;
+}
+
 function fileInsert(repoId, filePath, language, fileHash, lastModified) {
   const now = new Date().toISOString();
   _db.run('INSERT OR REPLACE INTO indexed_files (repo_id, path, language, file_hash, last_modified, indexed_at, is_dirty) VALUES (?, ?, ?, ?, ?, ?, 0)', [repoId, filePath, language, fileHash, lastModified, now]);
@@ -825,7 +836,8 @@ async function h_indexStart(id, type, payload) {
           fileMarkClean(fileId);
           _db.run('UPDATE indexed_files SET file_hash=?, indexed_at=? WHERE id=?', [hash, new Date().toISOString(), fileId]);
         } else {
-          fileId = fileInsert(repo.id, filePath, null, hash, new Date().toISOString());
+          const lang = detectLanguage(path.extname(filePath).toLowerCase());
+          fileId = fileInsert(repo.id, filePath, lang, hash, new Date().toISOString());
         }
         fileInsertSymbols(fileId, repo.id, result.symbols);
         fileInsertImports(fileId, repo.id, result.imports);
