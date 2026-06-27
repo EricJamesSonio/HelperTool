@@ -86,6 +86,8 @@ async function getActiveRepoPath() {
   } catch { return null; }
 }
 
+let _graphRoot = null;
+
 function render(body) {
   const { overview, modules, keyFiles, circularDeps } = _data;
 
@@ -100,6 +102,12 @@ function render(body) {
     if (lang) html += `<span class="cm-lang-badge">${_esc(lang.toUpperCase())} ${count}</span>`;
   }
   html += '</div>';
+
+  // Tab bar
+  html += '<div class="cm-tabs"><button class="cm-tab active" data-tab="tree">Tree</button><button class="cm-tab" data-tab="graph">Graph</button></div>';
+
+  // Tree tab content
+  html += '<div class="cm-tab-content active" id="cmTabTree">';
 
   // Circular deps warning
   if (circularDeps && circularDeps.length > 0) {
@@ -133,6 +141,11 @@ function render(body) {
   }
   html += '</div>';
 
+  html += '</div>'; // end #cmTabTree
+
+  // Graph tab content
+  html += '<div class="cm-tab-content" id="cmTabGraph"><div class="cm-graph-container" id="cmGraphContainer"></div></div>';
+
   body.innerHTML = html;
 
   // Render module cards
@@ -143,6 +156,51 @@ function render(body) {
   body.querySelectorAll('.cm-keyfile-row').forEach(el => {
     el.addEventListener('click', () => selectFileInTree(el.dataset.path));
   });
+
+  // Tab switching
+  body.querySelectorAll('.cm-tab').forEach(tab => {
+    tab.addEventListener('click', async () => {
+      body.querySelectorAll('.cm-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const tabName = tab.dataset.tab;
+      body.querySelectorAll('.cm-tab-content').forEach(tc => tc.classList.remove('active'));
+      const target = document.getElementById('cmTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+      if (target) {
+        target.classList.add('active');
+        if (tabName === 'graph') {
+          await _initGraph();
+        }
+      }
+    });
+  });
+}
+
+async function _initGraph() {
+  const container = document.getElementById('cmGraphContainer');
+  if (!container || !_data) return;
+  if (container.dataset.initialized) return;
+  container.dataset.initialized = '1';
+
+  try {
+    const { initGraph } = await import('./codebaseMap-graph-bundle.js');
+    _graphRoot = initGraph(container, _data.modules);
+
+    window.__cmSelectModule = (moduleName) => {
+      const treeTab = document.querySelector('.cm-tab[data-tab="tree"]');
+      if (treeTab) treeTab.click();
+
+      const card = document.querySelector(`.cm-module-card[data-module="${_esc(moduleName)}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const moduleIdx = _data.modules.findIndex(m => m.name === moduleName);
+        if (moduleIdx >= 0) {
+          toggleModule(card, _data.modules[moduleIdx], CAT_PALETTE[moduleIdx % CAT_PALETTE.length]);
+        }
+      }
+    };
+  } catch (err) {
+    container.innerHTML = `<div class="cm-error">Failed to load graph: ${_esc(err.message)}</div>`;
+  }
 }
 
 function overviewBarItem(icon, value, label) {
