@@ -49,6 +49,7 @@ const FEATURES = [
       { id: 'automationSketch',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',name: 'Automation Sketch' },
       { id: 'githubExplorer',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="5"/><path d="M2 10h3M15 10h3M10 2v3M10 15v3"/><circle cx="10" cy="10" r="1.5"/></svg>',name: 'GitHub Explorer' },
       { id: 'codeswampChat',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',name: 'Code Swamp' },
+      { id: 'codebaseMap',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/><line x1="9" y1="6" x2="11" y2="6"/><line x1="6" y1="9" x2="6" y2="11"/><line x1="14" y1="9" x2="14" y2="11"/><line x1="9" y1="14" x2="11" y2="14"/></svg>',name: 'Codebase Map' },
 ];
 
 let _modal = null;

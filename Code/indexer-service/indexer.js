@@ -703,6 +703,44 @@ function h_indexFiles(id, type, payload) {
   return respond({ id, type, ok: true, data: { indexed: results.length, total: files.length, totalSymbols, fileResults: results } });
 }
 
+function h_dbGetCodebaseMapData(id, type, payload) {
+  const { repoPath } = payload || {};
+  if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
+  const repo = repoGetByPath(repoPath);
+  if (!repo) return respond({ id, type, ok: true, data: null });
+
+  const fStmt = _db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? ORDER BY path');
+  fStmt.bind([repo.id]);
+  const files = [];
+  while (fStmt.step()) files.push(fStmt.getAsObject());
+  fStmt.free();
+
+  const sStmt = _db.prepare(`SELECT s.name, s.type, s.line, s.column, s.is_exported, s.class_name, s.signature, f.path as file_path
+    FROM symbols s JOIN indexed_files f ON f.id = s.file_id WHERE s.repo_id = ? ORDER BY f.path, s.line`);
+  sStmt.bind([repo.id]);
+  const symbols = [];
+  while (sStmt.step()) symbols.push(sStmt.getAsObject());
+  sStmt.free();
+
+  const iStmt = _db.prepare(`SELECT fi.import_path, fi.import_type, fi.imported_symbols, fi.line, fi.column, f.path as source_path, rf.path as resolved_path
+    FROM file_imports fi JOIN indexed_files f ON f.id = fi.file_id LEFT JOIN indexed_files rf ON rf.id = fi.resolved_file_id
+    WHERE fi.repo_id = ? ORDER BY f.path, fi.line`);
+  iStmt.bind([repo.id]);
+  const fileImports = [];
+  while (iStmt.step()) {
+    const row = iStmt.getAsObject();
+    if (row.imported_symbols) {
+      try { row.imported_symbols = JSON.parse(row.imported_symbols); } catch (e) { row.imported_symbols = []; }
+    } else {
+      row.imported_symbols = [];
+    }
+    fileImports.push(row);
+  }
+  iStmt.free();
+
+  return respond({ id, type, ok: true, data: { files, symbols, imports: fileImports } });
+}
+
 function h_symbolsGet(id, type, payload) {
   const { filePath, limit, offset } = payload || {};
   if (!filePath) return respond({ id, type, ok: false, error: 'Missing filePath' });
@@ -881,6 +919,7 @@ function handle(msg) {
       case 'db:getChatCircularDeps': return h_dbGetChatCircularDeps(id, type, payload);
       case 'db:getFileList': return h_dbGetFileList(id, type, payload);
       case 'db:getFileDeps': return h_dbGetFileDeps(id, type, payload);
+      case 'db:getCodebaseMapData': return h_dbGetCodebaseMapData(id, type, payload);
 
       // Existing operations
       case 'indexFile': return h_indexFile(id, type, payload);
