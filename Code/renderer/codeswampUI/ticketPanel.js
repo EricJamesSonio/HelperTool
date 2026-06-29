@@ -71,12 +71,12 @@ export async function openTicketPanel() {
     close();
   }
 
-  let activeFilter = 'all';
+  let activeFilter = null;
 
   function render() {
-    const filtered = activeFilter === 'all'
-      ? tickets
-      : tickets.filter(t => t.status === activeFilter);
+    const filtered = activeFilter
+      ? tickets.filter(t => t.status === activeFilter)
+      : tickets;
 
     modal.innerHTML = `
       <div class="oc-tp-header">
@@ -84,7 +84,6 @@ export async function openTicketPanel() {
         <button class="oc-tp-close" id="ocTpClose">✕</button>
       </div>
       <div class="oc-tp-filters" id="ocTpFilters">
-        <button class="oc-tp-filter ${activeFilter === 'all' ? 'active' : ''}" data-filter="all">All (${tickets.length})</button>
         ${TICKET_STATUSES.map(s => `
           <button class="oc-tp-filter ${activeFilter === s ? 'active' : ''}" data-filter="${s}" style="--tp-color:${STATUS_COLORS[s]}">
             ${s} (${tickets.filter(t => t.status === s).length})
@@ -99,7 +98,8 @@ export async function openTicketPanel() {
 
     modal.querySelectorAll('.oc-tp-filter').forEach(btn => {
       btn.addEventListener('click', () => {
-        activeFilter = btn.dataset.filter;
+        const f = btn.dataset.filter;
+        activeFilter = activeFilter === f ? null : f;
         render();
       });
     });

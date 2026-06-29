@@ -118,9 +118,9 @@
 .ws-home-right { display: flex; flex-direction: column; gap: 14px; }
 
 .ws-home-section-label {
-  font-size: 0.72rem; font-weight: 700;
+  font-size: 0.82rem; font-weight: 700;
   color: var(--accent);
-  text-transform: uppercase; letter-spacing: 1.2px;
+  text-transform: uppercase; letter-spacing: 0.8px;
 }
 
 .ws-home-stats-grid {
@@ -132,15 +132,15 @@
 .ws-stat-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
-  border-radius: 14px; padding: 20px 22px;
+  border-radius: 14px; padding: 22px 24px;
   display: flex; flex-direction: column; gap: 4px;
   transition: border-color 0.15s;
 }
 .ws-stat-card:hover { border-color: var(--border-default); }
 .ws-stat-accent { border-left: 3px solid var(--accent); }
-.ws-stat-num { font-size: 2rem; font-weight: 800; color: var(--accent); line-height: 1; }
-.ws-stat-lbl { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.9px; margin-top: 4px; }
-.ws-stat-sub { font-size: 0.73rem; color: var(--text-muted); }
+.ws-stat-num { font-size: 2.4rem; font-weight: 800; color: var(--accent); line-height: 1; }
+.ws-stat-lbl { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
+.ws-stat-sub { font-size: 0.82rem; color: var(--text-muted); }
 
 .ws-home-nav-cards { display: flex; flex-direction: column; gap: 10px; }
 
@@ -161,8 +161,8 @@
 .ws-home-card-icon svg { width: 24px; height: 24px; display: block; color: var(--accent); }
 .ws-home-card[data-goto="projects"] .ws-home-card-icon svg { color: var(--yellow); }
 .ws-home-card[data-goto="workers"]  .ws-home-card-icon svg { color: var(--green); }
-.ws-home-card-label { font-size: 0.97rem; font-weight: 700; color: var(--text-primary); }
-.ws-home-card-sub   { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+.ws-home-card-label { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+.ws-home-card-sub   { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
 .ws-home-card-arrow {
   font-size: 1rem; color: var(--text-muted);
   transition: color 0.15s; flex-shrink: 0;
@@ -192,11 +192,11 @@
 }
 .ws-home-activity-content { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 .ws-home-activity-msg {
-  font-size: 0.84rem; color: var(--text-primary);
+  font-size: 0.92rem; color: var(--text-primary);
   line-height: 1.4; word-break: break-word;
 }
 .ws-home-activity-msg strong { color: var(--accent); font-weight: 700; }
-.ws-home-activity-time { font-size: 0.73rem; color: var(--text-muted); }
+.ws-home-activity-time { font-size: 0.8rem; color: var(--text-muted); }
 .ws-home-view-all {
   align-self: flex-end;
   background: none; border: none; padding: 4px 0;
@@ -215,11 +215,11 @@
 .workspace-form-section {
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 14px; padding: 20px 22px;
+  border-radius: 14px; padding: 24px 28px;
 }
 .workspace-form-label {
-  font-size: 0.72rem; font-weight: 700; color: var(--accent);
-  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 14px; display: block;
+  font-size: 0.85rem; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; display: block;
 }
 
 /* ─── Form row layouts ───────────────────────────────────────────────────── */
@@ -235,14 +235,14 @@
 
 .ws-ticket-form-grid {
   display: grid;
-  grid-template-columns: 1fr 155px 120px auto;
-  gap: 10px; align-items: end;
+  grid-template-columns: 1fr 200px 160px auto;
+  gap: 12px; align-items: end;
 }
 
-.workspace-form-group { display: flex; flex-direction: column; gap: 7px; flex: 1; }
+.workspace-form-group { display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .workspace-form-group label {
-  font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
-  text-transform: uppercase; letter-spacing: 0.6px;
+  font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.4px;
 }
 .workspace-form-group .workspace-input,
 .workspace-form-group .workspace-select,
@@ -254,12 +254,12 @@
 .workspace-input,
 .workspace-select,
 .workspace-textarea {
-  padding: 9px 12px;
+  padding: 12px 16px;
   border: 1px solid var(--border-default);
   border-radius: var(--r-md);
   background: var(--bg-raised);
   color: var(--text-primary);
-  font-size: 0.88rem; font-family: inherit;
+  font-size: 0.95rem; font-family: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .workspace-input:focus,
@@ -283,15 +283,15 @@
 
 .ws-fullheight-textarea {
   flex: 1; width: 100%; box-sizing: border-box; resize: none;
-  padding: 14px 16px;
+  padding: 16px 20px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
   background: var(--bg-raised);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 0.83rem; line-height: 1.75;
+  font-size: 0.9rem; line-height: 1.75;
   transition: border-color 0.15s, box-shadow 0.15s;
-  min-height: 260px;
+  min-height: 300px;
 }
 .ws-fullheight-textarea:focus {
   outline: none; border-color: var(--accent);
@@ -316,7 +316,7 @@
 }
 .ws-folder-panel-header {
   display: flex; align-items: center; gap: 12px;
-  padding: 16px 20px;
+  padding: 18px 22px;
   background: var(--bg-overlay);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -337,8 +337,8 @@
 /* ─── Buttons ────────────────────────────────────────────────────────────── */
 .workspace-btn-add,
 .workspace-btn-cancel {
-  padding: 9px 18px; border: none; border-radius: var(--r-md);
-  font-size: 0.88rem; font-weight: 700; cursor: pointer;
+  padding: 12px 24px; border: none; border-radius: var(--r-md);
+  font-size: 0.95rem; font-weight: 700; cursor: pointer;
   transition: all 0.18s; white-space: nowrap; flex-shrink: 0;
   display: inline-flex; align-items: center; gap: 6px;
 }
@@ -371,24 +371,24 @@
 .workspace-project-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 14px; padding: 20px 22px; cursor: pointer;
+  border-radius: 14px; padding: 24px 26px; cursor: pointer;
   transition: all 0.22s cubic-bezier(0.4,0,0.2,1);
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 14px;
 }
 .workspace-project-card:hover {
   border-color: var(--accent); transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
 .ws-project-desc {
-  font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5;
+  font-size: 0.92rem; color: var(--text-secondary); line-height: 1.5;
   min-height: 2.5em; max-height: 2.5em; overflow: hidden;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .ws-project-status-badge {
   display: inline-flex; align-items: center;
-  padding: 4px 12px; border-radius: 20px;
-  font-size: 0.74rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.6px;
+  padding: 6px 14px; border-radius: 20px;
+  font-size: 0.82rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.4px;
   width: fit-content;
   background: var(--accent-dim); color: var(--accent);
 }
@@ -396,35 +396,35 @@
 .ws-project-status-badge.ws-status-in-progress { background: var(--blue-dim);   color: var(--blue); }
 .ws-project-status-badge.ws-status-maintenance { background: var(--purple-dim); color: var(--purple); }
 .ws-project-status-badge.ws-status-planning    { background: var(--bg-raised);  color: var(--text-muted); }
-.ws-project-meta { display: flex; gap: 16px; font-size: 0.8rem; color: var(--text-muted); }
-.ws-project-meta span { display: inline-flex; align-items: center; gap: 4px; }
-.ws-project-meta svg { width: 14px; height: 14px; display: block; }
-.ws-progress-bar-wrap { height: 4px; background: var(--bg-raised); border-radius: 3px; overflow: hidden; }
+.ws-project-meta { display: flex; gap: 20px; font-size: 0.88rem; color: var(--text-muted); }
+.ws-project-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.ws-project-meta svg { width: 16px; height: 16px; display: block; }
+.ws-progress-bar-wrap { height: 6px; background: var(--bg-raised); border-radius: 3px; overflow: hidden; }
 .ws-progress-bar { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s ease; }
-.ws-progress-label { font-size: 0.75rem; color: var(--text-muted); text-align: right; }
+.ws-progress-label { font-size: 0.82rem; color: var(--text-muted); text-align: right; }
 
 /* ─── Worker card ────────────────────────────────────────────────────────── */
 .workspace-worker-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 14px; padding: 20px 22px;
-  display: flex; flex-direction: column; gap: 12px; transition: all 0.22s;
+  border-radius: 14px; padding: 24px 26px;
+  display: flex; flex-direction: column; gap: 14px; transition: all 0.22s;
 }
 .workspace-worker-card:hover {
   border-color: var(--accent); transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
 .ws-worker-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 1rem; color: var(--bg-base); flex-shrink: 0;
+  font-weight: 800; font-size: 1.15rem; color: var(--bg-base); flex-shrink: 0;
   background: var(--accent-dim);
 }
-.ws-worker-avatar.sm { width: 30px; height: 30px; font-size: 0.85rem; }
+.ws-worker-avatar.sm { width: 34px; height: 34px; font-size: 0.9rem; }
 
 /* ─── Shared card parts ──────────────────────────────────────────────────── */
-.workspace-card-header { display: flex; align-items: center; gap: 10px; }
-.workspace-card-title  { font-size: 1rem; font-weight: 700; color: var(--text-primary); flex: 1; word-break: break-word; }
+.workspace-card-header { display: flex; align-items: center; gap: 12px; }
+.workspace-card-title  { font-size: 1.08rem; font-weight: 700; color: var(--text-primary); flex: 1; word-break: break-word; }
 .workspace-card-header .workspace-card-spacer { flex: 0 0 auto; }
 .workspace-card-edit,
 .workspace-card-delete {
@@ -508,10 +508,10 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 14px;
-  padding: 24px;
+  padding: 28px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 .ws-repo-tab-header {
   display: flex;
@@ -543,10 +543,10 @@
   color: var(--text-muted);
 }
 .ws-repo-tab-path {
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
   background: var(--bg-raised);
-  padding: 10px 14px;
+  padding: 14px 18px;
   border-radius: var(--r-sm);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   word-break: break-all;
@@ -565,30 +565,30 @@
 .workspace-card-edit:hover svg   { color: var(--blue); }
 .workspace-card-delete:hover svg { color: var(--red); }
 .workspace-card-role {
-  display: inline-block; padding: 4px 11px;
+  display: inline-block; padding: 6px 14px;
   background: var(--accent-dim); color: var(--accent);
-  font-size: 0.75rem; font-weight: 700; border-radius: var(--r-xs);
+  font-size: 0.85rem; font-weight: 700; border-radius: var(--r-xs);
   text-transform: capitalize; width: fit-content;
 }
-.workspace-card-stats { display: flex; gap: 16px; padding-top: 14px; border-top: 1px solid var(--border-subtle); }
+.workspace-card-stats { display: flex; gap: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
 .workspace-stat { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.workspace-stat-value { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
-.workspace-stat-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+.workspace-stat-value { font-size: 1.8rem; font-weight: 800; color: var(--accent); }
+.workspace-stat-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
 
 /* ─── Assigned workers list ──────────────────────────────────────────────── */
 .ws-assigned-workers-list { display: flex; flex-direction: column; gap: 10px; }
 .ws-assigned-worker-row {
   display: flex; align-items: center; gap: 14px;
-  padding: 13px 16px;
+  padding: 16px 20px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 11px; transition: border-color 0.15s;
 }
 .ws-assigned-worker-row:hover { border-color: var(--border-default); }
-.ws-assigned-info { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-.ws-assigned-name    { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
-.ws-assigned-role    { font-size: 0.76rem; color: var(--text-muted); }
-.ws-assigned-tickets { font-size: 0.8rem; color: var(--text-secondary); margin-left: auto; white-space: nowrap; }
+.ws-assigned-info { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.ws-assigned-name    { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.ws-assigned-role    { font-size: 0.84rem; color: var(--text-muted); }
+.ws-assigned-tickets { font-size: 0.88rem; color: var(--text-secondary); margin-left: auto; white-space: nowrap; }
 .ws-remove-worker-btn { opacity: 1 !important; color: var(--text-muted) !important; font-size: 0.82rem !important; display: inline-flex !important; align-items: center; justify-content: center; }
 .ws-remove-worker-btn svg { width: 14px; height: 14px; display: block; }
 .ws-remove-worker-btn:hover { color: var(--red) !important; }
@@ -600,12 +600,12 @@
   padding-bottom: 14px; flex-shrink: 0;
 }
 .ws-tab-btn {
-  padding: 7px 16px;
+  padding: 10px 20px;
   border: 1px solid var(--border-default);
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.83rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 5px;
 }
 .ws-tab-btn svg { width: 16px; height: 16px; display: block; }
@@ -621,19 +621,19 @@
 .ws-tab-content    { display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; }
 
 /* ─── Overview grid ──────────────────────────────────────────────────────── */
-.ws-overview-grid { display: grid; grid-template-columns: 180px 1fr; gap: 16px 20px; align-items: start; }
+.ws-overview-grid { display: grid; grid-template-columns: 240px 1fr; gap: 18px 24px; align-items: start; }
 .ws-overview-field { display: flex; flex-direction: column; gap: 8px; }
-.ws-overview-field label { font-size: 0.74rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+.ws-overview-field label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
 .ws-overview-field .workspace-select { width: 100%; box-sizing: border-box; }
 .ws-overview-full { grid-column: 1 / -1; }
 .ws-overview-full .workspace-input,
 .ws-overview-full .workspace-textarea { width: 100%; box-sizing: border-box; }
-.ws-overview-full .workspace-textarea { min-height: 130px; }
+.ws-overview-full .workspace-textarea { min-height: 220px; }
 
 /* ─── Kanban board ───────────────────────────────────────────────────────── */
 .ws-kanban-board {
-  display: grid; grid-template-columns: repeat(5, minmax(190px, 1fr));
-  gap: 14px; overflow-x: auto; padding-bottom: 6px;
+  display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr));
+  gap: 16px; overflow-x: auto; padding-bottom: 6px;
   flex: 1; min-height: 0; align-items: start;
 }
 .ws-kanban-col {
@@ -643,32 +643,31 @@
 }
 .ws-kanban-col-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 11px 14px; border-top: 3px solid var(--text-muted); background: var(--bg-overlay);
+  padding: 14px 16px; border-top: 3px solid var(--text-muted); background: var(--bg-overlay);
 }
-.ws-kanban-col-title { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); text-transform: capitalize; }
-.ws-kanban-col-count { background: var(--bg-hover); color: var(--text-muted); border-radius: 10px; padding: 1px 8px; font-size: 0.73rem; font-weight: 700; }
-.ws-kanban-col-body { display: flex; flex-direction: column; gap: 9px; padding: 12px; flex: 1; min-height: 50px; }
+.ws-kanban-col-title { font-size: 0.88rem; font-weight: 700; color: var(--text-secondary); text-transform: capitalize; }
+.ws-kanban-col-count { background: var(--bg-hover); color: var(--text-muted); border-radius: 10px; padding: 2px 10px; font-size: 0.82rem; font-weight: 700; }
+.ws-kanban-col-body { display: flex; flex-direction: column; gap: 10px; padding: 14px; flex: 1; min-height: 50px; }
 
 /* ─── Kanban card ────────────────────────────────────────────────────────── */
 .ws-kanban-card {
   background: var(--bg-raised);
   border: 1px solid var(--border-default);
-  border-radius: 10px; padding: 11px 12px;
-  display: flex; flex-direction: column; gap: 7px; transition: all 0.15s;
+  border-radius: 10px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 8px; transition: all 0.15s; cursor: pointer;
 }
 .ws-kanban-card:hover {
   border-color: var(--border-strong); transform: translateY(-2px);
   box-shadow: var(--shadow-sm);
 }
 .ws-kanban-card-header { display: flex; align-items: center; justify-content: space-between; }
-.ws-kanban-priority { font-size: 0.67rem; font-weight: 700; padding: 2px 8px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.3px; }
-.ws-kanban-card-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
-.ws-kanban-card:hover .ws-kanban-card-actions { opacity: 1; }
-.ws-kanban-card-title { font-size: 0.86rem; font-weight: 600; color: var(--text-primary); line-height: 1.45; word-break: break-word; }
+.ws-kanban-priority { font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.3px; }
+.ws-kanban-card-actions { display: flex; gap: 4px; }
+.ws-kanban-card-title { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); line-height: 1.45; word-break: break-word; }
 
 /* ─── Kanban description preview / expand ─────────────────────────────────── */
 .ws-kanban-desc-wrap { display: flex; flex-direction: column; gap: 4px; }
-.ws-kanban-card-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; word-break: break-word; }
+.ws-kanban-card-desc { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; word-break: break-word; }
 .ws-kanban-desc-preview {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -679,41 +678,41 @@
 .ws-kanban-desc-toggle {
   align-self: flex-start;
   background: none; border: none; padding: 0;
-  font-size: 0.73rem; font-weight: 600;
+  font-size: 0.8rem; font-weight: 600;
   color: var(--accent);
   cursor: pointer; opacity: 0.8; transition: opacity 0.15s; font-family: inherit;
 }
 .ws-kanban-desc-toggle:hover { opacity: 1; }
 
 /* ─── Kanban card footer ─────────────────────────────────────────────────── */
-.ws-kanban-card-footer { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.ws-kanban-card-footer { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .ws-kanban-assignee {
-  width: 22px; height: 22px; border-radius: 50%;
+  width: 28px; height: 28px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.7rem; font-weight: 800; color: var(--bg-base); flex-shrink: 0;
+  font-size: 0.78rem; font-weight: 800; color: var(--bg-base); flex-shrink: 0;
   background: var(--accent-dim);
 }
 .ws-kanban-unassigned {
-  width: 22px; height: 22px; border-radius: 50%;
+  width: 28px; height: 28px; border-radius: 50%;
   background: var(--bg-hover);
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.65rem; color: var(--text-muted); flex-shrink: 0;
+  font-size: 0.72rem; color: var(--text-muted); flex-shrink: 0;
 }
-.ws-kanban-assignee-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.ws-kanban-assignee-wrap { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .ws-kanban-assignee-name {
-  font-size: 0.75rem; font-weight: 600;
+  font-size: 0.85rem; font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   flex: 1;
 }
 .ws-kanban-unassigned-lbl { color: var(--text-muted); font-weight: 400; font-style: italic; }
 .ws-kanban-status-select {
-  flex: 1; max-width: 110px;
-  padding: 4px 7px;
+  flex: 1; max-width: 160px;
+  padding: 6px 10px;
   border: 1px solid var(--border-default); border-radius: 6px;
   background: var(--bg-hover);
   color: var(--text-secondary);
-  font-size: 0.71rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit;
 }
 
 /* ─── Ticket actions ──────────────────────────────────────────────────────── */
@@ -782,7 +781,7 @@
 .workspace-modal {
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 16px; width: min(800px, 90vw); max-height: 85vh;
+  border-radius: 16px; width: min(960px, 94vw); max-height: 90vh;
   overflow-y: auto; box-shadow: var(--shadow-lg);
   animation: wsSlideUp 0.24s cubic-bezier(0.34,1.56,0.64,1);
 }
@@ -790,11 +789,11 @@
 /* ── Modal header ── */
 .workspace-modal-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 22px;
+  padding: 22px 28px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .workspace-modal-header h2 {
-  margin: 0; font-size: 1.05rem; font-weight: 700;
+  margin: 0; font-size: 1.15rem; font-weight: 700;
   color: var(--text-primary);
   display: inline-flex; align-items: center; gap: 8px;
 }
@@ -814,14 +813,14 @@
 
 /* ── Modal body ── */
 .workspace-modal-form {
-  padding: 20px 22px;
+  padding: 24px 28px;
 }
 
 /* ── 2-col grid for Edit Ticket ── */
 .ws-edit-ticket-grid {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 20px;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
   align-items: stretch;
 }
 
@@ -849,7 +848,7 @@
   width: 100%;
   box-sizing: border-box;
   resize: none;
-  min-height: 220px;
+  min-height: 400px;
 }
 
 .workspace-modal-form-fields { display: flex; flex-direction: column; gap: 16px; }
@@ -862,18 +861,18 @@
 
 .workspace-form-error {
   display: none;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: var(--red-dim);
   border: 1px solid var(--red);
   border-radius: var(--r-sm);
   color: var(--red);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   line-height: 1.4;
 }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
-  .ws-kanban-board     { grid-template-columns: repeat(3, minmax(175px, 1fr)); }
+  .ws-kanban-board     { grid-template-columns: repeat(3, minmax(220px, 1fr)); }
   .ws-overview-grid    { grid-template-columns: 1fr; }
   .ws-ticket-form-grid { grid-template-columns: 1fr 1fr; }
   .ws-folders-grid     { grid-template-columns: 1fr; }
@@ -916,13 +915,13 @@
   border: 1px solid var(--stone-color, #60a5fa44);
   border-top: 3px solid var(--stone-color, #60a5fa);
   border-radius: 14px;
-  padding: 20px 18px 16px;
+  padding: 24px 22px 20px;
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-height: 0;       /* CHANGED - was 140px, now lets grid control height */
+  gap: 12px;
+  min-height: 0;
 }
 
 .ws-stone-card:hover {
@@ -938,13 +937,13 @@
 
 .ws-stone-label {
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   color: var(--stone-color);
   letter-spacing: 0.01em;
 }
 
 .ws-stone-preview {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--text-secondary, #a0b0d8);
   line-height: 1.5;
   flex: 1;
@@ -992,9 +991,9 @@
   border: 1px solid var(--border-default, rgba(255,255,255,0.1));
   border-radius: 10px;
   color: var(--text-primary, #eef2ff);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   line-height: 1.7;
-  padding: 16px;
+  padding: 18px;
   resize: none;
   font-family: inherit;
   min-height: 520px;

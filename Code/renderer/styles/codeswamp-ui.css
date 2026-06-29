@@ -1067,7 +1067,7 @@ Claude Fab
   background: var(--bg-elevated, #0f1117);
   border: 1px solid var(--border-default, rgba(255,255,255,0.12));
   border-radius: 14px;
-  width: min(640px, 94vw);
+  width: min(800px, 94vw);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -1143,6 +1143,7 @@ Claude Fab
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 320px;
 }
 .oc-tp-empty {
   padding: 32px 16px;
