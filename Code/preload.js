@@ -245,6 +245,14 @@ const blueprintBridge = {
     search:           (query)            => ipcRenderer.invoke('blueprint:search', { query }),
     seed:             ()                 => ipcRenderer.invoke('blueprint:seed'),
   },
+  kit: {
+    getByCategory:    (categoryId)       => ipcRenderer.invoke('kit:getByCategory', { categoryId }),
+    create:           (data)             => ipcRenderer.invoke('kit:create', data),
+    update:           (data)             => ipcRenderer.invoke('kit:update', data),
+    delete:           (id)               => ipcRenderer.invoke('kit:delete', { id }),
+    reorder:          (data)             => ipcRenderer.invoke('kit:reorder', data),
+    getTypes:         ()                 => ipcRenderer.invoke('kit:getTypes'),
+  },
 };
 
 const profileBridge = {

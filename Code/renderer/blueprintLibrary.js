@@ -8,6 +8,8 @@ let _selectedBlueprint = null;
 let _editing = false;
 let _searchQuery = '';
 let _catFilter = 'code';
+let _kitView = false;
+let _kitItems = { starter: [], medium: [], large: [] };
 
 const CAT_FILTERS = [
   { id: 'code', label: 'Code' },
@@ -84,7 +86,12 @@ function _buildPanel() {
             <input type="text" class="bp-search" id="bpSearch" placeholder="Search blueprints\u2026">
             <button class="bp-blueprint-add-btn" id="bpAddBtn">+ New</button>
           </div>
+          <div class="bp-view-tabs" id="bpViewTabs">
+            <button class="bp-view-tab active" data-view="blueprints">Blueprints</button>
+            <button class="bp-view-tab" data-view="kits">Building Kits</button>
+          </div>
           <div class="bp-blueprint-list" id="bpBlueprintList"></div>
+          <div class="bp-kit-grid" id="bpKitGrid" style="display:none"></div>
         </div>
         <div class="bp-detail" id="bpDetail">
           <div class="bp-detail-empty">Select a blueprint to view</div>
@@ -98,6 +105,11 @@ function _buildPanel() {
   _panel.querySelector('#bpCatAddBtn').addEventListener('click', _showNewCategoryModal);
   _panel.querySelector('#bpAddBtn').addEventListener('click', _createNewBlueprint);
   _panel.querySelector('#bpSearch').addEventListener('input', _onSearch);
+  _panel.querySelector('#bpViewTabs').addEventListener('click', (e) => {
+    const tab = e.target.closest('.bp-view-tab');
+    if (!tab) return;
+    _switchView(tab.dataset.view);
+  });
 
   document.addEventListener('keydown', _escHandler);
 }
@@ -106,6 +118,29 @@ function _escHandler(e) {
   if (e.key === 'Escape' && _open) {
     if (_editing) { _editing = false; _renderDetail(); return; }
     close();
+  }
+}
+
+function _switchView(view) {
+  _kitView = view === 'kits';
+  const tabs = _panel.querySelectorAll('.bp-view-tab');
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  const list = _panel.querySelector('#bpBlueprintList');
+  const grid = _panel.querySelector('#bpKitGrid');
+  const search = _panel.querySelector('#bpSearch');
+  const addBtn = _panel.querySelector('#bpAddBtn');
+  if (_kitView) {
+    list.style.display = 'none';
+    grid.style.display = '';
+    search.placeholder = 'Search kits\u2026';
+    addBtn.style.display = 'none';
+    _loadKits();
+  } else {
+    grid.style.display = 'none';
+    list.style.display = '';
+    search.placeholder = 'Search blueprints\u2026';
+    addBtn.style.display = '';
+    _loadBlueprints(_selectedCategory?.id);
   }
 }
 
@@ -219,7 +254,11 @@ async function _selectCategory(cat) {
   _panel.querySelector('#bpSearch').value = '';
   _searchQuery = '';
   _renderCategories();
-  await _loadBlueprints(cat.id);
+  if (_kitView) {
+    await _loadKits();
+  } else {
+    await _loadBlueprints(cat.id);
+  }
 }
 
 async function _loadBlueprints(categoryId) {
@@ -647,5 +686,234 @@ async function _deleteCategory(cat) {
     await _loadData();
   } catch (err) {
     console.error('[Blueprint] Delete category error:', err);
+  }
+}
+
+// ── Building Kits ──
+
+const KIT_LABELS = { starter: 'Starter', medium: 'Medium', large: 'Large' };
+const KIT_COLORS = { starter: 'c-green', medium: 'c-blue', large: 'c-purple' };
+
+async function _loadKits() {
+  if (!_selectedCategory) {
+    _kitItems = { starter: [], medium: [], large: [] };
+    _renderKitGrid();
+    return;
+  }
+  try {
+    const grouped = await window.electronAPI.kit.getByCategory(_selectedCategory.id);
+    _kitItems = grouped || { starter: [], medium: [], large: [] };
+  } catch {
+    _kitItems = { starter: [], medium: [], large: [] };
+  }
+  _renderKitGrid();
+}
+
+function _renderKitGrid() {
+  const grid = _panel.querySelector('#bpKitGrid');
+  if (!grid) return;
+  if (!_selectedCategory) {
+    grid.innerHTML = '<div class="bp-empty">Select a category to view its building kits</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  const row = _el('div', { className: 'bp-kit-row' });
+  for (const level of ['starter', 'medium', 'large']) {
+    const items = _kitItems[level] || [];
+    const col = _el('div', { className: 'bp-kit-col ' + KIT_COLORS[level] });
+    const types = _groupByType(items);
+    col.innerHTML = `
+      <div class="bp-kit-col-header ${KIT_COLORS[level]}">
+        <span class="bp-kit-col-title">${KIT_LABELS[level]}</span>
+        <span class="bp-kit-col-count">${items.length}</span>
+      </div>
+      <div class="bp-kit-col-body">
+        ${types.map(t => `
+          <div class="bp-kit-type-group">
+            <div class="bp-kit-type-label">${_esc(t.type)}</div>
+            ${t.items.map(item => _buildKitItemHtml(item, level)).join('')}
+          </div>
+        `).join('')}
+        <div class="bp-kit-col-footer">
+          <button class="bp-kit-add-btn" data-level="${level}">+ Add item</button>
+        </div>
+      </div>
+    `;
+    col.querySelector('.bp-kit-add-btn').addEventListener('click', () => _showAddKitItem(level));
+    col.querySelectorAll('.bp-kit-item').forEach(el => {
+      const id = parseInt(el.dataset.id, 10);
+      el.querySelector('.bp-kit-item-edit')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _showEditKitItem(id);
+      });
+      el.querySelector('.bp-kit-item-del')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _deleteKitItem(id);
+      });
+    });
+    row.appendChild(col);
+  }
+  grid.appendChild(row);
+}
+
+function _groupByType(items) {
+  const map = {};
+  for (const item of items) {
+    const t = item.itemType || 'other';
+    if (!map[t]) map[t] = [];
+    map[t].push(item);
+  }
+  return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0])).map(([type, items]) => ({ type, items }));
+}
+
+function _buildKitItemHtml(item, level) {
+  const color = KIT_COLORS[level];
+  return `<div class="bp-kit-item ${color}" data-id="${item.id}">
+    <span class="bp-kit-item-type ${color}">${_esc(item.itemType)}</span>
+    <span class="bp-kit-item-name">${_esc(item.name)}</span>
+    ${item.description ? '<span class="bp-kit-item-desc">' + _esc(item.description) + '</span>' : ''}
+    <span class="bp-kit-item-actions">
+      <button class="bp-kit-item-edit" title="Edit">✎</button>
+      <button class="bp-kit-item-del" title="Delete">✕</button>
+    </span>
+  </div>`;
+}
+
+// ── Add Kit Item ──
+
+let _addKitModal = null;
+
+function _showAddKitItem(level) {
+  _removeKitModal();
+  const modal = _el('div', { className: 'bp-cat-modal' });
+  modal.innerHTML = `
+    <div class="bp-cat-modal-box" style="width:420px">
+      <div class="bp-cat-modal-title">Add to ${KIT_LABELS[level]} Kit</div>
+      <div class="bp-edit-field">
+        <label class="bp-edit-label">Name</label>
+        <input class="bp-edit-input" id="bpKitAddName" placeholder="e.g. JWT Authentication">
+      </div>
+      <div class="bp-edit-field">
+        <label class="bp-edit-label">Type</label>
+        <select class="bp-edit-select" id="bpKitAddType"></select>
+      </div>
+      <div class="bp-edit-field">
+        <label class="bp-edit-label">Description (optional)</label>
+        <input class="bp-edit-input" id="bpKitAddDesc" placeholder="Brief note about this item">
+      </div>
+      <div class="bp-cat-modal-actions">
+        <button class="bp-cat-modal-btn" id="bpKitAddCancel">Cancel</button>
+        <button class="bp-cat-modal-btn primary" id="bpKitAddCreate">Add</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  _addKitModal = { modal, level };
+
+  (async () => {
+    let types = [];
+    try { types = await window.electronAPI.kit.getTypes(); } catch {}
+    const select = modal.querySelector('#bpKitAddType');
+    select.innerHTML = types.map(t => `<option value="${t}">${_esc(t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))}</option>`).join('');
+  })();
+
+  modal.addEventListener('click', (e) => { if (e.target === modal) _removeKitModal(); });
+  modal.querySelector('#bpKitAddCancel').addEventListener('click', _removeKitModal);
+  modal.querySelector('#bpKitAddCreate').addEventListener('click', async () => {
+    const name = modal.querySelector('#bpKitAddName').value.trim();
+    const itemType = modal.querySelector('#bpKitAddType').value;
+    const description = modal.querySelector('#bpKitAddDesc').value.trim();
+    if (!name) return;
+    try {
+      await window.electronAPI.kit.create({
+        categoryId: _selectedCategory.id,
+        kitLevel: level,
+        itemType,
+        name,
+        description,
+      });
+      _removeKitModal();
+      await _loadKits();
+    } catch (err) {
+      console.error('[Kit] Create error:', err);
+    }
+  });
+  setTimeout(() => modal.querySelector('#bpKitAddName').focus(), 50);
+}
+
+function _removeKitModal() {
+  if (_addKitModal) {
+    _addKitModal.modal.remove();
+    _addKitModal = null;
+  }
+}
+
+// ── Edit Kit Item ──
+
+function _showEditKitItem(id) {
+  const allItems = [...(_kitItems.starter || []), ...(_kitItems.medium || []), ...(_kitItems.large || [])];
+  const item = allItems.find(i => i.id === id);
+  if (!item) return;
+
+  const modal = _el('div', { className: 'bp-cat-modal' });
+  modal.innerHTML = `
+    <div class="bp-cat-modal-box" style="width:420px">
+      <div class="bp-cat-modal-title">Edit Kit Item</div>
+      <div class="bp-edit-field">
+        <label class="bp-edit-label">Name</label>
+        <input class="bp-edit-input" id="bpKitEditName" value="${_esc(item.name)}">
+      </div>
+      <div class="bp-edit-field">
+        <label class="bp-edit-label">Type</label>
+        <select class="bp-edit-select" id="bpKitEditType"></select>
+      </div>
+      <div class="bp-edit-field">
+        <label class="bp-edit-label">Description</label>
+        <input class="bp-edit-input" id="bpKitEditDesc" value="${_esc(item.description || '')}">
+      </div>
+      <div class="bp-cat-modal-actions">
+        <button class="bp-cat-modal-btn" id="bpKitEditCancel">Cancel</button>
+        <button class="bp-cat-modal-btn primary" id="bpKitEditSave">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  (async () => {
+    let types = [];
+    try { types = await window.electronAPI.kit.getTypes(); } catch {}
+    const select = modal.querySelector('#bpKitEditType');
+    select.innerHTML = types.map(t =>
+      `<option value="${t}" ${t === item.itemType ? 'selected' : ''}>${_esc(t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))}</option>`
+    ).join('');
+  })();
+
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  modal.querySelector('#bpKitEditCancel').addEventListener('click', () => modal.remove());
+  modal.querySelector('#bpKitEditSave').addEventListener('click', async () => {
+    const name = modal.querySelector('#bpKitEditName').value.trim();
+    const itemType = modal.querySelector('#bpKitEditType').value;
+    const description = modal.querySelector('#bpKitEditDesc').value.trim();
+    if (!name) return;
+    try {
+      await window.electronAPI.kit.update({ id, itemType, name, description });
+      modal.remove();
+      await _loadKits();
+    } catch (err) {
+      console.error('[Kit] Update error:', err);
+    }
+  });
+  setTimeout(() => modal.querySelector('#bpKitEditName').focus(), 50);
+}
+
+// ── Delete Kit Item ──
+
+async function _deleteKitItem(id) {
+  if (!confirm('Delete this kit item?')) return;
+  try {
+    await window.electronAPI.kit.delete(id);
+    await _loadKits();
+  } catch (err) {
+    console.error('[Kit] Delete error:', err);
   }
 }

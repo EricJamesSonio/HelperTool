@@ -173,6 +173,19 @@ function createSchema() {
     )
   `);
 
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS kit_items (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER REFERENCES blueprint_categories(id) ON DELETE CASCADE,
+      kit_level   TEXT NOT NULL CHECK(kit_level IN ('starter', 'medium', 'large')),
+      item_type   TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      sort_order  INTEGER DEFAULT 0,
+      created_at  TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   const row = _db.exec("SELECT name FROM sqlite_master WHERE type='trigger' AND name='symbols_ai'");
   const hasFts = _db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols_fts'");
   if (row.length === 0 && hasFts.length > 0) {
