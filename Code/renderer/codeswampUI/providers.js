@@ -4,16 +4,16 @@ export const PROVIDERS = {
     label: 'OpenCode',
     bin: 'opencode',
     shortLabel: 'OC',
-    newChatCmd: () => 'opencode\r',
-    resumeCmd: (sessionId) => `opencode -s ${sessionId}\r`,
+    newChatCmd: (binaryPath) => `${binaryPath || 'opencode'}\r`,
+    resumeCmd: (sessionId, binaryPath) => `${binaryPath || 'opencode'} -s ${sessionId}\r`,
   },
   gemini: {
     id: 'gemini',
     label: 'Gemini CLI',
     bin: 'gemini',
     shortLabel: 'G',
-    newChatCmd: () => 'gemini\r',
-    resumeCmd: (sessionId) => `gemini --resume ${sessionId}\r`,
+    newChatCmd: (binaryPath) => `${binaryPath || 'gemini'}\r`,
+    resumeCmd: (sessionId, binaryPath) => `${binaryPath || 'gemini'} --resume ${sessionId}\r`,
   },
 };
 

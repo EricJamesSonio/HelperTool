@@ -245,6 +245,14 @@ const blueprintBridge = {
     search:           (query)            => ipcRenderer.invoke('blueprint:search', { query }),
     seed:             ()                 => ipcRenderer.invoke('blueprint:seed'),
   },
+  kit: {
+    getByCategory:    (categoryId)       => ipcRenderer.invoke('kit:getByCategory', { categoryId }),
+    create:           (data)             => ipcRenderer.invoke('kit:create', data),
+    update:           (data)             => ipcRenderer.invoke('kit:update', data),
+    delete:           (id)               => ipcRenderer.invoke('kit:delete', { id }),
+    reorder:          (data)             => ipcRenderer.invoke('kit:reorder', data),
+    getTypes:         ()                 => ipcRenderer.invoke('kit:getTypes'),
+  },
 };
 
 const profileBridge = {
@@ -439,7 +447,7 @@ const opencodeBridge = {
   discover:           ()                            => ipcRenderer.invoke('opencode:discover'),
   listConversations:  (repoPath)                    => ipcRenderer.invoke('opencode:listConversations', { repoPath }),
   getConversation:    (convId)                      => ipcRenderer.invoke('opencode:getConversation', { convId }),
-  run:                (repoPath, message, files, continueConv, sessionId) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv, sessionId }),
+  run:                (repoPath, message, files, continueConv, sessionId, mode) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv, sessionId, mode }),
   stop:               ()                            => ipcRenderer.invoke('opencode:stop'),
   listRepos:          ()                            => ipcRenderer.invoke('opencode:listRepos'),
   deleteConversation: (convId)                      => ipcRenderer.invoke('opencode:deleteConversation', { convId }),
@@ -462,9 +470,10 @@ const opencodeBridge = {
   termResize:         (payload)                     => ipcRenderer.invoke('opencode:termResize', payload),
   termKill:           (id)                          => ipcRenderer.invoke('opencode:termKill', id),
   onTermData:         (callback) => {
-    
     ipcRenderer.on('opencode:termData', (_, data) => callback(data));
-    
+  },
+  onTermExited:       (callback) => {
+    ipcRenderer.on('opencode:termExited', (_, data) => callback(data));
   },
 };
 

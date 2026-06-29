@@ -267,6 +267,62 @@
   padding: 4px 0;
 }
 
+/* ─── File Tree ────────────────────────────────────────────── */
+.cm-tree {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--text-secondary, #b1bac4);
+}
+
+.cm-tree-prefix {
+  white-space: pre;
+  user-select: none;
+  color: var(--text-muted, #5a6573);
+}
+
+.cm-tree-dir {
+  display: block;
+}
+
+.cm-tree-dirname {
+  font-weight: 600;
+  color: var(--text-secondary, #b1bac4);
+}
+
+.cm-tree-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin: 0 -4px;
+  transition: background 0.1s;
+}
+.cm-tree-file:hover {
+  background: var(--bg-hover, #1c2333);
+  color: var(--text-primary, #f0f6fc);
+}
+
+.cm-tree-filename {
+  color: inherit;
+}
+
+.cm-tree-tag {
+  font-size: 0.68rem;
+  font-weight: 500;
+  padding: 0 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cm-tree-tag.syms { color: #a78bfa; }
+.cm-tree-tag.imports { color: #60a5fa; }
+.cm-tree-tag.dependents { color: #34d399; }
+.cm-tree-tag.exports { color: #fbbf24; }
+.cm-tree-tag.role { color: var(--text-muted, #8b949e); font-style: italic; }
+
 /* ─── Key Files Section ────────────────────────────────────── */
 .cm-keyfiles {
   display: flex;
@@ -388,4 +444,52 @@
   text-align: center;
   color: var(--danger, #f87171);
   font-size: 0.9rem;
+}
+
+/* ─── Tabs ──────────────────────────────────────────────────── */
+.cm-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  flex-shrink: 0;
+}
+
+.cm-tab {
+  padding: 8px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #8b949e);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.12s, border-color 0.12s;
+}
+.cm-tab:hover {
+  color: var(--text-secondary, #b1bac4);
+}
+.cm-tab.active {
+  color: var(--accent, #f0b429);
+  border-bottom-color: var(--accent, #f0b429);
+}
+
+.cm-tab-content {
+  display: none;
+  flex-direction: column;
+  gap: 20px;
+}
+.cm-tab-content.active {
+  display: flex;
+}
+
+/* ─── Graph Container ───────────────────────────────────────── */
+.cm-graph-container {
+  width: 100%;
+  height: 500px;
+  min-height: 400px;
+  border-radius: 10px;
+  background: var(--bg-raised, #161b22);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  overflow: hidden;
 }

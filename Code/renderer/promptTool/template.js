@@ -71,34 +71,30 @@ export function getMainTemplate() {
 
 export function getSelectionModalTemplate() {
     return `
-      <div class="modal-content pt-selection-modal">
+      <div class="modal-content pt-modal pt-selection-modal">
         <div class="modal-header pt-header">
-          <h3 class="modal-title pt-title">${ICON_PROMPT} Select Prompt(s)</h3>
+          <h3 class="modal-title pt-title">${ICON_PROMPT} Select Prompt</h3>
+          <div style="flex:1"></div>
+          <div style="font-size:12px; opacity:0.5; margin-right:12px;">Filtered by: <b>${escapeHtml(state.actionType || 'code')}</b></div>
           <button class="modal-close-btn" id="promptSelectionCloseBtn">${ICON_REMOVE}</button>
         </div>
 
-        <div class="modal-body pt-selection-body">
-          <div class="pt-selection-list">
-            <div class="pt-editor-row">
-              <div class="pt-editor-label">Filtered by: <b>${escapeHtml(state.actionType || '')}</b></div>
-              <button id="promptSelectionClearBtn" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">Clear selected</button>
-            </div>
-            <div id="promptSelectionList" class="pt-prompt-list"></div>
-          </div>
+        <div class="pt-main">
+          <div class="pt-prompt-grid" id="promptSelectionList"></div>
 
-          <div class="pt-selection-preview">
-            <div class="pt-sidebar-title">Selected Prompt Text</div>
+          <div class="pt-editor pt-selection-preview">
+            <div class="pt-sidebar-title">Selected Prompt</div>
             <textarea id="promptSelectionPreview" class="sh-input pt-textarea" readonly></textarea>
-            <div style="font-size:12px; opacity:0.75; line-height:1.3;">
-              Your selected prompt text will be prepended at the top of generated output.
+            <div style="font-size:12px; opacity:0.5; line-height:1.3;">
+              Selected prompt text will be prepended at the top of generated output.
+            </div>
+            <div class="pt-actions" style="margin-top:auto">
+              <button class="sh-btn sh-btn-ghost sh-btn-sm" id="promptSelectionClearBtn" type="button">Clear</button>
+              <div style="flex:1"></div>
+              <button class="sh-btn sh-btn-primary sh-btn-sm" id="promptSelectionConfirmBtn" type="button">${ICON_CHECK} Apply & Generate</button>
+              <button class="sh-btn sh-btn-sm" id="promptSelectionCancelBtn" type="button">Cancel</button>
             </div>
           </div>
-        </div>
-
-        <div class="modal-actions pt-actions">
-          <button class="modal-btn modal-btn-secondary" id="promptSelectionCancelBtn" type="button">Cancel</button>
-          <div style="flex:1"></div>
-          <button class="modal-btn modal-btn-primary" id="promptSelectionConfirmBtn" type="button">${ICON_CHECK} Apply & Continue</button>
         </div>
       </div>
     `;

@@ -9,7 +9,8 @@
     "start": "electron .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
-    "build:dbgraph": "esbuild renderer/databaseInspector/graph.jsx --bundle --outfile=renderer/databaseInspector/graph-bundle.js --format=esm"
+    "build:dbgraph": "esbuild renderer/databaseInspector/graph.jsx --bundle --outfile=renderer/databaseInspector/graph-bundle.js --format=esm",
+    "build:codebasegraph": "esbuild renderer/codebaseMap/codebaseMapGraph.jsx --bundle --outfile=renderer/codebaseMap/codebaseMap-graph-bundle.js --format=esm"
   },
   "build": {
     "appId": "com.eric.helpertool",

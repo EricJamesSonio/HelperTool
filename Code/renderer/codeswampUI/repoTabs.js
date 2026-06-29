@@ -1,7 +1,6 @@
 import { state } from './state.js';
 import { refreshSidebar, loadConversation } from './sidebar.js';
 import { hasTerminalSession, showTerminalSession } from './terminalManager.js';
-import { listConversations } from './history.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
 
@@ -82,7 +81,13 @@ export function renderConvList(loading) {
 
   if (!convs.length) {
     const prov = getProvider(selectedProvider);
-    list.innerHTML = `<div class="oc-conv-empty">No ${prov.label} conversations yet</div>`;
+    list.innerHTML = `
+      <div class="oc-conv-empty">No ${prov.label} conversations yet</div>
+      <div style="padding:4px 10px">
+        <button class="oc-btn oc-btn-refresh" id="ocRefreshConvsBtn" style="width:100%;height:28px;font-size:11px">⟳ Refresh</button>
+      </div>`;
+    const refreshBtn = document.getElementById('ocRefreshConvsBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => refreshSidebar(true));
     return;
   }
 

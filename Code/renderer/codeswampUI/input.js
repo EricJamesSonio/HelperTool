@@ -1,10 +1,38 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, activateSlot, getActiveSlots } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
-import { refreshSidebar } from './sidebar.js';
-import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
 import { openPromptPicker } from './promptPicker.js';
+import { openTicketPanel } from './ticketPanel.js';
+import { openStonePanel } from './stonePanel.js';
+import { openPlanningPanel } from './planningPanel.js';
+import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
+
+function extractFilePathsFromText(text) {
+  const knownPaths = getCachedFiles().map(f => f.path);
+  if (!knownPaths.length) return [];
+  const found = [];
+  for (const p of knownPaths) {
+    if (text.includes(p)) {
+      found.push(p);
+    }
+  }
+  return found;
+}
+
+async function handleAtMention(input) {
+  const val = input.value;
+  const atIdx = val.lastIndexOf('@');
+  if (atIdx === -1 || atIdx < val.lastIndexOf(' ')) {
+    if (isOpen()) closePicker();
+    return;
+  }
+  const query = val.slice(atIdx + 1);
+  if (state.activeTab) {
+    await ensureTreeLoaded(state.activeTab);
+    open(query, input);
+  }
+}
 
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
@@ -16,6 +44,9 @@ export function renderInput() {
       <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="1"></textarea>
       <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
       <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">📋</button>
+      <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">🎫</button>
+      <button class="oc-btn oc-btn-stone" id="ocStoneBtn" title="Infinity Stones">💎</button>
+      <button class="oc-btn oc-btn-planning" id="ocPlanningBtn" title="Plans">📝</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
@@ -28,16 +59,46 @@ export function renderInput() {
   const modeBtn = document.getElementById('ocModeBtn');
   const attachBtn = document.getElementById('ocAttachBtn');
   const promptBtn = document.getElementById('ocPromptBtn');
+  const ticketBtn = document.getElementById('ocTicketBtn');
+  const stoneBtn = document.getElementById('ocStoneBtn');
+  const planningBtn = document.getElementById('ocPlanningBtn');
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+    handleAtMention(input);
   });
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (isOpen()) {
+        e.preventDefault();
+        confirmSelection(input);
+        return;
+      }
       e.preventDefault();
       sendMessage();
+      return;
+    }
+    if (e.key === 'Escape' && isOpen()) {
+      e.preventDefault();
+      closePicker();
+      return;
+    }
+    if (e.key === 'ArrowDown' && isOpen()) {
+      e.preventDefault();
+      selectNext();
+      return;
+    }
+    if (e.key === 'ArrowUp' && isOpen()) {
+      e.preventDefault();
+      selectPrev();
+      return;
+    }
+    if (e.key === 'Tab' && isOpen()) {
+      e.preventDefault();
+      confirmSelection(input);
+      return;
     }
   });
 
@@ -58,6 +119,9 @@ export function renderInput() {
   });
 
   promptBtn.addEventListener('click', openPromptPicker);
+  ticketBtn.addEventListener('click', openTicketPanel);
+  stoneBtn.addEventListener('click', openStonePanel);
+  planningBtn.addEventListener('click', openPlanningPanel);
 }
 
 function renderPendingFiles() {
@@ -96,64 +160,42 @@ function toggleMode() {
 }
 
 async function sendMessage() {
-  const input = document.getElementById('ocInput');
-  if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
+  try {
+    const input = document.getElementById('ocInput');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
 
-  const repoPath = state.activeTab;
-  if (!repoPath) return;
+    const repoPath = state.activeTab;
+    if (!repoPath) return;
 
-  const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
-  const hasSession = state.parallelMode ? !!getActiveSlots()[slotIndex] : hasTerminalSession(repoPath);
-  const isNewChat = !hasSession;
+    const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
-  if (!hasSession) {
-    const lc = getLoadingController();
-    lc.start('Starting terminal...');
-    try {
-      await openTerminalForRepo(repoPath, slotIndex);
-    } catch (e) {
-      lc.hide();
-      return;
+    if (!hasTerminalSession(repoPath)) {
+      const lc = getLoadingController();
+      lc.start('Starting terminal...');
+      try {
+        await openTerminalForRepo(repoPath, slotIndex);
+      } catch (e) {
+        console.error('[CS] sendMessage: terminal creation failed', e);
+        lc.hide();
+        return;
+      }
     }
+
+    if (state.parallelMode) {
+      writeToSlot(slotIndex, text + '\r');
+    } else {
+      writeToTerminal(repoPath, text + '\r');
+    }
+
+    input.value = '';
+    input.style.height = 'auto';
+    state.pendingFiles = [];
+    renderPendingFiles();
+  } catch (err) {
+    console.error('[CS] sendMessage: unhandled error', err);
   }
-
-  let msg = text;
-  const files = state.pendingFiles.map(f => f.path);
-  if (files.length > 0) {
-    msg += ' --file ' + files.join(' --file ');
-  }
-
-  const prevCount = (state.conversations[repoPath] || []).length;
-
-  if (state.parallelMode) {
-    writeToSlot(slotIndex, msg + '\r');
-  } else {
-    writeToTerminal(repoPath, msg + '\r');
-  }
-
-  if (isNewChat) {
-    pollForNewSession(repoPath, prevCount);
-  } else {
-    setTimeout(() => refreshSidebar(), 1500);
-  }
-
-  input.value = '';
-  input.style.height = 'auto';
-  state.pendingFiles = [];
-  renderPendingFiles();
 }
 
-async function pollForNewSession(repoPath, prevCount, maxAttempts = 6, interval = 2000) {
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, interval));
-    await refreshSidebar();
-    const convs = state.conversations[repoPath] || [];
-    if (convs.length > prevCount && convs[0] && !state.activeConvId[repoPath]) {
-      state.activeConvId[repoPath] = convs[0].id;
-      renderConvList();
-      return;
-    }
-  }
-}
+

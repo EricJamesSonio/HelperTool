@@ -6,14 +6,12 @@
     align-items: stretch;
 }
 
-/* Main generate button — keep all existing .generate-btn styles, just square off the right side */
 .generate-split-btn #generateBtn {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
     border-right: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-/* The little mode-toggle arrow button */
 .generate-mode-toggle {
     display: inline-flex;
     align-items: center;
@@ -25,7 +23,6 @@
     border-bottom-left-radius: 0;
     white-space: nowrap;
     letter-spacing: 0.02em;
-    /* Inherit colours from .action-btn / .generate-btn via cascade */
     background: inherit;
     color: inherit;
     cursor: pointer;
@@ -46,7 +43,6 @@
     transform: rotate(180deg);
 }
 
-/* Badge label inside toggle ("Normal" / "Minified") */
 #generateModeLabel {
     opacity: 0.85;
 }
@@ -56,88 +52,114 @@
 .generate-mode-menu {
     display: none;
     position: absolute;
-    top: calc(100% + 4px);
+    top: calc(100% + 6px);
     right: 0;
     z-index: 999;
-    min-width: 200px;
-    background: var(--bg-surface, #1e1e2e);
-    border: 1px solid var(--border, rgba(255,255,255,0.12));
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    min-width: 260px;
+    background: var(--bg-elevated, #111d34);
+    border: 1px solid var(--border-default, rgba(255,255,255,0.10));
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
     overflow: hidden;
+    padding: 6px;
     animation: gm-drop 0.15s ease;
 }
 
 @keyframes gm-drop {
-    from { opacity: 0; transform: translateY(-4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .generate-split-btn.menu-open .generate-mode-menu {
     display: block;
 }
 
-/* Individual items */
 .generate-mode-item {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
+    gap: 12px;
+    padding: 12px 14px;
     background: none;
     border: none;
-    color: var(--text-primary, #e0e0e0);
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+    color: var(--text-primary, #f0f6fc);
     cursor: pointer;
     text-align: left;
-    transition: background 0.12s ease;
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+    --gm-color: #556080;
 }
 
 .generate-mode-item:hover {
-    background: var(--bg-hover, rgba(255,255,255,0.07));
+    background: var(--bg-hover, rgba(255,255,255,0.05));
+    transform: translateX(2px);
 }
 
 .generate-mode-item.active {
-    background: var(--bg-active, rgba(255,255,255,0.04));
+    border-left-color: var(--gm-color);
+    background: color-mix(in srgb, var(--gm-color) 10%, transparent);
 }
 
-.generate-mode-item.active .gm-name::after {
-    content: ' ✓';
-    opacity: 0.6;
-    font-size: 10px;
-}
+.generate-mode-item[data-mode="normal"]   { --gm-color: #60a5fa; }
+.generate-mode-item[data-mode="minified"] { --gm-color: #fbbf24; }
+.generate-mode-item[data-mode="prompt"]   { --gm-color: #34d399; }
 
 .gm-icon {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--gm-color) 18%, transparent);
 }
+
 .gm-icon svg {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     display: block;
+    color: var(--gm-color);
 }
 
 .gm-info {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
 }
 
 .gm-name {
     font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary, #e0e0e0);
+    font-weight: 700;
+    color: var(--text-primary, #f0f6fc);
+    letter-spacing: 0.01em;
+}
+
+.generate-mode-item.active .gm-name::after {
+    content: ' ✓';
+    margin-left: 4px;
+    font-size: 10px;
+    color: var(--gm-color);
+    opacity: 0.7;
 }
 
 .gm-desc {
-    font-size: 10px;
-    opacity: 0.55;
-    color: var(--text-secondary, #aaa);
+    font-size: 11px;
+    opacity: 0.5;
+    color: var(--text-secondary, #b1bac4);
+    line-height: 1.3;
+}
+
+.generate-mode-item[data-mode="prompt"] .gm-desc::after {
+    content: ' ↗';
+    opacity: 0.7;
 }
 
 /* ── Minified mode indicator on the main generate button ───────────────── */
 .generate-split-btn[data-mode="minified"] #generateBtn {
-    /* Subtle amber tint to signal minified is active */
     background: linear-gradient(135deg, #b8860b 0%, #8b6914 100%);
     box-shadow: 0 0 0 1px rgba(184,134,11,0.4);
 }

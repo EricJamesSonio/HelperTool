@@ -19,6 +19,7 @@ const DEFAULT_SHORTCUTS = {
   automationSketch: null,
   githubExplorer: null,
   codeswampChat: null,
+  codebaseMap: 'Ctrl+Shift+M',
 };
 
 const S = { shortcuts: {} };

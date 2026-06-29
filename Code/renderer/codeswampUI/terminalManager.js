@@ -8,6 +8,7 @@ const _loadingTerminalIds = new Set();
 let TerminalClass = null;
 let FitAddonClass = null;
 let _xtermLoaded = false;
+const _loadingTimestamps = {};
 
 async function loadXterm() {
   if (_xtermLoaded) return;
@@ -206,19 +207,24 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
   });
 
   const provider = getProvider(state.selectedProvider);
+  const binaryPath = state.opencodePath || provider.bin;
   const convId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
-  const cmd = convId ? provider.resumeCmd(convId) : provider.newChatCmd();
+  const cmd = convId ? provider.resumeCmd(convId, binaryPath) : provider.newChatCmd(binaryPath);
   window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
 
   lc.advanceTo('Starting opencode...', 0.60, 400);
   _loadingTerminalIds.add(result.id);
+  _loadingTimestamps[result.id] = Date.now();
 
-  setTimeout(() => {
+  const timeout = setTimeout(() => {
     if (_loadingTerminalIds.has(result.id)) {
       _loadingTerminalIds.delete(result.id);
+      delete _loadingTimestamps[result.id];
       getLoadingController().finish('Ready', 600);
     }
   }, 8000);
+
+  instance._loadingTimeout = timeout;
 
   return instance;
 }
@@ -266,11 +272,122 @@ export function writeToSlot(slotIndex, text) {
   window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
 }
 
+/* ── Response overlay helpers ── */
+
+function getOverlay() {
+  return document.getElementById('ocResponseOverlay');
+}
+function getOverlayContent() {
+  return document.getElementById('ocResponseContent');
+}
+
+function stripAnsi(text) {
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
+export function showResponseOverlay() {
+  const ov = getOverlay();
+  if (ov) ov.style.display = '';
+}
+export function hideResponseOverlay() {
+  const ov = getOverlay();
+  if (ov) ov.style.display = 'none';
+}
+export function clearResponseOverlay() {
+  const c = getOverlayContent();
+  if (c) c.textContent = '';
+}
+export function appendToResponseOverlay(text) {
+  const c = getOverlayContent();
+  if (!c) return;
+  c.textContent += stripAnsi(text);
+  c.scrollTop = c.scrollHeight;
+}
+
+/* ── Execute opencode run via IPC ── */
+
+export function executeOpencodeRun(repoPath, slotIndex, message, files, continueConv, sessionId, mode) {
+  if (state.streaming) {
+    console.warn('[CS] executeOpencodeRun: already streaming, ignoring');
+    return Promise.resolve({ code: -1, error: 'Already streaming' });
+  }
+
+  clearResponseOverlay();
+  showResponseOverlay();
+
+  state.streaming = true;
+  state.streamBuffer = '';
+  state.activeConvIdForStream = sessionId || null;
+  state.activeTabForStream = repoPath;
+
+  window.electronAPI.opencode.removeStreamListeners();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId = null;
+
+    function cleanup() {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+      state.streaming = false;
+      state.streamBuffer = '';
+      state.activeConvIdForStream = null;
+      state.activeTabForStream = null;
+      window.electronAPI.opencode.removeStreamListeners();
+    }
+
+    timeoutId = setTimeout(() => {
+      if (settled) return;
+      cleanup();
+      const msg = '[Timeout] opencode run did not complete within 60s';
+      console.warn('[CS]', msg);
+      appendToResponseOverlay(`\n\x1b[31m${msg}\x1b[0m\n`);
+      resolve({ code: -1, error: msg });
+    }, 60000);
+
+    window.electronAPI.opencode.onStream(({ chunk, isError }) => {
+      console.log(`[CS] stream chunk: ${chunk.length}B error=${isError}`);
+      state.streamBuffer += chunk;
+      appendToResponseOverlay(chunk);
+    });
+
+    window.electronAPI.opencode.onDone(({ code, stderr, error }) => {
+      console.log(`[CS] stream done: code=${code} stderrLen=${(stderr||'').length} error=${error}`);
+      if (settled) return;
+      cleanup();
+      if (code !== 0 && stderr) {
+        appendToResponseOverlay(`\n[Error] ${stderr}\n`);
+      }
+      if (code === 0) {
+        appendToResponseOverlay(`\n\x1b[2m[Done]\x1b[0m\n`);
+      }
+      resolve({ code, stderr, error });
+    });
+
+    window.electronAPI.opencode.run(repoPath, message, files, continueConv, sessionId, mode)
+      .then((immediateResult) => {
+        if (settled) return;
+        cleanup();
+        resolve(immediateResult);
+      })
+      .catch((err) => {
+        if (settled) return;
+        cleanup();
+        const msg = `[IPC Error] ${err.message}`;
+        console.error('[CS]', msg);
+        appendToResponseOverlay(`\n\x1b[31m${msg}\x1b[0m\n`);
+        resolve({ code: -1, error: err.message });
+      });
+  });
+}
+
 export function killSlot(slotIndex) {
   const inst = instances[slotIndex];
   if (!inst) return;
   if (_loadingTerminalIds.has(inst.id)) {
     _loadingTerminalIds.delete(inst.id);
+    delete _loadingTimestamps[inst.id];
     getLoadingController().hide();
   }
   window.electronAPI.opencode.termKill(inst.id);
@@ -314,15 +431,42 @@ export function fitActiveTerminal() {
 }
 
 let _termDataHandlerSetup = false;
+let _termExitHandlerSetup = false;
+let _onSessionDetected = null;
+const _seenSessionIds = new Set();
+
+export function setOnSessionDetected(cb) {
+  _onSessionDetected = cb;
+}
 
 export function setupTerminalDataHandler() {
   if (_termDataHandlerSetup) return;
   _termDataHandlerSetup = true;
   window.electronAPI.opencode.onTermData(({ id, data }) => {
     if (_loadingTerminalIds.has(id)) {
-      _loadingTerminalIds.delete(id);
-      getLoadingController().finish('Ready', 600);
+      const elapsed = Date.now() - (_loadingTimestamps[id] || 0);
+      if (elapsed >= 2500) {
+        _loadingTerminalIds.delete(id);
+        delete _loadingTimestamps[id];
+        getLoadingController().finish('Ready', 600);
+      }
     }
+
+    // Detect new session IDs from opencode terminal output and store locally
+    if (_onSessionDetected) {
+      const sesMatch = data.match(/ses_[a-zA-Z0-9_-]{10,}/);
+      if (sesMatch) {
+        const sesId = sesMatch[0];
+        if (!_seenSessionIds.has(sesId)) {
+          _seenSessionIds.add(sesId);
+          const inst = Object.values(instances).find(i => i && i.id === id);
+          if (inst) {
+            _onSessionDetected(sesId, inst.repoPath, inst.slotIndex);
+          }
+        }
+      }
+    }
+
     for (const inst of Object.values(instances)) {
       if (inst && inst.id === id) {
         inst.terminal.write(data);
@@ -330,6 +474,43 @@ export function setupTerminalDataHandler() {
       }
     }
   });
+
+  if (!_termExitHandlerSetup) {
+    _termExitHandlerSetup = true;
+    window.electronAPI.opencode.onTermExited(({ id, code }) => {
+      console.log(`[CS] terminal exited: id=${id} code=${code}`);
+      for (const [slot, inst] of Object.entries(instances)) {
+        if (inst && inst.id === id) {
+          console.log(`[CS] cleaning up stale instance at slot ${slot}`);
+          if (_loadingTerminalIds.has(id)) {
+            _loadingTerminalIds.delete(id);
+            delete _loadingTimestamps[id];
+          }
+          try { inst.terminal.dispose(); } catch {}
+          if (inst.div && inst.div.parentNode) inst.div.remove();
+          delete instances[slot];
+          delete state.slotData[slot];
+          break;
+        }
+      }
+    });
+  }
+}
+
+export function markTerminalLoading(slotIndex) {
+  const inst = instances[slotIndex];
+  if (inst) {
+    _loadingTerminalIds.add(inst.id);
+    _loadingTimestamps[inst.id] = Date.now();
+  }
+}
+
+export function clearTerminalLoading(slotIndex) {
+  const inst = instances[slotIndex];
+  if (inst) {
+    _loadingTerminalIds.delete(inst.id);
+    delete _loadingTimestamps[inst.id];
+  }
 }
 
 export function getActiveSlots() {

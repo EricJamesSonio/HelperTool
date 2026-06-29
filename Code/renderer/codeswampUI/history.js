@@ -14,9 +14,9 @@ export async function listConversations(repoPath, provider = 'opencode') {
     } else {
       convs = await window.electronAPI.opencode.listConversations(repoPath);
     }
-    return (convs || []).map(c => ({ ...c, provider }));
-  } catch {
-    return [];
+    return { conversations: (convs || []).map(c => ({ ...c, provider })), error: null };
+  } catch (err) {
+    return { conversations: [], error: err.message || 'Failed to fetch' };
   }
 }
 

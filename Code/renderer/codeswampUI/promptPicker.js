@@ -103,9 +103,12 @@ export async function openPromptPicker() {
       card.addEventListener('click', () => {
         const input = document.getElementById('ocInput');
         if (input) {
-          input.value = p.body || '';
+          const existing = input.value.trim();
+          const body = (p.body || '').trim();
+          input.value = existing ? existing + '\n' + body : body;
           input.style.height = 'auto';
           input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+          input.selectionStart = input.selectionEnd = input.value.length;
           input.focus();
         }
         close();

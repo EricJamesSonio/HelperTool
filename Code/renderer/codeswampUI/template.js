@@ -23,7 +23,10 @@ export function getTemplate(mode = 'full') {
 
       <div class="oc-sidebar-top">
       <div class="oc-repo-tabs" id="ocRepoTabs" style="display:none"></div>
-        <button class="oc-btn oc-btn-new-chat" id="ocNewChatBtn">+ New Chat</button>
+        <div style="display:flex;gap:4px">
+          <button class="oc-btn oc-btn-new-chat" id="ocNewChatBtn" style="flex:1">+ New Chat</button>
+          <button class="oc-btn oc-btn-new-chat" id="ocRefreshBtn" style="width:32px;flex:none;font-size:14px" title="Refresh conversations">⟳</button>
+        </div>
       </div>
 
       <div class="oc-term-settings" id="ocTermSettings">

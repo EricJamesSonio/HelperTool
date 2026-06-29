@@ -19,6 +19,7 @@ export async function openCodebaseMap() {
         <div class="cm-title">${ICON_MAP} Codebase Map</div>
         <div class="cm-header-actions">
           <button class="cm-btn" id="cmCopyBtn">${ICON_COPY} Copy Map</button>
+          <button class="cm-btn" id="cmCopyStructureBtn">${ICON_COPY} Copy Structure</button>
           <button class="cm-btn-close" id="cmCloseBtn">✕</button>
         </div>
       </div>
@@ -31,6 +32,7 @@ export async function openCodebaseMap() {
 
   _overlay.querySelector('#cmCloseBtn').addEventListener('click', closeCodebaseMap);
   _overlay.querySelector('#cmCopyBtn')?.addEventListener('click', copyMap);
+  _overlay.querySelector('#cmCopyStructureBtn')?.addEventListener('click', copyStructure);
   _overlay.addEventListener('click', e => { if (e.target === _overlay) closeCodebaseMap(); });
   document.addEventListener('keydown', _escHandler);
 
@@ -84,6 +86,8 @@ async function getActiveRepoPath() {
   } catch { return null; }
 }
 
+let _graphRoot = null;
+
 function render(body) {
   const { overview, modules, keyFiles, circularDeps } = _data;
 
@@ -98,6 +102,12 @@ function render(body) {
     if (lang) html += `<span class="cm-lang-badge">${_esc(lang.toUpperCase())} ${count}</span>`;
   }
   html += '</div>';
+
+  // Tab bar
+  html += '<div class="cm-tabs"><button class="cm-tab active" data-tab="tree">Tree</button><button class="cm-tab" data-tab="graph">Graph</button></div>';
+
+  // Tree tab content
+  html += '<div class="cm-tab-content active" id="cmTabTree">';
 
   // Circular deps warning
   if (circularDeps && circularDeps.length > 0) {
@@ -131,6 +141,11 @@ function render(body) {
   }
   html += '</div>';
 
+  html += '</div>'; // end #cmTabTree
+
+  // Graph tab content
+  html += '<div class="cm-tab-content" id="cmTabGraph"><div class="cm-graph-container" id="cmGraphContainer"></div></div>';
+
   body.innerHTML = html;
 
   // Render module cards
@@ -141,6 +156,51 @@ function render(body) {
   body.querySelectorAll('.cm-keyfile-row').forEach(el => {
     el.addEventListener('click', () => selectFileInTree(el.dataset.path));
   });
+
+  // Tab switching
+  body.querySelectorAll('.cm-tab').forEach(tab => {
+    tab.addEventListener('click', async () => {
+      body.querySelectorAll('.cm-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const tabName = tab.dataset.tab;
+      body.querySelectorAll('.cm-tab-content').forEach(tc => tc.classList.remove('active'));
+      const target = document.getElementById('cmTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+      if (target) {
+        target.classList.add('active');
+        if (tabName === 'graph') {
+          await _initGraph();
+        }
+      }
+    });
+  });
+}
+
+async function _initGraph() {
+  const container = document.getElementById('cmGraphContainer');
+  if (!container || !_data) return;
+  if (container.dataset.initialized) return;
+  container.dataset.initialized = '1';
+
+  try {
+    const { initGraph } = await import('./codebaseMap-graph-bundle.js');
+    _graphRoot = initGraph(container, _data.modules);
+
+    window.__cmSelectModule = (moduleName) => {
+      const treeTab = document.querySelector('.cm-tab[data-tab="tree"]');
+      if (treeTab) treeTab.click();
+
+      const card = document.querySelector(`.cm-module-card[data-module="${_esc(moduleName)}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const moduleIdx = _data.modules.findIndex(m => m.name === moduleName);
+        if (moduleIdx >= 0) {
+          toggleModule(card, _data.modules[moduleIdx], CAT_PALETTE[moduleIdx % CAT_PALETTE.length]);
+        }
+      }
+    };
+  } catch (err) {
+    container.innerHTML = `<div class="cm-error">Failed to load graph: ${_esc(err.message)}</div>`;
+  }
 }
 
 function overviewBarItem(icon, value, label) {
@@ -200,17 +260,11 @@ function toggleModule(card, module, color) {
   const exp = card.querySelector('.cm-expanded');
   exp.style.display = 'grid';
 
-  // Files
+  // Files — tree view
   let filesHtml = '<div class="cm-expanded-section"><div class="cm-expanded-section-title">Files</div>';
-  for (const f of module.files) {
-    const exports = f.exports || [];
-    const exportHint = exports.length ? ` (${exports.length} exports)` : '';
-    filesHtml += `<div class="cm-expanded-file" data-path="${_esc(f.path)}">
-      <span class="cm-filename">${_esc(f.path)}${exportHint}</span>
-      <span class="cm-file-symcount">${f.symbolCount} syms</span>
-    </div>`;
-  }
-  filesHtml += '</div>';
+  filesHtml += '<div class="cm-tree">';
+  filesHtml += _renderTreeHTML(module.tree || []);
+  filesHtml += '</div></div>';
 
   // Dependencies
   let depsHtml = '<div class="cm-expanded-section"><div class="cm-expanded-section-title">Dependencies</div>';
@@ -236,12 +290,45 @@ function toggleModule(card, module, color) {
   exp.innerHTML = filesHtml + depsHtml;
 
   // Click file → navigate
-  exp.querySelectorAll('.cm-expanded-file[data-path]').forEach(el => {
+  exp.querySelectorAll('.cm-tree-file[data-path]').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       selectFileInTree(el.dataset.path);
     });
   });
+}
+
+function _renderTreeHTML(nodes, prefix = '') {
+  let html = '';
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const isLast = i === nodes.length - 1;
+    const connector = isLast ? '└── ' : '├── ';
+    const linePrefix = prefix + connector;
+    const childPrefix = prefix + (isLast ? '    ' : '│   ');
+
+    if (node.type === 'directory') {
+      html += `<div class="cm-tree-dir">
+        <span class="cm-tree-prefix">${_esc(linePrefix)}</span>
+        <span class="cm-tree-dirname">${_esc(node.name)}/</span>
+      </div>`;
+      html += _renderTreeHTML(node.children || [], childPrefix);
+    } else {
+      let tagStr = '';
+      if (node.symbolCount > 0) tagStr += `<span class="cm-tree-tag syms">${node.symbolCount} syms</span> `;
+      if (node.importCount > 0) tagStr += `<span class="cm-tree-tag imports">${node.importCount} imports</span> `;
+      if (node.dependentCount > 0) tagStr += `<span class="cm-tree-tag dependents">${node.dependentCount} dependents</span> `;
+      if (node.exports && node.exports.length > 0) tagStr += `<span class="cm-tree-tag exports">${node.exports.length} exports</span> `;
+      const roleStr = node.role && node.role !== 'module' ? ` <span class="cm-tree-tag role">← ${_esc(node.role)}</span>` : '';
+
+      html += `<div class="cm-tree-file" data-path="${_esc(node.path)}">
+        <span class="cm-tree-prefix">${_esc(linePrefix)}</span>
+        <span class="cm-tree-filename">${_esc(node.name)}</span>
+        ${tagStr}${roleStr}
+      </div>`;
+    }
+  }
+  return html;
 }
 
 function selectFileInTree(filePath) {
@@ -307,15 +394,74 @@ async function copyMap() {
     ta.remove();
   }
 
-  showToast();
+  showToast('Map copied to clipboard!');
 }
 
-function showToast() {
+async function copyStructure() {
+  if (!_data || !_data.modules) return;
+
+  const lines = [];
+  for (const mod of _data.modules) {
+    lines.push(`${mod.name}/`);
+    const childLines = _renderStructureLines(mod.tree || [], '');
+    for (const cl of childLines) lines.push(cl);
+    lines.push('');
+  }
+
+  const text = lines.join('\n');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+
+  showToast('Structure copied to clipboard!');
+}
+
+function _renderStructureLines(nodes, prefix) {
+  const lines = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const isLast = i === nodes.length - 1;
+    const connector = isLast ? '└── ' : '├── ';
+    const linePrefix = prefix + connector;
+    const childPrefix = prefix + (isLast ? '    ' : '│   ');
+
+    if (node.type === 'directory') {
+      lines.push(linePrefix + node.name + '/');
+      const childLines = _renderStructureLines(node.children || [], childPrefix);
+      for (const cl of childLines) lines.push(cl);
+    } else {
+      lines.push(linePrefix + node.name);
+    }
+  }
+  return lines;
+}
+
+function showToast(msg) {
   const modal = _overlay?.querySelector('.cm-modal');
   if (!modal) return;
   const toast = document.createElement('div');
   toast.className = 'cm-toast';
-  toast.textContent = 'Map copied to clipboard!';
+  toast.textContent = msg || 'Copied!';
   modal.appendChild(toast);
   setTimeout(() => toast.remove(), 1600);
 }

@@ -3,10 +3,12 @@ import { getTemplate } from './template.js';
 import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
 import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle, renderParallelModeControls } from './sidebar.js';
 import { renderInput } from './input.js';
+import { clearCache as clearFilePickerCache, isOpen as isFilePickerOpen } from './filePicker.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
-import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
+import { setupTerminalDataHandler, initXterm, setOnSessionDetected } from './terminalManager.js';
 import { getLoadingController } from './loading.js';
+import { convStore } from './conversationStore.js';
 
 let _initialized = false;
 let _refreshInterval = null;
@@ -32,10 +34,32 @@ export async function initCodeSwampUI() {
   renderInput();
   setupTerminalDataHandler();
 
+  // When a new session ID appears in terminal output, store it locally immediately
+  setOnSessionDetected((sessionId, repoPath) => {
+    convStore.addConversation(repoPath, {
+      id: sessionId,
+      title: 'Untitled',
+      date: new Date().toISOString(),
+      provider: state.selectedProvider,
+    });
+    if (state.activeTab === repoPath) {
+      state.conversations[repoPath] = convStore.getConversations(repoPath);
+      renderConvList();
+    }
+  });
+
   // Init xterm.js (async, fire-and-forget)
   initXterm().catch(e => console.error('[CS] xterm init error:', e));
 
-  // Fast IPC — blocks until active repo is set
+  // Discover opencode binary path FIRST — before any terminal is created
+  let info = null;
+  try { info = await discoverOpencode(); } catch {}
+  if (info) {
+    state.opencodePath = info.binaryPath;
+    state.dataRoot = info.dataRoot;
+  }
+
+  // Load active repo
   const activeRepo = await getActiveRepoPath();
   console.log('[CS] activeRepo:', activeRepo);
   if (activeRepo) {
@@ -49,18 +73,15 @@ export async function initCodeSwampUI() {
     if (!repoPath) return;
     state.activeTab = repoPath;
     showWelcome();
+    clearFilePickerCache();
     if (state.activeTab) {
       await refreshSidebar();
     }
   });
 
-  // Defer slow CLI discovery + conversation listing
+  // Defer slow non-blocking tasks (shells, repo list, refresh interval)
   setTimeout(async () => {
     try {
-      const info = await discoverOpencode();
-      state.opencodePath = info.binaryPath;
-      state.dataRoot = info.dataRoot;
-
       const repos = await listRepos();
       if (!state.activeTab && repos.length > 0) {
         await addRepo(repos[0].repoPath);
@@ -93,10 +114,12 @@ function setupDom() {
   const newChatBtn = document.getElementById('ocNewChatBtn');
   console.log('[CS] setupDom — ocNewChatBtn found:', !!newChatBtn);
   newChatBtn?.addEventListener('click', startNewChat);
+  document.getElementById('ocRefreshBtn')?.addEventListener('click', () => refreshSidebar(true));
   document.getElementById('ocCloseBtn')?.addEventListener('click', closeCodeSwampUI);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (isFilePickerOpen()) return;
       const panel = document.getElementById('ocPanel');
       if (panel && panel.classList.contains('open')) closeCodeSwampUI();
     }

@@ -27,7 +27,23 @@ function getWin() {
 
 function getDataRoot() {
   const home = os.homedir();
-  return path.join(home, '.local', 'share', 'opencode');
+  const candidates = [
+    path.join(home, '.local', 'share', 'opencode'),
+  ];
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    candidates.push(path.join(localAppData, 'opencode'));
+    candidates.push(path.join(appData, 'opencode'));
+  }
+  for (const dir of candidates) {
+    if (fs.existsSync(dir)) {
+      console.log(`[CS-IPC] getDataRoot: found data dir at "${dir}"`);
+      return dir;
+    }
+  }
+  console.log(`[CS-IPC] getDataRoot: no project dir found, using default "${candidates[0]}"`);
+  return candidates[0];
 }
 
 function getStorageDir(repoPath) {
@@ -231,10 +247,14 @@ function register(shared) {
     return null;
   });
 
-  ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv, sessionId }) => {
+  ipcMain.handle('opencode:run', async (_, { repoPath, message, files, continueConv, sessionId, mode }) => {
+    if (_activeProc) {
+      return { code: -1, error: 'Already running' };
+    }
     const { binaryPath } = await discover();
     const args = ['run', '--format', 'default', message];
 
+    if (mode) args.push('--mode', mode);
     if (sessionId) {
       args.push('-s', sessionId);
     } else if (continueConv) {
@@ -462,7 +482,6 @@ function register(shared) {
 
       term.onData((data) => {
         const w = getWin();
-        console.log(`[CS-IPC] termData: id=${id} len=${data.length} win=${!!w}`);
         if (w && !w.isDestroyed()) {
           w.webContents.send('opencode:termData', { id, data });
         }
@@ -476,6 +495,7 @@ function register(shared) {
             id,
             data: `\r\n\x1b[31mProcess exited (${exitCode})\x1b[0m\r\n`,
           });
+          w.webContents.send('opencode:termExited', { id, code: exitCode });
         }
         _csTerminals.delete(id);
       });

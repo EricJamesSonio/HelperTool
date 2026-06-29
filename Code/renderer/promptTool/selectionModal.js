@@ -72,65 +72,50 @@ export async function openPromptSelectionModal() {
             byCat.get(p.categoryId).push(p);
         }
 
+        const colorPalette = ['#60a5fa','#f87171','#34d399','#fbbf24','#a78bfa','#f472b6','#2dd4bf','#e879f9'];
+
         let total = 0;
         for (const [catId, ps] of byCat.entries()) {
             if (!ps.length) continue;
             total += ps.length;
             const cat = categories.find(c => c.id === catId);
-            const catName = cat?.name || '(Uncategorized)';
-
-            const catWrap = document.createElement('div');
-            catWrap.className = 'pt-cat-wrap';
-            catWrap.innerHTML = `<div class="pt-cat-header">${escapeHtml(catName)} - Prompts</div>`;
+            const catColor = colorPalette[categories.indexOf(cat) % colorPalette.length];
 
             ps.forEach(p => {
-                const row = document.createElement('div');
-                row.className = 'pt-select-item';
+                const card = document.createElement('div');
+                card.className = 'pt-prompt-card';
+                card.style.setProperty('--pt-color', catColor);
                 const isSelected = selectedIds.includes(p.id);
-                if (isSelected) row.classList.add('selected');
+                if (isSelected) card.classList.add('active');
 
-                row.innerHTML = `
-                  <input type="radio" name="prompt-select" class="pt-radio" ${isSelected ? 'checked' : ''} />
-                  <div class="pt-select-item-info">
-                    <div class="pt-select-item-title">${escapeHtml(p.title || '(Untitled)')}</div>
-                  </div>
+                const preview = (p.body || '').slice(0, 200);
+
+                card.innerHTML = `
+                  <div class="pt-prompt-card-title">${escapeHtml(p.title || '(Untitled)')}</div>
+                  <div class="pt-prompt-card-preview">${escapeHtml(preview)}${p.body && p.body.length > 200 ? '...' : ''}</div>
                 `;
 
                 function toggle() {
                     const isCurrentlySelected = selectedIds.includes(p.id);
-                    if (isCurrentlySelected) {
-                        selectedIds = [];
-                    } else {
-                        selectedIds = [p.id];
-                    }
 
                     // Clear all others
-                    listEl.querySelectorAll('.pt-select-item').forEach(el => {
-                        el.classList.remove('selected');
-                        const rb = el.querySelector('input[type="radio"]');
-                        if (rb) rb.checked = false;
+                    listEl.querySelectorAll('.pt-prompt-card').forEach(el => {
+                        el.classList.remove('active');
                     });
 
                     if (!isCurrentlySelected) {
-                        row.classList.add('selected');
-                        const rb = row.querySelector('input[type="radio"]');
-                        if (rb) rb.checked = true;
+                        selectedIds = [p.id];
+                        card.classList.add('active');
+                    } else {
+                        selectedIds = [];
                     }
 
                     loadAndRenderPreviewOnly();
                 }
 
-                row.addEventListener('click', toggle);
-                const rb = row.querySelector('input[type="radio"]');
-                rb?.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    toggle();
-                });
-
-                catWrap.appendChild(row);
+                card.addEventListener('click', toggle);
+                listEl.appendChild(card);
             });
-
-            listEl.appendChild(catWrap);
         }
 
         if (total === 0) {

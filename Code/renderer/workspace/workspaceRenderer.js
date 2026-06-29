@@ -724,7 +724,7 @@ function _renderTabTickets(el) {
       </select>
       <button class="workspace-btn-add" id="addTicketBtn">${ICON_PLUS} Add</button>
     </div>
-    <textarea id="newTicketDesc" placeholder="Description (optional)..." class="workspace-textarea" rows="2" style="margin-top:10px;width:100%;box-sizing:border-box"></textarea>
+    <textarea id="newTicketDesc" placeholder="Description (optional)..." class="workspace-textarea" rows="4" style="margin-top:10px;width:100%;box-sizing:border-box"></textarea>
     <div class="workspace-form-error" id="addTicketError"></div>
   `;
   el.appendChild(form);
@@ -834,10 +834,22 @@ function _buildKanbanCard(ticket, workers, project) {
     });
   }
 
-  card.querySelector('.workspace-ticket-edit').addEventListener('click', () =>
-    _showEditTicketModal(ticket, project, workers)
-  );
-  card.querySelector('.workspace-ticket-delete').addEventListener('click', async () => {
+  card.addEventListener('click', e => {
+    const t = e.target;
+    if (t.closest('.workspace-ticket-edit')) return;
+    if (t.closest('.workspace-ticket-delete')) return;
+    if (t.closest('.ws-kanban-status-select')) return;
+    if (t.closest('.ws-kanban-desc-toggle')) return;
+    e.stopPropagation();
+    _showEditTicketModal(ticket, project, workers);
+  });
+
+  card.querySelector('.workspace-ticket-edit').addEventListener('click', e => {
+    e.stopPropagation();
+    _showEditTicketModal(ticket, project, workers);
+  });
+  card.querySelector('.workspace-ticket-delete').addEventListener('click', async e => {
+    e.stopPropagation();
     const ok = await confirmDialog('Delete this ticket?');
     if (!ok) return;
     deleteTicket(ticket.id);
