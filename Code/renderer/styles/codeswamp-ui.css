@@ -1052,3 +1052,192 @@ Claude Fab
   color: var(--text-muted, #8b949e);
   font-size: 0.88rem;
 }
+
+/* ─── Ticket Panel ────────────────────────────────────────────────────── */
+.oc-tp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.oc-tp-modal {
+  background: var(--bg-elevated, #0f1117);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 14px;
+  width: min(640px, 94vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.oc-tp-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  flex-shrink: 0;
+}
+.oc-tp-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #f0f6fc);
+  flex: 1;
+}
+.oc-tp-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #8b949e);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.oc-tp-close:hover {
+  background: var(--bg-hover, #1c2333);
+  color: var(--text-primary, #f0f6fc);
+}
+.oc-tp-filters {
+  display: flex;
+  gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  flex-shrink: 0;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+.oc-tp-filter {
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  background: transparent;
+  color: var(--text-muted, #8b949e);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+}
+.oc-tp-filter:hover {
+  border-color: var(--tp-color, var(--accent, #22d3ee));
+  color: var(--tp-color, var(--accent, #22d3ee));
+}
+.oc-tp-filter.active {
+  background: var(--tp-color, var(--accent, #22d3ee));
+  border-color: var(--tp-color, var(--accent, #22d3ee));
+  color: #fff;
+}
+.oc-tp-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.oc-tp-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted, #8b949e);
+  font-size: 0.88rem;
+}
+.oc-tp-card {
+  background: var(--bg-raised, #161b22);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.oc-tp-card:hover {
+  border-color: var(--accent, #22d3ee);
+  background: var(--accent-dim, rgba(34,211,238,0.04));
+}
+.oc-tp-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.oc-tp-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.oc-tp-card-title {
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary, #f0f6fc);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oc-tp-priority {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  background: var(--bg-elevated, #0f1117);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.oc-tp-card-desc {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  color: var(--text-secondary, #b1bac4);
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.oc-tp-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+.oc-tp-card-time {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-faint, #545d68);
+}
+.oc-tp-status-select {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-secondary, #b1bac4);
+  cursor: pointer;
+  outline: none;
+  max-width: 120px;
+}
+.oc-tp-status-select:focus {
+  border-color: var(--accent, #22d3ee);
+}
+.oc-btn-ticket {
+  flex-shrink: 0;
+  font-size: 16px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}

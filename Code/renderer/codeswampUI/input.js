@@ -3,6 +3,7 @@ import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots } from
 import { openTerminalForRepo } from './chat.js';
 import { getLoadingController } from './loading.js';
 import { openPromptPicker } from './promptPicker.js';
+import { openTicketPanel } from './ticketPanel.js';
 import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
 
 function extractFilePathsFromText(text) {
@@ -41,6 +42,7 @@ export function renderInput() {
       <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="1"></textarea>
       <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
       <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">📋</button>
+      <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">🎫</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
@@ -53,6 +55,7 @@ export function renderInput() {
   const modeBtn = document.getElementById('ocModeBtn');
   const attachBtn = document.getElementById('ocAttachBtn');
   const promptBtn = document.getElementById('ocPromptBtn');
+  const ticketBtn = document.getElementById('ocTicketBtn');
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';
@@ -110,6 +113,7 @@ export function renderInput() {
   });
 
   promptBtn.addEventListener('click', openPromptPicker);
+  ticketBtn.addEventListener('click', openTicketPanel);
 }
 
 function renderPendingFiles() {
