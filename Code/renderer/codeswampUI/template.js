@@ -63,15 +63,7 @@ export function getTemplate(mode = 'full') {
         </div>
       </div>
       <div class="oc-terminal" id="ocTerminal" style="display:none">
-        <div class="oc-terminal-container" id="ocTerminalContainer">
-          <div class="oc-response-overlay" id="ocResponseOverlay" style="display:none">
-            <div class="oc-response-header">
-              <span class="oc-response-label">AI Response</span>
-              <button class="oc-response-close" id="ocResponseClose">✕</button>
-            </div>
-            <div class="oc-response-content" id="ocResponseContent"></div>
-          </div>
-        </div>
+        <div class="oc-terminal-container" id="ocTerminalContainer"></div>
       </div>
       <div class="oc-input-area" id="ocInputArea"></div>
     </div>

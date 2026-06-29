@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { getLoadingController } from './loading.js';
 import { openPromptPicker } from './promptPicker.js';
@@ -172,9 +172,9 @@ async function sendMessage() {
     }
 
     if (state.parallelMode) {
-      writeToSlot(slotIndex, text + '\n');
+      writeToSlot(slotIndex, text + '\r');
     } else {
-      writeToTerminal(repoPath, text + '\n');
+      writeToTerminal(repoPath, text + '\r');
     }
 
     input.value = '';

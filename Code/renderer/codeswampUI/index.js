@@ -6,7 +6,7 @@ import { renderInput } from './input.js';
 import { clearCache as clearFilePickerCache, isOpen as isFilePickerOpen } from './filePicker.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
-import { setupTerminalDataHandler, initXterm, hideResponseOverlay } from './terminalManager.js';
+import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
 import { getLoadingController } from './loading.js';
 
 let _initialized = false;
@@ -101,7 +101,6 @@ function setupDom() {
   newChatBtn?.addEventListener('click', startNewChat);
   document.getElementById('ocRefreshBtn')?.addEventListener('click', () => refreshSidebar(true));
   document.getElementById('ocCloseBtn')?.addEventListener('click', closeCodeSwampUI);
-  document.getElementById('ocResponseClose')?.addEventListener('click', hideResponseOverlay);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
