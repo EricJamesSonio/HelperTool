@@ -6,8 +6,9 @@ import { renderInput } from './input.js';
 import { clearCache as clearFilePickerCache, isOpen as isFilePickerOpen } from './filePicker.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
-import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
+import { setupTerminalDataHandler, initXterm, setOnSessionDetected } from './terminalManager.js';
 import { getLoadingController } from './loading.js';
+import { convStore } from './conversationStore.js';
 
 let _initialized = false;
 let _refreshInterval = null;
@@ -32,6 +33,20 @@ export async function initCodeSwampUI() {
   showWelcome();
   renderInput();
   setupTerminalDataHandler();
+
+  // When a new session ID appears in terminal output, store it locally immediately
+  setOnSessionDetected((sessionId, repoPath) => {
+    convStore.addConversation(repoPath, {
+      id: sessionId,
+      title: 'Untitled',
+      date: new Date().toISOString(),
+      provider: state.selectedProvider,
+    });
+    if (state.activeTab === repoPath) {
+      state.conversations[repoPath] = convStore.getConversations(repoPath);
+      renderConvList();
+    }
+  });
 
   // Init xterm.js (async, fire-and-forget)
   initXterm().catch(e => console.error('[CS] xterm init error:', e));

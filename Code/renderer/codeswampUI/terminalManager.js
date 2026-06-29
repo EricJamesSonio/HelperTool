@@ -432,6 +432,12 @@ export function fitActiveTerminal() {
 
 let _termDataHandlerSetup = false;
 let _termExitHandlerSetup = false;
+let _onSessionDetected = null;
+const _seenSessionIds = new Set();
+
+export function setOnSessionDetected(cb) {
+  _onSessionDetected = cb;
+}
 
 export function setupTerminalDataHandler() {
   if (_termDataHandlerSetup) return;
@@ -445,6 +451,22 @@ export function setupTerminalDataHandler() {
         getLoadingController().finish('Ready', 600);
       }
     }
+
+    // Detect new session IDs from opencode terminal output and store locally
+    if (_onSessionDetected) {
+      const sesMatch = data.match(/ses_[a-zA-Z0-9_-]{10,}/);
+      if (sesMatch) {
+        const sesId = sesMatch[0];
+        if (!_seenSessionIds.has(sesId)) {
+          _seenSessionIds.add(sesId);
+          const inst = Object.values(instances).find(i => i && i.id === id);
+          if (inst) {
+            _onSessionDetected(sesId, inst.repoPath, inst.slotIndex);
+          }
+        }
+      }
+    }
+
     for (const inst of Object.values(instances)) {
       if (inst && inst.id === id) {
         inst.terminal.write(data);

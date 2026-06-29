@@ -1,7 +1,6 @@
 import { state } from './state.js';
 import { refreshSidebar, loadConversation } from './sidebar.js';
 import { hasTerminalSession, showTerminalSession } from './terminalManager.js';
-import { listConversations } from './history.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
 

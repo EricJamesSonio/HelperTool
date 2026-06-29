@@ -9,6 +9,7 @@ import {
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
 import { getProvider, getProviderList } from './providers.js';
+import { convStore } from './conversationStore.js';
 
 export function renderShellSelect() {
   const select = document.getElementById('ocShellSelect');
@@ -114,58 +115,57 @@ export async function refreshSidebar(forceLoading = false) {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  const cached = state.conversations[repoPath] || [];
-  if (cached.length === 0 || forceLoading) {
+  // Step 1: Show cached data from local store immediately, or loading if requested
+  const localConvs = convStore.getConversations(repoPath);
+  if (localConvs.length === 0 || forceLoading) {
     renderConvList(true);
+  } else {
+    state.conversations[repoPath] = localConvs;
+    if (!state.messages[repoPath]) state.messages[repoPath] = [];
+    renderConvList();
   }
 
-  const convs = await listConversations(repoPath, state.selectedProvider);
-  const currentConvs = state.conversations[repoPath] || [];
+  // Step 2: Sync with IPC to pick up any conversations from external sources
+  const result = await listConversations(repoPath, state.selectedProvider);
+  const serverConvs = result.conversations;
 
-  if (convs.length > 0) {
-    const serverIds = new Set(convs.map(c => c.id));
-    const localOnly = currentConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
-    state.conversations[repoPath] = [...localOnly, ...convs];
+  if (serverConvs.length > 0) {
+    convStore.mergeConversations(repoPath, serverConvs);
+    const merged = convStore.getConversations(repoPath);
+    const serverIds = new Set(serverConvs.map(c => c.id));
+    const localOnly = localConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
+    state.conversations[repoPath] = [...localOnly, ...merged.filter(c => !c.id.startsWith('local_') || serverIds.has(c.id))];
+
     if (!state.messageCache[repoPath]) state.messageCache[repoPath] = {};
-    for (const c of convs) {
+    for (const c of serverConvs) {
       if (c.id && !state.messageCache[repoPath][c.id]) {
         state.messageCache[repoPath][c.id] = { title: c.title, date: c.date };
       }
     }
-    persistConversations(repoPath);
-  } else if (currentConvs.length === 0) {
-    const cacheKey = 'cs_conv_cache_' + normPath(repoPath);
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          state.conversations[repoPath] = parsed;
-        }
-      }
-    } catch {}
+  } else {
+    state.conversations[repoPath] = convStore.getConversations(repoPath);
   }
 
   if (!state.messages[repoPath]) state.messages[repoPath] = [];
   renderConvList();
 }
 
-function normPath(p) {
-  return (p || '').replace(/\\/g, '/').toLowerCase();
-}
-
-export function persistConversations(repoPath) {
-  const convs = state.conversations[repoPath];
-  if (!convs || !convs.length) return;
-  const cacheKey = 'cs_conv_cache_' + normPath(repoPath);
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify(convs));
-  } catch {}
-}
-
 export async function loadConversation(convId) {
   const repoPath = state.activeTab;
   if (!repoPath) return;
+
+  // Store this conversation locally so the sidebar shows it even if IPC is unavailable
+  const existing = (state.conversations[repoPath] || []).find(c => c.id === convId);
+  if (existing) {
+    convStore.addConversation(repoPath, existing);
+  } else {
+    convStore.addConversation(repoPath, {
+      id: convId,
+      title: convId,
+      date: new Date().toISOString(),
+      provider: state.selectedProvider,
+    });
+  }
 
   if (!state.parallelMode) {
     state.activeConvId[repoPath] = convId;

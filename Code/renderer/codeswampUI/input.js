@@ -4,6 +4,8 @@ import { openTerminalForRepo } from './chat.js';
 import { getLoadingController } from './loading.js';
 import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
+import { openStonePanel } from './stonePanel.js';
+import { openPlanningPanel } from './planningPanel.js';
 import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
 
 function extractFilePathsFromText(text) {
@@ -43,6 +45,8 @@ export function renderInput() {
       <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
       <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">📋</button>
       <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">🎫</button>
+      <button class="oc-btn oc-btn-stone" id="ocStoneBtn" title="Infinity Stones">💎</button>
+      <button class="oc-btn oc-btn-planning" id="ocPlanningBtn" title="Plans">📝</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
@@ -56,6 +60,8 @@ export function renderInput() {
   const attachBtn = document.getElementById('ocAttachBtn');
   const promptBtn = document.getElementById('ocPromptBtn');
   const ticketBtn = document.getElementById('ocTicketBtn');
+  const stoneBtn = document.getElementById('ocStoneBtn');
+  const planningBtn = document.getElementById('ocPlanningBtn');
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';
@@ -114,6 +120,8 @@ export function renderInput() {
 
   promptBtn.addEventListener('click', openPromptPicker);
   ticketBtn.addEventListener('click', openTicketPanel);
+  stoneBtn.addEventListener('click', openStonePanel);
+  planningBtn.addEventListener('click', openPlanningPanel);
 }
 
 function renderPendingFiles() {
