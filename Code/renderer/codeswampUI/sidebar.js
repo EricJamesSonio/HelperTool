@@ -3,7 +3,8 @@ import { listConversations, getConversation } from './history.js';
 import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.js';
 import {
   hasTerminalSession, writeToTerminal, writeToSlot, fitActiveTerminal,
-  getActiveSlots, getFreeSlot, killSlot, activateSlot, setParallelConfig
+  getActiveSlots, getFreeSlot, killSlot, activateSlot, setParallelConfig,
+  markTerminalLoading, clearTerminalLoading
 } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
@@ -121,12 +122,45 @@ export async function refreshSidebar(forceLoading = false) {
   const convs = await listConversations(repoPath, state.selectedProvider);
   const currentConvs = state.conversations[repoPath] || [];
 
-  const serverIds = new Set(convs.map(c => c.id));
-  const localOnly = currentConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
-  state.conversations[repoPath] = [...localOnly, ...convs];
+  if (convs.length > 0) {
+    const serverIds = new Set(convs.map(c => c.id));
+    const localOnly = currentConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
+    state.conversations[repoPath] = [...localOnly, ...convs];
+    if (!state.messageCache[repoPath]) state.messageCache[repoPath] = {};
+    for (const c of convs) {
+      if (c.id && !state.messageCache[repoPath][c.id]) {
+        state.messageCache[repoPath][c.id] = { title: c.title, date: c.date };
+      }
+    }
+    persistConversations(repoPath);
+  } else if (currentConvs.length === 0) {
+    const cacheKey = 'cs_conv_cache_' + normPath(repoPath);
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          state.conversations[repoPath] = parsed;
+        }
+      }
+    } catch {}
+  }
 
   if (!state.messages[repoPath]) state.messages[repoPath] = [];
   renderConvList();
+}
+
+function normPath(p) {
+  return (p || '').replace(/\\/g, '/').toLowerCase();
+}
+
+export function persistConversations(repoPath) {
+  const convs = state.conversations[repoPath];
+  if (!convs || !convs.length) return;
+  const cacheKey = 'cs_conv_cache_' + normPath(repoPath);
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(convs));
+  } catch {}
 }
 
 export async function loadConversation(convId) {
@@ -202,11 +236,30 @@ export async function startNewChat() {
 
   if (state.parallelMode) {
     const slotIndex = state.activeSlotIndex;
-    writeToSlot(slotIndex, '/exit\n');
-    await new Promise(r => setTimeout(r, 2000));
-    killSlot(slotIndex);
-    await new Promise(r => setTimeout(r, 1000));
-    state.slotData[slotIndex] = null;
+    const inst = getActiveSlots()[slotIndex];
+    if (inst && inst.repoPath === repoPath) {
+      clearTerminalLoading(slotIndex);
+      writeToSlot(slotIndex, '/exit\n');
+      await new Promise(r => setTimeout(r, 2000));
+      const provider = getProvider(state.selectedProvider);
+      const binaryPath = state.opencodePath || provider.bin;
+      markTerminalLoading(slotIndex);
+      writeToSlot(slotIndex, provider.newChatCmd(binaryPath));
+      setTimeout(() => clearTerminalLoading(slotIndex), 8000);
+      state.activeConvId[repoPath] = null;
+      state.slotData[slotIndex] = { repoPath, convId: null };
+    } else {
+      const freeSlot = getFreeSlot();
+      const targetSlot = freeSlot >= 0 ? freeSlot : slotIndex;
+      state.activeSlotIndex = targetSlot;
+      state.slotData[targetSlot] = { repoPath, convId: null };
+      if (freeSlot < 0) {
+        writeToSlot(targetSlot, '/exit\n');
+        await new Promise(r => setTimeout(r, 2000));
+        killSlot(targetSlot);
+      }
+      await openTerminalForRepo(repoPath, targetSlot);
+    }
     await refreshSidebar();
     renderConvList();
     const input = document.getElementById('ocInput');
@@ -215,8 +268,8 @@ export async function startNewChat() {
   }
 
   state.activeConvId[repoPath] = null;
-  state.messages[repoPath] = [];
-  state.messageCache[repoPath] = [];
+      state.messages[repoPath] = [];
+      state.messageCache[repoPath] = {};
 
   if (hasTerminalSession(repoPath)) {
     writeToTerminal(repoPath, '/exit\n');

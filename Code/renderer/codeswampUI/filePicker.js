@@ -55,7 +55,21 @@ export function clearCache() {
 export function open(query, inputEl) {
   if (!_treeCache || !_treeCache.length) return;
   const q = query.toLowerCase();
-  _filtered = _treeCache.filter(f => f.path.toLowerCase().includes(q)).slice(0, MAX_DISPLAY);
+  const scored = [];
+  for (const f of _treeCache) {
+    const name = f.name.toLowerCase();
+    const pathLc = f.path.toLowerCase();
+    if (!pathLc.includes(q)) continue;
+    let score = 0;
+    if (name === q) score = 100;
+    else if (name.startsWith(q)) score = 80;
+    else if (name.includes(q)) score = 60;
+    else if (pathLc.includes('/' + q) || pathLc.includes('\\' + q)) score = 40;
+    else score = 20;
+    scored.push({ file: f, score });
+  }
+  scored.sort((a, b) => b.score - a.score || a.file.name.localeCompare(b.file.name));
+  _filtered = scored.slice(0, MAX_DISPLAY).map(s => s.file);
   if (!_filtered.length) { close(); return; }
   _selectedIndex = 0;
   _open = true;

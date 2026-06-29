@@ -23,7 +23,10 @@ export function getTemplate(mode = 'full') {
 
       <div class="oc-sidebar-top">
       <div class="oc-repo-tabs" id="ocRepoTabs" style="display:none"></div>
-        <button class="oc-btn oc-btn-new-chat" id="ocNewChatBtn">+ New Chat</button>
+        <div style="display:flex;gap:4px">
+          <button class="oc-btn oc-btn-new-chat" id="ocNewChatBtn" style="flex:1">+ New Chat</button>
+          <button class="oc-btn oc-btn-new-chat" id="ocRefreshBtn" style="width:32px;flex:none;font-size:14px" title="Refresh conversations">⟳</button>
+        </div>
       </div>
 
       <div class="oc-term-settings" id="ocTermSettings">
@@ -60,7 +63,15 @@ export function getTemplate(mode = 'full') {
         </div>
       </div>
       <div class="oc-terminal" id="ocTerminal" style="display:none">
-        <div class="oc-terminal-container" id="ocTerminalContainer"></div>
+        <div class="oc-terminal-container" id="ocTerminalContainer">
+          <div class="oc-response-overlay" id="ocResponseOverlay" style="display:none">
+            <div class="oc-response-header">
+              <span class="oc-response-label">AI Response</span>
+              <button class="oc-response-close" id="ocResponseClose">✕</button>
+            </div>
+            <div class="oc-response-content" id="ocResponseContent"></div>
+          </div>
+        </div>
       </div>
       <div class="oc-input-area" id="ocInputArea"></div>
     </div>

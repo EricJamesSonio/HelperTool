@@ -6,7 +6,7 @@ import { renderInput } from './input.js';
 import { clearCache as clearFilePickerCache, isOpen as isFilePickerOpen } from './filePicker.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
-import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
+import { setupTerminalDataHandler, initXterm, hideResponseOverlay } from './terminalManager.js';
 import { getLoadingController } from './loading.js';
 
 let _initialized = false;
@@ -36,7 +36,15 @@ export async function initCodeSwampUI() {
   // Init xterm.js (async, fire-and-forget)
   initXterm().catch(e => console.error('[CS] xterm init error:', e));
 
-  // Fast IPC — blocks until active repo is set
+  // Discover opencode binary path FIRST — before any terminal is created
+  let info = null;
+  try { info = await discoverOpencode(); } catch {}
+  if (info) {
+    state.opencodePath = info.binaryPath;
+    state.dataRoot = info.dataRoot;
+  }
+
+  // Load active repo
   const activeRepo = await getActiveRepoPath();
   console.log('[CS] activeRepo:', activeRepo);
   if (activeRepo) {
@@ -56,13 +64,9 @@ export async function initCodeSwampUI() {
     }
   });
 
-  // Defer slow CLI discovery + conversation listing
+  // Defer slow non-blocking tasks (shells, repo list, refresh interval)
   setTimeout(async () => {
     try {
-      const info = await discoverOpencode();
-      state.opencodePath = info.binaryPath;
-      state.dataRoot = info.dataRoot;
-
       const repos = await listRepos();
       if (!state.activeTab && repos.length > 0) {
         await addRepo(repos[0].repoPath);
@@ -95,7 +99,9 @@ function setupDom() {
   const newChatBtn = document.getElementById('ocNewChatBtn');
   console.log('[CS] setupDom — ocNewChatBtn found:', !!newChatBtn);
   newChatBtn?.addEventListener('click', startNewChat);
+  document.getElementById('ocRefreshBtn')?.addEventListener('click', () => refreshSidebar(true));
   document.getElementById('ocCloseBtn')?.addEventListener('click', closeCodeSwampUI);
+  document.getElementById('ocResponseClose')?.addEventListener('click', hideResponseOverlay);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

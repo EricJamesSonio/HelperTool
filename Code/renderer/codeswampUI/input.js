@@ -1,8 +1,6 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, activateSlot, getActiveSlots } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
-import { refreshSidebar } from './sidebar.js';
-import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
 import { openPromptPicker } from './promptPicker.js';
 import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
@@ -150,68 +148,42 @@ function toggleMode() {
 }
 
 async function sendMessage() {
-  const input = document.getElementById('ocInput');
-  if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
+  try {
+    const input = document.getElementById('ocInput');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
 
-  const repoPath = state.activeTab;
-  if (!repoPath) return;
+    const repoPath = state.activeTab;
+    if (!repoPath) return;
 
-  const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
-  const hasSession = state.parallelMode ? !!getActiveSlots()[slotIndex] : hasTerminalSession(repoPath);
-  const isNewChat = !hasSession;
+    const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
-  if (!hasSession) {
-    const lc = getLoadingController();
-    lc.start('Starting terminal...');
-    try {
-      await openTerminalForRepo(repoPath, slotIndex);
-    } catch (e) {
-      lc.hide();
-      return;
+    if (!hasTerminalSession(repoPath)) {
+      const lc = getLoadingController();
+      lc.start('Starting terminal...');
+      try {
+        await openTerminalForRepo(repoPath, slotIndex);
+      } catch (e) {
+        console.error('[CS] sendMessage: terminal creation failed', e);
+        lc.hide();
+        return;
+      }
     }
-  }
 
-  let msg = text;
-  const files = state.pendingFiles.map(f => f.path);
-  const matchedPaths = extractFilePathsFromText(text);
-  for (const p of matchedPaths) {
-    if (!files.includes(p)) files.push(p);
-  }
-  if (files.length > 0) {
-    msg += ' --file ' + files.join(' --file ');
-  }
+    if (state.parallelMode) {
+      writeToSlot(slotIndex, text + '\n');
+    } else {
+      writeToTerminal(repoPath, text + '\n');
+    }
 
-  const prevCount = (state.conversations[repoPath] || []).length;
-
-  if (state.parallelMode) {
-    writeToSlot(slotIndex, msg + '\r');
-  } else {
-    writeToTerminal(repoPath, msg + '\r');
+    input.value = '';
+    input.style.height = 'auto';
+    state.pendingFiles = [];
+    renderPendingFiles();
+  } catch (err) {
+    console.error('[CS] sendMessage: unhandled error', err);
   }
-
-  if (isNewChat) {
-    pollForNewSession(repoPath, prevCount);
-  } else {
-    setTimeout(() => refreshSidebar(), 1500);
-  }
-
-  input.value = '';
-  input.style.height = 'auto';
-  state.pendingFiles = [];
-  renderPendingFiles();
 }
 
-async function pollForNewSession(repoPath, prevCount, maxAttempts = 6, interval = 2000) {
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, interval));
-    await refreshSidebar();
-    const convs = state.conversations[repoPath] || [];
-    if (convs.length > prevCount && convs[0] && !state.activeConvId[repoPath]) {
-      state.activeConvId[repoPath] = convs[0].id;
-      renderConvList();
-      return;
-    }
-  }
-}
+
