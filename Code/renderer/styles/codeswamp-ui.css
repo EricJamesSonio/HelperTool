@@ -555,6 +555,7 @@ Claude Fab
   display: flex;
   gap: 8px;
   align-items: flex-end;
+  position: relative;
 }
 
 .oc-input {
@@ -650,6 +651,55 @@ Claude Fab
 }
 .oc-btn-mode.code:hover {
   background: rgba(212,167,44,0.15);
+}
+
+/* ── @-mention file picker ──────────────────────── */
+
+.oc-file-picker {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: var(--bg-elevated, #0f1117);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.4);
+}
+
+.oc-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-left: 2px solid transparent;
+}
+
+.oc-picker-item:hover,
+.oc-picker-item--active {
+  background: var(--bg-hover, rgba(255,255,255,0.06));
+  border-left-color: var(--accent, #22d3ee);
+}
+
+.oc-picker-name {
+  color: var(--text-primary, #f0f6fc);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.oc-picker-dir {
+  color: var(--text-faint, #545d68);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Loading overlay ────────────────────────────── */

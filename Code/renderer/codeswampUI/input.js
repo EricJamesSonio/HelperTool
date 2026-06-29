@@ -5,6 +5,33 @@ import { refreshSidebar } from './sidebar.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
 import { openPromptPicker } from './promptPicker.js';
+import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
+
+function extractFilePathsFromText(text) {
+  const knownPaths = getCachedFiles().map(f => f.path);
+  if (!knownPaths.length) return [];
+  const found = [];
+  for (const p of knownPaths) {
+    if (text.includes(p)) {
+      found.push(p);
+    }
+  }
+  return found;
+}
+
+async function handleAtMention(input) {
+  const val = input.value;
+  const atIdx = val.lastIndexOf('@');
+  if (atIdx === -1 || atIdx < val.lastIndexOf(' ')) {
+    if (isOpen()) closePicker();
+    return;
+  }
+  const query = val.slice(atIdx + 1);
+  if (state.activeTab) {
+    await ensureTreeLoaded(state.activeTab);
+    open(query, input);
+  }
+}
 
 export function renderInput() {
   const area = document.getElementById('ocInputArea');
@@ -32,12 +59,39 @@ export function renderInput() {
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+    handleAtMention(input);
   });
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (isOpen()) {
+        e.preventDefault();
+        confirmSelection(input);
+        return;
+      }
       e.preventDefault();
       sendMessage();
+      return;
+    }
+    if (e.key === 'Escape' && isOpen()) {
+      e.preventDefault();
+      closePicker();
+      return;
+    }
+    if (e.key === 'ArrowDown' && isOpen()) {
+      e.preventDefault();
+      selectNext();
+      return;
+    }
+    if (e.key === 'ArrowUp' && isOpen()) {
+      e.preventDefault();
+      selectPrev();
+      return;
+    }
+    if (e.key === 'Tab' && isOpen()) {
+      e.preventDefault();
+      confirmSelection(input);
+      return;
     }
   });
 
@@ -121,6 +175,10 @@ async function sendMessage() {
 
   let msg = text;
   const files = state.pendingFiles.map(f => f.path);
+  const matchedPaths = extractFilePathsFromText(text);
+  for (const p of matchedPaths) {
+    if (!files.includes(p)) files.push(p);
+  }
   if (files.length > 0) {
     msg += ' --file ' + files.join(' --file ');
   }

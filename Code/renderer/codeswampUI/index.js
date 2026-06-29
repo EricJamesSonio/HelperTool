@@ -3,6 +3,7 @@ import { getTemplate } from './template.js';
 import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
 import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle, renderParallelModeControls } from './sidebar.js';
 import { renderInput } from './input.js';
+import { clearCache as clearFilePickerCache, isOpen as isFilePickerOpen } from './filePicker.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
 import { setupTerminalDataHandler, initXterm } from './terminalManager.js';
@@ -49,6 +50,7 @@ export async function initCodeSwampUI() {
     if (!repoPath) return;
     state.activeTab = repoPath;
     showWelcome();
+    clearFilePickerCache();
     if (state.activeTab) {
       await refreshSidebar();
     }
@@ -97,6 +99,7 @@ function setupDom() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (isFilePickerOpen()) return;
       const panel = document.getElementById('ocPanel');
       if (panel && panel.classList.contains('open')) closeCodeSwampUI();
     }
