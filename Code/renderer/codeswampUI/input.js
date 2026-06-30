@@ -43,11 +43,11 @@ export function renderInput() {
     <div class="oc-pending-files" id="ocPendingFiles"></div>
     <div class="oc-input-row">
       <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="1"></textarea>
-      <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
-      <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">📋</button>
-      <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">🎫</button>
-      <button class="oc-btn oc-btn-stone" id="ocStoneBtn" title="Infinity Stones">💎</button>
-      <button class="oc-btn oc-btn-planning" id="ocPlanningBtn" title="Plans">📝</button>
+      <button class="oc-btn oc-btn-file" id="ocAttachBtn" title="Attach file">File</button>
+      <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">Prompt</button>
+      <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">Ticket</button>
+      <button class="oc-btn oc-btn-stone" id="ocStoneBtn" title="Infinity Stones">Stones</button>
+      <button class="oc-btn oc-btn-planning" id="ocPlanningBtn" title="Plans">Plan</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>

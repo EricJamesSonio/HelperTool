@@ -591,20 +591,38 @@ Claude Fab
   color: var(--text-faint, #545d68);
 }
 
-.oc-btn-attach {
+.oc-btn-file {
   flex-shrink: 0;
-  font-size: 18px;
-  width: 40px;
   height: 40px;
-  padding: 0;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-color: var(--border-mid, rgba(255,255,255,0.14));
+  color: var(--text-tertiary, #6e7681);
+}
+.oc-btn-file:hover {
+  color: var(--text-primary, #f0f6fc);
+  border-color: var(--border-strong, rgba(255,255,255,0.25));
+  background: var(--bg-hover, rgba(255,255,255,0.04));
 }
 
 .oc-btn-prompt {
   flex-shrink: 0;
-  font-size: 16px;
-  width: 40px;
   height: 40px;
-  padding: 0;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-color: #a855f7;
+  color: #a855f7;
+  background: rgba(168,85,247,0.06);
+}
+.oc-btn-prompt:hover {
+  background: rgba(168,85,247,0.15);
+  box-shadow: 0 0 0 2px rgba(168,85,247,0.15);
 }
 
 .oc-input-actions {
@@ -1277,14 +1295,55 @@ Claude Fab
 .oc-tp-status-select:focus {
   border-color: var(--accent, #22d3ee);
 }
-.oc-btn-ticket,
-.oc-btn-stone,
+.oc-btn-ticket {
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-color: #22c55e;
+  color: #22c55e;
+  background: rgba(34,197,94,0.06);
+}
+.oc-btn-ticket:hover {
+  background: rgba(34,197,94,0.15);
+  box-shadow: 0 0 0 2px rgba(34,197,94,0.15);
+}
+
+.oc-btn-stone {
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-color: #06b6d4;
+  color: #06b6d4;
+  background: rgba(6,182,212,0.06);
+}
+.oc-btn-stone:hover {
+  background: rgba(6,182,212,0.15);
+  box-shadow: 0 0 0 2px rgba(6,182,212,0.15);
+}
+
 .oc-btn-planning {
   flex-shrink: 0;
-  font-size: 16px;
-  width: 40px;
   height: 40px;
-  padding: 0;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-color: #f59e0b;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.06);
+}
+.oc-btn-planning:hover {
+  background: rgba(245,158,11,0.15);
+  box-shadow: 0 0 0 2px rgba(245,158,11,0.15);
 }
 
 /* ─── Stone Panel (Infinity Stones) ────────────────────────────────────────── */
