@@ -182,10 +182,18 @@ function _showConvContextMenu(x, y, conv) {
 }
 
 async function _renameConversation(conv) {
+  console.log('[CS] _renameConversation called with conv:', { id: conv.id, title: conv.title, customTitle: conv.customTitle });
   const name = await promptDialog('Rename conversation:', conv.title || conv.id);
-  if (!name || name.trim() === (conv.title || conv.id)) return;
+  console.log('[CS] _renameConversation prompt result:', { name, original: conv.title || conv.id });
+  if (!name || name.trim() === (conv.title || conv.id)) {
+    console.log('[CS] _renameConversation: no change, skipping');
+    return;
+  }
   convStore.renameConversation(state.activeTab, conv.id, name.trim());
-  state.conversations[state.activeTab] = convStore.getConversations(state.activeTab);
+  const afterStore = convStore.getConversations(state.activeTab);
+  const renamedConv = afterStore.find(c => c.id === conv.id);
+  console.log('[CS] _renameConversation: after rename, store conv:', { id: renamedConv?.id, title: renamedConv?.title, customTitle: renamedConv?.customTitle });
+  state.conversations[state.activeTab] = afterStore;
   renderConvList();
 }
 
