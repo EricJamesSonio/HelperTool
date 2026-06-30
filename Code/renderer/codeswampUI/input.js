@@ -4,7 +4,6 @@ import { openTerminalForRepo } from './chat.js';
 import { getLoadingController } from './loading.js';
 import { refreshSidebar } from './sidebar.js';
 import { convStore } from './conversationStore.js';
-import { getProvider } from './providers.js';
 import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
 import { openStonePanel } from './stonePanel.js';
@@ -177,13 +176,16 @@ async function sendMessage() {
     // Store for session title detection
     state.lastSentMessage = text;
 
-    // Ensure terminal shell exists
+    // Ensure terminal shell exists with opencode running
     const created = !hasTerminalSession(repoPath);
     if (created) {
       const lc = getLoadingController();
       lc.start('Starting terminal...');
       try {
         await openTerminalForRepo(repoPath, slotIndex);
+        // First message: wait for opencode to initialize before writing
+        await new Promise(r => setTimeout(r, 1500));
+        lc.finish('Ready', 300);
       } catch (e) {
         console.error('[CS] sendMessage: terminal creation failed', e);
         lc.hide();
@@ -191,26 +193,8 @@ async function sendMessage() {
       }
     }
 
-    // Get session ID for the current conversation
+    // Write message — opencode is already running in the terminal
     const sessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
-    const provider = getProvider(state.selectedProvider);
-    const binaryPath = state.opencodePath || provider.bin;
-
-    if (!created) {
-      // Terminal already existed — opencode may have exited between messages,
-      // leaving the shell at its prompt. Restart opencode so the message text
-      // reaches opencode's stdin, not the shell's.
-      const startCmd = sessionId ? provider.resumeCmd(sessionId, binaryPath) : provider.newChatCmd(binaryPath);
-      if (state.parallelMode) {
-        writeToSlot(slotIndex, startCmd);
-      } else {
-        writeToTerminal(repoPath, startCmd);
-      }
-      // Wait for opencode to start before writing the message
-      await new Promise(r => setTimeout(r, 1500));
-    }
-
-    // Write the actual message
     if (state.parallelMode) {
       writeToSlot(slotIndex, text + '\r');
     } else {
