@@ -71,7 +71,7 @@ export async function openTicketPanel() {
     close();
   }
 
-  let activeFilter = null;
+  let activeFilter = 'backlog';
 
   function render() {
     const filtered = activeFilter
