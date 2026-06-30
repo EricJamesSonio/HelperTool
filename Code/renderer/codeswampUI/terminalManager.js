@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { getLoadingController } from './loading.js';
 import { getProvider } from './providers.js';
+import { convStore } from './conversationStore.js';
 
 const instances = {};
 const _loadingTerminalIds = new Set();
@@ -325,6 +326,7 @@ export function executeOpencodeRun(repoPath, slotIndex, message, files, continue
   return new Promise((resolve) => {
     let settled = false;
     let timeoutId = null;
+    let detectedSessionId = sessionId || null;
 
     function cleanup() {
       if (settled) return;
@@ -350,16 +352,42 @@ export function executeOpencodeRun(repoPath, slotIndex, message, files, continue
       console.log(`[CS] stream chunk: ${chunk.length}B error=${isError}`);
       state.streamBuffer += chunk;
       appendToResponseOverlay(chunk);
+      const sesMatch = chunk.match(/ses_[a-zA-Z0-9_-]{10,}/);
+      if (sesMatch) {
+        detectedSessionId = sesMatch[0];
+      }
     });
 
     window.electronAPI.opencode.onDone(({ code, stderr, error }) => {
       console.log(`[CS] stream done: code=${code} stderrLen=${(stderr||'').length} error=${error}`);
       if (settled) return;
       cleanup();
-      if (code !== 0 && stderr) {
-        appendToResponseOverlay(`\n[Error] ${stderr}\n`);
+
+      if (code !== 0) {
+        const errText = (stderr || error || '').toLowerCase();
+        if (errText.includes('session not found')) {
+          state.activeConvId[repoPath] = null;
+          if (slotIndex !== undefined && state.slotData[slotIndex]) {
+            state.slotData[slotIndex].convId = null;
+          }
+        }
+        if (stderr) {
+          appendToResponseOverlay(`\n[Error] ${stderr}\n`);
+        }
       }
-      if (code === 0) {
+
+      if (code === 0 && detectedSessionId) {
+        state.activeConvId[repoPath] = detectedSessionId;
+        if (slotIndex !== undefined) {
+          state.slotData[slotIndex] = state.slotData[slotIndex] || {};
+          state.slotData[slotIndex].convId = detectedSessionId;
+        }
+        convStore.addConversation(repoPath, {
+          id: detectedSessionId,
+          title: message.length > 40 ? message.slice(0, 40) + '\u2026' : message,
+          date: new Date().toISOString(),
+          provider: state.selectedProvider,
+        });
         appendToResponseOverlay(`\n\x1b[2m[Done]\x1b[0m\n`);
       }
       resolve({ code, stderr, error });

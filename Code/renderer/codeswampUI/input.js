@@ -1,7 +1,6 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots } from './terminalManager.js';
-import { openTerminalForRepo } from './chat.js';
-import { getLoadingController } from './loading.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, executeOpencodeRun } from './terminalManager.js';
+import { refreshSidebar } from './sidebar.js';
 import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
 import { openStonePanel } from './stonePanel.js';
@@ -171,23 +170,11 @@ async function sendMessage() {
 
     const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
-    if (!hasTerminalSession(repoPath)) {
-      const lc = getLoadingController();
-      lc.start('Starting terminal...');
-      try {
-        await openTerminalForRepo(repoPath, slotIndex);
-      } catch (e) {
-        console.error('[CS] sendMessage: terminal creation failed', e);
-        lc.hide();
-        return;
-      }
-    }
+    const files = state.pendingFiles.map(f => f.path);
+    const existingSessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath] || null;
 
-    if (state.parallelMode) {
-      writeToSlot(slotIndex, text + '\r');
-    } else {
-      writeToTerminal(repoPath, text + '\r');
-    }
+    await executeOpencodeRun(repoPath, slotIndex, text, files, !!existingSessionId, existingSessionId, state.cliMode);
+    refreshSidebar();
 
     input.value = '';
     input.style.height = 'auto';

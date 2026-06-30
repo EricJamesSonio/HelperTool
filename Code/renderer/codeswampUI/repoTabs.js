@@ -1,8 +1,10 @@
 import { state } from './state.js';
-import { refreshSidebar, loadConversation } from './sidebar.js';
+import { refreshSidebar, loadConversation, startNewChat } from './sidebar.js';
 import { hasTerminalSession, showTerminalSession } from './terminalManager.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
+import { convStore } from './conversationStore.js';
+import { promptDialog } from '../utils/confirmDialog.js';
 
 export async function addRepo(repoPath) {
   console.log('[CS] addRepo:', repoPath);
@@ -127,9 +129,80 @@ export function renderConvList(loading) {
         </div>
       `;
       item.addEventListener('click', () => loadConversation(conv.id));
+      item.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        _showConvContextMenu(e.clientX, e.clientY, conv);
+      });
       groupEl.appendChild(item);
     }
 
     list.appendChild(groupEl);
   }
+}
+
+// ── Conversation context menu ──
+
+function _showConvContextMenu(x, y, conv) {
+  const existing = document.querySelector('.oc-ctx-menu');
+  if (existing) existing.remove();
+
+  const menu = document.createElement('div');
+  menu.className = 'custom-context-menu oc-ctx-menu';
+  menu.innerHTML = `
+    <div class="context-menu-header">${escapeHtml(conv.title || conv.id)}</div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="rename">
+      <span class="context-menu-label">Rename</span>
+    </div>
+    <div class="context-menu-item" data-action="delete">
+      <span class="context-menu-label" style="color:var(--red,#f87171)">Delete</span>
+    </div>
+  `;
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  document.body.appendChild(menu);
+
+  menu.querySelector('[data-action="rename"]').addEventListener('click', () => {
+    menu.remove();
+    _renameConversation(conv);
+  });
+  menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
+    menu.remove();
+    _deleteConversation(conv);
+  });
+
+  const close = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove();
+      document.removeEventListener('click', close);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', close), 0);
+}
+
+async function _renameConversation(conv) {
+  console.log('[CS] _renameConversation called with conv:', { id: conv.id, title: conv.title, customTitle: conv.customTitle });
+  const name = await promptDialog('Rename conversation:', conv.title || conv.id);
+  console.log('[CS] _renameConversation prompt result:', { name, original: conv.title || conv.id });
+  if (!name || name.trim() === (conv.title || conv.id)) {
+    console.log('[CS] _renameConversation: no change, skipping');
+    return;
+  }
+  convStore.renameConversation(state.activeTab, conv.id, name.trim());
+  const afterStore = convStore.getConversations(state.activeTab);
+  const renamedConv = afterStore.find(c => c.id === conv.id);
+  console.log('[CS] _renameConversation: after rename, store conv:', { id: renamedConv?.id, title: renamedConv?.title, customTitle: renamedConv?.customTitle });
+  state.conversations[state.activeTab] = afterStore;
+  renderConvList();
+}
+
+function _deleteConversation(conv) {
+  if (!confirm(`Delete "${conv.title || conv.id}"?`)) return;
+  convStore.removeConversation(state.activeTab, conv.id);
+  state.conversations[state.activeTab] = convStore.getConversations(state.activeTab);
+  if (state.activeConvId[state.activeTab] === conv.id) {
+    state.activeConvId[state.activeTab] = null;
+  }
+  renderConvList();
 }
