@@ -174,7 +174,7 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
   const lc = getLoadingController();
   lc.setProgress('Starting shell...', 0.35);
 
-  const instance = { id: result.id, terminal, fitAddon, div, repoPath, slotIndex };
+  const instance = { id: result.id, terminal, fitAddon, div, repoPath, slotIndex, ready: false, _readyResolve: null };
   instances[slotIndex] = instance;
 
   terminal.onData((data) => {
@@ -223,6 +223,8 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
       delete _loadingTimestamps[result.id];
       getLoadingController().finish('Ready', 600);
     }
+    instance.ready = true;
+    if (instance._readyResolve) { instance._readyResolve(); instance._readyResolve = null; }
   }, 8000);
 
   instance._loadingTimeout = timeout;
@@ -300,6 +302,10 @@ function stripAnsi(text) {
 export function showResponseOverlay() {
   const ov = getOverlay();
   if (ov) ov.style.display = '';
+  const closeBtn = document.getElementById('ocResponseOverlayClose');
+  if (closeBtn) {
+    closeBtn.onclick = hideResponseOverlay;
+  }
 }
 export function hideResponseOverlay() {
   const ov = getOverlay();
@@ -507,6 +513,8 @@ export function setupTerminalDataHandler() {
           _seenSessionIds.add(sesId);
           const inst = Object.values(instances).find(i => i && i.id === id);
           if (inst) {
+            inst.ready = true;
+            if (inst._readyResolve) { inst._readyResolve(); inst._readyResolve = null; }
             _onSessionDetected(sesId, inst.repoPath, inst.slotIndex);
           }
         }
@@ -557,6 +565,31 @@ export function clearTerminalLoading(slotIndex) {
     _loadingTerminalIds.delete(inst.id);
     delete _loadingTimestamps[inst.id];
   }
+}
+
+export function waitForTerminalOpencode(repoPath, slotIndex, timeout = 10000) {
+  return new Promise((resolve) => {
+    let inst;
+    if (slotIndex !== undefined && instances[slotIndex]) {
+      inst = instances[slotIndex];
+    } else {
+      inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+    }
+    if (!inst || inst.ready) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      inst.ready = true;
+      inst._readyResolve = null;
+      resolve();
+    }, timeout);
+    inst._readyResolve = () => {
+      clearTimeout(timer);
+      inst._readyResolve = null;
+      resolve();
+    };
+  });
 }
 
 export function isTerminalLoading(repoPath, slotIndex) {

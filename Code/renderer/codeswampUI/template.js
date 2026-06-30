@@ -65,6 +65,13 @@ export function getTemplate(mode = 'full') {
       <div class="oc-terminal" id="ocTerminal" style="display:none">
         <div class="oc-terminal-container" id="ocTerminalContainer"></div>
       </div>
+      <div class="oc-response-overlay" id="ocResponseOverlay" style="display:none">
+        <div class="oc-response-overlay-header">
+          <span class="oc-response-overlay-title">Response</span>
+          <button class="oc-btn oc-btn-icon oc-response-overlay-close" id="ocResponseOverlayClose">✕</button>
+        </div>
+        <div class="oc-response-overlay-body" id="ocResponseContent"></div>
+      </div>
       <div class="oc-input-area" id="ocInputArea"></div>
     </div>
   </div>

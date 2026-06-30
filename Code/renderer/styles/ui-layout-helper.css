@@ -318,29 +318,25 @@
   max-width: 100%;
 }
 
-/* Inner structure — the panel itself is a centered card */
+/* Inner structure — panel fills viewport below titlebar (consistent with canvas, settings, symbol index, etc.) */
 #ulhPanel.ulh-panel {
   display: flex;
   flex-direction: column;
-  background: var(--bg-elevated, #111d34);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.10));
-  border-radius: 12px;
-  box-shadow: 0 32px 80px rgba(0,0,0,0.6);
-  width: min(900px, 94vw);
-  height: min(600px, 85vh);
-  inset: auto;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: var(--bg-elevated, #0d1a2e);
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.96);
-  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  top: var(--titlebar-h, 34px);
+  left: 0;
+  width: 100vw;
+  height: calc(100vh - var(--titlebar-h, 34px));
+  z-index: 9999;
+  transform: none;
+  backdrop-filter: none;
+  transition: opacity 0.2s ease;
 }
 
-#ulhPanel.ulh-panel.ulh-visible {
-  transform: translate(-50%, -50%) scale(1);
-}
-
-/* Overlay backdrop */
-.ulh-panel[style*="z-index: 9990"] {
-  /* the floating card sits above a transparent overlay */
+/* Remove card rounding/borders in fullscreen */
+#ulhPanel.ulh-panel .ulh-header {
+  border-radius: 0;
 }

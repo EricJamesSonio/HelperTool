@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, waitForTerminalOpencode } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 import { convStore } from './conversationStore.js';
@@ -175,12 +175,15 @@ async function sendMessage() {
     // Store for session title detection
     state.lastSentMessage = text;
 
-    // Ensure terminal exists (creates shell + launches opencode)
+    // Ensure terminal exists
     if (!hasTerminalSession(repoPath)) {
       await openTerminalForRepo(repoPath, slotIndex);
     }
 
-    // Write message to terminal — opencode is the foreground process
+    // Wait until opencode is actually reading stdin (session detected = prompt shown)
+    await waitForTerminalOpencode(repoPath, slotIndex);
+
+    // Write message to terminal PTY — opencode is the foreground process
     const sessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
     if (state.parallelMode) {
       writeToSlot(slotIndex, text + '\r');

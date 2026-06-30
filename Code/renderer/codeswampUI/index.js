@@ -136,6 +136,11 @@ function setupDom() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (isFilePickerOpen()) return;
+      const overlay = document.getElementById('ocResponseOverlay');
+      if (overlay && overlay.style.display !== 'none') {
+        overlay.style.display = 'none';
+        return;
+      }
       const panel = document.getElementById('ocPanel');
       if (panel && panel.classList.contains('open')) closeCodeSwampUI();
     }
