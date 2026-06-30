@@ -376,6 +376,10 @@
   color: var(--text-muted, #8b949e);
 }
 
+.oc-ctx-menu {
+  min-width: 180px;
+}
+
 /* ── Welcome screen ─────────────────────────────── */
 
 .oc-welcome {

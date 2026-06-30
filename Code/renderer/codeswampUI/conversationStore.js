@@ -41,7 +41,13 @@ export const convStore = {
     const arr = this._load(repoPath);
     const idx = arr.findIndex(c => c.id === conv.id);
     if (idx >= 0) {
-      arr[idx] = { ...arr[idx], ...conv };
+      const local = arr[idx];
+      if (local && local.customTitle) {
+        const { title, ...rest } = conv;
+        arr[idx] = { ...local, ...rest, title: local.title, customTitle: true };
+      } else {
+        arr[idx] = { ...arr[idx], ...conv };
+      }
     } else {
       arr.unshift({
         provider: 'opencode',
@@ -54,6 +60,17 @@ export const convStore = {
     this._save(repoPath);
   },
 
+  renameConversation(repoPath, convId, newTitle) {
+    if (!repoPath || !convId || !newTitle) return;
+    const arr = this._load(repoPath);
+    const idx = arr.findIndex(c => c.id === convId);
+    if (idx >= 0) {
+      arr[idx].title = newTitle;
+      arr[idx].customTitle = true;
+      this._save(repoPath);
+    }
+  },
+
   mergeConversations(repoPath, convs) {
     if (!repoPath || !convs) return;
     const arr = this._load(repoPath);
@@ -62,7 +79,13 @@ export const convStore = {
       if (!conv || !conv.id) continue;
       if (seen.has(conv.id)) {
         const idx = arr.findIndex(c => c.id === conv.id);
-        arr[idx] = { ...arr[idx], ...conv };
+        const local = arr[idx];
+        if (local && local.customTitle) {
+          const { title, ...rest } = conv;
+          arr[idx] = { ...local, ...rest, title: local.title, customTitle: true };
+        } else {
+          arr[idx] = { ...arr[idx], ...conv };
+        }
       } else {
         arr.push({ ...conv });
         seen.add(conv.id);

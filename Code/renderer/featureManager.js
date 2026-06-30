@@ -23,6 +23,7 @@ const DEFAULT_FEATURES = {
   blueprintLibraryTool: true,
   profileTool: true,
   dockerTool: true,
+  uiLayoutHelper: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -71,6 +72,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-team-activity', !_features.teamActivityTool);
   document.body.classList.toggle('feat-no-blueprint-library', !_features.blueprintLibraryTool);
   document.body.classList.toggle('feat-no-docker', !_features.dockerTool);
+  document.body.classList.toggle('feat-no-ui-layout-helper', !_features.uiLayoutHelper);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────

@@ -47,6 +47,7 @@ const ICONS = {
     github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>',
     opencode: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',
     map: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 7 10 4 17 7"/><polyline points="3 17 10 14 17 17"/><line x1="10" y1="4" x2="10" y2="14"/><path d="M3 7v10"/><path d="M17 7v10"/></svg>',
+    layout: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="8" y1="7" x2="8" y2="18"/><line x1="2" y1="13" x2="18" y2="13"/><line x1="14" y1="7" x2="14" y2="18"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -326,6 +327,14 @@ function populateSidebar() {
     openEnvManager(state.selectedRepoPath);
   }, 'env'));
 
+  body.appendChild(createSidebarItem(ICONS.layout, 'UI Layout Helper', 'Draw UI layouts as ASCII art', async () => {
+    try {
+      const ulh = await import('../uiLayoutHelper.js');
+      if (ulh.isOpen()) { ulh.closeUI(); return; }
+      _registry.closeAll();
+      ulh.openUI();
+    } catch (err) { console.error('[Tools] UI Layout Helper:', err); }
+  }, 'layout'));
 
   body.appendChild(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
     try {

@@ -34,17 +34,11 @@ export async function initCodeSwampUI() {
   renderInput();
   setupTerminalDataHandler();
 
-  // When a new session ID appears in terminal output, store it locally immediately
+  // Terminal detected a session ID — only use it as fallback if IPC hasn't set one yet.
+  // Don't add to convStore here; the IPC path (executeOpencodeRun) handles that with real message titles.
   setOnSessionDetected((sessionId, repoPath) => {
-    convStore.addConversation(repoPath, {
-      id: sessionId,
-      title: 'Untitled',
-      date: new Date().toISOString(),
-      provider: state.selectedProvider,
-    });
-    if (state.activeTab === repoPath) {
-      state.conversations[repoPath] = convStore.getConversations(repoPath);
-      renderConvList();
+    if (!state.activeConvId[repoPath]) {
+      state.activeConvId[repoPath] = sessionId;
     }
   });
 
