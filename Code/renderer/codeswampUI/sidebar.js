@@ -170,6 +170,8 @@ export async function loadConversation(convId) {
       provider: state.selectedProvider,
     });
   }
+  // Bump to top — loaded conversations are recently used
+  convStore.touchConversation(repoPath, convId);
 
   if (!state.parallelMode) {
     state.activeConvId[repoPath] = convId;
@@ -237,6 +239,9 @@ export async function loadConversation(convId) {
 export async function startNewChat() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
+
+  // Clear any stale message from previous send — new chat = fresh session
+  state.lastSentMessage = null;
 
   if (state.parallelMode) {
     const slotIndex = state.activeSlotIndex;

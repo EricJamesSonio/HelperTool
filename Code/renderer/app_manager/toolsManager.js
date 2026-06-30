@@ -700,6 +700,15 @@ function _buildShortcutActions() {
     } catch (err) { console.error('[Shortcuts] Codebase Map:', err); }
   };
 
+  actions.uiLayoutHelper = async () => {
+    try {
+      const ulh = await import('../uiLayoutHelper.js');
+      if (ulh.isOpen()) { ulh.closeUI(); return; }
+      _registry.closeAll();
+      ulh.openUI();
+    } catch (err) { console.error('[Shortcuts] UI Layout Helper:', err); }
+  };
+
   actions.envManager = () => {
     const existing = document.getElementById('envOverlay');
     if (existing) { existing.remove(); return; }

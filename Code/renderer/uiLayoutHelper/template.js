@@ -1,7 +1,6 @@
 export function getTemplate() {
   return `
-<div id="ulhPanel" class="ulh-panel">
-  <div class="ulh-header">
+<div class="ulh-header">
     <span class="ulh-title">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
         <rect x="2" y="2" width="16" height="16" rx="2"/>
@@ -91,6 +90,5 @@ export function getTemplate() {
         <pre id="ulhPreview" class="ulh-preview">Render a layout to see it here...</pre>
       </div>
     </div>
-  </div>
-</div>`;
+  </div>`;
 }

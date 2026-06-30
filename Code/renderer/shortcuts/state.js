@@ -20,6 +20,7 @@ const DEFAULT_SHORTCUTS = {
   githubExplorer: null,
   codeswampChat: null,
   codebaseMap: 'Ctrl+Shift+M',
+  uiLayoutHelper: null,
 };
 
 const S = { shortcuts: {} };

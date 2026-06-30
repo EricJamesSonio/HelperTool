@@ -1,6 +1,10 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, executeOpencodeRun } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots } from './terminalManager.js';
+import { openTerminalForRepo } from './chat.js';
+import { getLoadingController } from './loading.js';
 import { refreshSidebar } from './sidebar.js';
+import { convStore } from './conversationStore.js';
+import { getProvider } from './providers.js';
 import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
 import { openStonePanel } from './stonePanel.js';
@@ -170,16 +174,60 @@ async function sendMessage() {
 
     const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
-    const files = state.pendingFiles.map(f => f.path);
-    const existingSessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath] || null;
+    // Store for session title detection
+    state.lastSentMessage = text;
 
-    await executeOpencodeRun(repoPath, slotIndex, text, files, !!existingSessionId, existingSessionId, state.cliMode);
-    refreshSidebar();
+    // Ensure terminal shell exists
+    const created = !hasTerminalSession(repoPath);
+    if (created) {
+      const lc = getLoadingController();
+      lc.start('Starting terminal...');
+      try {
+        await openTerminalForRepo(repoPath, slotIndex);
+      } catch (e) {
+        console.error('[CS] sendMessage: terminal creation failed', e);
+        lc.hide();
+        return;
+      }
+    }
+
+    // Get session ID for the current conversation
+    const sessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
+    const provider = getProvider(state.selectedProvider);
+    const binaryPath = state.opencodePath || provider.bin;
+
+    if (!created) {
+      // Terminal already existed — opencode may have exited between messages,
+      // leaving the shell at its prompt. Restart opencode so the message text
+      // reaches opencode's stdin, not the shell's.
+      const startCmd = sessionId ? provider.resumeCmd(sessionId, binaryPath) : provider.newChatCmd(binaryPath);
+      if (state.parallelMode) {
+        writeToSlot(slotIndex, startCmd);
+      } else {
+        writeToTerminal(repoPath, startCmd);
+      }
+      // Wait for opencode to start before writing the message
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    // Write the actual message
+    if (state.parallelMode) {
+      writeToSlot(slotIndex, text + '\r');
+    } else {
+      writeToTerminal(repoPath, text + '\r');
+    }
+    // Bump conversation to top (last-used ordering)
+    if (sessionId) {
+      convStore.touchConversation(repoPath, sessionId);
+    }
 
     input.value = '';
     input.style.height = 'auto';
     state.pendingFiles = [];
     renderPendingFiles();
+
+    // Refresh sidebar after a delay so opencode has time to process
+    setTimeout(() => refreshSidebar(), 1500);
   } catch (err) {
     console.error('[CS] sendMessage: unhandled error', err);
   }
