@@ -273,6 +273,17 @@ export function writeToSlot(slotIndex, text) {
   window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
 }
 
+export function writeToTerminalDisplay(repoPath, slotIndex, text) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  if (!inst) return;
+  inst.terminal.write(text);
+}
+
 /* ── Response overlay helpers ── */
 
 function getOverlay() {
@@ -388,6 +399,13 @@ export function executeOpencodeRun(repoPath, slotIndex, message, files, continue
           date: new Date().toISOString(),
           provider: state.selectedProvider,
         });
+        convStore.touchConversation(repoPath, detectedSessionId);
+        const streamText = state.streamBuffer || '';
+        writeToTerminalDisplay(repoPath, slotIndex, `\r\n\x1b[36m> ${message}\x1b[0m\r\n`);
+        if (streamText) {
+          writeToTerminalDisplay(repoPath, slotIndex, streamText);
+        }
+        writeToTerminalDisplay(repoPath, slotIndex, '\r\n');
         appendToResponseOverlay(`\n\x1b[2m[Done]\x1b[0m\n`);
       }
       resolve({ code, stderr, error });
@@ -539,6 +557,37 @@ export function clearTerminalLoading(slotIndex) {
     _loadingTerminalIds.delete(inst.id);
     delete _loadingTimestamps[inst.id];
   }
+}
+
+export function isTerminalLoading(repoPath, slotIndex) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  return inst ? _loadingTerminalIds.has(inst.id) : false;
+}
+
+export function waitForTerminalReady(repoPath, slotIndex, timeout = 12000) {
+  return new Promise((resolve) => {
+    if (!isTerminalLoading(repoPath, slotIndex)) {
+      resolve();
+      return;
+    }
+    const start = Date.now();
+    const iv = setInterval(() => {
+      if (!isTerminalLoading(repoPath, slotIndex)) {
+        clearInterval(iv);
+        resolve();
+        return;
+      }
+      if (Date.now() - start > timeout) {
+        clearInterval(iv);
+        resolve();
+      }
+    }, 150);
+  });
 }
 
 export function getActiveSlots() {

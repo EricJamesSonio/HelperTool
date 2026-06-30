@@ -1,7 +1,6 @@
 import { state } from './state.js';
 import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
-import { getLoadingController } from './loading.js';
 import { refreshSidebar } from './sidebar.js';
 import { convStore } from './conversationStore.js';
 import { openPromptPicker } from './promptPicker.js';
@@ -176,24 +175,12 @@ async function sendMessage() {
     // Store for session title detection
     state.lastSentMessage = text;
 
-    // Ensure terminal shell exists with opencode running
-    const created = !hasTerminalSession(repoPath);
-    if (created) {
-      const lc = getLoadingController();
-      lc.start('Starting terminal...');
-      try {
-        await openTerminalForRepo(repoPath, slotIndex);
-        // First message: wait for opencode to initialize before writing
-        await new Promise(r => setTimeout(r, 1500));
-        lc.finish('Ready', 300);
-      } catch (e) {
-        console.error('[CS] sendMessage: terminal creation failed', e);
-        lc.hide();
-        return;
-      }
+    // Ensure terminal exists (creates shell + launches opencode)
+    if (!hasTerminalSession(repoPath)) {
+      await openTerminalForRepo(repoPath, slotIndex);
     }
 
-    // Write message — opencode is already running in the terminal
+    // Write message to terminal — opencode is the foreground process
     const sessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
     if (state.parallelMode) {
       writeToSlot(slotIndex, text + '\r');
