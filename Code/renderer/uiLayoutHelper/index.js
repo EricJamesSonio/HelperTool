@@ -6,6 +6,8 @@ import { PRESETS } from './presets.js';
 
 let _initialized = false;
 
+/* ── DOM Setup ───────────────────────────────────────────── */
+
 function setup() {
   if (_initialized) return;
   _initialized = true;
@@ -49,6 +51,8 @@ function wireEvents() {
   });
 }
 
+/* ── Presets ─────────────────────────────────────────────── */
+
 function renderPresets() {
   presetsList.innerHTML = '';
   PRESETS.forEach(p => {
@@ -72,6 +76,8 @@ function loadPreset(preset) {
   handleRender();
 }
 
+/* ── Render ──────────────────────────────────────────────── */
+
 function handleRender() {
   const raw = inputArea.value.trim();
   if (!raw) {
@@ -79,31 +85,20 @@ function handleRender() {
     return;
   }
 
-  let dsl;
-  try {
-    const parsed = JSON.parse(raw);
-    dsl = parsed;
-  } catch {
-    try {
-      dsl = eval('(' + raw + ')');
-    } catch {
-      showError('Invalid JSON or object literal');
-      return;
-    }
-  }
-
-  const result = parseAndRender(dsl);
+  const result = parseAndRender(raw);
   if (!result.valid) {
     showError(result.error);
     return;
   }
 
-  U.currentDSL = dsl;
+  U.currentDSL = result.ast;
   U.renderedOutput = result.output;
   U.error = null;
   hideError();
   previewArea.textContent = result.output;
 }
+
+/* ── Clipboard ───────────────────────────────────────────── */
 
 function handleCopy() {
   const text = previewArea.textContent;
@@ -116,6 +111,8 @@ function handleCopy() {
     }, 1500);
   }).catch(() => {});
 }
+
+/* ── Error Display ───────────────────────────────────────── */
 
 function showError(msg) {
   errorDisplay.textContent = msg;
