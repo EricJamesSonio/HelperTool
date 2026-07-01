@@ -286,6 +286,46 @@ export function writeToTerminalDisplay(repoPath, slotIndex, text) {
   inst.terminal.write(text);
 }
 
+export function isShellPrompt(repoPath, slotIndex) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  if (!inst || !inst.terminal) return false;
+  const buf = inst.terminal.buffer.active;
+  const len = buf.length;
+  const lines = [];
+  for (let i = Math.max(0, len - 3); i < len; i++) {
+    const line = buf.getLine(i);
+    if (line) lines.push(line.translateToString());
+  }
+  const tail = lines.join('\n').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trimEnd();
+  return /(^|\n)(\$ |PS>|# |[A-Z]:\\)/.test(tail);
+}
+
+export async function restartOpencode(repoPath, slotIndex) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  if (!inst || !inst.terminal) return;
+  const { getProvider } = await import('./providers.js');
+  const provider = getProvider(state.selectedProvider);
+  const binaryPath = state.opencodePath || provider.bin;
+  inst.terminal.write(`\r\n${binaryPath || 'opencode'}\r`);
+  // Wait for the shell prompt to disappear (opencode starts)
+  const maxWait = 15000;
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    await new Promise(r => setTimeout(r, 200));
+    if (!isShellPrompt(repoPath, slotIndex)) return;
+  }
+}
+
 /* ── Response overlay helpers ── */
 
 function getOverlay() {

@@ -1,8 +1,7 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, waitForTerminalOpencode } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, waitForTerminalOpencode, isShellPrompt, restartOpencode } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
-import { convStore } from './conversationStore.js';
 import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
 import { openStonePanel } from './stonePanel.js';
@@ -172,27 +171,40 @@ async function sendMessage() {
 
     const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
-    // Store for session title detection
     state.lastSentMessage = text;
 
-    // Ensure terminal exists
     if (!hasTerminalSession(repoPath)) {
       await openTerminalForRepo(repoPath, slotIndex);
     }
 
-    // Wait until opencode is actually reading stdin (session detected = prompt shown)
+    // If shell prompt is visible (opencode exited), restart it first
+    if (isShellPrompt(repoPath, slotIndex)) {
+      await restartOpencode(repoPath, slotIndex);
+    }
+
+    // Wait until opencode confirms it's reading stdin
     await waitForTerminalOpencode(repoPath, slotIndex);
 
-    // Write message to terminal PTY — opencode is the foreground process
-    const sessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
-    if (state.parallelMode) {
-      writeToSlot(slotIndex, text + '\r');
-    } else {
-      writeToTerminal(repoPath, text + '\r');
+    // Write message in chunks to avoid PTY buffer truncation on Windows
+    const chunkSize = 100;
+    for (let i = 0; i < text.length; i += chunkSize) {
+      const chunk = text.slice(i, i + chunkSize);
+      if (state.parallelMode) {
+        writeToSlot(slotIndex, chunk);
+      } else {
+        writeToTerminal(repoPath, chunk);
+      }
+      await new Promise(r => setTimeout(r, 10));
     }
-    // Bump conversation to top (last-used ordering)
-    if (sessionId) {
-      convStore.touchConversation(repoPath, sessionId);
+
+    // Wait before submitting — ensures opencode is the foreground process
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Submit the message
+    if (state.parallelMode) {
+      writeToSlot(slotIndex, '\r');
+    } else {
+      writeToTerminal(repoPath, '\r');
     }
 
     input.value = '';
@@ -200,7 +212,6 @@ async function sendMessage() {
     state.pendingFiles = [];
     renderPendingFiles();
 
-    // Refresh sidebar after a delay so opencode has time to process
     setTimeout(() => refreshSidebar(), 1500);
   } catch (err) {
     console.error('[CS] sendMessage: unhandled error', err);
