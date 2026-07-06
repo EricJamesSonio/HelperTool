@@ -356,13 +356,19 @@ const envBridge = {
 const imageBridge = {
     image: {
         pickFile:       ()              => ipcRenderer.invoke('image:pickFile'),
+        pickFiles:      ()              => ipcRenderer.invoke('image:pickFiles'),
         pickOutputFolder: ()            => ipcRenderer.invoke('image:pickOutputFolder'),
         getMetadata:    (payload)       => ipcRenderer.invoke('image:getMetadata', payload),
         toIco:          (payload)       => ipcRenderer.invoke('image:toIco', payload),
+        compress:       (payload)       => ipcRenderer.invoke('image:compress', payload),
         revealFile:     (payload)       => ipcRenderer.invoke('image:revealFile', payload),
         onProgress:     (callback) => {
             ipcRenderer.removeAllListeners('image:progress');
             ipcRenderer.on('image:progress', (_event, data) => callback(data));
+        },
+        onCompressProgress: (callback) => {
+            ipcRenderer.removeAllListeners('image:compressProgress');
+            ipcRenderer.on('image:compressProgress', (_event, data) => callback(data));
         },
     },
 };

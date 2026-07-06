@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { listConversations, getConversation } from './history.js';
-import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.js';
+import { openTerminalForRepo, closeTerminalSession } from './chat.js';
 import {
   hasTerminalSession, writeToTerminal, writeToSlot, fitActiveTerminal,
   getActiveSlots, getFreeSlot, killSlot, activateSlot, setParallelConfig,
@@ -277,18 +277,18 @@ export async function startNewChat() {
   }
 
   state.activeConvId[repoPath] = null;
-      state.messages[repoPath] = [];
-      state.messageCache[repoPath] = {};
+  state.messages[repoPath] = [];
+  state.messageCache[repoPath] = {};
 
   if (hasTerminalSession(repoPath)) {
     writeToTerminal(repoPath, '/exit\n');
     await new Promise(r => setTimeout(r, 2000));
     closeTerminalSession(repoPath);
     await new Promise(r => setTimeout(r, 1000));
-    await refreshSidebar();
   }
 
-  showWelcome();
+  await openTerminalForRepo(repoPath);
+
   renderConvList();
 
   const input = document.getElementById('ocInput');

@@ -53,6 +53,18 @@ export default class VideoTool {
       onImageConvertAnother: () => this._handleImageConvertAnother(),
       // Tab
       onTabChange: (tab) => this._handleTabChange(tab),
+      // Image Compress
+      onIcPickFiles: (paths) => this._handleIcPickFiles(paths),
+      onIcAddMore: () => this._handleIcAddMore(),
+      onIcRemoveFile: (idx) => this._handleIcRemoveFile(idx),
+      onIcCompress: () => this._startIcCompress(),
+      onIcChangeOutput: () => this._handleIcChangeOutput(),
+      onIcPresetChange: (preset) => this._handleIcPresetChange(preset),
+      onIcFormatChange: (format) => this._handleIcFormatChange(format),
+      onIcRetry: () => this._handleIcRetry(),
+      onIcOpenFile: () => this._handleIcOpenFile(),
+      onIcOpenFolder: () => this._handleIcOpenFolder(),
+      onIcCompressAnother: () => this._handleIcCompressAnother(),
     });
     this.ui.render(container);
   }
@@ -432,6 +444,141 @@ export default class VideoTool {
 
   _handleImageConvertAnother() {
     this.imageState.reset();
+    if (this.ui) this.ui.update();
+  }
+
+  // ── Image Compress handlers ──
+
+  async _handleIcPickFiles(paths) {
+    const im = this.imageState;
+
+    if (!paths) {
+      const picked = await window.electronAPI.image.pickFiles();
+      if (!picked || picked.length === 0) return;
+      paths = picked;
+    }
+
+    if (typeof paths === 'string') paths = [paths];
+
+    im.compressInputPaths = paths;
+    im.compressInputMetas = [];
+    im.compressStatus = 'loading';
+    if (this.ui) this.ui.update();
+
+    const metas = await Promise.all(paths.map(async (p) => {
+      const meta = await window.electronAPI.image.getMetadata({ inputPath: p });
+      return meta.success ? { resolution: meta.resolution, fileSize: meta.fileSize } : { resolution: '?', fileSize: 0 };
+    }));
+    im.compressInputMetas = metas;
+    im.compressStatus = 'idle';
+    this.state.activeSection = 'imgCompress';
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleIcAddMore() {
+    const im = this.imageState;
+    const picked = await window.electronAPI.image.pickFiles();
+    if (!picked || picked.length === 0) return;
+
+    const existing = new Set(im.compressInputPaths);
+    const newPaths = picked.filter(p => !existing.has(p));
+    if (newPaths.length === 0) return;
+
+    const newMetas = await Promise.all(newPaths.map(async (p) => {
+      const meta = await window.electronAPI.image.getMetadata({ inputPath: p });
+      return meta.success ? { resolution: meta.resolution, fileSize: meta.fileSize } : { resolution: '?', fileSize: 0 };
+    }));
+
+    im.compressInputPaths = [...im.compressInputPaths, ...newPaths];
+    im.compressInputMetas = [...im.compressInputMetas, ...newMetas];
+    if (this.ui) this.ui.update();
+  }
+
+  _handleIcRemoveFile(idx) {
+    const im = this.imageState;
+    im.compressInputPaths.splice(idx, 1);
+    im.compressInputMetas.splice(idx, 1);
+    if (im.compressInputPaths.length === 0) {
+      im.resetCompress();
+    }
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleIcChangeOutput() {
+    const folder = await window.electronAPI.image.pickOutputFolder();
+    if (folder) {
+      this.imageState.outputFolder = folder;
+      if (this.ui) this.ui.update();
+    }
+  }
+
+  _handleIcPresetChange(preset) {
+    this.imageState.compressPreset = preset;
+    if (this.ui) this.ui.update();
+  }
+
+  _handleIcFormatChange(format) {
+    this.imageState.compressFormat = format;
+    if (this.ui) this.ui.update();
+  }
+
+  async _startIcCompress() {
+    const im = this.imageState;
+    if (im.compressInputPaths.length === 0 || im.compressStatus === 'compressing') return;
+
+    im.compressStatus = 'compressing';
+    im.compressProgress = null;
+    im.compressResult = null;
+    im.compressError = null;
+    if (this.ui) this.ui.update();
+
+    window.electronAPI.image.onCompressProgress((data) => {
+      im.compressProgress = data;
+      if (this.ui) this.ui.update();
+    });
+
+    const format = im.compressFormat === 'auto' ? undefined : im.compressFormat;
+    const payload = im.compressInputPaths.length === 1
+      ? { inputPath: im.compressInputPaths[0], preset: im.compressPreset, outputPath: im.outputFolder || undefined, format }
+      : { inputPaths: im.compressInputPaths, preset: im.compressPreset, outputPath: im.outputFolder || undefined, format };
+
+    const result = await window.electronAPI.image.compress(payload);
+    window.electronAPI.image.onCompressProgress(() => {});
+
+    if (result.success) {
+      im.compressStatus = 'done';
+      im.compressResult = result;
+    } else {
+      im.compressStatus = 'error';
+      im.compressError = result.error || 'Compression failed';
+    }
+    if (this.ui) this.ui.update();
+  }
+
+  _handleIcRetry() {
+    const im = this.imageState;
+    im.compressStatus = 'idle';
+    im.compressProgress = null;
+    im.compressError = null;
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleIcOpenFile() {
+    const result = this.imageState.compressResult;
+    if (!result) return;
+    const p = result.batch ? result.results[0]?.outputPath : result.outputPath;
+    if (p) await window.electronAPI.image.revealFile({ filePath: p });
+  }
+
+  async _handleIcOpenFolder() {
+    const result = this.imageState.compressResult;
+    if (!result) return;
+    const dir = result.outputDir || (result.outputPath ? result.outputPath.replace(/[/\\][^/\\]+$/, '') : null);
+    if (dir) await window.electronAPI.image.revealFile({ filePath: dir });
+  }
+
+  _handleIcCompressAnother() {
+    this.imageState.resetCompress();
     if (this.ui) this.ui.update();
   }
 }

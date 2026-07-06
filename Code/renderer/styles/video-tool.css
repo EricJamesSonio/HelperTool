@@ -272,3 +272,30 @@
 .tl-error { display: flex; align-items: center; gap: 14px; padding: 16px 22px; background: var(--red-dim); border: 2px solid var(--red); border-radius: var(--r-lg); color: var(--text-primary); font-size: 16px; margin: 0; }
 .tl-error-retry { margin-left: auto; padding: 8px 18px; border: 1px solid var(--red); border-radius: var(--r-sm); background: transparent; color: var(--red); cursor: pointer; font-size: 14px; flex-shrink: 0; font-family: var(--font-ui); transition: background 0.15s, color 0.15s; }
 .tl-error-retry:hover { background: var(--red); color: #fff; }
+
+/* ── Image Compress section ── */
+
+.ic-file-list { display: flex; flex-direction: column; gap: 6px; padding: 18px 22px; background: var(--bg-surface); border-radius: var(--r-lg); border: 1px solid var(--border-default); margin: 28px 36px 0; }
+.ic-file-list-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; margin-bottom: 6px; border-bottom: 1px solid var(--border-subtle); font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.ic-browse-btn { padding: 8px 16px; border: 1px solid var(--accent); border-radius: var(--r-sm); background: transparent; color: var(--accent); cursor: pointer; font-size: 13px; font-family: var(--font-ui); transition: background 0.15s, color 0.15s; }
+.ic-browse-btn:hover { background: var(--accent); color: #fff; }
+.ic-file-row { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: var(--r-sm); transition: background 0.1s; }
+.ic-file-row:hover { background: var(--bg-elevated); }
+.ic-file-icon { width: 32px; height: 32px; flex-shrink: 0; color: var(--accent); }
+.ic-file-icon svg { width: 100%; height: 100%; }
+.ic-file-details { flex: 1; min-width: 0; }
+.ic-file-name { font-size: 15px; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ic-file-meta { font-size: 13px; color: var(--text-secondary); display: flex; gap: 8px; align-items: center; }
+.ic-file-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; width: 28px; height: 28px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; transition: color 0.15s, background 0.15s; }
+.ic-file-remove:hover { color: var(--red); background: var(--red-dim); }
+.ic-file-remove svg { width: 100%; height: 100%; }
+
+.ic-format-select { padding: 8px 12px; border: 1px solid var(--border-default); border-radius: var(--r-sm); background: var(--bg-base); color: var(--text-primary); font-size: 14px; font-family: var(--font-ui); cursor: pointer; outline: none; flex: 1; }
+.ic-format-select:focus { border-color: var(--accent); }
+
+.ic-result-files { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; margin: 8px 0; padding: 8px 0; border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
+.ic-result-file { display: flex; align-items: center; gap: 10px; padding: 6px 4px; font-size: 14px; }
+.ic-result-fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); min-width: 0; }
+.ic-result-fsize { color: var(--text-secondary); white-space: nowrap; }
+.ic-result-fsave { font-weight: 600; white-space: nowrap; min-width: 48px; text-align: right; }
+.ic-result-fsave--pos { color: var(--green); }

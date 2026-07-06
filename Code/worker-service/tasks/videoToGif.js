@@ -1,6 +1,6 @@
 const { spawn } = require('child_process');
-const ffmpegPath = require('ffmpeg-static');
-const ffprobePath = require('@ffprobe-installer/ffprobe').path;
+const ffmpegPath = require('../../utils/ffmpeg');
+const ffprobePath = require('../../utils/ffprobe')();
 const path = require('path');
 const fs = require('fs');
 const os = require('os');

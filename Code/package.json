@@ -26,7 +26,8 @@
       "grammars/**",
       "node_modules/web-tree-sitter/**",
       "node_modules/sql.js/**",
-      "node_modules/tree-sitter-*/**"
+      "node_modules/tree-sitter-*/**",
+      "node_modules/@ffprobe-installer/**"
     ],
     "extraResources": [
       {

@@ -12,6 +12,7 @@ const folderTreeTask = require('./tasks/folderTree');
 const profileSyncTask = require('./tasks/profileSync');
 const videoCompressTask = require('./tasks/videoCompress');
 const imageToIcoTask = require('./tasks/imageToIco');
+const imageCompressTask = require('./tasks/imageCompress');
 const videoToGifTask = require('./tasks/videoToGif');
 const videoRenderTask = require('./tasks/videoRender');
 const videoPreviewTask = require('./tasks/videoPreview');
@@ -96,6 +97,10 @@ process.on('message', async (msg) => {
 
       case 'video:render':
         result = await videoRenderTask(payload, onProgress);
+        break;
+
+      case 'image:compress':
+        result = await imageCompressTask(payload, onProgress);
         break;
 
       case 'video:preview':
