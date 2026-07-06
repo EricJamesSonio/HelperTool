@@ -34,11 +34,33 @@ export async function initCodeSwampUI() {
   renderInput();
   setupTerminalDataHandler();
 
-  // Terminal detected a session ID — only use it as fallback if IPC hasn't set one yet.
-  // Don't add to convStore here; the IPC path (executeOpencodeRun) handles that with real message titles.
+  // When terminal output contains a session ID, track the active conversation.
+  // If we just sent a message, store it with the message text as title.
+  // For loaded conversations (no lastSentMessage), the conversation is already stored
+  // by loadConversation() — skip to avoid overwriting server titles.
   setOnSessionDetected((sessionId, repoPath) => {
-    if (!state.activeConvId[repoPath]) {
-      state.activeConvId[repoPath] = sessionId;
+    state.activeConvId[repoPath] = sessionId;
+
+    // Bump to top — this session is now active
+    convStore.touchConversation(repoPath, sessionId);
+
+    const msg = state.lastSentMessage;
+    state.lastSentMessage = null;
+
+    if (!msg) return;
+
+    const title = msg.length > 40 ? msg.slice(0, 40) + '\u2026' : msg;
+
+    convStore.addConversation(repoPath, {
+      id: sessionId,
+      title,
+      date: new Date().toISOString(),
+      provider: state.selectedProvider,
+    });
+
+    if (state.activeTab === repoPath) {
+      state.conversations[repoPath] = convStore.getConversations(repoPath);
+      renderConvList();
     }
   });
 
@@ -114,6 +136,11 @@ function setupDom() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (isFilePickerOpen()) return;
+      const overlay = document.getElementById('ocResponseOverlay');
+      if (overlay && overlay.style.display !== 'none') {
+        overlay.style.display = 'none';
+        return;
+      }
       const panel = document.getElementById('ocPanel');
       if (panel && panel.classList.contains('open')) closeCodeSwampUI();
     }

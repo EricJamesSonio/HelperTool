@@ -1,5 +1,6 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, executeOpencodeRun } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, waitForTerminalOpencode, isShellPrompt, restartOpencode } from './terminalManager.js';
+import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
@@ -41,11 +42,11 @@ export function renderInput() {
     <div class="oc-pending-files" id="ocPendingFiles"></div>
     <div class="oc-input-row">
       <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="1"></textarea>
-      <button class="oc-btn oc-btn-attach" id="ocAttachBtn" title="Attach file">📎</button>
-      <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">📋</button>
-      <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">🎫</button>
-      <button class="oc-btn oc-btn-stone" id="ocStoneBtn" title="Infinity Stones">💎</button>
-      <button class="oc-btn oc-btn-planning" id="ocPlanningBtn" title="Plans">📝</button>
+      <button class="oc-btn oc-btn-file" id="ocAttachBtn" title="Attach file">File</button>
+      <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">Prompt</button>
+      <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">Ticket</button>
+      <button class="oc-btn oc-btn-stone" id="ocStoneBtn" title="Infinity Stones">Stones</button>
+      <button class="oc-btn oc-btn-planning" id="ocPlanningBtn" title="Plans">Plan</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
@@ -170,16 +171,48 @@ async function sendMessage() {
 
     const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
-    const files = state.pendingFiles.map(f => f.path);
-    const existingSessionId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath] || null;
+    state.lastSentMessage = text;
 
-    await executeOpencodeRun(repoPath, slotIndex, text, files, !!existingSessionId, existingSessionId, state.cliMode);
-    refreshSidebar();
+    if (!hasTerminalSession(repoPath)) {
+      await openTerminalForRepo(repoPath, slotIndex);
+    }
+
+    // If shell prompt is visible (opencode exited), restart it first
+    if (isShellPrompt(repoPath, slotIndex)) {
+      await restartOpencode(repoPath, slotIndex);
+    }
+
+    // Wait until opencode confirms it's reading stdin
+    await waitForTerminalOpencode(repoPath, slotIndex);
+
+    // Write message in chunks to avoid PTY buffer truncation on Windows
+    const chunkSize = 100;
+    for (let i = 0; i < text.length; i += chunkSize) {
+      const chunk = text.slice(i, i + chunkSize);
+      if (state.parallelMode) {
+        writeToSlot(slotIndex, chunk);
+      } else {
+        writeToTerminal(repoPath, chunk);
+      }
+      await new Promise(r => setTimeout(r, 10));
+    }
+
+    // Wait before submitting — ensures opencode is the foreground process
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Submit the message
+    if (state.parallelMode) {
+      writeToSlot(slotIndex, '\r');
+    } else {
+      writeToTerminal(repoPath, '\r');
+    }
 
     input.value = '';
     input.style.height = 'auto';
     state.pendingFiles = [];
     renderPendingFiles();
+
+    setTimeout(() => refreshSidebar(), 1500);
   } catch (err) {
     console.error('[CS] sendMessage: unhandled error', err);
   }

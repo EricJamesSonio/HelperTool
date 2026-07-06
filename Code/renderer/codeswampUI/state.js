@@ -30,6 +30,9 @@ export const state = {
   // Sidebar
   sidebarCollapsed: false,
 
+  // Last sent message text (used by session detection for title)
+  lastSentMessage: null,
+
   // CLI mode
   cliMode: 'plan',
 

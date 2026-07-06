@@ -174,7 +174,7 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
   const lc = getLoadingController();
   lc.setProgress('Starting shell...', 0.35);
 
-  const instance = { id: result.id, terminal, fitAddon, div, repoPath, slotIndex };
+  const instance = { id: result.id, terminal, fitAddon, div, repoPath, slotIndex, ready: false, _readyResolve: null };
   instances[slotIndex] = instance;
 
   terminal.onData((data) => {
@@ -223,6 +223,8 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
       delete _loadingTimestamps[result.id];
       getLoadingController().finish('Ready', 600);
     }
+    instance.ready = true;
+    if (instance._readyResolve) { instance._readyResolve(); instance._readyResolve = null; }
   }, 8000);
 
   instance._loadingTimeout = timeout;
@@ -273,6 +275,57 @@ export function writeToSlot(slotIndex, text) {
   window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
 }
 
+export function writeToTerminalDisplay(repoPath, slotIndex, text) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  if (!inst) return;
+  inst.terminal.write(text);
+}
+
+export function isShellPrompt(repoPath, slotIndex) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  if (!inst || !inst.terminal) return false;
+  const buf = inst.terminal.buffer.active;
+  const len = buf.length;
+  const lines = [];
+  for (let i = Math.max(0, len - 3); i < len; i++) {
+    const line = buf.getLine(i);
+    if (line) lines.push(line.translateToString());
+  }
+  const tail = lines.join('\n').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trimEnd();
+  return /(^|\n)(\$ |PS>|# |[A-Z]:\\)/.test(tail);
+}
+
+export async function restartOpencode(repoPath, slotIndex) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  if (!inst || !inst.terminal) return;
+  const { getProvider } = await import('./providers.js');
+  const provider = getProvider(state.selectedProvider);
+  const binaryPath = state.opencodePath || provider.bin;
+  inst.terminal.write(`\r\n${binaryPath || 'opencode'}\r`);
+  // Wait for the shell prompt to disappear (opencode starts)
+  const maxWait = 15000;
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    await new Promise(r => setTimeout(r, 200));
+    if (!isShellPrompt(repoPath, slotIndex)) return;
+  }
+}
+
 /* ── Response overlay helpers ── */
 
 function getOverlay() {
@@ -289,6 +342,10 @@ function stripAnsi(text) {
 export function showResponseOverlay() {
   const ov = getOverlay();
   if (ov) ov.style.display = '';
+  const closeBtn = document.getElementById('ocResponseOverlayClose');
+  if (closeBtn) {
+    closeBtn.onclick = hideResponseOverlay;
+  }
 }
 export function hideResponseOverlay() {
   const ov = getOverlay();
@@ -388,6 +445,13 @@ export function executeOpencodeRun(repoPath, slotIndex, message, files, continue
           date: new Date().toISOString(),
           provider: state.selectedProvider,
         });
+        convStore.touchConversation(repoPath, detectedSessionId);
+        const streamText = state.streamBuffer || '';
+        writeToTerminalDisplay(repoPath, slotIndex, `\r\n\x1b[36m> ${message}\x1b[0m\r\n`);
+        if (streamText) {
+          writeToTerminalDisplay(repoPath, slotIndex, streamText);
+        }
+        writeToTerminalDisplay(repoPath, slotIndex, '\r\n');
         appendToResponseOverlay(`\n\x1b[2m[Done]\x1b[0m\n`);
       }
       resolve({ code, stderr, error });
@@ -489,6 +553,8 @@ export function setupTerminalDataHandler() {
           _seenSessionIds.add(sesId);
           const inst = Object.values(instances).find(i => i && i.id === id);
           if (inst) {
+            inst.ready = true;
+            if (inst._readyResolve) { inst._readyResolve(); inst._readyResolve = null; }
             _onSessionDetected(sesId, inst.repoPath, inst.slotIndex);
           }
         }
@@ -539,6 +605,62 @@ export function clearTerminalLoading(slotIndex) {
     _loadingTerminalIds.delete(inst.id);
     delete _loadingTimestamps[inst.id];
   }
+}
+
+export function waitForTerminalOpencode(repoPath, slotIndex, timeout = 10000) {
+  return new Promise((resolve) => {
+    let inst;
+    if (slotIndex !== undefined && instances[slotIndex]) {
+      inst = instances[slotIndex];
+    } else {
+      inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+    }
+    if (!inst || inst.ready) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      inst.ready = true;
+      inst._readyResolve = null;
+      resolve();
+    }, timeout);
+    inst._readyResolve = () => {
+      clearTimeout(timer);
+      inst._readyResolve = null;
+      resolve();
+    };
+  });
+}
+
+export function isTerminalLoading(repoPath, slotIndex) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  return inst ? _loadingTerminalIds.has(inst.id) : false;
+}
+
+export function waitForTerminalReady(repoPath, slotIndex, timeout = 12000) {
+  return new Promise((resolve) => {
+    if (!isTerminalLoading(repoPath, slotIndex)) {
+      resolve();
+      return;
+    }
+    const start = Date.now();
+    const iv = setInterval(() => {
+      if (!isTerminalLoading(repoPath, slotIndex)) {
+        clearInterval(iv);
+        resolve();
+        return;
+      }
+      if (Date.now() - start > timeout) {
+        clearInterval(iv);
+        resolve();
+      }
+    }, 150);
+  });
 }
 
 export function getActiveSlots() {

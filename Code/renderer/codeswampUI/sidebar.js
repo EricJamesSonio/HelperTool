@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { listConversations, getConversation } from './history.js';
-import { openTerminalForRepo, closeTerminalSession, showWelcome } from './chat.js';
+import { openTerminalForRepo, closeTerminalSession } from './chat.js';
 import {
   hasTerminalSession, writeToTerminal, writeToSlot, fitActiveTerminal,
   getActiveSlots, getFreeSlot, killSlot, activateSlot, setParallelConfig,
@@ -170,6 +170,8 @@ export async function loadConversation(convId) {
       provider: state.selectedProvider,
     });
   }
+  // Bump to top — loaded conversations are recently used
+  convStore.touchConversation(repoPath, convId);
 
   if (!state.parallelMode) {
     state.activeConvId[repoPath] = convId;
@@ -238,6 +240,9 @@ export async function startNewChat() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
+  // Clear any stale message from previous send — new chat = fresh session
+  state.lastSentMessage = null;
+
   if (state.parallelMode) {
     const slotIndex = state.activeSlotIndex;
     const inst = getActiveSlots()[slotIndex];
@@ -272,18 +277,18 @@ export async function startNewChat() {
   }
 
   state.activeConvId[repoPath] = null;
-      state.messages[repoPath] = [];
-      state.messageCache[repoPath] = {};
+  state.messages[repoPath] = [];
+  state.messageCache[repoPath] = {};
 
   if (hasTerminalSession(repoPath)) {
     writeToTerminal(repoPath, '/exit\n');
     await new Promise(r => setTimeout(r, 2000));
     closeTerminalSession(repoPath);
     await new Promise(r => setTimeout(r, 1000));
-    await refreshSidebar();
   }
 
-  showWelcome();
+  await openTerminalForRepo(repoPath);
+
   renderConvList();
 
   const input = document.getElementById('ocInput');

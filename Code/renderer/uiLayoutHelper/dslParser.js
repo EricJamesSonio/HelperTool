@@ -1,12 +1,24 @@
 import { renderLayout } from './layoutEngine.js';
 
-export function parseLayout(dsl) {
-  if (typeof dsl === 'string') {
+function tryParse(str) {
+  try {
+    return JSON.parse(str);
+  } catch {
     try {
-      dsl = JSON.parse(dsl);
+      return eval('(' + str + ')');
     } catch {
-      return { valid: false, error: 'Invalid JSON layout definition' };
+      return null;
     }
+  }
+}
+
+export function parseAndRender(dsl) {
+  if (typeof dsl === 'string') {
+    const parsed = tryParse(dsl);
+    if (!parsed) {
+      return { valid: false, error: 'Invalid JSON or object literal' };
+    }
+    dsl = parsed;
   }
 
   if (!dsl || typeof dsl !== 'object') {
@@ -112,6 +124,4 @@ function normalize(node) {
   return n;
 }
 
-export function parseAndRender(dsl) {
-  return parseLayout(dsl);
-}
+

@@ -105,6 +105,12 @@ export default class PanelRegistry {
       csState.open = false;
     }
 
+    // UI Layout Helper — close when any other tool opens
+    const ulhPanel = document.getElementById('ulhPanel');
+    if (ulhPanel?.classList.contains('ulh-visible')) {
+      ulhPanel.classList.remove('ulh-visible');
+    }
+
     // Service tracker — close when any tool opens
     closeServiceTracker();
   }

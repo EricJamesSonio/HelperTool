@@ -252,7 +252,7 @@ function register(shared) {
       return { code: -1, error: 'Already running' };
     }
     const { binaryPath } = await discover();
-    const args = ['run', '--format', 'default', message];
+    const args = ['run', '--format', 'default'];
 
     if (mode) args.push('--mode', mode);
     if (sessionId) {
@@ -264,7 +264,7 @@ function register(shared) {
       for (const f of files) args.push('--file', f);
     }
 
-    console.log(`[CS-IPC] run: binary="${binaryPath}" args=${JSON.stringify(args)} cwd="${repoPath}"`);
+    console.log(`[CS-IPC] run: binary="${binaryPath}" args=${JSON.stringify(args)} cwd="${repoPath}" msgLen=${message.length}`);
 
     return new Promise((resolve) => {
       let proc;
@@ -273,7 +273,7 @@ function register(shared) {
           cwd: repoPath,
           env: { ...process.env },
           windowsHide: true,
-          shell: process.platform === 'win32',
+          stdio: ['pipe', 'pipe', 'pipe'],
         });
       } catch (spawnErr) {
         console.log(`[CS-IPC] run spawn failed: ${spawnErr.message}`);
@@ -288,6 +288,10 @@ function register(shared) {
 
       _activeProc = proc;
       console.log(`[CS-IPC] run spawned PID: ${proc.pid}`);
+
+      // Pipe message via stdin — avoids shell interpretation and CLI arg length limits
+      proc.stdin.write(message);
+      proc.stdin.end();
 
       proc.stdout.on('data', (chunk) => {
         const text = chunk.toString();
@@ -330,6 +334,8 @@ function register(shared) {
         }
         resolve({ code: -1, error: err.message });
       });
+
+      proc.stdin.on('error', () => {});
     });
   });
 

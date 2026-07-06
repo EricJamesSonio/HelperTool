@@ -65,6 +65,36 @@ function register({ getMainWindow }) {
       return { success: false, error: err.message };
     }
   });
+
+  ipcMain.handle('image:pickFiles', async () => {
+    const win = getMainWindow();
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Select Images',
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }
+      ],
+      properties: ['openFile', 'multiSelections']
+    });
+    if (result.canceled || !result.filePaths.length) return [];
+    return result.filePaths;
+  });
+
+  ipcMain.handle('image:compress', async (event, payload) => {
+    const win = getMainWindow();
+    try {
+      const progressHandler = (progress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('image:compressProgress', progress);
+        }
+      };
+      workerProxy.onProgress(progressHandler);
+      const result = await workerProxy.send('image:compress', payload);
+      workerProxy.offProgress(progressHandler);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
 }
 
 module.exports = { register };
