@@ -10,6 +10,7 @@
  */
 
 import { state, saveAll, genId } from './workspaceStore.js';
+import { ensureDefaultKits } from './buildKitManager.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ export function createProject(title, description = '', repoPath = null) {
     folderStructure: '',
     databaseInfo: '',
     planningNotes: [],
+    buildKits: [],
     status: 'planning',
     assignedWorkerIds: [],
     projectLogs: [],
@@ -58,6 +60,7 @@ export function createProject(title, description = '', repoPath = null) {
   };
 
   state.projects.push(project);
+  ensureDefaultKits(project);
   _addGlobalLog('project_created', `Project **${project.title}** created`);
   saveAll();
   return project;
@@ -73,7 +76,7 @@ const allowed = [
   'title', 'description', 'overview',
   'folderMain', 'folderFrontend', 'folderBackend',
   'folderStructure', // legacy
-  'databaseInfo', 'planningNotes', 'status', 'repoPath',
+  'databaseInfo', 'planningNotes', 'status', 'repoPath', 'buildKits',
   // Infinity Stones
   'stoneCodeStandards', 'stoneProjectOverview', 'stoneProgressTracker',
   'stoneUIContext', 'stoneArchitecture', 'stoneAIWorkflow',
