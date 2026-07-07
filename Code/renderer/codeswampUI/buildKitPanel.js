@@ -1,10 +1,9 @@
 import { state } from './state.js';
 import { loadAll } from '../workspace/workspaceStore.js';
 import { getProjectByRepoPath } from '../workspace/projectManager.js';
-import { getKitProgress, ensureDefaultKits } from '../workspace/buildKitManager.js';
+import { getKitProgress, ensureDefaultKits, isItemChecked } from '../workspace/buildKitManager.js';
 
-const ICON_CHECKED = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
-const ICON_EMPTY = '';
+const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
 
 function _esc(s) {
   if (!s) return '';
@@ -84,10 +83,17 @@ export async function openBuildKitPanel() {
     close();
   }
 
+  let allDone = 0; let allTotal = 0;
+  for (const kit of kits) {
+    const { done, total } = getKitProgress(kit);
+    allDone += done; allTotal += total;
+  }
+
   modal.innerHTML = `
     <div class="oc-bkp-header">
       <span class="oc-bkp-title">Build Kits — ${_esc(project.title)}</span>
-      <span class="oc-bkp-count">${kits.length} kit${kits.length !== 1 ? 's' : ''}</span>
+      <span class="oc-bkp-count">${allDone}/${allTotal}</span>
+      <span class="oc-bkp-pct">${allTotal > 0 ? Math.round((allDone / allTotal) * 100) : 0}%</span>
       <button class="oc-bkp-close" id="ocBkpClose">✕</button>
     </div>
     <div class="oc-bkp-body" id="ocBkpBody">
@@ -101,86 +107,90 @@ export async function openBuildKitPanel() {
 
   const body = modal.querySelector('#ocBkpBody');
 
-  kits.forEach(kit => {
+  for (const kit of kits) {
     const { done, total } = getKitProgress(kit);
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     const color = kit.color || '#10b981';
 
-    const kitCard = document.createElement('div');
-    kitCard.className = 'oc-bkp-kit';
-    kitCard.style.setProperty('--bkp-color', color);
+    const row = document.createElement('div');
+    row.className = 'oc-bkp-flow-row';
+    row.style.setProperty('--bkp-color', color);
 
-    const header = document.createElement('div');
-    header.className = 'oc-bkp-kit-header';
-    header.innerHTML = `
-      <div class="oc-bkp-kit-name">${_esc(kit.name)}</div>
-      <div class="oc-bkp-kit-progress">
-        <div class="oc-bkp-kit-track"><div class="oc-bkp-kit-bar" style="width:${pct}%"></div></div>
-        <span class="oc-bkp-kit-frac">${done}/${total}</span>
-        <span class="oc-bkp-kit-pct">${pct}%</span>
+    // ── Left: parent box ──
+    const parent = document.createElement('div');
+    parent.className = 'oc-bkp-flow-parent';
+    parent.innerHTML = `
+      <div class="oc-bkp-flow-parent-name">${_esc(kit.name)}</div>
+      <div class="oc-bkp-flow-parent-desc">${_esc(kit.description || '')}</div>
+      <div class="oc-bkp-flow-parent-progress">
+        <div class="oc-bkp-progress-track"><div class="oc-bkp-progress-bar" style="width:${pct}%"></div></div>
+        <span class="oc-bkp-progress-label">${done}/${total}</span>
       </div>
     `;
+    parent.addEventListener('click', () => populateInput(_formatKitSummary(kit)));
+    row.appendChild(parent);
 
-    header.addEventListener('click', () => {
-      const text = _formatKitSummary(kit);
-      populateInput(text);
-    });
+    // ── Connector ──
+    const connector = document.createElement('div');
+    connector.className = 'oc-bkp-flow-connector';
+    row.appendChild(connector);
 
-    kitCard.appendChild(header);
+    // ── Right: items grid ──
+    const grid = document.createElement('div');
+    grid.className = 'oc-bkp-flow-items';
 
-    function renderItems(items) {
-      for (const item of items) {
-        const hasKids = item.children && item.children.length > 0;
-        const itemRow = document.createElement('div');
-        itemRow.className = 'oc-bkp-item' + (item.checked ? ' oc-bkp-item--done' : '');
+    for (const item of kit.items) {
+      const checked = isItemChecked(item);
+      const hasKids = item.children && item.children.length > 0;
+      const allChecked = hasKids && item.children.every(c => isItemChecked(c));
+      const partial = hasKids && !allChecked && item.children.some(c => isItemChecked(c));
 
-        const check = document.createElement('span');
-        check.className = 'oc-bkp-check';
-        check.innerHTML = item.checked ? ICON_CHECKED : ICON_EMPTY;
-        itemRow.appendChild(check);
+      const card = document.createElement('div');
+      card.className = 'oc-bkp-flow-card' + (checked ? ' oc-bkp-flow-card--done' : '');
 
-        const label = document.createElement('span');
-        label.className = 'oc-bkp-item-label';
-        label.textContent = item.name;
-        itemRow.appendChild(label);
+      // ── Top row ──
+      const top = document.createElement('div');
+      top.className = 'oc-bkp-flow-card-top';
+      top.innerHTML = `
+        <span class="oc-bkp-card-check">${checked || allChecked ? ICON_CHECK : partial ? ICON_CHECK.replace('M4 10l4 4 8-8', 'M5 10h10') : ''}</span>
+        <span class="oc-bkp-card-name">${_esc(item.name)}</span>
+      `;
+      top.addEventListener('click', () => {
+        const text = _formatItemDetail(kit, item);
+        populateInput(text);
+      });
+      card.appendChild(top);
 
-        itemRow.addEventListener('click', () => {
-          const text = _formatItemDetail(kit, item);
-          populateInput(text);
-        });
-
-        kitCard.appendChild(itemRow);
-
-        if (hasKids) {
-          const childWrap = document.createElement('div');
-          childWrap.className = 'oc-bkp-children';
-          for (const child of item.children) {
-            const childRow = document.createElement('div');
-            childRow.className = 'oc-bkp-child' + (child.checked ? ' oc-bkp-child--done' : '');
-
-            const ck = document.createElement('span');
-            ck.className = 'oc-bkp-check oc-bkp-check--sm';
-            ck.innerHTML = child.checked ? ICON_CHECKED : ICON_EMPTY;
-            childRow.appendChild(ck);
-
-            const cl = document.createElement('span');
-            cl.textContent = child.name;
-            childRow.appendChild(cl);
-
-            childRow.addEventListener('click', (e) => {
-              e.stopPropagation();
-              const text = _formatItemDetail(kit, child);
-              populateInput(text);
-            });
-
-            childWrap.appendChild(childRow);
-          }
-          kitCard.appendChild(childWrap);
-        }
+      // ── Description ──
+      if (item.description) {
+        const desc = document.createElement('div');
+        desc.className = 'oc-bkp-card-desc';
+        desc.textContent = item.description;
+        card.appendChild(desc);
       }
+
+      // ── Children pills ──
+      if (hasKids) {
+        const pills = document.createElement('div');
+        pills.className = 'oc-bkp-flow-pills';
+        for (const child of item.children) {
+          const pill = document.createElement('span');
+          pill.className = 'oc-bkp-flow-pill' + (child.checked ? ' oc-bkp-flow-pill--done' : '');
+          pill.innerHTML = `${child.checked ? ICON_CHECK : ''} ${_esc(child.name)}`;
+          pill.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = _formatItemDetail(kit, child);
+            populateInput(text);
+          });
+          pills.appendChild(pill);
+        }
+        card.appendChild(pills);
+      }
+
+      grid.appendChild(card);
     }
 
-    renderItems(kit.items);
-    body.appendChild(kitCard);
-  });
+    row.appendChild(grid);
+    body.appendChild(row);
+  }
 }
