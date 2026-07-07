@@ -253,6 +253,9 @@ const blueprintBridge = {
     reorder:          (data)             => ipcRenderer.invoke('kit:reorder', data),
     getTypes:         ()                 => ipcRenderer.invoke('kit:getTypes'),
   },
+  motherbox: {
+    get:              ()                 => ipcRenderer.invoke('motherbox:get'),
+  },
 };
 
 const profileBridge = {
