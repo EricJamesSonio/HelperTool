@@ -116,9 +116,18 @@
 .eg-cat-btn.active {
   background: var(--bg-active);
   color: var(--text-primary);
-  border-right-color: var(--emerald, #10b981);
 }
+.eg-cat-btn.active.eg-tier-bronze { border-right-color: #cd7f32; }
+.eg-cat-btn.active.eg-tier-silver { border-right-color: #c0c0c0; }
+.eg-cat-btn.active.eg-tier-gold   { border-right-color: #ffd700; }
+.eg-cat-btn.eg-tier-bronze { border-left: 5px solid #cd7f32; }
+.eg-cat-btn.eg-tier-silver { border-left: 5px solid #c0c0c0; }
+.eg-cat-btn.eg-tier-gold   { border-left: 5px solid #ffd700; }
 .eg-cat-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.eg-term-card.eg-tier-bronze { border-left: 3px solid #cd7f32; }
+.eg-term-card.eg-tier-silver { border-left: 3px solid #c0c0c0; }
+.eg-term-card.eg-tier-gold   { border-left: 3px solid #ffd700; }
+
 .eg-cat-count {
   margin-left: auto;
   font-size: 11px;
@@ -236,7 +245,13 @@
   color: var(--text-primary);
   flex: 1;
 }
-.eg-detail-close {
+.eg-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.eg-detail-copy, .eg-detail-close {
   width: 32px; height: 32px;
   display: inline-flex;
   align-items: center; justify-content: center;
@@ -247,12 +262,17 @@
   cursor: pointer;
   transition: all 0.1s;
 }
+.eg-detail-copy:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
 .eg-detail-close:hover {
   background: var(--red-dim);
   color: var(--red);
   border-color: var(--red);
 }
-.eg-detail-close svg { width: 18px; height: 18px; }
+.eg-detail-copy svg, .eg-detail-close svg { width: 18px; height: 18px; }
 .eg-detail-body {
   padding: 20px;
   overflow-y: auto;

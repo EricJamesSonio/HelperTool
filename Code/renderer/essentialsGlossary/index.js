@@ -4,6 +4,7 @@ const CATEGORIES = [
   {
     name: 'Core Programming Concepts',
     desc: 'Fundamental building blocks shared across all programming languages',
+    tier: 'bronze',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<polyline points="4,7 8,11 4,15"/><line x1="12" y1="14" x2="16" y2="14"/>' +
@@ -44,6 +45,7 @@ const CATEGORIES = [
   {
     name: 'Object-Oriented Programming',
     desc: 'Paradigm based on objects bundling data and behavior together',
+    tier: 'bronze',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/>' +
@@ -90,6 +92,7 @@ const CATEGORIES = [
   {
     name: 'Data Structures',
     desc: 'Ways to organize and store data for efficient access and modification',
+    tier: 'silver',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<circle cx="7" cy="5" r="2"/><circle cx="14" cy="5" r="2"/><circle cx="10" cy="12" r="2"/>' +
@@ -131,6 +134,7 @@ const CATEGORIES = [
   {
     name: 'Algorithms & Complexity',
     desc: 'Systematic methods for solving problems and analyzing efficiency',
+    tier: 'silver',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<polyline points="1,17 5,12 9,14 13,7 17,10 19,2"/>' +
@@ -164,95 +168,11 @@ const CATEGORIES = [
       },
     ],
   },
-  {
-    name: 'Design Principles',
-    desc: 'Proven guidelines for writing maintainable, flexible, and understandable code',
-    icon:
-      '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
-        '<path d="M3 3h3l1 4-2 1a5 5 0 0 0 4 4l1-2 4 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>' +
-      '</svg>',
-    items: [
-      {
-        name: 'SOLID Principles',
-        desc: 'SOLID is an acronym for five design principles: Single Responsibility (a class should have one reason to change); Open-Closed (open for extension, closed for modification); Liskov Substitution (subtypes must be substitutable for their base types); Interface Segregation (clients should not depend on methods they don\'t use); Dependency Inversion (depend on abstractions, not concretions). Together they produce loosely-coupled, testable code.',
-        tags: ['design', 'oop', 'maintainability'],
-      },
-      {
-        name: 'DRY — Don\'t Repeat Yourself',
-        desc: 'DRY states that every piece of knowledge should have a single, unambiguous representation in a system. Duplication increases maintenance cost—a bug in duplicated code must be fixed in every copy. Extract repeated logic into functions, classes, or modules. But avoid premature abstraction; wait for the third occurrence before refactoring.',
-        tags: ['design', 'simplicity', 'maintainability'],
-      },
-      {
-        name: 'KISS — Keep It Simple',
-        desc: 'KISS advocates for simplicity over complexity. Simple code is easier to understand, test, debug, and modify. Resist the temptation to over-engineer with patterns, abstractions, or configurations that are not yet needed. The simplest working solution is often the best.',
-        tags: ['design', 'simplicity', 'pragmatism'],
-      },
-      {
-        name: 'YAGNI — You Ain\'t Gonna Need It',
-        desc: 'YAGNI warns against building functionality that is not currently required. Features guessed to be needed in the future often go unused, add complexity, and constrain later design decisions. Build only what the requirements demand today; refactor when new needs emerge.',
-        tags: ['design', 'simplicity', 'agile'],
-      },
-      {
-        name: 'Separation of Concerns',
-        desc: 'Separation of Concerns decomposes a system into distinct sections where each section addresses a separate concern. Layers (presentation, business logic, data access) are a common application. This reduces interdependency, making it possible to modify one concern without affecting others.',
-        tags: ['design', 'modularity', 'architecture'],
-      },
-      {
-        name: 'Dependency Injection',
-        desc: 'Dependency Injection (DI) is a technique where an object receives its dependencies from an external source rather than creating them itself. This decouples the object from concrete implementations, making it easier to test with mocks and swap implementations without changing the consuming code.',
-        tags: ['design', 'testing', 'decoupling'],
-      },
-    ],
-  },
-  {
-    name: 'Design Patterns',
-    desc: 'Reusable solutions to common software design problems',
-    icon:
-      '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
-        '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/>' +
-        '<rect x="7" y="11" width="6" height="6" rx="1"/>' +
-      '</svg>',
-    items: [
-      {
-        name: 'Singleton',
-        desc: 'Singleton ensures a class has exactly one instance and provides a global access point to it. Useful for shared resources like configuration managers, connection pools, or logging services. However, singletons introduce global state and hidden dependencies, making testing harder. Use sparingly.',
-        tags: ['patterns', 'creational', 'state'],
-      },
-      {
-        name: 'Factory Method',
-        desc: 'Factory Method defines an interface for creating an object but lets subclasses decide which concrete class to instantiate. It moves object creation logic out of the consumer, enabling the system to introduce new types without modifying existing code. This is the most common creational pattern.',
-        tags: ['patterns', 'creational', 'flexibility'],
-      },
-      {
-        name: 'Observer (Pub/Sub)',
-        desc: 'Observer defines a one-to-many dependency where one object (subject) notifies all dependents (observers) of state changes automatically. This decouples the subject from its observers and is widely used in event systems, UI frameworks, and reactive programming.',
-        tags: ['patterns', 'behavioral', 'events'],
-      },
-      {
-        name: 'Strategy',
-        desc: 'Strategy defines a family of interchangeable algorithms, encapsulates each one, and makes them swappable at runtime. The client delegates to a strategy object rather than implementing the algorithm directly. This follows the Open-Closed principle and eliminates conditional chains.',
-        tags: ['patterns', 'behavioral', 'algorithms'],
-      },
-      {
-        name: 'Adapter',
-        desc: 'Adapter converts the interface of a class into another interface that a client expects. It allows incompatible classes to work together without modifying their source code. Commonly used to wrap legacy code, third-party libraries, or to bridge different system boundaries.',
-        tags: ['patterns', 'structural', 'compatibility'],
-      },
-      {
-        name: 'Decorator',
-        desc: 'Decorator dynamically attaches additional responsibilities to an object without altering its class. It wraps the original object in a new layer that adds behavior before or after delegating to the wrapped object. This is more flexible than static inheritance for adding cross-cutting concerns like logging, caching, or validation.',
-        tags: ['patterns', 'structural', 'extensibility'],
-      },
-      {
-        name: 'MVC — Model-View-Controller',
-        desc: 'MVC separates an application into three components: Model (data and business logic), View (UI presentation), and Controller (handles input and coordinates Model and View). This separation enables parallel development, independent testing, and replacing the UI without affecting business logic.',
-        tags: ['patterns', 'architectural', 'ui'],
-      },
-    ],
-  },
+
   {
     name: 'Web & API Fundamentals',
     desc: 'Core concepts of how browsers, servers, and APIs communicate',
+    tier: 'silver',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<circle cx="10" cy="10" r="3"/><line x1="10" y1="1" x2="10" y2="4"/>' +
@@ -295,6 +215,7 @@ const CATEGORIES = [
   {
     name: 'Database Fundamentals',
     desc: 'Essential concepts for storing, querying, and managing data',
+    tier: 'gold',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/>' +
@@ -331,6 +252,7 @@ const CATEGORIES = [
   {
     name: 'Software Architecture',
     desc: 'High-level structure and organization of software systems',
+    tier: 'gold',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<rect x="2" y="2" width="16" height="4" rx="1"/><rect x="2" y="8" width="16" height="4" rx="1"/>' +
@@ -367,6 +289,7 @@ const CATEGORIES = [
   {
     name: 'Development Best Practices',
     desc: 'Proven workflows and habits that improve code quality and team velocity',
+    tier: 'gold',
     icon:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/>' +
@@ -407,6 +330,94 @@ const CATEGORIES = [
         name: 'Documentation',
         desc: 'Good documentation explains why code exists, not just what it does. At the project level, a README covers setup, architecture decisions, and contribution guidelines. At the code level, docstrings explain the intent behind non-obvious logic. Keep documentation close to the code and treat it as a first-class artifact that evolves alongside the system.',
         tags: ['documentation', 'quality', 'communication'],
+      },
+    ],
+  },
+  {
+    name: 'Design Principles',
+    desc: 'Proven guidelines for writing maintainable, flexible, and understandable code',
+    tier: 'gold',
+    icon:
+      '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M3 3h3l1 4-2 1a5 5 0 0 0 4 4l1-2 4 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>' +
+      '</svg>',
+    items: [
+      {
+        name: 'SOLID Principles',
+        desc: 'SOLID is an acronym for five design principles: Single Responsibility (a class should have one reason to change); Open-Closed (open for extension, closed for modification); Liskov Substitution (subtypes must be substitutable for their base types); Interface Segregation (clients should not depend on methods they don\'t use); Dependency Inversion (depend on abstractions, not concretions). Together they produce loosely-coupled, testable code.',
+        tags: ['design', 'oop', 'maintainability'],
+      },
+      {
+        name: 'DRY — Don\'t Repeat Yourself',
+        desc: 'DRY states that every piece of knowledge should have a single, unambiguous representation in a system. Duplication increases maintenance cost—a bug in duplicated code must be fixed in every copy. Extract repeated logic into functions, classes, or modules. But avoid premature abstraction; wait for the third occurrence before refactoring.',
+        tags: ['design', 'simplicity', 'maintainability'],
+      },
+      {
+        name: 'KISS — Keep It Simple',
+        desc: 'KISS advocates for simplicity over complexity. Simple code is easier to understand, test, debug, and modify. Resist the temptation to over-engineer with patterns, abstractions, or configurations that are not yet needed. The simplest working solution is often the best.',
+        tags: ['design', 'simplicity', 'pragmatism'],
+      },
+      {
+        name: 'YAGNI — You Ain\'t Gonna Need It',
+        desc: 'YAGNI warns against building functionality that is not currently required. Features guessed to be needed in the future often go unused, add complexity, and constrain later design decisions. Build only what the requirements demand today; refactor when new needs emerge.',
+        tags: ['design', 'simplicity', 'agile'],
+      },
+      {
+        name: 'Separation of Concerns',
+        desc: 'Separation of Concerns decomposes a system into distinct sections where each section addresses a separate concern. Layers (presentation, business logic, data access) are a common application. This reduces interdependency, making it possible to modify one concern without affecting others.',
+        tags: ['design', 'modularity', 'architecture'],
+      },
+      {
+        name: 'Dependency Injection',
+        desc: 'Dependency Injection (DI) is a technique where an object receives its dependencies from an external source rather than creating them itself. This decouples the object from concrete implementations, making it easier to test with mocks and swap implementations without changing the consuming code.',
+        tags: ['design', 'testing', 'decoupling'],
+      },
+    ],
+  },
+  {
+    name: 'Design Patterns',
+    desc: 'Reusable solutions to common software design problems',
+    tier: 'gold',
+    icon:
+      '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/>' +
+        '<rect x="7" y="11" width="6" height="6" rx="1"/>' +
+      '</svg>',
+    items: [
+      {
+        name: 'Singleton',
+        desc: 'Singleton ensures a class has exactly one instance and provides a global access point to it. Useful for shared resources like configuration managers, connection pools, or logging services. However, singletons introduce global state and hidden dependencies, making testing harder. Use sparingly.',
+        tags: ['patterns', 'creational', 'state'],
+      },
+      {
+        name: 'Factory Method',
+        desc: 'Factory Method defines an interface for creating an object but lets subclasses decide which concrete class to instantiate. It moves object creation logic out of the consumer, enabling the system to introduce new types without modifying existing code. This is the most common creational pattern.',
+        tags: ['patterns', 'creational', 'flexibility'],
+      },
+      {
+        name: 'Observer (Pub/Sub)',
+        desc: 'Observer defines a one-to-many dependency where one object (subject) notifies all dependents (observers) of state changes automatically. This decouples the subject from its observers and is widely used in event systems, UI frameworks, and reactive programming.',
+        tags: ['patterns', 'behavioral', 'events'],
+      },
+      {
+        name: 'Strategy',
+        desc: 'Strategy defines a family of interchangeable algorithms, encapsulates each one, and makes them swappable at runtime. The client delegates to a strategy object rather than implementing the algorithm directly. This follows the Open-Closed principle and eliminates conditional chains.',
+        tags: ['patterns', 'behavioral', 'algorithms'],
+      },
+      {
+        name: 'Adapter',
+        desc: 'Adapter converts the interface of a class into another interface that a client expects. It allows incompatible classes to work together without modifying their source code. Commonly used to wrap legacy code, third-party libraries, or to bridge different system boundaries.',
+        tags: ['patterns', 'structural', 'compatibility'],
+      },
+      {
+        name: 'Decorator',
+        desc: 'Decorator dynamically attaches additional responsibilities to an object without altering its class. It wraps the original object in a new layer that adds behavior before or after delegating to the wrapped object. This is more flexible than static inheritance for adding cross-cutting concerns like logging, caching, or validation.',
+        tags: ['patterns', 'structural', 'extensibility'],
+      },
+      {
+        name: 'MVC — Model-View-Controller',
+        desc: 'MVC separates an application into three components: Model (data and business logic), View (UI presentation), and Controller (handles input and coordinates Model and View). This separation enables parallel development, independent testing, and replacing the UI without affecting business logic.',
+        tags: ['patterns', 'architectural', 'ui'],
       },
     ],
   },
@@ -506,7 +517,7 @@ function _buildCategories() {
   sidebar.innerHTML = '';
   CATEGORIES.forEach((cat, i) => {
     const btn = _el('div', {
-      className: 'eg-cat-btn' + (i === _activeCat ? ' active' : ''),
+      className: 'eg-cat-btn eg-tier-' + cat.tier + (i === _activeCat ? ' active' : ''),
       dataset: { idx: i },
     });
     btn.innerHTML =
@@ -540,9 +551,9 @@ function _renderItems(idx) {
     '<p>' + _esc(cat.desc) + '</p>';
   area.appendChild(header);
 
-  const grid = _el('div', { className: 'eg-items-grid' });
+  const grid = _el('div', { className: 'eg-items-grid eg-tier-' + cat.tier });
   cat.items.forEach((item) => {
-    const card = _el('div', { className: 'eg-term-card' });
+    const card = _el('div', { className: 'eg-term-card eg-tier-' + cat.tier });
     const tagsHtml = item.tags.length
       ? '<div class="eg-term-card-tags">' + item.tags.map(t => '<span class="eg-term-tag">' + _esc(t) + '</span>').join('') + '</div>'
       : '';
@@ -568,9 +579,14 @@ function _showDetail(item) {
     <div class="eg-detail-box">
       <div class="eg-detail-header">
         <span class="eg-detail-title">${_esc(item.name)}</span>
-        <button class="eg-detail-close" id="egDetailClose">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5l-10 10"/></svg>
-        </button>
+        <div class="eg-detail-header-actions">
+          <button class="eg-detail-copy" id="egDetailCopy" title="Copy to clipboard">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 2h6a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <button class="eg-detail-close" id="egDetailClose">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5l-10 10"/></svg>
+          </button>
+        </div>
       </div>
       <div class="eg-detail-body">
         <div class="eg-detail-desc">${_esc(item.desc)}</div>
@@ -580,6 +596,10 @@ function _showDetail(item) {
   `;
   modal.addEventListener('click', (e) => { if (e.target === modal) _closeDetailModal(); });
   modal.querySelector('#egDetailClose').addEventListener('click', _closeDetailModal);
+  modal.querySelector('#egDetailCopy').addEventListener('click', () => {
+    const text = item.name + '\n\n' + item.desc + (item.tags.length ? '\n\nTags: ' + item.tags.join(', ') : '');
+    navigator.clipboard.writeText(text);
+  });
   document.body.appendChild(modal);
   _detailModal = modal;
 }
