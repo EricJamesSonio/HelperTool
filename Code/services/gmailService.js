@@ -172,12 +172,22 @@ async function _seedHistoryId(email, gmail) {
 
 async function refreshToken(account) {
   const client = getAuthClient(account.tokens);
-  const { credentials: newTokens } = await client.refreshAccessToken();
-  account.tokens = newTokens;
-  const accounts = getStoredAccounts();
-  const idx      = accounts.findIndex(a => a.email === account.email);
-  if (idx >= 0) { accounts[idx].tokens = newTokens; saveAccounts(accounts); }
-  return account;
+  try {
+    const { credentials: newTokens } = await client.refreshAccessToken();
+    account.tokens = newTokens;
+    const accounts = getStoredAccounts();
+    const idx      = accounts.findIndex(a => a.email === account.email);
+    if (idx >= 0) { accounts[idx].tokens = newTokens; saveAccounts(accounts); }
+    return account;
+  } catch (err) {
+    if (err.message && err.message.includes('invalid_grant')) {
+      account.tokens = null;
+      const err2 = new Error('Authorization revoked or expired. Click "Re-authorize" to fix.');
+      err2.code = 'AUTH_REVOKED';
+      throw err2;
+    }
+    throw err;
+  }
 }
 
 async function ensureValidTokens(account) {
@@ -540,6 +550,19 @@ async function fetchMessageBody(accountEmail, messageId) {
   return { id: messageId, from, subject, date, body: body || '(no content)' };
 }
 
+// ─── Re-authorization ─────────────────────────────────────────────────────────
+
+async function reAuthAccount(email) {
+  const accounts = getStoredAccounts();
+  const idx      = accounts.findIndex(a => a.email === email);
+  if (idx < 0) throw new Error('Account not found');
+
+  // Run full OAuth flow but only update the existing account
+  const result = await startAuthFlow();
+  // startAuthFlow already saves to store (by email), so it's replaced in-place
+  return result;
+}
+
 // ─── Account management ───────────────────────────────────────────────────────
 
 function removeAccount(email) {
@@ -623,7 +646,7 @@ function getAllIgnoredSendersMap() {
 
 module.exports = {
   getStoredAccounts, findAccount,
-  startAuthFlow, removeAccount,
+  startAuthFlow, reAuthAccount, removeAccount,
   fetchAllUnread, fetchRecentMessages, fetchInboxMessages, fetchMessageBody,
   startPolling, stopPolling, setOnNewMail,
   markAsRead, refreshToken,

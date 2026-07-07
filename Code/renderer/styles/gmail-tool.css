@@ -415,6 +415,9 @@
 
 .gm-loading { display: flex; align-items: center; justify-content: center; padding: 80px; font-size: 16px; color: #888; flex: 1; }
 .gm-error { padding: 16px 24px; margin: 12px 28px; background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.3); border-radius: 10px; color: #e8e8e8; font-size: 14px; }
+.gm-error--auth { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.gm-reauth-btn { background: var(--primary, #10b981); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.gm-reauth-btn:hover { filter: brightness(1.12); }
 
 #gmailBadge { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; border-radius: 9px; background: #e74c3c; color: #fff; font-size: 11px; font-weight: 700; display: none; align-items: center; justify-content: center; padding: 0 5px; pointer-events: none; z-index: 5; }
 

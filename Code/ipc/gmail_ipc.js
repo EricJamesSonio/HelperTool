@@ -69,6 +69,18 @@ function register({ getMainWindow }) {
     }
   });
 
+  ipcMain.handle('gmail:reAuthAccount', async (event, { email }) => {
+    try {
+      const result = await gmailService.reAuthAccount(email);
+      const win = getMainWindow();
+      if (win && !win.isDestroyed())
+        win.webContents.send('gmail:accountsChanged', gmailService.getStoredAccounts());
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('gmail:removeAccount', async (event, { email }) => {
     gmailService.removeAccount(email);
     const win = getMainWindow();

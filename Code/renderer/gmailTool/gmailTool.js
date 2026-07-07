@@ -66,6 +66,7 @@ export default class GmailTool {
       onSenderFilter:      (sender) => this._handleSenderFilter(sender),
       onOpenModal:         (email, msgId) => this._handleOpenModal(email, msgId),
       onCloseModal:        () => this._handleCloseModal(),
+      onReAuthAccount:     (email) => this._handleReAuthAccount(email),
     });
     this.ui.render(container);
   }
@@ -132,6 +133,30 @@ export default class GmailTool {
       if (this.ui) this.ui.update();
       setTimeout(() => { this.state.error = null; if (this.ui) this.ui.update(); }, 3000);
     }
+  }
+
+  async _handleReAuthAccount(email) {
+    console.log('[GmailTool] Re-authorizing account:', email);
+    this.state.loadingMessage = 'Re-authorizing ' + email + '...';
+    this.state.status = 'loading';
+    if (this.ui) this.ui.update();
+    const res = await window.electronAPI.gmail.reAuthAccount({ email });
+    if (res.success) {
+      console.log('[GmailTool] Re-auth successful for:', email);
+      this.state.error = null;
+      this.state.status = 'idle';
+      this.state.loadingMessage = '';
+      await this._loadIgnoredSenders();
+      await window.electronAPI.gmail.checkNow();
+      await window.electronAPI.gmail.startPolling();
+      this.state.polling = true;
+    } else {
+      console.log('[GmailTool] Re-auth failed:', res.error);
+      this.state.error = res.error;
+      this.state.status = 'idle';
+      this.state.loadingMessage = '';
+    }
+    if (this.ui) this.ui.update();
   }
 
   async _handleRemoveAccount(email) {

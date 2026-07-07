@@ -408,6 +408,7 @@ const videoBridge = {
 const gmailBridge = {
     gmail: {
         addAccount:         ()                 => ipcRenderer.invoke('gmail:addAccount'),
+        reAuthAccount:      (payload)          => ipcRenderer.invoke('gmail:reAuthAccount', payload),
         removeAccount:      (payload)          => ipcRenderer.invoke('gmail:removeAccount', payload),
         listAccounts:       ()                 => ipcRenderer.invoke('gmail:listAccounts'),
         fetchMessages:      (payload)          => ipcRenderer.invoke('gmail:fetchMessages', payload),
