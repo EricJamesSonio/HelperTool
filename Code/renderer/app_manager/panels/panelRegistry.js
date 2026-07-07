@@ -25,6 +25,7 @@ export default class PanelRegistry {
     this._teamActivity  = null;
     this._blueprintLibrary = null;
     this._profileTool = null;
+    this._essentialsGlossary = null;
     this._dockerTool = null;
   }
 
@@ -41,6 +42,7 @@ export default class PanelRegistry {
   setTeamActivity(t)      { this._teamActivity = t; }
   setBlueprintLibrary(t)  { this._blueprintLibrary = t; }
   setProfileTool(t)       { this._profileTool = t; }
+  setEssentialsGlossary(t){ this._essentialsGlossary = t; }
   setDockerTool(t)        { this._dockerTool = t; }
   setTerminalUI(t)        { this._terminalUI = t; }
 
@@ -92,6 +94,8 @@ export default class PanelRegistry {
     if (this._blueprintLibrary?.isOpen?.()) this._blueprintLibrary.close();
     // Profile
     if (this._profileTool?.isOpen?.()) this._profileTool.close();
+    // Essentials Glossary
+    if (this._essentialsGlossary?.isOpen?.()) this._essentialsGlossary.close();
     // Docker
     if (this._dockerTool?.isOpen?.()) this._dockerTool.close();
 

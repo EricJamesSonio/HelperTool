@@ -17,6 +17,7 @@ import TerminalUI          from '../terminal/terminalUI.js';
 import * as teamActivity   from '../teamActivityFeed.js';
 import * as blueprintLibrary from '../blueprintLibrary.js';
 import * as profileTool from '../profile.js';
+import * as essentialsGlossary from '../essentialsGlossary.js';
 import { openEnvManager } from '../envManager.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
@@ -48,6 +49,7 @@ const ICONS = {
     opencode: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',
     map: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 7 10 4 17 7"/><polyline points="3 17 10 14 17 17"/><line x1="10" y1="4" x2="10" y2="14"/><path d="M3 7v10"/><path d="M17 7v10"/></svg>',
     layout: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="8" y1="7" x2="8" y2="18"/><line x1="2" y1="13" x2="18" y2="13"/><line x1="14" y1="7" x2="14" y2="18"/></svg>',
+    essentials: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 6l8 4 8-4L10 2z"/><path d="M2 14l8 4 8-4"/><path d="M2 10l8 4 8-4"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -274,6 +276,14 @@ function populateSidebar() {
       _registry.closeAll();
       _dockerTool?.open?.();
     }, 'docker'));
+  }
+
+  if (_feats.essentialsGlossary) {
+    body.appendChild(createSidebarItem(ICONS.essentials, 'SE Essentials', 'Software engineering term glossary', () => {
+      if (essentialsGlossary.isOpen()) { essentialsGlossary.close(); return; }
+      _registry.closeAll();
+      essentialsGlossary.open();
+    }, 'essentials'));
   }
 
   if (_feats.symbolIndex) {
@@ -682,6 +692,14 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.essentialsGlossary) {
+    actions.essentialsGlossary = () => {
+      if (essentialsGlossary.isOpen()) { essentialsGlossary.close(); return; }
+      _registry.closeAll();
+      essentialsGlossary.open();
+    };
+  }
+
   actions.codebbaseChat = () => {
     if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
     _registry.closeAll();
@@ -772,6 +790,7 @@ export function closeAllPanels() {
   if (teamActivity.isOpen()) teamActivity.close();
   if (blueprintLibrary.isOpen()) blueprintLibrary.close();
   if (profileTool.isOpen()) profileTool.close();
+  if (essentialsGlossary.isOpen()) essentialsGlossary.close();
   if (_dockerTool?.isOpen?.()) _dockerTool.close();
   _destroyGmailTool();
   _destroyAutomationTool();
@@ -897,6 +916,13 @@ export async function initTools(feats, settingsManager) {
       _registry.setProfileTool(profileTool);
       console.log('[Tools] Profile initialised');
     } catch (err) { console.error('[Tools] Profile failed:', err); }
+  }
+
+  if (feats.essentialsGlossary) {
+    try {
+      _registry.setEssentialsGlossary(essentialsGlossary);
+      console.log('[Tools] Essentials Glossary initialised');
+    } catch (err) { console.error('[Tools] Essentials Glossary failed:', err); }
   }
 
   if (feats.dockerTool) {

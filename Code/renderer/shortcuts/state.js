@@ -21,6 +21,7 @@ const DEFAULT_SHORTCUTS = {
   codeswampChat: null,
   codebaseMap: 'Ctrl+Shift+M',
   uiLayoutHelper: null,
+  essentialsGlossary: null,
 };
 
 const S = { shortcuts: {} };
