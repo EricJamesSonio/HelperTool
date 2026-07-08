@@ -1309,3 +1309,49 @@
   width: 100%; box-sizing: border-box;
   min-height: 160px; resize: vertical;
 }
+.ws-bk-modal-prompt-box {
+  background: var(--bg-tertiary, #151a24);
+  border: 1px solid var(--border-color, #2a3040);
+  border-radius: 8px;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+}
+.ws-bk-modal-prompt-text {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #a0b0d8);
+  padding: 14px 16px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+  user-select: text;
+}
+.ws-copy-prompt-btn {
+  align-self: flex-end;
+  margin: 0 10px 10px;
+  padding: 6px 16px;
+  font-size: 0.78rem;
+  transition: background 0.2s, transform 0.15s;
+  cursor: pointer;
+}
+.ws-copy-prompt-btn:active {
+  transform: scale(0.96);
+}
+.ws-prompt-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--accent-dim, rgba(34,211,238,0.15));
+  color: var(--accent, #22d3ee);
+  padding: 1px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+}

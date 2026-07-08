@@ -1442,9 +1442,40 @@ function _buildFlowItemCard(project, kit, item, parentEl) {
   return card;
 }
 
+function _itemPrompt(item) {
+  if (item.prompt && item.prompt.length > 0) return item.prompt;
+  var lines = [];
+  lines.push('Analyze the project codebase to understand the current architecture:');
+  lines.push('- Examine the src/ directory structure, entry point, route organization, and middleware pipeline');
+  lines.push('- Check package.json for existing dependencies and the tech stack in use');
+  lines.push('- Review how similar features are currently implemented to follow the same conventions');
+  lines.push('- Identify the correct location in the codebase where this feature should be integrated');
+  lines.push('');
+  lines.push('Then implement:');
+  lines.push((item.name || '') + ' \u2014 ' + (item.description || ''));
+  lines.push('');
+  lines.push('Implementation guidance: ' + (item.details || ''));
+  if (item.children && item.children.length > 0) {
+    lines.push('');
+    lines.push('Scope includes:');
+    item.children.forEach(function(child) {
+      lines.push('- ' + (child.name || '') + ': ' + (child.description || ''));
+    });
+  }
+  lines.push('');
+  lines.push('Verification:');
+  lines.push('- Follow existing code patterns and conventions in the project');
+  lines.push('- Implement each component and verify integration');
+  lines.push('- Run the existing test suite and add new tests where needed');
+  lines.push('- Check for regressions and security considerations');
+  return lines.join('\n');
+}
+
 function _openBkDetailModal(project, kit, itemId, parentEl) {
   const item = _findBkItem(kit, itemId);
   if (!item) return;
+
+  const promptText = _itemPrompt(item);
 
   const overlay = document.createElement('div');
   overlay.className = 'workspace-modal-overlay';
@@ -1462,6 +1493,13 @@ function _openBkDetailModal(project, kit, itemId, parentEl) {
         <div class="workspace-form-group">
           <label>Implementation Details</label>
           <textarea id="bkDetailText" class="workspace-textarea ws-bk-modal-textarea" rows="8" placeholder="Where to place this, implementation guidance, code examples...">${_esc(item.details || '')}</textarea>
+        </div>
+        <div class="workspace-form-group">
+          <label>AI Prompt <span class="ws-prompt-badge">copy-ready</span></label>
+          <div class="ws-bk-modal-prompt-box">
+            <pre class="ws-bk-modal-prompt-text">${_esc(promptText)}</pre>
+            <button class="workspace-btn-add ws-copy-prompt-btn">Copy Prompt</button>
+          </div>
         </div>
       </div>
       <div class="workspace-modal-footer">
@@ -1482,6 +1520,22 @@ function _openBkDetailModal(project, kit, itemId, parentEl) {
     updateItemDetails(project, kit.id, itemId, details);
     updateProject(project.id, { buildKits: project.buildKits });
     overlay.remove();
+  });
+
+  const copyBtn = overlay.querySelector('.ws-copy-prompt-btn');
+  copyBtn.addEventListener('click', function() {
+    navigator.clipboard.writeText(promptText).then(function() {
+      var orig = copyBtn.textContent;
+      copyBtn.textContent = 'Copied!';
+      copyBtn.style.background = 'var(--green, #22c55e)';
+      setTimeout(function() {
+        copyBtn.textContent = orig;
+        copyBtn.style.background = '';
+      }, 2000);
+    }).catch(function() {
+      copyBtn.textContent = 'Copy failed';
+      setTimeout(function() { copyBtn.textContent = 'Copy Prompt'; }, 2000);
+    });
   });
 }
 
