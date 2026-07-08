@@ -367,11 +367,10 @@ export default class TerminalUI {
   _detectLastCommand(content) {
     if (!content) return '';
     const lines = content.split('\n');
-    // Look backwards for a line matching a shell prompt pattern
     const promptPatterns = [
-      /[#$>]\s+(\S.*)$/,       // bash/zsh: $ command, # command
-      /PS\w*>(\s*\S.*)$/i,      // PowerShell: PS> command, PS C:\> command
-      /[A-Z]:\\.*>(\s*\S.*)$/i, // cmd: C:\> command
+      /[#$>]\s+(\S.*)$/,
+      /PS[^>]*>\s*(\S.*)$/i,
+      /[A-Z]:\\.*>(\s*\S.*)$/i,
     ];
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = _stripAnsiForDetection(lines[i]);
@@ -385,18 +384,66 @@ export default class TerminalUI {
     return '';
   }
 
+  _parseBufferToEntries(content) {
+    if (!content) return [];
+    const rawLines = content.split('\n');
+    const promptPatterns = [
+      /^[#$>]\s+(\S.*)$/,
+      /^PS[^>]*>\s*(\S.*)$/i,
+      /^[A-Z]:\\.*>\s*(\S.*)$/i,
+    ];
+    const entries = [];
+    let currentCmd = '';
+    let currentOut = '';
+    for (let i = 0; i < rawLines.length; i++) {
+      const raw = rawLines[i];
+      const clean = _stripAnsiForDetection(raw).trimEnd();
+      let matched = false;
+      for (const pat of promptPatterns) {
+        const m = clean.match(pat);
+        if (m) {
+          if (currentCmd) {
+            entries.push({ command: currentCmd, output: currentOut.replace(/\n+$/, '') });
+          }
+          currentCmd = m[1].trim();
+          currentOut = '';
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        if (currentCmd) {
+          currentOut += (currentOut ? '\n' : '') + raw;
+        }
+      }
+    }
+    if (currentCmd) {
+      entries.push({ command: currentCmd, output: currentOut.replace(/\n+$/, '') });
+    }
+    return entries;
+  }
+
   _viewTerminalOutputById(id) {
     const inst = this.instances.get(id);
     const content = this._readTerminalBuffer(inst);
     if (!content) return;
     const shellName = inst?.shell?.name || 'Terminal';
     const command = this._detectLastCommand(content);
-    showOutputViewer({
-      title: `${shellName} — Output`,
-      content,
-      command: command || undefined,
-      language: 'terminal'
-    });
+    const entries = this._parseBufferToEntries(content);
+    if (entries.length > 0) {
+      showOutputViewer({
+        title: `${shellName} — Output`,
+        entries,
+        language: 'terminal'
+      });
+    } else {
+      showOutputViewer({
+        title: `${shellName} — Output`,
+        content,
+        command: command || undefined,
+        language: 'terminal'
+      });
+    }
   }
 
   _viewTerminalOutput() {

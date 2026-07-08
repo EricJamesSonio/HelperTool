@@ -630,6 +630,96 @@
   user-select: all;
 }
 
+/* ── Output viewer entry boxes ── */
+.ov-body-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+.ov-entry {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.025);
+  flex-shrink: 0;
+}
+.ov-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  background: rgba(35, 209, 139, 0.07);
+  border-bottom: 1px solid rgba(35, 209, 139, 0.15);
+  gap: 8px;
+}
+.ov-entry-command {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #23d18b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: all;
+  min-width: 0;
+}
+.ov-entry-output {
+  padding: 8px 10px;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-primary, #eef2ff);
+  cursor: pointer;
+  position: relative;
+  transition: max-height 0.25s ease, background 0.1s;
+  overflow: hidden;
+}
+.ov-entry-output.collapsed {
+  max-height: 120px;
+}
+.ov-entry-output.collapsed::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(transparent, rgba(8,14,26,0.95));
+  pointer-events: none;
+}
+.ov-entry-output.expanded {
+  max-height: none;
+  overflow-y: auto;
+}
+.ov-entry-output:hover {
+  background: rgba(255,255,255,0.02);
+}
+.ov-entry-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(96, 165, 250, 0.15);
+  border-radius: 4px;
+  background: rgba(96, 165, 250, 0.06);
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.ov-entry-copy:hover {
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
 /* Scrollbar styling */
 .ov-body::-webkit-scrollbar {
   width: 10px;

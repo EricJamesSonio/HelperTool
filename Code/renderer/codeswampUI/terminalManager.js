@@ -380,15 +380,14 @@ function _buildEntryElement(entry, index) {
   header.appendChild(cmdSpan);
 
   const copyBtn = document.createElement('button');
-  copyBtn.className = 'oc-btn oc-btn-icon oc-response-entry-copy';
-  copyBtn.textContent = '📋';
-  copyBtn.title = 'Copy this output';
+  copyBtn.className = 'oc-response-entry-copy';
+  copyBtn.textContent = 'Copy';
   copyBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     const text = `$ ${entry.command}\n${entry.output}`;
     navigator.clipboard.writeText(text).then(() => {
-      copyBtn.textContent = '✓';
-      setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
     }).catch(() => {});
   });
   header.appendChild(copyBtn);
@@ -396,8 +395,13 @@ function _buildEntryElement(entry, index) {
   div.appendChild(header);
 
   const output = document.createElement('div');
-  output.className = 'oc-response-entry-output';
+  output.className = 'oc-response-entry-output collapsed';
   output.textContent = entry.output;
+  output.addEventListener('click', (e) => {
+    e.stopPropagation();
+    output.classList.toggle('collapsed');
+    output.classList.toggle('expanded');
+  });
   div.appendChild(output);
 
   return div;

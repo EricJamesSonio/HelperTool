@@ -821,10 +821,10 @@ Claude Fab
 
 /* ── Command entry box ── */
 .oc-response-entry {
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 8px;
   overflow: hidden;
-  background: rgba(255,255,255,0.02);
+  background: rgba(255,255,255,0.025);
   flex-shrink: 0;
 }
 .oc-response-entry-header {
@@ -832,14 +832,14 @@ Claude Fab
   align-items: center;
   justify-content: space-between;
   padding: 5px 10px;
-  background: rgba(35, 209, 139, 0.06);
-  border-bottom: 1px solid rgba(35, 209, 139, 0.1);
+  background: rgba(35, 209, 139, 0.07);
+  border-bottom: 1px solid rgba(35, 209, 139, 0.15);
   gap: 8px;
 }
 .oc-response-entry-command {
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: #23d18b;
   white-space: nowrap;
   overflow: hidden;
@@ -855,24 +855,52 @@ Claude Fab
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-primary, #e6edf3);
-  max-height: 400px;
+  cursor: pointer;
+  position: relative;
+  transition: max-height 0.25s ease, background 0.1s;
+  overflow: hidden;
+}
+.oc-response-entry-output.collapsed {
+  max-height: 120px;
+}
+.oc-response-entry-output.collapsed::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(transparent, var(--bg-base, #010409));
+  pointer-events: none;
+}
+.oc-response-entry-output.expanded {
+  max-height: none;
   overflow-y: auto;
 }
+.oc-response-entry-output:hover {
+  background: rgba(255,255,255,0.02);
+}
 .oc-response-entry-copy {
-  background: transparent;
-  border: none;
-  color: var(--text-faint, #556080);
-  cursor: pointer;
-  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(96, 165, 250, 0.15);
   border-radius: 4px;
-  font-size: 12px;
-  line-height: 1;
+  background: rgba(96, 165, 250, 0.06);
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
   flex-shrink: 0;
-  transition: color 0.15s;
+  transition: all 0.12s;
 }
 .oc-response-entry-copy:hover {
-  color: var(--text-primary, #e6edf3);
-  background: rgba(255,255,255,0.06);
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.35);
 }
 
 .oc-response-overlay-clear {
