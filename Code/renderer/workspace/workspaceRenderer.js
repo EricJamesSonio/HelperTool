@@ -4,7 +4,7 @@
  * All UI rendering. No business logic — imports managers for data/mutations.
  */
 
-import { state, genId }                                           from './workspaceStore.js';
+import { state, genId, markDirty }                                from './workspaceStore.js';
 import { getAllProjects, createProject, updateProject, deleteProject,
          assignWorkerToProject, removeWorkerFromProject,
          PROJECT_STATUSES, getProjectById, getProjectByRepoPath }                       from './projectManager.js';
@@ -1084,6 +1084,10 @@ function _renderTabPlannings(el) {
     titleInput.value = selectedNote.title || '';
     titleInput.placeholder = 'Note title...';
     titleInput.style.cssText = 'font-size:1rem;font-weight:600;padding:10px 14px;flex:1;';
+    titleInput.addEventListener('input', () => {
+      selectedNote.title = titleInput.value;
+      markDirty();
+    });
     rightHeader.appendChild(titleInput);
 
     const delBtn = document.createElement('button');
@@ -1104,21 +1108,11 @@ function _renderTabPlannings(el) {
     textarea.className = 'ws-fullheight-textarea';
     textarea.value = selectedNote.content || '';
     textarea.placeholder = 'Write your planning notes...';
-    right.appendChild(textarea);
-
-    const footer = document.createElement('div');
-    footer.style.cssText = 'display:flex;justify-content:flex-end;flex-shrink:0;';
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = 'Save';
-    saveBtn.className = 'workspace-btn-add';
-    saveBtn.addEventListener('click', () => {
-      selectedNote.title = titleInput.value;
+    textarea.addEventListener('input', () => {
       selectedNote.content = textarea.value;
-      updateProject(p.id, { planningNotes: p.planningNotes });
-      render();
+      markDirty();
     });
-    footer.appendChild(saveBtn);
-    right.appendChild(footer);
+    right.appendChild(textarea);
   } else {
     const empty = document.createElement('div');
     empty.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-secondary,#a0b0d8);font-size:0.9rem;';

@@ -5,7 +5,7 @@
  * Tickets belong to a project, optionally assigned to a worker.
  */
 
-import { state, saveAll, genId } from './workspaceStore.js';
+import { state, markDirty, genId } from './workspaceStore.js';
 import { addProjectLog }          from './projectManager.js';
 import { getWorkerById }          from './workerManager.js';
 
@@ -67,7 +67,7 @@ export function createTicket(projectId, title, description = '', assignedWorkerI
 
   const workerName = assignedWorkerId ? (getWorkerById(assignedWorkerId)?.name || 'Unknown') : 'Unassigned';
   addProjectLog(projectId, 'ticket_created', `Ticket **"${ticket.title}"** created (${workerName})`);
-  saveAll();
+  markDirty();
   return ticket;
 }
 
@@ -107,7 +107,7 @@ export function updateTicket(id, fields) {
     addProjectLog(ticket.projectId, 'ticket_updated', `Ticket **"${ticket.title}"**: ${changes.join(', ')}`);
   }
 
-  saveAll();
+  markDirty();
 }
 
 // ─── Status shortcut ──────────────────────────────────────────────────────────
@@ -126,5 +126,5 @@ export function deleteTicket(id) {
   const { title, projectId } = ticket;
   state.tickets = state.tickets.filter(t => t.id !== id);
   addProjectLog(projectId, 'ticket_deleted', `Ticket **"${title}"** deleted`);
-  saveAll();
+  markDirty();
 }

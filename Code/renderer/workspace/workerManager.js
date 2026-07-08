@@ -4,7 +4,7 @@
  * Worker CRUD. Workers are global and reusable across projects.
  */
 
-import { state, saveAll, genId } from './workspaceStore.js';
+import { state, markDirty, genId } from './workspaceStore.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ export function createWorker(name, role) {
 
   state.workers.push(worker);
   _addGlobalLog('worker_created', `Worker **${worker.name}** (${worker.role}) added`);
-  saveAll();
+  markDirty();
   return worker;
 }
 
@@ -71,7 +71,7 @@ export function updateWorker(id, name, role) {
   worker.updatedAt = new Date().toISOString();
 
   _addGlobalLog('worker_updated', `Worker **${oldName}** renamed to **${worker.name}**`);
-  saveAll();
+  markDirty();
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export function deleteWorker(id) {
 
   state.workers = state.workers.filter(w => w.id !== id);
   _addGlobalLog('worker_deleted', `Worker **${name}** removed`);
-  saveAll();
+  markDirty();
 }
 
 // ─── Global log (private) ─────────────────────────────────────────────────────
