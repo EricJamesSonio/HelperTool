@@ -3,6 +3,11 @@ import { FEATURES_META, _renderFeaturesList, saveFeatures } from './features.js'
 import { renderThemeGrid, renderSwatches } from './ui.js';
 import { saveAndApply } from './utils.js';
 
+const ICON_SETTINGS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="10" cy="10" r="7"/><circle cx="7" cy="8" r="1" fill="currentColor"/><circle cx="13" cy="8" r="1" fill="currentColor"/><circle cx="10" cy="13" r="1" fill="currentColor"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="5" y1="5" x2="15" y2="15"/><line x1="15" y1="5" x2="5" y2="15"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 10l4 4 6-6"/></svg>';
+const ICON_RESET = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15.5A8 8 0 1018 10a8 8 0 00-7-7.9"/></svg>';
+
 function _ensureModal() {
   if (S._modalBuilt) return;
   S._modalBuilt = true;
@@ -14,10 +19,10 @@ function _ensureModal() {
     <div class="settings-modal" role="dialog" aria-label="Appearance Settings">
       <div class="settings-header">
         <span class="settings-title">
-          <span class="settings-title-icon">\u{1F3A8}</span>
+          <span class="settings-title-icon">${ICON_SETTINGS}</span>
           Appearance &amp; Features
         </span>
-        <button class="settings-close-btn" id="settingsCloseBtn" title="Close">\u2715</button>
+        <button class="settings-close-btn" id="settingsCloseBtn" title="Close">${ICON_CLOSE}</button>
       </div>
       <div class="settings-body">
 
@@ -74,8 +79,8 @@ function _ensureModal() {
           <div id="settingsFeatureList" style="display:flex;flex-direction:column;gap:5px"></div>
           <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:12px;gap:10px">
             <span id="settingsFeatSavedBadge"
-              style="font-size:0.75rem;color:var(--green);opacity:0;transition:opacity 0.3s">
-              \u2713 Saved \u2014 reloading\u2026
+              style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--green);opacity:0;transition:opacity 0.3s">
+              ${ICON_CHECK} Saved \u2014 reloading\u2026
             </span>
             <button id="settingsFeatSaveBtn"
               style="padding:7px 16px;border:none;border-radius:7px;
@@ -88,8 +93,8 @@ function _ensureModal() {
 
       </div>
       <div class="settings-footer">
-        <button class="settings-reset-btn" id="settingsResetBtn">\u21BA Reset appearance defaults</button>
-        <span class="settings-saved-badge" id="settingsSavedBadge">\u2713 Saved</span>
+        <button class="settings-reset-btn" id="settingsResetBtn">${ICON_RESET} Reset appearance defaults</button>
+        <span class="settings-saved-badge" id="settingsSavedBadge">${ICON_CHECK} Saved</span>
       </div>
     </div>`;
 

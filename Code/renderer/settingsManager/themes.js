@@ -1,6 +1,25 @@
+const THEME_ICONS = {
+  'github-hc-dark':  'M6 5l-4 4 4 4M14 5l4 4-4 4',
+  'navy-dark':       'M10 3L6 11a4 4 0 108 0L10 3z',
+  'contrast-dark':   'M10 2a8 8 0 100 16 8 8 0 000-16zm0 2v12a6 6 0 010-12z',
+  'neon-dark':       'M12 2L5 11h5l-2 9 9-9h-5l2-9z',
+  'scarlet-dark':    'M10 2C5 7 4 11 4 13a6 6 0 1012 0c0-2-1-6-6-11z',
+  'cyber-dark':      'M10 2l6 3v5c0 3.5-3 7-6 8-3-1-6-4.5-6-8V5l6-3z',
+  'universe-dark':   'M10 2l1.5 4.5L16 7l-4 2.5 1.5 5.5L10 11l-3.5 4L8 9.5 4 7l4.5-.5L10 2z',
+  'terminal-dark':   'M6 7l4 4-4 4M12 13h3',
+  'aurora-dark':     'M10 2C5 7 5 11 5 13a5 5 0 0010 0c0-2 0-6-5-11z',
+  'mocha-dark':      'M6 5v7a4 4 0 008 0V5M3 5h14',
+  'frost-dark':      'M10 2v16M3 10h14M5.5 5.5l9 9M14.5 5.5l-9 9',
+  'midnight-dark':   'M17.5 12.5A7 7 0 019 2 8 8 0 1018 11a7 7 0 01-.5 1.5z',
+  'carbon-dark':     'M10 2a8 8 0 100 16 8 8 0 000-16z',
+  'sunset-dark':     'M10 2v2M10 12v4M2 8h2M16 8h2M5.5 5l1 1M13.5 5l-1 1',
+  'ocean-dark':      'M2 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0',
+  'crimson-dark':    'M10 4l-6 6 3 6 3-3 3 3 6-6-6-6z',
+};
+
 const FULL_THEMES = {
   'github-hc-dark': {
-    label: 'GitHub Dark HC', emoji: '\u{1F7E6}', dark: true,
+    label: 'GitHub Dark HC', dark: true,
     bg: { base:'#000000', surface:'#050505', elevated:'#0a0a0a', overlay:'#101010',
           hover:'rgba(255,255,255,0.10)', active:'rgba(255,255,255,0.14)',
           raised:'#181818', statusbar:'#000000', tree:'#000000' },
@@ -12,7 +31,7 @@ const FULL_THEMES = {
     depths: ['#2f81f7','#bc8cff','#3fb950','#d29922','#ff6b69'],
   },
   'navy-dark': {
-    label: 'Navy Dark', emoji: '\u{1F30A}', dark: true,
+    label: 'Navy Dark', dark: true,
     bg: { base:'#070d1a', surface:'#0c1427', elevated:'#111d34', overlay:'#162038',
           hover:'rgba(255,255,255,0.07)', active:'rgba(255,255,255,0.10)',
           raised:'#1a2540', statusbar:'#0e1830', tree:'#0a1220' },
@@ -24,7 +43,7 @@ const FULL_THEMES = {
     depths: ['#f0b429','#38bdf8','#a78bfa','#2dd4bf','#fb7185'],
   },
   'contrast-dark': {
-    label: 'Dark High Contrast', emoji: '\u{1F4A0}', dark: true,
+    label: 'Dark High Contrast', dark: true,
     bg: { base:'#05080f', surface:'#080c17', elevated:'#0c1220', overlay:'#10182a',
           hover:'rgba(86,186,255,0.08)', active:'rgba(86,186,255,0.12)',
           raised:'#16223a', statusbar:'#05080f', tree:'#060a14' },
@@ -36,7 +55,7 @@ const FULL_THEMES = {
     depths: ['#56baff','#c084fc','#34d399','#fbbf24','#ff6b6b'],
   },
   'neon-dark': {
-    label: 'Neon', emoji: '\u26A1', dark: true,
+    label: 'Neon', dark: true,
     bg: { base:'#0a0a0f', surface:'#0f0f18', elevated:'#151520', overlay:'#1a1a28',
           hover:'rgba(0,240,255,0.05)', active:'rgba(0,240,255,0.08)',
           raised:'#20203a', statusbar:'#0a0a0f', tree:'#0a0a0f' },
@@ -48,7 +67,7 @@ const FULL_THEMES = {
     depths: ['#00f0ff','#ff00aa','#00ff88','#ffee00','#ff2d6b'],
   },
   'scarlet-dark': {
-    label: 'Scarlet', emoji: '\u{1F534}', dark: true,
+    label: 'Scarlet', dark: true,
     bg: { base:'#12080a', surface:'#1c0c0e', elevated:'#261014', overlay:'#301418',
           hover:'rgba(255,45,85,0.05)', active:'rgba(255,45,85,0.08)',
           raised:'#3a181e', statusbar:'#12080a', tree:'#12080a' },
@@ -60,7 +79,7 @@ const FULL_THEMES = {
     depths: ['#ff2d55','#fbbf24','#34d399','#60a5fa','#a78bfa'],
   },
   'cyber-dark': {
-    label: 'Cyber', emoji: '\u{1F7E5}', dark: true,
+    label: 'Cyber', dark: true,
     bg: { base:'#06060e', surface:'#0a0a16', elevated:'#0e0e1e', overlay:'#121226',
           hover:'rgba(168,85,247,0.06)', active:'rgba(168,85,247,0.09)',
           raised:'#18183a', statusbar:'#06060e', tree:'#06060e' },
@@ -72,7 +91,7 @@ const FULL_THEMES = {
     depths: ['#a855f7','#38bdf8','#22c55e','#eab308','#ef4444'],
   },
   'universe-dark': {
-    label: 'Universe', emoji: '\u{1F30C}', dark: true,
+    label: 'Universe', dark: true,
     bg: { base:'#05050e', surface:'#080818', elevated:'#0c0c22', overlay:'#10102c',
           hover:'rgba(129,140,248,0.05)', active:'rgba(129,140,248,0.08)',
           raised:'#16163a', statusbar:'#05050e', tree:'#05050e' },
@@ -84,7 +103,7 @@ const FULL_THEMES = {
     depths: ['#818cf8','#c084fc','#34d399','#fbbf24','#f87171'],
   },
   'terminal-dark': {
-    label: 'Terminal', emoji: '\u{1F4BB}', dark: true,
+    label: 'Terminal', dark: true,
     bg: { base:'#000000', surface:'#0a0a0a', elevated:'#111111', overlay:'#181818',
           hover:'rgba(34,197,94,0.06)', active:'rgba(34,197,94,0.10)',
           raised:'#222222', statusbar:'#000000', tree:'#000000' },
@@ -96,7 +115,7 @@ const FULL_THEMES = {
     depths: ['#22c55e','#38bdf8','#a78bfa','#eab308','#ef4444'],
   },
   'aurora-dark': {
-    label: 'Aurora', emoji: '\u{1F308}', dark: true,
+    label: 'Aurora', dark: true,
     bg: { base:'#05100e', surface:'#081816', elevated:'#0c201c', overlay:'#102822',
           hover:'rgba(45,212,191,0.05)', active:'rgba(45,212,191,0.08)',
           raised:'#14382e', statusbar:'#05100e', tree:'#05100e' },
@@ -108,7 +127,7 @@ const FULL_THEMES = {
     depths: ['#2dd4bf','#22d3ee','#4ade80','#fbbf24','#fb7185'],
   },
   'mocha-dark': {
-    label: 'Mocha', emoji: '\u2615', dark: true,
+    label: 'Mocha', dark: true,
     bg: { base:'#1a1510', surface:'#221e18', elevated:'#2a2520', overlay:'#322c26',
           hover:'rgba(245,158,11,0.05)', active:'rgba(245,158,11,0.08)',
           raised:'#3a3430', statusbar:'#1a1510', tree:'#1a1510' },
@@ -120,7 +139,7 @@ const FULL_THEMES = {
     depths: ['#f59e0b','#60a5fa','#65a30d','#a78bfa','#ef4444'],
   },
   'frost-dark': {
-    label: 'Frost', emoji: '\u2744\uFE0F', dark: true,
+    label: 'Frost', dark: true,
     bg: { base:'#080c14', surface:'#0c1420', elevated:'#101c2c', overlay:'#142438',
           hover:'rgba(148,200,255,0.07)', active:'rgba(148,200,255,0.10)',
           raised:'#1c3048', statusbar:'#080c14', tree:'#080c14' },
@@ -132,7 +151,7 @@ const FULL_THEMES = {
     depths: ['#56ccff','#b48aff','#34d399','#ffe066','#ff6b6b'],
   },
   'midnight-dark': {
-    label: 'Midnight', emoji: '\u{1F319}', dark: true,
+    label: 'Midnight', dark: true,
     bg: { base:'#04060e', surface:'#080c18', elevated:'#0c1222', overlay:'#10182c',
           hover:'rgba(180,196,255,0.06)', active:'rgba(180,196,255,0.09)',
           raised:'#182240', statusbar:'#04060e', tree:'#04060e' },
@@ -144,7 +163,7 @@ const FULL_THEMES = {
     depths: ['#b4c4ff','#7ea6ff','#34d399','#fbbf24','#ff6b6b'],
   },
   'carbon-dark': {
-    label: 'Carbon', emoji: '\u{1F3ED}', dark: true,
+    label: 'Carbon', dark: true,
     bg: { base:'#050505', surface:'#0a0a0a', elevated:'#111111', overlay:'#181818',
           hover:'rgba(255,255,255,0.06)', active:'rgba(255,255,255,0.09)',
           raised:'#222222', statusbar:'#050505', tree:'#050505' },
@@ -156,7 +175,7 @@ const FULL_THEMES = {
     depths: ['#22d3ee','#c084fc','#4ade80','#fbbf24','#f87171'],
   },
   'sunset-dark': {
-    label: 'Sunset', emoji: '\u{1F307}', dark: true,
+    label: 'Sunset', dark: true,
     bg: { base:'#120810', surface:'#1c0c18', elevated:'#261020', overlay:'#301428',
           hover:'rgba(255,160,120,0.06)', active:'rgba(255,160,120,0.09)',
           raised:'#3a1c30', statusbar:'#120810', tree:'#120810' },
@@ -168,7 +187,7 @@ const FULL_THEMES = {
     depths: ['#ffa078','#c084fc','#fbbf24','#4ade80','#ff6b6b'],
   },
   'ocean-dark': {
-    label: 'Ocean', emoji: '\u{1F30A}', dark: true,
+    label: 'Ocean', dark: true,
     bg: { base:'#060e14', surface:'#0a1620', elevated:'#0e1e2c', overlay:'#122638',
           hover:'rgba(56,189,248,0.06)', active:'rgba(56,189,248,0.09)',
           raised:'#1a3048', statusbar:'#060e14', tree:'#060e14' },
@@ -180,7 +199,7 @@ const FULL_THEMES = {
     depths: ['#38bdf8','#2dd4bf','#a78bfa','#fbbf24','#fb7185'],
   },
   'crimson-dark': {
-    label: 'Crimson', emoji: '\u{1F534}', dark: true,
+    label: 'Crimson', dark: true,
     bg: { base:'#100608', surface:'#1a0a0e', elevated:'#240e14', overlay:'#2e121a',
           hover:'rgba(255,107,107,0.06)', active:'rgba(255,107,107,0.09)',
           raised:'#381820', statusbar:'#100608', tree:'#100608' },
@@ -204,4 +223,4 @@ const ACCENT_SWATCHES = [
   { id:'pink',   hex:'#f472b6', label:'Pink'   },
 ];
 
-export { FULL_THEMES, ACCENT_SWATCHES };
+export { FULL_THEMES, ACCENT_SWATCHES, THEME_ICONS };

@@ -1,13 +1,23 @@
 import { getFeatures, saveFeatures } from '../featureManager.js';
 
+const FEATURE_SVGS = {
+  apiTool:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M7 2v6a3 3 0 006 0V2"/><path d="M5 8h10"/><path d="M9 14v4"/></svg>',
+  secretHolder:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="4" y="10" width="12" height="8" rx="1"/><path d="M7 10V6a3 3 0 016 0v4"/><circle cx="10" cy="14" r=".5" fill="currentColor"/><path d="M10 14v2"/></svg>',
+  themeEngine:   '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="10" cy="10" r="7"/><circle cx="7" cy="8" r="1" fill="currentColor"/><circle cx="13" cy="8" r="1" fill="currentColor"/><circle cx="10" cy="13" r="1" fill="currentColor"/></svg>',
+  folderFilters: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M2 7v9a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2H9L7 4H4a2 2 0 00-2 2v1z"/></svg>',
+  swagger:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 2L5 11h5l-2 9 9-9h-5l2-9z"/></svg>',
+  canvasTool:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M16 2a2 2 0 00-2.83 0L4 11.17V16h4.83L16 6.83A2 2 0 0016 2z"/><path d="M4 16l-2 2"/></svg>',
+  dbInspector:   '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
+};
+
 const FEATURES_META = [
-  { id: 'apiTool',       icon: '\u{1F50C}', label: 'API Tool',          desc: 'Built-in API tester + Swagger import', heavy: true  },
-  { id: 'secretHolder',  icon: '\u{1F510}', label: 'Secret Holder',     desc: 'Password-protected vault for keys & notes', heavy: false },
-  { id: 'themeEngine',   icon: '\u{1F3A8}', label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)', heavy: true  },
-  { id: 'folderFilters', icon: '\u{1F4C1}', label: 'Folder Filters',    desc: 'Ignore / Focus folder panels', heavy: false },
-  { id: 'swagger',       icon: '\u26A1', label: 'Swagger Import',    desc: 'OpenAPI spec import \u2014 only useful with API Tool', heavy: false },
-  { id: 'canvasTool',    icon: '\u{1F3A8}', label: 'Canvas Tool',      desc: 'Infinite canvas for diagrams, sketches & flowcharts', heavy: false },
-  { id: 'dbInspector',   icon: '\u{1F5C3}', label: 'Database Inspector', desc: 'Visualize & explore database schemas', heavy: false },
+  { id: 'apiTool',       icon: FEATURE_SVGS.apiTool,       label: 'API Tool',          desc: 'Built-in API tester + Swagger import', heavy: true  },
+  { id: 'secretHolder',  icon: FEATURE_SVGS.secretHolder,  label: 'Secret Holder',     desc: 'Password-protected vault for keys & notes', heavy: false },
+  { id: 'themeEngine',   icon: FEATURE_SVGS.themeEngine,   label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)', heavy: true  },
+  { id: 'folderFilters', icon: FEATURE_SVGS.folderFilters, label: 'Folder Filters',    desc: 'Ignore / Focus folder panels', heavy: false },
+  { id: 'swagger',       icon: FEATURE_SVGS.swagger,       label: 'Swagger Import',    desc: 'OpenAPI spec import \u2014 only useful with API Tool', heavy: false },
+  { id: 'canvasTool',    icon: FEATURE_SVGS.canvasTool,    label: 'Canvas Tool',      desc: 'Infinite canvas for diagrams, sketches & flowcharts', heavy: false },
+  { id: 'dbInspector',   icon: FEATURE_SVGS.dbInspector,   label: 'Database Inspector', desc: 'Visualize & explore database schemas', heavy: false },
 ];
 
 function _renderFeaturesList() {
@@ -32,7 +42,7 @@ function _renderFeaturesList() {
     `;
 
     row.innerHTML = `
-      <span style="font-size:1.15rem;flex-shrink:0">${f.icon}</span>
+      <span style="display:inline-flex;align-items:center;flex-shrink:0">${f.icon}</span>
       <span style="flex:1;min-width:0">
         <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);display:block">
           ${f.label}

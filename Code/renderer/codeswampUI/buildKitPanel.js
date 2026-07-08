@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { loadAll } from '../workspace/workspaceStore.js';
 import { getProjectByRepoPath } from '../workspace/projectManager.js';
-import { getKitProgress, ensureDefaultKits, isItemChecked } from '../workspace/buildKitManager.js';
+import { getKitProgress, ensureDefaultKits, isItemChecked, getItemPrompt, getStageMeta } from '../workspace/buildKitManager.js';
 
 const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
 
@@ -32,7 +32,13 @@ function _formatItemDetail(kit, item) {
   const mark = item.checked ? '[✅]' : '[ ]';
   const lines = [`**${kit.name}** > ${item.name}`, `${mark} ${item.name}`];
   if (item.description) lines.push(`  ${item.description}`);
+  if (item.stage) {
+    const meta = getStageMeta(item.stage);
+    if (meta) lines.push(`  Stage: ${meta.label.toUpperCase()} — ${meta.desc}`);
+  }
   if (item.details) lines.push(`  ${item.details}`);
+  lines.push('');
+  lines.push(getItemPrompt(item));
   return lines.join('\n');
 }
 

@@ -16,7 +16,8 @@ import { getTicketsByProject, createTicket, updateTicket,
 import { confirmDialog }                                          from '../utils/confirmDialog.js';
 import { toggleItem, addKit, addItemToKit, removeKit,
          removeItem, updateItemDetails, getKitProgress,
-         isItemChecked }                                           from './buildKitManager.js';
+         isItemChecked, getItemPrompt, getStageMeta,
+         ensureDefaultKits }                                    from './buildKitManager.js';
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 
@@ -1234,6 +1235,7 @@ const KIT_PALETTE = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#c0c0c0', '#a7
 
 function _renderTabBuildKits(el) {
   const p = _selectedProject;
+  ensureDefaultKits(p);
   if (!Array.isArray(p.buildKits)) p.buildKits = [];
 
   el.replaceChildren();
@@ -1292,11 +1294,17 @@ function _buildFlowRow(project, kit, parentEl) {
   // ── Left: parent box ──
   const left = document.createElement('div');
   left.className = 'ws-bk-flow-parent';
+  const catBadge = kit.category === 'frontend'
+    ? '<span class="ws-bk-cat-badge ws-bk-cat-fe">FRONTEND</span>'
+    : kit.category === 'backend'
+      ? '<span class="ws-bk-cat-badge ws-bk-cat-be">BACKEND</span>'
+      : '';
   left.innerHTML = `
     <div class="ws-bk-flow-parent-header">
       <div class="ws-bk-flow-parent-title">${_esc(kit.name)}</div>
       <button class="ws-bk-flow-remove" title="Remove kit">${ICON_REMOVE}</button>
     </div>
+    ${catBadge ? '<div class="ws-bk-cat-row">' + catBadge + '</div>' : ''}
     <div class="ws-bk-flow-parent-desc">${_esc(kit.description)}</div>
     <div class="ws-bk-flow-parent-progress">
       <div class="ws-bk-progress-wrap"><div class="ws-bk-progress-bar" style="width:${pct}%"></div></div>
@@ -1368,6 +1376,16 @@ function _buildFlowItemCard(project, kit, item, parentEl) {
   nameEl.textContent = item.name;
   nameEl.addEventListener('click', () => _openBkDetailModal(project, kit, item.id, parentEl));
   topRow.appendChild(nameEl);
+
+  const stageMeta = item.stage && getStageMeta(item.stage);
+  if (stageMeta) {
+    const stageBadge = document.createElement('span');
+    stageBadge.className = 'ws-bk-stage-badge';
+    stageBadge.textContent = stageMeta.label;
+    stageBadge.style.setProperty('--stage-color', stageMeta.color);
+    stageBadge.title = stageMeta.desc;
+    topRow.appendChild(stageBadge);
+  }
 
   if (!hasChildren) {
     const delBtn = document.createElement('button');
@@ -1442,40 +1460,11 @@ function _buildFlowItemCard(project, kit, item, parentEl) {
   return card;
 }
 
-function _itemPrompt(item) {
-  if (item.prompt && item.prompt.length > 0) return item.prompt;
-  var lines = [];
-  lines.push('Analyze the project codebase to understand the current architecture:');
-  lines.push('- Examine the src/ directory structure, entry point, route organization, and middleware pipeline');
-  lines.push('- Check package.json for existing dependencies and the tech stack in use');
-  lines.push('- Review how similar features are currently implemented to follow the same conventions');
-  lines.push('- Identify the correct location in the codebase where this feature should be integrated');
-  lines.push('');
-  lines.push('Then implement:');
-  lines.push((item.name || '') + ' \u2014 ' + (item.description || ''));
-  lines.push('');
-  lines.push('Implementation guidance: ' + (item.details || ''));
-  if (item.children && item.children.length > 0) {
-    lines.push('');
-    lines.push('Scope includes:');
-    item.children.forEach(function(child) {
-      lines.push('- ' + (child.name || '') + ': ' + (child.description || ''));
-    });
-  }
-  lines.push('');
-  lines.push('Verification:');
-  lines.push('- Follow existing code patterns and conventions in the project');
-  lines.push('- Implement each component and verify integration');
-  lines.push('- Run the existing test suite and add new tests where needed');
-  lines.push('- Check for regressions and security considerations');
-  return lines.join('\n');
-}
-
 function _openBkDetailModal(project, kit, itemId, parentEl) {
   const item = _findBkItem(kit, itemId);
   if (!item) return;
 
-  const promptText = _itemPrompt(item);
+  const promptText = getItemPrompt(item);
 
   const overlay = document.createElement('div');
   overlay.className = 'workspace-modal-overlay';
@@ -1489,12 +1478,10 @@ function _openBkDetailModal(project, kit, itemId, parentEl) {
         <div class="workspace-form-group">
           <label>Description</label>
           <p class="ws-bk-modal-desc">${_esc(item.description || 'No description')}</p>
-        </div>
-        <div class="workspace-form-group">
-          <label>Implementation Details</label>
+          <label style="margin-top:16px">Implementation Details</label>
           <textarea id="bkDetailText" class="workspace-textarea ws-bk-modal-textarea" rows="8" placeholder="Where to place this, implementation guidance, code examples...">${_esc(item.details || '')}</textarea>
         </div>
-        <div class="workspace-form-group">
+        <div class="ws-bk-modal-prompt-column">
           <label>AI Prompt <span class="ws-prompt-badge">copy-ready</span></label>
           <div class="ws-bk-modal-prompt-box">
             <pre class="ws-bk-modal-prompt-text">${_esc(promptText)}</pre>
