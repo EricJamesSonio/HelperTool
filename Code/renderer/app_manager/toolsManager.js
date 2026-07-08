@@ -50,6 +50,7 @@ const ICONS = {
     map: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 7 10 4 17 7"/><polyline points="3 17 10 14 17 17"/><line x1="10" y1="4" x2="10" y2="14"/><path d="M3 7v10"/><path d="M17 7v10"/></svg>',
     layout: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="8" y1="7" x2="8" y2="18"/><line x1="2" y1="13" x2="18" y2="13"/><line x1="14" y1="7" x2="14" y2="18"/></svg>',
     essentials: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 6l8 4 8-4L10 2z"/><path d="M2 14l8 4 8-4"/><path d="M2 10l8 4 8-4"/></svg>',
+    graphify: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/><path d="M4 3h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M4 9h8a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -62,6 +63,7 @@ import {
   createAutomationPanel,
   createCodebaseChatPanel,
   createGithubExplorerPanel,
+  createGraphifyPanel,
 } from './panels/panelFactory.js';
 
 // ---- Tool handles ----------------------------------------------------------
@@ -108,6 +110,9 @@ let _automationContainer = null;
 let _githubTool    = null;
 let _githubPanel   = null;
 let _githubContainer = null;
+
+let _graphifyPanel     = null;
+let _graphifyContainer  = null;
 
 let _terminalUI   = null;
 let _dockerTool  = null;
@@ -346,6 +351,14 @@ function populateSidebar() {
     } catch (err) { console.error('[Tools] UI Layout Helper:', err); }
   }, 'layout'));
 
+  body.appendChild(createSidebarItem(ICONS.graphify, 'Graphify', 'Find relevant code by natural language', async () => {
+    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_graphifyPanel) _initGraphifyPanel();
+    _graphifyPanel.classList.add('open');
+    await _mountGraphify();
+  }, 'graphify'));
+
   body.appendChild(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
     try {
       const oc = await import('../codeswampUI.js');
@@ -405,6 +418,23 @@ function _initCCPanel() {
   _ccPanel = panel;
   _ccContainer = container;
   _registry.register('codebbaseChat', _ccPanel);
+}
+
+function _initGraphifyPanel() {
+  const { panel, container } = createGraphifyPanel();
+  _graphifyPanel = panel;
+  _graphifyContainer = container;
+  _registry.setGraphifyPanel(_graphifyPanel);
+}
+
+async function _mountGraphify() {
+  if (!_graphifyContainer) return;
+  try {
+    const graphify = await import('../graphify.js');
+    graphify.activate(_graphifyContainer);
+  } catch (err) {
+    console.error('[Tools] Graphify:', err);
+  }
 }
 
 function _initLocPanel() {
@@ -766,7 +796,15 @@ function _buildShortcutActions() {
     if (!_githubTool) _initializeGithubTool();
   };
 
-actions.codeswampChat = async () => {
+  actions.graphify = async () => {
+    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_graphifyPanel) _initGraphifyPanel();
+    _graphifyPanel.classList.add('open');
+    await _mountGraphify();
+  };
+
+  actions.codeswampChat = async () => {
     try {
       const oc = await import('../codeswampUI.js');
       if (oc.isCodeSwampOpen()) {
@@ -782,6 +820,12 @@ actions.codeswampChat = async () => {
 }
 
 // ---- Public API ------------------------------------------------------------
+
+function _destroyGraphify() {
+  import('../graphify.js').then(m => m.deactivate()).catch(() => {});
+  if (_graphifyContainer) _graphifyContainer.innerHTML = '';
+  if (_graphifyPanel) _graphifyPanel.classList.remove('open');
+}
 
 export function closeAllPanels() {
   _registry.closeAll();
@@ -814,6 +858,7 @@ export function handleRepoChange(newRepoPath) {
 }
 
 window.addEventListener('beforeunload', () => {
+  _destroyGraphify();
   _gitTool?.destroy();
   _symbolIndexTool?.destroy();
   _ccTool?.destroy();

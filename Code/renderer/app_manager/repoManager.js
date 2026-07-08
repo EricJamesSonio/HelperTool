@@ -48,6 +48,7 @@ export function updateActiveRepo(name) {
 
 export async function loadRepo(repoPath, resetSel = true) {
     state.selectedRepoPath = repoPath;
+    window.__activeRepoPath = repoPath;
     // Notify tools BEFORE updating activeProject so they save to the old repo
     _onRepoChange?.(repoPath);
     // Fire-and-forget — config writes that don't affect visible UI

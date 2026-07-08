@@ -27,6 +27,7 @@ export default class PanelRegistry {
     this._profileTool = null;
     this._essentialsGlossary = null;
     this._dockerTool = null;
+    this._graphifyPanel = null;
   }
 
   // Register external tools that don't use a panel element
@@ -45,6 +46,7 @@ export default class PanelRegistry {
   setEssentialsGlossary(t){ this._essentialsGlossary = t; }
   setDockerTool(t)        { this._dockerTool = t; }
   setTerminalUI(t)        { this._terminalUI = t; }
+  setGraphifyPanel(p)     { this._graphifyPanel = p; }
 
 
   // Register a panel element by name
@@ -113,6 +115,11 @@ export default class PanelRegistry {
     const ulhPanel = document.getElementById('ulhPanel');
     if (ulhPanel?.classList.contains('ulh-visible')) {
       ulhPanel.classList.remove('ulh-visible');
+    }
+
+    // Graphify — close panel when any other tool opens
+    if (this._graphifyPanel?.classList.contains('open')) {
+      this._graphifyPanel.classList.remove('open');
     }
 
     // Service tracker — close when any tool opens

@@ -141,3 +141,15 @@ export function createOpencodePanel() {
 export function getOpencodePanel() {
   return document.getElementById('ocPanel');
 }
+
+export function createGraphifyPanel() {
+  const panel = document.createElement('div');
+  panel.id = 'graphifyPanel';
+  panel.className = 'gfy-panel-wrapper';
+  panel.innerHTML = `<div class="gfy-panel-body" id="graphifyContainer"></div>`;
+  document.body.appendChild(panel);
+  panel.addEventListener('click', (e) => {
+    if (e.target === panel) panel.classList.remove('open');
+  });
+  return { panel, container: panel.querySelector('#graphifyContainer') };
+}
