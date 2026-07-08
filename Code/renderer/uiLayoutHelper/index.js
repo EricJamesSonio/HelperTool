@@ -111,10 +111,11 @@ function renderPresets() {
 function loadPreset(preset) {
   loadDSL(preset.dsl);
   U.selectedPreset = preset.name;
-  previewArea.textContent = 'Preset loaded — click Render to generate ASCII';
+  previewArea.textContent = 'Rendering...';
   errorDisplay.style.display = 'none';
   U.renderedOutput = '';
   U.currentDSL = null;
+  setTimeout(handleRender, 50);
 }
 
 /* ── Render ──────────────────────────────────────────────── */

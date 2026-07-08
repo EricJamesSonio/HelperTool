@@ -1258,7 +1258,7 @@
   color: #000;
 }
 .ws-bk-pill-name {
-  cursor: default;
+  cursor: pointer;
 }
 .ws-bk-pill-name:hover {
   color: var(--bk-color, var(--accent, #10b981));

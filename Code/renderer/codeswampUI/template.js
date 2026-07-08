@@ -68,7 +68,11 @@ export function getTemplate(mode = 'full') {
       <div class="oc-response-overlay" id="ocResponseOverlay" style="display:none">
         <div class="oc-response-overlay-header">
           <span class="oc-response-overlay-title">Response</span>
-          <button class="oc-btn oc-btn-icon oc-response-overlay-close" id="ocResponseOverlayClose">✕</button>
+          <div class="oc-response-overlay-actions">
+            <button class="oc-btn oc-btn-icon oc-response-overlay-copy" id="ocResponseOverlayCopy" title="Copy output">📋</button>
+            <button class="oc-btn oc-btn-icon oc-response-overlay-expand" id="ocResponseOverlayExpand" title="Expand in modal">⛶</button>
+            <button class="oc-btn oc-btn-icon oc-response-overlay-close" id="ocResponseOverlayClose">✕</button>
+          </div>
         </div>
         <div class="oc-response-overlay-body" id="ocResponseContent"></div>
       </div>

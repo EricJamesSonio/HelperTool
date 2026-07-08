@@ -1395,11 +1395,13 @@ function _buildFlowItemCard(project, kit, item, parentEl) {
     const pills = document.createElement('div');
     pills.className = 'ws-bk-flow-card-pills';
     for (const child of item.children) {
-      const pill = document.createElement('label');
+      const pill = document.createElement('div');
       pill.className = 'ws-bk-flow-pill' + (child.checked ? ' ws-bk-flow-pill--done' : '');
       pill.innerHTML = `
-        <input type="checkbox" ${child.checked ? 'checked' : ''} data-item-id="${child.id}" data-kit-id="${kit.id}" class="ws-bk-pill-input" />
-        <span class="ws-bk-pill-check">${child.checked ? ICON_CHECK : ''}</span>
+        <label class="ws-bk-pill-check">
+          <input type="checkbox" ${child.checked ? 'checked' : ''} data-item-id="${child.id}" data-kit-id="${kit.id}" class="ws-bk-pill-input" />
+          <span>${child.checked ? ICON_CHECK : ''}</span>
+        </label>
         <span class="ws-bk-pill-name">${_esc(child.name)}</span>
         <button class="ws-bk-pill-detail" title="View details">⋮</button>
       `;
@@ -1407,6 +1409,10 @@ function _buildFlowItemCard(project, kit, item, parentEl) {
         toggleItem(project, kit.id, child.id);
         updateProject(project.id, { buildKits: project.buildKits });
         _renderTabBuildKits(parentEl);
+      });
+      pill.querySelector('.ws-bk-pill-name').addEventListener('click', (e) => {
+        e.stopPropagation();
+        _openBkDetailModal(project, kit, child.id, parentEl);
       });
       pill.querySelector('.ws-bk-pill-detail').addEventListener('click', (e) => {
         e.stopPropagation();

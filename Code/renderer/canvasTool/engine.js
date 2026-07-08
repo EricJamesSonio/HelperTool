@@ -8,7 +8,7 @@ let _animating = false;
 let _draftElement = null;
 let _moveUndoPushed = false;
 
-const viewport = { x: 0, y: 0, zoom: 1 };
+const viewport = { x: 0, y: 0, zoom: 1.2 };
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
 
@@ -792,7 +792,7 @@ function onWheel(e) {
 export function resetView() {
   viewport.x = 0;
   viewport.y = 0;
-  viewport.zoom = 1;
+  viewport.zoom = 1.2;
   if (_zoomChangeCallback) _zoomChangeCallback(viewport.zoom);
 }
 

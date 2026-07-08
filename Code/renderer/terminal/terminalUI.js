@@ -75,7 +75,11 @@ const ICON_PLUS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" st
 
 const ICON_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
 
+const ICON_OUTPUT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 4 16 14"/><line x1="2" y1="16" x2="18" y2="16"/></svg>';
+
 const ICON_CHEVRON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M6 8l4 4 4-4"/></svg>';
+
+import { showOutputViewer } from '../utils/outputViewer.js';
 
 export default class TerminalUI {
   constructor() {
@@ -137,6 +141,7 @@ export default class TerminalUI {
           </button>
         </div>
         <div class="terminal-tabs-right">
+          <button class="terminal-view-output" id="terminalViewOutput" title="View terminal output in modal">${ICON_OUTPUT} Output</button>
           <button class="terminal-panel-close" id="terminalPanelClose" title="Close terminal panel">${ICON_CLOSE}</button>
         </div>
       </div>
@@ -150,6 +155,7 @@ export default class TerminalUI {
     this._resizeHandle = this.panel.querySelector('.terminal-resize-handle');
 
     this.panel.querySelector('#terminalPanelClose').addEventListener('click', () => this.close());
+    this.panel.querySelector('#terminalViewOutput').addEventListener('click', () => this._viewTerminalOutput());
 
     this._addBtn = this.panel.querySelector('#terminalTabAdd');
     this._addLabel = this.panel.querySelector('.terminal-tab-add-label');
@@ -253,6 +259,11 @@ export default class TerminalUI {
     const inst = document.createElement('div');
     inst.className = 'terminal-instance';
     inst.id = 'terminalInst_' + id;
+    inst.innerHTML += `<button class="terminal-instance-output-btn" title="View full output">${ICON_OUTPUT}</button>`;
+    inst.querySelector('.terminal-instance-output-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._viewTerminalOutputById(id);
+    });
     this.body.appendChild(inst);
 
     const terminal = new TerminalClass({
@@ -335,6 +346,30 @@ export default class TerminalUI {
     if (inst && inst.fitAddon) {
       try { inst.fitAddon.fit(); } catch { }
     }
+  }
+
+  _readTerminalBuffer(inst) {
+    if (!inst || !inst.terminal) return '';
+    const buf = inst.terminal.buffer.active;
+    const totalLines = buf.baseY + buf.cursorY;
+    const lines = [];
+    for (let i = 0; i < totalLines; i++) {
+      const line = buf.getLine(i);
+      if (line) lines.push(line.translateToString());
+    }
+    return lines.join('\n');
+  }
+
+  _viewTerminalOutputById(id) {
+    const inst = this.instances.get(id);
+    const content = this._readTerminalBuffer(inst);
+    if (!content) return;
+    const shellName = inst?.shell?.name || 'Terminal';
+    showOutputViewer({ title: `${shellName} — Output`, content, language: 'terminal' });
+  }
+
+  _viewTerminalOutput() {
+    this._viewTerminalOutputById(this.activeId);
   }
 
   _killTerminal(id) {

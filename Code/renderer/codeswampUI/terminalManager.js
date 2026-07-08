@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { getLoadingController } from './loading.js';
 import { getProvider } from './providers.js';
 import { convStore } from './conversationStore.js';
+import { showOutputViewer } from '../utils/outputViewer.js';
 
 const instances = {};
 const _loadingTerminalIds = new Set();
@@ -100,6 +101,24 @@ export async function createTerminalSession(repoPath, slotIndex = 0) {
   div.dataset.repo = repoPath;
   div.dataset.slot = String(slotIndex);
   div.style.overflow = 'hidden';
+  const viewBtn = document.createElement('button');
+  viewBtn.className = 'oc-term-output-btn';
+  viewBtn.innerHTML = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 4 16 14"/><line x1="2" y1="16" x2="18" y2="16"/></svg>`;
+  viewBtn.title = 'View full terminal output';
+  viewBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const inst = instances[slotIndex];
+    if (!inst || !inst.terminal) return;
+    const buf = inst.terminal.buffer.active;
+    const total = buf.baseY + buf.cursorY;
+    const lines = [];
+    for (let i = 0; i < total; i++) {
+      const line = buf.getLine(i);
+      if (line) lines.push(line.translateToString());
+    }
+    showOutputViewer({ title: `Terminal [${repoPath.split('\\').pop().split('/').pop() || repoPath}]`, content: lines.join('\n'), language: 'terminal' });
+  });
+  div.appendChild(viewBtn);
   if (!state.parallelMode) {
     div.style.position = 'absolute';
     div.style.top = '0';
@@ -345,6 +364,27 @@ export function showResponseOverlay() {
   const closeBtn = document.getElementById('ocResponseOverlayClose');
   if (closeBtn) {
     closeBtn.onclick = hideResponseOverlay;
+  }
+  const copyBtn = document.getElementById('ocResponseOverlayCopy');
+  if (copyBtn) {
+    copyBtn.onclick = (e) => {
+      e.stopPropagation();
+      const content = getOverlayContent();
+      if (!content || !content.textContent) return;
+      navigator.clipboard.writeText(content.textContent).then(() => {
+        copyBtn.textContent = '✓';
+        setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
+      }).catch(() => {});
+    };
+  }
+  const expandBtn = document.getElementById('ocResponseOverlayExpand');
+  if (expandBtn) {
+    expandBtn.onclick = (e) => {
+      e.stopPropagation();
+      const content = getOverlayContent();
+      if (!content || !content.textContent) return;
+      showOutputViewer({ title: 'CodeSwamp Response', content: content.textContent, language: 'opencode' });
+    };
   }
 }
 export function hideResponseOverlay() {
