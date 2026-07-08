@@ -1,5 +1,5 @@
 export const FILE_EXTENSIONS = [
-  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.astro',
   '.py', '.pyw', '.pyi',
   '.php', '.phtml',
   '.html', '.htm', '.css', '.scss', '.sass', '.less',

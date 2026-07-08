@@ -270,7 +270,20 @@
 }
 .workspace-textarea { resize: vertical; line-height: 1.6; }
 .workspace-select   { cursor: pointer; width: auto; }
-.workspace-select option { background: var(--bg-elevated); color: var(--text-primary); }
+.workspace-select option,
+.ws-kanban-status-select option,
+.workspace-status-select option {
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-primary, #f0f6fc);
+}
+.workspace-select:focus,
+.ws-kanban-status-select:focus,
+.workspace-status-select:focus {
+  outline: none;
+  border-color: var(--accent, #22d3ee);
+  box-shadow: 0 0 0 3px var(--accent-dim, rgba(34,211,238,0.12));
+  color: var(--text-primary, #f0f6fc);
+}
 
 /* ─── Full-height section ────────────────────────────────────────────────── */
 .ws-fullheight-section {
@@ -734,7 +747,6 @@
   background: var(--bg-hover); color: var(--text-secondary);
   font-size: 0.76rem; font-weight: 700; cursor: pointer; font-family: inherit; width: auto;
 }
-.workspace-status-select:focus { outline: none; border-color: var(--accent); }
 
 /* ─── Ticket status colors ────────────────────────────────────────────── */
 .workspace-ticket-item.status-pending { border-left-color: var(--yellow); }

@@ -21,7 +21,7 @@ function extractPotentialFilenames(text) {
 
   const cleanedText = text
     .replace(/\[.*?\]/g, '')
-    .replace(/['"*!?@]/g, '')
+    .replace(/['"*!?@`\u2018\u2019\u201C\u201D\u2013\u2014]/g, '')
     .replace(/\\/g, '/')
     .replace(/\s+/g, ' ')
     .trim();
@@ -187,7 +187,10 @@ export function processShortcutInput(inputText) {
 
   const results      = [];
   const newlySelected = [];
-  const matchedPaths  = new Set(); // deduplicate matches pointing to the same file
+  const bestMatchByPath = new Map(); // normPath -> { result, match }
+  const initiallySelectedPaths = new Set(
+    state.selectedItems.map(p => p.replace(/\\/g, '/'))
+  );
   const exactMatchedPaths = [];    // full paths with 100% exact match – skip shorter sub-candidates
 
   for (const potentialFile of potentialFiles) {
@@ -197,47 +200,54 @@ export function processShortcutInput(inputText) {
     const match = findBestMatch(potentialFile, flatList);
 
     if (match) {
-      const normPath        = match.node.path.replace(/\\/g, '/');
-
-      // Skip if this file was already matched by a longer (more specific) candidate
-      if (matchedPaths.has(normPath)) continue;
-      matchedPaths.add(normPath);
+      const normPath = match.node.path.replace(/\\/g, '/');
 
       // Remember full paths that matched exactly so shorter suffixes get skipped
       if (match.similarity === 1) {
         exactMatchedPaths.push(normPath);
       }
 
-      const alreadySelected = state.selectedItems.some(
-        item => item.replace(/\\/g, '/') === normPath
-      );
+      const existing = bestMatchByPath.get(normPath);
 
-      if (!alreadySelected) {
+      // Skip if we already have a match for this file that's at least as good
+      if (existing && match.similarity <= existing.match.similarity) continue;
+
+      // This is a new file or a better match — add to state if first time
+      if (!existing && !initiallySelectedPaths.has(normPath)) {
         state.selectedItems.push(match.node.path);
         newlySelected.push(match.node);
       }
 
-      results.push({
-        original:        potentialFile,
-        matched:         match.node.name,
-        path:            match.node.displayPath,
-        filePath:        match.node.path,
-        found:           true,
-        matchType:       match.matchType,
-        similarity:      match.similarity,
-        alreadySelected,
+      bestMatchByPath.set(normPath, {
+        result: {
+          original:        potentialFile,
+          matched:         match.node.name,
+          path:            match.node.displayPath,
+          filePath:        match.node.path,
+          found:           true,
+          matchType:       match.matchType,
+          similarity:      match.similarity,
+          alreadySelected: initiallySelectedPaths.has(normPath),
+        },
+        match,
       });
     } else {
       results.push({
         original:        potentialFile,
         matched:         null,
         path:            null,
+        filePath:        null,
         found:           false,
         matchType:       null,
         similarity:      0,
         alreadySelected: false,
       });
     }
+  }
+
+  // Emit best result per unique file
+  for (const { result } of bestMatchByPath.values()) {
+    results.push(result);
   }
 
   if (newlySelected.length > 0) {
