@@ -598,6 +598,38 @@
   font-weight: 600;
 }
 
+/* ── Command label ── */
+.ov-command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin: 0 0 1px 0;
+  background: rgba(35, 209, 139, 0.06);
+  border-bottom: 1px solid rgba(35, 209, 139, 0.12);
+  flex-shrink: 0;
+}
+.ov-command-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #23d18b;
+  flex-shrink: 0;
+}
+.ov-command-text {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.78rem;
+  color: var(--text-primary, #eef2ff);
+  background: rgba(0,0,0,0.3);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: all;
+}
+
 /* Scrollbar styling */
 .ov-body::-webkit-scrollbar {
   width: 10px;

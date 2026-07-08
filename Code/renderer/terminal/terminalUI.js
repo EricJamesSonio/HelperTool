@@ -81,6 +81,10 @@ const ICON_CHEVRON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
 
 import { showOutputViewer } from '../utils/outputViewer.js';
 
+function _stripAnsiForDetection(text) {
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
 export default class TerminalUI {
   constructor() {
     this.panel = null;
@@ -360,12 +364,39 @@ export default class TerminalUI {
     return lines.join('\n');
   }
 
+  _detectLastCommand(content) {
+    if (!content) return '';
+    const lines = content.split('\n');
+    // Look backwards for a line matching a shell prompt pattern
+    const promptPatterns = [
+      /[#$>]\s+(\S.*)$/,       // bash/zsh: $ command, # command
+      /PS\w*>(\s*\S.*)$/i,      // PowerShell: PS> command, PS C:\> command
+      /[A-Z]:\\.*>(\s*\S.*)$/i, // cmd: C:\> command
+    ];
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = _stripAnsiForDetection(lines[i]);
+      for (const pattern of promptPatterns) {
+        const m = line.match(pattern);
+        if (m && m[1].trim()) {
+          return m[1].trim();
+        }
+      }
+    }
+    return '';
+  }
+
   _viewTerminalOutputById(id) {
     const inst = this.instances.get(id);
     const content = this._readTerminalBuffer(inst);
     if (!content) return;
     const shellName = inst?.shell?.name || 'Terminal';
-    showOutputViewer({ title: `${shellName} — Output`, content, language: 'terminal' });
+    const command = this._detectLastCommand(content);
+    showOutputViewer({
+      title: `${shellName} — Output`,
+      content,
+      command: command || undefined,
+      language: 'terminal'
+    });
   }
 
   _viewTerminalOutput() {

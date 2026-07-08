@@ -9,11 +9,17 @@ function _escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-export function showOutputViewer({ title, content, language } = {}) {
+export function showOutputViewer({ title, content, command, language } = {}) {
   closeOutputViewer();
 
   const cleanContent = _stripAnsi(String(content || ''));
   const lang = language || 'output';
+  const hasCommand = command && String(command).trim();
+
+  // Build copy text: include command label if available
+  const copyText = hasCommand
+    ? `$ ${command.trim()}\n${cleanContent}`
+    : cleanContent;
 
   const overlay = document.createElement('div');
   overlay.className = 'ov-overlay';
@@ -43,6 +49,12 @@ export function showOutputViewer({ title, content, language } = {}) {
         </div>
       </div>
       <div class="ov-body">
+        ${hasCommand ? `
+        <div class="ov-command">
+          <span class="ov-command-label">Command:</span>
+          <code class="ov-command-text">${_escHtml(command.trim())}</code>
+        </div>
+        ` : ''}
         <pre class="ov-content" id="ovContent">${_escHtml(cleanContent)}</pre>
       </div>
       <div class="ov-footer">
@@ -62,7 +74,7 @@ export function showOutputViewer({ title, content, language } = {}) {
 
   // Copy
   const copyBtn = overlay.querySelector('#ovCopyBtn');
-  copyBtn.addEventListener('click', () => _doCopy(cleanContent, copyBtn));
+  copyBtn.addEventListener('click', () => _doCopy(copyText, copyBtn));
 
   // Close button
   overlay.querySelector('#ovCloseBtn').addEventListener('click', closeOutputViewer);

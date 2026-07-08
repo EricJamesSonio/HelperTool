@@ -813,13 +813,73 @@ Claude Fab
 .oc-response-overlay-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Command entry box ── */
+.oc-response-entry {
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.02);
+  flex-shrink: 0;
+}
+.oc-response-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  background: rgba(35, 209, 139, 0.06);
+  border-bottom: 1px solid rgba(35, 209, 139, 0.1);
+  gap: 8px;
+}
+.oc-response-entry-command {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #23d18b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: all;
+  min-width: 0;
+}
+.oc-response-entry-output {
+  padding: 10px;
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-primary, #e6edf3);
+  max-height: 400px;
+  overflow-y: auto;
+}
+.oc-response-entry-copy {
+  background: transparent;
+  border: none;
+  color: var(--text-faint, #556080);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.oc-response-entry-copy:hover {
+  color: var(--text-primary, #e6edf3);
+  background: rgba(255,255,255,0.06);
+}
+
+.oc-response-overlay-clear {
+  opacity: 0.5;
+}
+.oc-response-overlay-clear:hover {
+  opacity: 1;
 }
 
 .oc-loading-spinner {

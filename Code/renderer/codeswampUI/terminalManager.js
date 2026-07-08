@@ -6,6 +6,8 @@ import { showOutputViewer } from '../utils/outputViewer.js';
 
 const instances = {};
 const _loadingTerminalIds = new Set();
+const _commandHistory = [];
+const MAX_HISTORY_ENTRIES = 100;
 
 let TerminalClass = null;
 let FitAddonClass = null;
@@ -358,48 +360,143 @@ function stripAnsi(text) {
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
 }
 
-export function showResponseOverlay() {
+function _addCommandEntry(command) {
+  _commandHistory.push({ command: command || '', output: '' });
+  if (_commandHistory.length > MAX_HISTORY_ENTRIES) _commandHistory.shift();
+  return _commandHistory.length - 1;
+}
+
+function _buildEntryElement(entry, index) {
+  const div = document.createElement('div');
+  div.className = 'oc-response-entry';
+  div.dataset.entryIndex = index;
+
+  const header = document.createElement('div');
+  header.className = 'oc-response-entry-header';
+
+  const cmdSpan = document.createElement('span');
+  cmdSpan.className = 'oc-response-entry-command';
+  cmdSpan.textContent = `$ ${entry.command}`;
+  header.appendChild(cmdSpan);
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'oc-btn oc-btn-icon oc-response-entry-copy';
+  copyBtn.textContent = '📋';
+  copyBtn.title = 'Copy this output';
+  copyBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const text = `$ ${entry.command}\n${entry.output}`;
+    navigator.clipboard.writeText(text).then(() => {
+      copyBtn.textContent = '✓';
+      setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
+    }).catch(() => {});
+  });
+  header.appendChild(copyBtn);
+
+  div.appendChild(header);
+
+  const output = document.createElement('div');
+  output.className = 'oc-response-entry-output';
+  output.textContent = entry.output;
+  div.appendChild(output);
+
+  return div;
+}
+
+function _renderOverlayEntries() {
+  const body = getOverlayContent();
+  if (!body) return;
+  body.innerHTML = '';
+  _commandHistory.forEach((entry, i) => {
+    body.appendChild(_buildEntryElement(entry, i));
+  });
+  body.scrollTop = body.scrollHeight;
+}
+
+export function showResponseOverlay(command) {
   const ov = getOverlay();
   if (ov) ov.style.display = '';
+
+  const titleEl = ov?.querySelector('.oc-response-overlay-title');
+  if (titleEl) {
+    titleEl.textContent = command ? `Response  —  ${command}` : 'Response';
+  }
+
+  _renderOverlayEntries();
+
   const closeBtn = document.getElementById('ocResponseOverlayClose');
   if (closeBtn) {
     closeBtn.onclick = hideResponseOverlay;
   }
+
   const copyBtn = document.getElementById('ocResponseOverlayCopy');
   if (copyBtn) {
     copyBtn.onclick = (e) => {
       e.stopPropagation();
-      const content = getOverlayContent();
-      if (!content || !content.textContent) return;
-      navigator.clipboard.writeText(content.textContent).then(() => {
+      const text = _commandHistory
+        .map(e => `$ ${e.command}\n${e.output}`)
+        .join('\n\n');
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
         copyBtn.textContent = '✓';
         setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
       }).catch(() => {});
     };
   }
+
   const expandBtn = document.getElementById('ocResponseOverlayExpand');
   if (expandBtn) {
     expandBtn.onclick = (e) => {
       e.stopPropagation();
-      const content = getOverlayContent();
-      if (!content || !content.textContent) return;
-      showOutputViewer({ title: 'CodeSwamp Response', content: content.textContent, language: 'opencode' });
+      const text = _commandHistory
+        .map(e => `$ ${e.command}\n${e.output}`)
+        .join('\n\n');
+      if (!text) return;
+      showOutputViewer({
+        title: 'CodeSwamp Response',
+        content: text,
+        command: _commandHistory.length > 0 ? _commandHistory[_commandHistory.length - 1].command : undefined,
+        language: 'opencode',
+      });
+    };
+  }
+
+  const clearBtn = document.getElementById('ocResponseOverlayClear');
+  if (clearBtn) {
+    clearBtn.onclick = (e) => {
+      e.stopPropagation();
+      _commandHistory.length = 0;
+      _renderOverlayEntries();
     };
   }
 }
+
 export function hideResponseOverlay() {
   const ov = getOverlay();
   if (ov) ov.style.display = 'none';
+  // _commandHistory is preserved across hide/show
 }
+
 export function clearResponseOverlay() {
   const c = getOverlayContent();
   if (c) c.textContent = '';
 }
+
 export function appendToResponseOverlay(text) {
-  const c = getOverlayContent();
-  if (!c) return;
-  c.textContent += stripAnsi(text);
-  c.scrollTop = c.scrollHeight;
+  if (_commandHistory.length === 0) return;
+  const entry = _commandHistory[_commandHistory.length - 1];
+  if (text) entry.output += stripAnsi(text);
+
+  const body = getOverlayContent();
+  if (!body) return;
+  const lastEntryEl = body.lastElementChild;
+  if (lastEntryEl) {
+    const outputEl = lastEntryEl.querySelector('.oc-response-entry-output');
+    if (outputEl) {
+      outputEl.textContent = entry.output;
+      body.scrollTop = body.scrollHeight;
+    }
+  }
 }
 
 /* ── Execute opencode run via IPC ── */
@@ -410,8 +507,9 @@ export function executeOpencodeRun(repoPath, slotIndex, message, files, continue
     return Promise.resolve({ code: -1, error: 'Already streaming' });
   }
 
-  clearResponseOverlay();
-  showResponseOverlay();
+  const cmd = (message || '').trim();
+  _addCommandEntry(cmd);
+  showResponseOverlay(cmd);
 
   state.streaming = true;
   state.streamBuffer = '';
