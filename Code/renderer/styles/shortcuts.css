@@ -11,7 +11,8 @@
 }
 
 .shortcuts-modal-overlay .shortcuts-modal {
-  max-width: 640px;
+  max-width: none;
+  width: auto;
 }
 
 .shortcuts-hint {
@@ -21,16 +22,11 @@
   line-height: 1.5;
 }
 
-.shortcuts-table {
-  display: flex;
-  flex-direction: column;
-}
-
 .shortcut-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border-subtle);
   flex-wrap: wrap;
 }

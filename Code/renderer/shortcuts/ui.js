@@ -85,10 +85,32 @@ function openConfig(enabledFeats) {
 
   const table = _modal.querySelector('#shortcutsTable');
   const enabled = enabledFeats || {};
+  const visible = [];
   FEATURES.forEach(function (f) {
     if (enabled.hasOwnProperty(f.id) && !enabled[f.id]) return;
-    table.appendChild(buildRow(f));
+    visible.push(f);
   });
+
+  const cols = Math.max(1, Math.ceil(visible.length / 10));
+  const modalEl = _modal.querySelector('.shortcuts-modal');
+  modalEl.style.maxWidth = 'none';
+  modalEl.style.width = Math.min(cols * 400 + 40, window.innerWidth - 16) + 'px';
+
+  table.style.display = 'flex';
+  table.style.flexDirection = 'row';
+  table.style.gap = '28px';
+  table.style.alignItems = 'flex-start';
+
+  for (let c = 0; c < cols; c++) {
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;flex-direction:column;flex:1;min-width:0';
+    const start = c * 10;
+    const end = Math.min(start + 10, visible.length);
+    for (let i = start; i < end; i++) {
+      col.appendChild(buildRow(visible[i]));
+    }
+    table.appendChild(col);
+  }
 
   _docListener = function (e) {
     if (!_capturingId) return;
