@@ -16,78 +16,82 @@ function _ensureModal() {
   S.overlayEl.className = 'settings-overlay';
   S.overlayEl.id        = 'settingsOverlay';
   S.overlayEl.innerHTML = `
-    <div class="settings-modal" role="dialog" aria-label="Appearance Settings">
+    <div class="settings-modal" role="dialog" aria-label="Settings">
       <div class="settings-header">
         <span class="settings-title">
           <span class="settings-title-icon">${ICON_SETTINGS}</span>
-          Appearance &amp; Features
+          Settings
         </span>
         <button class="settings-close-btn" id="settingsCloseBtn" title="Close">${ICON_CLOSE}</button>
       </div>
       <div class="settings-body">
 
-        <div class="settings-section">
-          <div class="settings-section-label">Theme</div>
-          <div class="theme-grid" id="settingsThemeGrid"></div>
-        </div>
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div class="settings-section">
+            <div class="settings-section-label">Theme</div>
+            <div class="theme-grid" id="settingsThemeGrid"></div>
+          </div>
 
-        <div class="settings-section">
-          <div class="settings-section-label">Accent Color Override</div>
-          <div class="settings-row">
-            <div class="settings-row-label">
-              Override accent
-              <small>Replaces the theme's default accent color</small>
+          <div class="settings-section">
+            <div class="settings-section-label">Accent Color Override</div>
+            <div class="settings-row">
+              <div class="settings-row-label">
+                Override accent
+                <small>Replaces the theme's default accent color</small>
+              </div>
+              <div class="settings-swatches" id="settingsSwatches"></div>
             </div>
-            <div class="settings-swatches" id="settingsSwatches"></div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-label">Font Size</div>
+            <div class="settings-row">
+              <div class="settings-row-label">
+                UI font size
+                <small>Base size for all text in the interface</small>
+              </div>
+              <div class="settings-slider-wrap">
+                <input type="range" class="settings-slider" id="settingsFontSlider" min="11" max="18" step="1">
+                <span class="settings-slider-value" id="settingsFontValue">14px</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-label">Layout</div>
+            <div class="settings-row">
+              <div class="settings-row-label">
+                Compact mode
+                <small>Reduces padding and button sizes across the UI</small>
+              </div>
+              <label class="settings-toggle">
+                <input type="checkbox" id="settingsCompactToggle">
+                <span class="settings-toggle-track"></span>
+              </label>
+            </div>
           </div>
         </div>
 
-        <div class="settings-section">
-          <div class="settings-section-label">Font Size</div>
-          <div class="settings-row">
-            <div class="settings-row-label">
-              UI font size
-              <small>Base size for all text in the interface</small>
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div class="settings-section" id="settingsFeaturesSection">
+            <div class="settings-section-label">Features</div>
+            <p style="font-size:0.77rem;color:var(--text-muted);margin:0 0 10px;line-height:1.5">
+              Disable features you don't use to make the app load faster.
+              Changes take effect after reloading the app.
+            </p>
+            <div id="settingsFeatureList" style="display:flex;flex-direction:column;gap:5px"></div>
+            <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:12px;gap:10px">
+              <span id="settingsFeatSavedBadge"
+                style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--green);opacity:0;transition:opacity 0.3s">
+                ${ICON_CHECK} Saved \u2014 reloading\u2026
+              </span>
+              <button id="settingsFeatSaveBtn"
+                style="padding:7px 16px;border:none;border-radius:7px;
+                       background:var(--accent);color:#000;font-weight:700;
+                       cursor:pointer;font-size:0.8rem;transition:opacity 0.15s">
+                Save &amp; Reload
+              </button>
             </div>
-            <div class="settings-slider-wrap">
-              <input type="range" class="settings-slider" id="settingsFontSlider" min="11" max="18" step="1">
-              <span class="settings-slider-value" id="settingsFontValue">14px</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-section-label">Layout</div>
-          <div class="settings-row">
-            <div class="settings-row-label">
-              Compact mode
-              <small>Reduces padding and button sizes across the UI</small>
-            </div>
-            <label class="settings-toggle">
-              <input type="checkbox" id="settingsCompactToggle">
-              <span class="settings-toggle-track"></span>
-            </label>
-          </div>
-        </div>
-
-        <div class="settings-section" id="settingsFeaturesSection">
-          <div class="settings-section-label">Features</div>
-          <p style="font-size:0.77rem;color:var(--text-muted);margin:0 0 10px;line-height:1.5">
-            Disable features you don't use to make the app load faster.
-            Changes take effect after reloading the app.
-          </p>
-          <div id="settingsFeatureList" style="display:flex;flex-direction:column;gap:5px"></div>
-          <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:12px;gap:10px">
-            <span id="settingsFeatSavedBadge"
-              style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--green);opacity:0;transition:opacity 0.3s">
-              ${ICON_CHECK} Saved \u2014 reloading\u2026
-            </span>
-            <button id="settingsFeatSaveBtn"
-              style="padding:7px 16px;border:none;border-radius:7px;
-                     background:var(--accent);color:#000;font-weight:700;
-                     cursor:pointer;font-size:0.8rem;transition:opacity 0.15s">
-              Save &amp; Reload
-            </button>
           </div>
         </div>
 
@@ -131,6 +135,7 @@ function _ensureModal() {
     if (badge) { badge.style.opacity = '1'; }
     setTimeout(() => location.reload(), 900);
   });
+
 }
 
 function syncControls() {

@@ -23,7 +23,7 @@
 
 /* ── Modal panel ───────────────────────────────────────────── */
 .settings-modal {
-  width: 560px;
+  width: 860px;
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 60px);
   background: var(--bg-surface);
@@ -99,10 +99,11 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 32px;
+  align-content: start;
 }
 .settings-body::-webkit-scrollbar { width: 4px; }
 .settings-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
