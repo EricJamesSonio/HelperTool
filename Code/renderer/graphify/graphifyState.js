@@ -29,6 +29,14 @@ const state = {
   affectedNodeId: '',
   affectedDepth: 1,
   affectedResult: null,
+  // AI-enrichment state
+  exportStatus: null,
+  exportError: null,
+  exportLoading: false,
+  aiGraphData: null,
+  aiGraphReport: '',
+  aiGraphLoading: false,
+  aiGraphError: null,
 };
 
 const _listeners = new Set();

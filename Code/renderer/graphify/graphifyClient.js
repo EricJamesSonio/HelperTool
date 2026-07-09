@@ -140,3 +140,35 @@ export async function getGraphAffected(nodeId, port = 3333, depth = 1) {
     return null;
   }
 }
+
+// ── AI-enrichment export APIs ──
+
+export async function exportSymbolIndex(port = 3333) {
+  try {
+    const res = await fetch(`${_base(port)}/export/all`, { method: 'POST' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function generateAIPrompt(port = 3333) {
+  try {
+    const res = await fetch(`${_base(port)}/export/prompt`, { method: 'POST' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function loadGraphFromStorage(port = 3333) {
+  try {
+    const res = await fetch(`${_base(port)}/graph/from-storage`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}

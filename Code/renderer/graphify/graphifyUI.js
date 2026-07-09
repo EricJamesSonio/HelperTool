@@ -3,6 +3,7 @@ import {
   queryGraphify, checkHealth, fetchInfo, fetchEndpoints,
   fetchGraphData, fetchGraphReport, fetchGraphStats, fetchGraphCommunities,
   searchGraphNodes, getGraphNeighborhood, getGraphShortestPath, getGraphAffected,
+  exportSymbolIndex, generateAIPrompt, loadGraphFromStorage,
 } from './graphifyClient.js';
 
 let _root      = null;
@@ -91,6 +92,16 @@ function _bindEvents() {
   // Report tab - refresh
   const reportRefreshBtn = _root.querySelector('.gfy-report-refresh-btn');
   if (reportRefreshBtn) reportRefreshBtn.addEventListener('click', _handleRefreshReport);
+
+  // AI-enrichment buttons
+  const exportBtn = _root.querySelector('.gfy-export-btn');
+  if (exportBtn) exportBtn.addEventListener('click', _handleExport);
+
+  const openPromptBtn = _root.querySelector('.gfy-open-prompt-btn');
+  if (openPromptBtn) openPromptBtn.addEventListener('click', _handleOpenPrompt);
+
+  const loadAiGraphBtn = _root.querySelector('.gfy-load-ai-btn');
+  if (loadAiGraphBtn) loadAiGraphBtn.addEventListener('click', _handleLoadAiGraph);
 }
 
 async function _handleStart() {
@@ -269,6 +280,54 @@ async function _handleRefreshReport() {
   }
 }
 
+async function _handleExport() {
+  setState({ exportLoading: true, exportError: null, exportStatus: null });
+  try {
+    const { port } = getState();
+    const result = await exportSymbolIndex(port);
+    if (!result || !result.ok) {
+      setState({ exportLoading: false, exportError: (result && result.error) || 'Export failed' });
+      return;
+    }
+    setState({
+      exportLoading: false,
+      exportStatus: { symbolsPath: result.symbolsPath, promptPath: result.promptPath, stats: result.stats },
+    });
+  } catch (err) {
+    setState({ exportLoading: false, exportError: err.message });
+  }
+}
+
+async function _handleOpenPrompt() {
+  const { exportStatus } = getState();
+  if (!exportStatus || !exportStatus.promptPath) {
+    setState({ exportError: 'No prompt generated yet. Run export first.' });
+    return;
+  }
+  if (window.electronAPI?.openFile) {
+    window.electronAPI.openFile(exportStatus.promptPath).catch(() => {});
+  }
+}
+
+async function _handleLoadAiGraph() {
+  setState({ aiGraphLoading: true, aiGraphError: null, aiGraphData: null, aiGraphReport: '' });
+  try {
+    const { port } = getState();
+    const result = await loadGraphFromStorage(port);
+    if (!result || !result.ok) {
+      setState({ aiGraphLoading: false, aiGraphError: (result && result.error) || 'No AI graph found' });
+      return;
+    }
+    setState({
+      aiGraphLoading: false,
+      aiGraphData: result.graph,
+      aiGraphReport: result.report,
+    });
+  } catch (err) {
+    setState({ aiGraphLoading: false, aiGraphError: err.message });
+  }
+}
+
 function _render(state) {
   if (!_root) return;
 
@@ -438,6 +497,71 @@ function _render(state) {
       }
 
       reportContent.innerHTML = html || '<div class="gfy-empty">No report data available.</div>';
+    }
+  }
+
+  // ── AI Graph tab ──
+  if (state.activeTab === 'ai' && state.serverStatus === 'running') {
+    const spinner = _root.querySelector('.gfy-ai-spinner');
+    const error = _root.querySelector('.gfy-ai-error');
+    const results = _root.querySelector('.gfy-ai-results');
+    const exportStatus = _root.querySelector('.gfy-export-status');
+
+    if (spinner) spinner.style.display = state.aiGraphLoading || state.exportLoading ? 'flex' : 'none';
+    if (error) {
+      error.textContent = state.aiGraphError || state.exportError || '';
+      error.style.display = (state.aiGraphError || state.exportError) ? 'block' : 'none';
+    }
+    if (results) results.style.display = state.aiGraphData ? 'block' : 'none';
+
+    if (exportStatus) {
+      if (state.exportStatus) {
+        const s = state.exportStatus;
+        exportStatus.innerHTML = `<span class="gfy-export-ok">\u2713 Exported:</span> ${s.stats.files} files, ${s.stats.symbols} symbols, ${s.stats.imports} imports`;
+        exportStatus.style.display = 'block';
+      } else {
+        exportStatus.style.display = 'none';
+      }
+    }
+
+    if (state.aiGraphData) {
+      const g = state.aiGraphData;
+
+      // Features
+      const featuresEl = _root.querySelector('#gfyAiFeatures');
+      if (featuresEl && g.features) {
+        const featureNames = Object.keys(g.features);
+        featuresEl.innerHTML = '<div class="gfy-ai-section-title">Features (' + featureNames.length + ')</div>' +
+          featureNames.map(fname => {
+            const feat = g.features[fname];
+            return '<div class="gfy-ai-feature-card">' +
+              '<div class="gfy-ai-feature-name">' + _esc(fname) + '</div>' +
+              '<div class="gfy-ai-feature-summary">' + _esc(feat.summary || '') + '</div>' +
+              '<div class="gfy-ai-feature-meta">' + (feat.files ? feat.files.length + ' files' : '') + '</div>' +
+              '</div>';
+          }).join('');
+      }
+
+      // Concepts
+      const conceptsEl = _root.querySelector('#gfyAiConcepts');
+      if (conceptsEl && g.concepts) {
+        const conceptNames = Object.keys(g.concepts);
+        conceptsEl.innerHTML = '<div class="gfy-ai-section-title">Key Concepts (' + conceptNames.length + ')</div>' +
+          conceptNames.map(cname => {
+            const c = g.concepts[cname];
+            return '<div class="gfy-ai-concept-item">' +
+              '<span class="gfy-ai-concept-name">' + _esc(cname) + '</span>' +
+              '<span class="gfy-ai-concept-desc">' + _esc(c.summary || '') + '</span>' +
+              '</div>';
+          }).join('');
+      }
+
+      // Report markdown
+      const reportEl = _root.querySelector('#gfyAiReport');
+      if (reportEl && state.aiGraphReport) {
+        reportEl.innerHTML = '<div class="gfy-ai-section-title">Report</div>' +
+          '<div class="gfy-ai-report-body">' + _esc(state.aiGraphReport).replace(/\n/g, '<br>') + '</div>';
+      }
     }
   }
 
@@ -618,6 +742,7 @@ function _template() {
         <button class="gfy-tab" data-tab="graph">Graph</button>
         <button class="gfy-tab" data-tab="query">Query</button>
         <button class="gfy-tab" data-tab="report">Report</button>
+        <button class="gfy-tab" data-tab="ai">AI Graph</button>
       </div>
 
       <!-- Search Tab -->
@@ -753,6 +878,72 @@ function _template() {
           </button>
         </div>
         <div class="gfy-report-content"></div>
+      </div>
+
+      <!-- AI Graph Tab -->
+      <div class="gfy-ai-section gfy-tab-content" style="display:none">
+        <div class="gfy-ai-intro">
+          <div class="gfy-ai-intro-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M6 15h12"/><path d="M8 15v4"/><path d="M16 15v4"/><path d="M4 19h16"/></svg>
+          </div>
+          <div class="gfy-ai-intro-text">
+            <strong>AI-Powered Semantic Graph</strong>
+            <span>Export your symbol index, send the prompt to your AI, then load the enriched graph.</span>
+          </div>
+        </div>
+
+        <div class="gfy-ai-steps">
+          <div class="gfy-ai-step">
+            <div class="gfy-ai-step-num">1</div>
+            <div class="gfy-ai-step-body">
+              <div class="gfy-ai-step-title">Export Symbol Index</div>
+              <div class="gfy-ai-step-desc">Dumps all indexed files, symbols, and imports into a JSON file.</div>
+              <button class="gfy-export-btn">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+                Export Symbols &amp; Generate Prompt
+              </button>
+              <div class="gfy-export-status" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="gfy-ai-step">
+            <div class="gfy-ai-step-num">2</div>
+            <div class="gfy-ai-step-body">
+              <div class="gfy-ai-step-title">Send to AI</div>
+              <div class="gfy-ai-step-desc">Open the generated prompt file, and let your AI analyze <code>symbols.json</code> to produce the enriched graph.</div>
+              <button class="gfy-open-prompt-btn">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12"/><path d="M4 10h8"/><path d="M4 15h6"/><path d="M14 10l4 4-4 4"/></svg>
+                Open Prompt File
+              </button>
+            </div>
+          </div>
+
+          <div class="gfy-ai-step">
+            <div class="gfy-ai-step-num">3</div>
+            <div class="gfy-ai-step-body">
+              <div class="gfy-ai-step-title">Load AI-Generated Graph</div>
+              <div class="gfy-ai-step-desc">Load the AI-generated <code>graphify-storage/graph.json</code> and <code>graph.md</code> into the viewer.</div>
+              <button class="gfy-load-ai-btn">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+                Load AI Graph
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="gfy-ai-spinner" style="display:none">
+          <div class="gfy-spinner-ring"></div>
+          <span>Loading\u2026</span>
+        </div>
+
+        <div class="gfy-ai-error" style="display:none"></div>
+
+        <div class="gfy-ai-results" style="display:none">
+          <div class="gfy-ai-results-header">AI-Generated Knowledge Graph</div>
+          <div class="gfy-ai-features" id="gfyAiFeatures"></div>
+          <div class="gfy-ai-concepts" id="gfyAiConcepts"></div>
+          <div class="gfy-ai-report" id="gfyAiReport"></div>
+        </div>
       </div>
     </div>
   `;

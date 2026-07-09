@@ -4,6 +4,7 @@ const http = require('http');
 const { initDb, getDb, getRepoInfo, closeDb } = require('./db');
 const { queryRelevantCode } = require('./queryEngine');
 const { KnowledgeGraph } = require('./graphBuilder');
+const { exportAll, generatePrompt, loadGraphFromStorage } = require('./exporter');
 
 const DB_PATH = process.argv[2];
 const START_PORT = parseInt(process.argv[3] || '3333', 10);
@@ -144,6 +145,20 @@ function handleRequest(req, res) {
     return handleGraphSearch(req, res);
   }
 
+  // AI-enrichment endpoints
+  if (req.method === 'POST' && req.url === '/export/symbols') {
+    return handleExportSymbols(req, res);
+  }
+  if (req.method === 'POST' && req.url === '/export/prompt') {
+    return handleGeneratePrompt(req, res);
+  }
+  if (req.method === 'POST' && req.url === '/export/all') {
+    return handleExportAll(req, res);
+  }
+  if (req.method === 'GET' && req.url === '/graph/from-storage') {
+    return handleLoadFromStorage(req, res);
+  }
+
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
 }
@@ -168,6 +183,10 @@ function handleEndpoints(req, res) {
     { method: 'POST',   path: '/graph/shortest-path', description: 'Find shortest path between two nodes. Body: { from, to }' },
     { method: 'POST',   path: '/graph/affected',      description: 'Find reverse impact (affected by). Body: { nodeId, depth? }' },
     { method: 'POST',   path: '/graph/search',        description: 'Search nodes by name. Body: { query, limit? }' },
+    { method: 'POST',   path: '/export/symbols',      description: 'Export symbol index to symbol-index-storage/symbols.json + generate prompt' },
+    { method: 'POST',   path: '/export/prompt',       description: 'Regenerate only the AI prompt file' },
+    { method: 'POST',   path: '/export/all',          description: 'Export symbols + generate prompt in one call' },
+    { method: 'GET',    path: '/graph/from-storage',  description: 'Load AI-generated graph.json and graph.md from graphify-storage/' },
   ];
   res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify({ endpoints, port: _actualPort }));
@@ -422,6 +441,56 @@ async function handleGraphSearch(req, res) {
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+// ── AI-enrichment handlers ──
+
+function handleExportSymbols(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const result = exportAll();
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: err.message }));
+  }
+}
+
+function handleGeneratePrompt(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const result = generatePrompt();
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: err.message }));
+  }
+}
+
+function handleExportAll(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const result = exportAll();
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: err.message }));
+  }
+}
+
+function handleLoadFromStorage(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const result = loadGraphFromStorage();
+    res.writeHead(result.ok ? 200 : 404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: err.message }));
   }
 }
 

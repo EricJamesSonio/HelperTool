@@ -696,7 +696,7 @@ const container = document.getElementById('graph');
 const network = new vis.Network(container, { nodes, edges }, {
   physics: { stabilization: { iterations: 100 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },
   edges: { arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { type: 'continuous' }, font: { size: 8, color: '#5c7a68' } },
-  nodes: { borderWidth: 1, borderWidthSelected: 2, chosen: { node: { borderWidth: 2, borderColor: '#22ff7a' } } },
+  nodes: { borderWidth: 1, borderWidthSelected: 2 },
   interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: { enabled: true } },
   manipulation: { enabled: false },
   groups: { 0: { shape: 'box', color: { background: '#1a1a2e', border: '#22ff7a' } }, 1: { shape: 'dot' } },

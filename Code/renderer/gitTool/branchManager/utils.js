@@ -12,7 +12,7 @@ export function branchColor(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = ((h << 5) - h) + name.charCodeAt(i);
   const hue = Math.abs(h) % 360;
-  return `hsl(${hue}, 60%, 55%)`;
+  return `hsl(${hue}, 100%, 35%)`;
 }
 
 export function escHtml(text) {

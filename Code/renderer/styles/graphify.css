@@ -1110,3 +1110,253 @@
   color: #2b3a32;
   letter-spacing: 0.3px;
 }
+
+/* ─── AI Graph Section ───────────────────────────────────────── */
+
+.gfy-ai-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.gfy-ai-intro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(10, 20, 14, 0.5);
+  border: 1px solid rgba(34, 255, 122, 0.12);
+  border-radius: 10px;
+}
+
+.gfy-ai-intro-icon svg {
+  width: 32px;
+  height: 32px;
+  color: #22ff7a;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.gfy-ai-intro-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #cdf5da;
+}
+
+.gfy-ai-intro-text strong {
+  font-size: 13px;
+  color: #22ff7a;
+}
+
+.gfy-ai-intro-text span {
+  font-size: 11px;
+  color: #5c7a68;
+}
+
+.gfy-ai-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gfy-ai-step {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(10, 20, 14, 0.4);
+  border: 1px solid rgba(34, 255, 122, 0.08);
+  border-radius: 10px;
+  align-items: flex-start;
+}
+
+.gfy-ai-step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(34, 255, 122, 0.12);
+  color: #22ff7a;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gfy-ai-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.gfy-ai-step-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #eafff2;
+}
+
+.gfy-ai-step-desc {
+  font-size: 11px;
+  color: #5c7a68;
+  line-height: 1.4;
+}
+
+.gfy-ai-step-desc code {
+  background: rgba(34, 255, 122, 0.08);
+  color: #35e07d;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.gfy-export-btn,
+.gfy-open-prompt-btn,
+.gfy-load-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1px solid rgba(34, 255, 122, 0.2);
+  border-radius: 8px;
+  background: rgba(34, 255, 122, 0.06);
+  color: #8fae9c;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  align-self: flex-start;
+}
+
+.gfy-export-btn svg,
+.gfy-open-prompt-btn svg,
+.gfy-load-ai-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gfy-export-btn:hover,
+.gfy-open-prompt-btn:hover,
+.gfy-load-ai-btn:hover {
+  background: rgba(34, 255, 122, 0.12);
+  color: #cdf5da;
+  border-color: rgba(34, 255, 122, 0.35);
+}
+
+.gfy-export-status {
+  font-size: 11px;
+  color: #35e07d;
+  padding: 6px 0;
+}
+
+.gfy-export-ok {
+  color: #22ff7a;
+  font-weight: 600;
+}
+
+.gfy-ai-spinner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  font-size: 12px;
+  color: #5c7a68;
+}
+
+.gfy-ai-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 11px;
+  padding: 8px 12px;
+}
+
+.gfy-ai-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gfy-ai-results-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #22ff7a;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(34, 255, 122, 0.12);
+}
+
+.gfy-ai-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8fae9c;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.gfy-ai-feature-card {
+  background: rgba(10, 20, 14, 0.5);
+  border: 1px solid rgba(34, 255, 122, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+
+.gfy-ai-feature-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #22ff7a;
+  margin-bottom: 2px;
+}
+
+.gfy-ai-feature-summary {
+  font-size: 11px;
+  color: #cdf5da;
+  line-height: 1.4;
+}
+
+.gfy-ai-feature-meta {
+  font-size: 10px;
+  color: #5c7a68;
+  margin-top: 4px;
+}
+
+.gfy-ai-concept-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(34, 255, 122, 0.03);
+}
+
+.gfy-ai-concept-name {
+  font-weight: 700;
+  color: #35e07d;
+  min-width: 100px;
+}
+
+.gfy-ai-concept-desc {
+  color: #8fae9c;
+}
+
+.gfy-ai-report-body {
+  font-size: 11px;
+  color: #8fae9c;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  padding: 10px 12px;
+  background: rgba(10, 20, 14, 0.4);
+  border: 1px solid rgba(34, 255, 122, 0.06);
+  border-radius: 8px;
+}
