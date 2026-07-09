@@ -97,8 +97,8 @@ function _bindEvents() {
   const exportBtn = _root.querySelector('.gfy-export-btn');
   if (exportBtn) exportBtn.addEventListener('click', _handleExport);
 
-  const openPromptBtn = _root.querySelector('.gfy-open-prompt-btn');
-  if (openPromptBtn) openPromptBtn.addEventListener('click', _handleOpenPrompt);
+  const sendAiBtn = _root.querySelector('.gfy-send-ai-btn');
+  if (sendAiBtn) sendAiBtn.addEventListener('click', _handleSendToAi);
 
   const loadAiGraphBtn = _root.querySelector('.gfy-load-ai-btn');
   if (loadAiGraphBtn) loadAiGraphBtn.addEventListener('click', _handleLoadAiGraph);
@@ -291,21 +291,63 @@ async function _handleExport() {
     }
     setState({
       exportLoading: false,
-      exportStatus: { symbolsPath: result.symbolsPath, promptPath: result.promptPath, stats: result.stats },
+      exportStatus: { symbolsPath: result.symbolsPath, promptPath: result.promptPath, promptText: result.promptText || '', stats: result.stats },
     });
   } catch (err) {
     setState({ exportLoading: false, exportError: err.message });
   }
 }
 
-async function _handleOpenPrompt() {
-  const { exportStatus } = getState();
-  if (!exportStatus || !exportStatus.promptPath) {
+async function _handleSendToAi() {
+  const state_ = getState();
+  let promptText = state_.exportStatus?.promptText;
+
+  if (!promptText) {
+    try {
+      const { port } = state_;
+      const res = await fetch(`http://127.0.0.1:${port}/export/prompt`, { method: 'POST' });
+      const data = await res.json();
+      if (data.ok && data.promptText) {
+        promptText = data.promptText;
+        setState({ exportStatus: { ...state_.exportStatus, promptText } });
+      }
+    } catch {}
+  }
+
+  if (!promptText) {
     setState({ exportError: 'No prompt generated yet. Run export first.' });
     return;
   }
-  if (window.electronAPI?.openFile) {
-    window.electronAPI.openFile(exportStatus.promptPath).catch(() => {});
+
+  try {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) {
+      setState({ exportError: 'No repository selected.' });
+      return;
+    }
+
+    const btn = document.querySelector('[data-tool="opencode"]');
+    if (btn) btn.click();
+
+    let input = document.getElementById('ocInput');
+    if (!input) {
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 200));
+        input = document.getElementById('ocInput');
+        if (input) break;
+      }
+    }
+
+    if (input) {
+      input.value = promptText;
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+      input.focus();
+      input.selectionStart = input.selectionEnd = input.value.length;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  } catch (err) {
+    setState({ exportError: 'Failed to open CodeSwamp: ' + err.message });
   }
 }
 
@@ -914,10 +956,10 @@ function _template() {
             <div class="gfy-ai-step-num">2</div>
             <div class="gfy-ai-step-body">
               <div class="gfy-ai-step-title">Send to AI</div>
-              <div class="gfy-ai-step-desc">Open the generated prompt file, and let your AI analyze <code>symbols.json</code> to produce the enriched graph.</div>
-              <button class="gfy-open-prompt-btn">
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12"/><path d="M4 10h8"/><path d="M4 15h6"/><path d="M14 10l4 4-4 4"/></svg>
-                Open Prompt File
+              <div class="gfy-ai-step-desc">Send the generated prompt to CodeSwamp for AI labeling.</div>
+              <button class="gfy-send-ai-btn">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+                Send Prompt to CodeSwamp
               </button>
             </div>
           </div>

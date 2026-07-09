@@ -444,6 +444,9 @@ function handleExportSymbols(req, res) {
   if (!_graphGuard(res)) return;
   try {
     const result = exportAll();
+    if (result.ok && result.promptPath) {
+      result.promptText = fs.readFileSync(result.promptPath, 'utf-8');
+    }
     res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(result));
   } catch (err) {
@@ -456,6 +459,9 @@ function handleGeneratePrompt(req, res) {
   if (!_graphGuard(res)) return;
   try {
     const result = generatePrompt();
+    if (result.ok && result.path) {
+      result.promptText = fs.readFileSync(result.path, 'utf-8');
+    }
     res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(result));
   } catch (err) {
@@ -468,6 +474,9 @@ function handleExportAll(req, res) {
   if (!_graphGuard(res)) return;
   try {
     const result = exportAll();
+    if (result.ok && result.promptPath) {
+      result.promptText = fs.readFileSync(result.promptPath, 'utf-8');
+    }
     res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(result));
   } catch (err) {
