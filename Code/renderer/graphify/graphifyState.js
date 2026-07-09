@@ -1,16 +1,14 @@
-/**
- * renderer/graphify/graphifyState.js
- * Simple observable state — matches the pattern used by codeswampUI/state.js.
- */
-
 const state = {
   query:       '',
-  results:     [],   // [{ file: string, score: number }]
-  files:       [],   // string[] — just the paths, for easy iteration
+  results:     [],
+  files:       [],
   explanation: '',
   loading:     false,
   error:       null,
   port:        3333,
+  serverStatus: 'stopped',
+  serverInfo:   null,
+  endpoints:    null,
 };
 
 const _listeners = new Set();
@@ -30,7 +28,7 @@ function _notify() {
 
 function subscribe(fn) {
   _listeners.add(fn);
-  return () => _listeners.delete(fn); // returns unsubscribe
+  return () => _listeners.delete(fn);
 }
 
 export { getState, setState, subscribe };

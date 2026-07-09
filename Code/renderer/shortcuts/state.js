@@ -22,6 +22,7 @@ const DEFAULT_SHORTCUTS = {
   codebaseMap: 'Ctrl+Shift+M',
   uiLayoutHelper: null,
   essentialsGlossary: null,
+  graphify: null,
 };
 
 const S = { shortcuts: {} };

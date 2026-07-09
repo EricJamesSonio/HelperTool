@@ -42,6 +42,32 @@ function getDb() {
   return _db;
 }
 
+function getRepoInfo(repoPath) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    SELECT
+      r.repo_path,
+      r.name,
+      (SELECT COUNT(*) FROM indexed_files WHERE repo_id = r.id) as totalFiles,
+      (SELECT COUNT(*) FROM symbols WHERE repo_id = r.id) as totalSymbols
+    FROM repositories r
+    WHERE r.repo_path = ? LIMIT 1
+  `);
+  stmt.bind([repoPath]);
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    stmt.free();
+    return {
+      repoPath: row.repo_path,
+      repoName: row.name || (row.repo_path ? row.repo_path.split(/[/\\]/).pop() : 'unknown'),
+      totalFiles: row.totalFiles || 0,
+      totalSymbols: row.totalSymbols || 0,
+    };
+  }
+  stmt.free();
+  return null;
+}
+
 function closeDb() {
   if (_db) {
     try { _db.close(); } catch (_) {}
@@ -49,4 +75,4 @@ function closeDb() {
   }
 }
 
-module.exports = { initDb, getDb, closeDb };
+module.exports = { initDb, getDb, getRepoInfo, closeDb };

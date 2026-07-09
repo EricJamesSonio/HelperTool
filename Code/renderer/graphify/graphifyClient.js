@@ -1,14 +1,13 @@
-/**
- * renderer/graphify/graphifyClient.js
- * Thin fetch wrapper that calls the graphify-service HTTP server.
- */
+export async function fetchEndpoints(port = 3333) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/endpoints`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
-/**
- * @param {string} query  - Natural language query
- * @param {string|null} repoPath - Optional, passed to server for repo scoping
- * @param {number} port
- * @returns {Promise<{ files: string[], scores: {file:string, score:number}[], explanation: string, ms: number }>}
- */
 export async function queryGraphify(query, repoPath = null, port = 3333) {
   const res = await fetch(`http://127.0.0.1:${port}/graph/relevant-code`, {
     method: 'POST',
@@ -30,5 +29,15 @@ export async function checkHealth(port = 3333) {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+export async function fetchInfo(port = 3333) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/info`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
   }
 }
