@@ -384,7 +384,7 @@ function _render(state) {
   // ── Endpoints section ──
   if (endpointsSection) {
     const show = state.serverStatus === 'running' && state.endpoints;
-    endpointsSection.style.display = show ? 'block' : 'none';
+    endpointsSection.style.display = show ? 'flex' : 'none';
     if (show) {
       const listEl = _root.querySelector('#gfyEndpointsList');
       if (listEl) {
@@ -731,22 +731,26 @@ function _template() {
         <div class="gfy-info-line" style="display:none"></div>
       </div>
 
-      <div class="gfy-endpoints-section" style="display:none">
-        <div class="gfy-endpoints-label">Available Endpoints</div>
-        <div class="gfy-endpoints-list" id="gfyEndpointsList"></div>
-      </div>
+      <div class="gfy-body">
+        <div class="gfy-left-column">
+          <div class="gfy-endpoints-section" style="display:none">
+            <div class="gfy-endpoints-label">Available Endpoints</div>
+            <div class="gfy-endpoints-list" id="gfyEndpointsList"></div>
+          </div>
+        </div>
 
-      <!-- Tab Bar -->
-      <div class="gfy-tab-bar" style="display:none">
-        <button class="gfy-tab gfy-tab-active" data-tab="search">Search</button>
-        <button class="gfy-tab" data-tab="graph">Graph</button>
-        <button class="gfy-tab" data-tab="query">Query</button>
-        <button class="gfy-tab" data-tab="report">Report</button>
-        <button class="gfy-tab" data-tab="ai">AI Graph</button>
-      </div>
+        <div class="gfy-right-column gfy-tab-column">
+          <!-- Tab Bar -->
+          <div class="gfy-tab-bar" style="display:none">
+            <button class="gfy-tab gfy-tab-active" data-tab="search">Search</button>
+            <button class="gfy-tab" data-tab="graph">Graph</button>
+            <button class="gfy-tab" data-tab="query">Query</button>
+            <button class="gfy-tab" data-tab="report">Report</button>
+            <button class="gfy-tab" data-tab="ai">AI Graph</button>
+          </div>
 
-      <!-- Search Tab -->
-      <div class="gfy-search-section gfy-tab-content" style="display:none">
+          <!-- Search Tab -->
+          <div class="gfy-search-section gfy-tab-content" style="display:none">
         <div class="gfy-search-bar">
           <svg class="gfy-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/>
@@ -943,6 +947,8 @@ function _template() {
           <div class="gfy-ai-features" id="gfyAiFeatures"></div>
           <div class="gfy-ai-concepts" id="gfyAiConcepts"></div>
           <div class="gfy-ai-report" id="gfyAiReport"></div>
+        </div>
+        </div>
         </div>
       </div>
     </div>
