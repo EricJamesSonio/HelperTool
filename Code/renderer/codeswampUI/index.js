@@ -18,12 +18,14 @@ export async function initCodeSwampUI() {
   if (_initialized) { console.log('[CS] initCodeSwampUI already initialized, return'); return; }
   _initialized = true;
 
-  const panel = document.getElementById('ocPanel');
-  if (!panel) {
-    const container = document.getElementById('ocPanelContainer') || document.body;
-    container.insertAdjacentHTML('beforeend', getTemplate('content'));
-    console.log('[CS] template inserted');
-  }
+let panel = document.getElementById('ocPanel');
+if (!panel || !panel.querySelector('.oc-header')) {
+  // If panelFactory already created an empty placeholder, remove it first
+  if (panel) panel.remove();
+  const container = document.getElementById('ocPanelContainer') || document.body;
+  container.insertAdjacentHTML('beforeend', getTemplate('content'));
+  console.log('[CS] template inserted');
+}
 
   getLoadingController(); // warm up loading controller singleton
   renderAIProviderSelect();

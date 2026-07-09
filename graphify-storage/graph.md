@@ -18,6 +18,7 @@ Generated: 2026-07-09T07:23:22.934Z
 ## Feature Map
 
 ### core
+
 - **Description**: Core application infrastructure: main process, IPC, preload, utilities, and services
 - **Files**: 138 files
   - `Code/config/config.js`
@@ -33,6 +34,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 128 more
 
 ### database
+
 - **Description**: SQLite database access layer for all persistent storage
 - **Files**: 9 files
   - `Code/database/chatDb.js`
@@ -46,6 +48,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/database/symbols.js`
 
 ### indexing
+
 - **Description**: Source code indexing: parsing, symbol extraction, and symbol index management
 - **Files**: 9 files
   - `Code/indexer/indexer.js`
@@ -59,6 +62,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/indexer-service/indexer.js`
 
 ### knowledgeGraph
+
 - **Description**: Knowledge graph system: graph building, query engine, visualization, and AI enrichment
 - **Files**: 11 files
   - `Code/graphify-service/db.js`
@@ -74,6 +78,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 1 more
 
 ### git
+
 - **Description**: Git integration: repository management, branch management, diff viewing
 - **Files**: 21 files
   - `Code/ipc/git_ipc.js`
@@ -89,6 +94,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 11 more
 
 ### chat
+
 - **Description**: Chat interface for codebase conversations and AI-assisted development
 - **Files**: 7 files
   - `Code/database/chatDb.js`
@@ -100,6 +106,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/codebbaseChat/chatUI.js`
 
 ### codeswamp
+
 - **Description**: CodeSwamp: multi-terminal management with code execution and output handling
 - **Files**: 20 files
   - `Code/renderer/codeswampUI/buildKitPanel.js`
@@ -115,6 +122,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 10 more
 
 ### canvas
+
 - **Description**: Canvas tool: visual drawing and diagramming within the application
 - **Files**: 7 files
   - `Code/renderer/canvasTool/boards.js`
@@ -126,6 +134,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/canvasTool.js`
 
 ### dbInspector
+
 - **Description**: Database inspector: browse, query, and visualize SQLite database contents
 - **Files**: 18 files
   - `Code/renderer/databaseInspector/colors.js`
@@ -141,6 +150,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 8 more
 
 ### docker
+
 - **Description**: Docker container management: build, run, and monitor containers
 - **Files**: 8 files
   - `Code/renderer/dockerTool/logs.js`
@@ -153,6 +163,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/dockerTool.js`
 
 ### secrets
+
 - **Description**: Secret management: secure storage and retrieval of sensitive credentials
 - **Files**: 10 files
   - `Code/renderer/secretHolder/index.js`
@@ -167,6 +178,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/secretHolder/template.js`
 
 ### video
+
 - **Description**: Video tool: screen recording, video capture, and media processing
 - **Files**: 8 files
   - `Code/renderer/videoTool/imageRenderer.js`
@@ -179,6 +191,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/videoTool.js`
 
 ### settings
+
 - **Description**: Settings management: application configuration, preferences, and theming
 - **Files**: 10 files
   - `Code/renderer/settingsManager/colors.js`
@@ -193,6 +206,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/settingsManager.js`
 
 ### shortcuts
+
 - **Description**: Keyboard shortcuts: shortcut definitions, mode management, and key bindings
 - **Files**: 11 files
   - `Code/renderer/shortcutMode/constants.js`
@@ -208,6 +222,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 1 more
 
 ### workspace
+
 - **Description**: Workspace management: file tree, project navigation, and workspace organization
 - **Files**: 8 files
   - `Code/renderer/workspace/buildKitManager.js`
@@ -220,6 +235,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/workspaceTool.js`
 
 ### envManager
+
 - **Description**: Environment variable manager: view and edit environment configurations
 - **Files**: 8 files
   - `Code/renderer/envManager/createFlow.js`
@@ -232,6 +248,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/envManager.js`
 
 ### prompts
+
 - **Description**: Prompt management: AI prompt templates and prompt engineering tools
 - **Files**: 9 files
   - `Code/renderer/promptTool/categories.js`
@@ -245,6 +262,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/promptTool/wiring.js`
 
 ### fileSeeder
+
 - **Description**: File seeder: generate boilerplate files and project scaffolding
 - **Files**: 6 files
   - `Code/renderer/fileSeederTool/index.js`
@@ -255,6 +273,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/fileSeederTool.js`
 
 ### automation
+
 - **Description**: Automation: app manager, automation sketch, and workflow automation
 - **Files**: 22 files
   - `Code/renderer/app_manager/appState.js`
@@ -270,6 +289,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 12 more
 
 ### worker
+
 - **Description**: Worker service: background thread execution for CPU-intensive tasks
 - **Files**: 19 files
   - `Code/worker-service/tasks/dbInspector.js`
@@ -285,6 +305,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 9 more
 
 ### gmail
+
 - **Description**: Gmail integration: send, read, and manage email through Gmail API
 - **Files**: 4 files
   - `Code/renderer/gmailTool/gmailRenderer.js`
@@ -293,6 +314,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/gmailTool/gmailState.js`
 
 ### github
+
 - **Description**: GitHub integration: browse repositories, manage issues and pull requests
 - **Files**: 5 files
   - `Code/renderer/githubExplorer/githubExplorer.js`
@@ -302,6 +324,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/githubExplorer/githubUI.js`
 
 ### symbolIndex
+
 - **Description**: Symbol index UI: browse and search indexed code symbols
 - **Files**: 4 files
   - `Code/renderer/symbolIndex/symbolIndexHandler.js`
@@ -310,12 +333,14 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/symbolIndex/symbolIndexUI.js`
 
 ### apiTool
+
 - **Description**: API tool: HTTP client for testing and debugging REST APIs
 - **Files**: 2 files
   - `Code/renderer/apiTool.js`
   - `Code/renderer/apiToolUI.js`
 
 ### uiLayout
+
 - **Description**: UI layout helper: panel management, resizing, and layout persistence
 - **Files**: 9 files
   - `Code/renderer/uiLayoutHelper/dslParser.js`
@@ -329,6 +354,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/uiLayoutHelper.js`
 
 ### codebaseMap
+
 - **Description**: Codebase map: interactive graph visualization of the codebase structure
 - **Files**: 5 files
   - `Code/renderer/codebaseMap/codebaseMapGraph.jsx`
@@ -338,6 +364,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - `Code/renderer/codebaseMap/codebaseMap-graph-bundle.js`
 
 ### blueprint
+
 - **Description**: Blueprint library: reusable code patterns and component templates
 - **Files**: 1 files
   - `Code/renderer/blueprintLibrary.js`
@@ -346,28 +373,28 @@ Generated: 2026-07-09T07:23:22.934Z
 
 ## Top Files by Symbol Count
 
-| File | Symbols | Exported | Functions | Classes |
-|------|---------|----------|-----------|---------|
-| `Code/renderer/codebaseMap/codebaseMap-graph-bundle.js` | 3440 | 0 | 1211 | 2 |
-| `Code/renderer/databaseInspector/graph-bundle.js` | 3433 | 0 | 1211 | 2 |
-| `Code/renderer/canvasTool/tools.js` | 307 | 0 | 41 | 0 |
-| `Code/indexer-service/indexer.js` | 244 | 0 | 64 | 0 |
-| `Code/renderer/workspace/workspaceRenderer.js` | 233 | 0 | 36 | 0 |
-| `Code/renderer/teamActivityFeed.js` | 203 | 0 | 35 | 0 |
-| `Code/renderer/databaseInspector/ui.js` | 198 | 0 | 42 | 0 |
-| `Code/renderer/blueprintLibrary.js` | 190 | 0 | 43 | 0 |
-| `Code/renderer/profile.js` | 182 | 0 | 30 | 0 |
-| `Code/graphify-service/graphBuilder.js` | 181 | 0 | 0 | 1 |
-| `Code/renderer/codeswampUI/terminalManager.js` | 160 | 0 | 42 | 0 |
-| `Code/renderer/diffViewer.js` | 160 | 0 | 28 | 0 |
-| `Code/renderer/canvasTool/engine.js` | 159 | 0 | 46 | 0 |
-| `Code/services/gmailService.js` | 155 | 0 | 35 | 0 |
-| `Code/ipc/profile.js` | 146 | 0 | 7 | 0 |
-| `Code/renderer/canvasTool.js` | 146 | 0 | 26 | 0 |
-| `Code/renderer/gitTool/gitToolUI.js` | 145 | 0 | 0 | 1 |
-| `Code/renderer/videoTool/videoUI.js` | 138 | 0 | 0 | 1 |
-| `Code/renderer/codebbaseChat/chatUI.js` | 132 | 0 | 0 | 1 |
-| `Code/renderer/symbolIndex/symbolIndexUI.js` | 127 | 0 | 0 | 1 |
+| File                                                    | Symbols | Exported | Functions | Classes |
+| ------------------------------------------------------- | ------- | -------- | --------- | ------- |
+| `Code/renderer/codebaseMap/codebaseMap-graph-bundle.js` | 3440    | 0        | 1211      | 2       |
+| `Code/renderer/databaseInspector/graph-bundle.js`       | 3433    | 0        | 1211      | 2       |
+| `Code/renderer/canvasTool/tools.js`                     | 307     | 0        | 41        | 0       |
+| `Code/indexer-service/indexer.js`                       | 244     | 0        | 64        | 0       |
+| `Code/renderer/workspace/workspaceRenderer.js`          | 233     | 0        | 36        | 0       |
+| `Code/renderer/teamActivityFeed.js`                     | 203     | 0        | 35        | 0       |
+| `Code/renderer/databaseInspector/ui.js`                 | 198     | 0        | 42        | 0       |
+| `Code/renderer/blueprintLibrary.js`                     | 190     | 0        | 43        | 0       |
+| `Code/renderer/profile.js`                              | 182     | 0        | 30        | 0       |
+| `Code/graphify-service/graphBuilder.js`                 | 181     | 0        | 0         | 1       |
+| `Code/renderer/codeswampUI/terminalManager.js`          | 160     | 0        | 42        | 0       |
+| `Code/renderer/diffViewer.js`                           | 160     | 0        | 28        | 0       |
+| `Code/renderer/canvasTool/engine.js`                    | 159     | 0        | 46        | 0       |
+| `Code/services/gmailService.js`                         | 155     | 0        | 35        | 0       |
+| `Code/ipc/profile.js`                                   | 146     | 0        | 7         | 0       |
+| `Code/renderer/canvasTool.js`                           | 146     | 0        | 26        | 0       |
+| `Code/renderer/gitTool/gitToolUI.js`                    | 145     | 0        | 0         | 1       |
+| `Code/renderer/videoTool/videoUI.js`                    | 138     | 0        | 0         | 1       |
+| `Code/renderer/codebbaseChat/chatUI.js`                 | 132     | 0        | 0         | 1       |
+| `Code/renderer/symbolIndex/symbolIndexUI.js`            | 127     | 0        | 0         | 1       |
 
 ---
 
@@ -381,6 +408,7 @@ Generated: 2026-07-09T07:23:22.934Z
 ## Concepts
 
 ### IPC-Communication
+
 - **Description**: Inter-Process Communication between main and renderer processes via Electron ipcMain/ipcRenderer
 - **Keywords**: ipcMain, ipcRenderer, contextBridge, handle, invoke, on
 - **Locations**: 51 files
@@ -392,6 +420,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 46 more
 
 ### Database-Access
+
 - **Description**: SQLite database operations using better-sqlite3 in main process and sql.js in renderer
 - **Keywords**: db, database, sql, query, better-sqlite3, sql.js
 - **Locations**: 9 files
@@ -403,6 +432,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 4 more
 
 ### Code-Indexing
+
 - **Description**: Source code parsing and symbol extraction pipeline
 - **Keywords**: parse, tokenize, symbol, AST, extract
 - **Locations**: 10 files
@@ -414,6 +444,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 5 more
 
 ### Knowledge-Graph
+
 - **Description**: Graph-based codebase analysis with community detection, query engine, and visualization
 - **Keywords**: graph, node, edge, community, visualization
 - **Locations**: 13 files
@@ -425,6 +456,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 8 more
 
 ### UI-Components
+
 - **Description**: React/Vanilla JS UI components for the renderer process
 - **Keywords**: render, component, UI, panel, widget
 - **Locations**: 278 files
@@ -436,6 +468,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 273 more
 
 ### Worker-Tasks
+
 - **Description**: Background worker thread tasks for CPU-intensive operations
 - **Keywords**: worker, thread, task, background
 - **Locations**: 19 files
@@ -447,6 +480,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 14 more
 
 ### Git-Integration
+
 - **Description**: Git operations: clone, commit, branch, diff, log, and repository management
 - **Keywords**: git, branch, commit, diff, repository
 - **Locations**: 21 files
@@ -458,6 +492,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 16 more
 
 ### Authentication-Secrets
+
 - **Description**: Secure credential storage and API authentication management
 - **Keywords**: secret, credential, auth, token, encrypt
 - **Locations**: 17 files
@@ -469,6 +504,7 @@ Generated: 2026-07-09T07:23:22.934Z
   - ... and 12 more
 
 ### File-System-Operations
+
 - **Description**: File reading, writing, watching, and directory traversal utilities
 - **Keywords**: fs, file, path, read, write, watch
 - **Locations**: 19 files
@@ -486,20 +522,24 @@ Generated: 2026-07-09T07:23:22.934Z
 The HelperTool is an Electron desktop application organized in a three-tier architecture:
 
 ### 1. Main Process (`Code/main.js`, `Code/ipc/`, `Code/services/`)
+
 - Entry point and lifecycle management
 - IPC handlers bridging main and renderer
 - Backend service integrations (Gmail, etc.)
 
 ### 2. Renderer Process (`Code/renderer/`)
+
 - UI components for all features
 - DOM-based rendering (no React/Vue framework)
 - Feature modules: git, docker, canvas, video, chat, etc.
 
 ### 3. Worker Process (`Code/worker-service/`)
+
 - Background thread for CPU-intensive tasks
 - Task-based architecture with 18 task modules
 
 ### Shared Layers
+
 - **Database** (`Code/database/`): SQLite access via better-sqlite3 (main) and sql.js (renderer)
 - **Indexer** (`Code/indexer/`, `Code/indexer-service/`): Code parsing and symbol extraction
 - **Knowledge Graph** (`Code/graphify-service/`): Graph-based codebase analysis
@@ -509,22 +549,23 @@ The HelperTool is an Electron desktop application organized in a three-tier arch
 
 ## Edge Type Summary
 
-| Type | Count | Description |
-|------|-------|-------------|
-| COLLABORATES_WITH | 149 | Files belonging to the same feature |
-| IMPORTS | 67 | File imports another file (resolved dependency) |
-| ORCHESTRATES | 42 | Main process registers/controls IPC handlers |
-| EXECUTES | 18 | Worker service dispatches background tasks |
-| INITIALIZES | 9 | Main process initializes database modules |
+| Type              | Count | Description                                     |
+| ----------------- | ----- | ----------------------------------------------- |
+| COLLABORATES_WITH | 149   | Files belonging to the same feature             |
+| IMPORTS           | 67    | File imports another file (resolved dependency) |
+| ORCHESTRATES      | 42    | Main process registers/controls IPC handlers    |
+| EXECUTES          | 18    | Worker service dispatches background tasks      |
+| INITIALIZES       | 9     | Main process initializes database modules       |
 
 ---
 
 ## Symbol Type Distribution
 
-| Type | Count |
-|------|-------|
+| Type     | Count |
+| -------- | ----- |
 | variable | 12770 |
-| function | 4584 |
-| method | 851 |
-| class | 52 |
+| function | 4584  |
+| method   | 851   |
+| class    | 52    |
 
+vv

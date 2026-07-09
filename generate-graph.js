@@ -5,6 +5,7 @@ const path = require('path');
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 const dirOf = p => { const i = p.lastIndexOf('/'); return i >= 0 ? p.slice(0, i) : ''; };
 const baseName = p => { const i = p.lastIndexOf('/'); return i >= 0 ? p.slice(i + 1) : p; };
+const round3 = n => Math.round(n * 1000) / 1000;
 const resolveImport = (sourceFile, importPath, allFiles) => {
   if (!importPath.startsWith('.')) return null;
   const srcDir = dirOf(sourceFile);
@@ -110,6 +111,19 @@ for (const f of files) {
   tagMap.set(f.path, tags);
 }
 
+// ---------- optionally load fileSummaries.json (Stage 2 output) ----------
+let fileSummaries = {};
+const summariesPath = 'symbol-index-storage/fileSummaries.json';
+if (fs.existsSync(summariesPath)) {
+  try {
+    fileSummaries = JSON.parse(fs.readFileSync(summariesPath, 'utf8'));
+    fileSummaries = fileSummaries.reduce((m, s) => { m[s.file] = s; return m; }, {});
+    console.log('Loaded fileSummaries.json: ' + Object.keys(fileSummaries).length + ' files');
+  } catch (e) {
+    console.log('Warning: could not parse fileSummaries.json (' + e.message + '), proceeding without semantic data');
+  }
+}
+
 // ---------- build file index ----------
 const fileIndex = new Map(); // path -> file obj
 for (const f of files) fileIndex.set(f.path, f);
@@ -193,15 +207,29 @@ for (const f of files) {
     summary = `Module: ${bn.replace('.js', '')}. Part of the HelperTool application.`;
   }
 
-  // Build embedded symbols
-  const embeddedSyms = funSyms.slice(0, 10).map(s => ({
-    name: s.name,
-    type: s.type,
-    line: s.line,
-    signature: s.signature || '',
-    purpose: `Defined in ${p} at line ${s.line}`,
-    role: s.type === 'class' ? 'class definition' : s.type === 'function' ? 'function' : 'export'
-  }));
+  // Override with AI-generated semantic data if available
+  const semantic = fileSummaries[p];
+  const resolvedSummary = semantic?.summary || summary;
+  const resolvedResponsibilities = semantic?.responsibilities || [];
+  const resolvedFeature = semantic?.feature || null;
+
+  // Merge AI-generated symbol purposes into embedded symbols
+  const semSymsMap = {};
+  if (semantic?.symbols) {
+    for (const ss of semantic.symbols) semSymsMap[ss.name] = ss;
+  }
+
+  const embeddedSyms = funSyms.slice(0, 10).map(s => {
+    const sem = semSymsMap[s.name];
+    return {
+      name: s.name,
+      type: s.type,
+      line: s.line,
+      signature: s.signature || '',
+      purpose: sem?.purpose || `Defined in ${p} at line ${s.line}`,
+      role: sem?.role || (s.type === 'class' ? 'class definition' : s.type === 'function' ? 'function' : 'export')
+    };
+  });
 
   const node = {
     id: 'file-' + p,
@@ -209,7 +237,8 @@ for (const f of files) {
     label: bn,
     filePath: p,
     language: f.language || 'javascript',
-    summary,
+    summary: resolvedSummary,
+    responsibilities: resolvedResponsibilities,
     features: feats,
     tags: [...new Set(tags)],
     stats: {
@@ -220,7 +249,8 @@ for (const f of files) {
       methods: typeCounts['method'] || 0,
       variables: typeCounts['variable'] || 0
     },
-    symbols: embeddedSyms
+    symbols: embeddedSyms,
+    summarySource: semantic?.summary ? 'ai' : 'heuristic'
   };
 
   nodes.push(node);
@@ -357,6 +387,34 @@ for (const e of edges) {
   }
 }
 const uniqueEdges = [...edgeMap.values()];
+
+// ---------- COMPUTE CENTRALITY METRICS ----------
+const importCounts = {};    // how many imports each file makes
+const importedByCounts = {}; // how many files import each file
+for (const e of uniqueEdges) {
+  if (e.type !== 'IMPORTS') continue;
+  importCounts[e.source] = (importCounts[e.source] || 0) + 1;
+  importedByCounts[e.target] = (importedByCounts[e.target] || 0) + 1;
+}
+
+// Build node-level metrics
+const nodeMetrics = new Map();
+const totalNodes = nodes.length;
+for (const n of nodes) {
+  const id = n.id;
+  const fanOut = importCounts[id] || 0;
+  const fanIn = importedByCounts[id] || 0;
+  const degree = fanIn + fanOut;
+  const totalEdgesForCentrality = uniqueEdges.length || 1;
+  const centrality = totalNodes > 1 ? round3(degree / (totalNodes - 1)) : 0;
+  nodeMetrics.set(id, { fanIn, fanOut, degree, centrality, importCount: fanOut, importedByCount: fanIn });
+}
+
+// Apply metrics to nodes
+for (const n of nodes) {
+  const m = nodeMetrics.get(n.id);
+  if (m) n.centrality = m;
+}
 
 // ---------- BUILD FEATURES ----------
 const features = {
@@ -613,16 +671,41 @@ md += `---
 
 ## Top Files by Symbol Count
 
-| File | Symbols | Exported | Functions | Classes |
-|------|---------|----------|-----------|---------|
+| File | Symbols | Exported | Functions | Classes | Centrality |
+|------|---------|----------|-----------|---------|------------|
 `;
 
-const topFiles = nodes.sort((a, b) => b.stats.totalSymbols - a.stats.totalSymbols).slice(0, 20);
+const topFiles = [...nodes].sort((a, b) => b.stats.totalSymbols - a.stats.totalSymbols).slice(0, 20);
 for (const n of topFiles) {
-  md += `| \`${n.filePath}\` | ${n.stats.totalSymbols} | ${n.stats.exportedSymbols} | ${n.stats.functions} | ${n.stats.classes} |\n`;
+  const cent = n.centrality ? n.centrality.centrality.toFixed(3) : '-';
+  md += `| \`${n.filePath}\` | ${n.stats.totalSymbols} | ${n.stats.exportedSymbols} | ${n.stats.functions} | ${n.stats.classes} | ${cent} |\n`;
 }
 
 md += `
+---
+
+## Top Files by Centrality
+
+| File | Centrality | Fan-In | Fan-Out | Degree |
+|------|------------|--------|---------|--------|
+`;
+
+const topCentral = [...nodes].filter(n => n.centrality).sort((a, b) => b.centrality.centrality - a.centrality.centrality).slice(0, 20);
+for (const n of topCentral) {
+  const c = n.centrality;
+  md += `| \`${n.filePath}\` | ${c.centrality.toFixed(3)} | ${c.fanIn} | ${c.fanOut} | ${c.degree} |\n`;
+}
+
+md += `
+---
+
+## Summary Source
+
+| Source | Count |
+|--------|-------|
+| AI (fileSummaries.json) | ${nodes.filter(n => n.summarySource === 'ai').length} |
+| Heuristic (path-based) | ${nodes.filter(n => n.summarySource === 'heuristic').length} |
+
 ---
 
 ## Import Graph Stats
