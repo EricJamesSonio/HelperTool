@@ -487,6 +487,12 @@ function _render(state) {
   const searchSection = _root.querySelector('.gfy-search-section');
   const endpointsSection = _root.querySelector('.gfy-endpoints-section');
 
+  // ── Idle hero toggle (Stopped / Error = centered hero, else compact top bar) ──
+  const panelEl = _root.querySelector('.gfy-panel');
+  if (panelEl) {
+    panelEl.classList.toggle('gfy-idle', state.serverStatus === 'stopped' || state.serverStatus === 'error');
+  }
+
   if (dotEl) {
     dotEl.className = 'gfy-status-dot gfy-dot-' + state.serverStatus;
   }
@@ -848,32 +854,39 @@ function _template() {
         <div class="gfy-header-badge">AI</div>
       </div>
 
-      <div class="gfy-server-section">
-        <div class="gfy-status-row">
-          <span class="gfy-status-dot gfy-dot-stopped"></span>
-          <span class="gfy-status-label">Stopped</span>
+      <div class="gfy-hero-wrap">
+        <div class="gfy-idle-wordmark" aria-hidden="true">
+          <div class="gfy-idle-logo">Graphify</div>
+          <div class="gfy-idle-tagline">AI-powered code intelligence for your repository</div>
         </div>
 
-        <div class="gfy-actions-row">
-          <button class="gfy-start-btn">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l12 7-12 7V3z"/></svg>
-            Start Server
-          </button>
-          <button class="gfy-stop-btn" style="display:none">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>
-            Stop Server
-          </button>
-          <button class="gfy-copy-btn" style="display:none" title="Copy API URL to clipboard">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="11" height="13" rx="1.5"/><path d="M8 2h7a1 1 0 0 1 1 1v11"/></svg>
-            Copy URL
-          </button>
-          <button class="gfy-index-btn">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
-            Index Codebase
-          </button>
-        </div>
+        <div class="gfy-server-section">
+          <div class="gfy-status-row">
+            <span class="gfy-status-dot gfy-dot-stopped"></span>
+            <span class="gfy-status-label">Stopped</span>
+          </div>
 
-        <div class="gfy-info-line" style="display:none"></div>
+          <div class="gfy-actions-row">
+            <button class="gfy-start-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l12 7-12 7V3z"/></svg>
+              Start Server
+            </button>
+            <button class="gfy-stop-btn" style="display:none">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>
+              Stop Server
+            </button>
+            <button class="gfy-copy-btn" style="display:none" title="Copy API URL to clipboard">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="11" height="13" rx="1.5"/><path d="M8 2h7a1 1 0 0 1 1 1v11"/></svg>
+              Copy URL
+            </button>
+            <button class="gfy-index-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
+              Index Codebase
+            </button>
+          </div>
+
+          <div class="gfy-info-line" style="display:none"></div>
+        </div>
       </div>
 
       <div class="gfy-body">

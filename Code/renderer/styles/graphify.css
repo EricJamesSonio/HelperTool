@@ -36,7 +36,7 @@
   font-family: inherit;
   color: #dff5e6;
   background:
-    radial-gradient(ellipse 40% 60% at 50% 0%, rgba(34, 255, 122, 0.14) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 60% at 50% 0%, rgba(34, 255, 122, 0.20) 0%, transparent 65%),
     radial-gradient(ellipse 60% 40% at 85% 95%, rgba(20, 255, 140, 0.06) 0%, transparent 55%),
     radial-gradient(ellipse 50% 40% at 10% 85%, rgba(20, 255, 140, 0.04) 0%, transparent 55%),
     linear-gradient(180deg, #060a08 0%, #070d09 40%, #060b07 70%, #040705 100%);
@@ -126,7 +126,7 @@
 
 .gfy-subtitle {
   font-size: 11px;
-  color: #5c7a68;
+  color: #84a795;
   font-weight: 500;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -137,7 +137,7 @@
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 20px;
-  background: rgba(34, 255, 122, 0.12);
+  background: rgba(34, 255, 122, 0.26);
   color: #35e07d;
   border: 1px solid rgba(34, 255, 122, 0.3);
   letter-spacing: 1px;
@@ -169,7 +169,7 @@
 }
 
 .gfy-dot-stopped {
-  background: #3a4a41;
+  background: #4d6558;
   box-shadow: 0 0 4px rgba(58, 74, 65, 0.4);
 }
 
@@ -201,7 +201,7 @@
 .gfy-status-label {
   font-size: 12px;
   font-weight: 600;
-  color: #8fae9c;
+  color: #aecdbd;
   letter-spacing: 0.2px;
 }
 
@@ -267,15 +267,15 @@
 }
 
 .gfy-copy-btn {
-  background: rgba(34, 255, 122, 0.06);
-  color: #8fae9c;
-  border: 1px solid rgba(34, 255, 122, 0.15);
+  background: rgba(34, 255, 122, 0.10);
+  color: #aecdbd;
+  border: 1px solid rgba(34, 255, 122, 0.22);
   font-size: 11px;
   padding: 8px 12px;
 }
 
 .gfy-copy-btn:hover {
-  background: rgba(34, 255, 122, 0.12);
+  background: rgba(34, 255, 122, 0.26);
   color: #cdf5da;
   border-color: rgba(34, 255, 122, 0.3);
 }
@@ -324,7 +324,7 @@
 .gfy-endpoints-label {
   font-size: 10px;
   font-weight: 600;
-  color: #5c7a68;
+  color: #84a795;
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin-bottom: 6px;
@@ -373,7 +373,7 @@
 }
 
 .gfy-ep-get {
-  background: rgba(34, 255, 122, 0.12);
+  background: rgba(34, 255, 122, 0.26);
   color: #22ff7a;
 }
 
@@ -384,13 +384,13 @@
 
 .gfy-ep-path {
   font-family: ui-monospace, monospace;
-  color: #8fae9c;
+  color: #aecdbd;
   font-size: 11px;
   flex-shrink: 0;
 }
 
 .gfy-ep-desc {
-  color: #5c7a68;
+  color: #84a795;
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -410,7 +410,7 @@
   letter-spacing: 0.2px;
   padding: 10px 14px;
   background: rgba(15, 30, 20, 0.55);
-  border: 1px solid rgba(34, 255, 122, 0.14);
+  border: 1px solid rgba(34, 255, 122, 0.20);
   border-radius: 10px;
 }
 
@@ -439,7 +439,7 @@
   margin-bottom: 14px;
   padding: 4px 4px 4px 14px;
   background: rgba(10, 20, 14, 0.65);
-  border: 1px solid rgba(34, 255, 122, 0.18);
+  border: 1px solid rgba(34, 255, 122, 0.26);
   border-radius: 12px;
   backdrop-filter: blur(8px);
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -448,13 +448,13 @@
 
 .gfy-search-bar:focus-within {
   border-color: rgba(34, 255, 122, 0.5);
-  box-shadow: 0 0 20px rgba(34, 255, 122, 0.12), inset 0 0 20px rgba(34, 255, 122, 0.04);
+  box-shadow: 0 0 20px rgba(34, 255, 122, 0.26), inset 0 0 20px rgba(34, 255, 122, 0.04);
 }
 
 .gfy-search-icon {
   width: 16px;
   height: 16px;
-  color: #5c7a68;
+  color: #84a795;
   flex-shrink: 0;
 }
 
@@ -470,7 +470,7 @@
 }
 
 .gfy-input::placeholder {
-  color: #43594c;
+  color: #5f7d6c;
   font-style: italic;
   font-size: 12px;
 }
@@ -510,12 +510,12 @@
 }
 
 .gfy-clear-btn {
-  background: rgba(34, 255, 122, 0.06);
-  color: #5c7a68;
+  background: rgba(34, 255, 122, 0.10);
+  color: #84a795;
 }
 
 .gfy-clear-btn:hover {
-  background: rgba(34, 255, 122, 0.12);
+  background: rgba(34, 255, 122, 0.26);
   color: #a8d4b8;
 }
 
@@ -527,14 +527,14 @@
   gap: 10px;
   padding: 14px 0;
   font-size: 12px;
-  color: #5c7a68;
+  color: #84a795;
   flex-shrink: 0;
 }
 
 .gfy-spinner-ring {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(34, 255, 122, 0.15);
+  border: 2px solid rgba(34, 255, 122, 0.22);
   border-top-color: #35e07d;
   border-radius: 50%;
   animation: gfy-spin 0.7s linear infinite;
@@ -574,7 +574,7 @@
 /* ─── Empty ──────────────────────────────────────────────────── */
 
 .gfy-empty {
-  color: #5c7a68;
+  color: #84a795;
   font-size: 13px;
   padding: 28px 0;
   text-align: center;
@@ -623,7 +623,7 @@
   gap: 10px;
   padding: 10px 14px;
   background: rgba(10, 20, 14, 0.45);
-  border: 1px solid rgba(34, 255, 122, 0.08);
+  border: 1px solid rgba(34, 255, 122, 0.20);
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
@@ -636,7 +636,7 @@
   position: absolute;
   inset: 0;
   border-radius: 10px;
-  background: linear-gradient(135deg, rgba(34, 255, 122, 0.06), transparent 60%);
+  background: linear-gradient(135deg, rgba(34, 255, 122, 0.10), transparent 60%);
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -657,7 +657,7 @@
 }
 
 .gfy-rank {
-  color: #3a4a41;
+  color: #4d6558;
   font-size: 11px;
   font-weight: 700;
   min-width: 18px;
@@ -684,7 +684,7 @@
 }
 
 .gfy-filepath {
-  color: #5c7a68;
+  color: #84a795;
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -717,7 +717,7 @@
 }
 
 .gfy-score-label {
-  color: #5c7a68;
+  color: #84a795;
   font-size: 11px;
   font-weight: 600;
   min-width: 32px;
@@ -731,7 +731,7 @@
   display: flex;
   gap: 2px;
   margin-bottom: 12px;
-  border-bottom: 1px solid rgba(34, 255, 122, 0.1);
+  border-bottom: 1px solid rgba(34, 255, 122, 0.16);
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -741,7 +741,7 @@
   padding: 8px 14px;
   font-size: 11px;
   font-weight: 600;
-  color: #5c7a68;
+  color: #84a795;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -752,7 +752,7 @@
 }
 
 .gfy-tab:hover {
-  color: #8fae9c;
+  color: #aecdbd;
 }
 
 .gfy-tab-active {
@@ -785,10 +785,10 @@
   align-items: center;
   gap: 5px;
   padding: 6px 12px;
-  border: 1px solid rgba(34, 255, 122, 0.15);
+  border: 1px solid rgba(34, 255, 122, 0.22);
   border-radius: 8px;
-  background: rgba(34, 255, 122, 0.06);
-  color: #8fae9c;
+  background: rgba(34, 255, 122, 0.10);
+  color: #aecdbd;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -806,7 +806,7 @@
 .gfy-graph-open-btn:hover,
 .gfy-graph-refresh-btn:hover,
 .gfy-report-refresh-btn:hover {
-  background: rgba(34, 255, 122, 0.12);
+  background: rgba(34, 255, 122, 0.26);
   color: #cdf5da;
   border-color: rgba(34, 255, 122, 0.3);
 }
@@ -819,7 +819,7 @@
   background: rgba(10, 20, 14, 0.4);
   border-radius: 8px;
   font-size: 10px;
-  color: #5c7a68;
+  color: #84a795;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -838,7 +838,7 @@
   min-height: 0;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid rgba(34, 255, 122, 0.1);
+  border: 1px solid rgba(34, 255, 122, 0.16);
   position: relative;
 }
 
@@ -856,7 +856,7 @@
   justify-content: center;
   gap: 12px;
   height: 100%;
-  color: #5c7a68;
+  color: #84a795;
   font-size: 12px;
   text-align: center;
   padding: 20px;
@@ -878,7 +878,7 @@
   background: rgba(5, 8, 7, 0.8);
   z-index: 5;
   font-size: 12px;
-  color: #8fae9c;
+  color: #aecdbd;
   border-radius: 10px;
 }
 
@@ -914,7 +914,7 @@
 
 .gfy-query-tool {
   background: rgba(10, 20, 14, 0.45);
-  border: 1px solid rgba(34, 255, 122, 0.08);
+  border: 1px solid rgba(34, 255, 122, 0.20);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -925,7 +925,7 @@
   font-weight: 700;
   color: #22ff7a;
   background: rgba(34, 255, 122, 0.04);
-  border-bottom: 1px solid rgba(34, 255, 122, 0.06);
+  border-bottom: 1px solid rgba(34, 255, 122, 0.10);
   letter-spacing: 0.3px;
 }
 
@@ -939,7 +939,7 @@
 .gfy-query-input {
   padding: 7px 10px;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(34, 255, 122, 0.12);
+  border: 1px solid rgba(34, 255, 122, 0.26);
   border-radius: 6px;
   color: #eafff2;
   font-size: 12px;
@@ -952,13 +952,13 @@
 }
 
 .gfy-query-input::placeholder {
-  color: #43594c;
+  color: #5f7d6c;
 }
 
 .gfy-query-select {
   padding: 4px 8px;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(34, 255, 122, 0.12);
+  border: 1px solid rgba(34, 255, 122, 0.26);
   border-radius: 6px;
   color: #eafff2;
   font-size: 11px;
@@ -990,7 +990,7 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #8fae9c;
+  color: #aecdbd;
 }
 
 .gfy-query-result {
@@ -999,7 +999,7 @@
 
 .gfy-query-result-label {
   font-size: 10px;
-  color: #5c7a68;
+  color: #84a795;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -1025,8 +1025,8 @@
 
 .gfy-query-node-type {
   font-size: 9px;
-  color: #5c7a68;
-  background: rgba(34, 255, 122, 0.06);
+  color: #84a795;
+  background: rgba(34, 255, 122, 0.10);
   padding: 1px 5px;
   border-radius: 4px;
   font-weight: 600;
@@ -1034,7 +1034,7 @@
 
 .gfy-query-node-file {
   font-size: 9px;
-  color: #43594c;
+  color: #5f7d6c;
   margin-left: auto;
 }
 
@@ -1075,7 +1075,7 @@
 
 .gfy-report-card {
   background: rgba(10, 20, 14, 0.45);
-  border: 1px solid rgba(34, 255, 122, 0.08);
+  border: 1px solid rgba(34, 255, 122, 0.20);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -1086,7 +1086,7 @@
   font-weight: 700;
   color: #22ff7a;
   background: rgba(34, 255, 122, 0.04);
-  border-bottom: 1px solid rgba(34, 255, 122, 0.06);
+  border-bottom: 1px solid rgba(34, 255, 122, 0.10);
 }
 
 .gfy-report-card-body {
@@ -1098,7 +1098,7 @@
   justify-content: space-between;
   padding: 4px 0;
   font-size: 12px;
-  color: #8fae9c;
+  color: #aecdbd;
   border-bottom: 1px solid rgba(34, 255, 122, 0.04);
 }
 
@@ -1122,20 +1122,20 @@
 
 .gfy-report-item-type {
   font-size: 9px;
-  color: #5c7a68;
-  background: rgba(34, 255, 122, 0.06);
+  color: #84a795;
+  background: rgba(34, 255, 122, 0.10);
   padding: 1px 5px;
   border-radius: 4px;
 }
 
 .gfy-report-item-meta {
   font-size: 9px;
-  color: #43594c;
+  color: #5f7d6c;
   margin-left: auto;
 }
 
 .gfy-report-item-arrow {
-  color: #5c7a68;
+  color: #84a795;
   font-size: 11px;
 }
 
@@ -1145,7 +1145,7 @@
   gap: 8px;
   padding: 4px 0;
   font-size: 11px;
-  color: #8fae9c;
+  color: #aecdbd;
 }
 
 .gfy-community-color {
@@ -1189,7 +1189,7 @@
   gap: 12px;
   padding: 12px 14px;
   background: rgba(10, 20, 14, 0.5);
-  border: 1px solid rgba(34, 255, 122, 0.12);
+  border: 1px solid rgba(34, 255, 122, 0.26);
   border-radius: 10px;
 }
 
@@ -1216,7 +1216,7 @@
 
 .gfy-ai-intro-text span {
   font-size: 11px;
-  color: #5c7a68;
+  color: #84a795;
 }
 
 .gfy-ai-steps {
@@ -1230,7 +1230,7 @@
   gap: 12px;
   padding: 12px 14px;
   background: rgba(10, 20, 14, 0.4);
-  border: 1px solid rgba(34, 255, 122, 0.08);
+  border: 1px solid rgba(34, 255, 122, 0.20);
   border-radius: 10px;
   align-items: flex-start;
 }
@@ -1239,7 +1239,7 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: rgba(34, 255, 122, 0.12);
+  background: rgba(34, 255, 122, 0.26);
   color: #22ff7a;
   font-size: 12px;
   font-weight: 700;
@@ -1264,12 +1264,12 @@
 
 .gfy-ai-step-desc {
   font-size: 11px;
-  color: #5c7a68;
+  color: #84a795;
   line-height: 1.4;
 }
 
 .gfy-ai-step-desc code {
-  background: rgba(34, 255, 122, 0.08);
+  background: rgba(34, 255, 122, 0.20);
   color: #35e07d;
   padding: 1px 5px;
   border-radius: 4px;
@@ -1285,8 +1285,8 @@
   padding: 6px 14px;
   border: 1px solid rgba(34, 255, 122, 0.2);
   border-radius: 8px;
-  background: rgba(34, 255, 122, 0.06);
-  color: #8fae9c;
+  background: rgba(34, 255, 122, 0.10);
+  color: #aecdbd;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -1305,7 +1305,7 @@
 .gfy-export-btn:hover,
 .gfy-open-prompt-btn:hover,
 .gfy-load-ai-btn:hover {
-  background: rgba(34, 255, 122, 0.12);
+  background: rgba(34, 255, 122, 0.26);
   color: #cdf5da;
   border-color: rgba(34, 255, 122, 0.35);
 }
@@ -1327,7 +1327,7 @@
   gap: 10px;
   padding: 10px 0;
   font-size: 12px;
-  color: #5c7a68;
+  color: #84a795;
 }
 
 .gfy-ai-error {
@@ -1350,13 +1350,13 @@
   font-weight: 700;
   color: #22ff7a;
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba(34, 255, 122, 0.12);
+  border-bottom: 1px solid rgba(34, 255, 122, 0.26);
 }
 
 .gfy-ai-section-title {
   font-size: 11px;
   font-weight: 700;
-  color: #8fae9c;
+  color: #aecdbd;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -1364,7 +1364,7 @@
 
 .gfy-ai-feature-card {
   background: rgba(10, 20, 14, 0.5);
-  border: 1px solid rgba(34, 255, 122, 0.08);
+  border: 1px solid rgba(34, 255, 122, 0.20);
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 6px;
@@ -1385,7 +1385,7 @@
 
 .gfy-ai-feature-meta {
   font-size: 10px;
-  color: #5c7a68;
+  color: #84a795;
   margin-top: 4px;
 }
 
@@ -1405,17 +1405,17 @@
 }
 
 .gfy-ai-concept-desc {
-  color: #8fae9c;
+  color: #aecdbd;
 }
 
 .gfy-ai-report-body {
   font-size: 11px;
-  color: #8fae9c;
+  color: #aecdbd;
   line-height: 1.6;
   white-space: pre-wrap;
   padding: 10px 12px;
   background: rgba(10, 20, 14, 0.4);
-  border: 1px solid rgba(34, 255, 122, 0.06);
+  border: 1px solid rgba(34, 255, 122, 0.10);
   border-radius: 8px;
 }
 
@@ -1440,7 +1440,7 @@
   width: 440px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(34, 255, 122, 0.06);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(34, 255, 122, 0.10);
   overflow: hidden;
 }
 
@@ -1449,7 +1449,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px 12px;
-  border-bottom: 1px solid rgba(34, 255, 122, 0.08);
+  border-bottom: 1px solid rgba(34, 255, 122, 0.20);
   flex-shrink: 0;
 }
 
@@ -1464,8 +1464,8 @@
   height: 28px;
   border: none;
   border-radius: 6px;
-  background: rgba(34, 255, 122, 0.06);
-  color: #5c7a68;
+  background: rgba(34, 255, 122, 0.10);
+  color: #84a795;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1476,7 +1476,7 @@
 }
 
 .gfy-sa-close:hover {
-  background: rgba(34, 255, 122, 0.14);
+  background: rgba(34, 255, 122, 0.20);
   color: #cdf5da;
 }
 
@@ -1493,7 +1493,7 @@
   gap: 14px;
   padding: 14px 16px;
   background: rgba(10, 20, 14, 0.5);
-  border: 1px solid rgba(34, 255, 122, 0.1);
+  border: 1px solid rgba(34, 255, 122, 0.16);
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
@@ -1509,7 +1509,7 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(34, 255, 122, 0.1);
+  background: rgba(34, 255, 122, 0.16);
   color: #22ff7a;
   display: flex;
   align-items: center;
@@ -1538,7 +1538,7 @@
 
 .gfy-sa-card-desc {
   font-size: 11px;
-  color: #5c7a68;
+  color: #84a795;
 }
 
 /* ─── Prompt Viewer (wide modal) ──────────────────────────────── */
@@ -1554,7 +1554,7 @@
   width: 90%;
   height: 85%;
   margin: auto;
-  border: 1px solid rgba(34, 255, 122, 0.15);
+  border: 1px solid rgba(34, 255, 122, 0.22);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
@@ -1565,7 +1565,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  border-bottom: 1px solid rgba(34, 255, 122, 0.1);
+  border-bottom: 1px solid rgba(34, 255, 122, 0.16);
   flex-shrink: 0;
   background: rgba(5, 10, 7, 0.95);
 }
@@ -1587,8 +1587,8 @@
   padding: 6px 16px;
   border: 1px solid rgba(34, 255, 122, 0.2);
   border-radius: 8px;
-  background: rgba(34, 255, 122, 0.08);
-  color: #8fae9c;
+  background: rgba(34, 255, 122, 0.20);
+  color: #aecdbd;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -1613,8 +1613,8 @@
   height: 28px;
   border: none;
   border-radius: 6px;
-  background: rgba(34, 255, 122, 0.06);
-  color: #5c7a68;
+  background: rgba(34, 255, 122, 0.10);
+  color: #84a795;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1625,7 +1625,7 @@
 }
 
 .gfy-prompt-viewer .gfy-pv-close:hover {
-  background: rgba(34, 255, 122, 0.14);
+  background: rgba(34, 255, 122, 0.20);
   color: #cdf5da;
 }
 
@@ -1654,4 +1654,133 @@
 .gfy-prompt-viewer .gfy-pv-content::-webkit-scrollbar-thumb {
   background: rgba(34, 255, 122, 0.2);
   border-radius: 4px;
+}
+
+/* ─── Modern AI polish: title glow + badge pulse ───────────────── */
+
+.gfy-title {
+  background: linear-gradient(135deg, #eafff2 0%, #7dffb0 60%, #22ff7a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 24px rgba(34, 255, 122, 0.25);
+}
+
+.gfy-header-badge {
+  position: relative;
+  box-shadow: 0 0 12px rgba(34, 255, 122, 0.15);
+}
+
+.gfy-header-badge::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 20px;
+  border: 1px solid rgba(34, 255, 122, 0.4);
+  animation: gfy-badge-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes gfy-badge-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0; transform: scale(1.25); }
+}
+
+/* Faint tech grid texture — reinforces the "code intelligence" feel */
+.gfy-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(34, 255, 122, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 255, 122, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, #000 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, #000 0%, transparent 75%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Idle hero (Stopped / Error state on first load) ──────────── */
+/* .gfy-hero-wrap wraps the wordmark + server-section. Default (running)
+   state: sits compactly at the top like before. Idle state: grows to
+   fill the panel and centers everything, replacing the empty void. */
+
+.gfy-hero-wrap {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+.gfy-idle-wordmark {
+  display: none;
+}
+
+.gfy-panel.gfy-idle .gfy-body {
+  display: none;
+}
+
+.gfy-panel.gfy-idle .gfy-hero-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  text-align: center;
+}
+
+.gfy-panel.gfy-idle .gfy-idle-wordmark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.gfy-idle-logo {
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #ffffff 0%, #8dffb8 45%, #22ff7a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 60px rgba(34, 255, 122, 0.35);
+  line-height: 1.1;
+}
+
+.gfy-idle-tagline {
+  font-size: 13px;
+  font-weight: 500;
+  color: #aecdbd;
+  letter-spacing: 0.3px;
+}
+
+.gfy-panel.gfy-idle .gfy-server-section {
+  align-items: center;
+  margin-bottom: 0;
+  gap: 16px;
+}
+
+.gfy-panel.gfy-idle .gfy-actions-row {
+  justify-content: center;
+}
+
+.gfy-panel.gfy-idle .gfy-start-btn,
+.gfy-panel.gfy-idle .gfy-index-btn {
+  padding: 12px 24px;
+  font-size: 13px;
+  border-radius: 12px;
+}
+
+.gfy-panel.gfy-idle .gfy-status-row {
+  order: 2;
+  padding: 5px 12px;
+  background: rgba(15, 30, 20, 0.5);
+  border: 1px solid rgba(34, 255, 122, 0.14);
+  border-radius: 20px;
+}
+
+.gfy-panel.gfy-idle .gfy-actions-row {
+  order: 1;
 }
