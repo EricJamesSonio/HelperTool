@@ -1,12 +1,14 @@
 'use strict';
 
 const http = require('http');
-const { initDb, getDb, getRepoInfo, closeDb } = require('./db');
+const fs   = require('fs');
+const path = require('path');
+const { initFromJson, getDb, getRawData, getRepoInfo, closeDb } = require('./db');
 const { queryRelevantCode } = require('./queryEngine');
 const { KnowledgeGraph } = require('./graphBuilder');
 const { exportAll, generatePrompt, loadGraphFromStorage } = require('./exporter');
 
-const DB_PATH = process.argv[2];
+const REPO_PATH = process.argv[2] || null;
 const START_PORT = parseInt(process.argv[3] || '3333', 10);
 
 let _dbReady = false;
@@ -14,13 +16,6 @@ let _dbError = null;
 let _actualPort = START_PORT;
 let _repoPath = null;
 let _graph = new KnowledgeGraph();
-
-const REPO_PATH = process.argv[4] || null;
-
-if (!DB_PATH) {
-  process.stderr.write('[graphify] ERROR: No dbPath provided as argv[2]\n');
-  process.exit(1);
-}
 
 function _buildGraph() {
   try {
@@ -30,27 +25,7 @@ function _buildGraph() {
       process.stderr.write('[graphify] No DB available, graph is empty\n');
       return;
     }
-    const stmt = db.prepare('SELECT repo_path FROM repositories WHERE indexed = 1 ORDER BY last_indexed DESC LIMIT 1');
-    if (stmt.step()) {
-      _repoPath = stmt.getAsObject().repo_path;
-    }
-    stmt.free();
-    if (!_repoPath) {
-      process.stderr.write('[graphify] No indexed repo found, graph is empty\n');
-      return;
-    }
-    const stmt2 = db.prepare('SELECT id FROM repositories WHERE repo_path = ? LIMIT 1');
-    stmt2.bind([_repoPath]);
-    let repoId = null;
-    if (stmt2.step()) {
-      repoId = stmt2.getAsObject().id;
-    }
-    stmt2.free();
-    if (!repoId) {
-      process.stderr.write('[graphify] Could not resolve repo ID, graph is empty\n');
-      return;
-    }
-    _graph.buildFromDb(db, repoId, REPO_PATH || _repoPath);
+    _graph.buildFromDb(db, 1, _repoPath);
     const s = _graph.getGraphStats();
     process.stderr.write(`[graphify] Knowledge graph built: ${s.totalNodes} nodes, ${s.totalEdges} edges, ${s.communityCount} communities\n`);
   } catch (err) {
@@ -60,14 +35,40 @@ function _buildGraph() {
 }
 
 async function boot() {
-  try {
-    await initDb(DB_PATH);
-    _dbReady = true;
-    process.stderr.write(`[graphify] DB loaded from ${DB_PATH}\n`);
-    _buildGraph();
-  } catch (err) {
-    _dbError = `Symbol index not found: ${err.message}. Please index your codebase first.`;
+  let repoPath = REPO_PATH;
+
+  if (!repoPath || !fs.existsSync(path.join(repoPath, 'symbol-index-storage', 'symbols.json'))) {
+    const dbPath = process.argv[4] || null;
+    if (dbPath && fs.existsSync(dbPath)) {
+      const initSqlJs = require(path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.js'));
+      try {
+        const SQL = await initSqlJs();
+        const buffer = fs.readFileSync(dbPath);
+        const tmpDb = new SQL.Database(buffer);
+        const stmt = tmpDb.prepare('SELECT repo_path FROM repositories ORDER BY last_indexed DESC LIMIT 1');
+        if (stmt.step()) {
+          repoPath = stmt.getAsObject().repo_path;
+        }
+        stmt.free();
+        tmpDb.close();
+      } catch (_) {}
+    }
+  }
+
+  if (!repoPath) {
+    _dbError = 'Cannot determine repository path. Select a repo and start the server from the Graphify UI.';
     process.stderr.write(`[graphify] ${_dbError}\n`);
+  } else {
+    try {
+      await initFromJson(repoPath);
+      _repoPath = repoPath;
+      _dbReady = true;
+      process.stderr.write(`[graphify] Data loaded from ${repoPath}/symbol-index-storage/symbols.json\n`);
+      _buildGraph();
+    } catch (err) {
+      _dbError = err.message;
+      process.stderr.write(`[graphify] ${_dbError}\n`);
+    }
   }
 
   const server = http.createServer(handleRequest);
@@ -116,7 +117,6 @@ function handleRequest(req, res) {
     return handleQuery(req, res);
   }
 
-  // Knowledge-graph endpoints (require _dbReady and _graph)
   if (req.method === 'GET' && req.url === '/graph') {
     return handleGraphVisualization(req, res);
   }
@@ -145,7 +145,6 @@ function handleRequest(req, res) {
     return handleGraphSearch(req, res);
   }
 
-  // AI-enrichment endpoints
   if (req.method === 'POST' && req.url === '/export/symbols') {
     return handleExportSymbols(req, res);
   }
@@ -195,31 +194,26 @@ function handleEndpoints(req, res) {
 function handleInfo(req, res) {
   if (!_dbReady) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: _dbError || 'DB not loaded', ready: false }));
+    res.end(JSON.stringify({ error: _dbError || 'Symbol index not loaded', ready: false }));
     return;
   }
 
   try {
-    const db = getDb();
-    const stmt = db.prepare('SELECT repo_path FROM repositories WHERE indexed = 1 ORDER BY last_indexed DESC LIMIT 1');
-    let repoPath = null;
-    if (stmt.step()) {
-      repoPath = stmt.getAsObject().repo_path;
-    }
-    stmt.free();
-
-    let info = null;
-    if (repoPath) {
-      info = getRepoInfo(repoPath);
-    }
-
+    let info = _repoPath ? getRepoInfo(_repoPath) : null;
     if (info) {
       info.port = _actualPort;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(info));
     } else {
+      const raw = getRawData();
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ repoPath: null, repoName: 'unknown', totalFiles: 0, totalSymbols: 0, port: _actualPort }));
+      res.end(JSON.stringify({
+        repoPath: raw?.repoPath || _repoPath,
+        repoName: raw?.repoName || 'unknown',
+        totalFiles: raw?.overview?.totalFiles || 0,
+        totalSymbols: raw?.overview?.totalSymbols || 0,
+        port: _actualPort,
+      }));
     }
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -255,7 +249,7 @@ function handleQuery(req, res) {
 
     const start = Date.now();
     try {
-      const result = queryRelevantCode(query.trim(), repoPath || null);
+      const result = queryRelevantCode(query.trim(), repoPath || _repoPath);
       result.ms = Date.now() - start;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));

@@ -9,20 +9,30 @@ const GRAPHIFY_DIR = 'graphify-storage';
 
 function _getRepoPath() {
   const db = getDb();
-  const stmt = db.prepare('SELECT repo_path FROM repositories WHERE indexed = 1 ORDER BY last_indexed DESC LIMIT 1');
+
+  let stmt = db.prepare('SELECT repo_path FROM repositories WHERE indexed = 1 ORDER BY last_indexed DESC LIMIT 1');
   if (stmt.step()) {
     const row = stmt.getAsObject();
     stmt.free();
     return row.repo_path;
   }
   stmt.free();
+
+  stmt = db.prepare('SELECT repo_path FROM repositories ORDER BY last_indexed DESC LIMIT 1');
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    stmt.free();
+    return row.repo_path;
+  }
+  stmt.free();
+
   return null;
 }
 
 function exportSymbolsJson() {
   const repoPath = _getRepoPath();
   if (!repoPath) {
-    return { ok: false, error: 'No indexed repository found.' };
+    return { ok: false, error: 'No repository found in the symbol index. Please index your codebase first.' };
   }
 
   const outDir = path.join(repoPath, STORAGE_DIR);
@@ -117,7 +127,7 @@ function exportSymbolsJson() {
 function generatePrompt() {
   const repoPath = _getRepoPath();
   if (!repoPath) {
-    return { ok: false, error: 'No indexed repo found.' };
+    return { ok: false, error: 'No repository found in symbol index. Please index your codebase first.' };
   }
 
   const outDir = path.join(repoPath, STORAGE_DIR);
@@ -352,7 +362,7 @@ function exportAll() {
 function loadGraphFromStorage() {
   const repoPath = _getRepoPath();
   if (!repoPath) {
-    return { ok: false, error: 'No indexed repo found.' };
+    return { ok: false, error: 'No repository found in symbol index. Please index your codebase first.' };
   }
 
   const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');

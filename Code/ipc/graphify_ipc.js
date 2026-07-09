@@ -12,7 +12,6 @@ const START_TIMEOUT = 10000;
 let _child     = null;
 let _port      = DEFAULT_PORT;
 let _ready     = false;
-let _dbPath    = null;
 let _repoPath  = null;
 let _app       = null;
 
@@ -31,12 +30,11 @@ function _spawn(app) {
       return;
     }
 
-    _dbPath = _resolveDbPath(app);
     _ready  = false;
 
     const serverPath = _getServerPath();
-    const args = [serverPath, _dbPath, String(_port)];
-    if (_repoPath) args.push(_repoPath);
+    const dbPath = _resolveDbPath(app);
+    const args = [serverPath, _repoPath || '', String(_port), dbPath];
     _child = spawn(
       process.execPath,
       args,

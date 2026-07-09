@@ -305,6 +305,13 @@ function h_dbMarkIndexed(id, type, payload) {
   if (!repoId) return respond({ id, type, ok: false, error: 'Missing repoId' });
   repoMarkIndexed(repoId, totalFiles, totalSymbols);
   scheduleFlush();
+  try {
+    const { exportRepoToJson } = require('./exportToJson.js');
+    const result = exportRepoToJson(_db, repoId);
+    if (result) process.stderr.write(`[indexer] Exported to ${result.symbolsPath} (${result.stats.files} files, ${result.stats.symbols} symbols)\n`);
+  } catch (err) {
+    process.stderr.write(`[indexer] JSON export error: ${err.message}\n`);
+  }
   return respond({ id, type, ok: true });
 }
 
