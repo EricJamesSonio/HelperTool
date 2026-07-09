@@ -105,6 +105,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
           const result = await indexerProxy.send('index:start', { repoPath, files: allFiles });
           if (repoId && result) {
             try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.totalSymbols || 0 }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+            try { await indexerProxy.send('db:flush'); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
           }
           watcher.createWatcher(repoPath, (repoPath, relPath) => {
             if (indexerProxy.isReady()) {
@@ -129,6 +130,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         );
         if (repoId && result) {
           try { await indexerProxy.send('db:markIndexed', { repoId, totalFiles, totalSymbols: result.symbolCount || 0 }); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+          try { await indexerProxy.send('db:flush'); } catch (err) { console.error('[symbolIndex]', err?.message || err); }
         }
         watcher.createWatcher(repoPath, (repoPath, relPath) => {
           if (indexerProxy.isReady()) {

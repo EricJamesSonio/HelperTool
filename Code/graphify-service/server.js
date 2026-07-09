@@ -3,6 +3,7 @@
 const http = require('http');
 const { initDb, getDb, getRepoInfo, closeDb } = require('./db');
 const { queryRelevantCode } = require('./queryEngine');
+const { KnowledgeGraph } = require('./graphBuilder');
 
 const DB_PATH = process.argv[2];
 const START_PORT = parseInt(process.argv[3] || '3333', 10);
@@ -10,10 +11,51 @@ const START_PORT = parseInt(process.argv[3] || '3333', 10);
 let _dbReady = false;
 let _dbError = null;
 let _actualPort = START_PORT;
+let _repoPath = null;
+let _graph = new KnowledgeGraph();
+
+const REPO_PATH = process.argv[4] || null;
 
 if (!DB_PATH) {
   process.stderr.write('[graphify] ERROR: No dbPath provided as argv[2]\n');
   process.exit(1);
+}
+
+function _buildGraph() {
+  try {
+    _graph = new KnowledgeGraph();
+    const db = getDb();
+    if (!db) {
+      process.stderr.write('[graphify] No DB available, graph is empty\n');
+      return;
+    }
+    const stmt = db.prepare('SELECT repo_path FROM repositories WHERE indexed = 1 ORDER BY last_indexed DESC LIMIT 1');
+    if (stmt.step()) {
+      _repoPath = stmt.getAsObject().repo_path;
+    }
+    stmt.free();
+    if (!_repoPath) {
+      process.stderr.write('[graphify] No indexed repo found, graph is empty\n');
+      return;
+    }
+    const stmt2 = db.prepare('SELECT id FROM repositories WHERE repo_path = ? LIMIT 1');
+    stmt2.bind([_repoPath]);
+    let repoId = null;
+    if (stmt2.step()) {
+      repoId = stmt2.getAsObject().id;
+    }
+    stmt2.free();
+    if (!repoId) {
+      process.stderr.write('[graphify] Could not resolve repo ID, graph is empty\n');
+      return;
+    }
+    _graph.buildFromDb(db, repoId, REPO_PATH || _repoPath);
+    const s = _graph.getGraphStats();
+    process.stderr.write(`[graphify] Knowledge graph built: ${s.totalNodes} nodes, ${s.totalEdges} edges, ${s.communityCount} communities\n`);
+  } catch (err) {
+    process.stderr.write(`[graphify] Graph build error: ${err.message}\n`);
+    _graph = new KnowledgeGraph();
+  }
 }
 
 async function boot() {
@@ -21,6 +63,7 @@ async function boot() {
     await initDb(DB_PATH);
     _dbReady = true;
     process.stderr.write(`[graphify] DB loaded from ${DB_PATH}\n`);
+    _buildGraph();
   } catch (err) {
     _dbError = `Symbol index not found: ${err.message}. Please index your codebase first.`;
     process.stderr.write(`[graphify] ${_dbError}\n`);
@@ -72,6 +115,35 @@ function handleRequest(req, res) {
     return handleQuery(req, res);
   }
 
+  // Knowledge-graph endpoints (require _dbReady and _graph)
+  if (req.method === 'GET' && req.url === '/graph') {
+    return handleGraphVisualization(req, res);
+  }
+  if (req.method === 'GET' && req.url === '/graph/data') {
+    return handleGraphData(req, res);
+  }
+  if (req.method === 'GET' && req.url === '/graph/report') {
+    return handleGraphReport(req, res);
+  }
+  if (req.method === 'GET' && req.url === '/graph/communities') {
+    return handleGraphCommunities(req, res);
+  }
+  if (req.method === 'GET' && req.url === '/graph/stats') {
+    return handleGraphStats(req, res);
+  }
+  if (req.method === 'POST' && req.url === '/graph/neighborhood') {
+    return handleGraphNeighborhood(req, res);
+  }
+  if (req.method === 'POST' && req.url === '/graph/shortest-path') {
+    return handleGraphShortestPath(req, res);
+  }
+  if (req.method === 'POST' && req.url === '/graph/affected') {
+    return handleGraphAffected(req, res);
+  }
+  if (req.method === 'POST' && req.url === '/graph/search') {
+    return handleGraphSearch(req, res);
+  }
+
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
 }
@@ -87,6 +159,15 @@ function handleEndpoints(req, res) {
     { method: 'GET',    path: '/info',                description: 'Repo statistics (files, symbols, port)' },
     { method: 'GET',    path: '/endpoints',           description: 'This list of available endpoints' },
     { method: 'POST',   path: '/graph/relevant-code', description: 'Find relevant code. Body: { query, repoPath? }' },
+    { method: 'GET',    path: '/graph',               description: 'Interactive knowledge-graph visualization (HTML)' },
+    { method: 'GET',    path: '/graph/data',          description: 'Knowledge graph JSON data for vis.js' },
+    { method: 'GET',    path: '/graph/report',        description: 'Graph analysis report (god nodes, surprises)' },
+    { method: 'GET',    path: '/graph/communities',   description: 'Detected communities in the codebase' },
+    { method: 'GET',    path: '/graph/stats',         description: 'Graph statistics (nodes, edges, communities)' },
+    { method: 'POST',   path: '/graph/neighborhood',  description: 'Get neighborhood around a node. Body: { nodeId, depth? }' },
+    { method: 'POST',   path: '/graph/shortest-path', description: 'Find shortest path between two nodes. Body: { from, to }' },
+    { method: 'POST',   path: '/graph/affected',      description: 'Find reverse impact (affected by). Body: { nodeId, depth? }' },
+    { method: 'POST',   path: '/graph/search',        description: 'Search nodes by name. Body: { query, limit? }' },
   ];
   res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify({ endpoints, port: _actualPort }));
@@ -165,6 +246,183 @@ function handleQuery(req, res) {
       res.end(JSON.stringify({ error: err.message }));
     }
   });
+}
+
+// ── Graph endpoint handlers ──
+
+function _graphGuard(res) {
+  if (!_dbReady) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Symbol index not loaded. Please index your codebase first.' }));
+    return false;
+  }
+  return true;
+}
+
+function _parseBody(req) {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try { resolve(JSON.parse(body)); }
+      catch { resolve(null); }
+    });
+  });
+}
+
+function handleGraphVisualization(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const html = _graph.generateHtml();
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleGraphData(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const data = _graph.toVisData();
+    const stats = _graph.getGraphStats();
+    const communities = _graph.getCommunities();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ ...data, stats, communities }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleGraphReport(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const godNodes = _graph.getGodNodes(15);
+    const surprisingEdges = _graph.getSurprisingEdges(15);
+    const communities = _graph.getCommunities();
+    const stats = _graph.getGraphStats();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ stats, godNodes, surprisingEdges, communities }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleGraphCommunities(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const communities = _graph.getCommunities();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ communities }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleGraphStats(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const stats = _graph.getGraphStats();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(stats));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+async function handleGraphNeighborhood(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const body = await _parseBody(req);
+    if (!body || !body.nodeId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing nodeId' }));
+      return;
+    }
+    const depth = typeof body.depth === 'number' ? body.depth : 1;
+    const result = _graph.getNeighborhood(body.nodeId, depth);
+    if (!result) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Node '${body.nodeId}' not found` }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+async function handleGraphShortestPath(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const body = await _parseBody(req);
+    if (!body || !body.from || !body.to) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing from or to node ID' }));
+      return;
+    }
+    const result = _graph.shortestPath(body.from, body.to);
+    if (!result) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No path found between the specified nodes' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+async function handleGraphAffected(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const body = await _parseBody(req);
+    if (!body || !body.nodeId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing nodeId' }));
+      return;
+    }
+    const depth = typeof body.depth === 'number' ? body.depth : 1;
+    const result = _graph.getAffected(body.nodeId, depth);
+    if (!result) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Node '${body.nodeId}' not found` }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+async function handleGraphSearch(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const body = await _parseBody(req);
+    if (!body || !body.query || typeof body.query !== 'string') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing query' }));
+      return;
+    }
+    const limit = typeof body.limit === 'number' ? body.limit : 20;
+    const results = _graph.searchNodes(body.query, limit);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ results }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
 }
 
 process.on('SIGTERM', () => { closeDb(); process.exit(0); });

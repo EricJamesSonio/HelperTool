@@ -35,9 +35,11 @@ function _spawn(app) {
     _ready  = false;
 
     const serverPath = _getServerPath();
+    const args = [serverPath, _dbPath, String(_port)];
+    if (_repoPath) args.push(_repoPath);
     _child = spawn(
       process.execPath,
-      [serverPath, _dbPath, String(_port)],
+      args,
       {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,

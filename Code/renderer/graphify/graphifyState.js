@@ -9,6 +9,26 @@ const state = {
   serverStatus: 'stopped',
   serverInfo:   null,
   endpoints:    null,
+  // Knowledge-graph state
+  activeTab:      'search',
+  graphData:      null,
+  graphStats:     null,
+  graphReport:    null,
+  graphCommunities: null,
+  graphLoading:   false,
+  graphError:     null,
+  // Query tools state
+  nodeSearchQuery: '',
+  nodeSearchResults: [],
+  pathFrom: '',
+  pathTo: '',
+  pathResult: null,
+  explainNodeId: '',
+  explainDepth: 1,
+  explainResult: null,
+  affectedNodeId: '',
+  affectedDepth: 1,
+  affectedResult: null,
 };
 
 const _listeners = new Set();
