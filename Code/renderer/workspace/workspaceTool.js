@@ -8,7 +8,7 @@
  *            isWorkspacePanelOpen } from './workspace/workspaceTool.js';
  */
 
-import { loadAll }            from './workspaceStore.js';
+import { loadAll, flushSave } from './workspaceStore.js';
 import { ensurePanel, render, navigateToProject } from './workspaceRenderer.js';
 import { getProjectByRepoPath } from './projectManager.js';
 
@@ -44,6 +44,7 @@ export async function openWorkspacePanel() {
 }
 
 export function closeWorkspacePanel() {
+  flushSave();
   document.getElementById('workspaceContainer')?.classList.remove('open');
   _isOpen = false;
 }

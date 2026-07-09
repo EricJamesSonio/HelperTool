@@ -141,7 +141,10 @@ export function renderAccountList(accounts, results) {
           </div>
           <button class="gm-account-remove" data-email="${escapeHtml(acct.email)}" title="Remove account">${ICONS.trash}</button>
         </div>
-        ${errMsg ? `<div class="gm-error">${escapeHtml(errMsg)}</div>` : ''}
+        ${errMsg ? `<div class="gm-error gm-error--auth">
+          <span>${escapeHtml(errMsg)}</span>
+          <button class="gm-reauth-btn" data-email="${escapeHtml(acct.email)}">Re-authorize</button>
+        </div>` : ''}
       </div>`;
   }).join('');
 }

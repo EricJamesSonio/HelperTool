@@ -63,16 +63,41 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--bg-surface);
+  background: var(--panel-bg, transparent);
   border: 1px solid var(--border-default);
   border-radius: var(--r-md);
   overflow: hidden;
 }
 
+.git-panel-working {
+  --panel-accent: var(--blue);
+  --panel-accent-dim: var(--blue-dim);
+  --panel-accent-glow: rgba(88,166,255,0.20);
+  --panel-accent-border: rgba(88,166,255,0.30);
+  --panel-bg-tint: rgba(88,166,255,0.025);
+  --panel-bg: rgba(88,166,255,0.04);
+}
+.git-panel-staged {
+  --panel-accent: var(--green);
+  --panel-accent-dim: var(--green-dim);
+  --panel-accent-glow: rgba(45,212,176,0.20);
+  --panel-accent-border: rgba(45,212,176,0.30);
+  --panel-bg-tint: rgba(45,212,176,0.025);
+  --panel-bg: rgba(45,212,176,0.04);
+}
+.git-panel-history {
+  --panel-accent: var(--purple);
+  --panel-accent-dim: var(--purple-dim);
+  --panel-accent-glow: rgba(139,92,246,0.20);
+  --panel-accent-border: rgba(139,92,246,0.30);
+  --panel-bg-tint: rgba(139,92,246,0.025);
+  --panel-bg: rgba(139,92,246,0.04);
+}
+
 .panel-header {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-overlay);
+  background: var(--panel-accent-dim);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -97,7 +122,7 @@
   width: 16px;
   height: 16px;
   display: block;
-  color: var(--accent);
+  color: var(--panel-accent, var(--accent));
 }
 
 .panel-title-row {
@@ -132,8 +157,8 @@
 }
 
 .view-tab.active {
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--panel-accent-dim, var(--accent-dim));
+  color: var(--panel-accent, var(--accent));
 }
 
 .panel-count {
@@ -148,6 +173,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  background: var(--panel-bg-tint, transparent);
 }
 
 /* ══ FILE LISTS ══ */
@@ -244,21 +270,21 @@
 }
 
 .btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  color: var(--accent);
+  border-color: var(--panel-accent, var(--accent));
+  background: var(--panel-accent-dim, var(--accent-dim));
+  color: var(--panel-accent, var(--accent));
 }
 
 .btn-primary {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border-color: var(--accent-border);
+  background: var(--panel-accent-dim, var(--accent-dim));
+  color: var(--panel-accent, var(--accent));
+  border-color: var(--panel-accent-border, var(--accent-border));
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-glow);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--panel-accent-glow, var(--accent-glow));
+  border-color: var(--panel-accent, var(--accent));
+  color: var(--panel-accent, var(--accent));
 }
 
 .btn:disabled {
@@ -305,8 +331,8 @@
 }
 
 .btn-icon-small:hover {
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--panel-accent-dim, var(--accent-dim));
+  color: var(--panel-accent, var(--accent));
 }
 
 .btn-icon-small svg {
@@ -413,7 +439,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--panel-accent, var(--accent));
   letter-spacing: 0.3px;
 }
 
@@ -668,15 +694,15 @@
 }
 
 .commit-toggle-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-dim);
+  border-color: var(--panel-accent, var(--accent));
+  color: var(--panel-accent, var(--accent));
+  background: var(--panel-accent-dim, var(--accent-dim));
 }
 
 .commit-toggle-btn.active {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border-color: var(--accent-border);
+  background: var(--panel-accent-dim, var(--accent-dim));
+  color: var(--panel-accent, var(--accent));
+  border-color: var(--panel-accent-border, var(--accent-border));
 }
 
 .toggle-icon {

@@ -56,7 +56,7 @@ export function getPanelTemplate() {
           </div>
           <div class="canvas-toolbar-group">
             <button class="canvas-btn canvas-btn-icon" id="canvasShortcutsBtn" title="Keyboard Shortcuts">⌨️</button>
-            <span class="canvas-zoom-indicator" id="canvasZoomIndicator" title="Click to reset zoom">100%</span>
+            <span class="canvas-zoom-indicator" id="canvasZoomIndicator" title="Click to reset zoom">120%</span>
           </div>
         </div>
         <div class="canvas-main">

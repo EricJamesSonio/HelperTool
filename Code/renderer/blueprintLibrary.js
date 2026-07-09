@@ -10,6 +10,9 @@ let _searchQuery = '';
 let _catFilter = 'code';
 let _kitView = false;
 let _kitItems = { starter: [], medium: [], large: [] };
+let _motherBoxView = false;
+let _motherBoxData = null;
+let _detailModal = null;
 
 const CAT_FILTERS = [
   { id: 'code', label: 'Code' },
@@ -38,12 +41,21 @@ function _esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function _removeModal(m) {
+  if (m && m.parentNode) m.parentNode.removeChild(m);
+}
+
+function _closeDetailModal() {
+  if (_detailModal) { _removeModal(_detailModal); _detailModal = null; }
+}
+
 export function isOpen() { return _open; }
 
 export async function open() {
   if (_open) return;
   if (!_panel) _buildPanel();
   _panel.classList.add('open');
+  _panel.classList.remove('bp-mbox-active', 'bp-kits-active');
   _open = true;
   await _seedIfEmpty();
   _catFilter = 'code';
@@ -53,6 +65,7 @@ export async function open() {
 
 export function close() {
   if (!_open) return;
+  _closeDetailModal();
   _panel.classList.remove('open');
   _open = false;
   _selectedCategory = null;
@@ -73,15 +86,12 @@ function _buildPanel() {
         </div>
       </div>
       <div class="bp-body">
-        <div class="bp-categories" id="bpCategories">
-          <div class="bp-categories-header">
-            <span>Categories</span>
+        <div class="bp-list" id="bpList">
+          <div class="bp-cat-bar" id="bpCatBar">
+            <div class="bp-cat-bar-filter" id="bpCatFilter"></div>
+            <div class="bp-cat-bar-list" id="bpCatList"></div>
             <button class="bp-cat-add-btn" id="bpCatAddBtn" title="New category">+</button>
           </div>
-          <div class="bp-cat-filter" id="bpCatFilter"></div>
-          <div class="bp-cat-list" id="bpCatList"></div>
-        </div>
-        <div class="bp-list" id="bpList">
           <div class="bp-list-header">
             <input type="text" class="bp-search" id="bpSearch" placeholder="Search blueprints\u2026">
             <button class="bp-blueprint-add-btn" id="bpAddBtn">+ New</button>
@@ -89,12 +99,11 @@ function _buildPanel() {
           <div class="bp-view-tabs" id="bpViewTabs">
             <button class="bp-view-tab active" data-view="blueprints">Blueprints</button>
             <button class="bp-view-tab" data-view="kits">Building Kits</button>
+            <button class="bp-view-tab" data-view="motherbox">Mother Box</button>
           </div>
           <div class="bp-blueprint-list" id="bpBlueprintList"></div>
           <div class="bp-kit-grid" id="bpKitGrid" style="display:none"></div>
-        </div>
-        <div class="bp-detail" id="bpDetail">
-          <div class="bp-detail-empty">Select a blueprint to view</div>
+          <div class="bp-motherbox" id="bpMotherBox" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -115,31 +124,52 @@ function _buildPanel() {
 }
 
 function _escHandler(e) {
-  if (e.key === 'Escape' && _open) {
-    if (_editing) { _editing = false; _renderDetail(); return; }
-    close();
+  if (e.key === 'Escape') {
+    if (_detailModal) { _closeDetailModal(); return; }
+    if (_open) {
+      if (_editing) { _editing = false; _showDetailModal(); return; }
+      close();
+    }
   }
 }
 
 function _switchView(view) {
   _kitView = view === 'kits';
+  _motherBoxView = view === 'motherbox';
   const tabs = _panel.querySelectorAll('.bp-view-tab');
   tabs.forEach(t => t.classList.toggle('active', t.dataset.view === view));
-  const list = _panel.querySelector('#bpBlueprintList');
+
+  const bpList = _panel.querySelector('#bpBlueprintList');
   const grid = _panel.querySelector('#bpKitGrid');
+  const motherBox = _panel.querySelector('#bpMotherBox');
   const search = _panel.querySelector('#bpSearch');
   const addBtn = _panel.querySelector('#bpAddBtn');
-  if (_kitView) {
-    list.style.display = 'none';
+  const catBar = _panel.querySelector('#bpCatBar');
+
+  _panel.classList.toggle('bp-mbox-active', _motherBoxView);
+  _panel.classList.toggle('bp-kits-active', _kitView);
+
+  if (_motherBoxView) {
+    bpList.style.display = 'none';
+    grid.style.display = 'none';
+    motherBox.style.display = '';
+    _loadMotherBox();
+  } else if (_kitView) {
+    motherBox.style.display = 'none';
+    bpList.style.display = 'none';
     grid.style.display = '';
-    search.placeholder = 'Search kits\u2026';
+    catBar.style.display = '';
+    search.style.display = 'none';
     addBtn.style.display = 'none';
     _loadKits();
   } else {
+    motherBox.style.display = 'none';
     grid.style.display = 'none';
-    list.style.display = '';
-    search.placeholder = 'Search blueprints\u2026';
+    bpList.style.display = '';
+    catBar.style.display = '';
+    search.style.display = '';
     addBtn.style.display = '';
+    search.placeholder = 'Search blueprints\u2026';
     _loadBlueprints(_selectedCategory?.id);
   }
 }
@@ -177,7 +207,6 @@ async function _loadData() {
     } else {
       _blueprints = [];
       _renderBlueprintList();
-      _renderDetailEmpty();
     }
   } catch (err) {
     console.error('[Blueprint] Load error:', err);
@@ -211,7 +240,6 @@ function _renderCatFilter() {
       } else {
         _blueprints = [];
         _renderBlueprintList();
-        _renderDetailEmpty();
       }
     });
   });
@@ -225,7 +253,7 @@ function _renderCategories() {
 
   list.innerHTML = '';
   if (!filtered.length) {
-    list.innerHTML = '<div class="bp-empty" style="height:auto;padding:20px 8px;font-size:11px">No categories</div>';
+    list.innerHTML = '<div class="bp-empty" style="height:auto;padding:8px 4px;font-size:10px;color:var(--text-faint)">No categories</div>';
     return;
   }
   for (let i = 0; i < filtered.length; i++) _appendCatItem(list, filtered[i], i);
@@ -234,11 +262,8 @@ function _renderCategories() {
 function _appendCatItem(list, cat, idx) {
   const active = _selectedCategory && _selectedCategory.id === cat.id;
   const colorClass = STEP_COLORS[idx % STEP_COLORS.length];
-  const item = _el('div', { className: 'bp-cat-item' + (active ? ' active' : '') + ' ' + colorClass, dataset: { id: cat.id } });
-  item.innerHTML = `
-    <span class="bp-cat-item-name">${_esc(cat.name)}</span>
-    <span class="bp-cat-item-count">${cat.blueprintCount}</span>
-  `;
+  const item = _el('div', { className: 'bp-cat-chip' + (active ? ' active' : '') + ' ' + colorClass, dataset: { id: cat.id } });
+  item.innerHTML = `<span class="bp-cat-chip-name">${_esc(cat.name)}</span><span class="bp-cat-chip-count">${cat.blueprintCount}</span>`;
   item.addEventListener('click', () => _selectCategory(cat));
   item.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -268,7 +293,6 @@ async function _loadBlueprints(categoryId) {
     _blueprints = [];
   }
   _renderBlueprintList();
-  _renderDetailEmpty();
 }
 
 // ── Blueprint list ──
@@ -290,10 +314,9 @@ function _renderBlueprintList() {
   }
   list.innerHTML = '';
   for (const bp of items) {
-    const active = _selectedBlueprint && _selectedBlueprint.id === bp.id;
     const bpCat = _categories.find(c => c.id === bp.categoryId);
     const typeClass = bpCat?.type === 'code' ? 'c-blue' : bpCat?.type === 'structure' ? 'c-purple' : bpCat?.type === 'setup-steps' ? 'c-green' : '';
-    const card = _el('div', { className: 'bp-card' + (active ? ' active' : '') + (typeClass ? ' ' + typeClass : '') });
+    const card = _el('div', { className: 'bp-card' + (typeClass ? ' ' + typeClass : '') });
     const tags = (bp.tags || '').split(',').filter(Boolean);
     card.innerHTML = `
       <div class="bp-card-name">${_esc(bp.name)}</div>
@@ -313,7 +336,7 @@ async function _selectBlueprint(bp) {
     const full = await window.electronAPI.blueprint.getOne(bp.id);
     if (full) _selectedBlueprint = full;
   } catch (_) {}
-  _renderDetail();
+  _showDetailModal();
 }
 
 function _onSearch() {
@@ -321,58 +344,64 @@ function _onSearch() {
   _renderBlueprintList();
 }
 
-// ── Detail view ──
+// ── Detail Modal ──
 
-function _renderDetailEmpty() {
-  _panel.querySelector('#bpDetail').innerHTML = '<div class="bp-detail-empty">Select a blueprint to view</div>';
-}
-
-function _renderDetail() {
-  const el = _panel.querySelector('#bpDetail');
+function _showDetailModal() {
+  _closeDetailModal();
   const bp = _selectedBlueprint;
-  if (!bp) { _renderDetailEmpty(); return; }
+  if (!bp) return;
 
-  if (_editing) {
-    _renderEditMode(el, bp);
-    return;
-  }
+  if (_editing) { _showEditModal(bp); return; }
 
   const cat = _categories.find(c => c.id === bp.categoryId);
-  if (cat?.type === 'setup-steps') { _renderSetupSteps(el, bp); return; }
-
+  const isSetupSteps = cat?.type === 'setup-steps';
   const isStructure = cat?.type === 'structure';
   const tags = (bp.tags || '').split(',').filter(Boolean);
-  const typeLabel = isStructure ? 'Folder Structure' : 'Code Blueprint';
+  const typeLabel = isSetupSteps ? 'Setup Steps' : isStructure ? 'Folder Structure' : 'Code Blueprint';
 
-  el.innerHTML = `
-    <div class="bp-detail-header">
-      <span class="bp-detail-title">${_esc(bp.name)}</span>
-      <span class="bp-detail-actions">
-        <button class="bp-detail-btn primary" id="bpEditBtn">Edit</button>
-        <button class="bp-detail-btn copy" id="bpCopyBtn">Copy Prompt &#8599;</button>
-        <button class="bp-detail-btn danger" id="bpDeleteBtn">Delete</button>
-      </span>
+  const modal = _el('div', { className: 'bp-view-modal' });
+  modal.innerHTML = `
+    <div class="bp-view-modal-box">
+      <div class="bp-view-modal-header">
+        <span class="bp-view-modal-title">${_esc(bp.name)}</span>
+        <div class="bp-view-modal-actions">
+          ${!isSetupSteps ? '<button class="bp-detail-btn primary" data-action="edit">Edit</button>' : ''}
+          ${!isSetupSteps ? '<button class="bp-detail-btn copy" data-action="copy">Copy Prompt &#8599;</button>' : ''}
+          <button class="bp-detail-btn danger" data-action="delete">Delete</button>
+          <button class="bp-detail-btn" data-action="close">&#10005;</button>
+        </div>
+      </div>
+      <div class="bp-view-modal-meta">
+        <span><strong>${_esc(typeLabel)}</strong></span>
+        ${tags.length ? '<span>Tags: ' + tags.map(t => _esc(t.trim())).join(', ') + '</span>' : ''}
+      </div>
+      <div class="bp-view-modal-body${isSetupSteps ? ' bp-steps-content' : ''}">${isSetupSteps ? '' : '<pre class="bp-view-modal-code">' + _esc(bp.pseudoCode || bp.pseudo_code || '') + '</pre>'}</div>
     </div>
-    <div class="bp-detail-meta">
-      <span><strong>${_esc(typeLabel)}</strong></span>
-      ${tags.length ? '<span>Tags: ' + tags.map(t => _esc(t.trim())).join(', ') + '</span>' : ''}
-    </div>
-    <div class="bp-detail-content">${_esc(bp.pseudoCode || bp.pseudo_code || '')}</div>
   `;
 
-  el.querySelector('#bpEditBtn').addEventListener('click', () => { _editing = true; _renderDetail(); });
-  el.querySelector('#bpCopyBtn').addEventListener('click', _copyPrompt);
-  el.querySelector('#bpDeleteBtn').addEventListener('click', _deleteBlueprint);
+  modal.addEventListener('click', (e) => { if (e.target === modal) _closeDetailModal(); });
 
-  // Copy prompt toast
-  const toast = document.getElementById('bpToast');
-  if (toast) toast.remove();
+  modal.querySelector('[data-action="close"]').addEventListener('click', _closeDetailModal);
+  if (!isSetupSteps) {
+    modal.querySelector('[data-action="edit"]').addEventListener('click', () => { _editing = true; _showDetailModal(); });
+    modal.querySelector('[data-action="copy"]').addEventListener('click', _copyPrompt);
+  }
+  modal.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+    _closeDetailModal();
+    await _deleteBlueprint();
+  });
+
+  if (isSetupSteps) {
+    const body = modal.querySelector('.bp-view-modal-body');
+    _renderSetupStepsContent(body, bp);
+  }
+
+  document.body.appendChild(modal);
+  _detailModal = modal;
 }
 
-function _renderSetupSteps(el, bp) {
-  const tags = (bp.tags || '').split(',').filter(Boolean);
+function _renderSetupStepsContent(container, bp) {
   const content = bp.pseudoCode || bp.pseudo_code || '';
-
   const steps = [];
   let currentStep = null;
   const lines = content.split('\n');
@@ -399,25 +428,6 @@ function _renderSetupSteps(el, bp) {
   }
   if (currentStep) steps.push(currentStep);
 
-  el.innerHTML = `
-    <div class="bp-detail-header">
-      <span class="bp-detail-title">${_esc(bp.name)}</span>
-      <span class="bp-detail-actions">
-        <button class="bp-detail-btn primary" id="bpEditBtn">Edit</button>
-        <button class="bp-detail-btn danger" id="bpDeleteBtn">Delete</button>
-      </span>
-    </div>
-    <div class="bp-detail-meta">
-      <span><strong>Setup Steps</strong></span>
-      ${tags.length ? '<span>Tags: ' + tags.map(t => _esc(t.trim())).join(', ') + '</span>' : ''}
-    </div>
-    <div class="bp-steps-content" id="bpStepsContent"></div>
-  `;
-
-  el.querySelector('#bpEditBtn').addEventListener('click', () => { _editing = true; _renderDetail(); });
-  el.querySelector('#bpDeleteBtn').addEventListener('click', _deleteBlueprint);
-
-  const contentEl = el.querySelector('#bpStepsContent');
   for (let si = 0; si < steps.length; si++) {
     const step = steps[si];
     const colorClass = STEP_COLORS[si % STEP_COLORS.length];
@@ -433,10 +443,10 @@ function _renderSetupSteps(el, bp) {
       }
     }
     card.innerHTML = html;
-    contentEl.appendChild(card);
+    container.appendChild(card);
   }
 
-  contentEl.querySelectorAll('.bp-step-copy-btn').forEach(btn => {
+  container.querySelectorAll('.bp-step-copy-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const codeEl = document.getElementById(btn.dataset.codeid);
       if (!codeEl) return;
@@ -450,60 +460,62 @@ function _renderSetupSteps(el, bp) {
   });
 }
 
-function _renderEditMode(el, bp) {
+function _showEditModal(bp) {
+  _closeDetailModal();
   const cats = _categories;
   const currentCatId = bp.categoryId;
 
-  el.innerHTML = `
-    <div class="bp-detail-header">
-      <span class="bp-detail-title">Edit: ${_esc(bp.name)}</span>
-      <span class="bp-detail-actions">
-        <button class="bp-detail-btn primary" id="bpSaveBtn">Save</button>
-        <button class="bp-detail-btn" id="bpCancelBtn">Cancel</button>
-      </span>
-    </div>
-    <div style="flex:1;overflow:auto;padding:16px">
-      <div class="bp-edit-field">
-        <label class="bp-edit-label">Name</label>
-        <input class="bp-edit-input" id="bpEditName" value="${_esc(bp.name)}">
+  const modal = _el('div', { className: 'bp-view-modal' });
+  modal.innerHTML = `
+    <div class="bp-view-modal-box" style="max-width:700px">
+      <div class="bp-view-modal-header">
+        <span class="bp-view-modal-title">Edit: ${_esc(bp.name)}</span>
+        <div class="bp-view-modal-actions">
+          <button class="bp-detail-btn primary" data-action="save">Save</button>
+          <button class="bp-detail-btn" data-action="cancel">Cancel</button>
+        </div>
       </div>
-      <div class="bp-edit-field">
-        <label class="bp-edit-label">Category</label>
-        <select class="bp-edit-select" id="bpEditCategory">${cats.map(c => `<option value="${c.id}" ${c.id === currentCatId ? 'selected' : ''}>${_esc(c.name)}</option>`).join('')}</select>
-      </div>
-      <div class="bp-edit-field">
-        <label class="bp-edit-label">Description</label>
-        <input class="bp-edit-input" id="bpEditDesc" value="${_esc(bp.description || '')}">
-      </div>
-      <div class="bp-edit-field">
-        <label class="bp-edit-label">Tags (comma-separated)</label>
-        <input class="bp-edit-input" id="bpEditTags" value="${_esc(bp.tags || '')}">
-      </div>
-      <div class="bp-edit-field">
-        <label class="bp-edit-label">Blueprint Content</label>
-        <textarea class="bp-edit-textarea" id="bpEditCode">${_esc(bp.pseudoCode || bp.pseudo_code || '')}</textarea>
-      </div>
-      <div class="bp-edit-actions">
-        <button class="bp-detail-btn primary" id="bpSaveBtn2">Save</button>
-        <button class="bp-detail-btn" id="bpCancelBtn2">Cancel</button>
+      <div class="bp-view-modal-body">
+        <div class="bp-edit-field">
+          <label class="bp-edit-label">Name</label>
+          <input class="bp-edit-input" id="bpEditName" value="${_esc(bp.name)}">
+        </div>
+        <div class="bp-edit-field">
+          <label class="bp-edit-label">Category</label>
+          <select class="bp-edit-select" id="bpEditCategory">${cats.map(c => `<option value="${c.id}" ${c.id === currentCatId ? 'selected' : ''}>${_esc(c.name)}</option>`).join('')}</select>
+        </div>
+        <div class="bp-edit-field">
+          <label class="bp-edit-label">Description</label>
+          <input class="bp-edit-input" id="bpEditDesc" value="${_esc(bp.description || '')}">
+        </div>
+        <div class="bp-edit-field">
+          <label class="bp-edit-label">Tags (comma-separated)</label>
+          <input class="bp-edit-input" id="bpEditTags" value="${_esc(bp.tags || '')}">
+        </div>
+        <div class="bp-edit-field">
+          <label class="bp-edit-label">Blueprint Content</label>
+          <textarea class="bp-edit-textarea" id="bpEditCode">${_esc(bp.pseudoCode || bp.pseudo_code || '')}</textarea>
+        </div>
       </div>
     </div>
   `;
 
-  el.querySelector('#bpSaveBtn').addEventListener('click', _saveEdit);
-  el.querySelector('#bpSaveBtn2').addEventListener('click', _saveEdit);
-  el.querySelector('#bpCancelBtn').addEventListener('click', () => { _editing = false; _renderDetail(); });
-  el.querySelector('#bpCancelBtn2').addEventListener('click', () => { _editing = false; _renderDetail(); });
+  modal.addEventListener('click', (e) => { if (e.target === modal) { _editing = false; _closeDetailModal(); } });
+  modal.querySelector('[data-action="save"]').addEventListener('click', () => _saveEdit(modal));
+  modal.querySelector('[data-action="cancel"]').addEventListener('click', () => { _editing = false; _closeDetailModal(); });
+
+  document.body.appendChild(modal);
+  _detailModal = modal;
 }
 
-async function _saveEdit() {
+async function _saveEdit(modal) {
   const bp = _selectedBlueprint;
   if (!bp) return;
-  const name = _panel.querySelector('#bpEditName').value.trim();
-  const categoryId = parseInt(_panel.querySelector('#bpEditCategory').value, 10);
-  const description = _panel.querySelector('#bpEditDesc').value.trim();
-  const tags = _panel.querySelector('#bpEditTags').value.trim();
-  const pseudoCode = _panel.querySelector('#bpEditCode').value;
+  const name = modal.querySelector('#bpEditName').value.trim();
+  const categoryId = parseInt(modal.querySelector('#bpEditCategory').value, 10);
+  const description = modal.querySelector('#bpEditDesc').value.trim();
+  const tags = modal.querySelector('#bpEditTags').value.trim();
+  const pseudoCode = modal.querySelector('#bpEditCode').value;
 
   if (!name || !pseudoCode) return;
 
@@ -512,9 +524,8 @@ async function _saveEdit() {
       id: bp.id, name, description, pseudoCode, tags, categoryId,
     });
     _editing = false;
+    _closeDetailModal();
     await _loadData();
-    _selectedBlueprint = { ...bp, name, description, tags, categoryId, pseudoCode };
-    _renderDetail();
   } catch (err) {
     console.error('[Blueprint] Save error:', err);
   }
@@ -593,6 +604,48 @@ function _showToast(msg) {
   toast.textContent = msg;
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.2s'; setTimeout(() => toast.remove(), 250); }, 1500);
+}
+
+// ── Mother Box Detail Modal ──
+
+function _showMotherBoxDetail(item, tierColor) {
+  _closeDetailModal();
+  const tagHtml = item.tags && item.tags.length
+    ? '<div class="bp-view-modal-meta" style="gap:4px;flex-wrap:wrap">' + item.tags.map(t => '<span class="bp-mbox-tag" style="font-size:10px">' + _esc(t) + '</span>').join('') + '</div>'
+    : '';
+
+  const modal = _el('div', { className: 'bp-view-modal' });
+  modal.innerHTML = `
+    <div class="bp-view-modal-box" style="max-width:600px">
+      <div class="bp-view-modal-header">
+        <span class="bp-view-modal-title">${_esc(item.name)}</span>
+        <div class="bp-view-modal-actions">
+          <button class="bp-detail-btn copy" data-action="copy-detail">Copy</button>
+          <button class="bp-detail-btn" data-action="close">&#10005;</button>
+        </div>
+      </div>
+      <div class="bp-view-modal-body">
+        <div class="bp-mbox-detail-desc">${_esc(item.description)}</div>
+        ${tagHtml}
+      </div>
+    </div>
+  `;
+
+  modal.addEventListener('click', (e) => { if (e.target === modal) _closeDetailModal(); });
+  modal.querySelector('[data-action="close"]').addEventListener('click', _closeDetailModal);
+  modal.querySelector('[data-action="copy-detail"]').addEventListener('click', async () => {
+    const text = item.name + '\n' + item.description + (item.tags?.length ? '\nTags: ' + item.tags.join(', ') : '');
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = modal.querySelector('[data-action="copy-detail"]');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = orig, 1200);
+    } catch {}
+  });
+
+  document.body.appendChild(modal);
+  _detailModal = modal;
 }
 
 // ── New category modal ──
@@ -773,10 +826,88 @@ function _buildKitItemHtml(item, level) {
     <span class="bp-kit-item-name">${_esc(item.name)}</span>
     ${item.description ? '<span class="bp-kit-item-desc">' + _esc(item.description) + '</span>' : ''}
     <span class="bp-kit-item-actions">
-      <button class="bp-kit-item-edit" title="Edit">✎</button>
-      <button class="bp-kit-item-del" title="Delete">✕</button>
+      <button class="bp-kit-item-edit" title="Edit">&#9998;</button>
+      <button class="bp-kit-item-del" title="Delete">&#10005;</button>
     </span>
   </div>`;
+}
+
+// ── Mother Box ──
+
+const TIER_CSS = {
+  bronze: 'c-bronze',
+  silver: 'c-silver',
+  gold: 'c-gold',
+  platinum: 'c-platinum',
+};
+
+async function _loadMotherBox() {
+  try {
+    _motherBoxData = await window.electronAPI.motherbox.get() || [];
+  } catch {
+    _motherBoxData = [];
+  }
+  _renderMotherBox();
+}
+
+function _renderMotherBox() {
+  const el = _panel.querySelector('#bpMotherBox');
+  if (!el) return;
+  if (!_motherBoxData || !_motherBoxData.length) {
+    el.innerHTML = '<div class="bp-empty">No mother box data</div>';
+    return;
+  }
+  el.innerHTML = '';
+  const row = _el('div', { className: 'bp-mbox-row' });
+  for (let ti = 0; ti < _motherBoxData.length; ti++) {
+    const tier = _motherBoxData[ti];
+    const cc = TIER_CSS[tier.color] || 'c-bronze';
+    const col = _el('div', { className: 'bp-mbox-col ' + cc });
+    let totalItems = 0;
+    for (const cat of tier.categories) totalItems += cat.items.length;
+    let catHtml = '';
+    for (const cat of tier.categories) {
+      let itemsHtml = '';
+      for (const item of cat.items) {
+        const tagHtml = item.tags && item.tags.length
+          ? '<span class="bp-mbox-item-tags">' + item.tags.map(t => '<span class="bp-mbox-tag">' + _esc(t) + '</span>').join('') + '</span>'
+          : '';
+        itemsHtml += '<div class="bp-mbox-item ' + cc + '" data-tier="' + _esc(tier.color) + '" data-cat="' + _esc(cat.name) + '" data-idx="' + _esc(item.name) + '">'
+          + '<span class="bp-mbox-item-name">' + _esc(item.name) + '</span>'
+          + '<span class="bp-mbox-item-desc">' + _esc(item.description) + '</span>'
+          + tagHtml
+          + '</div>';
+      }
+      catHtml += '<div class="bp-mbox-cat">'
+        + '<div class="bp-mbox-cat-header">' + _esc(cat.name) + '</div>'
+        + itemsHtml
+        + '</div>';
+    }
+    col.innerHTML = '<div class="bp-mbox-col-header ' + cc + '">'
+      + '<span class="bp-mbox-col-title">' + _esc(tier.label) + '</span>'
+      + '<span class="bp-mbox-col-subtitle">' + _esc(tier.subtitle || '') + '</span>'
+      + '<span class="bp-mbox-col-count">' + totalItems + '</span>'
+      + '</div>'
+      + '<div class="bp-mbox-col-body">' + catHtml + '</div>';
+    row.appendChild(col);
+  }
+  el.appendChild(row);
+
+  el.querySelectorAll('.bp-mbox-item').forEach(itemEl => {
+    itemEl.addEventListener('click', () => {
+      const tierColor = itemEl.dataset.tier;
+      const catName = itemEl.dataset.cat;
+      const itemName = itemEl.dataset.idx;
+      for (const tier of _motherBoxData) {
+        if (tier.color !== tierColor) continue;
+        for (const cat of tier.categories) {
+          if (cat.name !== catName) continue;
+          const found = cat.items.find(i => i.name === itemName);
+          if (found) { _showMotherBoxDetail(found, tierColor); return; }
+        }
+      }
+    });
+  });
 }
 
 // ── Add Kit Item ──

@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { FULL_THEMES, ACCENT_SWATCHES } from './themes.js';
+import { FULL_THEMES, ACCENT_SWATCHES, THEME_ICONS } from './themes.js';
 import { saveAndApply } from './utils.js';
 
 function renderThemeGrid() {
@@ -14,8 +14,9 @@ function renderThemeGrid() {
     const dots = theme.depths.slice(0, 3).map(c =>
       `<span class="theme-card-dot" style="background:${c}"></span>`
     ).join('');
+    const iconPath = THEME_ICONS[id] || 'M10 2a8 8 0 100 16 8 8 0 000-16z';
     card.innerHTML = `
-      <span class="theme-card-emoji">${theme.emoji}</span>
+      <span class="theme-card-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${iconPath}"/></svg></span>
       <span class="theme-card-name">${theme.label}</span>
       <span class="theme-card-dots">${dots}</span>`;
     card.style.background  = theme.bg.elevated;

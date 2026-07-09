@@ -1,0 +1,334 @@
+/* ── Essentials Glossary Overlay ── */
+
+.eg-overlay {
+  position: fixed;
+  inset: 0;
+  top: var(--titlebar-h, 32px);
+  z-index: 9998;
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+.eg-overlay.open {
+  display: flex;
+  opacity: 1;
+  pointer-events: all;
+  visibility: visible;
+}
+.eg-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  overflow: hidden;
+  animation: egFadeIn 0.15s ease-out;
+}
+@keyframes egFadeIn {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Header ── */
+.eg-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--bg-base);
+  min-height: 56px;
+}
+.eg-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eg-header h2 svg { width: 22px; height: 22px; }
+.eg-header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.eg-btn-close {
+  width: 36px; height: 36px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.eg-btn-close:hover {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: var(--red);
+}
+.eg-btn-close svg { width: 20px; height: 20px; }
+
+/* ── Body: sidebar + items ── */
+.eg-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Category sidebar ── */
+.eg-cat-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+  padding: 12px 0;
+  background: var(--bg-base);
+}
+.eg-cat-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.1s;
+  border-right: 2px solid transparent;
+}
+.eg-cat-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.eg-cat-btn.active {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+.eg-cat-btn.active.eg-tier-bronze { border-right-color: #cd7f32; }
+.eg-cat-btn.active.eg-tier-silver { border-right-color: #c0c0c0; }
+.eg-cat-btn.active.eg-tier-gold   { border-right-color: #ffd700; }
+.eg-cat-btn.eg-tier-bronze { border-left: 5px solid #cd7f32; }
+.eg-cat-btn.eg-tier-silver { border-left: 5px solid #c0c0c0; }
+.eg-cat-btn.eg-tier-gold   { border-left: 5px solid #ffd700; }
+.eg-cat-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.eg-term-card.eg-tier-bronze { border-left: 3px solid #cd7f32; }
+.eg-term-card.eg-tier-silver { border-left: 3px solid #c0c0c0; }
+.eg-term-card.eg-tier-gold   { border-left: 3px solid #ffd700; }
+
+.eg-cat-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--bg-raised);
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+
+/* ── Items area ── */
+.eg-items-area {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+.eg-items-header {
+  margin-bottom: 16px;
+}
+.eg-items-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.eg-items-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.eg-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+/* ── Term card ── */
+.eg-term-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.eg-term-card:hover {
+  border-color: var(--border-default);
+  background: var(--bg-hover);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.eg-term-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.eg-term-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.eg-term-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.eg-term-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  color: var(--text-faint);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ── Detail Modal ── */
+.eg-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(4px);
+}
+.eg-detail-box {
+  width: min(560px, 90vw);
+  max-height: 80vh;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: egFadeIn 0.12s ease-out;
+}
+.eg-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.eg-detail-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+.eg-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.eg-detail-copy, .eg-detail-close {
+  width: 32px; height: 32px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.eg-detail-copy:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+.eg-detail-close:hover {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: var(--red);
+}
+.eg-detail-copy svg, .eg-detail-close svg { width: 18px; height: 18px; }
+.eg-detail-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+.eg-detail-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+.eg-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+.eg-detail-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ── Emerald Diamond Navbar Button ── */
+.eg-nav-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--emerald, #10b981);
+  border: 1px solid var(--emerald-border, #059669);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  transition: all 0.15s;
+  outline: none;
+}
+.eg-nav-btn:hover {
+  background: var(--emerald-hover, #059669);
+  border-color: transparent;
+  filter: brightness(1.15);
+}
+.eg-nav-btn svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+body.feat-no-essentials-glossary .eg-nav-btn {
+  display: none;
+}

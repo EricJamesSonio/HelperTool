@@ -39,6 +39,7 @@ const workerProxy = require('./ipc/workerProxy.js');
 const opencodeIpc = require('./ipc/opencode_ipc.js');
 const geminiIpc = require('./ipc/gemini_ipc.js');
 const codebaseMapIpc = require('./ipc/codebaseMap_ipc.js');
+const graphifyIpc = require('./ipc/graphify_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { initChatDb, closeChatDb } = require('./database/chatDb.js');
@@ -170,6 +171,7 @@ function registerAllIpc() {
     opencodeIpc.register(shared);
     geminiIpc.register();
     codebaseMapIpc.register();
+    graphifyIpc.register({ app });
 }
 
 // ----------------------------
@@ -316,4 +318,5 @@ function cleanupAndExit(deleteIndex) {
     try { require('./ipc/prefetchService.js').stop(); } catch (_) {}
     try { workerProxy.stop(); } catch (_) {}
     try { indexerProxy.stop(); } catch (_) {}
+    try { graphifyIpc.shutdown(); } catch (_) {}
 }

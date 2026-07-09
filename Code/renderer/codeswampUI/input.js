@@ -6,6 +6,7 @@ import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
 import { openStonePanel } from './stonePanel.js';
 import { openPlanningPanel } from './planningPanel.js';
+import { openBuildKitPanel } from './buildKitPanel.js';
 import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
 
 function extractFilePathsFromText(text) {
@@ -47,6 +48,7 @@ export function renderInput() {
       <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">Ticket</button>
       <button class="oc-btn oc-btn-stone" id="ocStoneBtn" title="Infinity Stones">Stones</button>
       <button class="oc-btn oc-btn-planning" id="ocPlanningBtn" title="Plans">Plan</button>
+      <button class="oc-btn oc-btn-kit" id="ocKitBtn" title="Build Kits">Kit</button>
     </div>
     <div class="oc-input-actions">
       <button class="oc-btn oc-btn-mode plan" id="ocModeBtn">Plan</button>
@@ -62,6 +64,7 @@ export function renderInput() {
   const ticketBtn = document.getElementById('ocTicketBtn');
   const stoneBtn = document.getElementById('ocStoneBtn');
   const planningBtn = document.getElementById('ocPlanningBtn');
+  const kitBtn = document.getElementById('ocKitBtn');
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';
@@ -122,6 +125,7 @@ export function renderInput() {
   ticketBtn.addEventListener('click', openTicketPanel);
   stoneBtn.addEventListener('click', openStonePanel);
   planningBtn.addEventListener('click', openPlanningPanel);
+  kitBtn.addEventListener('click', openBuildKitPanel);
 }
 
 function renderPendingFiles() {

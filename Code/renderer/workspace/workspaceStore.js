@@ -49,8 +49,33 @@ export async function saveAll() {
       globalLogs: state.globalLogs,
     });
     if (!result) console.error('[WorkspaceStore] ❌ Save returned false');
+    _dirty = false;
   } catch (err) {
     console.error('[WorkspaceStore] ❌ Save failed:', err);
+  }
+}
+
+// ─── Debounced autosave ────────────────────────────────────────────────────────
+
+let _dirty = false;
+let _saveTimer = null;
+
+export function markDirty() {
+  _dirty = true;
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    await saveAll();
+    _saveTimer = null;
+  }, 800);
+}
+
+export async function flushSave() {
+  if (_saveTimer) {
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+  }
+  if (_dirty) {
+    await saveAll();
   }
 }
 

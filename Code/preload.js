@@ -253,6 +253,9 @@ const blueprintBridge = {
     reorder:          (data)             => ipcRenderer.invoke('kit:reorder', data),
     getTypes:         ()                 => ipcRenderer.invoke('kit:getTypes'),
   },
+  motherbox: {
+    get:              ()                 => ipcRenderer.invoke('motherbox:get'),
+  },
 };
 
 const profileBridge = {
@@ -405,6 +408,7 @@ const videoBridge = {
 const gmailBridge = {
     gmail: {
         addAccount:         ()                 => ipcRenderer.invoke('gmail:addAccount'),
+        reAuthAccount:      (payload)          => ipcRenderer.invoke('gmail:reAuthAccount', payload),
         removeAccount:      (payload)          => ipcRenderer.invoke('gmail:removeAccount', payload),
         listAccounts:       ()                 => ipcRenderer.invoke('gmail:listAccounts'),
         fetchMessages:      (payload)          => ipcRenderer.invoke('gmail:fetchMessages', payload),
@@ -520,6 +524,15 @@ const codebaseMapBridge = {
   },
 };
 
+const graphifyBridge = {
+  graphifyStart:   (repoPath) => ipcRenderer.invoke('graphify:start', repoPath),
+  graphifyStop:    ()          => ipcRenderer.invoke('graphify:stop'),
+  graphifyRestart: (repoPath) => ipcRenderer.invoke('graphify:restart', repoPath),
+  graphifyStatus:  ()          => ipcRenderer.invoke('graphify:status'),
+  graphifyGetPort: ()          => ipcRenderer.invoke('graphify:getPort'),
+  graphifyGetInfo: ()          => ipcRenderer.invoke('graphify:getInfo'),
+};
+
 contextBridge.exposeInMainWorld('envAPI', envBridge);
 
 // Expose everything to the renderer
@@ -547,6 +560,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...codebaseChatBridge,
     ...chatGmailBridge,
     ...codebaseMapBridge,
+    ...graphifyBridge,
     ...automationBridge,
     ...imageBridge,
     ...videoBridge,

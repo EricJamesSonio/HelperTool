@@ -22,6 +22,7 @@ export default class GmailUI {
     this._onOpenModal = null;
     this._onCloseModal = null;
     this._onOpenMessage = null;
+    this._onReAuthAccount = null;
   }
 
   setCallbacks(cbs) {
@@ -42,6 +43,7 @@ export default class GmailUI {
     this._onOpenModal = cbs.onOpenModal || null;
     this._onCloseModal = cbs.onCloseModal || null;
     this._onOpenMessage = cbs.onOpenMessage || null;
+    this._onReAuthAccount = cbs.onReAuthAccount || null;
   }
 
   render(container) {
@@ -127,7 +129,16 @@ export default class GmailUI {
       });
     });
 
+    this._container.querySelectorAll('.gm-reauth-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this._onReAuthAccount) this._onReAuthAccount(btn.dataset.email);
+      });
+    });
+
     this._container.querySelectorAll('.gm-account').forEach(card => {
+      // Don't open inbox for accounts with auth errors
+      if (card.querySelector('.gm-error--auth')) return;
       card.addEventListener('click', (e) => {
         if (e.target.closest('.gm-account-remove')) return;
         if (this._onOpenInbox) this._onOpenInbox(card.dataset.email);

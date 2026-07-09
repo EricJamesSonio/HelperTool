@@ -1,8 +1,10 @@
-import { U, panel, closeBtn, inputArea, previewArea, renderBtn, copyBtn,
-  presetsList, errorDisplay, charCount, assignRefs } from './state.js';
+import { U, panel, closeBtn, previewArea, renderBtn, copyBtn,
+  presetsList, errorDisplay, vbCanvas, clearBtn, vbToolbar,
+  exportBtn, importBtn, assignRefs } from './state.js';
 import { getTemplate } from './template.js';
 import { parseAndRender } from './dslParser.js';
 import { PRESETS } from './presets.js';
+import { renderVisualBuilder, loadDSL, getTree, toDSL, addNode, setOnChange, startPaletteDrag } from './visualBuilder.js';
 
 let _initialized = false;
 
@@ -15,6 +17,7 @@ function setup() {
   assignRefs();
   wireEvents();
   renderPresets();
+  renderToolbar();
 }
 
 function injectHTML() {
@@ -32,23 +35,61 @@ function wireEvents() {
 
   renderBtn.addEventListener('click', handleRender);
 
-  inputArea.addEventListener('input', () => {
-    U.rawInput = inputArea.value;
-    charCount.textContent = `${inputArea.value.length} chars`;
-  });
-
-  inputArea.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      handleRender();
-    }
-  });
-
   copyBtn.addEventListener('click', handleCopy);
+
+  clearBtn.addEventListener('click', () => {
+    loadDSL(null);
+    previewArea.textContent = 'Visual builder ready — add components or load a preset, then click Render';
+    errorDisplay.style.display = 'none';
+    U.renderedOutput = '';
+    U.currentDSL = null;
+  });
+
+  exportBtn.addEventListener('click', handleExport);
+  importBtn.addEventListener('click', handleImport);
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isOpen()) closeUI();
   });
+}
+
+/* ── Palette (drag sources) ─────────────────────────────── */
+
+function renderToolbar() {
+  vbToolbar.innerHTML = '';
+  const types = [
+    { type: 'box', icon: '▣', label: 'Box', color: '#60a5fa' },
+    { type: 'hsplit', icon: '⇔', label: 'HSplit', color: '#34d399' },
+    { type: 'vsplit', icon: '⇕', label: 'VSplit', color: '#a78bfa' },
+    { type: 'label', icon: 'Aa', label: 'Label', color: '#fbbf24' },
+    { type: 'spacer', icon: '⋯', label: 'Spacer', color: '#6b7280' },
+  ];
+  types.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'ulh-vb-palette-btn';
+    btn.draggable = true;
+    btn.style.setProperty('--vb-color', t.color);
+    btn.innerHTML = `<span class="ulh-vb-palette-icon" style="color:${t.color}">${t.icon}</span> ${t.label}`;
+
+    btn.addEventListener('dragstart', (e) => {
+      startPaletteDrag(t.type, e);
+    });
+
+    btn.addEventListener('click', () => {
+      if (!getTree()) {
+        loadDSL({ type: 'box', border: 'single', label: 'Root', minWidth: 40, children: [] });
+      }
+      const selId = _getSelectedId();
+      addNode(t.type, selId || (getTree()?.id || null));
+    });
+
+    vbToolbar.appendChild(btn);
+  });
+}
+
+function _getSelectedId() {
+  const sel = document.querySelector('.vb-shape--sel');
+  return sel ? sel.dataset.nid : null;
 }
 
 /* ── Presets ─────────────────────────────────────────────── */
@@ -68,22 +109,26 @@ function renderPresets() {
 }
 
 function loadPreset(preset) {
-  const json = JSON.stringify(preset.dsl, null, 2);
-  inputArea.value = json;
-  U.rawInput = json;
-  charCount.textContent = `${json.length} chars`;
+  loadDSL(preset.dsl);
   U.selectedPreset = preset.name;
-  handleRender();
+  previewArea.textContent = 'Rendering...';
+  errorDisplay.style.display = 'none';
+  U.renderedOutput = '';
+  U.currentDSL = null;
+  setTimeout(handleRender, 50);
 }
 
 /* ── Render ──────────────────────────────────────────────── */
 
 function handleRender() {
-  const raw = inputArea.value.trim();
-  if (!raw) {
-    showError('Enter a layout definition to render');
+  const dsl = toDSL();
+  if (!dsl) {
+    showError('Add at least one component to render');
     return;
   }
+
+  const raw = JSON.stringify(dsl, null, 2);
+  U.rawInput = raw;
 
   const result = parseAndRender(raw);
   if (!result.valid) {
@@ -98,11 +143,52 @@ function handleRender() {
   previewArea.textContent = result.output;
 }
 
+/* ── Import / Export ──────────────────────────────────────── */
+
+function handleExport() {
+  const dsl = toDSL();
+  if (!dsl) { showError('Nothing to export'); return; }
+  const json = JSON.stringify(dsl, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'layout.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function handleImport() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const dsl = JSON.parse(e.target.result);
+        if (!dsl || !dsl.type) throw new Error('Invalid DSL');
+        loadDSL(dsl);
+        previewArea.textContent = 'Layout imported — click Render to generate ASCII';
+        errorDisplay.style.display = 'none';
+        U.renderedOutput = '';
+        U.currentDSL = null;
+      } catch (err) {
+        showError('Import failed: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
 /* ── Clipboard ───────────────────────────────────────────── */
 
 function handleCopy() {
   const text = previewArea.textContent;
-  if (!text || text === 'Render a layout to see it here...') return;
+  if (!text || text.startsWith('Visual builder') || text.startsWith('Preset loaded')) return;
 
   navigator.clipboard.writeText(text).then(() => {
     copyBtn.textContent = 'Copied!';
@@ -137,11 +223,11 @@ export function initUI() {
 export function openUI() {
   setup();
   panel.classList.add('ulh-visible');
-  if (!U.rawInput) {
-    inputArea.value = '';
-    charCount.textContent = '0 chars';
-  }
-  inputArea.focus();
+  renderVisualBuilder(document.getElementById('ulhVbCanvas'));
+  setOnChange(() => {
+    previewArea.textContent = 'Modified — click Render to update';
+    errorDisplay.style.display = 'none';
+  });
 }
 
 export function closeUI() {

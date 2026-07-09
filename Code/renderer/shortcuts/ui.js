@@ -21,6 +21,7 @@ const ICONS = {
     docker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></svg>',
     env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><circle cx="10" cy="12" r="1"/><path d="M10 13v2"/></svg>',
     chat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="10" cy="9" r="1.5"/><circle cx="6" cy="9" r="1.5"/><circle cx="14" cy="9" r="1.5"/></svg>',
+    graphify: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/><path d="M4 3h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M4 9h8a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z"/></svg>',
 };
 
 const FEATURES = [
@@ -51,6 +52,8 @@ const FEATURES = [
       { id: 'codeswampChat',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',name: 'Code Swamp' },
       { id: 'codebaseMap',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/><line x1="9" y1="6" x2="11" y2="6"/><line x1="6" y1="9" x2="6" y2="11"/><line x1="14" y1="9" x2="14" y2="11"/><line x1="9" y1="14" x2="11" y2="14"/></svg>',name: 'Codebase Map' },
       { id: 'uiLayoutHelper',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="8" y1="7" x2="8" y2="18"/><line x1="2" y1="13" x2="18" y2="13"/><line x1="14" y1="7" x2="14" y2="18"/></svg>',name: 'UI Layout Helper' },
+      { id: 'essentialsGlossary',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 6l8 4 8-4L10 2z"/><path d="M2 14l8 4 8-4"/><path d="M2 10l8 4 8-4"/></svg>',name: 'SE Essentials' },
+      { id: 'graphify',icon: ICONS.graphify,name: 'Graphify' },
 ];
 
 let _modal = null;
@@ -84,10 +87,32 @@ function openConfig(enabledFeats) {
 
   const table = _modal.querySelector('#shortcutsTable');
   const enabled = enabledFeats || {};
+  const visible = [];
   FEATURES.forEach(function (f) {
     if (enabled.hasOwnProperty(f.id) && !enabled[f.id]) return;
-    table.appendChild(buildRow(f));
+    visible.push(f);
   });
+
+  const cols = Math.max(1, Math.ceil(visible.length / 10));
+  const modalEl = _modal.querySelector('.shortcuts-modal');
+  modalEl.style.maxWidth = 'none';
+  modalEl.style.width = Math.min(cols * 400 + 40, window.innerWidth - 16) + 'px';
+
+  table.style.display = 'flex';
+  table.style.flexDirection = 'row';
+  table.style.gap = '28px';
+  table.style.alignItems = 'flex-start';
+
+  for (let c = 0; c < cols; c++) {
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;flex-direction:column;flex:1;min-width:0';
+    const start = c * 10;
+    const end = Math.min(start + 10, visible.length);
+    for (let i = start; i < end; i++) {
+      col.appendChild(buildRow(visible[i]));
+    }
+    table.appendChild(col);
+  }
 
   _docListener = function (e) {
     if (!_capturingId) return;

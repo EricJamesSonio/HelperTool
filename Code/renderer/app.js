@@ -72,6 +72,7 @@ import { getPrefetchCache } from './app_manager/prefetchManager.js';
 import { init as initServiceTracker } from './serviceTracker.js';
 
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
+import * as essentialsGlossary from './essentialsGlossary.js';
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
@@ -231,6 +232,15 @@ notesBtn.addEventListener('click', () => {
     } else {
         closeAllPanels();
         sessionNotes.openSessionNotes();
+    }
+});
+
+document.getElementById('essentialsBtn')?.addEventListener('click', () => {
+    if (essentialsGlossary.isOpen()) {
+        essentialsGlossary.close();
+    } else {
+        closeAllPanels();
+        essentialsGlossary.open();
     }
 });
 

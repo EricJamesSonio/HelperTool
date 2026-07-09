@@ -4,7 +4,7 @@
  * All UI rendering. No business logic — imports managers for data/mutations.
  */
 
-import { state, genId }                                           from './workspaceStore.js';
+import { state, genId, markDirty }                                from './workspaceStore.js';
 import { getAllProjects, createProject, updateProject, deleteProject,
          assignWorkerToProject, removeWorkerFromProject,
          PROJECT_STATUSES, getProjectById, getProjectByRepoPath }                       from './projectManager.js';
@@ -14,6 +14,10 @@ import { getTicketsByProject, createTicket, updateTicket,
          updateTicketStatus, deleteTicket, TICKET_STATUSES,
          TICKET_PRIORITIES, STATUS_COLORS, PRIORITY_COLORS }      from './ticketManager.js';
 import { confirmDialog }                                          from '../utils/confirmDialog.js';
+import { toggleItem, addKit, addItemToKit, removeKit,
+         removeItem, updateItemDetails, getKitProgress,
+         isItemChecked, getItemPrompt, getStageMeta,
+         ensureDefaultKits }                                    from './buildKitManager.js';
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 
@@ -35,6 +39,9 @@ const ICON_GEAR = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" st
 const ICON_BACK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10H5"/><path d="m10 5-5 5 5 5"/></svg>';
 const ICON_REMOVE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
 const ICON_REPO = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10"/><path d="M10 17V3"/><path d="M6 7h4"/><path d="M6 11h4"/></svg>';
+const ICON_CHECKLIST = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 10l2 2 4-4"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
+const ICON_DASH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 10h10"/></svg>';
 
 // ─── Nav state ────────────────────────────────────────────────────────────────
 
@@ -559,6 +566,7 @@ function _renderProjectDetails(body) {
     { key: 'folders',  label: `${ICON_FOLDER_OPEN} Folders`   },
     { key: 'plannings', label: `${ICON_PLANNING} Plannings` },
     { key: 'stones', label: '💎 Infinity Stones' },
+    { key: 'buildkits', label: `${ICON_CHECKLIST} Build Kits` },
     { key: 'logs',      label: `${ICON_LOGS} Logs`     },
     { key: 'repo',      label: `${ICON_REPO} Repo`      },
   ];
@@ -586,6 +594,7 @@ function _renderProjectDetails(body) {
     case 'folders':  _renderTabFolders(content);      break;
     case 'plannings': _renderTabPlannings(content);   break;
     case 'stones':    _renderTabStones(content);      break;
+    case 'buildkits': _renderTabBuildKits(content);   break;
     case 'logs':      _renderTabProjectLogs(content); break;
     case 'repo':      _renderTabRepo(content);         break;
     
@@ -1075,6 +1084,10 @@ function _renderTabPlannings(el) {
     titleInput.value = selectedNote.title || '';
     titleInput.placeholder = 'Note title...';
     titleInput.style.cssText = 'font-size:1rem;font-weight:600;padding:10px 14px;flex:1;';
+    titleInput.addEventListener('input', () => {
+      selectedNote.title = titleInput.value;
+      markDirty();
+    });
     rightHeader.appendChild(titleInput);
 
     const delBtn = document.createElement('button');
@@ -1095,21 +1108,11 @@ function _renderTabPlannings(el) {
     textarea.className = 'ws-fullheight-textarea';
     textarea.value = selectedNote.content || '';
     textarea.placeholder = 'Write your planning notes...';
-    right.appendChild(textarea);
-
-    const footer = document.createElement('div');
-    footer.style.cssText = 'display:flex;justify-content:flex-end;flex-shrink:0;';
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = 'Save';
-    saveBtn.className = 'workspace-btn-add';
-    saveBtn.addEventListener('click', () => {
-      selectedNote.title = titleInput.value;
+    textarea.addEventListener('input', () => {
       selectedNote.content = textarea.value;
-      updateProject(p.id, { planningNotes: p.planningNotes });
-      render();
+      markDirty();
     });
-    footer.appendChild(saveBtn);
-    right.appendChild(footer);
+    right.appendChild(textarea);
   } else {
     const empty = document.createElement('div');
     empty.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-secondary,#a0b0d8);font-size:0.9rem;';
@@ -1218,6 +1221,314 @@ function _openStoneModal(project, stone) {
 
   // Focus textarea
   requestAnimationFrame(() => textarea.focus());
+}
+
+// ── Tab: Build Kits ───────────────────────────────────────────────────────
+
+const KIT_PALETTE = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#c0c0c0', '#a78bfa'];
+
+function _renderTabBuildKits(el) {
+  const p = _selectedProject;
+  ensureDefaultKits(p);
+  if (!Array.isArray(p.buildKits)) p.buildKits = [];
+
+  el.replaceChildren();
+
+  // ── Toolbar ──
+  const toolbar = document.createElement('div');
+  toolbar.className = 'ws-bk-toolbar';
+  let allDone = 0; let allTotal = 0;
+  for (const kit of p.buildKits) {
+    const { done, total } = getKitProgress(kit);
+    allDone += done; allTotal += total;
+  }
+  const pct = allTotal > 0 ? Math.round((allDone / allTotal) * 100) : 0;
+  toolbar.innerHTML = `
+    <div class="ws-bk-toolbar-left">
+      <button class="workspace-btn-add" id="bkAddKitBtn">${ICON_PLUS} Add Kit</button>
+    </div>
+    <div class="ws-bk-toolbar-summary">
+      <div class="ws-bk-toolbar-progress"><div class="ws-bk-toolbar-progress-bar" style="width:${pct}%"></div></div>
+      <span class="ws-bk-summary-pct">${pct}%</span>
+      <span class="ws-bk-summary-frac">${allDone}/${allTotal}</span>
+    </div>
+  `;
+  el.appendChild(toolbar);
+
+  toolbar.querySelector('#bkAddKitBtn').addEventListener('click', () => {
+    const name = prompt('Kit name:');
+    if (!name?.trim()) return;
+    const desc = prompt('Description (optional):') || '';
+    addKit(p, { name: name.trim(), description: desc, items: [] });
+    updateProject(p.id, { buildKits: p.buildKits });
+    _renderTabBuildKits(el);
+  });
+
+  // ── Flow rows ──
+  const flow = document.createElement('div');
+  flow.className = 'ws-bk-flow';
+
+  for (let i = 0; i < p.buildKits.length; i++) {
+    const kit = p.buildKits[i];
+    if (!kit.color) kit.color = KIT_PALETTE[i % KIT_PALETTE.length];
+    flow.appendChild(_buildFlowRow(p, kit, el));
+  }
+
+  el.appendChild(flow);
+}
+
+function _buildFlowRow(project, kit, parentEl) {
+  const { done, total } = getKitProgress(kit);
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  const row = document.createElement('div');
+  row.className = 'ws-bk-flow-row';
+  row.style.setProperty('--bk-color', kit.color);
+
+  // ── Left: parent box ──
+  const left = document.createElement('div');
+  left.className = 'ws-bk-flow-parent';
+  const catBadge = kit.category === 'frontend'
+    ? '<span class="ws-bk-cat-badge ws-bk-cat-fe">FRONTEND</span>'
+    : kit.category === 'backend'
+      ? '<span class="ws-bk-cat-badge ws-bk-cat-be">BACKEND</span>'
+      : '';
+  left.innerHTML = `
+    <div class="ws-bk-flow-parent-header">
+      <div class="ws-bk-flow-parent-title">${_esc(kit.name)}</div>
+      <button class="ws-bk-flow-remove" title="Remove kit">${ICON_REMOVE}</button>
+    </div>
+    ${catBadge ? '<div class="ws-bk-cat-row">' + catBadge + '</div>' : ''}
+    <div class="ws-bk-flow-parent-desc">${_esc(kit.description)}</div>
+    <div class="ws-bk-flow-parent-progress">
+      <div class="ws-bk-progress-wrap"><div class="ws-bk-progress-bar" style="width:${pct}%"></div></div>
+      <span class="ws-bk-progress-label">${done}/${total}</span>
+    </div>
+  `;
+  row.appendChild(left);
+
+  left.querySelector('.ws-bk-flow-remove').addEventListener('click', async () => {
+    const ok = await confirmDialog(`Remove kit "${kit.name}" and all its items?`);
+    if (!ok) return;
+    removeKit(project, kit.id);
+    updateProject(project.id, { buildKits: project.buildKits });
+    _renderTabBuildKits(parentEl);
+  });
+
+  // ── Connector line ──
+  const connector = document.createElement('div');
+  connector.className = 'ws-bk-flow-connector';
+  row.appendChild(connector);
+
+  // ── Right: items grid ──
+  const right = document.createElement('div');
+  right.className = 'ws-bk-flow-items';
+
+  if (kit.items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'ws-bk-flow-empty';
+    empty.textContent = 'No items';
+    right.appendChild(empty);
+  } else {
+    for (const item of kit.items) {
+      right.appendChild(_buildFlowItemCard(project, kit, item, parentEl));
+    }
+  }
+
+  row.appendChild(right);
+  return row;
+}
+
+function _buildFlowItemCard(project, kit, item, parentEl) {
+  const checked = isItemChecked(item);
+  const hasChildren = item.children && item.children.length > 0;
+  const allChecked = hasChildren && item.children.every(c => isItemChecked(c));
+  const partial = hasChildren && !allChecked && item.children.some(c => isItemChecked(c));
+
+  const card = document.createElement('div');
+  card.className = 'ws-bk-flow-card' + (checked ? ' ws-bk-flow-card--done' : '');
+
+  // ── Top row: checkbox + name + remove ──
+  const topRow = document.createElement('div');
+  topRow.className = 'ws-bk-flow-card-top';
+
+  const checkLabel = document.createElement('label');
+  checkLabel.className = 'ws-bk-check' + (checked ? ' ws-bk-check--on' : '') + (partial ? ' ws-bk-check--partial' : '');
+  checkLabel.innerHTML = `
+    <input type="checkbox" ${checked ? 'checked' : ''} data-item-id="${item.id}" ${hasChildren ? 'disabled' : ''} />
+    <span class="ws-bk-check-visual">${checked ? ICON_CHECK : partial ? ICON_DASH : ''}</span>
+  `;
+  checkLabel.querySelector('input').addEventListener('change', () => {
+    toggleItem(project, kit.id, item.id);
+    updateProject(project.id, { buildKits: project.buildKits });
+    _renderTabBuildKits(parentEl);
+  });
+  topRow.appendChild(checkLabel);
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'ws-bk-flow-card-name';
+  nameEl.textContent = item.name;
+  nameEl.addEventListener('click', () => _openBkDetailModal(project, kit, item.id, parentEl));
+  topRow.appendChild(nameEl);
+
+  const stageMeta = item.stage && getStageMeta(item.stage);
+  if (stageMeta) {
+    const stageBadge = document.createElement('span');
+    stageBadge.className = 'ws-bk-stage-badge';
+    stageBadge.textContent = stageMeta.label;
+    stageBadge.style.setProperty('--stage-color', stageMeta.color);
+    stageBadge.title = stageMeta.desc;
+    topRow.appendChild(stageBadge);
+  }
+
+  if (!hasChildren) {
+    const delBtn = document.createElement('button');
+    delBtn.className = 'ws-bk-flow-card-remove';
+    delBtn.innerHTML = ICON_DELETE;
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeItem(project, kit.id, item.id);
+      updateProject(project.id, { buildKits: project.buildKits });
+      _renderTabBuildKits(parentEl);
+    });
+    topRow.appendChild(delBtn);
+  }
+
+  card.appendChild(topRow);
+
+  // ── Desc ──
+  const desc = document.createElement('div');
+  desc.className = 'ws-bk-flow-card-desc';
+  desc.textContent = item.description || '';
+  card.appendChild(desc);
+
+  // ── Children pills with checkboxes ──
+  if (hasChildren && item.children.length > 0) {
+    const pills = document.createElement('div');
+    pills.className = 'ws-bk-flow-card-pills';
+    for (const child of item.children) {
+      const pill = document.createElement('div');
+      pill.className = 'ws-bk-flow-pill' + (child.checked ? ' ws-bk-flow-pill--done' : '');
+      pill.innerHTML = `
+        <label class="ws-bk-pill-check">
+          <input type="checkbox" ${child.checked ? 'checked' : ''} data-item-id="${child.id}" data-kit-id="${kit.id}" class="ws-bk-pill-input" />
+          <span>${child.checked ? ICON_CHECK : ''}</span>
+        </label>
+        <span class="ws-bk-pill-name">${_esc(child.name)}</span>
+        <button class="ws-bk-pill-detail" title="View details">⋮</button>
+      `;
+      pill.querySelector('input').addEventListener('change', () => {
+        toggleItem(project, kit.id, child.id);
+        updateProject(project.id, { buildKits: project.buildKits });
+        _renderTabBuildKits(parentEl);
+      });
+      pill.querySelector('.ws-bk-pill-name').addEventListener('click', (e) => {
+        e.stopPropagation();
+        _openBkDetailModal(project, kit, child.id, parentEl);
+      });
+      pill.querySelector('.ws-bk-pill-detail').addEventListener('click', (e) => {
+        e.stopPropagation();
+        _openBkDetailModal(project, kit, child.id, parentEl);
+      });
+      pills.appendChild(pill);
+    }
+
+    const addPill = document.createElement('button');
+    addPill.className = 'ws-bk-flow-add-pill';
+    addPill.textContent = '+';
+    addPill.title = 'Add child item';
+    addPill.addEventListener('click', () => {
+      const name = prompt('Child item name:');
+      if (!name?.trim()) return;
+      const desc2 = prompt('Description (optional):') || '';
+      const details = prompt('Implementation details (optional):') || '';
+      addItemToKit(project, kit.id, item.id, { name: name.trim(), description: desc2, details, checked: false });
+      updateProject(project.id, { buildKits: project.buildKits });
+      _renderTabBuildKits(parentEl);
+    });
+    pills.appendChild(addPill);
+
+    card.appendChild(pills);
+  }
+
+  return card;
+}
+
+function _openBkDetailModal(project, kit, itemId, parentEl) {
+  const item = _findBkItem(kit, itemId);
+  if (!item) return;
+
+  const promptText = getItemPrompt(item);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'workspace-modal-overlay';
+  overlay.innerHTML = `
+    <div class="workspace-modal ws-bk-modal">
+      <div class="workspace-modal-header">
+        <h2>${_esc(item.name)}</h2>
+        <button class="workspace-modal-close">${ICON_REMOVE}</button>
+      </div>
+      <div class="workspace-modal-form">
+        <div class="workspace-form-group">
+          <label>Description</label>
+          <p class="ws-bk-modal-desc">${_esc(item.description || 'No description')}</p>
+          <label style="margin-top:16px">Implementation Details</label>
+          <textarea id="bkDetailText" class="workspace-textarea ws-bk-modal-textarea" rows="8" placeholder="Where to place this, implementation guidance, code examples...">${_esc(item.details || '')}</textarea>
+        </div>
+        <div class="ws-bk-modal-prompt-column">
+          <label>AI Prompt <span class="ws-prompt-badge">copy-ready</span></label>
+          <div class="ws-bk-modal-prompt-box">
+            <pre class="ws-bk-modal-prompt-text">${_esc(promptText)}</pre>
+            <button class="workspace-btn-add ws-copy-prompt-btn">Copy Prompt</button>
+          </div>
+        </div>
+      </div>
+      <div class="workspace-modal-footer">
+        <button class="workspace-btn-cancel ws-modal-cancel-btn">Cancel</button>
+        <button class="workspace-btn-add ws-modal-save-btn">Save Details</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('.workspace-modal-close').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('.ws-modal-cancel-btn').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  overlay.querySelector('.ws-modal-save-btn').addEventListener('click', () => {
+    const details = overlay.querySelector('#bkDetailText').value;
+    updateItemDetails(project, kit.id, itemId, details);
+    updateProject(project.id, { buildKits: project.buildKits });
+    overlay.remove();
+  });
+
+  const copyBtn = overlay.querySelector('.ws-copy-prompt-btn');
+  copyBtn.addEventListener('click', function() {
+    navigator.clipboard.writeText(promptText).then(function() {
+      var orig = copyBtn.textContent;
+      copyBtn.textContent = 'Copied!';
+      copyBtn.style.background = 'var(--green, #22c55e)';
+      setTimeout(function() {
+        copyBtn.textContent = orig;
+        copyBtn.style.background = '';
+      }, 2000);
+    }).catch(function() {
+      copyBtn.textContent = 'Copy failed';
+      setTimeout(function() { copyBtn.textContent = 'Copy Prompt'; }, 2000);
+    });
+  });
+}
+
+function _findBkItem(kit, itemId) {
+  for (const item of kit.items || []) {
+    if (item.id === itemId) return item;
+    if (item.children) {
+      const found = item.children.find(c => c.id === itemId);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 // ── Tab: Project Logs ─────────────────────────────────────────────────────────

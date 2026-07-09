@@ -9,7 +9,8 @@
  *   folderBackend   — backend-specific structure
  */
 
-import { state, saveAll, genId } from './workspaceStore.js';
+import { state, markDirty, genId } from './workspaceStore.js';
+import { ensureDefaultKits } from './buildKitManager.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ export function createProject(title, description = '', repoPath = null) {
     folderStructure: '',
     databaseInfo: '',
     planningNotes: [],
+    buildKits: [],
     status: 'planning',
     assignedWorkerIds: [],
     projectLogs: [],
@@ -58,8 +60,9 @@ export function createProject(title, description = '', repoPath = null) {
   };
 
   state.projects.push(project);
+  ensureDefaultKits(project);
   _addGlobalLog('project_created', `Project **${project.title}** created`);
-  saveAll();
+  markDirty();
   return project;
 }
 
@@ -73,7 +76,7 @@ const allowed = [
   'title', 'description', 'overview',
   'folderMain', 'folderFrontend', 'folderBackend',
   'folderStructure', // legacy
-  'databaseInfo', 'planningNotes', 'status', 'repoPath',
+  'databaseInfo', 'planningNotes', 'status', 'repoPath', 'buildKits',
   // Infinity Stones
   'stoneCodeStandards', 'stoneProjectOverview', 'stoneProgressTracker',
   'stoneUIContext', 'stoneArchitecture', 'stoneAIWorkflow',
@@ -90,7 +93,7 @@ const allowed = [
     }
   }
 
-  saveAll();
+  markDirty();
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -103,7 +106,7 @@ export function deleteProject(id) {
   state.projects = state.projects.filter(p => p.id !== id);
   state.tickets = state.tickets.filter(t => t.projectId !== id);
   _addGlobalLog('project_deleted', `Project **${title}** deleted`);
-  saveAll();
+  markDirty();
 }
 
 // ─── Worker Assignment ────────────────────────────────────────────────────────
@@ -121,7 +124,7 @@ export function assignWorkerToProject(projectId, workerId) {
 
   _addProjectLog(project, 'worker_assigned', `**${worker.name}** assigned to project`);
   _addGlobalLog('worker_assigned', `**${worker.name}** assigned to project **${project.title}**`);
-  saveAll();
+  markDirty();
 }
 
 export function removeWorkerFromProject(projectId, workerId) {
@@ -139,7 +142,7 @@ export function removeWorkerFromProject(projectId, workerId) {
   if (worker) {
     _addProjectLog(project, 'worker_removed', `**${worker.name}** removed from project`);
   }
-  saveAll();
+  markDirty();
 }
 
 // ─── Project-scoped log helpers ───────────────────────────────────────────────
@@ -148,7 +151,7 @@ export function addProjectLog(projectId, type, message) {
   const project = getProjectById(projectId);
   if (!project) return;
   _addProjectLog(project, type, message);
-  saveAll();
+  markDirty();
 }
 
 function _addProjectLog(project, type, message) {
@@ -174,5 +177,5 @@ function _addGlobalLog(type, message) {
 
 export function addGlobalLog(type, message) {
   _addGlobalLog(type, message);
-  saveAll();
+  markDirty();
 }
