@@ -1419,33 +1419,32 @@
   border-radius: 8px;
 }
 
-/* ─── Send to AI Modal ──────────────────────────────────────── */
+/* ─── Send to AI Dialog ────────────────────────────────────────── */
 
-.gfy-send-ai-overlay {
+.gfy-sa-overlay {
   position: fixed;
   inset: 0;
   top: var(--titlebar-h, 34px);
   background: rgba(2, 6, 4, 0.7);
-  z-index: 90000;
+  z-index: 91000;
   display: flex;
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(4px);
 }
 
-.gfy-send-ai-dialog {
+.gfy-sa-dialog {
   background: linear-gradient(180deg, #0a1a10 0%, #07120a 100%);
   border: 1px solid rgba(34, 255, 122, 0.2);
   border-radius: 14px;
-  width: 460px;
-  max-height: 70vh;
+  width: 440px;
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(34, 255, 122, 0.06);
   overflow: hidden;
 }
 
-.gfy-send-ai-header {
+.gfy-sa-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1454,13 +1453,13 @@
   flex-shrink: 0;
 }
 
-.gfy-send-ai-title {
+.gfy-sa-title {
   font-size: 14px;
   font-weight: 700;
   color: #eafff2;
 }
 
-.gfy-send-ai-close {
+.gfy-sa-close {
   width: 28px;
   height: 28px;
   border: none;
@@ -1471,30 +1470,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 16px;
   transition: background 0.15s, color 0.15s;
+  font-family: inherit;
 }
 
-.gfy-send-ai-close:hover {
+.gfy-sa-close:hover {
   background: rgba(34, 255, 122, 0.14);
   color: #cdf5da;
 }
 
-.gfy-send-ai-body {
+.gfy-sa-body {
   padding: 16px 20px 20px;
-  flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 0;
 }
 
-.gfy-send-ai-card {
+.gfy-sa-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px;
+  padding: 14px 16px;
   background: rgba(10, 20, 14, 0.5);
   border: 1px solid rgba(34, 255, 122, 0.1);
   border-radius: 10px;
@@ -1502,17 +1499,13 @@
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
 }
 
-.gfy-send-ai-card:hover {
+.gfy-sa-card:hover {
   background: rgba(15, 30, 20, 0.65);
   border-color: rgba(34, 255, 122, 0.3);
   transform: translateX(2px);
 }
 
-.gfy-send-ai-card:active {
-  transform: translateX(1px) scale(0.99);
-}
-
-.gfy-send-ai-card-icon {
+.gfy-sa-card-icon {
   width: 36px;
   height: 36px;
   border-radius: 8px;
@@ -1524,12 +1517,12 @@
   flex-shrink: 0;
 }
 
-.gfy-send-ai-card-icon svg {
+.gfy-sa-card-icon svg {
   width: 18px;
   height: 18px;
 }
 
-.gfy-send-ai-card-text {
+.gfy-sa-card-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1537,86 +1530,128 @@
   min-width: 0;
 }
 
-.gfy-send-ai-card-label {
+.gfy-sa-card-label {
   font-size: 13px;
   font-weight: 700;
   color: #eafff2;
 }
 
-.gfy-send-ai-card-desc {
+.gfy-sa-card-desc {
   font-size: 11px;
   color: #5c7a68;
 }
 
-.gfy-send-ai-back {
-  display: inline-flex;
+/* ─── Prompt Viewer (wide modal) ──────────────────────────────── */
+
+.gfy-prompt-viewer {
+  position: fixed;
+  inset: 0;
+  top: var(--titlebar-h, 34px);
+  background: rgba(2, 6, 4, 0.8);
+  z-index: 91000;
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+  height: 85%;
+  margin: auto;
+  border: 1px solid rgba(34, 255, 122, 0.15);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.gfy-pv-header {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: none;
-  border-radius: 6px;
-  background: rgba(34, 255, 122, 0.06);
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(34, 255, 122, 0.1);
+  flex-shrink: 0;
+  background: rgba(5, 10, 7, 0.95);
+}
+
+.gfy-prompt-viewer .gfy-pv-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #22ff7a;
+  font-family: ui-monospace, monospace;
+}
+
+.gfy-prompt-viewer .gfy-pv-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.gfy-prompt-viewer .gfy-pv-copy-btn {
+  padding: 6px 16px;
+  border: 1px solid rgba(34, 255, 122, 0.2);
+  border-radius: 8px;
+  background: rgba(34, 255, 122, 0.08);
   color: #8fae9c;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.15s;
   font-family: inherit;
-  margin-bottom: 4px;
-  align-self: flex-start;
 }
 
-.gfy-send-ai-back:hover {
-  background: rgba(34, 255, 122, 0.12);
+.gfy-prompt-viewer .gfy-pv-copy-btn:hover {
+  background: rgba(34, 255, 122, 0.16);
   color: #cdf5da;
+  border-color: rgba(34, 255, 122, 0.35);
 }
 
-.gfy-send-ai-history {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  margin-top: 4px;
+.gfy-prompt-viewer .gfy-pv-copied {
+  background: rgba(34, 255, 122, 0.2);
+  color: #22ff7a;
+  border-color: rgba(34, 255, 122, 0.4);
 }
 
-.gfy-send-ai-history-item {
+.gfy-prompt-viewer .gfy-pv-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(34, 255, 122, 0.06);
+  color: #5c7a68;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: rgba(10, 20, 14, 0.4);
-  border: 1px solid rgba(34, 255, 122, 0.06);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  justify-content: center;
+  font-size: 16px;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
 }
 
-.gfy-send-ai-history-item:hover {
-  background: rgba(15, 30, 20, 0.6);
-  border-color: rgba(34, 255, 122, 0.2);
-}
-
-.gfy-send-ai-history-title {
-  font-size: 12px;
-  font-weight: 600;
+.gfy-prompt-viewer .gfy-pv-close:hover {
+  background: rgba(34, 255, 122, 0.14);
   color: #cdf5da;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.gfy-prompt-viewer .gfy-pv-content {
   flex: 1;
-}
-
-.gfy-send-ai-history-meta {
-  font-size: 10px;
-  color: #43594c;
-  flex-shrink: 0;
-}
-
-.gfy-send-ai-empty {
-  color: #5c7a68;
+  overflow: auto;
+  padding: 20px 24px;
+  margin: 0;
+  font-family: ui-monospace, monospace;
   font-size: 12px;
-  text-align: center;
-  padding: 24px 0;
+  line-height: 1.6;
+  color: #cdf5da;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: rgba(3, 7, 5, 0.9);
+}
+
+.gfy-prompt-viewer .gfy-pv-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.gfy-prompt-viewer .gfy-pv-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gfy-prompt-viewer .gfy-pv-content::-webkit-scrollbar-thumb {
+  background: rgba(34, 255, 122, 0.2);
+  border-radius: 4px;
 }

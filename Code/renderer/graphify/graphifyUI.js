@@ -319,13 +319,116 @@ async function _handleSendToAi() {
     return;
   }
 
-  try {
-    const repoPath = window.__activeRepoPath;
-    if (!repoPath) {
-      setState({ exportError: 'No repository selected.' });
-      return;
-    }
+  _showSendToAiDialog(promptText);
+}
 
+function _showSendToAiDialog(promptText) {
+  const existing = document.querySelector('.gfy-sa-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'gfy-sa-overlay';
+  overlay.innerHTML = `
+    <div class="gfy-sa-dialog">
+      <div class="gfy-sa-header">
+        <span class="gfy-sa-title">Send Prompt to AI</span>
+        <button class="gfy-sa-close" id="gfySaClose">&times;</button>
+      </div>
+      <div class="gfy-sa-body">
+        <div class="gfy-sa-card" id="gfySaOpenFile">
+          <div class="gfy-sa-card-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7l3 3v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M11 4v3h3"/></svg>
+          </div>
+          <div class="gfy-sa-card-text">
+            <span class="gfy-sa-card-label">Open File</span>
+            <span class="gfy-sa-card-desc">View the generated prompt in a modal and copy it manually.</span>
+          </div>
+        </div>
+        <div class="gfy-sa-card" id="gfySaOpenCodeSwamp">
+          <div class="gfy-sa-card-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+          </div>
+          <div class="gfy-sa-card-text">
+            <span class="gfy-sa-card-label">Open CodeSwamp</span>
+            <span class="gfy-sa-card-desc">Send the prompt directly to CodeSwamp with a single click.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+  overlay.querySelector('#gfySaClose').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('keydown', function saEscape(e) {
+    if (e.key === 'Escape' && document.querySelector('.gfy-sa-overlay')) {
+      overlay.remove();
+      document.removeEventListener('keydown', saEscape);
+    }
+  });
+
+  overlay.querySelector('#gfySaOpenFile').addEventListener('click', () => {
+    overlay.remove();
+    _showPromptViewer(promptText);
+  });
+
+  overlay.querySelector('#gfySaOpenCodeSwamp').addEventListener('click', () => {
+    overlay.remove();
+    _openCodeSwampWithPrompt(promptText);
+  });
+}
+
+function _showPromptViewer(promptText) {
+  const existing = document.querySelector('.gfy-prompt-viewer');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'gfy-prompt-viewer';
+  overlay.innerHTML = `
+    <div class="gfy-pv-header">
+      <span class="gfy-pv-title">generate-graph.md</span>
+      <div class="gfy-pv-actions">
+        <button class="gfy-pv-copy-btn" id="gfyPvCopy">Copy</button>
+        <button class="gfy-pv-close" id="gfyPvClose">&times;</button>
+      </div>
+    </div>
+    <pre class="gfy-pv-content" id="gfyPvContent">${_esc(promptText)}</pre>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#gfyPvClose').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener('keydown', function pvEscape(e) {
+    if (e.key === 'Escape' && document.querySelector('.gfy-prompt-viewer')) {
+      overlay.remove();
+      document.removeEventListener('keydown', pvEscape);
+    }
+  });
+
+  overlay.querySelector('#gfyPvCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(promptText);
+      const btn = overlay.querySelector('#gfyPvCopy');
+      btn.textContent = 'Copied';
+      btn.classList.add('gfy-pv-copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('gfy-pv-copied');
+      }, 2000);
+    } catch {}
+  });
+}
+
+async function _openCodeSwampWithPrompt(promptText) {
+  const repoPath = window.__activeRepoPath;
+  if (!repoPath) {
+    setState({ exportError: 'No repository selected.' });
+    return;
+  }
+
+  try {
     const btn = document.querySelector('[data-tool="opencode"]');
     if (btn) btn.click();
 
