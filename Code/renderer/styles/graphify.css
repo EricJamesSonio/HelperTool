@@ -1519,6 +1519,118 @@
   flex-shrink: 0;
 }
 
+/* ─── AI Tracking Section ──────────────────────────────────────── */
+
+.gfy-ai-tracking {
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 0;
+}
+
+.gfy-ai-tracking-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(10, 20, 14, 0.4);
+  border: 1px solid rgba(34, 255, 122, 0.12);
+  border-radius: 10px;
+}
+
+.gfy-ai-tracking-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(96, 165, 250, 0.15);
+  border-radius: 8px;
+  color: #60a5fa;
+}
+
+.gfy-ai-tracking-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gfy-ai-tracking-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #e6f0ea;
+}
+
+.gfy-ai-tracking-desc {
+  font-size: 11px;
+  color: #84a795;
+  line-height: 1.5;
+}
+
+.gfy-ai-tracking-changes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(10, 20, 14, 0.3);
+  border: 1px solid rgba(34, 255, 122, 0.08);
+  border-radius: 8px;
+}
+
+.gfy-ai-tracking-changes-label {
+  font-size: 11px;
+  color: #84a795;
+  font-weight: 600;
+}
+
+.gfy-ai-tracking-changes-value {
+  font-size: 12px;
+  color: #e6f0ea;
+}
+
+.gfy-ai-tracking-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gfy-tracking-reindex-btn,
+.gfy-tracking-gen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid rgba(34, 255, 122, 0.25);
+  background: rgba(34, 255, 122, 0.10);
+  color: #22ff7a;
+  font-family: inherit;
+}
+
+.gfy-tracking-reindex-btn:hover,
+.gfy-tracking-gen-btn:hover {
+  background: rgba(34, 255, 122, 0.18);
+  border-color: rgba(34, 255, 122, 0.45);
+}
+
+.gfy-tracking-reindex-btn svg,
+.gfy-tracking-gen-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gfy-ai-tracking-send {
+  display: flex;
+  gap: 8px;
+}
+
+.gfy-ai-tracking .gfy-export-status {
+  margin: 0;
+}
+
 /* ─── Send to AI Dialog ────────────────────────────────────────── */
 
 .gfy-sa-overlay {

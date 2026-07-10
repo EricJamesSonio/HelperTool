@@ -137,6 +137,24 @@ function _bindEvents() {
   _root.querySelectorAll('.gfy-wizard .gfy-load-ai-btn').forEach(btn => {
     btn.addEventListener('click', _handleLoadAiGraph);
   });
+
+  // Tracking section buttons
+  const trackingReindexBtn = _root.querySelector('.gfy-tracking-reindex-btn');
+  if (trackingReindexBtn) trackingReindexBtn.addEventListener('click', _handleTrackingReindex);
+  const trackingGenBtn = _root.querySelector('.gfy-tracking-gen-btn');
+  if (trackingGenBtn) trackingGenBtn.addEventListener('click', _handleExport);
+}
+
+async function _handleTrackingReindex() {
+  setState({ exportLoading: true, exportStatus: null, pendingChanges: null });
+  try {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) throw new Error('No repository selected');
+    await window.electronAPI.symbolIndex.startIndexing(repoPath);
+    await _checkStatus();
+  } catch (err) {
+    setState({ exportLoading: false, error: `Re-index failed: ${err.message}` });
+  }
 }
 
 async function _handleStart() {
@@ -931,52 +949,109 @@ function _render(state) {
       }
     }
 
-    // Step 1: prompt type indicator + desc
-    const step1Desc = _root.querySelector('#gfyAiStep1Desc');
-    const step1Type = _root.querySelector('#gfyAiStep1Type');
-    const noChanges = _root.querySelector('.gfy-ai-no-changes');
-    if (step1Desc) {
-      if (state.promptType === 'incremental' && state.pendingChanges) {
-        step1Desc.textContent = `Detected ${state.pendingChanges.total} changed files. Generate an incremental update prompt.`;
-      } else if (state.graphHasData) {
-        step1Desc.textContent = 'Regenerate a full prompt to rebuild the knowledge graph from scratch.';
-      } else {
-        step1Desc.textContent = 'Generates a full prompt for AI to build the knowledge graph from scratch.';
-      }
-    }
-    if (step1Type) {
-      if (state.promptType === 'incremental') {
-        step1Type.innerHTML = '<span class="gfy-ai-type-badge gfy-ai-type-incr">Incremental</span>';
-        step1Type.style.display = 'flex';
-      } else if (state.promptType === 'full') {
-        step1Type.innerHTML = '<span class="gfy-ai-type-badge gfy-ai-type-full">Full</span>';
-        step1Type.style.display = 'flex';
-      } else {
-        step1Type.style.display = 'none';
-      }
-    }
-    if (noChanges) {
-      noChanges.style.display = state.exportStatus?.noChanges ? 'flex' : 'none';
+    // Toggle between first-time steps and tracking section
+    const stepsEl = _root.querySelector('.gfy-ai-steps');
+    const trackingEl = _root.querySelector('.gfy-ai-tracking');
+    const introText = _root.querySelector('#gfyAiIntroText');
+    if (stepsEl) stepsEl.style.display = state.graphHasData ? 'none' : 'flex';
+    if (trackingEl) trackingEl.style.display = state.graphHasData ? 'flex' : 'none';
+    if (introText) {
+      introText.textContent = state.graphHasData
+        ? 'Knowledge graph is ready. Re-index to detect file changes and generate incremental updates.'
+        : 'Generate a prompt, send it to your AI, then load the enriched knowledge graph.';
     }
 
-    // Export status
-    if (exportStatus) {
-      if (state.exportStatus && !state.exportStatus.noChanges) {
-        const s = state.exportStatus;
-        exportStatus.innerHTML = `<span class="gfy-export-ok">\u2713 Prompt generated:</span> ${s.stats.files} files, ${s.stats.symbols} symbols`;
-        exportStatus.style.display = 'block';
-      } else {
-        exportStatus.style.display = 'none';
+    // Steps: first-time enrichment flow (when !graphHasData)
+    if (!state.graphHasData) {
+      const step1Desc = _root.querySelector('#gfyAiStep1Desc');
+      const step1Type = _root.querySelector('#gfyAiStep1Type');
+      const noChanges = _root.querySelector('.gfy-ai-no-changes');
+      if (step1Desc) {
+        if (state.promptType === 'incremental' && state.pendingChanges) {
+          step1Desc.textContent = `Detected ${state.pendingChanges.total} changed files. Generate an incremental update prompt.`;
+        } else {
+          step1Desc.textContent = 'Generates a full prompt for AI to build the knowledge graph from scratch.';
+        }
+      }
+      if (step1Type) {
+        if (state.promptType === 'incremental') {
+          step1Type.innerHTML = '<span class="gfy-ai-type-badge gfy-ai-type-incr">Incremental</span>';
+          step1Type.style.display = 'flex';
+        } else if (state.promptType === 'full') {
+          step1Type.innerHTML = '<span class="gfy-ai-type-badge gfy-ai-type-full">Full</span>';
+          step1Type.style.display = 'flex';
+        } else {
+          step1Type.style.display = 'none';
+        }
+      }
+      if (noChanges) {
+        noChanges.style.display = state.exportStatus?.noChanges ? 'flex' : 'none';
+      }
+
+      // Steps export status
+      if (exportStatus) {
+        if (state.exportStatus && !state.exportStatus.noChanges) {
+          const s = state.exportStatus;
+          exportStatus.innerHTML = `<span class="gfy-export-ok">\u2713 Prompt generated:</span> ${s.stats.files} files, ${s.stats.symbols} symbols`;
+          exportStatus.style.display = 'block';
+        } else {
+          exportStatus.style.display = 'none';
+        }
+      }
+
+      // Step 3: gate on graphHasData
+      const step3Btn = _root.querySelector('.gfy-ai-step:nth-child(3) .gfy-load-ai-btn');
+      const step3Waiting = _root.querySelector('.gfy-ai-step:nth-child(3) .gfy-ai-step-waiting');
+      if (step3Btn && step3Waiting) {
+        const showLoad = state.graphInfo?.exists && state.graphHasData;
+        step3Btn.style.display = showLoad ? 'inline-flex' : 'none';
+        step3Waiting.style.display = showLoad ? 'none' : 'flex';
       }
     }
 
-    // Step 3: gate on graphHasData
-    const step3Btn = _root.querySelector('.gfy-ai-step:nth-child(3) .gfy-load-ai-btn');
-    const step3Waiting = _root.querySelector('.gfy-ai-step:nth-child(3) .gfy-ai-step-waiting');
-    if (step3Btn && step3Waiting) {
-      const showLoad = state.graphInfo?.exists && state.graphHasData;
-      step3Btn.style.display = showLoad ? 'inline-flex' : 'none';
-      step3Waiting.style.display = showLoad ? 'none' : 'flex';
+    // Tracking section (when graphHasData)
+    if (state.graphHasData) {
+      const trackingChanges = _root.querySelector('#gfyAiTrackingChanges');
+      const trackingGenBtn = _root.querySelector('.gfy-tracking-gen-btn');
+      const trackingSend = _root.querySelector('.gfy-ai-tracking-send');
+
+      if (trackingChanges) {
+        if (state.exportLoading) {
+          trackingChanges.textContent = 'Working\u2026';
+        } else if (state.pendingChanges) {
+          if (state.pendingChanges.total === 0) {
+            trackingChanges.textContent = 'No changes detected';
+          } else {
+            trackingChanges.textContent = `${state.pendingChanges.total} files changed (${state.pendingChanges.changed} modified, ${state.pendingChanges.new} new)`;
+          }
+        } else {
+          trackingChanges.textContent = 'Run "Re-index Symbols" to detect changes';
+        }
+      }
+
+      if (trackingGenBtn) {
+        if (state.pendingChanges && state.pendingChanges.tooManyChanges) {
+          trackingGenBtn.style.display = 'none';
+        } else {
+          trackingGenBtn.style.display = (state.pendingChanges && state.pendingChanges.total > 0) ? 'inline-flex' : 'none';
+        }
+      }
+
+      // Tracking export status
+      const trackingExportStatus = trackingEl ? trackingEl.querySelector('.gfy-export-status') : null;
+      if (trackingExportStatus) {
+        if (state.exportStatus && state.exportStatus.promptType === 'incremental' && !state.exportStatus.noChanges) {
+          const s = state.exportStatus;
+          trackingExportStatus.innerHTML = `<span class="gfy-export-ok">\u2713 Prompt generated:</span> ${s.stats.files} files, ${s.stats.symbols} symbols <span class="gfy-ai-type-badge gfy-ai-type-incr">Incremental</span>`;
+          trackingExportStatus.style.display = 'block';
+        } else {
+          trackingExportStatus.style.display = 'none';
+        }
+      }
+
+      if (trackingSend) {
+        trackingSend.style.display = (state.exportStatus && state.exportStatus.promptType === 'incremental' && !state.exportStatus.noChanges) ? 'flex' : 'none';
+      }
     }
 
     if (state.aiGraphData) {
@@ -1465,7 +1540,7 @@ function _template() {
           </div>
           <div class="gfy-ai-intro-text">
             <strong>AI-Powered Semantic Graph</strong>
-            <span>Generate a prompt, send it to your AI, then load the enriched knowledge graph.</span>
+            <span id="gfyAiIntroText">Generate a prompt, send it to your AI, then load the enriched knowledge graph.</span>
           </div>
         </div>
 
@@ -1482,7 +1557,7 @@ function _template() {
           </div>
         </div>
 
-        <div class="gfy-ai-steps">
+        <div class="gfy-ai-steps" style="display:none">
           <div class="gfy-ai-step">
             <div class="gfy-ai-step-num">1</div>
             <div class="gfy-ai-step-body">
@@ -1526,6 +1601,41 @@ function _template() {
                 <span class="gfy-ai-step-waiting-text">No enriched graph found yet. Run the prompt with your AI first.</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="gfy-ai-tracking" style="display:none">
+          <div class="gfy-ai-tracking-header">
+            <div class="gfy-ai-tracking-icon">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v14"/><path d="M3 10h14"/><circle cx="10" cy="10" r="7"/></svg>
+            </div>
+            <div class="gfy-ai-tracking-title">Incremental Updates</div>
+            <div class="gfy-ai-tracking-desc">Re-index to detect file changes, then generate an incremental prompt to update only what changed.</div>
+          </div>
+
+          <div class="gfy-ai-tracking-changes">
+            <span class="gfy-ai-tracking-changes-label">Changed files:</span>
+            <span class="gfy-ai-tracking-changes-value" id="gfyAiTrackingChanges">Scanning\u2026</span>
+          </div>
+
+          <div class="gfy-ai-tracking-actions">
+            <button class="gfy-tracking-reindex-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
+              Re-index Symbols
+            </button>
+            <button class="gfy-tracking-gen-btn" style="display:none">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+              Generate Incremental Prompt
+            </button>
+          </div>
+
+          <div class="gfy-export-status" style="display:none"></div>
+
+          <div class="gfy-ai-tracking-send" style="display:none">
+            <button class="gfy-send-ai-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+              Send Prompt to CodeSwamp
+            </button>
           </div>
         </div>
 
