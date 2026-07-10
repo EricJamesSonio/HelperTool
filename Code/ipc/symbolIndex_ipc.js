@@ -6,6 +6,7 @@ const watcher = require('../indexer/watcher');
 const indexerProxy = require('./indexerProxy.js');
 const workerProxy = require('./workerProxy.js');
 const { updateService } = require('./serviceTracker_ipc.js');
+const symbolsJson = require('../database/symbolsJsonLoader');
 
 let _getMainWindow = null;
 let _activeRepoPath = null;
@@ -46,8 +47,17 @@ async function register({ app, docignoreUtils, getMainWindow }) {
       if (indexerProxy.isReady()) {
         try {
           const data = await indexerProxy.send('db:checkRepo', { repoPath });
-          if (data) return data;
-        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+          if (data && data.indexed) return data;
+        } catch (err) { /* fall through to symbols.json */ }
+      }
+      const jsonData = symbolsJson.load();
+      if (jsonData && jsonData.repoPath === repoPath) {
+        return {
+          indexed: true,
+          total_files: jsonData.files.length,
+          total_symbols: jsonData.symbols.length,
+          last_indexed: jsonData.exportedAt,
+        };
       }
       return { indexed: false };
     } catch (err) {
