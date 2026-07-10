@@ -22,9 +22,7 @@ class CodebaseChat {
 
       const files = await ipc.getFiles({ repoPath });
       this.state.setFiles(files || []);
-
-      const status = await window.electronAPI?.symbolIndex?.check(repoPath);
-      this.state.isIndexed = status?.indexed === true;
+      this.state.isIndexed = files?.length > 0;
 
       this.isInitialized = true;
       return { success: true };
@@ -54,9 +52,8 @@ class CodebaseChat {
         if (ipc) {
           const files = await ipc.getFiles({ repoPath: this.currentRepoPath });
           this.state.setFiles(files || []);
+          this.state.isIndexed = files?.length > 0;
         }
-        const status = await window.electronAPI?.symbolIndex?.check(this.currentRepoPath);
-        this.state.isIndexed = status?.indexed === true;
       } catch (_) {}
     }
     this.chatUI?.refresh();
