@@ -7,6 +7,7 @@ const { initFromJson, getDb, getRawData, getRepoInfo, closeDb } = require('./db'
 const { queryRelevantCode } = require('./queryEngine');
 const { KnowledgeGraph } = require('./graphBuilder');
 const { exportAll, generatePrompt, loadGraphFromStorage } = require('./exporter');
+const { RetrievalEngine } = require('./retrieval/retrieval-engine');
 
 const REPO_PATH = process.argv[2] || null;
 const START_PORT = parseInt(process.argv[3] || '3333', 10);
@@ -16,6 +17,22 @@ let _dbError = null;
 let _actualPort = START_PORT;
 let _repoPath = null;
 let _graph = new KnowledgeGraph();
+let _retrievalEngine = null;
+
+function _initRetrievalEngine() {
+  try {
+    const result = loadGraphFromStorage();
+    if (result.ok && result.graph) {
+      _retrievalEngine = new RetrievalEngine(result.graph);
+      process.stderr.write(`[graphify] Retrieval engine initialized: ${result.graph.nodes?.length || 0} nodes, ${result.graph.edges?.length || 0} edges\n`);
+    } else {
+      process.stderr.write(`[graphify] Retrieval engine unavailable: ${result.error || 'no graph data'}\n`);
+    }
+  } catch (err) {
+    process.stderr.write(`[graphify] Retrieval engine init error: ${err.message}\n`);
+    _retrievalEngine = null;
+  }
+}
 
 function _buildGraph() {
   try {
@@ -65,6 +82,7 @@ async function boot() {
       _dbReady = true;
       process.stderr.write(`[graphify] Data loaded from ${repoPath}/symbol-index-storage/symbols.json\n`);
       _buildGraph();
+      _initRetrievalEngine();
     } catch (err) {
       _dbError = err.message;
       process.stderr.write(`[graphify] ${_dbError}\n`);
@@ -158,6 +176,29 @@ function handleRequest(req, res) {
     return handleLoadFromStorage(req, res);
   }
 
+  // ── Retrieval Engine endpoints (v1) ──
+  if (req.method === 'POST' && req.url === '/retrieval/v1/query') {
+    return handleRetrievalQuery(req, res);
+  }
+  if (req.method === 'GET' && req.url === '/retrieval/v1/features') {
+    return handleRetrievalFeatures(req, res);
+  }
+  if (req.method === 'GET' && req.url.startsWith('/retrieval/v1/concepts')) {
+    return handleRetrievalConcepts(req, res);
+  }
+  if (req.method === 'GET' && req.url.startsWith('/retrieval/v1/symbols')) {
+    return handleRetrievalSymbols(req, res);
+  }
+  if (req.method === 'GET' && req.url.startsWith('/retrieval/v1/dependencies')) {
+    return handleRetrievalDependencies(req, res);
+  }
+  if (req.method === 'GET' && req.url.startsWith('/retrieval/v1/path')) {
+    return handleRetrievalPath(req, res);
+  }
+  if (req.method === 'GET' && req.url === '/retrieval/v1/stats') {
+    return handleRetrievalStats(req, res);
+  }
+
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
 }
@@ -186,6 +227,13 @@ function handleEndpoints(req, res) {
     { method: 'POST',   path: '/export/prompt',       description: 'Regenerate only the AI prompt file' },
     { method: 'POST',   path: '/export/all',          description: 'Export symbols + generate prompt in one call' },
     { method: 'GET',    path: '/graph/from-storage',  description: 'Load AI-generated graph.json and graph.md from graphify-storage/' },
+    { method: 'POST',   path: '/retrieval/v1/query',  description: 'Main retrieval query. Body: { query, limit?, depth?, tokenBudget?, diversify? }' },
+    { method: 'GET',    path: '/retrieval/v1/features', description: 'List all features with file counts' },
+    { method: 'GET',    path: '/retrieval/v1/concepts?q=', description: 'Search or list concepts' },
+    { method: 'GET',    path: '/retrieval/v1/symbols?q=&limit=', description: 'Search symbols by name' },
+    { method: 'GET',    path: '/retrieval/v1/dependencies?file=&depth=&direction=', description: 'Get dependency chain (forward/reverse)' },
+    { method: 'GET',    path: '/retrieval/v1/path?from=&to=', description: 'Find shortest path between two files' },
+    { method: 'GET',    path: '/retrieval/v1/stats', description: 'Retrieval engine statistics' },
   ];
   res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify({ endpoints, port: _actualPort }));
@@ -494,6 +542,154 @@ function handleLoadFromStorage(req, res) {
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: err.message }));
+  }
+}
+
+// ── Retrieval Engine handlers ──
+
+function _retrievalGuard(res) {
+  if (!_retrievalEngine) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Retrieval engine not available. Run pipeline to generate graph.json first.' }));
+    return false;
+  }
+  return true;
+}
+
+async function handleRetrievalQuery(req, res) {
+  if (!_retrievalGuard(res)) return;
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', () => {
+    let payload;
+    try { payload = JSON.parse(body); } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      return;
+    }
+    const { query, ...options } = payload || {};
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing query' }));
+      return;
+    }
+    try {
+      const result = _retrievalEngine.retrieve(query.trim(), options);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      process.stderr.write(`[graphify] Retrieval error: ${err.message}\n`);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+}
+
+function handleRetrievalFeatures(req, res) {
+  if (!_retrievalGuard(res)) return;
+  try {
+    const features = _retrievalEngine.featureResolver.listFeatures();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ features }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleRetrievalConcepts(req, res) {
+  if (!_retrievalGuard(res)) return;
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const q = url.searchParams.get('q');
+    const concepts = q
+      ? _retrievalEngine.conceptResolver.resolveByQuery(q)
+      : _retrievalEngine.conceptResolver.listConcepts();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ concepts }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleRetrievalSymbols(req, res) {
+  if (!_retrievalGuard(res)) return;
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const q = url.searchParams.get('q');
+    const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+    if (!q) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing q parameter' }));
+      return;
+    }
+    const symbols = _retrievalEngine.symbolResolver.searchSymbols(q, limit);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ symbols }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleRetrievalDependencies(req, res) {
+  if (!_retrievalGuard(res)) return;
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const file = url.searchParams.get('file');
+    const depth = parseInt(url.searchParams.get('depth') || '1', 10);
+    const direction = url.searchParams.get('direction') || 'forward';
+    if (!file) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing file parameter' }));
+      return;
+    }
+    const result = direction === 'reverse'
+      ? _retrievalEngine.dependencyResolver.getDependents(file, depth)
+      : _retrievalEngine.dependencyResolver.getDependencies(file, depth);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleRetrievalPath(req, res) {
+  if (!_retrievalGuard(res)) return;
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    if (!from || !to) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing from or to parameter' }));
+      return;
+    }
+    const result = _retrievalEngine.pathFinder.shortestPath(from, to);
+    if (!result) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No path found' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleRetrievalStats(req, res) {
+  if (!_retrievalGuard(res)) return;
+  try {
+    const stats = _retrievalEngine.getStats();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(stats));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
   }
 }
 

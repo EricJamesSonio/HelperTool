@@ -144,6 +144,12 @@ You are an AI assistant. Your task is to analyze the provided \`symbols.json\` f
 1. **\`graphify-storage/graph.json\`** — A structured knowledge graph with semantic labels
 2. **\`graphify-storage/graph.md\`** — A human-readable markdown report
 
+## The Challenge
+
+\`symbols.json\` contains raw structural data — file paths, symbol names, import relationships. But it lacks **semantic context**: what does each file actually do? What features does it belong to? What is the purpose of each symbol?
+
+Your job is to add that missing context. You will produce a \`graph.json\` where every file has a meaningful summary, every symbol has a purpose and role, files are grouped into coherent features, and semantic relationships between files are identified.
+
 ## Input: \`symbols.json\`
 
 The \`symbols.json\` file contains:
@@ -161,7 +167,7 @@ Each symbol entry:
 - \`line\`, \`column\`: source location
 - \`isExported\`: whether exported
 - \`className\`: parent class (for methods)
-- \`signature\`: full signature string
+- \`signature\`: full signature string (may be empty)
 - \`filePath\`: which file the symbol belongs to
 
 ### \`imports\` (array)
@@ -169,107 +175,226 @@ Each import entry:
 - \`importPath\`: the import string (e.g. "./utils", "react", "lodash")
 - \`importType\`: default, named, namespace, side-effect, require, etc.
 - \`importedSymbols\`: array of specific symbol names imported
-- \`sourcePath\`: the file doing the importing
-- \`resolvedFile\`: which file the import resolves to (null for externals)
+- \`sourceFile\`: the file doing the importing
+- \`resolvedFile\`: which file the import resolves to (null for externals like npm packages)
+
+You DO have access to the actual source code. The repository is located at:
+
+\`\`\`
+${repoPath}
+\`\`\`
+
+For every file in \`symbols.json\`, **read its source code** from the repository on disk before writing anything about it. Do NOT guess or hallucinate what a file does based on its name or the symbols listed here. Read the actual file contents to determine:
+
+- What does this file actually do? (based on its real code, not its name)
+- What symbols does it actually contain and what do they really do? (read the function bodies)
+- What responsibilities does it actually have?
+- What features does it genuinely belong to?
+
+For each symbol (function, class, method), read its actual implementation to write accurate \`purpose\` and \`role\` descriptions. If a symbol name suggests one thing but the code does something else, the code is truth.
 
 ## Your Task
 
-### Step 1: Analyze and Label
+### Step 1: Analyze and Label Every File
 
 For each file in the codebase, determine:
 
 - **What does this file do?** (1-2 sentence summary)
-- **What feature/system does it belong to?** (e.g. "auth", "payment", "database", "routing", "api", "ui", "config", "logging", "utils", "testing")
-- **What concepts does it relate to?** (comma-separated tags)
+- **What feature/system does it belong to?** (e.g. "auth", "database", "git", "docker", "core", "ui", "worker")
+- **What tags describe it?** (comma-separated, e.g. "ipc", "config", "database", "renderer")
 
-For each symbol (function, class, etc.), determine:
+For each symbol (function, class, method, etc.), determine:
 
-- **What is its purpose?** (brief description)
-- **What role does it play in its file?** (e.g. "entry point", "helper", "orchestrator", "data model", "validator")
+- **What is its purpose?** (brief description of what it does)
+- **What role does it play in its file?** (e.g. "entry point", "helper", "orchestrator", "data model", "validator", "handler", "utility")
 
 ### Step 2: Build the Knowledge Graph
 
 Create \`graph.json\` with this exact schema:
 
+#### Top-Level Structure
+
 \`\`\`json
 {
-  "graphVersion": "1.0",
-  "repoName": "...",
-  "generatedAt": "ISO date",
-  "nodes": [
-    {
-      "id": "file-<path>",
-      "type": "file",
-      "label": "filename.ext",
-      "filePath": "path/to/file.ext",
-      "language": "javascript",
-      "summary": "Handles user authentication via JWT tokens and OAuth2 flows",
-      "features": ["auth", "security", "user-management"],
-      "tags": ["authentication", "jwt", "oauth", "login"],
-      "symbols": [
-        {
-          "name": "loginUser",
-          "type": "function",
-          "line": 42,
-          "signature": "async function loginUser(email, password)",
-          "purpose": "Validates credentials and returns JWT token",
-          "role": "entry point"
-        }
-      ]
-    }
-  ],
-  "edges": [
-    {
-      "source": "file-1",
-      "target": "file-2",
-      "type": "IMPORTS",
-      "description": "Uses utility functions from helpers"
-    },
-    {
-      "source": "file-1",
-      "target": "file-3",
-      "type": "COLLABORATES_WITH",
-      "description": "Both participate in the payment processing pipeline"
-    }
-  ],
-  "features": {
-    "auth": {
-      "summary": "Authentication and authorization system",
-      "files": ["file-1", "file-4"],
-      "keyConcepts": ["JWT", "OAuth", "session", "permissions"]
-    },
-    "payment": {
-      "summary": "Payment processing with Stripe integration",
-      "files": ["file-3", "file-7"],
-      "keyConcepts": ["Stripe", "checkout", "webhook", "invoice"]
+  "graphVersion": "2",
+  "repoName": "<repo-name>",
+  "repoPath": "<absolute-repo-path>",
+  "generatedAt": "<ISO-timestamp>",
+  "exportedAt": "<ISO-timestamp-from-symbols.json>",
+  "meta": {
+    "incremental": {
+      "total": <file-count>,
+      "reused": 0,
+      "rebuilt": <file-count>,
+      "new": <file-count>,
+      "changed": 0,
+      "neighborAffected": 0,
+      "generationMode": "ai_generated",
+      "affectedSetSize": <file-count>,
+      "bfsDepth": 0
     }
   },
-  "concepts": {
-    "JWT": {
-      "summary": "JSON Web Token used for stateless authentication",
-      "relatedFiles": ["file-1", "file-5"],
-      "relatedSymbols": ["loginUser", "verifyToken", "refreshToken"]
+  "stats": {
+    "totalFiles": <file-count>,
+    "totalSymbols": <symbol-count>,
+    "totalImports": <import-count>,
+    "totalNodes": <file-count>,
+    "totalEdges": <edge-count>,
+    "totalFeatures": <feature-count>,
+    "totalConcepts": <concept-count>
+  },
+  "nodes": [...],
+  "edges": [...],
+  "features": {...},
+  "concepts": {...}
+}
+\`\`\`
+
+#### Node Schema
+
+Each file in \`symbols.json\` becomes one node. Use this exact shape:
+
+\`\`\`json
+{
+  "id": "file-Code/services/git.js",
+  "type": "file",
+  "label": "git.js",
+  "filePath": "Code/services/git.js",
+  "language": "javascript",
+  "summary": "Handles Git operations: clone, commit, push, pull, and branch management via shell commands.",
+  "responsibilities": [
+    "Executes git CLI commands",
+    "Manages repository checkout and cloning",
+    "Handles branch creation and switching"
+  ],
+  "features": ["git", "core"],
+  "tags": ["git", "version-control", "services", "javascript"],
+  "stats": {
+    "totalSymbols": 12,
+    "exportedSymbols": 5,
+    "functions": 8,
+    "classes": 1,
+    "methods": 0,
+    "variables": 3
+  },
+  "symbols": [
+    {
+      "name": "cloneRepo",
+      "type": "function",
+      "line": 42,
+      "signature": "async function cloneRepo(url, dest)",
+      "purpose": "Clones a remote git repository to the local filesystem",
+      "role": "entry point"
     }
+  ],
+  "summarySource": "ai",
+  "centrality": {
+    "fanIn": 3,
+    "fanOut": 1,
+    "degree": 4,
+    "centrality": 0.0103,
+    "importCount": 1,
+    "importedByCount": 3,
+    "inDegree": 3,
+    "outDegree": 1
+  },
+  "graphVersion": 2,
+  "updatedAt": "<ISO-timestamp>",
+  "structureHash": "",
+  "contentHash": "",
+  "generationMode": "ai_generated"
+}
+\`\`\`
+
+Field notes:
+- \`responsibilities\`: 1-5 brief bullet points of what this file does (can be empty array)
+- \`features\`: one or more feature names this file belongs to (the primary feature first)
+- \`tags\`: descriptive tags for searching/filtering
+- \`stats\`: counts — derive from the symbols array for this file
+- \`symbols\`: include ALL function, class, and method symbols (skip pure variables/constants unless important), each with \`purpose\` and \`role\`
+- \`summarySource\`: always \`"ai"\`
+- \`centrality\`: compute from the edges you create (fanIn = how many files import this file, fanOut = how many files this file imports, degree = fanIn + fanOut, centrality = degree / (totalNodes - 1))
+- \`graphVersion\`: 2
+- \`generationMode\`: \`"ai_generated"\`
+- \`structureHash\` and \`contentHash\`: leave as empty strings
+
+#### Edge Schema
+
+\`\`\`json
+{
+  "source": "file-Code/main.js",
+  "target": "file-Code/ipc/git_ipc.js",
+  "type": "ORCHESTRATES",
+  "weight": 3,
+  "description": "Main process registers this IPC handler"
+}
+\`\`\`
+
+Fields:
+- \`source\`, \`target\`: full node IDs (\`"file-<path>"\`)
+- \`type\`: one of the edge types below
+- \`weight\`: 1-5 indicating strength (1=weak, 5=strong)
+- \`description\`: brief explanation of why this edge exists
+
+#### Edge Types to Identify
+
+| Type | When to Use | Weight Guidance |
+|------|-------------|-----------------|
+| \`IMPORTS\` | File A directly imports file B (from \`symbols.json\` imports with \`resolvedFile\`) | 2 |
+| \`COLLABORATES_WITH\` | Files that work together on the same feature or closely related features | 1 |
+| \`ORCHESTRATES\` | A file coordinates or manages multiple other files (e.g. main process → handlers) | 3 |
+| \`DEPENDS_ON\` | File A logically depends on file B even if not directly imported (semantic dependency) | 2 |
+| \`PROVIDES_TO\` | File A provides data, services, or utilities consumed by file B | 2 |
+| \`IMPLEMENTS\` | File A implements an interface, protocol, or contract defined in file B | 2 |
+| \`SEQUENCES\` | Processing pipeline where A → B → C in a data/control flow | 2 |
+| \`INITIALIZES\` | File A initializes or bootstraps file B during startup | 2 |
+| \`EXECUTES\` | File A dispatches or spawns work in file B (e.g. worker → task) | 2 |
+| \`CROSS_CUTTING\` | Shared utility used across otherwise unrelated modules | 1 |
+
+Include \`IMPORTS\` edges for every resolved import. For semantic edges, only add them when you are confident the relationship exists — quality over quantity. Each edge should have a meaningful \`description\`.
+
+#### Features Schema
+
+\`\`\`json
+{
+  "core": {
+    "description": "Core application infrastructure: main process, IPC, preload, utilities, and services",
+    "color": "#4A90D9",
+    "files": ["Code/main.js", "Code/preload.js", "Code/utils/helpers.js"]
+  },
+  "database": {
+    "description": "SQLite database access layer for all persistent storage",
+    "color": "#7B61FF",
+    "files": ["Code/database/db.js", "Code/database/chatDb.js"]
   }
 }
 \`\`\`
 
-### Edge Types to Identify
+Each feature:
+- \`description\`: what this feature encompasses
+- \`color\`: hex color for visualization (pick distinct colors)
+- \`files\`: array of file paths (not node IDs — raw paths like \`"Code/file.js"\`)
 
-Beyond obvious \`IMPORTS\` edges, identify **semantic relationships**:
+Every file should belong to at least one feature. Features should be coherent groupings — don't create too many. 5-15 features is typical for a moderate codebase.
 
-| Edge Type | Meaning |
-|-----------|---------|
-| \`IMPORTS\` | Direct file import |
-| \`COLLABORATES_WITH\` | Files that work together on the same feature |
-| \`DEPENDS_ON\` | One file logically depends on another (not just import) |
-| \`ORCHESTRATES\` | A file that coordinates multiple other files |
-| \`PROVIDES_TO\` | A file provides data/services to another |
-| \`IMPLEMENTS\` | A file implements an interface defined elsewhere |
-| \`SEQUENCES\` | A processing pipeline step (A → B → C) |
-| \`CROSS_CUTTING\` | Shared utility used across otherwise unrelated modules |
+#### Concepts Schema
 
-Only include meaningful semantic edges — don't just duplicate \`IMPORTS\`.
+\`\`\`json
+{
+  "IPC-Communication": {
+    "description": "Inter-Process Communication between main and renderer processes via Electron ipcMain/ipcRenderer",
+    "locations": ["Code/ipc/git_ipc.js", "Code/ipc/docker_ipc.js", "Code/preload.js"],
+    "keywords": ["ipcMain", "ipcRenderer", "contextBridge", "handle", "invoke"]
+  }
+}
+\`\`\`
+
+Each concept:
+- \`description\`: what this concept represents
+- \`locations\`: array of file paths related to this concept
+- \`keywords\`: search terms associated with this concept (symbol names, technical terms)
+
+Concepts should capture important domain ideas, architectural patterns, and technical mechanisms. 5-15 concepts is typical.
 
 ### Step 3: Generate a Human-Readable Report
 
@@ -284,33 +409,44 @@ Generated: <date>
 
 - Total files: N
 - Total symbols: N
-- Features detected: N
+- Total imports: N
+- Graph nodes: N
+- Graph edges: N
+- Features: N
+- Concepts: N
+- Build: AI generated
 
-## Features
+## Feature Map
 
 ### [Feature Name]
-**Summary**: ...
-**Key files**: file1.js, file2.js
-**Key concepts**: concept1, concept2
+- **Description**: ...
+- **Files**: N files
+  - \`file1.js\`
+  - \`file2.js\`
 
-## Key Files (God Nodes)
+## Top Files by Symbol Count
 
-Files with highest connectivity / importance:
+| File | Symbols | Exported | Functions | Classes | Centrality |
+|------|---------|----------|-----------|---------|------------|
 
-1. **file.js** — summary
-   - Imports from: N files
-   - Imported by: N files
-   - Contains: N symbols
+## Top Files by Centrality
+
+| File | Centrality | Fan-In | Fan-Out | Degree |
+|------|------------|--------|---------|--------|
 
 ## Architecture Flow
 
-[Describe how data/control flows through the system, feature by feature]
+[Describe how data/control flows through the system, feature by feature. Explain the main processing pipelines, key entry points, and how features relate to each other.]
 
 ## Concepts Glossary
 
-| Concept | Description | Related Files |
-|---------|-------------|---------------|
-| JWT | JSON Web Token | auth.js, middleware.js |
+| Concept | Description | Keywords | Files |
+|---------|-------------|----------|-------|
+
+## Edge Type Summary
+
+| Type | Count | Description |
+|------|-------|-------------|
 
 ## Surprising Connections
 
@@ -318,24 +454,28 @@ Cross-feature or unexpected relationships detected.
 
 ## Notes
 
-- Add any observations about code quality, architectural patterns, or areas of complexity.
+- Add any observations about architecture, design patterns, or areas of complexity.
 \`\`\`
 
 ## Instructions for You
 
-1. Be thorough but concise in summaries.
-2. Group files by feature they belong to.
+1. Be thorough but concise in summaries. Every file needs a meaningful summary that tells someone what it does.
+2. Group files by feature. A file can belong to multiple features but should have a primary feature.
 3. For \`COLLABORATES_WITH\` edges, only add them when files genuinely work together on the same logical feature.
-4. The \`features\` section at the top level of \`graph.json\` should organize the entire codebase by feature.
-5. The \`concepts\` section should document important domain concepts and where they appear.
-6. Focus on making the graph useful for someone asking "how does X work?".
+4. For semantic edges (\`DEPENDS_ON\`, \`PROVIDES_TO\`, \`IMPLEMENTS\`, etc.), be conservative — only add them when you have strong evidence from file names, symbol names, or import patterns.
+5. The \`features\` section should organize the entire codebase by coherent feature groups.
+6. The \`concepts\` section should document important domain or architectural concepts.
+7. Compute centrality values correctly: \`centrality = degree / (totalNodes - 1)\`.
+8. Focus on making the graph useful for someone asking "how does X work?".
+9. Do NOT include \`stats\` objects in feature or concept entries — they go only on nodes.
+10. The \`symbols\` array per node should include meaningful \`purpose\` and \`role\` for every symbol listed.
 
 ## Output
 
-Write two files in the repository at \`<repo-root>/graphify-storage/\`:
+Write two files:
 
-1. \`<repo-root>/graphify-storage/graph.json\` — the structured graph
-2. \`<repo-root>/graphify-storage/graph.md\` — the human-readable report
+1. \`${repoPath}\\graphify-storage\\graph.json\` — the structured graph (must match the schema above exactly)
+2. \`${repoPath}\\graphify-storage\\graph.md\` — the human-readable report
 `;
 
   const promptPath = path.join(outDir, 'generate-graph.md');

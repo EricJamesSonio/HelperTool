@@ -24,7 +24,7 @@
   justify-content: space-between;
   padding: 12px 20px;
   background: var(--bg-surface, #0a0c10);
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   flex-shrink: 0;
   min-height: 52px;
 }
@@ -52,13 +52,13 @@
 .oc-repo-indicator {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   padding: 0 10px;
-  border-left: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border-left: 1px solid var(--border-subtle, rgba(255,255,255,0.15));
   margin-left: 6px;
   min-width: 0;
 }
@@ -81,17 +81,17 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.15));
   background: var(--bg-elevated, #0f1117);
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   transition: all var(--ease, 0.15s ease);
   white-space: nowrap;
 }
 
 .oc-btn:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.06));
+  background: var(--bg-hover, rgba(255,255,255,0.10));
   color: var(--text-primary, #f0f6fc);
-  border-color: var(--border-strong, rgba(255,255,255,0.2));
+  border-color: var(--border-strong, rgba(255,255,255,0.24));
 }
 
 .oc-btn-icon {
@@ -125,7 +125,7 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-surface, #0a0c10);
-  border-right: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border-right: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   overflow: hidden;
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
@@ -147,23 +147,23 @@
   padding: 0;
   border-radius: 0 4px 4px 0;
   background: var(--bg-elevated, #0f1117);
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
   font-size: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: left 0.2s ease, background 0.15s ease;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   border-left: none;
 }
 .oc-sidebar-toggle:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.06));
-  color: var(--text-secondary, #b1bac4);
+  background: var(--bg-hover, rgba(255,255,255,0.10));
+  color: var(--text-secondary, #c6cfd8);
 }
 .oc-sidebar.collapsed + .oc-sidebar-toggle {
   left: 0;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
 }
 
 /* ── Repo path bar (top of sidebar) ─────────────── */
@@ -172,9 +172,9 @@
   padding: 10px 12px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   background: var(--bg-elevated, #0f1117);
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -186,7 +186,7 @@
 
 .oc-repo-path-bar:empty::before {
   content: 'No repo selected';
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
   font-style: italic;
 }
 
@@ -205,9 +205,9 @@
 .oc-btn-new-chat {
   width: 100%;
   height: 32px;
-  border: 1px dashed var(--border-default, rgba(255,255,255,0.12));
+  border: 1px dashed var(--border-default, rgba(255,255,255,0.17));
   background: transparent;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-weight: 600;
   font-size: 12px;
 }
@@ -222,7 +222,7 @@
 
 .oc-term-settings {
   padding: 6px 10px;
-  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.10));
   flex-shrink: 0;
 }
 
@@ -232,7 +232,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
   display: block;
   margin-bottom: 4px;
 }
@@ -242,9 +242,9 @@
   height: 28px;
   padding: 0 8px;
   border-radius: 4px;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.15));
   background: var(--bg-elevated, #0f1117);
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   font-family: var(--font-mono);
   font-size: 11px;
   cursor: pointer;
@@ -289,7 +289,7 @@
 .oc-conv-empty {
   font-family: var(--font-ui);
   font-size: 12px;
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
   text-align: center;
   padding: 24px 8px;
   font-style: italic;
@@ -303,14 +303,14 @@
   padding: 24px 8px;
   font-family: var(--font-ui);
   font-size: 12px;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
 }
 
 .oc-conv-loading-spinner {
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 1.5px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border: 1.5px solid var(--border-subtle, rgba(255,255,255,0.15));
   border-top-color: var(--accent, #22d3ee);
   border-radius: 50%;
   animation: oc-spin 0.7s linear infinite;
@@ -327,7 +327,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
   padding: 8px 10px 4px;
 }
 
@@ -340,7 +340,7 @@
 }
 
 .oc-conv-item:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.04));
+  background: var(--bg-hover, rgba(255,255,255,0.07));
 }
 
 .oc-conv-item.active {
@@ -368,13 +368,13 @@
 .oc-conv-item-time {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
 }
 
 .oc-conv-item-count {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
 }
 
 .oc-ctx-menu {
@@ -401,14 +401,14 @@
   font-family: var(--font-ui);
   font-size: 22px;
   font-weight: 700;
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   margin: 12px 0 4px;
 }
 
 .oc-welcome-content p {
   font-family: var(--font-ui);
   font-size: 14px;
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
 }
 
 /* ── Main + Terminal ────────────────────────────── */
@@ -485,7 +485,7 @@ Claude Fab
   position: relative;
   top: auto;
   left: auto;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
 }
 
 .oc-term-instance .xterm,
@@ -521,7 +521,7 @@ Claude Fab
   width: 26px;
   height: 26px;
   border-radius: 5px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.13);
   background: rgba(15,23,42,0.8);
   color: #8892b0;
   cursor: pointer;
@@ -556,8 +556,8 @@ Claude Fab
   font-family: var(--font-mono);
   font-size: 11px;
   background: var(--bg-elevated, #0f1117);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  color: var(--text-muted, #8b949e);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.13));
+  color: var(--text-muted, #a3b1bd);
 }
 
 .oc-file-chip-pending {
@@ -584,7 +584,7 @@ Claude Fab
 .oc-input-area {
   flex-shrink: 0;
   padding: 16px 24px;
-  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   background: var(--bg-surface, #0a0c10);
 }
 
@@ -608,7 +608,7 @@ Claude Fab
   max-height: 200px;
   padding: 10px 14px;
   border-radius: var(--r-sm, 6px);
-  border: 1px solid var(--border-mid, rgba(255,255,255,0.14));
+  border: 1px solid var(--border-mid, rgba(255,255,255,0.19));
   background: var(--bg-elevated, #0f1117);
   color: var(--text-primary, #f0f6fc);
   font-family: var(--font-mono);
@@ -625,7 +625,7 @@ Claude Fab
 }
 
 .oc-input::placeholder {
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
 }
 
 .oc-btn-file {
@@ -636,13 +636,13 @@ Claude Fab
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border-color: var(--border-mid, rgba(255,255,255,0.14));
-  color: var(--text-tertiary, #6e7681);
+  border-color: var(--border-mid, rgba(255,255,255,0.19));
+  color: var(--text-tertiary, #8991a0);
 }
 .oc-btn-file:hover {
   color: var(--text-primary, #f0f6fc);
-  border-color: var(--border-strong, rgba(255,255,255,0.25));
-  background: var(--bg-hover, rgba(255,255,255,0.04));
+  border-color: var(--border-strong, rgba(255,255,255,0.28));
+  background: var(--bg-hover, rgba(255,255,255,0.07));
 }
 
 .oc-btn-prompt {
@@ -724,7 +724,7 @@ Claude Fab
   right: 0;
   margin-bottom: 4px;
   background: var(--bg-elevated, #0f1117);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 8px;
   max-height: 240px;
   overflow-y: auto;
@@ -746,7 +746,7 @@ Claude Fab
 
 .oc-picker-item:hover,
 .oc-picker-item--active {
-  background: var(--bg-hover, rgba(255,255,255,0.06));
+  background: var(--bg-hover, rgba(255,255,255,0.10));
   border-left-color: var(--accent, #22d3ee);
 }
 
@@ -757,7 +757,7 @@ Claude Fab
 }
 
 .oc-picker-dir {
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -800,13 +800,13 @@ Claude Fab
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.13));
   flex-shrink: 0;
 }
 .oc-response-overlay-title {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #8b949e);
+  color: var(--text-secondary, #a3b1bd);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -821,7 +821,7 @@ Claude Fab
 
 /* ── Command entry box ── */
 .oc-response-entry {
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.13);
   border-radius: 8px;
   overflow: hidden;
   background: rgba(255,255,255,0.025);
@@ -913,7 +913,7 @@ Claude Fab
 .oc-loading-spinner {
   width: 28px;
   height: 28px;
-  border: 2px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border: 2px solid var(--border-subtle, rgba(255,255,255,0.13));
   border-top-color: var(--accent, #22d3ee);
   border-radius: 50%;
   animation: oc-spin 0.7s linear infinite;
@@ -941,7 +941,7 @@ Claude Fab
 .oc-loading-label {
   font-family: var(--font-ui);
   font-size: 12px;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
 }
 
 /* ── Parallel mode controls ────────────────────── */
@@ -956,9 +956,9 @@ Claude Fab
   height: 28px;
   padding: 0 8px;
   border-radius: 4px;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.15));
   background: var(--bg-elevated, #0f1117);
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   font-family: var(--font-mono);
   font-size: 12px;
   outline: none;
@@ -985,7 +985,7 @@ Claude Fab
   cursor: pointer;
   inset: 0;
   background: var(--bg-elevated, #0f1117);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.17));
   border-radius: 20px;
   transition: background 0.2s ease, border-color 0.2s ease;
 }
@@ -997,7 +997,7 @@ Claude Fab
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--text-faint, #545d68);
+  background: var(--text-faint, #6c7784);
   transition: transform 0.2s ease, background 0.2s ease;
 }
 .oc-toggle input:checked + .oc-toggle-slider {
@@ -1022,7 +1022,7 @@ Claude Fab
 }
 .oc-replace-dialog {
   background: var(--bg-surface, #0a0c10);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 8px;
   padding: 20px;
   min-width: 280px;
@@ -1039,7 +1039,7 @@ Claude Fab
 .oc-replace-text {
   font-family: var(--font-ui);
   font-size: 13px;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
 }
 .oc-replace-options {
   display: flex;
@@ -1052,9 +1052,9 @@ Claude Fab
   height: 36px;
   font-size: 12px;
   font-weight: 600;
-  border-color: var(--border-default, rgba(255,255,255,0.12));
+  border-color: var(--border-default, rgba(255,255,255,0.17));
   background: var(--bg-elevated, #0f1117);
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .oc-replace-option:hover {
@@ -1081,7 +1081,7 @@ Claude Fab
 }
 .oc-pp-modal {
   background: var(--bg-elevated, #0f1117);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 14px;
   width: min(700px, 94vw);
   max-height: 80vh;
@@ -1095,7 +1095,7 @@ Claude Fab
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.10));
   flex-shrink: 0;
 }
 .oc-pp-title {
@@ -1107,7 +1107,7 @@ Claude Fab
 .oc-pp-back {
   border: none;
   background: var(--bg-raised, #161b22);
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   font-size: 0.83rem;
   cursor: pointer;
   padding: 6px 12px;
@@ -1125,7 +1125,7 @@ Claude Fab
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-size: 18px;
   cursor: pointer;
   border-radius: 6px;
@@ -1182,7 +1182,7 @@ Claude Fab
 }
 .oc-pp-cat-count {
   font-size: 0.75rem;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
 }
 
 /* ─── Prompt Grid ──────────────────────────────────────────────────────── */
@@ -1218,7 +1218,7 @@ Claude Fab
 }
 .oc-pp-prompt-preview {
   font-size: 0.78rem;
-  color: var(--text-secondary, #a0b0d8);
+  color: var(--text-secondary, #b7c4e6);
   line-height: 1.5;
   flex: 1;
   overflow: hidden;
@@ -1234,7 +1234,7 @@ Claude Fab
 .oc-pp-empty {
   padding: 32px 16px;
   text-align: center;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-size: 0.88rem;
 }
 
@@ -1250,7 +1250,7 @@ Claude Fab
 }
 .oc-tp-modal {
   background: var(--bg-elevated, #0f1117);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 14px;
   width: min(900px, 94vw);
   max-height: 85vh;
@@ -1263,7 +1263,7 @@ Claude Fab
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.10));
   flex-shrink: 0;
 }
 .oc-tp-title {
@@ -1277,7 +1277,7 @@ Claude Fab
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-size: 18px;
   cursor: pointer;
   border-radius: 6px;
@@ -1294,15 +1294,15 @@ Claude Fab
   display: flex;
   gap: 6px;
   padding: 10px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.10));
   flex-shrink: 0;
   overflow-x: auto;
   flex-wrap: wrap;
 }
 .oc-tp-filter {
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.15));
   background: transparent;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 600;
@@ -1333,12 +1333,12 @@ Claude Fab
 .oc-tp-empty {
   padding: 32px 16px;
   text-align: center;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-size: 0.88rem;
 }
 .oc-tp-card {
   background: var(--bg-raised, #161b22);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   border-radius: 10px;
   padding: 12px 14px;
   cursor: pointer;
@@ -1386,7 +1386,7 @@ Claude Fab
 .oc-tp-card-desc {
   font-family: var(--font-ui);
   font-size: 0.78rem;
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   line-height: 1.45;
   overflow: hidden;
   display: -webkit-box;
@@ -1402,7 +1402,7 @@ Claude Fab
 .oc-tp-card-time {
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  color: var(--text-faint, #545d68);
+  color: var(--text-faint, #6c7784);
 }
 .oc-tp-status-select {
   margin-left: auto;
@@ -1410,9 +1410,9 @@ Claude Fab
   font-size: 0.7rem;
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.15));
   background: var(--bg-elevated, #0f1117);
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   cursor: pointer;
   outline: none;
   max-width: 120px;
@@ -1500,7 +1500,7 @@ Claude Fab
 }
 .oc-sp-modal {
   background: var(--bg-elevated, #0f1117);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 14px;
   width: min(900px, 94vw);
   max-height: 85vh;
@@ -1513,7 +1513,7 @@ Claude Fab
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.10));
   flex-shrink: 0;
 }
 .oc-sp-title {
@@ -1527,7 +1527,7 @@ Claude Fab
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-size: 18px;
   cursor: pointer;
   border-radius: 6px;
@@ -1594,7 +1594,7 @@ Claude Fab
 }
 .oc-sp-card-preview {
   font-size: 0.78rem;
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   line-height: 1.5;
   overflow: hidden;
   display: -webkit-box;
@@ -1619,7 +1619,7 @@ Claude Fab
 }
 .oc-ppn-modal {
   background: var(--bg-elevated, #0f1117);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 14px;
   width: min(900px, 94vw);
   max-height: 85vh;
@@ -1632,7 +1632,7 @@ Claude Fab
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.10));
   flex-shrink: 0;
 }
 .oc-ppn-title {
@@ -1643,7 +1643,7 @@ Claude Fab
 }
 .oc-ppn-count {
   font-size: 0.78rem;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -1652,7 +1652,7 @@ Claude Fab
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-size: 18px;
   cursor: pointer;
   border-radius: 6px;
@@ -1677,12 +1677,12 @@ Claude Fab
 .oc-ppn-empty {
   padding: 32px 16px;
   text-align: center;
-  color: var(--text-muted, #8b949e);
+  color: var(--text-muted, #a3b1bd);
   font-size: 0.88rem;
 }
 .oc-ppn-card {
   background: var(--bg-raised, #161b22);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   border-radius: 12px;
   padding: 20px 22px;
   cursor: pointer;
@@ -1704,7 +1704,7 @@ Claude Fab
 }
 .oc-ppn-card-preview {
   font-size: 0.9rem;
-  color: var(--text-secondary, #b1bac4);
+  color: var(--text-secondary, #c6cfd8);
   line-height: 1.5;
   overflow: hidden;
   display: -webkit-box;
@@ -1728,7 +1728,7 @@ Claude Fab
   width: min(95vw, 860px);
   max-height: min(90vh, 700px);
   background: var(--bg-elevated, #0f172a);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.09));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.14));
   border-radius: 16px;
   display: flex;
   flex-direction: column;
@@ -1739,7 +1739,7 @@ Claude Fab
   align-items: center;
   gap: 10px;
   padding: 14px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   flex-shrink: 0;
 }
 .oc-bkp-title {
@@ -1749,7 +1749,7 @@ Claude Fab
 }
 .oc-bkp-count {
   font-size: 0.78rem;
-  color: var(--text-faint, #5a6a9a);
+  color: var(--text-faint, #7686b8);
 }
 .oc-bkp-pct {
   font-size: 0.78rem;
@@ -1760,7 +1760,7 @@ Claude Fab
 .oc-bkp-close {
   background: none;
   border: none;
-  color: var(--text-faint, #5a6a9a);
+  color: var(--text-faint, #7686b8);
   cursor: pointer;
   font-size: 16px;
   padding: 4px;
@@ -1770,7 +1770,7 @@ Claude Fab
   transition: all 0.12s;
 }
 .oc-bkp-close:hover {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.13);
   color: var(--text-primary, #eef2ff);
 }
 .oc-bkp-body {
@@ -1784,7 +1784,7 @@ Claude Fab
 .oc-bkp-empty {
   text-align: center;
   padding: 32px 16px;
-  color: var(--text-faint, #5a6a9a);
+  color: var(--text-faint, #7686b8);
   font-size: 0.85rem;
 }
 
@@ -1800,7 +1800,7 @@ Claude Fab
   width: 170px;
   flex-shrink: 0;
   background: var(--bg-elevated, #111d34);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.07));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
   border-left: 3px solid var(--bkp-color, #10b981);
   border-radius: 12px;
   padding: 12px 14px;
@@ -1821,7 +1821,7 @@ Claude Fab
 .oc-bkp-flow-parent-desc {
   font-size: 0.7rem;
   line-height: 1.35;
-  color: var(--text-secondary, #a0b0d8);
+  color: var(--text-secondary, #b7c4e6);
   flex: 1;
 }
 .oc-bkp-flow-parent-progress {
@@ -1846,7 +1846,7 @@ Claude Fab
 .oc-bkp-progress-label {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--text-secondary, #a0b0d8);
+  color: var(--text-secondary, #b7c4e6);
   min-width: 28px;
   text-align: right;
 }
@@ -1863,7 +1863,7 @@ Claude Fab
   content: '';
   width: 2px;
   height: 65%;
-  background: var(--bkp-color, rgba(255,255,255,0.12));
+  background: var(--bkp-color, rgba(255,255,255,0.17));
   border-radius: 99px;
 }
 
@@ -1880,7 +1880,7 @@ Claude Fab
 /* ── Item card ── */
 .oc-bkp-flow-card {
   background: var(--bg-raised, #1e293b);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.10));
   border-left: 3px solid transparent;
   border-radius: 10px;
   padding: 10px 12px;
@@ -1892,7 +1892,7 @@ Claude Fab
   min-height: 0;
 }
 .oc-bkp-flow-card:hover {
-  border-color: var(--bkp-color, rgba(255,255,255,0.12));
+  border-color: var(--bkp-color, rgba(255,255,255,0.17));
   border-left-color: var(--bkp-color, #10b981);
 }
 .oc-bkp-flow-card--done {
@@ -1927,7 +1927,7 @@ Claude Fab
 .oc-bkp-card-desc {
   font-size: 0.68rem;
   line-height: 1.35;
-  color: var(--text-secondary, #a0b0d8);
+  color: var(--text-secondary, #b7c4e6);
 }
 
 /* ── Children pills ── */
@@ -1945,8 +1945,8 @@ Claude Fab
   padding: 2px 6px 2px 4px;
   border-radius: 99px;
   background: var(--bg-base, #0a1428);
-  color: var(--text-secondary, #a0b0d8);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
+  color: var(--text-secondary, #b7c4e6);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
   cursor: pointer;
   transition: all 0.1s;
   white-space: nowrap;
@@ -1963,4 +1963,81 @@ Claude Fab
 .oc-bkp-flow-pill--done {
   border-color: color-mix(in srgb, var(--bkp-color, #10b981) 30%, transparent);
   color: var(--bkp-color, #10b981);
+}
+
+/* ─── Modern polish pass (cyan neon, additive only) ────────────────────── */
+/* Nothing above was restructured — these rules only add glow/contrast on
+   top of the existing classes and colors. Safe to drop or delete wholesale. */
+
+.oc-logo svg,
+.oc-logo img {
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.5));
+}
+
+.oc-title {
+  background: linear-gradient(135deg, #f0f6fc 0%, #7fe6f7 55%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 22px rgba(34, 211, 238, 0.2);
+}
+
+.oc-header {
+  position: relative;
+}
+
+.oc-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.35), transparent);
+}
+
+.oc-conv-item.active {
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+}
+
+.oc-btn-send {
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.08), 0 2px 10px rgba(34, 211, 238, 0.08);
+}
+
+.oc-btn-send:hover {
+  box-shadow: 0 0 0 3px var(--accent-dim, rgba(34,211,238,0.12)), 0 4px 18px rgba(34, 211, 238, 0.25);
+}
+
+.oc-input:focus {
+  box-shadow: 0 0 0 2px var(--accent-dim, rgba(34,211,238,0.12)), 0 0 18px rgba(34, 211, 238, 0.12);
+}
+
+.oc-term-instance.active {
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.15);
+}
+
+.oc-loading-spinner,
+.oc-conv-loading-spinner {
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.25);
+}
+
+/* Category / stone / prompt cards: crisper glow on the accent border they
+   already compute per-item via --pp-color / --sp-color custom props. */
+.oc-pp-cat-card,
+.oc-sp-card {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+}
+
+.oc-pp-cat-card:hover,
+.oc-pp-prompt-card:hover,
+.oc-sp-card:hover {
+  filter: brightness(1.05);
+}
+
+.oc-tp-filter.active {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--tp-color, #22d3ee) 40%, transparent);
+}
+
+.oc-bkp-pct {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent, #10b981) 50%, transparent);
 }
