@@ -1,6 +1,6 @@
 # HelperTool Knowledge Graph Report
 
-Generated: 2026-07-10T00:53:17.519Z
+Generated: 2026-07-10T11:00:55.504Z
 
 ## Overview
 
@@ -12,6 +12,8 @@ Generated: 2026-07-10T00:53:17.519Z
 - **Graph Edges**: 285
 - **Features**: 27
 - **Concepts**: 9
+- **Build**: 389 nodes reused, 0 rebuilt (0 new, 0 changed, 0 neighbor-affected)
+- **Generation Mode**: none (BFS depth: 1)
 
 ---
 
@@ -395,15 +397,6 @@ Generated: 2026-07-10T00:53:17.519Z
 | `Code/indexer/parser.js` | 0.010 | 2 | 0 | 4 |
 | `Code/indexer/watcher.js` | 0.010 | 1 | 1 | 4 |
 | `Code/ipc/symbolIndex_ipc.js` | 0.010 | 0 | 3 | 4 |
-
----
-
-## Summary Source
-
-| Source | Count |
-|--------|-------|
-| AI (fileSummaries.json) | 0 |
-| Heuristic (path-based) | 389 |
 
 ---
 

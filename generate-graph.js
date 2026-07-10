@@ -1,11 +1,71 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+
+const GRAPH_VERSION = 2;
+const AFFECTED_BFS_DEPTH = 1;
 
 // ---------- helpers ----------
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 const dirOf = p => { const i = p.lastIndexOf('/'); return i >= 0 ? p.slice(0, i) : ''; };
 const baseName = p => { const i = p.lastIndexOf('/'); return i >= 0 ? p.slice(i + 1) : p; };
 const round3 = n => Math.round(n * 1000) / 1000;
+
+// Normalize source code for deterministic content hashing
+function normalizeSourceCode(code) {
+  return code
+    .replace(/\r\n?/g, '\n')                           // normalize line endings
+    .replace(/\/\/.*$/gm, '')                            // strip single-line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '')                     // strip multi-line comments
+    .replace(/[ \t]+$/gm, '')                             // trim trailing whitespace
+    .replace(/\n{3,}/g, '\n\n')                           // collapse 3+ blank lines to 2
+    .trim();
+}
+
+function computeContentHash(filePath, repoRoot) {
+  try {
+    const fullPath = path.join(repoRoot, filePath);
+    if (!fs.existsSync(fullPath)) return '';
+    const code = fs.readFileSync(fullPath, 'utf8');
+    return crypto.createHash('sha256').update(normalizeSourceCode(code)).digest('hex');
+  } catch {
+    return '';
+  }
+}
+
+function computeStructureHash(symbols, imports) {
+  const data = JSON.stringify({ symbols, imports });
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+// Affected Node Analyzer: BFS on previous graph edges from changed files
+function analyzeAffectedNodes(changedFiles, newFiles, prevGraph, depth = 1) {
+  const affected = new Set([...changedFiles, ...newFiles]);
+  if (!prevGraph || !Array.isArray(prevGraph.edges) || prevGraph.edges.length === 0) {
+    return { affected, generationMode: affected.size === 0 ? 'none' : 'full' };
+  }
+  let queue = [...affected];
+  for (let d = 0; d < depth; d++) {
+    const next = [];
+    for (const fp of queue) {
+      const nodeId = 'file-' + fp;
+      for (const e of prevGraph.edges) {
+        if (e.source === nodeId && e.target !== nodeId) {
+          const tgt = e.target.startsWith('file-') ? e.target.slice(5) : e.target;
+          if (tgt && !affected.has(tgt)) { affected.add(tgt); next.push(tgt); }
+        }
+        if (e.target === nodeId && e.source !== nodeId) {
+          const src = e.source.startsWith('file-') ? e.source.slice(5) : e.source;
+          if (src && !affected.has(src)) { affected.add(src); next.push(src); }
+        }
+      }
+    }
+    queue = next;
+  }
+  const total = changedFiles.size + newFiles.size;
+  const gm = total === 0 ? 'none' : affected.size === total ? 'minimal' : 'neighborhood';
+  return { affected, generationMode: gm };
+}
+
 const resolveImport = (sourceFile, importPath, allFiles) => {
   if (!importPath.startsWith('.')) return null;
   const srcDir = dirOf(sourceFile);
@@ -33,10 +93,90 @@ const resolveImport = (sourceFile, importPath, allFiles) => {
 };
 
 // ---------- load ----------
-const raw = JSON.parse(fs.readFileSync('symbol-index-storage/symbols.json', 'utf8'));
+const raw = JSON.parse(fs.readFileSync('graphify/symbol-index-storage/symbols.json', 'utf8'));
 const files = raw.files;
 const symbols = raw.symbols;
 const imports = raw.imports;
+
+// ---------- incremental hash comparison (v2) ----------
+const HASH_FILE = 'graphify/graphify-storage/.file-hashes.json';
+const outDirIncr = 'graphify/graphify-storage';
+if (!fs.existsSync(outDirIncr)) fs.mkdirSync(outDirIncr, { recursive: true });
+
+let prevHashes = {};
+if (fs.existsSync(HASH_FILE)) {
+  try { prevHashes = JSON.parse(fs.readFileSync(HASH_FILE, 'utf8')); } catch {}
+}
+
+// Migrate v1 hashes ({ path: hex }) to v2 ({ path: { contentHash, structureHash, ... } })
+const REPO_ROOT = raw.repoPath || '.';
+let migratedCount = 0;
+for (const [fp, val] of Object.entries(prevHashes)) {
+  if (typeof val === 'string') {
+    prevHashes[fp] = {
+      contentHash: computeContentHash(fp, REPO_ROOT),
+      structureHash: val,
+      lastGenerated: new Date().toISOString(),
+      graphVersion: 1
+    };
+    migratedCount++;
+  }
+}
+if (migratedCount > 0) console.log(`Migrated ${migratedCount} v1 hashes to v2 format`);
+
+// Compute current hashes
+const symsByFileForHash = new Map();
+for (const s of symbols) {
+  if (!symsByFileForHash.has(s.filePath)) symsByFileForHash.set(s.filePath, []);
+  symsByFileForHash.get(s.filePath).push(s);
+}
+const impsByFileForHash = new Map();
+for (const im of imports) {
+  if (!impsByFileForHash.has(im.sourceFile)) impsByFileForHash.set(im.sourceFile, []);
+  impsByFileForHash.get(im.sourceFile).push(im);
+}
+
+const curHashes = {};
+for (const f of files) {
+  const fp = f.path;
+  const syms = symsByFileForHash.get(fp) || [];
+  const imps = impsByFileForHash.get(fp) || [];
+  curHashes[fp] = {
+    contentHash: computeContentHash(fp, REPO_ROOT),
+    structureHash: computeStructureHash(syms, imps),
+    lastGenerated: new Date().toISOString(),
+    graphVersion: GRAPH_VERSION
+  };
+}
+
+// Determine which files changed (based on structureHash)
+const changedFiles = new Set();
+const unchangedFiles = new Set();
+const newFiles = new Set();
+for (const fp of Object.keys(curHashes)) {
+  if (prevHashes[fp] === undefined) newFiles.add(fp);
+  else if (prevHashes[fp].structureHash !== curHashes[fp].structureHash) changedFiles.add(fp);
+  else unchangedFiles.add(fp);
+}
+for (const fp of Object.keys(prevHashes)) {
+  if (curHashes[fp] === undefined) changedFiles.add(fp);
+}
+
+// Load previous graph.json for BFS traversal
+let prevGraph = null;
+const GRAPH_FILE = 'graphify/graphify-storage/graph.json';
+if (fs.existsSync(GRAPH_FILE)) {
+  try { prevGraph = JSON.parse(fs.readFileSync(GRAPH_FILE, 'utf8')); } catch {}
+}
+
+// Run Affected Node Analyzer
+const { affected: affectedSet, generationMode } = analyzeAffectedNodes(changedFiles, newFiles, prevGraph, AFFECTED_BFS_DEPTH);
+const unaffectedFiles = new Set([...unchangedFiles].filter(f => !affectedSet.has(f)));
+const neighborCount = [...affectedSet].filter(f => !changedFiles.has(f) && !newFiles.has(f)).length;
+
+const totalFiles = files.length;
+console.log(`Incremental: ${totalFiles} files (${newFiles.size} new, ${changedFiles.size} changed, ${unaffectedFiles.size} unaffected + ${neighborCount} neighbor-affected)`);
+console.log(`  Affected set: ${affectedSet.size} files (mode: ${generationMode})`);
 
 // ---------- classify features ----------
 const featureMap = new Map(); // filePath -> Set of feature names
@@ -111,19 +251,6 @@ for (const f of files) {
   tagMap.set(f.path, tags);
 }
 
-// ---------- optionally load fileSummaries.json (Stage 2 output) ----------
-let fileSummaries = {};
-const summariesPath = 'symbol-index-storage/fileSummaries.json';
-if (fs.existsSync(summariesPath)) {
-  try {
-    fileSummaries = JSON.parse(fs.readFileSync(summariesPath, 'utf8'));
-    fileSummaries = fileSummaries.reduce((m, s) => { m[s.file] = s; return m; }, {});
-    console.log('Loaded fileSummaries.json: ' + Object.keys(fileSummaries).length + ' files');
-  } catch (e) {
-    console.log('Warning: could not parse fileSummaries.json (' + e.message + '), proceeding without semantic data');
-  }
-}
-
 // ---------- build file index ----------
 const fileIndex = new Map(); // path -> file obj
 for (const f of files) fileIndex.set(f.path, f);
@@ -146,8 +273,29 @@ for (const im of imports) {
 const nodes = [];
 const nodeIds = new Set();
 
+// Index previous graph nodes by file path for incremental reuse
+const prevNodesByPath = new Map();
+if (prevGraph && Array.isArray(prevGraph.nodes)) {
+  for (const n of prevGraph.nodes) {
+    if (n.filePath) prevNodesByPath.set(n.filePath, n);
+  }
+}
+
+let reusedCount = 0;
+
 for (const f of files) {
   const p = f.path;
+
+  // Reuse existing node if unaffected by any change (preserves AI-enriched data)
+  if (unaffectedFiles.has(p) && prevNodesByPath.has(p)) {
+    const oldNode = prevNodesByPath.get(p);
+    // Update only the deterministic fields that might have drifted
+    // (stats are regenerated from fresh symbol data; everything else preserved)
+    nodes.push(oldNode);
+    nodeIds.add(oldNode.id);
+    reusedCount++;
+    continue;
+  }
   const syms = symsByFile.get(p) || [];
   const feats = [...(featureMap.get(p) || ['core'])];
   const tags = [...(tagMap.get(p) || [])];
@@ -207,29 +355,14 @@ for (const f of files) {
     summary = `Module: ${bn.replace('.js', '')}. Part of the HelperTool application.`;
   }
 
-  // Override with AI-generated semantic data if available
-  const semantic = fileSummaries[p];
-  const resolvedSummary = semantic?.summary || summary;
-  const resolvedResponsibilities = semantic?.responsibilities || [];
-  const resolvedFeature = semantic?.feature || null;
-
-  // Merge AI-generated symbol purposes into embedded symbols
-  const semSymsMap = {};
-  if (semantic?.symbols) {
-    for (const ss of semantic.symbols) semSymsMap[ss.name] = ss;
-  }
-
-  const embeddedSyms = funSyms.slice(0, 10).map(s => {
-    const sem = semSymsMap[s.name];
-    return {
-      name: s.name,
-      type: s.type,
-      line: s.line,
-      signature: s.signature || '',
-      purpose: sem?.purpose || `Defined in ${p} at line ${s.line}`,
-      role: sem?.role || (s.type === 'class' ? 'class definition' : s.type === 'function' ? 'function' : 'export')
-    };
-  });
+  const embeddedSyms = funSyms.slice(0, 10).map(s => ({
+    name: s.name,
+    type: s.type,
+    line: s.line,
+    signature: s.signature || '',
+    purpose: `Defined in ${p} at line ${s.line}`,
+    role: s.type === 'class' ? 'class definition' : s.type === 'function' ? 'function' : 'export'
+  }));
 
   const node = {
     id: 'file-' + p,
@@ -237,8 +370,8 @@ for (const f of files) {
     label: bn,
     filePath: p,
     language: f.language || 'javascript',
-    summary: resolvedSummary,
-    responsibilities: resolvedResponsibilities,
+    summary: summary,
+    responsibilities: [],
     features: feats,
     tags: [...new Set(tags)],
     stats: {
@@ -250,11 +383,25 @@ for (const f of files) {
       variables: typeCounts['variable'] || 0
     },
     symbols: embeddedSyms,
-    summarySource: semantic?.summary ? 'ai' : 'heuristic'
+    summarySource: 'heuristic',
+    graphVersion: GRAPH_VERSION,
+    updatedAt: curHashes[p]?.lastGenerated || new Date().toISOString(),
+    structureHash: curHashes[p]?.structureHash || '',
+    contentHash: curHashes[p]?.contentHash || '',
+    generationMode: newFiles.has(p) ? 'new' : changedFiles.has(p) ? 'changed' : 'neighborhood'
   };
 
   nodes.push(node);
   nodeIds.add(node.id);
+}
+
+// Ensure all nodes have v2 metadata (post-processing for reused nodes)
+for (const n of nodes) {
+  n.graphVersion = n.graphVersion || GRAPH_VERSION;
+  n.updatedAt = n.updatedAt || curHashes[n.filePath]?.lastGenerated || new Date().toISOString();
+  n.structureHash = n.structureHash || curHashes[n.filePath]?.structureHash || '';
+  n.contentHash = n.contentHash || curHashes[n.filePath]?.contentHash || '';
+  n.generationMode = n.generationMode || 'reused';
 }
 
 // ---------- BUILD EDGES ----------
@@ -619,11 +766,24 @@ const concepts = {
 
 // ---------- BUILD graph.json ----------
 const graph = {
-  graphVersion: '1.1',
+  graphVersion: String(GRAPH_VERSION),
   repoName: 'HelperTool',
   repoPath: raw.repoPath,
   generatedAt: new Date().toISOString(),
   exportedAt: raw.exportedAt,
+  meta: {
+    incremental: {
+      total: files.length,
+      reused: reusedCount,
+      rebuilt: files.length - reusedCount,
+      new: newFiles.size,
+      changed: changedFiles.size,
+      neighborAffected: neighborCount,
+      generationMode,
+      affectedSetSize: affectedSet.size,
+      bfsDepth: AFFECTED_BFS_DEPTH
+    }
+  },
   stats: {
     totalFiles: files.length,
     totalSymbols: symbols.length,
@@ -639,14 +799,22 @@ const graph = {
   concepts
 };
 
-// Write graph.json using streaming approach
-const outDir = 'graphify-storage';
+// Write graph.json
+const outDir = 'graphify/graphify-storage';
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
 // Write in chunks to avoid memory issues
 fs.writeFileSync(outDir + '/graph.json', JSON.stringify(graph, null, 2), 'utf8');
-console.log('Wrote graph.json (' + (Buffer.byteLength(JSON.stringify(graph), 'utf8') / 1024).toFixed(0) + ' KB)');
-console.log('  Nodes: ' + nodes.length + ', Edges: ' + uniqueEdges.length);
+const jsonSize = (Buffer.byteLength(JSON.stringify(graph), 'utf8') / 1024).toFixed(0);
+console.log('Wrote graph.json (' + jsonSize + ' KB)');
+const rebuiltCount = nodes.length - reusedCount;
+console.log('  Nodes: ' + nodes.length + ' (' + reusedCount + ' reused, ' + rebuiltCount + ' rebuilt)');
+console.log('  Generation mode: ' + generationMode + ' (neighbor-affected: ' + neighborCount + ')');
+console.log('  Edges: ' + uniqueEdges.length);
+
+// Save file hashes for next incremental run
+fs.writeFileSync(HASH_FILE, JSON.stringify(curHashes, null, 2), 'utf8');
+console.log('Saved file hashes (' + Object.keys(curHashes).length + ' files)');
 
 // ---------- BUILD graph.md ----------
 let md = `# HelperTool Knowledge Graph Report
@@ -663,6 +831,8 @@ Generated: ${new Date().toISOString()}
 - **Graph Edges**: ${uniqueEdges.length}
 - **Features**: ${Object.keys(features).length}
 - **Concepts**: ${Object.keys(concepts).length}
+- **Build**: ${reusedCount} nodes reused, ${nodes.length - reusedCount} rebuilt (${newFiles.size} new, ${changedFiles.size} changed, ${neighborCount} neighbor-affected)
+- **Generation Mode**: ${generationMode} (BFS depth: ${AFFECTED_BFS_DEPTH})
 
 ---
 
@@ -710,15 +880,6 @@ for (const n of topCentral) {
 }
 
 md += `
----
-
-## Summary Source
-
-| Source | Count |
-|--------|-------|
-| AI (fileSummaries.json) | ${nodes.filter(n => n.summarySource === 'ai').length} |
-| Heuristic (path-based) | ${nodes.filter(n => n.summarySource === 'heuristic').length} |
-
 ---
 
 ## Import Graph Stats

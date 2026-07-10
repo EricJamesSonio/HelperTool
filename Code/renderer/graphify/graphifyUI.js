@@ -1133,7 +1133,7 @@ function _template() {
             <div class="gfy-ai-step-num">3</div>
             <div class="gfy-ai-step-body">
               <div class="gfy-ai-step-title">Load AI-Generated Graph</div>
-              <div class="gfy-ai-step-desc">Load the AI-generated <code>graphify-storage/graph.json</code> and <code>graph.md</code> into the viewer.</div>
+              <div class="gfy-ai-step-desc">Load the AI-generated <code>graphify/graphify-storage/graph.json</code> and <code>graph.md</code> into the viewer.</div>
               <button class="gfy-load-ai-btn">
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
                 Load AI Graph

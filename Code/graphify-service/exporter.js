@@ -4,8 +4,8 @@ const fs   = require('fs');
 const path = require('path');
 const { getDb } = require('./db');
 
-const STORAGE_DIR = 'symbol-index-storage';
-const GRAPHIFY_DIR = 'graphify-storage';
+const STORAGE_DIR = 'graphify/symbol-index-storage';
+const GRAPHIFY_DIR = 'graphify/graphify-storage';
 
 function _getRepoPath() {
   const db = getDb();
@@ -141,8 +141,8 @@ function generatePrompt() {
 
 You are an AI assistant. Your task is to analyze the provided \`symbols.json\` file containing the symbol index of a codebase, and produce two output files:
 
-1. **\`graphify-storage/graph.json\`** — A structured knowledge graph with semantic labels
-2. **\`graphify-storage/graph.md\`** — A human-readable markdown report
+1. **\`graphify/graphify-storage/graph.json\`** — A structured knowledge graph with semantic labels
+2. **\`graphify/graphify-storage/graph.md\`** — A human-readable markdown report
 
 ## The Challenge
 
@@ -474,8 +474,8 @@ Cross-feature or unexpected relationships detected.
 
 Write two files:
 
-1. \`${repoPath}\\graphify-storage\\graph.json\` — the structured graph (must match the schema above exactly)
-2. \`${repoPath}\\graphify-storage\\graph.md\` — the human-readable report
+1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` — the structured graph (must match the schema above exactly)
+2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` — the human-readable report
 `;
 
   const promptPath = path.join(outDir, 'generate-graph.md');

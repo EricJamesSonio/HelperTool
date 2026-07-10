@@ -10,7 +10,7 @@ function exportRepoToJson(db, repoId) {
   const repo = rStmt.getAsObject();
   rStmt.free();
 
-  const outDir = path.join(repo.repo_path, 'symbol-index-storage');
+  const outDir = path.join(repo.repo_path, 'graphify', 'symbol-index-storage');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   const data = {

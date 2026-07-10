@@ -9,9 +9,9 @@ let _data = null;
 async function initFromJson(repoPath) {
   if (_db) return _db;
 
-  const jsonPath = path.join(repoPath, 'symbol-index-storage', 'symbols.json');
+  const jsonPath = path.join(repoPath, 'graphify', 'symbol-index-storage', 'symbols.json');
   if (!fs.existsSync(jsonPath)) {
-    throw new Error(`symbol-index-storage/symbols.json not found at ${repoPath}. Please index your codebase first.`);
+    throw new Error(`graphify/symbol-index-storage/symbols.json not found at ${repoPath}. Please index your codebase first.`);
   }
 
   let raw = fs.readFileSync(jsonPath, 'utf-8');
