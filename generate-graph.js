@@ -389,12 +389,18 @@ for (const e of edges) {
 const uniqueEdges = [...edgeMap.values()];
 
 // ---------- COMPUTE CENTRALITY METRICS ----------
-const importCounts = {};    // how many imports each file makes
-const importedByCounts = {}; // how many files import each file
+const outDegree = {};  // all outgoing edges per node
+const inDegree = {};   // all incoming edges per node
+const importCounts = {};    // how many IMPORTS edges each file sources
+const importedByCounts = {}; // how many IMPORTS edges each file targets
+
 for (const e of uniqueEdges) {
-  if (e.type !== 'IMPORTS') continue;
-  importCounts[e.source] = (importCounts[e.source] || 0) + 1;
-  importedByCounts[e.target] = (importedByCounts[e.target] || 0) + 1;
+  outDegree[e.source] = (outDegree[e.source] || 0) + 1;
+  inDegree[e.target] = (inDegree[e.target] || 0) + 1;
+  if (e.type === 'IMPORTS') {
+    importCounts[e.source] = (importCounts[e.source] || 0) + 1;
+    importedByCounts[e.target] = (importedByCounts[e.target] || 0) + 1;
+  }
 }
 
 // Build node-level metrics
@@ -402,12 +408,19 @@ const nodeMetrics = new Map();
 const totalNodes = nodes.length;
 for (const n of nodes) {
   const id = n.id;
-  const fanOut = importCounts[id] || 0;
-  const fanIn = importedByCounts[id] || 0;
-  const degree = fanIn + fanOut;
-  const totalEdgesForCentrality = uniqueEdges.length || 1;
-  const centrality = totalNodes > 1 ? round3(degree / (totalNodes - 1)) : 0;
-  nodeMetrics.set(id, { fanIn, fanOut, degree, centrality, importCount: fanOut, importedByCount: fanIn });
+  const degree = (outDegree[id] || 0) + (inDegree[id] || 0);
+  const totalPossibleEdges = totalNodes - 1;
+  const centrality = totalPossibleEdges > 0 ? round3(degree / totalPossibleEdges) : 0;
+  nodeMetrics.set(id, {
+    fanIn: importedByCounts[id] || 0,
+    fanOut: importCounts[id] || 0,
+    degree,
+    centrality,
+    importCount: importCounts[id] || 0,
+    importedByCount: importedByCounts[id] || 0,
+    inDegree: inDegree[id] || 0,
+    outDegree: outDegree[id] || 0
+  });
 }
 
 // Apply metrics to nodes

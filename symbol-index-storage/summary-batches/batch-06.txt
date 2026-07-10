@@ -1,0 +1,316 @@
+Analyze these 50 files from HelperTool codebase.
+
+Files:
+  - Code/renderer/styles/minified.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/layout-tree.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/loc-detector.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/port-manager.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/profile.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/note-mode.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/prompt-tool.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/query-builder.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/root-jumper.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/secret-holder.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/service-tracker.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/shortcuts.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/shared-components.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/settings.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/team-activity.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/session-notes.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/terminal.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/symbol-index.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/ui-layout-helper.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/styles/video-tool.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/swaggerImport.js
+    language: javascript
+    total_symbols: 30
+    exported: none
+    imports: none
+    symbols: fetchSpec, res, text, parseSpec, _parseOpenApi3, endpoints, paths, HTTP_METHODS, op, endpoint, allParams, val, content, jsonContent, schema, _parseSwagger2, endpoints, paths, HTTP_METHODS, op, endpoint, allParams, val, _schemaToExample, resolved, obj, obj, _resolveRef, parts, cur
+  - Code/renderer/styles/workspaceTool.css
+    language: css
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/symbolIndex/symbolIndexHandler.js
+    language: javascript
+    total_symbols: 20
+    exported: none
+    imports: none
+    symbols: SymbolIndexHandler, constructor, init, check, startIndexing, getStatus, search, getDirtyCount, reindexDirty, reset, getIndexedFiles, getIndexedFileList, getFileSymbols, getDirtyFiles, reindexFile, delete, stopWatcher, onProgress, onError, onDirtyChanged
+  - Code/renderer/symbolIndex.js
+    language: javascript
+    total_symbols: 10
+    exported: none
+    imports: ./symbolIndex/symbolIndexManager.js, ./symbolIndex/symbolIndexUI.js, ./symbolIndex/symbolIndexHandler.js
+    symbols: SymbolIndex, constructor, initialize, initResult, checkResult, render, refresh, getState, reset, destroy
+  - Code/renderer/terminal/terminalUI.js
+    language: javascript
+    total_symbols: 78
+    exported: none
+    imports: ../utils/outputViewer.js
+    symbols: TerminalClass, FitAddonClass, xtermLoaded, ensureXterm, xtermMod, fitMod, link, getDarkTheme, getLightTheme, ICON_SHELL, ICON_PLUS, ICON_CLOSE, ICON_OUTPUT, ICON_CHEVRON, _stripAnsiForDetection, TerminalUI, constructor, init, inst, inst, _createPanel, _openDropdown, rect, _buildShellDropdown, opt, _initResize, onMove, dy, newH, onUp, open, close, isOpen, openTerminalHere, _addTerminal, id, useShell, inst, terminal, fitAddon, tab, dims, _activateTerminal, _fitActive, inst, _readTerminalBuffer, buf, totalLines, lines, i, line, _detectLastCommand, lines, promptPatterns, i, line, m, _parseBufferToEntries, rawLines, promptPatterns, entries, currentCmd, currentOut, i, raw, clean, matched, m, _viewTerminalOutputById, inst, content, shellName, command, entries, _viewTerminalOutput, _killTerminal, inst, next
+  - Code/renderer/symbolIndex/symbolIndexUI.js
+    language: javascript
+    total_symbols: 127
+    exported: none
+    imports: ../utils/confirmDialog.js
+    symbols: ICON_SEARCH, ICON_GEAR, ICON_LIGHTBULB, ICON_LIGHTNING, ICON_RADAR, ICON_REFRESH, ICON_CHEVRON_RIGHT, ICON_CHEVRON_DOWN, ICON_REMOVE, ICON_DELETE, SymbolIndexUI, constructor, render, getTemplate, setupEventListeners, searchInput, item, refreshUI, status, dirtyChanged, searchInput, showUnindexedState, el, showIndexedState, el, dirtyRow, dirtyCount, watcherStatus, hideAllStates, el, updateStats, last, formatTime, d, now, diff, _renderSearchResults, handleSearch, input, query, resultsEl, showBrowseView, resultsEl, _loadMoreFiles, PAGE, oldMore, done, _renderBrowsePage, oldMore, frag, escapedPath, div, moreBtn, remaining, done, _attachBrowseEvents, fileRow, filePath, symContainer, toggle, isOpen, sym, moreBtn, _loadAndRenderFileSymbols, _renderSymbols, frag, div, handleResultClick, filePath, line, selectFileInTree, treeContainer, fileName, allItems, nodePath, searchInput, suggestions, nodePath, openDocignore, startIndexing, progressBlock, result, reindexDirty, progressBlock, result, confirmFullReindex, ok, confirmReset, ok, confirmDelete, ok, result, proxyIndexFile, el, filePath, result, proxySearch, el, query, result, handleProgress, block, pct, handleDirtyChanged, _processDirtyChanged, row, countEl, watcherStatus, renderDirtyFiles, container, list, selectAll, handleSelectAll, checked, handleDirtyFileClick, item, cb, pathSpan, filePath, handleReindexSelected, selected, reindexed, result, showToast, toast, escapeHtml, map
+  - Code/renderer/teamActivityFeed.js
+    language: javascript
+    total_symbols: 203
+    exported: none
+    imports: none
+    symbols: _panel, _open, _commits, _contributors, _selectedContributor, _selectedDateRange, _selectedGraphKey, _selectedCommit, _selectedFile, _graphViewMode, _drillOriginalMode, _drillKey, _commitFilterText, _diffCache, _visibleCount, _profileContributor, TA_SUMMARY, TA_REFRESH, TA_CLOSE, TA_CROWN, _el, el, _esc, _timeAgo, diff, mins, hours, days, months, _initials, _shortHash, _n, isOpen, open, close, _buildPanel, _escHandler, _loadData, summary, contributorsList, commitList, graph, cacheKey, cached, result, _onRefresh, btn, repo, _renderSummary, el, total, contribCount, totalAdded, dates, firstDate, _computeScore, _renderLeaderboardItem, item, rankEl, avatar, info, nameEl, statEl, barWrap, pct, bar, scoreEl, _renderContributors, list, allActive, ranked, maxScore, i, active, _getGraphCommits, commits, monthKey, wkStart, wkEnd, d, _getFilteredCommits, filtered, ft, _dateToGraphKey, d, wkStart, _onBarClick, _updateGraphToggleButtons, _resetGraphFilter, _renderGraph, wrap, mainEl, graphCommits, data, _renderProfile, data, authorCommits, firstDate, totalFiles, activeDays, commitsPerWeek, net, netStr, _buildGraphData, grouped, d, wkStart, minDate, maxDate, d, result, cursor, key, key, key, _drawBarChart, contributors, contributorColors, barW, gap, step, padL, padR, h, graphH, totalW, maxCount, isFiltered, svg, gridLines, i, y, x, barH, y, isActive, opacity, stroke, strokeW, cursor, onclick, contribCounts, yOff, sorted, segH, color, tooltip, skip, label, dateRange, _renderCommits, list, countEl, filtered, shown, html, i, c, active, color, hash, commit, idx, commit, _onScroll, list, filtered, _onFilter, _openDrawer, drawer, meta, dateStr, filesEl, sidebarHeader, fileHeader, repoPath, files, result, fhtml, statusClass, added, removed, filePath, firstFile, firstEl, _closeDrawer, _loadFileAtCommit, el, fileHeader, diffKey, rawKey, repoPath, diff, raw, _renderFileHeader, type, text, _renderDiffContent, lines, html, ch, cls, sign
+  - Code/renderer/uiLayoutHelper/codeswampBridge.js
+    language: javascript
+    total_symbols: 7
+    exported: none
+    imports: ./dslParser.js
+    symbols: renderLayoutBlock, result, tryExtractAndRender, blockRegex, results, dsl, rendered
+  - Code/renderer/symbolIndex/symbolIndexManager.js
+    language: javascript
+    total_symbols: 4
+    exported: none
+    imports: none
+    symbols: SymbolIndexManager, constructor, getState, reset
+  - Code/renderer/uiLayoutHelper/dslParser.js
+    language: javascript
+    total_symbols: 11
+    exported: none
+    imports: ./layoutEngine.js
+    symbols: tryParse, parseAndRender, parsed, errors, normalized, validate, errors, p, validTypes, normalize, n
+  - Code/renderer/uiLayoutHelper/state.js
+    language: javascript
+    total_symbols: 2
+    exported: none
+    imports: none
+    symbols: U, assignRefs
+  - Code/renderer/uiLayoutHelper/index.js
+    language: javascript
+    total_symbols: 38
+    exported: none
+    imports: ./template.js, ./dslParser.js, ./presets.js
+    symbols: _initialized, setup, injectHTML, el, wireEvents, renderToolbar, types, btn, selId, _getSelectedId, sel, renderPresets, item, loadPreset, handleRender, dsl, raw, result, handleExport, dsl, json, blob, url, a, handleImport, input, file, reader, dsl, handleCopy, text, showError, hideError, initUI, openUI, closeUI, isOpen, getRenderedOutput
+  - Code/renderer/uiLayoutHelper/layoutEngine.js
+    language: javascript
+    total_symbols: 72
+    exported: none
+    imports: none
+    symbols: BORDERS, getBorder, repeat, measure, w, code, padRight, current, needed, padCenter, current, needed, left, right, naturalContentWidth, w, gap, parts, renderNode, computeChildHeights, h, vsplit, childLines, totalH, lines, allLines, lines, layoutBox, b, natural, contentWidth, label, h, lines, top, labelText, pos, i, padLines, topPad, bottomPad, i, i, renderHSplit, children, gap, ratios, ratioSum, gapTotal, available, widths, allocated, i, w, extra, childLines, maxH, result, row, line, i, renderVSplit, children, result, lines, renderSpacer, h, lines, i, renderLayout, w, lines
+  - Code/renderer/uiLayoutHelper/template.js
+    language: javascript
+    total_symbols: 1
+    exported: none
+    imports: none
+    symbols: getTemplate
+  - Code/renderer/uiLayoutHelper/presets.js
+    language: javascript
+    total_symbols: 3
+    exported: none
+    imports: none
+    symbols: PRESETS, getPreset, getPresetNames
+  - Code/renderer/utils/confirmDialog.js
+    language: javascript
+    total_symbols: 25
+    exported: none
+    imports: none
+    symbols: _overlayId, alertDialog, id, overlay, box, close, el, handler, confirmDialog, id, overlay, box, close, el, handler, promptDialog, id, overlay, box, escVal, input, close, el, handler, style
+  - Code/renderer/uiLayoutHelper.js
+    language: javascript
+    total_symbols: 0
+    exported: none
+    imports: none
+    symbols: none
+  - Code/renderer/utils/contextMenu.js
+    language: javascript
+    total_symbols: 30
+    exported: none
+    imports: none
+    symbols: ICON_FILE, ICON_DIFF, ICON_LINK, ICON_WRENCH, ICON_SEED, ICON_RULER, ICON_TERMINAL, _activeMenu, _onFileDeps, _onFolderSeed, _onFolderLoc, _onFileDiff, _onFileView, _onFolderTerminal, initContextMenu, wrapper, nodePath, nodeName, isFile, isFolder, showFileMenu, menu, item, showFolderMenu, menu, item, mountMenu, rect, closeMenu, escapeHtml
+  - Code/renderer/utils/outputViewer.js
+    language: javascript
+    total_symbols: 28
+    exported: none
+    imports: none
+    symbols: _currentOverlay, _currentEscHandler, _stripAnsi, _escHtml, _buildEntryElement, div, header, cmdSpan, copyBtn, text, output, showOutputViewer, lang, overlay, hasEntries, copyAllText, body, copyBtn, cleanContent, hasCommand, copyText, copyBtn, closeOutputViewer, el, isOutputViewerOpen, _doCopy, span, orig
+  - Code/renderer/uiLayoutHelper/visualBuilder.js
+    language: javascript
+    total_symbols: 84
+    exported: none
+    imports: none
+    symbols: _idCounter, _uid, TYPE_META, CHILD_TYPES, _tree, _onChange, _container, getTree, setOnChange, _find, f, _findParent, f, _remove, idx, _mkNode, DEFAULTS, addNode, node, p, removeNode, updateNode, n, moveNode, node, old, i, np, toDSL, n, d, loadDSL, _from, n, startPaletteDrag, renderVisualBuilder, BORDER_STYLES, BORDER_RADII, _render, canvas, empty, view, _canvasDrop, d, _renderShape, el, isBox, isH, isV, bStyle, bRad, ribbon, ribbon, meta, zone, hint, i, wrap, _wire, ctrl, del, edit, add, _wireWrap, cid, d, _zoneDrop, d, _editNode, fields, meta, html, inp, ov, p, e, v, _addMenu, m, r, b, mt, cl, _esc
+  - Code/renderer/videoTool/imageRenderer.js
+    language: javascript
+    total_symbols: 41
+    exported: none
+    imports: none
+    symbols: ICONS, formatSize, kb, renderImageOutputRow, displayPath, renderImageDropZone, name, renderImageResult, sizesStr, renderImageProgress, pct, step, renderImageError, renderCompressDropZone, items, name, meta, name, meta, renderCompressControls, presets, formatOptions, presetCards, formatSelect, renderCompressOutputRow, displayPath, renderCompressButton, label, renderCompressProgress, pct, fileInfo, renderCompressResult, totalSaved, rows, name, saved, errCount, saved, renderCompressError, escapeHtml, div
+  - Code/renderer/videoTool/imageState.js
+    language: javascript
+    total_symbols: 4
+    exported: none
+    imports: none
+    symbols: ImageState, constructor, reset, resetCompress
+  - Code/renderer/videoTool/videoPresets.js
+    language: javascript
+    total_symbols: 3
+    exported: none
+    imports: none
+    symbols: ICONS, PRESETS, DEFAULT_PRESET
+  - Code/renderer/videoTool/timelineRenderer.js
+    language: javascript
+    total_symbols: 39
+    exported: none
+    imports: none
+    symbols: ICONS, formatSize, kb, formatDuration, m, s, escapeHtml, div, PRESETS, renderDropZone, renderFileInfo, name, dur, res, size, renderOutputRow, displayPath, renderPlayerSlot, renderTimeline, rulerHtml, interval, t, pct, barsHtml, left, w, color, isSelected, outDur, playheadPct, durLabel, renderSegmentActions, renderPresets, renderExportButtons, renderProgress, pct, step, renderResult, renderError
+  - Code/renderer/videoTool/videoState.js
+    language: javascript
+    total_symbols: 34
+    exported: none
+    imports: none
+    symbols: _segId, SEGMENT_COLORS, VideoState, constructor, selectedSegment, _snapshot, undo, redo, reset, addSegment, seg, removeSegment, seg, enabled, updateSegment, seg, splitSegment, seg, newSeg, idx, activeSegments, totalDuration, dur, getOutputTime, active, outputTime, segOutput, ratio, getSourceTime, active, accumulated, segOutput, ratio, getSegmentColor
+  - Code/renderer/videoTool/videoUI.js
+    language: javascript
+    total_symbols: 138
+    exported: none
+    imports: none
+    symbols: VideoUI, constructor, setCallbacks, getVideoElement, render, update, oldVideo, oldBody, scrollTop, newBody, _initVideoPlayer, slot, _restoreVideoPlayer, slot, area, _createVideoElement, video, st, area, t, dur, seg, next, playhead, _renderTabs, active, _getTemplate, st, im, timelineContent, fileInfo, outputRow, playerSlot, timeline, segActions, presets, exportBtns, progressSection, resultSection, errorSection, compressContent, fileSection, outputSection, presetSection, btnSection, progressSection, resultSection, errorSection, imageContent, drop, inner, outputSection, convertSection, progressSection, resultSection, errorSection, imgCompressContent, mode, drop, inner, outputSection, controls, btnSection, progressSection, resultSection, errorSection, _updateControls, fill, thumb, timeEl, cur, tot, _updatePlayState, area, big, btn, _formatTime, m, sec, _bindEvents, vDrop, file, vBtn, vRem, coBtn, timeline, rect, x, pct, speedSel, segId, splitBtn, delBtn, mp4Btn, gifBtn, tlRetry, tlOF, tlOFd, tlNew, undoBtn, redoBtn, video, bigPlay, pbPlay, pbProgress, rect, pct, dur, pbVol, cmpBtn, cmpRetry, cmpOF, cmpOFd, cmpCA, imDrop, file, imBtn, imRem, imCoBtn, imConv, imRetry, imOF, imOFd, imCA, icDrop, files, icBtn, icAddMore, icRem, icFormat, icCoBtn, icCmpBtn, icRetry, icOF, icOFd, icCA, panel, isCtrl
+  - Code/renderer/videoTool/videoRenderer.js
+    language: javascript
+    total_symbols: 27
+    exported: none
+    imports: ./videoPresets.js
+    symbols: ICONS, formatSize, mb, formatDuration, m, s, formatTime, totalSec, m, s, renderFileDropZone, name, renderPresetCards, isActive, estSize, renderOutputRow, displayPath, renderCompressButton, disabled, renderProgress, pct, sizeInfo, elapsed, renderResult, renderError, escapeHtml, div
+  - Code/renderer/workspace/projectManager.js
+    language: javascript
+    total_symbols: 24
+    exported: none
+    imports: ./buildKitManager.js
+    symbols: PROJECT_STATUSES, getAllProjects, getProjectById, getProjectByRepoPath, np, createProject, project, updateProject, project, allowed, deleteProject, project, title, assignWorkerToProject, project, worker, removeWorkerFromProject, project, worker, addProjectLog, project, _addProjectLog, _addGlobalLog, addGlobalLog
+  - Code/renderer/videoTool.js
+    language: javascript
+    total_symbols: 95
+    exported: none
+    imports: ./videoTool/videoState.js, ./videoTool/imageState.js, ./videoTool/videoUI.js
+    symbols: VideoTool, constructor, initialize, render, destroy, _handlePickFile, st, picked, meta, video, _handleRemoveFile, video, _handlePresetChange, _handleChangeOutput, folder, _handleTabChange, _handleDelete, _handleSpeedChange, _handleSelectSegment, st, _handleSplit, st, seg, splitTime, _handleTimelineClick, st, dur, targetTime, video, _startExport, st, active, dur, segmentsPayload, result, result, _handleTimelineRetry, _handleTimelineOpenFile, _handleTimelineOpenFolder, _handleUndo, _handleRedo, _handleTimelineNew, video, _startCompress, st, result, _handleCompressRetry, _handleCompressOpenFile, _handleCompressOpenFolder, _handleCompressAnother, st, _handleImagePickFile, picked, meta, _handleImageRemoveFile, _handleImageChangeOutput, folder, _startImageConvert, result, _handleImageRetry, _handleImageOpenFile, _handleImageOpenFolder, _handleImageConvertAnother, _handleIcPickFiles, im, picked, metas, meta, _handleIcAddMore, im, picked, existing, newPaths, newMetas, meta, _handleIcRemoveFile, im, _handleIcChangeOutput, folder, _handleIcPresetChange, _handleIcFormatChange, _startIcCompress, im, format, payload, result, _handleIcRetry, im, _handleIcOpenFile, result, p, _handleIcOpenFolder, result, dir, _handleIcCompressAnother
+  - Code/renderer/workspace/buildKitManager.js
+    language: javascript
+    total_symbols: 46
+    exported: none
+    imports: ./workspaceStore.js
+    symbols: DEFAULT_KITS, with, component, _deepClone, _findItem, found, _assignIds, _isItemChecked, _recomputeChecked, getStageMeta, stages, getItemPrompt, lines, stageMeta, forEach, getDefaultKits, kits, toggleItem, kit, item, addKit, kit, removeKit, idx, addItemToKit, kit, item, parent, removeItem, kit, i, ci, updateItemDetails, kit, item, getKitProgress, total, done, walk, isItemChecked, collapseKit, kit, ensureDefaultKits, defaults, existing, match
+
+
+Return a JSON array with one entry per file. Each entry:
+{
+  "file": "path",
+  "summary": "1-2 sentence description",
+  "feature": "feature area",
+  "responsibilities": ["list"],
+  "tags": ["tags"],
+  "symbols": [{"name": "name", "purpose": "purpose", "role": "role"}]
+}
+
+Return ONLY the JSON array, no other text.

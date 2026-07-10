@@ -1,0 +1,250 @@
+Analyze these 39 files from HelperTool codebase.
+
+Files:
+  - Code/renderer/workspace/workerManager.js
+    language: javascript
+    total_symbols: 13
+    exported: none
+    imports: none
+    symbols: WORKER_ROLES, AVATAR_COLORS, getAllWorkers, getWorkerById, createWorker, worker, updateWorker, worker, oldName, deleteWorker, worker, name, _addGlobalLog
+  - Code/renderer/workspace/ticketManager.js
+    language: javascript
+    total_symbols: 17
+    exported: none
+    imports: ./projectManager.js, ./workerManager.js
+    symbols: TICKET_STATUSES, TICKET_PRIORITIES, STATUS_COLORS, PRIORITY_COLORS, getAllTickets, getTicketsByProject, getTicketById, createTicket, ticket, workerName, updateTicket, ticket, changes, worker, updateTicketStatus, deleteTicket, ticket
+  - Code/renderer/workspace/workspaceRenderer.js
+    language: javascript
+    total_symbols: 233
+    exported: none
+    imports: ../utils/confirmDialog.js
+    symbols: ICON_HOME, ICON_PROJECTS, ICON_WORKERS, ICON_LOGS, ICON_ARROW_RIGHT, ICON_EDIT, ICON_DELETE, ICON_DATABASE, ICON_FOLDER_OPEN, ICON_PLANNING, ICON_TICKET, ICON_PLUS, ICON_CODEBASE, ICON_DESIGN, ICON_GEAR, ICON_BACK, ICON_REMOVE, ICON_REPO, ICON_CHECKLIST, ICON_CHECK, ICON_DASH, _view, _selectedProject, _projectTab, _selectedNoteId, ensurePanel, el, navigateToProject, p, render, _renderNavbar, nav, _getNavTitle, _renderBody, body, _renderHome, activeTickets, completeTickets, activeProjects, totalTickets, completePct, recentLogs, _renderProjectsList, form, browseBtn, repoPathInput, clearBtn, p, errEl, repoPath, grid, projects, _buildProjectCard, tickets, done, progress, workerCnt, card, repoBadge, ok, _showEditProjectModal, modal, browseBtn, clearBtn, repoInput, p, _renderWorkersList, form, errEl, grid, workers, _buildWorkerCard, workerTickets, completedTickets, projectCount, card, ok, _showEditWorkerModal, modal, _renderGlobalLogs, logs, list, _renderProjectDetails, tabs, tabBar, btn, content, _renderTabOverview, p, _renderTabWorkers, p, allWorkers, assignedIds, unassigned, assignWrap, errEl, id, list, worker, ticketCount, row, ok, _renderTabTickets, p, workers, tickets, form, errEl, board, col, colTickets, colBody, _buildKanbanCard, worker, PREVIEW, hasLongDesc, previewText, card, toggleBtn, preview, full, expanded, t, ok, _showEditTicketModal, modal, _renderTabDb, p, _renderTabFolders, p, mainVal, frontendVal, backendVal, _renderTabPlannings, p, notes, container, sidebar, sidebarTitle, item, displayName, selected, addBtn, newNote, right, selectedNote, rightHeader, titleInput, delBtn, textarea, empty, STONES, _renderTabStones, p, grid, value, empty, card, _openStoneModal, existing, overlay, textarea, charCount, close, content, KIT_PALETTE, _renderTabBuildKits, p, toolbar, allDone, pct, name, desc, flow, i, kit, _buildFlowRow, pct, row, left, catBadge, ok, connector, right, empty, _buildFlowItemCard, checked, hasChildren, allChecked, partial, card, topRow, checkLabel, nameEl, stageMeta, stageBadge, delBtn, desc, pills, pill, addPill, name, desc2, details, _openBkDetailModal, item, promptText, overlay, details, copyBtn, addEventListener, then, orig, setTimeout, setTimeout, _findBkItem, found, _renderTabProjectLogs, logs, list, _renderTabRepo, p, linked, rp, _buildLogItem, el, date, _renderMarkdown, _esc, _createModal, modal, errId, errEl
+  - Code/services/automationStore.js
+    language: javascript
+    total_symbols: 18
+    exported: none
+    imports: electron, path, fs
+    symbols: app, path, fs, getStorePath, readStore, writeStore, listSketches, data, loadSketch, data, saveSketch, data, idx, deleteSketch, data, renameSketch, data, s
+  - Code/renderer/workspace/workspaceStore.js
+    language: javascript
+    total_symbols: 10
+    exported: none
+    imports: none
+    symbols: state, loadAll, data, saveAll, result, _dirty, _saveTimer, markDirty, flushSave, genId
+  - Code/renderer/workspace/workspaceTool.js
+    language: javascript
+    total_symbols: 9
+    exported: none
+    imports: ./projectManager.js
+    symbols: _isOpen, initWorkspaceTool, isWorkspacePanelOpen, openWorkspacePanel, active, linked, closeWorkspacePanel, wsEscape, container
+  - Code/renderer/workspaceTool.js
+    language: javascript
+    total_symbols: 115
+    exported: none
+    imports: ./utils/confirmDialog.js
+    symbols: ICON_WORKERS, ICON_LOGS, ICON_ARROW_LEFT, ICON_EDIT, ICON_DELETE, ICON_PLUS, ICON_USER, ICON_TICKET, ICON_SYNC, ICON_NOTE, WORKER_ROLES, STATUS_COLORS, _workers, _tickets, _auditLogs, _isWorkspacePanelOpen, _selectedWorker, _editingTicket, initWorkspaceTool, data, isWorkspacePanelOpen, openWorkspacePanel, closeWorkspacePanel, _addAuditLog, log, addWorker, worker, updateWorker, worker, oldName, oldRole, deleteWorker, worker, affectedTickets, getWorkerById, getWorkerTickets, addTicket, worker, ticket, updateTicket, ticket, oldTitle, oldNotes, oldStatus, worker, changes, updateTicketStatus, ticket, oldStatus, worker, deleteTicket, ticket, worker, _saveData, result, _ensureWorkspacePanel, container, _render, _renderWorkersList, backBtn, titleEl, body, formSection, grid, card, name, role, errEl, _createWorkerCard, card, ticketCount, completedCount, ok, _showEditWorkerModal, modal, closeBtn, cancelBtn, name, role, errEl, _renderWorkerDetails, backBtn, titleEl, body, formSection, ticketsList, tickets, ticketEl, title, notes, errEl, _showEditTicketModal, modal, closeBtn, cancelBtn, title, notes, status, errEl, _createTicketElement, el, statusSelect, ok, _showAuditLogs, modal, logsContainer, logEl, _createLogElement, el, date, timeStr, dateStr, icon, message, d
+  - Code/services/gmailService.js
+    language: javascript
+    total_symbols: 155
+    exported: none
+    imports: electron, googleapis, http, url, child_process, path, fs
+    symbols: app, google, http, url, execSync, path, fs, getStorePath, TOKEN_KEY, IGNORED_KEY, HISTORY_ID_KEY, CREDENTIALS_PATH, readStore, writeStore, getHistoryIds, saveHistoryId, data, credentials, pollTimer, onNewMailCallback, _notifiedMessageIds, loadCredentials, parsed, getAuthClient, creds, client, getGmail, getStoredAccounts, saveAccounts, data, findAccount, startLocalServer, server, startAuthFlow, oauth2Client, server, port, redirectUri, authUrl, query, gmail, profile, email, accounts, idx, entry, _seedHistoryId, profile, historyId, refreshToken, client, accounts, idx, err2, ensureValidTokens, fetchNewMessagesSinceLastCheck, auth, gmail, email, historyIds, lastHistId, newMessages, histRes, historyItems, newHistoryId, addedIds, labelIds, detail, headers, from, subject, date, snippet, fetchRecentMessages, auth, gmail, messages, details, detail, headers, from, subject, date, snippet, labelIds, unreadCount, historyNew, historyNewIds, unseenMessages, allNew, fetchInboxMessages, accounts, acct, auth, gmail, listRes, messages, unreadCount, details, detail, headers, from, subject, date, snippet, labelIds, fetchAllUnread, accounts, results, startPolling, results, totalNew, stopPolling, setOnNewMail, _decodeBase64, padded, _shortenLongUrls, domain, _extractBodyText, html, text, fetchMessageBody, acct, gmail, res, payload, body, headers, from, subject, date, reAuthAccount, accounts, idx, result, removeAccount, markAsRead, acct, gmail, _migrateIgnoredIfNeeded, raw, accounts, migrated, getIgnoredSenders, data, all, addIgnoredSender, data, all, list, removeIgnoredSender, data, all, getAllIgnoredSendersMap, data
+  - Code/utils/docignore.js
+    language: javascript
+    total_symbols: 21
+    exported: none
+    imports: fs, path, micromatch, electron
+    symbols: fs, path, micromatch, app, dialog, shell, globalIgnorePath, cachedGlobalRules, repoRulesCache, compiledMatchersCache, loadGlobalIgnoreRules, btn, getIgnoreRules, repoRules, repoIgnoreFile, combinedRules, matchers, isIgnored, relPath, matchers, clearCache
+  - Code/utils/codeOps.js
+    language: javascript
+    total_symbols: 31
+    exported: none
+    imports: fs, path, ./docignore
+    symbols: fs, path, isIgnored, getIgnoreRules, minifySource, lines, out, line, getAllFiles, items, files, fullPath, findRepoRoot, dir, generateCode, root, allFiles, stat, writeStream, promptBlock, i, filePath, relativeName, raw, content, getFolderTree, entries, validEntries, results, fullPath, children
+  - Code/utils/fileOps.js
+    language: javascript
+    total_symbols: 28
+    exported: none
+    imports: fs, path, ./docignore
+    symbols: fs, path, isIgnored, getIgnoreRules, getCommonAncestor, splitPaths, commonParts, len, i, getFolderTree, results, fullPath, generateStructure, repoRoot, buildTree, node, entries, childNode, treeLines, lines, connector, last, newPrefix, allLines, promptBlock, i, rootNode, percent
+  - Code/utils/dockerClient.js
+    language: javascript
+    total_symbols: 22
+    exported: none
+    imports: http
+    symbols: http, PIPES, _workingPipe, _pickPipe, request, pipe, opts, data, req, chunk, idx, ping, listContainers, startContainer, stopContainer, restartContainer, removeContainer, listImages, removeImage, getStats, getLogs, getVersion
+  - Code/utils/ffmpeg.js
+    language: javascript
+    total_symbols: 5
+    exported: none
+    imports: path, fs, ffmpeg-static
+    symbols: path, fs, getFfmpegPath, ffmpegPath, unpacked
+  - Code/utils/ffprobe.js
+    language: javascript
+    total_symbols: 7
+    exported: none
+    imports: path, fs, @ffprobe-installer/ffprobe
+    symbols: path, fs, getFfprobePath, ffprobePath, unpacked, ffmpegDir, candidate
+  - Code/utils/fileSeeder.js
+    language: javascript
+    total_symbols: 11
+    exported: none
+    imports: fs, path
+    symbols: fs, path, preview, toCreate, toSkip, abs, seed, created, errors, abs, dir
+  - Code/utils/gitOps.js
+    language: javascript
+    total_symbols: 35
+    exported: none
+    imports: path, simple-git
+    symbols: path, simpleGit, GitOperations, constructor, getStatus, status, workingFiles, stagedFiles, workingDirCode, indexCode, stage, unstage, commit, result, push, getLog, log, getDiff, diff, getDiffStaged, diff, getCurrentBranch, branch, isRepository, parseStatusCode, codes, getFileLog, relPath, log, getFileContentAtCommit, relPath, content, getDiffBetweenCommits, relPath, diff
+  - Code/worker-service/tasks/dbInspector.js
+    language: javascript
+    total_symbols: 111
+    exported: none
+    imports: fs, sql.js/dist/sql-wasm.js, pg, mysql2/promise, mongodb
+    symbols: fs, _SQL, getSqlJs, initSqlJs, wrapSqlJsDb, prepare, stmt, _cols, columns, all, rows, get, has, row, free, close, connectPostgres, Client, client, connectMysql, mysql, connection, connectSqlite, SQL, buffer, db, connectMongo, MongoClient, url, client, connect, extractPostgresSchema, tables, totalTables, tableRes, WHERE, columns, indexes, colRes, pkRes, pkCols, idxRes, cols, fkRes, relationships, extractMysqlSchema, tables, relationships, totalTables, dbName, columns, indexes, idxMap, extractSqliteSchema, tables, relationships, totalTables, tableRows, columns, indexes, colInfos, idxList, idxInfo, rowCount, countRow, fkInfos, extractMongoSchema, tables, relationships, totalTables, db, collections, columns, fieldTypes, docCount, sample, val, type, extractSchema, runPostgresQuery, result, columns, runMysqlQuery, columns, runSqliteQuery, stmt, columns, rows, runMongoQuery, db, collName, coll, result, result, result, count, docs, columns, pipeline, docs, columns, runQuery, testConnection, client, scan, client, schema, executeQuery, client, timer, result
+  - Code/utils/promptStore.js
+    language: javascript
+    total_symbols: 46
+    exported: none
+    imports: fs, path
+    symbols: fs, path, makePromptStore, DATA_PATH, ensureFile, dir, initial, read, raw, parsed, write, payload, newId, normalizeSupports, loadAll, createCategory, data, cat, updateCategory, data, cat, deleteCategory, data, upsertPrompt, data, cat, nextSupports, now, p, p, deletePrompt, data, toggleFavorite, data, p, togglePin, data, p, getApplicablePrompts, data, m, supportsOk, applicable, pinned, rest, merged
+  - Code/worker-service/tasks/folderTree.js
+    language: javascript
+    total_symbols: 10
+    exported: none
+    imports: path, fs, micromatch
+    symbols: path, fs, micromatch, folderTreeTask, matchers, isIgnored, rel, walk, nodes, fullPath
+  - Code/utils/treeView.js
+    language: javascript
+    total_symbols: 43
+    exported: none
+    imports: none
+    symbols: getAllFiles, countFiles, normPath, renderTree, el, wrapper, nodePath, nodeType, node, filePaths, normSel, allSel, _presortTree, _updateHighlightsForPaths, normSel, wrapper, p, isFolder, _renderListMode, expandedFolders, createNode, wrapper, el, label, childrenContainer, childEl, root, el, _renderTreeMode, createNode, wrapper, el, label, childrenContainer, childEl, root, el, _addPath, _removePath, i, _togglePath, _updateGenerateState, btn
+  - Code/worker-service/tasks/generate.js
+    language: javascript
+    total_symbols: 48
+    exported: none
+    imports: fs, fs, path, micromatch
+    symbols: fs, fsp, path, micromatch, compileRules, isIgnored, rel, getCommonAncestor, splitPaths, commonParts, len, i, buildTree, node, childNode, treeLines, lines, connector, last, newPrefix, minifySource, lines, out, line, getAllFiles, files, fullPath, sub, generateStructure, root, matchers, allLines, promptBlock, i, rootNode, outputDir, generateCode, root, matchers, allFiles, sub, outputDir, writeStream, promptBlock, i, fp, relativeName, content
+  - Code/worker-service/tasks/gitGraph.js
+    language: javascript
+    total_symbols: 27
+    exported: none
+    imports: child_process
+    symbols: execFile, execGit, child, getBranchCommits, ps, skip, logOut, totalOut, lines, commits, currentGraph, delimIdx, graphPrefix, dataPart, idx, hash, rest, parts, graphLines, totalCount, getCommitDetail, numstatOut, files, parts, getFileDiff, diffOut, handle
+  - Code/worker-service/tasks/loc.js
+    language: javascript
+    total_symbols: 27
+    exported: none
+    imports: fs, path, micromatch
+    symbols: fsp, path, SUPPORTED_EXTENSIONS, DEFAULT_IGNORE, countLines, content, count, i, scanDirectory, micromatch, matchers, isIgnored, rel, results, walk, dirs, files, fullPath, relativePath, BATCH, i, batch, batchResults, ext, lines, allFiles, filtered
+  - Code/worker-service/tasks/imageToIco.js
+    language: javascript
+    total_symbols: 33
+    exported: none
+    imports: sharp, path, fs, os
+    symbols: sharp, path, fs, os, ICO_SIZES, buildIco, count, header, offset, dirEntries, dataBuffers, i, entry, imageToIco, ext, targetSizes, baseName, outputDir, outputPath, metadata, srcWidth, srcHeight, srcSize, pngBuffers, total, i, size, dim, resizeOpts, png, icoData, outputFileSize, skipped
+  - Code/worker-service/tasks/gitBranches.js
+    language: javascript
+    total_symbols: 27
+    exported: none
+    imports: child_process
+    symbols: execFile, execGit, getBranches, stdout, lines, local, remote, current, isCurrent, raw, isRemote, displayName, remoteName, aheadMatch, behindMatch, ahead, behind, afterBracket, parts, name, lastCommit, message, localNames, defaultBranch, vsResults, b, handle
+  - Code/worker-service/tasks/portManager.js
+    language: javascript
+    total_symbols: 32
+    exported: none
+    imports: child_process
+    symbols: execFile, PROTECTED_NAMES, execAsync, isProtected, lower, parseListeningPorts, stdout, byPid, parts, state, addr, pid, colIdx, port, getAllProcessNames, stdout, names, match, name, pid, buildGroups, groups, totalProcesses, pid, name, protectedFlag, sortedPorts, aMax, bMax, sorted, getPortManagerData, handle
+  - Code/worker-service/tasks/imageCompress.js
+    language: javascript
+    total_symbols: 33
+    exported: none
+    imports: sharp, path, fs, os
+    symbols: sharp, path, fs, os, PRESETS, getOutputFormat, ext, getMetadata, meta, stat, compressSingle, preset, ext, baseName, outputFormat, outputExt, outputPath, meta, pipeline, outputSize, imageCompress, outputDir, files, total, results, overallOriginalSize, overallCompressedSize, errors, i, meta, result, startMeta, result
+  - Code/worker-service/tasks/gitOperations.js
+    language: javascript
+    total_symbols: 28
+    exported: none
+    imports: simple-git, path
+    symbols: simpleGit, path, getStatus, git, status, workingFiles, stagedFiles, wd, idx, getDiff, git, diff, getLog, git, log, getFileLog, git, relPath, log, getFileContent, git, relPath, content, getDiffCommits, git, relPath, diff, handle
+  - Code/worker-service/tasks/profileSync.js
+    language: javascript
+    total_symbols: 10
+    exported: none
+    imports: child_process, util
+    symbols: execFile, promisify, execFileAsync, handle, today, log, dateCounts, dateFiles, currentDate, pipeIdx
+  - Code/worker-service/tasks/profileData.js
+    language: javascript
+    total_symbols: 50
+    exported: none
+    imports: fs, path, sql.js/dist/sql-wasm.js
+    symbols: fs, path, _SQL, _loadSqlJs, initSqlJs, _db, _dbPath, _openDb, SQL, buffer, _queryAll, stmt, cols, rows, obj, i, _queryValues, stmt, cols, rows, getProfile, rows, r, getStats, filter, rows, r, getHeatmap, y, start, end, rows, map, getDonutData, filter, repoRows, extRows, typeRows, getHistory, pageSize, offset, where, params, countRows, total, rows, getAvatar, rows, getAll, handle
+  - Code/worker-service/tasks/videoCompress.js
+    language: javascript
+    total_symbols: 35
+    exported: none
+    imports: child_process, ../../utils/ffmpeg, ../../utils/ffprobe, path, fs, os
+    symbols: spawn, ffmpegPath, ffprobePath, path, fs, os, PRESETS, getMetadata, args, proc, stdout, info, videoStream, fps, parts, buildArgs, p, args, videoCompress, metadata, startTime, ext, baseName, outputDir, outputPath, args, proc, currentTime, lines, ms, percent, estimatedFinalSize, outputMeta, processingTime, reductionPercent
+  - Code/worker-service/tasks/videoPreview.js
+    language: javascript
+    total_symbols: 15
+    exported: none
+    imports: child_process, ../../utils/ffmpeg, path, fs, os
+    symbols: spawn, ffmpegPath, path, fs, os, runFFmpeg, proc, stderr, videoPreview, outDir, outPath, speedFactor, actualDur, args, stat
+  - Code/worker-service/tasks/teamActivity.js
+    language: javascript
+    total_symbols: 29
+    exported: none
+    imports: child_process
+    symbols: execFile, execGit, hashColor, hash, i, colors, parseMeta, commits, contributors, trimmed, parts, hash, author, email, date, message, con, parseNumstat, commitMap, currentHash, trimmed, parts, added, removed, commit, getTeamActivity, metaStdout, numstatStdout, handle
+  - Code/worker-service/tasks/videoToGif.js
+    language: javascript
+    total_symbols: 48
+    exported: none
+    imports: child_process, ../../utils/ffmpeg, ../../utils/ffprobe, path, fs, os
+    symbols: spawn, ffmpegPath, ffprobePath, path, fs, os, PRESETS, NUM_SUGGESTIONS, runFFprobe, proc, stdout, runFFmpeg, proc, stderr, getMetadata, info, videoStream, generateSuggestions, numClips, clipDuration, spacing, clips, i, center, start, buildMultiSegmentGifCommand, p, n, inputArgs, filterParts, inputLabels, i, seg, speedFactor, label, concatIn, filterComplex, videoToGif, meta, suggestions, baseName, outputDir, outputPath, palettePath, totalOutputDur, args, p, gifStat
+  - Code/worker-service/tasks/videoRender.js
+    language: javascript
+    total_symbols: 27
+    exported: none
+    imports: child_process, ../../utils/ffmpeg, path, fs, os
+    symbols: spawn, ffmpegPath, path, fs, os, runFFmpeg, proc, stderr, videoRender, activeSegs, baseName, outputDir, outputPath, presetMap, n, inputArgs, dur, filterParts, inputLabels, i, seg, speedFactor, label, concatIn, filterComplex, args, stat
+  - Code/worker-service/worker.js
+    language: javascript
+    total_symbols: 21
+    exported: none
+    imports: ./tasks/generate, ./tasks/loc, ./tasks/dbInspector, ./tasks/gitGraph, ./tasks/profileData, ./tasks/teamActivity, ./tasks/portManager, ./tasks/gitBranches, ./tasks/gitOperations, ./tasks/walkDir, ./tasks/folderTree, ./tasks/profileSync, ./tasks/videoCompress, ./tasks/imageToIco, ./tasks/imageCompress, ./tasks/videoToGif, ./tasks/videoRender, ./tasks/videoPreview
+    symbols: generateTask, locTask, dbInspectorTask, gitGraphTask, profileDataTask, teamActivityTask, portManagerTask, gitBranchesTask, gitOperationsTask, walkDirTask, folderTreeTask, profileSyncTask, videoCompressTask, imageToIcoTask, imageCompressTask, videoToGifTask, videoRenderTask, videoPreviewTask, onProgress, progressData, message
+  - Code/worker-service/tasks/walkDir.js
+    language: javascript
+    total_symbols: 12
+    exported: none
+    imports: path, fs, micromatch
+    symbols: path, fs, micromatch, SUPPORTED_EXTS, DEFAULT_IGNORE, walkDirTask, matchers, files, walk, full, rel, ext
+  - generate-summarizer-prompt.js
+    language: javascript
+    total_symbols: 29
+    exported: none
+    imports: fs
+    symbols: fs, raw, files, symbols, symsByFile, imports, importsByFile, fileEntries, syms, imps, exportedSyms, allNames, impPaths, prompt, does, outDir, batches, BATCH_SIZE, i, batchDir, b, batchFiles, batchEntries, syms, imps, exportedSyms, allNames, impPaths, batchPrompt
+  - generate-graph.js
+    language: javascript
+    total_symbols: 101
+    exported: none
+    imports: fs, path
+    symbols: fs, path, slug, dirOf, baseName, round3, resolveImport, srcDir, candidates, resolved, resolve, parts, out, base, raw, files, symbols, imports, featureMap, fileDirSet, featureRules, feats, tagMap, tags, fileSummaries, summariesPath, fileIndex, symsByFile, importsByFile, nodes, nodeIds, p, syms, feats, tags, typeCounts, exportedCount, funSyms, dir, bn, summary, parts, area, rendererIdx, uiName, semantic, resolvedSummary, resolvedResponsibilities, resolvedFeature, semSymsMap, embeddedSyms, sem, definition, node, edges, allFilePaths, src, resolvedTarget, tgt, featureGroups, feats, i, src, tgt, src, tgt, mainNode, tgt, tgt, workerNode, src, tgt, edgeKey, edgeMap, key, uniqueEdges, importCounts, importedByCounts, nodeMetrics, totalNodes, id, fanOut, fanIn, degree, totalEdgesForCentrality, centrality, m, features, concepts, graph, outDir, md, featFiles, topFiles, cent, topCentral, c, locs, edgeTypeCounts, desc, symTypeCounts
+
+
+Return a JSON array with one entry per file. Each entry:
+{
+  "file": "path",
+  "summary": "1-2 sentence description",
+  "feature": "feature area",
+  "responsibilities": ["list"],
+  "tags": ["tags"],
+  "symbols": [{"name": "name", "purpose": "purpose", "role": "role"}]
+}
+
+Return ONLY the JSON array, no other text.

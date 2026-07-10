@@ -12,17 +12,13 @@ You are an AI assistant. Your task is to analyze the provided `symbols.json` fil
 The `symbols.json` file contains:
 
 ### `files` (array)
-
 Each file entry:
-
 - `id`: numeric ID
 - `path`: relative file path from repo root
 - `language`: programming language (e.g. javascript, typescript, python)
 
 ### `symbols` (array)
-
 Each symbol entry:
-
 - `name`: symbol name (function, class, variable, etc.)
 - `type`: symbol type (function, class, method, variable, constant, interface, type, enum, etc.)
 - `line`, `column`: source location
@@ -32,9 +28,7 @@ Each symbol entry:
 - `filePath`: which file the symbol belongs to
 
 ### `imports` (array)
-
 Each import entry:
-
 - `importPath`: the import string (e.g. "./utils", "react", "lodash")
 - `importType`: default, named, namespace, side-effect, require, etc.
 - `importedSymbols`: array of specific symbol names imported
@@ -127,16 +121,16 @@ Create `graph.json` with this exact schema:
 
 Beyond obvious `IMPORTS` edges, identify **semantic relationships**:
 
-| Edge Type           | Meaning                                                 |
-| ------------------- | ------------------------------------------------------- |
-| `IMPORTS`           | Direct file import                                      |
-| `COLLABORATES_WITH` | Files that work together on the same feature            |
-| `DEPENDS_ON`        | One file logically depends on another (not just import) |
-| `ORCHESTRATES`      | A file that coordinates multiple other files            |
-| `PROVIDES_TO`       | A file provides data/services to another                |
-| `IMPLEMENTS`        | A file implements an interface defined elsewhere        |
-| `SEQUENCES`         | A processing pipeline step (A → B → C)                  |
-| `CROSS_CUTTING`     | Shared utility used across otherwise unrelated modules  |
+| Edge Type | Meaning |
+|-----------|---------|
+| `IMPORTS` | Direct file import |
+| `COLLABORATES_WITH` | Files that work together on the same feature |
+| `DEPENDS_ON` | One file logically depends on another (not just import) |
+| `ORCHESTRATES` | A file that coordinates multiple other files |
+| `PROVIDES_TO` | A file provides data/services to another |
+| `IMPLEMENTS` | A file implements an interface defined elsewhere |
+| `SEQUENCES` | A processing pipeline step (A → B → C) |
+| `CROSS_CUTTING` | Shared utility used across otherwise unrelated modules |
 
 Only include meaningful semantic edges — don't just duplicate `IMPORTS`.
 
@@ -158,7 +152,6 @@ Generated: <date>
 ## Features
 
 ### [Feature Name]
-
 **Summary**: ...
 **Key files**: file1.js, file2.js
 **Key concepts**: concept1, concept2
@@ -178,9 +171,9 @@ Files with highest connectivity / importance:
 
 ## Concepts Glossary
 
-| Concept | Description    | Related Files          |
-| ------- | -------------- | ---------------------- |
-| JWT     | JSON Web Token | auth.js, middleware.js |
+| Concept | Description | Related Files |
+|---------|-------------|---------------|
+| JWT | JSON Web Token | auth.js, middleware.js |
 
 ## Surprising Connections
 
@@ -200,7 +193,7 @@ Cross-feature or unexpected relationships detected.
 5. The `concepts` section should document important domain concepts and where they appear.
 6. Focus on making the graph useful for someone asking "how does X work?".
 
-## Outputvv
+## Output
 
 Write two files in the repository at `<repo-root>/graphify-storage/`:
 

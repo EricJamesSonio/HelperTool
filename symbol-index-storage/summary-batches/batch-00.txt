@@ -1,0 +1,316 @@
+Analyze these 50 files from HelperTool codebase.
+
+Files:
+  - Code/config/config.js
+    language: javascript
+    total_symbols: 18
+    exported: none
+    imports: fs, path, electron
+    symbols: fs, path, app, CONFIG_DIR, CONFIG_PATH, _cache, readConfig, defaultConfig, writeConfig, invalidateCache, getActiveProject, config, getLastSelectedItems, project, setLastSelectedItems, cfg, ensureStorageFolder, subPath
+  - Code/database/db.js
+    language: javascript
+    total_symbols: 38
+    exported: none
+    imports: sql.js/dist/sql-wasm.js, path, fs, worker_threads, fs, worker_threads
+    symbols: initSqlJs, path, fs, DB_DIR, DB_FILE, WRITE_WORKER_CODE, parentPort, fs, _db, _appRef, _saveTimer, _pendingSave, _writeWorker, _writeWorkerBusy, _pendingWrite, getDbPath, dir, initDatabase, SQL, dbPath, buffer, createSchema, existing, row, hasFts, getDb, _getWriteWorker, Worker, _flush, data, buffer, dbPath, worker, _flushSync, data, buffer, save, close
+  - Code/database/chatDb.js
+    language: javascript
+    total_symbols: 22
+    exported: none
+    imports: sql.js/dist/sql-wasm.js, path, fs
+    symbols: initSqlJs, path, fs, DB_DIR, DB_FILE, _db, _appRef, _saveTimer, _pendingSave, getDbPath, dir, initChatDb, SQL, dbPath, buffer, getChatDb, _flush, data, buffer, dbPath, save, closeChatDb
+  - Code/database/dbInspector.js
+    language: javascript
+    total_symbols: 75
+    exported: none
+    imports: ./db.js
+    symbols: getDb, save, createInspectorSchema, db, genId, listConnections, db, r, getConnection, db, r, row, saveConnection, db, now, deleteConnection, db, createSnapshot, db, id, deleteSnapshotsForConnection, db, listSnapshots, db, r, insertTable, db, id, insertColumn, db, insertRelationship, db, insertIndex, db, getGraphData, db, tRes, rRes, tableRows, relRows, nodes, nodeMap, i, nodeId, edges, src, tgt, getTableDetails, db, tR, cR, iR, relR, refR, colRows, idxRows, relRows, refByRows, getSnapshotTableNames, db, r, getTableColumnDetails, db, tR, tid, cR, listSeeds, db, r, saveSeed, db, now, seedId, deleteSeed, db
+  - Code/database/imports.js
+    language: javascript
+    total_symbols: 31
+    exported: none
+    imports: ./db
+    symbols: getDb, insertBatch, db, stmt, getByFile, db, results, stmt, row, getReverseDeps, db, results, stmt, row, getByRepoAndResolvedPath, db, results, stmt, deleteByFile, db, deleteByRepo, db, countByRepo, db, stmt, row, getAllByRepo, db, results, stmt, row
+  - Code/database/githubTrees.js
+    language: javascript
+    total_symbols: 13
+    exported: none
+    imports: ./db
+    symbols: getDb, save, saveTree, db, listTrees, db, rows, getTree, db, rows, row, deleteTree, db
+  - Code/database/codebaseMap.js
+    language: javascript
+    total_symbols: 125
+    exported: none
+    imports: path
+    symbols: path, _detectLanguage, ext, map, _camelToWords, _findCommonPrefix, first, buildCodebaseMap, repoName, byFile, depsByFile, revDepsByFile, src, resolved, rawPaths, modDeps, moduleFiles, _rootPrefix, _stripRoot, norm, getModule, stripped, segs, filePaths, origByStripped, i, mod, knownModules, modSymbolCounts, modSymbolTypes, mod, srcMod, target, tgtMod, totalLangs, totalSymbolTypes, lang, moduleSet, keyFileScores, i, origFp, fp, symbolCount, importCount, dependentCount, entropy, isEntryLike, isConfigLike, score, modules, fileList, origFp, f, syms, deps, circularDeps, textMap, _buildModuleTree, root, sorted, origFp, parts, current, i, part, isLeaf, child, f, syms, _sortTreeChildren, _inferFileSummary, fname, exportNames, classExports, functionExports, words, dir, _inferRole, fname, dependentCount, importCount, _findCircular, modGraph, known, srcMod, target, tgtMod, visited, stack, cycles, dfs, idx, _detectArchPatterns, patterns, modNames, modSet, hasApi, hasClient, hasServer, hasDb, hasUtils, packageCount, _generateTextMap, lines, langSummary, symSummary, archPatterns, treeLines, topSyms, label, i, _renderTreeLines, lines, i, node, isLast, connector, linePrefix, childPrefix, childLines, tags, tagStr, roleStr, line, _allSymbolCount
+  - Code/database/indexedFiles.js
+    language: javascript
+    total_symbols: 39
+    exported: none
+    imports: ./db
+    symbols: getDb, insert, db, now, row, getByRepoAndPath, db, stmt, row, markDirty, db, markClean, db, now, getDirtyByRepo, db, results, stmt, getDirtyWithSymbols, db, results, stmt, countDirtyByRepo, db, stmt, row, countByRepo, db, stmt, row, getByRepo, db, results, stmt, removeByPath, db, file, removeByRepo, db
+  - Code/database/repositories.js
+    language: javascript
+    total_symbols: 22
+    exported: none
+    imports: ./db
+    symbols: getDb, getByPath, db, stmt, row, upsert, db, existing, now, markIndexed, db, now, markUnindexed, db, updateConfig, db, remove, db, getAll, db, results, stmt
+  - Code/database/symbols.js
+    language: javascript
+    total_symbols: 49
+    exported: none
+    imports: ./db
+    symbols: getDb, insertBatch, db, stmt, deleteByFile, db, deleteByRepo, db, search, db, searchTerm, results, sanitized, ftsQuery, sql, stmt, like, sql, stmt, countByRepo, db, stmt, row, countByType, db, results, stmt, row, getByRepoGrouped, db, stmt, files, row, getByFile, db, results, stmt, getByRepoGroupedLight, db, stmt, results, getByRepoAndFile, db, stmt, results, getAllByRepo, db, stmt, results
+  - Code/graphify-service/db.js
+    language: javascript
+    total_symbols: 26
+    exported: none
+    imports: fs, path
+    symbols: fs, path, _db, _data, initFromJson, jsonPath, raw, sqlJsPath, initSqlJs, SQL, createSchema, populateDb, repoId, now, filePathToId, id, fileId, fileId, resolvedId, getDb, getRawData, getRepoInfo, db, stmt, row, closeDb
+  - Code/graphify-service/exporter.js
+    language: javascript
+    total_symbols: 41
+    exported: none
+    imports: fs, path, ./db
+    symbols: fs, path, getDb, STORAGE_DIR, GRAPHIFY_DIR, _getRepoPath, db, stmt, row, row, exportSymbolsJson, repoPath, outDir, db, data, stmt1, r, stmtFiles, f, fileIdMap, stmtSym, s, stmtImp, i, importedSymbols, symbolsPath, generatePrompt, repoPath, outDir, prompt, loginUser, promptPath, exportAll, exportResult, promptResult, loadGraphFromStorage, repoPath, graphPath, reportPath, graphData, reportMd
+  - Code/graphify-service/explainer.js
+    language: javascript
+    total_symbols: 7
+    exported: none
+    imports: none
+    symbols: explain, topNames, keywordStr, fileCount, plural, topList, rest
+  - Code/graphify-service/server.js
+    language: javascript
+    total_symbols: 84
+    exported: none
+    imports: http, fs, path, ./db, ./queryEngine, ./graphBuilder, ./exporter
+    symbols: http, fs, path, initFromJson, getDb, getRawData, getRepoInfo, closeDb, queryRelevantCode, KnowledgeGraph, exportAll, generatePrompt, loadGraphFromStorage, REPO_PATH, START_PORT, _dbReady, _dbError, _actualPort, _repoPath, _graph, _buildGraph, db, s, boot, repoPath, dbPath, initSqlJs, SQL, buffer, tmpDb, stmt, server, handleRequest, handleHealth, handleEndpoints, endpoints, handleInfo, info, raw, handleQuery, body, start, result, _graphGuard, _parseBody, body, handleGraphVisualization, html, handleGraphData, data, stats, communities, handleGraphReport, godNodes, surprisingEdges, communities, stats, handleGraphCommunities, communities, handleGraphStats, stats, handleGraphNeighborhood, body, depth, result, handleGraphShortestPath, body, result, handleGraphAffected, body, depth, result, handleGraphSearch, body, limit, results, handleExportSymbols, result, handleGeneratePrompt, result, handleExportAll, result, handleLoadFromStorage, result
+  - Code/graphify-service/graphBuilder.js
+    language: javascript
+    total_symbols: 181
+    exported: none
+    imports: fs, path
+    symbols: fs, path, COMMUNITY_COLORS, KnowledgeGraph, constructor, _nextId, addNode, id, node, addEdge, weight, edgeKey, getNode, updateDegrees, outDeg, inDeg, buildFromDb, _loadFiles, stmt, row, parts, name, _loadSymbols, stmt, fileNodeMap, row, symbolId, fileNodeId, _loadImports, stmt, fileNodeByPath, row, sourceId, targetId, _scanMarkdown, files, content, relPath, lines, title, h1Match, docId, _walkDir, results, entries, fullPath, _extractMarkdownHeadings, headingCount, hMatch, level, headingText, headingId, _extractMarkdownReferences, codeRefRegex, ref, fileName, docNode, _findNodeByPath, runCommunityDetection, nodeIds, labels, getLabelWeight, w, outNbrs, inNbrs, iter, changed, shuffled, outNbrs, inNbrs, allNbrs, freq, otherId, label, maxFreq, bestLabel, uniqueLabels, labelMap, commId, node, searchNodes, q, results, label, filePath, score, getNeighborhood, visited, queue, resultNodes, resultEdges, edgeMap, i, outNbrs, eKey, inNbrs, eKey, shortestPath, visited, queue, i, outNbrs, inNbrs, _getEdgesAlongPath, edges, edgeMap, i, from, to, found, getAffected, visited, queue, resultNodes, resultEdges, edgeMap, i, inNbrs, eKey, sourceId, outNbrs, eKey, getGodNodes, sorted, getSurprisingEdges, edgesWithDegrees, src, tgt, src, tgt, srcCommunity, tgtCommunity, getCommunities, commMap, c, entry, getGraphStats, files, symbols, docs, communities, toVisData, nodeColors, colorIdx, nodeMap, visNodes, color, group, shape, visEdges, src, tgt, isCross, generateHtml, data, communities, stats, rawNodes, rawEdges, nodes, edges, container, network, on, nodeId, node, detail, addEventListener, q, results, matches, addEventListener, item, nodeId, addEventListener, addEventListener, item, commId, commNodes, nodesInComm, ids
+  - Code/indexer/indexer.js
+    language: javascript
+    total_symbols: 64
+    exported: none
+    imports: fs, path, crypto, ./parser, ./resolver, ../database/repositories, ../database/indexedFiles, ../database/symbols, ../database/imports, ../database/db
+    symbols: fs, path, crypto, parser, resolver, repoDb, fileDb, symbolDb, importDb, db, BATCH_SIZE, PROGRESS_THROTTLE_PCT, detectLanguage, map, indexRepo, repoName, repoId, allFiles, indexedCount, symbolCount, totalFiles, lastReportedPct, i, batch, results, pct, indexFile, fullPath, stat, content, hash, ext, language, existingFile, fileId, result, symbols, imports, enriched, resolvedFull, resolvedFileId, resolvedRel, resolvedFile, reindexDirty, repo, dirtyFiles, symbolCount, lastReportedPct, i, batch, results, j, df, result, pct, walkDir, entries, relPath, fullPath, ext, resetIndex, repo, deleteIndex, repo
+  - Code/indexer/resolver.js
+    language: javascript
+    total_symbols: 11
+    exported: none
+    imports: path, fs
+    symbols: path, fs, TRY_EXTENSIONS, resolveImport, sourceDir, resolved, stat, indexPath, withExt, indexPath, toRelPath
+  - Code/graphify-service/queryEngine.js
+    language: javascript
+    total_symbols: 62
+    exported: none
+    imports: ./db, ./explainer
+    symbols: getDb, explain, STOPWORDS, DEPTH_SCORE, MAX_DEPTH, MAX_RESULTS, MIN_SCORE, extractKeywords, caseSplit, getRepoId, db, stmt, id, stmt, id, matchFilesByPath, db, hits, stmt, base, score, matchFilesBySymbol, db, hits, stmt, nameLower, score, typeBoost, buildImportGraph, db, forwardAdj, stmt, bfsExpand, visited, queue, i, fwdNeighbors, revNeighbors, fuzzyFallback, db, hits, stmt, lowerPath, score, queryRelevantCode, repoId, keywords, pathHits, symbolHits, entryScores, fuzzy, forwardAdj, reverseAdj, entryFiles, expanded, finalScores, entryScore, depthPenalty, score, ranked, files, scores
+  - Code/indexer/parser.js
+    language: javascript
+    total_symbols: 101
+    exported: none
+    imports: path, web-tree-sitter
+    symbols: path, Parser, Language, GRAMMAR_DIR, MAX_FILE_SIZE, SUPPORTED_LANGUAGES, _initialized, _langCache, _parserPool, initParser, loadLanguage, info, wasmPath, lang, getLanguageForFile, ext, info, getParserForLanguage, lang, parser, parseFile, langInfo, parser, tree, symbols, imports, root, walkNode, extracted, parentCtx, extractSymbol, extractJSTS, type, isExported, nameNode, paramsNode, signature, nameNode, nameNode, paramsNode, signature, results, isConst, nameNode, valueNode, symbolType, signature, paramsNode, actualType, name, nameNode, nameNode, nameNode, childResult, childResult, extractPython, type, nameNode, paramsNode, signature, nameNode, result, extractCSS, type, classNameNode, idNode, nameNode, propNode, extractImports, extractJSTSImports, type, sourceNode, importPath, clause, importType, importedSymbols, alias, name, defaultName, name, sourceNode, importPath, importedSymbols, name, fnNode, argsNode, importPath, extractPythonImports, type, moduleNode, modulePath, extractCSSImports, extractHTMLImports, tagName, src, href, rel, name, val, n, v
+  - Code/indexer/restoreFlag.js
+    language: javascript
+    total_symbols: 10
+    exported: none
+    imports: fs, path
+    symbols: fs, path, flagPath, readFlags, fp, writeFlags, fp, dir, setFlag, flags
+  - Code/indexer-service/cache.js
+    language: javascript
+    total_symbols: 102
+    exported: none
+    imports: none
+    symbols: LRUCache, constructor, get, value, set, first, clear, SymbolCache, constructor, has, get, set, delete, getFileSymbols, entry, total, start, end, search, lower, all, total, start, end, getIndexedFiles, getSymbolCount, count, getFileList, all, total, start, end, getFileDeps, entry, imports, importPath, importType, importedSymbols, imported_by, impPath, funcImports, resolvedEntry, symbols, funcReverse, symbols, searchFromDb, lmt, off, cacheKey, cached, escaped, repoFilter, bindPrefix, bindPrefixCount, prefixSql, prefixStmt, results, row, countSql, countStmt, total, result, infixLike, bindInfixCount, countSql, countStmt, total, stmt, bindInfill, infillResults, row, result, getFileSymbolsFromDb, lmt, off, fileStmt, fileId, countStmt, total, stmt, symbols, row, getFileSymbolsHot, cached, lmt, off, full, lmt, off, getRecentFiles, stmt, files, row, warmRecentFiles, files, result, getCountsFromDb, fileStmt, indexedFiles, symStmt, totalSymbols, clear
+  - Code/indexer/watcher.js
+    language: javascript
+    total_symbols: 17
+    exported: none
+    imports: chokidar, path, ../database/repositories
+    symbols: chokidar, path, repoDb, _watchers, createWatcher, repo, config, ignoredFolders, ignorePattern, watcher, relPath, relPath, relPath, relPath, destroyWatcher, existing, destroyAllWatchers
+  - Code/indexer-service/exportToJson.js
+    language: javascript
+    total_symbols: 16
+    exported: none
+    imports: fs, path
+    symbols: fs, path, exportRepoToJson, rStmt, repo, outDir, data, fileIdMap, fStmt, f, sStmt, s, iStmt, i, importedSymbols, jsonPath
+  - Code/indexer-service/parser.js
+    language: javascript
+    total_symbols: 44
+    exported: none
+    imports: none
+    symbols: EXT_PATTERNS, SUPPORTED, getLanguage, ext, mapped, stripComments, pattern, extractJSTS, symbols, imports, clean, lines, i, line, lineNum, funcMatch, classMatch, methodMatch, requireMatch, lhs, names, importMatch, constMatch, interfaceMatch, typeMatch, enumMatch, exportDefault, extractPython, symbols, imports, clean, lines, i, line, lineNum, funcMatch, name, indent, classMatch, importMatch, fromImport, names, parseFile, lang
+  - Code/ipc/automation_ipc.js
+    language: javascript
+    total_symbols: 6
+    exported: none
+    imports: electron, ../services/automationStore
+    symbols: ipcMain, store, register, sketch, saved, s
+  - Code/ipc/apitool_ipc.js
+    language: javascript
+    total_symbols: 4
+    exported: none
+    imports: electron
+    symbols: ipcMain, register, cfg, cfg
+  - Code/indexer-service/indexer.js
+    language: javascript
+    total_symbols: 244
+    exported: none
+    imports: ./cache.js, ./parser.js, readline, fs, path, crypto, ../node_modules/sql.js/dist/sql-wasm.js, ./exportToJson.js
+    symbols: SymbolCache, parseFile, readline, fs, path, crypto, cache, _db, _flushTimer, _pendingFlush, _dbDirty, respond, initDb, initSqlJs, buffer, createSchema, flushDb, data, buffer, dbPath, scheduleFlush, repoGetByPath, stmt, row, repoUpsert, existing, repoMarkIndexed, now, repoMarkUnindexed, repoGetAll, results, stmt, detectLanguage, map, fileInsert, now, fileGetByRepoAndPath, stmt, row, fileMarkDirty, fileMarkClean, fileCountDirtyByRepo, stmt, row, fileGetDirtyByRepo, results, stmt, fileGetDirtyWithSymbols, results, stmt, fileCountByRepo, stmt, row, fileRemoveByPath, stmt, row, clearRepoData, cleanupDotGit, fileInsertSymbols, fileInsertImports, importPath, importType, importedSymbols, h_dbFlush, h_dbInit, h_dbCheckRepo, repo, h_dbGetStatus, repo, dirtyCount, h_dbUpsertRepo, repoId, h_dbMarkIndexed, exportRepoToJson, result, h_dbGetDirtyCount, count, h_dbMarkDirty, repo, existing, ext, langMap, fullPath, stat, content, hash, count, h_dbGetDirtyFiles, files, h_dbMarkClean, h_dbReset, repo, h_dbDelete, repo, h_dbGetManaged, repos, map, h_dbGetSymbolTypes, results, stmt, h_dbInsertFile, repo, fileId, h_dbReindexFile, repo, fullPath, content, hash, result, existing, langMap, ext, h_dbGetFileByPathAndRepo, repo, file, h_dbGetFiles, repo, stmt, files, h_dbGetChatSymbols, repo, file, stmt, results, h_dbGetChatDependencies, repo, file, stmt, results, h_dbGetChatDependents, repo, file, stmt, results, h_dbGetChatImportChain, repo, visited, maxDepth, dfs, f, stmt, deps, children, h_dbGetChatCircularDeps, repo, cycles, visitStack, visited, dfs, idx, f, stmt, deps, h_dbGetFileList, repo, lmt, off, excludePrefix, countStmt, total, stmt, files, h_dbGetFileDeps, repo, file, importStmt, imports, row, allStmt, imported_by, fileName, row, result, symbolStmt, localSymbols, funcImports, resolvedStmt, resolvedSymbols, names, resolvedFile, symStmt, s, funcReverse, symbols, h_indexFile, result, importData, h_indexFiles, results, result, totalSymbols, h_dbGetCodebaseMapData, repo, fStmt, files, sStmt, symbols, iStmt, fileImports, row, h_symbolsGet, result, h_search, repoId, repo, result, h_status, counts, h_removeFile, h_clear, h_getFileList, result, h_getFileDeps, result, h_indexStart, repo, BATCH_SIZE, indexedCount, totalSymbols, total, lastProgress, i, batch, fullPath, content, hash, result, existing, lang, now, h_indexFilesById, BATCH_SIZE, indexedCount, totalSymbols, total, i, batch, fullPath, content, result, handle, dbPath, rl, msg
+  - Code/ipc/blueprintLibrary/handlers.js
+    language: javascript
+    total_symbols: 21
+    exported: none
+    imports: electron, ../../database/db.js, ./db.js, ./rulesLoader.js
+    symbols: ipcMain, save, db, loadRulesData, register, rows, res, rows, rows, r, res, q, rows, existingRows, existingNames, catIdMap, catCount, bpCount, row, res, bpList
+  - Code/ipc/blueprintLibrary/db.js
+    language: javascript
+    total_symbols: 2
+    exported: none
+    imports: ../../database/db.js
+    symbols: getDb, db
+  - Code/ipc/blueprintLibrary/index.js
+    language: javascript
+    total_symbols: 4
+    exported: none
+    imports: ./handlers.js, ./kitHandlers.js, ./motherBoxHandlers.js
+    symbols: register, register:registerKit, register:registerMotherBox, registerAll
+  - Code/ipc/blueprintLibrary/motherBoxHandlers.js
+    language: javascript
+    total_symbols: 3
+    exported: none
+    imports: electron, ./motherBoxData.js
+    symbols: ipcMain, TIERS, register
+  - Code/ipc/blueprintLibrary/motherBoxData.js
+    language: javascript
+    total_symbols: 1
+    exported: none
+    imports: none
+    symbols: TIERS
+  - Code/ipc/canvas_ipc.js
+    language: javascript
+    total_symbols: 19
+    exported: none
+    imports: electron, crypto, ../database/db
+    symbols: ipcMain, crypto, db, register, d, results, boards, d, id, now, data, d, now, d, results, row, board, d, d
+  - Code/ipc/blueprintLibrary/kitHandlers.js
+    language: javascript
+    total_symbols: 13
+    exported: none
+    imports: electron, ../../database/db.js, ./db.js
+    symbols: ipcMain, save, db, KIT_LEVELS, ITEM_TYPES, register, rows, grouped, item, maxSort, nextOrder, res, i
+  - Code/ipc/blueprintLibrary/rulesLoader.js
+    language: javascript
+    total_symbols: 28
+    exported: none
+    imports: fs, path, electron
+    symbols: fs, path, app, RULES_DIR, _displayName, _extractTitle, heading, lines, _extractSummary, lines, _buildTags, words, freq, stopWords, c, top, loadRulesData, categories, blueprints, seenCat, content, key, dotParts, h, categoryName, blueprintName, type, title
+  - Code/ipc/codebaseMap_ipc.js
+    language: javascript
+    total_symbols: 13
+    exported: none
+    imports: electron, ../database/repositories, ../database/indexedFiles, ../database/symbols, ../database/imports, ./indexerProxy, ../database/codebaseMap
+    symbols: ipcMain, repositories, indexedFiles, symbols, imports, indexerProxy, buildCodebaseMap, _tryProxy, data, _tryMainDb, repo, register, data
+  - Code/ipc/dbInspector_ipc.js
+    language: javascript
+    total_symbols: 43
+    exported: none
+    imports: electron, ../database/dbInspector.js, ./workerProxy.js, ../database/db.js, ../database/db.js
+    symbols: ipcMain, safeStorage, dbi, workerProxy, encryptPassword, decryptPassword, buf, _resolvePassword, register, password, password, result, snapshotId, tableId, graphData, snapRes, connId, conn, password, oldTableNames, result, newTableNames, added, removed, changed, newTable, oldCols, newColNames, oldColNames, nc, oc, newSnapshotId, tableId, graphData, timeout, snapRes, connId, conn, password, rows, encrypted, rows, id
+  - Code/ipc/codebbaseChat_ipc.js
+    language: javascript
+    total_symbols: 57
+    exported: none
+    imports: electron, path, ./indexerProxy.js, ../database/db, ../database/chatDb, ./gmail_ipc.js
+    symbols: ipcMain, path, indexerProxy, getDb, getChatDb, save:saveChatDb, gmailIpc, db, cdb, _getRepoId, stmt, r, _getLocalFileId, stmt, r, _queryObjs, stmt, results, register, data, repoId, data, repoId, data, repoId, fileId, data, repoId, fileId, data, repoId, visited, maxDepth, dfs, fileId, deps, children, data, repoId, cycles, visitStack, visited, dfs, idx, fileId, deps, all, data, accounts, stmt, rows, now, id, stmt, rows, now, id
+  - Code/ipc/docker_ipc.js
+    language: javascript
+    total_symbols: 15
+    exported: none
+    imports: electron, ../utils/dockerClient.js
+    symbols: ipcMain, docker, register, list, list, raw, cpuDelta, sysDelta, preCpu, preSys, cpuDeltaV, sysDeltaV, cpuPct, mem, raw
+  - Code/ipc/docignoreManager_ipc.js
+    language: javascript
+    total_symbols: 13
+    exported: none
+    imports: electron, path, fs, electron').app.getPath('userData
+    symbols: ipcMain, path, fs, REPO_FILE, getGlobalPath, userData, readFile, raw, data, writeFile, register, filePath, filePath
+  - Code/ipc/gemini_ipc.js
+    language: javascript
+    total_symbols: 29
+    exported: none
+    imports: electron, child_process, path
+    symbols: ipcMain, exec, path, execAsync, findGemini, isWin, cmd, out, firstLine, parseSessionList, sessions, lines, match, relative, now, timestamp, timeMatch, num, unit, units, register, binaryPath, version, isWin, out, binaryPath, isWin, cwd, out
+  - Code/ipc/features_ipc.js
+    language: javascript
+    total_symbols: 5
+    exported: none
+    imports: electron
+    symbols: ipcMain, DEFAULT_FEATURES, register, cfg, cfg
+  - Code/ipc/fileseeder_ipc.js
+    language: javascript
+    total_symbols: 3
+    exported: none
+    imports: electron, ../utils/fileSeeder
+    symbols: ipcMain, fileSeeder, register
+  - Code/ipc/generate_ipc.js
+    language: javascript
+    total_symbols: 11
+    exported: none
+    imports: electron, path, fs, ./workerProxy.js
+    symbols: ipcMain, dialog, path, fs, workerProxy, _progressCallback, register, ignoreRules, outputDir, mainWindow, content
+  - Code/ipc/env_ipc.js
+    language: javascript
+    total_symbols: 26
+    exported: none
+    imports: electron, path, fs
+    symbols: ipcMain, path, fs, ENV_PATTERNS, SKIP_DIRS, isEnvFile, lower, sortFiles, findEnvFiles, results, full, register, found, files, fullPath, content, lines, entries, idx, key, value, fullPath, content, val, fullPath, fullPath
+  - Code/ipc/github_ipc.js
+    language: javascript
+    total_symbols: 20
+    exported: none
+    imports: electron, https, ../database/githubTrees
+    symbols: ipcMain, https, saveTree, listTrees, getTree, deleteTree, githubApiGet, options, req, data, parseGithubUrl, match, register, repoInfo, branch, treeData, allItems, fileItems, trees, data
+  - Code/ipc/gitService.js
+    language: javascript
+    total_symbols: 24
+    exported: none
+    imports: simple-git
+    symbols: simpleGit, GitService, constructor, _git, inst, _key, raw, key, now, entry, data, getCommits, args, getCommitFiles, args, show, args, showFileAtCommit, diff, revParse, getNumstat, clearCache, prefix, getStats
+  - Code/ipc/gmail_ipc.js
+    language: javascript
+    total_symbols: 40
+    exported: none
+    imports: electron, ../services/gmailService
+    symbols: ipcMain, Notification, gmailService, extractName, match, _extractEmail, match, isIgnored, email, name, matched, term, _messageCache, updateMessageCache, getCachedMessages, getAllCachedMessages, result, getConnectedAccounts, register, result, win, result, win, win, acct, result, result, results, body, win, totalUnread, totalNewMsgs, ignoredMap, newMsgs, ignored, senderName, notif, results, totalUnread, win
+  - Code/ipc/graphify_ipc.js
+    language: javascript
+    total_symbols: 29
+    exported: none
+    imports: electron, child_process, path, readline, http
+    symbols: ipcMain, spawn, path, readline, http, DEFAULT_PORT, START_TIMEOUT, _child, _port, _ready, _repoPath, _app, _getServerPath, _resolveDbPath, _spawn, serverPath, dbPath, args, rl, msg, text, _stop, _fetchInfo, req, data, register, result, result, shutdown
+  - Code/ipc/git_ipc.js
+    language: javascript
+    total_symbols: 107
+    exported: none
+    imports: electron, ../utils/gitOps, simple-git, path, ./gitService.js, ./profile.js, ./prefetchService.js, ./workerProxy, ./workerProxy, ./workerProxy, ./workerProxy, ./workerProxy, ./workerProxy, ./workerProxy, ./workerProxy, ./workerProxy
+    symbols: ipcMain, GitOperations, simpleGit, path, gitService, triggerCommitSync, prefetchService, register, workerProxy, gitOps, gitOps, gitOps, gitOps, result, gitOps, result, workerProxy, gitOps, workerProxy, gitOps, workerProxy, gitOps, workerProxy, gitOps, workerProxy, gitOps, cached, git, branchSummary, current, local, remote, isRemote, displayName, ahead, behind, label, parts, commitHash, message, localNames, defaultBranch, vsResults, b, result, git, git, git, git, git, git, git, git, result, noChanges, files, pushed, pushError, msg, lines, conflictFiles, m, git, diff, git, diff, git, nameStatus, files, parts, logResult, commits, git, diff, git, git, git, git, workerProxy, r, git, p, skip, raw, total, lines, commits, currentGraph, delimIdx, graphPrefix, dataPart, idx, hash, rest, parts, graphLines, totalCount, workerProxy, r, git, numstatRaw, files, parts, workerProxy, r, git, diff
+
+
+Return a JSON array with one entry per file. Each entry:
+{
+  "file": "path",
+  "summary": "1-2 sentence description",
+  "feature": "feature area",
+  "responsibilities": ["list"],
+  "tags": ["tags"],
+  "symbols": [{"name": "name", "purpose": "purpose", "role": "role"}]
+}
+
+Return ONLY the JSON array, no other text.
