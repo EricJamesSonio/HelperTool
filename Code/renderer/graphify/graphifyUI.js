@@ -236,6 +236,7 @@ async function _checkStatus() {
         symbolsInfo: result.symbolsStats || null,
         promptExists: !!result.promptExists,
         graphInfo: { exists: result.graphExists, stats: result.graphStats || null },
+        graphHasData: !!result.graphHasData,
         statusLoading: false,
       });
     } else {
@@ -576,6 +577,7 @@ async function _handleLoadAiGraph() {
         exists: true,
         stats: result.graph?.stats || null,
       },
+      graphHasData: !!(result.graph?.nodes && result.graph.nodes.length > 0),
     });
   } catch (err) {
     setState({ aiGraphLoading: false, aiGraphError: err.message });
@@ -614,10 +616,10 @@ function _render(state) {
   };
   if (labelEl) labelEl.textContent = statusLabels[state.serverStatus] || 'Unknown';
 
-  if (startBtn) startBtn.style.display  = state.serverStatus === 'stopped' || state.serverStatus === 'error' ? 'flex' : 'none';
+  if (startBtn) startBtn.style.display  = state.serverStatus === 'running' ? 'flex' : 'none';
   if (stopBtn)  stopBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
   if (copyBtn)  copyBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
-  if (indexBtn) indexBtn.style.display = state.serverStatus === 'stopped' || state.serverStatus === 'error' ? 'flex' : 'none';
+  if (indexBtn) indexBtn.style.display  = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
 
   // ── Info line (styled as a stat card, echoing the reference dashboard) ──
   if (infoLine) {
@@ -679,11 +681,28 @@ function _render(state) {
         step1Done.style.display = state.promptExists ? 'flex' : 'none';
       }
 
-      // Stats line in graph-ready header
-      const readyStats = wizard.querySelector('.gfy-wizard-ready-stats');
-      if (readyStats && state.graphInfo?.stats) {
-        const gs = state.graphInfo.stats;
-        readyStats.textContent = `${gs.totalNodes || 0} nodes \u00B7 ${gs.totalEdges || 0} edges\u00B7 ${gs.totalFiles || 0} files`;
+      // Step 3: toggle load button vs waiting state based on graphHasData
+      const step3 = wizard.querySelector('.gfy-wizard-step:nth-child(3)');
+      if (step3) {
+        const loadBtn = step3.querySelector('.gfy-load-ai-btn');
+        const waiting = step3.querySelector('.gfy-wizard-step-waiting');
+        if (loadBtn && waiting) {
+          const showLoad = state.graphInfo?.exists && state.graphHasData;
+          loadBtn.style.display = showLoad ? 'inline-flex' : 'none';
+          waiting.style.display = showLoad ? 'none' : 'flex';
+        }
+      }
+
+      // Graph-ready checklist metadata
+      const checklistMetas = wizard.querySelectorAll('.gfy-checklist-meta');
+      if (checklistMetas.length >= 2) {
+        if (state.symbolsInfo) {
+          checklistMetas[0].textContent = `${state.symbolsInfo.files} files \u00B7 ${state.symbolsInfo.symbols} symbols`;
+        }
+        if (state.graphInfo?.stats) {
+          const gs = state.graphInfo.stats;
+          checklistMetas[1].textContent = `${gs.totalNodes || 0} nodes \u00B7 ${gs.totalEdges || 0} edges`;
+        }
       }
 
       // Export status in wizard
@@ -1047,7 +1066,7 @@ function _template() {
           </div>
 
           <div class="gfy-actions-row">
-            <button class="gfy-start-btn">
+            <button class="gfy-start-btn" style="display:none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l12 7-12 7V3z"/></svg>
               Start Server
             </button>
@@ -1082,7 +1101,7 @@ function _template() {
               <strong>Codebase not indexed</strong>
               <span>Index your repository first to enable code intelligence and knowledge graph features.</span>
             </div>
-            <button class="gfy-index-btn">
+            <button class="gfy-index-btn" style="display:none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
               Index Codebase
             </button>
@@ -1135,6 +1154,10 @@ function _template() {
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
                     Load AI Graph
                   </button>
+                  <div class="gfy-wizard-step-waiting" style="display:none">
+                    <span class="gfy-wizard-step-waiting-dot"></span>
+                    <span class="gfy-wizard-step-waiting-text">AI enrichment not detected yet. Run the prompt with your AI first.</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1149,11 +1172,16 @@ function _template() {
           </div>
 
           <div class="gfy-wizard-graph-ready" style="display:none">
-            <div class="gfy-wizard-ready-header">
-              <span class="gfy-wizard-check gfy-wizard-check-graph">&#10003;</span>
-              <div class="gfy-wizard-ready-text">
-                <strong>Knowledge Graph Ready</strong>
-                <span class="gfy-wizard-ready-stats"></span>
+            <div class="gfy-checklist">
+              <div class="gfy-checklist-item">
+                <span class="gfy-checklist-check">&#10003;</span>
+                <span class="gfy-checklist-label">Codebase indexed</span>
+                <span class="gfy-checklist-meta"></span>
+              </div>
+              <div class="gfy-checklist-item">
+                <span class="gfy-checklist-check">&#10003;</span>
+                <span class="gfy-checklist-label">Knowledge graph built</span>
+                <span class="gfy-checklist-meta"></span>
               </div>
             </div>
             <button class="gfy-start-btn">

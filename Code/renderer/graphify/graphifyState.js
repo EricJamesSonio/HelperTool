@@ -42,6 +42,7 @@ const state = {
   symbolsInfo: null,
   promptExists: false,
   graphInfo: null,
+  graphHasData: false,
   statusLoading: false,
 };
 

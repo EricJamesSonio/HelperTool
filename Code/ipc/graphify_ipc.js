@@ -542,8 +542,12 @@ function register({ app }) {
     const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
     const graphExists = fs.existsSync(graphPath);
     let graphData = null;
+    let graphHasData = false;
     if (graphExists) {
-      try { graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8')); } catch {}
+      try {
+        graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+        graphHasData = !!(graphData.nodes && graphData.nodes.length > 0);
+      } catch {}
     }
 
     return {
@@ -554,6 +558,7 @@ function register({ app }) {
         : null,
       promptExists,
       graphExists,
+      graphHasData,
       graphStats: graphData?.stats || null,
     };
   });
