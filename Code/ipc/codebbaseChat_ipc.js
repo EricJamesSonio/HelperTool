@@ -1,168 +1,41 @@
 const { ipcMain } = require('electron');
-const path = require('path');
-const indexerProxy = require('./indexerProxy.js');
 const { getDb } = require('../database/db');
 const { getChatDb, save: saveChatDb } = require('../database/chatDb');
 const gmailIpc = require('./gmail_ipc.js');
+const symbolsJson = require('../database/symbolsJsonLoader');
 
 function db() { return getDb(); }
 function cdb() { return getChatDb(); }
 
-function _getRepoId(repoPath) {
-  const stmt = db().prepare('SELECT id FROM repositories WHERE repo_path = ?');
-  stmt.bind([repoPath]);
-  if (stmt.step()) { const r = stmt.getAsObject(); stmt.free(); return r.id; }
-  stmt.free();
-  return null;
-}
-
-function _getLocalFileId(repoId, filePath) {
-  const stmt = db().prepare('SELECT id FROM indexed_files WHERE repo_id = ? AND path = ?');
-  stmt.bind([repoId, filePath]);
-  if (stmt.step()) { const r = stmt.getAsObject(); stmt.free(); return r.id; }
-  stmt.free();
-  return null;
-}
-
-function _queryObjs(sql, params) {
-  const stmt = db().prepare(sql);
-  if (params) stmt.bind(params);
-  const results = [];
-  while (stmt.step()) results.push(stmt.getAsObject());
-  stmt.free();
-  return results;
-}
-
 function register() {
 
+  // ── Symbol queries from symbols.json ──────────────────────────────────
+
   ipcMain.handle('codebaseChat:getFiles', async (event, { repoPath }) => {
-    try {
-      const data = await indexerProxy.send('db:getFiles', { repoPath });
-      if (data && data.length > 0) return data;
-    } catch (_) {}
-    // Fallback: main process DB
-    const repoId = _getRepoId(repoPath);
-    if (!repoId) return [];
-    return _queryObjs('SELECT id, path, language FROM indexed_files WHERE repo_id = ? ORDER BY path', [repoId]);
+    return symbolsJson.getFiles(repoPath);
   });
 
   ipcMain.handle('codebaseChat:getSymbols', async (event, { repoPath, filePath }) => {
-    try {
-      const data = await indexerProxy.send('db:getChatSymbols', { repoPath, filePath });
-      if (data && data.length > 0) return data;
-    } catch (_) {}
-    const repoId = _getRepoId(repoPath);
-    if (!repoId) return [];
-    return _queryObjs(
-      `SELECT s.name, s.type, s.line, s.signature
-       FROM symbols s
-       JOIN indexed_files f ON s.file_id = f.id
-       WHERE f.repo_id = ? AND f.path = ?
-       ORDER BY s.line`,
-      [repoId, filePath]
-    );
+    return symbolsJson.getSymbols(repoPath, filePath);
   });
 
   ipcMain.handle('codebaseChat:getDependencies', async (event, { repoPath, filePath }) => {
-    try {
-      const data = await indexerProxy.send('db:getChatDependencies', { repoPath, filePath });
-      if (data && data.length > 0) return data;
-    } catch (_) {}
-    const repoId = _getRepoId(repoPath);
-    if (!repoId) return [];
-    const fileId = _getLocalFileId(repoId, filePath);
-    if (!fileId) return [];
-    return _queryObjs(
-      `SELECT fi.import_path, fi.import_type, fi.imported_symbols, f.path as resolved_path
-       FROM file_imports fi
-       LEFT JOIN indexed_files f ON f.id = fi.resolved_file_id
-       WHERE fi.file_id = ?
-       ORDER BY fi.line`,
-      [fileId]
-    );
+    return symbolsJson.getDependencies(repoPath, filePath);
   });
 
   ipcMain.handle('codebaseChat:getDependents', async (event, { repoPath, filePath }) => {
-    try {
-      const data = await indexerProxy.send('db:getChatDependents', { repoPath, filePath });
-      if (data && data.length > 0) return data;
-    } catch (_) {}
-    const repoId = _getRepoId(repoPath);
-    if (!repoId) return [];
-    const fileId = _getLocalFileId(repoId, filePath);
-    if (!fileId) return [];
-    return _queryObjs(
-      `SELECT f.path, fi.import_type, fi.imported_symbols
-       FROM file_imports fi
-       JOIN indexed_files f ON f.id = fi.file_id
-       WHERE fi.resolved_file_id = ? AND fi.repo_id = ?
-       ORDER BY f.path`,
-      [fileId, repoId]
-    );
+    return symbolsJson.getDependents(repoPath, filePath);
   });
 
   ipcMain.handle('codebaseChat:getImportChain', async (event, { repoPath, filePath }) => {
-    try {
-      const data = await indexerProxy.send('db:getChatImportChain', { repoPath, filePath });
-      if (data) return data;
-    } catch (_) {}
-    const repoId = _getRepoId(repoPath);
-    if (!repoId) return null;
-    const visited = new Set();
-    const maxDepth = 6;
-    function dfs(path, depth) {
-      if (depth > maxDepth || visited.has(path)) return { path, children: [], cycle: visited.has(path) };
-      visited.add(path);
-      const fileId = _getLocalFileId(repoId, path);
-      if (!fileId) return { path, children: [] };
-      const deps = _queryObjs(
-        `SELECT f.path FROM file_imports fi
-         JOIN indexed_files f ON f.id = fi.resolved_file_id
-         WHERE fi.file_id = ? AND fi.resolved_file_id IS NOT NULL`,
-        [fileId]
-      );
-      const children = deps.map(d => dfs(d.path, depth + 1));
-      return { path, children };
-    }
-    return dfs(filePath, 0);
+    return symbolsJson.getImportChain(repoPath, filePath);
   });
 
   ipcMain.handle('codebaseChat:getCircularDeps', async (event, { repoPath, filePath }) => {
-    try {
-      const data = await indexerProxy.send('db:getChatCircularDeps', { repoPath, filePath });
-      if (data && data.length > 0) return data;
-    } catch (_) {}
-    const repoId = _getRepoId(repoPath);
-    if (!repoId) return [];
-    const cycles = [];
-    const visitStack = [];
-    const visited = new Set();
-    function dfs(path) {
-      if (visitStack.includes(path)) {
-        const idx = visitStack.indexOf(path);
-        cycles.push([...visitStack.slice(idx), path]);
-        return;
-      }
-      if (visited.has(path)) return;
-      visited.add(path);
-      visitStack.push(path);
-      const fileId = _getLocalFileId(repoId, path);
-      if (fileId) {
-        const deps = _queryObjs(
-          `SELECT f.path FROM file_imports fi
-           JOIN indexed_files f ON f.id = fi.resolved_file_id
-           WHERE fi.file_id = ? AND fi.resolved_file_id IS NOT NULL`,
-          [fileId]
-        );
-        for (const d of deps) dfs(d.path);
-      }
-      visitStack.pop();
-    }
-    dfs(filePath);
-    return cycles;
+    return symbolsJson.getCircularDeps(repoPath, filePath);
   });
 
-  // ── Conversation persistence ──────────────────────────────────────────
+  // ── Gmail data (unchanged) ───────────────────────────────────────────
 
   ipcMain.handle('chat:getEmailData', async (event, { email, queryType, params }) => {
     try {
@@ -185,6 +58,8 @@ function register() {
       return { success: false, accounts: [] };
     }
   });
+
+  // ── Conversation persistence (unchanged) ─────────────────────────────
 
   ipcMain.handle('codebaseChat:getConversations', async (event, { repoPath }) => {
     try {

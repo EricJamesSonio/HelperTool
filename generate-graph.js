@@ -281,6 +281,23 @@ if (prevGraph && Array.isArray(prevGraph.nodes)) {
   }
 }
 
+// ---------- load incremental AI enrichment updates ----------
+const UPDATES_FILE = 'graphify/symbol-index-storage/file-updates.json';
+const fileUpdates = new Map(); // filePath -> enriched data
+if (fs.existsSync(UPDATES_FILE)) {
+  try {
+    const rawUpdates = JSON.parse(fs.readFileSync(UPDATES_FILE, 'utf8'));
+    if (Array.isArray(rawUpdates)) {
+      for (const u of rawUpdates) {
+        if (u.file) fileUpdates.set(u.file, u);
+      }
+      console.log(`  Loaded ${fileUpdates.size} incremental enrichment updates`);
+    }
+  } catch (e) {
+    console.error(`  Warning: failed to parse ${UPDATES_FILE}:`, e.message);
+  }
+}
+
 let reusedCount = 0;
 
 for (const f of files) {
@@ -297,8 +314,8 @@ for (const f of files) {
     continue;
   }
   const syms = symsByFile.get(p) || [];
-  const feats = [...(featureMap.get(p) || ['core'])];
-  const tags = [...(tagMap.get(p) || [])];
+  let feats = [...(featureMap.get(p) || ['core'])];
+  let tags = [...(tagMap.get(p) || [])];
   if (f.language) tags.push(f.language);
 
   // Count symbols by type for summary
@@ -355,7 +372,23 @@ for (const f of files) {
     summary = `Module: ${bn.replace('.js', '')}. Part of the HelperTool application.`;
   }
 
-  const embeddedSyms = funSyms.slice(0, 10).map(s => ({
+  // Track whether AI enrichment was applied
+  let appliedAIEnrichment = false;
+  const aiResponsibilities = [];
+
+  // Override heuristic data with AI enrichment if available
+  if (fileUpdates.has(p)) {
+    const u = fileUpdates.get(p);
+    if (u.summary) summary = u.summary;
+    if (u.feature) feats = [u.feature, ...feats.filter(f => f !== 'core')];
+    if (Array.isArray(u.tags)) tags = [...new Set([...tags, ...u.tags])];
+    if (Array.isArray(u.responsibilities)) {
+      aiResponsibilities.push(...u.responsibilities);
+    }
+    appliedAIEnrichment = true;
+  }
+
+  let embeddedSyms = funSyms.slice(0, 10).map(s => ({
     name: s.name,
     type: s.type,
     line: s.line,
@@ -364,6 +397,19 @@ for (const f of files) {
     role: s.type === 'class' ? 'class definition' : s.type === 'function' ? 'function' : 'export'
   }));
 
+  // Apply AI-enriched per-symbol roles if available
+  if (fileUpdates.has(p)) {
+    const u = fileUpdates.get(p);
+    if (Array.isArray(u.symbols)) {
+      const enriched = new Map();
+      for (const es of u.symbols) enriched.set(es.name, es);
+      embeddedSyms = embeddedSyms.map(s => {
+        const e = enriched.get(s.name);
+        return e ? { ...s, purpose: e.purpose || s.purpose, role: e.role || s.role } : s;
+      });
+    }
+  }
+
   const node = {
     id: 'file-' + p,
     type: 'file',
@@ -371,7 +417,7 @@ for (const f of files) {
     filePath: p,
     language: f.language || 'javascript',
     summary: summary,
-    responsibilities: [],
+    responsibilities: aiResponsibilities,
     features: feats,
     tags: [...new Set(tags)],
     stats: {
@@ -383,7 +429,7 @@ for (const f of files) {
       variables: typeCounts['variable'] || 0
     },
     symbols: embeddedSyms,
-    summarySource: 'heuristic',
+    summarySource: appliedAIEnrichment ? 'ai' : 'heuristic',
     graphVersion: GRAPH_VERSION,
     updatedAt: curHashes[p]?.lastGenerated || new Date().toISOString(),
     structureHash: curHashes[p]?.structureHash || '',

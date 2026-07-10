@@ -42,6 +42,23 @@ console.log(`\n${STAGES.stage2.name}`);
 console.log(`  ${STAGES.stage2.description}`);
 const stage2Ok = runScript(STAGES.stage2.name, STAGES.stage2.script);
 
+// Stage 2.5 — check for incremental AI enrichment
+console.log(`\nIncremental AI Enrichment`);
+const updatePromptPath = path.join(__dirname, 'graphify', 'symbol-index-storage', 'file-updates-prompt.txt');
+const updatesJsonPath = path.join(__dirname, 'graphify', 'symbol-index-storage', 'file-updates.json');
+try {
+  const out = execSync('node generate-update-prompt.js', { cwd: __dirname, stdio: 'pipe', timeout: 30000 });
+  const text = out.toString();
+  if (text.includes('Detected') && !text.includes('0 new')) {
+    console.log(text);
+    console.log('  To enrich: feed the prompt to AI, save response as file-updates.json, then re-run pipeline.');
+  } else {
+    console.log(`  ${text.trim()}`);
+  }
+} catch (e) {
+  // ignore errors from the update prompt script
+}
+
 // Verify output
 console.log('\n━━━ Verification ━━━');
 const graphPath = path.join(__dirname, 'graphify', 'graphify-storage', 'graph.json');
