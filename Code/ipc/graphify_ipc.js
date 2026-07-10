@@ -23,14 +23,19 @@ function _resolveDbPath(app) {
   return path.join(app.getPath('userData'), 'symbol-index', 'index.db');
 }
 
+function _isChildAlive() {
+  return _child && _child.exitCode === null && !_child.killed;
+}
+
 function _spawn(app) {
   return new Promise((resolve, reject) => {
-    if (_child) {
+    if (_isChildAlive()) {
       resolve({ port: _port });
       return;
     }
-
-    _ready  = false;
+    // Clean up any stale child reference
+    _child = null;
+    _ready = false;
 
     const serverPath = _getServerPath();
     const dbPath = _resolveDbPath(app);
@@ -70,6 +75,9 @@ function _spawn(app) {
       console.warn(`[graphify_ipc] Server exited with code ${code}`);
       _child = null;
       _ready = false;
+      if (code !== 0 && code !== null) {
+        console.warn(`[graphify_ipc] Server crashed (exit=${code}). It can be restarted via the Graphify UI.`);
+      }
       reject(new Error(`Server exited with code ${code}`));
     });
 
@@ -95,6 +103,11 @@ function _stop() {
     _child = null;
   }
   _ready = false;
+}
+
+function _restart(app) {
+  _stop();
+  return new Promise(r => setTimeout(r, 300)).then(() => _spawn(app));
 }
 
 function _fetchInfo() {
@@ -146,11 +159,9 @@ function register({ app }) {
   });
 
   ipcMain.handle('graphify:restart', async (_, repoPath) => {
-    _stop();
     _repoPath = repoPath || null;
-    await new Promise(r => setTimeout(r, 200));
     try {
-      const result = await _spawn(app);
+      const result = await _restart(app);
       return { ok: true, port: result.port };
     } catch (err) {
       return { ok: false, error: err.message };

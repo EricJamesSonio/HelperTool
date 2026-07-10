@@ -1,6 +1,6 @@
 import { getState, setState, subscribe } from './graphifyState.js';
 import {
-  queryGraphify, checkHealth, fetchInfo, fetchEndpoints,
+  queryGraphify, checkHealth as clientCheckHealth, fetchInfo, fetchEndpoints,
   fetchGraphData, fetchGraphReport, fetchGraphStats, fetchGraphCommunities,
   searchGraphNodes, getGraphNeighborhood, getGraphShortestPath, getGraphAffected,
   exportSymbolIndex, generateAIPrompt, loadGraphFromStorage,
@@ -9,6 +9,7 @@ import {
 let _root      = null;
 let _unsub     = null;
 let _debounce  = null;
+let _healthTimer = null;
 
 export function mount(container) {
   _root = container;
@@ -16,9 +17,25 @@ export function mount(container) {
   _bindEvents();
   _unsub = subscribe(_render);
   _render(getState());
+  // Verify server is still alive if state claims it's running
+  _checkServerAlive();
+}
+
+function _startHealthTimer() {
+  _stopHealthTimer();
+  _healthTimer = setInterval(() => {
+    const s = getState();
+    if (s.serverStatus !== 'running') { _stopHealthTimer(); return; }
+    _checkServerAlive();
+  }, 15000);
+}
+
+function _stopHealthTimer() {
+  if (_healthTimer) { clearInterval(_healthTimer); _healthTimer = null; }
 }
 
 export function unmount() {
+  _stopHealthTimer();
   if (_unsub) { _unsub(); _unsub = null; }
   if (_debounce) clearTimeout(_debounce);
   _root = null;
@@ -110,6 +127,7 @@ async function _handleStart() {
     const result = await window.electronAPI.graphifyStart(window.__activeRepoPath || null);
     if (!result.ok) throw new Error(result.error || 'Failed to start server');
     setState({ port: result.port, serverStatus: 'running' });
+    _startHealthTimer();
     const [info, epData] = await Promise.all([
       fetchInfo(result.port),
       fetchEndpoints(result.port),
@@ -123,6 +141,7 @@ async function _handleStart() {
 }
 
 async function _handleStop() {
+  _stopHealthTimer();
   try {
     await window.electronAPI.graphifyStop();
   } catch {}
@@ -147,6 +166,34 @@ async function _handleIndex() {
     setState({ error: 'Indexing complete! You can now start the server.' });
   } catch (err) {
     setState({ error: `Indexing failed: ${err.message}` });
+  }
+}
+
+async function _checkServerAlive() {
+  const s = getState();
+  if (s.serverStatus !== 'running') { _stopHealthTimer(); return; }
+  try {
+    const ok = await clientCheckHealth(s.port);
+    if (!ok) throw new Error('Health check failed');
+    _startHealthTimer();
+    // Refresh server info and endpoints in case they changed
+    const [info, epData] = await Promise.all([
+      fetchInfo(s.port).catch(() => null),
+      fetchEndpoints(s.port).catch(() => null),
+    ]);
+    const patch = {};
+    if (epData && epData.endpoints) patch.endpoints = epData.endpoints;
+    if (info && !info.error) patch.serverInfo = info;
+    if (Object.keys(patch).length) setState(patch);
+  } catch {
+    // Server is gone — reset state so user sees the start UI
+    _stopHealthTimer();
+    setState({
+      serverStatus: 'stopped', serverInfo: null, endpoints: null,
+      results: [], files: [], explanation: '', error: 'Server was disconnected. Click Start to restart.',
+      graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
+      graphLoading: false, graphError: null,
+    });
   }
 }
 
@@ -187,6 +234,7 @@ async function _runQuery() {
     });
   } catch (err) {
     setState({ loading: false, error: err.message });
+    _checkServerAlive();
   }
 }
 
@@ -211,6 +259,7 @@ async function _handleRefreshGraph() {
     setState({ graphData: data, graphStats: stats, graphReport: report, graphCommunities: communities, graphLoading: false });
   } catch (err) {
     setState({ graphLoading: false, graphError: err.message });
+    _checkServerAlive();
   }
 }
 
