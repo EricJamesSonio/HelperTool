@@ -1,28 +1,31 @@
 const fs = require('fs');
 const path = require('path');
 
-const SYMBOLS_JSON_PATH = path.join(__dirname, '..', '..', 'graphify', 'symbol-index-storage', 'symbols.json');
-
 let _cache = null;
+let _cachePath = null;
 let _cacheMtime = 0;
 
-function load() {
-  if (!fs.existsSync(SYMBOLS_JSON_PATH)) return null;
-  const mtime = fs.statSync(SYMBOLS_JSON_PATH).mtimeMs;
-  if (_cache && mtime <= _cacheMtime) return _cache;
-  const raw = JSON.parse(fs.readFileSync(SYMBOLS_JSON_PATH, 'utf8'));
+function load(repoPath) {
+  if (!repoPath) return null;
+  const jsonPath = path.join(repoPath, 'graphify', 'symbol-index-storage', 'symbols.json');
+  if (!fs.existsSync(jsonPath)) return null;
+  const mtime = fs.statSync(jsonPath).mtimeMs;
+  if (_cache && _cachePath === jsonPath && mtime <= _cacheMtime) return _cache;
+  const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   _cache = raw;
+  _cachePath = jsonPath;
   _cacheMtime = mtime;
   return _cache;
 }
 
 function clearCache() {
   _cache = null;
+  _cachePath = null;
   _cacheMtime = 0;
 }
 
 function getForCodebaseMap(repoPath) {
-  const data = load();
+  const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return null;
   return {
     files: data.files,
@@ -45,13 +48,13 @@ function getForCodebaseMap(repoPath) {
 }
 
 function getFiles(repoPath) {
-  const data = load();
+  const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return [];
   return data.files.map(f => ({ id: f.id, path: f.path, language: f.language }));
 }
 
 function getSymbols(repoPath, filePath) {
-  const data = load();
+  const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return [];
   return data.symbols
     .filter(s => s.filePath === filePath)
@@ -59,7 +62,7 @@ function getSymbols(repoPath, filePath) {
 }
 
 function getDependencies(repoPath, filePath) {
-  const data = load();
+  const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return [];
   return data.imports
     .filter(i => i.sourceFile === filePath)
@@ -72,7 +75,7 @@ function getDependencies(repoPath, filePath) {
 }
 
 function getDependents(repoPath, filePath) {
-  const data = load();
+  const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return [];
   return data.imports
     .filter(i => i.resolvedFile === filePath)
@@ -94,7 +97,7 @@ function _buildDepGraph(data) {
 }
 
 function getImportChain(repoPath, filePath) {
-  const data = load();
+  const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return null;
   const depsMap = _buildDepGraph(data);
   const visited = new Set();
@@ -110,7 +113,7 @@ function getImportChain(repoPath, filePath) {
 }
 
 function getCircularDeps(repoPath, filePath) {
-  const data = load();
+  const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return [];
   const depsMap = _buildDepGraph(data);
   const cycles = [];

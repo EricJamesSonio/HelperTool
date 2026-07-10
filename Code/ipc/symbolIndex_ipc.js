@@ -50,8 +50,8 @@ async function register({ app, docignoreUtils, getMainWindow }) {
           if (data && data.indexed) return data;
         } catch (err) { /* fall through to symbols.json */ }
       }
-      const jsonData = symbolsJson.load();
-      if (jsonData && jsonData.repoPath === repoPath) {
+      const jsonData = symbolsJson.load(repoPath);
+      if (jsonData) {
         return {
           indexed: true,
           total_files: jsonData.files.length,
@@ -183,8 +183,8 @@ async function register({ app, docignoreUtils, getMainWindow }) {
       if (indexerProxy.isReady()) {
         try {
           const data = await indexerProxy.send('db:getStatus', { repoPath });
-          if (data) {
-            if (data.exists && data.indexed) {
+          if (data && data.exists) {
+            if (data.indexed) {
               watcher.createWatcher(repoPath, (repoPath, relPath) => {
                 if (indexerProxy.isReady()) {
                   indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }).then(data => {
@@ -199,9 +199,22 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             _statusCache.set(repoPath, data);
             return data;
           }
-        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+        } catch (err) { /* fall through to symbols.json */ }
       }
 
+      const jsonData = symbolsJson.load(repoPath);
+      if (jsonData) {
+        const status = {
+          exists: true,
+          indexed: true,
+          total_files: jsonData.files.length,
+          total_symbols: jsonData.symbols.length,
+          last_indexed: jsonData.exportedAt,
+          dirty_count: 0,
+        };
+        _statusCache.set(repoPath, status);
+        return status;
+      }
       return { exists: false };
     } catch (err) {
       return { exists: false, error: err.message };
@@ -214,7 +227,20 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('search', { repoPath, query, limit: limit || 200, offset: 0 });
           if (data && Array.isArray(data.results)) return { results: data.results };
-        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+        } catch (err) { /* fall through to symbols.json */ }
+      }
+      const jsonData = symbolsJson.load(repoPath);
+      if (jsonData) {
+        const q = (query || '').toLowerCase();
+        const max = limit || 200;
+        const results = [];
+        for (const s of jsonData.symbols) {
+          if (results.length >= max) break;
+          if (s.name.toLowerCase().includes(q) || (s.signature || '').toLowerCase().includes(q)) {
+            results.push({ id: s.name + '_' + s.filePath, name: s.name, type: s.type, filePath: s.filePath, line: s.line, signature: s.signature || '' });
+          }
+        }
+        return { results };
       }
       return { results: [] };
     } catch (err) {
@@ -362,7 +388,14 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             if (off === 0) _fileListCache.set(repoPath, result);
             return result;
           }
-        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+        } catch (err) { /* fall through to symbols.json */ }
+      }
+      const jsonData = symbolsJson.load(repoPath);
+      if (jsonData) {
+        const files = jsonData.files.slice(off, off + lmt).map(f => ({ id: f.id, path: f.path, language: f.language }));
+        const result = { files, total: jsonData.files.length };
+        if (off === 0) _fileListCache.set(repoPath, result);
+        return result;
       }
       return { files: [], total: 0 };
     } catch (err) {
@@ -376,7 +409,14 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('symbols:get', { filePath, limit: 200, offset: 0 });
           if (data && Array.isArray(data.symbols)) return { symbols: data.symbols };
-        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+        } catch (err) { /* fall through to symbols.json */ }
+      }
+      const jsonData = symbolsJson.load(repoPath);
+      if (jsonData) {
+        const symbols = jsonData.symbols
+          .filter(s => s.filePath === filePath)
+          .map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature }));
+        return { symbols };
       }
       return { symbols: [] };
     } catch (err) {
@@ -516,7 +556,15 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             const data = await indexerProxy.send('db:getSymbolTypes', { repoId: status.repo_id });
             if (data) return { types: data.types || [] };
           }
-        } catch (err) { console.error('[symbolIndex]', err?.message || err); }
+        } catch (err) { /* fall through to symbols.json */ }
+      }
+      const jsonData = symbolsJson.load(repoPath);
+      if (jsonData) {
+        const counts = {};
+        for (const s of jsonData.symbols) {
+          counts[s.type] = (counts[s.type] || 0) + 1;
+        }
+        return { types: Object.entries(counts).map(([type, count]) => ({ type, count })) };
       }
       return { types: [] };
     } catch (err) {
