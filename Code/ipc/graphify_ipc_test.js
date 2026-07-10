@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const { ipcMain } = require('electron');
 const { spawn }   = require('child_process');
@@ -154,12 +154,12 @@ function _generatePromptText(repoPath) {
 
 You are an AI assistant. Your task is to analyze the provided \`symbols.json\` file containing the symbol index of a codebase, and produce two output files:
 
-1. **\`graphify/graphify-storage/graph.json\`** — A structured knowledge graph with semantic labels
-2. **\`graphify/graphify-storage/graph.md\`** — A human-readable markdown report
+1. **\`graphify/graphify-storage/graph.json\`** â€” A structured knowledge graph with semantic labels
+2. **\`graphify/graphify-storage/graph.md\`** â€” A human-readable markdown report
 
 ## The Challenge
 
-\`symbols.json\` contains raw structural data — file paths, symbol names, import relationships. But it lacks **semantic context**: what does each file actually do? What features does it belong to? What is the purpose of each symbol?
+\`symbols.json\` contains raw structural data â€” file paths, symbol names, import relationships. But it lacks **semantic context**: what does each file actually do? What features does it belong to? What is the purpose of each symbol?
 
 Your job is to add that missing context. You will produce a \`graph.json\` where every file has a meaningful summary, every symbol has a purpose and role, files are grouped into coherent features, and semantic relationships between files are identified.
 
@@ -323,7 +323,7 @@ Field notes:
 - \`responsibilities\`: 1-5 brief bullet points of what this file does (can be empty array)
 - \`features\`: one or more feature names this file belongs to (the primary feature first)
 - \`tags\`: descriptive tags for searching/filtering
-- \`stats\`: counts — derive from the symbols array for this file
+- \`stats\`: counts â€” derive from the symbols array for this file
 - \`symbols\`: include ALL function, class, and method symbols (skip pure variables/constants unless important), each with \`purpose\` and \`role\`
 - \`summarySource\`: always \`"ai"\`
 - \`centrality\`: compute from the edges you create (fanIn = how many files import this file, fanOut = how many files this file imports, degree = fanIn + fanOut, centrality = degree / (totalNodes - 1))
@@ -355,16 +355,16 @@ Fields:
 |------|-------------|-----------------|
 | \`IMPORTS\` | File A directly imports file B (from \`symbols.json\` imports with \`resolvedFile\`) | 2 |
 | \`COLLABORATES_WITH\` | Files that work together on the same feature or closely related features | 1 |
-| \`ORCHESTRATES\` | A file coordinates or manages multiple other files (e.g. main process → handlers) | 3 |
+| \`ORCHESTRATES\` | A file coordinates or manages multiple other files (e.g. main process â†’ handlers) | 3 |
 | \`DEPENDS_ON\` | File A logically depends on file B even if not directly imported (semantic dependency) | 2 |
 | \`PROVIDES_TO\` | File A provides data, services, or utilities consumed by file B | 2 |
 | \`IMPLEMENTS\` | File A implements an interface, protocol, or contract defined in file B | 2 |
-| \`SEQUENCES\` | Processing pipeline where A → B → C in a data/control flow | 2 |
+| \`SEQUENCES\` | Processing pipeline where A â†’ B â†’ C in a data/control flow | 2 |
 | \`INITIALIZES\` | File A initializes or bootstraps file B during startup | 2 |
-| \`EXECUTES\` | File A dispatches or spawns work in file B (e.g. worker → task) | 2 |
+| \`EXECUTES\` | File A dispatches or spawns work in file B (e.g. worker â†’ task) | 2 |
 | \`CROSS_CUTTING\` | Shared utility used across otherwise unrelated modules | 1 |
 
-Include \`IMPORTS\` edges for every resolved import. For semantic edges, only add them when you are confident the relationship exists — quality over quantity. Each edge should have a meaningful \`description\`.
+Include \`IMPORTS\` edges for every resolved import. For semantic edges, only add them when you are confident the relationship exists â€” quality over quantity. Each edge should have a meaningful \`description\`.
 
 #### Features Schema
 
@@ -386,9 +386,9 @@ Include \`IMPORTS\` edges for every resolved import. For semantic edges, only ad
 Each feature:
 - \`description\`: what this feature encompasses
 - \`color\`: hex color for visualization (pick distinct colors)
-- \`files\`: array of file paths (not node IDs — raw paths like \`"Code/file.js"\`)
+- \`files\`: array of file paths (not node IDs â€” raw paths like \`"Code/file.js"\`)
 
-Every file should belong to at least one feature. Features should be coherent groupings — don't create too many. 5-15 features is typical for a moderate codebase.
+Every file should belong to at least one feature. Features should be coherent groupings â€” don't create too many. 5-15 features is typical for a moderate codebase.
 
 #### Concepts Schema
 
@@ -475,23 +475,23 @@ Cross-feature or unexpected relationships detected.
 1. Be thorough but concise in summaries. Every file needs a meaningful summary that tells someone what it does.
 2. Group files by feature. A file can belong to multiple features but should have a primary feature.
 3. For \`COLLABORATES_WITH\` edges, only add them when files genuinely work together on the same logical feature.
-4. For semantic edges (\`DEPENDS_ON\`, \`PROVIDES_TO\`, \`IMPLEMENTS\`, etc.), be conservative — only add them when you have strong evidence from file names, symbol names, or import patterns.
+4. For semantic edges (\`DEPENDS_ON\`, \`PROVIDES_TO\`, \`IMPLEMENTS\`, etc.), be conservative â€” only add them when you have strong evidence from file names, symbol names, or import patterns.
 5. The \`features\` section should organize the entire codebase by coherent feature groups.
 6. The \`concepts\` section should document important domain or architectural concepts.
 7. Compute centrality values correctly: \`centrality = degree / (totalNodes - 1)\`.
 8. Focus on making the graph useful for someone asking "how does X work?".
-9. Do NOT include \`stats\` objects in feature or concept entries — they go only on nodes.
+9. Do NOT include \`stats\` objects in feature or concept entries â€” they go only on nodes.
 10. The \`symbols\` array per node should include meaningful \`purpose\` and \`role\` for every symbol listed.
 
 ## Output
 
 Write two files:
 
-1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` — the structured graph (must match the schema above exactly)
-2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` — the human-readable report
+1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` â€” the structured graph (must match the schema above exactly)
+2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` â€” the human-readable report
 `;
-}
 
+function _generateIncrementalPromptText(repoPath, changedFiles, newFiles, symsByFile, impsByFile, files, prevNodesByPath) {
 function _generateIncrementalPromptText(repoPath, changedFiles, newFiles, symsByFile, impsByFile, files, prevNodesByPath) {
   const repoName = repoPath.split(/[/\\]/).pop();
   const allUpdates = [...newFiles, ...changedFiles];
@@ -528,8 +528,8 @@ ${oldPurpose}
 
 For each file listed below:
 1. Read the actual source code from the repository
-2. Update the enrichment data — summary, feature, responsibilities, tags, and per-symbol purpose/role
-3. Use the old enrichment data as reference — improve it if possible, fix it if it was wrong
+2. Update the enrichment data â€” summary, feature, responsibilities, tags, and per-symbol purpose/role
+3. Use the old enrichment data as reference â€” improve it if possible, fix it if it was wrong
 4. Return ONLY a JSON array, no other text
 
 ## Output format
@@ -559,169 +559,8 @@ ${fileEntries}
 Generate the output now.`;
 }
 
-function register({ app }) {
-  _app = app;
 
-  ipcMain.handle('graphify:start', async (_, repoPath) => {
-    _repoPath = repoPath || null;
-    try {
-      const result = await _spawn(app);
-      return { ok: true, port: result.port };
-    } catch (err) {
-      return { ok: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('graphify:stop', async () => {
-    _stop();
-    return { ok: true };
-  });
-
-  ipcMain.handle('graphify:restart', async (_, repoPath) => {
-    _repoPath = repoPath || null;
-    try {
-      const result = await _restart(app);
-      return { ok: true, port: result.port };
-    } catch (err) {
-      return { ok: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('graphify:status', async () => {
-    return { running: !!_child && _ready, port: _port };
-  });
-
-  ipcMain.handle('graphify:getPort', async () => {
-    return { port: _port };
-  });
-
-  ipcMain.handle('graphify:getInfo', async () => {
-    return await _fetchInfo();
-  });
-
-  ipcMain.handle('graphify:checkStatus', async (_, repoPath) => {
-    if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const data = symbolsJsonLoader.load(repoPath);
-    const symbolsExists = !!(data && data.repoPath === repoPath);
-
-    const promptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph.md');
-    const promptExists = fs.existsSync(promptPath);
-
-    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
-    const graphExists = fs.existsSync(graphPath);
-    let graphData = null;
-    let graphHasData = false;
-    if (graphExists) {
-      try {
-        graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
-        graphHasData = !!(graphData.nodes && graphData.nodes.length > 0);
-      } catch {}
-    }
-
-    return {
-      ok: true,
-      symbolsExists,
-      symbolsStats: symbolsExists
-        ? { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length }
-        : null,
-      promptExists,
-      graphExists,
-      graphHasData,
-      graphStats: graphData?.stats || null,
-    };
-  });
-
-  ipcMain.handle('graphify:exportPrompt', async (_, repoPath) => {
-    if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const data = symbolsJsonLoader.load(repoPath);
-    if (!data || data.repoPath !== repoPath) {
-      return { ok: false, error: 'symbols.json not found. Index your codebase first.' };
-    }
-
-    const outDir = path.join(repoPath, STORAGE_DIR);
-    if (!fs.existsSync(outDir)) {
-      fs.mkdirSync(outDir, { recursive: true });
-    }
-
-    // Detect changes and decide prompt type
-    const changes = changeDetector.detectChangesSimple(repoPath);
-    const hasGraph = changes && changes.hasPreviousGraph;
-    const totalChanged = changes ? changes.changedFiles.length + changes.newFiles.length : 0;
-    const noChanges = hasGraph && totalChanged === 0;
-    const tooManyChanges = hasGraph && changes.changeRatio > 0.5;
-
-    let promptType = 'full';
-    let promptText;
-    let promptPath;
-
-    if (noChanges) {
-      return {
-        ok: true,
-        promptType: 'none',
-        noChanges: true,
-        stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
-      };
-    }
-
-    if (hasGraph && !tooManyChanges && totalChanged > 0) {
-      // Incremental — generate prompt for changed files only
-      promptType = 'incremental';
-      promptText = _generateIncrementalPromptText(
-        repoPath,
-        changes.changedFiles,
-        changes.newFiles,
-        changes.symsByFile,
-        changes.impsByFile,
-        changes.files,
-        changes.prevNodesByPath,
-      );
-      promptPath = path.join(outDir, 'generate-graph-file-changes-only.md');
-    } else {
-      // Full prompt
-      promptText = _generatePromptText(repoPath);
-      promptPath = path.join(outDir, 'generate-graph.md');
-    }
-
-    fs.writeFileSync(promptPath, promptText, 'utf-8');
-
-    return {
-      ok: true,
-      promptType,
-      promptPath,
-      promptText,
-      stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
-      changes: hasGraph ? {
-        total: totalChanged,
-        changed: changes.changedFiles.length,
-        new: changes.newFiles.length,
-        changeRatio: changes.changeRatio,
-        tooManyChanges,
-      } : null,
-    };
-  });
-
-  ipcMain.handle('graphify:loadGraphFromStorage', async (_, repoPath) => {
-    if (!repoPath) return { ok: false, error: 'No repo path provided' };
-
-    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
-    const reportPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.md');
-
-    if (!fs.existsSync(graphPath)) {
-      return { ok: false, error: 'graph.json not found. Run the prompt with your AI first.' };
-    }
-
-    try {
-      const graph = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
-      const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf-8') : '';
-      return { ok: true, graph, report };
-    } catch (err) {
-      return { ok: false, error: `Failed to load graph: ${err.message}` };
-    }
-  });
-}
-
-function shutdown() {
-  _stop();
-}
-
+// register function placeholder
+function register(app) {}
+function shutdown() {}
 module.exports = { register, shutdown };

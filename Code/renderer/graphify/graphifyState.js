@@ -41,6 +41,8 @@ const state = {
   repoStatus: null,
   symbolsInfo: null,
   promptExists: false,
+  promptType: null,
+  pendingChanges: null,
   graphInfo: null,
   graphHasData: false,
   statusLoading: false,

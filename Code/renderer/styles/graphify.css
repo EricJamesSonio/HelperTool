@@ -1419,6 +1419,106 @@
   border-radius: 8px;
 }
 
+/* ─── AI Status Bar ──────────────────────────────────────────── */
+
+.gfy-ai-status-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gfy-ai-status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: rgba(10, 20, 14, 0.45);
+  border: 1px solid rgba(34, 255, 122, 0.16);
+  border-radius: 8px;
+  font-size: 11px;
+  color: #aecdbd;
+  flex: 1;
+}
+
+.gfy-ai-status-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(34, 255, 122, 0.25);
+  color: #22ff7a;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gfy-ai-status-pending {
+  background: rgba(234, 179, 8, 0.25);
+  color: #eab308;
+  animation: gfy-dot-pulse-yellow 1.2s ease-in-out infinite;
+}
+
+.gfy-ai-status-ok {
+  background: rgba(34, 255, 122, 0.3);
+  color: #22ff7a;
+}
+
+.gfy-ai-status-meta {
+  font-size: 10px;
+  color: #5f7d6c;
+  margin-left: auto;
+}
+
+/* ─── AI Prompt Type Badge ───────────────────────────────────── */
+
+.gfy-ai-step-type {
+  display: flex;
+  gap: 6px;
+}
+
+.gfy-ai-type-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.gfy-ai-type-incr {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.gfy-ai-type-full {
+  background: rgba(34, 255, 122, 0.2);
+  color: #22ff7a;
+  border: 1px solid rgba(34, 255, 122, 0.3);
+}
+
+.gfy-ai-no-changes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #84a795;
+  padding: 4px 0;
+}
+
+.gfy-ai-step-waiting-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #eab308;
+  animation: gfy-dot-pulse-yellow 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
 /* ─── Send to AI Dialog ────────────────────────────────────────── */
 
 .gfy-sa-overlay {
