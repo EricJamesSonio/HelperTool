@@ -3,7 +3,6 @@ import {
   queryGraphify, checkHealth as clientCheckHealth, fetchInfo, fetchEndpoints,
   fetchGraphData, fetchGraphReport, fetchGraphStats, fetchGraphCommunities,
   searchGraphNodes, getGraphNeighborhood, getGraphShortestPath, getGraphAffected,
-  exportSymbolIndex, generateAIPrompt, loadGraphFromStorage,
 } from './graphifyClient.js';
 
 let _root      = null;
@@ -17,6 +16,8 @@ export function mount(container) {
   _bindEvents();
   _unsub = subscribe(_render);
   _render(getState());
+  // Check repo status to show appropriate idle wizard
+  _checkStatus();
   // Verify server is still alive if state claims it's running
   _checkServerAlive();
 }
@@ -119,9 +120,31 @@ function _bindEvents() {
 
   const loadAiGraphBtn = _root.querySelector('.gfy-load-ai-btn');
   if (loadAiGraphBtn) loadAiGraphBtn.addEventListener('click', _handleLoadAiGraph);
+
+  // Wizard section buttons (idle hero) — bind all instances
+  _root.querySelectorAll('.gfy-wizard .gfy-start-btn').forEach(btn => {
+    btn.addEventListener('click', _handleStart);
+  });
+  _root.querySelectorAll('.gfy-wizard .gfy-index-btn').forEach(btn => {
+    btn.addEventListener('click', _handleIndex);
+  });
+  _root.querySelectorAll('.gfy-wizard .gfy-export-btn').forEach(btn => {
+    btn.addEventListener('click', _handleExport);
+  });
+  _root.querySelectorAll('.gfy-wizard .gfy-send-ai-btn').forEach(btn => {
+    btn.addEventListener('click', _handleSendToAi);
+  });
+  _root.querySelectorAll('.gfy-wizard .gfy-load-ai-btn').forEach(btn => {
+    btn.addEventListener('click', _handleLoadAiGraph);
+  });
 }
 
 async function _handleStart() {
+  const s = getState();
+  if (!s.graphInfo?.exists) {
+    setState({ error: 'Generate the knowledge graph first before starting the server.' });
+    return;
+  }
   setState({ serverStatus: 'starting', error: null });
   try {
     const result = await window.electronAPI.graphifyStart(window.__activeRepoPath || null);
@@ -164,6 +187,7 @@ async function _handleIndex() {
   try {
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
     setState({ error: 'Indexing complete! You can now start the server.' });
+    _checkStatus();
   } catch (err) {
     setState({ error: `Indexing failed: ${err.message}` });
   }
@@ -194,6 +218,31 @@ async function _checkServerAlive() {
       graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
       graphLoading: false, graphError: null,
     });
+  }
+}
+
+async function _checkStatus() {
+  const repoPath = window.__activeRepoPath;
+  if (!repoPath) {
+    setState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
+    return;
+  }
+  setState({ statusLoading: true });
+  try {
+    const result = await window.electronAPI.graphifyCheckStatus(repoPath);
+    if (result.ok) {
+      setState({
+        repoStatus: result.symbolsExists ? 'indexed' : 'needs-index',
+        symbolsInfo: result.symbolsStats || null,
+        promptExists: !!result.promptExists,
+        graphInfo: { exists: result.graphExists, stats: result.graphStats || null },
+        statusLoading: false,
+      });
+    } else {
+      setState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
+    }
+  } catch {
+    setState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
   }
 }
 
@@ -332,15 +381,17 @@ async function _handleRefreshReport() {
 async function _handleExport() {
   setState({ exportLoading: true, exportError: null, exportStatus: null });
   try {
-    const { port } = getState();
-    const result = await exportSymbolIndex(port);
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) throw new Error('No repository selected');
+    const result = await window.electronAPI.graphifyExportPrompt(repoPath);
     if (!result || !result.ok) {
       setState({ exportLoading: false, exportError: (result && result.error) || 'Export failed' });
       return;
     }
     setState({
       exportLoading: false,
-      exportStatus: { symbolsPath: result.symbolsPath, promptPath: result.promptPath, promptText: result.promptText || '', stats: result.stats },
+      exportStatus: { promptPath: result.promptPath, promptText: result.promptText || '', stats: result.stats },
+      promptExists: true,
     });
   } catch (err) {
     setState({ exportLoading: false, exportError: err.message });
@@ -353,12 +404,13 @@ async function _handleSendToAi() {
 
   if (!promptText) {
     try {
-      const { port } = state_;
-      const res = await fetch(`http://127.0.0.1:${port}/export/prompt`, { method: 'POST' });
-      const data = await res.json();
-      if (data.ok && data.promptText) {
-        promptText = data.promptText;
-        setState({ exportStatus: { ...state_.exportStatus, promptText } });
+      const repoPath = window.__activeRepoPath;
+      if (repoPath) {
+        const result = await window.electronAPI.graphifyExportPrompt(repoPath);
+        if (result.ok && result.promptText) {
+          promptText = result.promptText;
+          setState({ exportStatus: { ...state_.exportStatus, promptText } });
+        }
       }
     } catch {}
   }
@@ -506,8 +558,9 @@ async function _openCodeSwampWithPrompt(promptText) {
 async function _handleLoadAiGraph() {
   setState({ aiGraphLoading: true, aiGraphError: null, aiGraphData: null, aiGraphReport: '' });
   try {
-    const { port } = getState();
-    const result = await loadGraphFromStorage(port);
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) throw new Error('No repository selected');
+    const result = await window.electronAPI.graphifyLoadGraphFromStorage(repoPath);
     if (!result || !result.ok) {
       setState({ aiGraphLoading: false, aiGraphError: (result && result.error) || 'No AI graph found' });
       return;
@@ -516,6 +569,13 @@ async function _handleLoadAiGraph() {
       aiGraphLoading: false,
       aiGraphData: result.graph,
       aiGraphReport: result.report,
+    });
+    // Also update graphInfo so the wizard reflects the new state
+    setState({
+      graphInfo: {
+        exists: true,
+        stats: result.graph?.stats || null,
+      },
     });
   } catch (err) {
     setState({ aiGraphLoading: false, aiGraphError: err.message });
@@ -573,6 +633,77 @@ function _render(state) {
       infoLine.style.display = 'flex';
     } else {
       infoLine.style.display = 'none';
+    }
+  }
+
+  // ── Wizard section (idle hero repo status) ──
+  const wizard = _root.querySelector('.gfy-wizard');
+  if (wizard) {
+    const isIdle = state.serverStatus === 'stopped' || state.serverStatus === 'error';
+    wizard.style.display = isIdle ? 'flex' : 'none';
+
+    if (isIdle) {
+      // Loading
+      const loading = wizard.querySelector('.gfy-wizard-loading');
+      if (loading) loading.style.display = state.statusLoading ? 'flex' : 'none';
+
+      // Needs index
+      const needsIndex = wizard.querySelector('.gfy-wizard-needs-index');
+      if (needsIndex) {
+        needsIndex.style.display = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
+      }
+
+      // Indexed (with steps wizard)
+      const indexed = wizard.querySelector('.gfy-wizard-indexed');
+      if (indexed) {
+        indexed.style.display = (!state.statusLoading && state.repoStatus === 'indexed' && !state.graphInfo?.exists) ? 'flex' : 'none';
+      }
+
+      // Graph ready
+      const graphReady = wizard.querySelector('.gfy-wizard-graph-ready');
+      if (graphReady) {
+        graphReady.style.display = (!state.statusLoading && state.repoStatus === 'indexed' && state.graphInfo?.exists) ? 'flex' : 'none';
+      }
+
+      // Stats line in indexed header
+      const statsLine = wizard.querySelector('.gfy-wizard-stats-line');
+      if (statsLine && state.symbolsInfo) {
+        statsLine.textContent = `${state.symbolsInfo.files} files \u00B7 ${state.symbolsInfo.symbols} symbols \u00B7 ${state.symbolsInfo.imports} imports`;
+      }
+
+      // Step 1: toggle generate button vs done state based on promptExists
+      const step1ExportBtn = wizard.querySelector('.gfy-wizard-step:first-child .gfy-export-btn');
+      const step1Done = wizard.querySelector('.gfy-wizard-step:first-child .gfy-wizard-step-done');
+      if (step1ExportBtn && step1Done) {
+        step1ExportBtn.style.display = state.promptExists ? 'none' : 'inline-flex';
+        step1Done.style.display = state.promptExists ? 'flex' : 'none';
+      }
+
+      // Stats line in graph-ready header
+      const readyStats = wizard.querySelector('.gfy-wizard-ready-stats');
+      if (readyStats && state.graphInfo?.stats) {
+        const gs = state.graphInfo.stats;
+        readyStats.textContent = `${gs.totalNodes || 0} nodes \u00B7 ${gs.totalEdges || 0} edges\u00B7 ${gs.totalFiles || 0} files`;
+      }
+
+      // Export status in wizard
+      const exportStatusEl = wizard.querySelector('.gfy-wizard-export-status');
+      if (exportStatusEl) {
+        if (state.exportStatus) {
+          const s = state.exportStatus;
+          exportStatusEl.innerHTML = `<span class="gfy-export-ok">\u2713 Prompt generated:</span> ${s.stats.files} files, ${s.stats.symbols} symbols`;
+          exportStatusEl.style.display = 'block';
+        } else {
+          exportStatusEl.style.display = 'none';
+        }
+      }
+
+      // Error in wizard
+      const wizardError = wizard.querySelector('.gfy-wizard-error');
+      if (wizardError) {
+        wizardError.textContent = state.exportError || '';
+        wizardError.style.display = state.exportError ? 'block' : 'none';
+      }
     }
   }
 
@@ -935,6 +1066,104 @@ function _template() {
           </div>
 
           <div class="gfy-info-line" style="display:none"></div>
+        </div>
+
+        <div class="gfy-wizard" style="display:none">
+          <div class="gfy-wizard-loading">
+            <div class="gfy-spinner-ring"></div>
+            <span>Checking repository status\u2026</span>
+          </div>
+
+          <div class="gfy-wizard-needs-index" style="display:none">
+            <div class="gfy-wizard-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            </div>
+            <div class="gfy-wizard-text">
+              <strong>Codebase not indexed</strong>
+              <span>Index your repository first to enable code intelligence and knowledge graph features.</span>
+            </div>
+            <button class="gfy-index-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
+              Index Codebase
+            </button>
+          </div>
+
+          <div class="gfy-wizard-indexed" style="display:none">
+            <div class="gfy-wizard-indexed-header">
+              <span class="gfy-wizard-check">&#10003;</span>
+              <div class="gfy-wizard-indexed-text">
+                <strong>Symbol Index Ready</strong>
+                <span class="gfy-wizard-stats-line"></span>
+              </div>
+            </div>
+
+            <div class="gfy-wizard-steps">
+              <div class="gfy-wizard-step">
+                <div class="gfy-wizard-step-num">1</div>
+                <div class="gfy-wizard-step-body">
+                  <div class="gfy-wizard-step-title">Generate AI Prompt</div>
+                  <div class="gfy-wizard-step-desc">Creates a detailed prompt for an AI to analyze your codebase and build a semantic knowledge graph.</div>
+                  <button class="gfy-export-btn">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+                    Generate Prompt
+                  </button>
+                  <div class="gfy-wizard-step-done" style="display:none">
+                    <span class="gfy-wizard-step-done-icon">&#10003;</span>
+                    <span class="gfy-wizard-step-done-text">Prompt already generated</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="gfy-wizard-step">
+                <div class="gfy-wizard-step-num">2</div>
+                <div class="gfy-wizard-step-body">
+                  <div class="gfy-wizard-step-title">Send to AI</div>
+                  <div class="gfy-wizard-step-desc">Send the generated prompt to CodeSwamp, Claude, or ChatGPT for AI labeling.</div>
+                  <button class="gfy-send-ai-btn">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+                    Send to CodeSwamp
+                  </button>
+                </div>
+              </div>
+
+              <div class="gfy-wizard-step">
+                <div class="gfy-wizard-step-num">3</div>
+                <div class="gfy-wizard-step-body">
+                  <div class="gfy-wizard-step-title">Load AI Graph</div>
+                  <div class="gfy-wizard-step-desc">Load the AI-generated graph.json and graph.md into the viewer.</div>
+                  <button class="gfy-load-ai-btn">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+                    Load AI Graph
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="gfy-wizard-start-row">
+              <button class="gfy-start-btn gfy-start-btn-disabled" disabled>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l12 7-12 7V3z"/></svg>
+                Generate Graph First
+              </button>
+              <span class="gfy-wizard-start-hint">The server needs a knowledge graph to run.</span>
+            </div>
+          </div>
+
+          <div class="gfy-wizard-graph-ready" style="display:none">
+            <div class="gfy-wizard-ready-header">
+              <span class="gfy-wizard-check gfy-wizard-check-graph">&#10003;</span>
+              <div class="gfy-wizard-ready-text">
+                <strong>Knowledge Graph Ready</strong>
+                <span class="gfy-wizard-ready-stats"></span>
+              </div>
+            </div>
+            <button class="gfy-start-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l12 7-12 7V3z"/></svg>
+              Start Server
+            </button>
+          </div>
+
+          <div class="gfy-wizard-export-status" style="display:none"></div>
+          <div class="gfy-wizard-error" style="display:none"></div>
         </div>
       </div>
 

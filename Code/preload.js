@@ -525,12 +525,15 @@ const codebaseMapBridge = {
 };
 
 const graphifyBridge = {
-  graphifyStart:   (repoPath) => ipcRenderer.invoke('graphify:start', repoPath),
-  graphifyStop:    ()          => ipcRenderer.invoke('graphify:stop'),
-  graphifyRestart: (repoPath) => ipcRenderer.invoke('graphify:restart', repoPath),
-  graphifyStatus:  ()          => ipcRenderer.invoke('graphify:status'),
-  graphifyGetPort: ()          => ipcRenderer.invoke('graphify:getPort'),
-  graphifyGetInfo: ()          => ipcRenderer.invoke('graphify:getInfo'),
+  graphifyStart:              (repoPath) => ipcRenderer.invoke('graphify:start', repoPath),
+  graphifyStop:               ()          => ipcRenderer.invoke('graphify:stop'),
+  graphifyRestart:            (repoPath) => ipcRenderer.invoke('graphify:restart', repoPath),
+  graphifyStatus:             ()          => ipcRenderer.invoke('graphify:status'),
+  graphifyGetPort:            ()          => ipcRenderer.invoke('graphify:getPort'),
+  graphifyGetInfo:            ()          => ipcRenderer.invoke('graphify:getInfo'),
+  graphifyCheckStatus:        (repoPath) => ipcRenderer.invoke('graphify:checkStatus', repoPath),
+  graphifyExportPrompt:       (repoPath) => ipcRenderer.invoke('graphify:exportPrompt', repoPath),
+  graphifyLoadGraphFromStorage: (repoPath) => ipcRenderer.invoke('graphify:loadGraphFromStorage', repoPath),
 };
 
 contextBridge.exposeInMainWorld('envAPI', envBridge);

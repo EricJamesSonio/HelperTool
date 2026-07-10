@@ -37,6 +37,12 @@ const state = {
   aiGraphReport: '',
   aiGraphLoading: false,
   aiGraphError: null,
+  // Repo status (idle-hero wizard)
+  repoStatus: null,
+  symbolsInfo: null,
+  promptExists: false,
+  graphInfo: null,
+  statusLoading: false,
 };
 
 const _listeners = new Set();

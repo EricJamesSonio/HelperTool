@@ -1784,3 +1784,333 @@
 .gfy-panel.gfy-idle .gfy-actions-row {
   order: 1;
 }
+
+/* ─── Wizard Section (idle-hero repo status) ─────────────────── */
+
+.gfy-wizard {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.gfy-panel.gfy-idle .gfy-wizard {
+  display: flex;
+}
+
+.gfy-wizard-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #84a795;
+  padding: 20px 0;
+}
+
+.gfy-wizard-loading .gfy-spinner-ring {
+  width: 20px;
+  height: 20px;
+}
+
+.gfy-wizard-needs-index {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 20px;
+  background: rgba(10, 20, 14, 0.5);
+  border: 1px solid rgba(234, 179, 8, 0.2);
+  border-radius: 14px;
+  text-align: center;
+}
+
+.gfy-wizard-icon svg {
+  width: 36px;
+  height: 36px;
+  color: #eab308;
+  opacity: 0.7;
+}
+
+.gfy-wizard-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gfy-wizard-text strong {
+  font-size: 15px;
+  color: #eafff2;
+}
+
+.gfy-wizard-text span {
+  font-size: 12px;
+  color: #84a795;
+  line-height: 1.5;
+}
+
+.gfy-wizard-needs-index .gfy-index-btn {
+  padding: 10px 24px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.gfy-wizard-indexed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+}
+
+.gfy-wizard-indexed-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: rgba(10, 20, 14, 0.5);
+  border: 1px solid rgba(34, 255, 122, 0.2);
+  border-radius: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gfy-wizard-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(34, 255, 122, 0.3);
+  color: #22ff7a;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gfy-wizard-indexed-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.gfy-wizard-indexed-text strong {
+  font-size: 13px;
+  color: #eafff2;
+}
+
+.gfy-wizard-stats-line {
+  font-size: 11px;
+  color: #84a795;
+}
+
+.gfy-wizard-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.gfy-wizard-step {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(10, 20, 14, 0.4);
+  border: 1px solid rgba(34, 255, 122, 0.16);
+  border-radius: 10px;
+  align-items: flex-start;
+}
+
+.gfy-wizard-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(34, 255, 122, 0.2);
+  color: #22ff7a;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gfy-wizard-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.gfy-wizard-step-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #eafff2;
+}
+
+.gfy-wizard-step-desc {
+  font-size: 11px;
+  color: #84a795;
+  line-height: 1.4;
+}
+
+.gfy-wizard-step .gfy-export-btn,
+.gfy-wizard-step .gfy-send-ai-btn,
+.gfy-wizard-step .gfy-load-ai-btn {
+  padding: 6px 14px;
+  font-size: 11px;
+  border-radius: 8px;
+  align-self: flex-start;
+}
+
+.gfy-wizard-step-done {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.gfy-wizard-step-done-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(34, 255, 122, 0.3);
+  color: #22ff7a;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gfy-wizard-step-done-text {
+  font-size: 11px;
+  color: #35e07d;
+  font-weight: 600;
+}
+
+.gfy-wizard-start-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.gfy-wizard-start-row .gfy-start-btn {
+  padding: 10px 24px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.gfy-start-btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #2a4032;
+  color: #84a795;
+  box-shadow: none;
+}
+
+.gfy-start-btn-disabled:hover {
+  background: #2a4032;
+  color: #84a795;
+  box-shadow: none;
+  transform: none;
+}
+
+.gfy-wizard-start-hint {
+  font-size: 11px;
+  color: #5f7d6c;
+}
+
+.gfy-wizard-graph-ready {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.gfy-wizard-ready-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: rgba(10, 20, 14, 0.5);
+  border: 1px solid rgba(34, 255, 122, 0.25);
+  border-radius: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gfy-wizard-check-graph {
+  background: rgba(34, 255, 122, 0.4);
+  box-shadow: 0 0 12px rgba(34, 255, 122, 0.3);
+}
+
+.gfy-wizard-ready-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.gfy-wizard-ready-text strong {
+  font-size: 13px;
+  color: #eafff2;
+}
+
+.gfy-wizard-ready-stats {
+  font-size: 11px;
+  color: #84a795;
+}
+
+.gfy-wizard-graph-ready .gfy-start-btn {
+  padding: 12px 28px;
+  font-size: 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #22ff7a, #0fce5f);
+  color: #04140a;
+  box-shadow: 0 4px 18px rgba(34, 255, 122, 0.35);
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.gfy-wizard-graph-ready .gfy-start-btn:hover {
+  background: linear-gradient(135deg, #4dffa0, #22ff7a);
+  box-shadow: 0 6px 22px rgba(34, 255, 122, 0.45);
+  transform: translateY(-1px);
+}
+
+.gfy-wizard-graph-ready .gfy-start-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gfy-wizard-export-status {
+  font-size: 11px;
+  color: #35e07d;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.gfy-wizard-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 11px;
+  padding: 8px 12px;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
