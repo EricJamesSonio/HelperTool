@@ -189,9 +189,6 @@ function _bindEvents() {
   const graphRefreshBtn = _root.querySelector('.gfy-graph-refresh-btn');
   if (graphRefreshBtn) graphRefreshBtn.addEventListener('click', _handleRefreshGraph);
 
-  const graphFullscreenBtn = _root.querySelector('.gfy-graph-fullscreen-btn');
-  if (graphFullscreenBtn) graphFullscreenBtn.addEventListener('click', _handleToggleFullscreen);
-
   // Query tab - node search
   const nodeSearchInput = _root.querySelector('#gfyNodeSearchInput');
   if (nodeSearchInput) {
@@ -461,17 +458,6 @@ async function _handleOpenGraph() {
     window.open(url, '_blank');
   }
 }
-
-function _handleToggleFullscreen() {
-  const s = getState();
-  setState({ graphFullscreen: !s.graphFullscreen });
-}
-
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && getState().graphFullscreen) {
-    setState({ graphFullscreen: false });
-  }
-});
 
 async function _handleNodeSearch() {
   const input = _root.querySelector('#gfyNodeSearchInput');
@@ -961,12 +947,10 @@ function _render(state) {
     }
   }
 
-  // ── Fullscreen toggle ──
-  if (!prev || state.graphFullscreen !== prev.graphFullscreen) {
-    const p = _els.panel;
-    if (p) p.classList.toggle('gfy-fullscreen', !!state.graphFullscreen);
-    const fsBtn = _root?.querySelector('.gfy-graph-fullscreen-btn');
-    if (fsBtn) fsBtn.textContent = state.graphFullscreen ? 'Exit' : 'Fullscreen';
+  // ── Graph auto-fullscreen (hide left column, keep tab bar) ──
+  const bodyEl = _root?.querySelector('.gfy-body');
+  if (bodyEl && (!prev || state.activeTab !== prev.activeTab)) {
+    bodyEl.classList.toggle('gfy-graph-active', state.activeTab === 'graph' && state.serverStatus === 'running');
   }
 
   // ── Graph tab ──
@@ -1592,10 +1576,6 @@ function _template() {
           <button class="gfy-graph-refresh-btn" title="Refresh graph data">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 0 1-14 0"/><path d="M17 10V4"/><path d="M17 4h-6"/></svg>
             Refresh
-          </button>
-          <button class="gfy-graph-fullscreen-btn" title="Fullscreen">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V3h5M17 8V3h-5M3 12v5h5M17 12v5h-5"/></svg>
-            Fullscreen
           </button>
         </div>
         <div class="gfy-graph-stats-bar"></div>

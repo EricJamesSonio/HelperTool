@@ -581,6 +581,33 @@ class KnowledgeGraph {
     const stats = this.getGraphStats();
     const nodeCount = data.nodes.length;
 
+    // Pre-compute cluster-level data (one node per community)
+    const nodeCommMap = {};
+    for (const n of data.nodes) nodeCommMap[n.id] = n.community;
+
+    const clusterNodes = communities.map(c => ({
+      id: `_comm_${c.id}`,
+      label: `Community ${c.id + 1}`,
+      community: c.id,
+      _type: 'cluster',
+      nodeCount: c.nodeCount,
+      memberList: c.members.slice(0, 3).map(m => m.label).join(', '),
+    }));
+
+    const commEdgeAgg = {};
+    for (const e of data.edges) {
+      const srcComm = nodeCommMap[e.from];
+      const tgtComm = nodeCommMap[e.to];
+      if (srcComm !== undefined && tgtComm !== undefined && srcComm !== tgtComm) {
+        const key = srcComm < tgtComm ? `${srcComm}|${tgtComm}` : `${tgtComm}|${srcComm}`;
+        if (!commEdgeAgg[key]) {
+          commEdgeAgg[key] = { from: `_comm_${srcComm}`, to: `_comm_${tgtComm}`, type: 'CROSS_COMMUNITY', weight: 0 };
+        }
+        commEdgeAgg[key].weight++;
+      }
+    }
+    const clusterEdges = Object.values(commEdgeAgg);
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -720,10 +747,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
       </div>
     </div>
 
-      ${nodeCount > 8000 ? `
+      ${nodeCount >= 500 ? `
         <div class="sidebar-section sidebar-toggle-group">
-          <button id="physicsToggle">Enable Physics</button>
-          <button id="clusterToggle">De-cluster All</button>
+          <button id="showAllBtn">Show All Nodes</button>
+          <button id="resetViewBtn">Reset View</button>
         </div>
       ` : ''}
 
@@ -754,183 +781,246 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 var rawNodes = ${JSON.stringify(data.nodes)};
 var rawEdges = ${JSON.stringify(data.edges)};
 var nodeCount = rawNodes.length;
+var useClusters = nodeCount >= 500;
+
+var clusterNodesData = ${JSON.stringify(clusterNodes)};
+var clusterEdgesData = ${JSON.stringify(clusterEdges)};
 
 var COMM_COLORS = ${JSON.stringify(COMMUNITY_COLORS)};
 var EDGE_COLORS = { IMPORTS:'rgba(96,165,250,0.3)', CALLS:'rgba(52,211,153,0.3)', EXTENDS:'rgba(167,139,250,0.3)', IMPLEMENTS:'rgba(167,139,250,0.3)', CONTAINS:'rgba(148,163,184,0.2)', REFERENCES:'rgba(251,146,60,0.3)', DEPENDS_ON:'rgba(251,146,60,0.3)' };
 var EDGE_HIGHLIGHT = { IMPORTS:'#60a5fa', CALLS:'#34d399', EXTENDS:'#a78bfa', IMPLEMENTS:'#a78bfa', CONTAINS:'#94a3b8', REFERENCES:'#fb923c', DEPENDS_ON:'#fb923c' };
 var TYPE_ACCENTS = { file:{bg:'rgba(59,130,246,0.12)',border:'#3b82f6',font:'#93c5fd'}, doc:{bg:'rgba(20,184,166,0.12)',border:'#14b8a6',font:'#5eead4'} };
 var DEF_ACCENT = {bg:'rgba(34,255,122,0.1)',border:'#22ff7a',font:'#86efac'};
-var showShadow = nodeCount < 8000;
 
 function visNode(n,i) {
-  var c = n.community >= 0 ? COMM_COLORS[n.community % COMM_COLORS.length] : COMM_COLORS[i % COMM_COLORS.length];
-  var a = TYPE_ACCENTS[n._type] || DEF_ACCENT;
-  var sym = n._type !== 'file' && n._type !== 'doc';
-  return {
-    id:n.id, label:n.label||'',
+  if (useClusters && n._type === 'cluster') {
+    var c = COMM_COLORS[n.community % COMM_COLORS.length];
+    return {
+      id:n.id, label:n.label+' ('+n.nodeCount+')', shape:'dot',
+      size:Math.min(50,Math.max(18,n.nodeCount/12)),
+      color:{background:c+'33',border:c,highlight:{background:'rgba(34,255,122,0.2)',border:'#22ff7a'}},
+      borderWidth:3,borderWidthSelected:4,
+      font:{color:'#22ff7a',size:12,face:'Inter',strokeWidth:2,strokeColor:'#0b0f14'},
+      shadow:{enabled:true,color:'rgba(0,0,0,0.5)',size:20,x:0,y:4},
+      opacity:0.95,group:2,
+      title:'<b>'+n.label+' ('+n.nodeCount+' nodes)</b><br/>Members: '+(n.memberList||'-')+'<br/>Double-click to expand',
+    };
+  }
+  var cx = n.community>=0?COMM_COLORS[n.community%COMM_COLORS.length]:COMM_COLORS[i%COMM_COLORS.length];
+  var a = TYPE_ACCENTS[n._type]||DEF_ACCENT;
+  var sym = n._type!=='file'&&n._type!=='doc';
+  return { id:n.id,label:n.label||'',
     title:'<b>'+n.label+'</b><br/>Type: '+(n.type||'')+'<br/>File: '+(n.filePath||'-')+'<br/>Degree: '+(n.degree||0),
-    shape:'box', shapeProperties:{borderRadius:10},
-    color:{background:a.bg, border:sym?c:a.border, highlight:{background:'rgba(34,255,122,0.2)',border:'#22ff7a'}},
-    borderWidth:sym?2:2.5, borderWidthSelected:3,
+    shape:'box',shapeProperties:{borderRadius:10},
+    color:{background:a.bg,border:sym?cx:a.border,highlight:{background:'rgba(34,255,122,0.2)',border:'#22ff7a'}},
+    borderWidth:sym?2:2.5,borderWidthSelected:3,
     size:Math.max(12,Math.min(36,(n.degree||0)*2+14)),
-    font:{color:a.font, size:n._type==='file'?11:10, face:'Inter', strokeWidth:0},
-    shadow:showShadow?{enabled:true,color:'rgba(0,0,0,0.35)',size:12,x:0,y:4}:{enabled:false},
-    opacity:0.92,
-    group:n._type==='file'||n._type==='doc'||n._type==='heading'?0:1,
-  };
+    font:{color:a.font,size:n._type==='file'?11:10,face:'Inter',strokeWidth:0},
+    shadow:{enabled:false},opacity:0.92,
+    group:n._type==='file'||n._type==='doc'||n._type==='heading'?0:1 };
 }
 function visEdge(e,i) {
+  if (useClusters && e.type==='CROSS_COMMUNITY') {
+    return { from:e.from,to:e.to,
+      color:{color:'rgba(255,255,255,0.06)',highlight:'#22ff7a',inherit:false},
+      width:Math.min(1.5,e.weight/5+0.2),dashes:true,
+      smooth:{type:'continuous',roundness:0.3} };
+  }
   var ec = EDGE_COLORS[e.type]||'rgba(148,163,184,0.2)';
   var hl = EDGE_HIGHLIGHT[e.type]||'#94a3b8';
-  return {
-    from:e.from, to:e.to,
+  return { from:e.from,to:e.to,
     label:e.type==='IMPORTS'||e.type==='CONTAINS'?'':e.type,
     title:e.type+(e.importType?' ('+e.importType+')':''),
-    color:{color:e.crossCommunity?'rgba(255,255,255,0.08)':ec, highlight:hl, inherit:false},
+    color:{color:e.crossCommunity?'rgba(255,255,255,0.08)':ec,highlight:hl,inherit:false},
     width:e.crossCommunity?0.4:Math.min(1.2,(e.weight||0.5)*0.4+0.3),
-    dashes:e.type==='REFERENCES',
-    smooth:{type:'continuous', roundness:0.3},
-  };
+    dashes:e.type==='REFERENCES',smooth:{type:'continuous',roundness:0.3} };
 }
 
-var visNodes = rawNodes.map(visNode);
-var visEdges = rawEdges.map(visEdge);
-var nodes = new vis.DataSet(visNodes);
-var edges = new vis.DataSet(visEdges);
-
-const container = document.getElementById('graph');
-const network = new vis.Network(container, { nodes, edges }, {
-  ${nodeCount > 8000
-      ? `physics: { enabled: false },`
-      : nodeCount > 3000
-        ? `physics: { stabilization: { iterations: 20 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },`
-        : `physics: { stabilization: { iterations: 100 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },`
-  }
-  ${nodeCount > 8000
-      ? `edges: { arrows: { to: { enabled: true, scaleFactor: 0.4 } }, smooth: { enabled: false }, font: { size: 7, color: '#64748b', face: 'Inter', strokeWidth: 0 } },`
-      : `edges: { arrows: { to: { enabled: true, scaleFactor: 0.4 } }, smooth: { type: 'continuous' }, font: { size: 7, color: '#64748b', face: 'Inter', strokeWidth: 0 } },`
-  }
-  ${nodeCount > 8000
-      ? `nodes: { borderWidth: 0.5, borderWidthSelected: 2 },`
-      : `nodes: { borderWidth: 1, borderWidthSelected: 2.5 },`
-  }
-  ${nodeCount > 8000
-      ? `interaction: { hover: false, navigationButtons: true, keyboard: { enabled: true }, tooltipDelay: 300, hideEdgesOnDrag: false },`
-      : `interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: { enabled: true }, hideEdgesOnDrag: false },`
-  }
-  manipulation: { enabled: false },
-  groups: {
-    0: { shape: 'box', shapeProperties: { borderRadius: 10 }, font: { face: 'Inter' } },
-    1: { shape: 'dot', font: { face: 'Inter' } },
-  },
-  configure: { enabled: false },
+// Pre-compute maps
+var expandedComms = {};
+var nodeCommMap = {};
+rawNodes.forEach(function(n){nodeCommMap[n.id]=n.community;});
+var commNodeMap = {};
+rawNodes.forEach(function(n){
+  if(!commNodeMap[n.community])commNodeMap[n.community]=[];
+  commNodeMap[n.community].push(n);
 });
 
-setTimeout(function() { network.fit({ animation: true, duration: 400 }); }, 300);
+function buildView() {
+  var nl=[],el=[];
+  if(useClusters){
+    clusterNodesData.forEach(function(cn){
+      if(!expandedComms[cn.community]){
+        nl.push(visNode(cn,0));
+      } else {
+        (commNodeMap[cn.community]||[]).forEach(function(rn){nl.push(visNode(rn,0));});
+        rawEdges.forEach(function(e){
+          var fc=nodeCommMap[e.from],tc=nodeCommMap[e.to];
+          if(fc===cn.community&&tc===cn.community)el.push(visEdge(e,0));
+        });
+      }
+    });
+    clusterEdgesData.forEach(function(ce){
+      var fc=parseInt(ce.from.replace('_comm_','')),tc=parseInt(ce.to.replace('_comm_',''));
+      if(expandedComms[fc]||expandedComms[tc]){
+        rawEdges.forEach(function(e){
+          var ef=nodeCommMap[e.from],et=nodeCommMap[e.to];
+          if(ef===fc&&et===tc)el.push(visEdge(e,0));
+        });
+      } else {
+        el.push(visEdge(ce,0));
+      }
+    });
+  } else {
+    rawNodes.forEach(function(n,i){nl.push(visNode(n,i));});
+    rawEdges.forEach(function(e,i){el.push(visEdge(e,i));});
+  }
+  nodes.clear();edges.clear();
+  nodes.add(nl);edges.add(el);
+}
 
-network.on('click', function(params) {
-  if (params.nodes.length > 0) {
-    const nodeId = params.nodes[0];
-    const node = rawNodes.find(n => n.id === nodeId);
-    const detail = document.getElementById('nodeDetail');
-    if (node) {
-      detail.innerHTML = '<div class="label">' + node.label + '</div><div class="meta"><span>Type: ' + (node.type || 'unknown') + '</span><span>File: ' + (node.filePath || '-') + '</span><span>Degree: ' + (node.degree || 0) + '</span></div>';
+var initialNodes = useClusters
+  ? clusterNodesData.map(function(n,i){return visNode(n,i);})
+  : rawNodes.map(function(n,i){return visNode(n,i);});
+var initialEdges = useClusters
+  ? clusterEdgesData.map(function(e,i){return visEdge(e,i);})
+  : rawEdges.map(function(e,i){return visEdge(e,i);});
+
+var nodes = new vis.DataSet(initialNodes);
+var edges = new vis.DataSet(initialEdges);
+
+const container = document.getElementById('graph');
+
+var networkOpts = {
+  physics:{enabled:false},
+  edges:{arrows:{to:{enabled:true,scaleFactor:0.4}},smooth:{type:'continuous'},font:{size:7,color:'#64748b',face:'Inter',strokeWidth:0}},
+  interaction:{hover:true,tooltipDelay:200,navigationButtons:true,keyboard:{enabled:true},hideEdgesOnDrag:false},
+  manipulation:{enabled:false},
+  groups:{
+    0:{shape:'box',shapeProperties:{borderRadius:10},font:{face:'Inter'}},
+    1:{shape:'dot',font:{face:'Inter'}},
+    2:{shape:'dot',font:{face:'Inter'}},
+  },
+  configure:{enabled:false},
+};
+if(!useClusters&&nodeCount<=3000){
+  networkOpts.physics={stabilization:{iterations:100},solver:'forceAtlas2Based',forceAtlas2Based:{gravitationalConstant:-40,centralGravity:0.005,springLength:120,springConstant:0.02,damping:0.4}};
+}
+const network = new vis.Network(container,{nodes,edges},networkOpts);
+
+setTimeout(function(){network.fit({animation:true,duration:400});},300);
+
+// Click handler
+network.on('click',function(params){
+  if(params.nodes.length>0){
+    var nodeId=params.nodes[0];
+    var node=rawNodes.find(function(n){return n.id===nodeId;});
+    var detail=document.getElementById('nodeDetail');
+    if(node){
+      detail.innerHTML='<div class="label">'+node.label+'</div><div class="meta"><span>Type: '+(node.type||'unknown')+'</span><span>File: '+(node.filePath||'-')+'</span><span>Degree: '+(node.degree||0)+'</span></div>';
       detail.classList.add('show');
+    } else if(useClusters){
+      var cn=clusterNodesData.find(function(n){return n.id===nodeId;});
+      if(cn){
+        detail.innerHTML='<div class="label">'+cn.label+' ('+cn.nodeCount+' nodes)</div><div class="meta"><span>Members: '+(cn.memberList||'-')+'</span><span>Double-click to expand</span></div>';
+        detail.classList.add('show');
+      }
     }
   }
 });
 
-document.getElementById('searchInput').addEventListener('input', function() {
-  const q = this.value.trim().toLowerCase();
-  const results = document.getElementById('searchResults');
-  if (!q) { results.style.display = 'none'; return; }
-  const matches = rawNodes.filter(function(n) { return (n.label||'').toLowerCase().includes(q); }).slice(0, 10);
-  if (matches.length === 0) { results.style.display = 'none'; return; }
-  results.innerHTML = matches.map(m => '<div class="search-result-item" data-id="' + m.id + '">' + m.label + '</div>').join('');
-  results.style.display = 'block';
-});
-
-document.getElementById('searchResults').addEventListener('click', function(e) {
-  const item = e.target.closest('.search-result-item');
-  if (!item) return;
-  const nodeId = item.dataset.id;
-  network.focus(nodeId, { scale: 2, animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
-  network.selectNodes([nodeId]);
-  document.getElementById('searchResults').style.display = 'none';
-  document.getElementById('searchInput').value = '';
-});
-
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.search-box')) {
-    document.getElementById('searchResults').style.display = 'none';
-  }
-});
-
-document.getElementById('communityList').addEventListener('click', function(e) {
-  const item = e.target.closest('.community-item');
-  if (!item) return;
-  const commId = parseInt(item.dataset.community);
-  const commNodes = rawNodes.filter(n => n.id && rawNodes.find(rn => rn.id === n.id && Math.abs(n.color === rawNodes.find(rn => rn.id === n.id)?.color) < 0) || false);
-  const nodesInComm = rawNodes.filter(n => n.group === commId || (n.community === commId));
-  const ids = nodesInComm.map(n => n.id);
-  if (ids.length > 0) {
-    network.selectNodes(ids);
-    network.fit({ animation: true });
-  }
-});
-${nodeCount > 8000 ? `
-var clustered = false;
-function clusterByCommunity() {
-  var commMap = {};
-  rawNodes.forEach(function(n) {
-    var c = n.community !== undefined ? n.community : 0;
-    if (!commMap[c]) commMap[c] = [];
-    commMap[c].push(n.id);
-  });
-  Object.keys(commMap).forEach(function(c) {
-    var ids = commMap[c];
-    network.clustering.cluster({
-      joinCondition: function(co) { return ids.indexOf(co.id) !== -1; },
-      clusterNodeProperties: {
-        label: 'Community ' + (parseInt(c) + 1) + ' (' + ids.length + ')',
-        shape: 'dot',
-        size: Math.min(40, Math.max(15, ids.length / 8)),
-        color: ${JSON.stringify(communities.map(c => c.color))}[parseInt(c) % ${communities.length}],
-        borderWidth: 2,
-        borderColor: '#22ff7a',
-        font: { color: '#22ff7a', size: 11 }
+// Double-click to expand/collapse community
+if(useClusters){
+  network.on('doubleClick',function(params){
+    if(params.nodes.length===1){
+      var id=params.nodes[0];
+      if(id&&typeof id==='string'&&id.indexOf('_comm_')===0){
+        var commId=parseInt(id.replace('_comm_',''));
+        expandedComms[commId]=!expandedComms[commId];
+        buildView();
+        setTimeout(function(){network.fit({animation:true,duration:400});},100);
       }
-    });
+    }
   });
-  clustered = true;
-  document.getElementById('clusterToggle').textContent = 'De-cluster All';
 }
 
-function deClusterAll() {
-  network.clustering.openAllClusters();
-  clustered = false;
-  document.getElementById('clusterToggle').textContent = 'Cluster by Community';
-}
-
-document.getElementById('physicsToggle').addEventListener('click', function() {
-  var enabled = !network.physics.enabled;
-  network.setOptions({ physics: { enabled: enabled, stabilization: { iterations: 20 } } });
-  this.textContent = enabled ? 'Disable Physics' : 'Enable Physics';
+// Search
+document.getElementById('searchInput').addEventListener('input',function(){
+  var q=this.value.trim().toLowerCase();
+  var results=document.getElementById('searchResults');
+  if(!q){results.style.display='none';return;}
+  var matches=rawNodes.filter(function(n){return (n.label||'').toLowerCase().includes(q);}).slice(0,10);
+  if(matches.length===0){results.style.display='none';return;}
+  results.innerHTML=matches.map(function(m){return '<div class="search-result-item" data-id="'+m.id+'">'+m.label+'</div>';}).join('');
+  results.style.display='block';
 });
 
-document.getElementById('clusterToggle').addEventListener('click', function() {
-  if (clustered) { deClusterAll(); }
-  else { clusterByCommunity(); }
+document.getElementById('searchResults').addEventListener('click',function(e){
+  var item=e.target.closest('.search-result-item');
+  if(!item)return;
+  var nodeId=item.dataset.id;
+  if(useClusters){
+    var commId=nodeCommMap[nodeId];
+    if(commId!==undefined&&!expandedComms[commId]){
+      expandedComms[commId]=true;
+      buildView();
+      setTimeout(function(){
+        network.focus(nodeId,{scale:2,animation:{duration:300,easingFunction:'easeInOutQuad'}});
+        network.selectNodes([nodeId]);
+      },200);
+      document.getElementById('searchResults').style.display='none';
+      document.getElementById('searchInput').value='';
+      return;
+    }
+  }
+  network.focus(nodeId,{scale:2,animation:{duration:300,easingFunction:'easeInOutQuad'}});
+  network.selectNodes([nodeId]);
+  document.getElementById('searchResults').style.display='none';
+  document.getElementById('searchInput').value='';
 });
 
-network.on('doubleClick', function(params) {
-  if (params.nodes.length === 1 && network.isCluster(params.nodes[0])) {
-    network.clustering.openCluster(params.nodes[0], { releaseFunction: function() { return true; } });
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.search-box')){document.getElementById('searchResults').style.display='none';}
+});
+
+// Community list click
+document.getElementById('communityList').addEventListener('click',function(e){
+  var item=e.target.closest('.community-item');
+  if(!item)return;
+  var commId=parseInt(item.dataset.community);
+  if(useClusters){
+    if(expandedComms[commId]){
+      var ids=(commNodeMap[commId]||[]).map(function(n){return n.id;});
+      if(ids.length>0){network.selectNodes(ids);network.fit({animation:true});}
+    } else {
+      network.focus('_comm_'+commId,{scale:2,animation:{duration:300}});
+      network.selectNodes(['_comm_'+commId]);
+    }
+  } else {
+    var ids=rawNodes.filter(function(n){return n.community===commId;}).map(function(n){return n.id;});
+    if(ids.length>0){network.selectNodes(ids);network.fit({animation:true});}
   }
 });
 
-clusterByCommunity();
-` : ''}
+// Show All / Reset View buttons
+if(useClusters){
+  var showAllBtn=document.getElementById('showAllBtn');
+  var resetBtn=document.getElementById('resetViewBtn');
+  if(showAllBtn){
+    showAllBtn.addEventListener('click',function(){
+      clusterNodesData.forEach(function(cn){expandedComms[cn.community]=true;});
+      buildView();
+      setTimeout(function(){network.fit({animation:true,duration:400});},100);
+    });
+  }
+  if(resetBtn){
+    resetBtn.addEventListener('click',function(){
+      expandedComms={};
+      buildView();
+      setTimeout(function(){network.fit({animation:true,duration:400});},100);
+    });
+  }
+}
 </script>
 </body>
 </html>`;

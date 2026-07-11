@@ -2132,19 +2132,16 @@
   box-sizing: border-box;
 }
 
-/* ── Fullscreen graph mode ── */
-.gfy-panel.gfy-fullscreen .gfy-header,
-.gfy-panel.gfy-fullscreen .gfy-hero-wrap,
-.gfy-panel.gfy-fullscreen .gfy-body .gfy-left-column,
-.gfy-panel.gfy-fullscreen .gfy-body .gfy-right-column .gfy-tab-bar,
-.gfy-panel.gfy-fullscreen .gfy-body .gfy-right-column .gfy-tab-content:not(.gfy-graph-section) {
+/* ── Graph tab auto-fullscreen ── */
+.gfy-body.gfy-graph-active .gfy-left-column {
   display: none !important;
 }
-.gfy-panel.gfy-fullscreen .gfy-graph-section {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex !important;
+.gfy-body.gfy-graph-active .gfy-right-column {
+  width: 100%;
+}
+.gfy-body.gfy-graph-active .gfy-graph-section {
+  flex: 1;
+  min-height: 0;
 }
 
 .gfy-wizard-check {
