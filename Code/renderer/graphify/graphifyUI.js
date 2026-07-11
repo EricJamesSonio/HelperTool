@@ -1,7 +1,7 @@
 import { getState, setState, subscribe } from './graphifyState.js';
 import {
   queryGraphify, checkHealth as clientCheckHealth, fetchInfo, fetchEndpoints,
-  fetchGraphData, fetchGraphReport, fetchGraphStats, fetchGraphCommunities,
+  fetchGraphData, fetchGraphReport,
   searchGraphNodes, getGraphNeighborhood, getGraphShortestPath, getGraphAffected,
 } from './graphifyClient.js';
 
@@ -298,7 +298,7 @@ async function _handleStop() {
     serverStatus: 'stopped', serverInfo: null, endpoints: null,
     results: [], files: [], explanation: '', error: null,
     graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
-    graphLoading: false, graphError: null,
+    graphHtml: null, graphLoading: false, graphError: null,
     nodeSearchResults: [], pathResult: null, explainResult: null, affectedResult: null,
   });
 }
@@ -342,7 +342,7 @@ async function _checkServerAlive() {
       serverStatus: 'stopped', serverInfo: null, endpoints: null,
       results: [], files: [], explanation: '', error: 'Server was disconnected. Click Start to restart.',
       graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
-      graphLoading: false, graphError: null,
+      graphHtml: null, graphLoading: false, graphError: null,
     });
   }
 }
@@ -426,13 +426,25 @@ async function _handleRefreshGraph() {
   const { port } = getState();
   setState({ graphLoading: true, graphError: null });
   try {
-    const [data, stats, report, communities] = await Promise.all([
+    const [data, report] = await Promise.all([
       fetchGraphData(port),
-      fetchGraphStats(port),
       fetchGraphReport(port),
-      fetchGraphCommunities(port),
     ]);
-    setState({ graphData: data, graphStats: stats, graphReport: report, graphCommunities: communities, graphLoading: false });
+    let graphHtml = null;
+    if (data && data.nodes) {
+      try {
+        const result = await window.electronAPI.graphifyGenerateGraphHtml(data);
+        if (result && result.ok) graphHtml = result.html;
+      } catch {}
+    }
+    setState({
+      graphData: data,
+      graphStats: data?.stats || null,
+      graphHtml: graphHtml,
+      graphReport: report,
+      graphCommunities: data?.communities || null,
+      graphLoading: false,
+    });
   } catch (err) {
     setState({ graphLoading: false, graphError: err.message });
     _checkServerAlive();
@@ -498,8 +510,7 @@ async function _handleRefreshReport() {
   setState({ graphLoading: true });
   try {
     const report = await fetchGraphReport(port);
-    const stats = await fetchGraphStats(port);
-    setState({ graphReport: report, graphStats: stats, graphLoading: false });
+    setState({ graphReport: report, graphStats: report?.stats || null, graphLoading: false });
   } catch {
     setState({ graphLoading: false });
   }
@@ -939,7 +950,7 @@ function _render(state) {
   }
 
   // ── Graph tab ──
-  if (state.activeTab === 'graph' && state.serverStatus === 'running' && (!prev || state.graphLoading !== prev.graphLoading || state.graphData !== prev.graphData || state.graphStats !== prev.graphStats || state.port !== prev.port)) {
+  if (state.activeTab === 'graph' && state.serverStatus === 'running' && (!prev || state.graphLoading !== prev.graphLoading || state.graphData !== prev.graphData || state.graphHtml !== prev.graphHtml || state.graphStats !== prev.graphStats || state.port !== prev.port)) {
     const graphSpinner = _els.graphSpinner;
     const placeholder = _els.graphPlaceholder;
     const iframeWrap = _els.graphIframeWrap;
@@ -957,9 +968,13 @@ function _render(state) {
         iframeWrap.innerHTML = '';
         iframeWrap.appendChild(iframe);
       }
-      const currentPort = (iframe.src.match(/:(\d+)\//) || [])[1];
-      if (currentPort !== String(state.port)) {
-        iframe.src = `http://127.0.0.1:${state.port}/graph`;
+      if (state.graphHtml) {
+        iframe.srcdoc = state.graphHtml;
+      } else if (state.graphData) {
+        const currentPort = (iframe.src.match(/:(\d+)\//) || [])[1];
+        if (currentPort !== String(state.port)) {
+          iframe.src = `http://127.0.0.1:${state.port}/graph`;
+        }
       }
     }
 

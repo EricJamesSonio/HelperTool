@@ -535,6 +535,7 @@ const graphifyBridge = {
   graphifyExportPrompt:       (repoPath) => ipcRenderer.invoke('graphify:exportPrompt', repoPath),
   graphifyLoadGraphFromStorage: (repoPath) => ipcRenderer.invoke('graphify:loadGraphFromStorage', repoPath),
   graphifyDetectChanges:      (repoPath) => ipcRenderer.invoke('graphify:detectChanges', repoPath),
+  graphifyGenerateGraphHtml:  (graphData) => ipcRenderer.invoke('graphify:generateGraphHtml', graphData),
 };
 
 contextBridge.exposeInMainWorld('envAPI', envBridge);

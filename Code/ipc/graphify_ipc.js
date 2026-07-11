@@ -9,6 +9,7 @@ const http        = require('http');
 
 const symbolsJsonLoader = require('../database/symbolsJsonLoader');
 const changeDetector = require('../database/changeDetector');
+const { buildGraphHtml } = require('./generateGraphHtml');
 
 const DEFAULT_PORT = 3333;
 const START_TIMEOUT = 10000;
@@ -739,6 +740,18 @@ function register({ app }) {
       } : null,
       stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
     };
+  });
+
+  ipcMain.handle('graphify:generateGraphHtml', async (_, graphData) => {
+    if (!graphData || !graphData.nodes) {
+      return { ok: false, error: 'Invalid graph data' };
+    }
+    try {
+      const html = buildGraphHtml(graphData);
+      return { ok: true, html };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 }
 
