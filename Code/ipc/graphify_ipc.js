@@ -154,12 +154,12 @@ function _generatePromptText(repoPath) {
 
 You are an AI assistant. Your task is to analyze the provided \`symbols.json\` file containing the symbol index of a codebase, and produce two output files:
 
-1. **\`graphify/graphify-storage/graph.json\`** — A structured knowledge graph with semantic labels
-2. **\`graphify/graphify-storage/graph.md\`** — A human-readable markdown report
+1. **\`graphify/graphify-storage/graph.json\`** â€” A structured knowledge graph with semantic labels
+2. **\`graphify/graphify-storage/graph.md\`** â€” A human-readable markdown report
 
 ## The Challenge
 
-\`symbols.json\` contains raw structural data — file paths, symbol names, import relationships. But it lacks **semantic context**: what does each file actually do? What features does it belong to? What is the purpose of each symbol?
+\`symbols.json\` contains raw structural data â€” file paths, symbol names, import relationships. But it lacks **semantic context**: what does each file actually do? What features does it belong to? What is the purpose of each symbol?
 
 Your job is to add that missing context. You will produce a \`graph.json\` where every file has a meaningful summary, every symbol has a purpose and role, files are grouped into coherent features, and semantic relationships between files are identified.
 
@@ -323,7 +323,7 @@ Field notes:
 - \`responsibilities\`: 1-5 brief bullet points of what this file does (can be empty array)
 - \`features\`: one or more feature names this file belongs to (the primary feature first)
 - \`tags\`: descriptive tags for searching/filtering
-- \`stats\`: counts — derive from the symbols array for this file
+- \`stats\`: counts â€” derive from the symbols array for this file
 - \`symbols\`: include ALL function, class, and method symbols (skip pure variables/constants unless important), each with \`purpose\` and \`role\`
 - \`summarySource\`: always \`"ai"\`
 - \`centrality\`: compute from the edges you create (fanIn = how many files import this file, fanOut = how many files this file imports, degree = fanIn + fanOut, centrality = degree / (totalNodes - 1))
@@ -355,16 +355,16 @@ Fields:
 |------|-------------|-----------------|
 | \`IMPORTS\` | File A directly imports file B (from \`symbols.json\` imports with \`resolvedFile\`) | 2 |
 | \`COLLABORATES_WITH\` | Files that work together on the same feature or closely related features | 1 |
-| \`ORCHESTRATES\` | A file coordinates or manages multiple other files (e.g. main process → handlers) | 3 |
+| \`ORCHESTRATES\` | A file coordinates or manages multiple other files (e.g. main process â†’ handlers) | 3 |
 | \`DEPENDS_ON\` | File A logically depends on file B even if not directly imported (semantic dependency) | 2 |
 | \`PROVIDES_TO\` | File A provides data, services, or utilities consumed by file B | 2 |
 | \`IMPLEMENTS\` | File A implements an interface, protocol, or contract defined in file B | 2 |
-| \`SEQUENCES\` | Processing pipeline where A → B → C in a data/control flow | 2 |
+| \`SEQUENCES\` | Processing pipeline where A â†’ B â†’ C in a data/control flow | 2 |
 | \`INITIALIZES\` | File A initializes or bootstraps file B during startup | 2 |
-| \`EXECUTES\` | File A dispatches or spawns work in file B (e.g. worker → task) | 2 |
+| \`EXECUTES\` | File A dispatches or spawns work in file B (e.g. worker â†’ task) | 2 |
 | \`CROSS_CUTTING\` | Shared utility used across otherwise unrelated modules | 1 |
 
-Include \`IMPORTS\` edges for every resolved import. For semantic edges, only add them when you are confident the relationship exists — quality over quantity. Each edge should have a meaningful \`description\`.
+Include \`IMPORTS\` edges for every resolved import. For semantic edges, only add them when you are confident the relationship exists â€” quality over quantity. Each edge should have a meaningful \`description\`.
 
 #### Features Schema
 
@@ -386,9 +386,9 @@ Include \`IMPORTS\` edges for every resolved import. For semantic edges, only ad
 Each feature:
 - \`description\`: what this feature encompasses
 - \`color\`: hex color for visualization (pick distinct colors)
-- \`files\`: array of file paths (not node IDs — raw paths like \`"Code/file.js"\`)
+- \`files\`: array of file paths (not node IDs â€” raw paths like \`"Code/file.js"\`)
 
-Every file should belong to at least one feature. Features should be coherent groupings — don't create too many. 5-15 features is typical for a moderate codebase.
+Every file should belong to at least one feature. Features should be coherent groupings â€” don't create too many. 5-15 features is typical for a moderate codebase.
 
 #### Concepts Schema
 
@@ -475,20 +475,20 @@ Cross-feature or unexpected relationships detected.
 1. Be thorough but concise in summaries. Every file needs a meaningful summary that tells someone what it does.
 2. Group files by feature. A file can belong to multiple features but should have a primary feature.
 3. For \`COLLABORATES_WITH\` edges, only add them when files genuinely work together on the same logical feature.
-4. For semantic edges (\`DEPENDS_ON\`, \`PROVIDES_TO\`, \`IMPLEMENTS\`, etc.), be conservative — only add them when you have strong evidence from file names, symbol names, or import patterns.
+4. For semantic edges (\`DEPENDS_ON\`, \`PROVIDES_TO\`, \`IMPLEMENTS\`, etc.), be conservative â€” only add them when you have strong evidence from file names, symbol names, or import patterns.
 5. The \`features\` section should organize the entire codebase by coherent feature groups.
 6. The \`concepts\` section should document important domain or architectural concepts.
 7. Compute centrality values correctly: \`centrality = degree / (totalNodes - 1)\`.
 8. Focus on making the graph useful for someone asking "how does X work?".
-9. Do NOT include \`stats\` objects in feature or concept entries — they go only on nodes.
+9. Do NOT include \`stats\` objects in feature or concept entries â€” they go only on nodes.
 10. The \`symbols\` array per node should include meaningful \`purpose\` and \`role\` for every symbol listed.
 
 ## Output
 
 Write two files:
 
-1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` — the structured graph (must match the schema above exactly)
-2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` — the human-readable report
+1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` â€” the structured graph (must match the schema above exactly)
+2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` â€” the human-readable report
 `;
 }
 
@@ -528,8 +528,8 @@ ${oldPurpose}
 
 For each file listed below:
 1. Read the actual source code from the repository
-2. Update the enrichment data — summary, feature, responsibilities, tags, and per-symbol purpose/role
-3. Use the old enrichment data as reference — improve it if possible, fix it if it was wrong
+2. Update the enrichment data â€” summary, feature, responsibilities, tags, and per-symbol purpose/role
+3. Use the old enrichment data as reference â€” improve it if possible, fix it if it was wrong
 4. Return ONLY a JSON array, no other text
 
 ## Output format
@@ -664,7 +664,7 @@ function register({ app }) {
     }
 
     if (hasGraph && !tooManyChanges && totalChanged > 0) {
-      // Incremental — generate prompt for changed files only
+      // Incremental â€” generate prompt for changed files only
       promptType = 'incremental';
       promptText = _generateIncrementalPromptText(
         repoPath,
@@ -741,17 +741,6 @@ function register({ app }) {
     };
   });
 
-  ipcMain.handle('graphify:generateGraphHtml', async (_, graphData) => {
-    if (!graphData || !graphData.nodes) {
-      return { ok: false, error: 'Invalid graph data' };
-    }
-    try {
-      const html = buildGraphHtml(graphData);
-      return { ok: true, html };
-    } catch (err) {
-      return { ok: false, error: err.message };
-    }
-  });
 }
 
 function shutdown() {

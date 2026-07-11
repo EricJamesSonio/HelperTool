@@ -557,49 +557,21 @@ class KnowledgeGraph {
   }
 
   toVisData() {
-    const nodeColors = new Map();
-    for (const [id, node] of this.nodes) {
-      nodeColors.set(id, COMMUNITY_COLORS[(node.community || 0) % COMMUNITY_COLORS.length]);
-    }
-
-    let colorIdx = 0;
-    const nodeMap = new Map();
-    const visNodes = Array.from(this.nodes.values()).map(n => {
-      const color = n.community >= 0 ? COMMUNITY_COLORS[n.community % COMMUNITY_COLORS.length] : COMMUNITY_COLORS[colorIdx++ % COMMUNITY_COLORS.length];
-      nodeMap.set(n.id, true);
-      let group = n._type === 'file' ? 0 : n._type === 'doc' ? 0 : n._type === 'heading' ? 0 : 1;
-      const shape = n._type === 'file' ? 'box' : n._type === 'doc' ? 'ellipse' : 'dot';
-      return {
-        id: n.id,
-        label: n.label || '',
-        title: `<b>${n.label}</b><br/>Type: ${n.type}<br/>File: ${n.filePath || ''}`,
-        color: n._type === 'file' ? '#1a1a2e' : n._type === 'doc' ? '#1a3a2e' : color,
-        borderColor: color,
-        borderWidth: n._type === 'file' ? 3 : n._type === 'doc' ? 2 : 1,
-        size: Math.max(8, Math.min(30, (n.degree || 0) * 3 + 10)),
-        group,
-        shape: n._type === 'file' || n._type === 'doc' ? 'box' : 'dot',
-        font: { color: '#dff5e6', size: n._type === 'file' ? 11 : 9 },
-        shadow: true,
-      };
-    });
-
-    const visEdges = this.edges.map(e => {
-      const src = this.nodes.get(e.source);
-      const tgt = this.nodes.get(e.target);
-      const isCross = src && tgt && src.community !== tgt.community;
-      return {
-        from: e.source,
-        to: e.target,
-        label: e.type === 'IMPORTS' ? '' : e.type === 'CONTAINS' ? '' : e.type,
-        title: `${e.type}${e.importType ? ` (${e.importType})` : ''}`,
-        color: { color: isCross ? 'rgba(255,255,255,0.15)' : 'rgba(34,255,122,0.25)', highlight: '#22ff7a' },
-        width: isCross ? 0.5 : (e.weight || 1),
-        dashes: e.type === 'REFERENCES',
-        smooth: { type: 'continuous' },
-      };
-    });
-
+    const visNodes = Array.from(this.nodes.values()).map(n => ({
+      id: n.id, label: n.label || '',
+      type: n.type, _type: n._type,
+      filePath: n.filePath || '', community: n.community,
+      degree: n.degree || 0,
+    }));
+    const visEdges = this.edges.map(e => ({
+      from: e.source, to: e.target, type: e.type,
+      weight: e.weight || 0.5, importType: e.importType || '',
+      crossCommunity: (() => {
+        const src = this.nodes.get(e.source);
+        const tgt = this.nodes.get(e.target);
+        return src && tgt && src.community !== tgt.community ? 1 : 0;
+      })(),
+    }));
     return { nodes: visNodes, edges: visEdges };
   }
 
@@ -617,42 +589,127 @@ class KnowledgeGraph {
 <title>${title}</title>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #050807; color: #dff5e6; height: 100vh; overflow: hidden; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0b0f14; color: #e2e8f0; height: 100vh; overflow: hidden; }
 #app { display: flex; height: 100vh; }
-#sidebar { width: 260px; background: rgba(10,20,14,0.95); border-right: 1px solid rgba(34,255,122,0.1); padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-shrink: 0; }
-#graph-container { flex: 1; position: relative; }
+
+/* Canvas background pattern */
+#graph-container {
+  flex: 1; position: relative;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(34,255,122,0.03) 0%, transparent 70%),
+    linear-gradient(rgba(34,255,122,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,255,122,0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+  background-color: #0b0f14;
+}
 #graph { width: 100%; height: 100%; }
+
+/* Sidebar – glassmorphism */
+#sidebar {
+  width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
+  padding: 20px 16px; overflow-y: auto;
+  background: rgba(15,20,25,0.92);
+  border-right: 1px solid rgba(34,255,122,0.08);
+  backdrop-filter: blur(12px);
+}
+
+/* Search */
 .search-box { position: relative; }
-.search-box input { width: 100%; padding: 8px 12px; background: rgba(10,20,14,0.8); border: 1px solid rgba(34,255,122,0.2); border-radius: 8px; color: #dff5e6; font-size: 13px; outline: none; }
-.search-box input:focus { border-color: rgba(34,255,122,0.5); }
-.search-box input::placeholder { color: #43594c; }
-.search-results { position: absolute; top: 100%; left: 0; right: 0; background: #0a140e; border: 1px solid rgba(34,255,122,0.15); border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; display: none; z-index: 10; }
-.search-result-item { padding: 6px 12px; cursor: pointer; font-size: 12px; border-bottom: 1px solid rgba(34,255,122,0.05); }
-.search-result-item:hover { background: rgba(34,255,122,0.1); }
-.sidebar-section { margin-bottom: 4px; }
-.sidebar-section h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #5c7a68; margin-bottom: 6px; font-weight: 600; }
-.community-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; font-size: 12px; }
-.community-item:hover { opacity: 0.8; }
-.community-color { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1); }
-.community-count { margin-left: auto; color: #5c7a68; font-size: 10px; }
-.stats { font-size: 11px; color: #8fae9c; padding: 8px 12px; background: rgba(10,20,14,0.5); border-radius: 8px; border: 1px solid rgba(34,255,122,0.08); }
-.stats span { display: inline-block; margin-right: 12px; }
-.stats strong { color: #22ff7a; }
-.node-detail { display: none; padding: 12px; background: rgba(10,20,14,0.8); border: 1px solid rgba(34,255,122,0.15); border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.search-box input {
+  width: 100%; padding: 10px 14px; font-size: 13px; font-family: inherit;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; color: #e2e8f0; outline: none; transition: border-color .2s;
+}
+.search-box input::placeholder { color: #475569; }
+.search-box input:focus { border-color: rgba(34,255,122,0.4); }
+.search-results {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+  background: rgba(15,20,25,0.96); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 0 0 10px 10px; max-height: 220px; overflow-y: auto;
+  backdrop-filter: blur(12px); display: none;
+}
+.search-result-item {
+  padding: 8px 14px; cursor: pointer; font-size: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04); transition: background .15s;
+}
+.search-result-item:hover { background: rgba(34,255,122,0.08); }
+.search-result-item:last-child { border-bottom: none; }
+
+/* Sidebar sections */
+.sidebar-section { margin-bottom: 2px; }
+.sidebar-section h3 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  color: #475569; margin-bottom: 8px; font-weight: 600;
+}
+
+/* Stats card */
+.stats {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  font-size: 11px; color: #94a3b8; padding: 10px 14px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+}
+.stats span { display: inline-flex; align-items: center; gap: 4px; }
+.stats strong { color: #22ff7a; font-weight: 600; }
+
+/* Toggle buttons */
+.sidebar-toggle-group { display: flex; flex-direction: column; gap: 6px; }
+.sidebar-toggle-group button {
+  width: 100%; padding: 9px 14px; font-size: 12px; font-family: inherit; cursor: pointer;
+  border-radius: 10px; transition: all .2s; text-align: center;
+  background: rgba(255,255,255,0.03); color: #94a3b8;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.sidebar-toggle-group button:hover {
+  background: rgba(34,255,122,0.06); border-color: rgba(34,255,122,0.2);
+  color: #e2e8f0;
+}
+
+/* Community list */
+.community-item {
+  display: flex; align-items: center; gap: 10px; padding: 6px 6px;
+  cursor: pointer; font-size: 12px; border-radius: 8px;
+  transition: background .15s;
+}
+.community-item:hover { background: rgba(255,255,255,0.04); }
+.community-color {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(255,255,255,0.1);
+}
+.community-count { margin-left: auto; color: #475569; font-size: 10px; }
+
+/* Node detail panel */
+.node-detail {
+  display: none; padding: 14px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; font-size: 12px; line-height: 1.6;
+}
 .node-detail.show { display: block; }
-.node-detail .label { color: #22ff7a; font-weight: 600; font-size: 14px; }
-.node-detail .meta { color: #8fae9c; margin-top: 4px; }
+.node-detail .label { color: #22ff7a; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.node-detail .meta { color: #64748b; }
 .node-detail .meta span { display: block; }
+
+/* Title bar */
+.graphify-title {
+  font-size: 15px; font-weight: 700; color: #22ff7a;
+  padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  letter-spacing: 0.3px; display: flex; align-items: center; gap: 8px;
+}
+.graphify-title svg { width: 18px; height: 18px; }
 </style>
 </head>
 <body>
 <div id="app">
   <div id="sidebar">
-    <div style="font-size:14px;font-weight:700;color:#22ff7a;padding-bottom:8px;border-bottom:1px solid rgba(34,255,122,0.15);letter-spacing:0.3px;">Graphify</div>
+    <div class="graphify-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><circle cx="5" cy="19" r="2"/><line x1="12" y1="9" x2="17" y2="7"/><line x1="7" y1="7" x2="10" y2="9"/><line x1="12" y1="15" x2="17" y2="17"/><line x1="7" y1="17" x2="10" y2="15"/></svg>
+      Graphify
+    </div>
 
     <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search nodes..." autocomplete="off" spellcheck="false">
+      <input type="text" id="searchInput" placeholder="Search nodes\u2026" autocomplete="off" spellcheck="false">
       <div class="search-results" id="searchResults"></div>
     </div>
 
@@ -664,8 +721,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     </div>
 
       ${nodeCount > 8000 ? `
-        <div class="sidebar-section">
-          <button id="physicsToggle" style="width:100%;padding:8px;background:rgba(34,255,122,0.1);color:#22ff7a;border:1px solid rgba(34,255,122,0.3);border-radius:8px;cursor:pointer;font-size:12px;">Enable Physics</button>
+        <div class="sidebar-section sidebar-toggle-group">
+          <button id="physicsToggle">Enable Physics</button>
+          <button id="clusterToggle">De-cluster All</button>
         </div>
       ` : ''}
 
@@ -693,11 +751,52 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <script>
-const rawNodes = ${JSON.stringify(data.nodes)};
-const rawEdges = ${JSON.stringify(data.edges)};
+var rawNodes = ${JSON.stringify(data.nodes)};
+var rawEdges = ${JSON.stringify(data.edges)};
+var nodeCount = rawNodes.length;
 
-const nodes = new vis.DataSet(rawNodes);
-const edges = new vis.DataSet(rawEdges);
+var COMM_COLORS = ${JSON.stringify(COMMUNITY_COLORS)};
+var EDGE_COLORS = { IMPORTS:'rgba(96,165,250,0.3)', CALLS:'rgba(52,211,153,0.3)', EXTENDS:'rgba(167,139,250,0.3)', IMPLEMENTS:'rgba(167,139,250,0.3)', CONTAINS:'rgba(148,163,184,0.2)', REFERENCES:'rgba(251,146,60,0.3)', DEPENDS_ON:'rgba(251,146,60,0.3)' };
+var EDGE_HIGHLIGHT = { IMPORTS:'#60a5fa', CALLS:'#34d399', EXTENDS:'#a78bfa', IMPLEMENTS:'#a78bfa', CONTAINS:'#94a3b8', REFERENCES:'#fb923c', DEPENDS_ON:'#fb923c' };
+var TYPE_ACCENTS = { file:{bg:'rgba(59,130,246,0.12)',border:'#3b82f6',font:'#93c5fd'}, doc:{bg:'rgba(20,184,166,0.12)',border:'#14b8a6',font:'#5eead4'} };
+var DEF_ACCENT = {bg:'rgba(34,255,122,0.1)',border:'#22ff7a',font:'#86efac'};
+var showShadow = nodeCount < 8000;
+
+function visNode(n,i) {
+  var c = n.community >= 0 ? COMM_COLORS[n.community % COMM_COLORS.length] : COMM_COLORS[i % COMM_COLORS.length];
+  var a = TYPE_ACCENTS[n._type] || DEF_ACCENT;
+  var sym = n._type !== 'file' && n._type !== 'doc';
+  return {
+    id:n.id, label:n.label||'',
+    title:'<b>'+n.label+'</b><br/>Type: '+(n.type||'')+'<br/>File: '+(n.filePath||'-')+'<br/>Degree: '+(n.degree||0),
+    shape:'box', shapeProperties:{borderRadius:10},
+    color:{background:a.bg, border:sym?c:a.border, highlight:{background:'rgba(34,255,122,0.2)',border:'#22ff7a'}},
+    borderWidth:sym?2:2.5, borderWidthSelected:3,
+    size:Math.max(12,Math.min(36,(n.degree||0)*2+14)),
+    font:{color:a.font, size:n._type==='file'?11:10, face:'Inter', strokeWidth:0},
+    shadow:showShadow?{enabled:true,color:'rgba(0,0,0,0.35)',size:12,x:0,y:4}:{enabled:false},
+    opacity:0.92,
+    group:n._type==='file'||n._type==='doc'||n._type==='heading'?0:1,
+  };
+}
+function visEdge(e,i) {
+  var ec = EDGE_COLORS[e.type]||'rgba(148,163,184,0.2)';
+  var hl = EDGE_HIGHLIGHT[e.type]||'#94a3b8';
+  return {
+    from:e.from, to:e.to,
+    label:e.type==='IMPORTS'||e.type==='CONTAINS'?'':e.type,
+    title:e.type+(e.importType?' ('+e.importType+')':''),
+    color:{color:e.crossCommunity?'rgba(255,255,255,0.08)':ec, highlight:hl, inherit:false},
+    width:e.crossCommunity?0.4:Math.min(1.2,(e.weight||0.5)*0.4+0.3),
+    dashes:e.type==='REFERENCES',
+    smooth:{type:'continuous', roundness:0.3},
+  };
+}
+
+var visNodes = rawNodes.map(visNode);
+var visEdges = rawEdges.map(visEdge);
+var nodes = new vis.DataSet(visNodes);
+var edges = new vis.DataSet(visEdges);
 
 const container = document.getElementById('graph');
 const network = new vis.Network(container, { nodes, edges }, {
@@ -706,16 +805,28 @@ const network = new vis.Network(container, { nodes, edges }, {
       : nodeCount > 3000
         ? `physics: { stabilization: { iterations: 20 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },`
         : `physics: { stabilization: { iterations: 100 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },`
-    },
+  }
   ${nodeCount > 8000
-      ? `edges: { arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { enabled: false }, font: { size: 8, color: '#5c7a68' } },`
-      : `edges: { arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { type: 'continuous' }, font: { size: 8, color: '#5c7a68' } },`
-    },
-  nodes: { borderWidth: 1, borderWidthSelected: 2 },
-  interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: { enabled: true } },
+      ? `edges: { arrows: { to: { enabled: true, scaleFactor: 0.4 } }, smooth: { enabled: false }, font: { size: 7, color: '#64748b', face: 'Inter', strokeWidth: 0 } },`
+      : `edges: { arrows: { to: { enabled: true, scaleFactor: 0.4 } }, smooth: { type: 'continuous' }, font: { size: 7, color: '#64748b', face: 'Inter', strokeWidth: 0 } },`
+  }
+  ${nodeCount > 8000
+      ? `nodes: { borderWidth: 0.5, borderWidthSelected: 2 },`
+      : `nodes: { borderWidth: 1, borderWidthSelected: 2.5 },`
+  }
+  ${nodeCount > 8000
+      ? `interaction: { hover: false, navigationButtons: true, keyboard: { enabled: true }, tooltipDelay: 300, hideEdgesOnDrag: false },`
+      : `interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: { enabled: true }, hideEdgesOnDrag: false },`
+  }
   manipulation: { enabled: false },
-  groups: { 0: { shape: 'box', color: { background: '#1a1a2e', border: '#22ff7a' } }, 1: { shape: 'dot' } },
+  groups: {
+    0: { shape: 'box', shapeProperties: { borderRadius: 10 }, font: { face: 'Inter' } },
+    1: { shape: 'dot', font: { face: 'Inter' } },
+  },
+  configure: { enabled: false },
 });
+
+setTimeout(function() { network.fit({ animation: true, duration: 400 }); }, 300);
 
 network.on('click', function(params) {
   if (params.nodes.length > 0) {
@@ -723,7 +834,7 @@ network.on('click', function(params) {
     const node = rawNodes.find(n => n.id === nodeId);
     const detail = document.getElementById('nodeDetail');
     if (node) {
-      detail.innerHTML = '<div class="label">' + node.label + '</div><div class="meta"><span>Type: ' + (node.type || 'unknown') + '</span><span>File: ' + (node.filePath || '-') + '</span><span>Degree: ' + (node.size || 0) + '</span></div>';
+      detail.innerHTML = '<div class="label">' + node.label + '</div><div class="meta"><span>Type: ' + (node.type || 'unknown') + '</span><span>File: ' + (node.filePath || '-') + '</span><span>Degree: ' + (node.degree || 0) + '</span></div>';
       detail.classList.add('show');
     }
   }
@@ -733,7 +844,7 @@ document.getElementById('searchInput').addEventListener('input', function() {
   const q = this.value.trim().toLowerCase();
   const results = document.getElementById('searchResults');
   if (!q) { results.style.display = 'none'; return; }
-  const matches = rawNodes.filter(n => n.label.toLowerCase().includes(q) || (n.title && n.title.toLowerCase().includes(q))).slice(0, 10);
+  const matches = rawNodes.filter(function(n) { return (n.label||'').toLowerCase().includes(q); }).slice(0, 10);
   if (matches.length === 0) { results.style.display = 'none'; return; }
   results.innerHTML = matches.map(m => '<div class="search-result-item" data-id="' + m.id + '">' + m.label + '</div>').join('');
   results.style.display = 'block';
@@ -768,11 +879,57 @@ document.getElementById('communityList').addEventListener('click', function(e) {
   }
 });
 ${nodeCount > 8000 ? `
+var clustered = false;
+function clusterByCommunity() {
+  var commMap = {};
+  rawNodes.forEach(function(n) {
+    var c = n.community !== undefined ? n.community : 0;
+    if (!commMap[c]) commMap[c] = [];
+    commMap[c].push(n.id);
+  });
+  Object.keys(commMap).forEach(function(c) {
+    var ids = commMap[c];
+    network.clustering.cluster({
+      joinCondition: function(co) { return ids.indexOf(co.id) !== -1; },
+      clusterNodeProperties: {
+        label: 'Community ' + (parseInt(c) + 1) + ' (' + ids.length + ')',
+        shape: 'dot',
+        size: Math.min(40, Math.max(15, ids.length / 8)),
+        color: ${JSON.stringify(communities.map(c => c.color))}[parseInt(c) % ${communities.length}],
+        borderWidth: 2,
+        borderColor: '#22ff7a',
+        font: { color: '#22ff7a', size: 11 }
+      }
+    });
+  });
+  clustered = true;
+  document.getElementById('clusterToggle').textContent = 'De-cluster All';
+}
+
+function deClusterAll() {
+  network.clustering.openAllClusters();
+  clustered = false;
+  document.getElementById('clusterToggle').textContent = 'Cluster by Community';
+}
+
 document.getElementById('physicsToggle').addEventListener('click', function() {
   var enabled = !network.physics.enabled;
-  network.setOptions({ physics: { enabled: enabled } });
+  network.setOptions({ physics: { enabled: enabled, stabilization: { iterations: 20 } } });
   this.textContent = enabled ? 'Disable Physics' : 'Enable Physics';
 });
+
+document.getElementById('clusterToggle').addEventListener('click', function() {
+  if (clustered) { deClusterAll(); }
+  else { clusterByCommunity(); }
+});
+
+network.on('doubleClick', function(params) {
+  if (params.nodes.length === 1 && network.isCluster(params.nodes[0])) {
+    network.clustering.openCluster(params.nodes[0], { releaseFunction: function() { return true; } });
+  }
+});
+
+clusterByCommunity();
 ` : ''}
 </script>
 </body>

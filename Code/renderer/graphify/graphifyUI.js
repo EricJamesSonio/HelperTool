@@ -189,6 +189,9 @@ function _bindEvents() {
   const graphRefreshBtn = _root.querySelector('.gfy-graph-refresh-btn');
   if (graphRefreshBtn) graphRefreshBtn.addEventListener('click', _handleRefreshGraph);
 
+  const graphFullscreenBtn = _root.querySelector('.gfy-graph-fullscreen-btn');
+  if (graphFullscreenBtn) graphFullscreenBtn.addEventListener('click', _handleToggleFullscreen);
+
   // Query tab - node search
   const nodeSearchInput = _root.querySelector('#gfyNodeSearchInput');
   if (nodeSearchInput) {
@@ -301,6 +304,9 @@ async function _handleStop() {
     graphLoading: false, graphError: null,
     nodeSearchResults: [], pathResult: null, explainResult: null, affectedResult: null,
   });
+
+  const _gf = _els?.graphIframeWrap?.querySelector('.gfy-graph-iframe');
+  if (_gf) { _gf.src = ''; _gf.onload = null; _gf.onerror = null; if (_gf._ovTimer) clearTimeout(_gf._ovTimer); _gf._ovTimer = null; }
 }
 
 async function _handleIndex() {
@@ -344,6 +350,9 @@ async function _checkServerAlive() {
       graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
       graphLoading: false, graphError: null,
     });
+
+    const _df = _els?.graphIframeWrap?.querySelector('.gfy-graph-iframe');
+    if (_df) { _df.src = ''; _df.onload = null; _df.onerror = null; if (_df._ovTimer) clearTimeout(_df._ovTimer); _df._ovTimer = null; }
   }
 }
 
@@ -429,6 +438,7 @@ async function _handleRefreshGraph() {
     const [data, report] = await Promise.all([
       fetchGraphData(port),
       fetchGraphReport(port),
+    ]);
     setState({
       graphData: data,
       graphStats: data?.stats || null,
@@ -451,6 +461,17 @@ async function _handleOpenGraph() {
     window.open(url, '_blank');
   }
 }
+
+function _handleToggleFullscreen() {
+  const s = getState();
+  setState({ graphFullscreen: !s.graphFullscreen });
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && getState().graphFullscreen) {
+    setState({ graphFullscreen: false });
+  }
+});
 
 async function _handleNodeSearch() {
   const input = _root.querySelector('#gfyNodeSearchInput');
@@ -940,8 +961,16 @@ function _render(state) {
     }
   }
 
+  // ── Fullscreen toggle ──
+  if (!prev || state.graphFullscreen !== prev.graphFullscreen) {
+    const p = _els.panel;
+    if (p) p.classList.toggle('gfy-fullscreen', !!state.graphFullscreen);
+    const fsBtn = _root?.querySelector('.gfy-graph-fullscreen-btn');
+    if (fsBtn) fsBtn.textContent = state.graphFullscreen ? 'Exit' : 'Fullscreen';
+  }
+
   // ── Graph tab ──
-  if (state.activeTab === 'graph' && state.serverStatus === 'running' && (!prev || state.graphLoading !== prev.graphLoading || state.graphData !== prev.graphData || state.graphStats !== prev.graphStats || state.port !== prev.port)) {
+  if (state.activeTab === 'graph' && state.serverStatus === 'running' && (!prev || state.activeTab !== prev.activeTab || state.graphLoading !== prev.graphLoading || state.graphData !== prev.graphData || state.graphStats !== prev.graphStats || state.port !== prev.port)) {
     const graphSpinner = _els.graphSpinner;
     const placeholder = _els.graphPlaceholder;
     const iframeWrap = _els.graphIframeWrap;
@@ -955,13 +984,13 @@ function _render(state) {
       if (!iframe) {
         iframe = document.createElement('iframe');
         iframe.className = 'gfy-graph-iframe';
-        iframe.sandbox = 'allow-scripts allow-same-origin';
+        iframe.sandbox = 'allow-scripts';
         iframeWrap.innerHTML = '';
         iframeWrap.appendChild(iframe);
       }
       const currentPort = (iframe.src.match(/:(\d+)\//) || [])[1];
       if (currentPort !== String(state.port)) {
-        iframe.src = http://127.0.0.1:/graph;
+        iframe.src = `http://127.0.0.1:${state.port}/graph`;
         let overlay = iframeWrap.querySelector('.gfy-graph-overlay');
         if (!overlay) {
           overlay = document.createElement('div');
@@ -970,13 +999,14 @@ function _render(state) {
           iframeWrap.appendChild(overlay);
         }
         overlay.style.display = 'flex';
-        const timer = setTimeout(() => {
+        if (iframe._ovTimer) clearTimeout(iframe._ovTimer);
+        iframe._ovTimer = setTimeout(() => {
           if (!overlay) return;
           overlay.innerHTML = '<div class="gfy-graph-overlay-text">Graph is taking too long. <button class="gfy-graph-overlay-retry-btn">Retry</button></div>';
-          overlay.querySelector('.gfy-graph-overlay-retry-btn')?.addEventListener('click', () => { iframe.src = http://127.0.0.1:/graph; });
+          overlay.querySelector('.gfy-graph-overlay-retry-btn')?.addEventListener('click', () => { iframe.src = `http://127.0.0.1:${state.port}/graph`; });
         }, 30000);
-        iframe.onload = () => { clearTimeout(timer); if (overlay) overlay.style.display = 'none'; };
-        iframe.onerror = () => { clearTimeout(timer); if (overlay) overlay.innerHTML = '<div class="gfy-graph-overlay-text">Failed to load graph.</div>'; };
+        iframe.onload = () => { if (iframe._ovTimer) clearTimeout(iframe._ovTimer); iframe._ovTimer = null; if (overlay) overlay.style.display = 'none'; };
+        iframe.onerror = () => { if (iframe._ovTimer) clearTimeout(iframe._ovTimer); iframe._ovTimer = null; if (overlay) overlay.innerHTML = '<div class="gfy-graph-overlay-text">Failed to load graph.</div>'; };
       }
     }
 
@@ -1562,6 +1592,10 @@ function _template() {
           <button class="gfy-graph-refresh-btn" title="Refresh graph data">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 0 1-14 0"/><path d="M17 10V4"/><path d="M17 4h-6"/></svg>
             Refresh
+          </button>
+          <button class="gfy-graph-fullscreen-btn" title="Fullscreen">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V3h5M17 8V3h-5M3 12v5h5M17 12v5h-5"/></svg>
+            Fullscreen
           </button>
         </div>
         <div class="gfy-graph-stats-bar"></div>
