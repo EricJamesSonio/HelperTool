@@ -163,6 +163,20 @@ function handleRequest(req, res) {
     return handleGraphSearch(req, res);
   }
 
+  // ── Lightweight API endpoints for Canvas UI ──
+  if (req.method === 'GET' && req.url === '/api/stats') {
+    return handleGraphStats(req, res);
+  }
+  if (req.method === 'GET' && req.url.startsWith('/api/search')) {
+    return handleApiSearch(req, res);
+  }
+  if (req.method === 'GET' && req.url.startsWith('/api/node/')) {
+    return handleApiNode(req, res);
+  }
+  if (req.method === 'GET' && req.url.startsWith('/api/community/')) {
+    return handleApiCommunity(req, res);
+  }
+
   if (req.method === 'POST' && req.url === '/export/symbols') {
     return handleExportSymbols(req, res);
   }
@@ -480,6 +494,64 @@ async function handleGraphSearch(req, res) {
     const results = _graph.searchNodes(body.query, limit);
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify({ results }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+// ── Lightweight API handlers for Canvas UI ──
+
+function handleApiSearch(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const query = url.searchParams.get('q');
+    if (!query || !query.trim()) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing query parameter q' }));
+      return;
+    }
+    const limit = parseInt(url.searchParams.get('limit') || '10', 10);
+    const results = _graph.searchNodes(query.trim(), limit);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ results }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleApiNode(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const nodeId = req.url.replace('/api/node/', '').split('?')[0];
+    const node = _graph.nodes.get(nodeId);
+    if (!node) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Node not found' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(node));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+function handleApiCommunity(req, res) {
+  if (!_graphGuard(res)) return;
+  try {
+    const commId = parseInt(req.url.replace('/api/community/', '').split('?')[0], 10);
+    const members = [];
+    for (const [id, node] of _graph.nodes) {
+      if (node.community === commId) {
+        members.push({ id, label: node.label, type: node.type, filePath: node.filePath, degree: node.degree });
+      }
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ community: commId, nodeCount: members.length, members }));
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: err.message }));

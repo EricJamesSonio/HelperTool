@@ -252,52 +252,64 @@ class KnowledgeGraph {
     return null;
   }
 
-  runCommunityDetection(maxIterations = 20) {
+  runCommunityDetection(maxIterations = 10) {
     const nodeIds = Array.from(this.nodes.keys());
     if (nodeIds.length === 0) return;
 
     const labels = new Map();
-    for (const id of nodeIds) {
-      labels.set(id, id);
+    for (const id of nodeIds) labels.set(id, id);
+
+    // Fisher-Yates shuffle (mutates in-place)
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      }
     }
 
-    const getLabelWeight = (nodeId, label) => {
-      let w = 0;
-      const outNbrs = this.adjOut.get(nodeId) || [];
-      for (const n of outNbrs) {
-        if (labels.get(n.target) === label) w += n.weight || 1;
-      }
-      const inNbrs = this.adjIn.get(nodeId) || [];
-      for (const n of inNbrs) {
-        if (labels.get(n.source) === label) w += n.weight || 1;
-      }
-      return w;
-    };
+    const adjOut = this.adjOut;
+    const adjIn = this.adjIn;
 
     for (let iter = 0; iter < maxIterations; iter++) {
       let changed = false;
-      const shuffled = [...nodeIds].sort(() => Math.random() - 0.5);
+      shuffle(nodeIds);
 
-      for (const nodeId of shuffled) {
-        const outNbrs = this.adjOut.get(nodeId) || [];
-        const inNbrs = this.adjIn.get(nodeId) || [];
-        const allNbrs = [...outNbrs, ...inNbrs];
-        if (allNbrs.length === 0) continue;
+      for (let ni = 0; ni < nodeIds.length; ni++) {
+        const nodeId = nodeIds[ni];
+        const outNbrs = adjOut.get(nodeId);
+        const inNbrs = adjIn.get(nodeId);
+        const outLen = outNbrs ? outNbrs.length : 0;
+        const inLen = inNbrs ? inNbrs.length : 0;
+        if (outLen + inLen === 0) continue;
 
         const freq = new Map();
-        for (const n of allNbrs) {
-          const otherId = n.target === nodeId ? n.source : n.target;
-          if (otherId === null || otherId === undefined) continue;
-          const label = labels.get(otherId);
-          if (label !== undefined) {
-            freq.set(label, (freq.get(label) || 0) + (n.weight || 1));
+        if (outNbrs) {
+          for (let i = 0; i < outLen; i++) {
+            const n = outNbrs[i];
+            const label = labels.get(n.target);
+            if (label !== undefined) {
+              freq.set(label, (freq.get(label) || 0) + (n.weight || 1));
+            }
+          }
+        }
+        if (inNbrs) {
+          for (let i = 0; i < inLen; i++) {
+            const n = inNbrs[i];
+            const label = labels.get(n.source);
+            if (label !== undefined) {
+              freq.set(label, (freq.get(label) || 0) + (n.weight || 1));
+            }
           }
         }
 
         if (freq.size === 0) continue;
 
+        const curLabel = labels.get(nodeId);
+        // Single dominant label — skip (no change)
+        if (freq.size === 1 && freq.has(curLabel)) continue;
+
         let maxFreq = 0;
-        let bestLabel = labels.get(nodeId);
+        let bestLabel = curLabel;
         for (const [label, count] of freq) {
           if (count > maxFreq || (count === maxFreq && Math.random() < 0.5)) {
             maxFreq = count;
@@ -305,7 +317,7 @@ class KnowledgeGraph {
           }
         }
 
-        if (bestLabel !== labels.get(nodeId)) {
+        if (bestLabel !== curLabel) {
           labels.set(nodeId, bestLabel);
           changed = true;
         }
@@ -314,14 +326,14 @@ class KnowledgeGraph {
       if (!changed) break;
     }
 
-    const uniqueLabels = new Set(labels.values());
+    const uniqueLabels = [...new Set(labels.values())];
     const labelMap = new Map();
-    let commId = 0;
-    for (const label of uniqueLabels) {
-      labelMap.set(label, commId++);
+    for (let i = 0; i < uniqueLabels.length; i++) {
+      labelMap.set(uniqueLabels[i], i);
     }
 
-    for (const nodeId of nodeIds) {
+    for (let ni = 0; ni < nodeIds.length; ni++) {
+      const nodeId = nodeIds[ni];
       const node = this.nodes.get(nodeId);
       if (node) node.community = labelMap.get(labels.get(nodeId)) || 0;
     }
@@ -662,6 +674,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 }
 .search-result-item:hover { background: rgba(34,255,122,0.08); }
 .search-result-item:last-child { border-bottom: none; }
+.search-item-label { color: #e2e8f0; }
+.search-item-type { color: #475569; font-size: 10px; margin-left: 6px; }
 
 /* Sidebar sections */
 .sidebar-section { margin-bottom: 2px; }
@@ -770,140 +784,54 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 </div>
 
 <script>
-var rawNodes = ${JSON.stringify(data.nodes)};
-var rawEdges = ${JSON.stringify(data.edges)};
-var nodeCount = rawNodes.length;
-
 var clusterNodesData = ${JSON.stringify(clusterNodes)};
 var clusterEdgesData = ${JSON.stringify(clusterEdges)};
-
+var graphStats = { nodes: ${stats.totalNodes}, edges: ${stats.totalEdges} };
 var COMM_COLORS = ${JSON.stringify(COMMUNITY_COLORS)};
-
-// Pre-compute maps
-var nodeCommMap = {};
-rawNodes.forEach(function(n){nodeCommMap[n.id]=n.community;});
-var commNodeMap = {};
-rawNodes.forEach(function(n){
-  if(!commNodeMap[n.community])commNodeMap[n.community]=[];
-  commNodeMap[n.community].push(n);
-});
 
 // Canvas setup
 var container=document.getElementById('graph');
 var canvas=document.createElement('canvas');
 canvas.style.width='100%';canvas.style.height='100%';
-canvas.width=container.clientWidth;canvas.height=container.clientHeight;
 container.appendChild(canvas);
 var ctx=canvas.getContext('2d');
 
-// Layout
-var cx=canvas.width/2,cy=canvas.height/2;
-var layoutR=Math.min(canvas.width,canvas.height)*0.38;
-var maxCount=0;
-clusterNodesData.forEach(function(cn){if(cn.nodeCount>maxCount)maxCount=cn.nodeCount;});
+var cx,cy,layoutR,circles,stars,pad=20,hoveredIdx=-1,selectedIdx=-1;
 
-var circles=clusterNodesData.map(function(cn,i){
-  var angle=(i/clusterNodesData.length)*2*Math.PI-Math.PI/2;
-  var radius=Math.max(8,Math.sqrt(cn.nodeCount/maxCount)*35+10);
-  return {
-    id:cn.id,label:cn.label,community:cn.community,
-    nodeCount:cn.nodeCount,memberList:cn.memberList,
-    x:cx+layoutR*Math.cos(angle),y:cy+layoutR*Math.sin(angle),
-    radius:radius,color:COMM_COLORS[cn.community%COMM_COLORS.length],
-  };
-});
-
-// Collision resolution
-for(var iter=0;iter<10;iter++){
-  var moved=false;
-  for(var i=0;i<circles.length;i++){
-    for(var j=i+1;j<circles.length;j++){
+function initCanvas(){
+  canvas.width=container.clientWidth||800;canvas.height=container.clientHeight||600;
+  cx=canvas.width/2;cy=canvas.height/2;
+  layoutR=Math.min(canvas.width,canvas.height)*0.42;
+  // Stars
+  stars=[];
+  for(var s=0;s<250;s++){stars.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.5+0.3,a:Math.random()*0.4+0.05});}
+  // Layout circles
+  var maxCount=0;
+  clusterNodesData.forEach(function(cn){if(cn.nodeCount>maxCount)maxCount=cn.nodeCount;});
+  if(!maxCount)maxCount=1;
+  circles=clusterNodesData.map(function(cn,i){
+    var angle=(i/clusterNodesData.length||1)*2*Math.PI-Math.PI/2;
+    var radius=Math.max(6,Math.sqrt(cn.nodeCount/maxCount)*28+6);
+    return{
+      id:cn.id,label:cn.label,community:cn.community,
+      nodeCount:cn.nodeCount,memberList:cn.memberList,
+      x:cx+layoutR*Math.cos(angle),y:cy+layoutR*Math.sin(angle),
+      radius:radius,color:COMM_COLORS[cn.community%COMM_COLORS.length],
+    };
+  });
+  // Collision
+  for(var iter=0;iter<15;iter++){
+    var moved=false;
+    for(var i=0;i<circles.length;i++){for(var j=i+1;j<circles.length;j++){
       var dx=circles[j].x-circles[i].x,dy=circles[j].y-circles[i].y;
       var dist=Math.sqrt(dx*dx+dy*dy);
-      var minDist=circles[i].radius+circles[j].radius+8;
+      var minDist=circles[i].radius+circles[j].radius+12;
       if(dist<minDist&&dist>0){
-        var push=(minDist-dist)/2;
-        var nx=dx/dist,ny=dy/dist;
+        var push=(minDist-dist)/2;var nx=dx/dist,ny=dy/dist;
         circles[i].x-=nx*push;circles[i].y-=ny*push;
-        circles[j].x+=nx*push;circles[j].y+=ny*push;
-        moved=true;
+        circles[j].x+=nx*push;circles[j].y+=ny*push;moved=true;
       }
-    }
-  }
-  if(!moved)break;
-}
-var pad=20;
-circles.forEach(function(c){
-  c.x=Math.max(pad+c.radius,Math.min(canvas.width-pad-c.radius,c.x));
-  c.y=Math.max(pad+c.radius,Math.min(canvas.height-pad-c.radius,c.y));
-});
-
-var hoveredIdx=-1,selectedIdx=-1;
-
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  // Grid
-  ctx.strokeStyle='rgba(34,255,122,0.02)';ctx.lineWidth=1;
-  for(var x=0;x<canvas.width;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
-  for(var y=0;y<canvas.height;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
-  // Connection lines
-  clusterEdgesData.forEach(function(ce){
-    var fc=parseInt(ce.from.replace('_comm_','')),tc=parseInt(ce.to.replace('_comm_',''));
-    var fromC=circles.find(function(c){return c.community===fc;});
-    var toC=circles.find(function(c){return c.community===tc;});
-    if(fromC&&toC){
-      ctx.beginPath();ctx.moveTo(fromC.x,fromC.y);ctx.lineTo(toC.x,toC.y);
-      ctx.strokeStyle='rgba(255,255,255,'+Math.min(0.12,ce.weight*0.002)+')';
-      ctx.lineWidth=Math.min(2,ce.weight*0.03+0.2);ctx.stroke();
-    }
-  });
-  // Circles
-  circles.forEach(function(c,i){
-    var isHover=i===hoveredIdx,isSel=i===selectedIdx;
-    // Glow
-    var grad=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.radius*2.5);
-    grad.addColorStop(0,isHover||isSel?c.color+'55':c.color+'22');
-    grad.addColorStop(1,'transparent');
-    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(c.x,c.y,c.radius*2.5,0,2*Math.PI);ctx.fill();
-    // Circle
-    ctx.beginPath();ctx.arc(c.x,c.y,c.radius,0,2*Math.PI);
-    ctx.fillStyle=c.color+(isHover||isSel?'66':'44');ctx.fill();
-    ctx.strokeStyle=isHover||isSel?'#22ff7a':c.color;
-    ctx.lineWidth=isHover||isSel?3:2;ctx.stroke();
-    // Label
-    ctx.fillStyle='#e2e8f0';ctx.font='11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-    ctx.fillText(c.label+' ('+c.nodeCount+')',c.x,c.y+c.radius+8);
-  });
-  // Stats overlay
-  ctx.fillStyle='rgba(148,163,184,0.5)';ctx.font='12px Inter,sans-serif';ctx.textAlign='right';ctx.textBaseline='bottom';
-  ctx.fillText(nodeCount+' nodes | '+rawEdges.length+' edges',canvas.width-16,canvas.height-16);
-}
-draw();
-
-// Resize
-window.addEventListener('resize',function(){
-  canvas.width=container.clientWidth;canvas.height=container.clientHeight;
-  cx=canvas.width/2;cy=canvas.height/2;
-  layoutR=Math.min(canvas.width,canvas.height)*0.38;
-  circles.forEach(function(c,i){
-    var angle=(i/circles.length)*2*Math.PI-Math.PI/2;
-    c.x=cx+layoutR*Math.cos(angle);c.y=cy+layoutR*Math.sin(angle);
-  });
-  for(var iter=0;iter<10;iter++){
-    var moved=false;
-    for(var i=0;i<circles.length;i++){
-      for(var j=i+1;j<circles.length;j++){
-        var dx=circles[j].x-circles[i].x,dy=circles[j].y-circles[i].y;
-        var dist=Math.sqrt(dx*dx+dy*dy);
-        var minDist=circles[i].radius+circles[j].radius+8;
-        if(dist<minDist&&dist>0){
-          var push=(minDist-dist)/2;var nx=dx/dist,ny=dy/dist;
-          circles[i].x-=nx*push;circles[i].y-=ny*push;
-          circles[j].x+=nx*push;circles[j].y+=ny*push;
-          moved=true;
-        }
-      }
-    }
+    }}
     if(!moved)break;
   }
   circles.forEach(function(c){
@@ -911,32 +839,70 @@ window.addEventListener('resize',function(){
     c.y=Math.max(pad+c.radius,Math.min(canvas.height-pad-c.radius,c.y));
   });
   draw();
-});
+}
 
-// Hit test
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Cosmic background
+  ctx.fillStyle='#080c12';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Stars
+  stars.forEach(function(s){ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,2*Math.PI);ctx.fillStyle='rgba(255,255,255,'+s.a+')';ctx.fill();});
+  // Connection lines
+  clusterEdgesData.forEach(function(ce){
+    var fc=parseInt(ce.from.replace('_comm_','')),tc=parseInt(ce.to.replace('_comm_',''));
+    var fromC=circles.find(function(c){return c.community===fc;});
+    var toC=circles.find(function(c){return c.community===tc;});
+    if(fromC&&toC){
+      ctx.beginPath();ctx.moveTo(fromC.x,fromC.y);
+      var midx=(fromC.x+toC.x)/2,midy=(fromC.y+toC.y)/2;
+      ctx.quadraticCurveTo(midx+(Math.random()-0.5)*40,midy+(Math.random()-0.5)*40,toC.x,toC.y);
+      ctx.strokeStyle='rgba(255,255,255,'+Math.min(0.08,ce.weight*0.0015)+')';
+      ctx.lineWidth=Math.min(1.5,ce.weight*0.02+0.1);ctx.stroke();
+    }
+  });
+  // Circles
+  circles.forEach(function(c,i){
+    var isHover=i===hoveredIdx,isSel=i===selectedIdx;
+    var grad=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.radius*3);
+    grad.addColorStop(0,isHover||isSel?c.color+'66':c.color+'33');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(c.x,c.y,c.radius*3,0,2*Math.PI);ctx.fill();
+    ctx.beginPath();ctx.arc(c.x,c.y,c.radius,0,2*Math.PI);
+    ctx.fillStyle=c.color+(isHover||isSel?'77':'55');ctx.fill();
+    ctx.strokeStyle=isHover||isSel?'#22ff7a':c.color;
+    ctx.lineWidth=isHover||isSel?2.5:1.5;ctx.stroke();
+    ctx.fillStyle='#94a3b8';ctx.font='10px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(c.label,c.x,c.y+c.radius+6);
+  });
+  // Stats overlay
+  ctx.fillStyle='rgba(148,163,184,0.35)';ctx.font='11px Inter,sans-serif';ctx.textAlign='right';ctx.textBaseline='bottom';
+  ctx.fillText(graphStats.nodes+' nodes  |  '+graphStats.edges+' edges',canvas.width-14,canvas.height-14);
+}
+function deferredInit(){try{initCanvas();}catch(e){console.error('Graph init error:',e);}}
+requestAnimationFrame(deferredInit);setTimeout(deferredInit,100);
+window.addEventListener('resize',function(){requestAnimationFrame(deferredInit);});
+
 function getCircleAt(x,y){
-  for(var i=circles.length-1;i>=0;i--){
-    var c=circles[i];var dx=x-c.x,dy=y-c.y;
-    if(Math.sqrt(dx*dx+dy*dy)<=c.radius)return i;
-  }
+  for(var i=circles.length-1;i>=0;i--){var c=circles[i];var dx=x-c.x,dy=y-c.y;if(Math.sqrt(dx*dx+dy*dy)<=c.radius)return i;}
   return -1;
 }
 
-// Click
+function showNodeDetail(html){var d=document.getElementById('nodeDetail');d.innerHTML=html;d.classList.add('show');}
+
+// Click circle → fetch community detail
 canvas.addEventListener('click',function(e){
-  var rect=canvas.getBoundingClientRect();
-  var x=e.clientX-rect.left,y=e.clientY-rect.top;
+  var rect=canvas.getBoundingClientRect();var x=e.clientX-rect.left,y=e.clientY-rect.top;
   var idx=getCircleAt(x,y);
-  var detail=document.getElementById('nodeDetail');
   if(idx>=0){
-    selectedIdx=idx;var c=circles[idx];
-    detail.innerHTML='<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta"><span>Members: '+(c.memberList||'-')+'</span></div>';
-    detail.classList.add('show');
-  } else {selectedIdx=-1;detail.classList.remove('show');}
-  draw();
+    selectedIdx=idx;var c=circles[idx];draw();
+    showNodeDetail('<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta">Loading...</div>');
+    fetch('/api/community/'+c.community).then(function(r){return r.json();}).then(function(d){
+      var list=(d.members||[]).slice(0,8).map(function(m){return '<span>'+m.label+' ('+m.type+')</span>';}).join('');
+      showNodeDetail('<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta">'+(list||'<span>No members listed</span>')+'</div>');
+    }).catch(function(){showNodeDetail('<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta"><span>Members: '+(c.memberList||'-')+'</span></div>');});
+  } else {selectedIdx=-1;draw();document.getElementById('nodeDetail').classList.remove('show');}
 });
 
-// Hover
 canvas.addEventListener('mousemove',function(e){
   var rect=canvas.getBoundingClientRect();var x=e.clientX-rect.left,y=e.clientY-rect.top;
   var idx=getCircleAt(x,y);
@@ -944,30 +910,33 @@ canvas.addEventListener('mousemove',function(e){
 });
 canvas.addEventListener('mouseleave',function(){hoveredIdx=-1;canvas.style.cursor='default';draw();});
 
-// Search
+// Search via API
+var searchTimer;
 document.getElementById('searchInput').addEventListener('input',function(){
-  var q=this.value.trim().toLowerCase();
+  var q=this.value.trim();
   var results=document.getElementById('searchResults');
-  if(!q){results.style.display='none';return;}
-  var matches=rawNodes.filter(function(n){return (n.label||'').toLowerCase().includes(q);}).slice(0,10);
-  if(matches.length===0){results.style.display='none';return;}
-  results.innerHTML=matches.map(function(m){return '<div class="search-result-item" data-id="'+m.id+'">'+m.label+'</div>';}).join('');
-  results.style.display='block';
+  if(!q||q.length<2){results.style.display='none';return;}
+  if(searchTimer)clearTimeout(searchTimer);
+  searchTimer=setTimeout(function(){
+    fetch('/api/search?q='+encodeURIComponent(q)+'&limit=10').then(function(r){return r.json();}).then(function(d){
+      var matches=d.results||[];
+      if(!matches.length){results.style.display='none';return;}
+      results.innerHTML=matches.map(function(m){return '<div class="search-result-item" data-id="'+m.id+'"><span class="search-item-label">'+m.label+'</span><span class="search-item-type">'+m.type+'</span></div>';}).join('');
+      results.style.display='block';
+    }).catch(function(){results.style.display='none';});
+  },200);
 });
 
 document.getElementById('searchResults').addEventListener('click',function(e){
   var item=e.target.closest('.search-result-item');if(!item)return;
-  var nodeId=item.dataset.id;var commId=nodeCommMap[nodeId];
-  if(commId!==undefined){
+  var nodeId=item.dataset.id;
+  fetch('/api/node/'+nodeId).then(function(r){return r.json();}).then(function(node){
+    var commId=node.community;
     var ci=-1;for(var i=0;i<circles.length;i++){if(circles[i].community===commId){ci=i;break;}}
-    if(ci>=0){
-      selectedIdx=ci;var c=circles[ci];draw();
-      var detail=document.getElementById('nodeDetail');
-      var searchedNode=null;for(var i=0;i<rawNodes.length;i++){if(rawNodes[i].id===nodeId){searchedNode=rawNodes[i];break;}}
-      detail.innerHTML='<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta"><span>Focus: '+(searchedNode?searchedNode.label:'')+'</span><span>Members: '+(c.memberList||'-')+'</span></div>';
-      detail.classList.add('show');
+    if(ci>=0){selectedIdx=ci;draw();
+      showNodeDetail('<div class="label">'+circles[ci].label+' ('+circles[ci].nodeCount+' nodes)</div><div class="meta"><span>Focus: '+node.label+'</span><span>Type: '+node.type+'</span><span>File: '+(node.filePath||'-')+'</span></div>');
     }
-  }
+  }).catch(function(){});
   document.getElementById('searchResults').style.display='none';document.getElementById('searchInput').value='';
 });
 
@@ -982,9 +951,11 @@ document.getElementById('communityList').addEventListener('click',function(e){
   var ci=-1;for(var i=0;i<circles.length;i++){if(circles[i].community===commId){ci=i;break;}}
   if(ci>=0){
     selectedIdx=ci;var c=circles[ci];draw();
-    var detail=document.getElementById('nodeDetail');
-    detail.innerHTML='<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta"><span>Members: '+(c.memberList||'-')+'</span></div>';
-    detail.classList.add('show');
+    showNodeDetail('<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta">Loading...</div>');
+    fetch('/api/community/'+c.community).then(function(r){return r.json();}).then(function(d){
+      var list=(d.members||[]).slice(0,8).map(function(m){return '<span>'+m.label+' ('+m.type+')</span>';}).join('');
+      showNodeDetail('<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta">'+(list||'<span>No members listed</span>')+'</div>');
+    }).catch(function(){showNodeDetail('<div class="label">'+c.label+' ('+c.nodeCount+' nodes)</div><div class="meta"><span>Members: '+(c.memberList||'-')+'</span></div>');});
   }
 });
 </script>
