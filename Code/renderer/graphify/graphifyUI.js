@@ -9,6 +9,7 @@ let _root      = null;
 let _unsub     = null;
 let _debounce  = null;
 let _healthTimer = null;
+let _mounted   = false;
 
 // ── DOM cache (populated once in mount) ──
 const _els = {};
@@ -113,6 +114,7 @@ function _populateDomCache() {
 
 export function mount(container) {
   _root = container;
+  _mounted = true;
   _root.innerHTML = _template();
   _populateDomCache();
   _bindEvents();
@@ -136,10 +138,15 @@ function _stopHealthTimer() {
 }
 
 export function unmount() {
+  _mounted = false;
   _stopHealthTimer();
   if (_unsub) { _unsub(); _unsub = null; }
   if (_debounce) clearTimeout(_debounce);
   _root = null;
+}
+
+function _safeSetState(patch) {
+  if (_mounted) setState(patch);
 }
 
 function _bindEvents() {
@@ -171,7 +178,7 @@ function _bindEvents() {
 
   clearBtn.addEventListener('click', () => {
     input.value = '';
-    setState({ query: '', files: [], results: [], explanation: '', error: null });
+    _safeSetState({ query: '', files: [], results: [], explanation: '', error: null });
     input.focus();
   });
 
@@ -245,47 +252,52 @@ function _bindEvents() {
 }
 
 async function _handleTrackingReindex() {
-  setState({ exportLoading: true, exportStatus: null, pendingChanges: null });
+  if (!_mounted) return;
+  _safeSetState({ exportLoading: true, exportStatus: null, pendingChanges: null });
   try {
     const repoPath = window.__activeRepoPath;
     if (!repoPath) throw new Error('No repository selected');
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
+    if (!_mounted) return;
     await _checkStatus();
+    if (!_mounted) return;
     // Detect changes after re-index to show what changed
     try {
       const result = await window.electronAPI.graphifyDetectChanges(repoPath);
-      if (result && result.ok) {
-        setState({ pendingChanges: result.changes, symbolsInfo: result.stats });
+      if (_mounted && result && result.ok) {
+        _safeSetState({ pendingChanges: result.changes, symbolsInfo: result.stats });
       }
     } catch {}
   } catch (err) {
-    setState({ exportLoading: false, error: `Re-index failed: ${err.message}` });
+    if (_mounted) _safeSetState({ exportLoading: false, error: `Re-index failed: ${err.message}` });
   } finally {
-    setState({ exportLoading: false });
+    if (_mounted) _safeSetState({ exportLoading: false });
   }
 }
 
 async function _handleStart() {
   const s = getState();
   if (!s.graphInfo?.exists) {
-    setState({ error: 'Generate the knowledge graph first before starting the server.' });
+    _safeSetState({ error: 'Generate the knowledge graph first before starting the server.' });
     return;
   }
-  setState({ serverStatus: 'starting', error: null });
+  _safeSetState({ serverStatus: 'starting', error: null });
   try {
     const result = await window.electronAPI.graphifyStart(window.__activeRepoPath || null);
     if (!result.ok) throw new Error(result.error || 'Failed to start server');
-    setState({ port: result.port, serverStatus: 'running' });
+    if (!_mounted) return;
+    _safeSetState({ port: result.port, serverStatus: 'running' });
     _startHealthTimer();
     const [info, epData] = await Promise.all([
       fetchInfo(result.port),
       fetchEndpoints(result.port),
     ]);
-    if (epData && epData.endpoints) setState({ endpoints: epData.endpoints });
-    if (info && !info.error) setState({ serverInfo: info });
+    if (!_mounted) return;
+    if (epData && epData.endpoints) _safeSetState({ endpoints: epData.endpoints });
+    if (info && !info.error) _safeSetState({ serverInfo: info });
     _handleRefreshGraph();
   } catch (err) {
-    setState({ serverStatus: 'error', error: err.message });
+    _safeSetState({ serverStatus: 'error', error: err.message });
   }
 }
 
@@ -294,7 +306,7 @@ async function _handleStop() {
   try {
     await window.electronAPI.graphifyStop();
   } catch {}
-  setState({
+  _safeSetState({
     serverStatus: 'stopped', serverInfo: null, endpoints: null,
     results: [], files: [], explanation: '', error: null,
     graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
@@ -307,22 +319,24 @@ async function _handleStop() {
 }
 
 async function _handleIndex() {
+  if (!_mounted) return;
   const repoPath = window.__activeRepoPath;
   if (!repoPath) {
-    setState({ error: 'No repository selected. Select a repo first.' });
+    _safeSetState({ error: 'No repository selected. Select a repo first.' });
     return;
   }
-  setState({ error: 'Indexing started\u2026 Please wait for it to complete.' });
+  _safeSetState({ error: 'Indexing started\u2026 Please wait for it to complete.' });
   try {
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
-    setState({ error: 'Indexing complete! You can now start the server.' });
+    if (!_mounted) return;
+    _safeSetState({ error: 'Indexing complete! You can now start the server.' });
     _checkStatus();
   } catch (err) {
-    setState({ error: `Indexing failed: ${err.message}` });
+    if (_mounted) _safeSetState({ error: `Indexing failed: ${err.message}` });
   }
 }
 
-async function _checkServerAlive() {
+async function _checkServerAlive(retries = 2) {
   const s = getState();
   if (s.serverStatus !== 'running') { _stopHealthTimer(); return; }
   try {
@@ -337,11 +351,16 @@ async function _checkServerAlive() {
     const patch = {};
     if (epData && epData.endpoints) patch.endpoints = epData.endpoints;
     if (info && !info.error) patch.serverInfo = info;
-    if (Object.keys(patch).length) setState(patch);
+    if (Object.keys(patch).length) _safeSetState(patch);
   } catch {
-    // Server is gone — reset state so user sees the start UI
+    if (retries > 0) {
+      // Transient failure — retry after a short delay
+      await new Promise(r => setTimeout(r, 1000));
+      return _checkServerAlive(retries - 1);
+    }
+    // Server is really gone — reset state so user sees the start UI
     _stopHealthTimer();
-    setState({
+    _safeSetState({
       serverStatus: 'stopped', serverInfo: null, endpoints: null,
       results: [], files: [], explanation: '', error: 'Server was disconnected. Click Start to restart.',
       graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
@@ -356,14 +375,15 @@ async function _checkServerAlive() {
 async function _checkStatus() {
   const repoPath = window.__activeRepoPath;
   if (!repoPath) {
-    setState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
+    _safeSetState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
     return;
   }
-  setState({ statusLoading: true });
+  _safeSetState({ statusLoading: true });
   try {
     const result = await window.electronAPI.graphifyCheckStatus(repoPath);
+    if (!_mounted) return;
     if (result.ok) {
-      setState({
+      _safeSetState({
         repoStatus: result.symbolsExists ? 'indexed' : 'needs-index',
         symbolsInfo: result.symbolsStats || null,
         promptExists: !!result.promptExists,
@@ -372,10 +392,10 @@ async function _checkStatus() {
         statusLoading: false,
       });
     } else {
-      setState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
+      _safeSetState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
     }
   } catch {
-    setState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
+    if (_mounted) _safeSetState({ repoStatus: null, symbolsInfo: null, graphInfo: null, statusLoading: false });
   }
 }
 
@@ -394,29 +414,31 @@ async function _handleCopyUrl() {
 }
 
 async function _runQuery() {
-  if (!_root) return;
+  if (!_root || !_mounted) return;
   const input = _root.querySelector('.gfy-input');
   const query = input.value.trim();
   if (!query) return;
 
-  setState({ query, loading: true, error: null, files: [], results: [], explanation: '' });
+  _safeSetState({ query, loading: true, error: null, files: [], results: [], explanation: '' });
 
   try {
     const { port, query: stateQuery } = getState();
     if (query !== stateQuery && stateQuery !== query) return;
+    if (!_mounted) return;
 
     const repoPath = window.__activeRepoPath || null;
     const data     = await queryGraphify(query, repoPath, port);
+    if (!_mounted) return;
 
-    setState({
+    _safeSetState({
       loading:     false,
       files:       data.files       || [],
       results:     data.scores      || [],
       explanation: data.explanation || '',
     });
   } catch (err) {
-    setState({ loading: false, error: err.message });
-    _checkServerAlive();
+    if (!_mounted) return;
+    _safeSetState({ loading: false, error: err.message });
   }
 }
 
@@ -429,14 +451,16 @@ function _debounceQuery(fn, ms) {
 }
 
 async function _handleRefreshGraph() {
+  if (!_mounted) return;
   const { port } = getState();
-  setState({ graphLoading: true, graphError: null });
+  _safeSetState({ graphLoading: true, graphError: null });
   try {
     const [data, report] = await Promise.all([
       fetchGraphData(port),
       fetchGraphReport(port),
     ]);
-    setState({
+    if (!_mounted) return;
+    _safeSetState({
       graphData: data,
       graphStats: data?.stats || null,
       graphReport: report,
@@ -444,8 +468,8 @@ async function _handleRefreshGraph() {
       graphLoading: false,
     });
   } catch (err) {
-    setState({ graphLoading: false, graphError: err.message });
-    _checkServerAlive();
+    if (!_mounted) return;
+    _safeSetState({ graphLoading: false, graphError: err.message });
   }
 }
 
@@ -460,68 +484,80 @@ async function _handleOpenGraph() {
 }
 
 async function _handleNodeSearch() {
+  if (!_mounted) return;
   const input = _root.querySelector('#gfyNodeSearchInput');
   if (!input) return;
   const query = input.value.trim();
-  setState({ nodeSearchQuery: query });
+  _safeSetState({ nodeSearchQuery: query });
   if (query.length < 2) {
-    setState({ nodeSearchResults: [] });
+    _safeSetState({ nodeSearchResults: [] });
     return;
   }
   const { port } = getState();
   const results = await searchGraphNodes(query, port, 20);
-  setState({ nodeSearchResults: results });
+  if (!_mounted) return;
+  _safeSetState({ nodeSearchResults: results });
 }
 
 async function _handlePathFind() {
+  if (!_mounted) return;
   const from = (_root.querySelector('#gfyPathFrom')?.value || '').trim();
   const to = (_root.querySelector('#gfyPathTo')?.value || '').trim();
   if (!from || !to) return;
   const { port } = getState();
-  setState({ pathFrom: from, pathTo: to, pathResult: null });
+  _safeSetState({ pathFrom: from, pathTo: to, pathResult: null });
   const result = await getGraphShortestPath(from, to, port);
-  setState({ pathResult: result });
+  if (!_mounted) return;
+  _safeSetState({ pathResult: result });
 }
 
 async function _handleExplain() {
+  if (!_mounted) return;
   const nodeId = (_root.querySelector('#gfyExplainInput')?.value || '').trim();
   const depth = parseInt(_root.querySelector('#gfyExplainDepth')?.value || '1', 10);
   if (!nodeId) return;
   const { port } = getState();
-  setState({ explainNodeId: nodeId, explainDepth: depth, explainResult: null });
+  _safeSetState({ explainNodeId: nodeId, explainDepth: depth, explainResult: null });
   const result = await getGraphNeighborhood(nodeId, port, depth);
-  setState({ explainResult: result });
+  if (!_mounted) return;
+  _safeSetState({ explainResult: result });
 }
 
 async function _handleAffected() {
+  if (!_mounted) return;
   const nodeId = (_root.querySelector('#gfyAffectedInput')?.value || '').trim();
   const depth = parseInt(_root.querySelector('#gfyAffectedDepth')?.value || '1', 10);
   if (!nodeId) return;
   const { port } = getState();
-  setState({ affectedNodeId: nodeId, affectedDepth: depth, affectedResult: null });
+  _safeSetState({ affectedNodeId: nodeId, affectedDepth: depth, affectedResult: null });
   const result = await getGraphAffected(nodeId, port, depth);
-  setState({ affectedResult: result });
+  if (!_mounted) return;
+  _safeSetState({ affectedResult: result });
 }
 
 async function _handleRefreshReport() {
+  if (!_mounted) return;
   const { port } = getState();
-  setState({ graphLoading: true });
+  _safeSetState({ graphLoading: true });
   try {
     const report = await fetchGraphReport(port);
-    setState({ graphReport: report, graphStats: report?.stats || null, graphLoading: false });
+    if (!_mounted) return;
+    _safeSetState({ graphReport: report, graphStats: report?.stats || null, graphLoading: false });
   } catch {
-    setState({ graphLoading: false });
+    if (_mounted) _safeSetState({ graphLoading: false });
   }
 }
 
 async function _handleExport() {
-  setState({ exportLoading: true, exportError: null, exportStatus: null });
+  if (!_mounted) return;
+  _safeSetState({ exportLoading: true, exportError: null, exportStatus: null });
   try {
     const repoPath = window.__activeRepoPath;
     if (!repoPath) throw new Error('No repository selected');
     const result = await window.electronAPI.graphifyExportPrompt(repoPath);
+    if (!_mounted) return;
     if (!result || !result.ok) {
-      setState({ exportLoading: false, exportError: (result && result.error) || 'Export failed' });
+      _safeSetState({ exportLoading: false, exportError: (result && result.error) || 'Export failed' });
       return;
     }
     const patch = {
@@ -534,13 +570,14 @@ async function _handleExport() {
     if (result.promptType === 'none' && result.noChanges) {
       patch.exportStatus = { ...patch.exportStatus, noChanges: true };
     }
-    setState(patch);
+    _safeSetState(patch);
   } catch (err) {
-    setState({ exportLoading: false, exportError: err.message });
+    if (_mounted) _safeSetState({ exportLoading: false, exportError: err.message });
   }
 }
 
 async function _handleSendToAi() {
+  if (!_mounted) return;
   const state_ = getState();
   let promptText = state_.exportStatus?.promptText;
 
@@ -549,16 +586,16 @@ async function _handleSendToAi() {
       const repoPath = window.__activeRepoPath;
       if (repoPath) {
         const result = await window.electronAPI.graphifyExportPrompt(repoPath);
-        if (result.ok && result.promptText) {
+        if (_mounted && result.ok && result.promptText) {
           promptText = result.promptText;
-          setState({ exportStatus: { ...state_.exportStatus, promptText } });
+          _safeSetState({ exportStatus: { ...state_.exportStatus, promptText } });
         }
       }
     } catch {}
   }
 
   if (!promptText) {
-    setState({ exportError: 'No prompt generated yet. Run export first.' });
+    _safeSetState({ exportError: 'No prompt generated yet. Run export first.' });
     return;
   }
 
@@ -665,9 +702,10 @@ function _showPromptViewer(promptText) {
 }
 
 async function _openCodeSwampWithPrompt(promptText) {
+  if (!_mounted) return;
   const repoPath = window.__activeRepoPath;
   if (!repoPath) {
-    setState({ exportError: 'No repository selected.' });
+    _safeSetState({ exportError: 'No repository selected.' });
     return;
   }
 
@@ -679,6 +717,7 @@ async function _openCodeSwampWithPrompt(promptText) {
     if (!input) {
       for (let i = 0; i < 30; i++) {
         await new Promise(r => setTimeout(r, 200));
+        if (!_mounted) return;
         input = document.getElementById('ocInput');
         if (input) break;
       }
@@ -693,27 +732,29 @@ async function _openCodeSwampWithPrompt(promptText) {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     }
   } catch (err) {
-    setState({ exportError: 'Failed to open CodeSwamp: ' + err.message });
+    if (_mounted) _safeSetState({ exportError: 'Failed to open CodeSwamp: ' + err.message });
   }
 }
 
 async function _handleLoadAiGraph() {
-  setState({ aiGraphLoading: true, aiGraphError: null, aiGraphData: null, aiGraphReport: '' });
+  if (!_mounted) return;
+  _safeSetState({ aiGraphLoading: true, aiGraphError: null, aiGraphData: null, aiGraphReport: '' });
   try {
     const repoPath = window.__activeRepoPath;
     if (!repoPath) throw new Error('No repository selected');
     const result = await window.electronAPI.graphifyLoadGraphFromStorage(repoPath);
+    if (!_mounted) return;
     if (!result || !result.ok) {
-      setState({ aiGraphLoading: false, aiGraphError: (result && result.error) || 'No AI graph found' });
+      _safeSetState({ aiGraphLoading: false, aiGraphError: (result && result.error) || 'No AI graph found' });
       return;
     }
-    setState({
+    _safeSetState({
       aiGraphLoading: false,
       aiGraphData: result.graph,
       aiGraphReport: result.report,
     });
     // Also update graphInfo so the wizard reflects the new state
-    setState({
+    _safeSetState({
       graphInfo: {
         exists: true,
         stats: result.graph?.stats || null,
@@ -721,7 +762,7 @@ async function _handleLoadAiGraph() {
       graphHasData: !!(result.graph?.nodes && result.graph.nodes.length > 0),
     });
   } catch (err) {
-    setState({ aiGraphLoading: false, aiGraphError: err.message });
+    if (_mounted) _safeSetState({ aiGraphLoading: false, aiGraphError: err.message });
   }
 }
 
@@ -931,7 +972,7 @@ function _render(state) {
   const tabContents = _els.tabContents;
   if (!prev || state.serverStatus !== prev.serverStatus || state.activeTab !== prev.activeTab) {
     for (const tc of tabContents) {
-      tc.style.display = state.serverStatus === 'running' ? 'none' : 'none';
+      tc.style.display = 'none';
     }
     if (state.serverStatus === 'running') {
       const activeContent = _root.querySelector(`.gfy-${state.activeTab}-section`);

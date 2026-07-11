@@ -799,7 +799,9 @@ var ctx=canvas.getContext('2d');
 var cx,cy,layoutR,circles,stars,pad=20,hoveredIdx=-1,selectedIdx=-1;
 
 function initCanvas(){
-  canvas.width=container.clientWidth||800;canvas.height=container.clientHeight||600;
+  var w=container.clientWidth,h=container.clientHeight;
+  if(!w||!h){setTimeout(function(){if(!w||!h)return;initCanvas();},150);return;}
+  canvas.width=w;canvas.height=h;
   cx=canvas.width/2;cy=canvas.height/2;
   layoutR=Math.min(canvas.width,canvas.height)*0.42;
   // Stars
@@ -880,7 +882,12 @@ function draw(){
 }
 function deferredInit(){try{initCanvas();}catch(e){console.error('Graph init error:',e);}}
 requestAnimationFrame(deferredInit);setTimeout(deferredInit,100);
-window.addEventListener('resize',function(){requestAnimationFrame(deferredInit);});
+var ro=new ResizeObserver(function(){requestAnimationFrame(function(){
+  var cw=container.clientWidth,ch=container.clientHeight;
+  if(cw>0&&ch>0){initCanvas();}else{setTimeout(function(){
+    if(container.clientWidth>0&&container.clientHeight>0)initCanvas();
+  },200);}
+});});ro.observe(container);
 
 function getCircleAt(x,y){
   for(var i=circles.length-1;i>=0;i--){var c=circles[i];var dx=x-c.x,dy=y-c.y;if(Math.sqrt(dx*dx+dy*dy)<=c.radius)return i;}

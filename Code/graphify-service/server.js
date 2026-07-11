@@ -768,4 +768,11 @@ function handleRetrievalStats(req, res) {
 process.on('SIGTERM', () => { closeDb(); process.exit(0); });
 process.on('SIGINT',  () => { closeDb(); process.exit(0); });
 
+process.on('unhandledRejection', (err) => {
+  process.stderr.write(`[graphify] Unhandled rejection: ${err?.message || err}\n`);
+});
+process.on('uncaughtException', (err) => {
+  process.stderr.write(`[graphify] Uncaught exception: ${err?.message || err}\n`);
+});
+
 boot();
