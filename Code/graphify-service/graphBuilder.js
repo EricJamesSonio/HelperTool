@@ -607,6 +607,7 @@ class KnowledgeGraph {
     const data = this.toVisData();
     const communities = this.getCommunities();
     const stats = this.getGraphStats();
+    const nodeCount = data.nodes.length;
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -662,6 +663,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
       </div>
     </div>
 
+      ${nodeCount > 8000 ? `
+        <div class="sidebar-section">
+          <button id="physicsToggle" style="width:100%;padding:8px;background:rgba(34,255,122,0.1);color:#22ff7a;border:1px solid rgba(34,255,122,0.3);border-radius:8px;cursor:pointer;font-size:12px;">Enable Physics</button>
+        </div>
+      ` : ''}
+
     <div class="sidebar-section">
       <div class="node-detail" id="nodeDetail"></div>
     </div>
@@ -694,8 +701,16 @@ const edges = new vis.DataSet(rawEdges);
 
 const container = document.getElementById('graph');
 const network = new vis.Network(container, { nodes, edges }, {
-  physics: { stabilization: { iterations: 100 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },
-  edges: { arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { type: 'continuous' }, font: { size: 8, color: '#5c7a68' } },
+  ${nodeCount > 8000
+      ? `physics: { enabled: false },`
+      : nodeCount > 3000
+        ? `physics: { stabilization: { iterations: 20 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },`
+        : `physics: { stabilization: { iterations: 100 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.005, springLength: 120, springConstant: 0.02, damping: 0.4 } },`
+    },
+  ${nodeCount > 8000
+      ? `edges: { arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { enabled: false }, font: { size: 8, color: '#5c7a68' } },`
+      : `edges: { arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { type: 'continuous' }, font: { size: 8, color: '#5c7a68' } },`
+    },
   nodes: { borderWidth: 1, borderWidthSelected: 2 },
   interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: { enabled: true } },
   manipulation: { enabled: false },
@@ -752,6 +767,13 @@ document.getElementById('communityList').addEventListener('click', function(e) {
     network.fit({ animation: true });
   }
 });
+${nodeCount > 8000 ? `
+document.getElementById('physicsToggle').addEventListener('click', function() {
+  var enabled = !network.physics.enabled;
+  network.setOptions({ physics: { enabled: enabled } });
+  this.textContent = enabled ? 'Disable Physics' : 'Enable Physics';
+});
+` : ''}
 </script>
 </body>
 </html>`;

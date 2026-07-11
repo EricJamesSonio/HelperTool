@@ -9,7 +9,6 @@ const http        = require('http');
 
 const symbolsJsonLoader = require('../database/symbolsJsonLoader');
 const changeDetector = require('../database/changeDetector');
-const { buildGraphHtml } = require('./generateGraphHtml');
 
 const DEFAULT_PORT = 3333;
 const START_TIMEOUT = 10000;

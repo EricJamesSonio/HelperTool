@@ -298,7 +298,7 @@ async function _handleStop() {
     serverStatus: 'stopped', serverInfo: null, endpoints: null,
     results: [], files: [], explanation: '', error: null,
     graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
-    graphHtml: null, graphLoading: false, graphError: null,
+    graphLoading: false, graphError: null,
     nodeSearchResults: [], pathResult: null, explainResult: null, affectedResult: null,
   });
 }
@@ -342,7 +342,7 @@ async function _checkServerAlive() {
       serverStatus: 'stopped', serverInfo: null, endpoints: null,
       results: [], files: [], explanation: '', error: 'Server was disconnected. Click Start to restart.',
       graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
-      graphHtml: null, graphLoading: false, graphError: null,
+      graphLoading: false, graphError: null,
     });
   }
 }
@@ -429,18 +429,9 @@ async function _handleRefreshGraph() {
     const [data, report] = await Promise.all([
       fetchGraphData(port),
       fetchGraphReport(port),
-    ]);
-    let graphHtml = null;
-    if (data && data.nodes) {
-      try {
-        const result = await window.electronAPI.graphifyGenerateGraphHtml(data);
-        if (result && result.ok) graphHtml = result.html;
-      } catch {}
-    }
     setState({
       graphData: data,
       graphStats: data?.stats || null,
-      graphHtml: graphHtml,
       graphReport: report,
       graphCommunities: data?.communities || null,
       graphLoading: false,
@@ -950,7 +941,7 @@ function _render(state) {
   }
 
   // ── Graph tab ──
-  if (state.activeTab === 'graph' && state.serverStatus === 'running' && (!prev || state.graphLoading !== prev.graphLoading || state.graphData !== prev.graphData || state.graphHtml !== prev.graphHtml || state.graphStats !== prev.graphStats || state.port !== prev.port)) {
+  if (state.activeTab === 'graph' && state.serverStatus === 'running' && (!prev || state.graphLoading !== prev.graphLoading || state.graphData !== prev.graphData || state.graphStats !== prev.graphStats || state.port !== prev.port)) {
     const graphSpinner = _els.graphSpinner;
     const placeholder = _els.graphPlaceholder;
     const iframeWrap = _els.graphIframeWrap;
@@ -968,13 +959,24 @@ function _render(state) {
         iframeWrap.innerHTML = '';
         iframeWrap.appendChild(iframe);
       }
-      if (state.graphHtml) {
-        iframe.srcdoc = state.graphHtml;
-      } else if (state.graphData) {
-        const currentPort = (iframe.src.match(/:(\d+)\//) || [])[1];
-        if (currentPort !== String(state.port)) {
-          iframe.src = `http://127.0.0.1:${state.port}/graph`;
+      const currentPort = (iframe.src.match(/:(\d+)\//) || [])[1];
+      if (currentPort !== String(state.port)) {
+        iframe.src = http://127.0.0.1:/graph;
+        let overlay = iframeWrap.querySelector('.gfy-graph-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.className = 'gfy-graph-overlay';
+          overlay.innerHTML = '<div class="gfy-graph-overlay-spinner"></div><div class="gfy-graph-overlay-text">Rendering graph\u2026</div>';
+          iframeWrap.appendChild(overlay);
         }
+        overlay.style.display = 'flex';
+        const timer = setTimeout(() => {
+          if (!overlay) return;
+          overlay.innerHTML = '<div class="gfy-graph-overlay-text">Graph is taking too long. <button class="gfy-graph-overlay-retry-btn">Retry</button></div>';
+          overlay.querySelector('.gfy-graph-overlay-retry-btn')?.addEventListener('click', () => { iframe.src = http://127.0.0.1:/graph; });
+        }, 30000);
+        iframe.onload = () => { clearTimeout(timer); if (overlay) overlay.style.display = 'none'; };
+        iframe.onerror = () => { clearTimeout(timer); if (overlay) overlay.innerHTML = '<div class="gfy-graph-overlay-text">Failed to load graph.</div>'; };
       }
     }
 

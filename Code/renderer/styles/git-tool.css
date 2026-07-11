@@ -70,28 +70,28 @@
 }
 
 .git-panel-working {
-  --panel-accent: var(--blue);
-  --panel-accent-dim: var(--blue-dim);
-  --panel-accent-glow: rgba(88,166,255,0.20);
-  --panel-accent-border: rgba(88,166,255,0.30);
-  --panel-bg-tint: rgba(88,166,255,0.025);
-  --panel-bg: rgba(88,166,255,0.04);
+  --panel-accent: var(--blue, #58a6ff);
+  --panel-accent-dim: color-mix(in srgb, var(--blue, #58a6ff) 22%, var(--bg-elevated, #0f1117));
+  --panel-accent-glow: rgba(88,166,255,0.35);
+  --panel-accent-border: rgba(88,166,255,0.5);
+  --panel-bg-tint: color-mix(in srgb, var(--blue, #58a6ff) 9%, var(--bg-base, #010409));
+  --panel-bg: color-mix(in srgb, var(--blue, #58a6ff) 7%, var(--bg-base, #010409));
 }
 .git-panel-staged {
-  --panel-accent: var(--green);
-  --panel-accent-dim: var(--green-dim);
-  --panel-accent-glow: rgba(45,212,176,0.20);
-  --panel-accent-border: rgba(45,212,176,0.30);
-  --panel-bg-tint: rgba(45,212,176,0.025);
-  --panel-bg: rgba(45,212,176,0.04);
+  --panel-accent: var(--green, #2dd4b0);
+  --panel-accent-dim: color-mix(in srgb, var(--green, #2dd4b0) 18%, var(--bg-elevated, #0f1117));
+  --panel-accent-glow: rgba(45,212,176,0.30);
+  --panel-accent-border: rgba(45,212,176,0.45);
+  --panel-bg-tint: color-mix(in srgb, var(--green, #2dd4b0) 7%, var(--bg-base, #010409));
+  --panel-bg: color-mix(in srgb, var(--green, #2dd4b0) 5%, var(--bg-base, #010409));
 }
 .git-panel-history {
-  --panel-accent: var(--purple);
-  --panel-accent-dim: var(--purple-dim);
-  --panel-accent-glow: rgba(139,92,246,0.20);
-  --panel-accent-border: rgba(139,92,246,0.30);
-  --panel-bg-tint: rgba(139,92,246,0.025);
-  --panel-bg: rgba(139,92,246,0.04);
+  --panel-accent: var(--purple, #8b5cf6);
+  --panel-accent-dim: color-mix(in srgb, var(--purple, #8b5cf6) 24%, var(--bg-elevated, #0f1117));
+  --panel-accent-glow: rgba(139,92,246,0.38);
+  --panel-accent-border: rgba(139,92,246,0.55);
+  --panel-bg-tint: color-mix(in srgb, var(--purple, #8b5cf6) 10%, var(--bg-base, #010409));
+  --panel-bg: color-mix(in srgb, var(--purple, #8b5cf6) 8%, var(--bg-base, #010409));
 }
 
 .panel-header {
@@ -219,8 +219,8 @@
 }
 
 .status-m {
-  background: var(--blue-dim);
-  color: var(--blue);
+  background: var(--blue-dim, rgba(88,166,255,0.16));
+  color: var(--blue, #58a6ff);
 }
 .status-a {
   background: var(--green-dim);
@@ -231,16 +231,16 @@
   color: var(--red);
 }
 .status-r {
-  background: var(--purple-dim);
-  color: var(--purple);
+  background: var(--purple-dim, rgba(139,92,246,0.16));
+  color: var(--purple, #8b5cf6);
 }
 .status-c {
-  background: var(--blue-dim);
-  color: var(--blue);
+  background: var(--blue-dim, rgba(88,166,255,0.16));
+  color: var(--blue, #58a6ff);
 }
 .status-u {
-  background: var(--yellow-dim);
-  color: var(--yellow);
+  background: var(--yellow-dim, rgba(234,179,8,0.16));
+  color: var(--yellow, #eab308);
 }
 
 .file-path {
@@ -847,4 +847,73 @@
     grid-column: 1;
     max-height: 250px;
   }
+}
+
+/* ══ High-contrast polish pass (additive only, nothing above restructured) ══
+   The three panels already carry --panel-accent / --panel-accent-glow /
+   --panel-accent-border custom props (blue/green/purple), just bumped
+   stronger above. These rules add a clear per-panel identity stripe and a
+   bit of glow so "which panel is which" reads instantly, without touching
+   any existing selector or layout rule. */
+
+.git-panel {
+  border-top: 2px solid var(--panel-accent-border, var(--border-default));
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset;
+}
+
+.panel-header {
+  position: relative;
+}
+
+.panel-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--panel-accent, transparent), transparent 70%);
+  opacity: 0.5;
+}
+
+.panel-title {
+  color: var(--panel-accent, var(--text-primary));
+  font-weight: 700;
+}
+
+.panel-icon svg {
+  filter: drop-shadow(0 0 6px var(--panel-accent-glow, transparent));
+}
+
+.view-tab.active {
+  box-shadow: 0 0 12px var(--panel-accent-glow, transparent);
+}
+
+.btn-primary {
+  box-shadow: 0 0 0 1px var(--panel-accent-border, transparent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 0 16px var(--panel-accent-glow, transparent);
+}
+
+.commit-id {
+  text-shadow: 0 0 10px var(--panel-accent-glow, transparent);
+}
+
+.commit-card:hover {
+  box-shadow: inset 2px 0 0 var(--panel-accent, transparent);
+}
+
+.file-item:hover {
+  box-shadow: inset 2px 0 0 var(--panel-accent, transparent);
+}
+
+/* Status badges: crisper glow so M/A/D/R/C/U reads at a glance */
+.status-m, .status-a, .status-d, .status-r, .status-c, .status-u {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset;
+}
+
+.commit-toggle-btn.active {
+  box-shadow: 0 0 10px var(--panel-accent-glow, transparent);
 }

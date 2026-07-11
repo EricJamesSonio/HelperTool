@@ -882,7 +882,51 @@
   border-radius: 10px;
 }
 
-.gfy-graph-error {
+.
+
+.gfy-graph-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(5, 8, 7, 0.85);
+  z-index: 10;
+  font-size: 13px;
+  color: #aecdbd;
+  border-radius: 10px;
+}
+
+.gfy-graph-overlay-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(34, 255, 122, 0.15);
+  border-top-color: #22ff7a;
+  border-radius: 50%;
+  animation: gfy-spin 0.7s linear infinite;
+}
+
+.gfy-graph-overlay-text {
+  color: #84a795;
+  font-size: 12px;
+}
+
+.gfy-graph-overlay-retry-btn {
+  background: rgba(34, 255, 122, 0.12);
+  color: #22ff7a;
+  border: 1px solid rgba(34, 255, 122, 0.3);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.gfy-graph-overlay-retry-btn:hover {
+  background: rgba(34, 255, 122, 0.2);
+}gfy-graph-error {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 8px;
