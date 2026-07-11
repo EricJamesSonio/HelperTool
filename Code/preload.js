@@ -534,6 +534,7 @@ const graphifyBridge = {
   graphifyCheckStatus:        (repoPath) => ipcRenderer.invoke('graphify:checkStatus', repoPath),
   graphifyExportPrompt:       (repoPath) => ipcRenderer.invoke('graphify:exportPrompt', repoPath),
   graphifyLoadGraphFromStorage: (repoPath) => ipcRenderer.invoke('graphify:loadGraphFromStorage', repoPath),
+  graphifyDetectChanges:      (repoPath) => ipcRenderer.invoke('graphify:detectChanges', repoPath),
 };
 
 contextBridge.exposeInMainWorld('envAPI', envBridge);

@@ -49,14 +49,38 @@ const state = {
 };
 
 const _listeners = new Set();
+let _pending = null;
+let _scheduled = false;
 
 function getState() {
   return { ...state, results: [...state.results], files: [...state.files] };
 }
 
-function setState(patch) {
+function _flush() {
+  if (!_pending) return;
+  const patch = _pending;
+  _pending = null;
+  _scheduled = false;
   Object.assign(state, patch);
-  _notify();
+  for (const fn of _listeners) fn(getState());
+}
+
+function setState(patch) {
+  if (_pending) {
+    Object.assign(_pending, patch);
+  } else {
+    _pending = { ...patch };
+  }
+  if (!_scheduled) {
+    _scheduled = true;
+    queueMicrotask(_flush);
+  }
+}
+
+function setStateSync(patch) {
+  _flush();
+  Object.assign(state, patch);
+  for (const fn of _listeners) fn(getState());
 }
 
 function _notify() {
@@ -68,4 +92,4 @@ function subscribe(fn) {
   return () => _listeners.delete(fn);
 }
 
-export { getState, setState, subscribe };
+export { getState, setState, setStateSync, subscribe };

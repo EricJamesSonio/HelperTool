@@ -10,15 +10,115 @@ let _unsub     = null;
 let _debounce  = null;
 let _healthTimer = null;
 
+// ── DOM cache (populated once in mount) ──
+const _els = {};
+
+// ── RAF-throttled render scheduler ──
+let _rafPending = false;
+function _scheduleRender() {
+  if (_rafPending) return;
+  _rafPending = true;
+  requestAnimationFrame(() => {
+    _rafPending = false;
+    _render(getState());
+  });
+}
+
+function _cacheEl(key, sel, ctx) {
+  _els[key] = (ctx || _root).querySelector(sel);
+}
+
+function _cacheEls(key, sel, ctx) {
+  const p = ctx || _root;
+  _els[key] = p ? Array.from(p.querySelectorAll(sel)) : [];
+}
+
+function _populateDomCache() {
+  _cacheEl('panel',            '.gfy-panel');
+  _cacheEl('statusDot',        '.gfy-status-dot');
+  _cacheEl('statusLabel',      '.gfy-status-label');
+  _cacheEl('startBtn',         '.gfy-start-btn');
+  _cacheEl('stopBtn',          '.gfy-stop-btn');
+  _cacheEl('copyBtn',          '.gfy-copy-btn');
+  _cacheEl('indexBtn',         '.gfy-index-btn');
+  _cacheEl('infoLine',         '.gfy-info-line');
+  _cacheEl('searchSection',    '.gfy-search-section');
+  _cacheEl('endpointsSection', '.gfy-endpoints-section');
+  _cacheEl('endpointsList',    '#gfyEndpointsList');
+  _cacheEl('tabBar',           '.gfy-tab-bar');
+  _cacheEls('tabContents',     '.gfy-tab-content');
+  _cacheEls('tabBtns',         '.gfy-tab');
+  _cacheEl('wizard',           '.gfy-wizard');
+  _cacheEl('spinner',          '.gfy-spinner');
+  _cacheEl('errEl',            '.gfy-error');
+  _cacheEl('expEl',            '.gfy-explanation');
+  _cacheEl('listEl',           '.gfy-results');
+  _cacheEl('graphSpinner',     '.gfy-graph-spinner');
+  _cacheEl('graphPlaceholder', '.gfy-graph-placeholder');
+  _cacheEl('graphIframeWrap',  '.gfy-graph-iframe-wrap');
+  _cacheEl('graphStatsBar',    '.gfy-graph-stats-bar');
+  _cacheEl('graphError',       '.gfy-graph-error');
+  _cacheEl('reportContent',    '.gfy-report-content');
+
+  // AI tab
+  _cacheEl('aiSpinner',       '.gfy-ai-spinner');
+  _cacheEl('aiError',         '.gfy-ai-error');
+  _cacheEl('aiResults',       '.gfy-ai-results');
+  _cacheEl('aiExportStatus',  '.gfy-export-status');
+  _cacheEl('aiStatusSymbols', '#gfyAiStatusSymbols');
+  _cacheEl('aiGraphStatusIcon', '#gfyAiGraphStatusIcon');
+  _cacheEl('aiStatusGraph',   '#gfyAiStatusGraph');
+  _cacheEl('aiSteps',         '.gfy-ai-steps');
+  _cacheEl('aiTracking',      '.gfy-ai-tracking');
+  _cacheEl('aiIntroText',     '#gfyAiIntroText');
+  _cacheEl('aiStep1Desc',     '#gfyAiStep1Desc');
+  _cacheEl('aiStep1Type',     '#gfyAiStep1Type');
+  _cacheEl('aiNoChanges',     '.gfy-ai-no-changes');
+  _cacheEl('aiTrackingChanges', '#gfyAiTrackingChanges');
+  _cacheEl('aiTrackingGenBtn', '.gfy-tracking-gen-btn');
+  _cacheEl('aiTrackingSend',  '.gfy-ai-tracking-send');
+  _cacheEl('aiFeatures',      '#gfyAiFeatures');
+  _cacheEl('aiConcepts',      '#gfyAiConcepts');
+  _cacheEl('aiReport',        '#gfyAiReport');
+  _cacheEl('aiStep3Btn',      '.gfy-ai-step:nth-child(3) .gfy-load-ai-btn');
+  _cacheEl('aiStep3Waiting',  '.gfy-ai-step:nth-child(3) .gfy-ai-step-waiting');
+
+  // Query tab
+  _cacheEl('queryPathResult',       '#gfyPathResult');
+  _cacheEl('queryExplainResult',    '#gfyExplainResult');
+  _cacheEl('queryAffectedResult',   '#gfyAffectedResult');
+  _cacheEl('queryNodeSearchResults','#gfyNodeSearchResults');
+
+  // Wizard sub-elements (queried from wizard context)
+  const wiz = _els.wizard;
+  if (wiz) {
+    _cacheEl('wizLoading',     '.gfy-wizard-loading', wiz);
+    _cacheEl('wizNeedsIndex',  '.gfy-wizard-needs-index', wiz);
+    _cacheEl('wizIndexed',     '.gfy-wizard-indexed', wiz);
+    _cacheEl('wizGraphReady',  '.gfy-wizard-graph-ready', wiz);
+    _cacheEl('wizStatsLine',   '.gfy-wizard-stats-line', wiz);
+    _cacheEl('wizStep1ExportBtn', '.gfy-wizard-step:first-child .gfy-export-btn', wiz);
+    _cacheEl('wizStep1Done',   '.gfy-wizard-step:first-child .gfy-wizard-step-done', wiz);
+    _cacheEl('wizStep1Type',   '.gfy-wizard-step:first-child .gfy-ai-step-type', wiz);
+    _cacheEl('wizStep1NoChanges', '.gfy-wizard-step:first-child .gfy-ai-no-changes', wiz);
+    _cacheEl('wizStep1Desc',   '.gfy-wizard-step:first-child .gfy-wizard-step-desc', wiz);
+    _cacheEl('wizStep3',       '.gfy-wizard-step:nth-child(3)', wiz);
+    _cacheEl('wizStep3LoadBtn','.gfy-load-ai-btn', wiz);
+    _cacheEl('wizStep3Waiting','.gfy-wizard-step-waiting', wiz);
+    _cacheEls('wizChecklistMetas', '.gfy-checklist-meta', wiz);
+    _cacheEl('wizExportStatus', '.gfy-wizard-export-status', wiz);
+    _cacheEl('wizError',       '.gfy-wizard-error', wiz);
+  }
+}
+
 export function mount(container) {
   _root = container;
   _root.innerHTML = _template();
+  _populateDomCache();
   _bindEvents();
   _unsub = subscribe(_render);
   _render(getState());
-  // Check repo status to show appropriate idle wizard
   _checkStatus();
-  // Verify server is still alive if state claims it's running
   _checkServerAlive();
 }
 
@@ -115,9 +215,6 @@ function _bindEvents() {
   const exportBtn = _root.querySelector('.gfy-export-btn');
   if (exportBtn) exportBtn.addEventListener('click', _handleExport);
 
-  const sendAiBtn = _root.querySelector('.gfy-send-ai-btn');
-  if (sendAiBtn) sendAiBtn.addEventListener('click', _handleSendToAi);
-
   const loadAiGraphBtn = _root.querySelector('.gfy-load-ai-btn');
   if (loadAiGraphBtn) loadAiGraphBtn.addEventListener('click', _handleLoadAiGraph);
 
@@ -131,7 +228,9 @@ function _bindEvents() {
   _root.querySelectorAll('.gfy-wizard .gfy-export-btn').forEach(btn => {
     btn.addEventListener('click', _handleExport);
   });
-  _root.querySelectorAll('.gfy-wizard .gfy-send-ai-btn').forEach(btn => {
+
+  // All send-to-ai buttons (steps, tracking, wizard)
+  _root.querySelectorAll('.gfy-send-ai-btn').forEach(btn => {
     btn.addEventListener('click', _handleSendToAi);
   });
   _root.querySelectorAll('.gfy-wizard .gfy-load-ai-btn').forEach(btn => {
@@ -152,8 +251,17 @@ async function _handleTrackingReindex() {
     if (!repoPath) throw new Error('No repository selected');
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
     await _checkStatus();
+    // Detect changes after re-index to show what changed
+    try {
+      const result = await window.electronAPI.graphifyDetectChanges(repoPath);
+      if (result && result.ok) {
+        setState({ pendingChanges: result.changes, symbolsInfo: result.stats });
+      }
+    } catch {}
   } catch (err) {
     setState({ exportLoading: false, error: `Re-index failed: ${err.message}` });
+  } finally {
+    setState({ exportLoading: false });
   }
 }
 
@@ -608,45 +716,51 @@ async function _handleLoadAiGraph() {
   }
 }
 
+let _prevState = null;
+
 function _render(state) {
   if (!_root) return;
+  const prev = _prevState;
+  _prevState = state;
 
   // ── Server status section ──
-  const dotEl   = _root.querySelector('.gfy-status-dot');
-  const labelEl = _root.querySelector('.gfy-status-label');
-  const startBtn = _root.querySelector('.gfy-start-btn');
-  const stopBtn  = _root.querySelector('.gfy-stop-btn');
-  const copyBtn  = _root.querySelector('.gfy-copy-btn');
-  const indexBtn = _root.querySelector('.gfy-index-btn');
-  const infoLine = _root.querySelector('.gfy-info-line');
-  const searchSection = _root.querySelector('.gfy-search-section');
-  const endpointsSection = _root.querySelector('.gfy-endpoints-section');
+  const dotEl   = _els.statusDot;
+  const labelEl = _els.statusLabel;
+  const startBtn = _els.startBtn;
+  const stopBtn  = _els.stopBtn;
+  const copyBtn  = _els.copyBtn;
+  const indexBtn = _els.indexBtn;
+  const infoLine = _els.infoLine;
+  const searchSection = _els.searchSection;
+  const endpointsSection = _els.endpointsSection;
 
   // ── Idle hero toggle (Stopped / Error = centered hero, else compact top bar) ──
-  const panelEl = _root.querySelector('.gfy-panel');
+  const panelEl = _els.panel;
   if (panelEl) {
     panelEl.classList.toggle('gfy-idle', state.serverStatus === 'stopped' || state.serverStatus === 'error');
   }
 
-  if (dotEl) {
+  if (dotEl && (!prev || state.serverStatus !== prev.serverStatus)) {
     dotEl.className = 'gfy-status-dot gfy-dot-' + state.serverStatus;
   }
 
-  const statusLabels = {
-    stopped:  'Stopped',
-    starting: 'Starting\u2026',
-    running:  'Running on :' + state.port,
-    error:    'Error',
-  };
-  if (labelEl) labelEl.textContent = statusLabels[state.serverStatus] || 'Unknown';
+  if (labelEl && (!prev || state.serverStatus !== prev.serverStatus || state.port !== prev.port)) {
+    const statusLabels = {
+      stopped:  'Stopped',
+      starting: 'Starting\u2026',
+      running:  'Running on :' + state.port,
+      error:    'Error',
+    };
+    labelEl.textContent = statusLabels[state.serverStatus] || 'Unknown';
+  }
 
-  if (startBtn) startBtn.style.display  = state.serverStatus === 'running' ? 'flex' : 'none';
-  if (stopBtn)  stopBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
-  if (copyBtn)  copyBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
-  if (indexBtn) indexBtn.style.display  = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
+  if (startBtn && (!prev || state.serverStatus !== prev.serverStatus)) startBtn.style.display  = state.serverStatus === 'running' ? 'flex' : 'none';
+  if (stopBtn && (!prev || state.serverStatus !== prev.serverStatus))  stopBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
+  if (copyBtn && (!prev || state.serverStatus !== prev.serverStatus))  copyBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
+  if (indexBtn && (!prev || state.serverStatus !== prev.serverStatus || state.statusLoading !== prev.statusLoading || state.repoStatus !== prev.repoStatus)) indexBtn.style.display  = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
 
   // ── Info line (styled as a stat card, echoing the reference dashboard) ──
-  if (infoLine) {
+  if (infoLine && (!prev || state.serverStatus !== prev.serverStatus || state.serverInfo !== prev.serverInfo)) {
     if (state.serverStatus === 'running' && state.serverInfo) {
       const si = state.serverInfo;
       infoLine.innerHTML =
@@ -663,45 +777,39 @@ function _render(state) {
   }
 
   // ── Wizard section (idle hero repo status) ──
-  const wizard = _root.querySelector('.gfy-wizard');
-  if (wizard) {
+  const wizard = _els.wizard;
+  if (wizard && (!prev || state.serverStatus !== prev.serverStatus || state.statusLoading !== prev.statusLoading || state.repoStatus !== prev.repoStatus || state.symbolsInfo !== prev.symbolsInfo || state.promptExists !== prev.promptExists || state.promptType !== prev.promptType || state.graphInfo !== prev.graphInfo || state.graphHasData !== prev.graphHasData || state.exportStatus !== prev.exportStatus || state.exportError !== prev.exportError || state.pendingChanges !== prev.pendingChanges)) {
     const isIdle = state.serverStatus === 'stopped' || state.serverStatus === 'error';
     wizard.style.display = isIdle ? 'flex' : 'none';
 
     if (isIdle) {
-      // Loading
-      const loading = wizard.querySelector('.gfy-wizard-loading');
+      const loading = _els.wizLoading;
       if (loading) loading.style.display = state.statusLoading ? 'flex' : 'none';
 
-      // Needs index
-      const needsIndex = wizard.querySelector('.gfy-wizard-needs-index');
+      const needsIndex = _els.wizNeedsIndex;
       if (needsIndex) {
         needsIndex.style.display = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
       }
 
-      // Indexed (with steps wizard)
-      const indexed = wizard.querySelector('.gfy-wizard-indexed');
+      const indexed = _els.wizIndexed;
       if (indexed) {
         indexed.style.display = (!state.statusLoading && state.repoStatus === 'indexed' && !state.graphInfo?.exists) ? 'flex' : 'none';
       }
 
-      // Graph ready
-      const graphReady = wizard.querySelector('.gfy-wizard-graph-ready');
+      const graphReady = _els.wizGraphReady;
       if (graphReady) {
         graphReady.style.display = (!state.statusLoading && state.repoStatus === 'indexed' && state.graphInfo?.exists) ? 'flex' : 'none';
       }
 
-      // Stats line in indexed header
-      const statsLine = wizard.querySelector('.gfy-wizard-stats-line');
+      const statsLine = _els.wizStatsLine;
       if (statsLine && state.symbolsInfo) {
         statsLine.textContent = `${state.symbolsInfo.files} files \u00B7 ${state.symbolsInfo.symbols} symbols \u00B7 ${state.symbolsInfo.imports} imports`;
       }
 
-      // Step 1: toggle generate button vs done state based on promptExists
-      const step1ExportBtn = wizard.querySelector('.gfy-wizard-step:first-child .gfy-export-btn');
-      const step1Done = wizard.querySelector('.gfy-wizard-step:first-child .gfy-wizard-step-done');
-      const step1Type = wizard.querySelector('.gfy-wizard-step:first-child .gfy-ai-step-type');
-      const step1NoChanges = wizard.querySelector('.gfy-wizard-step:first-child .gfy-ai-no-changes');
+      const step1ExportBtn = _els.wizStep1ExportBtn;
+      const step1Done = _els.wizStep1Done;
+      const step1Type = _els.wizStep1Type;
+      const step1NoChanges = _els.wizStep1NoChanges;
       if (step1ExportBtn && step1Done) {
         step1ExportBtn.style.display = state.promptExists ? 'none' : 'inline-flex';
         step1Done.style.display = state.promptExists ? 'flex' : 'none';
@@ -721,8 +829,7 @@ function _render(state) {
         step1NoChanges.style.display = state.exportStatus?.noChanges ? 'flex' : 'none';
       }
 
-      // Step 1 description: update based on prompt type
-      const step1Desc = wizard.querySelector('.gfy-wizard-step:first-child .gfy-wizard-step-desc');
+      const step1Desc = _els.wizStep1Desc;
       if (step1Desc) {
         if (state.promptType === 'incremental' && state.pendingChanges) {
           step1Desc.textContent = `Detected ${state.pendingChanges.total} changed files. Generate an incremental update prompt.`;
@@ -733,11 +840,10 @@ function _render(state) {
         }
       }
 
-      // Step 3: toggle load button vs waiting state based on graphHasData
-      const step3 = wizard.querySelector('.gfy-wizard-step:nth-child(3)');
+      const step3 = _els.wizStep3;
       if (step3) {
-        const loadBtn = step3.querySelector('.gfy-load-ai-btn');
-        const waiting = step3.querySelector('.gfy-wizard-step-waiting');
+        const loadBtn = _els.wizStep3LoadBtn;
+        const waiting = _els.wizStep3Waiting;
         if (loadBtn && waiting) {
           const showLoad = state.graphInfo?.exists && state.graphHasData;
           loadBtn.style.display = showLoad ? 'inline-flex' : 'none';
@@ -745,9 +851,8 @@ function _render(state) {
         }
       }
 
-      // Graph-ready checklist metadata
-      const checklistMetas = wizard.querySelectorAll('.gfy-checklist-meta');
-      if (checklistMetas.length >= 2) {
+      const checklistMetas = _els.wizChecklistMetas;
+      if (checklistMetas && checklistMetas.length >= 2) {
         if (state.symbolsInfo) {
           checklistMetas[0].textContent = `${state.symbolsInfo.files} files \u00B7 ${state.symbolsInfo.symbols} symbols`;
         }
@@ -757,8 +862,7 @@ function _render(state) {
         }
       }
 
-      // Export status in wizard
-      const exportStatusEl = wizard.querySelector('.gfy-wizard-export-status');
+      const exportStatusEl = _els.wizExportStatus;
       if (exportStatusEl) {
         if (state.exportStatus && !state.exportStatus.noChanges) {
           const s = state.exportStatus;
@@ -776,8 +880,7 @@ function _render(state) {
         }
       }
 
-      // Error in wizard
-      const wizardError = wizard.querySelector('.gfy-wizard-error');
+      const wizardError = _els.wizError;
       if (wizardError) {
         wizardError.textContent = state.exportError || '';
         wizardError.style.display = state.exportError ? 'block' : 'none';
@@ -786,16 +889,16 @@ function _render(state) {
   }
 
   // ── Search section ──
-  if (searchSection) {
+  if (searchSection && (!prev || state.serverStatus !== prev.serverStatus)) {
     searchSection.style.display = state.serverStatus === 'running' ? 'flex' : 'none';
   }
 
   // ── Endpoints section ──
-  if (endpointsSection) {
+  if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints)) {
     const show = state.serverStatus === 'running' && state.endpoints;
     endpointsSection.style.display = show ? 'flex' : 'none';
     if (show) {
-      const listEl = _root.querySelector('#gfyEndpointsList');
+      const listEl = _els.endpointsList;
       if (listEl) {
         listEl.innerHTML = state.endpoints.map(ep => {
           const methodClass = 'gfy-ep-' + ep.method.toLowerCase();
@@ -810,33 +913,37 @@ function _render(state) {
   }
 
   // ── Tab bar ──
-  const tabBar = _root.querySelector('.gfy-tab-bar');
-  if (tabBar) {
+  const tabBar = _els.tabBar;
+  if (tabBar && (!prev || state.serverStatus !== prev.serverStatus)) {
     tabBar.style.display = state.serverStatus === 'running' ? 'flex' : 'none';
   }
 
   // ── Tab content visibility ──
-  const tabContents = _root.querySelectorAll('.gfy-tab-content');
-  for (const tc of tabContents) {
-    tc.style.display = state.serverStatus === 'running' ? 'none' : 'none';
-  }
-  if (state.serverStatus === 'running') {
-    const activeContent = _root.querySelector(`.gfy-${state.activeTab}-section`);
-    if (activeContent) activeContent.style.display = 'flex';
+  const tabContents = _els.tabContents;
+  if (!prev || state.serverStatus !== prev.serverStatus || state.activeTab !== prev.activeTab) {
+    for (const tc of tabContents) {
+      tc.style.display = state.serverStatus === 'running' ? 'none' : 'none';
+    }
+    if (state.serverStatus === 'running') {
+      const activeContent = _root.querySelector(`.gfy-${state.activeTab}-section`);
+      if (activeContent) activeContent.style.display = 'flex';
+    }
   }
 
   // ── Tab active class ──
-  const tabBtns = _root.querySelectorAll('.gfy-tab');
-  for (const tb of tabBtns) {
-    tb.classList.toggle('gfy-tab-active', tb.dataset.tab === state.activeTab);
+  const tabBtns = _els.tabBtns;
+  if (!prev || state.activeTab !== prev.activeTab) {
+    for (const tb of tabBtns) {
+      tb.classList.toggle('gfy-tab-active', tb.dataset.tab === state.activeTab);
+    }
   }
 
   // ── Graph tab ──
-  if (state.activeTab === 'graph' && state.serverStatus === 'running') {
-    const graphSpinner = _root.querySelector('.gfy-graph-spinner');
-    const placeholder = _root.querySelector('.gfy-graph-placeholder');
-    const iframeWrap = _root.querySelector('.gfy-graph-iframe-wrap');
-    const statsBar = _root.querySelector('.gfy-graph-stats-bar');
+  if (state.activeTab === 'graph' && state.serverStatus === 'running' && (!prev || state.graphLoading !== prev.graphLoading || state.graphData !== prev.graphData || state.graphStats !== prev.graphStats || state.port !== prev.port)) {
+    const graphSpinner = _els.graphSpinner;
+    const placeholder = _els.graphPlaceholder;
+    const iframeWrap = _els.graphIframeWrap;
+    const statsBar = _els.graphStatsBar;
 
     if (graphSpinner) graphSpinner.style.display = state.graphLoading ? 'flex' : 'none';
     if (placeholder) placeholder.style.display = (!state.graphLoading && !state.graphData) ? 'flex' : 'none';
@@ -864,8 +971,8 @@ function _render(state) {
   }
 
   // ── Report tab ──
-  if (state.activeTab === 'report' && state.graphReport) {
-    const reportContent = _root.querySelector('.gfy-report-content');
+  if (state.activeTab === 'report' && state.graphReport && (!prev || state.graphReport !== prev.graphReport || state.graphStats !== prev.graphStats)) {
+    const reportContent = _els.reportContent;
     if (reportContent) {
       const r = state.graphReport;
       let html = '';
@@ -910,11 +1017,11 @@ function _render(state) {
   }
 
   // ── AI Graph tab ──
-  if (state.activeTab === 'ai' && state.serverStatus === 'running') {
-    const spinner = _root.querySelector('.gfy-ai-spinner');
-    const error = _root.querySelector('.gfy-ai-error');
-    const results = _root.querySelector('.gfy-ai-results');
-    const exportStatus = _root.querySelector('.gfy-export-status');
+  if (state.activeTab === 'ai' && state.serverStatus === 'running' && (!prev || state.aiGraphLoading !== prev.aiGraphLoading || state.exportLoading !== prev.exportLoading || state.aiGraphError !== prev.aiGraphError || state.exportError !== prev.exportError || state.aiGraphData !== prev.aiGraphData || state.symbolsInfo !== prev.symbolsInfo || state.graphHasData !== prev.graphHasData || state.graphInfo !== prev.graphInfo || state.promptType !== prev.promptType || state.exportStatus !== prev.exportStatus || state.promptExists !== prev.promptExists || state.pendingChanges !== prev.pendingChanges || state.aiGraphReport !== prev.aiGraphReport)) {
+    const spinner = _els.aiSpinner;
+    const error = _els.aiError;
+    const results = _els.aiResults;
+    const exportStatus = _els.aiExportStatus;
 
     if (spinner) spinner.style.display = state.aiGraphLoading || state.exportLoading ? 'flex' : 'none';
     if (error) {
@@ -923,8 +1030,7 @@ function _render(state) {
     }
     if (results) results.style.display = state.aiGraphData ? 'block' : 'none';
 
-    // Status bar
-    const statusSymbols = _root.querySelector('#gfyAiStatusSymbols');
+    const statusSymbols = _els.aiStatusSymbols;
     if (statusSymbols) {
       if (state.symbolsInfo) {
         statusSymbols.textContent = `${state.symbolsInfo.files} files \u00B7 ${state.symbolsInfo.symbols} symbols \u00B7 ${state.symbolsInfo.imports} imports`;
@@ -932,12 +1038,12 @@ function _render(state) {
         statusSymbols.textContent = 'Not indexed';
       }
     }
-    const graphStatusIcon = _root.querySelector('#gfyAiGraphStatusIcon');
+    const graphStatusIcon = _els.aiGraphStatusIcon;
     if (graphStatusIcon) {
       graphStatusIcon.textContent = state.graphHasData ? '\u2713' : '\u2022';
       graphStatusIcon.className = 'gfy-ai-status-icon' + (state.graphHasData ? ' gfy-ai-status-ok' : ' gfy-ai-status-pending');
     }
-    const statusGraph = _root.querySelector('#gfyAiStatusGraph');
+    const statusGraph = _els.aiStatusGraph;
     if (statusGraph) {
       if (state.graphHasData && state.graphInfo?.stats) {
         const gs = state.graphInfo.stats;
@@ -949,10 +1055,9 @@ function _render(state) {
       }
     }
 
-    // Toggle between first-time steps and tracking section
-    const stepsEl = _root.querySelector('.gfy-ai-steps');
-    const trackingEl = _root.querySelector('.gfy-ai-tracking');
-    const introText = _root.querySelector('#gfyAiIntroText');
+    const stepsEl = _els.aiSteps;
+    const trackingEl = _els.aiTracking;
+    const introText = _els.aiIntroText;
     if (stepsEl) stepsEl.style.display = state.graphHasData ? 'none' : 'flex';
     if (trackingEl) trackingEl.style.display = state.graphHasData ? 'flex' : 'none';
     if (introText) {
@@ -961,11 +1066,10 @@ function _render(state) {
         : 'Generate a prompt, send it to your AI, then load the enriched knowledge graph.';
     }
 
-    // Steps: first-time enrichment flow (when !graphHasData)
     if (!state.graphHasData) {
-      const step1Desc = _root.querySelector('#gfyAiStep1Desc');
-      const step1Type = _root.querySelector('#gfyAiStep1Type');
-      const noChanges = _root.querySelector('.gfy-ai-no-changes');
+      const step1Desc = _els.aiStep1Desc;
+      const step1Type = _els.aiStep1Type;
+      const noChanges = _els.aiNoChanges;
       if (step1Desc) {
         if (state.promptType === 'incremental' && state.pendingChanges) {
           step1Desc.textContent = `Detected ${state.pendingChanges.total} changed files. Generate an incremental update prompt.`;
@@ -988,7 +1092,6 @@ function _render(state) {
         noChanges.style.display = state.exportStatus?.noChanges ? 'flex' : 'none';
       }
 
-      // Steps export status
       if (exportStatus) {
         if (state.exportStatus && !state.exportStatus.noChanges) {
           const s = state.exportStatus;
@@ -999,9 +1102,8 @@ function _render(state) {
         }
       }
 
-      // Step 3: gate on graphHasData
-      const step3Btn = _root.querySelector('.gfy-ai-step:nth-child(3) .gfy-load-ai-btn');
-      const step3Waiting = _root.querySelector('.gfy-ai-step:nth-child(3) .gfy-ai-step-waiting');
+      const step3Btn = _els.aiStep3Btn;
+      const step3Waiting = _els.aiStep3Waiting;
       if (step3Btn && step3Waiting) {
         const showLoad = state.graphInfo?.exists && state.graphHasData;
         step3Btn.style.display = showLoad ? 'inline-flex' : 'none';
@@ -1009,11 +1111,10 @@ function _render(state) {
       }
     }
 
-    // Tracking section (when graphHasData)
     if (state.graphHasData) {
-      const trackingChanges = _root.querySelector('#gfyAiTrackingChanges');
-      const trackingGenBtn = _root.querySelector('.gfy-tracking-gen-btn');
-      const trackingSend = _root.querySelector('.gfy-ai-tracking-send');
+      const trackingChanges = _els.aiTrackingChanges;
+      const trackingGenBtn = _els.aiTrackingGenBtn;
+      const trackingSend = _els.aiTrackingSend;
 
       if (trackingChanges) {
         if (state.exportLoading) {
@@ -1037,7 +1138,6 @@ function _render(state) {
         }
       }
 
-      // Tracking export status
       const trackingExportStatus = trackingEl ? trackingEl.querySelector('.gfy-export-status') : null;
       if (trackingExportStatus) {
         if (state.exportStatus && state.exportStatus.promptType === 'incremental' && !state.exportStatus.noChanges) {
@@ -1057,8 +1157,7 @@ function _render(state) {
     if (state.aiGraphData) {
       const g = state.aiGraphData;
 
-      // Features
-      const featuresEl = _root.querySelector('#gfyAiFeatures');
+      const featuresEl = _els.aiFeatures;
       if (featuresEl && g.features) {
         const featureNames = Object.keys(g.features);
         featuresEl.innerHTML = '<div class="gfy-ai-section-title">Features (' + featureNames.length + ')</div>' +
@@ -1072,8 +1171,7 @@ function _render(state) {
           }).join('');
       }
 
-      // Concepts
-      const conceptsEl = _root.querySelector('#gfyAiConcepts');
+      const conceptsEl = _els.aiConcepts;
       if (conceptsEl && g.concepts) {
         const conceptNames = Object.keys(g.concepts);
         conceptsEl.innerHTML = '<div class="gfy-ai-section-title">Key Concepts (' + conceptNames.length + ')</div>' +
@@ -1086,8 +1184,7 @@ function _render(state) {
           }).join('');
       }
 
-      // Report markdown
-      const reportEl = _root.querySelector('#gfyAiReport');
+      const reportEl = _els.aiReport;
       if (reportEl && state.aiGraphReport) {
         reportEl.innerHTML = '<div class="gfy-ai-section-title">Report</div>' +
           '<div class="gfy-ai-report-body">' + _esc(state.aiGraphReport).replace(/\n/g, '<br>') + '</div>';
@@ -1096,8 +1193,8 @@ function _render(state) {
   }
 
   // ── Query tab results ──
-  if (state.activeTab === 'query') {
-    const pathResult = _root.querySelector('#gfyPathResult');
+  if (state.activeTab === 'query' && (!prev || state.pathResult !== prev.pathResult || state.explainResult !== prev.explainResult || state.affectedResult !== prev.affectedResult || state.nodeSearchResults !== prev.nodeSearchResults || state.nodeSearchQuery !== prev.nodeSearchQuery)) {
+    const pathResult = _els.queryPathResult;
     if (pathResult && state.pathResult) {
       if (state.pathResult.path) {
         pathResult.innerHTML = '<div class="gfy-query-result-label">Path found:</div>' +
@@ -1109,7 +1206,7 @@ function _render(state) {
       }
     }
 
-    const explainResult = _root.querySelector('#gfyExplainResult');
+    const explainResult = _els.queryExplainResult;
     if (explainResult && state.explainResult) {
       if (state.explainResult.nodes) {
         explainResult.innerHTML = `<div class="gfy-query-result-label">Neighborhood (${state.explainResult.nodes.length} nodes, ${state.explainResult.edges.length} edges):</div>` +
@@ -1121,7 +1218,7 @@ function _render(state) {
       }
     }
 
-    const affectedResult = _root.querySelector('#gfyAffectedResult');
+    const affectedResult = _els.queryAffectedResult;
     if (affectedResult && state.affectedResult) {
       if (state.affectedResult.nodes) {
         affectedResult.innerHTML = `<div class="gfy-query-result-label">Affected nodes (${state.affectedResult.nodes.length} nodes, ${state.affectedResult.edges.length} edges):</div>` +
@@ -1133,7 +1230,7 @@ function _render(state) {
       }
     }
 
-    const nodeSearchResults = _root.querySelector('#gfyNodeSearchResults');
+    const nodeSearchResults = _els.queryNodeSearchResults;
     if (nodeSearchResults && state.nodeSearchResults) {
       if (state.nodeSearchResults.length > 0) {
         nodeSearchResults.innerHTML = state.nodeSearchResults.map(n =>
@@ -1146,33 +1243,37 @@ function _render(state) {
   }
 
   // ── Graph loading/error overlay for query tab ──
-  const graphError = _root.querySelector('.gfy-graph-error');
-  if (graphError) {
+  const graphError = _els.graphError;
+  if (graphError && (!prev || state.graphError !== prev.graphError)) {
     graphError.textContent = state.graphError || '';
     graphError.style.display = state.graphError ? 'block' : 'none';
   }
 
   // ── Error ──
-  const errEl = _root.querySelector('.gfy-error');
-  if (errEl) {
+  const errEl = _els.errEl;
+  if (errEl && (!prev || state.error !== prev.error)) {
     errEl.textContent = state.error || '';
     errEl.style.display = state.error ? 'block' : 'none';
   }
 
   // ── Loading spinner ──
-  const spinner = _root.querySelector('.gfy-spinner');
-  if (spinner) spinner.style.display = state.loading ? 'flex' : 'none';
+  const spinner = _els.spinner;
+  if (spinner && (!prev || state.loading !== prev.loading)) spinner.style.display = state.loading ? 'flex' : 'none';
 
   // ── Explanation ──
-  const expEl = _root.querySelector('.gfy-explanation');
-  if (expEl) {
+  const expEl = _els.expEl;
+  if (expEl && (!prev || state.explanation !== prev.explanation)) {
     expEl.textContent = state.explanation || '';
     expEl.style.display = state.explanation ? 'block' : 'none';
   }
 
   // ── Results list ──
-  const listEl = _root.querySelector('.gfy-results');
+  const listEl = _els.listEl;
   if (!listEl) return;
+
+  if (prev && state.loading === prev.loading && state.files === prev.files && state.query === prev.query && state.results === prev.results) {
+    return;
+  }
 
   if (!state.loading && state.files.length === 0 && state.query) {
     listEl.innerHTML = `<div class="gfy-empty"><span class="gfy-empty-icon">\uD83D\uDD0D</span> No relevant files found.</div>`;

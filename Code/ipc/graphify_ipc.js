@@ -718,6 +718,28 @@ function register({ app }) {
       return { ok: false, error: `Failed to load graph: ${err.message}` };
     }
   });
+
+  ipcMain.handle('graphify:detectChanges', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    const data = symbolsJsonLoader.load(repoPath);
+    if (!data || data.repoPath !== repoPath) {
+      return { ok: false, error: 'symbols.json not found. Index your codebase first.' };
+    }
+    const changes = changeDetector.detectChangesSimple(repoPath);
+    const hasGraph = changes && changes.hasPreviousGraph;
+    const totalChanged = changes ? changes.changedFiles.length + changes.newFiles.length : 0;
+    return {
+      ok: true,
+      changes: hasGraph ? {
+        total: totalChanged,
+        changed: changes.changedFiles.length,
+        new: changes.newFiles.length,
+        changeRatio: changes.changeRatio,
+        tooManyChanges: changes.changeRatio > 0.5,
+      } : null,
+      stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
+    };
+  });
 }
 
 function shutdown() {

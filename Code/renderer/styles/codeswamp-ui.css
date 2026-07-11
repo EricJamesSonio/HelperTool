@@ -394,7 +394,7 @@
 
 .oc-welcome-content {
   text-align: center;
-  opacity: 0.5;
+  opacity: 1;
 }
 
 .oc-welcome-content h2 {
@@ -2040,4 +2040,122 @@ Claude Fab
 
 .oc-bkp-pct {
   text-shadow: 0 0 10px color-mix(in srgb, var(--accent, #10b981) 50%, transparent);
+}
+
+/* ─── Blue-forward pass: welcome screen + sidebar ──────────────────────── */
+/* Additive only — overrides a couple of specific properties (welcome
+   opacity) via normal cascade order, doesn't remove or restructure anything. */
+
+/* Welcome screen: full blue glow instead of flat dim grey */
+.oc-welcome-content {
+  opacity: 1;
+}
+
+.oc-welcome-content svg {
+  width: 72px;
+  height: 72px;
+  color: #22d3ee;
+  filter: drop-shadow(0 0 28px rgba(34, 211, 238, 0.65));
+}
+
+.oc-welcome-content h2 {
+  font-size: 32px;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #f0f6fc 0%, #7fe6f7 55%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 44px rgba(34, 211, 238, 0.45);
+}
+
+.oc-welcome-content p {
+  font-size: 15px;
+  color: #8fc4dc;
+}
+
+.oc-welcome {
+  background: radial-gradient(ellipse 75% 65% at 50% 42%, rgba(34, 211, 238, 0.16) 0%, transparent 72%);
+}
+
+/* ─── Sidebar: higher-contrast blue throughout ─────────────────────────── */
+
+.oc-sidebar {
+  background: linear-gradient(180deg, #0a1420 0%, #0a0c10 55%);
+  border-right: 1px solid rgba(34, 211, 238, 0.18);
+}
+
+.oc-repo-path-bar {
+  color: #7fc9de;
+  background: rgba(34, 211, 238, 0.05);
+  border-bottom: 1px solid rgba(34, 211, 238, 0.14);
+}
+
+.oc-btn-new-chat {
+  border: 1px dashed rgba(34, 211, 238, 0.35);
+  color: #7fc9de;
+}
+
+.oc-btn-new-chat:hover {
+  border-color: #22d3ee;
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.oc-settings-label,
+.oc-conv-group-label {
+  color: #4d8fae;
+}
+
+.oc-settings-select,
+.oc-parallel-select {
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  color: #cfeef8;
+}
+
+.oc-settings-select:focus,
+.oc-parallel-select:focus {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.15);
+}
+
+.oc-sidebar-toggle {
+  color: #4d8fae;
+  border-color: rgba(34, 211, 238, 0.18);
+}
+
+.oc-sidebar-toggle:hover {
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.oc-conv-item {
+  border-left: 2px solid transparent;
+}
+
+.oc-conv-item:hover {
+  background: rgba(34, 211, 238, 0.07);
+  border-left-color: rgba(34, 211, 238, 0.35);
+}
+
+.oc-conv-item.active {
+  background: rgba(34, 211, 238, 0.12);
+  border-left-color: #22d3ee;
+  box-shadow: inset 0 0 20px rgba(34, 211, 238, 0.06);
+}
+
+.oc-conv-item-title {
+  color: #eaf7fb;
+}
+
+.oc-conv-item-time,
+.oc-conv-item-count {
+  color: #5c8ba0;
+}
+
+.oc-toggle-slider {
+  border-color: rgba(34, 211, 238, 0.25);
+}
+
+.oc-toggle input:checked + .oc-toggle-slider {
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
 }
