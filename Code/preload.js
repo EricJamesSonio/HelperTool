@@ -214,6 +214,29 @@ const terminalBridge = {
     },
 };
 
+const errorCopBridge = {
+    getErrors:         (opts)      => ipcRenderer.invoke('error-cop:getErrors', opts),
+    getSessionErrors:  (sessionId) => ipcRenderer.invoke('error-cop:getSessionErrors', sessionId),
+    getTimeline:       (opts)      => ipcRenderer.invoke('error-cop:getTimeline', opts),
+    getSessions:       (limit)     => ipcRenderer.invoke('error-cop:getSessions', limit),
+    getSession:        (id)        => ipcRenderer.invoke('error-cop:getSession', id),
+    markRead:          ()          => ipcRenderer.invoke('error-cop:markRead'),
+    getUnreadCount:    ()          => ipcRenderer.invoke('error-cop:getUnreadCount'),
+    getBrowserServers: (sessionId) => ipcRenderer.invoke('error-cop:getBrowserServers', sessionId),
+    onNewError: (callback) => {
+        ipcRenderer.removeAllListeners('error-cop:new-error');
+        ipcRenderer.on('error-cop:new-error', (_, payload) => callback(payload));
+    },
+    onUnreadCount: (callback) => {
+        ipcRenderer.removeAllListeners('error-cop:unread-count');
+        ipcRenderer.on('error-cop:unread-count', (_, payload) => callback(payload));
+    },
+    onTimelineEvent: (callback) => {
+        ipcRenderer.removeAllListeners('error-cop:timeline-event');
+        ipcRenderer.on('error-cop:timeline-event', (_, payload) => callback(payload));
+    },
+};
+
 // ── Window controls ──
 const windowControls = {
     minimize: () => ipcRenderer.send('window:minimize'),
@@ -556,6 +579,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...dbInspectorBridge,
     ...portManagerBridge,
     ...terminalBridge,
+    ...errorCopBridge,
     ...docignoreManagerBridge,
     ...teamActivityBridge,
     ...blueprintBridge,

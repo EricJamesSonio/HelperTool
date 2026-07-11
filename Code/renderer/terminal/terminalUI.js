@@ -80,6 +80,7 @@ const ICON_OUTPUT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" 
 const ICON_CHEVRON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M6 8l4 4 4-4"/></svg>';
 
 import { showOutputViewer } from '../utils/outputViewer.js';
+import ErrorCopUI from './error-cop-ui.js';
 
 function _stripAnsiForDetection(text) {
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
@@ -99,6 +100,7 @@ export default class TerminalUI {
     this._addBtn = null;
     this._addLabel = null;
     this._shellDropdown = null;
+    this._errorCop = new ErrorCopUI();
   }
 
   async init() {

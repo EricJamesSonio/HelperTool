@@ -800,7 +800,7 @@ var cx,cy,layoutR,circles,stars,pad=20,hoveredIdx=-1,selectedIdx=-1;
 
 function initCanvas(){
   var w=container.clientWidth,h=container.clientHeight;
-  if(!w||!h){setTimeout(function(){if(!w||!h)return;initCanvas();},150);return;}
+  if(!w||!h){setTimeout(function(){if(container.clientWidth>0&&container.clientHeight>0)initCanvas();},150);return;}
   canvas.width=w;canvas.height=h;
   cx=canvas.width/2;cy=canvas.height/2;
   layoutR=Math.min(canvas.width,canvas.height)*0.42;

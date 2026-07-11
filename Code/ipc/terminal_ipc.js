@@ -9,6 +9,16 @@ try { pty = require('node-pty'); } catch { }
 const terminals = new Map();
 let nextId = 1;
 
+let _errorEngine = null;
+
+function setErrorEngine(engine) {
+  _errorEngine = engine;
+}
+
+function getErrorEngine() {
+  return _errorEngine;
+}
+
 function detectShells() {
   const shells = [];
   const isWin = process.platform === 'win32';
@@ -82,9 +92,21 @@ function register({ getMainWindow }) {
       env,
     });
 
+    // ── Error Cop: Create session ──
+    let sessionId = null;
+    if (_errorEngine) {
+      const session = _errorEngine.createSession({ cwd: resolvedCwd, shell, command: '' });
+      sessionId = session.sessionId;
+    }
+
     term.onData((data) => {
       if (win && !win.isDestroyed()) {
         win.webContents.send('terminal:data', { id, data });
+
+        // ── Error Cop: Process output ──
+        if (_errorEngine && sessionId) {
+          _errorEngine.processOutput(sessionId, data);
+        }
       }
     });
 
@@ -92,11 +114,15 @@ function register({ getMainWindow }) {
       if (win && !win.isDestroyed()) {
         win.webContents.send('terminal:exit', { id, exitCode, signal });
       }
+      // ── Error Cop: End session ──
+      if (_errorEngine && sessionId) {
+        _errorEngine.endSession(sessionId, exitCode);
+      }
       terminals.delete(id);
     });
 
-    terminals.set(id, { term, cwd: resolvedCwd, shell });
-    return { id, cwd: resolvedCwd };
+    terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId });
+    return { id, cwd: resolvedCwd, sessionId };
   });
 
   ipcMain.handle('terminal:write', (event, { id, data }) => {
@@ -118,4 +144,4 @@ function register({ getMainWindow }) {
   });
 }
 
-module.exports = { register };
+module.exports = { register, setErrorEngine, getErrorEngine };

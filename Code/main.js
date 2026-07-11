@@ -40,10 +40,12 @@ const opencodeIpc = require('./ipc/opencode_ipc.js');
 const geminiIpc = require('./ipc/gemini_ipc.js');
 const codebaseMapIpc = require('./ipc/codebaseMap_ipc.js');
 const graphifyIpc = require('./ipc/graphify_ipc.js');
+const errorCopIpc = require('./ipc/error_cop_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { initChatDb, closeChatDb } = require('./database/chatDb.js');
 const { createInspectorSchema } = require('./database/dbInspector.js');
+const { initErrorCopDb } = require('./database/errorCopDb.js');
 const prefetchService = require('./ipc/prefetchService.js');
 const serviceTrackerIpc = require('./ipc/serviceTracker_ipc.js');
 
@@ -97,6 +99,7 @@ if (!gotTheLock) {
             try {
                 await initDatabase(app);
                 await initChatDb(app);
+                await initErrorCopDb(app);
                 createInspectorSchema();
                 const { getDb, getDbPath } = require('./database/db.js');
                 const _p = getDbPath();
@@ -172,6 +175,7 @@ function registerAllIpc() {
     geminiIpc.register();
     codebaseMapIpc.register();
     graphifyIpc.register({ app });
+    errorCopIpc.register({ app, getMainWindow });
 }
 
 // ----------------------------
