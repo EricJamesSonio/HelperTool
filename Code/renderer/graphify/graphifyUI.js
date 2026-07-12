@@ -72,6 +72,9 @@ function _populateDomCache() {
   _cacheEl('aiStatusSymbols', '#gfyAiStatusSymbols');
   _cacheEl('aiGraphStatusIcon', '#gfyAiGraphStatusIcon');
   _cacheEl('aiStatusGraph',   '#gfyAiStatusGraph');
+  _cacheEl('aiLoadSection',   '.gfy-ai-load-section');
+  _cacheEl('aiLoadBtn',       '.gfy-ai-load-section .gfy-load-ai-btn');
+  _cacheEl('aiLoadWaiting',   '.gfy-ai-load-waiting');
   _cacheEl('aiSteps',         '.gfy-ai-steps');
   _cacheEl('aiTracking',      '.gfy-ai-tracking');
   _cacheEl('aiIntroText',     '#gfyAiIntroText');
@@ -84,8 +87,6 @@ function _populateDomCache() {
   _cacheEl('aiFeatures',      '#gfyAiFeatures');
   _cacheEl('aiConcepts',      '#gfyAiConcepts');
   _cacheEl('aiReport',        '#gfyAiReport');
-  _cacheEl('aiStep3Btn',      '.gfy-ai-step:nth-child(3) .gfy-load-ai-btn');
-  _cacheEl('aiStep3Waiting',  '.gfy-ai-step:nth-child(3) .gfy-ai-step-waiting');
 
   // Query tab
   _cacheEl('queryPathResult',       '#gfyPathResult');
@@ -248,6 +249,10 @@ function _bindEvents() {
 
   const loadAiGraphBtn = _root.querySelector('.gfy-load-ai-btn');
   if (loadAiGraphBtn) loadAiGraphBtn.addEventListener('click', _handleLoadAiGraph);
+
+  // AI tab's dedicated load button
+  const aiLoadBtn = _root.querySelector('.gfy-ai-load-section .gfy-load-ai-btn');
+  if (aiLoadBtn && aiLoadBtn !== loadAiGraphBtn) aiLoadBtn.addEventListener('click', _handleLoadAiGraph);
 
   // Wizard section buttons (idle hero) — bind all instances
   _root.querySelectorAll('.gfy-wizard .gfy-start-btn').forEach(btn => {
@@ -1203,24 +1208,26 @@ function _render(state) {
       }
     }
 
+    const loadSection = _els.aiLoadSection;
+    const loadBtn = _els.aiLoadBtn;
+    const loadWaiting = _els.aiLoadWaiting;
     const stepsEl = _els.aiSteps;
     const trackingEl = _els.aiTracking;
     const introText = _els.aiIntroText;
-    if (stepsEl) stepsEl.style.display = 'flex';
+
+    if (loadSection) loadSection.style.display = 'flex';
+    if (loadBtn && loadWaiting) {
+      const graphExists = state.graphInfo?.exists;
+      loadBtn.style.display = graphExists ? 'inline-flex' : 'none';
+      loadWaiting.style.display = graphExists ? 'none' : 'flex';
+    }
+
+    if (stepsEl) stepsEl.style.display = state.graphHasData ? 'none' : 'flex';
     if (trackingEl) trackingEl.style.display = state.graphHasData ? 'flex' : 'none';
     if (introText) {
       introText.textContent = state.graphHasData
         ? 'Knowledge graph is ready. Re-index to detect file changes and generate incremental updates.'
         : 'Generate a prompt, send it to your AI, then load the enriched knowledge graph.';
-    }
-
-    if (stepsEl) {
-      const step1 = stepsEl.querySelector('.gfy-ai-step:nth-child(1)');
-      const step2 = stepsEl.querySelector('.gfy-ai-step:nth-child(2)');
-      const step3 = stepsEl.querySelector('.gfy-ai-step:nth-child(3)');
-      if (step1) step1.style.display = state.graphHasData ? 'none' : '';
-      if (step2) step2.style.display = state.graphHasData ? 'none' : '';
-      if (step3) step3.style.display = '';
     }
 
     if (!state.graphHasData) {
@@ -1258,14 +1265,6 @@ function _render(state) {
           exportStatus.style.display = 'none';
         }
       }
-    }
-
-    const step3Btn = _els.aiStep3Btn;
-    const step3Waiting = _els.aiStep3Waiting;
-    if (step3Btn && step3Waiting) {
-      const graphExists = state.graphInfo?.exists;
-      step3Btn.style.display = graphExists ? 'inline-flex' : 'none';
-      step3Waiting.style.display = graphExists ? 'none' : 'flex';
     }
 
     if (state.graphHasData) {
@@ -1815,6 +1814,24 @@ function _template() {
           </div>
         </div>
 
+        <div class="gfy-ai-load-section">
+          <div class="gfy-ai-load-header">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+            <span>Graph Context</span>
+          </div>
+          <div class="gfy-ai-load-desc">Load the enriched knowledge graph to view features, concepts, and report data that serves as query context.</div>
+          <div class="gfy-ai-load-actions">
+            <button class="gfy-load-ai-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+              Load AI Graph
+            </button>
+            <div class="gfy-ai-load-waiting" style="display:none">
+              <span class="gfy-ai-step-waiting-dot"></span>
+              <span>No enriched graph found yet. Run the prompt with your AI first.</span>
+            </div>
+          </div>
+        </div>
+
         <div class="gfy-ai-steps" style="display:none">
           <div class="gfy-ai-step">
             <div class="gfy-ai-step-num">1</div>
@@ -1842,22 +1859,6 @@ function _template() {
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
                 Send Prompt to CodeSwamp
               </button>
-            </div>
-          </div>
-
-          <div class="gfy-ai-step">
-            <div class="gfy-ai-step-num">3</div>
-            <div class="gfy-ai-step-body">
-              <div class="gfy-ai-step-title">Load AI Graph</div>
-              <div class="gfy-ai-step-desc">Load the enriched graph.json and graph.md into the viewer.</div>
-              <button class="gfy-load-ai-btn">
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
-                Load AI Graph
-              </button>
-              <div class="gfy-ai-step-waiting" style="display:none">
-                <span class="gfy-ai-step-waiting-dot"></span>
-                <span class="gfy-ai-step-waiting-text">No enriched graph found yet. Run the prompt with your AI first.</span>
-              </div>
             </div>
           </div>
         </div>

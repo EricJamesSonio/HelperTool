@@ -1276,6 +1276,54 @@
   color: #84a795;
 }
 
+.gfy-ai-load-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: rgba(10, 20, 14, 0.5);
+  border: 1px solid rgba(34, 255, 122, 0.18);
+  border-radius: 10px;
+}
+
+.gfy-ai-load-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #eafff2;
+}
+
+.gfy-ai-load-header svg {
+  width: 16px;
+  height: 16px;
+  color: #22ff7a;
+  flex-shrink: 0;
+}
+
+.gfy-ai-load-desc {
+  font-size: 11px;
+  color: #84a795;
+  line-height: 1.4;
+}
+
+.gfy-ai-load-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.gfy-ai-load-waiting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #84a795;
+}
+
 .gfy-ai-steps {
   display: flex;
   flex-direction: column;

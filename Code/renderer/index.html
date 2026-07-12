@@ -345,6 +345,9 @@
 <!-- ══ Search suggestions — outside #app to escape stacking context ══ -->
 <ul id="searchSuggestions" class="search-suggestions"></ul>
 
+<script>
+(function(){var A=new Set(['[Main]','[Tray]','[Docignore]','[DocIgnore]']),B='[ErrorCop] processOutput failed',L=console.log,E=console.error,W=console.warn;console.log=function(){if(arguments.length&&typeof arguments[0]==='string'){var m=arguments[0].match(/^\[[^\]]*\]/);if(!m||!A.has(m[0]))return}return L.apply(console,arguments)};console.error=function(){if(arguments.length&&typeof arguments[0]==='string'&&arguments[0].startsWith(B))return;return E.apply(console,arguments)};console.warn=function(){if(arguments.length&&typeof arguments[0]==='string'&&arguments[0].startsWith(B))return;return W.apply(console,arguments)}})();
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

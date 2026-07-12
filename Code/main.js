@@ -1,3 +1,5 @@
+require('./utils/log').install();
+
 const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
 const path = require('path');
 
@@ -135,6 +137,8 @@ if (!gotTheLock) {
                 }, 800);
             });
         });
+
+        console.log('[Main] Helper Tool app running...');
 
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
