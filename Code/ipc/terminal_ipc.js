@@ -95,8 +95,12 @@ function register({ getMainWindow }) {
     // ── Error Cop: Create session ──
     let sessionId = null;
     if (_errorEngine) {
-      const session = _errorEngine.createSession({ cwd: resolvedCwd, shell, command: '' });
-      sessionId = session.sessionId;
+      try {
+        const session = _errorEngine.createSession({ cwd: resolvedCwd, shell, command: '' });
+        sessionId = session.sessionId;
+      } catch (e) {
+        console.error('[ErrorCop] createSession failed:', e);
+      }
     }
 
     term.onData((data) => {
@@ -105,7 +109,11 @@ function register({ getMainWindow }) {
 
         // ── Error Cop: Process output ──
         if (_errorEngine && sessionId) {
-          _errorEngine.processOutput(sessionId, data);
+          try {
+            _errorEngine.processOutput(sessionId, data);
+          } catch (e) {
+            console.error('[ErrorCop] processOutput failed:', e);
+          }
         }
       }
     });
@@ -116,7 +124,11 @@ function register({ getMainWindow }) {
       }
       // ── Error Cop: End session ──
       if (_errorEngine && sessionId) {
-        _errorEngine.endSession(sessionId, exitCode);
+        try {
+          _errorEngine.endSession(sessionId, exitCode);
+        } catch (e) {
+          console.error('[ErrorCop] endSession failed:', e);
+        }
       }
       terminals.delete(id);
     });

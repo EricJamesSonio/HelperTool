@@ -14,38 +14,45 @@ function register({ getMainWindow }) {
   const storage = () => _errorEngine.getStorage();
   const notify = () => _errorEngine.getNotify();
 
-  ipcMain.handle('error-cop:getErrors', (event, { project, level, limit, offset } = {}) => {
+  const safe = (fn) => {
+    return async (...args) => {
+      try { return await fn(...args); }
+      catch (e) { console.error('[ErrorCop] IPC error:', e); return []; }
+    };
+  };
+
+  ipcMain.handle('error-cop:getErrors', safe((event, { project, level, limit, offset } = {}) => {
     return storage().getErrors({ project, level, limit, offset });
-  });
+  }));
 
-  ipcMain.handle('error-cop:getSessionErrors', (event, sessionId) => {
+  ipcMain.handle('error-cop:getSessionErrors', safe((event, sessionId) => {
     return storage().getErrorsBySession(sessionId);
-  });
+  }));
 
-  ipcMain.handle('error-cop:getTimeline', (event, { project, limit } = {}) => {
+  ipcMain.handle('error-cop:getTimeline', safe((event, { project, limit } = {}) => {
     return storage().getTimeline({ project, limit });
-  });
+  }));
 
-  ipcMain.handle('error-cop:getSessions', (event, limit) => {
+  ipcMain.handle('error-cop:getSessions', safe((event, limit) => {
     return storage().getRecentSessions(limit);
-  });
+  }));
 
-  ipcMain.handle('error-cop:getSession', (event, id) => {
+  ipcMain.handle('error-cop:getSession', safe((event, id) => {
     return storage().getSession(id);
-  });
+  }));
 
-  ipcMain.handle('error-cop:markRead', () => {
+  ipcMain.handle('error-cop:markRead', safe(() => {
     notify().resetUnreadCount();
     return { success: true };
-  });
+  }));
 
-  ipcMain.handle('error-cop:getUnreadCount', () => {
+  ipcMain.handle('error-cop:getUnreadCount', safe(() => {
     return { count: notify().getUnreadCount() };
-  });
+  }));
 
-  ipcMain.handle('error-cop:getBrowserServers', (event, sessionId) => {
+  ipcMain.handle('error-cop:getBrowserServers', safe((event, sessionId) => {
     return storage().getBrowserServers(sessionId);
-  });
+  }));
 }
 
 module.exports = { register };

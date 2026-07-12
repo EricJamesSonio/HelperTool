@@ -23,6 +23,7 @@ const DEFAULT_SHORTCUTS = {
   uiLayoutHelper: null,
   essentialsGlossary: null,
   graphify: null,
+  errorCop: null,
 };
 
 const S = { shortcuts: {} };

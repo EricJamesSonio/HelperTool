@@ -129,22 +129,37 @@ export default class ErrorCopUI {
 
   _listenIPC() {
     window.electronAPI.onNewError(({ error }) => {
-      this._showToast(`🔴 ${error.title}`);
+      try {
+        if (error && error.title) {
+          this._showToast(`🔴 ${error.title}`);
+        }
+      } catch (e) {
+        console.error('[ErrorCop] onNewError handler failed:', e);
+      }
     });
 
     window.electronAPI.onTimelineEvent((event) => {
-      this._timeline.unshift(event);
-      if (this._timeline.length > 200) this._timeline.length = 200;
-      if (this._isOpen && this._activeTab === 'timeline') this._renderTimeline();
+      try {
+        if (!event) return;
+        this._timeline.unshift(event);
+        if (this._timeline.length > 200) this._timeline.length = 200;
+        if (this._isOpen && this._activeTab === 'timeline') this._renderTimeline();
+      } catch (e) {
+        console.error('[ErrorCop] onTimelineEvent handler failed:', e);
+      }
     });
 
     window.electronAPI.onUnreadCount(({ count }) => {
-      this._lastUnread = count;
-      if (this._badgeEl) {
-        this._badgeEl.textContent = count > 99 ? '99+' : String(count);
-        this._badgeEl.style.display = count > 0 ? 'flex' : 'none';
+      try {
+        this._lastUnread = typeof count === 'number' ? count : 0;
+        if (this._badgeEl) {
+          this._badgeEl.textContent = count > 99 ? '99+' : String(count);
+          this._badgeEl.style.display = count > 0 ? 'flex' : 'none';
+        }
+        if (this._unreadEl) this._unreadEl.textContent = String(this._lastUnread);
+      } catch (e) {
+        console.error('[ErrorCop] onUnreadCount handler failed:', e);
       }
-      if (this._unreadEl) this._unreadEl.textContent = String(count);
     });
   }
 

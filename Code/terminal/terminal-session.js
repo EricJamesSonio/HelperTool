@@ -1,8 +1,10 @@
-const { getActiveProject } = require('../config/config.js');
+const { readConfig } = require('../config/config.js');
 
 function detectProject(cwd) {
-  const active = getActiveProject();
-  if (active) return active.split(/[\\/]/).pop() || 'Unknown';
+  try {
+    const cfg = readConfig();
+    if (cfg && cfg.activeProject) return cfg.activeProject.split(/[\\/]/).pop() || 'Unknown';
+  } catch {}
   if (cwd) return cwd.split(/[\\/]/).pop() || 'Terminal';
   return 'Terminal';
 }

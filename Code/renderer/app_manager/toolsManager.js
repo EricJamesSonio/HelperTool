@@ -667,6 +667,16 @@ function _buildShortcutActions() {
       _registry.closeAll();
       _terminalUI.open(state.selectedRepoPath);
     };
+
+    actions.errorCop = async () => {
+      if (!_terminalUI) {
+        _terminalUI = new TerminalUI();
+        _registry.setTerminalUI(_terminalUI);
+        await _terminalUI.init();
+      }
+      _registry.closeAll();
+      _terminalUI._errorCop.toggle();
+    };
   }
 
   if (_feats.canvasTool) {

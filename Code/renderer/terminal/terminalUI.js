@@ -112,6 +112,8 @@ export default class TerminalUI {
     }
     this._selectedShell = this.shells[0];
 
+    this._errorCop.init();
+
     this._createPanel();
 
     window.electronAPI.onTerminalData(({ id, data }) => {
@@ -147,6 +149,7 @@ export default class TerminalUI {
           </button>
         </div>
         <div class="terminal-tabs-right">
+          <div style="position:relative;display:inline-flex" id="ecpTerminalBtnContainer"></div>
           <button class="terminal-view-output" id="terminalViewOutput" title="View terminal output in modal">${ICON_OUTPUT} Output</button>
           <button class="terminal-panel-close" id="terminalPanelClose" title="Close terminal panel">${ICON_CLOSE}</button>
         </div>
@@ -162,6 +165,12 @@ export default class TerminalUI {
 
     this.panel.querySelector('#terminalPanelClose').addEventListener('click', () => this.close());
     this.panel.querySelector('#terminalViewOutput').addEventListener('click', () => this._viewTerminalOutput());
+
+    // ── Error Cop button ──
+    const ecpContainer = this.panel.querySelector('#ecpTerminalBtnContainer');
+    const ecpBtn = this._errorCop.createTerminalButton();
+    ecpBtn.appendChild(this._errorCop.getBadgeEl());
+    ecpContainer.appendChild(ecpBtn);
 
     this._addBtn = this.panel.querySelector('#terminalTabAdd');
     this._addLabel = this.panel.querySelector('.terminal-tab-add-label');
