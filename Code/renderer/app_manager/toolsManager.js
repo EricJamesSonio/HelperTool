@@ -111,8 +111,9 @@ let _githubTool    = null;
 let _githubPanel   = null;
 let _githubContainer = null;
 
-let _graphifyPanel     = null;
-let _graphifyContainer  = null;
+let _graphifyPanel      = null;
+let _graphifyContainer   = null;
+let _graphifyInitialized = false;
 
 let _terminalUI   = null;
 let _dockerTool  = null;
@@ -352,7 +353,7 @@ function populateSidebar() {
   }, 'layout'));
 
   body.appendChild(createSidebarItem(ICONS.graphify, 'Graphify', 'Find relevant code by natural language', async () => {
-    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); return; }
+    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
     _registry.closeAll();
     if (!_graphifyPanel) _initGraphifyPanel();
     _graphifyPanel.classList.add('open');
@@ -431,10 +432,20 @@ async function _mountGraphify() {
   if (!_graphifyContainer) return;
   try {
     const graphify = await import('../graphify.js');
-    graphify.activate(_graphifyContainer);
+    if (!_graphifyInitialized) {
+      graphify.activate(_graphifyContainer);
+      _graphifyInitialized = true;
+    } else {
+      graphify.show();
+    }
+    _registry.setGraphifyHideCallback(() => graphify.hide());
   } catch (err) {
     console.error('[Tools] Graphify:', err);
   }
+}
+
+function _hideGraphify() {
+  import('../graphify.js').then(m => m.hide()).catch(() => {});
 }
 
 function _initLocPanel() {
@@ -807,7 +818,7 @@ function _buildShortcutActions() {
   };
 
   actions.graphify = async () => {
-    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); return; }
+    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
     _registry.closeAll();
     if (!_graphifyPanel) _initGraphifyPanel();
     _graphifyPanel.classList.add('open');
@@ -833,6 +844,7 @@ function _buildShortcutActions() {
 
 function _destroyGraphify() {
   import('../graphify.js').then(m => m.deactivate()).catch(() => {});
+  _graphifyInitialized = false;
   if (_graphifyContainer) _graphifyContainer.innerHTML = '';
   if (_graphifyPanel) _graphifyPanel.classList.remove('open');
 }

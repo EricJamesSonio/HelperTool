@@ -20,6 +20,7 @@ let _port      = DEFAULT_PORT;
 let _ready     = false;
 let _repoPath  = null;
 let _app       = null;
+let _starting  = false;
 
 function _getServerPath() {
   return path.join(__dirname, '..', 'graphify-service', 'server.js');
@@ -42,6 +43,7 @@ function _spawn(app) {
     // Clean up any stale child reference
     _child = null;
     _ready = false;
+    _starting = true;
 
     const serverPath = _getServerPath();
     const dbPath = _resolveDbPath(app);
@@ -78,16 +80,18 @@ function _spawn(app) {
     });
 
     _child.on('exit', (code) => {
+      _starting = false;
       console.warn(`[graphify_ipc] Server exited with code ${code}`);
       _child = null;
       _ready = false;
       if (code !== 0 && code !== null) {
-        console.warn(`[graphify_ipc] Server crashed (exit=${code}). It can be restarted via the Graphify UI.`);
+        console.warn(`[graphify_ipc] Server crashed (exit=${code}).`);
       }
       reject(new Error(`Server exited with code ${code}`));
     });
 
     _child.on('error', (err) => {
+      _starting = false;
       console.error(`[graphify_ipc] Spawn error: ${err.message}`);
       _child = null;
       _ready = false;
@@ -96,6 +100,7 @@ function _spawn(app) {
 
     setTimeout(() => {
       if (!_ready) {
+        _starting = false;
         _stop();
         reject(new Error('Server did not become ready within timeout'));
       }
@@ -104,6 +109,7 @@ function _spawn(app) {
 }
 
 function _stop() {
+  _starting = false;
   if (_child) {
     try { _child.kill('SIGTERM'); } catch (_) {}
     _child = null;
@@ -575,6 +581,14 @@ function register({ app }) {
   ipcMain.handle('graphify:stop', async () => {
     _stop();
     return { ok: true };
+  });
+
+  ipcMain.handle('graphify:cancelStart', async () => {
+    if (_starting) {
+      _stop();
+      return { ok: true, cancelled: true };
+    }
+    return { ok: true, cancelled: false };
   });
 
   ipcMain.handle('graphify:restart', async (_, repoPath) => {

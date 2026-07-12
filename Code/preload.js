@@ -557,6 +557,7 @@ const codebaseMapBridge = {
 const graphifyBridge = {
   graphifyStart:              (repoPath) => ipcRenderer.invoke('graphify:start', repoPath),
   graphifyStop:               ()          => ipcRenderer.invoke('graphify:stop'),
+  graphifyCancelStart:        ()          => ipcRenderer.invoke('graphify:cancelStart'),
   graphifyRestart:            (repoPath) => ipcRenderer.invoke('graphify:restart', repoPath),
   graphifyStatus:             ()          => ipcRenderer.invoke('graphify:status'),
   graphifyGetPort:            ()          => ipcRenderer.invoke('graphify:getPort'),

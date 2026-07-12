@@ -5,11 +5,13 @@ import {
   searchGraphNodes, getGraphNeighborhood, getGraphShortestPath, getGraphAffected,
 } from './graphifyClient.js';
 
-let _root      = null;
-let _unsub     = null;
-let _debounce  = null;
-let _healthTimer = null;
-let _mounted   = false;
+let _root          = null;
+let _unsub         = null;
+let _debounce      = null;
+let _healthTimer   = null;
+let _mounted       = false;
+let _initialized   = false;
+let _startCancelRequested = false;
 
 // ── DOM cache (populated once in mount) ──
 const _els = {};
@@ -40,6 +42,7 @@ function _populateDomCache() {
   _cacheEl('statusLabel',      '.gfy-status-label');
   _cacheEl('startBtn',         '.gfy-start-btn');
   _cacheEl('stopBtn',          '.gfy-stop-btn');
+  _cacheEl('cancelBtn',        '.gfy-cancel-btn');
   _cacheEl('copyBtn',          '.gfy-copy-btn');
   _cacheEl('indexBtn',         '.gfy-index-btn');
   _cacheEl('infoLine',         '.gfy-info-line');
@@ -115,13 +118,17 @@ function _populateDomCache() {
 export function mount(container) {
   _root = container;
   _mounted = true;
-  _root.innerHTML = _template();
-  _populateDomCache();
-  _bindEvents();
+  if (!_initialized) {
+    _root.innerHTML = _template();
+    _populateDomCache();
+    _bindEvents();
+    _initialized = true;
+  }
+  if (_unsub) _unsub();
   _unsub = subscribe(_render);
   _render(getState());
   _checkStatus();
-  _checkServerAlive();
+  _performStatusSync();
 }
 
 function _startHealthTimer() {
@@ -139,10 +146,25 @@ function _stopHealthTimer() {
 
 export function unmount() {
   _mounted = false;
+  _initialized = false;
   _stopHealthTimer();
   if (_unsub) { _unsub(); _unsub = null; }
   if (_debounce) clearTimeout(_debounce);
   _root = null;
+}
+
+export function show() {
+  if (!_root) return;
+  _mounted = true;
+  if (_unsub) _unsub();
+  _unsub = subscribe(_render);
+  _render(getState());
+  _checkStatus();
+  _performStatusSync();
+}
+
+export function hide() {
+  _stopHealthTimer();
 }
 
 function _safeSetState(patch) {
@@ -152,6 +174,7 @@ function _safeSetState(patch) {
 function _bindEvents() {
   const startBtn = _root.querySelector('.gfy-start-btn');
   const stopBtn  = _root.querySelector('.gfy-stop-btn');
+  const cancelBtn = _root.querySelector('.gfy-cancel-btn');
   const copyBtn  = _root.querySelector('.gfy-copy-btn');
   const indexBtn = _root.querySelector('.gfy-index-btn');
   const input    = _root.querySelector('.gfy-input');
@@ -160,6 +183,7 @@ function _bindEvents() {
 
   startBtn.addEventListener('click', _handleStart);
   stopBtn.addEventListener('click', _handleStop);
+  if (cancelBtn) cancelBtn.addEventListener('click', _handleCancel);
   copyBtn.addEventListener('click', _handleCopyUrl);
   if (indexBtn) indexBtn.addEventListener('click', _handleIndex);
 
@@ -281,10 +305,16 @@ async function _handleStart() {
     _safeSetState({ error: 'Generate the knowledge graph first before starting the server.' });
     return;
   }
+  _startCancelRequested = false;
   _safeSetState({ serverStatus: 'starting', error: null });
   try {
     const result = await window.electronAPI.graphifyStart(window.__activeRepoPath || null);
     if (!result.ok) throw new Error(result.error || 'Failed to start server');
+    if (_startCancelRequested) {
+      await window.electronAPI.graphifyStop();
+      _safeSetState({ serverStatus: 'stopped', error: null });
+      return;
+    }
     if (!_mounted) return;
     _safeSetState({ port: result.port, serverStatus: 'running' });
     _startHealthTimer();
@@ -297,8 +327,26 @@ async function _handleStart() {
     if (info && !info.error) _safeSetState({ serverInfo: info });
     _handleRefreshGraph();
   } catch (err) {
-    _safeSetState({ serverStatus: 'error', error: err.message });
+    if (_startCancelRequested) {
+      _safeSetState({ serverStatus: 'stopped', error: null });
+    } else {
+      _safeSetState({ serverStatus: 'error', error: err.message });
+    }
   }
+}
+
+async function _handleCancel() {
+  _startCancelRequested = true;
+  _stopHealthTimer();
+  try {
+    await window.electronAPI.graphifyCancelStart();
+  } catch {}
+  _safeSetState({
+    serverStatus: 'stopped', serverInfo: null, endpoints: null,
+    error: null,
+  });
+  const _gf = _els?.graphIframeWrap?.querySelector('.gfy-graph-iframe');
+  if (_gf) { _gf.src = ''; _gf.onload = null; _gf.onerror = null; if (_gf._ovTimer) clearTimeout(_gf._ovTimer); _gf._ovTimer = null; }
 }
 
 async function _handleStop() {
@@ -370,6 +418,21 @@ async function _checkServerAlive(retries = 2) {
     const _df = _els?.graphIframeWrap?.querySelector('.gfy-graph-iframe');
     if (_df) { _df.src = ''; _df.onload = null; _df.onerror = null; if (_df._ovTimer) clearTimeout(_df._ovTimer); _df._ovTimer = null; }
   }
+}
+
+async function _performStatusSync() {
+  if (!_mounted) return;
+  try {
+    const status = await window.electronAPI.graphifyStatus();
+    if (!_mounted) return;
+    if (status.running) {
+      const s = getState();
+      if (s.serverStatus !== 'running') {
+        _safeSetState({ port: status.port, serverStatus: 'running' });
+        _startHealthTimer();
+      }
+    }
+  } catch {}
 }
 
 async function _checkStatus() {
@@ -804,8 +867,21 @@ function _render(state) {
     labelEl.textContent = statusLabels[state.serverStatus] || 'Unknown';
   }
 
-  if (startBtn && (!prev || state.serverStatus !== prev.serverStatus)) startBtn.style.display  = state.serverStatus === 'running' ? 'flex' : 'none';
-  if (stopBtn && (!prev || state.serverStatus !== prev.serverStatus))  stopBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
+  const cancelBtn = _els.cancelBtn;
+  if (startBtn && (!prev || state.serverStatus !== prev.serverStatus)) {
+    const show = state.serverStatus === 'stopped' || state.serverStatus === 'error';
+    startBtn.style.display = show ? 'flex' : 'none';
+    if (show) {
+      const label = startBtn.querySelector('span');
+      if (label) label.textContent = state.serverStatus === 'error' ? 'Restart Server' : 'Start Server';
+    }
+  }
+  if (stopBtn && (!prev || state.serverStatus !== prev.serverStatus)) {
+    stopBtn.style.display = state.serverStatus === 'running' ? 'flex' : 'none';
+  }
+  if (cancelBtn && (!prev || state.serverStatus !== prev.serverStatus)) {
+    cancelBtn.style.display = state.serverStatus === 'starting' ? 'flex' : 'none';
+  }
   if (copyBtn && (!prev || state.serverStatus !== prev.serverStatus))  copyBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
   if (indexBtn && (!prev || state.serverStatus !== prev.serverStatus || state.statusLoading !== prev.statusLoading || state.repoStatus !== prev.repoStatus)) indexBtn.style.display  = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
 
@@ -1421,11 +1497,15 @@ function _template() {
           <div class="gfy-actions-row">
             <button class="gfy-start-btn" style="display:none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l12 7-12 7V3z"/></svg>
-              Start Server
+              <span>Start Server</span>
             </button>
             <button class="gfy-stop-btn" style="display:none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>
               Stop Server
+            </button>
+            <button class="gfy-cancel-btn" style="display:none">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="15" y2="15"/><line x1="15" y1="5" x2="5" y2="15"/></svg>
+              <span>Cancel</span>
             </button>
             <button class="gfy-copy-btn" style="display:none" title="Copy API URL to clipboard">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="11" height="13" rx="1.5"/><path d="M8 2h7a1 1 0 0 1 1 1v11"/></svg>

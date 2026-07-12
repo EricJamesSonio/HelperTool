@@ -28,6 +28,7 @@ export default class PanelRegistry {
     this._essentialsGlossary = null;
     this._dockerTool = null;
     this._graphifyPanel = null;
+    this._graphifyHideCb = null;
   }
 
   // Register external tools that don't use a panel element
@@ -47,6 +48,7 @@ export default class PanelRegistry {
   setDockerTool(t)        { this._dockerTool = t; }
   setTerminalUI(t)        { this._terminalUI = t; }
   setGraphifyPanel(p)     { this._graphifyPanel = p; }
+  setGraphifyHideCallback(fn) { this._graphifyHideCb = fn; }
 
 
   // Register a panel element by name
@@ -119,6 +121,7 @@ export default class PanelRegistry {
 
     // Graphify — close panel when any other tool opens
     if (this._graphifyPanel?.classList.contains('open')) {
+      if (this._graphifyHideCb) this._graphifyHideCb();
       this._graphifyPanel.classList.remove('open');
     }
 

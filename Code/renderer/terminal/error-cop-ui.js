@@ -32,6 +32,7 @@ export default class ErrorCopUI {
     this._allBrowserServers = [];
     this._selectMode = false;
     this._selectedSessionIds = new Set();
+    this._refreshTimer = null;
   }
 
   init() {
@@ -185,16 +186,44 @@ export default class ErrorCopUI {
     // Load data
     await this._loadData();
     this._render();
+    this._startRefresh();
   }
 
   close() {
     this._isOpen = false;
     this._wrapper.classList.remove('open');
+    this._stopRefresh();
   }
 
   toggle() {
     if (this._isOpen) this.close();
     else this.open();
+  }
+
+  _startRefresh() {
+    this._stopRefresh();
+    this._refreshTimer = setInterval(() => this._pollBrowserServers(), 5000);
+  }
+
+  _stopRefresh() {
+    if (this._refreshTimer) {
+      clearInterval(this._refreshTimer);
+      this._refreshTimer = null;
+    }
+  }
+
+  async _pollBrowserServers() {
+    if (!this._isOpen) return;
+    try {
+      const servers = await window.electronAPI.getAllBrowserServers();
+      if (!servers) return;
+      if (JSON.stringify(this._allBrowserServers) !== JSON.stringify(servers)) {
+        this._allBrowserServers = servers;
+        if (this._activeTab === 'sessions' && !this._showOccurrenceView) {
+          this._renderSessions();
+        }
+      }
+    } catch {}
   }
 
   async _loadData() {

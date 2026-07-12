@@ -1,4 +1,4 @@
-import { mount, unmount } from './graphifyUI.js';
+import { mount, unmount, show, hide } from './graphifyUI.js';
 
 let _container = null;
 
@@ -13,4 +13,12 @@ export function destroy() {
     _container.innerHTML = '';
     _container = null;
   }
+}
+
+export function showPanel() {
+  show();
+}
+
+export function hidePanel() {
+  hide();
 }

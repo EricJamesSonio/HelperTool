@@ -14,13 +14,21 @@ const FRAMEWORK_PATTERNS = [
   { pattern: /webpack/i, name: 'Webpack' },
 ];
 
+const ANSI_RE = /[\x1b\x9b][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d\/#&.:=?%@~_]+)*|[a-zA-Z\d]+(?:;[-a-zA-Z\d\/#&.:=?%@~_]*)*)?\x07)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
+
+function stripAnsi(str) {
+  if (!str) return '';
+  return str.replace(ANSI_RE, '');
+}
+
 class BrowserDiscovery {
   constructor() {
     this._discovered = new Set();
   }
 
   scanLine(line, sessionId, outputAccumulator) {
-    const urlMatch = line.match(/https?:\/\/localhost:(\d+)/i);
+    const clean = stripAnsi(line);
+    const urlMatch = clean.match(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)/i);
     if (!urlMatch) return null;
 
     const port = parseInt(urlMatch[1], 10);
@@ -28,11 +36,11 @@ class BrowserDiscovery {
     this._discovered.add(port);
 
     const url = urlMatch[0];
-    const context = outputAccumulator.join('\n');
+    const context = stripAnsi(outputAccumulator.join('\n'));
     let framework = 'Unknown';
 
     for (const fp of FRAMEWORK_PATTERNS) {
-      if (fp.pattern.test(context) || fp.pattern.test(line)) {
+      if (fp.pattern.test(context) || fp.pattern.test(clean)) {
         framework = fp.name;
         break;
       }
