@@ -1069,10 +1069,11 @@ function _render(state) {
     }
   }
 
-  // ── Graph auto-fullscreen (hide left column, keep tab bar) ──
+  // ── Tab auto-fullscreen (hide left column, keep tab bar) ──
   const bodyEl = _root?.querySelector('.gfy-body');
   if (bodyEl && (!prev || state.activeTab !== prev.activeTab)) {
     bodyEl.classList.toggle('gfy-graph-active', state.activeTab === 'graph' && state.serverStatus === 'running');
+    bodyEl.classList.toggle('gfy-ai-active', state.activeTab === 'ai');
   }
 
   // ── Graph tab ──
