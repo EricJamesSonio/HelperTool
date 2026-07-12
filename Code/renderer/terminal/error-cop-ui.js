@@ -170,13 +170,15 @@ export default class ErrorCopUI {
   async open() {
     if (this._isOpen) return;
     this._isOpen = true;
-    this._wrapper.classList.add('open');
 
-    // Close other open tool panels
+    // Close other open tool panels BEFORE we show ours
+    // (so our own panel isn't caught by closeAll's .ecp-wrapper check)
     try {
       const { closeAllPanels } = await import('../app_manager/toolsManager.js');
       closeAllPanels();
     } catch {}
+
+    this._wrapper.classList.add('open');
 
     // Mark read when opening
     try {
@@ -672,7 +674,10 @@ export default class ErrorCopUI {
     }
 
     if (items.length === 0) {
-      this._leftCol.innerHTML += `<div class="ecp-empty"><div class="ecp-empty-icon">${ICON_SHIELD}</div><div>No errors in this session.</div></div>`;
+      const emptyEl = document.createElement('div');
+      emptyEl.className = 'ecp-empty';
+      emptyEl.innerHTML = `<div class="ecp-empty-icon">${ICON_SHIELD}</div><div>No errors in this session.</div>`;
+      this._leftCol.appendChild(emptyEl);
       this._renderSessionRight(s, items, browserServers);
       return;
     }

@@ -216,6 +216,7 @@
 
 .gfy-start-btn,
 .gfy-stop-btn,
+.gfy-cancel-btn,
 .gfy-copy-btn {
   display: inline-flex;
   align-items: center;
@@ -232,10 +233,22 @@
 
 .gfy-start-btn svg,
 .gfy-stop-btn svg,
+.gfy-cancel-btn svg,
 .gfy-copy-btn svg {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.gfy-cancel-btn {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.gfy-cancel-btn:hover {
+  background: rgba(239, 68, 68, 0.24);
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 .gfy-start-btn {
@@ -2365,34 +2378,6 @@
   align-items: center;
   gap: 16px;
   width: 100%;
-}
-
-.gfy-wizard-graph-ready .gfy-start-btn {
-  padding: 12px 28px;
-  font-size: 14px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #22ff7a, #0fce5f);
-  color: #04140a;
-  box-shadow: 0 4px 18px rgba(34, 255, 122, 0.35);
-  border: none;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.15s;
-}
-
-.gfy-wizard-graph-ready .gfy-start-btn:hover {
-  background: linear-gradient(135deg, #4dffa0, #22ff7a);
-  box-shadow: 0 6px 22px rgba(34, 255, 122, 0.45);
-  transform: translateY(-1px);
-}
-
-.gfy-wizard-graph-ready .gfy-start-btn svg {
-  width: 16px;
-  height: 16px;
 }
 
 .gfy-wizard-export-status {

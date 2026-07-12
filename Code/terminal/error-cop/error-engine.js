@@ -50,6 +50,19 @@ class ErrorEngine {
           lineText: `[Browser] [${url}] ${message}`,
           timestamp: now,
         });
+        this._notify.notifyNewError({
+          id: null,
+          sessionId,
+          project,
+          timestamp: now,
+          level,
+          source: 'browser',
+          title,
+          message,
+          occurrences: existing.occurrences,
+          firstSeen: existing.firstSeen,
+          lastSeen: now,
+        }, sessionId);
         this._notify.notifyTimelineEvent({
           type: level,
           timestamp: now,

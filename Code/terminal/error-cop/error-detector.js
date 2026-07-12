@@ -121,6 +121,20 @@ class ErrorDetector {
 
     this._storage.updateOccurrences(dedup.fingerprint, dedup.occurrences, dedup.lastSeen);
 
+    this._notify.notifyNewError({
+      id: null,
+      sessionId: this._sessionId,
+      project: this._project,
+      timestamp: dedup.lastSeen,
+      level,
+      source: 'terminal',
+      title,
+      message,
+      occurrences: dedup.occurrences,
+      firstSeen: dedup.firstSeen,
+      lastSeen: dedup.lastSeen,
+    }, this._sessionId);
+
     return {
       id: null,
       sessionId: this._sessionId,

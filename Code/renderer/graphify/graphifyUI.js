@@ -1206,12 +1206,21 @@ function _render(state) {
     const stepsEl = _els.aiSteps;
     const trackingEl = _els.aiTracking;
     const introText = _els.aiIntroText;
-    if (stepsEl) stepsEl.style.display = state.graphHasData ? 'none' : 'flex';
+    if (stepsEl) stepsEl.style.display = 'flex';
     if (trackingEl) trackingEl.style.display = state.graphHasData ? 'flex' : 'none';
     if (introText) {
       introText.textContent = state.graphHasData
         ? 'Knowledge graph is ready. Re-index to detect file changes and generate incremental updates.'
         : 'Generate a prompt, send it to your AI, then load the enriched knowledge graph.';
+    }
+
+    if (stepsEl) {
+      const step1 = stepsEl.querySelector('.gfy-ai-step:nth-child(1)');
+      const step2 = stepsEl.querySelector('.gfy-ai-step:nth-child(2)');
+      const step3 = stepsEl.querySelector('.gfy-ai-step:nth-child(3)');
+      if (step1) step1.style.display = state.graphHasData ? 'none' : '';
+      if (step2) step2.style.display = state.graphHasData ? 'none' : '';
+      if (step3) step3.style.display = '';
     }
 
     if (!state.graphHasData) {
@@ -1249,14 +1258,14 @@ function _render(state) {
           exportStatus.style.display = 'none';
         }
       }
+    }
 
-      const step3Btn = _els.aiStep3Btn;
-      const step3Waiting = _els.aiStep3Waiting;
-      if (step3Btn && step3Waiting) {
-        const showLoad = state.graphInfo?.exists && state.graphHasData;
-        step3Btn.style.display = showLoad ? 'inline-flex' : 'none';
-        step3Waiting.style.display = showLoad ? 'none' : 'flex';
-      }
+    const step3Btn = _els.aiStep3Btn;
+    const step3Waiting = _els.aiStep3Waiting;
+    if (step3Btn && step3Waiting) {
+      const graphExists = state.graphInfo?.exists;
+      step3Btn.style.display = graphExists ? 'inline-flex' : 'none';
+      step3Waiting.style.display = graphExists ? 'none' : 'flex';
     }
 
     if (state.graphHasData) {
@@ -1621,10 +1630,6 @@ function _template() {
                 <span class="gfy-checklist-meta"></span>
               </div>
             </div>
-            <button class="gfy-start-btn">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l12 7-12 7V3z"/></svg>
-              Start Server
-            </button>
           </div>
 
           <div class="gfy-wizard-export-status" style="display:none"></div>
