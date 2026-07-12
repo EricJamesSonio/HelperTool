@@ -101,6 +101,15 @@ if (!gotTheLock) {
                 await initChatDb(app);
                 await initErrorCopDb(app);
                 createInspectorSchema();
+
+                // Clean up stale Error Cop sessions from previous runs
+                try {
+                  const termIpc = require('./ipc/terminal_ipc');
+                  const engine = termIpc.getErrorEngine();
+                  if (engine) engine.getStorage().cleanupStaleSessions();
+                } catch (e) {
+                  console.error('[Main] cleanupStaleSessions failed:', e);
+                }
                 const { getDb, getDbPath } = require('./database/db.js');
                 const _p = getDbPath();
                 const _s = require('fs').existsSync(_p) ? require('fs').statSync(_p).size : 0;

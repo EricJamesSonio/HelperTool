@@ -11,11 +11,6 @@ function register({ getMainWindow }) {
   const termIpc = require('./terminal_ipc');
   termIpc.setErrorEngine(_errorEngine);
 
-  // Clean up stale sessions from previous runs
-  try { _errorEngine.getStorage().cleanupStaleSessions(); } catch (e) {
-    console.error('[ErrorCop] cleanupStaleSessions failed:', e);
-  }
-
   const storage = () => _errorEngine.getStorage();
   const notify = () => _errorEngine.getNotify();
 

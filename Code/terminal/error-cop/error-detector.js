@@ -4,7 +4,7 @@ const { ErrorStorage } = require('./error-storage');
 const { BrowserDiscovery } = require('./browser-discovery');
 
 class ErrorDetector {
-  constructor(storage, notificationService) {
+  constructor(storage, notificationService, options = {}) {
     this._storage = storage;
     this._notify = notificationService;
     this._dedup = new Deduplicator();
@@ -12,6 +12,7 @@ class ErrorDetector {
     this._outputAccumulator = [];
     this._sessionId = null;
     this._project = '';
+    this._onServerDetected = options.onServerDetected || null;
   }
 
   startSession(sessionId, project) {
@@ -50,6 +51,11 @@ class ErrorDetector {
         level: 'info',
         sessionId: this._sessionId,
       });
+      if (this._onServerDetected) {
+        try { this._onServerDetected(browserInfo); } catch (e) {
+          console.error('[ErrorCop] onServerDetected callback failed:', e);
+        }
+      }
     }
 
     const parsed = parseLine(line);

@@ -366,18 +366,19 @@ export default class ErrorCopUI {
         <span style="font-size:12px;font-weight:600;color:#8899aa">${sessions.length} session${sessions.length !== 1 ? 's' : ''}</span>
         <div style="display:flex;gap:6px">
           ${this._selectMode ? `
-            <button class="ecp-filter-btn" id="ecpDeleteSelected" style="padding:3px 12px;font-size:11px;border-color:#ff4444;color:#ff4444">Delete (${this._selectedSessionIds.size})</button>
+            <button class="ecp-filter-btn" id="ecpSelectAllBtn" style="padding:3px 12px;font-size:11px">${this._selectedSessionIds.size === sessions.length ? 'Deselect All' : 'Select All'}</button>
+            <button class="ecp-filter-btn" id="ecpDeleteSelected" style="padding:3px 12px;font-size:11px;border-color:#ff4444;color:#ff4444" ${this._selectedSessionIds.size === 0 ? 'disabled' : ''}>Delete (${this._selectedSessionIds.size})</button>
             <button class="ecp-filter-btn" id="ecpCancelSelect" style="padding:3px 12px;font-size:11px">Cancel</button>
           ` : `
-            <button class="ecp-filter-btn" id="ecpToggleSelect" style="padding:3px 12px;font-size:11px">Select</button>
+            <button class="ecp-filter-btn" id="ecpEnterSelect" style="padding:3px 12px;font-size:11px;border-color:#ff4444;color:#ff4444">Delete</button>
           `}
         </div>
       </div>
     `;
 
-    const selectBtn = this._leftCol.querySelector('#ecpToggleSelect');
-    if (selectBtn) {
-      selectBtn.addEventListener('click', (e) => {
+    const enterBtn = this._leftCol.querySelector('#ecpEnterSelect');
+    if (enterBtn) {
+      enterBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this._selectMode = true;
         this._selectedSessionIds.clear();
@@ -391,6 +392,19 @@ export default class ErrorCopUI {
         e.stopPropagation();
         this._selectMode = false;
         this._selectedSessionIds.clear();
+        this._renderSessions();
+      });
+    }
+
+    const selectAllBtn = this._leftCol.querySelector('#ecpSelectAllBtn');
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this._selectedSessionIds.size === sessions.length) {
+          this._selectedSessionIds.clear();
+        } else {
+          this._selectedSessionIds = new Set(sessions.map(s => s.id));
+        }
         this._renderSessions();
       });
     }
@@ -492,7 +506,14 @@ export default class ErrorCopUI {
   async _deleteSelected() {
     const ids = [...this._selectedSessionIds];
     if (!ids.length) return;
-    if (!confirm(`Delete ${ids.length} session${ids.length !== 1 ? 's' : ''} and all associated errors? This cannot be undone.`)) return;
+    const confirmed = await this._showConfirmModal({
+      title: 'Delete Sessions',
+      message: `Delete ${ids.length} session${ids.length !== 1 ? 's' : ''} and all associated errors and browser data?`,
+      note: 'This cannot be undone.',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       await window.electronAPI.deleteSessions(ids);
       this._selectMode = false;
@@ -502,6 +523,39 @@ export default class ErrorCopUI {
     } catch (e) {
       console.error('[ErrorCop] deleteSessions failed:', e);
     }
+  }
+
+  _showConfirmModal({ title, message, note, confirmText, danger }) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'ecp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="ecp-modal">
+          <div class="ecp-modal-title">${this._escapeHtml(title || 'Confirm')}</div>
+          <div class="ecp-modal-message">${this._escapeHtml(message || '')}</div>
+          ${note ? `<div class="ecp-modal-note">${this._escapeHtml(note)}</div>` : ''}
+          <div class="ecp-modal-actions">
+            <button class="ecp-filter-btn ecp-modal-cancel">Cancel</button>
+            <button class="ecp-filter-btn ecp-modal-confirm" style="${danger ? 'border-color:#ff4444;color:#ff4444' : ''}">${this._escapeHtml(confirmText || 'OK')}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.classList.add('open'));
+
+      const close = (result) => {
+        overlay.classList.remove('open');
+        overlay.classList.add('closing');
+        setTimeout(() => overlay.remove(), 200);
+        resolve(result);
+      };
+
+      overlay.querySelector('.ecp-modal-cancel').addEventListener('click', () => close(false));
+      overlay.querySelector('.ecp-modal-confirm').addEventListener('click', () => close(true));
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close(false);
+      });
+    });
   }
 
   async _renderSessionOccurrences() {
@@ -594,19 +648,30 @@ export default class ErrorCopUI {
       const sourceBadge = isBrowser
         ? '<span style="font-size:10px;color:#3b8eea;margin-right:4px">\ud83c\udf10</span>'
         : '<span style="font-size:10px;color:#8a9aaa;margin-right:4px">\ud83d\udda5\ufe0f</span>';
+      const fullText = occ.line_text || occ.message || occ.title || '';
       const row = document.createElement('div');
-      row.className = 'ecp-event';
-      row.title = occ.line_text || '';
+      row.className = 'ecp-event ecp-event-expanded';
       row.innerHTML = `
-        <span class="ecp-event-dot ${dotClass}"></span>
+        <span class="ecp-event-dot ${dotClass}" style="align-self:flex-start;margin-top:3px"></span>
         <div class="ecp-event-body">
-          <span class="ecp-event-title">${sourceBadge}${this._escapeHtml(occ.title || '')}</span>
-          <span class="ecp-event-message">${this._escapeHtml(occ.message || occ.line_text || '')}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="ecp-event-title">${sourceBadge}${this._escapeHtml(occ.title || '')}</span>
+            <button class="ecp-copy-btn" title="Copy error text">\ud83d\udccb</button>
+          </div>
+          <pre class="ecp-event-text">${this._escapeHtml(fullText)}</pre>
         </div>
-        <div class="ecp-event-meta">
+        <div class="ecp-event-meta" style="align-self:flex-start;margin-top:3px">
           <span class="ecp-event-time">${_fmtTime(occ.timestamp)}</span>
         </div>
       `;
+      const copyBtn = row.querySelector('.ecp-copy-btn');
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(fullText).then(() => {
+          copyBtn.textContent = '\u2713';
+          setTimeout(() => { copyBtn.textContent = '\ud83d\udccb'; }, 1500);
+        }).catch(() => {});
+      });
       list.appendChild(row);
     }
 

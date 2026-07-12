@@ -117,7 +117,11 @@ class ErrorEngine {
       const project = detectProject(cwd);
       const sessionId = this._storage.createSession({ project, cwd, shell, command });
 
-      const detector = new ErrorDetector(this._storage, this._notify);
+      const detector = new ErrorDetector(this._storage, this._notify, {
+        onServerDetected: (info) => {
+          this.attachBrowser(sessionId, info.port, info.url);
+        },
+      });
       detector.startSession(sessionId, project);
 
       this._detectors.set(sessionId, detector);
@@ -204,6 +208,14 @@ class ErrorEngine {
           this._sessionBrowserPorts.set(sessionId, ports);
         }
         ports.add(port);
+        this._notify.notifyTimelineEvent({
+          type: 'server',
+          timestamp: new Date().toISOString(),
+          title: 'Browser monitoring started',
+          message: url,
+          level: 'info',
+          sessionId,
+        });
       }
       return result;
     } catch (e) {
