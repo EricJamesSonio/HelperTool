@@ -11,6 +11,11 @@ function register({ getMainWindow }) {
   const termIpc = require('./terminal_ipc');
   termIpc.setErrorEngine(_errorEngine);
 
+  // Clean up stale sessions from previous runs
+  try { _errorEngine.getStorage().cleanupStaleSessions(); } catch (e) {
+    console.error('[ErrorCop] cleanupStaleSessions failed:', e);
+  }
+
   const storage = () => _errorEngine.getStorage();
   const notify = () => _errorEngine.getNotify();
 
@@ -52,6 +57,46 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('error-cop:getBrowserServers', safe((event, sessionId) => {
     return storage().getBrowserServers(sessionId);
+  }));
+
+  ipcMain.handle('error-cop:getAllBrowserServers', safe(() => {
+    return storage().getAllBrowserServers();
+  }));
+
+  ipcMain.handle('error-cop:getSessionOccurrences', safe((event, sessionId) => {
+    return storage().getOccurrencesBySession(sessionId);
+  }));
+
+  // ── Session Management ──
+
+  ipcMain.handle('error-cop:deleteSessions', safe((event, ids) => {
+    if (!Array.isArray(ids) || !ids.length) return { deleted: 0 };
+    _errorEngine.deleteSessions(ids);
+    return { deleted: ids.length };
+  }));
+
+  // ── Browser Collector IPC ──
+
+  ipcMain.handle('error-cop:browserAttach', safe((event, { sessionId, port, url }) => {
+    const result = _errorEngine.attachBrowser(sessionId, port, url);
+    return result || { error: 'Failed to attach' };
+  }));
+
+  ipcMain.handle('error-cop:browserDetach', safe((event, port) => {
+    _errorEngine.detachBrowser(port);
+    return { success: true };
+  }));
+
+  ipcMain.handle('error-cop:browserDetachAll', safe(() => {
+    const attached = _errorEngine.getAttachedBrowsers();
+    for (const port of Object.keys(attached)) {
+      _errorEngine.detachBrowser(parseInt(port, 10));
+    }
+    return { success: true };
+  }));
+
+  ipcMain.handle('error-cop:getAttachedBrowsers', safe(() => {
+    return _errorEngine.getAttachedBrowsers();
   }));
 }
 

@@ -78,6 +78,20 @@ function createSchema() {
   `);
 
   _db.run(`
+    CREATE TABLE IF NOT EXISTS error_occurrences (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id    INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      fingerprint   TEXT DEFAULT '',
+      level         TEXT CHECK(level IN ('error','warning','info')) DEFAULT 'error',
+      title         TEXT NOT NULL,
+      message       TEXT DEFAULT '',
+      line_text     TEXT DEFAULT '',
+      timestamp     TEXT NOT NULL,
+      created_at    TEXT DEFAULT (datetime('now','localtime'))
+    )
+  `);
+
+  _db.run(`
     CREATE TABLE IF NOT EXISTS browser_servers (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id    INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
@@ -89,6 +103,8 @@ function createSchema() {
   `);
 
   _db.run('CREATE INDEX IF NOT EXISTS idx_errors_session ON errors(session_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_occurrences_session ON error_occurrences(session_id)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_occurrences_timestamp ON error_occurrences(timestamp)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_errors_project ON errors(project)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_errors_level ON errors(level)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_errors_fingerprint ON errors(fingerprint)');

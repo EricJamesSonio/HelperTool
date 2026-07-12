@@ -25,7 +25,7 @@ class ErrorStorage {
     const db = getErrorCopDb();
     const status = exitCode === 0 ? 'ended' : 'failed';
     db.run(
-      `UPDATE sessions SET status = ?, ended_at = datetime('now','localtime'), exit_code = ? WHERE id = ?`,
+      `UPDATE sessions SET status = ?, ended_at = datetime('now','localtime'), exit_code = ? WHERE id = ? AND status = 'running'`,
       [status, exitCode, id]
     );
     save();
@@ -142,6 +142,28 @@ class ErrorStorage {
     return res[0].values[0][0];
   }
 
+  // ── Occurrences ──
+
+  insertOccurrence({ sessionId, fingerprint, level, title, message, lineText, timestamp }) {
+    const db = getErrorCopDb();
+    db.run(
+      `INSERT INTO error_occurrences (session_id, fingerprint, level, title, message, line_text, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [sessionId, fingerprint || '', level, title, message || '', lineText || '', timestamp]
+    );
+    save();
+  }
+
+  getOccurrencesBySession(sessionId, limit = 500) {
+    const db = getErrorCopDb();
+    const res = db.exec(
+      'SELECT * FROM error_occurrences WHERE session_id = ? ORDER BY timestamp ASC LIMIT ?',
+      [sessionId, limit]
+    );
+    if (!res.length) return [];
+    return res[0].values.map(r => _rowToObj(res[0], r));
+  }
+
   // ── Browser Servers ──
 
   insertBrowserServer({ sessionId, port, framework, url }) {
@@ -164,7 +186,32 @@ class ErrorStorage {
     return res[0].values.map(r => _rowToObj(res[0], r));
   }
 
+  getAllBrowserServers() {
+    const db = getErrorCopDb();
+    const res = db.exec(
+      'SELECT * FROM browser_servers ORDER BY session_id, detected_at'
+    );
+    if (!res.length) return [];
+    return res[0].values.map(r => _rowToObj(res[0], r));
+  }
+
   // ── Cleanup ──
+
+  deleteSession(id) {
+    const db = getErrorCopDb();
+    db.run('DELETE FROM browser_servers WHERE session_id = ?', [id]);
+    db.run('DELETE FROM sessions WHERE id = ?', [id]);
+    save();
+  }
+
+  cleanupStaleSessions() {
+    const db = getErrorCopDb();
+    db.run(
+      `UPDATE sessions SET status = 'ended', ended_at = datetime('now','localtime'), exit_code = -1
+       WHERE status = 'running'`
+    );
+    save();
+  }
 
   purgeOldSessions(days = 30) {
     const db = getErrorCopDb();

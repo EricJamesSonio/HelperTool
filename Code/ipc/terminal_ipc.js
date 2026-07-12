@@ -151,6 +151,9 @@ function register({ getMainWindow }) {
     const t = terminals.get(id);
     if (t) {
       try { t.term.kill(); } catch { }
+      if (_errorEngine && t.sessionId) {
+        try { _errorEngine.endSession(t.sessionId, 0); } catch { }
+      }
       terminals.delete(id);
     }
   });

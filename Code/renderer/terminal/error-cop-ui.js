@@ -29,6 +29,9 @@ export default class ErrorCopUI {
     this._filter = 'all';
     this._toastTimer = null;
     this._isOpen = false;
+    this._allBrowserServers = [];
+    this._selectMode = false;
+    this._selectedSessionIds = new Set();
   }
 
   init() {
@@ -190,14 +193,16 @@ export default class ErrorCopUI {
 
   async _loadData() {
     try {
-      const [timeline, errors, sessions] = await Promise.all([
+      const [timeline, errors, sessions, allBrowserServers] = await Promise.all([
         window.electronAPI.getTimeline({ limit: 100 }),
         window.electronAPI.getErrors({ limit: 100 }),
         window.electronAPI.getSessions(30),
+        window.electronAPI.getAllBrowserServers(),
       ]);
       this._timeline = timeline || [];
       this._errors = errors || [];
       this._sessions = sessions || [];
+      this._allBrowserServers = allBrowserServers || [];
     } catch (err) {
       console.error('[ErrorCop] Load failed:', err);
     }
@@ -341,6 +346,11 @@ export default class ErrorCopUI {
   }
 
   _renderSessions() {
+    if (this._showOccurrenceView && this._currentSession) {
+      this._renderSessionOccurrences();
+      return;
+    }
+
     this._leftCol.innerHTML = '';
     this._rightCol.innerHTML = '';
 
@@ -351,20 +361,85 @@ export default class ErrorCopUI {
       return;
     }
 
+    this._leftCol.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0">
+        <span style="font-size:12px;font-weight:600;color:#8899aa">${sessions.length} session${sessions.length !== 1 ? 's' : ''}</span>
+        <div style="display:flex;gap:6px">
+          ${this._selectMode ? `
+            <button class="ecp-filter-btn" id="ecpDeleteSelected" style="padding:3px 12px;font-size:11px;border-color:#ff4444;color:#ff4444">Delete (${this._selectedSessionIds.size})</button>
+            <button class="ecp-filter-btn" id="ecpCancelSelect" style="padding:3px 12px;font-size:11px">Cancel</button>
+          ` : `
+            <button class="ecp-filter-btn" id="ecpToggleSelect" style="padding:3px 12px;font-size:11px">Select</button>
+          `}
+        </div>
+      </div>
+    `;
+
+    const selectBtn = this._leftCol.querySelector('#ecpToggleSelect');
+    if (selectBtn) {
+      selectBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._selectMode = true;
+        this._selectedSessionIds.clear();
+        this._renderSessions();
+      });
+    }
+
+    const cancelBtn = this._leftCol.querySelector('#ecpCancelSelect');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._selectMode = false;
+        this._selectedSessionIds.clear();
+        this._renderSessions();
+      });
+    }
+
+    const deleteBtn = this._leftCol.querySelector('#ecpDeleteSelected');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await this._deleteSelected();
+      });
+    }
+
     const list = document.createElement('div');
     list.className = 'ecp-sessions';
 
     for (const s of sessions) {
       const statusClass = `ecp-session-${s.status || 'ended'}`;
+      const browserInfo = (this._allBrowserServers || []).filter(b => b.session_id === s.id);
+      const sId = s.id;
+      const isSelected = this._selectedSessionIds.has(sId);
+
       const card = document.createElement('div');
-      card.className = 'ecp-session-card';
+      card.className = 'ecp-session-card' + (isSelected ? ' ecp-session-selected' : '');
+      if (this._selectMode) {
+        card.style.cursor = 'default';
+      }
+
+      let browserHtml = '';
+      if (browserInfo.length) {
+        browserHtml = browserInfo.map(b =>
+          `<span style="color:#3b8eea;font-size:11px">\ud83c\udf10 ${this._escapeHtml(b.framework || 'Dev Server')} (${this._escapeHtml(b.url || '')})</span>`
+        ).join('');
+      }
+
+      const checkboxHtml = this._selectMode
+        ? `<span style="display:flex;align-items:center;margin-right:6px;flex-shrink:0">
+            <span class="ecp-checkbox${isSelected ? ' ecp-checkbox-checked' : ''}" data-session-id="${sId}"></span>
+          </span>`
+        : '';
+
       card.innerHTML = `
         <div class="ecp-session-row">
-          <span class="ecp-session-project">${this._escapeHtml(s.project || 'Terminal')}</span>
-          <span class="ecp-session-command">${this._escapeHtml(s.command || '')}</span>
+          ${checkboxHtml}
+          <span class="ecp-session-project" style="${this._selectMode ? 'flex:1' : ''}">${this._escapeHtml(s.project || 'Terminal')}</span>
+          <span class="ecp-session-command" style="${this._selectMode ? 'display:none' : ''}">${this._escapeHtml(s.command || '')}</span>
           <span class="ecp-session-status ${statusClass}">${s.status || 'ended'}</span>
         </div>
-        <div class="ecp-session-row">
+        ${browserHtml ? `<div class="ecp-session-row" style="gap:4px;padding-left:${this._selectMode ? '26px' : '0'}">${browserHtml}</div>` : ''}
+        <div class="ecp-session-row" style="${browserHtml ? 'margin-top:4px' : ''}${this._selectMode ? 'padding-left:26px' : ''}">
           <div class="ecp-session-stats">
             <span>Errors: <strong style="color:#ff4444">${s.total_errors || 0}</strong></span>
             <span>Warnings: <strong style="color:#eab308">${s.total_warnings || 0}</strong></span>
@@ -373,46 +448,220 @@ export default class ErrorCopUI {
           <span class="ecp-session-time">${_fmtDate(s.started_at)}</span>
         </div>
       `;
-      card.addEventListener('click', async () => {
-        try {
-          const sessionErrors = await window.electronAPI.getSessionErrors(s.id);
-          this._errors = sessionErrors || [];
-          this._activeTab = 'errors';
-          this._wrapper.querySelectorAll('.ecp-tab').forEach(t => t.classList.remove('ecp-tab-active'));
-          this._wrapper.querySelector('[data-tab="errors"]').classList.add('ecp-tab-active');
-          this._renderErrors();
-        } catch {}
-      });
+
+      if (this._selectMode) {
+        const checkbox = card.querySelector('.ecp-checkbox');
+        if (checkbox) {
+          checkbox.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._toggleSessionSelect(sId);
+          });
+        }
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._toggleSessionSelect(sId);
+        });
+      } else {
+        card.addEventListener('click', async () => {
+          try {
+            const occurrences = await window.electronAPI.getSessionOccurrences(s.id);
+            this._currentSession = s;
+            this._sessionOccurrences = occurrences || [];
+            this._showOccurrenceView = true;
+            await this._renderSessionOccurrences();
+          } catch {}
+        });
+      }
       list.appendChild(card);
     }
 
     this._leftCol.appendChild(list);
 
-    // Right column: session stats
-    const totalErrors = sessions.reduce((sum, s) => sum + (s.total_errors || 0), 0);
-    const totalWarnings = sessions.reduce((sum, s) => sum + (s.total_warnings || 0), 0);
-    const totalLines = sessions.reduce((sum, s) => sum + (s.total_lines || 0), 0);
-    const running = sessions.filter(s => s.status === 'running').length;
+    this._rightCol.innerHTML = '';
+  }
+
+  _toggleSessionSelect(id) {
+    if (this._selectedSessionIds.has(id)) {
+      this._selectedSessionIds.delete(id);
+    } else {
+      this._selectedSessionIds.add(id);
+    }
+    this._renderSessions();
+  }
+
+  async _deleteSelected() {
+    const ids = [...this._selectedSessionIds];
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} session${ids.length !== 1 ? 's' : ''} and all associated errors? This cannot be undone.`)) return;
+    try {
+      await window.electronAPI.deleteSessions(ids);
+      this._selectMode = false;
+      this._selectedSessionIds.clear();
+      await this._loadData();
+      this._renderSessions();
+    } catch (e) {
+      console.error('[ErrorCop] deleteSessions failed:', e);
+    }
+  }
+
+  async _renderSessionOccurrences() {
+    this._leftCol.innerHTML = '';
+    this._rightCol.innerHTML = '';
+
+    const s = this._currentSession;
+    const items = this._sessionOccurrences || [];
+
+    // Back button + header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0';
+    const backBtn = document.createElement('button');
+    backBtn.className = 'ecp-filter-btn';
+    backBtn.innerHTML = '\u2190 Back to Sessions';
+    backBtn.addEventListener('click', () => {
+      this._showOccurrenceView = false;
+      this._currentSession = null;
+      this._sessionOccurrences = [];
+      this._renderSessions();
+    });
+    header.appendChild(backBtn);
+    const title = document.createElement('span');
+    title.style.cssText = 'font-size:12px;font-weight:600;color:#f0dfdf';
+    title.textContent = `${this._escapeHtml(s.project || 'Terminal')} \u2014 ${this._escapeHtml(s.command || '')}`;
+    header.appendChild(title);
+    this._leftCol.appendChild(header);
+
+    // ── Browser Server Section ──
+    const browserServers = await window.electronAPI.getBrowserServers(s.id).catch(() => []);
+    const attachedBrowsers = await window.electronAPI.getAttachedBrowsers().catch(() => ({}));
+
+    if (browserServers.length > 0) {
+      const browserSection = document.createElement('div');
+      browserSection.style.cssText = 'margin-bottom:10px;padding:8px 10px;background:rgba(59,142,234,0.1);border-radius:6px;border:1px solid rgba(59,142,234,0.25);flex-shrink:0';
+
+      for (const bs of browserServers) {
+        const isAttached = !!attachedBrowsers[bs.port];
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px';
+        row.innerHTML = `
+          <span style="color:#3b8eea">\ud83c\udf10</span>
+          <span style="flex:1;color:#c0d0e0">${this._escapeHtml(bs.framework || 'Dev Server')}</span>
+          <span style="color:#7a8a9a">${this._escapeHtml(bs.url || '')}</span>
+        `;
+
+        const btn = document.createElement('button');
+        btn.className = 'ecp-filter-btn';
+        btn.style.cssText = 'padding:2px 10px;font-size:11px';
+        if (isAttached) {
+          btn.textContent = 'Detach';
+          btn.style.borderColor = '#23d18b';
+          btn.style.color = '#23d18b';
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              await window.electronAPI.browserDetach(bs.port);
+              await this._renderSessionOccurrences();
+            } catch {}
+          });
+        } else {
+          btn.textContent = 'Attach';
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              await window.electronAPI.browserAttach({ sessionId: s.id, port: bs.port, url: bs.url });
+              await this._renderSessionOccurrences();
+            } catch {}
+          });
+        }
+        row.appendChild(btn);
+        browserSection.appendChild(row);
+      }
+
+      this._leftCol.appendChild(browserSection);
+    }
+
+    if (items.length === 0) {
+      this._leftCol.innerHTML += `<div class="ecp-empty"><div class="ecp-empty-icon">${ICON_SHIELD}</div><div>No errors in this session.</div></div>`;
+      this._renderSessionRight(s, items, browserServers);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'ecp-timeline';
+
+    for (const occ of items) {
+      const isBrowser = (occ.line_text || '').startsWith('[Browser]');
+      const dotClass = occ.level === 'error' ? 'ecp-dot-error' : occ.level === 'warning' ? 'ecp-dot-warning' : 'ecp-dot-info';
+      const sourceBadge = isBrowser
+        ? '<span style="font-size:10px;color:#3b8eea;margin-right:4px">\ud83c\udf10</span>'
+        : '<span style="font-size:10px;color:#8a9aaa;margin-right:4px">\ud83d\udda5\ufe0f</span>';
+      const row = document.createElement('div');
+      row.className = 'ecp-event';
+      row.title = occ.line_text || '';
+      row.innerHTML = `
+        <span class="ecp-event-dot ${dotClass}"></span>
+        <div class="ecp-event-body">
+          <span class="ecp-event-title">${sourceBadge}${this._escapeHtml(occ.title || '')}</span>
+          <span class="ecp-event-message">${this._escapeHtml(occ.message || occ.line_text || '')}</span>
+        </div>
+        <div class="ecp-event-meta">
+          <span class="ecp-event-time">${_fmtTime(occ.timestamp)}</span>
+        </div>
+      `;
+      list.appendChild(row);
+    }
+
+    this._leftCol.appendChild(list);
+
+    this._renderSessionRight(s, items, browserServers);
+  }
+
+  _renderSessionRight(s, items, browserServers) {
+    const terminal = items.filter(i => !(i.line_text || '').startsWith('[Browser]'));
+    const browser = items.filter(i => (i.line_text || '').startsWith('[Browser]'));
+    const termErrors = terminal.filter(e => e.level === 'error').length;
+    const termWarns = terminal.filter(e => e.level === 'warning').length;
+    const brwErrors = browser.filter(e => e.level === 'error').length;
+    const brwWarns = browser.filter(e => e.level === 'warning').length;
+
+    let browserSourcesHtml = '';
+    if (browserServers && browserServers.length > 0) {
+      browserSourcesHtml = browserServers.map(bs =>
+        `<div class="ecp-info-line" style="font-size:11px;color:#7a8a9a;padding-left:4px">
+          <span>\ud83c\udf10 ${this._escapeHtml(bs.framework || 'Dev Server')} — ${this._escapeHtml(bs.url || '')}</span>
+        </div>`
+      ).join('');
+    }
+
     this._rightCol.innerHTML = `
       <div class="ecp-info-line">
-        <span>Sessions</span>
-        <span class="ecp-info-value">${sessions.length}</span>
+        <span>Session ID</span>
+        <span class="ecp-info-value">#${s.id}</span>
       </div>
       <div class="ecp-info-line">
-        <span>Running Now</span>
-        <span class="ecp-info-value" style="color:#23d18b">${running}</span>
+        <span>Status</span>
+        <span class="ecp-info-value" style="color:${s.status === 'running' ? '#23d18b' : '#8899aa'}">${s.status || 'ended'}</span>
       </div>
       <div class="ecp-info-line">
-        <span>🔴 Total Errors</span>
-        <span class="ecp-info-value" style="color:#ff4444">${totalErrors}</span>
+        <span>Started</span>
+        <span class="ecp-info-value">${_fmtDate(s.started_at)}</span>
+      </div>
+      <div class="ecp-info-line" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:6px">
+        <span style="font-weight:600;font-size:11px">Sources</span>
+        <span></span>
       </div>
       <div class="ecp-info-line">
-        <span>🟡 Total Warnings</span>
-        <span class="ecp-info-value" style="color:#eab308">${totalWarnings}</span>
+        <span style="padding-left:4px">\ud83d\udda5\ufe0f Terminal</span>
+        <span class="ecp-info-value">${termErrors} err · ${termWarns} warn</span>
       </div>
+      ${browserServers && browserServers.length > 0 ? `
       <div class="ecp-info-line">
-        <span>Total Lines</span>
-        <span class="ecp-info-value">${totalLines}</span>
+        <span style="padding-left:4px">\ud83c\udf10 Browser</span>
+        <span class="ecp-info-value">${brwErrors} err · ${brwWarns} warn</span>
+      </div>
+      ${browserSourcesHtml}` : ''}
+      <div class="ecp-info-line" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:6px">
+        <span>Total Occurrences</span>
+        <span class="ecp-info-value">${items.length}</span>
       </div>
     `;
   }

@@ -55,7 +55,20 @@ class ErrorDetector {
     const parsed = parseLine(line);
     if (!parsed) return null;
 
-    const { level, title, message } = parsed;
+    const { level, title, message, raw } = parsed;
+    const now = new Date().toISOString();
+
+    // Record every individual occurrence
+    this._storage.insertOccurrence({
+      sessionId: this._sessionId,
+      fingerprint: '',
+      level,
+      title,
+      message,
+      lineText: raw || line,
+      timestamp: now,
+    });
+
     const dedup = this._dedup.process(title, message);
 
     if (dedup.isNew) {

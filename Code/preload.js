@@ -223,6 +223,13 @@ const errorCopBridge = {
     markRead:          ()          => ipcRenderer.invoke('error-cop:markRead'),
     getUnreadCount:    ()          => ipcRenderer.invoke('error-cop:getUnreadCount'),
     getBrowserServers: (sessionId) => ipcRenderer.invoke('error-cop:getBrowserServers', sessionId),
+    getAllBrowserServers: () => ipcRenderer.invoke('error-cop:getAllBrowserServers'),
+    getSessionOccurrences: (sessionId) => ipcRenderer.invoke('error-cop:getSessionOccurrences', sessionId),
+    browserAttach: (opts) => ipcRenderer.invoke('error-cop:browserAttach', opts),
+    browserDetach: (port) => ipcRenderer.invoke('error-cop:browserDetach', port),
+    browserDetachAll: () => ipcRenderer.invoke('error-cop:browserDetachAll'),
+    getAttachedBrowsers: () => ipcRenderer.invoke('error-cop:getAttachedBrowsers'),
+    deleteSessions: (ids) => ipcRenderer.invoke('error-cop:deleteSessions', ids),
     onNewError: (callback) => {
         ipcRenderer.removeAllListeners('error-cop:new-error');
         ipcRenderer.on('error-cop:new-error', (_, payload) => callback(payload));
