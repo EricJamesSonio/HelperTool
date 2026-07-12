@@ -171,6 +171,12 @@ export default class ErrorCopUI {
     this._isOpen = true;
     this._wrapper.classList.add('open');
 
+    // Close other open tool panels
+    try {
+      const { closeAllPanels } = await import('../app_manager/toolsManager.js');
+      closeAllPanels();
+    } catch {}
+
     // Mark read when opening
     try {
       await window.electronAPI.markRead();
@@ -586,7 +592,10 @@ export default class ErrorCopUI {
 
     // ── Browser Server Section ──
     const browserServers = await window.electronAPI.getBrowserServers(s.id).catch(() => []);
+    if (!this._showOccurrenceView) return;
+
     const attachedBrowsers = await window.electronAPI.getAttachedBrowsers().catch(() => ({}));
+    if (!this._showOccurrenceView) return;
 
     if (browserServers.length > 0) {
       const browserSection = document.createElement('div');

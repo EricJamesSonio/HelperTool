@@ -122,6 +122,12 @@ export default class PanelRegistry {
       this._graphifyPanel.classList.remove('open');
     }
 
+    // Error Cop — close when any other tool opens
+    const ecpWrapper = document.querySelector('.ecp-wrapper');
+    if (ecpWrapper?.classList.contains('open')) {
+      ecpWrapper.classList.remove('open');
+    }
+
     // Service tracker — close when any tool opens
     closeServiceTracker();
   }
