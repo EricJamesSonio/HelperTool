@@ -394,7 +394,7 @@ async function _handleChangesGenPrompt() {
     const result = await window.electronAPI.graphifyGenerateIncrementalPrompt(repoPath);
     if (_mounted) {
       if (result && result.ok && result.promptPath) {
-        _safeSetState({ incrementalPromptPath: result.promptPath, incrementalPromptReady: true, changesTabStep: 'prompt_ready' });
+        _safeSetState({ incrementalPromptPath: result.promptPath, incrementalPromptText: result.promptText || '', incrementalPromptReady: true, changesTabStep: 'prompt_ready' });
       } else {
         _safeSetState({ changesError: result.error || 'Failed to generate incremental prompt' });
       }
@@ -893,6 +893,10 @@ async function _handleSendToAi() {
   let promptText = state_.exportStatus?.promptText;
 
   if (!promptText) {
+    promptText = state_.incrementalPromptText || '';
+  }
+
+  if (!promptText) {
     try {
       const repoPath = window.__activeRepoPath;
       if (repoPath) {
@@ -902,6 +906,13 @@ async function _handleSendToAi() {
           _safeSetState({ exportStatus: { ...state_.exportStatus, promptText } });
         }
       }
+    } catch {}
+  }
+
+  if (!promptText && state_.incrementalPromptPath) {
+    try {
+      const text = await window.electronAPI.readFile(state_.incrementalPromptPath);
+      if (text) promptText = text;
     } catch {}
   }
 
@@ -2383,6 +2394,10 @@ function _template() {
                     Generate Prompt
                   </button>
                   <span class="gfy-changes-gen-status" style="display:none"></span>
+                  <button class="gfy-send-ai-btn" style="display:none">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+                    Send to CodeSwamp
+                  </button>
                 </div>
                 <div class="gfy-changes-prompt-info" style="display:none">
                   <span class="gfy-changes-prompt-path"></span>

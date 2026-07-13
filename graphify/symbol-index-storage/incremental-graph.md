@@ -37,7 +37,7 @@ Read the source code of the changed files listed below from disk, then:
 7. Update `stats` with new totals.
 8. Set `generatedAt` to the current timestamp.
 
-## Files Changed (53 total)
+## Files Changed (54 total)
 
 ### Modified Files (23)
 
@@ -572,7 +572,7 @@ Read the source code of the changed files listed below from disk, then:
 #### `Code/ipc/graphify_ipc.js`
 
 - Language: javascript
-- Symbols (98):
+- Symbols (99):
   - `ipcMain` — type: variable
   - `spawn` — type: variable
   - `path` — type: variable
@@ -661,6 +661,7 @@ Read the source code of the changed files listed below from disk, then:
   - `totalChanged` — type: variable
   - `changedFiles` — type: variable
   - `result` — type: variable
+  - `promptText` — type: variable
   - `graphPath` — type: variable
   - `graphExists` — type: variable
   - `changes` — type: variable
@@ -1267,7 +1268,7 @@ Read the source code of the changed files listed below from disk, then:
 #### `Code/renderer/graphify/graphifyUI.js`
 
 - Language: javascript
-- Symbols (308):
+- Symbols (309):
   - `_root` — type: variable
   - `_unsub` — type: variable
   - `_debounce` — type: variable
@@ -1418,6 +1419,7 @@ Read the source code of the changed files listed below from disk, then:
   - `promptText` — type: variable
   - `repoPath` — type: variable
   - `result` — type: variable
+  - `text` — type: variable
   - `_showSendToAiDialog` — type: function
   - `existing` — type: variable
   - `overlay` — type: variable
@@ -1890,7 +1892,7 @@ Read the source code of the changed files listed below from disk, then:
 - Symbols: (none)
 - Imports: (none)
 
-### New Files (30)
+### New Files (31)
 
 #### `Code/database/changeDetector.js`
 
@@ -3009,6 +3011,12 @@ Read the source code of the changed files listed below from disk, then:
 - Imports (2):
   - `fs` (require)
   - `crypto` (require)
+
+#### `graphify/symbol-index-storage/incremental-graph.md`
+
+- Language: null
+- Symbols: (none)
+- Imports: (none)
 
 ## Output
 

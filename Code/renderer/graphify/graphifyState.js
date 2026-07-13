@@ -56,6 +56,7 @@ const state = {
   changesDetected: null,
   incrementalPromptPath: null,
   incrementalPromptReady: false,
+  incrementalPromptText: '',
   graphSyncStatus: null,
   graphSyncLoading: false,
   changesTabStep: 'idle', // idle | changes_detected | prompt_ready | synced | out_of_sync

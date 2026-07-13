@@ -808,9 +808,15 @@ function register({ app }) {
     const changedFiles = [...changes.changedFiles, ...changes.newFiles];
     const result = exporter.generateIncrementalPrompt(repoPath, changedFiles);
 
+    let promptText = '';
+    if (result.ok && result.path) {
+      try { promptText = fs.readFileSync(result.path, 'utf-8'); } catch (_) {}
+    }
+
     return {
       ok: true,
       promptPath: result.ok ? result.path : null,
+      promptText: promptText,
       error: result.ok ? null : result.error,
       changes: {
         total: totalChanged,
