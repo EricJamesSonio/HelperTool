@@ -87,6 +87,10 @@ function _populateDomCache() {
   _cacheEl('aiReport',        '#gfyAiReport');
 
   // Query tab
+  _cacheEl('queryTools',            '.gfy-query-tools');
+  _cacheEl('epResult',              '#gfyEpResult');
+  _cacheEl('epResultTitle',         '#gfyEpResultTitle');
+  _cacheEl('epResultBody',          '#gfyEpResultBody');
   _cacheEl('queryPathResult',       '#gfyPathResult');
   _cacheEl('queryExplainResult',    '#gfyExplainResult');
   _cacheEl('queryAffectedResult',   '#gfyAffectedResult');
@@ -275,6 +279,12 @@ function _bindEvents() {
   const trackingGenBtn = _root.querySelector('.gfy-tracking-gen-btn');
   if (trackingGenBtn) trackingGenBtn.addEventListener('click', _handleExport);
 
+  // Endpoint result close button
+  const epCloseBtn = _root.querySelector('.gfy-ep-result-close-btn');
+  if (epCloseBtn) epCloseBtn.addEventListener('click', () => {
+    setState({ expandedEndpoint: null, endpointResultKey: null });
+  });
+
   // Endpoint test delegation
   const epList = _els.endpointsList;
   if (epList) {
@@ -283,12 +293,20 @@ function _bindEvents() {
       if (!target) return;
       const key = target.dataset.epKey;
       if (!key) return;
-      // If the click is on an execute button inside an expanded POST row, fire the test
+      // If the click is on an execute button (POST warning), fire the test and set result
       if (e.target.closest('.gfy-ep-test-execute-btn')) {
         _handleEndpointTest(key);
+        setState({ endpointResultKey: key });
         return;
       }
-      _toggleEndpointTest(key);
+      // Normal click: set as active, fire test, show result in right panel
+      setState({ expandedEndpoint: key, endpointResultKey: key });
+      const s = getState();
+      const [method] = key.split(' ');
+      const test = s.endpointTests[key];
+      if ((!test || (!test.loading && test.error)) && method !== 'POST') {
+        _handleEndpointTest(key);
+      }
     });
   }
 }
@@ -1167,15 +1185,13 @@ function _render(state) {
         listEl.innerHTML = state.endpoints.map(ep => {
           const methodClass = 'gfy-ep-' + ep.method.toLowerCase();
           const key = _epKey(ep.method, ep.path);
-          const isExpanded = state.expandedEndpoint === key;
-          const test = state.endpointTests[key];
-          return `<div class="gfy-ep-row${isExpanded ? ' gfy-ep-row-expanded' : ''}" data-ep-key="${_esc(key)}">
-            <span class="gfy-ep-arrow${isExpanded ? ' gfy-ep-arrow-open' : ''}">\u25B6</span>
+          const isActive = state.expandedEndpoint === key || state.endpointResultKey === key;
+          return `<div class="gfy-ep-row${isActive ? ' gfy-ep-row-expanded' : ''}" data-ep-key="${_esc(key)}">
+            <span class="gfy-ep-arrow${isActive ? ' gfy-ep-arrow-open' : ''}">\u25B6</span>
             <span class="gfy-ep-method ${methodClass}">${_esc(ep.method)}</span>
             <code class="gfy-ep-path">${_esc(ep.path)}</code>
             <span class="gfy-ep-desc">${_esc(ep.description)}</span>
-          </div>
-          <div class="gfy-ep-test-result${isExpanded ? ' gfy-ep-test-result-open' : ''}" data-ep-key="${_esc(key)}">${isExpanded ? _renderEndpointTestContent(key, ep.method, test) : ''}</div>`;
+          </div>`;
         }).join('');
       }
     }
@@ -1544,6 +1560,31 @@ function _render(state) {
       } else if (state.nodeSearchQuery && state.nodeSearchQuery.length >= 2) {
         nodeSearchResults.innerHTML = '<div class="gfy-query-result-label" style="padding:8px">No matching nodes found.</div>';
       }
+    }
+  }
+
+  // ── Endpoint result in right column ──
+  if (_els.epResult && (!prev || state.activeTab !== prev.activeTab || state.endpointResultKey !== prev.endpointResultKey || state.endpointTests !== prev.endpointTests)) {
+    if (state.endpointResultKey) {
+      const test = state.endpointTests[state.endpointResultKey];
+      const [method, ...pathParts] = state.endpointResultKey.split(' ');
+      const path = pathParts.join(' ');
+      if (_els.queryTools) _els.queryTools.style.display = 'none';
+      _els.epResult.style.display = 'flex';
+      if (_els.epResultTitle) _els.epResultTitle.textContent = method + ' ' + path;
+      if (_els.epResultBody) {
+        _els.epResultBody.innerHTML = _renderEndpointTestContent(state.endpointResultKey, method, test);
+        // Re-bind execute button inside the result body for POST endpoints
+        const execBtn = _els.epResultBody.querySelector('.gfy-ep-test-execute-btn');
+        if (execBtn) {
+          execBtn.addEventListener('click', () => {
+            _handleEndpointTest(state.endpointResultKey);
+          });
+        }
+      }
+    } else {
+      if (_els.queryTools) _els.queryTools.style.display = '';
+      if (_els.epResult) _els.epResult.style.display = 'none';
     }
   }
 
@@ -1924,6 +1965,14 @@ function _template() {
               <div class="gfy-query-result" id="gfyAffectedResult"></div>
             </div>
           </div>
+        </div>
+
+        <div class="gfy-ep-result" id="gfyEpResult" style="display:none">
+          <div class="gfy-ep-result-header">
+            <span class="gfy-ep-result-title" id="gfyEpResultTitle"></span>
+            <button class="gfy-ep-result-close-btn">\u2716 Close</button>
+          </div>
+          <div class="gfy-ep-result-body" id="gfyEpResultBody"></div>
         </div>
       </div>
 

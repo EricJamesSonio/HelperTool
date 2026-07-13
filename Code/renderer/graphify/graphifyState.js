@@ -40,6 +40,7 @@ const state = {
   // Endpoint testing
   endpointTests: {},
   expandedEndpoint: null,
+  endpointResultKey: null,
   // Repo status (idle-hero wizard)
   repoStatus: null,
   symbolsInfo: null,

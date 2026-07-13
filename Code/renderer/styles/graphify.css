@@ -561,6 +561,57 @@
   background: rgba(34, 255, 122, 0.25);
 }
 
+/* ── Endpoint result in right column ── */
+.gfy-ep-result {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.gfy-ep-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(30, 41, 59, 0.6);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  gap: 12px;
+}
+.gfy-ep-result-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gfy-ep-result-close-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 14px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.gfy-ep-result-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+.gfy-ep-result-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px;
+}
+.gfy-ep-result-body .gfy-ep-test-meta {
+  margin-bottom: 12px;
+}
+.gfy-ep-result-body .gfy-ep-test-json {
+  max-height: none;
+}
+
 @keyframes gfy-spin {
   to { transform: rotate(360deg); }
 }
