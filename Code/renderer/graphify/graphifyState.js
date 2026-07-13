@@ -59,6 +59,7 @@ const state = {
   graphSyncStatus: null,
   graphSyncLoading: false,
   changesTabStep: 'idle', // idle | changes_detected | prompt_ready | synced | out_of_sync
+  changedFileList: null, // { modified: [...], added: [...] }
 };
 
 const _listeners = new Set();

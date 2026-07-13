@@ -855,6 +855,8 @@ function register({ app }) {
       changed: changes.changedFiles.length,
       new: changes.newFiles.length,
       changeRatio: changes.changeRatio,
+      changedFiles: changes.changedFiles,
+      newFiles: changes.newFiles,
       timestamp: graphData.generatedAt || null,
     };
   });
@@ -876,6 +878,8 @@ function register({ app }) {
         new: changes.newFiles.length,
         changeRatio: changes.changeRatio,
         tooManyChanges: changes.changeRatio > 0.5,
+        changedFiles: changes.changedFiles,
+        newFiles: changes.newFiles,
       } : null,
       stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
     };

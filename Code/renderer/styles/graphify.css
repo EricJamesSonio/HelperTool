@@ -2675,12 +2675,24 @@
 /* ─── Changes Tab ─────────────────────────────────────────────── */
 
 .gfy-changes-section {
-  flex: 1;
-  display: flex;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #050807;
+  display: none;
   flex-direction: column;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 16px 24px;
   gap: 16px;
+}
+
+.gfy-body.gfy-changes-active .gfy-left-column,
+.gfy-body.gfy-changes-active .gfy-right-column {
+  display: none;
+}
+
+.gfy-body.gfy-changes-active .gfy-changes-section {
+  display: flex;
 }
 
 .gfy-changes-header {
@@ -2873,4 +2885,59 @@
 
 .gfy-sync-warn {
   color: #facc15;
+}
+
+/* ─── Changes tab file list ───────────────────────────────────── */
+
+.gfy-changes-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 4px 0;
+  background: rgba(0,0,0,0.15);
+}
+
+.gfy-changes-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: #aaa;
+  transition: background 0.1s;
+}
+
+.gfy-changes-file-item:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.gfy-changes-file-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.gfy-changes-file-badge.modified {
+  background: rgba(250, 204, 21, 0.12);
+  color: #facc15;
+}
+
+.gfy-changes-file-badge.added {
+  background: rgba(53, 224, 125, 0.12);
+  color: #35e07d;
+}
+
+.gfy-changes-file-path {
+  font-family: monospace;
+  font-size: 10px;
+  color: #888;
+  word-break: break-all;
 }

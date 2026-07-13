@@ -100,6 +100,7 @@ function _populateDomCache() {
   _cacheEl('changesCheckBtn',     '.gfy-changes-check-btn');
   _cacheEl('changesSyncStatus',   '.gfy-changes-sync-status');
   _cacheEl('changesSyncDetail',   '.gfy-changes-sync-detail');
+  _cacheEl('changesFileList',     '.gfy-changes-file-list');
 
   // Query tab
   _cacheEl('queryTools',            '.gfy-query-tools');
@@ -1322,6 +1323,7 @@ function _render(state) {
   if (bodyEl && (!prev || state.activeTab !== prev.activeTab)) {
     bodyEl.classList.toggle('gfy-graph-active', state.activeTab === 'graph' && state.serverStatus === 'running');
     bodyEl.classList.toggle('gfy-ai-active', state.activeTab === 'ai');
+    bodyEl.classList.toggle('gfy-changes-active', state.activeTab === 'changes' && state.serverStatus === 'running');
   }
 
   // ── Graph tab ──
@@ -1608,7 +1610,7 @@ function _render(state) {
   }
 
   // ── Changes tab ──
-  if (state.activeTab === 'changes' && state.serverStatus === 'running' && (!prev || state.activeTab !== prev.activeTab || state.changesLoading !== prev.changesLoading || state.changesError !== prev.changesError || state.changesDetected !== prev.changesDetected || state.incrementalPromptReady !== prev.incrementalPromptReady || state.incrementalPromptPath !== prev.incrementalPromptPath || state.graphSyncStatus !== prev.graphSyncStatus || state.graphSyncLoading !== prev.graphSyncLoading)) {
+  if (state.activeTab === 'changes' && state.serverStatus === 'running' && (!prev || state.activeTab !== prev.activeTab || state.changesLoading !== prev.changesLoading || state.changesError !== prev.changesError || state.changesDetected !== prev.changesDetected || state.incrementalPromptReady !== prev.incrementalPromptReady || state.incrementalPromptPath !== prev.incrementalPromptPath || state.graphSyncStatus !== prev.graphSyncStatus || state.graphSyncLoading !== prev.graphSyncLoading || state.changedFileList !== prev.changedFileList)) {
     var chSpinner = _els.changesSpinner;
     var chError = _els.changesError;
     var chReindexStatus = _els.changesReindexStatus;
@@ -1620,6 +1622,7 @@ function _render(state) {
     var chPromptPath = _els.changesPromptPath;
     var chSyncStatus = _els.changesSyncStatus;
     var chSyncDetail = _els.changesSyncDetail;
+    var chFileList = _els.changesFileList;
 
     if (chSpinner) chSpinner.style.display = state.changesLoading || state.graphSyncLoading ? 'flex' : 'none';
     if (chError) {
@@ -1663,8 +1666,8 @@ function _render(state) {
     // Step 2: Generate status
     if (chGenStatus) {
       if (state.changesLoading && state.changesTabStep !== 'prompt_ready') {
-        chGenStatus.textContent = 'Generating\u2026';
-        chGenStatus.style.display = 'inline';
+        if (chGenStatus) chGenStatus.textContent = 'Generating\u2026';
+        if (chGenStatus) chGenStatus.style.display = 'inline';
       } else if (state.incrementalPromptReady) {
         chGenStatus.innerHTML = '<span class="gfy-export-ok">\u2713</span> Generated';
         chGenStatus.style.display = 'inline';
@@ -1686,14 +1689,14 @@ function _render(state) {
     // Step 3: Sync check status
     if (chSyncStatus) {
       if (state.graphSyncLoading) {
-        chSyncStatus.textContent = 'Checking\u2026';
-        chSyncStatus.style.display = 'inline';
+        if (chSyncStatus) chSyncStatus.textContent = 'Checking\u2026';
+        if (chSyncStatus) chSyncStatus.style.display = 'inline';
       } else if (state.graphSyncStatus) {
         var gs = state.graphSyncStatus;
         if (gs.synced) {
           chSyncStatus.innerHTML = '<span class="gfy-sync-ok">\u2713</span> Graph is in sync';
         } else if (gs.reason === 'no_graph') {
-          chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> No graph.json found';
+          chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> No graph.json found. Generate and load a graph first.';
         } else if (gs.totalChanged > 0) {
           chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> Graph is out of sync (' + gs.totalChanged + ' file(s) changed)';
         } else {
@@ -1705,7 +1708,8 @@ function _render(state) {
       }
     }
 
-    // Step 3: Sync detail
+    // Step 3: Sync detail + file list
+    var hasFileList = false;
     if (chSyncDetail) {
       if (state.graphSyncStatus && !state.graphSyncLoading) {
         var gs = state.graphSyncStatus;
@@ -1715,12 +1719,36 @@ function _render(state) {
           detailLines.push('All files are accounted for in the graph.');
         } else if (gs.totalChanged > 0) {
           detailLines.push(gs.totalChanged + ' file(s) changed (' + (gs.changed || 0) + ' modified, ' + (gs.new || 0) + ' new) since the graph was built.');
+          hasFileList = true;
         }
         chSyncDetail.textContent = detailLines.join(' \u00B7 ');
         chSyncDetail.style.display = 'block';
       } else {
         chSyncDetail.style.display = 'none';
       }
+    }
+
+    // File list
+    if (chFileList) {
+      if (hasFileList && state.graphSyncStatus) {
+        var gs = state.graphSyncStatus;
+        var items = [];
+        (gs.changedFiles || []).forEach(function(fp) {
+          items.push('<div class="gfy-changes-file-item"><span class="gfy-changes-file-badge modified">MOD</span><span class="gfy-changes-file-path">' + _esc(fp) + '</span></div>');
+        });
+        (gs.newFiles || []).forEach(function(fp) {
+          items.push('<div class="gfy-changes-file-item"><span class="gfy-changes-file-badge added">NEW</span><span class="gfy-changes-file-path">' + _esc(fp) + '</span></div>');
+        });
+        chFileList.innerHTML = items.join('');
+        chFileList.style.display = items.length > 0 ? 'flex' : 'none';
+      } else {
+        chFileList.style.display = 'none';
+      }
+    }
+
+    // Auto-detect sync on tab activation
+    if (state.activeTab === 'changes' && state.serverStatus === 'running' && prev && state.activeTab !== prev.activeTab && !state.graphSyncStatus && !state.graphSyncLoading) {
+      _handleChangesCheckSync();
     }
   }
 
@@ -2383,6 +2411,7 @@ function _template() {
                   <span class="gfy-changes-sync-status" style="display:none"></span>
                 </div>
                 <div class="gfy-changes-sync-detail" style="display:none"></div>
+                <div class="gfy-changes-file-list" style="display:none"></div>
               </div>
             </div>
 
