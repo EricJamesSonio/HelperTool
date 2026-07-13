@@ -793,10 +793,7 @@ function register({ app }) {
 
   ipcMain.handle('graphify:generateIncrementalPrompt', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    // Export fresh symbols.json from the re-indexed SQLite database first
-    const exportResult = exporter.exportSymbolsJson();
-    if (!exportResult.ok) return exportResult;
-
+    // symbols.json already on disk from indexing. Load it directly.
     const data = symbolsJsonLoader.load(repoPath);
     if (!data || data.repoPath !== repoPath) {
       return { ok: false, error: 'symbols.json not found. Re-index the codebase first.' };

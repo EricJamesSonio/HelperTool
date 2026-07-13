@@ -369,10 +369,7 @@ async function _handleChangesReindex() {
     if (!repoPath) throw new Error('No repository selected');
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
     if (!_mounted) return;
-    // Export fresh symbols.json from re-indexed SQLite
-    await window.electronAPI.graphifyExportSymbolsJson();
-    if (!_mounted) return;
-    // Detect changes after re-index to show what changed
+    // Indexer already exported symbols.json, detect changes to show what changed
     const result = await window.electronAPI.graphifyDetectChanges(repoPath);
     if (_mounted && result && result.ok) {
       if (result.changes && result.changes.total > 0) {
