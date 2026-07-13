@@ -67,14 +67,12 @@ function _populateDomCache() {
   // AI tab
   _cacheEl('aiSpinner',       '.gfy-ai-spinner');
   _cacheEl('aiError',         '.gfy-ai-error');
-  _cacheEl('aiResults',       '.gfy-ai-results');
   _cacheEl('aiExportStatus',  '.gfy-export-status');
   _cacheEl('aiStatusSymbols', '#gfyAiStatusSymbols');
   _cacheEl('aiGraphStatusIcon', '#gfyAiGraphStatusIcon');
   _cacheEl('aiStatusGraph',   '#gfyAiStatusGraph');
-  _cacheEl('aiLoadSection',   '.gfy-ai-load-section');
-  _cacheEl('aiLoadBtn',       '.gfy-ai-load-section .gfy-load-ai-btn');
-  _cacheEl('aiLoadWaiting',   '.gfy-ai-load-waiting');
+  _cacheEl('aiLeftPanel',     '.gfy-ai-left');
+  _cacheEl('aiRightPanel',    '.gfy-ai-right');
   _cacheEl('aiSteps',         '.gfy-ai-steps');
   _cacheEl('aiTracking',      '.gfy-ai-tracking');
   _cacheEl('aiIntroText',     '#gfyAiIntroText');
@@ -108,8 +106,6 @@ function _populateDomCache() {
     _cacheEl('wizStep1NoChanges', '.gfy-wizard-step:first-child .gfy-ai-no-changes', wiz);
     _cacheEl('wizStep1Desc',   '.gfy-wizard-step:first-child .gfy-wizard-step-desc', wiz);
     _cacheEl('wizStep3',       '.gfy-wizard-step:nth-child(3)', wiz);
-    _cacheEl('wizStep3LoadBtn','.gfy-load-ai-btn', wiz);
-    _cacheEl('wizStep3Waiting','.gfy-wizard-step-waiting', wiz);
     _cacheEls('wizChecklistMetas', '.gfy-checklist-meta', wiz);
     _cacheEl('wizExportStatus', '.gfy-wizard-export-status', wiz);
     _cacheEl('wizError',       '.gfy-wizard-error', wiz);
@@ -1174,15 +1170,15 @@ function _render(state) {
   if (state.activeTab === 'ai' && state.serverStatus === 'running' && (!prev || state.aiGraphLoading !== prev.aiGraphLoading || state.exportLoading !== prev.exportLoading || state.aiGraphError !== prev.aiGraphError || state.exportError !== prev.exportError || state.aiGraphData !== prev.aiGraphData || state.symbolsInfo !== prev.symbolsInfo || state.graphHasData !== prev.graphHasData || state.graphInfo !== prev.graphInfo || state.promptType !== prev.promptType || state.exportStatus !== prev.exportStatus || state.promptExists !== prev.promptExists || state.pendingChanges !== prev.pendingChanges || state.aiGraphReport !== prev.aiGraphReport)) {
     const spinner = _els.aiSpinner;
     const error = _els.aiError;
-    const results = _els.aiResults;
     const exportStatus = _els.aiExportStatus;
+    const leftPanel = _els.aiLeftPanel;
+    const rightPanel = _els.aiRightPanel;
 
     if (spinner) spinner.style.display = state.aiGraphLoading || state.exportLoading ? 'flex' : 'none';
     if (error) {
       error.textContent = state.aiGraphError || state.exportError || '';
       error.style.display = (state.aiGraphError || state.exportError) ? 'block' : 'none';
     }
-    if (results) results.style.display = state.aiGraphData ? 'block' : 'none';
 
     const statusSymbols = _els.aiStatusSymbols;
     if (statusSymbols) {
@@ -1209,26 +1205,16 @@ function _render(state) {
       }
     }
 
-    const loadSection = _els.aiLoadSection;
-    const loadBtn = _els.aiLoadBtn;
-    const loadWaiting = _els.aiLoadWaiting;
     const stepsEl = _els.aiSteps;
     const trackingEl = _els.aiTracking;
     const introText = _els.aiIntroText;
-
-    if (loadSection) loadSection.style.display = 'flex';
-    if (loadBtn && loadWaiting) {
-      const graphExists = state.graphInfo?.exists;
-      loadBtn.style.display = graphExists ? 'inline-flex' : 'none';
-      loadWaiting.style.display = graphExists ? 'none' : 'flex';
-    }
 
     if (stepsEl) stepsEl.style.display = state.graphHasData ? 'none' : 'flex';
     if (trackingEl) trackingEl.style.display = state.graphHasData ? 'flex' : 'none';
     if (introText) {
       introText.textContent = state.graphHasData
         ? 'Knowledge graph is ready. Re-index to detect file changes and generate incremental updates.'
-        : 'Generate a prompt, send it to your AI, then load the enriched knowledge graph.';
+        : 'Generate a prompt and send it to your AI to build the enriched knowledge graph.';
     }
 
     if (!state.graphHasData) {
@@ -1311,41 +1297,61 @@ function _render(state) {
       }
     }
 
+    const featuresEl = _els.aiFeatures;
+    const conceptsEl = _els.aiConcepts;
+    const reportEl = _els.aiReport;
+
     if (state.aiGraphData) {
       const g = state.aiGraphData;
 
-      const featuresEl = _els.aiFeatures;
-      if (featuresEl && g.features) {
-        const featureNames = Object.keys(g.features);
-        featuresEl.innerHTML = '<div class="gfy-ai-section-title">Features (' + featureNames.length + ')</div>' +
-          featureNames.map(fname => {
-            const feat = g.features[fname];
-            return '<div class="gfy-ai-feature-card">' +
-              '<div class="gfy-ai-feature-name">' + _esc(fname) + '</div>' +
-              '<div class="gfy-ai-feature-summary">' + _esc(feat.summary || '') + '</div>' +
-              '<div class="gfy-ai-feature-meta">' + (feat.files ? feat.files.length + ' files' : '') + '</div>' +
-              '</div>';
-          }).join('');
+      if (featuresEl) {
+        if (g.features) {
+          const featureNames = Object.keys(g.features);
+          featuresEl.style.display = 'block';
+          featuresEl.innerHTML = '<div class="gfy-ai-section-title">Features (' + featureNames.length + ')</div>' +
+            featureNames.map(fname => {
+              const feat = g.features[fname];
+              return '<div class="gfy-ai-feature-card">' +
+                '<div class="gfy-ai-feature-name">' + _esc(fname) + '</div>' +
+                '<div class="gfy-ai-feature-summary">' + _esc(feat.summary || '') + '</div>' +
+                '<div class="gfy-ai-feature-meta">' + (feat.files ? feat.files.length + ' files' : '') + '</div>' +
+                '</div>';
+            }).join('');
+        } else {
+          featuresEl.style.display = 'none';
+        }
       }
 
-      const conceptsEl = _els.aiConcepts;
-      if (conceptsEl && g.concepts) {
-        const conceptNames = Object.keys(g.concepts);
-        conceptsEl.innerHTML = '<div class="gfy-ai-section-title">Key Concepts (' + conceptNames.length + ')</div>' +
-          conceptNames.map(cname => {
-            const c = g.concepts[cname];
-            return '<div class="gfy-ai-concept-item">' +
-              '<span class="gfy-ai-concept-name">' + _esc(cname) + '</span>' +
-              '<span class="gfy-ai-concept-desc">' + _esc(c.summary || '') + '</span>' +
-              '</div>';
-          }).join('');
+      if (conceptsEl) {
+        if (g.concepts) {
+          conceptsEl.style.display = 'block';
+          conceptsEl.innerHTML = '<div class="gfy-ai-section-title">Key Concepts (' + Object.keys(g.concepts).length + ')</div>' +
+            Object.keys(g.concepts).map(cname => {
+              const c = g.concepts[cname];
+              return '<div class="gfy-ai-concept-item">' +
+                '<span class="gfy-ai-concept-name">' + _esc(cname) + '</span>' +
+                '<span class="gfy-ai-concept-desc">' + _esc(c.summary || '') + '</span>' +
+                '</div>';
+            }).join('');
+        } else {
+          conceptsEl.style.display = 'none';
+        }
       }
 
-      const reportEl = _els.aiReport;
       if (reportEl && state.aiGraphReport) {
+        reportEl.style.display = 'block';
         reportEl.innerHTML = '<div class="gfy-ai-section-title">Report</div>' +
           '<div class="gfy-ai-report-body">' + _esc(state.aiGraphReport).replace(/\n/g, '<br>') + '</div>';
       }
+    } else {
+      if (featuresEl) featuresEl.style.display = 'none';
+      if (conceptsEl) conceptsEl.style.display = 'none';
+      if (reportEl) reportEl.style.display = 'none';
+    }
+
+    // Auto-load graph data when AI tab is active and data exists
+    if (state.activeTab === 'ai' && state.serverStatus === 'running' && state.graphInfo?.exists && !state.aiGraphData && !state.aiGraphLoading) {
+      _handleLoadAiGraph();
     }
   }
 
@@ -1792,125 +1798,109 @@ function _template() {
 
       <!-- AI Graph Tab -->
       <div class="gfy-ai-section gfy-tab-content" style="display:none">
-        <div class="gfy-ai-intro">
-          <div class="gfy-ai-intro-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M6 15h12"/><path d="M8 15v4"/><path d="M16 15v4"/><path d="M4 19h16"/></svg>
-          </div>
-          <div class="gfy-ai-intro-text">
-            <strong>AI-Powered Semantic Graph</strong>
-            <span id="gfyAiIntroText">Generate a prompt, send it to your AI, then load the enriched knowledge graph.</span>
-          </div>
-        </div>
-
-        <div class="gfy-ai-status-bar">
-          <div class="gfy-ai-status-item">
-            <span class="gfy-ai-status-icon">&#10003;</span>
-            <span>Symbol Index</span>
-            <span class="gfy-ai-status-meta" id="gfyAiStatusSymbols"></span>
-          </div>
-          <div class="gfy-ai-status-item">
-            <span class="gfy-ai-status-icon" id="gfyAiGraphStatusIcon">&#10003;</span>
-            <span>Knowledge Graph</span>
-            <span class="gfy-ai-status-meta" id="gfyAiStatusGraph"></span>
-          </div>
-        </div>
-
-        <div class="gfy-ai-load-section">
-          <div class="gfy-ai-load-header">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
-            <span>Graph Context</span>
-          </div>
-          <div class="gfy-ai-load-desc">Load the enriched knowledge graph to view features, concepts, and report data that serves as query context.</div>
-          <div class="gfy-ai-load-actions">
-            <button class="gfy-load-ai-btn">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
-              Load AI Graph
-            </button>
-            <div class="gfy-ai-load-waiting" style="display:none">
-              <span class="gfy-ai-step-waiting-dot"></span>
-              <span>No enriched graph found yet. Run the prompt with your AI first.</span>
+        <div class="gfy-ai-left">
+          <div class="gfy-ai-intro">
+            <div class="gfy-ai-intro-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M6 15h12"/><path d="M8 15v4"/><path d="M16 15v4"/><path d="M4 19h16"/></svg>
+            </div>
+            <div class="gfy-ai-intro-text">
+              <strong>AI-Powered Semantic Graph</strong>
+              <span id="gfyAiIntroText">Generate a prompt, send it to your AI to build the enriched knowledge graph.</span>
             </div>
           </div>
-        </div>
 
-        <div class="gfy-ai-steps" style="display:none">
-          <div class="gfy-ai-step">
-            <div class="gfy-ai-step-num">1</div>
-            <div class="gfy-ai-step-body">
-              <div class="gfy-ai-step-title">Generate Prompt</div>
-              <div class="gfy-ai-step-desc" id="gfyAiStep1Desc">Generates a prompt for AI to build or update the knowledge graph.</div>
-              <div class="gfy-ai-step-type" id="gfyAiStep1Type" style="display:none"></div>
-              <button class="gfy-export-btn">
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
-                Generate Prompt
-              </button>
-              <div class="gfy-export-status" style="display:none"></div>
-              <div class="gfy-ai-no-changes" style="display:none">
-                <span>No file changes detected since last build. Re-index first if you made changes.</span>
+          <div class="gfy-ai-status-bar">
+            <div class="gfy-ai-status-item">
+              <span class="gfy-ai-status-icon">&#10003;</span>
+              <span>Symbol Index</span>
+              <span class="gfy-ai-status-meta" id="gfyAiStatusSymbols"></span>
+            </div>
+            <div class="gfy-ai-status-item">
+              <span class="gfy-ai-status-icon" id="gfyAiGraphStatusIcon">&#10003;</span>
+              <span>Knowledge Graph</span>
+              <span class="gfy-ai-status-meta" id="gfyAiStatusGraph"></span>
+            </div>
+          </div>
+
+          <div class="gfy-ai-steps" style="display:none">
+            <div class="gfy-ai-step">
+              <div class="gfy-ai-step-num">1</div>
+              <div class="gfy-ai-step-body">
+                <div class="gfy-ai-step-title">Generate Prompt</div>
+                <div class="gfy-ai-step-desc" id="gfyAiStep1Desc">Generates a prompt for AI to build or update the knowledge graph.</div>
+                <div class="gfy-ai-step-type" id="gfyAiStep1Type" style="display:none"></div>
+                <button class="gfy-export-btn">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+                  Generate Prompt
+                </button>
+                <div class="gfy-export-status" style="display:none"></div>
+                <div class="gfy-ai-no-changes" style="display:none">
+                  <span>No file changes detected since last build. Re-index first if you made changes.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="gfy-ai-step">
+              <div class="gfy-ai-step-num">2</div>
+              <div class="gfy-ai-step-body">
+                <div class="gfy-ai-step-title">Send to AI</div>
+                <div class="gfy-ai-step-desc">Send the generated prompt to CodeSwamp, Claude, or ChatGPT for enrichment.</div>
+                <button class="gfy-send-ai-btn">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+                  Send Prompt to CodeSwamp
+                </button>
               </div>
             </div>
           </div>
 
-          <div class="gfy-ai-step">
-            <div class="gfy-ai-step-num">2</div>
-            <div class="gfy-ai-step-body">
-              <div class="gfy-ai-step-title">Send to AI</div>
-              <div class="gfy-ai-step-desc">Send the generated prompt to CodeSwamp, Claude, or ChatGPT for enrichment.</div>
+          <div class="gfy-ai-tracking" style="display:none">
+            <div class="gfy-ai-tracking-header">
+              <div class="gfy-ai-tracking-icon">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v14"/><path d="M3 10h14"/><circle cx="10" cy="10" r="7"/></svg>
+              </div>
+              <div class="gfy-ai-tracking-title">Incremental Updates</div>
+              <div class="gfy-ai-tracking-desc">Re-index to detect file changes, then generate an incremental prompt to update only what changed.</div>
+            </div>
+
+            <div class="gfy-ai-tracking-changes">
+              <span class="gfy-ai-tracking-changes-label">Changed files:</span>
+              <span class="gfy-ai-tracking-changes-value" id="gfyAiTrackingChanges">Scanning\u2026</span>
+            </div>
+
+            <div class="gfy-ai-tracking-actions">
+              <button class="gfy-tracking-reindex-btn">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
+                Re-index Symbols
+              </button>
+              <button class="gfy-tracking-gen-btn" style="display:none">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+                Generate Incremental Prompt
+              </button>
+            </div>
+
+            <div class="gfy-export-status" style="display:none"></div>
+
+            <div class="gfy-ai-tracking-send" style="display:none">
               <button class="gfy-send-ai-btn">
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
                 Send Prompt to CodeSwamp
               </button>
             </div>
           </div>
+
+          <div class="gfy-ai-spinner" style="display:none">
+            <div class="gfy-spinner-ring"></div>
+            <span>Loading\u2026</span>
+          </div>
+
+          <div class="gfy-ai-error" style="display:none"></div>
+
+          <div class="gfy-ai-features" id="gfyAiFeatures" style="display:none"></div>
+          <div class="gfy-ai-concepts" id="gfyAiConcepts" style="display:none"></div>
         </div>
 
-        <div class="gfy-ai-tracking" style="display:none">
-          <div class="gfy-ai-tracking-header">
-            <div class="gfy-ai-tracking-icon">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v14"/><path d="M3 10h14"/><circle cx="10" cy="10" r="7"/></svg>
-            </div>
-            <div class="gfy-ai-tracking-title">Incremental Updates</div>
-            <div class="gfy-ai-tracking-desc">Re-index to detect file changes, then generate an incremental prompt to update only what changed.</div>
-          </div>
-
-          <div class="gfy-ai-tracking-changes">
-            <span class="gfy-ai-tracking-changes-label">Changed files:</span>
-            <span class="gfy-ai-tracking-changes-value" id="gfyAiTrackingChanges">Scanning\u2026</span>
-          </div>
-
-          <div class="gfy-ai-tracking-actions">
-            <button class="gfy-tracking-reindex-btn">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
-              Re-index Symbols
-            </button>
-            <button class="gfy-tracking-gen-btn" style="display:none">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
-              Generate Incremental Prompt
-            </button>
-          </div>
-
-          <div class="gfy-export-status" style="display:none"></div>
-
-          <div class="gfy-ai-tracking-send" style="display:none">
-            <button class="gfy-send-ai-btn">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
-              Send Prompt to CodeSwamp
-            </button>
-          </div>
-        </div>
-
-        <div class="gfy-ai-spinner" style="display:none">
-          <div class="gfy-spinner-ring"></div>
-          <span>Loading\u2026</span>
-        </div>
-
-        <div class="gfy-ai-error" style="display:none"></div>
-
-        <div class="gfy-ai-results" style="display:none">
-          <div class="gfy-ai-results-header">AI-Generated Knowledge Graph</div>
-          <div class="gfy-ai-features" id="gfyAiFeatures"></div>
-          <div class="gfy-ai-concepts" id="gfyAiConcepts"></div>
-          <div class="gfy-ai-report" id="gfyAiReport"></div>
+        <div class="gfy-ai-right">
+          <div class="gfy-ai-report" id="gfyAiReport" style="display:none"></div>
         </div>
         </div>
         </div>

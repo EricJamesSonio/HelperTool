@@ -797,6 +797,7 @@ container.appendChild(canvas);
 var ctx=canvas.getContext('2d');
 
 var cx,cy,layoutR,circles,stars,pad=20,hoveredIdx=-1,selectedIdx=-1;
+var viewX=0,viewY=0,viewScale=1,isPanning=0,panStartX=0,panStartY=0,panViewX=0,panViewY=0,didPan=0;
 
 function initCanvas(){
   var w=container.clientWidth,h=container.clientHeight;
@@ -847,8 +848,12 @@ function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   // Cosmic background
   ctx.fillStyle='#080c12';ctx.fillRect(0,0,canvas.width,canvas.height);
-  // Stars
+  // Stars (fixed, no transform)
   stars.forEach(function(s){ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,2*Math.PI);ctx.fillStyle='rgba(255,255,255,'+s.a+')';ctx.fill();});
+  // Apply zoom+pan transform
+  ctx.save();
+  ctx.translate(viewX,viewY);
+  ctx.scale(viewScale,viewScale);
   // Connection lines
   clusterEdgesData.forEach(function(ce){
     var fc=parseInt(ce.from.replace('_comm_','')),tc=parseInt(ce.to.replace('_comm_',''));
@@ -873,12 +878,16 @@ function draw(){
     ctx.fillStyle=c.color+(isHover||isSel?'77':'55');ctx.fill();
     ctx.strokeStyle=isHover||isSel?'#22ff7a':c.color;
     ctx.lineWidth=isHover||isSel?2.5:1.5;ctx.stroke();
-    ctx.fillStyle='#94a3b8';ctx.font='10px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillStyle='#94a3b8';ctx.font='10px/1.2 Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
     ctx.fillText(c.label,c.x,c.y+c.radius+6);
   });
-  // Stats overlay
+  ctx.restore();
+  // Stats overlay (fixed, no transform)
   ctx.fillStyle='rgba(148,163,184,0.35)';ctx.font='11px Inter,sans-serif';ctx.textAlign='right';ctx.textBaseline='bottom';
   ctx.fillText(graphStats.nodes+' nodes  |  '+graphStats.edges+' edges',canvas.width-14,canvas.height-14);
+  // Zoom indicator
+  ctx.fillStyle='rgba(148,163,184,0.25)';ctx.font='11px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='bottom';
+  ctx.fillText(Math.round(viewScale*100)+'%',14,canvas.height-14);
 }
 function deferredInit(){try{initCanvas();}catch(e){console.error('Graph init error:',e);}}
 requestAnimationFrame(deferredInit);setTimeout(deferredInit,100);
@@ -889,8 +898,9 @@ var ro=new ResizeObserver(function(){requestAnimationFrame(function(){
   },200);}
 });});ro.observe(container);
 
-function getCircleAt(x,y){
-  for(var i=circles.length-1;i>=0;i--){var c=circles[i];var dx=x-c.x,dy=y-c.y;if(Math.sqrt(dx*dx+dy*dy)<=c.radius)return i;}
+function getCircleAt(sx,sy){
+  var wx=(sx-viewX)/viewScale,wy=(sy-viewY)/viewScale;
+  for(var i=circles.length-1;i>=0;i--){var c=circles[i];var dx=wx-c.x,dy=wy-c.y;if(Math.sqrt(dx*dx+dy*dy)<=c.radius)return i;}
   return -1;
 }
 
@@ -898,6 +908,7 @@ function showNodeDetail(html){var d=document.getElementById('nodeDetail');d.inne
 
 // Click circle → fetch community detail
 canvas.addEventListener('click',function(e){
+  if(didPan){didPan=0;return;}
   var rect=canvas.getBoundingClientRect();var x=e.clientX-rect.left,y=e.clientY-rect.top;
   var idx=getCircleAt(x,y);
   if(idx>=0){
@@ -916,6 +927,44 @@ canvas.addEventListener('mousemove',function(e){
   if(idx!==hoveredIdx){hoveredIdx=idx;canvas.style.cursor=idx>=0?'pointer':'default';draw();}
 });
 canvas.addEventListener('mouseleave',function(){hoveredIdx=-1;canvas.style.cursor='default';draw();});
+
+// ── Zoom with mouse wheel ──
+canvas.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  var prev=viewScale;
+  viewScale*=e.deltaY>0?0.88:1/0.88;
+  if(viewScale<0.15)viewScale=0.15;
+  if(viewScale>8)viewScale=8;
+  // Zoom toward cursor position
+  viewX=mx-(mx-viewX)/prev*viewScale;
+  viewY=my-(my-viewY)/prev*viewScale;
+  draw();
+},{passive:false});
+
+// ── Pan by dragging ──
+canvas.addEventListener('mousedown',function(e){
+  if(e.button!==0)return;
+  isPanning=1;panStartX=e.clientX;panStartY=e.clientY;
+  panViewX=viewX;panViewY=viewY;didPan=0;
+  canvas.style.cursor='grabbing';
+});
+document.addEventListener('mousemove',function(e){
+  if(!isPanning)return;
+  viewX=panViewX+(e.clientX-panStartX);
+  viewY=panViewY+(e.clientY-panStartY);
+  if(Math.abs(e.clientX-panStartX)>2||Math.abs(e.clientY-panStartY)>2)didPan=1;
+  draw();
+});
+document.addEventListener('mouseup',function(){
+  if(!isPanning)return;
+  isPanning=0;canvas.style.cursor=hoveredIdx>=0?'pointer':'default';
+});
+
+// ── Double-click reset ──
+canvas.addEventListener('dblclick',function(){
+  viewX=0;viewY=0;viewScale=1;draw();
+});
 
 // Search via API
 var searchTimer;
