@@ -2333,11 +2333,7 @@ function _template() {
         <div class="gfy-ai-right">
           <div class="gfy-ai-report" id="gfyAiReport" style="display:none"></div>
         </div>
-        </div>
-
-        <div class="gfy-ai-report" id="gfyAiReport" style="display:none"></div>
-        </div>
-        </div>
+      </div>
 
         <!-- Changes Tab -->
         <div class="gfy-changes-section gfy-tab-content" style="display:none">
