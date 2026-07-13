@@ -16,6 +16,7 @@ let _dbReady = false;
 let _dbError = null;
 let _actualPort = START_PORT;
 let _repoPath = null;
+let _serviceStopped = false;
 let _graph = new KnowledgeGraph();
 let _retrievalEngine = null;
 
@@ -119,6 +120,21 @@ function handleRequest(req, res) {
     return;
   }
 
+  // ── Admin endpoints (bypass service-stopped check) ──
+  if (req.method === 'POST' && req.url === '/admin/stop') {
+    _serviceStopped = true;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true }));
+  }
+  if (req.method === 'POST' && req.url === '/admin/start') {
+    _serviceStopped = false;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true }));
+  }
+  if (req.method === 'POST' && req.url === '/admin/reload') {
+    return handleAdminReload(req, res);
+  }
+
   if (req.method === 'GET' && req.url === '/health') {
     return handleHealth(req, res);
   }
@@ -217,7 +233,30 @@ function handleRequest(req, res) {
   res.end(JSON.stringify({ error: 'Not found' }));
 }
 
+async function handleAdminReload(req, res) {
+  try {
+    process.stderr.write('[graphify] Reloading data...\n');
+    await initFromJson(_repoPath);
+    _buildGraph();
+    _initRetrievalEngine();
+    _serviceStopped = false;
+    _dbError = null;
+    _dbReady = true;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  } catch (err) {
+    _dbError = err.message;
+    _dbReady = false;
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
 function handleHealth(req, res) {
+  if (_serviceStopped) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: false, ready: false, stopped: true }));
+  }
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ ok: true, ready: _dbReady }));
 }

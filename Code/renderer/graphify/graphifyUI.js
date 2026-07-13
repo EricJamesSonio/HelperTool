@@ -503,7 +503,18 @@ async function _handleIndex() {
   try {
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
     if (!_mounted) return;
-    _safeSetState({ error: 'Indexing complete! You can now start the server.' });
+    // If server is running, reload its data to pick up new symbols
+    try {
+      const runStatus = await window.electronAPI.graphifyIsRunning();
+      if (runStatus.running) {
+        await window.electronAPI.graphifyReload();
+        if (_mounted) _safeSetState({ error: 'Indexing complete! Server reloaded with new data.' });
+      } else {
+        if (_mounted) _safeSetState({ error: 'Indexing complete! You can now start the server.' });
+      }
+    } catch {
+      if (_mounted) _safeSetState({ error: 'Indexing complete! You can now start the server.' });
+    }
     _checkStatus();
   } catch (err) {
     if (_mounted) _safeSetState({ error: `Indexing failed: ${err.message}` });

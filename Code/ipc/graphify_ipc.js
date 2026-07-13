@@ -34,7 +34,44 @@ function _isChildAlive() {
   return _child && _child.exitCode === null && !_child.killed;
 }
 
+function _httpRequest(url, method) {
+  return new Promise((resolve) => {
+    method = method || 'POST';
+    const opts = new URL(url);
+    const req = http.request({
+      hostname: opts.hostname, port: opts.port, path: opts.pathname,
+      method, timeout: 3000,
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode }));
+    });
+    req.on('error', () => resolve({ ok: false }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false }); });
+    req.end();
+  });
+}
+
 function _spawn(app) {
+  if (_isChildAlive()) {
+    return _httpRequest(`http://127.0.0.1:${_port}/admin/start`).then((r) => {
+      if (r.ok) {
+        _ready = true;
+        return { port: _port };
+      }
+      _child = null;
+      _ready = false;
+      return _spawnFresh(app);
+    }).catch(() => {
+      _child = null;
+      _ready = false;
+      return _spawnFresh(app);
+    });
+  }
+  return _spawnFresh(app);
+}
+
+function _spawnFresh(app) {
   return new Promise((resolve, reject) => {
     if (_isChildAlive()) {
       resolve({ port: _port });
@@ -101,24 +138,29 @@ function _spawn(app) {
     setTimeout(() => {
       if (!_ready) {
         _starting = false;
-        _stop();
+        _stop(true);
         reject(new Error('Server did not become ready within timeout'));
       }
     }, START_TIMEOUT);
   });
 }
 
-function _stop() {
+function _stop(killProcess) {
   _starting = false;
-  if (_child) {
-    try { _child.kill('SIGTERM'); } catch (_) {}
-    _child = null;
+  if (killProcess || !_child) {
+    if (_child) {
+      try { _child.kill('SIGTERM'); } catch (_) {}
+      _child = null;
+    }
+    _ready = false;
+    return;
   }
+  _httpRequest(`http://127.0.0.1:${_port}/admin/stop`).catch(() => {});
   _ready = false;
 }
 
 function _restart(app) {
-  _stop();
+  _stop(true);
   return new Promise(r => setTimeout(r, 300)).then(() => _spawn(app));
 }
 
@@ -585,10 +627,20 @@ function register({ app }) {
 
   ipcMain.handle('graphify:cancelStart', async () => {
     if (_starting) {
-      _stop();
+      _stop(true);
       return { ok: true, cancelled: true };
     }
     return { ok: true, cancelled: false };
+  });
+
+  ipcMain.handle('graphify:reload', async () => {
+    if (!_isChildAlive()) return { ok: false, error: 'Server not running' };
+    const result = await _httpRequest(`http://127.0.0.1:${_port}/admin/reload`);
+    return result.ok ? { ok: true } : { ok: false, error: 'Reload failed' };
+  });
+
+  ipcMain.handle('graphify:isRunning', async () => {
+    return { running: _isChildAlive(), port: _port, ready: _ready };
   });
 
   ipcMain.handle('graphify:restart', async (_, repoPath) => {
@@ -758,7 +810,7 @@ function register({ app }) {
 }
 
 function shutdown() {
-  _stop();
+  _stop(true);
 }
 
 module.exports = { register, shutdown };
