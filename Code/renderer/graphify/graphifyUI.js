@@ -86,6 +86,21 @@ function _populateDomCache() {
   _cacheEl('aiConcepts',      '#gfyAiConcepts');
   _cacheEl('aiReport',        '#gfyAiReport');
 
+  // Changes tab
+  _cacheEl('changesSpinner',      '.gfy-changes-spinner');
+  _cacheEl('changesError',        '.gfy-changes-error');
+  _cacheEl('changesReindexBtn',   '.gfy-changes-reindex-btn');
+  _cacheEl('changesReindexStatus','.gfy-changes-reindex-status');
+  _cacheEl('changesDetected',     '.gfy-changes-detected');
+  _cacheEl('changesDetectedInfo', '.gfy-changes-detected-info');
+  _cacheEl('changesGenBtn',       '.gfy-changes-gen-btn');
+  _cacheEl('changesGenStatus',    '.gfy-changes-gen-status');
+  _cacheEl('changesPromptInfo',   '.gfy-changes-prompt-info');
+  _cacheEl('changesPromptPath',   '.gfy-changes-prompt-path');
+  _cacheEl('changesCheckBtn',     '.gfy-changes-check-btn');
+  _cacheEl('changesSyncStatus',   '.gfy-changes-sync-status');
+  _cacheEl('changesSyncDetail',   '.gfy-changes-sync-detail');
+
   // Query tab
   _cacheEl('queryTools',            '.gfy-query-tools');
   _cacheEl('epResult',              '#gfyEpResult');
@@ -207,10 +222,10 @@ function _bindEvents() {
     input.focus();
   });
 
-  // Tab clicks
+  // Tab clicks — also dismiss endpoint result if showing
   _root.querySelectorAll('.gfy-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      setState({ activeTab: btn.dataset.tab });
+      setState({ activeTab: btn.dataset.tab, endpointResultKey: null });
     });
   });
 
@@ -273,6 +288,14 @@ function _bindEvents() {
     btn.addEventListener('click', _handleLoadAiGraph);
   });
 
+  // Changes tab buttons
+  const changesReindexBtn = _root.querySelector('.gfy-changes-reindex-btn');
+  if (changesReindexBtn) changesReindexBtn.addEventListener('click', _handleChangesReindex);
+  const changesGenBtn = _root.querySelector('.gfy-changes-gen-btn');
+  if (changesGenBtn) changesGenBtn.addEventListener('click', _handleChangesGenPrompt);
+  const changesCheckBtn = _root.querySelector('.gfy-changes-check-btn');
+  if (changesCheckBtn) changesCheckBtn.addEventListener('click', _handleChangesCheckSync);
+
   // Tracking section buttons
   const trackingReindexBtn = _root.querySelector('.gfy-tracking-reindex-btn');
   if (trackingReindexBtn) trackingReindexBtn.addEventListener('click', _handleTrackingReindex);
@@ -332,6 +355,77 @@ async function _handleTrackingReindex() {
     if (_mounted) _safeSetState({ exportLoading: false, error: `Re-index failed: ${err.message}` });
   } finally {
     if (_mounted) _safeSetState({ exportLoading: false });
+  }
+}
+
+// ── Changes tab handlers ──
+
+async function _handleChangesReindex() {
+  if (!_mounted) return;
+  _safeSetState({ changesLoading: true, changesError: null, changesDetected: null, incrementalPromptPath: null, incrementalPromptReady: false, changesTabStep: 'idle' });
+  try {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) throw new Error('No repository selected');
+    await window.electronAPI.symbolIndex.startIndexing(repoPath);
+    if (!_mounted) return;
+    // Export fresh symbols.json from re-indexed SQLite
+    await window.electronAPI.graphifyExportSymbolsJson();
+    if (!_mounted) return;
+    // Detect changes after re-index to show what changed
+    const result = await window.electronAPI.graphifyDetectChanges(repoPath);
+    if (_mounted && result && result.ok) {
+      if (result.changes && result.changes.total > 0) {
+        _safeSetState({ changesDetected: result.changes, changesTabStep: 'changes_detected' });
+      } else {
+        _safeSetState({ changesDetected: { total: 0, changed: 0, new: 0 }, changesTabStep: 'changes_detected' });
+      }
+    }
+  } catch (err) {
+    if (_mounted) _safeSetState({ changesError: 'Re-index failed: ' + err.message });
+  } finally {
+    if (_mounted) _safeSetState({ changesLoading: false });
+  }
+}
+
+async function _handleChangesGenPrompt() {
+  if (!_mounted) return;
+  _safeSetState({ changesLoading: true, changesError: null, incrementalPromptPath: null, incrementalPromptReady: false });
+  try {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) throw new Error('No repository selected');
+    const result = await window.electronAPI.graphifyGenerateIncrementalPrompt(repoPath);
+    if (_mounted) {
+      if (result && result.ok && result.promptPath) {
+        _safeSetState({ incrementalPromptPath: result.promptPath, incrementalPromptReady: true, changesTabStep: 'prompt_ready' });
+      } else {
+        _safeSetState({ changesError: result.error || 'Failed to generate incremental prompt' });
+      }
+    }
+  } catch (err) {
+    if (_mounted) _safeSetState({ changesError: 'Generate prompt failed: ' + err.message });
+  } finally {
+    if (_mounted) _safeSetState({ changesLoading: false });
+  }
+}
+
+async function _handleChangesCheckSync() {
+  if (!_mounted) return;
+  _safeSetState({ graphSyncLoading: true, changesError: null });
+  try {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) throw new Error('No repository selected');
+    const result = await window.electronAPI.graphifyCheckGraphSync(repoPath);
+    if (_mounted) {
+      if (result && result.ok) {
+        _safeSetState({ graphSyncStatus: result, changesTabStep: result.synced ? 'synced' : 'out_of_sync' });
+      } else {
+        _safeSetState({ changesError: result.error || 'Failed to check sync status' });
+      }
+    }
+  } catch (err) {
+    if (_mounted) _safeSetState({ changesError: 'Check sync failed: ' + err.message });
+  } finally {
+    if (_mounted) _safeSetState({ graphSyncLoading: false });
   }
 }
 
@@ -1176,7 +1270,7 @@ function _render(state) {
   }
 
   // ── Endpoints section ──
-  if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints || state.expandedEndpoint !== prev.expandedEndpoint || state.endpointTests !== prev.endpointTests)) {
+  if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints || state.expandedEndpoint !== prev.expandedEndpoint || state.endpointResultKey !== prev.endpointResultKey || state.endpointTests !== prev.endpointTests)) {
     const show = state.serverStatus === 'running' && state.endpoints;
     endpointsSection.style.display = show ? 'flex' : 'none';
     if (show) {
@@ -1513,6 +1607,123 @@ function _render(state) {
     }
   }
 
+  // ── Changes tab ──
+  if (state.activeTab === 'changes' && state.serverStatus === 'running' && (!prev || state.activeTab !== prev.activeTab || state.changesLoading !== prev.changesLoading || state.changesError !== prev.changesError || state.changesDetected !== prev.changesDetected || state.incrementalPromptReady !== prev.incrementalPromptReady || state.incrementalPromptPath !== prev.incrementalPromptPath || state.graphSyncStatus !== prev.graphSyncStatus || state.graphSyncLoading !== prev.graphSyncLoading)) {
+    var chSpinner = _els.changesSpinner;
+    var chError = _els.changesError;
+    var chReindexStatus = _els.changesReindexStatus;
+    var chDetected = _els.changesDetected;
+    var chDetectedInfo = _els.changesDetectedInfo;
+    var chGenBtn = _els.changesGenBtn;
+    var chGenStatus = _els.changesGenStatus;
+    var chPromptInfo = _els.changesPromptInfo;
+    var chPromptPath = _els.changesPromptPath;
+    var chSyncStatus = _els.changesSyncStatus;
+    var chSyncDetail = _els.changesSyncDetail;
+
+    if (chSpinner) chSpinner.style.display = state.changesLoading || state.graphSyncLoading ? 'flex' : 'none';
+    if (chError) {
+      chError.textContent = state.changesError || '';
+      chError.style.display = state.changesError ? 'block' : 'none';
+    }
+
+    // Step 1: Re-index status
+    if (chReindexStatus) {
+      if (state.changesLoading) {
+        chReindexStatus.textContent = 'Re-indexing\u2026';
+        chReindexStatus.style.display = 'inline';
+      } else if (state.changesDetected) {
+        chReindexStatus.innerHTML = '<span class="gfy-export-ok">\u2713</span> Done';
+        chReindexStatus.style.display = 'inline';
+      } else {
+        chReindexStatus.style.display = 'none';
+      }
+    }
+
+    // Step 1: Detected changes info
+    if (chDetected && chDetectedInfo) {
+      if (state.changesDetected) {
+        var cd = state.changesDetected;
+        if (cd.total > 0) {
+          chDetectedInfo.textContent = cd.total + ' file(s) changed (' + cd.changed + ' modified, ' + cd.new + ' new)';
+        } else {
+          chDetectedInfo.textContent = 'No file changes detected. The index is up to date.';
+        }
+        chDetected.style.display = 'flex';
+      } else {
+        chDetected.style.display = 'none';
+      }
+    }
+
+    // Step 2: Generate button visibility
+    if (chGenBtn) {
+      chGenBtn.style.display = (state.changesDetected && state.changesDetected.total > 0 && !state.changesLoading) ? 'inline-flex' : 'none';
+    }
+
+    // Step 2: Generate status
+    if (chGenStatus) {
+      if (state.changesLoading && state.changesTabStep !== 'prompt_ready') {
+        chGenStatus.textContent = 'Generating\u2026';
+        chGenStatus.style.display = 'inline';
+      } else if (state.incrementalPromptReady) {
+        chGenStatus.innerHTML = '<span class="gfy-export-ok">\u2713</span> Generated';
+        chGenStatus.style.display = 'inline';
+      } else {
+        chGenStatus.style.display = 'none';
+      }
+    }
+
+    // Step 2: Prompt path info
+    if (chPromptInfo && chPromptPath) {
+      if (state.incrementalPromptPath) {
+        chPromptPath.textContent = state.incrementalPromptPath;
+        chPromptInfo.style.display = 'flex';
+      } else {
+        chPromptInfo.style.display = 'none';
+      }
+    }
+
+    // Step 3: Sync check status
+    if (chSyncStatus) {
+      if (state.graphSyncLoading) {
+        chSyncStatus.textContent = 'Checking\u2026';
+        chSyncStatus.style.display = 'inline';
+      } else if (state.graphSyncStatus) {
+        var gs = state.graphSyncStatus;
+        if (gs.synced) {
+          chSyncStatus.innerHTML = '<span class="gfy-sync-ok">\u2713</span> Graph is in sync';
+        } else if (gs.reason === 'no_graph') {
+          chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> No graph.json found';
+        } else if (gs.totalChanged > 0) {
+          chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> Graph is out of sync (' + gs.totalChanged + ' file(s) changed)';
+        } else {
+          chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> Unable to verify';
+        }
+        chSyncStatus.style.display = 'inline';
+      } else {
+        chSyncStatus.style.display = 'none';
+      }
+    }
+
+    // Step 3: Sync detail
+    if (chSyncDetail) {
+      if (state.graphSyncStatus && !state.graphSyncLoading) {
+        var gs = state.graphSyncStatus;
+        var detailLines = [];
+        if (gs.timestamp) detailLines.push('Graph generated: ' + gs.timestamp);
+        if (gs.synced) {
+          detailLines.push('All files are accounted for in the graph.');
+        } else if (gs.totalChanged > 0) {
+          detailLines.push(gs.totalChanged + ' file(s) changed (' + (gs.changed || 0) + ' modified, ' + (gs.new || 0) + ' new) since the graph was built.');
+        }
+        chSyncDetail.textContent = detailLines.join(' \u00B7 ');
+        chSyncDetail.style.display = 'block';
+      } else {
+        chSyncDetail.style.display = 'none';
+      }
+    }
+  }
+
   // ── Query tab results ──
   if (state.activeTab === 'query' && (!prev || state.pathResult !== prev.pathResult || state.explainResult !== prev.explainResult || state.affectedResult !== prev.affectedResult || state.nodeSearchResults !== prev.nodeSearchResults || state.nodeSearchQuery !== prev.nodeSearchQuery)) {
     const pathResult = _els.queryPathResult;
@@ -1564,27 +1775,35 @@ function _render(state) {
   }
 
   // ── Endpoint result in right column ──
-  if (_els.epResult && (!prev || state.activeTab !== prev.activeTab || state.endpointResultKey !== prev.endpointResultKey || state.endpointTests !== prev.endpointTests)) {
+  var epResult = _els.epResult || _root?.querySelector('#gfyEpResult');
+  if (!_els.epResult && epResult) _els.epResult = epResult;
+  var otherTabs = epResult?.parentElement?.querySelectorAll('.gfy-tab-content');
+  if (epResult && (!prev || state.endpointResultKey !== prev.endpointResultKey || state.activeTab !== prev.activeTab || state.endpointTests !== prev.endpointTests)) {
     if (state.endpointResultKey) {
-      const test = state.endpointTests[state.endpointResultKey];
-      const [method, ...pathParts] = state.endpointResultKey.split(' ');
-      const path = pathParts.join(' ');
-      if (_els.queryTools) _els.queryTools.style.display = 'none';
-      _els.epResult.style.display = 'flex';
-      if (_els.epResultTitle) _els.epResultTitle.textContent = method + ' ' + path;
-      if (_els.epResultBody) {
-        _els.epResultBody.innerHTML = _renderEndpointTestContent(state.endpointResultKey, method, test);
-        // Re-bind execute button inside the result body for POST endpoints
-        const execBtn = _els.epResultBody.querySelector('.gfy-ep-test-execute-btn');
+      var key = state.endpointResultKey;
+      var test = state.endpointTests[key];
+      var parts = key.split(' ');
+      var method = parts[0], path = parts.slice(1).join(' ');
+      // Hide tab contents so result fills the column
+      if (otherTabs) otherTabs.forEach(function(tc){tc.style.display='none';});
+      epResult.style.display = 'flex';
+      var titleEl = _els.epResultTitle || epResult.querySelector('#gfyEpResultTitle');
+      if (titleEl) titleEl.textContent = method + ' ' + path;
+      var resultBody = _els.epResultBody || epResult.querySelector('#gfyEpResultBody');
+      if (resultBody) {
+        resultBody.innerHTML = _renderEndpointTestContent(key, method, test);
+        var execBtn = resultBody.querySelector('.gfy-ep-test-execute-btn');
         if (execBtn) {
-          execBtn.addEventListener('click', () => {
-            _handleEndpointTest(state.endpointResultKey);
-          });
+          execBtn.addEventListener('click', function(){_handleEndpointTest(key);});
         }
       }
     } else {
-      if (_els.queryTools) _els.queryTools.style.display = '';
-      if (_els.epResult) _els.epResult.style.display = 'none';
+      epResult.style.display = 'none';
+      // Restore active tab content
+      if (otherTabs && state.serverStatus === 'running') {
+        var activeEl = epResult.parentElement?.querySelector('.gfy-'+state.activeTab+'-section');
+        if (activeEl) activeEl.style.display = 'flex';
+      }
     }
   }
 
@@ -1842,6 +2061,7 @@ function _template() {
             <button class="gfy-tab" data-tab="query">Query</button>
             <button class="gfy-tab" data-tab="report">Report</button>
             <button class="gfy-tab" data-tab="ai">AI Graph</button>
+            <button class="gfy-tab" data-tab="changes">Changes</button>
           </div>
 
           <!-- Search Tab -->
@@ -1966,14 +2186,6 @@ function _template() {
             </div>
           </div>
         </div>
-
-        <div class="gfy-ep-result" id="gfyEpResult" style="display:none">
-          <div class="gfy-ep-result-header">
-            <span class="gfy-ep-result-title" id="gfyEpResultTitle"></span>
-            <button class="gfy-ep-result-close-btn">\u2716 Close</button>
-          </div>
-          <div class="gfy-ep-result-body" id="gfyEpResultBody"></div>
-        </div>
       </div>
 
       <!-- Report Tab -->
@@ -2093,6 +2305,96 @@ function _template() {
         <div class="gfy-ai-right">
           <div class="gfy-ai-report" id="gfyAiReport" style="display:none"></div>
         </div>
+        </div>
+
+        <div class="gfy-ai-report" id="gfyAiReport" style="display:none"></div>
+        </div>
+        </div>
+
+        <!-- Changes Tab -->
+        <div class="gfy-changes-section gfy-tab-content" style="display:none">
+          <div class="gfy-changes-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div class="gfy-changes-header-text">
+              <strong>File Changes</strong>
+              <span>Track codebase changes and sync the knowledge graph incrementally.</span>
+            </div>
+          </div>
+
+          <div class="gfy-changes-spinner" style="display:none">
+            <div class="gfy-spinner-ring"></div>
+            <span>Working\u2026</span>
+          </div>
+
+          <div class="gfy-changes-error" style="display:none"></div>
+
+          <div class="gfy-changes-workflow">
+
+            <!-- Step 1: Re-index -->
+            <div class="gfy-changes-step">
+              <div class="gfy-changes-step-num">1</div>
+              <div class="gfy-changes-step-body">
+                <div class="gfy-changes-step-title">Re-index Symbols</div>
+                <div class="gfy-changes-step-desc">Rescan your codebase to detect which files have been added, modified, or deleted since the last index.</div>
+                <div class="gfy-changes-step-actions">
+                  <button class="gfy-changes-reindex-btn">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
+                    Re-index
+                  </button>
+                  <span class="gfy-changes-reindex-status" style="display:none"></span>
+                </div>
+                <div class="gfy-changes-detected" style="display:none">
+                  <span class="gfy-changes-detected-icon">i</span>
+                  <span class="gfy-changes-detected-info"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 2: Generate Incremental Prompt -->
+            <div class="gfy-changes-step">
+              <div class="gfy-changes-step-num">2</div>
+              <div class="gfy-changes-step-body">
+                <div class="gfy-changes-step-title">Generate Incremental Prompt</div>
+                <div class="gfy-changes-step-desc">Creates a concise prompt describing only the changed files, for the AI to update the existing graph without reprocessing everything.</div>
+                <div class="gfy-changes-step-actions">
+                  <button class="gfy-changes-gen-btn" style="display:none">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="m6 9 4 4 4-4"/><path d="M3 16v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1"/></svg>
+                    Generate Prompt
+                  </button>
+                  <span class="gfy-changes-gen-status" style="display:none"></span>
+                </div>
+                <div class="gfy-changes-prompt-info" style="display:none">
+                  <span class="gfy-changes-prompt-path"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3: Check Graph Sync -->
+            <div class="gfy-changes-step">
+              <div class="gfy-changes-step-num">3</div>
+              <div class="gfy-changes-step-body">
+                <div class="gfy-changes-step-title">Verify Graph Sync</div>
+                <div class="gfy-changes-step-desc">Check whether the knowledge graph is up to date with the current state of your codebase.</div>
+                <div class="gfy-changes-step-actions">
+                  <button class="gfy-changes-check-btn">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 0 1-14 0"/><path d="M17 10V4"/><path d="M17 4h-6"/></svg>
+                    Check Sync
+                  </button>
+                  <span class="gfy-changes-sync-status" style="display:none"></span>
+                </div>
+                <div class="gfy-changes-sync-detail" style="display:none"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="gfy-ep-result" id="gfyEpResult" style="display:none">
+          <div class="gfy-ep-result-header">
+            <span class="gfy-ep-result-title" id="gfyEpResultTitle"></span>
+            <button class="gfy-ep-result-close-btn">\u2716 Close</button>
+          </div>
+          <div class="gfy-ep-result-body" id="gfyEpResultBody"></div>
         </div>
         </div>
       </div>

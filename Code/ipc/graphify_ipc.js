@@ -9,6 +9,7 @@ const http        = require('http');
 
 const symbolsJsonLoader = require('../database/symbolsJsonLoader');
 const changeDetector = require('../database/changeDetector');
+const exporter = require('../graphify-service/exporter');
 
 const DEFAULT_PORT = 3333;
 const START_TIMEOUT = 10000;
@@ -697,6 +698,11 @@ function register({ app }) {
     };
   });
 
+  ipcMain.handle('graphify:exportSymbolsJson', async () => {
+    const result = exporter.exportSymbolsJson();
+    return result;
+  });
+
   ipcMain.handle('graphify:exportPrompt', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
     const data = symbolsJsonLoader.load(repoPath);
@@ -783,6 +789,74 @@ function register({ app }) {
     } catch (err) {
       return { ok: false, error: `Failed to load graph: ${err.message}` };
     }
+  });
+
+  ipcMain.handle('graphify:generateIncrementalPrompt', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    // Export fresh symbols.json from the re-indexed SQLite database first
+    const exportResult = exporter.exportSymbolsJson();
+    if (!exportResult.ok) return exportResult;
+
+    const data = symbolsJsonLoader.load(repoPath);
+    if (!data || data.repoPath !== repoPath) {
+      return { ok: false, error: 'symbols.json not found. Re-index the codebase first.' };
+    }
+    const changes = changeDetector.detectChangesSimple(repoPath);
+    const hasGraph = changes && changes.hasPreviousGraph;
+    const totalChanged = hasGraph ? changes.changedFiles.length + changes.newFiles.length : 0;
+    if (!hasGraph || totalChanged === 0) {
+      return { ok: false, error: 'No changes detected since last graph build.' };
+    }
+
+    const changedFiles = [...changes.changedFiles, ...changes.newFiles];
+    const result = exporter.generateIncrementalPrompt(repoPath, changedFiles);
+
+    return {
+      ok: true,
+      promptPath: result.ok ? result.path : null,
+      error: result.ok ? null : result.error,
+      changes: {
+        total: totalChanged,
+        changed: changes.changedFiles.length,
+        new: changes.newFiles.length,
+        changeRatio: changes.changeRatio,
+      },
+    };
+  });
+
+  ipcMain.handle('graphify:checkGraphSync', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
+    const graphExists = fs.existsSync(graphPath);
+    if (!graphExists) {
+      return { ok: true, synced: false, reason: 'no_graph' };
+    }
+
+    let graphData;
+    try {
+      graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+    } catch {
+      return { ok: true, synced: false, reason: 'parse_error' };
+    }
+
+    const changes = changeDetector.detectChangesSimple(repoPath);
+    const hasGraph = changes && changes.hasPreviousGraph;
+    const totalChanged = hasGraph ? changes.changedFiles.length + changes.newFiles.length : 0;
+
+    if (!hasGraph) {
+      // Graph exists but can't detect changes — treat as synced
+      return { ok: true, synced: true, timestamp: graphData.generatedAt || null };
+    }
+
+    return {
+      ok: true,
+      synced: totalChanged === 0,
+      totalChanged,
+      changed: changes.changedFiles.length,
+      new: changes.newFiles.length,
+      changeRatio: changes.changeRatio,
+      timestamp: graphData.generatedAt || null,
+    };
   });
 
   ipcMain.handle('graphify:detectChanges', async (_, repoPath) => {

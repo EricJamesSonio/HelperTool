@@ -50,6 +50,15 @@ const state = {
   graphInfo: null,
   graphHasData: false,
   statusLoading: false,
+  // Changes tab state
+  changesLoading: false,
+  changesError: null,
+  changesDetected: null,
+  incrementalPromptPath: null,
+  incrementalPromptReady: false,
+  graphSyncStatus: null,
+  graphSyncLoading: false,
+  changesTabStep: 'idle', // idle | changes_detected | prompt_ready | synced | out_of_sync
 };
 
 const _listeners = new Set();

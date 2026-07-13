@@ -565,9 +565,12 @@ const graphifyBridge = {
   graphifyGetPort:            ()          => ipcRenderer.invoke('graphify:getPort'),
   graphifyGetInfo:            ()          => ipcRenderer.invoke('graphify:getInfo'),
   graphifyCheckStatus:        (repoPath) => ipcRenderer.invoke('graphify:checkStatus', repoPath),
+  graphifyExportSymbolsJson:  ()          => ipcRenderer.invoke('graphify:exportSymbolsJson'),
   graphifyExportPrompt:       (repoPath) => ipcRenderer.invoke('graphify:exportPrompt', repoPath),
   graphifyLoadGraphFromStorage: (repoPath) => ipcRenderer.invoke('graphify:loadGraphFromStorage', repoPath),
   graphifyDetectChanges:      (repoPath) => ipcRenderer.invoke('graphify:detectChanges', repoPath),
+  graphifyGenerateIncrementalPrompt: (repoPath) => ipcRenderer.invoke('graphify:generateIncrementalPrompt', repoPath),
+  graphifyCheckGraphSync:     (repoPath) => ipcRenderer.invoke('graphify:checkGraphSync', repoPath),
 };
 
 contextBridge.exposeInMainWorld('envAPI', envBridge);
