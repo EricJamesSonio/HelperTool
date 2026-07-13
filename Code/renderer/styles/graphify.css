@@ -410,6 +410,161 @@
   white-space: nowrap;
 }
 
+/* ─── Endpoint Tester (expand/collapse, test results) ────────── */
+
+.gfy-ep-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.gfy-ep-row:hover {
+  background: rgba(34, 255, 122, 0.10);
+}
+.gfy-ep-row-expanded {
+  background: rgba(34, 255, 122, 0.08) !important;
+  border: 1px solid rgba(34, 255, 122, 0.15);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+
+.gfy-ep-arrow {
+  flex-shrink: 0;
+  font-size: 8px;
+  color: #84a795;
+  transition: transform 0.2s;
+  margin-right: 2px;
+  display: inline-block;
+  width: 10px;
+  text-align: center;
+}
+.gfy-ep-arrow-open {
+  transform: rotate(90deg);
+  color: #22ff7a;
+}
+
+.gfy-ep-test-result {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  max-height: 0;
+  opacity: 0;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(34, 255, 122, 0.10);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  margin-top: -1px;
+  padding: 0 10px;
+}
+.gfy-ep-test-result-open {
+  max-height: 600px;
+  opacity: 1;
+  padding: 8px 10px;
+  overflow-y: auto;
+}
+
+.gfy-ep-test-spinner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11px;
+  color: #84a795;
+}
+.gfy-ep-test-spinner-dot {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(34, 255, 122, 0.3);
+  border-top-color: #22ff7a;
+  border-radius: 50%;
+  animation: gfy-spin 0.6s linear infinite;
+}
+
+.gfy-ep-test-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.gfy-ep-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+.gfy-ep-status-2xx { background: rgba(34, 255, 122, 0.20); color: #22ff7a; }
+.gfy-ep-status-3xx { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+.gfy-ep-status-4xx { background: rgba(234, 179, 8, 0.20); color: #eab308; }
+.gfy-ep-status-5xx { background: rgba(239, 68, 68, 0.20); color: #ef4444; }
+.gfy-ep-status-err  { background: rgba(239, 68, 68, 0.20); color: #ef4444; }
+.gfy-ep-elapsed {
+  font-size: 10px;
+  color: #84a795;
+  font-family: ui-monospace, monospace;
+}
+
+.gfy-ep-test-json {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #cdf5da;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.30);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 0;
+}
+.gfy-ep-test-json .gfy-json-key { color: #7dd3fc; }
+.gfy-ep-test-json .gfy-json-str { color: #a7f3d0; }
+.gfy-ep-test-json .gfy-json-num { color: #f9a8d4; }
+.gfy-ep-test-json .gfy-json-bool { color: #fde68a; }
+.gfy-ep-test-json .gfy-json-null { color: #9ca3af; }
+
+.gfy-ep-test-error {
+  font-size: 11px;
+  color: #ef4444;
+  padding: 4px 0;
+}
+
+.gfy-ep-test-empty {
+  font-size: 11px;
+  color: #84a795;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.gfy-ep-test-post-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: rgba(234, 179, 8, 0.10);
+  border: 1px solid rgba(234, 179, 8, 0.20);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #eab308;
+}
+.gfy-ep-test-execute-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 12px;
+  background: rgba(34, 255, 122, 0.15);
+  color: #22ff7a;
+  border: 1px solid rgba(34, 255, 122, 0.30);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.gfy-ep-test-execute-btn:hover {
+  background: rgba(34, 255, 122, 0.25);
+}
+
+@keyframes gfy-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ─── Info / stat boxes (mirrors reference "Amount Earned" cards) */
 
 .gfy-info-line {

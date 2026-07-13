@@ -163,6 +163,28 @@ export async function generateAIPrompt(port = 3333) {
   }
 }
 
+export async function testEndpoint(method, path, port = 3333) {
+  const url = `${_base(port)}${path}`;
+  const startTime = Date.now();
+  const options = { method, headers: { 'Content-Type': 'application/json' } };
+  if (method === 'POST') options.body = '{}';
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (err) {
+    return { data: null, statusCode: 0, elapsed: Date.now() - startTime, error: err.message };
+  }
+  const elapsed = Date.now() - startTime;
+  let data = null;
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('application/json')) {
+    try { data = await res.json(); } catch { data = null; }
+  } else {
+    try { data = await res.text(); } catch { data = null; }
+  }
+  return { data, statusCode: res.status, elapsed, error: null };
+}
+
 export async function loadGraphFromStorage(port = 3333) {
   try {
     const res = await fetch(`${_base(port)}/graph/from-storage`);

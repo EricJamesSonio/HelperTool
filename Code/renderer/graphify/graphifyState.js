@@ -37,6 +37,9 @@ const state = {
   aiGraphReport: '',
   aiGraphLoading: false,
   aiGraphError: null,
+  // Endpoint testing
+  endpointTests: {},
+  expandedEndpoint: null,
   // Repo status (idle-hero wizard)
   repoStatus: null,
   symbolsInfo: null,

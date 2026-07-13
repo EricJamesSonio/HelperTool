@@ -1,7 +1,7 @@
 import { getState, setState, subscribe } from './graphifyState.js';
 import {
   queryGraphify, checkHealth as clientCheckHealth, fetchInfo, fetchEndpoints,
-  fetchGraphData, fetchGraphReport,
+  fetchGraphData, fetchGraphReport, testEndpoint,
   searchGraphNodes, getGraphNeighborhood, getGraphShortestPath, getGraphAffected,
 } from './graphifyClient.js';
 
@@ -274,6 +274,23 @@ function _bindEvents() {
   if (trackingReindexBtn) trackingReindexBtn.addEventListener('click', _handleTrackingReindex);
   const trackingGenBtn = _root.querySelector('.gfy-tracking-gen-btn');
   if (trackingGenBtn) trackingGenBtn.addEventListener('click', _handleExport);
+
+  // Endpoint test delegation
+  const epList = _els.endpointsList;
+  if (epList) {
+    epList.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-ep-key]');
+      if (!target) return;
+      const key = target.dataset.epKey;
+      if (!key) return;
+      // If the click is on an execute button inside an expanded POST row, fire the test
+      if (e.target.closest('.gfy-ep-test-execute-btn')) {
+        _handleEndpointTest(key);
+        return;
+      }
+      _toggleEndpointTest(key);
+    });
+  }
 }
 
 async function _handleTrackingReindex() {
@@ -298,6 +315,113 @@ async function _handleTrackingReindex() {
   } finally {
     if (_mounted) _safeSetState({ exportLoading: false });
   }
+}
+
+function _formatJson(obj) {
+  const indent = '  ';
+  function _fmt(val, depth) {
+    const pad = indent.repeat(depth);
+    const childPad = indent.repeat(depth + 1);
+    if (val === null) return '<span class="gfy-json-null">null</span>';
+    if (val === undefined) return '';
+    if (typeof val === 'string') return `<span class="gfy-json-str">${_esc(JSON.stringify(val))}</span>`;
+    if (typeof val === 'number') return `<span class="gfy-json-num">${val}</span>`;
+    if (typeof val === 'boolean') return `<span class="gfy-json-bool">${val}</span>`;
+    if (Array.isArray(val)) {
+      if (val.length === 0) return '[]';
+      const items = val.map(v => `${childPad}${_fmt(v, depth + 1)}`).join(',\n');
+      return `[\n${items}\n${pad}]`;
+    }
+    if (typeof val === 'object') {
+      const keys = Object.keys(val);
+      if (keys.length === 0) return '{}';
+      const items = keys.map(k => `${childPad}<span class="gfy-json-key">${_esc(JSON.stringify(k))}</span>: ${_fmt(val[k], depth + 1)}`).join(',\n');
+      return `{\n${items}\n${pad}}`;
+    }
+    return _esc(String(val));
+  }
+  return _fmt(obj, 0);
+}
+
+function _renderEndpointTestContent(key, method, test) {
+  if (!test) {
+    if (method === 'POST') {
+      return `<div class="gfy-ep-test-post-warning">
+        <span>\u26A0\uFE0F POST request \u2014 may have side effects</span>
+        <button class="gfy-ep-test-execute-btn">Execute</button>
+      </div>`;
+    }
+    return '<div class="gfy-ep-test-spinner"><div class="gfy-ep-test-spinner-dot"></div><span>Requesting\u2026</span></div>';
+  }
+  if (test.loading) {
+    return '<div class="gfy-ep-test-spinner"><div class="gfy-ep-test-spinner-dot"></div><span>Requesting\u2026</span></div>';
+  }
+  if (test.error) {
+    const statusClass = 'gfy-ep-status-err';
+    return `<div class="gfy-ep-test-meta">
+      <span class="gfy-ep-status-badge ${statusClass}">ERR</span>
+      <span class="gfy-ep-elapsed">${test.elapsed}ms</span>
+    </div>
+    <div class="gfy-ep-test-error">${_esc(test.error)}</div>`;
+  }
+  if (test.data === null || test.data === undefined || (typeof test.data === 'object' && Object.keys(test.data).length === 0 && !Array.isArray(test.data))) {
+    const codeClass = test.statusCode >= 200 && test.statusCode < 300 ? 'gfy-ep-status-2xx' :
+      test.statusCode >= 300 && test.statusCode < 400 ? 'gfy-ep-status-3xx' :
+      test.statusCode >= 400 && test.statusCode < 500 ? 'gfy-ep-status-4xx' :
+      test.statusCode >= 500 ? 'gfy-ep-status-5xx' : '';
+    return `<div class="gfy-ep-test-meta">
+      <span class="gfy-ep-status-badge ${codeClass}">${test.statusCode}</span>
+      <span class="gfy-ep-elapsed">${test.elapsed}ms</span>
+    </div>
+    <div class="gfy-ep-test-empty">(empty response)</div>`;
+  }
+  const codeClass = test.statusCode >= 200 && test.statusCode < 300 ? 'gfy-ep-status-2xx' :
+    test.statusCode >= 300 && test.statusCode < 400 ? 'gfy-ep-status-3xx' :
+    test.statusCode >= 400 && test.statusCode < 500 ? 'gfy-ep-status-4xx' :
+    test.statusCode >= 500 ? 'gfy-ep-status-5xx' : '';
+  let formatted = typeof test.data === 'string' ? _esc(test.data) : _formatJson(test.data);
+  if (formatted.length > 5000) formatted = formatted.slice(0, 5000) + '\n\n... (truncated)';
+  return `<div class="gfy-ep-test-meta">
+    <span class="gfy-ep-status-badge ${codeClass}">${test.statusCode}</span>
+    <span class="gfy-ep-elapsed">${test.elapsed}ms</span>
+  </div>
+  <pre class="gfy-ep-test-json">${formatted}</pre>`;
+}
+
+function _epKey(method, path) {
+  return `${method} ${path}`;
+}
+
+function _toggleEndpointTest(key) {
+  const s = getState();
+  if (s.expandedEndpoint === key) {
+    setState({ expandedEndpoint: null });
+    return;
+  }
+  if (s.expandedEndpoint) {
+    setState({ expandedEndpoint: key, endpointTests: { ...s.endpointTests } });
+  } else {
+    setState({ expandedEndpoint: key });
+  }
+  const [method] = key.split(' ');
+  const test = s.endpointTests[key];
+  if ((!test || (!test.loading && test.error)) && method !== 'POST') {
+    _handleEndpointTest(key);
+  }
+}
+
+async function _handleEndpointTest(key) {
+  if (!_mounted) return;
+  const s = getState();
+  const [method, ...pathParts] = key.split(' ');
+  const path = pathParts.join(' ');
+  const tests = { ...s.endpointTests, [key]: { loading: true, data: null, error: null, statusCode: null, elapsed: null } };
+  setState({ endpointTests: tests });
+  const { port } = getState();
+  const result = await testEndpoint(method, path, port);
+  if (!_mounted) return;
+  const updated = { ...getState().endpointTests, [key]: { ...result, loading: false } };
+  setState({ endpointTests: updated });
 }
 
 async function _handleStart() {
@@ -361,6 +485,7 @@ async function _handleStop() {
     graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
     graphLoading: false, graphError: null,
     nodeSearchResults: [], pathResult: null, explainResult: null, affectedResult: null,
+    endpointTests: {}, expandedEndpoint: null,
   });
 
   const _gf = _els?.graphIframeWrap?.querySelector('.gfy-graph-iframe');
@@ -414,6 +539,7 @@ async function _checkServerAlive(retries = 2) {
       results: [], files: [], explanation: '', error: 'Server was disconnected. Click Start to restart.',
       graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
       graphLoading: false, graphError: null,
+      endpointTests: {}, expandedEndpoint: null,
     });
 
     const _df = _els?.graphIframeWrap?.querySelector('.gfy-graph-iframe');
@@ -1021,7 +1147,7 @@ function _render(state) {
   }
 
   // ── Endpoints section ──
-  if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints)) {
+  if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints || state.expandedEndpoint !== prev.expandedEndpoint || state.endpointTests !== prev.endpointTests)) {
     const show = state.serverStatus === 'running' && state.endpoints;
     endpointsSection.style.display = show ? 'flex' : 'none';
     if (show) {
@@ -1029,11 +1155,16 @@ function _render(state) {
       if (listEl) {
         listEl.innerHTML = state.endpoints.map(ep => {
           const methodClass = 'gfy-ep-' + ep.method.toLowerCase();
-          return `<div class="gfy-ep-row">
+          const key = _epKey(ep.method, ep.path);
+          const isExpanded = state.expandedEndpoint === key;
+          const test = state.endpointTests[key];
+          return `<div class="gfy-ep-row${isExpanded ? ' gfy-ep-row-expanded' : ''}" data-ep-key="${_esc(key)}">
+            <span class="gfy-ep-arrow${isExpanded ? ' gfy-ep-arrow-open' : ''}">\u25B6</span>
             <span class="gfy-ep-method ${methodClass}">${_esc(ep.method)}</span>
             <code class="gfy-ep-path">${_esc(ep.path)}</code>
             <span class="gfy-ep-desc">${_esc(ep.description)}</span>
-          </div>`;
+          </div>
+          <div class="gfy-ep-test-result${isExpanded ? ' gfy-ep-test-result-open' : ''}" data-ep-key="${_esc(key)}">${isExpanded ? _renderEndpointTestContent(key, ep.method, test) : ''}</div>`;
         }).join('');
       }
     }
@@ -1167,7 +1298,7 @@ function _render(state) {
   }
 
   // ── AI Graph tab ──
-  if (state.activeTab === 'ai' && state.serverStatus === 'running' && (!prev || state.aiGraphLoading !== prev.aiGraphLoading || state.exportLoading !== prev.exportLoading || state.aiGraphError !== prev.aiGraphError || state.exportError !== prev.exportError || state.aiGraphData !== prev.aiGraphData || state.symbolsInfo !== prev.symbolsInfo || state.graphHasData !== prev.graphHasData || state.graphInfo !== prev.graphInfo || state.promptType !== prev.promptType || state.exportStatus !== prev.exportStatus || state.promptExists !== prev.promptExists || state.pendingChanges !== prev.pendingChanges || state.aiGraphReport !== prev.aiGraphReport)) {
+  if (state.activeTab === 'ai' && state.serverStatus === 'running' && (!prev || state.activeTab !== prev.activeTab || state.aiGraphLoading !== prev.aiGraphLoading || state.exportLoading !== prev.exportLoading || state.aiGraphError !== prev.aiGraphError || state.exportError !== prev.exportError || state.aiGraphData !== prev.aiGraphData || state.symbolsInfo !== prev.symbolsInfo || state.graphHasData !== prev.graphHasData || state.graphInfo !== prev.graphInfo || state.promptType !== prev.promptType || state.exportStatus !== prev.exportStatus || state.promptExists !== prev.promptExists || state.pendingChanges !== prev.pendingChanges || state.aiGraphReport !== prev.aiGraphReport)) {
     const spinner = _els.aiSpinner;
     const error = _els.aiError;
     const exportStatus = _els.aiExportStatus;
