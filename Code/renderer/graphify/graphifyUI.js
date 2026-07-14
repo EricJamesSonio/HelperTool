@@ -65,6 +65,8 @@ function _populateDomCache() {
   _cacheEl('graphStatsBar',    '.gfy-graph-stats-bar');
   _cacheEl('graphError',       '.gfy-graph-error');
   _cacheEl('reportContent',    '.gfy-report-content');
+  _cacheEl('reportSpinner',    '.gfy-report-spinner');
+  _cacheEl('reportError',      '.gfy-report-error');
 
   // AI tab
   _cacheEl('aiSpinner',       '.gfy-ai-spinner');
@@ -288,6 +290,7 @@ function _bindEvents() {
       setState({ activeTab: tab, endpointResultKey: null });
       if (tab === 'report') {
         const s = getState();
+        if (s.reportError) _safeSetState({ reportError: null });
         if (!s.graphReport && !s.graphLoading) _handleRefreshReport();
       }
     });
@@ -704,7 +707,7 @@ async function _handleStop() {
     serverStatus: 'stopped', serverInfo: null, endpoints: null,
     results: [], files: [], explanation: '', error: null,
     graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
-    graphLoading: false, graphError: null,
+    graphLoading: false, graphError: null, reportError: null,
     nodeSearchResults: [], pathResult: null, explainResult: null, affectedResult: null,
     endpointTests: {}, expandedEndpoint: null,
   });
@@ -782,7 +785,7 @@ async function _checkServerAlive(retries = 2) {
       serverStatus: 'stopped', serverInfo: null, endpoints: null,
       results: [], files: [], explanation: '', error: 'Server was disconnected. Click Start to restart.',
       graphData: null, graphStats: null, graphReport: null, graphCommunities: null,
-      graphLoading: false, graphError: null,
+      graphLoading: false, graphError: null, reportError: null,
       endpointTests: {}, expandedEndpoint: null,
     });
 
@@ -988,13 +991,17 @@ async function _handleAffected() {
 async function _handleRefreshReport() {
   if (!_mounted) return;
   const { port } = getState();
-  _safeSetState({ graphLoading: true });
+  _safeSetState({ graphLoading: true, reportError: null });
   try {
     const report = await fetchGraphReport(port);
     if (!_mounted) return;
-    _safeSetState({ graphReport: report, graphStats: report?.stats || null, graphLoading: false });
-  } catch {
-    if (_mounted) _safeSetState({ graphLoading: false });
+    if (report) {
+      _safeSetState({ graphReport: report, graphStats: report.stats || null, graphLoading: false });
+    } else {
+      _safeSetState({ graphLoading: false, reportError: 'Failed to load report. The server may not have graph data yet.' });
+    }
+  } catch (err) {
+    if (_mounted) _safeSetState({ graphLoading: false, reportError: err.message || 'Failed to load report' });
   }
 }
 
@@ -1175,13 +1182,13 @@ async function _openCodeSwampWithPrompt(promptText) {
     if (btn) btn.click();
 
     let input = document.getElementById('ocInput');
-    if (!input) {
-      for (let i = 0; i < 30; i++) {
-        await new Promise(r => setTimeout(r, 200));
-        if (!_mounted) return;
-        input = document.getElementById('ocInput');
-        if (input) break;
-      }
+    let tab = document.querySelector('.oc-tab.active');
+    for (let i = 0; i < 30; i++) {
+      if (input && tab) break;
+      await new Promise(r => setTimeout(r, 200));
+      if (!_mounted) return;
+      if (!input) input = document.getElementById('ocInput');
+      if (!tab) tab = document.querySelector('.oc-tab.active');
     }
 
     if (input) {
@@ -1536,48 +1543,68 @@ function _render(state) {
   }
 
   // ── Report tab ──
-  if (state.activeTab === 'report' && state.graphReport && (!prev || state.graphReport !== prev.graphReport || state.graphStats !== prev.graphStats)) {
+  if (state.activeTab === 'report' && state.serverStatus === 'running' && (!prev || state.activeTab !== prev.activeTab || state.graphReport !== prev.graphReport || state.graphStats !== prev.graphStats || state.graphLoading !== prev.graphLoading || state.reportError !== prev.reportError)) {
+    const spinner = _els.reportSpinner;
+    const error = _els.reportError;
     const reportContent = _els.reportContent;
+
+    if (spinner) spinner.style.display = state.graphLoading ? 'flex' : 'none';
+    if (error) {
+      error.style.display = state.reportError ? 'block' : 'none';
+      if (state.reportError) error.textContent = state.reportError;
+    }
+
     if (reportContent) {
-      const r = state.graphReport;
-      let html = '';
+      if (state.graphReport) {
+        reportContent.style.display = 'block';
+        const r = state.graphReport;
+        let html = '';
 
-      if (r.stats) {
-        html += `<div class="gfy-report-card"><div class="gfy-report-card-title">Graph Overview</div><div class="gfy-report-card-body">`;
-        html += `<div class="gfy-report-stat"><span>Total Nodes</span><strong>${r.stats.totalNodes}</strong></div>`;
-        html += `<div class="gfy-report-stat"><span>Total Edges</span><strong>${r.stats.totalEdges}</strong></div>`;
-        html += `<div class="gfy-report-stat"><span>Files</span><strong>${r.stats.totalFiles}</strong></div>`;
-        html += `<div class="gfy-report-stat"><span>Symbols</span><strong>${r.stats.totalSymbols}</strong></div>`;
-        html += `<div class="gfy-report-stat"><span>Docs</span><strong>${r.stats.totalDocs || 0}</strong></div>`;
-        html += `<div class="gfy-report-stat"><span>Communities</span><strong>${r.stats.communityCount}</strong></div>`;
-        html += `</div></div>`;
-      }
-
-      if (r.godNodes && r.godNodes.length > 0) {
-        html += `<div class="gfy-report-card"><div class="gfy-report-card-title">\uD83D\uDC51 God Nodes (highest degree)</div><div class="gfy-report-card-body">`;
-        for (const gn of r.godNodes) {
-          html += `<div class="gfy-report-item"><span class="gfy-report-item-label">${_esc(gn.label)}</span><span class="gfy-report-item-type">${_esc(gn.type)}</span><span class="gfy-report-item-meta">deg: ${gn.degree} \u00B7 ${_esc(gn.filePath || '')}</span></div>`;
+        if (r.stats) {
+          html += `<div class="gfy-report-card"><div class="gfy-report-card-title">Graph Overview</div><div class="gfy-report-card-body">`;
+          html += `<div class="gfy-report-stat"><span>Total Nodes</span><strong>${r.stats.totalNodes}</strong></div>`;
+          html += `<div class="gfy-report-stat"><span>Total Edges</span><strong>${r.stats.totalEdges}</strong></div>`;
+          html += `<div class="gfy-report-stat"><span>Files</span><strong>${r.stats.totalFiles}</strong></div>`;
+          html += `<div class="gfy-report-stat"><span>Symbols</span><strong>${r.stats.totalSymbols}</strong></div>`;
+          html += `<div class="gfy-report-stat"><span>Docs</span><strong>${r.stats.totalDocs || 0}</strong></div>`;
+          html += `<div class="gfy-report-stat"><span>Communities</span><strong>${r.stats.communityCount}</strong></div>`;
+          html += `</div></div>`;
         }
-        html += `</div></div>`;
-      }
 
-      if (r.surprisingEdges && r.surprisingEdges.length > 0) {
-        html += `<div class="gfy-report-card"><div class="gfy-report-card-title">\uD83D\uDCA5 Surprising Edges (cross-community)</div><div class="gfy-report-card-body">`;
-        for (const se of r.surprisingEdges) {
-          html += `<div class="gfy-report-item"><span class="gfy-report-item-label">${_esc(se.sourceLabel)}</span><span class="gfy-report-item-arrow">\u2192</span><span class="gfy-report-item-label">${_esc(se.targetLabel)}</span><span class="gfy-report-item-meta">${_esc(se.type)}</span></div>`;
+        if (r.godNodes && r.godNodes.length > 0) {
+          html += `<div class="gfy-report-card"><div class="gfy-report-card-title">\uD83D\uDC51 God Nodes (highest degree)</div><div class="gfy-report-card-body">`;
+          for (const gn of r.godNodes) {
+            html += `<div class="gfy-report-item"><span class="gfy-report-item-label">${_esc(gn.label)}</span><span class="gfy-report-item-type">${_esc(gn.type)}</span><span class="gfy-report-item-meta">deg: ${gn.degree} \u00B7 ${_esc(gn.filePath || '')}</span></div>`;
+          }
+          html += `</div></div>`;
         }
-        html += `</div></div>`;
-      }
 
-      if (r.communities && r.communities.length > 0) {
-        html += `<div class="gfy-report-card"><div class="gfy-report-card-title">\uD83C\uDFED Communities</div><div class="gfy-report-card-body">`;
-        for (const c of r.communities) {
-          html += `<div class="gfy-community-row"><span class="gfy-community-color" style="background:${c.color}"></span><span>Community ${c.id + 1}</span><span class="gfy-report-item-meta">${c.nodeCount} nodes</span></div>`;
+        if (r.surprisingEdges && r.surprisingEdges.length > 0) {
+          html += `<div class="gfy-report-card"><div class="gfy-report-card-title">\uD83D\uDCA5 Surprising Edges (cross-community)</div><div class="gfy-report-card-body">`;
+          for (const se of r.surprisingEdges) {
+            html += `<div class="gfy-report-item"><span class="gfy-report-item-label">${_esc(se.sourceLabel)}</span><span class="gfy-report-item-arrow">\u2192</span><span class="gfy-report-item-label">${_esc(se.targetLabel)}</span><span class="gfy-report-item-meta">${_esc(se.type)}</span></div>`;
+          }
+          html += `</div></div>`;
         }
-        html += `</div></div>`;
-      }
 
-      reportContent.innerHTML = html || '<div class="gfy-empty">No report data available.</div>';
+        if (r.communities && r.communities.length > 0) {
+          html += `<div class="gfy-report-card"><div class="gfy-report-card-title">\uD83C\uDFED Communities</div><div class="gfy-report-card-body">`;
+          for (const c of r.communities) {
+            html += `<div class="gfy-community-row"><span class="gfy-community-color" style="background:${c.color}"></span><span>Community ${c.id + 1}</span><span class="gfy-report-item-meta">${c.nodeCount} nodes</span></div>`;
+          }
+          html += `</div></div>`;
+        }
+
+        reportContent.innerHTML = html || '<div class="gfy-empty">No report data available.</div>';
+      } else if (!state.graphLoading && !state.reportError) {
+        reportContent.style.display = 'block';
+        reportContent.innerHTML = '<div class="gfy-empty">No report data yet. Click the Report tab to load it.</div>';
+      }
+    }
+
+    // Auto-load report on tab activation
+    if (state.activeTab === 'report' && state.serverStatus === 'running' && !state.graphReport && !state.graphLoading && !state.reportError) {
+      _handleRefreshReport();
     }
   }
 
@@ -2409,6 +2436,11 @@ function _template() {
 
       <!-- Report Tab -->
       <div class="gfy-report-section gfy-tab-content" style="display:none">
+        <div class="gfy-report-spinner" style="display:none">
+          <div class="gfy-spinner-ring"></div>
+          <span>Loading report\u2026</span>
+        </div>
+        <div class="gfy-report-error" style="display:none"></div>
         <div class="gfy-report-content"></div>
       </div>
 

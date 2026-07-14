@@ -17,6 +17,7 @@ const state = {
   graphCommunities: null,
   graphLoading:   false,
   graphError:     null,
+  reportError:    null,
   // Query tools state
   nodeSearchQuery: '',
   nodeSearchResults: [],
