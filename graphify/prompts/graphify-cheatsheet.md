@@ -45,7 +45,7 @@ You are an AI assistant with access to a codebase knowledge graph.
 This is the main way to understand the codebase. Always use this first to
 locate relevant files before using other endpoints. Ask in plain English.
 
-```http
+```
 POST /graph/relevant-code
 Content-Type: application/json
 
@@ -68,7 +68,7 @@ Returns ranked files with an explanation of why they matched:
 
 ### 2. `POST /graph/search` — Find nodes by name → get node IDs
 
-```http
+```
 POST /graph/search
 Content-Type: application/json
 
@@ -91,7 +91,7 @@ Use the returned `id` in neighborhood / affected / shortest-path calls.
 
 ### 3. `POST /graph/neighborhood` — What is connected to this node
 
-```http
+```
 POST /graph/neighborhood
 Content-Type: application/json
 
@@ -108,7 +108,7 @@ other code is related.
 
 ### 4. `POST /graph/affected` — Impact analysis
 
-```http
+```
 POST /graph/affected
 Content-Type: application/json
 
@@ -122,7 +122,7 @@ refactoring to find everything that depends on a node.
 
 ### Bonus: `GET /graph/report` — Architecture overview
 
-```http
+```
 GET /graph/report
 ```
 

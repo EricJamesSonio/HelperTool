@@ -44,7 +44,7 @@ const stage2Ok = runScript(STAGES.stage2.name, STAGES.stage2.script);
 
 // Stage 2.5 — check for incremental AI enrichment
 console.log(`\nIncremental AI Enrichment`);
-const updatePromptPath = path.join(__dirname, 'graphify', 'symbol-index-storage', 'file-updates-prompt.txt');
+const updatePromptPath = path.join(__dirname, 'graphify', 'prompts', 'file-updates-prompt.txt');
 const updatesJsonPath = path.join(__dirname, 'graphify', 'symbol-index-storage', 'file-updates.json');
 try {
   const out = execSync('node generate-update-prompt.js', { cwd: __dirname, stdio: 'pipe', timeout: 30000 });

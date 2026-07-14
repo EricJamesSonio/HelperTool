@@ -824,6 +824,7 @@ function register({ app }) {
       const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf-8') : '';
       // AI graph loaded successfully â€” save hashes as new baseline
       try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
+      try { exporter.generateCheatsheet(repoPath); } catch (_) {}
       return { ok: true, graph, report };
     } catch (err) {
       return { ok: false, error: `Failed to load graph: ${err.message}` };

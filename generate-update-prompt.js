@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const HASH_FILE = 'graphify/graphify-storage/.file-hashes.json';
 const SYMS_FILE = 'graphify/symbol-index-storage/symbols.json';
 const GRAPH_FILE = 'graphify/graphify-storage/graph.json';
-const OUT_PROMPT = 'graphify/symbol-index-storage/file-updates-prompt.txt';
+const OUT_PROMPT = 'graphify/prompts/file-updates-prompt.txt';
 
 const raw = JSON.parse(fs.readFileSync(SYMS_FILE, 'utf8'));
 const files = raw.files;
