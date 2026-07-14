@@ -13,6 +13,7 @@ let _watchdogTimer = null;
 let _mounted       = false;
 let _initialized   = false;
 let _startCancelRequested = false;
+let _loadChangesStatePending = false;
 
 // ── DOM cache (populated once in mount) ──
 const _els = {};
@@ -148,6 +149,11 @@ export function mount(container) {
   _checkStatus();
   _performStatusSync();
   _startWatchdog();
+  // Reload changes tab state from disk when panel is first shown
+  const s = getState();
+  if (s.activeTab === 'changes' && s.serverStatus === 'running') {
+    _handleChangesLoadState();
+  }
 }
 
 function _startHealthTimer() {
@@ -194,6 +200,11 @@ export function show() {
   _checkStatus();
   _performStatusSync();
   _startWatchdog();
+  // Reload changes tab state from disk when panel is reshown
+  const s = getState();
+  if (s.activeTab === 'changes' && s.serverStatus === 'running') {
+    _handleChangesLoadState();
+  }
 }
 
 export function hide() {
@@ -367,6 +378,8 @@ async function _handleTrackingReindex() {
       const result = await window.electronAPI.graphifyDetectChanges(repoPath);
       if (_mounted && result && result.ok) {
         _safeSetState({ pendingChanges: result.changes, symbolsInfo: result.stats });
+        // Save file hashes as baseline after re-index
+        await window.electronAPI.graphifySaveFileHashes(repoPath).catch(() => {});
       }
     } catch {}
   } catch (err) {
@@ -389,6 +402,8 @@ async function _handleChangesReindex() {
     // Indexer already exported symbols.json, detect changes to show what changed
     const result = await window.electronAPI.graphifyDetectChanges(repoPath);
     if (_mounted && result && result.ok) {
+      // Save file hashes as baseline so "Done" persists across tab switches
+      await window.electronAPI.graphifySaveFileHashes(repoPath).catch(() => {});
       if (result.changes && result.changes.total > 0) {
         _safeSetState({ changesDetected: result.changes, changesTabStep: 'changes_detected' });
       } else {
@@ -408,7 +423,12 @@ async function _handleChangesGenPrompt() {
   try {
     const repoPath = window.__activeRepoPath;
     if (!repoPath) throw new Error('No repository selected');
-    const result = await window.electronAPI.graphifyGenerateIncrementalPrompt(repoPath);
+    // Pass changed files from state so prompt generation uses the same delta
+    const s = getState();
+    const changedFiles = s.changesDetected && s.changesDetected.total > 0
+      ? [...(s.changesDetected.changedFiles || []), ...(s.changesDetected.newFiles || [])]
+      : null;
+    const result = await window.electronAPI.graphifyGenerateIncrementalPrompt(repoPath, changedFiles);
     if (_mounted) {
       if (result && result.ok && result.promptPath) {
         _safeSetState({ incrementalPromptPath: result.promptPath, incrementalPromptText: result.promptText || '', incrementalPromptReady: true, changesTabStep: 'prompt_ready' });
@@ -441,6 +461,50 @@ async function _handleChangesCheckSync() {
     if (_mounted) _safeSetState({ changesError: 'Check sync failed: ' + err.message });
   } finally {
     if (_mounted) _safeSetState({ graphSyncLoading: false });
+  }
+}
+
+async function _handleChangesLoadState() {
+  if (!_mounted || _loadChangesStatePending) return;
+  _loadChangesStatePending = true;
+  const repoPath = window.__activeRepoPath;
+  if (!repoPath) { _loadChangesStatePending = false; return; }
+  _safeSetState({ changesLoading: true, changesError: null });
+  try {
+    const result = await window.electronAPI.graphifyGetChangesTabState(repoPath);
+    if (!_mounted || !result || !result.ok) return;
+    const patch = {};
+    if (!result.indexed || !result.hashesExist) {
+      // Not indexed or no hash baseline yet — user hasn't re-indexed via Changes tab
+      patch.changesDetected = null;
+      patch.incrementalPromptReady = false;
+      patch.incrementalPromptPath = null;
+      patch.changesTabStep = 'idle';
+    } else {
+      const hasChanges = result.changes && result.changes.total > 0;
+      // Set changesDetected from persisted state (disk)
+      patch.changesDetected = result.changes || { total: 0, changed: 0, new: 0 };
+      // If new changes exist, old prompt is stale — hide generated status
+      if (hasChanges && result.promptGenerated) {
+        patch.incrementalPromptReady = false;
+        patch.incrementalPromptPath = null;
+        patch.changesTabStep = 'changes_detected';
+      } else {
+        patch.incrementalPromptReady = !!result.promptGenerated;
+        patch.incrementalPromptPath = result.promptGenerated ? result.promptPath : null;
+        patch.changesTabStep = result.promptGenerated ? 'prompt_ready' : (hasChanges ? 'changes_detected' : 'idle');
+      }
+    }
+    _safeSetState(patch);
+    // Also run sync check if graph exists (derives graphSyncStatus from disk)
+    if (result.graphExists) {
+      _handleChangesCheckSync();
+    }
+  } catch (err) {
+    if (_mounted) _safeSetState({ changesError: 'Failed to load changes state: ' + err.message });
+  } finally {
+    if (_mounted) _safeSetState({ changesLoading: false });
+    _loadChangesStatePending = false;
   }
 }
 
@@ -1781,9 +1845,9 @@ function _render(state) {
       }
     }
 
-    // Auto-detect sync on tab activation
-    if (state.activeTab === 'changes' && state.serverStatus === 'running' && prev && state.activeTab !== prev.activeTab && !state.graphSyncStatus && !state.graphSyncLoading) {
-      _handleChangesCheckSync();
+    // Auto-derive changes tab state from disk on tab activation
+    if (state.activeTab === 'changes' && state.serverStatus === 'running' && (!prev || (prev && state.activeTab !== prev.activeTab)) && !state.changesLoading && !state.graphSyncLoading) {
+      _handleChangesLoadState();
     }
   }
 

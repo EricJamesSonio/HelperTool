@@ -791,27 +791,54 @@ function register({ app }) {
     }
   });
 
-  ipcMain.handle('graphify:generateIncrementalPrompt', async (_, repoPath) => {
+  ipcMain.handle('graphify:generateIncrementalPrompt', async (_, repoPath, changedFilesOverride) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
     // symbols.json already on disk from indexing. Load it directly.
     const data = symbolsJsonLoader.load(repoPath);
     if (!data || data.repoPath !== repoPath) {
       return { ok: false, error: 'symbols.json not found. Re-index the codebase first.' };
     }
-    const changes = changeDetector.detectChangesSimple(repoPath);
-    const hasGraph = changes && changes.hasPreviousGraph;
-    const totalChanged = hasGraph ? changes.changedFiles.length + changes.newFiles.length : 0;
-    if (!hasGraph || totalChanged === 0) {
+    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
+    if (!fs.existsSync(graphPath)) {
+      return { ok: false, error: 'graph.json not found. Generate a full graph first.' };
+    }
+
+    // Use caller-provided changed files list if supplied, otherwise detect via hash comparison
+    let changedFiles, newFiles;
+    if (changedFilesOverride && Array.isArray(changedFilesOverride)) {
+      changedFiles = changedFilesOverride.filter(fp => {
+        try {
+          const fullPath = path.join(repoPath, fp);
+          return fs.existsSync(fullPath);
+        } catch { return false; }
+      });
+      newFiles = [];
+    } else {
+      const changes = changeDetector.detectChangesSimple(repoPath);
+      if (!changes || !changes.hasPreviousGraph) {
+        return { ok: false, error: 'No graph data to compare against. Re-index and try again.' };
+      }
+      changedFiles = changes.changedFiles;
+      newFiles = changes.newFiles;
+      if (changedFiles.length + newFiles.length === 0) {
+        return { ok: false, error: 'No changes detected since last graph build.' };
+      }
+    }
+
+    const allChanged = [...changedFiles, ...newFiles];
+    if (allChanged.length === 0) {
       return { ok: false, error: 'No changes detected since last graph build.' };
     }
 
-    const changedFiles = [...changes.changedFiles, ...changes.newFiles];
-    const result = exporter.generateIncrementalPrompt(repoPath, changedFiles);
+    const result = exporter.generateIncrementalPrompt(repoPath, allChanged);
 
     let promptText = '';
     if (result.ok && result.path) {
       try { promptText = fs.readFileSync(result.path, 'utf-8'); } catch (_) {}
     }
+
+    // Save current hashes as new baseline after successful prompt generation
+    try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
 
     return {
       ok: true,
@@ -819,10 +846,9 @@ function register({ app }) {
       promptText: promptText,
       error: result.ok ? null : result.error,
       changes: {
-        total: totalChanged,
-        changed: changes.changedFiles.length,
-        new: changes.newFiles.length,
-        changeRatio: changes.changeRatio,
+        total: allChanged.length,
+        changed: changedFiles.length,
+        new: newFiles.length,
       },
     };
   });
@@ -893,10 +919,10 @@ function register({ app }) {
     }
 
     let changes = null;
-    if (indexed) {
+    if (indexed && hashesExist) {
       try {
         const ch = changeDetector.detectChangesSimple(repoPath);
-        if (ch && ch.hasPreviousGraph) {
+        if (ch) {
           const totalChanged = ch.changedFiles.length + ch.newFiles.length;
           changes = {
             total: totalChanged,
@@ -930,21 +956,18 @@ function register({ app }) {
     if (!data || data.repoPath !== repoPath) {
       return { ok: false, error: 'symbols.json not found. Index your codebase first.' };
     }
-    const changes = changeDetector.detectChangesSimple(repoPath);
-    const hasGraph = changes && changes.hasPreviousGraph;
-    const totalChanged = changes ? changes.changedFiles.length + changes.newFiles.length : 0;
-    // Save current hashes as new baseline so future calls compare against this state
-    try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
+    const ch = changeDetector.detectChangesSimple(repoPath);
+    const totalChanged = ch ? ch.changedFiles.length + ch.newFiles.length : 0;
     return {
       ok: true,
-      changes: hasGraph ? {
+      changes: ch ? {
         total: totalChanged,
-        changed: changes.changedFiles.length,
-        new: changes.newFiles.length,
-        changeRatio: changes.changeRatio,
-        tooManyChanges: changes.changeRatio > 0.5,
-        changedFiles: changes.changedFiles,
-        newFiles: changes.newFiles,
+        changed: ch.changedFiles.length,
+        new: ch.newFiles.length,
+        changeRatio: ch.changeRatio,
+        tooManyChanges: ch.changeRatio > 0.5,
+        changedFiles: ch.changedFiles,
+        newFiles: ch.newFiles,
       } : null,
       stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
     };
