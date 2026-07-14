@@ -50,6 +50,7 @@ const state = {
   graphInfo: null,
   graphHasData: false,
   statusLoading: false,
+  indexLoading: false,
   // Changes tab state
   changesLoading: false,
   changesError: null,

@@ -7,8 +7,8 @@ const DB_FILE = 'errors.db';
 
 let _db = null;
 let _appRef = null;
-let _saveTimer = null;
-let _pendingSave = false;
+let _dirty = false;
+let _interval = null;
 
 function getDbPath() {
   const dir = path.join(_appRef.getPath('userData'), DB_DIR);
@@ -120,7 +120,6 @@ function getErrorCopDb() {
 
 function _flush() {
   if (!_db) return;
-  _pendingSave = false;
   const data = _db.export();
   const buffer = Buffer.from(data);
   const dbPath = getDbPath();
@@ -129,24 +128,34 @@ function _flush() {
 
 function save() {
   if (!_db) return;
-  if (_saveTimer) { _pendingSave = true; return; }
-  _saveTimer = setTimeout(() => {
-    _saveTimer = null;
+  _dirty = true;
+  if (!_interval) {
+    _interval = setInterval(() => {
+      if (_dirty) {
+        _dirty = false;
+        _flush();
+      }
+    }, 5000);
+  }
+}
+
+function forceFlush() {
+  if (_interval) {
+    clearInterval(_interval);
+    _interval = null;
+  }
+  if (_dirty) {
+    _dirty = false;
     _flush();
-    if (_pendingSave) {
-      _pendingSave = false;
-      _saveTimer = setTimeout(() => { _saveTimer = null; _flush(); }, 5000);
-    }
-  }, 5000);
+  }
 }
 
 function closeErrorCopDb() {
   if (_db) {
-    if (_saveTimer) clearTimeout(_saveTimer);
-    _flush();
+    forceFlush();
     _db.close();
     _db = null;
   }
 }
 
-module.exports = { initErrorCopDb, getErrorCopDb, save, closeErrorCopDb, getDbPath };
+module.exports = { initErrorCopDb, getErrorCopDb, save, forceFlush, closeErrorCopDb, getDbPath };

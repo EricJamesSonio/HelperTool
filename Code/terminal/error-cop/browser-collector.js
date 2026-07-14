@@ -2,6 +2,8 @@ const { BrowserWindow } = require('electron');
 const crypto = require('crypto');
 
 class BrowserCollector {
+  static MAX_WINDOWS = 3;
+
   constructor(options = {}) {
     this._onError = options.onError || (() => {});
     this._windows = new Map();
@@ -10,6 +12,11 @@ class BrowserCollector {
 
   attach(port, url, sessionId) {
     if (this._windows.has(port)) return null;
+
+    if (this._windows.size >= BrowserCollector.MAX_WINDOWS) {
+      const oldestPort = this._windows.keys().next().value;
+      this.detach(oldestPort);
+    }
 
     const bw = new BrowserWindow({
       width: 1200,

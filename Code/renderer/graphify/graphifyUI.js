@@ -697,7 +697,7 @@ async function _handleIndex() {
     _safeSetState({ error: 'No repository selected. Select a repo first.' });
     return;
   }
-  _safeSetState({ error: 'Indexing started\u2026 Please wait for it to complete.' });
+  _safeSetState({ indexLoading: true, error: 'Indexing started\u2026 Please wait for it to complete.' });
   try {
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
     if (!_mounted) return;
@@ -716,6 +716,8 @@ async function _handleIndex() {
     _checkStatus();
   } catch (err) {
     if (_mounted) _safeSetState({ error: `Indexing failed: ${err.message}` });
+  } finally {
+    if (_mounted) _safeSetState({ indexLoading: false });
   }
 }
 
@@ -1243,7 +1245,25 @@ function _render(state) {
     cancelBtn.style.display = state.serverStatus === 'starting' ? 'flex' : 'none';
   }
   if (copyBtn && (!prev || state.serverStatus !== prev.serverStatus))  copyBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
-  if (indexBtn && (!prev || state.serverStatus !== prev.serverStatus || state.statusLoading !== prev.statusLoading || state.repoStatus !== prev.repoStatus)) indexBtn.style.display  = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
+  if (indexBtn && (!prev || state.serverStatus !== prev.serverStatus || state.statusLoading !== prev.statusLoading || state.repoStatus !== prev.repoStatus || state.indexLoading !== prev.indexLoading)) {
+    const show = (!state.statusLoading && state.repoStatus === 'needs-index') || state.indexLoading;
+    indexBtn.style.display = show ? 'flex' : 'none';
+    indexBtn.disabled = state.indexLoading;
+    const content = indexBtn.querySelector('.gfy-index-btn-content');
+    const loading = indexBtn.querySelector('.gfy-index-btn-loading');
+    if (content) content.style.display = state.indexLoading ? 'none' : '';
+    if (loading) loading.style.display = state.indexLoading ? 'flex' : 'none';
+  }
+  // Apply loading state to all index buttons (incl. wizard)
+  if (state.indexLoading !== (prev && prev.indexLoading)) {
+    _root.querySelectorAll('.gfy-index-btn').forEach(btn => {
+      btn.disabled = state.indexLoading;
+      const c = btn.querySelector('.gfy-index-btn-content');
+      const l = btn.querySelector('.gfy-index-btn-loading');
+      if (c) c.style.display = state.indexLoading ? 'none' : '';
+      if (l) l.style.display = state.indexLoading ? 'flex' : 'none';
+    });
+  }
 
   // ── Info line (styled as a stat card, echoing the reference dashboard) ──
   if (infoLine && (!prev || state.serverStatus !== prev.serverStatus || state.serverInfo !== prev.serverInfo)) {
@@ -1274,7 +1294,7 @@ function _render(state) {
 
       const needsIndex = _els.wizNeedsIndex;
       if (needsIndex) {
-        needsIndex.style.display = (!state.statusLoading && state.repoStatus === 'needs-index') ? 'flex' : 'none';
+        needsIndex.style.display = (!state.statusLoading && state.repoStatus === 'needs-index') || state.indexLoading ? 'flex' : 'none';
       }
 
       const indexed = _els.wizIndexed;
@@ -2080,8 +2100,14 @@ function _template() {
               Copy URL
             </button>
             <button class="gfy-index-btn">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
-              Index Codebase
+              <span class="gfy-index-btn-content">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
+                Index Codebase
+              </span>
+              <span class="gfy-index-btn-loading" style="display:none">
+                <div class="gfy-spinner-ring" style="width:14px;height:14px;border-width:2px"></div>
+                Indexing\u2026
+              </span>
             </button>
           </div>
 
@@ -2103,8 +2129,14 @@ function _template() {
               <span>Index your repository first to enable code intelligence and knowledge graph features.</span>
             </div>
             <button class="gfy-index-btn" style="display:none">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
-              Index Codebase
+              <span class="gfy-index-btn-content">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="3"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2"/></svg>
+                Index Codebase
+              </span>
+              <span class="gfy-index-btn-loading" style="display:none">
+                <div class="gfy-spinner-ring" style="width:14px;height:14px;border-width:2px"></div>
+                Indexing\u2026
+              </span>
             </button>
           </div>
 

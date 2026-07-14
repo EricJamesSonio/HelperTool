@@ -324,6 +324,18 @@
   box-shadow: 0 4px 16px rgba(234, 179, 8, 0.15);
 }
 
+.gfy-index-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.gfy-index-btn-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ─── Available Endpoints ────────────────────────────────────── */
 
 .gfy-endpoints-section {

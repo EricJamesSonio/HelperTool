@@ -1,3 +1,6 @@
+// Fast pre-filter: skip 39-pattern parse for lines with no error-like content
+const PRE_FILTER = /error|warn|fail|exception|deprecat|experimental|unhandled|reject|cannot find|module not found|failed to compile|build failed|command failed|ERR_|ECONNREFUSED|EADDRINUSE|ENOTFOUND|ECONNRESET|ETIMEDOUT|EACCES|EPERM|EISDIR|ENOENT|CORS|Failed to fetch|FetchError|NetworkError|TypeError|ReferenceError|SyntaxError|RangeError|EvalError|URIError|InternalError|at\s|CRASH/i;
+
 const RULES = [
   // ── Error types ──
   { pattern: /\b(TypeError|ReferenceError|SyntaxError|RangeError|EvalError|URIError|InternalError)\b/, level: 'error', title: null },
@@ -35,7 +38,7 @@ const RULES = [
   { pattern: /\b(ExperimentalWarning)\b/, level: 'warning', title: 'Experimental Warning' },
 
   // ── Stack trace frames (info) ──
-  { pattern: /^\s+at\s/, level: 'info', title: 'Stack Frame' },
+  { pattern: /^at\s/, level: 'info', title: 'Stack Frame' },
 ];
 
 function _stripAnsi(text) {
@@ -45,6 +48,8 @@ function _stripAnsi(text) {
 function parseLine(rawLine) {
   const line = _stripAnsi(rawLine).trim();
   if (!line) return null;
+
+  if (!PRE_FILTER.test(line)) return null;
 
   for (const rule of RULES) {
     const match = line.match(rule.pattern);
