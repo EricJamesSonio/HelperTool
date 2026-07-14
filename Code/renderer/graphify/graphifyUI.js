@@ -147,14 +147,7 @@ export function mount(container) {
   if (_unsub) _unsub();
   _unsub = subscribe(_render);
   _render(getState());
-  _checkStatus();
-  _performStatusSync();
-  _startWatchdog();
-  // Reload changes tab state from disk when panel is first shown
-  const s = getState();
-  if (s.activeTab === 'changes' && s.serverStatus === 'running') {
-    _handleChangesLoadState();
-  }
+  _loadMountData();
 }
 
 function _startHealthTimer() {
@@ -198,25 +191,53 @@ export function show() {
   if (_unsub) _unsub();
   _unsub = subscribe(_render);
   _render(getState());
-  _checkStatus();
-  _performStatusSync().then(() => {
-    if (!_mounted) return;
-    const s = getState();
-    if (s.serverStatus === 'running') {
-      _checkServerAlive(1);
-    }
-  });
-  _startWatchdog();
-  // Reload changes tab state from disk when panel is reshown
-  const s = getState();
-  if (s.activeTab === 'changes' && s.serverStatus === 'running') {
-    _handleChangesLoadState();
-  }
+  _loadMountData();
 }
 
 export function hide() {
   _stopHealthTimer();
   _stopWatchdog();
+}
+
+async function _loadMountData() {
+  if (!_mounted) return;
+  try {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) { _startWatchdog(); return; }
+    const mountData = await window.electronAPI.graphifyGetMountData(repoPath);
+    if (!_mounted || !mountData?.ok) { _startWatchdog(); return; }
+
+    const patch = { statusLoading: false };
+    patch.repoStatus = mountData.symbolsExists ? 'indexed' : 'needs-index';
+    patch.symbolsInfo = mountData.symbolsStats;
+    patch.promptExists = mountData.promptExists || mountData.promptGenerated;
+    patch.graphInfo = mountData.graphExists ? { exists: true, stats: mountData.graphStats } : null;
+    patch.graphHasData = mountData.graphHasData;
+    patch.hashesExist = mountData.hashesExist;
+    patch.indexed = mountData.symbolsExists;
+
+    if (mountData.running) {
+      patch.port = mountData.port;
+      patch.serverStatus = 'running';
+    }
+    if (mountData.changes) {
+      patch.changesDetected = mountData.changes;
+      if (mountData.promptGenerated) {
+        patch.incrementalPromptReady = true;
+        patch.changesTabStep = 'prompt_ready';
+      } else {
+        patch.changesTabStep = mountData.changes.total > 0 ? 'changes_detected' : 'idle';
+      }
+    }
+    patch.promptGenerated = mountData.promptGenerated;
+    patch.incrementalPromptPath = mountData.promptPath;
+
+    _safeSetState(patch);
+    if (mountData.running) _startHealthTimer();
+  } catch {
+    if (_mounted) _safeSetState({ statusLoading: false });
+  }
+  _startWatchdog();
 }
 
 function _safeSetState(patch) {
@@ -385,8 +406,6 @@ async function _handleTrackingReindex() {
       const result = await window.electronAPI.graphifyDetectChanges(repoPath);
       if (_mounted && result && result.ok) {
         _safeSetState({ pendingChanges: result.changes, symbolsInfo: result.stats });
-        // Save file hashes as baseline after re-index
-        await window.electronAPI.graphifySaveFileHashes(repoPath).catch(() => {});
       }
     } catch {}
   } catch (err) {
@@ -406,11 +425,9 @@ async function _handleChangesReindex() {
     if (!repoPath) throw new Error('No repository selected');
     await window.electronAPI.symbolIndex.startIndexing(repoPath);
     if (!_mounted) return;
-    // Indexer already exported symbols.json, detect changes to show what changed
+    // Indexer already exported symbols.json, detect changes + save baseline
     const result = await window.electronAPI.graphifyDetectChanges(repoPath);
     if (_mounted && result && result.ok) {
-      // Save file hashes as baseline so "Done" persists across tab switches
-      await window.electronAPI.graphifySaveFileHashes(repoPath).catch(() => {});
       if (result.changes && result.changes.total > 0) {
         _safeSetState({ changesDetected: result.changes, changesTabStep: 'changes_detected' });
       } else {

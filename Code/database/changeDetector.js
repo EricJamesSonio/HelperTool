@@ -60,15 +60,21 @@ function loadPrevHashes(repoPath) {
   }
 }
 
-function buildCurHashes(files, symsByFile, impsByFile, repoRoot) {
+function buildCurHashes(files, symsByFile, impsByFile, repoRoot, prevHashes) {
   const curHashes = {};
   for (const f of files) {
     const fp = f.path;
     const syms = symsByFile.get(fp) || [];
     const imps = impsByFile.get(fp) || [];
+    const structureHash = computeStructureHash(syms, imps);
+    const prev = prevHashes?.[fp];
+    const prevStruct = typeof prev === 'string' ? prev : (prev?.structureHash || '');
+    const contentHash = structureHash !== prevStruct
+      ? computeContentHash(fp, repoRoot)
+      : (prev?.contentHash || '');
     curHashes[fp] = {
-      contentHash: computeContentHash(fp, repoRoot),
-      structureHash: computeStructureHash(syms, imps),
+      contentHash,
+      structureHash,
       lastGenerated: new Date().toISOString(),
       graphVersion: GRAPH_VERSION,
     };
@@ -172,7 +178,7 @@ function detectChanges(repoPath) {
   const { files, symbols, imports } = data;
   const { symsByFile, impsByFile } = groupByFile(symbols, imports);
   const prevHashes = loadPrevHashes(repoPath);
-  const curHashes = buildCurHashes(files, symsByFile, impsByFile, repoPath);
+  const curHashes = buildCurHashes(files, symsByFile, impsByFile, repoPath, prevHashes);
   const { changedFiles, newFiles, unchangedFiles } = compareHashes(curHashes, prevHashes);
   const prevGraph = loadPrevGraph(repoPath);
   const { affected, generationMode } = analyzeAffectedNodes(changedFiles, newFiles, prevGraph);
@@ -196,11 +202,12 @@ function saveCurHashes(repoPath) {
   if (!data) return false;
   const { files, symbols, imports } = data;
   const { symsByFile, impsByFile } = groupByFile(symbols, imports);
-  const curHashes = buildCurHashes(files, symsByFile, impsByFile, repoPath);
+  const prevHashes = loadPrevHashes(repoPath);
+  const curHashes = buildCurHashes(files, symsByFile, impsByFile, repoPath, prevHashes);
   const p = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
   const dir = path.dirname(p);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(curHashes, null, 2));
+  fs.writeFileSync(p, JSON.stringify(curHashes));
   return true;
 }
 
@@ -225,13 +232,18 @@ function detectContentChanges(repoPath) {
       newFiles.push(fp);
       continue;
     }
-    // Compute current hashes by reading from DISK (both content and structure)
-    const curContentHash = computeContentHash(fp, repoPath);
-    const prevContentHash = typeof prev === 'string' ? '' : (prev.contentHash || '');
-    const curStructureHash = computeStructureHash(symsByFile.get(fp) || [], impsByFile.get(fp) || []);
+    // Compute structure hash first (cheap, in-memory). Only read file from disk if needed.
     const prevStructureHash = typeof prev === 'string' ? prev : (prev.structureHash || '');
-    if (curContentHash !== prevContentHash || curStructureHash !== prevStructureHash) {
+    const curStructureHash = computeStructureHash(symsByFile.get(fp) || [], impsByFile.get(fp) || []);
+    if (curStructureHash !== prevStructureHash) {
       changedFiles.push(fp);
+    } else {
+      // Structure matches — check content to catch non-structural edits (comments, formatting, etc.)
+      const curContentHash = computeContentHash(fp, repoPath);
+      const prevContentHash = typeof prev === 'string' ? '' : (prev.contentHash || '');
+      if (curContentHash !== prevContentHash) {
+        changedFiles.push(fp);
+      }
     }
   }
 

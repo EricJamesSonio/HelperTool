@@ -964,6 +964,8 @@ function register({ app }) {
     // Use content-aware detection for accurate file-level diffs
     const ch = changeDetector.detectContentChanges(repoPath);
     const totalChanged = ch ? ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length : 0;
+    // Save hashes as baseline so subsequent detections compare against current state
+    changeDetector.saveCurHashes(repoPath);
     return {
       ok: true,
       changes: ch ? {
@@ -981,6 +983,70 @@ function register({ app }) {
     };
   });
 
+  ipcMain.handle('graphify:getMountData', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    const data = symbolsJsonLoader.load(repoPath);
+    const symbolsExists = !!(data && data.repoPath === repoPath);
+
+    const promptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph.md');
+    const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
+
+    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
+    const hashesPath = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
+
+    const promptExists = fs.existsSync(promptPath);
+    const promptGenerated = fs.existsSync(incrPromptPath);
+    const graphExists = fs.existsSync(graphPath);
+    const hashesExist = fs.existsSync(hashesPath);
+
+    let graphData = null;
+    let graphStats = null;
+    if (graphExists) {
+      try {
+        graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+        graphStats = graphData?.stats || null;
+      } catch {}
+    }
+
+    let changes = null;
+    if (symbolsExists && hashesExist) {
+      try {
+        const ch = changeDetector.detectContentChanges(repoPath);
+        if (ch) {
+          const totalChanged = ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length;
+          changes = {
+            total: totalChanged,
+            changed: ch.changedFiles.length,
+            new: ch.newFiles.length,
+            deleted: ch.deletedFiles.length,
+            changeRatio: ch.changeRatio,
+            tooManyChanges: ch.changeRatio > 0.5,
+            changedFiles: ch.changedFiles,
+            newFiles: ch.newFiles,
+            deletedFiles: ch.deletedFiles,
+          };
+        }
+      } catch {}
+    }
+
+    return {
+      ok: true,
+      running: !!_child && _ready,
+      port: _port,
+      symbolsExists,
+      symbolsStats: symbolsExists
+        ? { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length }
+        : null,
+      promptExists,
+      graphExists,
+      graphHasData: graphData ? !!(graphData.nodes && graphData.nodes.length > 0) : false,
+      graphStats,
+      hashesExist,
+      changes,
+      promptGenerated,
+      promptPath: promptGenerated ? incrPromptPath : null,
+    };
+  });
 }
 
 function shutdown() {
