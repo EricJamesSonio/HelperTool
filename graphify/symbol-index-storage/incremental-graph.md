@@ -37,9 +37,9 @@ Read the source code of the changed files listed below from disk, then:
 7. Update `stats` with new totals.
 8. Set `generatedAt` to the current timestamp.
 
-## Files Changed (54 total)
+## Files Changed (52 total)
 
-### Modified Files (23)
+### Modified Files (22)
 
 #### `Code/graphify-service/exporter.js`
 
@@ -572,7 +572,7 @@ Read the source code of the changed files listed below from disk, then:
 #### `Code/ipc/graphify_ipc.js`
 
 - Language: javascript
-- Symbols (99):
+- Symbols (112):
   - `ipcMain` — type: variable
   - `spawn` — type: variable
   - `path` — type: variable
@@ -592,6 +592,7 @@ Read the source code of the changed files listed below from disk, then:
   - `_repoPath` — type: variable
   - `_app` — type: variable
   - `_starting` — type: variable
+  - `_spawnPromise` — type: variable
   - `_getServerPath` — type: function
   - `_resolveDbPath` — type: function
   - `_isChildAlive` — type: function
@@ -656,10 +657,10 @@ Read the source code of the changed files listed below from disk, then:
   - `graph` — type: variable
   - `report` — type: variable
   - `data` — type: variable
+  - `graphPath` — type: variable
+  - `fullPath` — type: variable
   - `changes` — type: variable
-  - `hasGraph` — type: variable
-  - `totalChanged` — type: variable
-  - `changedFiles` — type: variable
+  - `allChanged` — type: variable
   - `result` — type: variable
   - `promptText` — type: variable
   - `graphPath` — type: variable
@@ -667,9 +668,21 @@ Read the source code of the changed files listed below from disk, then:
   - `changes` — type: variable
   - `hasGraph` — type: variable
   - `totalChanged` — type: variable
+  - `saved` — type: variable
   - `data` — type: variable
+  - `indexed` — type: variable
+  - `hashesPath` — type: variable
+  - `hashesExist` — type: variable
+  - `incrPromptPath` — type: variable
+  - `promptGenerated` — type: variable
+  - `graphPath` — type: variable
+  - `graphExists` — type: variable
+  - `graphData` — type: variable
   - `changes` — type: variable
-  - `hasGraph` — type: variable
+  - `ch` — type: variable
+  - `totalChanged` — type: variable
+  - `data` — type: variable
+  - `ch` — type: variable
   - `totalChanged` — type: variable
   - `shutdown` — type: function
 - Imports (9):
@@ -1177,28 +1190,14 @@ Read the source code of the changed files listed below from disk, then:
   - `./codebbaseChat/chatQueryEngine.js` (require)
   - `./codebbaseChat/chatUI.js` (require)
 
-#### `Code/renderer/graphify/graphifyState.js`
-
-- Language: javascript
-- Symbols (11):
-  - `state` — type: variable
-  - `_listeners` — type: variable
-  - `_pending` — type: variable
-  - `_scheduled` — type: variable
-  - `getState` — type: function
-  - `_flush` — type: function
-  - `patch` — type: variable
-  - `setState` — type: function
-  - `setStateSync` — type: function
-  - `_notify` — type: function
-  - `subscribe` — type: function
-- Imports: (none)
-
 #### `Code/renderer/graphify/graphifyClient.js`
 
 - Language: javascript
-- Symbols (40):
+- Symbols (43):
   - `_base` — type: variable
+  - `_fetchWithTimeout` — type: function
+  - `controller` — type: variable
+  - `timer` — type: variable
   - `fetchEndpoints` — type: function
   - `res` — type: variable
   - `queryGraphify` — type: function
@@ -1240,6 +1239,23 @@ Read the source code of the changed files listed below from disk, then:
   - `res` — type: variable
 - Imports: (none)
 
+#### `Code/renderer/graphify/graphifyState.js`
+
+- Language: javascript
+- Symbols (11):
+  - `state` — type: variable
+  - `_listeners` — type: variable
+  - `_pending` — type: variable
+  - `_scheduled` — type: variable
+  - `getState` — type: function
+  - `_flush` — type: function
+  - `patch` — type: variable
+  - `setState` — type: function
+  - `setStateSync` — type: function
+  - `_notify` — type: function
+  - `subscribe` — type: function
+- Imports: (none)
+
 #### `Code/renderer/graphify.js`
 
 - Language: javascript
@@ -1254,28 +1270,19 @@ Read the source code of the changed files listed below from disk, then:
   - `hide` — type: function
 - Imports: (none)
 
-#### `Code/renderer/graphify/index.js`
-
-- Language: javascript
-- Symbols (5):
-  - `_container` — type: variable
-  - `init` — type: function
-  - `destroy` — type: function
-  - `showPanel` — type: function
-  - `hidePanel` — type: function
-- Imports: (none)
-
 #### `Code/renderer/graphify/graphifyUI.js`
 
 - Language: javascript
-- Symbols (309):
+- Symbols (323):
   - `_root` — type: variable
   - `_unsub` — type: variable
   - `_debounce` — type: variable
   - `_healthTimer` — type: variable
+  - `_watchdogTimer` — type: variable
   - `_mounted` — type: variable
   - `_initialized` — type: variable
   - `_startCancelRequested` — type: variable
+  - `_loadChangesStatePending` — type: variable
   - `_els` — type: variable
   - `_rafPending` — type: variable
   - `_scheduleRender` — type: function
@@ -1285,11 +1292,15 @@ Read the source code of the changed files listed below from disk, then:
   - `_populateDomCache` — type: function
   - `wiz` — type: variable
   - `mount` — type: function
+  - `s` — type: variable
   - `_startHealthTimer` — type: function
   - `s` — type: variable
   - `_stopHealthTimer` — type: function
+  - `_startWatchdog` — type: function
+  - `_stopWatchdog` — type: function
   - `unmount` — type: function
   - `show` — type: function
+  - `s` — type: variable
   - `hide` — type: function
   - `_safeSetState` — type: function
   - `_bindEvents` — type: function
@@ -1331,10 +1342,17 @@ Read the source code of the changed files listed below from disk, then:
   - `result` — type: variable
   - `_handleChangesGenPrompt` — type: function
   - `repoPath` — type: variable
+  - `s` — type: variable
+  - `changedFiles` — type: variable
   - `result` — type: variable
   - `_handleChangesCheckSync` — type: function
   - `repoPath` — type: variable
   - `result` — type: variable
+  - `_handleChangesLoadState` — type: function
+  - `repoPath` — type: variable
+  - `result` — type: variable
+  - `patch` — type: variable
+  - `hasChanges` — type: variable
   - `_formatJson` — type: function
   - `indent` — type: variable
   - `_fmt` — type: function
@@ -1372,6 +1390,7 @@ Read the source code of the changed files listed below from disk, then:
   - `s` — type: variable
   - `ok` — type: variable
   - `patch` — type: variable
+  - `procStatus` — type: variable
   - `_df` — type: variable
   - `_performStatusSync` — type: function
   - `status` — type: variable
@@ -1578,6 +1597,17 @@ Read the source code of the changed files listed below from disk, then:
   - `filePath` — type: variable
   - `_template` — type: function
   - `_esc` — type: function
+- Imports: (none)
+
+#### `Code/renderer/graphify/index.js`
+
+- Language: javascript
+- Symbols (5):
+  - `_container` — type: variable
+  - `init` — type: function
+  - `destroy` — type: function
+  - `showPanel` — type: function
+  - `hidePanel` — type: function
 - Imports: (none)
 
 #### `Code/renderer/shortcuts/state.js`
@@ -1886,18 +1916,12 @@ Read the source code of the changed files listed below from disk, then:
   - `path` (require)
   - `crypto` (require)
 
-#### `generate-summarizer-prompt.js`
-
-- Language: unknown
-- Symbols: (none)
-- Imports: (none)
-
-### New Files (31)
+### New Files (30)
 
 #### `Code/database/changeDetector.js`
 
 - Language: javascript
-- Symbols (65):
+- Symbols (70):
   - `fs` — type: variable
   - `path` — type: variable
   - `crypto` — type: variable
@@ -1956,6 +1980,11 @@ Read the source code of the changed files listed below from disk, then:
   - `neighborCount` — type: variable
   - `unaffected` — type: variable
   - `changeRatio` — type: variable
+  - `saveCurHashes` — type: function
+  - `data` — type: variable
+  - `curHashes` — type: variable
+  - `p` — type: variable
+  - `dir` — type: variable
   - `detectChangesSimple` — type: function
   - `data` — type: variable
   - `curHashes` — type: variable
@@ -2151,63 +2180,52 @@ Read the source code of the changed files listed below from disk, then:
   - `listFeatures` — type: method
 - Imports: (none)
 
-#### `Code/graphify-service/retrieval/retrieval-engine.js`
+#### `Code/graphify-service/retrieval/retrieval-planner.js`
 
 - Language: javascript
-- Symbols (42):
-  - `fs` — type: variable
-  - `path` — type: variable
-  - `FeatureResolver` — type: variable
-  - `SymbolResolver` — type: variable
-  - `ConceptResolver` — type: variable
-  - `DependencyResolver` — type: variable
-  - `PathFinder` — type: variable
-  - `RankingEngine` — type: variable
-  - `SubgraphBuilder` — type: variable
-  - `RetrievalPlanner` — type: variable
-  - `RetrievalEngine` — type: class
+- Symbols (41):
+  - `STOPWORDS` — type: variable
+  - `INTENT_PATTERNS` — type: variable
+  - `RetrievalPlanner` — type: class
   - `constructor` — type: method
-  - `loadFromFile` — type: method
-  - `resolved` — type: variable
-  - `raw` — type: variable
-  - `data` — type: variable
-  - `retrieve` — type: method
-  - `start` — type: variable
-  - `plan` — type: variable
-  - `resolvers` — type: variable
+  - `_tokenize` — type: method
+  - `caseSplit` — type: variable
+  - `_detectIntent` — type: method
+  - `intents` — type: variable
+  - `_findCandidateFeatures` — type: method
+  - `matches` — type: variable
+  - `nameLower` — type: variable
+  - `descLower` — type: variable
+  - `_findCandidateConcepts` — type: method
+  - `matches` — type: variable
+  - `nameLower` — type: variable
+  - `descLower` — type: variable
+  - `_findCandidateFiles` — type: method
+  - `matches` — type: variable
+  - `fp` — type: variable
+  - `lowerFp` — type: variable
+  - `base` — type: variable
+  - `plan` — type: method
+  - `tokens` — type: variable
+  - `intents` — type: variable
+  - `strategies` — type: variable
+  - `featureCandidates` — type: variable
+  - `conceptCandidates` — type: variable
+  - `fileCandidates` — type: variable
+  - `top` — type: variable
+  - `top` — type: variable
+  - `topFiles` — type: variable
+  - `hasFeature` — type: variable
+  - `hasConcept` — type: variable
+  - `hasFile` — type: variable
+  - `expectedResults` — type: variable
+  - `executePlan` — type: method
+  - `allResults` — type: variable
+  - `seenFiles` — type: variable
+  - `resolverFn` — type: variable
   - `results` — type: variable
-  - `files` — type: variable
-  - `node` — type: variable
-  - `results` — type: variable
-  - `files` — type: variable
-  - `node` — type: variable
-  - `symResults` — type: variable
-  - `results` — type: variable
-  - `node` — type: variable
-  - `results` — type: variable
-  - `node` — type: variable
-  - `results` — type: variable
-  - `deps` — type: variable
-  - `node` — type: variable
-  - `ranked` — type: variable
-  - `topCandidates` — type: variable
-  - `diversified` — type: variable
-  - `filePaths` — type: variable
-  - `subgraph` — type: variable
-  - `context` — type: variable
-  - `ms` — type: variable
-  - `getStats` — type: method
-- Imports (10):
-  - `fs` (require)
-  - `path` (require)
-  - `./feature-resolver` (require)
-  - `./symbol-resolver` (require)
-  - `./concept-resolver` (require)
-  - `./dependency-resolver` (require)
-  - `./path-finder` (require)
-  - `./ranking-engine` (require)
-  - `./subgraph-builder` (require)
-  - `./retrieval-planner` (require)
+  - `key` — type: variable
+- Imports: (none)
 
 #### `Code/graphify-service/retrieval/path-finder.js`
 
@@ -2301,6 +2319,97 @@ Read the source code of the changed files listed below from disk, then:
   - `ctxScore` — type: variable
 - Imports: (none)
 
+#### `Code/graphify-service/retrieval/retrieval-engine.js`
+
+- Language: javascript
+- Symbols (42):
+  - `fs` — type: variable
+  - `path` — type: variable
+  - `FeatureResolver` — type: variable
+  - `SymbolResolver` — type: variable
+  - `ConceptResolver` — type: variable
+  - `DependencyResolver` — type: variable
+  - `PathFinder` — type: variable
+  - `RankingEngine` — type: variable
+  - `SubgraphBuilder` — type: variable
+  - `RetrievalPlanner` — type: variable
+  - `RetrievalEngine` — type: class
+  - `constructor` — type: method
+  - `loadFromFile` — type: method
+  - `resolved` — type: variable
+  - `raw` — type: variable
+  - `data` — type: variable
+  - `retrieve` — type: method
+  - `start` — type: variable
+  - `plan` — type: variable
+  - `resolvers` — type: variable
+  - `results` — type: variable
+  - `files` — type: variable
+  - `node` — type: variable
+  - `results` — type: variable
+  - `files` — type: variable
+  - `node` — type: variable
+  - `symResults` — type: variable
+  - `results` — type: variable
+  - `node` — type: variable
+  - `results` — type: variable
+  - `node` — type: variable
+  - `results` — type: variable
+  - `deps` — type: variable
+  - `node` — type: variable
+  - `ranked` — type: variable
+  - `topCandidates` — type: variable
+  - `diversified` — type: variable
+  - `filePaths` — type: variable
+  - `subgraph` — type: variable
+  - `context` — type: variable
+  - `ms` — type: variable
+  - `getStats` — type: method
+- Imports (10):
+  - `fs` (require)
+  - `path` (require)
+  - `./feature-resolver` (require)
+  - `./symbol-resolver` (require)
+  - `./concept-resolver` (require)
+  - `./dependency-resolver` (require)
+  - `./path-finder` (require)
+  - `./ranking-engine` (require)
+  - `./subgraph-builder` (require)
+  - `./retrieval-planner` (require)
+
+#### `Code/graphify-service/retrieval/symbol-resolver.js`
+
+- Language: javascript
+- Symbols (27):
+  - `STOPWORDS` — type: variable
+  - `SymbolResolver` — type: class
+  - `constructor` — type: method
+  - `_buildIndex` — type: method
+  - `fp` — type: variable
+  - `syms` — type: variable
+  - `_tokenize` — type: method
+  - `caseSplit` — type: variable
+  - `resolveSymbol` — type: method
+  - `occurrences` — type: variable
+  - `primary` — type: variable
+  - `searchSymbols` — type: method
+  - `tokens` — type: variable
+  - `scores` — type: variable
+  - `nameLower` — type: variable
+  - `score` — type: variable
+  - `type` — type: variable
+  - `typeBoost` — type: variable
+  - `primary` — type: variable
+  - `getSymbolUsage` — type: method
+  - `occurrences` — type: variable
+  - `definition` — type: class
+  - `usedIn` — type: variable
+  - `definition` — type: class
+  - `getFileSymbols` — type: method
+  - `getFilesContainingSymbol` — type: method
+  - `occurrences` — type: variable
+- Imports: (none)
+
 #### `Code/graphify-service/retrieval/subgraph-builder.js`
 
 - Language: javascript
@@ -2370,86 +2479,6 @@ Read the source code of the changed files listed below from disk, then:
   - `base` — type: variable
   - `reorderedIds` — type: variable
   - `otherNodes` — type: variable
-- Imports: (none)
-
-#### `Code/graphify-service/retrieval/retrieval-planner.js`
-
-- Language: javascript
-- Symbols (41):
-  - `STOPWORDS` — type: variable
-  - `INTENT_PATTERNS` — type: variable
-  - `RetrievalPlanner` — type: class
-  - `constructor` — type: method
-  - `_tokenize` — type: method
-  - `caseSplit` — type: variable
-  - `_detectIntent` — type: method
-  - `intents` — type: variable
-  - `_findCandidateFeatures` — type: method
-  - `matches` — type: variable
-  - `nameLower` — type: variable
-  - `descLower` — type: variable
-  - `_findCandidateConcepts` — type: method
-  - `matches` — type: variable
-  - `nameLower` — type: variable
-  - `descLower` — type: variable
-  - `_findCandidateFiles` — type: method
-  - `matches` — type: variable
-  - `fp` — type: variable
-  - `lowerFp` — type: variable
-  - `base` — type: variable
-  - `plan` — type: method
-  - `tokens` — type: variable
-  - `intents` — type: variable
-  - `strategies` — type: variable
-  - `featureCandidates` — type: variable
-  - `conceptCandidates` — type: variable
-  - `fileCandidates` — type: variable
-  - `top` — type: variable
-  - `top` — type: variable
-  - `topFiles` — type: variable
-  - `hasFeature` — type: variable
-  - `hasConcept` — type: variable
-  - `hasFile` — type: variable
-  - `expectedResults` — type: variable
-  - `executePlan` — type: method
-  - `allResults` — type: variable
-  - `seenFiles` — type: variable
-  - `resolverFn` — type: variable
-  - `results` — type: variable
-  - `key` — type: variable
-- Imports: (none)
-
-#### `Code/graphify-service/retrieval/symbol-resolver.js`
-
-- Language: javascript
-- Symbols (27):
-  - `STOPWORDS` — type: variable
-  - `SymbolResolver` — type: class
-  - `constructor` — type: method
-  - `_buildIndex` — type: method
-  - `fp` — type: variable
-  - `syms` — type: variable
-  - `_tokenize` — type: method
-  - `caseSplit` — type: variable
-  - `resolveSymbol` — type: method
-  - `occurrences` — type: variable
-  - `primary` — type: variable
-  - `searchSymbols` — type: method
-  - `tokens` — type: variable
-  - `scores` — type: variable
-  - `nameLower` — type: variable
-  - `score` — type: variable
-  - `type` — type: variable
-  - `typeBoost` — type: variable
-  - `primary` — type: variable
-  - `getSymbolUsage` — type: method
-  - `occurrences` — type: variable
-  - `definition` — type: class
-  - `usedIn` — type: variable
-  - `definition` — type: class
-  - `getFileSymbols` — type: method
-  - `getFilesContainingSymbol` — type: method
-  - `occurrences` — type: variable
 - Imports: (none)
 
 #### `Code/ipc/error_cop_ipc.js`
@@ -2692,25 +2721,6 @@ Read the source code of the changed files listed below from disk, then:
   - `electron` (require)
   - `crypto` (require)
 
-#### `Code/terminal/error-cop/browser-discovery.js`
-
-- Language: javascript
-- Symbols (13):
-  - `FRAMEWORK_PATTERNS` — type: variable
-  - `ANSI_RE` — type: variable
-  - `stripAnsi` — type: function
-  - `BrowserDiscovery` — type: class
-  - `constructor` — type: method
-  - `scanLine` — type: method
-  - `clean` — type: variable
-  - `urlMatch` — type: variable
-  - `port` — type: variable
-  - `url` — type: variable
-  - `context` — type: variable
-  - `framework` — type: variable
-  - `reset` — type: method
-- Imports: (none)
-
 #### `Code/terminal/error-cop/deduplicator.js`
 
 - Language: javascript
@@ -2729,30 +2739,24 @@ Read the source code of the changed files listed below from disk, then:
 - Imports (1):
   - `crypto` (require)
 
-#### `Code/terminal/error-cop/error-detector.js`
+#### `Code/terminal/error-cop/browser-discovery.js`
 
 - Language: javascript
-- Symbols (15):
-  - `parseLine` — type: variable
-  - `Deduplicator` — type: variable
-  - `ErrorStorage` — type: variable
-  - `BrowserDiscovery` — type: variable
-  - `ErrorDetector` — type: class
+- Symbols (13):
+  - `FRAMEWORK_PATTERNS` — type: variable
+  - `ANSI_RE` — type: variable
+  - `stripAnsi` — type: function
+  - `BrowserDiscovery` — type: class
   - `constructor` — type: method
-  - `startSession` — type: method
-  - `endSession` — type: method
-  - `processLine` — type: method
-  - `browserInfo` — type: variable
-  - `parsed` — type: variable
-  - `now` — type: variable
-  - `dedup` — type: variable
-  - `errorId` — type: variable
-  - `error` — type: variable
-- Imports (4):
-  - `./error-parser` (require)
-  - `./deduplicator` (require)
-  - `./error-storage` (require)
-  - `./browser-discovery` (require)
+  - `scanLine` — type: method
+  - `clean` — type: variable
+  - `urlMatch` — type: variable
+  - `port` — type: variable
+  - `url` — type: variable
+  - `context` — type: variable
+  - `framework` — type: variable
+  - `reset` — type: method
+- Imports: (none)
 
 #### `Code/terminal/error-cop/error-engine.js`
 
@@ -2815,6 +2819,45 @@ Read the source code of the changed files listed below from disk, then:
   - `match` — type: variable
   - `title` — type: variable
   - `message` — type: variable
+- Imports: (none)
+
+#### `Code/terminal/error-cop/error-detector.js`
+
+- Language: javascript
+- Symbols (15):
+  - `parseLine` — type: variable
+  - `Deduplicator` — type: variable
+  - `ErrorStorage` — type: variable
+  - `BrowserDiscovery` — type: variable
+  - `ErrorDetector` — type: class
+  - `constructor` — type: method
+  - `startSession` — type: method
+  - `endSession` — type: method
+  - `processLine` — type: method
+  - `browserInfo` — type: variable
+  - `parsed` — type: variable
+  - `now` — type: variable
+  - `dedup` — type: variable
+  - `errorId` — type: variable
+  - `error` — type: variable
+- Imports (4):
+  - `./error-parser` (require)
+  - `./deduplicator` (require)
+  - `./error-storage` (require)
+  - `./browser-discovery` (require)
+
+#### `Code/terminal/error-cop/notification-service.js`
+
+- Language: javascript
+- Symbols (8):
+  - `NotificationService` — type: class
+  - `constructor` — type: method
+  - `send` — type: method
+  - `win` — type: variable
+  - `notifyNewError` — type: method
+  - `notifyTimelineEvent` — type: method
+  - `resetUnreadCount` — type: method
+  - `getUnreadCount` — type: method
 - Imports: (none)
 
 #### `Code/terminal/error-cop/error-storage.js`
@@ -2887,20 +2930,6 @@ Read the source code of the changed files listed below from disk, then:
 - Imports (1):
   - `../../database/errorCopDb` (require)
 
-#### `Code/terminal/error-cop/notification-service.js`
-
-- Language: javascript
-- Symbols (8):
-  - `NotificationService` — type: class
-  - `constructor` — type: method
-  - `send` — type: method
-  - `win` — type: variable
-  - `notifyNewError` — type: method
-  - `notifyTimelineEvent` — type: method
-  - `resetUnreadCount` — type: method
-  - `getUnreadCount` — type: method
-- Imports: (none)
-
 #### `Code/terminal/models/error-record.js`
 
 - Language: javascript
@@ -2937,35 +2966,6 @@ Read the source code of the changed files listed below from disk, then:
   - `origWarn` — type: variable
   - `m` — type: variable
 - Imports: (none)
-
-#### `pipeline.js`
-
-- Language: javascript
-- Symbols (20):
-  - `execSync` — type: variable
-  - `fs` — type: variable
-  - `path` — type: variable
-  - `STAGES` — type: variable
-  - `runScript` — type: function
-  - `out` — type: variable
-  - `symPath` — type: variable
-  - `raw` — type: variable
-  - `stage2Ok` — type: variable
-  - `updatePromptPath` — type: variable
-  - `updatesJsonPath` — type: variable
-  - `out` — type: variable
-  - `text` — type: variable
-  - `graphPath` — type: variable
-  - `mdPath` — type: variable
-  - `g` — type: variable
-  - `inc` — type: variable
-  - `withCentrality` — type: variable
-  - `topCent` — type: variable
-  - `mdSize` — type: variable
-- Imports (3):
-  - `child_process` (require)
-  - `fs` (require)
-  - `path` (require)
 
 #### `generate-update-prompt.js`
 
@@ -3012,11 +3012,34 @@ Read the source code of the changed files listed below from disk, then:
   - `fs` (require)
   - `crypto` (require)
 
-#### `graphify/symbol-index-storage/incremental-graph.md`
+#### `pipeline.js`
 
-- Language: null
-- Symbols: (none)
-- Imports: (none)
+- Language: javascript
+- Symbols (20):
+  - `execSync` — type: variable
+  - `fs` — type: variable
+  - `path` — type: variable
+  - `STAGES` — type: variable
+  - `runScript` — type: function
+  - `out` — type: variable
+  - `symPath` — type: variable
+  - `raw` — type: variable
+  - `stage2Ok` — type: variable
+  - `updatePromptPath` — type: variable
+  - `updatesJsonPath` — type: variable
+  - `out` — type: variable
+  - `text` — type: variable
+  - `graphPath` — type: variable
+  - `mdPath` — type: variable
+  - `g` — type: variable
+  - `inc` — type: variable
+  - `withCentrality` — type: variable
+  - `topCent` — type: variable
+  - `mdSize` — type: variable
+- Imports (3):
+  - `child_process` (require)
+  - `fs` (require)
+  - `path` (require)
 
 ## Output
 

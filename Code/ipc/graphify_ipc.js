@@ -16,12 +16,13 @@ const START_TIMEOUT = 10000;
 const STORAGE_DIR = 'graphify/symbol-index-storage';
 const GRAPHIFY_DIR = 'graphify/graphify-storage';
 
-let _child     = null;
-let _port      = DEFAULT_PORT;
-let _ready     = false;
-let _repoPath  = null;
-let _app       = null;
-let _starting  = false;
+let _child        = null;
+let _port         = DEFAULT_PORT;
+let _ready        = false;
+let _repoPath     = null;
+let _app          = null;
+let _starting     = false;
+let _spawnPromise = null;
 
 function _getServerPath() {
   return path.join(__dirname, '..', 'graphify-service', 'server.js');
@@ -54,22 +55,27 @@ function _httpRequest(url, method) {
 }
 
 function _spawn(app) {
-  if (_isChildAlive()) {
-    return _httpRequest(`http://127.0.0.1:${_port}/admin/start`).then((r) => {
+  if (_spawnPromise) return _spawnPromise;
+
+  let p;
+  if (_isChildAlive() && _ready) {
+    p = _httpRequest(`http://127.0.0.1:${_port}/admin/start`).then((r) => {
       if (r.ok) {
         _ready = true;
         return { port: _port };
       }
-      _child = null;
-      _ready = false;
+      _stop(true);
       return _spawnFresh(app);
     }).catch(() => {
-      _child = null;
-      _ready = false;
+      _stop(true);
       return _spawnFresh(app);
     });
+  } else {
+    p = _spawnFresh(app);
   }
-  return _spawnFresh(app);
+
+  _spawnPromise = p.then(r => { _spawnPromise = null; return r; }, e => { _spawnPromise = null; throw e; });
+  return _spawnPromise;
 }
 
 function _spawnFresh(app) {
@@ -96,6 +102,8 @@ function _spawnFresh(app) {
       }
     );
 
+    const thisChild = _child;
+
     const rl = readline.createInterface({ input: _child.stdout, terminal: false });
     rl.on('line', (line) => {
       line = line.trim();
@@ -120,8 +128,10 @@ function _spawnFresh(app) {
     _child.on('exit', (code) => {
       _starting = false;
       console.warn(`[graphify_ipc] Server exited with code ${code}`);
-      _child = null;
-      _ready = false;
+      if (_child === thisChild) {
+        _child = null;
+        _ready = false;
+      }
       if (code !== 0 && code !== null) {
         console.warn(`[graphify_ipc] Server crashed (exit=${code}).`);
       }
@@ -131,13 +141,15 @@ function _spawnFresh(app) {
     _child.on('error', (err) => {
       _starting = false;
       console.error(`[graphify_ipc] Spawn error: ${err.message}`);
-      _child = null;
-      _ready = false;
+      if (_child === thisChild) {
+        _child = null;
+        _ready = false;
+      }
       reject(err);
     });
 
     setTimeout(() => {
-      if (!_ready) {
+      if (!_ready && _child === thisChild) {
         _starting = false;
         _stop(true);
         reject(new Error('Server did not become ready within timeout'));
@@ -148,6 +160,7 @@ function _spawnFresh(app) {
 
 function _stop(killProcess) {
   _starting = false;
+  if (killProcess) _spawnPromise = null;
   if (killProcess || !_child) {
     if (_child) {
       try { _child.kill('SIGTERM'); } catch (_) {}
@@ -785,6 +798,8 @@ function register({ app }) {
     try {
       const graph = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
       const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf-8') : '';
+      // AI graph loaded successfully — save hashes as new baseline
+      try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
       return { ok: true, graph, report };
     } catch (err) {
       return { ok: false, error: `Failed to load graph: ${err.message}` };
@@ -837,9 +852,6 @@ function register({ app }) {
       try { promptText = fs.readFileSync(result.path, 'utf-8'); } catch (_) {}
     }
 
-    // Save current hashes as new baseline after successful prompt generation
-    try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
-
     return {
       ok: true,
       promptPath: result.ok ? result.path : null,
@@ -877,9 +889,20 @@ function register({ app }) {
       return { ok: true, synced: true, timestamp: graphData.generatedAt || null };
     }
 
+    const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
+    const hasPendingPrompt = fs.existsSync(incrPromptPath);
+    let pendingUpdate = false;
+    if (hasPendingPrompt && totalChanged === 0) {
+      // Hash match but prompt was generated — check if prompt is newer than graph
+      const promptMtime = fs.statSync(incrPromptPath).mtimeMs;
+      const graphMtime = fs.statSync(graphPath).mtimeMs;
+      pendingUpdate = promptMtime > graphMtime;
+    }
+
     return {
       ok: true,
-      synced: totalChanged === 0,
+      synced: totalChanged === 0 && !pendingUpdate,
+      pendingUpdate,
       totalChanged,
       changed: changes.changedFiles.length,
       new: changes.newFiles.length,
@@ -887,6 +910,7 @@ function register({ app }) {
       changedFiles: changes.changedFiles,
       newFiles: changes.newFiles,
       timestamp: graphData.generatedAt || null,
+      reason: pendingUpdate ? 'pending_update' : undefined,
     };
   });
 

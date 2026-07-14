@@ -97,6 +97,7 @@ function _populateDomCache() {
   _cacheEl('changesDetectedInfo', '.gfy-changes-detected-info');
   _cacheEl('changesGenBtn',       '.gfy-changes-gen-btn');
   _cacheEl('changesGenStatus',    '.gfy-changes-gen-status');
+  _cacheEl('changesSendAiBtn',    '.gfy-changes-send-ai-btn');
   _cacheEl('changesPromptInfo',   '.gfy-changes-prompt-info');
   _cacheEl('changesPromptPath',   '.gfy-changes-prompt-path');
   _cacheEl('changesCheckBtn',     '.gfy-changes-check-btn');
@@ -1717,6 +1718,7 @@ function _render(state) {
     var chDetectedInfo = _els.changesDetectedInfo;
     var chGenBtn = _els.changesGenBtn;
     var chGenStatus = _els.changesGenStatus;
+    var chSendAiBtn = _els.changesSendAiBtn;
     var chPromptInfo = _els.changesPromptInfo;
     var chPromptPath = _els.changesPromptPath;
     var chSyncStatus = _els.changesSyncStatus;
@@ -1775,6 +1777,11 @@ function _render(state) {
       }
     }
 
+    // Step 2: Send to AI button (shown when prompt is ready)
+    if (chSendAiBtn) {
+      chSendAiBtn.style.display = state.incrementalPromptReady ? 'inline-flex' : 'none';
+    }
+
     // Step 2: Prompt path info
     if (chPromptInfo && chPromptPath) {
       if (state.incrementalPromptPath) {
@@ -1794,6 +1801,8 @@ function _render(state) {
         var gs = state.graphSyncStatus;
         if (gs.synced) {
           chSyncStatus.innerHTML = '<span class="gfy-sync-ok">\u2713</span> Graph is in sync';
+        } else if (gs.pendingUpdate) {
+          chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> Prompt was generated \u2014 send to AI to update the graph';
         } else if (gs.reason === 'no_graph') {
           chSyncStatus.innerHTML = '<span class="gfy-sync-warn">!</span> No graph.json found. Generate and load a graph first.';
         } else if (gs.totalChanged > 0) {
@@ -1816,6 +1825,8 @@ function _render(state) {
         if (gs.timestamp) detailLines.push('Graph generated: ' + gs.timestamp);
         if (gs.synced) {
           detailLines.push('All files are accounted for in the graph.');
+        } else if (gs.pendingUpdate) {
+          detailLines.push('Incremental prompt generated but AI has not updated the graph yet. Send the prompt to your AI and load the result.');
         } else if (gs.totalChanged > 0) {
           detailLines.push(gs.totalChanged + ' file(s) changed (' + (gs.changed || 0) + ' modified, ' + (gs.new || 0) + ' new) since the graph was built.');
           hasFileList = true;
@@ -2485,7 +2496,7 @@ function _template() {
                     Generate Prompt
                   </button>
                   <span class="gfy-changes-gen-status" style="display:none"></span>
-                  <button class="gfy-send-ai-btn" style="display:none">
+                  <button class="gfy-send-ai-btn gfy-changes-send-ai-btn" style="display:none">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
                     Send to CodeSwamp
                   </button>
