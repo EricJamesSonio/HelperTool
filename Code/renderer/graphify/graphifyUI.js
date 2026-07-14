@@ -281,7 +281,12 @@ function _bindEvents() {
   // Tab clicks — also dismiss endpoint result if showing
   _root.querySelectorAll('.gfy-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      setState({ activeTab: btn.dataset.tab, endpointResultKey: null });
+      const tab = btn.dataset.tab;
+      setState({ activeTab: tab, endpointResultKey: null });
+      if (tab === 'report') {
+        const s = getState();
+        if (!s.graphReport && !s.graphLoading) _handleRefreshReport();
+      }
     });
   });
 
@@ -311,8 +316,7 @@ function _bindEvents() {
   if (affectedBtn) affectedBtn.addEventListener('click', _handleAffected);
 
   // Report tab - refresh
-  const reportRefreshBtn = _root.querySelector('.gfy-report-refresh-btn');
-  if (reportRefreshBtn) reportRefreshBtn.addEventListener('click', _handleRefreshReport);
+
 
   // AI-enrichment buttons
   const exportBtn = _root.querySelector('.gfy-export-btn');
@@ -1411,7 +1415,7 @@ function _render(state) {
 
   // ── Endpoints section ──
   if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints || state.expandedEndpoint !== prev.expandedEndpoint || state.endpointResultKey !== prev.endpointResultKey || state.endpointTests !== prev.endpointTests)) {
-    const show = state.serverStatus === 'running' && state.endpoints;
+    const show = state.serverStatus === 'running' && state.endpoints && state.activeTab !== 'report';
     endpointsSection.style.display = show ? 'flex' : 'none';
     if (show) {
       const listEl = _els.endpointsList;
@@ -2286,38 +2290,40 @@ function _template() {
 
       <!-- Query Tab -->
       <div class="gfy-query-section gfy-tab-content" style="display:none">
-        <div class="gfy-search-bar">
-          <svg class="gfy-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.3-4.3"/>
-          </svg>
-          <input
-            class="gfy-input"
-            type="text"
-            placeholder='e.g. "how does auth work" or "where is payment validated"'
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button class="gfy-search-btn" title="Search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </button>
-          <button class="gfy-clear-btn" title="Clear">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>
-          </button>
-        </div>
+        <div class="gfy-search-section" style="max-width: 680px; width: 100%; flex: none;">
+          <div class="gfy-search-bar">
+            <svg class="gfy-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.3-4.3"/>
+            </svg>
+            <input
+              class="gfy-input"
+              type="text"
+              placeholder='e.g. "how does auth work" or "where is payment validated"'
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="gfy-search-btn" title="Search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </button>
+            <button class="gfy-clear-btn" title="Clear">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>
+            </button>
+          </div>
 
-        <div class="gfy-spinner" style="display:none">
-          <div class="gfy-spinner-ring"></div>
-          <span>Analyzing code graph\u2026</span>
-        </div>
+          <div class="gfy-spinner" style="display:none">
+            <div class="gfy-spinner-ring"></div>
+            <span>Analyzing code graph\u2026</span>
+          </div>
 
-        <div class="gfy-error" style="display:none"></div>
-        <div class="gfy-explanation" style="display:none"></div>
+          <div class="gfy-error" style="display:none"></div>
+          <div class="gfy-explanation" style="display:none"></div>
 
-        <div class="gfy-results"></div>
+          <div class="gfy-results"></div>
 
-        <div class="gfy-footer">
-          <span class="gfy-footer-hint">Ask a question \u2014 get the relevant files</span>
+          <div class="gfy-footer">
+            <span class="gfy-footer-hint">Ask a question \u2014 get the relevant files</span>
+          </div>
         </div>
 
         <div class="gfy-query-tools">
@@ -2381,12 +2387,6 @@ function _template() {
 
       <!-- Report Tab -->
       <div class="gfy-report-section gfy-tab-content" style="display:none">
-        <div class="gfy-report-toolbar">
-          <button class="gfy-report-refresh-btn">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 0 1-14 0"/><path d="M17 10V4"/><path d="M17 4h-6"/></svg>
-            Refresh Report
-          </button>
-        </div>
         <div class="gfy-report-content"></div>
       </div>
 

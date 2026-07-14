@@ -13,6 +13,7 @@ const exporter = require('../graphify-service/exporter');
 const DEFAULT_PORT = 3333;
 const START_TIMEOUT = 30000;
 const STORAGE_DIR = 'graphify/symbol-index-storage';
+const PROMPTS_DIR = 'graphify/prompts';
 const GRAPHIFY_DIR = 'graphify/graphify-storage';
 
 let _child        = null;
@@ -240,8 +241,8 @@ function _fetchInfo() {
 
 function _fetchRepoStatus(repoPath) {
   const symbolsJsonPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');
-  const promptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph.md');
-  const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
+  const promptPath = path.join(repoPath, PROMPTS_DIR, 'generate-graph.md');
+  const incrPromptPath = path.join(repoPath, PROMPTS_DIR, 'generate-graph-file-changes-only.md');
   const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
   const hashesPath = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
 
@@ -752,7 +753,7 @@ function register({ app }) {
       return { ok: false, error: 'symbols.json not found. Index your codebase first.' };
     }
 
-    const outDir = path.join(repoPath, STORAGE_DIR);
+    const outDir = path.join(repoPath, PROMPTS_DIR);
     if (!fs.existsSync(outDir)) {
       fs.mkdirSync(outDir, { recursive: true });
     }
@@ -911,7 +912,7 @@ function register({ app }) {
       return { ok: true, synced: true, timestamp: graphData.generatedAt || null };
     }
 
-    const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
+    const incrPromptPath = path.join(repoPath, PROMPTS_DIR, 'generate-graph-file-changes-only.md');
     const hasPendingPrompt = fs.existsSync(incrPromptPath);
     let pendingUpdate = false;
     if (hasPendingPrompt && totalChanged === 0) {
