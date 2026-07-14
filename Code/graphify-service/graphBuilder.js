@@ -823,6 +823,7 @@ var ro=new ResizeObserver(function(){requestAnimationFrame(function(){
 });});ro.observe(container);
 
 function getCircleAt(sx,sy){
+  if(!circles)return -1;
   var wx=(sx-viewX)/viewScale,wy=(sy-viewY)/viewScale;
   for(var i=circles.length-1;i>=0;i--){var c=circles[i];var dx=wx-c.x,dy=wy-c.y;if(Math.sqrt(dx*dx+dy*dy)<=c.radius)return i;}
   return -1;

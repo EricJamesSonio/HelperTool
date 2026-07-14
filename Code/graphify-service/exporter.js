@@ -2,132 +2,74 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { getDb } = require('./db');
+const { getIndexedData } = require('./db');
 
 const STORAGE_DIR = 'graphify/symbol-index-storage';
 const GRAPHIFY_DIR = 'graphify/graphify-storage';
 
-function _getRepoPath() {
-  const db = getDb();
-
-  let stmt = db.prepare('SELECT repo_path FROM repositories WHERE indexed = 1 ORDER BY last_indexed DESC LIMIT 1');
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return row.repo_path;
-  }
-  stmt.free();
-
-  stmt = db.prepare('SELECT repo_path FROM repositories ORDER BY last_indexed DESC LIMIT 1');
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return row.repo_path;
-  }
-  stmt.free();
-
-  return null;
-}
-
-function exportSymbolsJson() {
-  const repoPath = _getRepoPath();
-  if (!repoPath) {
-    return { ok: false, error: 'No repository found in the symbol index. Please index your codebase first.' };
-  }
+function exportSymbolsJson(repoPath) {
+  if (!repoPath) return { ok: false, error: 'No repository path provided.' };
 
   const outDir = path.join(repoPath, STORAGE_DIR);
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
-  const db = getDb();
-  const data = {
+  const data = getIndexedData();
+  const { filesById, filesByPath, symsByFile, impsByFile, repoInfo } = data;
+
+  const out = {
     exportedAt: new Date().toISOString(),
     repoPath: repoPath,
     repoName: repoPath.split(/[/\\]/).pop(),
-    files: [],
+    files: Array.from(filesById.values()),
     symbols: [],
     imports: [],
-    overview: {},
+    overview: {
+      totalFiles: filesById.size,
+      totalSymbols: 0,
+    },
   };
 
-  const stmt1 = db.prepare('SELECT repo_path, name, total_files, total_symbols FROM repositories WHERE repo_path = ? LIMIT 1');
-  stmt1.bind([repoPath]);
-  if (stmt1.step()) {
-    const r = stmt1.getAsObject();
-    data.overview = {
-      totalFiles: r.total_files || 0,
-      totalSymbols: r.total_symbols || 0,
-    };
+  for (const [fileId, symbols] of symsByFile) {
+    for (const sym of symbols) {
+      out.symbols.push({
+        name: sym.name,
+        type: sym.type,
+        line: sym.line,
+        column: sym.column,
+        isExported: sym.isExported,
+        className: sym.className,
+        signature: sym.signature,
+        filePath: sym.filePath,
+      });
+    }
   }
-  stmt1.free();
+  out.overview.totalSymbols = out.symbols.length;
 
-  const stmtFiles = db.prepare('SELECT id, path, language FROM indexed_files WHERE repo_id = (SELECT id FROM repositories WHERE repo_path = ?)');
-  stmtFiles.bind([repoPath]);
-  while (stmtFiles.step()) {
-    const f = stmtFiles.getAsObject();
-    data.files.push({
-      id: f.id,
-      path: f.path,
-      language: f.language,
-    });
+  for (const [fileId, imports] of impsByFile) {
+    const fileInfo = filesById.get(fileId);
+    const sourcePath = fileInfo ? fileInfo.path : null;
+    for (const imp of imports) {
+      out.imports.push({
+        importPath: imp.importPath,
+        importType: imp.importType,
+        importedSymbols: imp.importedSymbols,
+        sourceFile: sourcePath,
+        resolvedFile: imp.resolvedFile,
+      });
+    }
   }
-  stmtFiles.free();
-
-  const fileIdMap = new Map();
-  data.files.forEach(f => fileIdMap.set(f.id, f.path));
-
-  const stmtSym = db.prepare(`
-    SELECT s.name, s.type, s.line, s.column, s.is_exported, s.class_name, s.signature, s.file_id
-    FROM symbols s
-    WHERE s.repo_id = (SELECT id FROM repositories WHERE repo_path = ?)
-  `);
-  stmtSym.bind([repoPath]);
-  while (stmtSym.step()) {
-    const s = stmtSym.getAsObject();
-    data.symbols.push({
-      name: s.name,
-      type: s.type,
-      line: s.line,
-      column: s.column,
-      isExported: !!s.is_exported,
-      className: s.class_name || null,
-      signature: s.signature || '',
-      filePath: fileIdMap.get(s.file_id) || null,
-    });
-  }
-  stmtSym.free();
-
-  const stmtImp = db.prepare(`
-    SELECT fi.import_path, fi.import_type, fi.imported_symbols, fi.resolved_file_id, fi.file_id
-    FROM file_imports fi
-    WHERE fi.repo_id = (SELECT id FROM repositories WHERE repo_path = ?)
-  `);
-  stmtImp.bind([repoPath]);
-  while (stmtImp.step()) {
-    const i = stmtImp.getAsObject();
-    let importedSymbols = [];
-    try { importedSymbols = JSON.parse(i.imported_symbols || '[]'); } catch (_) {}
-    data.imports.push({
-      importPath: i.import_path,
-      importType: i.import_type,
-      importedSymbols,
-      sourceFile: fileIdMap.get(i.file_id) || null,
-      resolvedFile: i.resolved_file_id ? (fileIdMap.get(i.resolved_file_id) || null) : null,
-    });
-  }
-  stmtImp.free();
 
   const symbolsPath = path.join(outDir, 'symbols.json');
-  fs.writeFileSync(symbolsPath, JSON.stringify(data, null, 2), 'utf-8');
+  fs.writeFileSync(symbolsPath, JSON.stringify(out, null, 2), 'utf-8');
 
-  return { ok: true, path: symbolsPath, stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length } };
+  return { ok: true, path: symbolsPath, stats: { files: out.files.length, symbols: out.symbols.length, imports: out.imports.length } };
 }
 
-function generatePrompt() {
-  const repoPath = _getRepoPath();
+function generatePrompt(repoPath) {
   if (!repoPath) {
-    return { ok: false, error: 'No repository found in symbol index. Please index your codebase first.' };
+    return { ok: false, error: 'No repository path provided.' };
   }
 
   const outDir = path.join(repoPath, STORAGE_DIR);
@@ -484,11 +426,11 @@ Write two files:
   return { ok: true, path: promptPath };
 }
 
-function exportAll() {
-  const exportResult = exportSymbolsJson();
+function exportAll(repoPath) {
+  const exportResult = exportSymbolsJson(repoPath);
   if (!exportResult.ok) return exportResult;
 
-  const promptResult = generatePrompt();
+  const promptResult = generatePrompt(repoPath);
   if (!promptResult.ok) return promptResult;
 
   return {
@@ -499,10 +441,9 @@ function exportAll() {
   };
 }
 
-function loadGraphFromStorage() {
-  const repoPath = _getRepoPath();
+function loadGraphFromStorage(repoPath) {
   if (!repoPath) {
-    return { ok: false, error: 'No repository found in symbol index. Please index your codebase first.' };
+    return { ok: false, error: 'No repository path provided.' };
   }
 
   const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');

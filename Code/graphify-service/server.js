@@ -3,7 +3,7 @@
 const http = require('http');
 const fs   = require('fs');
 const path = require('path');
-const { initFromJson, getDb, getRawData, getRepoInfo, closeDb } = require('./db');
+const { initFromJson, getIndexedData, getRepoInfo, closeDb } = require('./db');
 const { queryRelevantCode } = require('./queryEngine');
 const { KnowledgeGraph } = require('./graphBuilder');
 const { exportAll, generatePrompt, loadGraphFromStorage } = require('./exporter');
@@ -22,7 +22,7 @@ let _retrievalEngine = null;
 
 function _initRetrievalEngine() {
   try {
-    const result = loadGraphFromStorage();
+    const result = loadGraphFromStorage(_repoPath);
     if (result.ok && result.graph) {
       _retrievalEngine = new RetrievalEngine(result.graph);
       process.stderr.write(`[graphify] Retrieval engine initialized: ${result.graph.nodes?.length || 0} nodes, ${result.graph.edges?.length || 0} edges\n`);
@@ -38,12 +38,14 @@ function _initRetrievalEngine() {
 function _buildGraph() {
   try {
     _graph = new KnowledgeGraph();
-    const db = getDb();
-    if (!db) {
-      process.stderr.write('[graphify] No DB available, graph is empty\n');
+    const data = getIndexedData();
+    if (!data) {
+      process.stderr.write('[graphify] No data available, graph is empty\n');
       return;
     }
-    _graph.buildFromDb(db, 1, _repoPath);
+    _graph.initialize(data);
+    _graph._scanMarkdown(_repoPath);
+    _graph.runCommunityDetection();
     const s = _graph.getGraphStats();
     process.stderr.write(`[graphify] Knowledge graph built: ${s.totalNodes} nodes, ${s.totalEdges} edges, ${s.communityCount} communities\n`);
   } catch (err) {
@@ -58,17 +60,11 @@ async function boot() {
   if (!repoPath || !fs.existsSync(path.join(repoPath, 'graphify', 'symbol-index-storage', 'symbols.json'))) {
     const dbPath = process.argv[4] || null;
     if (dbPath && fs.existsSync(dbPath)) {
-      const initSqlJs = require(path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.js'));
       try {
-        const SQL = await initSqlJs();
         const buffer = fs.readFileSync(dbPath);
-        const tmpDb = new SQL.Database(buffer);
-        const stmt = tmpDb.prepare('SELECT repo_path FROM repositories ORDER BY last_indexed DESC LIMIT 1');
-        if (stmt.step()) {
-          repoPath = stmt.getAsObject().repo_path;
-        }
-        stmt.free();
-        tmpDb.close();
+        // Try to extract repo_path from the old sql.js DB file
+        // This is a legacy path; prefer passing repoPath directly
+        process.stderr.write(`[graphify] Legacy DB path provided: ${dbPath}. Ignoring, use REPO_PATH arg instead.\n`);
       } catch (_) {}
     }
   }
@@ -120,7 +116,6 @@ function handleRequest(req, res) {
     return;
   }
 
-  // ── Admin endpoints (bypass service-stopped check) ──
   if (req.method === 'POST' && req.url === '/admin/stop') {
     _serviceStopped = true;
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -179,7 +174,6 @@ function handleRequest(req, res) {
     return handleGraphSearch(req, res);
   }
 
-  // ── Lightweight API endpoints for Canvas UI ──
   if (req.method === 'GET' && req.url === '/api/stats') {
     return handleGraphStats(req, res);
   }
@@ -206,7 +200,6 @@ function handleRequest(req, res) {
     return handleLoadFromStorage(req, res);
   }
 
-  // ── Retrieval Engine endpoints (v1) ──
   if (req.method === 'POST' && req.url === '/retrieval/v1/query') {
     return handleRetrievalQuery(req, res);
   }
@@ -300,19 +293,20 @@ function handleInfo(req, res) {
   }
 
   try {
-    let info = _repoPath ? getRepoInfo(_repoPath) : null;
+    const info = getRepoInfo(_repoPath);
     if (info) {
       info.port = _actualPort;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(info));
     } else {
-      const raw = getRawData();
+      const data = getIndexedData();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        repoPath: raw?.repoPath || _repoPath,
-        repoName: raw?.repoName || 'unknown',
-        totalFiles: raw?.overview?.totalFiles || 0,
-        totalSymbols: raw?.overview?.totalSymbols || 0,
+        repoPath: data.repoInfo.repoPath || _repoPath,
+        repoName: data.repoInfo.repoName || 'unknown',
+        totalFiles: data.repoInfo.totalFiles || 0,
+        totalSymbols: data.repoInfo.totalSymbols || 0,
+        totalImports: data.repoInfo.totalImports || 0,
         port: _actualPort,
       }));
     }
@@ -597,12 +591,12 @@ function handleApiCommunity(req, res) {
   }
 }
 
-// ── AI-enrichment handlers ──
+// ── Export handlers ──
 
 function handleExportSymbols(req, res) {
   if (!_graphGuard(res)) return;
   try {
-    const result = exportAll();
+    const result = exportAll(_repoPath);
     if (result.ok && result.promptPath) {
       result.promptText = fs.readFileSync(result.promptPath, 'utf-8');
     }
@@ -617,7 +611,7 @@ function handleExportSymbols(req, res) {
 function handleGeneratePrompt(req, res) {
   if (!_graphGuard(res)) return;
   try {
-    const result = generatePrompt();
+    const result = generatePrompt(_repoPath);
     if (result.ok && result.path) {
       result.promptText = fs.readFileSync(result.path, 'utf-8');
     }
@@ -632,7 +626,7 @@ function handleGeneratePrompt(req, res) {
 function handleExportAll(req, res) {
   if (!_graphGuard(res)) return;
   try {
-    const result = exportAll();
+    const result = exportAll(_repoPath);
     if (result.ok && result.promptPath) {
       result.promptText = fs.readFileSync(result.promptPath, 'utf-8');
     }
@@ -647,7 +641,7 @@ function handleExportAll(req, res) {
 function handleLoadFromStorage(req, res) {
   if (!_graphGuard(res)) return;
   try {
-    const result = loadGraphFromStorage();
+    const result = loadGraphFromStorage(_repoPath);
     res.writeHead(result.ok ? 200 : 404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(result));
   } catch (err) {

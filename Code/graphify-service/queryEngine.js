@@ -1,6 +1,6 @@
 'use strict';
 
-const { getDb }    = require('./db');
+const { getIndexedData } = require('./db');
 const { explain }  = require('./explainer');
 
 const STOPWORDS = new Set([
@@ -26,42 +26,12 @@ function extractKeywords(query) {
     .filter(w => w.length >= 2 && !STOPWORDS.has(w));
 }
 
-function getRepoId(repoPath) {
-  const db = getDb();
-
-  if (repoPath) {
-    const stmt = db.prepare('SELECT id FROM repositories WHERE repo_path = ? LIMIT 1');
-    stmt.bind([repoPath]);
-    if (stmt.step()) {
-      const id = stmt.getAsObject().id;
-      stmt.free();
-      return id;
-    }
-    stmt.free();
-    return null;
-  }
-
-  const stmt = db.prepare('SELECT id FROM repositories WHERE indexed = 1 ORDER BY last_indexed DESC LIMIT 1');
-  if (stmt.step()) {
-    const id = stmt.getAsObject().id;
-    stmt.free();
-    return id;
-  }
-  stmt.free();
-  return null;
-}
-
-function matchFilesByPath(repoId, keywords) {
-  const db = getDb();
+function matchFilesByPath(keywords) {
+  const data = getIndexedData();
   const hits = new Map();
 
-  const stmt = db.prepare('SELECT path FROM indexed_files WHERE repo_id = ?');
-  stmt.bind([repoId]);
-
-  while (stmt.step()) {
-    const { path: filePath } = stmt.getAsObject();
-    const base = filePath.split('/').pop().toLowerCase().replace(/\.[^.]+$/, '');
-
+  for (const [id, fileInfo] of data.filesById) {
+    const base = fileInfo.path.split('/').pop().toLowerCase().replace(/\.[^.]+$/, '');
     let score = 0;
     for (const kw of keywords) {
       if (base === kw) {
@@ -70,70 +40,50 @@ function matchFilesByPath(repoId, keywords) {
         score += 5;
       }
     }
-
     if (score > 0) {
-      hits.set(filePath, (hits.get(filePath) || 0) + score);
+      hits.set(fileInfo.path, (hits.get(fileInfo.path) || 0) + score);
     }
   }
-  stmt.free();
 
   return hits;
 }
 
-function matchFilesBySymbol(repoId, keywords) {
-  const db = getDb();
+function matchFilesBySymbol(keywords) {
+  const data = getIndexedData();
   const hits = new Map();
 
-  const stmt = db.prepare(`
-    SELECT s.name, s.type, f.path as file_path
-    FROM symbols s
-    JOIN indexed_files f ON f.id = s.file_id
-    WHERE s.repo_id = ?
-  `);
-  stmt.bind([repoId]);
+  for (const [fileId, symbols] of data.symsByFile) {
+    const fileInfo = data.filesById.get(fileId);
+    if (!fileInfo) continue;
 
-  while (stmt.step()) {
-    const { name, type, file_path } = stmt.getAsObject();
-    const nameLower = (name || '').toLowerCase();
-
-    let score = 0;
-    for (const kw of keywords) {
-      if (nameLower === kw) {
-        const typeBoost = (type === 'class' || type === 'function') ? 12 : 8;
-        score += typeBoost;
-      } else if (nameLower.includes(kw) || kw.includes(nameLower)) {
-        score += 4;
+    for (const sym of symbols) {
+      const nameLower = (sym.name || '').toLowerCase();
+      let score = 0;
+      for (const kw of keywords) {
+        if (nameLower === kw) {
+          const typeBoost = (sym.type === 'class' || sym.type === 'function') ? 12 : 8;
+          score += typeBoost;
+        } else if (nameLower.includes(kw) || kw.includes(nameLower)) {
+          score += 4;
+        }
+      }
+      if (score > 0) {
+        hits.set(fileInfo.path, (hits.get(fileInfo.path) || 0) + score);
       }
     }
-
-    if (score > 0) {
-      hits.set(file_path, (hits.get(file_path) || 0) + score);
-    }
   }
-  stmt.free();
 
   return hits;
 }
 
-function buildImportGraph(repoId) {
-  const db = getDb();
+function buildImportGraph() {
+  const data = getIndexedData();
   const forwardAdj = new Map();
 
-  const stmt = db.prepare(`
-    SELECT f.path as source, rf.path as target
-    FROM file_imports fi
-    JOIN indexed_files f  ON f.id  = fi.file_id
-    JOIN indexed_files rf ON rf.id = fi.resolved_file_id
-    WHERE fi.repo_id = ? AND fi.resolved_file_id IS NOT NULL
-  `);
-  stmt.bind([repoId]);
-
-  while (stmt.step()) {
-    const { source, target } = stmt.getAsObject();
-    if (!forwardAdj.has(source)) forwardAdj.set(source, new Set());
-    forwardAdj.get(source).add(target);
+  for (const edge of data.depEdges) {
+    if (!forwardAdj.has(edge.source)) forwardAdj.set(edge.source, new Set());
+    forwardAdj.get(edge.source).add(edge.target);
   }
-  stmt.free();
 
   return forwardAdj;
 }
@@ -174,37 +124,34 @@ function bfsExpand(entryFiles, forwardAdj, reverseAdj, maxDepth) {
   return visited;
 }
 
-function fuzzyFallback(repoId, keywords) {
-  const db = getDb();
+function fuzzyFallback(keywords) {
+  const data = getIndexedData();
   const hits = new Map();
 
-  const stmt = db.prepare('SELECT path FROM indexed_files WHERE repo_id = ?');
-  stmt.bind([repoId]);
-
-  while (stmt.step()) {
-    const { path: filePath } = stmt.getAsObject();
-    const lowerPath = filePath.toLowerCase();
-
+  for (const [id, fileInfo] of data.filesById) {
+    const lowerPath = fileInfo.path.toLowerCase();
     let score = 0;
     for (const kw of keywords) {
       if (lowerPath.includes(kw)) {
         score += 2;
       }
     }
-
     if (score > 0) {
-      hits.set(filePath, (hits.get(filePath) || 0) + score);
+      hits.set(fileInfo.path, (hits.get(fileInfo.path) || 0) + score);
     }
   }
-  stmt.free();
 
   return hits;
 }
 
 function queryRelevantCode(query, repoPath) {
-  const repoId = getRepoId(repoPath);
-  if (!repoId) {
-    return { files: [], explanation: 'No indexed repo found. Please index your codebase first.', scores: [] };
+  const data = getIndexedData();
+  if (!data) {
+    return { files: [], explanation: 'No indexed data found. Please index your codebase first.', scores: [] };
+  }
+
+  if (repoPath && data.repoInfo.repoPath !== repoPath) {
+    return { files: [], explanation: `Repo path mismatch. Indexed: ${data.repoInfo.repoPath}, requested: ${repoPath}`, scores: [] };
   }
 
   const keywords = extractKeywords(query);
@@ -212,16 +159,15 @@ function queryRelevantCode(query, repoPath) {
     return { files: [], explanation: 'Could not extract meaningful keywords from query.', scores: [] };
   }
 
-  const pathHits   = matchFilesByPath(repoId, keywords);
-  const symbolHits = matchFilesBySymbol(repoId, keywords);
+  const pathHits   = matchFilesByPath(keywords);
+  const symbolHits = matchFilesBySymbol(keywords);
 
   const entryScores = new Map();
   for (const [file, score] of pathHits)   entryScores.set(file, (entryScores.get(file) || 0) + score);
   for (const [file, score] of symbolHits) entryScores.set(file, (entryScores.get(file) || 0) + score);
 
-  // Fuzzy fallback if nothing matched
   if (entryScores.size === 0) {
-    const fuzzy = fuzzyFallback(repoId, keywords);
+    const fuzzy = fuzzyFallback(keywords);
     if (fuzzy.size === 0) {
       return {
         files: [],
@@ -229,13 +175,12 @@ function queryRelevantCode(query, repoPath) {
         scores: [],
       };
     }
-    // Use fuzzy results as entry points
     for (const [file, score] of fuzzy) {
       entryScores.set(file, score);
     }
   }
 
-  const forwardAdj = buildImportGraph(repoId);
+  const forwardAdj = buildImportGraph();
 
   const reverseAdj = new Map();
   for (const [source, targets] of forwardAdj) {

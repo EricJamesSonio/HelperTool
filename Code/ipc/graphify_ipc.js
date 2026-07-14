@@ -7,7 +7,6 @@ const fs          = require('fs');
 const readline    = require('readline');
 const http        = require('http');
 
-const symbolsJsonLoader = require('../database/symbolsJsonLoader');
 const changeDetector = require('../database/changeDetector');
 const exporter = require('../graphify-service/exporter');
 
@@ -50,6 +49,52 @@ function _httpRequest(url, method) {
     });
     req.on('error', () => resolve({ ok: false }));
     req.on('timeout', () => { req.destroy(); resolve({ ok: false }); });
+    req.end();
+  });
+}
+
+function _httpGetJson(url) {
+  return new Promise((resolve) => {
+    if (!_child || !_ready) {
+      resolve({ error: 'Server not running', ready: false });
+      return;
+    }
+    const req = http.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch { resolve({ error: 'Failed to parse response', ready: false }); }
+      });
+    });
+    req.on('error', (err) => resolve({ error: err.message, ready: false }));
+    req.setTimeout(3000, () => { req.destroy(); resolve({ error: 'Request timed out', ready: false }); });
+  });
+}
+
+function _httpPostJson(url, body) {
+  return new Promise((resolve) => {
+    if (!_child || !_ready) {
+      resolve({ ok: false, error: 'Server not running' });
+      return;
+    }
+    const opts = new URL(url);
+    const payload = JSON.stringify(body || {});
+    const req = http.request({
+      hostname: opts.hostname, port: opts.port, path: opts.pathname,
+      method: 'POST', timeout: 10000,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch { resolve({ ok: false, error: 'Failed to parse response' }); }
+      });
+    });
+    req.on('error', (err) => resolve({ ok: false, error: err.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, error: 'Request timed out' }); });
+    req.write(payload);
     req.end();
   });
 }
@@ -190,33 +235,44 @@ function _restart(app) {
 }
 
 function _fetchInfo() {
-  return new Promise((resolve) => {
-    if (!_child || !_ready) {
-      resolve({ error: 'Server not running', ready: false });
-      return;
-    }
+  return _httpGetJson(`http://127.0.0.1:${_port}/info`);
+}
 
-    const req = http.get(`http://127.0.0.1:${_port}/info`, (res) => {
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch {
-          resolve({ error: 'Failed to parse info response' });
-        }
-      });
-    });
+function _fetchRepoStatus(repoPath) {
+  const symbolsJsonPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');
+  const promptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph.md');
+  const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
+  const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
+  const hashesPath = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
 
-    req.on('error', (err) => {
-      resolve({ error: err.message });
-    });
+  const symbolsExists = fs.existsSync(symbolsJsonPath);
+  const promptExists = fs.existsSync(promptPath);
+  const promptGenerated = fs.existsSync(incrPromptPath);
+  const graphExists = fs.existsSync(graphPath);
+  const hashesExist = fs.existsSync(hashesPath);
 
-    req.setTimeout(3000, () => {
-      req.destroy();
-      resolve({ error: 'Info request timed out' });
-    });
-  });
+  let graphData = null;
+  let graphStats = null;
+  if (graphExists) {
+    try {
+      graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+      graphStats = graphData?.stats || null;
+    } catch {}
+  }
+
+  return {
+    symbolsExists,
+    promptExists,
+    promptGenerated,
+    graphExists,
+    graphHasData: graphData ? !!(graphData.nodes && graphData.nodes.length > 0) : false,
+    graphStats,
+    hashesExist,
+    symbolsJsonPath,
+    promptPath,
+    incrPromptPath,
+    graphPath,
+  };
 }
 
 function _generatePromptText(repoPath) {
@@ -662,45 +718,37 @@ function register({ app }) {
 
   ipcMain.handle('graphify:checkStatus', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const data = symbolsJsonLoader.load(repoPath);
-    const symbolsExists = !!(data && data.repoPath === repoPath);
+    const status = _fetchRepoStatus(repoPath);
 
-    const promptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph.md');
-    const promptExists = fs.existsSync(promptPath);
-
-    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
-    const graphExists = fs.existsSync(graphPath);
-    let graphData = null;
-    let graphHasData = false;
-    if (graphExists) {
-      try {
-        graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
-        graphHasData = !!(graphData.nodes && graphData.nodes.length > 0);
-      } catch {}
+    let symbolsStats = null;
+    if (status.symbolsExists) {
+      const info = await _fetchInfo();
+      if (info && info.ready !== false && info.totalFiles !== undefined) {
+        symbolsStats = { files: info.totalFiles || 0, symbols: info.totalSymbols || 0, imports: info.totalImports || 0 };
+      }
     }
 
     return {
       ok: true,
-      symbolsExists,
-      symbolsStats: symbolsExists
-        ? { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length }
-        : null,
-      promptExists,
-      graphExists,
-      graphHasData,
-      graphStats: graphData?.stats || null,
+      symbolsExists: status.symbolsExists,
+      symbolsStats,
+      promptExists: status.promptExists,
+      graphExists: status.graphExists,
+      graphHasData: status.graphHasData,
+      graphStats: status.graphStats,
     };
   });
 
   ipcMain.handle('graphify:exportSymbolsJson', async () => {
-    const result = exporter.exportSymbolsJson();
+    const result = await _httpPostJson(`http://127.0.0.1:${_port}/export/symbols`);
     return result;
   });
 
   ipcMain.handle('graphify:exportPrompt', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const data = symbolsJsonLoader.load(repoPath);
-    if (!data || data.repoPath !== repoPath) {
+
+    const symbolsJsonPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');
+    if (!fs.existsSync(symbolsJsonPath)) {
       return { ok: false, error: 'symbols.json not found. Index your codebase first.' };
     }
 
@@ -709,37 +757,35 @@ function register({ app }) {
       fs.mkdirSync(outDir, { recursive: true });
     }
 
-    // Detect changes and decide prompt type
     const changes = changeDetector.detectChangesSimple(repoPath);
     const hasGraph = changes && changes.hasPreviousGraph;
     const totalChanged = changes ? changes.changedFiles.length + changes.newFiles.length : 0;
     const noChanges = hasGraph && totalChanged === 0;
     const tooManyChanges = hasGraph && changes.changeRatio > 0.5;
 
-    let promptType = 'full';
-    let promptText;
-    let promptPath;
+    const info = await _fetchInfo();
+    const stats = info && info.ready !== false
+      ? { files: info.totalFiles || 0, symbols: info.totalSymbols || 0, imports: info.totalImports || 0 }
+      : null;
 
     if (noChanges) {
       return {
         ok: true,
         promptType: 'none',
         noChanges: true,
-        stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
+        stats,
       };
     }
 
+    let promptType = 'full';
+    let promptText;
+    let promptPath;
+
     if (hasGraph && !tooManyChanges && totalChanged > 0) {
-      // Incremental Ã¢â‚¬â€ generate prompt for changed files only
       promptType = 'incremental';
-      promptText = _generateIncrementalPromptText(
-        repoPath,
-        changes.changedFiles,
-        changes.newFiles,
-      );
+      promptText = _generateIncrementalPromptText(repoPath, changes.changedFiles, changes.newFiles);
       promptPath = path.join(outDir, 'generate-graph-file-changes-only.md');
     } else {
-      // Full prompt
       promptText = _generatePromptText(repoPath);
       promptPath = path.join(outDir, 'generate-graph.md');
     }
@@ -751,7 +797,7 @@ function register({ app }) {
       promptType,
       promptPath,
       promptText,
-      stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
+      stats,
       changes: hasGraph ? {
         total: totalChanged,
         changed: changes.changedFiles.length,
@@ -785,9 +831,8 @@ function register({ app }) {
 
   ipcMain.handle('graphify:generateIncrementalPrompt', async (_, repoPath, changedFilesOverride) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    // symbols.json already on disk from indexing. Load it directly.
-    const data = symbolsJsonLoader.load(repoPath);
-    if (!data || data.repoPath !== repoPath) {
+    const symbolsJsonPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');
+    if (!fs.existsSync(symbolsJsonPath)) {
       return { ok: false, error: 'symbols.json not found. Re-index the codebase first.' };
     }
     const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
@@ -904,26 +949,14 @@ function register({ app }) {
 
   ipcMain.handle('graphify:getChangesTabState', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const data = symbolsJsonLoader.load(repoPath);
-    const indexed = !!(data && data.repoPath === repoPath);
+    const status = _fetchRepoStatus(repoPath);
 
     const hashesPath = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
     const hashesExist = fs.existsSync(hashesPath);
 
-    const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
-    const promptGenerated = fs.existsSync(incrPromptPath);
-
-    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
-    const graphExists = fs.existsSync(graphPath);
-    let graphData = null;
-    if (graphExists) {
-      try { graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8')); } catch {}
-    }
-
     let changes = null;
-    if (indexed && hashesExist) {
+    if (status.symbolsExists && hashesExist) {
       try {
-        // Use content-aware detection that reads actual files on disk
         const ch = changeDetector.detectContentChanges(repoPath);
         if (ch) {
           const totalChanged = ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length;
@@ -942,30 +975,39 @@ function register({ app }) {
       } catch {}
     }
 
+    const info = await _fetchInfo();
+    const stats = info && info.ready !== false
+      ? { files: info.totalFiles || 0, symbols: info.totalSymbols || 0, imports: info.totalImports || 0 }
+      : null;
+
     return {
       ok: true,
-      indexed,
+      indexed: status.symbolsExists,
       hashesExist,
       changes,
-      promptGenerated,
-      promptPath: promptGenerated ? incrPromptPath : null,
-      graphExists,
-      graphHasData: graphData ? !!(graphData.nodes && graphData.nodes.length > 0) : false,
-      stats: indexed ? { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length } : null,
+      promptGenerated: status.promptGenerated,
+      promptPath: status.promptGenerated ? status.incrPromptPath : null,
+      graphExists: status.graphExists,
+      graphHasData: status.graphHasData,
+      stats,
     };
   });
 
   ipcMain.handle('graphify:detectChanges', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const data = symbolsJsonLoader.load(repoPath);
-    if (!data || data.repoPath !== repoPath) {
+    const symbolsJsonPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');
+    if (!fs.existsSync(symbolsJsonPath)) {
       return { ok: false, error: 'symbols.json not found. Index your codebase first.' };
     }
-    // Use content-aware detection for accurate file-level diffs
     const ch = changeDetector.detectContentChanges(repoPath);
     const totalChanged = ch ? ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length : 0;
-    // Save hashes as baseline so subsequent detections compare against current state
     changeDetector.saveCurHashes(repoPath);
+
+    const info = await _fetchInfo();
+    const stats = info && info.ready !== false
+      ? { files: info.totalFiles || 0, symbols: info.totalSymbols || 0, imports: info.totalImports || 0 }
+      : null;
+
     return {
       ok: true,
       changes: ch ? {
@@ -979,37 +1021,24 @@ function register({ app }) {
         newFiles: ch.newFiles,
         deletedFiles: ch.deletedFiles,
       } : null,
-      stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
+      stats,
     };
   });
 
   ipcMain.handle('graphify:getMountData', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const data = symbolsJsonLoader.load(repoPath);
-    const symbolsExists = !!(data && data.repoPath === repoPath);
+    const status = _fetchRepoStatus(repoPath);
 
-    const promptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph.md');
-    const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
-
-    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
-    const hashesPath = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
-
-    const promptExists = fs.existsSync(promptPath);
-    const promptGenerated = fs.existsSync(incrPromptPath);
-    const graphExists = fs.existsSync(graphPath);
-    const hashesExist = fs.existsSync(hashesPath);
-
-    let graphData = null;
-    let graphStats = null;
-    if (graphExists) {
-      try {
-        graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
-        graphStats = graphData?.stats || null;
-      } catch {}
+    let symbolsStats = null;
+    if (status.symbolsExists) {
+      const info = await _fetchInfo();
+      if (info && info.ready !== false && info.totalFiles !== undefined) {
+        symbolsStats = { files: info.totalFiles, symbols: info.totalSymbols, imports: info.totalImports };
+      }
     }
 
     let changes = null;
-    if (symbolsExists && hashesExist) {
+    if (status.symbolsExists && status.hashesExist) {
       try {
         const ch = changeDetector.detectContentChanges(repoPath);
         if (ch) {
@@ -1033,18 +1062,16 @@ function register({ app }) {
       ok: true,
       running: !!_child && _ready,
       port: _port,
-      symbolsExists,
-      symbolsStats: symbolsExists
-        ? { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length }
-        : null,
-      promptExists,
-      graphExists,
-      graphHasData: graphData ? !!(graphData.nodes && graphData.nodes.length > 0) : false,
-      graphStats,
-      hashesExist,
+      symbolsExists: status.symbolsExists,
+      symbolsStats,
+      promptExists: status.promptExists,
+      graphExists: status.graphExists,
+      graphHasData: status.graphHasData,
+      graphStats: status.graphStats,
+      hashesExist: status.hashesExist,
       changes,
-      promptGenerated,
-      promptPath: promptGenerated ? incrPromptPath : null,
+      promptGenerated: status.promptGenerated,
+      promptPath: status.promptGenerated ? status.incrPromptPath : null,
     };
   });
 }

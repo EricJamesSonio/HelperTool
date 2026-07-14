@@ -77,6 +77,7 @@ async function initFromJson(repoPath) {
       repoName: data.repoName || path.basename(repoPath),
       totalFiles: data.overview?.totalFiles || data.files.length,
       totalSymbols: data.overview?.totalSymbols || (data.symbols ? data.symbols.length : 0),
+      totalImports: data.imports ? data.imports.length : 0,
     },
   };
 
