@@ -1439,7 +1439,7 @@ function _render(state) {
   }
 
   // ── Endpoints section ──
-  if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints || state.expandedEndpoint !== prev.expandedEndpoint || state.endpointResultKey !== prev.endpointResultKey || state.endpointTests !== prev.endpointTests)) {
+  if (endpointsSection && (!prev || state.serverStatus !== prev.serverStatus || state.endpoints !== prev.endpoints || state.activeTab !== prev.activeTab || state.expandedEndpoint !== prev.expandedEndpoint || state.endpointResultKey !== prev.endpointResultKey || state.endpointTests !== prev.endpointTests)) {
     const show = state.serverStatus === 'running' && state.endpoints && state.activeTab !== 'report';
     endpointsSection.style.display = show ? 'flex' : 'none';
     if (show) {
@@ -1490,6 +1490,7 @@ function _render(state) {
   const bodyEl = _root?.querySelector('.gfy-body');
   if (bodyEl && (!prev || state.activeTab !== prev.activeTab)) {
     bodyEl.classList.toggle('gfy-graph-active', state.activeTab === 'graph' && state.serverStatus === 'running');
+    bodyEl.classList.toggle('gfy-report-active', state.activeTab === 'report' && state.serverStatus === 'running');
     bodyEl.classList.toggle('gfy-ai-active', state.activeTab === 'ai');
     bodyEl.classList.toggle('gfy-changes-active', state.activeTab === 'changes' && state.serverStatus === 'running');
   }

@@ -23,12 +23,17 @@ function extractFilePathsFromText(text) {
 
 async function handleAtMention(input) {
   const val = input.value;
-  const atIdx = val.lastIndexOf('@');
-  if (atIdx === -1 || atIdx < val.lastIndexOf(' ')) {
+  const cursorPos = input.selectionStart;
+  const atIdx = val.lastIndexOf('@', cursorPos);
+  if (atIdx === -1 || atIdx < val.lastIndexOf(' ', cursorPos)) {
     if (isOpen()) closePicker();
     return;
   }
-  const query = val.slice(atIdx + 1);
+  const query = val.slice(atIdx + 1, cursorPos);
+  if (query.length > 50) {
+    if (isOpen()) closePicker();
+    return;
+  }
   if (state.activeTab) {
     await ensureTreeLoaded(state.activeTab);
     open(query, input);
@@ -76,8 +81,7 @@ export function renderInput() {
     if (e.key === 'Enter' && !e.shiftKey) {
       if (isOpen()) {
         e.preventDefault();
-        confirmSelection(input);
-        return;
+        closePicker();
       }
       e.preventDefault();
       sendMessage();
@@ -175,7 +179,19 @@ async function sendMessage() {
 
     const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
+    if (state.streaming) {
+      console.warn('[CS] sendMessage: already streaming, ignoring');
+      return;
+    }
+
     state.lastSentMessage = text;
+
+    // Disable send button while sending
+    const sendBtn = document.getElementById('ocSendBtn');
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending...';
+    }
 
     if (!hasTerminalSession(repoPath)) {
       await openTerminalForRepo(repoPath, slotIndex);
@@ -189,14 +205,14 @@ async function sendMessage() {
     // Wait until opencode confirms it's reading stdin
     await waitForTerminalOpencode(repoPath, slotIndex);
 
-    // Write message in chunks to avoid PTY buffer truncation on Windows
+    // Write message in chunks — await each write so the PTY buffer doesn't overflow
     const chunkSize = 100;
     for (let i = 0; i < text.length; i += chunkSize) {
       const chunk = text.slice(i, i + chunkSize);
       if (state.parallelMode) {
-        writeToSlot(slotIndex, chunk);
+        await writeToSlot(slotIndex, chunk);
       } else {
-        writeToTerminal(repoPath, chunk);
+        await writeToTerminal(repoPath, chunk);
       }
       await new Promise(r => setTimeout(r, 10));
     }
@@ -206,9 +222,9 @@ async function sendMessage() {
 
     // Submit the message
     if (state.parallelMode) {
-      writeToSlot(slotIndex, '\r');
+      await writeToSlot(slotIndex, '\r');
     } else {
-      writeToTerminal(repoPath, '\r');
+      await writeToTerminal(repoPath, '\r');
     }
 
     input.value = '';
@@ -219,6 +235,19 @@ async function sendMessage() {
     setTimeout(() => refreshSidebar(), 1500);
   } catch (err) {
     console.error('[CS] sendMessage: unhandled error', err);
+    const input = document.getElementById('ocInput');
+    if (input) {
+      input.placeholder = `Error: ${err.message}. Type again to retry.`;
+      setTimeout(() => {
+        if (input) input.placeholder = 'Type a message...';
+      }, 4000);
+    }
+  } finally {
+    const sendBtn = document.getElementById('ocSendBtn');
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send';
+    }
   }
 }
 

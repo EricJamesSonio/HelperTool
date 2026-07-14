@@ -286,14 +286,14 @@ export function showTerminalSession(repoPath) {
 
 export function writeToTerminal(repoPath, text) {
   const inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
-  if (!inst) return;
-  window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
+  if (!inst) return Promise.resolve();
+  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
 }
 
 export function writeToSlot(slotIndex, text) {
   const inst = instances[slotIndex];
-  if (!inst) return;
-  window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
+  if (!inst) return Promise.resolve();
+  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
 }
 
 export function writeToTerminalDisplay(repoPath, slotIndex, text) {
