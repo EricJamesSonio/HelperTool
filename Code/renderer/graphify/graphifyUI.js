@@ -46,6 +46,7 @@ function _populateDomCache() {
   _cacheEl('stopBtn',          '.gfy-stop-btn');
   _cacheEl('cancelBtn',        '.gfy-cancel-btn');
   _cacheEl('copyBtn',          '.gfy-copy-btn');
+  _cacheEl('cheatsheetBtn',    '.gfy-cheatsheet-btn');
   _cacheEl('indexBtn',         '.gfy-index-btn');
   _cacheEl('infoLine',         '.gfy-info-line');
   _cacheEl('endpointsSection', '.gfy-endpoints-section');
@@ -258,6 +259,8 @@ function _bindEvents() {
   if (cancelBtn) cancelBtn.addEventListener('click', _handleCancel);
   copyBtn.addEventListener('click', _handleCopyUrl);
   if (indexBtn) indexBtn.addEventListener('click', _handleIndex);
+  const cheatsheetBtn = _root.querySelector('.gfy-cheatsheet-btn');
+  if (cheatsheetBtn) cheatsheetBtn.addEventListener('click', _handleSendCheatsheet);
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') _runQuery();
@@ -847,6 +850,19 @@ async function _handleCopyUrl() {
   } catch {}
 }
 
+async function _handleSendCheatsheet() {
+  if (!_mounted) return;
+  const repoPath = window.__activeRepoPath;
+  if (!repoPath) return;
+  const cheatsheetPath = (repoPath + '/graphify/prompts/graphify-cheatsheet.md').replace(/\\/g, '/');
+  try {
+    const result = await window.electronAPI.readFile(cheatsheetPath);
+    if (_mounted && result && result.success && result.content) {
+      _showSendToAiDialog(result.content);
+    }
+  } catch {}
+}
+
 async function _runQuery() {
   if (!_root || !_mounted) return;
   const input = _root.querySelector('.gfy-input');
@@ -1224,6 +1240,7 @@ function _render(state) {
   const startBtn = _els.startBtn;
   const stopBtn  = _els.stopBtn;
   const copyBtn  = _els.copyBtn;
+  const cheatsheetBtn = _els.cheatsheetBtn;
   const indexBtn = _els.indexBtn;
   const infoLine = _els.infoLine;
   const endpointsSection = _els.endpointsSection;
@@ -1264,6 +1281,7 @@ function _render(state) {
     cancelBtn.style.display = state.serverStatus === 'starting' ? 'flex' : 'none';
   }
   if (copyBtn && (!prev || state.serverStatus !== prev.serverStatus))  copyBtn.style.display   = state.serverStatus === 'running' ? 'flex' : 'none';
+  if (cheatsheetBtn && (!prev || state.serverStatus !== prev.serverStatus)) cheatsheetBtn.style.display = state.serverStatus === 'running' ? 'flex' : 'none';
   if (indexBtn && (!prev || state.serverStatus !== prev.serverStatus || state.statusLoading !== prev.statusLoading || state.repoStatus !== prev.repoStatus || state.indexLoading !== prev.indexLoading)) {
     const show = (!state.statusLoading && state.repoStatus === 'needs-index') || state.indexLoading;
     indexBtn.style.display = show ? 'flex' : 'none';
@@ -2112,6 +2130,10 @@ function _template() {
             <button class="gfy-copy-btn" style="display:none" title="Copy API URL to clipboard">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="11" height="13" rx="1.5"/><path d="M8 2h7a1 1 0 0 1 1 1v11"/></svg>
               Copy URL
+            </button>
+            <button class="gfy-cheatsheet-btn" style="display:none" title="Send cheatsheet to CodeSwamp">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+              Cheatsheet
             </button>
             <button class="gfy-index-btn">
               <span class="gfy-index-btn-content">
