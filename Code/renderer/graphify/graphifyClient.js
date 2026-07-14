@@ -1,8 +1,18 @@
 const _base = (port) => `http://127.0.0.1:${port}`;
 
+function _fetchWithTimeout(url, options, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    fetch(url, { ...options, signal: controller.signal })
+      .then((res) => { clearTimeout(timer); resolve(res); })
+      .catch((err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
 export async function fetchEndpoints(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/endpoints`);
+    const res = await _fetchWithTimeout(`${_base(port)}/endpoints`, {}, 10000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -25,7 +35,7 @@ export async function queryGraphify(query, repoPath = null, port = 3333) {
 
 export async function checkHealth(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/health`);
+    const res = await _fetchWithTimeout(`${_base(port)}/health`, {}, 5000);
     return res.ok;
   } catch {
     return false;
@@ -34,7 +44,7 @@ export async function checkHealth(port = 3333) {
 
 export async function fetchInfo(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/info`);
+    const res = await _fetchWithTimeout(`${_base(port)}/info`, {}, 10000);
     if (!res.ok) return null;
     return await res.json();
   } catch {

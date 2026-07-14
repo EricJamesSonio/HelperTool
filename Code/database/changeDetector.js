@@ -192,6 +192,19 @@ function detectChanges(repoPath) {
   };
 }
 
+function saveCurHashes(repoPath) {
+  const data = loadSymbols(repoPath);
+  if (!data) return false;
+  const { files, symbols, imports } = data;
+  const { symsByFile, impsByFile } = groupByFile(symbols, imports);
+  const curHashes = buildCurHashes(files, symsByFile, impsByFile, repoPath);
+  const p = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
+  const dir = path.dirname(p);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(curHashes, null, 2));
+  return true;
+}
+
 function detectChangesSimple(repoPath) {
   const data = loadSymbols(repoPath);
   if (!data || data.repoPath !== repoPath) return null;
@@ -232,4 +245,5 @@ module.exports = {
   buildPrevNodesByPath,
   detectChanges,
   detectChangesSimple,
+  saveCurHashes,
 };

@@ -569,6 +569,8 @@ const graphifyBridge = {
   graphifyExportPrompt:       (repoPath) => ipcRenderer.invoke('graphify:exportPrompt', repoPath),
   graphifyLoadGraphFromStorage: (repoPath) => ipcRenderer.invoke('graphify:loadGraphFromStorage', repoPath),
   graphifyDetectChanges:      (repoPath) => ipcRenderer.invoke('graphify:detectChanges', repoPath),
+  graphifySaveFileHashes:     (repoPath) => ipcRenderer.invoke('graphify:saveFileHashes', repoPath),
+  graphifyGetChangesTabState: (repoPath) => ipcRenderer.invoke('graphify:getChangesTabState', repoPath),
   graphifyGenerateIncrementalPrompt: (repoPath) => ipcRenderer.invoke('graphify:generateIncrementalPrompt', repoPath),
   graphifyCheckGraphSync:     (repoPath) => ipcRenderer.invoke('graphify:checkGraphSync', repoPath),
 };

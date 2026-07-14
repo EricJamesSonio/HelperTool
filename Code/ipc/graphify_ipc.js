@@ -864,6 +864,66 @@ function register({ app }) {
     };
   });
 
+  ipcMain.handle('graphify:saveFileHashes', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    try {
+      const saved = changeDetector.saveCurHashes(repoPath);
+      return { ok: saved };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('graphify:getChangesTabState', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    const data = symbolsJsonLoader.load(repoPath);
+    const indexed = !!(data && data.repoPath === repoPath);
+
+    const hashesPath = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
+    const hashesExist = fs.existsSync(hashesPath);
+
+    const incrPromptPath = path.join(repoPath, STORAGE_DIR, 'generate-graph-file-changes-only.md');
+    const promptGenerated = fs.existsSync(incrPromptPath);
+
+    const graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
+    const graphExists = fs.existsSync(graphPath);
+    let graphData = null;
+    if (graphExists) {
+      try { graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8')); } catch {}
+    }
+
+    let changes = null;
+    if (indexed) {
+      try {
+        const ch = changeDetector.detectChangesSimple(repoPath);
+        if (ch && ch.hasPreviousGraph) {
+          const totalChanged = ch.changedFiles.length + ch.newFiles.length;
+          changes = {
+            total: totalChanged,
+            changed: ch.changedFiles.length,
+            new: ch.newFiles.length,
+            changeRatio: ch.changeRatio,
+            tooManyChanges: ch.changeRatio > 0.5,
+            changedFiles: ch.changedFiles,
+            newFiles: ch.newFiles,
+          };
+        }
+      } catch {}
+    }
+
+    return {
+      ok: true,
+      indexed,
+      hashesExist,
+      changes,
+      promptGenerated,
+      promptPath: promptGenerated ? incrPromptPath : null,
+      graphExists,
+      graphHasData: graphData ? !!(graphData.nodes && graphData.nodes.length > 0) : false,
+      stats: indexed ? { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length } : null,
+    };
+  });
+
   ipcMain.handle('graphify:detectChanges', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
     const data = symbolsJsonLoader.load(repoPath);
@@ -873,6 +933,8 @@ function register({ app }) {
     const changes = changeDetector.detectChangesSimple(repoPath);
     const hasGraph = changes && changes.hasPreviousGraph;
     const totalChanged = changes ? changes.changedFiles.length + changes.newFiles.length : 0;
+    // Save current hashes as new baseline so future calls compare against this state
+    try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
     return {
       ok: true,
       changes: hasGraph ? {

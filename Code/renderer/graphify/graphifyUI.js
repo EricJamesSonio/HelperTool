@@ -9,6 +9,7 @@ let _root          = null;
 let _unsub         = null;
 let _debounce      = null;
 let _healthTimer   = null;
+let _watchdogTimer = null;
 let _mounted       = false;
 let _initialized   = false;
 let _startCancelRequested = false;
@@ -146,6 +147,7 @@ export function mount(container) {
   _render(getState());
   _checkStatus();
   _performStatusSync();
+  _startWatchdog();
 }
 
 function _startHealthTimer() {
@@ -161,10 +163,23 @@ function _stopHealthTimer() {
   if (_healthTimer) { clearInterval(_healthTimer); _healthTimer = null; }
 }
 
+function _startWatchdog() {
+  _stopWatchdog();
+  _watchdogTimer = setInterval(() => {
+    if (!_mounted) { _stopWatchdog(); return; }
+    _performStatusSync();
+  }, 30000);
+}
+
+function _stopWatchdog() {
+  if (_watchdogTimer) { clearInterval(_watchdogTimer); _watchdogTimer = null; }
+}
+
 export function unmount() {
   _mounted = false;
   _initialized = false;
   _stopHealthTimer();
+  _stopWatchdog();
   if (_unsub) { _unsub(); _unsub = null; }
   if (_debounce) clearTimeout(_debounce);
   _root = null;
@@ -178,10 +193,12 @@ export function show() {
   _render(getState());
   _checkStatus();
   _performStatusSync();
+  _startWatchdog();
 }
 
 export function hide() {
   _stopHealthTimer();
+  _stopWatchdog();
 }
 
 function _safeSetState(patch) {
@@ -653,7 +670,17 @@ async function _checkServerAlive(retries = 2) {
       await new Promise(r => setTimeout(r, 1000));
       return _checkServerAlive(retries - 1);
     }
-    // Server is really gone — reset state so user sees the start UI
+    // Health check exhausted — verify if the server process is still alive
+    try {
+      const procStatus = await window.electronAPI.graphifyIsRunning();
+      if (procStatus.running) {
+        // Process is alive but unresponsive — restart health timer, don't mark as stopped
+        _safeSetState({ error: 'Server is unresponsive. Retrying...' });
+        _startHealthTimer();
+        return;
+      }
+    } catch {}
+    // Process is dead — reset state so user sees the start UI
     _stopHealthTimer();
     _safeSetState({
       serverStatus: 'stopped', serverInfo: null, endpoints: null,
