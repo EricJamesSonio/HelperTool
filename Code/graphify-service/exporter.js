@@ -528,184 +528,68 @@ function generateIncrementalPrompt(repoPath, changedFiles) {
   }
 
   var symbolsPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');
-  var graphPath = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
-
   if (!fs.existsSync(symbolsPath)) {
     return { ok: false, error: 'symbols.json not found. Re-index the codebase first.' };
   }
 
-  var symbolsData, graphData;
-  try { symbolsData = JSON.parse(fs.readFileSync(symbolsPath, 'utf-8')); } catch (e) {
-    return { ok: false, error: 'Failed to parse symbols.json: ' + e.message };
-  }
-  try {
-    graphData = fs.existsSync(graphPath) ? JSON.parse(fs.readFileSync(graphPath, 'utf-8')) : null;
-  } catch (e) {
-    graphData = null;
-  }
-
-  // Build a map of filePath → symbols for quick lookup
-  var symbolsByFile = {};
-  (symbolsData.symbols || []).forEach(function(s) {
-    var fp = s.filePath;
-    if (!symbolsByFile[fp]) symbolsByFile[fp] = [];
-    symbolsByFile[fp].push(s);
-  });
-
-  // Build a map of filePath → imports
-  var importsByFile = {};
-  (symbolsData.imports || []).forEach(function(i) {
-    var sf = i.sourceFile;
-    if (!importsByFile[sf]) importsByFile[sf] = [];
-    importsByFile[sf].push(i);
-  });
-
-  // Build a map filePath → file entry
-  var filesMap = {};
-  (symbolsData.files || []).forEach(function(f) { filesMap[f.path] = f; });
-
-  var prevTotalNodes = graphData ? (graphData.stats ? graphData.stats.totalNodes : 0) : 0;
-  var prevTotalEdges = graphData ? (graphData.stats ? graphData.stats.totalEdges : 0) : 0;
-
-  // Build changed files detail
-  var modifiedFiles = [];
-  var newFiles = [];
-  (changedFiles || []).forEach(function(fp) {
-    var fe = filesMap[fp];
-    var syms = symbolsByFile[fp] || [];
-    var imps = importsByFile[fp] || [];
-    var lang = fe ? fe.language : 'unknown';
-    var detail = { path: fp, language: lang, symbols: syms, imports: imps };
-    // Check if this file exists in the previous graph (has a node)
-    var existed = graphData && graphData.nodes && graphData.nodes.some(function(n) {
-      return n.filePath === fp;
-    });
-    if (existed) {
-      modifiedFiles.push(detail);
-    } else {
-      newFiles.push(detail);
-    }
-  });
-
   var outDir = path.join(repoPath, STORAGE_DIR);
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-  var now = new Date().toISOString();
-  var lines = [];
+  var fileList = (changedFiles || []).map(function(fp) { return '  - ' + fp; }).join('\n');
 
-  lines.push('# Incremental Knowledge Graph Update');
-  lines.push('');
-  lines.push('This is an **incremental** update to an existing knowledge graph.');
-  lines.push('Your task is to update `graph.json` with only the changed files described below.');
-  lines.push('Preserve ALL existing nodes, edges, features, and concepts that have not changed.');
-  lines.push('');
-  lines.push('---');
-  lines.push('');
-  lines.push('## Previous Graph State');
-  lines.push('');
-  lines.push('- Total nodes: ' + prevTotalNodes);
-  lines.push('- Total edges: ' + prevTotalEdges);
-  if (graphData && graphData.generatedAt) {
-    lines.push('- Generated at: ' + graphData.generatedAt);
-  }
-  lines.push('');
-  lines.push('## Source Repository');
-  lines.push('');
-  lines.push('```');
-  lines.push(repoPath);
-  lines.push('```');
-  lines.push('');
-  lines.push('## Objective');
-  lines.push('');
-  lines.push('Read the source code of the changed files listed below from disk, then:');
-  lines.push('');
-  lines.push('1. For each **modified file**: UPDATE its existing node in `graph.json` with new symbols, responsibilities, features, tags, and summary if the code changed significantly. Keep the same node ID (`file-<path>`). Do NOT delete the old node — update it in place.');
-  lines.push('2. For each **new file**: ADD a new node following the same `graph.json` schema. Create edges between this file and files it imports or collaborates with.');
-  lines.push('3. Update `edges` — add new edges for new relationships, update existing edges if their weight or description changed.');
-  lines.push('4. Update `features` — add new files to existing features or create new features as needed.');
-  lines.push('5. Update `concepts` — add new concepts or update existing ones.');
-  lines.push('6. Update `meta.incremental` in the top-level object:');
-  lines.push('   - `total`: total number of files in the updated graph');
-  lines.push('   - `reused`: previous total - (modified + new)');
-  lines.push('   - `rebuilt`: modified files count');
-  lines.push('   - `new`: new files count');
-  lines.push('   - `changed`: modified files count');
-  lines.push('   - `generationMode`: "ai_incremental"');
-  lines.push('7. Update `stats` with new totals.');
-  lines.push('8. Set `generatedAt` to the current timestamp.');
-  lines.push('');
-  lines.push('## Files Changed (' + (modifiedFiles.length + newFiles.length) + ' total)');
-  lines.push('');
+  var prompt = '# Incremental Knowledge Graph Update\n' +
+    '\n' +
+    'This is an **incremental** update to an existing knowledge graph.\n' +
+    'Your task is to update `graph.json` with only the changed files listed below.\n' +
+    'Preserve ALL existing nodes, edges, features, and concepts that have not changed.\n' +
+    '\n' +
+    '---\n' +
+    '\n' +
+    '## Source Repository\n' +
+    '\n' +
+    '```\n' +
+    repoPath + '\n' +
+    '```\n' +
+    '\n' +
+    '## Symbol Index\n' +
+    '\n' +
+    'The full symbol index is at:\n' +
+    '```\n' +
+    symbolsPath + '\n' +
+    '```\n' +
+    'Read `symbols.json` from disk to get the symbol data (files, symbols, imports) for all files.\n' +
+    'Look up the changed files by their path to find their symbols and imports.\n' +
+    '\n' +
+    '## Instructions\n' +
+    '\n' +
+    'Read the actual source code from disk for the changed files listed below, then:\n' +
+    '\n' +
+    '1. For each **modified file**: UPDATE its existing node in `graph.json` with new summary, responsibilities, features, tags, and per-symbol purpose/role. Keep the same node ID (`file-<path>`).\n' +
+    '2. For each **new file**: ADD a new node following the same `graph.json` schema. Create edges to files it imports or collaborates with.\n' +
+    '3. Update edges, features, and concepts as needed.\n' +
+    '4. Update `meta.incremental`, `stats`, and `generatedAt`.\n' +
+    '5. Preserve ALL unchanged nodes, edges, and data exactly as they were.\n' +
+    '6. Write the updated `graph.json` to the previous location.\n' +
+    '7. Write the updated `graph.md` report to the previous location.\n' +
+    '\n' +
+    '## Changed Files (' + (changedFiles ? changedFiles.length : 0) + ')\n' +
+    '\n' +
+    fileList + '\n' +
+    '\n' +
+    '## Output\n' +
+    '\n' +
+    'Write the updated `graph.json` to:\n' +
+    '```\n' +
+    path.join(repoPath, GRAPHIFY_DIR, 'graph.json') + '\n' +
+    '```\n' +
+    '\n' +
+    'Write the updated report to:\n' +
+    '```\n' +
+    path.join(repoPath, GRAPHIFY_DIR, 'graph.md') + '\n' +
+    '```\n' +
+    '\n' +
+    '> IMPORTANT: Output the COMPLETE `graph.json` with ALL nodes and edges — not just the changed ones. The unchanged nodes/edges must be preserved exactly as they were.\n';
 
-  if (modifiedFiles.length > 0) {
-    lines.push('### Modified Files (' + modifiedFiles.length + ')');
-    lines.push('');
-    modifiedFiles.forEach(function(f) {
-      lines.push('#### `' + f.path + '`');
-      lines.push('');
-      lines.push('- Language: ' + f.language);
-      if (f.symbols.length > 0) {
-        lines.push('- Symbols (' + f.symbols.length + '):');
-        f.symbols.forEach(function(s) {
-          lines.push('  - `' + s.name + '` — type: ' + s.type + (s.isExported ? ', exported' : '') + (s.signature ? ', signature: `' + s.signature + '`' : ''));
-        });
-      } else {
-        lines.push('- Symbols: (none)');
-      }
-      if (f.imports.length > 0) {
-        lines.push('- Imports (' + f.imports.length + '):');
-        f.imports.forEach(function(i) {
-          lines.push('  - `' + i.importPath + '` (' + i.importType + (i.resolvedFile ? ' → ' + i.resolvedFile : '') + ')');
-        });
-      } else {
-        lines.push('- Imports: (none)');
-      }
-      lines.push('');
-    });
-  }
-
-  if (newFiles.length > 0) {
-    lines.push('### New Files (' + newFiles.length + ')');
-    lines.push('');
-    newFiles.forEach(function(f) {
-      lines.push('#### `' + f.path + '`');
-      lines.push('');
-      lines.push('- Language: ' + f.language);
-      if (f.symbols.length > 0) {
-        lines.push('- Symbols (' + f.symbols.length + '):');
-        f.symbols.forEach(function(s) {
-          lines.push('  - `' + s.name + '` — type: ' + s.type + (s.isExported ? ', exported' : '') + (s.signature ? ', signature: `' + s.signature + '`' : ''));
-        });
-      } else {
-        lines.push('- Symbols: (none)');
-      }
-      if (f.imports.length > 0) {
-        lines.push('- Imports (' + f.imports.length + '):');
-        f.imports.forEach(function(i) {
-          lines.push('  - `' + i.importPath + '` (' + i.importType + (i.resolvedFile ? ' → ' + i.resolvedFile : '') + ')');
-        });
-      } else {
-        lines.push('- Imports: (none)');
-      }
-      lines.push('');
-    });
-  }
-
-  lines.push('## Output');
-  lines.push('');
-  lines.push('Write the updated `graph.json` to:');
-  lines.push('```');
-  lines.push(path.join(repoPath, GRAPHIFY_DIR, 'graph.json'));
-  lines.push('```');
-  lines.push('');
-  lines.push('Write the updated report to:');
-  lines.push('```');
-  lines.push(path.join(repoPath, GRAPHIFY_DIR, 'graph.md'));
-  lines.push('```');
-  lines.push('');
-  lines.push('> IMPORTANT: Output the COMPLETE `graph.json` with ALL nodes and edges — not just the changed ones. The unchanged nodes/edges must be preserved exactly as they were.');
-
-  var prompt = lines.join('\n');
   var promptPath = path.join(outDir, 'incremental-graph.md');
   fs.writeFileSync(promptPath, prompt, 'utf-8');
 

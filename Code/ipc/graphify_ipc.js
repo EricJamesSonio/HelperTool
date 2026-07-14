@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const { ipcMain } = require('electron');
 const { spawn }   = require('child_process');
@@ -227,12 +227,12 @@ function _generatePromptText(repoPath) {
 
 You are an AI assistant. Your task is to analyze the provided \`symbols.json\` file containing the symbol index of a codebase, and produce two output files:
 
-1. **\`graphify/graphify-storage/graph.json\`** â€” A structured knowledge graph with semantic labels
-2. **\`graphify/graphify-storage/graph.md\`** â€” A human-readable markdown report
+1. **\`graphify/graphify-storage/graph.json\`** Ã¢â‚¬â€ A structured knowledge graph with semantic labels
+2. **\`graphify/graphify-storage/graph.md\`** Ã¢â‚¬â€ A human-readable markdown report
 
 ## The Challenge
 
-\`symbols.json\` contains raw structural data â€” file paths, symbol names, import relationships. But it lacks **semantic context**: what does each file actually do? What features does it belong to? What is the purpose of each symbol?
+\`symbols.json\` contains raw structural data Ã¢â‚¬â€ file paths, symbol names, import relationships. But it lacks **semantic context**: what does each file actually do? What features does it belong to? What is the purpose of each symbol?
 
 Your job is to add that missing context. You will produce a \`graph.json\` where every file has a meaningful summary, every symbol has a purpose and role, files are grouped into coherent features, and semantic relationships between files are identified.
 
@@ -396,7 +396,7 @@ Field notes:
 - \`responsibilities\`: 1-5 brief bullet points of what this file does (can be empty array)
 - \`features\`: one or more feature names this file belongs to (the primary feature first)
 - \`tags\`: descriptive tags for searching/filtering
-- \`stats\`: counts â€” derive from the symbols array for this file
+- \`stats\`: counts Ã¢â‚¬â€ derive from the symbols array for this file
 - \`symbols\`: include ALL function, class, and method symbols (skip pure variables/constants unless important), each with \`purpose\` and \`role\`
 - \`summarySource\`: always \`"ai"\`
 - \`centrality\`: compute from the edges you create (fanIn = how many files import this file, fanOut = how many files this file imports, degree = fanIn + fanOut, centrality = degree / (totalNodes - 1))
@@ -428,16 +428,16 @@ Fields:
 |------|-------------|-----------------|
 | \`IMPORTS\` | File A directly imports file B (from \`symbols.json\` imports with \`resolvedFile\`) | 2 |
 | \`COLLABORATES_WITH\` | Files that work together on the same feature or closely related features | 1 |
-| \`ORCHESTRATES\` | A file coordinates or manages multiple other files (e.g. main process â†’ handlers) | 3 |
+| \`ORCHESTRATES\` | A file coordinates or manages multiple other files (e.g. main process Ã¢â€ â€™ handlers) | 3 |
 | \`DEPENDS_ON\` | File A logically depends on file B even if not directly imported (semantic dependency) | 2 |
 | \`PROVIDES_TO\` | File A provides data, services, or utilities consumed by file B | 2 |
 | \`IMPLEMENTS\` | File A implements an interface, protocol, or contract defined in file B | 2 |
-| \`SEQUENCES\` | Processing pipeline where A â†’ B â†’ C in a data/control flow | 2 |
+| \`SEQUENCES\` | Processing pipeline where A Ã¢â€ â€™ B Ã¢â€ â€™ C in a data/control flow | 2 |
 | \`INITIALIZES\` | File A initializes or bootstraps file B during startup | 2 |
-| \`EXECUTES\` | File A dispatches or spawns work in file B (e.g. worker â†’ task) | 2 |
+| \`EXECUTES\` | File A dispatches or spawns work in file B (e.g. worker Ã¢â€ â€™ task) | 2 |
 | \`CROSS_CUTTING\` | Shared utility used across otherwise unrelated modules | 1 |
 
-Include \`IMPORTS\` edges for every resolved import. For semantic edges, only add them when you are confident the relationship exists â€” quality over quantity. Each edge should have a meaningful \`description\`.
+Include \`IMPORTS\` edges for every resolved import. For semantic edges, only add them when you are confident the relationship exists Ã¢â‚¬â€ quality over quantity. Each edge should have a meaningful \`description\`.
 
 #### Features Schema
 
@@ -459,9 +459,9 @@ Include \`IMPORTS\` edges for every resolved import. For semantic edges, only ad
 Each feature:
 - \`description\`: what this feature encompasses
 - \`color\`: hex color for visualization (pick distinct colors)
-- \`files\`: array of file paths (not node IDs â€” raw paths like \`"Code/file.js"\`)
+- \`files\`: array of file paths (not node IDs Ã¢â‚¬â€ raw paths like \`"Code/file.js"\`)
 
-Every file should belong to at least one feature. Features should be coherent groupings â€” don't create too many. 5-15 features is typical for a moderate codebase.
+Every file should belong to at least one feature. Features should be coherent groupings Ã¢â‚¬â€ don't create too many. 5-15 features is typical for a moderate codebase.
 
 #### Concepts Schema
 
@@ -548,88 +548,58 @@ Cross-feature or unexpected relationships detected.
 1. Be thorough but concise in summaries. Every file needs a meaningful summary that tells someone what it does.
 2. Group files by feature. A file can belong to multiple features but should have a primary feature.
 3. For \`COLLABORATES_WITH\` edges, only add them when files genuinely work together on the same logical feature.
-4. For semantic edges (\`DEPENDS_ON\`, \`PROVIDES_TO\`, \`IMPLEMENTS\`, etc.), be conservative â€” only add them when you have strong evidence from file names, symbol names, or import patterns.
+4. For semantic edges (\`DEPENDS_ON\`, \`PROVIDES_TO\`, \`IMPLEMENTS\`, etc.), be conservative Ã¢â‚¬â€ only add them when you have strong evidence from file names, symbol names, or import patterns.
 5. The \`features\` section should organize the entire codebase by coherent feature groups.
 6. The \`concepts\` section should document important domain or architectural concepts.
 7. Compute centrality values correctly: \`centrality = degree / (totalNodes - 1)\`.
 8. Focus on making the graph useful for someone asking "how does X work?".
-9. Do NOT include \`stats\` objects in feature or concept entries â€” they go only on nodes.
+9. Do NOT include \`stats\` objects in feature or concept entries Ã¢â‚¬â€ they go only on nodes.
 10. The \`symbols\` array per node should include meaningful \`purpose\` and \`role\` for every symbol listed.
 
 ## Output
 
 Write two files:
 
-1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` â€” the structured graph (must match the schema above exactly)
-2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` â€” the human-readable report
+1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` Ã¢â‚¬â€ the structured graph (must match the schema above exactly)
+2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` Ã¢â‚¬â€ the human-readable report
 `;
 }
 
-function _generateIncrementalPromptText(repoPath, changedFiles, newFiles, symsByFile, impsByFile, files, prevNodesByPath) {
+function _generateIncrementalPromptText(repoPath, changedFiles, newFiles) {
   const repoName = repoPath.split(/[/\\]/).pop();
   const allUpdates = [...newFiles, ...changedFiles];
+  const storageDir = path.join(repoPath.replace(/\\/g, '/'), STORAGE_DIR);
 
-  let fileEntries = '';
-  for (const fp of allUpdates) {
-    const syms = (symsByFile.get(fp) || []);
-    const imps = (impsByFile.get(fp) || []);
-    const exportedSyms = syms.filter(s => s.isExported).map(s => s.name);
-    const allNames = syms.map(s => s.name);
-    const impPaths = imps.map(im => im.importPath);
-    const oldNode = prevNodesByPath ? prevNodesByPath.get(fp) : null;
-    const oldSummary = oldNode?.summary || 'N/A';
-    const oldFeatures = oldNode?.features?.join(', ') || 'N/A';
-    const oldPurpose = oldNode?.symbols?.slice(0, 5).map(s => `    ${s.name}: ${s.purpose}`).join('\n') || '  (none)';
+  const fileList = allUpdates.map(fp => `  - ${fp}`).join('\n');
 
-    fileEntries += `  - ${fp}
-    language: ${(files.find(f => f.path === fp) || {}).language || 'javascript'}
-    total_symbols: ${syms.length}
-    exported: ${exportedSyms.join(', ') || 'none'}
-    imports: ${impPaths.join(', ') || 'none'}
-    symbols: ${allNames.join(', ') || 'none'}
-    --- OLD enrichment data (verify and update) ---
-    old_summary: ${oldSummary}
-    old_features: [${oldFeatures}]
-    old_symbol_roles:
-${oldPurpose}
-`;
-  }
+  return `# Graphify Incremental Graph Update
 
-  return `You are updating a knowledge graph for the ${repoName} codebase. The following ${allUpdates.length} files have changed and need re-enrichment.
+## Objective
+
+Update the existing knowledge graph for ${repoName}. The previous graph is at:
+
+- **Graph**: ${storageDir}/../graphify/graphify-storage/graph.json
+- **Symbol index**: ${storageDir}/symbols.json
+
+Read the actual source code from disk for every file listed below before writing anything. Do NOT guess or hallucinate.
 
 ## Instructions
 
-For each file listed below:
-1. Read the actual source code from the repository
-2. Update the enrichment data â€” summary, feature, responsibilities, tags, and per-symbol purpose/role
-3. Use the old enrichment data as reference â€” improve it if possible, fix it if it was wrong
-4. Return ONLY a JSON array, no other text
+1. Read the existing \`graph.json\` from disk to understand the current graph state
+2. Read \`symbols.json\` to get the symbol data for all files
+3. For each file below, read its actual source code to determine accurate summary, responsibilities, tags, and per-symbol purpose/role
+4. **Update** nodes for modified files (keep same node ID)
+5. **Add** nodes for new files with edges to related files
+6. Update edges, features, concepts as needed
+7. Preserve ALL unchanged data exactly as-is
+8. Update \`meta.incremental\`, \`stats\`, \`generatedAt\`
+9. Write updated \`graph.json\` and \`graph.md\` back to disk
 
-## Output format
+## Changed Files (${allUpdates.length})
 
-Return a JSON array (only JSON, no markdown fences) where each element has this schema:
+${fileList}
+`;
 
-[
-  {
-    "file": "Code/path/to/file.js",
-    "summary": "1-2 sentence description of what this file does. Be specific.",
-    "feature": "The primary feature area this belongs to",
-    "responsibilities": ["List 1-4 specific responsibilities this module has."],
-    "tags": ["array", "of", "relevant", "tags"],
-    "symbols": [
-      {
-        "name": "functionOrClassName",
-        "purpose": "What this specific function/class does. Be precise.",
-        "role": "One of: entry_point, factory, parser, validator, cache_manager, controller, database_gateway, worker, scheduler, orchestrator, adapter, helper, renderer, handler, provider, state_manager, initializer, utility, transformer, viewer, editor"
-      }
-    ]
-  }
-]
-
-## Files to update (${allUpdates.length})
-
-${fileEntries}
-Generate the output now.`;
 }
 
 function register({ app }) {
@@ -760,16 +730,12 @@ function register({ app }) {
     }
 
     if (hasGraph && !tooManyChanges && totalChanged > 0) {
-      // Incremental â€” generate prompt for changed files only
+      // Incremental Ã¢â‚¬â€ generate prompt for changed files only
       promptType = 'incremental';
       promptText = _generateIncrementalPromptText(
         repoPath,
         changes.changedFiles,
         changes.newFiles,
-        changes.symsByFile,
-        changes.impsByFile,
-        changes.files,
-        changes.prevNodesByPath,
       );
       promptPath = path.join(outDir, 'generate-graph-file-changes-only.md');
     } else {
@@ -809,7 +775,7 @@ function register({ app }) {
     try {
       const graph = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
       const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf-8') : '';
-      // AI graph loaded successfully — save hashes as new baseline
+      // AI graph loaded successfully â€” save hashes as new baseline
       try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
       return { ok: true, graph, report };
     } catch (err) {
@@ -896,7 +862,7 @@ function register({ app }) {
     const totalChanged = hasGraph ? changes.changedFiles.length + changes.newFiles.length + changes.deletedFiles.length : 0;
 
     if (!hasGraph) {
-      // Graph exists but can't detect changes — treat as synced
+      // Graph exists but can't detect changes â€” treat as synced
       return { ok: true, synced: true, timestamp: graphData.generatedAt || null };
     }
 
@@ -904,7 +870,7 @@ function register({ app }) {
     const hasPendingPrompt = fs.existsSync(incrPromptPath);
     let pendingUpdate = false;
     if (hasPendingPrompt && totalChanged === 0) {
-      // Hash match but prompt was generated — check if prompt is newer than graph
+      // Hash match but prompt was generated â€” check if prompt is newer than graph
       const promptMtime = fs.statSync(incrPromptPath).mtimeMs;
       const graphMtime = fs.statSync(graphPath).mtimeMs;
       pendingUpdate = promptMtime > graphMtime;

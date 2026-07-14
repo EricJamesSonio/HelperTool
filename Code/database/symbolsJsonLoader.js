@@ -3,25 +3,44 @@ const path = require('path');
 
 let _cache = null;
 let _cachePath = null;
-let _cacheMtime = 0;
+
+function _buildIndexes(data) {
+  if (data.__indexed) return;
+  const symsByFile = new Map();
+  const lowerNames = [];
+  for (const s of data.symbols) {
+    if (!symsByFile.has(s.filePath)) symsByFile.set(s.filePath, []);
+    symsByFile.get(s.filePath).push(s);
+    lowerNames.push({ lower: s.name.toLowerCase(), sig: (s.signature || '').toLowerCase() });
+  }
+  data.__symsByFile = symsByFile;
+  data.__symNames = lowerNames;
+  const typeCounts = {};
+  for (const s of data.symbols) {
+    typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
+  }
+  data.__typeCounts = typeCounts;
+  data.__indexed = true;
+}
 
 function load(repoPath) {
   if (!repoPath) return null;
   const jsonPath = path.join(repoPath, 'graphify', 'symbol-index-storage', 'symbols.json');
-  if (!fs.existsSync(jsonPath)) return null;
-  const mtime = fs.statSync(jsonPath).mtimeMs;
-  if (_cache && _cachePath === jsonPath && mtime <= _cacheMtime) return _cache;
-  const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-  _cache = raw;
-  _cachePath = jsonPath;
-  _cacheMtime = mtime;
-  return _cache;
+  if (_cache && _cachePath === jsonPath) return _cache;
+  try {
+    const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    _buildIndexes(raw);
+    _cache = raw;
+    _cachePath = jsonPath;
+    return _cache;
+  } catch {
+    return null;
+  }
 }
 
 function clearCache() {
   _cache = null;
   _cachePath = null;
-  _cacheMtime = 0;
 }
 
 function getForCodebaseMap(repoPath) {
@@ -56,9 +75,8 @@ function getFiles(repoPath) {
 function getSymbols(repoPath, filePath) {
   const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return [];
-  return data.symbols
-    .filter(s => s.filePath === filePath)
-    .map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature }));
+  const syms = data.__symsByFile.get(filePath) || [];
+  return syms.map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature }));
 }
 
 function getDependencies(repoPath, filePath) {

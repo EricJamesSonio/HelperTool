@@ -3,15 +3,14 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const symbolsJsonLoader = require('./symbolsJsonLoader');
 
 const STORAGE_DIR = 'graphify/symbol-index-storage';
 const GRAPHIFY_DIR = 'graphify/graphify-storage';
 const GRAPH_VERSION = 2;
 
 function loadSymbols(repoPath) {
-  const p = path.join(repoPath, STORAGE_DIR, 'symbols.json');
-  if (!fs.existsSync(p)) return null;
-  return JSON.parse(fs.readFileSync(p, 'utf8'));
+  return symbolsJsonLoader.load(repoPath);
 }
 
 function groupByFile(symbols, imports) {

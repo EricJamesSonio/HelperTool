@@ -18,6 +18,7 @@ const _fileListCache = new Map();
 function invalidateCache(repoPath) {
   _statusCache.delete(repoPath);
   _fileListCache.delete(repoPath);
+  symbolsJson.clearCache();
 }
 
 function _detectLang(filePath) {
@@ -234,9 +235,11 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         const q = (query || '').toLowerCase();
         const max = limit || 200;
         const results = [];
-        for (const s of jsonData.symbols) {
-          if (results.length >= max) break;
-          if (s.name.toLowerCase().includes(q) || (s.signature || '').toLowerCase().includes(q)) {
+        const names = jsonData.__symNames;
+        const symbols = jsonData.symbols;
+        for (let i = 0; i < names.length && results.length < max; i++) {
+          if (names[i].lower.includes(q) || names[i].sig.includes(q)) {
+            const s = symbols[i];
             results.push({ id: s.name + '_' + s.filePath, name: s.name, type: s.type, filePath: s.filePath, line: s.line, signature: s.signature || '' });
           }
         }
@@ -413,10 +416,8 @@ async function register({ app, docignoreUtils, getMainWindow }) {
       }
       const jsonData = symbolsJson.load(repoPath);
       if (jsonData) {
-        const symbols = jsonData.symbols
-          .filter(s => s.filePath === filePath)
-          .map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature }));
-        return { symbols };
+        const syms = jsonData.__symsByFile.get(filePath) || [];
+        return { symbols: syms.map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature })) };
       }
       return { symbols: [] };
     } catch (err) {
@@ -560,11 +561,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
       }
       const jsonData = symbolsJson.load(repoPath);
       if (jsonData) {
-        const counts = {};
-        for (const s of jsonData.symbols) {
-          counts[s.type] = (counts[s.type] || 0) + 1;
-        }
-        return { types: Object.entries(counts).map(([type, count]) => ({ type, count })) };
+        return { types: Object.entries(jsonData.__typeCounts).map(([type, count]) => ({ type, count })) };
       }
       return { types: [] };
     } catch (err) {

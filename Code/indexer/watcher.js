@@ -5,7 +5,7 @@ const repoDb = require('../database/repositories');
 let _watchers = new Map();
 
 function createWatcher(repoPath, onDirty, onError) {
-  destroyWatcher(repoPath);
+  if (_watchers.has(repoPath)) return _watchers.get(repoPath);
 
   const repo = repoDb.getByPath(repoPath);
   if (!repo) return null;
