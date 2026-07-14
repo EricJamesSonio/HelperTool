@@ -211,8 +211,9 @@ function register(_deps) {
                     ]);
                     return { name: b.name, vsDefaultAhead: parseInt(a.trim()) || 0, vsDefaultBehind: parseInt(be.trim()) || 0 };
                 }));
+                const localMap = new Map(local.map(b => [b.name, b]));
                 for (const r of vsResults) {
-                    const b = local.find(l => l.name === r.name);
+                    const b = localMap.get(r.name);
                     if (b) { b.vsDefaultAhead = r.vsDefaultAhead; b.vsDefaultBehind = r.vsDefaultBehind; }
                 }
             }

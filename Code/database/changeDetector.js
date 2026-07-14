@@ -52,7 +52,6 @@ function computeContentHash(filePath, repoRoot) {
 
 function loadPrevHashes(repoPath) {
   const p = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
-  if (!fs.existsSync(p)) return {};
   try {
     return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch {
@@ -124,7 +123,6 @@ function compareHashes(curHashes, prevHashes) {
 
 function loadPrevGraph(repoPath) {
   const p = path.join(repoPath, GRAPHIFY_DIR, 'graph.json');
-  if (!fs.existsSync(p)) return null;
   try {
     return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch {
@@ -248,8 +246,9 @@ function detectContentChanges(repoPath) {
   }
 
   // Detect files that were in previous hashes but are no longer in symbols.json
+  const filePaths = new Set(files.map(f => f.path));
   for (const fp of Object.keys(prevHashes)) {
-    if (!files.some(f => f.path === fp)) {
+    if (!filePaths.has(fp)) {
       deletedFiles.push(fp);
     }
   }

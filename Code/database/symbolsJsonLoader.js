@@ -135,19 +135,22 @@ function getCircularDeps(repoPath, filePath) {
   if (!data || data.repoPath !== repoPath) return [];
   const depsMap = _buildDepGraph(data);
   const cycles = [];
-  const visitStack = [];
+  const visitStack = new Set();
+  const pathStack = [];
   const visited = new Set();
   function dfs(p) {
-    if (visitStack.includes(p)) {
-      const idx = visitStack.indexOf(p);
-      cycles.push([...visitStack.slice(idx), p]);
+    if (visitStack.has(p)) {
+      const idx = pathStack.indexOf(p);
+      cycles.push([...pathStack.slice(idx), p]);
       return;
     }
     if (visited.has(p)) return;
     visited.add(p);
-    visitStack.push(p);
+    visitStack.add(p);
+    pathStack.push(p);
     for (const dep of (depsMap.get(p) || [])) dfs(dep);
-    visitStack.pop();
+    pathStack.pop();
+    visitStack.delete(p);
   }
   dfs(filePath);
   return cycles;

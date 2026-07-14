@@ -250,6 +250,7 @@ const windowControls = {
     maximize: () => ipcRenderer.send('window:maximize'),
     close:    () => ipcRenderer.send('window:close'),
     onMaximizeChanged: (callback) => {
+        ipcRenderer.removeAllListeners('window:maximize-changed');
         ipcRenderer.on('window:maximize-changed', (_event, maximized) => callback(maximized));
     },
 };
@@ -511,9 +512,11 @@ const opencodeBridge = {
   termResize:         (payload)                     => ipcRenderer.invoke('opencode:termResize', payload),
   termKill:           (id)                          => ipcRenderer.invoke('opencode:termKill', id),
   onTermData:         (callback) => {
+    ipcRenderer.removeAllListeners('opencode:termData');
     ipcRenderer.on('opencode:termData', (_, data) => callback(data));
   },
   onTermExited:       (callback) => {
+    ipcRenderer.removeAllListeners('opencode:termExited');
     ipcRenderer.on('opencode:termExited', (_, data) => callback(data));
   },
 };

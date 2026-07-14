@@ -13,8 +13,9 @@ class KnowledgeGraph {
   constructor() {
     this.nodes = new Map();
     this.edges = [];
-    this.adjOut = new Map();
-    this.adjIn = new Map();
+    this._adj = new Map();
+    this._pathToFileNode = new Map();
+    this._docPathToNode = new Map();
     this._nodeIdCounter = 0;
   }
 
@@ -35,11 +36,11 @@ class KnowledgeGraph {
     const edgeKey = `${sourceId}|${targetId}|${type}`;
     this.edges.push({ source: sourceId, target: targetId, type, weight: properties.weight || 1, ...properties, key: edgeKey });
 
-    if (!this.adjOut.has(sourceId)) this.adjOut.set(sourceId, []);
-    this.adjOut.get(sourceId).push({ target: targetId, type, weight });
+    if (!this._adj.has(sourceId)) this._adj.set(sourceId, []);
+    this._adj.get(sourceId).push({ neighbor: targetId, type, weight, direction: 'out' });
 
-    if (!this.adjIn.has(targetId)) this.adjIn.set(targetId, []);
-    this.adjIn.get(targetId).push({ source: sourceId, type, weight });
+    if (!this._adj.has(targetId)) this._adj.set(targetId, []);
+    this._adj.get(targetId).push({ neighbor: sourceId, type, weight, direction: 'in' });
 
     return edgeKey;
   }
@@ -48,113 +49,92 @@ class KnowledgeGraph {
 
   updateDegrees() {
     for (const [id, node] of this.nodes) {
-      const outDeg = (this.adjOut.get(id) || []).length;
-      const inDeg = (this.adjIn.get(id) || []).length;
-      node.degree = outDeg + inDeg;
+      const nbrs = this._adj.get(id) || [];
+      node.degree = nbrs.length;
     }
   }
 
-  buildFromDb(db, repoId, repoPath) {
-    this._loadFiles(db, repoId);
-    this._loadSymbols(db, repoId);
-    this._loadImports(db, repoId);
-    this.updateDegrees();
-    if (repoPath) this._scanMarkdown(repoPath);
-    this.runCommunityDetection();
-    return this;
-  }
+  initialize(data) {
+    this.nodes.clear();
+    this.edges.length = 0;
+    this._adj.clear();
+    this._nodeIdCounter = 0;
 
-  _loadFiles(db, repoId) {
-    const stmt = db.prepare('SELECT id, path, language, last_modified FROM indexed_files WHERE repo_id = ?');
-    stmt.bind([repoId]);
-    while (stmt.step()) {
-      const row = stmt.getAsObject();
-      const parts = row.path.split('/');
+    const { filesById, symsByFile, impsByFile } = data;
+    this._pathToFileNode = new Map();
+    this._docPathToNode = new Map();
+
+    for (const [fileId, fileInfo] of filesById) {
+      const parts = fileInfo.path.split('/');
       const name = parts.pop();
-      this.addNode(name, 'file', {
-        filePath: row.path,
-        language: row.language || '',
-        lastModified: row.last_modified || '',
-        originalId: row.id,
+      const nodeId = this.addNode(name, 'file', {
+        filePath: fileInfo.path,
+        language: fileInfo.language || '',
+        lastModified: fileInfo.lastModified || '',
+        originalId: fileId,
         _type: 'file',
       });
-    }
-    stmt.free();
-  }
-
-  _loadSymbols(db, repoId) {
-    const stmt = db.prepare(`
-      SELECT s.id, s.name, s.type, s.line, s.column, s.is_exported, s.class_name, s.signature, f.path as file_path
-      FROM symbols s
-      JOIN indexed_files f ON f.id = s.file_id
-      WHERE s.repo_id = ?
-    `);
-    stmt.bind([repoId]);
-
-    const fileNodeMap = new Map();
-    for (const [id, node] of this.nodes) {
-      if (node._type === 'file' && node.filePath) {
-        fileNodeMap.set(node.filePath, id);
-      }
+      this._pathToFileNode.set(fileInfo.path, nodeId);
     }
 
-    while (stmt.step()) {
-      const row = stmt.getAsObject();
-      const symbolId = this.addNode(row.name, row.type, {
-        filePath: row.file_path,
-        line: row.line,
-        column: row.column,
-        isExported: !!row.is_exported,
-        className: row.class_name || null,
-        signature: row.signature || '',
-        originalId: row.id,
-        _type: 'symbol',
-      });
+    for (const [fileId, symbols] of symsByFile) {
+      const fileInfo = filesById.get(fileId);
+      if (!fileInfo) continue;
+      const fileNodeId = this._pathToFileNode.get(fileInfo.path);
+      if (!fileNodeId) continue;
 
-      const fileNodeId = fileNodeMap.get(row.file_path);
-      if (fileNodeId) {
+      for (const sym of symbols) {
+        const symbolId = this.addNode(sym.name, sym.type, {
+          filePath: sym.filePath,
+          line: sym.line,
+          column: sym.column,
+          isExported: sym.isExported,
+          className: sym.className || null,
+          signature: sym.signature || '',
+          _type: 'symbol',
+        });
         this.addEdge(fileNodeId, symbolId, 'CONTAINS', { weight: 1 });
       }
     }
-    stmt.free();
-  }
 
-  _loadImports(db, repoId) {
-    const stmt = db.prepare(`
-      SELECT fi.file_id, fi.import_path, fi.import_type, f.path as source_path, rf.path as target_path
-      FROM file_imports fi
-      JOIN indexed_files f  ON f.id  = fi.file_id
-      LEFT JOIN indexed_files rf ON rf.id = fi.resolved_file_id
-      WHERE fi.repo_id = ?
-    `);
-    stmt.bind([repoId]);
-
-    const fileNodeByPath = new Map();
-    for (const [id, node] of this.nodes) {
-      if (node._type === 'file' && node.filePath) {
-        fileNodeByPath.set(node.filePath, id);
-      }
-    }
-
-    while (stmt.step()) {
-      const row = stmt.getAsObject();
-      const sourceId = fileNodeByPath.get(row.source_path);
+    for (const [fileId, imports] of impsByFile) {
+      const fileInfo = filesById.get(fileId);
+      if (!fileInfo) continue;
+      const sourceId = this._pathToFileNode.get(fileInfo.path);
       if (!sourceId) continue;
 
-      if (row.target_path) {
-        const targetId = fileNodeByPath.get(row.target_path);
-        if (targetId) {
-          this.addEdge(sourceId, targetId, 'IMPORTS', { weight: 2, importType: row.import_type });
+      for (const imp of imports) {
+        if (imp.resolvedFile) {
+          const targetId = this._pathToFileNode.get(imp.resolvedFile);
+          if (targetId) {
+            this.addEdge(sourceId, targetId, 'IMPORTS', { weight: 2, importType: imp.importType });
+          } else {
+            this.addEdge(sourceId, '__unresolved__', 'IMPORTS_UNRESOLVED', { weight: 1, importPath: imp.importPath });
+          }
         } else {
-          this.addEdge(sourceId, null, 'IMPORTS_UNRESOLVED', { weight: 1, importPath: row.import_path });
+          this.addEdge(sourceId, '__unresolved__', 'IMPORTS_UNRESOLVED', { weight: 1, importPath: imp.importPath });
         }
-      } else {
-        this.addEdge(sourceId, null, 'IMPORTS_UNRESOLVED', { weight: 1, importPath: row.import_path });
       }
     }
-    stmt.free();
 
-    this.edges = this.edges.filter(e => e.target !== null && e.source !== null);
+    this.edges = this.edges.filter(e => e.target !== '__unresolved__' && e.source !== '__unresolved__');
+
+    this.updateDegrees();
+  }
+
+  buildFromDb(db, repoId, repoPath) {
+    process.emitWarning('buildFromDb is deprecated, use initialize(data) instead');
+    return this;
+  }
+
+  buildFromRepo(repoPath) {
+    const { initFromJson, getIndexedData } = require('./db');
+    return initFromJson(repoPath).then(() => {
+      this.initialize(getIndexedData());
+      this._scanMarkdown(repoPath);
+      this.runCommunityDetection();
+      return this;
+    });
   }
 
   _scanMarkdown(repoPath) {
@@ -178,6 +158,7 @@ class KnowledgeGraph {
             filePath: relPath,
             _type: 'doc',
           });
+          this._docPathToNode.set(relPath, docId);
 
           this._extractMarkdownHeadings(lines, docId, relPath);
           this._extractMarkdownReferences(content, relPath);
@@ -230,22 +211,29 @@ class KnowledgeGraph {
       const ref = match[1].trim();
       if (!ref || ref.length < 2) continue;
 
-      for (const [nodeId, node] of this.nodes) {
-        if (node._type === 'file' && node.filePath) {
-          const fileName = node.filePath.split('/').pop();
-          if (fileName === ref || node.filePath === ref || fileName === ref.replace(/^\.\//, '')) {
-            const docNode = this._findNodeByPath(relPath);
-            if (docNode) {
-              this.addEdge(docNode, nodeId, 'REFERENCES', { weight: 1 });
-            }
-            break;
-          }
+      const targetId = this._findFileNodeByRef(ref);
+      if (targetId) {
+        const docNode = this._findNodeByPath(relPath);
+        if (docNode) {
+          this.addEdge(docNode, targetId, 'REFERENCES', { weight: 1 });
         }
       }
     }
   }
 
+  _findFileNodeByRef(ref) {
+    if (this._pathToFileNode.has(ref)) return this._pathToFileNode.get(ref);
+    for (const [filePath, nodeId] of this._pathToFileNode) {
+      if (filePath.endsWith('/' + ref) || filePath.split('/').pop() === ref || filePath === ref.replace(/^\.\//, '')) {
+        return nodeId;
+      }
+    }
+    return null;
+  }
+
   _findNodeByPath(filePath) {
+    if (this._pathToFileNode && this._pathToFileNode.has(filePath)) return this._pathToFileNode.get(filePath);
+    if (this._docPathToNode && this._docPathToNode.has(filePath)) return this._docPathToNode.get(filePath);
     for (const [id, node] of this.nodes) {
       if (node.filePath === filePath) return id;
     }
@@ -259,7 +247,6 @@ class KnowledgeGraph {
     const labels = new Map();
     for (const id of nodeIds) labels.set(id, id);
 
-    // Fisher-Yates shuffle (mutates in-place)
     function shuffle(arr) {
       for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -267,45 +254,27 @@ class KnowledgeGraph {
       }
     }
 
-    const adjOut = this.adjOut;
-    const adjIn = this.adjIn;
-
     for (let iter = 0; iter < maxIterations; iter++) {
       let changed = false;
       shuffle(nodeIds);
 
       for (let ni = 0; ni < nodeIds.length; ni++) {
         const nodeId = nodeIds[ni];
-        const outNbrs = adjOut.get(nodeId);
-        const inNbrs = adjIn.get(nodeId);
-        const outLen = outNbrs ? outNbrs.length : 0;
-        const inLen = inNbrs ? inNbrs.length : 0;
-        if (outLen + inLen === 0) continue;
+        const nbrs = this._adj.get(nodeId);
+        if (!nbrs || nbrs.length === 0) continue;
 
         const freq = new Map();
-        if (outNbrs) {
-          for (let i = 0; i < outLen; i++) {
-            const n = outNbrs[i];
-            const label = labels.get(n.target);
-            if (label !== undefined) {
-              freq.set(label, (freq.get(label) || 0) + (n.weight || 1));
-            }
-          }
-        }
-        if (inNbrs) {
-          for (let i = 0; i < inLen; i++) {
-            const n = inNbrs[i];
-            const label = labels.get(n.source);
-            if (label !== undefined) {
-              freq.set(label, (freq.get(label) || 0) + (n.weight || 1));
-            }
+        for (let i = 0; i < nbrs.length; i++) {
+          const n = nbrs[i];
+          const label = labels.get(n.neighbor);
+          if (label !== undefined) {
+            freq.set(label, (freq.get(label) || 0) + (n.weight || 1));
           }
         }
 
         if (freq.size === 0) continue;
 
         const curLabel = labels.get(nodeId);
-        // Single dominant label — skip (no change)
         if (freq.size === 1 && freq.has(curLabel)) continue;
 
         let maxFreq = 0;
@@ -375,23 +344,19 @@ class KnowledgeGraph {
       const { id, depth: d } = queue[i++];
       resultNodes.set(id, this.nodes.get(id));
 
-      const outNbrs = this.adjOut.get(id) || [];
-      for (const n of outNbrs) {
-        const eKey = `${id}|${n.target}|${n.type}`;
-        if (edgeMap.has(eKey)) resultEdges.add(eKey);
-        if (!visited.has(n.target) && d < depth) {
-          visited.add(n.target);
-          queue.push({ id: n.target, depth: d + 1 });
+      const nbrs = this._adj.get(id) || [];
+      for (const n of nbrs) {
+        const nbrId = n.neighbor;
+        if (n.direction === 'out') {
+          const eKey = `${id}|${nbrId}|${n.type}`;
+          if (edgeMap.has(eKey)) resultEdges.add(eKey);
+        } else {
+          const eKey = `${nbrId}|${id}|${n.type}`;
+          if (edgeMap.has(eKey)) resultEdges.add(eKey);
         }
-      }
-
-      const inNbrs = this.adjIn.get(id) || [];
-      for (const n of inNbrs) {
-        const eKey = `${n.source}|${id}|${n.type}`;
-        if (edgeMap.has(eKey)) resultEdges.add(eKey);
-        if (!visited.has(n.source) && d < depth) {
-          visited.add(n.source);
-          queue.push({ id: n.source, depth: d + 1 });
+        if (!visited.has(nbrId) && d < depth) {
+          visited.add(nbrId);
+          queue.push({ id: nbrId, depth: d + 1 });
         }
       }
     }
@@ -418,19 +383,11 @@ class KnowledgeGraph {
         };
       }
 
-      const outNbrs = this.adjOut.get(id) || [];
-      for (const n of outNbrs) {
-        if (!visited.has(n.target)) {
-          visited.add(n.target);
-          queue.push({ id: n.target, path: [...path, n.target] });
-        }
-      }
-
-      const inNbrs = this.adjIn.get(id) || [];
-      for (const n of inNbrs) {
-        if (!visited.has(n.source)) {
-          visited.add(n.source);
-          queue.push({ id: n.source, path: [...path, n.source] });
+      const nbrs = this._adj.get(id) || [];
+      for (const n of nbrs) {
+        if (!visited.has(n.neighbor)) {
+          visited.add(n.neighbor);
+          queue.push({ id: n.neighbor, path: [...path, n.neighbor] });
         }
       }
     }
@@ -478,24 +435,15 @@ class KnowledgeGraph {
       const { id, depth: d } = queue[i++];
       resultNodes.set(id, this.nodes.get(id));
 
-      const inNbrs = this.adjIn.get(id) || [];
-      for (const n of inNbrs) {
-        const eKey = `${n.source}|${id}|${n.type}`;
+      const nbrs = this._adj.get(id) || [];
+      for (const n of nbrs) {
+        if (n.direction !== 'in') continue;
+        const eKey = `${n.neighbor}|${id}|${n.type}`;
         if (edgeMap.has(eKey)) resultEdges.add(eKey);
 
-        const sourceId = n.source;
-        if (!visited.has(sourceId) && d < depth) {
-          visited.add(sourceId);
-          queue.push({ id: sourceId, depth: d + 1 });
-        }
-      }
-
-      const outNbrs = this.adjOut.get(id) || [];
-      for (const n of outNbrs) {
-        if (n.target === id) continue;
-        const eKey = `${id}|${n.target}|${n.type}`;
-        if (edgeMap.has(eKey) && visited.has(n.target)) {
-          resultEdges.add(eKey);
+        if (!visited.has(n.neighbor) && d < depth) {
+          visited.add(n.neighbor);
+          queue.push({ id: n.neighbor, depth: d + 1 });
         }
       }
     }
@@ -587,15 +535,20 @@ class KnowledgeGraph {
     return { nodes: visNodes, edges: visEdges };
   }
 
+  destroy() {
+    this.nodes.clear();
+    this.edges.length = 0;
+    this._adj.clear();
+    this._pathToFileNode = null;
+    this._docPathToNode = null;
+  }
+
   generateHtml(title = 'Graphify - Knowledge Graph') {
-    const data = this.toVisData();
     const communities = this.getCommunities();
     const stats = this.getGraphStats();
-    const nodeCount = data.nodes.length;
 
-    // Pre-compute cluster-level data (one node per community)
     const nodeCommMap = {};
-    for (const n of data.nodes) nodeCommMap[n.id] = n.community;
+    for (const n of this.nodes.values()) nodeCommMap[n.id] = n.community;
 
     const clusterNodes = communities.map(c => ({
       id: `_comm_${c.id}`,
@@ -607,9 +560,9 @@ class KnowledgeGraph {
     }));
 
     const commEdgeAgg = {};
-    for (const e of data.edges) {
-      const srcComm = nodeCommMap[e.from];
-      const tgtComm = nodeCommMap[e.to];
+    for (const e of this.edges) {
+      const srcComm = nodeCommMap[e.source];
+      const tgtComm = nodeCommMap[e.target];
       if (srcComm !== undefined && tgtComm !== undefined && srcComm !== tgtComm) {
         const key = srcComm < tgtComm ? `${srcComm}|${tgtComm}` : `${tgtComm}|${srcComm}`;
         if (!commEdgeAgg[key]) {
@@ -631,8 +584,6 @@ class KnowledgeGraph {
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0b0f14; color: #e2e8f0; height: 100vh; overflow: hidden; }
 #app { display: flex; height: 100vh; }
-
-/* Canvas background pattern */
 #graph-container {
   flex: 1; position: relative;
   background:
@@ -643,8 +594,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   background-color: #0b0f14;
 }
 #graph { width: 100%; height: 100%; }
-
-/* Sidebar – glassmorphism */
 #sidebar {
   width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
   padding: 20px 16px; overflow-y: auto;
@@ -652,8 +601,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   border-right: 1px solid rgba(34,255,122,0.08);
   backdrop-filter: blur(12px);
 }
-
-/* Search */
 .search-box { position: relative; }
 .search-box input {
   width: 100%; padding: 10px 14px; font-size: 13px; font-family: inherit;
@@ -676,15 +623,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .search-result-item:last-child { border-bottom: none; }
 .search-item-label { color: #e2e8f0; }
 .search-item-type { color: #475569; font-size: 10px; margin-left: 6px; }
-
-/* Sidebar sections */
 .sidebar-section { margin-bottom: 2px; }
 .sidebar-section h3 {
   font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
   color: #475569; margin-bottom: 8px; font-weight: 600;
 }
-
-/* Stats card */
 .stats {
   display: flex; gap: 16px; flex-wrap: wrap;
   font-size: 11px; color: #94a3b8; padding: 10px 14px;
@@ -693,8 +636,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 }
 .stats span { display: inline-flex; align-items: center; gap: 4px; }
 .stats strong { color: #22ff7a; font-weight: 600; }
-
-/* Toggle buttons */
 .sidebar-toggle-group { display: flex; flex-direction: column; gap: 6px; }
 .sidebar-toggle-group button {
   width: 100%; padding: 9px 14px; font-size: 12px; font-family: inherit; cursor: pointer;
@@ -706,8 +647,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   background: rgba(34,255,122,0.06); border-color: rgba(34,255,122,0.2);
   color: #e2e8f0;
 }
-
-/* Community list */
 .community-item {
   display: flex; align-items: center; gap: 10px; padding: 6px 6px;
   cursor: pointer; font-size: 12px; border-radius: 8px;
@@ -719,8 +658,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   box-shadow: 0 0 6px rgba(255,255,255,0.1);
 }
 .community-count { margin-left: auto; color: #475569; font-size: 10px; }
-
-/* Node detail panel */
 .node-detail {
   display: none; padding: 14px;
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
@@ -730,8 +667,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .node-detail .label { color: #22ff7a; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .node-detail .meta { color: #64748b; }
 .node-detail .meta span { display: block; }
-
-/* Title bar */
 .graphify-title {
   font-size: 15px; font-weight: 700; color: #22ff7a;
   padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -789,7 +724,6 @@ var clusterEdgesData = ${JSON.stringify(clusterEdges)};
 var graphStats = { nodes: ${stats.totalNodes}, edges: ${stats.totalEdges} };
 var COMM_COLORS = ${JSON.stringify(COMMUNITY_COLORS)};
 
-// Canvas setup
 var container=document.getElementById('graph');
 var canvas=document.createElement('canvas');
 canvas.style.width='100%';canvas.style.height='100%';
@@ -805,10 +739,8 @@ function initCanvas(){
   canvas.width=w;canvas.height=h;
   cx=canvas.width/2;cy=canvas.height/2;
   layoutR=Math.min(canvas.width,canvas.height)*0.42;
-  // Stars
   stars=[];
   for(var s=0;s<250;s++){stars.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.5+0.3,a:Math.random()*0.4+0.05});}
-  // Layout circles
   var maxCount=0;
   clusterNodesData.forEach(function(cn){if(cn.nodeCount>maxCount)maxCount=cn.nodeCount;});
   if(!maxCount)maxCount=1;
@@ -822,7 +754,6 @@ function initCanvas(){
       radius:radius,color:COMM_COLORS[cn.community%COMM_COLORS.length],
     };
   });
-  // Collision
   for(var iter=0;iter<15;iter++){
     var moved=false;
     for(var i=0;i<circles.length;i++){for(var j=i+1;j<circles.length;j++){
@@ -846,15 +777,11 @@ function initCanvas(){
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // Cosmic background
   ctx.fillStyle='#080c12';ctx.fillRect(0,0,canvas.width,canvas.height);
-  // Stars (fixed, no transform)
   stars.forEach(function(s){ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,2*Math.PI);ctx.fillStyle='rgba(255,255,255,'+s.a+')';ctx.fill();});
-  // Apply zoom+pan transform
   ctx.save();
   ctx.translate(viewX,viewY);
   ctx.scale(viewScale,viewScale);
-  // Connection lines
   clusterEdgesData.forEach(function(ce){
     var fc=parseInt(ce.from.replace('_comm_','')),tc=parseInt(ce.to.replace('_comm_',''));
     var fromC=circles.find(function(c){return c.community===fc;});
@@ -867,7 +794,6 @@ function draw(){
       ctx.lineWidth=Math.min(1.5,ce.weight*0.02+0.1);ctx.stroke();
     }
   });
-  // Circles
   circles.forEach(function(c,i){
     var isHover=i===hoveredIdx,isSel=i===selectedIdx;
     var grad=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.radius*3);
@@ -882,10 +808,8 @@ function draw(){
     ctx.fillText(c.label,c.x,c.y+c.radius+6);
   });
   ctx.restore();
-  // Stats overlay (fixed, no transform)
   ctx.fillStyle='rgba(148,163,184,0.35)';ctx.font='11px Inter,sans-serif';ctx.textAlign='right';ctx.textBaseline='bottom';
   ctx.fillText(graphStats.nodes+' nodes  |  '+graphStats.edges+' edges',canvas.width-14,canvas.height-14);
-  // Zoom indicator
   ctx.fillStyle='rgba(148,163,184,0.25)';ctx.font='11px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='bottom';
   ctx.fillText(Math.round(viewScale*100)+'%',14,canvas.height-14);
 }
@@ -906,7 +830,6 @@ function getCircleAt(sx,sy){
 
 function showNodeDetail(html){var d=document.getElementById('nodeDetail');d.innerHTML=html;d.classList.add('show');}
 
-// Click circle → fetch community detail
 canvas.addEventListener('click',function(e){
   if(didPan){didPan=0;return;}
   var rect=canvas.getBoundingClientRect();var x=e.clientX-rect.left,y=e.clientY-rect.top;
@@ -928,7 +851,6 @@ canvas.addEventListener('mousemove',function(e){
 });
 canvas.addEventListener('mouseleave',function(){hoveredIdx=-1;canvas.style.cursor='default';draw();});
 
-// ── Zoom with mouse wheel ──
 canvas.addEventListener('wheel',function(e){
   e.preventDefault();
   var rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
@@ -936,13 +858,11 @@ canvas.addEventListener('wheel',function(e){
   viewScale*=e.deltaY>0?0.88:1/0.88;
   if(viewScale<0.15)viewScale=0.15;
   if(viewScale>8)viewScale=8;
-  // Zoom toward cursor position
   viewX=mx-(mx-viewX)/prev*viewScale;
   viewY=my-(my-viewY)/prev*viewScale;
   draw();
 },{passive:false});
 
-// ── Pan by dragging ──
 canvas.addEventListener('mousedown',function(e){
   if(e.button!==0)return;
   isPanning=1;panStartX=e.clientX;panStartY=e.clientY;
@@ -961,12 +881,10 @@ document.addEventListener('mouseup',function(){
   isPanning=0;canvas.style.cursor=hoveredIdx>=0?'pointer':'default';
 });
 
-// ── Double-click reset ──
 canvas.addEventListener('dblclick',function(){
   viewX=0;viewY=0;viewScale=1;draw();
 });
 
-// Search via API
 var searchTimer;
 document.getElementById('searchInput').addEventListener('input',function(){
   var q=this.value.trim();
@@ -1000,7 +918,6 @@ document.addEventListener('click',function(e){
   if(!e.target.closest('.search-box')){document.getElementById('searchResults').style.display='none';}
 });
 
-// Community list click
 document.getElementById('communityList').addEventListener('click',function(e){
   var item=e.target.closest('.community-item');if(!item)return;
   var commId=parseInt(item.dataset.community);
