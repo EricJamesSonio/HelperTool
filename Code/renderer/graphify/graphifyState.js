@@ -10,7 +10,7 @@ const state = {
   serverInfo:   null,
   endpoints:    null,
   // Knowledge-graph state
-  activeTab:      'search',
+  activeTab:      'query',
   graphData:      null,
   graphStats:     null,
   graphReport:    null,

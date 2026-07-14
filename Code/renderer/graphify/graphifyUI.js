@@ -48,7 +48,6 @@ function _populateDomCache() {
   _cacheEl('copyBtn',          '.gfy-copy-btn');
   _cacheEl('indexBtn',         '.gfy-index-btn');
   _cacheEl('infoLine',         '.gfy-info-line');
-  _cacheEl('searchSection',    '.gfy-search-section');
   _cacheEl('endpointsSection', '.gfy-endpoints-section');
   _cacheEl('endpointsList',    '#gfyEndpointsList');
   _cacheEl('tabBar',           '.gfy-tab-bar');
@@ -1223,7 +1222,6 @@ function _render(state) {
   const copyBtn  = _els.copyBtn;
   const indexBtn = _els.indexBtn;
   const infoLine = _els.infoLine;
-  const searchSection = _els.searchSection;
   const endpointsSection = _els.endpointsSection;
 
   // ── Idle hero toggle (Stopped / Error = centered hero, else compact top bar) ──
@@ -1409,11 +1407,6 @@ function _render(state) {
         wizardError.style.display = state.exportError ? 'block' : 'none';
       }
     }
-  }
-
-  // ── Search section ──
-  if (searchSection && (!prev || state.serverStatus !== prev.serverStatus)) {
-    searchSection.style.display = state.serverStatus === 'running' ? 'flex' : 'none';
   }
 
   // ── Endpoints section ──
@@ -2256,16 +2249,43 @@ function _template() {
         <div class="gfy-right-column gfy-tab-column">
           <!-- Tab Bar -->
           <div class="gfy-tab-bar" style="display:none">
-            <button class="gfy-tab gfy-tab-active" data-tab="search">Search</button>
+            <button class="gfy-tab gfy-tab-active" data-tab="query">Query</button>
             <button class="gfy-tab" data-tab="graph">Graph</button>
-            <button class="gfy-tab" data-tab="query">Query</button>
             <button class="gfy-tab" data-tab="report">Report</button>
             <button class="gfy-tab" data-tab="ai">AI Graph</button>
             <button class="gfy-tab" data-tab="changes">Changes</button>
           </div>
 
-          <!-- Search Tab -->
-          <div class="gfy-search-section gfy-tab-content" style="display:none">
+    
+
+      <!-- Graph Tab -->
+      <div class="gfy-graph-section gfy-tab-content" style="display:none">
+        <div class="gfy-graph-toolbar">
+          <button class="gfy-graph-open-btn" title="Open in browser">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/><path d="M15 3v3"/><path d="M15 3h-3"/><path d="m15 3-3 3"/><circle cx="16" cy="16" r="3"/></svg>
+            Open in Browser
+          </button>
+          <button class="gfy-graph-refresh-btn" title="Refresh graph data">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 0 1-14 0"/><path d="M17 10V4"/><path d="M17 4h-6"/></svg>
+            Refresh
+          </button>
+        </div>
+        <div class="gfy-graph-stats-bar"></div>
+        <div class="gfy-graph-iframe-wrap">
+          <div class="gfy-graph-placeholder">
+            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="8" r="3"/><circle cx="32" cy="20" r="3"/><circle cx="20" cy="32" r="3"/><circle cx="8" cy="20" r="3"/><line x1="20" y1="11" x2="29" y2="17"/><line x1="29" y1="20" x2="23" y2="29"/><line x1="17" y1="29" x2="11" y2="23"/><line x1="11" y1="17" x2="17" y2="11"/></svg>
+            <span>Load the graph visualization to explore your codebase</span>
+          </div>
+        </div>
+        <div class="gfy-graph-spinner" style="display:none">
+          <div class="gfy-spinner-ring"></div>
+          <span>Building knowledge graph\u2026</span>
+        </div>
+        <div class="gfy-graph-error" style="display:none"></div>
+      </div>
+
+      <!-- Query Tab -->
+      <div class="gfy-query-section gfy-tab-content" style="display:none">
         <div class="gfy-search-bar">
           <svg class="gfy-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/>
@@ -2299,36 +2319,7 @@ function _template() {
         <div class="gfy-footer">
           <span class="gfy-footer-hint">Ask a question \u2014 get the relevant files</span>
         </div>
-      </div>
 
-      <!-- Graph Tab -->
-      <div class="gfy-graph-section gfy-tab-content" style="display:none">
-        <div class="gfy-graph-toolbar">
-          <button class="gfy-graph-open-btn" title="Open in browser">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/><path d="M15 3v3"/><path d="M15 3h-3"/><path d="m15 3-3 3"/><circle cx="16" cy="16" r="3"/></svg>
-            Open in Browser
-          </button>
-          <button class="gfy-graph-refresh-btn" title="Refresh graph data">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 0 1-14 0"/><path d="M17 10V4"/><path d="M17 4h-6"/></svg>
-            Refresh
-          </button>
-        </div>
-        <div class="gfy-graph-stats-bar"></div>
-        <div class="gfy-graph-iframe-wrap">
-          <div class="gfy-graph-placeholder">
-            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="8" r="3"/><circle cx="32" cy="20" r="3"/><circle cx="20" cy="32" r="3"/><circle cx="8" cy="20" r="3"/><line x1="20" y1="11" x2="29" y2="17"/><line x1="29" y1="20" x2="23" y2="29"/><line x1="17" y1="29" x2="11" y2="23"/><line x1="11" y1="17" x2="17" y2="11"/></svg>
-            <span>Load the graph visualization to explore your codebase</span>
-          </div>
-        </div>
-        <div class="gfy-graph-spinner" style="display:none">
-          <div class="gfy-spinner-ring"></div>
-          <span>Building knowledge graph\u2026</span>
-        </div>
-        <div class="gfy-graph-error" style="display:none"></div>
-      </div>
-
-      <!-- Query Tab -->
-      <div class="gfy-query-section gfy-tab-content" style="display:none">
         <div class="gfy-query-tools">
           <!-- Node Search -->
           <div class="gfy-query-tool">
