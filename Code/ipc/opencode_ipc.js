@@ -347,6 +347,10 @@ function register(shared) {
     return true;
   });
 
+  ipcMain.handle('opencode:isRunning', async () => {
+    return { running: _activeProc !== null };
+  });
+
   ipcMain.handle('opencode:listRepos', async () => {
     const { binaryPath } = await discover();
     const cliResult = await listViaCli(binaryPath);

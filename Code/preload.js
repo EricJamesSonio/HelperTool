@@ -489,6 +489,7 @@ const opencodeBridge = {
   getConversation:    (convId)                      => ipcRenderer.invoke('opencode:getConversation', { convId }),
   run:                (repoPath, message, files, continueConv, sessionId, mode) => ipcRenderer.invoke('opencode:run', { repoPath, message, files, continueConv, sessionId, mode }),
   stop:               ()                            => ipcRenderer.invoke('opencode:stop'),
+  isRunning:          ()                            => ipcRenderer.invoke('opencode:isRunning'),
   listRepos:          ()                            => ipcRenderer.invoke('opencode:listRepos'),
   deleteConversation: (convId)                      => ipcRenderer.invoke('opencode:deleteConversation', { convId }),
   selectFile:         ()                            => ipcRenderer.invoke('opencode:selectFile'),

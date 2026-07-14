@@ -205,6 +205,56 @@ function saveCurHashes(repoPath) {
   return true;
 }
 
+function detectContentChanges(repoPath) {
+  // Detects changes by comparing ACTUAL file content on disk against saved hashes.
+  // This catches file edits even when symbols.json hasn't been re-indexed.
+  const data = loadSymbols(repoPath);
+  if (!data || data.repoPath !== repoPath) return null;
+
+  const { files, symbols, imports } = data;
+  const { symsByFile, impsByFile } = groupByFile(symbols, imports);
+  const prevHashes = loadPrevHashes(repoPath);
+
+  const changedFiles = [];
+  const newFiles = [];
+  const deletedFiles = [];
+
+  for (const f of files) {
+    const fp = f.path;
+    const prev = prevHashes[fp];
+    if (prev === undefined) {
+      newFiles.push(fp);
+      continue;
+    }
+    // Compute current hashes by reading from DISK (both content and structure)
+    const curContentHash = computeContentHash(fp, repoPath);
+    const prevContentHash = typeof prev === 'string' ? '' : (prev.contentHash || '');
+    const curStructureHash = computeStructureHash(symsByFile.get(fp) || [], impsByFile.get(fp) || []);
+    const prevStructureHash = typeof prev === 'string' ? prev : (prev.structureHash || '');
+    if (curContentHash !== prevContentHash || curStructureHash !== prevStructureHash) {
+      changedFiles.push(fp);
+    }
+  }
+
+  // Detect files that were in previous hashes but are no longer in symbols.json
+  for (const fp of Object.keys(prevHashes)) {
+    if (!files.some(f => f.path === fp)) {
+      deletedFiles.push(fp);
+    }
+  }
+
+  const totalFiles = Math.max(files.length, Object.keys(prevHashes).length);
+  const totalChanged = changedFiles.length + newFiles.length + deletedFiles.length;
+  const changeRatio = totalFiles > 0 ? totalChanged / totalFiles : 0;
+
+  return {
+    data, files,
+    changedFiles, newFiles, deletedFiles,
+    changeRatio,
+    hasPreviousGraph: !!loadPrevGraph(repoPath),
+  };
+}
+
 function detectChangesSimple(repoPath) {
   const data = loadSymbols(repoPath);
   if (!data || data.repoPath !== repoPath) return null;
@@ -245,5 +295,6 @@ module.exports = {
   buildPrevNodesByPath,
   detectChanges,
   detectChangesSimple,
+  detectContentChanges,
   saveCurHashes,
 };

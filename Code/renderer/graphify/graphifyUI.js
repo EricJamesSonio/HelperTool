@@ -199,7 +199,13 @@ export function show() {
   _unsub = subscribe(_render);
   _render(getState());
   _checkStatus();
-  _performStatusSync();
+  _performStatusSync().then(() => {
+    if (!_mounted) return;
+    const s = getState();
+    if (s.serverStatus === 'running') {
+      _checkServerAlive(1);
+    }
+  });
   _startWatchdog();
   // Reload changes tab state from disk when panel is reshown
   const s = getState();
@@ -427,7 +433,7 @@ async function _handleChangesGenPrompt() {
     // Pass changed files from state so prompt generation uses the same delta
     const s = getState();
     const changedFiles = s.changesDetected && s.changesDetected.total > 0
-      ? [...(s.changesDetected.changedFiles || []), ...(s.changesDetected.newFiles || [])]
+      ? [...(s.changesDetected.changedFiles || []), ...(s.changesDetected.newFiles || []), ...(s.changesDetected.deleted || [])]
       : null;
     const result = await window.electronAPI.graphifyGenerateIncrementalPrompt(repoPath, changedFiles);
     if (_mounted) {
@@ -765,12 +771,15 @@ async function _performStatusSync() {
   try {
     const status = await window.electronAPI.graphifyStatus();
     if (!_mounted) return;
+    const s = getState();
     if (status.running) {
-      const s = getState();
       if (s.serverStatus !== 'running') {
         _safeSetState({ port: status.port, serverStatus: 'running' });
         _startHealthTimer();
       }
+    } else if (s.serverStatus === 'running') {
+      _stopHealthTimer();
+      _safeSetState({ serverStatus: 'stopped', error: 'Server was disconnected while you were away. Click Start to restart.' });
     }
   } catch {}
 }
@@ -1749,7 +1758,11 @@ function _render(state) {
       if (state.changesDetected) {
         var cd = state.changesDetected;
         if (cd.total > 0) {
-          chDetectedInfo.textContent = cd.total + ' file(s) changed (' + cd.changed + ' modified, ' + cd.new + ' new)';
+          var parts = [];
+          if (cd.changed > 0) parts.push(cd.changed + ' modified');
+          if (cd.new > 0) parts.push(cd.new + ' new');
+          if (cd.deleted > 0) parts.push(cd.deleted + ' deleted');
+          chDetectedInfo.textContent = cd.total + ' file(s) changed (' + parts.join(', ') + ')';
         } else {
           chDetectedInfo.textContent = 'No file changes detected. The index is up to date.';
         }

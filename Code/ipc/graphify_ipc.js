@@ -12,7 +12,7 @@ const changeDetector = require('../database/changeDetector');
 const exporter = require('../graphify-service/exporter');
 
 const DEFAULT_PORT = 3333;
-const START_TIMEOUT = 10000;
+const START_TIMEOUT = 30000;
 const STORAGE_DIR = 'graphify/symbol-index-storage';
 const GRAPHIFY_DIR = 'graphify/graphify-storage';
 
@@ -58,7 +58,7 @@ function _spawn(app) {
   if (_spawnPromise) return _spawnPromise;
 
   let p;
-  if (_isChildAlive() && _ready) {
+  if (_isChildAlive() && (_ready || !_starting)) {
     p = _httpRequest(`http://127.0.0.1:${_port}/admin/start`).then((r) => {
       if (r.ok) {
         _ready = true;
@@ -81,8 +81,18 @@ function _spawn(app) {
 function _spawnFresh(app) {
   return new Promise((resolve, reject) => {
     if (_isChildAlive()) {
-      resolve({ port: _port });
-      return;
+      return _httpRequest(`http://127.0.0.1:${_port}/admin/start`).then((r) => {
+        if (r.ok) {
+          _ready = true;
+          resolve({ port: _port });
+        } else {
+          _stop(true);
+          _spawnFresh(app).then(resolve, reject);
+        }
+      }).catch(() => {
+        _stop(true);
+        _spawnFresh(app).then(resolve, reject);
+      });
     }
     // Clean up any stale child reference
     _child = null;
@@ -111,6 +121,7 @@ function _spawnFresh(app) {
       try {
         const msg = JSON.parse(line);
         if (msg.ready) {
+          _starting = false;
           _ready = true;
           _port  = msg.port || _port;
           rl.close();
@@ -829,8 +840,8 @@ function register({ app }) {
       });
       newFiles = [];
     } else {
-      const changes = changeDetector.detectChangesSimple(repoPath);
-      if (!changes || !changes.hasPreviousGraph) {
+      const changes = changeDetector.detectContentChanges(repoPath);
+      if (!changes) {
         return { ok: false, error: 'No graph data to compare against. Re-index and try again.' };
       }
       changedFiles = changes.changedFiles;
@@ -880,9 +891,9 @@ function register({ app }) {
       return { ok: true, synced: false, reason: 'parse_error' };
     }
 
-    const changes = changeDetector.detectChangesSimple(repoPath);
+    const changes = changeDetector.detectContentChanges(repoPath);
     const hasGraph = changes && changes.hasPreviousGraph;
-    const totalChanged = hasGraph ? changes.changedFiles.length + changes.newFiles.length : 0;
+    const totalChanged = hasGraph ? changes.changedFiles.length + changes.newFiles.length + changes.deletedFiles.length : 0;
 
     if (!hasGraph) {
       // Graph exists but can't detect changes — treat as synced
@@ -906,6 +917,7 @@ function register({ app }) {
       totalChanged,
       changed: changes.changedFiles.length,
       new: changes.newFiles.length,
+      deleted: changes.deletedFiles.length,
       changeRatio: changes.changeRatio,
       changedFiles: changes.changedFiles,
       newFiles: changes.newFiles,
@@ -945,17 +957,20 @@ function register({ app }) {
     let changes = null;
     if (indexed && hashesExist) {
       try {
-        const ch = changeDetector.detectChangesSimple(repoPath);
+        // Use content-aware detection that reads actual files on disk
+        const ch = changeDetector.detectContentChanges(repoPath);
         if (ch) {
-          const totalChanged = ch.changedFiles.length + ch.newFiles.length;
+          const totalChanged = ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length;
           changes = {
             total: totalChanged,
             changed: ch.changedFiles.length,
             new: ch.newFiles.length,
+            deleted: ch.deletedFiles.length,
             changeRatio: ch.changeRatio,
             tooManyChanges: ch.changeRatio > 0.5,
             changedFiles: ch.changedFiles,
             newFiles: ch.newFiles,
+            deletedFiles: ch.deletedFiles,
           };
         }
       } catch {}
@@ -980,18 +995,21 @@ function register({ app }) {
     if (!data || data.repoPath !== repoPath) {
       return { ok: false, error: 'symbols.json not found. Index your codebase first.' };
     }
-    const ch = changeDetector.detectChangesSimple(repoPath);
-    const totalChanged = ch ? ch.changedFiles.length + ch.newFiles.length : 0;
+    // Use content-aware detection for accurate file-level diffs
+    const ch = changeDetector.detectContentChanges(repoPath);
+    const totalChanged = ch ? ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length : 0;
     return {
       ok: true,
       changes: ch ? {
         total: totalChanged,
         changed: ch.changedFiles.length,
         new: ch.newFiles.length,
+        deleted: ch.deletedFiles.length,
         changeRatio: ch.changeRatio,
         tooManyChanges: ch.changeRatio > 0.5,
         changedFiles: ch.changedFiles,
         newFiles: ch.newFiles,
+        deletedFiles: ch.deletedFiles,
       } : null,
       stats: { files: data.files.length, symbols: data.symbols.length, imports: data.imports.length },
     };

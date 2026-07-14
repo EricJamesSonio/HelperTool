@@ -17,6 +17,7 @@ import {
 import { getFeatures } from '../featureManager.js';
 import { state }               from './appState.js';
 import { renderRootJumper, displayTree } from './viewManager.js';
+import { confirmDialog } from '../utils/confirmDialog.js';
 
 const activeRepoName = document.getElementById('activeRepoName');
 const treeContainer = document.getElementById('treeContainer');
@@ -46,7 +47,30 @@ export function updateActiveRepo(name) {
     activeRepoName.textContent = name || 'No repo selected';
 }
 
-export async function loadRepo(repoPath, resetSel = true) {
+async function _guardActiveServices() {
+    const gStatus = await window.electronAPI.graphifyIsRunning?.() || { running: false };
+    const csStatus = await window.electronAPI.opencode?.isRunning?.() || { running: false };
+    const services = [];
+    if (gStatus.running) services.push('Graphify');
+    if (csStatus.running) services.push('CodeSwamp');
+    if (services.length === 0) return true;
+    const label = services.join(' and ');
+    const verb = services.length > 1 ? 'are' : 'is';
+    const them = services.length > 1 ? 'them' : 'it';
+    const ok = await confirmDialog(
+        `${label} ${verb} currently running. Switching repositories will stop ${them}. Continue?`
+    );
+    if (!ok) return false;
+    if (gStatus.running) await window.electronAPI.graphifyStop?.();
+    if (csStatus.running) await window.electronAPI.opencode?.stop?.();
+    return true;
+}
+
+export async function loadRepo(repoPath, resetSel = true, skipGuard = false) {
+    if (!skipGuard) {
+        const ok = await _guardActiveServices();
+        if (!ok) return;
+    }
     state.selectedRepoPath = repoPath;
     window.__activeRepoPath = repoPath;
     // Notify tools BEFORE updating activeProject so they save to the old repo
@@ -87,7 +111,7 @@ export async function loadLastActiveRepo() {
         if (project?.repoPath) {
             state.selectedItems.length = 0;
             project.lastSelectedItems?.forEach(p => state.selectedItems.push(p));
-            await loadRepo(project.repoPath, false);
+            await loadRepo(project.repoPath, false, true);
         }
     } catch (err) {
         console.error('[Init] Failed to load last project:', err);
