@@ -344,11 +344,15 @@ function register(shared) {
       try { _activeProc.kill(); } catch (_) {}
       _activeProc = null;
     }
+    for (const [id, t] of _csTerminals) {
+      try { t.term.kill(); } catch (_) {}
+    }
+    _csTerminals.clear();
     return true;
   });
 
   ipcMain.handle('opencode:isRunning', async () => {
-    return { running: _activeProc !== null };
+    return { running: _activeProc !== null || _csTerminals.size > 0 };
   });
 
   ipcMain.handle('opencode:listRepos', async () => {

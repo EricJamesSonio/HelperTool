@@ -1,4 +1,4 @@
-import { getState, setState, subscribe } from './graphifyState.js';
+import { getState, setState, setStateSync, subscribe } from './graphifyState.js';
 import {
   queryGraphify, checkHealth as clientCheckHealth, fetchInfo, fetchEndpoints,
   fetchGraphData, fetchGraphReport, testEndpoint,
@@ -49,6 +49,7 @@ function _populateDomCache() {
   _cacheEl('cheatsheetBtn',    '.gfy-cheatsheet-btn');
   _cacheEl('indexBtn',         '.gfy-index-btn');
   _cacheEl('infoLine',         '.gfy-info-line');
+  _cacheEl('serverError',      '.gfy-server-error');
   _cacheEl('endpointsSection', '.gfy-endpoints-section');
   _cacheEl('endpointsList',    '#gfyEndpointsList');
   _cacheEl('tabBar',           '.gfy-tab-bar');
@@ -185,6 +186,29 @@ export function unmount() {
   if (_unsub) { _unsub(); _unsub = null; }
   if (_debounce) clearTimeout(_debounce);
   _root = null;
+  setStateSync({
+    serverStatus: 'stopped',
+    port: 3333,
+    serverInfo: null,
+    endpoints: null,
+    error: null,
+    exportError: null,
+    graphData: null,
+    graphStats: null,
+    graphReport: null,
+    graphCommunities: null,
+    graphLoading: false,
+    graphError: null,
+    reportError: null,
+    results: [],
+    files: [],
+    explanation: '',
+    loading: false,
+    statusLoading: true,
+    endpointTests: {},
+    expandedEndpoint: null,
+    endpointResultKey: null,
+  });
 }
 
 export function show() {
@@ -218,9 +242,9 @@ async function _loadMountData() {
     patch.hashesExist = mountData.hashesExist;
     patch.indexed = mountData.symbolsExists;
 
+    patch.serverStatus = mountData.running ? 'running' : 'stopped';
     if (mountData.running) {
       patch.port = mountData.port;
-      patch.serverStatus = 'running';
     }
     if (mountData.changes) {
       patch.changesDetected = mountData.changes;
@@ -860,10 +884,16 @@ async function _handleSendCheatsheet() {
   const cheatsheetPath = (repoPath + '/graphify/prompts/graphify-cheatsheet.md').replace(/\\/g, '/');
   try {
     const result = await window.electronAPI.readFile(cheatsheetPath);
-    if (_mounted && result && result.success && result.content) {
+    if (!_mounted) return;
+    if (result && result.success && result.content) {
+      _safeSetState({ exportError: null });
       _showSendToAiDialog(result.content);
+    } else {
+      _safeSetState({ exportError: (result && result.error) || 'Cheatsheet file not found at graphify/prompts/graphify-cheatsheet.md' });
     }
-  } catch {}
+  } catch (err) {
+    if (_mounted) _safeSetState({ exportError: 'Failed to read cheatsheet: ' + (err.message || err) });
+  }
 }
 
 async function _runQuery() {
@@ -1324,6 +1354,13 @@ function _render(state) {
     } else {
       infoLine.style.display = 'none';
     }
+  }
+
+  // ── Server error line (shown in toolbar when exportError is set and server is running) ──
+  const serverErrEl = _els.serverError;
+  if (serverErrEl && (!prev || state.exportError !== prev.exportError)) {
+    serverErrEl.textContent = state.exportError || '';
+    serverErrEl.style.display = state.exportError ? 'block' : 'none';
   }
 
   // ── Wizard section (idle hero repo status) ──
@@ -2176,6 +2213,7 @@ function _template() {
           </div>
 
           <div class="gfy-info-line" style="display:none"></div>
+          <div class="gfy-server-error" style="display:none"></div>
         </div>
 
         <div class="gfy-wizard" style="display:none">

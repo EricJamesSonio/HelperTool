@@ -864,6 +864,7 @@ export function closeAllPanels() {
 }
 
 export function handleRepoChange(newRepoPath) {
+  _destroyGraphify();
   sessionNotes.handleRepoChange(newRepoPath);
   _destroyGitTool();
   _destroySymbolIndexTool();

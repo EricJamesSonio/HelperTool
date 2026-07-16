@@ -658,6 +658,18 @@
   font-weight: 700;
 }
 
+.gfy-server-error {
+  display: none;
+  font-size: 12px;
+  color: #ff6b6b;
+  background: rgba(255, 0, 0, 0.08);
+  border: 1px solid rgba(255, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-top: 6px;
+}
+}
+
 /* ─── Search Section ─────────────────────────────────────────── */
 
 .gfy-search-section {
@@ -2442,6 +2454,18 @@
   width: 100%;
 }
 .gfy-body.gfy-ai-active .gfy-ai-section {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Report tab auto-fullscreen ── */
+.gfy-body.gfy-report-active .gfy-left-column {
+  display: none !important;
+}
+.gfy-body.gfy-report-active .gfy-right-column {
+  width: 100%;
+}
+.gfy-body.gfy-report-active .gfy-report-section {
   flex: 1;
   min-height: 0;
 }

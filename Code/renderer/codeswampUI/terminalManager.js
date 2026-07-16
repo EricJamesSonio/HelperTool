@@ -287,13 +287,13 @@ export function showTerminalSession(repoPath) {
 export function writeToTerminal(repoPath, text) {
   const inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
   if (!inst) return Promise.resolve();
-  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
+  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text }).catch(() => {});
 }
 
 export function writeToSlot(slotIndex, text) {
   const inst = instances[slotIndex];
   if (!inst) return Promise.resolve();
-  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text });
+  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text }).catch(() => {});
 }
 
 export function writeToTerminalDisplay(repoPath, slotIndex, text) {
@@ -324,6 +324,41 @@ export function isShellPrompt(repoPath, slotIndex) {
   }
   const tail = lines.join('\n').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trimEnd();
   return /(^|\n)(\$ |PS>|# |[A-Z]:\\)/.test(tail);
+}
+
+export function hasPasteWarning(repoPath, slotIndex) {
+  let inst;
+  if (slotIndex !== undefined && instances[slotIndex]) {
+    inst = instances[slotIndex];
+  } else {
+    inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
+  }
+  if (!inst || !inst.terminal) return false;
+  const buf = inst.terminal.buffer.active;
+  const len = buf.length;
+  const lines = [];
+  for (let i = Math.max(0, len - 5); i < len; i++) {
+    const line = buf.getLine(i);
+    if (line) lines.push(line.translateToString());
+  }
+  const tail = lines.join('\n').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trimEnd();
+  return /(Warning.*paste|Continue\?|\(y\/N\))/i.test(tail);
+}
+
+export async function acceptPasteWarning(repoPath, slotIndex, timeout = 8000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    if (hasPasteWarning(repoPath, slotIndex)) {
+      if (slotIndex !== undefined && instances[slotIndex]) {
+        await writeToSlot(slotIndex, 'y\r');
+      } else {
+        await writeToTerminal(repoPath, 'y\r');
+      }
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return false;
 }
 
 export async function restartOpencode(repoPath, slotIndex) {

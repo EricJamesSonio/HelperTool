@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, waitForTerminalOpencode, isShellPrompt, restartOpencode } from './terminalManager.js';
+import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, waitForTerminalOpencode, isShellPrompt, restartOpencode, acceptPasteWarning } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 import { openPromptPicker } from './promptPicker.js';
@@ -179,9 +179,10 @@ async function sendMessage() {
 
     const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
 
+    // Reset stale streaming flag — it gets stuck if a previous run crashed
     if (state.streaming) {
-      console.warn('[CS] sendMessage: already streaming, ignoring');
-      return;
+      console.warn('[CS] sendMessage: stale streaming=true, forcing reset');
+      state.streaming = false;
     }
 
     state.lastSentMessage = text;
@@ -205,22 +206,22 @@ async function sendMessage() {
     // Wait until opencode confirms it's reading stdin
     await waitForTerminalOpencode(repoPath, slotIndex);
 
-    // Write message in chunks — await each write so the PTY buffer doesn't overflow
-    const chunkSize = 100;
-    for (let i = 0; i < text.length; i += chunkSize) {
-      const chunk = text.slice(i, i + chunkSize);
-      if (state.parallelMode) {
-        await writeToSlot(slotIndex, chunk);
-      } else {
-        await writeToTerminal(repoPath, chunk);
-      }
-      await new Promise(r => setTimeout(r, 10));
+    // Wrap in bracketed paste escape sequences so opencode recognizes
+    // this as a paste (same as if the user pasted directly into xterm.js)
+    const pasted = `\x1b[200~${text}\x1b[201~`;
+    if (state.parallelMode) {
+      await writeToSlot(slotIndex, pasted);
+    } else {
+      await writeToTerminal(repoPath, pasted);
     }
 
-    // Wait before submitting — ensures opencode is the foreground process
-    await new Promise(r => setTimeout(r, 2000));
+    // Auto-accept opencode's paste warning dialog (Warning... Continue? y/N)
+    await acceptPasteWarning(repoPath, slotIndex);
 
-    // Submit the message
+    // Wait for opencode to finalize the pasted input before submitting
+    await new Promise(r => setTimeout(r, 800));
+
+    // Submit
     if (state.parallelMode) {
       await writeToSlot(slotIndex, '\r');
     } else {

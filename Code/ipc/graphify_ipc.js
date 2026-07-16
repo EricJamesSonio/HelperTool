@@ -665,6 +665,7 @@ function register({ app }) {
   ipcMain.handle('graphify:start', async (_, repoPath) => {
     _repoPath = repoPath || null;
     try {
+      if (repoPath) exporter.generateCheatsheet(repoPath);
       const result = await _spawn(app);
       return { ok: true, port: result.port };
     } catch (err) {
