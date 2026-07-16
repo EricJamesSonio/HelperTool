@@ -13,7 +13,7 @@ let _initialized = false;
 
 export async function activate(container) {
   _container = container;
-  if (!_initialized) {
+  if (!_initialized || !_panel) {
     const mod = await import('./graphify/index.js');
     _panel   = mod;
     _panel.init(container);
@@ -24,8 +24,8 @@ export async function activate(container) {
 }
 
 export function deactivate() {
-  if (_panel) { _panel.destroy(); _panel = null; }
   _initialized = false;
+  if (_panel) { _panel.destroy(); _panel = null; }
   _container   = null;
 }
 

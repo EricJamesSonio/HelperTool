@@ -6,6 +6,7 @@ let _filtered = [];
 let _selectedIndex = 0;
 let _open = false;
 let _pickerEl = null;
+let _inputEl = null;
 
 function flattenTree(nodes) {
   const files = [];
@@ -54,6 +55,7 @@ export function clearCache() {
 
 export function open(query, inputEl) {
   if (!_treeCache || !_treeCache.length) return;
+  _inputEl = inputEl;
   const q = query.toLowerCase();
   const scored = [];
   for (const f of _treeCache) {
@@ -73,7 +75,10 @@ export function open(query, inputEl) {
   if (!_filtered.length) { close(); return; }
   _selectedIndex = 0;
   _open = true;
-  if (!_pickerEl) _pickerEl = createPickerElement();
+  if (!_pickerEl) {
+    _pickerEl = createPickerElement();
+    _pickerEl.addEventListener('click', onPickerClick);
+  }
   const existing = document.getElementById('ocFilePickerList');
   if (existing) existing.innerHTML = renderList();
   const parent = inputEl.parentElement;
@@ -83,6 +88,7 @@ export function open(query, inputEl) {
 
 export function close() {
   _open = false;
+  _inputEl = null;
   if (_pickerEl) _pickerEl.style.display = 'none';
 }
 
@@ -103,16 +109,26 @@ export function confirmSelection(inputEl) {
   const selected = _filtered[_selectedIndex];
   if (!selected) return;
   const val = inputEl.value;
-  const atIdx = val.lastIndexOf('@');
-  if (atIdx === -1) return;
+  const cursorPos = inputEl.selectionStart;
+  const atIdx = val.lastIndexOf('@', cursorPos);
+  if (atIdx === -1 || atIdx < val.lastIndexOf(' ', cursorPos)) return;
   const before = val.slice(0, atIdx);
-  const spaceAfter = val.indexOf(' ', atIdx);
-  const after = spaceAfter === -1 ? '' : val.slice(spaceAfter);
+  const after = val.slice(cursorPos);
   inputEl.value = before + selected.path + after;
   inputEl.selectionStart = inputEl.selectionEnd = (before + selected.path).length;
   inputEl.dispatchEvent(new Event('input', { bubbles: true }));
   close();
   inputEl.focus();
+}
+
+function onPickerClick(e) {
+  const item = e.target.closest('.oc-picker-item');
+  if (!item || !_inputEl) return;
+  const path = item.dataset.path;
+  const idx = _filtered.findIndex(f => f.path === path);
+  if (idx === -1) return;
+  _selectedIndex = idx;
+  confirmSelection(_inputEl);
 }
 
 export function destroy() {

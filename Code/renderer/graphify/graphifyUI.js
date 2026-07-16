@@ -208,6 +208,31 @@ export function unmount() {
     endpointTests: {},
     expandedEndpoint: null,
     endpointResultKey: null,
+    repoStatus: null,
+    symbolsInfo: null,
+    promptExists: false,
+    promptType: null,
+    pendingChanges: null,
+    graphInfo: null,
+    graphHasData: false,
+    indexed: false,
+    hashesExist: false,
+    exportStatus: null,
+    exportLoading: false,
+    aiGraphData: null,
+    aiGraphReport: '',
+    aiGraphLoading: false,
+    aiGraphError: null,
+    changesLoading: false,
+    changesError: null,
+    changesDetected: null,
+    incrementalPromptPath: null,
+    incrementalPromptReady: false,
+    incrementalPromptText: '',
+    graphSyncStatus: null,
+    graphSyncLoading: false,
+    changesTabStep: 'idle',
+    changedFileList: null,
   });
 }
 
@@ -229,9 +254,15 @@ async function _loadMountData() {
   if (!_mounted) return;
   try {
     const repoPath = window.__activeRepoPath;
-    if (!repoPath) { _startWatchdog(); return; }
+    if (!repoPath) {
+      _safeSetState({ repoStatus: null, graphInfo: null, graphHasData: false, symbolsInfo: null, statusLoading: false, indexed: false, promptExists: false, hashesExist: false, exportStatus: null });
+      _startWatchdog(); return;
+    }
     const mountData = await window.electronAPI.graphifyGetMountData(repoPath);
-    if (!_mounted || !mountData?.ok) { _startWatchdog(); return; }
+    if (!_mounted || !mountData?.ok) {
+      _safeSetState({ repoStatus: null, graphInfo: null, graphHasData: false, symbolsInfo: null, statusLoading: false, indexed: false, promptExists: false, hashesExist: false, exportStatus: null });
+      _startWatchdog(); return;
+    }
 
     const patch = { statusLoading: false };
     patch.repoStatus = mountData.symbolsExists ? 'indexed' : 'needs-index';
@@ -261,7 +292,7 @@ async function _loadMountData() {
     _safeSetState(patch);
     if (mountData.running) _startHealthTimer();
   } catch {
-    if (_mounted) _safeSetState({ statusLoading: false });
+    if (_mounted) _safeSetState({ statusLoading: false, repoStatus: null, graphInfo: null, graphHasData: false, symbolsInfo: null, indexed: false, promptExists: false, hashesExist: false, exportStatus: null });
   }
   _startWatchdog();
 }

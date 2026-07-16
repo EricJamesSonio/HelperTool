@@ -81,7 +81,8 @@ export function renderInput() {
     if (e.key === 'Enter' && !e.shiftKey) {
       if (isOpen()) {
         e.preventDefault();
-        closePicker();
+        confirmSelection(input);
+        return;
       }
       e.preventDefault();
       sendMessage();
