@@ -21,7 +21,6 @@ parentPort.on('message', ({ buffer, path }) => {
 let _db = null;
 let _appRef = null;
 let _saveTimer = null;
-let _pendingSave = false;
 let _writeWorker = null;
 let _writeWorkerBusy = false;
 let _pendingWrite = null;
@@ -332,7 +331,6 @@ function _getWriteWorker() {
 
 function _flush() {
   if (!_db) return;
-  _pendingSave = false;
   const data = _db.export();
   const buffer = Buffer.from(data);
   const dbPath = getDbPath();
@@ -359,15 +357,11 @@ function _flushSync() {
 
 function save() {
   if (!_db) return;
-  if (_saveTimer) { _pendingSave = true; return; }
+  if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
     _saveTimer = null;
     _flush();
-    if (_pendingSave) {
-      _pendingSave = false;
-      _saveTimer = setTimeout(() => { _saveTimer = null; _flush(); }, 10000);
-    }
-  }, 10000);
+  }, 2000);
 }
 
 function close() {

@@ -1,6 +1,10 @@
 const { getDb, save } = require('./db.js');
 
+let _schemaCreated = false;
+
 function createInspectorSchema() {
+  if (_schemaCreated) return;
+  _schemaCreated = true;
   const db = getDb();
   db.run(`
     CREATE TABLE IF NOT EXISTS db_connections (
@@ -89,12 +93,14 @@ function createInspectorSchema() {
 function genId() { return 'dbi_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
 
 function listConnections() {
+  createInspectorSchema();
   const db = getDb();
   const r = db.exec('SELECT id, name, type, host, port, database, username, file_path, created_at, updated_at FROM db_connections ORDER BY updated_at DESC');
   return r.length > 0 ? r[0].values : [];
 }
 
 function getConnection(id) {
+  createInspectorSchema();
   const db = getDb();
   const r = db.exec('SELECT * FROM db_connections WHERE id = ?', [id]);
   if (r.length === 0 || r[0].values.length === 0) return null;
@@ -107,6 +113,7 @@ function getConnection(id) {
 }
 
 function saveConnection(conn) {
+  createInspectorSchema();
   const db = getDb();
   const now = new Date().toISOString();
   db.run(`INSERT OR REPLACE INTO db_connections (id, name, type, host, port, database, username, encrypted_password, file_path, connection_string, updated_at)
@@ -116,12 +123,14 @@ function saveConnection(conn) {
 }
 
 function deleteConnection(id) {
+  createInspectorSchema();
   const db = getDb();
   db.run('DELETE FROM db_connections WHERE id = ?', [id]);
   save();
 }
 
 function createSnapshot(connectionId, projectName) {
+  createInspectorSchema();
   const db = getDb();
   const id = genId();
   db.run('INSERT INTO schema_snapshots (id, connection_id, project_name) VALUES (?, ?, ?)', [id, connectionId, projectName]);
@@ -130,18 +139,21 @@ function createSnapshot(connectionId, projectName) {
 }
 
 function deleteSnapshotsForConnection(connectionId) {
+  createInspectorSchema();
   const db = getDb();
   db.run('DELETE FROM schema_snapshots WHERE connection_id = ?', [connectionId]);
   save();
 }
 
 function listSnapshots(connectionId) {
+  createInspectorSchema();
   const db = getDb();
   const r = db.exec('SELECT id, project_name, created_at FROM schema_snapshots WHERE connection_id = ? ORDER BY created_at DESC', [connectionId]);
   return r.length > 0 ? r[0].values : [];
 }
 
 function insertTable(snapshotId, name, rowCount, schemaName) {
+  createInspectorSchema();
   const db = getDb();
   const id = genId();
   db.run('INSERT INTO schema_tables (id, snapshot_id, name, row_count, schema_name) VALUES (?, ?, ?, ?, ?)',
@@ -150,24 +162,28 @@ function insertTable(snapshotId, name, rowCount, schemaName) {
 }
 
 function insertColumn(tableId, name, dataType, nullable, isPk, defaultValue, ordinal) {
+  createInspectorSchema();
   const db = getDb();
   db.run('INSERT INTO schema_columns (id, table_id, name, data_type, nullable, is_primary_key, default_value, ordinal_position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [genId(), tableId, name, dataType || null, nullable ? 1 : 0, isPk ? 1 : 0, defaultValue || null, ordinal || 0]);
 }
 
 function insertRelationship(snapshotId, constraintName, sourceTable, sourceColumn, targetTable, targetColumn) {
+  createInspectorSchema();
   const db = getDb();
   db.run('INSERT INTO schema_relationships (id, snapshot_id, constraint_name, source_table, source_column, target_table, target_column) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [genId(), snapshotId, constraintName || null, sourceTable, sourceColumn, targetTable, targetColumn]);
 }
 
 function insertIndex(tableId, name, columns, uniqueFlag) {
+  createInspectorSchema();
   const db = getDb();
   db.run('INSERT INTO schema_indexes (id, table_id, name, columns, unique_flag) VALUES (?, ?, ?, ?, ?)',
     [genId(), tableId, name, JSON.stringify(columns || []), uniqueFlag ? 1 : 0]);
 }
 
 function getGraphData(snapshotId) {
+  createInspectorSchema();
   const db = getDb();
   const tRes = db.exec('SELECT id, name, row_count FROM schema_tables WHERE snapshot_id = ?', [snapshotId]);
   const rRes = db.exec('SELECT source_table, source_column, target_table, target_column, constraint_name FROM schema_relationships WHERE snapshot_id = ?', [snapshotId]);
@@ -208,6 +224,7 @@ function getGraphData(snapshotId) {
 }
 
 function getTableDetails(snapshotId, tableName) {
+  createInspectorSchema();
   const db = getDb();
   const tR = db.exec('SELECT id, name, row_count FROM schema_tables WHERE snapshot_id = ? AND name = ?', [snapshotId, tableName]);
   if (tR.length === 0 || tR[0].values.length === 0) return null;
@@ -233,12 +250,14 @@ function getTableDetails(snapshotId, tableName) {
 }
 
 function getSnapshotTableNames(snapshotId) {
+  createInspectorSchema();
   const db = getDb();
   const r = db.exec('SELECT name FROM schema_tables WHERE snapshot_id = ? ORDER BY name', [snapshotId]);
   return r.length > 0 ? r[0].values.map(v => v[0]) : [];
 }
 
 function getTableColumnDetails(snapshotId, tableName) {
+  createInspectorSchema();
   const db = getDb();
   const tR = db.exec('SELECT id FROM schema_tables WHERE snapshot_id = ? AND name = ?', [snapshotId, tableName]);
   if (tR.length === 0 || tR[0].values.length === 0) return [];
@@ -250,6 +269,7 @@ function getTableColumnDetails(snapshotId, tableName) {
 // ── Seed Scripts ────────────────────────────────────────────
 
 function listSeeds(snapshotId) {
+  createInspectorSchema();
   const db = getDb();
   const r = db.exec('SELECT id, name, sql_content, created_at, updated_at FROM seed_scripts WHERE snapshot_id = ? ORDER BY updated_at DESC', [snapshotId]);
   return r.length > 0 ? r[0].values.map(row => ({
@@ -259,6 +279,7 @@ function listSeeds(snapshotId) {
 }
 
 function saveSeed({ id, snapshotId, name, sqlContent }) {
+  createInspectorSchema();
   const db = getDb();
   const now = new Date().toISOString();
   const seedId = id || genId();
@@ -273,6 +294,7 @@ function saveSeed({ id, snapshotId, name, sqlContent }) {
 }
 
 function deleteSeed(id) {
+  createInspectorSchema();
   const db = getDb();
   db.run('DELETE FROM seed_scripts WHERE id = ?', [id]);
   save();

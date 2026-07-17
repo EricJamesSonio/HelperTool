@@ -20,8 +20,7 @@ parentPort.on('message', ({ buffer, path }) => {
 
 let _db = null;
 let _appRef = null;
-let _dirty = false;
-let _interval = null;
+let _saveTimer = null;
 let _writeWorker = null;
 let _writeWorkerBusy = false;
 let _pendingWrite = null;
@@ -191,26 +190,19 @@ function _flushSync() {
 
 function save() {
   if (!_db) return;
-  _dirty = true;
-  if (!_interval) {
-    _interval = setInterval(() => {
-      if (_dirty) {
-        _dirty = false;
-        _flush();
-      }
-    }, 5000);
-  }
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    _flush();
+  }, 2000);
 }
 
 function forceFlush() {
-  if (_interval) {
-    clearInterval(_interval);
-    _interval = null;
+  if (_saveTimer) {
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
   }
-  if (_dirty) {
-    _dirty = false;
-    _flushSync();
-  }
+  _flushSync();
 }
 
 function closeErrorCopDb() {
