@@ -2,6 +2,24 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+const ENV_CACHE_TTL = 30000;
+const _envFileCache = new Map();
+
+function _getCachedEnvFiles(repoPath) {
+  const cached = _envFileCache.get(repoPath);
+  if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) {
+    return cached.files;
+  }
+  const found = findEnvFiles(repoPath);
+  const files = sortFiles(found.map(f => path.relative(repoPath, f)));
+  _envFileCache.set(repoPath, { files, ts: Date.now() });
+  return files;
+}
+
+function _invalidateEnvCache(repoPath) {
+  _envFileCache.delete(repoPath);
+}
+
 const ENV_PATTERNS = [
   '.env', '.env.local', '.env.development', '.env.production',
   '.env.test', '.env.staging', '.env.sample', '.env.example',
@@ -48,9 +66,8 @@ function register() {
   ipcMain.handle('env:listFiles', async (_e, { repoPath }) => {
     try {
       if (!repoPath) return { success: false, error: 'No repo path' };
-      const found = findEnvFiles(repoPath);
-      const files = found.map(f => path.relative(repoPath, f));
-      return { success: true, files: sortFiles(files) };
+      const files = _getCachedEnvFiles(repoPath);
+      return { success: true, files };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -89,6 +106,7 @@ function register() {
         return `${e.key}=${val}`;
       }).join('\n');
       fs.writeFileSync(fullPath, content, 'utf-8');
+      _invalidateEnvCache(repoPath);
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -100,6 +118,7 @@ function register() {
       const fullPath = path.join(repoPath, fileName);
       if (fs.existsSync(fullPath)) return { success: false, error: 'File already exists' };
       fs.writeFileSync(fullPath, '', 'utf-8');
+      _invalidateEnvCache(repoPath);
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -110,6 +129,7 @@ function register() {
     try {
       const fullPath = path.join(repoPath, fileName);
       fs.unlinkSync(fullPath);
+      _invalidateEnvCache(repoPath);
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };

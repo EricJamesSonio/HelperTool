@@ -317,12 +317,9 @@ function _buildProjectCard(project) {
 
   const card = document.createElement('div');
   card.className = 'workspace-project-card';
-  const repoBadge = project.repoPath
-    ? `<span class="ws-repo-badge" title="${_esc(project.repoPath)}">${ICON_REPO}</span>`
-    : '';
   card.innerHTML = `
     <div class="workspace-card-header">
-      <div class="workspace-card-title">${project.title}${repoBadge}</div>
+      <div class="workspace-card-title">${_esc(project.title)}</div>
       <div class="workspace-card-spacer"></div>
       <button class="workspace-card-edit" title="Edit">${ICON_EDIT}</button>
       <button class="workspace-card-delete" title="Delete">${ICON_DELETE}</button>
@@ -962,7 +959,7 @@ function _renderTabFolders(el) {
   el.innerHTML = `
     <div class="ws-folders-grid">
 
-      <div class="ws-folder-panel">
+      <div class="ws-folder-panel" data-panel="main">
         <div class="ws-folder-panel-header">
           <span class="ws-folder-panel-icon">${ICON_CODEBASE}</span>
           <div>
@@ -974,7 +971,7 @@ function _renderTabFolders(el) {
           placeholder="root/\n├─ src/\n│   ├─ frontend/\n│   └─ backend/\n├─ docs/\n└─ package.json">${_esc(mainVal)}</textarea>
       </div>
 
-      <div class="ws-folder-panel">
+      <div class="ws-folder-panel" data-panel="frontend">
         <div class="ws-folder-panel-header">
           <span class="ws-folder-panel-icon">${ICON_DESIGN}</span>
           <div>
@@ -986,7 +983,7 @@ function _renderTabFolders(el) {
           placeholder="src/\n├─ components/\n├─ pages/\n├─ hooks/\n├─ styles/\n└─ utils/">${_esc(frontendVal)}</textarea>
       </div>
 
-      <div class="ws-folder-panel">
+      <div class="ws-folder-panel" data-panel="backend">
         <div class="ws-folder-panel-header">
           <span class="ws-folder-panel-icon">${ICON_GEAR}</span>
           <div>
@@ -1555,7 +1552,7 @@ function _renderTabRepo(el) {
       <div class="ws-repo-tab-header">
         <label>Linked Folder</label>
         <span class="ws-repo-tab-status ${linked ? '' : 'ws-repo-tab-unlinked'}">
-          ${linked ? `${ICON_REPO} Linked` : `${ICON_REMOVE} Not linked`}
+          ${linked ? 'Linked' : 'Not linked'}
         </span>
       </div>
       ${linked ? `<div class="ws-repo-tab-path" title="${_esc(linked)}">${_esc(linked)}</div>` : ''}

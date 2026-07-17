@@ -49,9 +49,9 @@
 }
 .workspace-nav-chip svg { width: 16px; height: 16px; display: block; }
 .workspace-nav-chip:hover {
-  background: color-mix(in srgb, #4f8cff 28%, transparent);
+  background: var(--bg-hover, rgba(255,255,255,0.05));
   color: #d0d8f0;
-  border-color: color-mix(in srgb, #4f8cff 52%, transparent);
+  border-color: var(--border-default, rgba(255,255,255,0.12));
 }
 .workspace-nav-chip[data-goto="projects"] svg { color: #fcd34d; }
 .workspace-nav-chip[data-goto="workers"]  svg { color: #5eead4; }
@@ -70,7 +70,7 @@
 .workspace-back-btn svg {
   width: 14px; height: 14px; display: block;
 }
-.workspace-back-btn:hover { background: color-mix(in srgb, #4f8cff 28%, transparent); color: #d0d8f0; }
+.workspace-back-btn:hover { background: var(--bg-hover, rgba(255,255,255,0.05)); color: #d0d8f0; }
 
 .workspace-close-btn,
 .workspace-logs-btn {
@@ -92,7 +92,7 @@
   width: 16px; height: 16px; display: block;
 }
 .workspace-close-btn:hover { background: rgba(239, 68, 68, 0.14); color: #f87171; }
-.workspace-logs-btn:hover { background: color-mix(in srgb, #4f8cff 48%, transparent); color: #4f8cff; }
+.workspace-logs-btn:hover { background: var(--bg-hover, rgba(255,255,255,0.05)); color: var(--accent, #22d3ee); }
 
 /* ══ Body ══ */
 .workspace-body {
@@ -103,8 +103,8 @@
 }
 .workspace-body::-webkit-scrollbar { width: 6px; }
 .workspace-body::-webkit-scrollbar-track { background: transparent; }
-.workspace-body::-webkit-scrollbar-thumb { background: color-mix(in srgb, #4f8cff 42%, transparent); border-radius: 4px; }
-.workspace-body::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, #4f8cff 60%, transparent); }
+.workspace-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+.workspace-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
 /* ══ Home dashboard ══ */
 .ws-home-layout {
@@ -137,7 +137,7 @@
   display: flex; flex-direction: column; gap: 4px;
   transition: border-color 0.15s;
 }
-.ws-stat-card:hover { border-color: color-mix(in srgb, #4f8cff 55%, transparent); }
+.ws-stat-card:hover { border-color: var(--border-default, rgba(255,255,255,0.12)); }
 .ws-stat-accent { border-left: 3px solid #4f8cff; }
 .ws-stat-num { font-size: 2.4rem; font-weight: 800; color: #4f8cff; line-height: 1; }
 .ws-stat-lbl { font-size: 0.85rem; color: #a0b0d0; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
@@ -153,8 +153,8 @@
   transition: all 0.18s; text-align: left;
 }
 .ws-home-card:hover {
-  border-color: color-mix(in srgb, #4f8cff 58%, transparent);
-  background: color-mix(in srgb, #4f8cff 48%, transparent);
+  border-color: var(--border-default, rgba(255,255,255,0.12));
+  background: var(--bg-hover, rgba(255,255,255,0.05));
   transform: translateX(3px);
 }
 .ws-home-card-left { display: flex; align-items: center; gap: 14px; }
@@ -170,7 +170,7 @@
   display: inline-flex; align-items: center;
 }
 .ws-home-card-arrow svg { width: 16px; height: 16px; display: block; }
-.ws-home-card:hover .ws-home-card-arrow { color: #4f8cff; }
+.ws-home-card:hover .ws-home-card-arrow { color: var(--accent, #22d3ee); }
 
 .ws-home-activity {
   display: flex; flex-direction: column; gap: 0;
@@ -185,7 +185,7 @@
   transition: background 0.12s;
 }
 .ws-home-activity-item:last-child { border-bottom: none; }
-.ws-home-activity-item:hover { background: color-mix(in srgb, #4f8cff 42%, transparent); }
+.ws-home-activity-item:hover { background: var(--bg-hover, rgba(255,255,255,0.05)); }
 .ws-home-activity-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: #4f8cff;
@@ -359,7 +359,7 @@
 }
 
 .ws-folder-panel-icon  { display: flex; align-items: center; }
-.ws-folder-panel-icon svg { width: 24px; height: 24px; display: block; }
+.ws-folder-panel-icon svg { width: 24px; height: 24px; display: block; stroke: var(--accent, #22d3ee); }
 .ws-folder-panel-title { font-size: 0.95rem; font-weight: 700; color: #e0e8f5; line-height: 1.2; }
 .ws-folder-panel-sub   { font-size: 0.75rem; color: #7080a0; margin-top: 2px; }
 .ws-folder-panel .ws-fullheight-textarea {
@@ -453,9 +453,9 @@
   font-weight: 600;
 }
 .workspace-btn-icon:hover {
-  background: color-mix(in srgb, #4f8cff 28%, transparent);
+  background: var(--bg-hover, rgba(255,255,255,0.05));
   color: #d0d8f0;
-  border-color: color-mix(in srgb, #4f8cff 52%, transparent);
+  border-color: var(--border-default, rgba(255,255,255,0.12));
 }
 .workspace-btn-icon svg {
   width: 14px;
@@ -501,7 +501,7 @@
 .workspace-card-delete:hover {
   background: rgba(255,255,255,0.05);
 }
-.workspace-card-edit:hover svg { stroke: #4f8cff; }
+.workspace-card-edit:hover svg { stroke: var(--accent, #22d3ee); }
 .workspace-card-delete:hover svg { stroke: #f87171; }
 .workspace-card-edit svg,
 .workspace-card-delete svg { width: 14px; height: 14px; display: block; stroke: #7080a0; }
@@ -613,7 +613,7 @@
   border: 1px solid color-mix(in srgb, #4f8cff 58%, transparent);
   border-radius: 11px; transition: border-color 0.15s;
 }
-.ws-assigned-worker-row:hover { border-color: color-mix(in srgb, #4f8cff 58%, transparent); }
+.ws-assigned-worker-row:hover { border-color: var(--border-default, rgba(255,255,255,0.12)); }
 .ws-assigned-info { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .ws-assigned-name    { font-size: 1rem; font-weight: 700; color: #e0e8f5; }
 .ws-assigned-role    { font-size: 0.84rem; color: #7080a0; }
@@ -646,7 +646,7 @@
 .ws-tab-btn[data-key="db"]        svg { stroke: #4f8cff; }
 .ws-tab-btn[data-key="logs"]      svg { stroke: #4f8cff; }
 .ws-tab-btn[data-key="repo"]      svg { stroke: #67e8f9; }
-.ws-tab-btn:hover  { background: color-mix(in srgb, #4f8cff 58%, transparent); color: #d0d8f0; }
+.ws-tab-btn:hover  { background: var(--bg-hover, rgba(255,255,255,0.05)); color: var(--accent, #22d3ee); }
 .ws-tab-btn.active { background: color-mix(in srgb, #4f8cff 48%, transparent); color: #4f8cff; border-color: color-mix(in srgb, #4f8cff 52%, transparent); }
 .ws-tab-content    { display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; }
 
@@ -688,8 +688,8 @@
   display: flex; flex-direction: column; gap: 8px; transition: all 0.15s; cursor: pointer;
 }
 .ws-kanban-card:hover {
-  border-color: color-mix(in srgb, #4f8cff 55%, transparent); transform: translateY(-2px);
-  box-shadow: 0 4px 12px -2px color-mix(in srgb, #4f8cff 50%, transparent);
+  border-color: var(--border-default, rgba(255,255,255,0.12)); transform: translateY(-2px);
+  box-shadow: 0 4px 12px -2px rgba(0,0,0,0.4);
 }
 .ws-kanban-card-header { display: flex; align-items: center; justify-content: space-between; }
 .ws-kanban-priority { font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.3px; }
@@ -761,7 +761,7 @@
 }
 .workspace-ticket-edit svg,
 .workspace-ticket-delete svg { width: 14px; height: 14px; display: block; }
-.workspace-ticket-edit:hover   { color: #4f8cff; background: color-mix(in srgb, #4f8cff 38%, transparent); }
+.workspace-ticket-edit:hover   { color: var(--accent, #22d3ee); background: var(--bg-hover, rgba(255,255,255,0.05)); }
 .workspace-ticket-delete:hover { color: #f87171;  background: rgba(239, 68, 68, 0.10); }
 
 .workspace-status-select {
@@ -797,7 +797,7 @@
   border: 1px solid color-mix(in srgb, #4f8cff 58%, transparent);
   border-radius: 10px; background: rgba(12, 16, 32, 0.5); transition: border-color 0.15s;
 }
-.workspace-log-item:hover { border-color: color-mix(in srgb, #4f8cff 68%, transparent); }
+.workspace-log-item:hover { border-color: var(--border-default, rgba(255,255,255,0.12)); }
 .workspace-log-icon {
   display: flex; align-items: center; flex-shrink: 0; margin-top: 1px;
 }
@@ -1171,8 +1171,8 @@
   transition: border-color 0.15s;
 }
 .ws-bk-flow-card:hover {
-  border-color: color-mix(in srgb, #4f8cff 38%, transparent);
-  border-left-color: var(--bk-color, color-mix(in srgb, #4f8cff 58%, transparent));
+  border-color: var(--border-default, rgba(255,255,255,0.12));
+  border-left-color: var(--bk-color, var(--border-default, rgba(255,255,255,0.12)));
 }
 .ws-bk-flow-card--done {
   border-left-color: var(--bk-color, color-mix(in srgb, #4f8cff 42%, transparent));

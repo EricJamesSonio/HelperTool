@@ -20,12 +20,22 @@ function execAsync(cmd, opts = {}) {
 let _activeProc = null;
 let _getMainWindow = null;
 let _discoveryCache = null;
+let _dataRootCache = null;
+let _convListCache = null;
+let _convListCacheTs = 0;
+const CONV_CACHE_TTL = 15000;
+
+function _invalidateConvCache() {
+  _convListCache = null;
+  _convListCacheTs = 0;
+}
 
 function getWin() {
   return _getMainWindow ? _getMainWindow() : null;
 }
 
 function getDataRoot() {
+  if (_dataRootCache) return _dataRootCache;
   const home = os.homedir();
   const candidates = [
     path.join(home, '.local', 'share', 'opencode'),
@@ -37,13 +47,16 @@ function getDataRoot() {
     candidates.push(path.join(appData, 'opencode'));
   }
   for (const dir of candidates) {
-    if (fs.existsSync(dir)) {
+    try {
+      fs.accessSync(dir, fs.constants.F_OK);
+      _dataRootCache = dir;
       console.log(`[CS-IPC] getDataRoot: found data dir at "${dir}"`);
       return dir;
-    }
+    } catch {}
   }
+  _dataRootCache = candidates[0];
   console.log(`[CS-IPC] getDataRoot: no project dir found, using default "${candidates[0]}"`);
-  return candidates[0];
+  return _dataRootCache;
 }
 
 function getStorageDir(repoPath) {
@@ -67,6 +80,10 @@ async function findOpencode() {
     ]),
   ];
   for (const bin of commonPaths) {
+    // Skip non-existent paths to avoid unnecessary process spawns
+    if (bin !== 'opencode') {
+      try { fs.accessSync(bin, fs.constants.X_OK); } catch { continue; }
+    }
     const out = await execAsync(`"${bin}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 3000 });
     if (out !== null) return bin;
   }
@@ -148,6 +165,10 @@ function register(shared) {
   });
 
   ipcMain.handle('opencode:listConversations', async (_, { repoPath }) => {
+    const now = Date.now();
+    if (_convListCache && (now - _convListCacheTs) < CONV_CACHE_TTL) {
+      return _convListCache;
+    }
     const { binaryPath } = await discover();
     console.log(`[CS-IPC] listConversations: binary="${binaryPath}" repoPath="${repoPath}"`);
     const cliResult = await listViaCli(binaryPath);
@@ -157,13 +178,16 @@ function register(shared) {
       const filtered = cliResult.filter(s => !np || (s.directory && normPath(s.directory) === np));
       console.log(`[CS-IPC] listConversations: after directory filter: ${filtered.length}/${cliResult.length}`);
       if (filtered.length > 0) {
-        return filtered.map(s => ({
+        const result = filtered.map(s => ({
           id: s.id || '',
           title: s.title || 'Untitled',
           date: s.created ? new Date(s.created).toISOString() : (s.updated ? new Date(s.updated).toISOString() : ''),
           messageCount: 0,
           repoPath: s.directory || repoPath || '',
         }));
+        _convListCache = result;
+        _convListCacheTs = now;
+        return result;
       }
       // CLI returned sessions but none matched our repo — log sample for debugging
       if (cliResult.length > 0) {
@@ -177,7 +201,11 @@ function register(shared) {
     const storageDir = getStorageDir(repoPath);
     const results = await listViaStorage(storageDir, repoPath);
     console.log(`[CS-IPC] listConversations: storage scan at "${storageDir}" found ${results.length} sessions`);
-    if (results.length > 0) return results;
+    if (results.length > 0) {
+      _convListCache = results;
+      _convListCacheTs = now;
+      return results;
+    }
     // Fallback: search all project storage dirs for session files
     const dataRoot = getDataRoot();
     const projectDir = path.join(dataRoot, 'project');
@@ -194,6 +222,8 @@ function register(shared) {
         }
       }
       console.log(`[CS-IPC] listConversations: fallback total: ${all.length} sessions`);
+      _convListCache = all;
+      _convListCacheTs = now;
       return all;
     } catch (_) {
       console.log(`[CS-IPC] listConversations: project dir does not exist at "${projectDir}"`);
@@ -411,6 +441,7 @@ function register(shared) {
     const { binaryPath } = await discover();
     const isWin = process.platform === 'win32';
     const out = await execAsync(`"${binaryPath}" session delete ${convId} 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 5000 });
+    _invalidateConvCache();
     if (out !== null) return { success: true };
 
     const dataRoot = getDataRoot();

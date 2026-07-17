@@ -10,6 +10,44 @@ const http        = require('http');
 const changeDetector = require('../database/changeDetector');
 const exporter = require('../graphify-service/exporter');
 
+const FILE_CACHE_TTL = 5000;
+const _fileCache = new Map();
+
+function _readJsonCached(filePath) {
+  const cached = _fileCache.get(filePath);
+  let mtime = 0;
+  try { mtime = fs.statSync(filePath).mtimeMs; } catch { _fileCache.delete(filePath); return null; }
+  if (cached && cached.mtime === mtime && Date.now() - cached.ts < FILE_CACHE_TTL) {
+    return cached.data;
+  }
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const data = JSON.parse(raw);
+    _fileCache.set(filePath, { data, mtime, ts: Date.now() });
+    return data;
+  } catch {
+    _fileCache.delete(filePath);
+    return null;
+  }
+}
+
+function _readTextCached(filePath) {
+  const cached = _fileCache.get(filePath);
+  let mtime = 0;
+  try { mtime = fs.statSync(filePath).mtimeMs; } catch { _fileCache.delete(filePath); return null; }
+  if (cached && cached.mtime === mtime && Date.now() - cached.ts < FILE_CACHE_TTL) {
+    return cached.data;
+  }
+  try {
+    const data = fs.readFileSync(filePath, 'utf-8');
+    _fileCache.set(filePath, { data, mtime, ts: Date.now() });
+    return data;
+  } catch {
+    _fileCache.delete(filePath);
+    return null;
+  }
+}
+
 const DEFAULT_PORT = 3333;
 const START_TIMEOUT = 30000;
 const STORAGE_DIR = 'graphify/symbol-index-storage';
@@ -274,7 +312,7 @@ function _fetchRepoStatus(repoPath) {
   let graphStats = null;
   if (graphExists) {
     try {
-      graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+      graphData = _readJsonCached(graphPath);
       graphStats = graphData?.stats || null;
     } catch {}
   }
@@ -845,8 +883,8 @@ function register({ app }) {
     }
 
     try {
-      const graph = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
-      const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf-8') : '';
+      const graph = _readJsonCached(graphPath);
+      const report = _readTextCached(reportPath) || '';
       // AI graph loaded successfully â€” save hashes as new baseline
       try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
       try { exporter.generateCheatsheet(repoPath); } catch (_) {}
@@ -898,7 +936,7 @@ function register({ app }) {
 
     let promptText = '';
     if (result.ok && result.path) {
-      try { promptText = fs.readFileSync(result.path, 'utf-8'); } catch (_) {}
+      promptText = _readTextCached(result.path) || '';
     }
 
     return {
@@ -924,8 +962,11 @@ function register({ app }) {
 
     let graphData;
     try {
-      graphData = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+      graphData = _readJsonCached(graphPath);
     } catch {
+      return { ok: true, synced: false, reason: 'parse_error' };
+    }
+    if (!graphData) {
       return { ok: true, synced: false, reason: 'parse_error' };
     }
 

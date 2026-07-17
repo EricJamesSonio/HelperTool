@@ -31,7 +31,6 @@ class ErrorStorage {
   updateSessionCommand(id, command) {
     const db = getErrorCopDb();
     db.run('UPDATE sessions SET command = ? WHERE id = ?', [command, id]);
-    save();
   }
 
   endSession(id, exitCode, endedReason) {
@@ -108,7 +107,6 @@ class ErrorStorage {
       `UPDATE errors SET occurrences = ?, last_seen = ? WHERE fingerprint = ?`,
       [occurrences, lastSeen, fingerprint]
     );
-    save();
   }
 
   getErrorsBySession(sessionId) {
@@ -180,7 +178,6 @@ class ErrorStorage {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [sessionId, fingerprint || '', level, title, message || '', lineText || '', timestamp]
     );
-    save();
   }
 
   getOccurrencesBySession(sessionId, limit = 500) {
@@ -202,7 +199,6 @@ class ErrorStorage {
        VALUES (?, ?, ?, ?)`,
       [sessionId, port, framework || '', url || '']
     );
-    save();
   }
 
   getBrowserServers(sessionId) {

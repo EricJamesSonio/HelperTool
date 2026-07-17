@@ -8,45 +8,15 @@ const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
 const codeOps = require('./utils/codeOps.js');
 
-// IPC modules
-const repoIpc        = require('./ipc/repo_ipc.js');
-const featuresIpc    = require('./ipc/features_ipc.js');
-const secretsIpc     = require('./ipc/secrets_ipc.js');
-const apitoolIpc     = require('./ipc/apitool_ipc.js');
-const workspaceIpc   = require('./ipc/workspace_ipc.js');
-const generateIpc    = require('./ipc/generate_ipc.js');
-const gitIpc         = require('./ipc/git_ipc.js');
-const promptsIpc     = require('./ipc/prompts_ipc.js');
-const symbolIndexIpc = require('./ipc/symbolIndex_ipc.js');
-const canvasIpc      = require('./ipc/canvas_ipc.js');
-const fileseederIpc  = require('./ipc/fileseeder_ipc.js');
-const locIpc       = require('./ipc/loc_ipc.js');
-const dbInspectorIpc = require('./ipc/dbInspector_ipc.js');
-const terminalIpc  = require('./ipc/terminal_ipc.js');
-const portManagerIpc = require('./ipc/portManager.js');
-const docignoreManagerIpc = require('./ipc/docignoreManager_ipc.js');
-const teamActivityFeedIpc = require('./ipc/teamActivityFeed.js');
-const blueprintLibraryIpc = require('./ipc/blueprintLibrary/index.js');
-const profileIpc = require('./ipc/profile.js');
-const dockerIpc = require('./ipc/docker_ipc.js');
-const envIpc = require('./ipc/env_ipc.js');
-const codebaseChatIpc = require('./ipc/codebbaseChat_ipc.js');
-const videoIpc = require('./ipc/video_ipc.js');
-const imageIpc = require('./ipc/image_ipc.js');
-const gmailIpc = require('./ipc/gmail_ipc.js');
-const automationIpc = require('./ipc/automation_ipc.js');
-const githubIpc = require('./ipc/github_ipc.js');
+// Lazy-loaded IPC modules (loaded on first use in registerAllIpc)
+let terminalIpc = null;
+let symbolIndexIpc = null;
+let graphifyIpc = null;
 const indexerProxy = require('./ipc/indexerProxy.js');
 const workerProxy = require('./ipc/workerProxy.js');
-const opencodeIpc = require('./ipc/opencode_ipc.js');
-const geminiIpc = require('./ipc/gemini_ipc.js');
-const codebaseMapIpc = require('./ipc/codebaseMap_ipc.js');
-const graphifyIpc = require('./ipc/graphify_ipc.js');
-const errorCopIpc = require('./ipc/error_cop_ipc.js');
 
 const { initDatabase } = require('./database/db.js');
 const { initChatDb, closeChatDb } = require('./database/chatDb.js');
-const { createInspectorSchema } = require('./database/dbInspector.js');
 const { initErrorCopDb } = require('./database/errorCopDb.js');
 const prefetchService = require('./ipc/prefetchService.js');
 const serviceTrackerIpc = require('./ipc/serviceTracker_ipc.js');
@@ -99,23 +69,30 @@ if (!gotTheLock) {
         mainWindow.webContents.once('did-finish-load', async () => {
             serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
             try {
-                await initDatabase(app);
-                await initChatDb(app);
-                await initErrorCopDb(app);
-                createInspectorSchema();
+                await Promise.all([
+                  initDatabase(app),
+                  initChatDb(app),
+                  initErrorCopDb(app),
+                ]);
 
-                // Clean up stale Error Cop sessions from previous runs
-                try {
-                  const termIpc = require('./ipc/terminal_ipc');
-                  const engine = termIpc.getErrorEngine();
-                  if (engine) engine.getStorage().cleanupStaleSessions();
-                } catch (e) {
-                  console.error('[Main] cleanupStaleSessions failed:', e);
-                }
-                const { getDb, getDbPath } = require('./database/db.js');
+                // Clean up stale Error Cop sessions in background
+                setTimeout(() => {
+                  try {
+                    const termIpc = require('./ipc/terminal_ipc');
+                    const engine = termIpc.getErrorEngine();
+                    if (engine) engine.getStorage().cleanupStaleSessions();
+                  } catch (e) {
+                    console.error('[Main] cleanupStaleSessions failed:', e);
+                  }
+                }, 0);
+                const { getDbPath } = require('./database/db.js');
                 const _p = getDbPath();
-                const _s = require('fs').existsSync(_p) ? require('fs').statSync(_p).size : 0;
-                console.log('[DB] size:', (_s / 1024 / 1024).toFixed(2), 'MB at', _p);
+                try {
+                  const { size } = await require('fs').promises.stat(_p);
+                  console.log('[DB] size:', (size / 1024 / 1024).toFixed(2), 'MB at', _p);
+                } catch {
+                  console.log('[DB] size: 0 MB at', _p);
+                }
                 serviceTrackerIpc.updateService('database', 'done');
             } catch (err) {
                 console.error('[Main] Failed to init DB:', err);
@@ -156,39 +133,52 @@ if (!gotTheLock) {
 function registerAllIpc() {
     const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow };
 
-    repoIpc.register(shared);
-    featuresIpc.register(shared);
-    secretsIpc.register(shared);
-    apitoolIpc.register(shared);
-    workspaceIpc.register(shared);
-    generateIpc.register(shared);
-    gitIpc.register(shared);
-    promptsIpc.register({ app });
-    symbolIndexIpc.register(shared);
-    canvasIpc.register();
-    fileseederIpc.register(shared);
-    locIpc.register(shared);
-    terminalIpc.register(shared);
-    portManagerIpc.register();
-    dbInspectorIpc.register(shared);
-    docignoreManagerIpc.register(shared);
-    teamActivityFeedIpc.register();
-    blueprintLibraryIpc.register();
-    profileIpc.register(shared);
-    dockerIpc.register();
-    envIpc.register();
-    codebaseChatIpc.register();
-    videoIpc.register(shared);
-    imageIpc.register(shared);
-    gmailIpc.register(shared);
-    automationIpc.register();
-    githubIpc.register();
+    require('./ipc/repo_ipc.js').register(shared);
+    require('./ipc/features_ipc.js').register(shared);
+    require('./ipc/secrets_ipc.js').register(shared);
+    require('./ipc/apitool_ipc.js').register(shared);
+    require('./ipc/workspace_ipc.js').register(shared);
+    require('./ipc/generate_ipc.js').register(shared);
+    require('./ipc/git_ipc.js').register(shared);
+    require('./ipc/prompts_ipc.js').register({ app });
+    symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared);
+    terminalIpc = require('./ipc/terminal_ipc.js'); terminalIpc.register(shared);
     serviceTrackerIpc.register();
-    opencodeIpc.register(shared);
-    geminiIpc.register();
-    codebaseMapIpc.register();
-    graphifyIpc.register({ app });
-    errorCopIpc.register({ app, getMainWindow });
+    require('./ipc/opencode_ipc.js').register(shared);
+
+    // Defer non-critical IPC registration to after first paint
+    setImmediate(() => {
+      require('./ipc/repo_ipc.js').register(shared);
+      require('./ipc/features_ipc.js').register(shared);
+      require('./ipc/secrets_ipc.js').register(shared);
+      require('./ipc/apitool_ipc.js').register(shared);
+      require('./ipc/workspace_ipc.js').register(shared);
+      require('./ipc/generate_ipc.js').register(shared);
+      require('./ipc/git_ipc.js').register(shared);
+      require('./ipc/prompts_ipc.js').register({ app });
+      symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared);
+      require('./ipc/canvas_ipc.js').register();
+      require('./ipc/fileseeder_ipc.js').register(shared);
+      require('./ipc/loc_ipc.js').register(shared);
+      require('./ipc/portManager.js').register();
+      require('./ipc/dbInspector_ipc.js').register(shared);
+      require('./ipc/docignoreManager_ipc.js').register(shared);
+      require('./ipc/teamActivityFeed.js').register();
+      require('./ipc/blueprintLibrary/index.js').register();
+      require('./ipc/profile.js').register(shared);
+      require('./ipc/docker_ipc.js').register();
+      require('./ipc/env_ipc.js').register();
+      require('./ipc/codebbaseChat_ipc.js').register();
+      require('./ipc/video_ipc.js').register(shared);
+      require('./ipc/image_ipc.js').register(shared);
+      require('./ipc/gmail_ipc.js').register(shared);
+      require('./ipc/automation_ipc.js').register();
+      require('./ipc/github_ipc.js').register();
+      require('./ipc/gemini_ipc.js').register();
+      require('./ipc/codebaseMap_ipc.js').register();
+      graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app });
+      require('./ipc/error_cop_ipc.js').register({ app, getMainWindow });
+    });
 
     // ── Window control IPC (registered once, outside createWindow) ──
     ipcMain.on('window:minimize', () => mainWindow?.minimize());
