@@ -204,6 +204,7 @@ const terminalBridge = {
     terminalResize: (payload) => ipcRenderer.invoke('terminal:resize', payload),
     terminalKill:   (id)      => ipcRenderer.invoke('terminal:kill', id),
     terminalListShells: ()    => ipcRenderer.invoke('terminal:listShells'),
+    terminalHasRunningInRepo: (repoPath) => ipcRenderer.invoke('terminal:hasRunningInRepo', repoPath),
     onTerminalData: (callback) => {
         ipcRenderer.removeAllListeners('terminal:data');
         ipcRenderer.on('terminal:data', (_, payload) => callback(payload));

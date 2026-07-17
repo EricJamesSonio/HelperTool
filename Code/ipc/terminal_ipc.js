@@ -157,6 +157,12 @@ function register({ getMainWindow }) {
       terminals.delete(id);
     }
   });
+
+  ipcMain.handle('terminal:hasRunningInRepo', async (event, repoPath) => {
+    if (!repoPath) return { running: false, count: 0 };
+    const count = [...terminals.values()].filter(t => t.cwd && t.cwd.startsWith(repoPath)).length;
+    return { running: count > 0, count };
+  });
 }
 
 module.exports = { register, setErrorEngine, getErrorEngine };

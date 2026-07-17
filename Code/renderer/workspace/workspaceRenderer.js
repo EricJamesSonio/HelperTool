@@ -14,6 +14,7 @@ import { getTicketsByProject, createTicket, updateTicket,
          updateTicketStatus, deleteTicket, TICKET_STATUSES,
          TICKET_PRIORITIES, STATUS_COLORS, PRIORITY_COLORS }      from './ticketManager.js';
 import { confirmDialog }                                          from '../utils/confirmDialog.js';
+import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded } from '../codeswampUI/filePicker.js';
 import { toggleItem, addKit, addItemToKit, removeKit,
          removeItem, updateItemDetails, getKitProgress,
          isItemChecked, getItemPrompt, getStageMeta,
@@ -42,6 +43,39 @@ const ICON_REPO = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" st
 const ICON_CHECKLIST = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 10l2 2 4-4"/></svg>';
 const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
 const ICON_DASH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 10h10"/></svg>';
+
+// ─── @-mention file picker helpers ────────────────────────────────────────────
+
+function _handleAtMention(textarea, repoPath) {
+  const val = textarea.value;
+  const cursorPos = textarea.selectionStart;
+  const atIdx = val.lastIndexOf('@', cursorPos);
+  if (atIdx === -1 || atIdx < val.lastIndexOf(' ', cursorPos)) {
+    if (isOpen()) closePicker();
+    return;
+  }
+  const query = val.slice(atIdx + 1, cursorPos);
+  if (query.length > 50) {
+    if (isOpen()) closePicker();
+    return;
+  }
+  if (repoPath) {
+    ensureTreeLoaded(repoPath).then(() => open(query, textarea));
+  }
+}
+
+function _handlePickerKeys(e, textarea) {
+  if (e.key === 'Enter' && !e.shiftKey && isOpen()) { e.preventDefault(); confirmSelection(textarea); return; }
+  if (e.key === 'Escape' && isOpen()) { e.preventDefault(); closePicker(); return; }
+  if (e.key === 'ArrowDown' && isOpen()) { e.preventDefault(); selectNext(); return; }
+  if (e.key === 'ArrowUp' && isOpen()) { e.preventDefault(); selectPrev(); return; }
+  if (e.key === 'Tab' && isOpen()) { e.preventDefault(); confirmSelection(textarea); return; }
+}
+
+function _wireFilePicker(textarea, repoPath) {
+  textarea.addEventListener('input', () => _handleAtMention(textarea, repoPath));
+  textarea.addEventListener('keydown', e => _handlePickerKeys(e, textarea));
+}
 
 // ─── Nav state ────────────────────────────────────────────────────────────────
 
@@ -582,6 +616,7 @@ function _renderProjectDetails(body) {
 
   const content = document.createElement('div');
   content.className = 'ws-tab-content';
+  body.appendChild(content);
 
   switch (_projectTab) {
     case 'overview': _renderTabOverview(content);     break;
@@ -594,9 +629,7 @@ function _renderProjectDetails(body) {
     case 'buildkits': _renderTabBuildKits(content);   break;
     case 'logs':      _renderTabProjectLogs(content); break;
     case 'repo':      _renderTabRepo(content);         break;
-    
   }
-  body.appendChild(content);
 }
 
 // ── Tab: Overview ─────────────────────────────────────────────────────────────
@@ -754,6 +787,8 @@ function _renderTabTickets(el) {
       if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     }
   });
+
+  _wireFilePicker(document.getElementById('newTicketDesc'), p.repoPath);
 
   // Kanban board
   const board = document.createElement('div');
@@ -922,6 +957,7 @@ function _showEditTicketModal(ticket, project, workers) {
     }
   });
   document.body.appendChild(modal);
+  _wireFilePicker(document.getElementById('etDesc'), project.repoPath);
 }
 
 // ── Tab: Database ─────────────────────────────────────────────────────────────
@@ -1109,6 +1145,7 @@ function _renderTabPlannings(el) {
       selectedNote.content = textarea.value;
       markDirty();
     });
+    _wireFilePicker(textarea, p.repoPath);
     right.appendChild(textarea);
   } else {
     const empty = document.createElement('div');

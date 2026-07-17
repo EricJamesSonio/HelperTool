@@ -48,21 +48,34 @@ export function updateActiveRepo(name) {
 }
 
 async function _guardActiveServices() {
-    const gStatus = await window.electronAPI.graphifyIsRunning?.() || { running: false };
-    const csStatus = await window.electronAPI.opencode?.isRunning?.() || { running: false };
-    const services = [];
-    if (gStatus.running) services.push('Graphify');
-    if (csStatus.running) services.push('CodeSwamp');
-    if (services.length === 0) return true;
-    const label = services.join(' and ');
-    const verb = services.length > 1 ? 'are' : 'is';
-    const them = services.length > 1 ? 'them' : 'it';
-    const ok = await confirmDialog(
-        `${label} ${verb} currently running. Switching repositories will stop ${them}. Continue?`
-    );
+    const repoPath = state.selectedRepoPath;
+    const [gStatus, csStatus, termStatus] = await Promise.all([
+        window.electronAPI.graphifyIsRunning?.() || { running: false },
+        window.electronAPI.opencode?.isRunning?.() || { running: false },
+        window.electronAPI.terminalHasRunningInRepo?.(repoPath) || { running: false, count: 0 },
+    ]);
+    const items = [];
+    if (gStatus.running) items.push({ name: 'Graphify', stop: () => window.electronAPI.graphifyStop?.() });
+    if (csStatus.running) items.push({ name: 'CodeSwamp', stop: () => window.electronAPI.opencode?.stop?.() });
+    if (termStatus.running) items.push({ name: 'Terminal', count: termStatus.count, stop: null });
+    if (items.length === 0) return true;
+
+    const listHtml = items.map(s => {
+        const suffix = s.count ? ` (${s.count} session${s.count > 1 ? 's' : ''})` : '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:4px;background:rgba(255,255,255,0.03);border-radius:6px;font-size:13px;color:var(--text-primary,#eef2ff);">
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--accent,#22d3ee);flex-shrink:0;"></span>
+            <span style="font-weight:600;">${s.name}</span>
+            <span style="color:var(--text-secondary,#94a3c4);">is running${suffix}</span>
+        </div>`;
+    }).join('');
+
+    const ok = await confirmDialog(`
+        <div style="margin-bottom:14px;font-size:13px;color:var(--text-secondary,#94a3c4);">The following services are active in the current repository:</div>
+        ${listHtml}
+        <div style="margin-top:14px;font-size:13px;font-weight:600;color:var(--text-primary,#eef2ff);">Switching repositories will stop them. Continue?</div>
+    `);
     if (!ok) return false;
-    if (gStatus.running) await window.electronAPI.graphifyStop?.();
-    if (csStatus.running) await window.electronAPI.opencode?.stop?.();
+    for (const s of items) { if (s.stop) await s.stop(); }
     return true;
 }
 
