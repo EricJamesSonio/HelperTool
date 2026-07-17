@@ -125,7 +125,7 @@ if (!panel || !panel.querySelector('.oc-header')) {
           if (state.open && state.activeTab) {
             refreshSidebar().catch(() => {});
           }
-        }, 15000);
+        }, 60000);
       }
     } catch (err) {
       console.error('[CodeSwamp] Init error:', err);

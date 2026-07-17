@@ -477,7 +477,7 @@ async function _initializeGitTool(repoPath) {
 function _destroyGitTool() {
   _gitTool?.destroy(); _gitTool = null;
   if (_gitContainer) _gitContainer.innerHTML = '';
-  _gitPanel?.classList.remove('open');
+  _gitPanel?._escCleanup?.(); _gitPanel?.classList.remove('open');
 }
 
 async function _initializeCCTool(repoPath) {
@@ -498,7 +498,7 @@ async function _initializeCCTool(repoPath) {
 function _destroyCCTool() {
   _ccTool?.destroy(); _ccTool = null;
   if (_ccContainer) _ccContainer.innerHTML = '';
-  _ccPanel?.classList.remove('open');
+  _ccPanel?._escCleanup?.(); _ccPanel?.classList.remove('open');
 }
 
 async function _initializeSymbolIndexTool(repoPath) {
@@ -518,7 +518,7 @@ async function _initializeSymbolIndexTool(repoPath) {
 function _destroySymbolIndexTool() {
   _symbolIndexTool?.destroy(); _symbolIndexTool = null;
   if (_symbolIndexContainer) _symbolIndexContainer.innerHTML = '';
-  _symbolIndexPanel?.classList.remove('open');
+  _symbolIndexPanel?._escCleanup?.(); _symbolIndexPanel?.classList.remove('open');
 }
 
 function _initializeVideoTool() {
@@ -535,7 +535,7 @@ function _destroyVideoTool() {
   _videoTool?.destroy();
   _videoTool = null;
   if (_videoContainer) _videoContainer.innerHTML = '';
-  _videoPanel?.classList.remove('open');
+  _videoPanel?._escCleanup?.(); _videoPanel?.classList.remove('open');
 }
 
 function _initializeGmailTool() {
@@ -552,7 +552,7 @@ function _destroyGmailTool() {
   _gmailTool?.destroy?.();
   _gmailTool = null;
   if (_gmailContainer) _gmailContainer.innerHTML = '';
-  _gmailPanel?.classList.remove('open');
+  _gmailPanel?._escCleanup?.(); _gmailPanel?.classList.remove('open');
 }
 
 function _initializeAutomationTool() {
@@ -572,7 +572,7 @@ function _destroyAutomationTool() {
   }
   _automationTool = null;
   if (_automationContainer) _automationContainer.innerHTML = '';
-  _automationPanel?.classList.remove('open');
+  _automationPanel?._escCleanup?.(); _automationPanel?.classList.remove('open');
 }
 
 function _initializeGithubTool() {
@@ -588,7 +588,7 @@ function _destroyGithubTool() {
   _githubTool?.destroy();
   _githubTool = null;
   if (_githubContainer) _githubContainer.innerHTML = '';
-  _githubPanel?.classList.remove('open');
+  _githubPanel?._escCleanup?.(); _githubPanel?.classList.remove('open');
 }
 
 // ---- Shortcut actions ------------------------------------------------------

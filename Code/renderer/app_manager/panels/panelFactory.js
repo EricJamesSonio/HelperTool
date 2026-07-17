@@ -21,17 +21,21 @@ export function createPanel({ id, className, title, containerId, closeBtnId }) {
 
   document.body.appendChild(panel);
 
-  panel.querySelector('#' + closeBtnId).addEventListener('click', () => {
+  function closePanel() {
     panel.classList.remove('open');
-  });
+  }
 
+  function escHandler(e) {
+    if (e.key === 'Escape' && panel.classList.contains('open')) closePanel();
+  }
+
+  panel.querySelector('#' + closeBtnId).addEventListener('click', closePanel);
   panel.addEventListener('click', (e) => {
-    if (e.target === panel) panel.classList.remove('open');
+    if (e.target === panel) closePanel();
   });
 
-  document.addEventListener('keydown', function escHandler(e) {
-    if (e.key === 'Escape' && panel.classList.contains('open')) panel.classList.remove('open');
-  });
+  document.addEventListener('keydown', escHandler);
+  panel._escCleanup = () => document.removeEventListener('keydown', escHandler);
 
   return {
     panel,

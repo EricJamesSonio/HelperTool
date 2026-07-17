@@ -123,6 +123,7 @@ if (!gotTheLock) {
     });
 
     app.on('before-quit', () => {
+        config.flushConfig();
         cleanupAndExit(false);
     });
 }

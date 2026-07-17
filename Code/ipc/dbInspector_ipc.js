@@ -50,18 +50,26 @@ function register(shared) {
 
       const { schema } = result;
       const snapshotId = dbi.createSnapshot(conn.id || 'conn_' + Date.now(), conn.name || conn.database || 'Untitled');
+      const db = require('../database/db.js').getDb();
 
-      for (const table of schema.tables) {
-        const tableId = dbi.insertTable(snapshotId, table.name, table.rowCount, table.schemaName);
-        for (const col of table.columns || []) {
-          dbi.insertColumn(tableId, col.name, col.dataType, col.nullable, col.isPk, col.defaultValue, col.ordinal);
+      try {
+        db.run('BEGIN');
+        for (const table of schema.tables) {
+          const tableId = dbi.insertTable(snapshotId, table.name, table.rowCount, table.schemaName);
+          for (const col of table.columns || []) {
+            dbi.insertColumn(tableId, col.name, col.dataType, col.nullable, col.isPk, col.defaultValue, col.ordinal);
+          }
+          for (const idx of table.indexes || []) {
+            dbi.insertIndex(tableId, idx.name, idx.columns, idx.uniqueFlag);
+          }
         }
-        for (const idx of table.indexes || []) {
-          dbi.insertIndex(tableId, idx.name, idx.columns, idx.uniqueFlag);
+        for (const rel of schema.relationships || []) {
+          dbi.insertRelationship(snapshotId, rel.constraintName, rel.sourceTable, rel.sourceColumn, rel.targetTable, rel.targetColumn);
         }
-      }
-      for (const rel of schema.relationships || []) {
-        dbi.insertRelationship(snapshotId, rel.constraintName, rel.sourceTable, rel.sourceColumn, rel.targetTable, rel.targetColumn);
+        db.run('COMMIT');
+      } catch (batchErr) {
+        db.run('ROLLBACK');
+        throw batchErr;
       }
 
       const graphData = dbi.getGraphData(snapshotId);
@@ -132,17 +140,25 @@ function register(shared) {
 
       dbi.deleteSnapshotsForConnection(connId);
       const newSnapshotId = dbi.createSnapshot(connId, conn.name || conn.database || 'Untitled');
-      for (const table of schema.tables) {
-        const tableId = dbi.insertTable(newSnapshotId, table.name, table.rowCount, table.schemaName);
-        for (const col of table.columns || []) {
-          dbi.insertColumn(tableId, col.name, col.dataType, col.nullable, col.isPk, col.defaultValue, col.ordinal);
+      const db = require('../database/db.js').getDb();
+      try {
+        db.run('BEGIN');
+        for (const table of schema.tables) {
+          const tableId = dbi.insertTable(newSnapshotId, table.name, table.rowCount, table.schemaName);
+          for (const col of table.columns || []) {
+            dbi.insertColumn(tableId, col.name, col.dataType, col.nullable, col.isPk, col.defaultValue, col.ordinal);
+          }
+          for (const idx of table.indexes || []) {
+            dbi.insertIndex(tableId, idx.name, idx.columns, idx.uniqueFlag);
+          }
         }
-        for (const idx of table.indexes || []) {
-          dbi.insertIndex(tableId, idx.name, idx.columns, idx.uniqueFlag);
+        for (const rel of schema.relationships || []) {
+          dbi.insertRelationship(newSnapshotId, rel.constraintName, rel.sourceTable, rel.sourceColumn, rel.targetTable, rel.targetColumn);
         }
-      }
-      for (const rel of schema.relationships || []) {
-        dbi.insertRelationship(newSnapshotId, rel.constraintName, rel.sourceTable, rel.sourceColumn, rel.targetTable, rel.targetColumn);
+        db.run('COMMIT');
+      } catch (batchErr) {
+        db.run('ROLLBACK');
+        throw batchErr;
       }
 
       const graphData = dbi.getGraphData(newSnapshotId);

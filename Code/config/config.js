@@ -7,6 +7,7 @@ const CONFIG_PATH = path.join(CONFIG_DIR, 'helper-config.json');
 
 // ── In-memory cache — eliminates repeated disk reads ──────────────────────
 let _cache = null;
+let _writeTimer = null;
 
 function readConfig() {
     if (_cache) return _cache;                   // return cached copy
@@ -36,12 +37,29 @@ function readConfig() {
     return _cache;
 }
 
+function _doWrite() {
+    _writeTimer = null;
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(_cache, null, 2));
+}
+
 function writeConfig(config) {
     _cache = config;                             // keep cache in sync
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    if (_writeTimer) clearTimeout(_writeTimer);
+    _writeTimer = setTimeout(_doWrite, 500);
+}
+
+function flushConfig() {
+    if (_writeTimer) {
+        clearTimeout(_writeTimer);
+        _doWrite();
+    }
 }
 
 function invalidateCache() {
+    if (_writeTimer) {
+        clearTimeout(_writeTimer);
+        _writeTimer = null;
+    }
     _cache = null;
 }
 
@@ -78,6 +96,7 @@ function ensureStorageFolder(storagePath) {
 module.exports = {
     readConfig,
     writeConfig,
+    flushConfig,
     invalidateCache,
     getActiveProject,
     getLastSelectedItems,

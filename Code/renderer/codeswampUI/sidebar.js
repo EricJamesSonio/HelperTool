@@ -117,7 +117,6 @@ export async function refreshSidebar(forceLoading = false) {
 
   // Step 1: Show cached data from local store immediately, or loading if requested
   const localConvs = convStore.getConversations(repoPath);
-  console.log('[CS] refreshSidebar step1 localConvs:', localConvs.map(c => ({ id: c.id, title: c.title, customTitle: c.customTitle })));
   if (localConvs.length === 0 || forceLoading) {
     renderConvList(true);
   } else {
@@ -127,18 +126,16 @@ export async function refreshSidebar(forceLoading = false) {
   }
 
   // Step 2: Sync with IPC to pick up any conversations from external sources
+  const beforeSnapshot = JSON.stringify(state.conversations[repoPath]?.map(c => c.id + c.title));
   const result = await listConversations(repoPath, state.selectedProvider);
   const serverConvs = result.conversations;
-  console.log('[CS] refreshSidebar step2 serverConvs:', serverConvs.map(c => ({ id: c.id, title: c.title })));
 
   if (serverConvs.length > 0) {
     convStore.mergeConversations(repoPath, serverConvs);
     const merged = convStore.getConversations(repoPath);
-    console.log('[CS] refreshSidebar step2 merged:', merged.map(c => ({ id: c.id, title: c.title, customTitle: c.customTitle })));
     const serverIds = new Set(serverConvs.map(c => c.id));
     const localOnly = localConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
     state.conversations[repoPath] = [...localOnly, ...merged.filter(c => !c.id.startsWith('local_') || serverIds.has(c.id))];
-    console.log('[CS] refreshSidebar step2 final state:', state.conversations[repoPath].map(c => ({ id: c.id, title: c.title, customTitle: c.customTitle })));
 
     if (!state.messageCache[repoPath]) state.messageCache[repoPath] = {};
     for (const c of serverConvs) {
@@ -151,7 +148,10 @@ export async function refreshSidebar(forceLoading = false) {
   }
 
   if (!state.messages[repoPath]) state.messages[repoPath] = [];
-  renderConvList();
+
+  // Step 3: Only re-render if data actually changed
+  const afterSnapshot = JSON.stringify(state.conversations[repoPath]?.map(c => c.id + c.title));
+  if (beforeSnapshot !== afterSnapshot) renderConvList();
 }
 
 export async function loadConversation(convId) {

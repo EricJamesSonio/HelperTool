@@ -87,6 +87,12 @@ function createInspectorSchema() {
       FOREIGN KEY (snapshot_id) REFERENCES schema_snapshots(id) ON DELETE CASCADE
     )
   `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_snapshots_conn ON schema_snapshots(connection_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_tables_snapshot ON schema_tables(snapshot_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_columns_table ON schema_columns(table_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_relationships_snapshot ON schema_relationships(snapshot_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_indexes_table ON schema_indexes(table_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_seeds_snapshot ON seed_scripts(snapshot_id)');
   save();
 }
 
