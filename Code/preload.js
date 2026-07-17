@@ -231,6 +231,9 @@ const errorCopBridge = {
     browserDetachAll: () => ipcRenderer.invoke('error-cop:browserDetachAll'),
     getAttachedBrowsers: () => ipcRenderer.invoke('error-cop:getAttachedBrowsers'),
     deleteSessions: (ids) => ipcRenderer.invoke('error-cop:deleteSessions', ids),
+    startServer: () => ipcRenderer.invoke('error-cop:startServer'),
+    stopServer: () => ipcRenderer.invoke('error-cop:stopServer'),
+    getServerStatus: () => ipcRenderer.invoke('error-cop:serverStatus'),
     onNewError: (callback) => {
         ipcRenderer.removeAllListeners('error-cop:new-error');
         ipcRenderer.on('error-cop:new-error', (_, payload) => callback(payload));

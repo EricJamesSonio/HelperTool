@@ -60,20 +60,21 @@ async function _guardActiveServices() {
     if (termStatus.running) items.push({ name: 'Terminal', count: termStatus.count, stop: null });
     if (items.length === 0) return true;
 
-    const listHtml = items.map((s, i) => {
+    const listHtml = items.map((s) => {
         const suffix = s.count ? ` (${s.count} session${s.count > 1 ? 's' : ''})` : '';
-        const bg = i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${bg};border-radius:6px;font-size:13px;color:var(--text-primary,#eef2ff);">
-            <span style="width:8px;height:8px;border-radius:50%;background:var(--accent,#22d3ee);flex-shrink:0;"></span>
-            <span style="font-weight:600;min-width:80px;">${s.name}</span>
-            <span style="color:var(--text-secondary,#94a3c4);">is running${suffix}</span>
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+            <span style="width:6px;height:6px;border-radius:50%;background:#22d3ee;flex-shrink:0;"></span>
+            <span style="font-size:13px;color:#eef2ff;">
+                <span style="font-weight:600;">${s.name}</span>
+                <span style="color:#94a3c4;"> is running${suffix} ...</span>
+            </span>
         </div>`;
     }).join('');
 
     const ok = await confirmDialog(`
-        <div style="margin-bottom:14px;font-size:13px;color:var(--text-secondary,#94a3c4);">The following services are active in the current repository:</div>
+        <div style="margin-bottom:12px;font-size:13px;color:#94a3c4;">The following services are active in the current repository:</div>
         ${listHtml}
-        <div style="margin-top:14px;font-size:13px;font-weight:600;color:var(--text-primary,#eef2ff);">Switching repositories will stop them. Continue?</div>
+        <div style="margin-top:14px;font-size:13px;color:#eef2ff;">Switching repositories will stop them. Continue?</div>
     `);
     if (!ok) return false;
     for (const s of items) { if (s.stop) await s.stop(); }

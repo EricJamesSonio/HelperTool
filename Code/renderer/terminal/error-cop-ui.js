@@ -74,6 +74,8 @@ export default class ErrorCopUI {
     this._toastTimer = null;
     this._isOpen = false;
     this._allBrowserServers = [];
+    this._serverRunning = false;
+    this._serverStarting = false;
     this._selectMode = false;
     this._selectedSessionIds = new Set();
     this._refreshTimer = null;
@@ -138,6 +140,7 @@ export default class ErrorCopUI {
           <button class="ecp-tab ecp-tab-active" data-tab="timeline">Timeline</button>
           <button class="ecp-tab" data-tab="errors">Errors</button>
           <button class="ecp-tab" data-tab="sessions">Sessions</button>
+          <button class="ecp-tab" data-tab="tools">Tools</button>
         </div>
         <div class="ecp-body" id="ecpBody">
           <div class="ecp-left-column" id="ecpLeftCol"></div>
@@ -341,6 +344,12 @@ export default class ErrorCopUI {
       await window.electronAPI.markRead();
     } catch {}
 
+    // Check server status
+    try {
+      const status = await window.electronAPI.getServerStatus();
+      if (status) this._serverRunning = status.running;
+    } catch {}
+
     // Load data
     await this._loadData();
     this._render();
@@ -412,6 +421,7 @@ export default class ErrorCopUI {
       case 'timeline': this._renderTimeline(); break;
       case 'errors': this._renderErrors(); break;
       case 'sessions': this._renderSessions(); break;
+      case 'tools': this._renderTools(); break;
     }
   }
 
@@ -949,6 +959,265 @@ export default class ErrorCopUI {
         <span class="ecp-info-value">${items.length}</span>
       </div>
     `;
+  }
+
+  async _renderTools() {
+    // Check server status
+    try {
+      const status = await window.electronAPI.getServerStatus();
+      this._serverRunning = status && status.running;
+    } catch {}
+
+    this._leftCol.innerHTML = '';
+    this._rightCol.innerHTML = '';
+
+    const container = document.createElement('div');
+    container.style.cssText = 'display:flex;flex-direction:column;gap:12px;width:100%';
+
+    // ── Server Card ──
+    const serverCard = document.createElement('div');
+    serverCard.style.cssText = 'background:rgba(20,10,10,0.45);border:1px solid rgba(255,34,34,0.12);border-radius:10px;padding:16px';
+
+    serverCard.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:#f0dfdf;margin-bottom:10px">API Server <span style="font-size:11px;color:#6d5050;font-weight:500">(port 3334)</span></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600">
+          <span style="width:10px;height:10px;border-radius:50%;background:${this._serverStarting ? '#eab308' : this._serverRunning ? '#23d18b' : '#6d5050'};box-shadow:0 0 6px ${this._serverStarting ? 'rgba(234,179,8,0.5)' : this._serverRunning ? 'rgba(35,209,139,0.5)' : 'transparent'}"></span>
+          ${this._serverStarting ? 'Starting...' : this._serverRunning ? 'Running' : 'Stopped'}
+        </span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="ecp-filter-btn ecp-server-start" style="${this._serverRunning || this._serverStarting ? 'opacity:0.4;pointer-events:none' : ''}padding:6px 16px;font-size:11px">${this._serverRunning ? 'Running' : 'Start Server'}</button>
+        <button class="ecp-filter-btn ecp-server-stop" style="${!this._serverRunning ? 'opacity:0.4;pointer-events:none' : ''}padding:6px 16px;font-size:11px;border-color:#ff4444;color:#ff4444">Stop Server</button>
+        <button class="ecp-filter-btn ecp-server-copy-url" style="padding:6px 16px;font-size:11px">Copy URL</button>
+      </div>
+    `;
+    container.appendChild(serverCard);
+
+    // ── Cheatsheet Card ──
+    const csCard = document.createElement('div');
+    csCard.style.cssText = 'background:rgba(20,10,10,0.45);border:1px solid rgba(255,34,34,0.12);border-radius:10px;padding:16px';
+
+    csCard.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:#f0dfdf;margin-bottom:6px">AI Cheatsheet</div>
+      <div style="font-size:11px;color:#a78484;margin-bottom:12px;line-height:1.4">Auto-generated guide for AI agents to use the Error Cop API. Read the file and send it to AI or copy its content.</div>
+      <button class="ecp-filter-btn ecp-cheatsheet-btn" style="padding:6px 16px;font-size:11px">View &amp; Send to AI</button>
+    `;
+    container.appendChild(csCard);
+
+    this._leftCol.appendChild(container);
+
+    // ── Right Column: Info ──
+    this._rightCol.innerHTML = `
+      <div class="ecp-info-line" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="font-size:12px;font-weight:600;color:#f0dfdf">Why these tools?</div>
+        <div style="font-size:11px;color:#a78484;line-height:1.5;font-weight:400">
+          The localhost API server exposes Error Cop data to AI agents via HTTP. 
+          Start it and AI tools can query errors, sessions, and timelines directly.
+        </div>
+        <div style="font-size:11px;color:#a78484;line-height:1.5;font-weight:400">
+          The cheatsheet is a markdown guide that tells AI agents <em>how</em> 
+          to use the API effectively.
+        </div>
+      </div>
+    `;
+
+    // ── Bind events ──
+    const startBtn = this._leftCol.querySelector('.ecp-server-start');
+    const stopBtn = this._leftCol.querySelector('.ecp-server-stop');
+    const copyUrlBtn = this._leftCol.querySelector('.ecp-server-copy-url');
+    const cheatsheetBtn = this._leftCol.querySelector('.ecp-cheatsheet-btn');
+
+    if (startBtn) startBtn.addEventListener('click', () => this._handleServerStart());
+    if (stopBtn) stopBtn.addEventListener('click', () => this._handleServerStop());
+    if (copyUrlBtn) copyUrlBtn.addEventListener('click', () => this._handleCopyUrl());
+    if (cheatsheetBtn) cheatsheetBtn.addEventListener('click', () => this._handleCheatsheet());
+  }
+
+  async _handleServerStart() {
+    if (this._serverStarting) return;
+    this._serverStarting = true;
+    this._serverRunning = false;
+    this._renderTools();
+    try {
+      const result = await window.electronAPI.startServer();
+      if (result && result.success) {
+        this._serverRunning = true;
+      } else {
+        console.error('[ErrorCop] Start server failed:', result?.error);
+      }
+    } catch (e) {
+      console.error('[ErrorCop] Start server error:', e);
+    }
+    this._serverStarting = false;
+    this._renderTools();
+  }
+
+  async _handleServerStop() {
+    if (!this._serverRunning) return;
+    try {
+      const result = await window.electronAPI.stopServer();
+      if (result && result.success) {
+        this._serverRunning = false;
+      }
+    } catch (e) {
+      console.error('[ErrorCop] Stop server error:', e);
+    }
+    this._renderTools();
+  }
+
+  async _handleCopyUrl() {
+    const url = 'http://127.0.0.1:3334';
+    try {
+      await navigator.clipboard.writeText(url);
+      const btn = this._leftCol.querySelector('.ecp-server-copy-url');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      }
+    } catch {}
+  }
+
+  async _handleCheatsheet() {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) return;
+    const csPath = (repoPath + '/graphify/prompts/errorcop-cheatsheet.md').replace(/\\/g, '/');
+    try {
+      const result = await window.electronAPI.readFile(csPath);
+      if (result && result.success && result.content) {
+        this._showSendToAiDialog(result.content);
+      } else {
+        console.warn('[ErrorCop] Cheatsheet not found at:', csPath);
+      }
+    } catch (e) {
+      console.error('[ErrorCop] Failed to read cheatsheet:', e);
+    }
+  }
+
+  _showSendToAiDialog(promptText) {
+    const existing = document.querySelector('.ecp-sa-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ecp-sa-overlay';
+    overlay.innerHTML = `
+      <div class="ecp-sa-dialog">
+        <div class="ecp-sa-header">
+          <span class="ecp-sa-title">Send to AI</span>
+          <button class="ecp-sa-close" id="ecpSaClose">&times;</button>
+        </div>
+        <div class="ecp-sa-body">
+          <div class="ecp-sa-card" id="ecpSaOpenFile">
+            <div class="ecp-sa-card-icon">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7l3 3v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M11 4v3h3"/></svg>
+            </div>
+            <div class="ecp-sa-card-text">
+              <span class="ecp-sa-card-label">Open File</span>
+              <span class="ecp-sa-card-desc">View the cheatsheet in a modal and copy it manually.</span>
+            </div>
+          </div>
+          <div class="ecp-sa-card" id="ecpSaOpenCodeSwamp">
+            <div class="ecp-sa-card-icon">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z"/><path d="M10 8v4"/><path d="M8 10h4"/></svg>
+            </div>
+            <div class="ecp-sa-card-text">
+              <span class="ecp-sa-card-label">Open CodeSwamp</span>
+              <span class="ecp-sa-card-desc">Send the cheatsheet directly to CodeSwamp input.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    overlay.querySelector('#ecpSaClose').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('keydown', function saEscape(e) {
+      if (e.key === 'Escape' && document.querySelector('.ecp-sa-overlay')) {
+        overlay.remove();
+        document.removeEventListener('keydown', saEscape);
+      }
+    });
+
+    overlay.querySelector('#ecpSaOpenFile').addEventListener('click', () => {
+      overlay.remove();
+      this._showPromptViewer(promptText);
+    });
+
+    overlay.querySelector('#ecpSaOpenCodeSwamp').addEventListener('click', () => {
+      overlay.remove();
+      this._openCodeSwampWithPrompt(promptText);
+    });
+  }
+
+  _showPromptViewer(promptText) {
+    const existing = document.querySelector('.ecp-prompt-viewer');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ecp-prompt-viewer';
+    overlay.innerHTML = `
+      <div class="ecp-pv-header">
+        <span class="ecp-pv-title">errorcop-cheatsheet.md</span>
+        <div class="ecp-pv-actions">
+          <button class="ecp-pv-copy-btn" id="ecpPvCopy">Copy</button>
+          <button class="ecp-pv-close" id="ecpPvClose">&times;</button>
+        </div>
+      </div>
+      <pre class="ecp-pv-content" id="ecpPvContent">${this._escapeHtml(promptText)}</pre>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#ecpPvClose').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.addEventListener('keydown', function pvEscape(e) {
+      if (e.key === 'Escape' && document.querySelector('.ecp-prompt-viewer')) {
+        overlay.remove();
+        document.removeEventListener('keydown', pvEscape);
+      }
+    });
+
+    overlay.querySelector('#ecpPvCopy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(promptText);
+        const btn = overlay.querySelector('#ecpPvCopy');
+        btn.textContent = 'Copied';
+        btn.classList.add('ecp-pv-copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('ecp-pv-copied');
+        }, 2000);
+      } catch {}
+    });
+  }
+
+  _openCodeSwampWithPrompt(promptText) {
+    try {
+      const btn = document.querySelector('[data-tool="opencode"]');
+      if (btn) btn.click();
+
+      let input = document.getElementById('ocInput');
+      let tab = document.querySelector('.oc-tab.active');
+      const poll = setInterval(() => {
+        if (!input) input = document.getElementById('ocInput');
+        if (!tab) tab = document.querySelector('.oc-tab.active');
+        if (input && tab) {
+          clearInterval(poll);
+          input.value = promptText;
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+          input.focus();
+          input.selectionStart = input.selectionEnd = input.value.length;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }, 200);
+      setTimeout(() => clearInterval(poll), 6000);
+    } catch (e) {
+      console.error('[ErrorCop] Failed to open CodeSwamp:', e);
+    }
   }
 
   _escapeHtml(str) {

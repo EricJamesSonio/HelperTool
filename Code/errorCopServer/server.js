@@ -9,6 +9,7 @@ var PORT = 3334;
 var _storage = null;
 var _notify = null;
 var _startTime = null;
+var _server = null;
 
 function getUptime() {
   return _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
@@ -378,10 +379,24 @@ function generateCheatsheet() {
   }
 }
 
+function stop() {
+  if (_server) {
+    _server.close();
+    _server = null;
+    _startTime = null;
+    console.log('[ErrorCopServer] Stopped');
+  }
+}
+
+function isRunning() {
+  return _server !== null;
+}
+
 function start(engine) {
+  stop();
   setEngine(engine);
 
-  var server = http.createServer(function (req, res) {
+  _server = http.createServer(function (req, res) {
     try {
       var parsed = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
       var path = parsed.pathname;
@@ -464,7 +479,7 @@ function start(engine) {
 
   _startTime = Date.now();
 
-  server.listen(PORT, '127.0.0.1', function () {
+  _server.listen(PORT, '127.0.0.1', function () {
     console.log('[ErrorCopServer] Listening on http://127.0.0.1:' + PORT);
     console.log('[ErrorCopServer] Available endpoints (' + ENDPOINTS.length + '):');
     ENDPOINTS.forEach(function (ep) {
@@ -473,11 +488,11 @@ function start(engine) {
     generateCheatsheet();
   });
 
-  server.on('error', function (e) {
+  _server.on('error', function (e) {
     console.error('[ErrorCopServer] Failed to start:', e.message);
   });
 
-  return server;
+  return _server;
 }
 
-module.exports = { start, setEngine };
+module.exports = { start, stop, isRunning, setEngine };

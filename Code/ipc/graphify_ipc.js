@@ -1048,7 +1048,7 @@ function register({ app }) {
     return {
       ok: true,
       indexed: status.symbolsExists,
-      hashesExist,
+      hashesExist: status.hashesExist,
       changes,
       promptGenerated: status.promptGenerated,
       promptPath: status.promptGenerated ? status.incrPromptPath : null,

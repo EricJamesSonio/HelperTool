@@ -2,18 +2,11 @@ const { ipcMain } = require('electron');
 const { getErrorEngine } = require('./terminal_ipc');
 
 let _errorEngine = null;
+let _serverStarted = false;
 
 function register({ getMainWindow }) {
   const { ErrorEngine } = require('../terminal/error-cop/error-engine');
   _errorEngine = new ErrorEngine(getMainWindow);
-
-  // Start localhost API server for AI agent access
-  try {
-    const server = require('../errorCopServer/server');
-    server.start(_errorEngine);
-  } catch (e) {
-    console.error('[ErrorCop] Failed to start API server:', e.message);
-  }
 
   // Share the engine with terminal_ipc
   const termIpc = require('./terminal_ipc');
@@ -101,6 +94,42 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('error-cop:getAttachedBrowsers', safe(() => {
     return _errorEngine.getAttachedBrowsers();
+  }));
+
+  // ── Localhost API Server Control ──
+
+  ipcMain.handle('error-cop:startServer', safe(async () => {
+    if (_serverStarted) return { success: true, port: 3334, message: 'Already running' };
+    try {
+      const server = require('../errorCopServer/server');
+      server.start(_errorEngine);
+      _serverStarted = true;
+      return { success: true, port: 3334 };
+    } catch (e) {
+      console.error('[ErrorCop] Failed to start API server:', e.message);
+      return { success: false, error: e.message };
+    }
+  }));
+
+  ipcMain.handle('error-cop:stopServer', safe(async () => {
+    try {
+      const server = require('../errorCopServer/server');
+      server.stop();
+      _serverStarted = false;
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }));
+
+  ipcMain.handle('error-cop:serverStatus', safe(async () => {
+    try {
+      const server = require('../errorCopServer/server');
+      const running = server.isRunning();
+      return { running, port: running ? 3334 : null };
+    } catch (e) {
+      return { running: false, port: null, error: e.message };
+    }
   }));
 }
 
