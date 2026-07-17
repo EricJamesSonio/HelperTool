@@ -203,18 +203,33 @@ function register(_deps) {
                 : null;
 
             if (defaultBranch) {
-                const vsResults = await Promise.all(local.map(async (b) => {
-                    if (b.name === defaultBranch) return { name: b.name, vsDefaultAhead: 0, vsDefaultBehind: 0 };
-                    const [a, be] = await Promise.all([
-                        git.raw(['rev-list', '--count', `${defaultBranch}..${b.name}`]),
-                        git.raw(['rev-list', '--count', `${b.name}..${defaultBranch}`])
-                    ]);
-                    return { name: b.name, vsDefaultAhead: parseInt(a.trim()) || 0, vsDefaultBehind: parseInt(be.trim()) || 0 };
-                }));
-                const localMap = new Map(local.map(b => [b.name, b]));
-                for (const r of vsResults) {
-                    const b = localMap.get(r.name);
-                    if (b) { b.vsDefaultAhead = r.vsDefaultAhead; b.vsDefaultBehind = r.vsDefaultBehind; }
+                try {
+                    const trackOutput = await git.raw(['for-each-ref', `--format=%(refname:short)|%(upstream:track)`, 'refs/heads']);
+                    const localMap = new Map(local.map(b => [b.name, b]));
+                    for (const line of trackOutput.trim().split('\n')) {
+                        const [name, track] = line.split('|');
+                        const b = localMap.get(name);
+                        if (!b || name === defaultBranch) continue;
+                        const ahead = (track.match(/ahead (\d+)/) || [])[1];
+                        const behind = (track.match(/behind (\d+)/) || [])[1];
+                        b.vsDefaultAhead = parseInt(ahead) || 0;
+                        b.vsDefaultBehind = parseInt(behind) || 0;
+                    }
+                } catch (_) {
+                    // fallback: individual queries
+                    const vsResults = await Promise.all(local.map(async (b) => {
+                        if (b.name === defaultBranch) return { name: b.name, vsDefaultAhead: 0, vsDefaultBehind: 0 };
+                        const [a, be] = await Promise.all([
+                            git.raw(['rev-list', '--count', `${defaultBranch}..${b.name}`]),
+                            git.raw(['rev-list', '--count', `${b.name}..${defaultBranch}`])
+                        ]);
+                        return { name: b.name, vsDefaultAhead: parseInt(a.trim()) || 0, vsDefaultBehind: parseInt(be.trim()) || 0 };
+                    }));
+                    const m = new Map(local.map(b => [b.name, b]));
+                    for (const r of vsResults) {
+                        const b = m.get(r.name);
+                        if (b) { b.vsDefaultAhead = r.vsDefaultAhead; b.vsDefaultBehind = r.vsDefaultBehind; }
+                    }
                 }
             }
 

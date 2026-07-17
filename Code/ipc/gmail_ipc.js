@@ -28,9 +28,19 @@ function isIgnored(fromStr, ignored) {
 }
 
 const _messageCache = new Map();
+const _MESSAGE_CACHE_MAX = 5;
+
+function _messageLruSet(email, data) {
+  if (_messageCache.has(email)) _messageCache.delete(email);
+  _messageCache.set(email, data);
+  if (_messageCache.size > _MESSAGE_CACHE_MAX) {
+    const first = _messageCache.keys().next().value;
+    _messageCache.delete(first);
+  }
+}
 
 function updateMessageCache(email, messages, totalUnread) {
-  _messageCache.set(email, {
+  _messageLruSet(email, {
     messages,
     totalUnread,
     lastFetched: new Date().toISOString(),

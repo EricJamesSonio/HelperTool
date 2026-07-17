@@ -21,20 +21,21 @@ function register({ getMainWindow }) {
     };
   };
 
-  ipcMain.handle('error-cop:getErrors', safe((event, { project, level, limit, offset } = {}) => {
-    return storage().getErrors({ project, level, limit, offset });
+  ipcMain.handle('error-cop:getErrors', safe((event, { project, level, limit, offset, startDate, endDate } = {}) => {
+    return storage().getErrors({ project, level, limit, offset, startDate, endDate });
   }));
 
   ipcMain.handle('error-cop:getSessionErrors', safe((event, sessionId) => {
     return storage().getErrorsBySession(sessionId);
   }));
 
-  ipcMain.handle('error-cop:getTimeline', safe((event, { project, limit } = {}) => {
-    return storage().getTimeline({ project, limit });
+  ipcMain.handle('error-cop:getTimeline', safe((event, { project, limit, startDate, endDate } = {}) => {
+    return storage().getTimeline({ project, limit, startDate, endDate });
   }));
 
-  ipcMain.handle('error-cop:getSessions', safe((event, limit) => {
-    return storage().getRecentSessions(limit);
+  ipcMain.handle('error-cop:getSessions', safe((event, opts) => {
+    if (typeof opts === 'number') return storage().getRecentSessions(opts);
+    return storage().getSessions(opts || {});
   }));
 
   ipcMain.handle('error-cop:getSession', safe((event, id) => {

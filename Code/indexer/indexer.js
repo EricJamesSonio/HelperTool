@@ -79,10 +79,10 @@ async function indexRepo(repoPath, docignoreUtils, onProgress, onError) {
 
 async function indexFile(repoId, repoPath, relPath) {
   const fullPath = path.join(repoPath, relPath);
-  if (!fs.existsSync(fullPath)) return null;
+  let stat;
+  try { stat = await fs.promises.stat(fullPath); } catch { return null; }
 
-  const stat = fs.statSync(fullPath);
-  const content = fs.readFileSync(fullPath, 'utf-8');
+  const content = await fs.promises.readFile(fullPath, 'utf-8');
   const hash = crypto.createHash('md5').update(content).digest('hex');
   const ext = path.extname(relPath).toLowerCase();
   const language = detectLanguage(ext);

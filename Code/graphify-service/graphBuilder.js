@@ -486,18 +486,94 @@ class KnowledgeGraph {
 
   getCommunities() {
     const commMap = new Map();
+    const namingData = new Map();
     for (const [id, node] of this.nodes) {
       const c = node.community;
-      if (!commMap.has(c)) commMap.set(c, { id: c, nodeCount: 0, members: [] });
+      if (!commMap.has(c)) {
+        commMap.set(c, { id: c, nodeCount: 0, members: [] });
+        namingData.set(c, { typeCounts: {}, filePaths: [] });
+      }
       const entry = commMap.get(c);
       entry.nodeCount++;
       if (entry.members.length < 5) {
         entry.members.push({ id: node.id, label: node.label, type: node.type });
       }
+      const nd = namingData.get(c);
+      nd.typeCounts[node.type] = (nd.typeCounts[node.type] || 0) + 1;
+      if (node._type === 'file' && node.filePath) {
+        nd.filePaths.push(node.filePath);
+      }
     }
     return Array.from(commMap.values())
       .sort((a, b) => b.nodeCount - a.nodeCount)
-      .map((c, i) => ({ ...c, color: COMMUNITY_COLORS[i % COMMUNITY_COLORS.length] }));
+      .map((c, i) => {
+        const nd = namingData.get(c.id);
+        const name = this._deriveCommunityName(nd.typeCounts, nd.filePaths, c.nodeCount);
+        return { ...c, name, color: COMMUNITY_COLORS[i % COMMUNITY_COLORS.length] };
+      });
+  }
+
+  _deriveCommunityName(typeCounts, filePaths, totalNodes) {
+    const fileCount = typeCounts['file'] || 0;
+    const fileRatio = totalNodes > 0 ? fileCount / totalNodes : 0;
+
+    if (fileRatio > 0.35 && filePaths.length > 0) {
+      const dirs = filePaths
+        .map(p => { const parts = p.split('/'); parts.pop(); return parts.join('/'); })
+        .filter(d => d.length > 0);
+      if (dirs.length > 0) {
+        const common = this._longestCommonPrefix(dirs);
+        if (common && common.length > 0) {
+          const segs = common.split('/').filter(Boolean);
+          const label = segs[segs.length - 1] || '';
+          if (label && label !== '.') {
+            return label.charAt(0).toUpperCase() + label.slice(1).replace(/[-_]/g, ' ');
+          }
+        }
+      }
+      const extCounts = {};
+      for (const fp of filePaths) {
+        const match = fp.match(/\.(\w+)$/);
+        if (match) extCounts[match[1]] = (extCounts[match[1]] || 0) + 1;
+      }
+      const topExt = Object.entries(extCounts).sort((a, b) => b[1] - a[1])[0];
+      if (topExt) return `.${topExt[0]} Files`;
+      return 'Source Files';
+    }
+
+    const symbolTypes = ['class', 'function', 'method', 'variable', 'interface', 'type', 'enum', 'component', 'hook', 'constant'];
+    const found = symbolTypes.filter(t => typeCounts[t]);
+    if (found.length > 0) {
+      const labels = [];
+      if (typeCounts['class'] || typeCounts['interface']) labels.push('Types');
+      if (typeCounts['function'] || typeCounts['method'] || typeCounts['component'] || typeCounts['hook']) labels.push('Functions');
+      if (typeCounts['variable'] || typeCounts['constant']) labels.push('Variables');
+      if (typeCounts['enum']) labels.push('Enums');
+      return labels.slice(0, 2).join(' & ');
+    }
+
+    const docCount = (typeCounts['doc'] || 0) + (typeCounts['heading'] || 0);
+    if (docCount > totalNodes * 0.4) return 'Documentation';
+
+    const topTypes = Object.entries(typeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([t]) => t.charAt(0).toUpperCase() + t.slice(1) + 's');
+    if (topTypes.length > 0) return topTypes.join(' & ');
+
+    return null;
+  }
+
+  _longestCommonPrefix(strings) {
+    if (!strings.length) return '';
+    let prefix = strings[0];
+    for (let i = 1; i < strings.length; i++) {
+      while (strings[i].indexOf(prefix) !== 0) {
+        prefix = prefix.slice(0, -1);
+        if (!prefix) return '';
+      }
+    }
+    return prefix;
   }
 
   getGraphStats() {
