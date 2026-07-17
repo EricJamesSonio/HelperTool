@@ -2,6 +2,11 @@ import { state, setState } from './state.js';
 import { maskValue, serializeEnv, escHtml } from './utils.js';
 import { renderFileList } from './fileList.js';
 
+const ICON_EYE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>';
+const ICON_EYE_OFF = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/><line x1="3" y1="3" x2="17" y2="17"/></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5z"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 10 8 14 16 6"/></svg>';
+
 export function renderEditor() {
   const editorEl = document.getElementById('envEditor');
   const emptyEl = document.getElementById('envRightEmpty');
@@ -44,8 +49,8 @@ export function renderEditor() {
         <span class="env-entry-key">${escHtml(entry.key)}</span>
         <span class="env-entry-value">${displayValue}</span>
         <div class="env-entry-actions">
-          <button class="env-entry-action env-entry-reveal" data-idx="${realIdx}" title="${revealed ? 'Hide' : 'Reveal'}">${revealed ? '\uD83D\uDC41' : '\uD83D\uDC41'} ${revealed ? 'Hide' : 'Show'}</button>
-          <button class="env-entry-action env-entry-edit" data-idx="${realIdx}" title="Edit">\u270F\uFE0F Edit</button>
+          <button class="env-entry-action env-entry-reveal" data-idx="${realIdx}" title="${revealed ? 'Hide' : 'Reveal'}">${revealed ? ICON_EYE_OFF : ICON_EYE} ${revealed ? 'Hide' : 'Show'}</button>
+          <button class="env-entry-action env-entry-edit" data-idx="${realIdx}" title="Edit">${ICON_EDIT} Edit</button>
           <button class="env-entry-action env-entry-del" data-idx="${realIdx}" title="Delete">&times; Del</button>
         </div>
       </div>
@@ -142,8 +147,8 @@ function enterEditMode(idx) {
     <div class="env-entry-edit-form">
       <input class="env-edit-input env-edit-key" value="${escHtml(entry.key)}" placeholder="KEY" spellcheck="false">
       <input class="env-edit-input env-edit-val" value="${escHtml(entry.value)}" placeholder="value" spellcheck="false">
-      <button class="env-btn env-btn-sm env-btn-primary env-edit-confirm" data-idx="${idx}" title="Confirm">\u2713 Ok</button>
-      <button class="env-btn env-btn-sm env-edit-cancel" data-idx="${idx}" title="Cancel">\u2715 Cancel</button>
+      <button class="env-btn env-btn-sm env-btn-primary env-edit-confirm" data-idx="${idx}" title="Confirm">${ICON_CHECK} Ok</button>
+      <button class="env-btn env-btn-sm env-edit-cancel" data-idx="${idx}" title="Cancel">Cancel</button>
     </div>
   `;
 

@@ -19,7 +19,7 @@ export function openCreateForm() {
     <div class="env-create-title">Create New Env File</div>
     <div class="env-create-presets" id="envCreatePresets">
       ${PRESET_NAMES.map(n => `<button class="env-btn env-btn-sm env-preset-btn" data-name="${escHtml(n)}">${escHtml(n)}</button>`).join('')}
-      <button class="env-btn env-btn-sm env-preset-btn" data-name="custom">custom\u2026</button>
+      <button class="env-btn env-btn-sm env-preset-btn" data-name="custom">custom...</button>
     </div>
     <div class="env-create-custom" id="envCreateCustom" style="display:none">
       <input class="env-create-input" id="envCreateInput" placeholder=".env.myfile" spellcheck="false">

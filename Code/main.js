@@ -148,36 +148,40 @@ function registerAllIpc() {
 
     // Defer non-critical IPC registration to after first paint
     setImmediate(() => {
-      require('./ipc/repo_ipc.js').register(shared);
-      require('./ipc/features_ipc.js').register(shared);
-      require('./ipc/secrets_ipc.js').register(shared);
-      require('./ipc/apitool_ipc.js').register(shared);
-      require('./ipc/workspace_ipc.js').register(shared);
-      require('./ipc/generate_ipc.js').register(shared);
-      require('./ipc/git_ipc.js').register(shared);
-      require('./ipc/prompts_ipc.js').register({ app });
-      symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared);
-      require('./ipc/canvas_ipc.js').register();
-      require('./ipc/fileseeder_ipc.js').register(shared);
-      require('./ipc/loc_ipc.js').register(shared);
-      require('./ipc/portManager.js').register();
-      require('./ipc/dbInspector_ipc.js').register(shared);
-      require('./ipc/docignoreManager_ipc.js').register(shared);
-      require('./ipc/teamActivityFeed.js').register();
-      require('./ipc/blueprintLibrary/index.js').register();
-      require('./ipc/profile.js').register(shared);
-      require('./ipc/docker_ipc.js').register();
-      require('./ipc/env_ipc.js').register();
-      require('./ipc/codebbaseChat_ipc.js').register();
-      require('./ipc/video_ipc.js').register(shared);
-      require('./ipc/image_ipc.js').register(shared);
-      require('./ipc/gmail_ipc.js').register(shared);
-      require('./ipc/automation_ipc.js').register();
-      require('./ipc/github_ipc.js').register();
-      require('./ipc/gemini_ipc.js').register();
-      require('./ipc/codebaseMap_ipc.js').register();
-      graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app });
-      require('./ipc/error_cop_ipc.js').register({ app, getMainWindow });
+      const safeRegister = (name, fn) => {
+        try { fn(); }
+        catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
+      };
+      safeRegister('repo_ipc',        () => require('./ipc/repo_ipc.js').register(shared));
+      safeRegister('features_ipc',    () => require('./ipc/features_ipc.js').register(shared));
+      safeRegister('secrets_ipc',     () => require('./ipc/secrets_ipc.js').register(shared));
+      safeRegister('apitool_ipc',     () => require('./ipc/apitool_ipc.js').register(shared));
+      safeRegister('workspace_ipc',   () => require('./ipc/workspace_ipc.js').register(shared));
+      safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
+      safeRegister('git_ipc',         () => require('./ipc/git_ipc.js').register(shared));
+      safeRegister('prompts_ipc',     () => require('./ipc/prompts_ipc.js').register({ app }));
+      safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
+      safeRegister('canvas_ipc',      () => require('./ipc/canvas_ipc.js').register());
+      safeRegister('fileseeder_ipc',  () => require('./ipc/fileseeder_ipc.js').register(shared));
+      safeRegister('loc_ipc',         () => require('./ipc/loc_ipc.js').register(shared));
+      safeRegister('portManager',     () => require('./ipc/portManager.js').register());
+      safeRegister('dbInspector_ipc', () => require('./ipc/dbInspector_ipc.js').register(shared));
+      safeRegister('docignoreManager',() => require('./ipc/docignoreManager_ipc.js').register(shared));
+      safeRegister('teamActivityFeed',() => require('./ipc/teamActivityFeed.js').register());
+      safeRegister('blueprintLibrary',() => require('./ipc/blueprintLibrary/index.js').register());
+      safeRegister('profile',         () => require('./ipc/profile.js').register(shared));
+      safeRegister('docker_ipc',      () => require('./ipc/docker_ipc.js').register());
+      safeRegister('env_ipc',         () => require('./ipc/env_ipc.js').register());
+      safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
+      safeRegister('video_ipc',       () => require('./ipc/video_ipc.js').register(shared));
+      safeRegister('image_ipc',       () => require('./ipc/image_ipc.js').register(shared));
+      safeRegister('gmail_ipc',       () => require('./ipc/gmail_ipc.js').register(shared));
+      safeRegister('automation_ipc',  () => require('./ipc/automation_ipc.js').register());
+      safeRegister('github_ipc',      () => require('./ipc/github_ipc.js').register());
+      safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
+      safeRegister('codebaseMap_ipc', () => require('./ipc/codebaseMap_ipc.js').register());
+      safeRegister('graphify_ipc',    () => { graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app }); });
+      safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
     });
 
     // ── Window control IPC (registered once, outside createWindow) ──
