@@ -18,7 +18,7 @@ export const TICKET_PRIORITIES = ['low', 'medium', 'high', 'critical'];
 export const STATUS_COLORS = {
   backlog:      '#556080',
   pending:      '#f0b429',
-  'in-progress':'#60a5fa',
+  'in-progress':'var(--accent)',
   review:       '#a78bfa',
   complete:     '#34d399',
 };

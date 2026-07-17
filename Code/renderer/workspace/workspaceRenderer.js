@@ -168,7 +168,7 @@ function _renderHome(body) {
             <span class="ws-stat-sub">global team</span>
           </div>
           <div class="ws-stat-card">
-            <span class="ws-stat-num" style="color:#60a5fa">${activeTickets}</span>
+            <span class="ws-stat-num">${activeTickets}</span>
             <span class="ws-stat-lbl">Active Tickets</span>
             <span class="ws-stat-sub">in progress</span>
           </div>
@@ -1122,7 +1122,7 @@ function _renderTabPlannings(el) {
 }
 
 const STONES = [
-  { key: 'stoneCodeStandards',  label: 'Code Standards',      color: '#60a5fa', placeholder: 'ESLint rules, naming conventions, formatting standards, code review checklist...' },
+  { key: 'stoneCodeStandards',  label: 'Code Standards',      color: 'var(--accent)', placeholder: 'ESLint rules, naming conventions, formatting standards, code review checklist...' },
   { key: 'stoneProjectOverview', label: 'Project Overview',   color: '#f87171', placeholder: 'What this project does, goals, non-goals, target users, key decisions...' },
   { key: 'stoneProgressTracker', label: 'Progress Tracker',   color: '#34d399', placeholder: 'Current milestone, what is done, what is next, blockers...' },
   { key: 'stoneUIContext',       label: 'UI Context',         color: '#fbbf24', placeholder: 'Design system, component library, color tokens, layout rules, UX patterns...' },
@@ -1222,7 +1222,7 @@ function _openStoneModal(project, stone) {
 
 // ── Tab: Build Kits ───────────────────────────────────────────────────────
 
-const KIT_PALETTE = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#c0c0c0', '#a78bfa'];
+const KIT_PALETTE = ['#f87171', 'var(--accent)', '#34d399', '#fbbf24', '#c0c0c0', '#a78bfa'];
 
 function _renderTabBuildKits(el) {
   const p = _selectedProject;

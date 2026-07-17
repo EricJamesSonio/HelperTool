@@ -68,7 +68,7 @@ const DEFAULT_KITS = [
   },
   {
     name: 'Middleware Pipeline',
-    color: '#60a5fa',
+    color: 'var(--accent)',
     category: 'backend',
     description: 'HTTP middleware layers for processing every request',
     items: [

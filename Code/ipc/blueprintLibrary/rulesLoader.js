@@ -2,9 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 
-const RULES_DIR = app.isPackaged
-  ? path.join(process.resourcesPath, '.Resources', 'Rules')
-  : path.join(__dirname, '..', '..', '..', '.Resources', 'Rules');
+function rulesDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, '.Resources', 'Rules')
+    : path.join(__dirname, '..', '..', '..', '.Resources', 'Rules');
+}
 
 function _displayName(key) {
   if (key === 'ddd') return 'DDD';
@@ -44,7 +46,7 @@ function _buildTags(categoryKey, content) {
 
 function loadRulesData() {
   let files;
-  try { files = fs.readdirSync(RULES_DIR).filter(f => f.endsWith('.md')); }
+  try { files = fs.readdirSync(rulesDir()).filter(f => f.endsWith('.md')); }
   catch { return { categories: [], blueprints: {} }; }
 
   const categories = [];
@@ -52,7 +54,7 @@ function loadRulesData() {
   const seenCat = new Set();
 
   for (const file of files.sort()) {
-    const content = fs.readFileSync(path.join(RULES_DIR, file), 'utf-8');
+    const content = fs.readFileSync(path.join(rulesDir(), file), 'utf-8');
     const key = file.replace(/\.md$/, '');
     const dotParts = key.split('.');
     let categoryKey, blueprintKey;
