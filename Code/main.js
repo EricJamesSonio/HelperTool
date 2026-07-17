@@ -189,6 +189,14 @@ function registerAllIpc() {
     codebaseMapIpc.register();
     graphifyIpc.register({ app });
     errorCopIpc.register({ app, getMainWindow });
+
+    // ── Window control IPC (registered once, outside createWindow) ──
+    ipcMain.on('window:minimize', () => mainWindow?.minimize());
+    ipcMain.on('window:maximize', () => {
+        if (!mainWindow) return;
+        mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+    });
+    ipcMain.on('window:close', () => mainWindow?.close());
 }
 
 // ----------------------------
@@ -219,6 +227,8 @@ function createWindow() {
     // Start maximized (fills screen, keeps custom titlebar)
     mainWindow.maximize();
 
+    // Prevent handler accumulation if createWindow is called more than once
+    mainWindow.removeAllListeners('close');
     mainWindow.on('close', (e) => {
         e.preventDefault();
         mainWindow.hide();
@@ -240,13 +250,6 @@ function createWindow() {
     mainWindow.on('show', () => {
         mainWindow.webContents.setFrameRate(60);
     });
-
-    // ── Window control IPC ──
-    ipcMain.on('window:minimize', () => mainWindow.minimize());
-    ipcMain.on('window:maximize', () => {
-        mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
-    });
-    ipcMain.on('window:close', () => mainWindow.close());
 
     // Notify renderer when maximized state changes
     mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximize-changed', true));

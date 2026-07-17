@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { refreshSidebar, loadConversation, startNewChat } from './sidebar.js';
-import { hasTerminalSession, showTerminalSession } from './terminalManager.js';
+import { hasTerminalSession, showTerminalSession, getSlotForRepo, getConvSlotMap } from './terminalManager.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
 import { convStore } from './conversationStore.js';
@@ -43,6 +43,8 @@ export function switchTab(repoPath) {
   for (const tab of state.tabs) tab.active = tab.repoPath === repoPath;
 
   if (hasTerminalSession(repoPath)) {
+    const slot = getSlotForRepo(repoPath);
+    if (slot >= 0) state.activeSlotIndex = slot;
     showTerminalSession(repoPath);
     const welcome = document.getElementById('ocWelcome');
     const terminal = document.getElementById('ocTerminal');
@@ -113,13 +115,24 @@ export function renderConvList(loading) {
     header.textContent = label;
     groupEl.appendChild(header);
 
+    const activeConvId = state.activeConvId[state.activeTab];
+    const convSlotMap = state.parallelMode ? getConvSlotMap(state.activeTab) : {};
+
     for (const conv of items) {
+      const isActive = conv.id === activeConvId;
+      const slot = convSlotMap[conv.id];
+      let itemClass = 'oc-conv-item';
+      if (isActive) itemClass += ' active';
+      if (slot !== undefined && state.parallelMode) itemClass += ` slot-${slot}`;
       const item = document.createElement('div');
-      const activeConvId = state.activeConvId[state.activeTab];
-      item.className = `oc-conv-item ${conv.id === activeConvId ? 'active' : ''}`;
+      item.className = itemClass;
       const prov = getProvider(conv.provider || 'opencode');
+      const slotBadge = (slot !== undefined && state.parallelMode)
+        ? `<span class="oc-conv-slot-badge slot-${slot}">${slot + 1}</span>`
+        : '';
       item.innerHTML = `
         <div class="oc-conv-item-title">
+          ${slotBadge}
           <span class="oc-conv-provider-tag oc-provider-${prov.id}">${prov.shortLabel}</span>
           ${escapeHtml(conv.title)}
         </div>

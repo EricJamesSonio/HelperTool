@@ -40,8 +40,13 @@ if (!panel || !panel.querySelector('.oc-header')) {
   // If we just sent a message, store it with the message text as title.
   // For loaded conversations (no lastSentMessage), the conversation is already stored
   // by loadConversation() — skip to avoid overwriting server titles.
-  setOnSessionDetected((sessionId, repoPath) => {
+  setOnSessionDetected((sessionId, repoPath, slotIndex) => {
     state.activeConvId[repoPath] = sessionId;
+
+    // Track the session in slotData so the sidebar can map it to a slot
+    if (state.parallelMode && slotIndex !== undefined) {
+      state.slotData[slotIndex] = { repoPath, convId: sessionId };
+    }
 
     // Bump to top — this session is now active
     convStore.touchConversation(repoPath, sessionId);

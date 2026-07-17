@@ -623,7 +623,10 @@ contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
 
 contextBridge.exposeInMainWorld('serviceTrackerAPI', {
   getAll:    () => ipcRenderer.invoke('serviceTracker:getAll'),
-  onUpdate:  (cb) => ipcRenderer.on('serviceTracker:update', (_, data) => cb(data)),
+  onUpdate:  (cb) => {
+    ipcRenderer.removeAllListeners('serviceTracker:update');
+    ipcRenderer.on('serviceTracker:update', (_, data) => cb(data));
+  },
   offUpdate: (cb) => ipcRenderer.removeListener('serviceTracker:update', cb),
 });
 
