@@ -81,9 +81,37 @@ export function open(query, inputEl) {
   }
   const existing = document.getElementById('ocFilePickerList');
   if (existing) existing.innerHTML = renderList();
-  const parent = inputEl.parentElement;
-  if (_pickerEl.parentElement !== parent) parent.appendChild(_pickerEl);
+  if (_pickerEl.parentElement !== document.body) {
+    document.body.appendChild(_pickerEl);
+  }
   _pickerEl.style.display = 'block';
+
+  requestAnimationFrame(() => {
+    const inputRect = inputEl.getBoundingClientRect();
+    const margin = 4;
+    const spaceBelow = window.innerHeight - inputRect.bottom;
+    const pickerH = _pickerEl.offsetHeight;
+    const maxWidth = Math.min(inputRect.width, 480);
+
+    let left = inputRect.left;
+    if (left + maxWidth > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - maxWidth - margin);
+    }
+
+    _pickerEl.style.left = left + 'px';
+    _pickerEl.style.width = maxWidth + 'px';
+    _pickerEl.style.right = 'auto';
+
+    if (spaceBelow >= pickerH + margin * 2) {
+      _pickerEl.style.top = (inputRect.bottom + margin) + 'px';
+      _pickerEl.style.bottom = 'auto';
+      _pickerEl.classList.remove('oc-file-picker--above');
+    } else {
+      _pickerEl.style.top = 'auto';
+      _pickerEl.style.bottom = (window.innerHeight - inputRect.top + margin) + 'px';
+      _pickerEl.classList.add('oc-file-picker--above');
+    }
+  });
 }
 
 export function close() {

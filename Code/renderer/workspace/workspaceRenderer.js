@@ -46,7 +46,7 @@ const ICON_DASH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" st
 
 // ─── @-mention file picker helpers ────────────────────────────────────────────
 
-function _handleAtMention(textarea, repoPath) {
+async function _handleAtMention(textarea, repoPath) {
   const val = textarea.value;
   const cursorPos = textarea.selectionStart;
   const atIdx = val.lastIndexOf('@', cursorPos);
@@ -59,8 +59,15 @@ function _handleAtMention(textarea, repoPath) {
     if (isOpen()) closePicker();
     return;
   }
-  if (repoPath) {
-    ensureTreeLoaded(repoPath).then(() => open(query, textarea));
+  let effectivePath = repoPath;
+  if (!effectivePath) {
+    try {
+      const active = await window.electronAPI.getActiveProject?.();
+      if (active?.repoPath) effectivePath = active.repoPath;
+    } catch {}
+  }
+  if (effectivePath) {
+    ensureTreeLoaded(effectivePath).then(() => open(query, textarea));
   }
 }
 
@@ -75,6 +82,9 @@ function _handlePickerKeys(e, textarea) {
 function _wireFilePicker(textarea, repoPath) {
   textarea.addEventListener('input', () => _handleAtMention(textarea, repoPath));
   textarea.addEventListener('keydown', e => _handlePickerKeys(e, textarea));
+  if (textarea.parentElement && getComputedStyle(textarea.parentElement).position === 'static') {
+    textarea.parentElement.style.position = 'relative';
+  }
 }
 
 // ─── Nav state ────────────────────────────────────────────────────────────────
@@ -665,6 +675,7 @@ function _renderTabOverview(el) {
     });
     render();
   });
+  _wireFilePicker(document.getElementById('overviewText'), p.repoPath);
 }
 
 // ── Tab: Workers ──────────────────────────────────────────────────────────────
@@ -978,6 +989,7 @@ function _renderTabDb(el) {
     updateProject(p.id, { databaseInfo: document.getElementById('dbInfoText').value });
     render();
   });
+  _wireFilePicker(document.getElementById('dbInfoText'), p.repoPath);
 }
 
 // ── Tab: Folder Structure (3 panels) ─────────────────────────────────────────
@@ -1046,6 +1058,9 @@ function _renderTabFolders(el) {
     });
     render();
   });
+  _wireFilePicker(document.getElementById('folderMain'), p.repoPath);
+  _wireFilePicker(document.getElementById('folderFrontend'), p.repoPath);
+  _wireFilePicker(document.getElementById('folderBackend'), p.repoPath);
 }
 
 // ── Tab: Plannings ──────────────────────────────────────────────────────────────
@@ -1145,8 +1160,8 @@ function _renderTabPlannings(el) {
       selectedNote.content = textarea.value;
       markDirty();
     });
-    _wireFilePicker(textarea, p.repoPath);
     right.appendChild(textarea);
+    _wireFilePicker(textarea, p.repoPath);
   } else {
     const empty = document.createElement('div');
     empty.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-secondary,#a0b0d8);font-size:0.9rem;';
@@ -1255,6 +1270,7 @@ function _openStoneModal(project, stone) {
 
   // Focus textarea
   requestAnimationFrame(() => textarea.focus());
+  _wireFilePicker(textarea, project.repoPath);
 }
 
 // ── Tab: Build Kits ───────────────────────────────────────────────────────
@@ -1525,6 +1541,8 @@ function _openBkDetailModal(project, kit, itemId, parentEl) {
   `;
 
   document.body.appendChild(overlay);
+
+  _wireFilePicker(overlay.querySelector('#bkDetailText'), project.repoPath);
 
   overlay.querySelector('.workspace-modal-close').addEventListener('click', () => overlay.remove());
   overlay.querySelector('.ws-modal-cancel-btn').addEventListener('click', () => overlay.remove());

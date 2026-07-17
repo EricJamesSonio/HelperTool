@@ -718,17 +718,18 @@ Claude Fab
 /* ── @-mention file picker ──────────────────────── */
 
 .oc-file-picker {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  margin-bottom: 4px;
+  position: fixed;
+  z-index: 10000;
   background: var(--bg-elevated, #0f1117);
   border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 8px;
   max-height: 240px;
   overflow-y: auto;
-  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  min-width: 180px;
+}
+
+.oc-file-picker--above {
   box-shadow: 0 -4px 16px rgba(0,0,0,0.4);
 }
 

@@ -133,15 +133,6 @@ if (!gotTheLock) {
 function registerAllIpc() {
     const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow };
 
-    require('./ipc/repo_ipc.js').register(shared);
-    require('./ipc/features_ipc.js').register(shared);
-    require('./ipc/secrets_ipc.js').register(shared);
-    require('./ipc/apitool_ipc.js').register(shared);
-    require('./ipc/workspace_ipc.js').register(shared);
-    require('./ipc/generate_ipc.js').register(shared);
-    require('./ipc/git_ipc.js').register(shared);
-    require('./ipc/prompts_ipc.js').register({ app });
-    symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared);
     terminalIpc = require('./ipc/terminal_ipc.js'); terminalIpc.register(shared);
     serviceTrackerIpc.register();
     require('./ipc/opencode_ipc.js').register(shared);
