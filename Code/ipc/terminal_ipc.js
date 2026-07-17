@@ -77,7 +77,7 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('terminal:listShells', () => detectShells());
 
-  ipcMain.handle('terminal:spawn', (event, { cwd, shell, args }) => {
+  ipcMain.handle('terminal:spawn', (event, { cwd, shell, args, label }) => {
     const id = nextId++;
     const win = getMainWindow();
     const defaultCwd = cwd || os.homedir();
@@ -96,7 +96,7 @@ function register({ getMainWindow }) {
     let sessionId = null;
     if (_errorEngine) {
       try {
-        const session = _errorEngine.createSession({ cwd: resolvedCwd, shell, command: '' });
+        const session = _errorEngine.createSession({ cwd: resolvedCwd, shell, command: '', label });
         sessionId = session.sessionId;
       } catch (e) {
         console.error('[ErrorCop] createSession failed:', e);
@@ -152,7 +152,7 @@ function register({ getMainWindow }) {
     if (t) {
       try { t.term.kill(); } catch { }
       if (_errorEngine && t.sessionId) {
-        try { _errorEngine.endSession(t.sessionId, 0); } catch { }
+        try { _errorEngine.endSession(t.sessionId, 0, 'killed'); } catch { }
       }
       terminals.delete(id);
     }

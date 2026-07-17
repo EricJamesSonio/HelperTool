@@ -1,46 +1,31 @@
 const fs = require('fs');
 const path = require('path');
 
-let _cache = null;
-let _cachePath = null;
+const CACHE_TTL = 30000;
+const _jsonCache = new Map();
 
-function _buildIndexes(data) {
-  if (data.__indexed) return;
-  const symsByFile = new Map();
-  const lowerNames = [];
-  for (const s of data.symbols) {
-    if (!symsByFile.has(s.filePath)) symsByFile.set(s.filePath, []);
-    symsByFile.get(s.filePath).push(s);
-    lowerNames.push({ lower: s.name.toLowerCase(), sig: (s.signature || '').toLowerCase() });
-  }
-  data.__symsByFile = symsByFile;
-  data.__symNames = lowerNames;
-  const typeCounts = {};
-  for (const s of data.symbols) {
-    typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
-  }
-  data.__typeCounts = typeCounts;
-  data.__indexed = true;
-}
-
-function load(repoPath) {
+function _read(repoPath) {
   if (!repoPath) return null;
+  const cached = _jsonCache.get(repoPath);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
   const jsonPath = path.join(repoPath, 'graphify', 'symbol-index-storage', 'symbols.json');
-  if (_cache && _cachePath === jsonPath) return _cache;
   try {
-    const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-    _buildIndexes(raw);
-    _cache = raw;
-    _cachePath = jsonPath;
-    return _cache;
+    const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    _jsonCache.set(repoPath, { data, ts: Date.now() });
+    return data;
   } catch {
+    _jsonCache.delete(repoPath);
     return null;
   }
 }
 
-function clearCache() {
-  _cache = null;
-  _cachePath = null;
+function load(repoPath) {
+  return _read(repoPath);
+}
+
+function clearCache(repoPath) {
+  if (repoPath) _jsonCache.delete(repoPath);
+  else _jsonCache.clear();
 }
 
 function getForCodebaseMap(repoPath) {
@@ -75,8 +60,9 @@ function getFiles(repoPath) {
 function getSymbols(repoPath, filePath) {
   const data = load(repoPath);
   if (!data || data.repoPath !== repoPath) return [];
-  const syms = data.__symsByFile.get(filePath) || [];
-  return syms.map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature }));
+  return data.symbols
+    .filter(s => s.filePath === filePath)
+    .map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature }));
 }
 
 function getDependencies(repoPath, filePath) {

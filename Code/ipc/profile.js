@@ -10,6 +10,8 @@ const { updateService } = require('./serviceTracker_ipc.js');
 
 let _watchers = [];
 let _saveDebounce = {};
+let _saveDebounceCount = 0;
+const _SAVE_DEBOUNCE_MAX = 1000;
 let _syncInProgress = false;
 let _lastSyncDate = null;
 const _watchedPaths = new Set();
@@ -93,6 +95,12 @@ function _startWatcher(repoPath, repoName) {
     const key = filePath + '|' + date;
     const last = _saveDebounce[key];
     if (last && (now - last) < 2000) return;
+    if (!last && _saveDebounceCount >= _SAVE_DEBOUNCE_MAX) {
+      const entries = Object.keys(_saveDebounce);
+      const oldest = entries.reduce((a, b) => _saveDebounce[a] < _saveDebounce[b] ? a : b);
+      delete _saveDebounce[oldest];
+    }
+    if (!last) _saveDebounceCount++;
     _saveDebounce[key] = now;
 
     try {
@@ -390,8 +398,26 @@ f = typeRow[2] || 0;
     return { repos, files };
   });
 
-  let _dayCommitCache = {};
+  let _dayCommitCache = new Map();
   const DAY_COMMIT_CACHE_TTL = 300000; // 5 min
+  const DAY_COMMIT_CACHE_MAX = 50;
+
+  function _dayCommitLruGet(cacheKey) {
+    if (!_dayCommitCache.has(cacheKey)) return undefined;
+    const value = _dayCommitCache.get(cacheKey);
+    _dayCommitCache.delete(cacheKey);
+    _dayCommitCache.set(cacheKey, value);
+    return value;
+  }
+
+  function _dayCommitLruSet(cacheKey, data) {
+    if (_dayCommitCache.has(cacheKey)) _dayCommitCache.delete(cacheKey);
+    _dayCommitCache.set(cacheKey, data);
+    if (_dayCommitCache.size > DAY_COMMIT_CACHE_MAX) {
+      const first = _dayCommitCache.keys().next().value;
+      _dayCommitCache.delete(first);
+    }
+  }
 
   ipcMain.handle('profile:getDayCommits', async (event, { date }) => {
     try {
@@ -399,7 +425,7 @@ f = typeRow[2] || 0;
       if (!repo) return [];
       const rp = repo.repoPath;
       const cacheKey = rp + '|' + date;
-      const cached = _dayCommitCache[cacheKey];
+      const cached = _dayCommitLruGet(cacheKey);
       if (cached && Date.now() - cached.ts < DAY_COMMIT_CACHE_TTL) {
         return cached.data;
       }
@@ -407,7 +433,7 @@ f = typeRow[2] || 0;
         format: '%H|%at|%s', since: date + 'T00:00:00', until: date + 'T23:59:59',
         noMerges: false, ttl: 30000,
       });
-      if (!log.trim()) { _dayCommitCache[cacheKey] = { data: [], ts: Date.now() }; return []; }
+      if (!log.trim()) { _dayCommitLruSet(cacheKey, { data: [], ts: Date.now() }); return []; }
       const commits = log.trim().split('\n').map(line => {
         const [hash, at, ...msgParts] = line.split('|');
         const time = new Date(parseInt(at) * 1000);
@@ -423,7 +449,7 @@ f = typeRow[2] || 0;
           .catch(() => [])
       ));
       for (let i = 0; i < commits.length; i++) commits[i].files = fileResults[i];
-      _dayCommitCache[cacheKey] = { data: commits, ts: Date.now() };
+      _dayCommitLruSet(cacheKey, { data: commits, ts: Date.now() });
       return commits;
     } catch (err) {
       return [];
@@ -615,6 +641,7 @@ f = typeRow[2] || 0;
     for (const w of _watchers) { try { w.close(); } catch (_) {} }
     _watchers = [];
     _saveDebounce = {};
+    _saveDebounceCount = 0;
     _watchedPaths.clear();
     _lastSyncDate = null;
     return { success: true };

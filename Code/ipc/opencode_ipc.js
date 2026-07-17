@@ -97,38 +97,40 @@ async function listViaCli(binaryPath) {
   return null;
 }
 
-function listViaStorage(storageDir, repoPath) {
+async function listViaStorage(storageDir, repoPath) {
   const results = [];
-  if (!fs.existsSync(storageDir)) return results;
+  let entries;
   try {
-    const entries = fs.readdirSync(storageDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isFile() && (entry.name.endsWith('.json') || entry.name.endsWith('.session'))) {
+    entries = await fs.promises.readdir(storageDir, { withFileTypes: true });
+  } catch {
+    return results;
+  }
+  for (const entry of entries) {
+    if (entry.isFile() && (entry.name.endsWith('.json') || entry.name.endsWith('.session'))) {
+      try {
+        const filePath = path.join(storageDir, entry.name);
+        const stat = await fs.promises.stat(filePath);
+        const raw = await fs.promises.readFile(filePath, 'utf-8');
+        let title = entry.name.replace(/\.[^/.]+$/, '');
+        let messageCount = 0;
+        let date = stat.mtime.toISOString();
         try {
-          const filePath = path.join(storageDir, entry.name);
-          const stat = fs.statSync(filePath);
-          const raw = fs.readFileSync(filePath, 'utf-8');
-          let title = entry.name.replace(/\.[^/.]+$/, '');
-          let messageCount = 0;
-          let date = stat.mtime.toISOString();
-          try {
-            const data = JSON.parse(raw);
-            const messages = data.messages || data.history || [];
-            messageCount = messages.length;
-            if (data.title || data.name) title = data.title || data.name;
-            if (data.date || data.createdAt || data.timestamp) date = data.date || data.createdAt || data.timestamp;
-          } catch (_) {}
-          results.push({
-            id: path.basename(entry.name, path.extname(entry.name)),
-            title,
-            date,
-            messageCount,
-            repoPath: repoPath || '',
-          });
+          const data = JSON.parse(raw);
+          const messages = data.messages || data.history || [];
+          messageCount = messages.length;
+          if (data.title || data.name) title = data.title || data.name;
+          if (data.date || data.createdAt || data.timestamp) date = data.date || data.createdAt || data.timestamp;
         } catch (_) {}
-      }
+        results.push({
+          id: path.basename(entry.name, path.extname(entry.name)),
+          title,
+          date,
+          messageCount,
+          repoPath: repoPath || '',
+        });
+      } catch (_) {}
     }
-  } catch (_) {}
+  }
   results.sort((a, b) => new Date(b.date) - new Date(a.date));
   return results;
 }
@@ -173,29 +175,27 @@ function register(shared) {
       console.log(`[CS-IPC] listConversations: CLI returned null/empty, falling back to storage`);
     }
     const storageDir = getStorageDir(repoPath);
-    const results = listViaStorage(storageDir, repoPath);
+    const results = await listViaStorage(storageDir, repoPath);
     console.log(`[CS-IPC] listConversations: storage scan at "${storageDir}" found ${results.length} sessions`);
     if (results.length > 0) return results;
     // Fallback: search all project storage dirs for session files
     const dataRoot = getDataRoot();
     const projectDir = path.join(dataRoot, 'project');
     console.log(`[CS-IPC] listConversations: fallback: scanning "${projectDir}"`);
-    if (fs.existsSync(projectDir)) {
+    try {
+      const projects = await fs.promises.readdir(projectDir, { withFileTypes: true });
       const all = [];
-      try {
-        const projects = fs.readdirSync(projectDir, { withFileTypes: true });
-        for (const proj of projects) {
-          if (proj.isDirectory()) {
-            const sp = path.join(projectDir, proj.name, 'storage');
-            const found = listViaStorage(sp, '');
-            if (found.length > 0) console.log(`[CS-IPC] listConversations: found ${found.length} in "${proj.name}"`);
-            all.push(...found);
-          }
+      for (const proj of projects) {
+        if (proj.isDirectory()) {
+          const sp = path.join(projectDir, proj.name, 'storage');
+          const found = await listViaStorage(sp, '');
+          if (found.length > 0) console.log(`[CS-IPC] listConversations: found ${found.length} in "${proj.name}"`);
+          all.push(...found);
         }
-      } catch (_) {}
+      }
       console.log(`[CS-IPC] listConversations: fallback total: ${all.length} sessions`);
       return all;
-    } else {
+    } catch (_) {
       console.log(`[CS-IPC] listConversations: project dir does not exist at "${projectDir}"`);
     }
     return results;
@@ -220,29 +220,26 @@ function register(shared) {
       path.join(dataRoot, 'project', 'global', 'storage', convId + '.session'),
     ];
     const projectDir = path.join(dataRoot, 'project');
-    if (fs.existsSync(projectDir)) {
-      try {
-        const projects = fs.readdirSync(projectDir, { withFileTypes: true });
-        for (const proj of projects) {
-          if (proj.isDirectory()) {
-            const storagePath = path.join(projectDir, proj.name, 'storage');
-            if (fs.existsSync(storagePath)) {
-              candidates.push(path.join(storagePath, convId + '.json'));
-              candidates.push(path.join(storagePath, convId + '.session'));
-            }
-          }
+    try {
+      const projects = await fs.promises.readdir(projectDir, { withFileTypes: true });
+      for (const proj of projects) {
+        if (proj.isDirectory()) {
+          const storagePath = path.join(projectDir, proj.name, 'storage');
+          try {
+            await fs.promises.access(storagePath);
+            candidates.push(path.join(storagePath, convId + '.json'));
+            candidates.push(path.join(storagePath, convId + '.session'));
+          } catch (_) {}
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
 
     for (const fp of candidates) {
-      if (fs.existsSync(fp)) {
-        try {
-          const raw = fs.readFileSync(fp, 'utf-8');
-          const data = JSON.parse(raw);
-          return { id: convId, messages: data.messages || data.history || [] };
-        } catch (_) {}
-      }
+      try {
+        const raw = await fs.promises.readFile(fp, 'utf-8');
+        const data = JSON.parse(raw);
+        return { id: convId, messages: data.messages || data.history || [] };
+      } catch (_) {}
     }
     return null;
   });

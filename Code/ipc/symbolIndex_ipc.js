@@ -6,7 +6,6 @@ const watcher = require('../indexer/watcher');
 const indexerProxy = require('./indexerProxy.js');
 const workerProxy = require('./workerProxy.js');
 const { updateService } = require('./serviceTracker_ipc.js');
-const symbolsJson = require('../database/symbolsJsonLoader');
 
 let _getMainWindow = null;
 let _activeRepoPath = null;
@@ -14,11 +13,28 @@ let _userDataPath = null;
 
 const _statusCache = new Map();
 const _fileListCache = new Map();
+const _CACHE_MAX = 10;
+
+function _lruGet(cache, key) {
+  if (!cache.has(key)) return undefined;
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+}
+
+function _lruSet(cache, key, value) {
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > _CACHE_MAX) {
+    const first = cache.keys().next().value;
+    cache.delete(first);
+  }
+}
 
 function invalidateCache(repoPath) {
   _statusCache.delete(repoPath);
   _fileListCache.delete(repoPath);
-  symbolsJson.clearCache();
 }
 
 function _detectLang(filePath) {
@@ -49,16 +65,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('db:checkRepo', { repoPath });
           if (data && data.indexed) return data;
-        } catch (err) { /* fall through to symbols.json */ }
-      }
-      const jsonData = symbolsJson.load(repoPath);
-      if (jsonData) {
-        return {
-          indexed: true,
-          total_files: jsonData.files.length,
-          total_symbols: jsonData.symbols.length,
-          last_indexed: jsonData.exportedAt,
-        };
+        } catch (err) { /* indexer may be in mid-restart */ }
       }
       return { indexed: false };
     } catch (err) {
@@ -164,20 +171,8 @@ async function register({ app, docignoreUtils, getMainWindow }) {
 
   ipcMain.handle('symbolIndex:getStatus', async (_, repoPath) => {
     try {
-      const cached = _statusCache.get(repoPath);
+      const cached = _lruGet(_statusCache, repoPath);
       if (cached) {
-        if (cached.exists && cached.indexed) {
-          watcher.createWatcher(repoPath, (repoPath, relPath) => {
-            if (indexerProxy.isReady()) {
-              indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }).then(data => {
-                const count = data?.dirty_count ?? 0;
-                invalidateCache(repoPath);
-                const w = getMainWindow();
-                if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:dirtyChanged', count);
-              }).catch(() => {});
-            }
-          });
-        }
         return cached;
       }
 
@@ -185,38 +180,13 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('db:getStatus', { repoPath });
           if (data && data.exists) {
-            if (data.indexed) {
-              watcher.createWatcher(repoPath, (repoPath, relPath) => {
-                if (indexerProxy.isReady()) {
-                  indexerProxy.send('db:markDirty', { repoPath, filePath: relPath }).then(data => {
-                    const count = data?.dirty_count ?? 0;
-                    invalidateCache(repoPath);
-                    const w = getMainWindow();
-                    if (w && !w.isDestroyed()) w.webContents.send('symbolIndex:dirtyChanged', count);
-                  }).catch(() => {});
-                }
-              });
-            }
-            _statusCache.set(repoPath, data);
+            _lruSet(_statusCache, repoPath, data);
             return data;
           }
-        } catch (err) { /* fall through to symbols.json */ }
+        } catch (err) { /* indexer may be in mid-restart */ }
       }
 
-      const jsonData = symbolsJson.load(repoPath);
-      if (jsonData) {
-        const status = {
-          exists: true,
-          indexed: true,
-          total_files: jsonData.files.length,
-          total_symbols: jsonData.symbols.length,
-          last_indexed: jsonData.exportedAt,
-          dirty_count: 0,
-        };
-        _statusCache.set(repoPath, status);
-        return status;
-      }
-      return { exists: false };
+      return { exists: false, dirty_count: 0 };
     } catch (err) {
       return { exists: false, error: err.message };
     }
@@ -228,22 +198,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('search', { repoPath, query, limit: limit || 200, offset: 0 });
           if (data && Array.isArray(data.results)) return { results: data.results };
-        } catch (err) { /* fall through to symbols.json */ }
-      }
-      const jsonData = symbolsJson.load(repoPath);
-      if (jsonData) {
-        const q = (query || '').toLowerCase();
-        const max = limit || 200;
-        const results = [];
-        const names = jsonData.__symNames;
-        const symbols = jsonData.symbols;
-        for (let i = 0; i < names.length && results.length < max; i++) {
-          if (names[i].lower.includes(q) || names[i].sig.includes(q)) {
-            const s = symbols[i];
-            results.push({ id: s.name + '_' + s.filePath, name: s.name, type: s.type, filePath: s.filePath, line: s.line, signature: s.signature || '' });
-          }
-        }
-        return { results };
+        } catch (err) { /* indexer may be in mid-restart */ }
       }
       return { results: [] };
     } catch (err) {
@@ -378,27 +333,19 @@ async function register({ app, docignoreUtils, getMainWindow }) {
       const lmt = limit || 50;
       const off = offset || 0;
 
-      // Cache hit: only for first page (most common call)
-      if (off === 0 && lmt <= 50 && _fileListCache.has(repoPath)) {
-        const cached = _fileListCache.get(repoPath);
-        return cached;
+      if (off === 0 && lmt <= 50) {
+        const cached = _lruGet(_fileListCache, repoPath);
+        if (cached) return cached;
       }
 
       if (indexerProxy.isReady()) {
         try {
           const result = await indexerProxy.send('db:getFileList', { repoPath, limit: lmt, offset: off });
           if (result && result.files) {
-            if (off === 0) _fileListCache.set(repoPath, result);
+            if (off === 0) _lruSet(_fileListCache, repoPath, result);
             return result;
           }
-        } catch (err) { /* fall through to symbols.json */ }
-      }
-      const jsonData = symbolsJson.load(repoPath);
-      if (jsonData) {
-        const files = jsonData.files.slice(off, off + lmt).map(f => ({ id: f.id, path: f.path, language: f.language }));
-        const result = { files, total: jsonData.files.length };
-        if (off === 0) _fileListCache.set(repoPath, result);
-        return result;
+        } catch (err) { /* indexer may be in mid-restart */ }
       }
       return { files: [], total: 0 };
     } catch (err) {
@@ -412,12 +359,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         try {
           const data = await indexerProxy.send('symbols:get', { filePath, limit: 200, offset: 0 });
           if (data && Array.isArray(data.symbols)) return { symbols: data.symbols };
-        } catch (err) { /* fall through to symbols.json */ }
-      }
-      const jsonData = symbolsJson.load(repoPath);
-      if (jsonData) {
-        const syms = jsonData.__symsByFile.get(filePath) || [];
-        return { symbols: syms.map(s => ({ name: s.name, type: s.type, line: s.line, signature: s.signature })) };
+        } catch (err) { /* indexer may be in mid-restart */ }
       }
       return { symbols: [] };
     } catch (err) {
@@ -557,11 +499,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
             const data = await indexerProxy.send('db:getSymbolTypes', { repoId: status.repo_id });
             if (data) return { types: data.types || [] };
           }
-        } catch (err) { /* fall through to symbols.json */ }
-      }
-      const jsonData = symbolsJson.load(repoPath);
-      if (jsonData) {
-        return { types: Object.entries(jsonData.__typeCounts).map(([type, count]) => ({ type, count })) };
+        } catch (err) { /* indexer may be in mid-restart */ }
       }
       return { types: [] };
     } catch (err) {

@@ -5,10 +5,26 @@ const fs = require('fs');
 const DB_DIR = 'error-cop';
 const DB_FILE = 'errors.db';
 
+const WRITE_WORKER_CODE = `
+const { parentPort } = require('worker_threads');
+const fs = require('fs');
+parentPort.on('message', ({ buffer, path }) => {
+  try {
+    fs.writeFileSync(path, buffer);
+    parentPort.postMessage({ ok: true });
+  } catch (err) {
+    parentPort.postMessage({ ok: false, error: err.message });
+  }
+});
+`;
+
 let _db = null;
 let _appRef = null;
 let _dirty = false;
 let _interval = null;
+let _writeWorker = null;
+let _writeWorkerBusy = false;
+let _pendingWrite = null;
 
 function getDbPath() {
   const dir = path.join(_appRef.getPath('userData'), DB_DIR);
@@ -33,6 +49,7 @@ async function initErrorCopDb(app) {
   _db.run('PRAGMA foreign_keys=ON');
 
   createSchema();
+  migrateSchema();
   _flush();
 
   return _db;
@@ -46,7 +63,9 @@ function createSchema() {
       command       TEXT DEFAULT '',
       cwd           TEXT DEFAULT '',
       shell         TEXT DEFAULT '',
-      status        TEXT CHECK(status IN ('running','ended','failed')) DEFAULT 'running',
+      label         TEXT DEFAULT '',
+      status        TEXT CHECK(status IN ('running','ended','failed','killed')) DEFAULT 'running',
+      ended_reason  TEXT DEFAULT '',
       started_at    TEXT DEFAULT (datetime('now','localtime')),
       ended_at      TEXT,
       exit_code     INTEGER,
@@ -111,6 +130,12 @@ function createSchema() {
   _db.run('CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors(timestamp)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at)');
+}
+
+function migrateSchema() {
+  try { _db.run("ALTER TABLE sessions ADD COLUMN label TEXT DEFAULT ''"); } catch (e) {}
+  try { _db.run("ALTER TABLE sessions ADD COLUMN ended_reason TEXT DEFAULT ''"); } catch (e) {}
 }
 
 function getErrorCopDb() {
@@ -118,12 +143,50 @@ function getErrorCopDb() {
   return _db;
 }
 
+function _getWriteWorker() {
+  if (_writeWorker) return _writeWorker;
+  const { Worker } = require('worker_threads');
+  _writeWorker = new Worker(WRITE_WORKER_CODE, { eval: true });
+  _writeWorker.on('message', () => {
+    _writeWorkerBusy = false;
+    if (_pendingWrite) {
+      const { buffer, path } = _pendingWrite;
+      _pendingWrite = null;
+      _writeWorkerBusy = true;
+      _writeWorker.postMessage({ buffer, path });
+    }
+  });
+  _writeWorker.on('error', (err) => {
+    console.error('[ErrorCopDB] Write worker error:', err.message);
+    _writeWorkerBusy = false;
+    _writeWorker = null;
+  });
+  _writeWorker.on('exit', () => {
+    _writeWorker = null;
+    _writeWorkerBusy = false;
+  });
+  return _writeWorker;
+}
+
 function _flush() {
   if (!_db) return;
   const data = _db.export();
   const buffer = Buffer.from(data);
   const dbPath = getDbPath();
-  fs.writeFileSync(dbPath, buffer);
+  const worker = _getWriteWorker();
+  if (_writeWorkerBusy) {
+    _pendingWrite = { buffer, path: dbPath };
+    return;
+  }
+  _writeWorkerBusy = true;
+  worker.postMessage({ buffer, path: dbPath });
+}
+
+function _flushSync() {
+  if (!_db) return;
+  const data = _db.export();
+  const buffer = Buffer.from(data);
+  fs.writeFileSync(getDbPath(), buffer);
 }
 
 function save() {
@@ -146,7 +209,7 @@ function forceFlush() {
   }
   if (_dirty) {
     _dirty = false;
-    _flush();
+    _flushSync();
   }
 }
 
@@ -156,6 +219,7 @@ function closeErrorCopDb() {
     _db.close();
     _db = null;
   }
+  if (_writeWorker) { try { _writeWorker.terminate(); } catch (_) {} _writeWorker = null; }
 }
 
 module.exports = { initErrorCopDb, getErrorCopDb, save, forceFlush, closeErrorCopDb, getDbPath };
