@@ -7,6 +7,14 @@ function register({ getMainWindow }) {
   const { ErrorEngine } = require('../terminal/error-cop/error-engine');
   _errorEngine = new ErrorEngine(getMainWindow);
 
+  // Start localhost API server for AI agent access
+  try {
+    const server = require('../errorCopServer/server');
+    server.start(_errorEngine);
+  } catch (e) {
+    console.error('[ErrorCop] Failed to start API server:', e.message);
+  }
+
   // Share the engine with terminal_ipc
   const termIpc = require('./terminal_ipc');
   termIpc.setErrorEngine(_errorEngine);
