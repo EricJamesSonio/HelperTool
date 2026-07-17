@@ -4,7 +4,7 @@ import { openTerminalForRepo, closeTerminalSession } from './chat.js';
 import {
   hasTerminalSession, writeToTerminal, writeToSlot, fitActiveTerminal,
   getActiveSlots, getFreeSlot, killSlot, activateSlot, setParallelConfig,
-  markTerminalLoading, clearTerminalLoading
+  markTerminalLoading, clearTerminalLoading, waitForShellPrompt
 } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
@@ -244,12 +244,16 @@ export async function startNewChat() {
   state.lastSentMessage = null;
 
   if (state.parallelMode) {
-    const slotIndex = state.activeSlotIndex;
-    const inst = getActiveSlots()[slotIndex];
-    if (inst && inst.repoPath === repoPath) {
+    const freeSlot = getFreeSlot();
+    if (freeSlot >= 0) {
+      state.activeSlotIndex = freeSlot;
+      state.slotData[freeSlot] = { repoPath, convId: null };
+      await openTerminalForRepo(repoPath, freeSlot);
+    } else {
+      const slotIndex = state.activeSlotIndex;
       clearTerminalLoading(slotIndex);
       writeToSlot(slotIndex, '/exit\n');
-      await new Promise(r => setTimeout(r, 2000));
+      await waitForShellPrompt(repoPath, slotIndex);
       const provider = getProvider(state.selectedProvider);
       const binaryPath = state.opencodePath || provider.bin;
       markTerminalLoading(slotIndex);
@@ -257,17 +261,6 @@ export async function startNewChat() {
       setTimeout(() => clearTerminalLoading(slotIndex), 8000);
       state.activeConvId[repoPath] = null;
       state.slotData[slotIndex] = { repoPath, convId: null };
-    } else {
-      const freeSlot = getFreeSlot();
-      const targetSlot = freeSlot >= 0 ? freeSlot : slotIndex;
-      state.activeSlotIndex = targetSlot;
-      state.slotData[targetSlot] = { repoPath, convId: null };
-      if (freeSlot < 0) {
-        writeToSlot(targetSlot, '/exit\n');
-        await new Promise(r => setTimeout(r, 2000));
-        killSlot(targetSlot);
-      }
-      await openTerminalForRepo(repoPath, targetSlot);
     }
     await refreshSidebar();
     renderConvList();

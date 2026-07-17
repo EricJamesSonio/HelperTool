@@ -1659,7 +1659,8 @@ function _render(state) {
         if (r.communities && r.communities.length > 0) {
           html += `<div class="gfy-report-card"><div class="gfy-report-card-title">\uD83C\uDFED Communities</div><div class="gfy-report-card-body">`;
           for (const c of r.communities) {
-            html += `<div class="gfy-community-row"><span class="gfy-community-color" style="background:${c.color}"></span><span>Community ${c.id + 1}</span><span class="gfy-report-item-meta">${c.nodeCount} nodes</span></div>`;
+            const commName = c.name || `Community ${c.id + 1}`;
+            html += `<div class="gfy-community-row"><span class="gfy-community-color" style="background:${c.color}"></span><span class="gfy-community-name">${_esc(commName)}</span><span class="gfy-report-item-meta">${c.nodeCount} nodes</span></div>`;
           }
           html += `</div></div>`;
         }

@@ -840,6 +840,37 @@ export function waitForTerminalReady(repoPath, slotIndex, timeout = 12000) {
   });
 }
 
+export function waitForShellPrompt(repoPath, slotIndex, timeout = 8000) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const iv = setInterval(() => {
+      if (isShellPrompt(repoPath, slotIndex)) {
+        clearInterval(iv);
+        resolve(true);
+        return;
+      }
+      if (Date.now() - start > timeout) {
+        clearInterval(iv);
+        resolve(false);
+      }
+    }, 200);
+  });
+}
+
+export function getSlotForRepo(repoPath) {
+  return _findSlotByRepoPath(repoPath);
+}
+
+export function getConvSlotMap(repoPath) {
+  const map = {};
+  for (const [slot, data] of Object.entries(state.slotData)) {
+    if (data && data.repoPath === repoPath && data.convId) {
+      map[data.convId] = Number(slot);
+    }
+  }
+  return map;
+}
+
 export function getActiveSlots() {
   const count = state.parallelMode ? state.parallelSlots : 1;
   const result = [];
@@ -860,6 +891,7 @@ export function getFreeSlot() {
 }
 
 export function setParallelConfig(mode, count) {
+  const wasParallel = state.parallelMode;
   state.parallelMode = mode;
   state.parallelSlots = count;
 
@@ -877,7 +909,20 @@ export function setParallelConfig(mode, count) {
       if (slot >= count) killSlot(slot);
     });
     if (state.activeSlotIndex >= count) state.activeSlotIndex = 0;
+    if (!wasParallel && instances[0] && !instances[1]) {
+      state.activeSlotIndex = 1;
+    }
+    // Initialize slotData when entering parallel mode so the sidebar
+    // can map conversations to their slots (slot badges, per-slot borders)
+    if (!wasParallel) {
+      const repoPath = instances[0]?.repoPath;
+      if (repoPath) {
+        state.slotData[0] = { repoPath, convId: state.activeConvId[repoPath] || null };
+      }
+    }
   }
+
+  import('./repoTabs.js').then(m => m.renderConvList());
 
   _updateContainerGrid();
   _highlightActiveSlot();
@@ -904,7 +949,17 @@ export function setParallelConfig(mode, count) {
 export function activateSlot(slotIndex) {
   if (slotIndex < 0 || (state.parallelMode && slotIndex >= state.parallelSlots)) return;
   if (!state.parallelMode && slotIndex > 0) return;
+  const prevSlot = state.activeSlotIndex;
   state.activeSlotIndex = slotIndex;
   _highlightActiveSlot();
   showSlot(slotIndex);
+
+  // Update active conversation in sidebar when slot changes in parallel mode
+  if (state.parallelMode && slotIndex !== prevSlot) {
+    const slotData = state.slotData[slotIndex];
+    if (slotData && slotData.repoPath && slotData.convId) {
+      state.activeConvId[slotData.repoPath] = slotData.convId;
+    }
+    import('./repoTabs.js').then(m => m.renderConvList());
+  }
 }
