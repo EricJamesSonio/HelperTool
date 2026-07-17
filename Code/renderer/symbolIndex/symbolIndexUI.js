@@ -93,8 +93,8 @@ class SymbolIndexUI {
                 <div class="si-info-icon">${ICON_LIGHTBULB}</div>
                 <p class="si-info-text">This repository hasn't been indexed yet.</p>
                 <p class="si-info-desc">Ignores follow <code>global-docignore.json</code> patterns.</p>
-                <button id="siStartIndexingBtn" class="btn btn-primary si-action-btn">
-                  <span class="btn-icon">${ICON_LIGHTNING}</span> Start Indexing
+                <button id="siStartIndexingBtn" class="si-btn si-btn-primary si-action-btn">
+                  <span class="si-btn-icon">${ICON_LIGHTNING}</span> Start Indexing
                 </button>
               </div>
 
@@ -102,7 +102,7 @@ class SymbolIndexUI {
               <div id="siIndexedState" class="si-state-block" style="display:none">
                 <p class="si-info-desc" style="margin-bottom:12px">
                   Files filtered by <code>global-docignore.json</code> —
-                  <button class="btn-link" id="siEditDocignoreBtn">edit</button>
+                  <button class="si-btn-link" id="siEditDocignoreBtn">edit</button>
                 </p>
 
                 <div class="si-watcher-box">
@@ -116,7 +116,7 @@ class SymbolIndexUI {
                       <span id="siDirtyCount" class="si-dirty-badge">0</span>
                       <span class="si-dirty-label">modified files</span>
                       <span class="si-watcher-spacer"></span>
-                      <button id="siReindexDirtyBtn" class="btn btn-small si-reindex-btn">${ICON_REFRESH} Reindex All</button>
+                      <button id="siReindexDirtyBtn" class="si-btn si-btn-small si-reindex-btn">${ICON_REFRESH} Reindex All</button>
                     </div>
                   </div>
                 </div>
@@ -128,7 +128,7 @@ class SymbolIndexUI {
                       <input type="checkbox" id="siDirtySelectAll" />
                       Select all
                     </label>
-                    <button id="siReindexSelectedBtn" class="btn btn-small si-reindex-btn">
+                    <button id="siReindexSelectedBtn" class="si-btn si-btn-small si-reindex-btn">
                       ${ICON_REFRESH} Reindex Selected
                     </button>
                   </div>
@@ -136,13 +136,13 @@ class SymbolIndexUI {
                 </div>
 
                 <div class="si-actions">
-                  <button id="siFullReindexBtn" class="btn btn-small">
+                  <button id="siFullReindexBtn" class="si-btn si-btn-small">
                     ${ICON_REFRESH} Full Reindex
                   </button>
-                  <button id="siResetBtn" class="btn btn-small si-danger-btn">
+                  <button id="siResetBtn" class="si-btn si-btn-small si-danger-btn">
                     ${ICON_REMOVE} Reset
                   </button>
-                  <button id="siDeleteBtn" class="btn btn-small si-danger-btn">
+                  <button id="siDeleteBtn" class="si-btn si-btn-small si-danger-btn">
                     ${ICON_DELETE} Delete Index
                   </button>
                 </div>
@@ -150,8 +150,8 @@ class SymbolIndexUI {
                 <div class="si-proxy-section" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-default,rgba(255,255,255,0.08))">
                   <p class="si-info-desc" style="margin-bottom:8px;font-weight:600;font-size:0.72rem;letter-spacing:0.3px">INDEXER SERVICE (DEMO)</p>
                   <div style="display:flex;gap:6px;flex-wrap:wrap">
-                    <button id="siProxyIndexBtn" class="btn btn-small">${ICON_LIGHTNING} Index Active File</button>
-                    <button id="siProxySearchBtn" class="btn btn-small">${ICON_SEARCH} Search via Proxy</button>
+                    <button id="siProxyIndexBtn" class="si-btn si-btn-small">${ICON_LIGHTNING} Index Active File</button>
+                    <button id="siProxySearchBtn" class="si-btn si-btn-small">${ICON_SEARCH} Search via Proxy</button>
                   </div>
                   <div id="siProxyResult" class="si-proxy-result" style="margin-top:8px;font-size:0.75rem;color:var(--text-muted,#556080);white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
                 </div>

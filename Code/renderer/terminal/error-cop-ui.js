@@ -16,6 +16,50 @@ function _fmtDate(isoStr) {
   return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+const TIME_PRESETS = [
+  { value: 'today',      label: 'Today' },
+  { value: 'this-week',  label: 'This Week' },
+  { value: 'this-month', label: 'This Month' },
+  { value: 'last-month', label: 'Last Month' },
+  { value: 'pick-month', label: 'Pick Month\u2026' },
+];
+
+function _getDateRange(preset) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const d = now.getDate();
+  let start, end;
+
+  switch (preset) {
+    case 'today':
+      start = new Date(y, m, d);
+      end = new Date(y, m, d + 1);
+      break;
+    case 'this-week': {
+      const day = now.getDay();
+      start = new Date(y, m, d - (day === 0 ? 6 : day - 1));
+      end = new Date(y, m, d + 1);
+      break;
+    }
+    case 'this-month':
+      start = new Date(y, m, 1);
+      end = new Date(y, m + 1, 1);
+      break;
+    case 'last-month':
+      start = new Date(y, m - 1, 1);
+      end = new Date(y, m, 1);
+      break;
+    default:
+      start = new Date(y, m, d);
+      end = new Date(y, m, d + 1);
+  }
+  return {
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+  };
+}
+
 export default class ErrorCopUI {
   constructor() {
     this._panel = null;
@@ -33,6 +77,9 @@ export default class ErrorCopUI {
     this._selectMode = false;
     this._selectedSessionIds = new Set();
     this._refreshTimer = null;
+    this._timePreset = 'today';
+    this._pickMonthEl = null;
+    this._timeDropdownEl = null;
   }
 
   init() {
@@ -73,6 +120,13 @@ export default class ErrorCopUI {
             <span class="ecp-header-badge" id="ecpHeaderBadge">ACTIVE</span>
           </div>
           <div class="ecp-header-actions" style="display:flex;align-items:center;gap:8px">
+            <div class="ecp-time-dropdown-wrapper" style="position:relative">
+              <button class="ecp-time-dropdown-btn" id="ecpTimeDropdownBtn" title="Select time range">
+                <span id="ecpTimeLabel">Today</span>
+                <span class="ecp-time-chevron">&#9662;</span>
+              </button>
+              <div class="ecp-time-dropdown" id="ecpTimeDropdown" style="display:none"></div>
+            </div>
             <div class="ecp-info-line" style="margin:0;padding:4px 12px;font-size:11px">
               <span>Unread</span>
               <span class="ecp-info-value" id="ecpUnreadValue">0</span>
@@ -111,6 +165,7 @@ export default class ErrorCopUI {
       });
     });
 
+    this._initTimeDropdown();
     this._createToast();
   }
 
@@ -129,6 +184,107 @@ export default class ErrorCopUI {
     this._toastTimer = setTimeout(() => {
       this._toast.classList.remove('show');
     }, 4000);
+  }
+
+  _initTimeDropdown() {
+    const btn = this._wrapper.querySelector('#ecpTimeDropdownBtn');
+    const dd = this._wrapper.querySelector('#ecpTimeDropdown');
+    const label = this._wrapper.querySelector('#ecpTimeLabel');
+    this._timeDropdownEl = dd;
+
+    const renderDD = () => {
+      dd.innerHTML = '';
+      TIME_PRESETS.forEach(p => {
+        const opt = document.createElement('button');
+        opt.className = 'ecp-time-option' + (p.value === this._timePreset ? ' active' : '');
+        opt.textContent = p.label;
+        opt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._timePreset = p.value;
+          label.textContent = p.label;
+          dd.style.display = 'none';
+          if (p.value === 'pick-month') {
+            this._showMonthPicker(label);
+          } else {
+            this._reloadWithTimeRange();
+          }
+        });
+        dd.appendChild(opt);
+      });
+    };
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      renderDD();
+      dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+    });
+
+    document.addEventListener('click', () => {
+      if (dd) dd.style.display = 'none';
+    });
+  }
+
+  _showMonthPicker(labelEl) {
+    const existing = document.querySelector('.ecp-month-picker');
+    if (existing) existing.remove();
+
+    const now = new Date();
+    let year = now.getFullYear();
+    let month = now.getMonth();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ecp-month-picker';
+    overlay.innerHTML = `
+      <div class="ecp-month-picker-inner">
+        <div class="ecp-month-picker-header">
+          <button class="ecp-mp-nav" id="ecpMpPrev">&#9664;</button>
+          <span class="ecp-mp-title" id="ecpMpTitle">${new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+          <button class="ecp-mp-nav" id="ecpMpNext">&#9654;</button>
+        </div>
+        <div class="ecp-month-picker-grid" id="ecpMpGrid"></div>
+        <button class="ecp-filter-btn" id="ecpMpApply" style="margin-top:8px;width:100%">Apply</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const renderGrid = () => {
+      const grid = overlay.querySelector('#ecpMpGrid');
+      grid.innerHTML = '';
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      months.forEach((mName, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'ecp-mp-month' + (i === month ? ' active' : '');
+        btn.textContent = mName;
+        btn.addEventListener('click', () => {
+          overlay.querySelectorAll('.ecp-mp-month').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          month = i;
+          overlay.querySelector('#ecpMpTitle').textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+        });
+        grid.appendChild(btn);
+      });
+    };
+
+    overlay.querySelector('#ecpMpPrev').addEventListener('click', () => { year--; overlay.querySelector('#ecpMpTitle').textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' }); });
+    overlay.querySelector('#ecpMpNext').addEventListener('click', () => { year++; overlay.querySelector('#ecpMpTitle').textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' }); });
+
+    overlay.querySelector('#ecpMpApply').addEventListener('click', () => {
+      const start = new Date(year, month, 1).toISOString();
+      const end = new Date(year, month + 1, 1).toISOString();
+      this._timePreset = 'custom';
+      labelEl.textContent = new Date(year, month).toLocaleString('default', { month: 'short', year: 'numeric' });
+      this._customRange = { startDate: start, endDate: end };
+      overlay.remove();
+      this._reloadWithTimeRange();
+    });
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    renderGrid();
+  }
+
+  async _reloadWithTimeRange() {
+    await this._loadData();
+    this._render();
   }
 
   _listenIPC() {
@@ -230,10 +386,16 @@ export default class ErrorCopUI {
 
   async _loadData() {
     try {
+      let dateOpts = {};
+      if (this._timePreset === 'custom' && this._customRange) {
+        dateOpts = this._customRange;
+      } else {
+        dateOpts = _getDateRange(this._timePreset);
+      }
       const [timeline, errors, sessions, allBrowserServers] = await Promise.all([
-        window.electronAPI.getTimeline({ limit: 100 }),
-        window.electronAPI.getErrors({ limit: 100 }),
-        window.electronAPI.getSessions(30),
+        window.electronAPI.getTimeline({ limit: 200, ...dateOpts }),
+        window.electronAPI.getErrors({ limit: 200, ...dateOpts }),
+        window.electronAPI.getSessions({ limit: 100, ...dateOpts }),
         window.electronAPI.getAllBrowserServers(),
       ]);
       this._timeline = timeline || [];
@@ -345,13 +507,16 @@ export default class ErrorCopUI {
 
     for (const err of items) {
       const dotClass = err.level === 'error' ? 'ecp-dot-error' : err.level === 'warning' ? 'ecp-dot-warning' : 'ecp-dot-info';
+      const rawMsg = err.message || '';
+      const msgFirstLine = rawMsg.split('\n')[0] || '';
+      const isMultiline = rawMsg.indexOf('\n') > 0;
       const row = document.createElement('div');
       row.className = 'ecp-event';
       row.innerHTML = `
         <span class="ecp-event-dot ${dotClass}"></span>
         <div class="ecp-event-body">
           <span class="ecp-event-title">${this._escapeHtml(err.title || '')}</span>
-          <span class="ecp-event-message">${this._escapeHtml(err.message || '')}</span>
+          <span class="ecp-event-message">${this._escapeHtml(msgFirstLine)}${isMultiline ? ' <span class="ecp-msg-more">…</span>' : ''}</span>
         </div>
         <div class="ecp-event-meta">
           <span class="ecp-event-time">${_fmtTime(err.timestamp)}</span>
@@ -458,7 +623,9 @@ export default class ErrorCopUI {
     list.className = 'ecp-sessions';
 
     for (const s of sessions) {
-      const statusClass = `ecp-session-${s.status || 'ended'}`;
+      const statusClass = s.ended_reason === 'killed' ? 'ecp-session-killed' : `ecp-session-${s.status || 'ended'}`;
+      const statusText = s.ended_reason === 'killed' ? 'Killed' : (s.status || 'ended');
+      const labelText = s.label || s.project || 'Terminal';
       const browserInfo = (this._allBrowserServers || []).filter(b => b.session_id === s.id);
       const sId = s.id;
       const isSelected = this._selectedSessionIds.has(sId);
@@ -485,9 +652,9 @@ export default class ErrorCopUI {
       card.innerHTML = `
         <div class="ecp-session-row">
           ${checkboxHtml}
-          <span class="ecp-session-project" style="${this._selectMode ? 'flex:1' : ''}">${this._escapeHtml(s.project || 'Terminal')}</span>
+          <span class="ecp-session-project" style="${this._selectMode ? 'flex:1' : ''}">${this._escapeHtml(labelText)}</span>
           <span class="ecp-session-command" style="${this._selectMode ? 'display:none' : ''}">${this._escapeHtml(s.command || '')}</span>
-          <span class="ecp-session-status ${statusClass}">${s.status || 'ended'}</span>
+          <span class="ecp-session-status ${statusClass}">${statusText}</span>
         </div>
         ${browserHtml ? `<div class="ecp-session-row" style="gap:4px;padding-left:${this._selectMode ? '26px' : '0'}">${browserHtml}</div>` : ''}
         <div class="ecp-session-row" style="${browserHtml ? 'margin-top:4px' : ''}${this._selectMode ? 'padding-left:26px' : ''}">
@@ -617,7 +784,8 @@ export default class ErrorCopUI {
     header.appendChild(backBtn);
     const title = document.createElement('span');
     title.style.cssText = 'font-size:12px;font-weight:600;color:#f0dfdf';
-    title.textContent = `${this._escapeHtml(s.project || 'Terminal')} \u2014 ${this._escapeHtml(s.command || '')}`;
+    const occLabel = s.label || s.project || 'Terminal';
+    title.textContent = `${this._escapeHtml(occLabel)} \u2014 ${this._escapeHtml(s.command || '')}`;
     header.appendChild(title);
     this._leftCol.appendChild(header);
 
@@ -692,6 +860,7 @@ export default class ErrorCopUI {
         ? '<span style="font-size:10px;color:#3b8eea;margin-right:4px">\ud83c\udf10</span>'
         : '<span style="font-size:10px;color:#8a9aaa;margin-right:4px">\ud83d\udda5\ufe0f</span>';
       const fullText = occ.line_text || occ.message || occ.title || '';
+      const lineCount = fullText.split('\n').length;
       const row = document.createElement('div');
       row.className = 'ecp-event ecp-event-expanded';
       row.innerHTML = `
@@ -699,6 +868,7 @@ export default class ErrorCopUI {
         <div class="ecp-event-body">
           <div style="display:flex;align-items:center;gap:6px">
             <span class="ecp-event-title">${sourceBadge}${this._escapeHtml(occ.title || '')}</span>
+            ${lineCount > 1 ? `<span class="ecp-line-count">${lineCount} lines</span>` : ''}
             <button class="ecp-copy-btn" title="Copy error text">\ud83d\udccb</button>
           </div>
           <pre class="ecp-event-text">${this._escapeHtml(fullText)}</pre>
@@ -740,14 +910,21 @@ export default class ErrorCopUI {
       ).join('');
     }
 
+    const statusText = s.ended_reason === 'killed' ? 'Killed' : (s.status || 'ended');
+    const statusColor = s.ended_reason === 'killed' ? '#f87171' : (s.status === 'running' ? '#23d18b' : '#8899aa');
+
     this._rightCol.innerHTML = `
       <div class="ecp-info-line">
         <span>Session ID</span>
         <span class="ecp-info-value">#${s.id}</span>
       </div>
       <div class="ecp-info-line">
+        <span>Label</span>
+        <span class="ecp-info-value" style="color:#f0dfdf">${this._escapeHtml(s.label || '-')}</span>
+      </div>
+      <div class="ecp-info-line">
         <span>Status</span>
-        <span class="ecp-info-value" style="color:${s.status === 'running' ? '#23d18b' : '#8899aa'}">${s.status || 'ended'}</span>
+        <span class="ecp-info-value" style="color:${statusColor}">${statusText}</span>
       </div>
       <div class="ecp-info-line">
         <span>Started</span>

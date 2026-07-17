@@ -300,10 +300,11 @@ export default class TerminalUI {
     const tab = document.createElement('button');
     tab.className = 'terminal-tab';
     tab.dataset.terminalId = id;
+    const sessionLabel = `${useShell.name} ${id}`;
     tab.innerHTML = `
       <span class="terminal-tab-shell">
         <span class="terminal-tab-icon">${ICON_SHELL}</span>
-        <span class="terminal-tab-name">${useShell.name}</span>
+        <span class="terminal-tab-name">${sessionLabel}</span>
       </span>
       <span class="terminal-tab-close">${ICON_CLOSE}</span>
     `;
@@ -314,17 +315,20 @@ export default class TerminalUI {
     tab.addEventListener('click', () => this._activateTerminal(id));
     this.tabBar.insertBefore(tab, this.tabBar.querySelector('.terminal-tabs-right'));
 
-    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd });
-
+    let sessionId = null;
     try {
-      await window.electronAPI.terminalSpawn({
+      const result = await window.electronAPI.terminalSpawn({
         cwd: cwd || '',
         shell: useShell.cmd,
         args: useShell.args,
+        label: sessionLabel,
       });
+      if (result) sessionId = result.sessionId || null;
     } catch (err) {
       terminal.write(`\r\n\x1b[31mFailed to spawn terminal: ${err.message}\x1b[0m\r\n`);
     }
+
+    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, sessionId });
 
     terminal.onData((data) => {
       window.electronAPI.terminalWrite({ id, data });

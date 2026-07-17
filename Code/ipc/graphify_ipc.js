@@ -235,11 +235,29 @@ function _restart(app) {
   return new Promise(r => setTimeout(r, 300)).then(() => _spawn(app));
 }
 
+let _infoCache = null;
+const INFO_CACHE_TTL = 2000;
+
 function _fetchInfo() {
-  return _httpGetJson(`http://127.0.0.1:${_port}/info`);
+  if (_infoCache && Date.now() - _infoCache.ts < INFO_CACHE_TTL) {
+    return Promise.resolve(_infoCache.data);
+  }
+  return _httpGetJson(`http://127.0.0.1:${_port}/info`).then(data => {
+    _infoCache = { data, ts: Date.now() };
+    return data;
+  }).catch(err => {
+    _infoCache = null;
+    throw err;
+  });
 }
 
+const _repoStatusCache = new Map();
+const REPO_STATUS_CACHE_TTL = 1000;
+
 function _fetchRepoStatus(repoPath) {
+  const cached = _repoStatusCache.get(repoPath);
+  if (cached && Date.now() - cached.ts < REPO_STATUS_CACHE_TTL) return cached.data;
+  _repoStatusCache.delete(repoPath);
   const symbolsJsonPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');
   const promptPath = path.join(repoPath, PROMPTS_DIR, 'generate-graph.md');
   const incrPromptPath = path.join(repoPath, PROMPTS_DIR, 'generate-graph-file-changes-only.md');
@@ -261,7 +279,7 @@ function _fetchRepoStatus(repoPath) {
     } catch {}
   }
 
-  return {
+  const result = {
     symbolsExists,
     promptExists,
     promptGenerated,
@@ -274,6 +292,12 @@ function _fetchRepoStatus(repoPath) {
     incrPromptPath,
     graphPath,
   };
+  _repoStatusCache.set(repoPath, { data: result, ts: Date.now() });
+  if (_repoStatusCache.size > 20) {
+    const first = _repoStatusCache.keys().next().value;
+    _repoStatusCache.delete(first);
+  }
+  return result;
 }
 
 function _generatePromptText(repoPath) {
@@ -954,11 +978,8 @@ function register({ app }) {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
     const status = _fetchRepoStatus(repoPath);
 
-    const hashesPath = path.join(repoPath, GRAPHIFY_DIR, '.file-hashes.json');
-    const hashesExist = fs.existsSync(hashesPath);
-
     let changes = null;
-    if (status.symbolsExists && hashesExist) {
+    if (status.symbolsExists && status.hashesExist) {
       try {
         const ch = changeDetector.detectContentChanges(repoPath);
         if (ch) {
