@@ -78,17 +78,17 @@ export function confirmDialog(message) {
       border: 1px solid var(--border-default, rgba(255,255,255,0.10));
       border-radius: 10px;
       padding: 24px 28px;
-      min-width: 320px;
-      max-width: 460px;
+      min-width: 360px;
+      max-width: 520px;
       box-shadow: 0 12px 48px rgba(0,0,0,0.5);
       font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
     `;
 
     box.innerHTML = `
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary,#eef2ff);margin-bottom:16px;line-height:1.5">
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary,#eef2ff);margin-bottom:18px;line-height:1.6">
         ${message}
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
         <button id="cfCancelBtn-${id}" style="
           height:32px;padding:0 14px;border-radius:6px;
           background:var(--bg-raised,#1a2540);border:1px solid var(--border-default,rgba(255,255,255,0.10));

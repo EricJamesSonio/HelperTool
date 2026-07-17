@@ -60,11 +60,12 @@ async function _guardActiveServices() {
     if (termStatus.running) items.push({ name: 'Terminal', count: termStatus.count, stop: null });
     if (items.length === 0) return true;
 
-    const listHtml = items.map(s => {
+    const listHtml = items.map((s, i) => {
         const suffix = s.count ? ` (${s.count} session${s.count > 1 ? 's' : ''})` : '';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:4px;background:rgba(255,255,255,0.03);border-radius:6px;font-size:13px;color:var(--text-primary,#eef2ff);">
+        const bg = i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${bg};border-radius:6px;font-size:13px;color:var(--text-primary,#eef2ff);">
             <span style="width:8px;height:8px;border-radius:50%;background:var(--accent,#22d3ee);flex-shrink:0;"></span>
-            <span style="font-weight:600;">${s.name}</span>
+            <span style="font-weight:600;min-width:80px;">${s.name}</span>
             <span style="color:var(--text-secondary,#94a3c4);">is running${suffix}</span>
         </div>`;
     }).join('');
