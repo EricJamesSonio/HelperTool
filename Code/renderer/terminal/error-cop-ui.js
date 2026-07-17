@@ -66,7 +66,7 @@ export default class ErrorCopUI {
     this._wrapper = null;
     this._badgeEl = null;
     this._lastUnread = 0;
-    this._activeTab = 'timeline';
+    this._activeTab = 'tools';
     this._timeline = [];
     this._errors = [];
     this._sessions = [];
@@ -137,10 +137,10 @@ export default class ErrorCopUI {
           </div>
         </div>
         <div class="ecp-tab-bar">
-          <button class="ecp-tab ecp-tab-active" data-tab="timeline">Timeline</button>
+          <button class="ecp-tab ecp-tab-active" data-tab="tools">Tools</button>
+          <button class="ecp-tab" data-tab="timeline">Timeline</button>
           <button class="ecp-tab" data-tab="errors">Errors</button>
           <button class="ecp-tab" data-tab="sessions">Sessions</button>
-          <button class="ecp-tab" data-tab="tools">Tools</button>
         </div>
         <div class="ecp-body" id="ecpBody">
           <div class="ecp-left-column" id="ecpLeftCol"></div>
@@ -417,6 +417,10 @@ export default class ErrorCopUI {
   }
 
   _render() {
+    const body = this._wrapper ? this._wrapper.querySelector('#ecpBody') : null;
+    if (body) {
+      body.classList.toggle('full-width', this._activeTab === 'tools');
+    }
     switch (this._activeTab) {
       case 'timeline': this._renderTimeline(); break;
       case 'errors': this._renderErrors(); break;
@@ -962,7 +966,6 @@ export default class ErrorCopUI {
   }
 
   async _renderTools() {
-    // Check server status
     try {
       const status = await window.electronAPI.getServerStatus();
       this._serverRunning = status && status.running;
@@ -972,66 +975,49 @@ export default class ErrorCopUI {
     this._rightCol.innerHTML = '';
 
     const container = document.createElement('div');
-    container.style.cssText = 'display:flex;flex-direction:column;gap:12px;width:100%';
+    container.className = 'ecp-landing';
 
-    // ── Server Card ──
-    const serverCard = document.createElement('div');
-    serverCard.style.cssText = 'background:rgba(20,10,10,0.45);border:1px solid rgba(255,34,34,0.12);border-radius:10px;padding:16px';
+    const statusColor = this._serverStarting ? '#eab308' : this._serverRunning ? '#23d18b' : '#6d5050';
+    const statusText = this._serverStarting ? 'Starting...' : this._serverRunning ? 'Running' : 'Stopped';
 
-    serverCard.innerHTML = `
-      <div style="font-size:13px;font-weight:700;color:#f0dfdf;margin-bottom:10px">API Server <span style="font-size:11px;color:#6d5050;font-weight:500">(port 3334)</span></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600">
-          <span style="width:10px;height:10px;border-radius:50%;background:${this._serverStarting ? '#eab308' : this._serverRunning ? '#23d18b' : '#6d5050'};box-shadow:0 0 6px ${this._serverStarting ? 'rgba(234,179,8,0.5)' : this._serverRunning ? 'rgba(35,209,139,0.5)' : 'transparent'}"></span>
-          ${this._serverStarting ? 'Starting...' : this._serverRunning ? 'Running' : 'Stopped'}
-        </span>
+    container.innerHTML = `
+      <div class="ecp-landing-glow"></div>
+      <div class="ecp-landing-icon">${ICON_SHIELD}</div>
+      <div class="ecp-landing-title">Error Cop</div>
+      <div class="ecp-landing-subtitle">Runtime Error Monitor &middot; Localhost API on port 3334</div>
+
+      <div class="ecp-landing-status">
+        <span class="ecp-landing-dot" style="background:${statusColor};box-shadow:0 0 8px ${statusColor}"></span>
+        ${statusText}
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="ecp-filter-btn ecp-server-start" style="${this._serverRunning || this._serverStarting ? 'opacity:0.4;pointer-events:none' : ''}padding:6px 16px;font-size:11px">${this._serverRunning ? 'Running' : 'Start Server'}</button>
-        <button class="ecp-filter-btn ecp-server-stop" style="${!this._serverRunning ? 'opacity:0.4;pointer-events:none' : ''}padding:6px 16px;font-size:11px;border-color:#ff4444;color:#ff4444">Stop Server</button>
-        <button class="ecp-filter-btn ecp-server-copy-url" style="padding:6px 16px;font-size:11px">Copy URL</button>
+
+      <div class="ecp-landing-actions">
+        <button class="ecp-landing-btn ecp-landing-btn-primary ecp-server-start" ${this._serverRunning || this._serverStarting ? 'disabled' : ''}>
+          ${this._serverRunning ? 'Server Running' : 'Start Server'}
+        </button>
+        <button class="ecp-landing-btn ecp-server-stop" ${!this._serverRunning ? 'disabled' : ''}>
+          Stop Server
+        </button>
+        <button class="ecp-landing-btn ecp-server-copy-url">
+          Copy URL
+        </button>
       </div>
-    `;
-    container.appendChild(serverCard);
 
-    // ── Cheatsheet Card ──
-    const csCard = document.createElement('div');
-    csCard.style.cssText = 'background:rgba(20,10,10,0.45);border:1px solid rgba(255,34,34,0.12);border-radius:10px;padding:16px';
+      <div class="ecp-landing-divider"></div>
 
-    csCard.innerHTML = `
-      <div style="font-size:13px;font-weight:700;color:#f0dfdf;margin-bottom:6px">AI Cheatsheet</div>
-      <div style="font-size:11px;color:#a78484;margin-bottom:12px;line-height:1.4">Auto-generated guide for AI agents to use the Error Cop API. Read the file and send it to AI or copy its content.</div>
-      <button class="ecp-filter-btn ecp-cheatsheet-btn" style="padding:6px 16px;font-size:11px">View &amp; Send to AI</button>
+      <div class="ecp-landing-section-title">AI Cheatsheet</div>
+      <div class="ecp-landing-desc">Auto-generated guide that tells AI agents how to use the Error Cop API. View it and send to AI.</div>
+      <button class="ecp-landing-btn ecp-cheatsheet-btn" style="margin-top:4px">
+        View &amp; Send to AI
+      </button>
     `;
-    container.appendChild(csCard);
 
     this._leftCol.appendChild(container);
 
-    // ── Right Column: Info ──
-    this._rightCol.innerHTML = `
-      <div class="ecp-info-line" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div style="font-size:12px;font-weight:600;color:#f0dfdf">Why these tools?</div>
-        <div style="font-size:11px;color:#a78484;line-height:1.5;font-weight:400">
-          The localhost API server exposes Error Cop data to AI agents via HTTP. 
-          Start it and AI tools can query errors, sessions, and timelines directly.
-        </div>
-        <div style="font-size:11px;color:#a78484;line-height:1.5;font-weight:400">
-          The cheatsheet is a markdown guide that tells AI agents <em>how</em> 
-          to use the API effectively.
-        </div>
-      </div>
-    `;
-
-    // ── Bind events ──
-    const startBtn = this._leftCol.querySelector('.ecp-server-start');
-    const stopBtn = this._leftCol.querySelector('.ecp-server-stop');
-    const copyUrlBtn = this._leftCol.querySelector('.ecp-server-copy-url');
-    const cheatsheetBtn = this._leftCol.querySelector('.ecp-cheatsheet-btn');
-
-    if (startBtn) startBtn.addEventListener('click', () => this._handleServerStart());
-    if (stopBtn) stopBtn.addEventListener('click', () => this._handleServerStop());
-    if (copyUrlBtn) copyUrlBtn.addEventListener('click', () => this._handleCopyUrl());
-    if (cheatsheetBtn) cheatsheetBtn.addEventListener('click', () => this._handleCheatsheet());
+    this._leftCol.querySelector('.ecp-server-start').addEventListener('click', () => this._handleServerStart());
+    this._leftCol.querySelector('.ecp-server-stop').addEventListener('click', () => this._handleServerStop());
+    this._leftCol.querySelector('.ecp-server-copy-url').addEventListener('click', () => this._handleCopyUrl());
+    this._leftCol.querySelector('.ecp-cheatsheet-btn').addEventListener('click', () => this._handleCheatsheet());
   }
 
   async _handleServerStart() {
