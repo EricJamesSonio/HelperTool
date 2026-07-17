@@ -2,14 +2,23 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+let _cache = null;
+
 function getStorePath() { return path.join(app.getPath('userData'), 'automation-sketches.json'); }
 
-function readStore() {
-  try { return JSON.parse(fs.readFileSync(getStorePath(), 'utf8')); }
-  catch { return { sketches: [] }; }
+function readStore(force) {
+  if (!force && _cache) return _cache;
+  try {
+    _cache = JSON.parse(fs.readFileSync(getStorePath(), 'utf8'));
+    return _cache;
+  } catch {
+    _cache = { sketches: [] };
+    return _cache;
+  }
 }
 
 function writeStore(data) {
+  _cache = data;
   fs.writeFileSync(getStorePath(), JSON.stringify(data, null, 2));
 }
 

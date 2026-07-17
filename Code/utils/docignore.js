@@ -10,8 +10,18 @@ const globalIgnorePath = path.join(app.getPath('userData'), 'global-docignore.js
 // Cached Global Rules
 // ----------------------------
 let cachedGlobalRules = null;
-const repoRulesCache = new Map();        // repo path -> combined rules
-const compiledMatchersCache = new Map(); // repo path -> compiled matcher functions
+const repoRulesCache = new Map();
+const compiledMatchersCache = new Map();
+const _CACHE_MAX = 20;
+
+function _lruSet(cache, key, value) {
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > _CACHE_MAX) {
+    const first = cache.keys().next().value;
+    cache.delete(first);
+  }
+}
 
 function loadGlobalIgnoreRules(force) {
     if (cachedGlobalRules && !force) return cachedGlobalRules;
@@ -63,11 +73,11 @@ async function getIgnoreRules(repoPath) {
     }
 
     const combinedRules = [...loadGlobalIgnoreRules(), ...repoRules];
-    repoRulesCache.set(repoPath, combinedRules);
+    _lruSet(repoRulesCache, repoPath, combinedRules);
 
     // Precompile matchers for this repo
     const matchers = combinedRules.map(pattern => micromatch.matcher(pattern, { dot: true }));
-    compiledMatchersCache.set(repoPath, matchers);
+    _lruSet(compiledMatchersCache, repoPath, matchers);
 
     return combinedRules;
 }

@@ -1,14 +1,27 @@
 const { getErrorCopDb, save } = require('../../database/errorCopDb');
 
+function _applyDateRange(sql, params, startDate, endDate) {
+  if (startDate) { sql += ' AND timestamp >= ?'; params.push(startDate); }
+  if (endDate)   { sql += ' AND timestamp <= ?'; params.push(endDate); }
+  return { sql, params };
+}
+
+function _todayRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+  return { startDate: start, endDate: end };
+}
+
 class ErrorStorage {
   // ── Sessions ──
 
-  createSession({ project, cwd, shell, command }) {
+  createSession({ project, cwd, shell, command, label }) {
     const db = getErrorCopDb();
     db.run(
-      `INSERT INTO sessions (project, cwd, shell, command, status, started_at)
-       VALUES (?, ?, ?, ?, 'running', datetime('now','localtime'))`,
-      [project || '', cwd || '', shell || '', command || '']
+      `INSERT INTO sessions (project, cwd, shell, command, label, status, started_at)
+       VALUES (?, ?, ?, ?, ?, 'running', datetime('now','localtime'))`,
+      [project || '', cwd || '', shell || '', command || '', label || '']
     );
     save();
     const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
@@ -21,12 +34,12 @@ class ErrorStorage {
     save();
   }
 
-  endSession(id, exitCode) {
+  endSession(id, exitCode, endedReason) {
     const db = getErrorCopDb();
     const status = exitCode === 0 ? 'ended' : 'failed';
     db.run(
-      `UPDATE sessions SET status = ?, ended_at = datetime('now','localtime'), exit_code = ? WHERE id = ? AND status = 'running'`,
-      [status, exitCode, id]
+      `UPDATE sessions SET status = ?, ended_at = datetime('now','localtime'), exit_code = ?, ended_reason = ? WHERE id = ? AND status IN ('running','ended')`,
+      [status, exitCode, endedReason || '', id]
     );
     save();
   }
@@ -43,14 +56,26 @@ class ErrorStorage {
     return _rowToObj(res[0], res[0].values[0]);
   }
 
-  getRecentSessions(limit = 20) {
+  getSessions({ startDate, endDate, limit = 50 } = {}) {
     const db = getErrorCopDb();
-    const res = db.exec(
-      `SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?`,
-      [limit]
-    );
+    if (!startDate && !endDate) {
+      const range = _todayRange();
+      startDate = range.startDate;
+      endDate = range.endDate;
+    }
+    let sql = 'SELECT * FROM sessions WHERE 1=1';
+    const params = [];
+    if (startDate) { sql += ' AND started_at >= ?'; params.push(startDate); }
+    if (endDate)   { sql += ' AND started_at <= ?'; params.push(endDate); }
+    sql += ' ORDER BY started_at DESC LIMIT ?';
+    params.push(limit);
+    const res = db.exec(sql, params);
     if (!res.length) return [];
     return res[0].values.map(r => _rowToObj(res[0], r));
+  }
+
+  getRecentSessions(limit = 20) {
+    return this.getSessions({ limit });
   }
 
   // ── Errors ──
@@ -96,12 +121,14 @@ class ErrorStorage {
     return res[0].values.map(r => _rowToObj(res[0], r));
   }
 
-  getErrors({ project, level, limit = 50, offset = 0 } = {}) {
+  getErrors({ project, level, limit = 50, offset = 0, startDate, endDate } = {}) {
     const db = getErrorCopDb();
     let sql = 'SELECT * FROM errors WHERE 1=1';
     const params = [];
     if (project) { sql += ' AND project = ?'; params.push(project); }
     if (level) { sql += ' AND level = ?'; params.push(level); }
+    const dateFilter = _applyDateRange(sql, params, startDate, endDate);
+    sql = dateFilter.sql;
     sql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
     const res = db.exec(sql, params);
@@ -109,15 +136,17 @@ class ErrorStorage {
     return res[0].values.map(r => _rowToObj(res[0], r));
   }
 
-  getTimeline({ project, limit = 100 } = {}) {
+  getTimeline({ project, limit = 100, startDate, endDate } = {}) {
     const db = getErrorCopDb();
     let sql = `SELECT e.id, e.timestamp, e.level, e.title, e.message, e.occurrences,
-                      e.session_id, COALESCE(e.project, s.project) as project, s.command
+                      e.session_id, COALESCE(e.project, s.project) as project, s.command, s.label
                FROM errors e
                LEFT JOIN sessions s ON s.id = e.session_id
                WHERE 1=1`;
     const params = [];
     if (project) { sql += ' AND (e.project = ? OR s.project = ?)'; params.push(project, project); }
+    const dateFilter = _applyDateRange(sql, params, startDate, endDate);
+    sql = dateFilter.sql;
     sql += ' ORDER BY e.timestamp DESC LIMIT ?';
     params.push(limit);
     const res = db.exec(sql, params);

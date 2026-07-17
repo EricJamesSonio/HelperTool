@@ -125,10 +125,10 @@ class ErrorEngine {
     }
   }
 
-  createSession({ cwd, shell, command }) {
+  createSession({ cwd, shell, command, label }) {
     try {
       const project = detectProject(cwd);
-      const sessionId = this._storage.createSession({ project, cwd, shell, command });
+      const sessionId = this._storage.createSession({ project, cwd, shell, command, label });
 
       const detector = new ErrorDetector(this._storage, this._notify, {
         onServerDetected: (info) => {
@@ -184,7 +184,7 @@ class ErrorEngine {
     }
   }
 
-  endSession(sessionId, exitCode) {
+  endSession(sessionId, exitCode, endedReason) {
     try {
       const detector = this._detectors.get(sessionId);
       if (detector) {
@@ -204,7 +204,7 @@ class ErrorEngine {
         this._sessionBrowserPorts.delete(sessionId);
       }
 
-      this._storage.endSession(sessionId, exitCode);
+      this._storage.endSession(sessionId, exitCode, endedReason);
     } catch (e) {
       console.error('[ErrorCop] endSession failed:', e);
     }

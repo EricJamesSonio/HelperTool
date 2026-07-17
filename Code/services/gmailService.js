@@ -44,7 +44,15 @@ function saveHistoryId(email, historyId) {
 let credentials = null;
 let pollTimer    = null;
 let onNewMailCallback = null;
-let _notifiedMessageIds = new Set(); // tracks IDs we've already notified across all accounts
+let _notifiedMessageIds = new Map(); // id -> timestamp; tracks IDs we've already notified across all accounts
+const _NOTIFIED_MAX = 10000;
+
+function _capNotified() {
+  if (_notifiedMessageIds.size <= _NOTIFIED_MAX) return;
+  const sorted = [..._notifiedMessageIds.entries()].sort((a, b) => a[1] - b[1]);
+  const toDelete = sorted.slice(0, sorted.length - _NOTIFIED_MAX);
+  for (const [id] of toDelete) _notifiedMessageIds.delete(id);
+}
 
 function loadCredentials() {
   if (credentials) return credentials;
@@ -363,9 +371,11 @@ async function fetchRecentMessages(account, maxResults = 50) {
   const allNew = [...historyNew, ...unseenMessages];
 
   // Track ALL message IDs so we never double-notify
+  const now = Date.now();
   for (const d of details) {
-    _notifiedMessageIds.add(d.id);
+    _notifiedMessageIds.set(d.id, now);
   }
+  _capNotified();
 
   return {
     account:     account.email,
