@@ -612,6 +612,26 @@
   border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
+.ecp-line-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #a78484;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.ecp-msg-more {
+  color: #6a5a5a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
 .ecp-copy-btn {
   display: inline-flex;
   align-items: center;
@@ -709,6 +729,152 @@
 .ecp-modal-confirm {
   padding: 6px 18px !important;
   font-size: 12px !important;
+}
+
+/* ─── Time Range Dropdown ─── */
+
+.ecp-time-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 34, 34, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 34, 34, 0.08);
+  color: #cdaaaa;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.ecp-time-dropdown-btn:hover {
+  background: rgba(255, 34, 34, 0.18);
+  border-color: rgba(255, 34, 34, 0.35);
+}
+
+.ecp-time-chevron {
+  font-size: 8px;
+  opacity: 0.6;
+}
+
+.ecp-time-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 140px;
+  background: linear-gradient(135deg, #1a0808, #0d0404);
+  border: 1px solid rgba(255, 34, 34, 0.25);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.ecp-time-option {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #cdaaaa;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+  font-family: inherit;
+}
+.ecp-time-option:hover {
+  background: rgba(255, 34, 34, 0.15);
+  color: #f0dfdf;
+}
+.ecp-time-option.active {
+  background: rgba(255, 34, 34, 0.2);
+  color: #ff6666;
+}
+
+/* ─── Month Picker ─── */
+
+.ecp-month-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.ecp-month-picker-inner {
+  background: linear-gradient(135deg, #1a0a0a, #0d0606);
+  border: 1px solid rgba(255, 34, 34, 0.25);
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 260px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+.ecp-month-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.ecp-mp-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f0dfdf;
+}
+.ecp-mp-nav {
+  background: transparent;
+  border: 1px solid rgba(255, 34, 34, 0.2);
+  border-radius: 4px;
+  color: #cdaaaa;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 11px;
+  transition: all 0.1s;
+}
+.ecp-mp-nav:hover {
+  background: rgba(255, 34, 34, 0.15);
+  border-color: rgba(255, 34, 34, 0.35);
+}
+.ecp-month-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.ecp-mp-month {
+  padding: 8px;
+  border: 1px solid rgba(255, 34, 34, 0.15);
+  border-radius: 6px;
+  background: transparent;
+  color: #cdaaaa;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s;
+  font-family: inherit;
+}
+.ecp-mp-month:hover {
+  background: rgba(255, 34, 34, 0.12);
+  border-color: rgba(255, 34, 34, 0.3);
+}
+.ecp-mp-month.active {
+  background: rgba(255, 34, 34, 0.25);
+  border-color: #ff4444;
+  color: #ff6666;
+}
+
+/* ─── Killed status badge ─── */
+
+.ecp-session-killed {
+  background: rgba(255, 34, 34, 0.2);
+  color: #f87171;
 }
 
 /* ─── Session selection ─── */

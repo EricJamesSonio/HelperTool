@@ -1443,6 +1443,16 @@
   color: #aecdbd;
 }
 
+.gfy-community-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #cdf5da;
+}
+
 .gfy-community-color {
   width: 10px;
   height: 10px;

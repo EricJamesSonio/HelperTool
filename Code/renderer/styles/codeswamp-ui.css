@@ -2159,3 +2159,44 @@ Claude Fab
 .oc-toggle input:checked + .oc-toggle-slider {
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
 }
+
+/* ═══ Slot-colored highlights (parallel mode ❶❷❸❹) ═══ */
+
+/* ── Slot badge (colored circle with number) ── */
+.oc-conv-slot-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  margin-right: 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.oc-conv-slot-badge.slot-0 { background: #4f8cff; }
+.oc-conv-slot-badge.slot-1 { background: #ff8c42; }
+.oc-conv-slot-badge.slot-2 { background: #23d18b; }
+.oc-conv-slot-badge.slot-3 { background: #d670d6; }
+
+/* ── Active conversation: yellow highlight (overrides cyan) ── */
+.oc-conv-item.active {
+  background: rgba(234, 179, 8, 0.12) !important;
+  border-left-color: #eab308 !important;
+  box-shadow: inset 0 0 20px rgba(234, 179, 8, 0.06) !important;
+}
+
+/* ── Per-slot subtle border for inactive parallel conversations ── */
+.oc-conv-item.slot-0:not(.active) { border-left-color: rgba(79, 140, 255, 0.5); }
+.oc-conv-item.slot-1:not(.active) { border-left-color: rgba(255, 140, 66, 0.5); }
+.oc-conv-item.slot-2:not(.active) { border-left-color: rgba(35, 209, 139, 0.5); }
+.oc-conv-item.slot-3:not(.active) { border-left-color: rgba(214, 112, 214, 0.5); }
+
+/* ── Per-slot terminal instance active outline ── */
+.oc-term-instance.slot-0.active { outline-color: #4f8cff; box-shadow: 0 0 24px rgba(79, 140, 255, 0.15); }
+.oc-term-instance.slot-1.active { outline-color: #ff8c42; box-shadow: 0 0 24px rgba(255, 140, 66, 0.15); }
+.oc-term-instance.slot-2.active { outline-color: #23d18b; box-shadow: 0 0 24px rgba(35, 209, 139, 0.15); }
+.oc-term-instance.slot-3.active { outline-color: #d670d6; box-shadow: 0 0 24px rgba(214, 112, 214, 0.15); }

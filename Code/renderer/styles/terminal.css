@@ -1,4 +1,4 @@
-/* ── Terminal Bottom Panel ──────────────────────────────── */
+/* ── Terminal Bottom Panel — Green/Theme ──────────────────── */
 
 .terminal-panel {
   position: fixed;
@@ -7,11 +7,11 @@
   right: 0;
   height: 260px;
   z-index: 900;
-  background: #0c0c0c;
-  border-top: 1px solid #333;
+  background: #050a08;
+  border-top: 1px solid rgba(35, 209, 139, 0.2);
   display: none;
   flex-direction: column;
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.4), 0 0 40px rgba(35, 209, 139, 0.04);
   animation: terminalSlideUp 0.18s ease-out;
 }
 
@@ -34,13 +34,14 @@
   cursor: ns-resize;
   z-index: 10;
   flex-shrink: 0;
-  background: #4a4a4a;
+  background: rgba(35, 209, 139, 0.15);
   transition: background 0.15s;
 }
 .terminal-resize-handle:hover,
 .terminal-resize-handle:active {
-  background: var(--accent);
+  background: #23d18b;
   height: 4px;
+  box-shadow: 0 0 12px rgba(35, 209, 139, 0.3);
 }
 
 /* ── Tab Bar ── */
@@ -50,8 +51,8 @@
   gap: 0;
   min-height: 36px;
   padding: 0 4px;
-  background: #1a1a1a;
-  border-bottom: 1px solid #333;
+  background: #0a120e;
+  border-bottom: 1px solid rgba(35, 209, 139, 0.12);
   flex-shrink: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -70,24 +71,24 @@
   border-bottom: none;
   border-radius: 4px 4px 0 0;
   background: transparent;
-  color: #999;
+  color: #6a8a7a;
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-  transition: all 0.1s;
+  transition: all 0.12s;
   flex-shrink: 0;
   position: relative;
 }
 .terminal-tab:hover {
-  background: #2a2a2a;
-  color: #ddd;
+  background: rgba(35, 209, 139, 0.06);
+  color: #9acdb0;
 }
 .terminal-tab.active {
-  background: #0c0c0c;
-  color: #fff;
-  border-color: #444;
-  border-bottom-color: #0c0c0c;
+  background: #050a08;
+  color: #e0f2e8;
+  border-color: rgba(35, 209, 139, 0.2);
+  border-bottom-color: #050a08;
 }
 .terminal-tab.active::before {
   content: '';
@@ -96,8 +97,9 @@
   left: -1px;
   right: -1px;
   height: 2px;
-  background: var(--accent);
+  background: #23d18b;
   border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 8px rgba(35, 209, 139, 0.4);
 }
 
 .terminal-tab-icon {
@@ -127,7 +129,7 @@
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: #666;
+  color: #4a6a5a;
   cursor: pointer;
   opacity: 0.4;
   transition: all 0.1s;
@@ -139,7 +141,7 @@
 }
 .terminal-tab-close:hover {
   opacity: 1 !important;
-  background: rgba(241, 76, 76, 0.25);
+  background: rgba(241, 76, 76, 0.2);
   color: #f14c4c;
 }
 .terminal-tab-close svg {
@@ -158,18 +160,18 @@
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #999;
+  color: #6a8a7a;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.1s;
+  transition: all 0.12s;
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
   font-size: 11px;
   white-space: nowrap;
 }
 .terminal-tab-add:hover {
-  background: #2a2a2a;
-  color: #fff;
-  border-color: #555;
+  background: rgba(35, 209, 139, 0.08);
+  color: #c0e6d0;
+  border-color: rgba(35, 209, 139, 0.25);
 }
 .terminal-tab-add-icon {
   display: inline-flex;
@@ -230,7 +232,7 @@
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #999;
+  color: #6a8a7a;
   font-size: 11px;
   cursor: pointer;
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
@@ -238,9 +240,9 @@
   white-space: nowrap;
 }
 .terminal-shell-btn:hover {
-  background: #2a2a2a;
-  color: #ddd;
-  border-color: #555;
+  background: rgba(35, 209, 139, 0.08);
+  color: #c0e6d0;
+  border-color: rgba(35, 209, 139, 0.25);
 }
 .terminal-shell-btn-icon {
   display: inline-flex;
@@ -274,15 +276,12 @@
   position: fixed;
   z-index: 9999;
   min-width: 180px;
-  background: #1e1e1e;
-  border: 1px solid #444;
-  border-radius: 6px;
-  box-shadow: 0 -4px 16px rgba(0,0,0,0.5);
+  background: linear-gradient(135deg, #0a120e, #050a08);
+  border: 1px solid rgba(35, 209, 139, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.5), 0 0 20px rgba(35, 209, 139, 0.04);
   padding: 4px;
   display: none;
-}
-.terminal-shell-dropdown.open {
-  display: block;
 }
 .terminal-shell-dropdown.open {
   display: block;
@@ -295,7 +294,7 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #ccc;
+  color: #9ab8a8;
   font-size: 13px;
   cursor: pointer;
   width: 100%;
@@ -303,8 +302,8 @@
   transition: background 0.1s;
 }
 .terminal-shell-option:hover {
-  background: #2a2a2a;
-  color: #fff;
+  background: rgba(35, 209, 139, 0.1);
+  color: #e0f2e8;
 }
 .terminal-shell-option-icon {
   display: inline-flex;
@@ -353,11 +352,11 @@
   background: transparent;
 }
 .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb {
-  background: #444;
+  background: rgba(35, 209, 139, 0.15);
   border-radius: 99px;
 }
 .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: #666;
+  background: rgba(35, 209, 139, 0.3);
 }
 
 /* ── Terminal instance floating output button ── */
@@ -372,9 +371,9 @@
   width: 26px;
   height: 26px;
   border-radius: 5px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(15,23,42,0.8);
-  color: #8892b0;
+  border: 1px solid rgba(35, 209, 139, 0.1);
+  background: rgba(5, 10, 8, 0.85);
+  color: #4a8a6a;
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -386,9 +385,9 @@
   pointer-events: auto;
 }
 .terminal-instance-output-btn:hover {
-  background: rgba(96, 165, 250, 0.2);
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(35, 209, 139, 0.15);
+  color: #23d18b;
+  border-color: rgba(35, 209, 139, 0.3);
 }
 .terminal-instance-output-btn svg {
   width: 14px;
@@ -406,14 +405,14 @@
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #999;
+  color: #6a8a7a;
   cursor: pointer;
   transition: all 0.1s;
 }
 .terminal-panel-close:hover {
-  background: rgba(241, 76, 76, 0.2);
-  color: #f14c4c;
-  border-color: rgba(241, 76, 76, 0.3);
+  background: rgba(241, 76, 76, 0.15);
+  color: #f87171;
+  border-color: rgba(241, 76, 76, 0.25);
 }
 .terminal-panel-close svg {
   width: 16px;
@@ -431,18 +430,18 @@
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #999;
+  color: #6a8a7a;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
-  transition: all 0.1s;
+  transition: all 0.12s;
   white-space: nowrap;
 }
 .terminal-view-output:hover {
-  background: rgba(96, 165, 250, 0.15);
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(35, 209, 139, 0.08);
+  color: #23d18b;
+  border-color: rgba(35, 209, 139, 0.25);
 }
 .terminal-view-output svg {
   width: 14px;
