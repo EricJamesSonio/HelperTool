@@ -255,9 +255,10 @@ async function _startProfileWatcher(repoPath) {
 async function _doPrefetch(repoPath) {
   console.log('[Prefetch] start', Date.now());
 
-  await _prefetchProfile();
-
-  await _prefetchBranches(repoPath);
+  await Promise.all([
+    _prefetchProfile(),
+    _prefetchBranches(repoPath),
+  ]);
 
   setTimeout(() => {
     _startProfileWatcher(repoPath).catch(err =>

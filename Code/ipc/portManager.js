@@ -93,41 +93,51 @@ async function parseListeningPorts() {
   return byPid;
 }
 
-async function getProcessName(pid) {
+async function _fetchAllProcessNames() {
   try {
-    const { stdout } = await execAsync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`, { timeout: 3000 });
-    const match = stdout.match(/"([^"]+)"/);
-    return match ? match[1] : 'Unknown';
+    const { stdout } = await execAsync('tasklist /FO CSV /NH', { timeout: 5000 });
+    const names = {};
+    for (const line of stdout.split('\n')) {
+      const match = line.match(/"([^"]+)","(\d+)"/);
+      if (!match) continue;
+      names[parseInt(match[2], 10)] = match[1];
+    }
+    return names;
   } catch {
-    return 'Unknown';
+    return {};
   }
 }
 
-async function getProcessCreationTime(pid) {
+async function _fetchAllCreationTimes() {
   try {
-    const { stdout } = await execAsync(`wmic process where "ProcessId=${pid}" get CreationDate /FORMAT:VALUE`, { timeout: 3000 });
-    const match = stdout.match(/CreationDate=(\d{14})/);
-    if (match) {
-      const s = match[1];
-      return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}T${s.slice(8,10)}:${s.slice(10,12)}:${s.slice(12,14)}`;
+    const { stdout } = await execAsync('wmic process get ProcessId,CreationDate /FORMAT:CSV', { timeout: 5000 });
+    const times = {};
+    const lines = stdout.split('\n').slice(1); // skip header
+    for (const line of lines) {
+      const parts = line.trim().split(',');
+      if (parts.length < 2) continue;
+      const pid = parseInt(parts[1], 10);
+      if (isNaN(pid)) continue;
+      const rawDate = parts[2];
+      if (rawDate && rawDate.length >= 14) {
+        times[pid] = `${rawDate.slice(0,4)}-${rawDate.slice(4,6)}-${rawDate.slice(6,8)}T${rawDate.slice(8,10)}:${rawDate.slice(10,12)}:${rawDate.slice(12,14)}`;
+      }
     }
-    return null;
+    return times;
   } catch {
-    return null;
+    return {};
   }
 }
 
 async function _fetchNewPids(pidList) {
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < pidList.length; i += BATCH_SIZE) {
-    const batch = pidList.slice(i, i + BATCH_SIZE);
-    const nameResults = await Promise.allSettled(batch.map(pid => getProcessName(pid)));
-    const timeResults = await Promise.allSettled(batch.map(pid => getProcessCreationTime(pid)));
-    nameResults.forEach((r, idx) => {
-      const pid = batch[idx];
-      const name = r.status === 'fulfilled' ? r.value : 'Unknown';
-      const startTime = timeResults[idx]?.status === 'fulfilled' ? timeResults[idx].value : null;
-      _pidMetaCache.set(pid, { name, startTime });
+  const [nameMap, timeMap] = await Promise.all([
+    _fetchAllProcessNames(),
+    _fetchAllCreationTimes(),
+  ]);
+  for (const pid of pidList) {
+    _pidMetaCache.set(pid, {
+      name: nameMap[pid] || 'Unknown',
+      startTime: timeMap[pid] || null,
     });
   }
 }

@@ -44,9 +44,9 @@ function _readTextCached(filePath) {
 
 const DEFAULT_PORT = 3333;
 const START_TIMEOUT = 30000;
-const STORAGE_DIR = 'graphify/symbol-index-storage';
-const PROMPTS_DIR = 'graphify/prompts';
-const GRAPHIFY_DIR = 'graphify/graphify-storage';
+const STORAGE_DIR = 'MCP/graphify/symbol-index-storage';
+const PROMPTS_DIR = 'MCP/graphify/prompts';
+const GRAPHIFY_DIR = 'MCP/graphify/graphify-storage';
 
 let _child        = null;
 let _port         = DEFAULT_PORT;
@@ -340,8 +340,8 @@ function _generatePromptText(repoPath) {
 
 You are an AI assistant. Your task is to analyze the provided \`symbols.json\` file containing the symbol index of a codebase, and produce two output files:
 
-1. **\`graphify/graphify-storage/graph.json\`** Ã¢â‚¬â€ A structured knowledge graph with semantic labels
-2. **\`graphify/graphify-storage/graph.md\`** Ã¢â‚¬â€ A human-readable markdown report
+1. **\`MCP/graphify/graphify-storage/graph.json\`** Ã¢â‚¬â€ A structured knowledge graph with semantic labels
+2. **\`MCP/graphify/graphify-storage/graph.md\`** Ã¢â‚¬â€ A human-readable markdown report
 
 ## The Challenge
 
@@ -673,8 +673,8 @@ Cross-feature or unexpected relationships detected.
 
 Write two files:
 
-1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` Ã¢â‚¬â€ the structured graph (must match the schema above exactly)
-2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` Ã¢â‚¬â€ the human-readable report
+1. \`${repoPath}\\MCP\\graphify\\graphify-storage\\graph.json\` Ã¢â‚¬â€ the structured graph (must match the schema above exactly)
+2. \`${repoPath}\\MCP\\graphify\\graphify-storage\\graph.md\` Ã¢â‚¬â€ the human-readable report
 `;
 }
 
@@ -691,7 +691,7 @@ function _generateIncrementalPromptText(repoPath, changedFiles, newFiles) {
 
 Update the existing knowledge graph for ${repoName}. The previous graph is at:
 
-- **Graph**: ${storageDir}/../graphify/graphify-storage/graph.json
+- **Graph**: ${storageDir}/../MCP/graphify/graphify-storage/graph.json
 - **Symbol index**: ${storageDir}/symbols.json
 
 Read the actual source code from disk for every file listed below before writing anything. Do NOT guess or hallucinate.
