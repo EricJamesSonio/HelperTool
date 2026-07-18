@@ -1,4 +1,4 @@
-const DEFAULT_SETTINGS = { themeId: 'neon-dark', customAccent: null, fontSize: 14, compactMode: false };
+const DEFAULT_SETTINGS = { themeId: 'github-hc-dark', customAccent: null, fontSize: 14, uiScale: 50 };
 const STORAGE_KEY = 'helpertool-settings';
 
 const S = {
@@ -14,8 +14,12 @@ function loadSettings() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed.theme && !parsed.themeId) {
-        parsed.themeId = parsed.theme === 'light' ? 'neon-dark' : 'neon-dark';
+        parsed.themeId = parsed.theme === 'light' ? 'github-hc-dark' : 'github-hc-dark';
         delete parsed.theme; delete parsed.accentId;
+      }
+      if (parsed.compactMode !== undefined) {
+        parsed.uiScale = parsed.compactMode ? 20 : 50;
+        delete parsed.compactMode;
       }
       return { ...DEFAULT_SETTINGS, ...parsed };
     }

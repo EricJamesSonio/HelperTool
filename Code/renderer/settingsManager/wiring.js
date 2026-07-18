@@ -58,16 +58,16 @@ function _ensureModal() {
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-label">Layout</div>
+            <div class="settings-section-label">Layout Scale</div>
             <div class="settings-row">
               <div class="settings-row-label">
-                Compact mode
-                <small>Reduces padding and button sizes across the UI</small>
+                UI size
+                <small>Make the interface compact or spacious (50% = default)</small>
               </div>
-              <label class="settings-toggle">
-                <input type="checkbox" id="settingsCompactToggle">
-                <span class="settings-toggle-track"></span>
-              </label>
+              <div class="settings-slider-wrap">
+                <input type="range" class="settings-slider" id="settingsCompactSlider" min="1" max="100" step="1">
+                <span class="settings-slider-value" id="settingsCompactValue">50%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -109,8 +109,8 @@ function _ensureModal() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && S.overlayEl.classList.contains('open')) closeSettings();
   });
-  document.getElementById('settingsCompactToggle')?.addEventListener('change', e => {
-    S.settings.compactMode = e.target.checked; saveAndApply();
+  document.getElementById('settingsCompactSlider')?.addEventListener('input', e => {
+    S.settings.uiScale = parseInt(e.target.value); saveAndApply();
   });
   const slider    = document.getElementById('settingsFontSlider');
   const sliderVal = document.getElementById('settingsFontValue');
@@ -139,12 +139,14 @@ function _ensureModal() {
 }
 
 function syncControls() {
-  const compactToggle = document.getElementById('settingsCompactToggle');
+  const compactSlider = document.getElementById('settingsCompactSlider');
+  const compactValue  = document.getElementById('settingsCompactValue');
   const fontSlider    = document.getElementById('settingsFontSlider');
   const fontValue     = document.getElementById('settingsFontValue');
-  if (compactToggle) compactToggle.checked  = !!S.settings.compactMode;
-  if (fontSlider)    fontSlider.value       = S.settings.fontSize;
-  if (fontValue)     fontValue.textContent  = `${S.settings.fontSize}px`;
+  if (compactSlider) { compactSlider.value = S.settings.uiScale; }
+  if (compactValue)  { compactValue.textContent = `${S.settings.uiScale}%`; }
+  if (fontSlider)    { fontSlider.value       = S.settings.fontSize; }
+  if (fontValue)     { fontValue.textContent  = `${S.settings.fontSize}px`; }
   renderThemeGrid();
   renderSwatches();
   _renderFeaturesList();

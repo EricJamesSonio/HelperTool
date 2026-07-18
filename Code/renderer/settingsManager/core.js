@@ -4,7 +4,7 @@ import { FULL_THEMES } from './themes.js';
 
 function applySettings(s = S.settings) {
   const root      = document.documentElement;
-  const theme     = FULL_THEMES[s.themeId] || FULL_THEMES['neon-dark'];
+  const theme     = FULL_THEMES[s.themeId] || FULL_THEMES['github-hc-dark'];
   const accentHex = s.customAccent || theme.accent;
 
   const depths = s.customAccent
@@ -18,7 +18,13 @@ function applySettings(s = S.settings) {
   --dl${i}-border: ${rgba(color, 0.40)};
   --dl${i}-line:   ${rgba(color, 0.35)};`).join('');
 
+  const uiScale = Math.max(1, Math.min(100, s.uiScale ?? 50));
+  const cssScale = uiScale <= 50
+    ? 0.65 + (uiScale - 1) / 49 * 0.35
+    : 1.0 + (uiScale - 50) / 50 * 0.35;
+
   const css = `:root {
+  --ui-scale:       ${cssScale.toFixed(3)};
   --bg-base:        ${theme.bg.base};
   --bg-surface:     ${theme.bg.surface};
   --bg-elevated:    ${theme.bg.elevated};
@@ -79,7 +85,7 @@ function applySettings(s = S.settings) {
   S._themeStyleEl.textContent = css;
 
   document.body.style.fontSize = `${s.fontSize}px`;
-  root.classList.toggle('compact-mode', !!s.compactMode);
+  root.classList.toggle('compact-mode', s.uiScale !== 50);
 }
 
 export { applySettings };
