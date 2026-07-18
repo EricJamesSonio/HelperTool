@@ -1,14 +1,13 @@
 import { state } from './state.js';
-import { listConversations, getConversation } from './history.js';
-import { openTerminalForRepo, closeTerminalSession } from './chat.js';
+import { listConversations } from './history.js';
+import { openTerminalForRepo } from './chat.js';
 import {
-  hasTerminalSession, writeToTerminal, writeToSlot, fitActiveTerminal,
-  getActiveSlots, getFreeSlot, killSlot, activateSlot, setParallelConfig,
-  markTerminalLoading, clearTerminalLoading, waitForShellPrompt
+  fitActiveTerminal,
+  getActiveSlots, getFreeSlot, getNextFreeSlot, killSlot, activateSlot, setParallelConfig,
 } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
-import { getProvider, getProviderList } from './providers.js';
+import { getProviderList } from './providers.js';
 import { convStore } from './conversationStore.js';
 
 export function renderShellSelect() {
@@ -179,12 +178,11 @@ export async function loadConversation(convId) {
     const lc = getLoadingController();
     lc.start('Loading conversation...');
 
-    if (hasTerminalSession(repoPath)) {
-      closeTerminalSession(repoPath);
-    }
+    // Kill only the active slot so other sessions are preserved
+    killSlot(state.activeSlotIndex);
 
     try {
-      await openTerminalForRepo(repoPath);
+      await openTerminalForRepo(repoPath, state.activeSlotIndex);
     } catch (e) {
       console.error('[CS] loadConversation error:', e);
       lc.hide();
@@ -240,49 +238,17 @@ export async function startNewChat() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  // Clear any stale message from previous send — new chat = fresh session
   state.lastSentMessage = null;
 
-  if (state.parallelMode) {
-    const freeSlot = getFreeSlot();
-    if (freeSlot >= 0) {
-      state.activeConvId[repoPath] = null;
-      state.activeSlotIndex = freeSlot;
-      state.slotData[freeSlot] = { repoPath, convId: null };
-      await openTerminalForRepo(repoPath, freeSlot);
-    } else {
-      const picked = await showReplaceDialog();
-      if (picked === null) {
-        renderConvList();
-        return;
-      }
-      killSlot(picked);
-      state.activeConvId[repoPath] = null;
-      state.activeSlotIndex = picked;
-      state.slotData[picked] = { repoPath, convId: null };
-      await openTerminalForRepo(repoPath, picked);
-    }
-    await refreshSidebar();
+  // In parallel mode, stay within slot limits; in single mode, grow dynamically
+  const freeSlot = state.parallelMode ? getFreeSlot() : getNextFreeSlot();
+  if (freeSlot >= 0) {
+    state.activeConvId[repoPath] = null;
+    state.activeSlotIndex = freeSlot;
+    state.slotData[freeSlot] = { repoPath, convId: null };
+    await openTerminalForRepo(repoPath, freeSlot);
     renderConvList();
-    const input = document.getElementById('ocInput');
-    if (input) setTimeout(() => input.focus(), 50);
-    return;
   }
-
-  state.activeConvId[repoPath] = null;
-  state.messages[repoPath] = [];
-  state.messageCache[repoPath] = {};
-
-  if (hasTerminalSession(repoPath)) {
-    writeToTerminal(repoPath, '/exit\n');
-    await new Promise(r => setTimeout(r, 2000));
-    closeTerminalSession(repoPath);
-    await new Promise(r => setTimeout(r, 1000));
-  }
-
-  await openTerminalForRepo(repoPath);
-
-  renderConvList();
 
   const input = document.getElementById('ocInput');
   if (input) setTimeout(() => input.focus(), 50);

@@ -890,6 +890,14 @@ export function getFreeSlot() {
   return -1;
 }
 
+export function getNextFreeSlot() {
+  const max = 20;
+  for (let i = 0; i < max; i++) {
+    if (!instances[i]) return i;
+  }
+  return -1;
+}
+
 export function setParallelConfig(mode, count) {
   const wasParallel = state.parallelMode;
   state.parallelMode = mode;

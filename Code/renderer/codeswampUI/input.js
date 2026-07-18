@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { writeToTerminal, writeToSlot, hasTerminalSession, getActiveSlots, waitForTerminalOpencode, isShellPrompt, restartOpencode, acceptPasteWarning } from './terminalManager.js';
+import { writeToSlot, hasTerminalSession, waitForTerminalOpencode, isShellPrompt, restartOpencode, acceptPasteWarning } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
 import { openPromptPicker } from './promptPicker.js';
@@ -152,14 +152,7 @@ function renderPendingFiles() {
 function toggleMode() {
   const repoPath = state.activeTab;
   if (!repoPath) return;
-  if (state.parallelMode) {
-    const inst = Object.values(getActiveSlots()).find(s => s && s.slotIndex === state.activeSlotIndex);
-    if (!inst) return;
-    writeToSlot(state.activeSlotIndex, '\t');
-  } else {
-    if (!hasTerminalSession(repoPath)) return;
-    writeToTerminal(repoPath, '\t');
-  }
+  writeToSlot(state.activeSlotIndex, '\t');
   state.cliMode = state.cliMode === 'plan' ? 'code' : 'plan';
   const btn = document.getElementById('ocModeBtn');
   if (btn) {
@@ -178,7 +171,7 @@ async function sendMessage() {
     const repoPath = state.activeTab;
     if (!repoPath) return;
 
-    const slotIndex = state.parallelMode ? state.activeSlotIndex : 0;
+    const slotIndex = state.activeSlotIndex;
 
     // Reset stale streaming flag — it gets stuck if a previous run crashed
     if (state.streaming) {
@@ -210,11 +203,7 @@ async function sendMessage() {
     // Wrap in bracketed paste escape sequences so opencode recognizes
     // this as a paste (same as if the user pasted directly into xterm.js)
     const pasted = `\x1b[200~${text}\x1b[201~`;
-    if (state.parallelMode) {
-      await writeToSlot(slotIndex, pasted);
-    } else {
-      await writeToTerminal(repoPath, pasted);
-    }
+    await writeToSlot(slotIndex, pasted);
 
     // Auto-accept opencode's paste warning dialog (Warning... Continue? y/N)
     await acceptPasteWarning(repoPath, slotIndex);
@@ -223,11 +212,7 @@ async function sendMessage() {
     await new Promise(r => setTimeout(r, 800));
 
     // Submit
-    if (state.parallelMode) {
-      await writeToSlot(slotIndex, '\r');
-    } else {
-      await writeToTerminal(repoPath, '\r');
-    }
+    await writeToSlot(slotIndex, '\r');
 
     input.value = '';
     input.style.height = 'auto';

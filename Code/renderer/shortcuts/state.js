@@ -24,6 +24,7 @@ const DEFAULT_SHORTCUTS = {
   essentialsGlossary: null,
   graphify: null,
   errorCop: null,
+  mcp: null,
 };
 
 const S = { shortcuts: {} };

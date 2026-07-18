@@ -42,7 +42,16 @@ class BrowserCollector {
       }
     });
 
-    bw.webContents.on('console-message', (_event, level, message) => {
+    bw.webContents.on('console-message', (_event, levelOrParams, messageOrIgnored) => {
+      let level, message, sourceId;
+      if (typeof levelOrParams === 'object' && levelOrParams !== null) {
+        level = levelOrParams.level;
+        message = levelOrParams.message;
+        sourceId = levelOrParams.sourceId;
+      } else {
+        level = levelOrParams;
+        message = messageOrIgnored;
+      }
       if (level < 2) return;
 
       const currentUrl = bw.webContents.getURL();
