@@ -138,7 +138,9 @@ export function renderConvList(loading) {
         </div>
         <div class="oc-conv-item-meta">
           <span class="oc-conv-item-time">${formatTime(conv.date)}</span>
-          ${conv.messageCount > 0 ? `<span class="oc-conv-item-count">${conv.messageCount} msgs</span>` : ''}
+          ${conv.messageCount > 0
+            ? `<span class="oc-conv-item-tag oc-conv-item-count">${conv.messageCount} msgs</span>`
+            : `<span class="oc-conv-item-tag oc-conv-item-new">New</span>`}
         </div>
       `;
       item.addEventListener('click', () => loadConversation(conv.id));

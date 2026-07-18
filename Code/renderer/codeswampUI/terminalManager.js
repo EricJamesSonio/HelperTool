@@ -616,13 +616,25 @@ export function executeOpencodeRun(repoPath, slotIndex, message, files, continue
           state.slotData[slotIndex] = state.slotData[slotIndex] || {};
           state.slotData[slotIndex].convId = detectedSessionId;
         }
+
+        const existingConvs = convStore.getConversations(repoPath);
+        const existingConv = existingConvs.find(c => c.id === detectedSessionId);
+        const currentCount = existingConv?.messageCount || 0;
+
         convStore.addConversation(repoPath, {
           id: detectedSessionId,
           title: message.length > 40 ? message.slice(0, 40) + '\u2026' : message,
           date: new Date().toISOString(),
           provider: state.selectedProvider,
+          messageCount: currentCount + 1,
         });
         convStore.touchConversation(repoPath, detectedSessionId);
+
+        if (state.activeTab === repoPath) {
+          state.conversations[repoPath] = convStore.getConversations(repoPath);
+          import('./repoTabs.js').then(m => m.renderConvList());
+        }
+
         const streamText = state.streamBuffer || '';
         writeToTerminalDisplay(repoPath, slotIndex, `\r\n\x1b[36m> ${message}\x1b[0m\r\n`);
         if (streamText) {

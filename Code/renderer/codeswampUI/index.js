@@ -39,7 +39,7 @@ if (!panel || !panel.querySelector('.oc-header')) {
   // When terminal output contains a session ID, track the active conversation.
   // If we just sent a message, store it with the message text as title.
   // For loaded conversations (no lastSentMessage), the conversation is already stored
-  // by loadConversation() — skip to avoid overwriting server titles.
+  // by loadConversation() — skip to avoid overwriting. New chats get a default title.
   setOnSessionDetected((sessionId, repoPath, slotIndex) => {
     state.activeConvId[repoPath] = sessionId;
 
@@ -48,22 +48,31 @@ if (!panel || !panel.querySelector('.oc-header')) {
       state.slotData[slotIndex] = { repoPath, convId: sessionId };
     }
 
-    // Bump to top — this session is now active
-    convStore.touchConversation(repoPath, sessionId);
-
     const msg = state.lastSentMessage;
     state.lastSentMessage = null;
 
-    if (!msg) return;
+    if (msg) {
+      const title = msg.length > 40 ? msg.slice(0, 40) + '\u2026' : msg;
+      convStore.addConversation(repoPath, {
+        id: sessionId,
+        title,
+        date: new Date().toISOString(),
+        provider: state.selectedProvider,
+      });
+    } else {
+      const existingConvs = convStore.getConversations(repoPath);
+      const alreadyExists = existingConvs.some(c => c.id === sessionId);
+      if (!alreadyExists) {
+        convStore.addConversation(repoPath, {
+          id: sessionId,
+          title: 'New Chat',
+          date: new Date().toISOString(),
+          provider: state.selectedProvider,
+        });
+      }
+    }
 
-    const title = msg.length > 40 ? msg.slice(0, 40) + '\u2026' : msg;
-
-    convStore.addConversation(repoPath, {
-      id: sessionId,
-      title,
-      date: new Date().toISOString(),
-      provider: state.selectedProvider,
-    });
+    convStore.touchConversation(repoPath, sessionId);
 
     if (state.activeTab === repoPath) {
       state.conversations[repoPath] = convStore.getConversations(repoPath);

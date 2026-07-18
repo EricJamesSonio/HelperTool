@@ -2,6 +2,8 @@ import { state } from './state.js';
 import { writeToSlot, hasTerminalSession, waitForTerminalOpencode, isShellPrompt, restartOpencode, acceptPasteWarning } from './terminalManager.js';
 import { openTerminalForRepo } from './chat.js';
 import { refreshSidebar } from './sidebar.js';
+import { convStore } from './conversationStore.js';
+import { renderConvList } from './repoTabs.js';
 import { openPromptPicker } from './promptPicker.js';
 import { openTicketPanel } from './ticketPanel.js';
 import { openStonePanel } from './stonePanel.js';
@@ -218,6 +220,24 @@ async function sendMessage() {
     input.style.height = 'auto';
     state.pendingFiles = [];
     renderPendingFiles();
+
+    // Update conversation title immediately if still "New Chat"
+    const activeConv = state.activeConvId[repoPath];
+    if (activeConv) {
+      const convs = convStore.getConversations(repoPath);
+      const conv = convs.find(c => c.id === activeConv);
+      if (conv && conv.title === 'New Chat' && !conv.customTitle) {
+        const title = text.length > 40 ? text.slice(0, 40) + '\u2026' : text;
+        convStore.addConversation(repoPath, {
+          id: activeConv,
+          title,
+          date: new Date().toISOString(),
+          provider: state.selectedProvider,
+        });
+        state.conversations[repoPath] = convStore.getConversations(repoPath);
+        renderConvList();
+      }
+    }
 
     setTimeout(() => refreshSidebar(), 1500);
   } catch (err) {
