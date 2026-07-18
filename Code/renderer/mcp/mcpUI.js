@@ -211,6 +211,18 @@ export default class McpUI {
       frag.appendChild(card);
     }
 
+    const cols = 3;
+    const emptyCount = Math.max(0, cols - tools.length);
+    for (let i = 0; i < emptyCount; i++) {
+      const empty = document.createElement('div');
+      empty.className = 'mcp-tool-card-empty';
+      empty.innerHTML = `
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 4v12"/><path d="M4 10h12"/></svg>
+        <span>Next Tool Slot</span>
+      `;
+      frag.appendChild(empty);
+    }
+
     this._grid.appendChild(frag);
   }
 
@@ -309,9 +321,10 @@ export default class McpUI {
     this._renderCards();
   }
 
-  _handleGenerateCheatsheet() {
+  async _handleGenerateCheatsheet() {
     const tools = toolRegistry.getAll();
-    const repoPath = window.__activeRepoPath || '';
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) return;
 
     const lines = [];
     lines.push('# MCP — Tool Provider Cheatsheet');
@@ -330,7 +343,7 @@ export default class McpUI {
       lines.push(`**Description:** ${tool.description || 'No description.'}`);
       lines.push('');
       if (tool.cheatsheetPath) {
-        const fullCsPath = repoPath ? `${repoPath}/${tool.cheatsheetPath}` : tool.cheatsheetPath;
+        const fullCsPath = `${repoPath}/${tool.cheatsheetPath}`.replace(/\\/g, '/');
         lines.push(`**Cheatsheet Location:** \`${fullCsPath}\``);
         lines.push('');
         lines.push('**How to use for AI agents:**');
@@ -349,7 +362,31 @@ export default class McpUI {
     lines.push('3. Tools expose HTTP REST APIs on localhost. Use the endpoints documented in each cheatsheet.');
     lines.push('4. Ensure the tool\'s server is running before making API calls.');
 
-    this._showPromptViewer(lines.join('\n'));
+    const content = lines.join('\n');
+    const filePath = `${repoPath}/MCP/mcp-cheatsheet.md`.replace(/\\/g, '/');
+
+    const btn = this._body?.querySelector('[data-mcp-action="generateCs"]');
+    const origText = btn?.innerHTML || '';
+    if (btn) {
+      btn.innerHTML = 'Writing...';
+      btn.disabled = true;
+    }
+
+    try {
+      const result = await window.electronAPI.writeFile(filePath, content);
+      if (result && result.success) {
+        if (btn) {
+          btn.innerHTML = 'Saved!';
+          setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000);
+        }
+      } else {
+        console.error('[MCP] Failed to write cheatsheet:', result?.error);
+        if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+      }
+    } catch (e) {
+      console.error('[MCP] Failed to write cheatsheet:', e);
+      if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+    }
   }
 
   _showPromptViewer(promptText) {

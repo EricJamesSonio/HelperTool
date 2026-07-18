@@ -202,6 +202,16 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    ipcMain.handle('write-file', async (event, filePath, content) => {
+        try {
+            await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+            await fs.promises.writeFile(filePath, content, 'utf-8');
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
     ipcMain.handle('save-file-dialog', async () => {
         const tempFile = path.join(app.getPath('temp'), 'helper-output.txt');
         return { filePath: tempFile };

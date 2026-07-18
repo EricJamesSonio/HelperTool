@@ -15,6 +15,7 @@ const repoBridge = {
     setLastSelected:     (items)         => ipcRenderer.invoke('set-last-selected', items),
     getActiveProject:    ()              => ipcRenderer.invoke('get-active-project'),
     readFile:            (filePath)      => ipcRenderer.invoke('read-file', filePath),
+    writeFile:           (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
     saveFileDialog:      (actionType)    => ipcRenderer.invoke('save-file-dialog', actionType),
     getIgnoredExtensions: ()             => ipcRenderer.invoke('get-ignored-extensions'),
     setIgnoredExtensions: (exts)         => ipcRenderer.invoke('set-ignored-extensions', exts),
