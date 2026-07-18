@@ -303,7 +303,7 @@ window.addEventListener('DOMContentLoaded', async () => {
                 settingsRef.current = sm;
             }),
             initTools(feats, {
-                openSettings: () => settingsRef.current?.openSettings?.() ?? openLightSettings(),
+                openSettings: () => { if (settingsRef.current?.openSettings) settingsRef.current.openSettings(); else openLightSettings(); },
             }),
         ]);
     } else {
