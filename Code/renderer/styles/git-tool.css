@@ -691,6 +691,94 @@
   color: var(--text-muted, #8b949e);
 }
 
+/* ══ SMART GROUPS (time-threshold based) ══ */
+.smart-group {
+  margin-bottom: 4px;
+}
+
+.smart-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 12px;
+  background: var(--bg-raised, #15171d);
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.smart-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary, #c6cfd8);
+  letter-spacing: 0.3px;
+}
+
+.smart-group-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.smart-group-count {
+  font-size: 10.5px;
+  color: var(--text-muted, #8b949e);
+}
+
+.stage-group-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: var(--r-xs, 4px);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary, #c6cfd8);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  transition: all var(--ease, 0.15s ease);
+}
+.stage-group-btn:hover {
+  border-color: var(--blue, #58a6ff);
+  color: var(--blue, #58a6ff);
+  background: var(--blue-dim, rgba(88,166,255,0.12));
+}
+.stage-group-btn svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* ══ GAP SELECTOR (threshold control) ══ */
+.gap-selector-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted, #8b949e);
+  margin: 0 4px;
+}
+.gap-label {
+  font-weight: 500;
+}
+.gap-selector {
+  padding: 2px 4px;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: var(--r-xs, 4px);
+  background: var(--bg-surface, #0a0c10);
+  color: var(--text-primary, #f0f6fc);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.gap-selector:focus {
+  border-color: var(--accent, #22d3ee);
+}
+
 /* ══ COMMIT TEMPLATE ══ */
 .commit-template-toggle {
   margin-bottom: 10px;

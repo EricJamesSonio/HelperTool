@@ -371,10 +371,20 @@
   color: var(--text-faint, #6c7784);
 }
 
-.oc-conv-item-count {
+.oc-conv-item-tag {
   font-family: var(--font-mono);
   font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  display: inline-block;
+  line-height: 1.4;
+}
+.oc-conv-item-count {
   color: var(--text-muted, #a3b1bd);
+}
+.oc-conv-item-new {
+  color: #23d18b;
+  background: rgba(35, 209, 139, 0.12);
 }
 
 .oc-ctx-menu {
