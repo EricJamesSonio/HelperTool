@@ -43,6 +43,7 @@ class GitService {
     if (opts.after) args.push('--after=' + opts.after);
     if (opts.noMerges !== false) args.push('--no-merges');
     if (opts.maxCount) args.push('-n' + opts.maxCount);
+    if (opts.nameOnly) args.push('--name-only');
     if (opts.extra) args.push(...opts.extra);
     return this.raw(repoPath, args, opts.ttl || 60000);
   }

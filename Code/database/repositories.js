@@ -15,19 +15,18 @@ function getByPath(repoPath) {
 
 function upsert(repoPath, name, configJson) {
   const db = getDb();
-  const existing = getByPath(repoPath);
-  if (existing) {
-    const now = new Date().toISOString();
-    db.run('UPDATE repositories SET name=?, config_json=?, updated_at=? WHERE id=?', [
-      name, JSON.stringify(configJson), now, existing.id
-    ]);
-    return existing.id;
-  }
   db.run(
-    'INSERT INTO repositories (repo_path, name, config_json) VALUES (?, ?, ?)',
+    `INSERT INTO repositories (repo_path, name, config_json, updated_at)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(repo_path) DO UPDATE SET name=excluded.name, config_json=excluded.config_json, updated_at=excluded.updated_at`,
     [repoPath, name, JSON.stringify(configJson)]
   );
-  return db.exec('SELECT last_insert_rowid()')[0].values[0][0];
+  const idStmt = db.prepare('SELECT id FROM repositories WHERE repo_path = ?');
+  idStmt.bind([repoPath]);
+  idStmt.step();
+  const id = idStmt.getAsObject().id;
+  idStmt.free();
+  return id;
 }
 
 function markIndexed(repoId, totalFiles, totalSymbols) {

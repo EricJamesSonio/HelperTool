@@ -9,9 +9,9 @@ const prefetchService = require('./prefetchService.js');
 const { updateService } = require('./serviceTracker_ipc.js');
 
 let _watchers = [];
-let _saveDebounce = {};
-let _saveDebounceCount = 0;
-const _SAVE_DEBOUNCE_MAX = 1000;
+let _saveBatch = [];
+let _flushTimer = null;
+const _FLUSH_INTERVAL = 3000;
 let _syncInProgress = false;
 let _lastSyncDate = null;
 const _watchedPaths = new Set();
@@ -92,30 +92,46 @@ function _startWatcher(repoPath, repoName) {
     const ts = now.toISOString();
     const ext = path.extname(filePath) || '';
 
-    const key = filePath + '|' + date;
-    const last = _saveDebounce[key];
-    if (last && (now - last) < 2000) return;
-    if (!last && _saveDebounceCount >= _SAVE_DEBOUNCE_MAX) {
-      const entries = Object.keys(_saveDebounce);
-      const oldest = entries.reduce((a, b) => _saveDebounce[a] < _saveDebounce[b] ? a : b);
-      delete _saveDebounce[oldest];
-    }
-    if (!last) _saveDebounceCount++;
-    _saveDebounce[key] = now;
+    _saveBatch.push({ ts, date, repoPath, repoName, filePath, ext });
 
-    try {
-      db().run('INSERT INTO file_save_events (timestamp, repo_path, repo_name, file_path, file_ext) VALUES (?, ?, ?, ?, ?)',
-        [ts, repoPath, repoName, filePath, ext]);
-      db().run(`INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched)
-                VALUES (?, ?, ?, 1, 1)
-                ON CONFLICT(date, repo_path) DO UPDATE SET file_saves=file_saves+1, files_touched=files_touched+1`,
-        [date, repoPath, repoName]);
-      save();
-    } catch (err) {
-      console.warn('[Profile] watcher write error:', err.message);
+    if (!_flushTimer) {
+      _flushTimer = setTimeout(() => {
+        _flushTimer = null;
+        _flushSaveBatch();
+      }, _FLUSH_INTERVAL);
     }
   });
   _watchers.push(watcher);
+}
+
+function _flushSaveBatch() {
+  if (_saveBatch.length === 0) return;
+  const batch = _saveBatch;
+  _saveBatch = [];
+  try {
+    const db = getDb();
+    db.run('BEGIN');
+    for (const { ts, date, repoPath, repoName, filePath, ext } of batch) {
+      db.run('INSERT INTO file_save_events (timestamp, repo_path, repo_name, file_path, file_ext) VALUES (?, ?, ?, ?, ?)',
+        [ts, repoPath, repoName, filePath, ext]);
+    }
+    const dates = new Set(batch.map(e => e.date + '|' + e.repoPath + '|' + e.repoName));
+    const stmt = db.prepare(`INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(date, repo_path) DO UPDATE SET file_saves=file_saves+?, files_touched=files_touched+?`);
+    for (const key of dates) {
+      const [date, rp, rn] = key.split('|');
+      const count = batch.filter(e => e.date === date && e.repoPath === rp).length;
+      stmt.bind([date, rp, rn, count, count, count, count]);
+      stmt.step();
+      stmt.reset();
+    }
+    stmt.free();
+    db.run('COMMIT');
+  } catch (err) {
+    console.warn('[Profile] flush error:', err.message);
+    try { getDb().run('ROLLBACK'); } catch (_) {}
+  }
 }
 
 async function _syncCommits(repoPath, repoName) {
@@ -440,15 +456,25 @@ f = typeRow[2] || 0;
         const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         return { hash, shortHash: hash.substring(0, 7), time: timeStr, timestamp: parseInt(at), message: msgParts.join('|') || '(no message)' };
       });
-      const fileResults = await Promise.all(commits.map(c =>
-        gitService.getCommitFiles(rp, c.hash, { ttl: 60000 })
-          .then(out => out.trim().split('\n').filter(Boolean).map(line => {
-            const [status, ...pathParts] = line.split('\t');
-            return { status, path: pathParts.join('\t') };
-          }))
-          .catch(() => [])
-      ));
-      for (let i = 0; i < commits.length; i++) commits[i].files = fileResults[i];
+
+      // Batch: fetch all commit file lists in a single git log --name-only command
+      const hashList = commits.map(c => c.hash);
+      const batchOut = await gitService.getCommits(rp, {
+        format: '---COMMIT:%H---', noMerges: false,
+        since: date + 'T00:00:00', until: date + 'T23:59:59',
+        nameOnly: true, ttl: 60000,
+      });
+      const fileMap = {};
+      let currentHash = null;
+      for (const line of (batchOut || '').split('\n')) {
+        const m = line.match(/^---COMMIT:(.+?)---$/);
+        if (m) { currentHash = m[1]; fileMap[currentHash] = []; continue; }
+        if (currentHash && line.trim()) {
+          const parts = line.split('\t');
+          fileMap[currentHash].push({ status: parts[0] || 'M', path: parts.slice(1).join('\t') || line.trim() });
+        }
+      }
+      for (const c of commits) c.files = fileMap[c.hash] || [];
       _dayCommitLruSet(cacheKey, { data: commits, ts: Date.now() });
       return commits;
     } catch (err) {
@@ -640,8 +666,8 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:stopWatcher', () => {
     for (const w of _watchers) { try { w.close(); } catch (_) {} }
     _watchers = [];
-    _saveDebounce = {};
-    _saveDebounceCount = 0;
+    if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
+    _flushSaveBatch();
     _watchedPaths.clear();
     _lastSyncDate = null;
     return { success: true };

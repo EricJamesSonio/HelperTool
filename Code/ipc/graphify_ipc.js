@@ -12,18 +12,16 @@ const exporter = require('../graphify-service/exporter');
 
 const FILE_CACHE_TTL = 5000;
 const _fileCache = new Map();
+const _mountCache = new Map();
+const MOUNT_CACHE_TTL = 2000;
 
 function _readJsonCached(filePath) {
   const cached = _fileCache.get(filePath);
-  let mtime = 0;
-  try { mtime = fs.statSync(filePath).mtimeMs; } catch { _fileCache.delete(filePath); return null; }
-  if (cached && cached.mtime === mtime && Date.now() - cached.ts < FILE_CACHE_TTL) {
-    return cached.data;
-  }
+  if (cached && Date.now() - cached.ts < FILE_CACHE_TTL) return cached.data;
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
     const data = JSON.parse(raw);
-    _fileCache.set(filePath, { data, mtime, ts: Date.now() });
+    _fileCache.set(filePath, { data, ts: Date.now() });
     return data;
   } catch {
     _fileCache.delete(filePath);
@@ -33,14 +31,10 @@ function _readJsonCached(filePath) {
 
 function _readTextCached(filePath) {
   const cached = _fileCache.get(filePath);
-  let mtime = 0;
-  try { mtime = fs.statSync(filePath).mtimeMs; } catch { _fileCache.delete(filePath); return null; }
-  if (cached && cached.mtime === mtime && Date.now() - cached.ts < FILE_CACHE_TTL) {
-    return cached.data;
-  }
+  if (cached && Date.now() - cached.ts < FILE_CACHE_TTL) return cached.data;
   try {
     const data = fs.readFileSync(filePath, 'utf-8');
-    _fileCache.set(filePath, { data, mtime, ts: Date.now() });
+    _fileCache.set(filePath, { data, ts: Date.now() });
     return data;
   } catch {
     _fileCache.delete(filePath);
@@ -1090,53 +1084,85 @@ function register({ app }) {
     };
   });
 
-  ipcMain.handle('graphify:getMountData', async (_, repoPath) => {
-    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+  function _buildMountData(repoPath) {
+    const cached = _mountCache.get(repoPath);
+    if (cached && Date.now() - cached.ts < MOUNT_CACHE_TTL) return cached.data;
+
     const status = _fetchRepoStatus(repoPath);
 
-    let symbolsStats = null;
-    if (status.symbolsExists) {
-      const info = await _fetchInfo();
-      if (info && info.ready !== false && info.totalFiles !== undefined) {
-        symbolsStats = { files: info.totalFiles, symbols: info.totalSymbols, imports: info.totalImports };
-      }
-    }
+    const infoPromise = status.symbolsExists ? _fetchInfo() : Promise.resolve(null);
+    const changesPromise = (status.symbolsExists && status.hashesExist)
+      ? Promise.resolve().then(() => {
+          try {
+            const ch = changeDetector.detectContentChanges(repoPath);
+            if (!ch) return null;
+            const totalChanged = ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length;
+            return {
+              total: totalChanged,
+              changed: ch.changedFiles.length,
+              new: ch.newFiles.length,
+              deleted: ch.deletedFiles.length,
+              changeRatio: ch.changeRatio,
+              tooManyChanges: ch.changeRatio > 0.5,
+              changedFiles: ch.changedFiles,
+              newFiles: ch.newFiles,
+              deletedFiles: ch.deletedFiles,
+            };
+          } catch { return null; }
+        })
+      : Promise.resolve(null);
 
-    let changes = null;
-    if (status.symbolsExists && status.hashesExist) {
-      try {
-        const ch = changeDetector.detectContentChanges(repoPath);
-        if (ch) {
-          const totalChanged = ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length;
-          changes = {
-            total: totalChanged,
-            changed: ch.changedFiles.length,
-            new: ch.newFiles.length,
-            deleted: ch.deletedFiles.length,
-            changeRatio: ch.changeRatio,
-            tooManyChanges: ch.changeRatio > 0.5,
-            changedFiles: ch.changedFiles,
-            newFiles: ch.newFiles,
-            deletedFiles: ch.deletedFiles,
-          };
-        }
-      } catch {}
-    }
+    return Promise.all([infoPromise, changesPromise]).then(([info, changes]) => {
+      const symbolsStats = info && info.ready !== false && info.totalFiles !== undefined
+        ? { files: info.totalFiles, symbols: info.totalSymbols, imports: info.totalImports }
+        : null;
+      const stats = info && info.ready !== false
+        ? { files: info.totalFiles || 0, symbols: info.totalSymbols || 0, imports: info.totalImports || 0 }
+        : null;
 
+      const result = {
+        ok: true,
+        running: !!_child && _ready,
+        port: _port,
+        symbolsExists: status.symbolsExists,
+        symbolsStats,
+        stats,
+        promptExists: status.promptExists,
+        graphExists: status.graphExists,
+        graphHasData: status.graphHasData,
+        graphStats: status.graphStats,
+        hashesExist: status.hashesExist,
+        changes,
+        promptGenerated: status.promptGenerated,
+        promptPath: status.promptGenerated ? status.incrPromptPath : null,
+        indexed: status.symbolsExists,
+      };
+
+      _mountCache.set(repoPath, { data: result, ts: Date.now() });
+      return result;
+    });
+  }
+
+  ipcMain.handle('graphify:getMountData', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    const data = await _buildMountData(repoPath);
+    const { indexed, stats, ...rest } = data;
+    return rest;
+  });
+
+  ipcMain.handle('graphify:getChangesTabState', async (_, repoPath) => {
+    if (!repoPath) return { ok: false, error: 'No repo path provided' };
+    const data = await _buildMountData(repoPath);
     return {
       ok: true,
-      running: !!_child && _ready,
-      port: _port,
-      symbolsExists: status.symbolsExists,
-      symbolsStats,
-      promptExists: status.promptExists,
-      graphExists: status.graphExists,
-      graphHasData: status.graphHasData,
-      graphStats: status.graphStats,
-      hashesExist: status.hashesExist,
-      changes,
-      promptGenerated: status.promptGenerated,
-      promptPath: status.promptGenerated ? status.incrPromptPath : null,
+      indexed: data.indexed,
+      hashesExist: data.hashesExist,
+      changes: data.changes,
+      promptGenerated: data.promptGenerated,
+      promptPath: data.promptPath,
+      graphExists: data.graphExists,
+      graphHasData: data.graphHasData,
+      stats: data.stats,
     };
   });
 }

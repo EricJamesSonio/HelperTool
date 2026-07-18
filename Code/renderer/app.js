@@ -274,8 +274,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Drag scroll
     initDragScroll();
 
-    // Features
-    const feats = await initFeatures();
+    // Start loading features AND last repo IN PARALLEL — repo load doesn't need features
+    const [feats] = await Promise.all([
+        initFeatures(),
+        loadLastActiveRepo().catch(err => console.error('[Init] loadLastActiveRepo:', err)),
+    ]);
     console.log('[Init] Features:', feats);
     applyFeatureVisibility(feats);
 
@@ -307,15 +310,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Tools (apiTool, secretHolder, workspaceTool, gitTool)
     await initTools(feats, settingsManager);
 
-
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
 
     // Shortcut mode
     initShortcutMode();
-
-    // Restore last repo first — tree renders immediately
-    await loadLastActiveRepo();
 
     // View mode apply
     applyViewMode(state.viewMode);

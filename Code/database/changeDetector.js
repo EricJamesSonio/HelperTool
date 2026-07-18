@@ -5,8 +5,8 @@ const path = require('path');
 const crypto = require('crypto');
 const symbolsJsonLoader = require('./symbolsJsonLoader');
 
-const STORAGE_DIR = 'graphify/symbol-index-storage';
-const GRAPHIFY_DIR = 'graphify/graphify-storage';
+const STORAGE_DIR = 'MCP/graphify/symbol-index-storage';
+const GRAPHIFY_DIR = 'MCP/graphify/graphify-storage';
 const GRAPH_VERSION = 2;
 
 function loadSymbols(repoPath) {
