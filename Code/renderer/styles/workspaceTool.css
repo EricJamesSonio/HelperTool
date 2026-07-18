@@ -1343,7 +1343,7 @@
 /* ══ @-mention file picker (reused from codeswamp-ui.css) ══ */
 .oc-file-picker {
   position: fixed;
-  z-index: 10000;
+  z-index: 95000;
   background: var(--bg-elevated, #0f1117);
   border: 1px solid var(--border-default, rgba(255,255,255,0.17));
   border-radius: 8px;

@@ -69,15 +69,60 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    // ── Folder tree disk cache ──
+    const TREE_CACHE_DIR = path.join(app.getPath('userData'), 'folder-tree-cache');
+    const TREE_CACHE_TTL = 300_000; // 5 min
+
+    function _treeCacheKey(repoPath, ignoreRules) {
+        const hash = crypto.createHash('md5').update(repoPath + JSON.stringify(ignoreRules)).digest('hex');
+        return path.join(TREE_CACHE_DIR, `${hash}.json`);
+    }
+
+    function _treeCacheRead(cacheFile) {
+        try {
+            if (!fs.existsSync(cacheFile)) return null;
+            const raw = fs.readFileSync(cacheFile, 'utf-8');
+            const entry = JSON.parse(raw);
+            if (Date.now() - entry.ts > TREE_CACHE_TTL) return null;
+            return entry.tree;
+        } catch { return null; }
+    }
+
+    function _treeCacheWrite(cacheFile, tree) {
+        try {
+            fs.mkdirSync(TREE_CACHE_DIR, { recursive: true });
+            fs.writeFileSync(cacheFile, JSON.stringify({ ts: Date.now(), tree }));
+        } catch { /* best-effort */ }
+    }
+
     ipcMain.handle('getFolderTree', async (event, repoPath) => {
+        const t0 = performance.now();
         try {
             if (!repoPath) return [];
             const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
-            const workerProxy = require('./workerProxy');
-            if (workerProxy.isReady()) {
-                return await workerProxy.send('folderTree', { repoPath, ignoreRules });
+            const cacheFile = _treeCacheKey(repoPath, ignoreRules);
+
+            // Return cached tree instantly if fresh
+            const cached = _treeCacheRead(cacheFile);
+            if (cached) {
+                const elapsed = performance.now() - t0;
+                if (elapsed > 50) console.warn(`[IPC] getFolderTree cache hit in ${elapsed.toFixed(0)}ms for ${repoPath}`);
+                return cached;
             }
-            return await fileOps.getFolderTree(repoPath);
+
+            const workerProxy = require('./workerProxy');
+            let result;
+            if (workerProxy.isReady()) {
+                result = await workerProxy.send('folderTree', { repoPath, ignoreRules });
+            } else {
+                result = await fileOps.getFolderTree(repoPath);
+            }
+
+            _treeCacheWrite(cacheFile, result);
+
+            const elapsed = performance.now() - t0;
+            if (elapsed > 200) console.warn(`[IPC] getFolderTree took ${elapsed.toFixed(0)}ms (${workerProxy.isReady() ? 'worker' : 'node'}) for ${repoPath}`);
+            return result;
         } catch (err) {
             console.error('[IPC] getFolderTree error:', err);
             return [];

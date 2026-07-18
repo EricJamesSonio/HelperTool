@@ -1006,10 +1006,15 @@ export default class ErrorCopUI {
       <div class="ecp-landing-divider"></div>
 
       <div class="ecp-landing-section-title">AI Cheatsheet</div>
-      <div class="ecp-landing-desc">Auto-generated guide that tells AI agents how to use the Error Cop API. View it and send to AI.</div>
-      <button class="ecp-landing-btn ecp-cheatsheet-btn" style="margin-top:4px">
-        View &amp; Send to AI
-      </button>
+      <div class="ecp-landing-desc">Auto-generated guide that tells AI agents how to use the Error Cop API. Generate one for each repository.</div>
+      <div class="ecp-cheatsheet-actions">
+        <button class="ecp-landing-btn ecp-generate-cs-btn">
+          Generate Cheatsheet
+        </button>
+        <button class="ecp-landing-btn ecp-cheatsheet-btn">
+          View &amp; Send to AI
+        </button>
+      </div>
     `;
 
     this._leftCol.appendChild(container);
@@ -1017,6 +1022,7 @@ export default class ErrorCopUI {
     this._leftCol.querySelector('.ecp-server-start').addEventListener('click', () => this._handleServerStart());
     this._leftCol.querySelector('.ecp-server-stop').addEventListener('click', () => this._handleServerStop());
     this._leftCol.querySelector('.ecp-server-copy-url').addEventListener('click', () => this._handleCopyUrl());
+    this._leftCol.querySelector('.ecp-generate-cs-btn').addEventListener('click', () => this._handleGenerateCheatsheet());
     this._leftCol.querySelector('.ecp-cheatsheet-btn').addEventListener('click', () => this._handleCheatsheet());
   }
 
@@ -1079,6 +1085,27 @@ export default class ErrorCopUI {
     } catch (e) {
       console.error('[ErrorCop] Failed to read cheatsheet:', e);
     }
+  }
+
+  async _handleGenerateCheatsheet() {
+    const repoPath = window.__activeRepoPath;
+    if (!repoPath) return;
+    const btn = this._leftCol.querySelector('.ecp-generate-cs-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Generating...';
+    btn.disabled = true;
+    try {
+      const result = await window.electronAPI.generateCheatsheet(repoPath);
+      if (result && result.success && result.content) {
+        this._showSendToAiDialog(result.content);
+      } else {
+        console.warn('[ErrorCop] Generate cheatsheet failed:', result?.error);
+      }
+    } catch (e) {
+      console.error('[ErrorCop] Generate cheatsheet error:', e);
+    }
+    btn.textContent = orig;
+    btn.disabled = false;
   }
 
   _showSendToAiDialog(promptText) {
