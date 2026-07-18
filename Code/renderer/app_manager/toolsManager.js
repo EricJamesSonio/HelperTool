@@ -18,6 +18,8 @@ import * as blueprintLibrary from '../blueprintLibrary.js';
 import * as profileTool from '../profile.js';
 import * as essentialsGlossary from '../essentialsGlossary.js';
 import { openEnvManager } from '../envManager.js';
+import toolRegistry        from '../mcp/toolRegistry.js';
+import * as mcpModule      from '../mcp/index.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 import { startPrefetch } from './prefetchManager.js';
@@ -50,6 +52,7 @@ const ICONS = {
     layout: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="8" y1="7" x2="8" y2="18"/><line x1="2" y1="13" x2="18" y2="13"/><line x1="14" y1="7" x2="14" y2="18"/></svg>',
     essentials: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 6l8 4 8-4L10 2z"/><path d="M2 14l8 4 8-4"/><path d="M2 10l8 4 8-4"/></svg>',
     graphify: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/><path d="M4 3h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M4 9h8a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z"/></svg>',
+    mcp: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -63,6 +66,7 @@ import {
   createCodebaseChatPanel,
   createGithubExplorerPanel,
   createGraphifyPanel,
+  createMcpPanel,
 } from './panels/panelFactory.js';
 
 // ---- Tool handles ----------------------------------------------------------
@@ -113,6 +117,10 @@ let _githubContainer = null;
 let _graphifyPanel      = null;
 let _graphifyContainer   = null;
 let _graphifyInitialized = false;
+
+let _mcpPanel           = null;
+let _mcpContainer        = null;
+let _mcpInitialized      = false;
 
 let _terminalUI    = null;
 let _dockerTool   = null;
@@ -361,6 +369,14 @@ function populateSidebar() {
     await _mountGraphify();
   }, 'graphify'));
 
+  add(createSidebarItem(ICONS.mcp, 'MCP', 'Tool provider & server manager', async () => {
+    if (_mcpPanel?.classList.contains('open')) { _mcpPanel.classList.remove('open'); mcpModule.hide(); return; }
+    _registry.closeAll();
+    if (!_mcpPanel) _initMcpPanel();
+    _mcpPanel.classList.add('open');
+    mcpModule.show();
+  }, 'mcp'));
+
   add(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
     try {
       const oc = await import('../codeswampUI.js');
@@ -429,6 +445,18 @@ function _initGraphifyPanel() {
   _graphifyPanel = panel;
   _graphifyContainer = container;
   _registry.setGraphifyPanel(_graphifyPanel);
+}
+
+function _initMcpPanel() {
+  const { panel, container } = createMcpPanel();
+  _mcpPanel = panel;
+  _mcpContainer = container;
+  _registry.setMcpPanel(_mcpPanel);
+  _registry.setMcpHideCallback(() => mcpModule.hide());
+  if (!_mcpInitialized) {
+    mcpModule.activate(container);
+    _mcpInitialized = true;
+  }
 }
 
 async function _mountGraphify() {
@@ -828,6 +856,14 @@ function _buildShortcutActions() {
     await _mountGraphify();
   };
 
+  actions.mcp = async () => {
+    if (_mcpPanel?.classList.contains('open')) { _mcpPanel.classList.remove('open'); mcpModule.hide(); return; }
+    _registry.closeAll();
+    if (!_mcpPanel) _initMcpPanel();
+    _mcpPanel.classList.add('open');
+    mcpModule.show();
+  };
+
   actions.codeswampChat = async () => {
     try {
       const oc = await import('../codeswampUI.js');
@@ -968,9 +1004,60 @@ export async function initTools(feats, settingsManager) {
 
   initShortcutManager(_buildShortcutActions(), _feats);
 
+  // ── Register tools in MCP registry ──
+  _registerMcpTools();
+
   // ── Lazy-load heavy tool modules after first paint ──
   requestAnimationFrame(() => {
     _lazyInitTools(feats);
+  });
+}
+
+function _registerMcpTools() {
+  toolRegistry.register({
+    id: 'graphify',
+    name: 'Graphify',
+    description: 'Find relevant code by natural language query against a knowledge graph.',
+    color: '#22ff7a',
+    icon: ICONS.graphify,
+    cheatsheetPath: 'MCP/graphify/prompts/graphify-cheatsheet.md',
+    startFn: (repoPath) => window.electronAPI.graphifyStart(repoPath),
+    stopFn: () => window.electronAPI.graphifyStop(),
+    statusFn: async () => {
+      try { const s = await window.electronAPI.graphifyStatus(); return s.running ? 'running' : 'stopped'; }
+      catch { return 'error'; }
+    },
+    openPanelFn: async () => {
+      if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
+      _registry.closeAll();
+      if (!_graphifyPanel) _initGraphifyPanel();
+      _graphifyPanel.classList.add('open');
+      await _mountGraphify();
+    },
+  });
+
+  toolRegistry.register({
+    id: 'errorCop',
+    name: 'Error Cop',
+    description: 'Real-time terminal error monitoring with session timelines and occurrence tracking.',
+    color: '#ff4444',
+    icon: ICONS.cli,
+    cheatsheetPath: 'MCP/errorCop/errorcop-cheatsheet.md',
+    startFn: () => window.electronAPI.startServer(),
+    stopFn: () => window.electronAPI.stopServer(),
+    statusFn: async () => {
+      try { const s = await window.electronAPI.getServerStatus(); return s.running ? 'running' : 'stopped'; }
+      catch { return 'error'; }
+    },
+    openPanelFn: async () => {
+      if (!_terminalUI) {
+        _terminalUI = new TerminalUI();
+        _registry.setTerminalUI(_terminalUI);
+        await _terminalUI.init();
+      }
+      _registry.closeAll();
+      _terminalUI._errorCop.toggle();
+    },
   });
 }
 

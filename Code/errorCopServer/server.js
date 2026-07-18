@@ -18,11 +18,13 @@ function getUptime() {
 var ENDPOINTS = [
   { method: 'GET', path: '/health', description: 'Server health check with uptime' },
   { method: 'GET', path: '/endpoints', description: 'This list of available endpoints' },
-  { method: 'GET', path: '/errors/latest', description: 'Latest 10 errors', params: {} },
-  { method: 'GET', path: '/errors', description: 'Query errors by level, limit, offset, date range', params: { level: 'string', limit: 'number', offset: 'number', startDate: 'string', endDate: 'string' } },
+  { method: 'GET', path: '/errors/latest', description: 'Latest 10 errors (paginated shape: { data, pagination })' },
+  { method: 'GET', path: '/errors', description: 'Query errors by level, limit, offset, date range (paginated)', params: { level: 'string', limit: 'number', offset: 'number', startDate: 'string', endDate: 'string' } },
   { method: 'GET', path: '/errors/session/:id', description: 'Errors for a specific terminal session', params: { sessionId: 'number' } },
   { method: 'GET', path: '/errors/summary', description: 'AI-optimized summary with recent, mostFrequent, byType' },
   { method: 'GET', path: '/errors/unread-count', description: 'Count of new/unread errors' },
+  { method: 'GET', path: '/errors/:id', description: 'Single error detail with stack and occurrence lines', params: { id: 'number' } },
+  { method: 'GET', path: '/errors/mark-read', description: 'Reset unread error count to 0' },
   { method: 'GET', path: '/sessions', description: 'Terminal sessions list', params: { limit: 'number' } },
   { method: 'GET', path: '/timeline', description: 'Chronological timeline of errors and events', params: { limit: 'number' } },
 ];
@@ -108,28 +110,38 @@ function generateCheatsheet(outputPath) {
 '### `GET /errors/latest` \u2190 PRIMARY ENTRY POINT\n' +
 '\n' +
 'Start here after confirming there are unread errors. Returns the 10 most recent\n' +
-'errors with file/line info extracted from stack traces.\n' +
+'errors with file/line, sessionId, and project info.\n' +
 '\n' +
 '```\n' +
 'GET /errors/latest\n' +
 '```\n' +
 '\n' +
 '```json\n' +
-'[\n' +
-'  {\n' +
-'    "id": 42,\n' +
-'    "type": "error",\n' +
-'    "message": "TypeError: Cannot read properties of undefined (reading \'map\')",\n' +
-'    "file": "/src/components/TaskList.tsx",\n' +
-'    "line": 153,\n' +
-'    "timestamp": 1734567890000,\n' +
-'    "occurrences": 3\n' +
+'{\n' +
+'  "data": [\n' +
+'    {\n' +
+'      "id": 42,\n' +
+'      "sessionId": 3,\n' +
+'      "project": "my-app",\n' +
+'      "type": "error",\n' +
+'      "message": "TypeError: Cannot read properties of undefined (reading \'map\')",\n' +
+'      "file": "/src/components/TaskList.tsx",\n' +
+'      "line": 153,\n' +
+'      "timestamp": 1734567890000,\n' +
+'      "occurrences": 3\n' +
+'    }\n' +
+'  ],\n' +
+'  "pagination": {\n' +
+'    "total": 15,\n' +
+'    "hasMore": true,\n' +
+'    "limit": 10,\n' +
+'    "offset": 0\n' +
 '  }\n' +
-']\n' +
+'}\n' +
 '```\n' +
 '\n' +
 'The `file` and `line` fields are extracted from stack traces when available.\n' +
-'Use them to jump directly to the failing code.\n' +
+'The `sessionId` links to the terminal session that produced the error.\n' +
 '\n' +
 '---\n' +
 '\n' +
@@ -151,7 +163,35 @@ function generateCheatsheet(outputPath) {
 '| `startDate` | string | ISO date \u2014 start of range |\n' +
 '| `endDate` | string | ISO date \u2014 end of range |\n' +
 '\n' +
-'Response is the same array format as `/errors/latest`.\n' +
+'Response shape:\n' +
+'\n' +
+'```json\n' +
+'{\n' +
+'  "data": [\n' +
+'    {\n' +
+'      "id": 42,\n' +
+'      "sessionId": 3,\n' +
+'      "project": "my-app",\n' +
+'      "type": "error",\n' +
+'      "message": "...",\n' +
+'      "file": "/src/foo.ts",\n' +
+'      "line": 42,\n' +
+'      "timestamp": 1734567890000,\n' +
+'      "occurrences": 1\n' +
+'    }\n' +
+'  ],\n' +
+'  "pagination": {\n' +
+'    "total": 100,\n' +
+'    "hasMore": true,\n' +
+'    "limit": 5,\n' +
+'    "offset": 0\n' +
+'  }\n' +
+'}\n' +
+'```\n' +
+'\n' +
+'Use `pagination.hasMore` to know if there are additional results beyond the\n' +
+'current page. If `hasMore` is true, increment `offset` by `limit` and call\n' +
+'again.\n' +
 '\n' +
 '---\n' +
 '\n' +
@@ -164,14 +204,58 @@ function generateCheatsheet(outputPath) {
 'GET /errors/session/3\n' +
 '```\n' +
 '\n' +
-'Returns all errors from that session, oldest first. Same format as above.\n' +
+'Returns all errors from that session, oldest first. Each entry follows the\n' +
+'same shape as `/errors/latest` entries (includes `sessionId`, `project`).\n' +
+'Returns a bare array (no pagination wrapper).\n' +
+'\n' +
+'---\n' +
+'\n' +
+'### `GET /errors/:id` \u2014 Single error detail\n' +
+'\n' +
+'Get the full details of a specific error, including the raw stack trace\n' +
+'and all occurrence lines.\n' +
+'\n' +
+'```\n' +
+'GET /errors/42\n' +
+'```\n' +
+'\n' +
+'```json\n' +
+'{\n' +
+'  "id": 42,\n' +
+'  "sessionId": 3,\n' +
+'  "project": "my-app",\n' +
+'  "type": "error",\n' +
+'  "source": "terminal",\n' +
+'  "title": "TypeError",\n' +
+'  "message": "TypeError: Cannot read properties of undefined",\n' +
+'  "stack": "TypeError: Cannot read properties of undefined\\n    at render (/src/App.tsx:42:10)",\n' +
+'  "file": "/src/App.tsx",\n' +
+'  "line": 42,\n' +
+'  "timestamp": 1734567890000,\n' +
+'  "occurrences": 5,\n' +
+'  "occurrenceLines": [\n' +
+'    {\n' +
+'      "timestamp": 1734567890000,\n' +
+'      "message": "TypeError: Cannot read properties of undefined",\n' +
+'      "level": "error"\n' +
+'    }\n' +
+'  ],\n' +
+'  "firstSeen": 1734567890000,\n' +
+'  "lastSeen": 1734567895000,\n' +
+'  "fingerprint": "a1b2c3d4e5f6...",\n' +
+'  "resolved": false\n' +
+'}\n' +
+'```\n' +
+'\n' +
+'Returns 404 if the error ID does not exist.\n' +
 '\n' +
 '---\n' +
 '\n' +
 '### `GET /errors/summary` \u2014 AI-optimized overview\n' +
 '\n' +
 'A single call that gives you the full picture: recent errors, most frequent\n' +
-'recurring errors, and counts by severity.\n' +
+'recurring errors (aggregated across all sessions by fingerprint), and counts\n' +
+'by severity.\n' +
 '\n' +
 '```\n' +
 'GET /errors/summary\n' +
@@ -182,6 +266,8 @@ function generateCheatsheet(outputPath) {
 '  "recent": [\n' +
 '    {\n' +
 '      "id": 45,\n' +
+'      "sessionId": 3,\n' +
+'      "project": "my-app",\n' +
 '      "type": "error",\n' +
 '      "message": "TypeError: Cannot read properties of undefined",\n' +
 '      "file": "/src/app.tsx",\n' +
@@ -193,6 +279,8 @@ function generateCheatsheet(outputPath) {
 '  "mostFrequent": [\n' +
 '    {\n' +
 '      "id": 45,\n' +
+'      "sessionId": 3,\n' +
+'      "project": "my-app",\n' +
 '      "type": "error",\n' +
 '      "message": "TypeError: Cannot read properties of undefined",\n' +
 '      "file": "/src/app.tsx",\n' +
@@ -209,8 +297,44 @@ function generateCheatsheet(outputPath) {
 '}\n' +
 '```\n' +
 '\n' +
-'Use this to quickly identify the most impactful errors (high `occurrences`)\n' +
-'and decide what to fix first.\n' +
+'The `mostFrequent` list is computed by SQL GROUP BY fingerprint across all\n' +
+'errors, so it reflects true recurrence rather than just the last 20.\n' +
+'\n' +
+'---\n' +
+'\n' +
+'### `GET /errors/unread-count` \u2014 Quick health check\n' +
+'\n' +
+'The cheapest call. Use this first to decide if you need to investigate\n' +
+'further.\n' +
+'\n' +
+'```\n' +
+'GET /errors/unread-count\n' +
+'```\n' +
+'\n' +
+'```json\n' +
+'{\n' +
+'  "count": 5\n' +
+'}\n' +
+'```\n' +
+'\n' +
+'If `count > 0`, escalate to `GET /errors/latest` or `GET /errors/summary`.\n' +
+'\n' +
+'---\n' +
+'\n' +
+'### `GET /errors/mark-read` \u2014 Reset unread count\n' +
+'\n' +
+'Resets the unread error counter to 0. Call this after the AI has inspected\n' +
+'all new errors so that subsequent health checks reflect only new issues.\n' +
+'\n' +
+'```\n' +
+'GET /errors/mark-read\n' +
+'```\n' +
+'\n' +
+'```json\n' +
+'{\n' +
+'  "success": true\n' +
+'}\n' +
+'```\n' +
 '\n' +
 '---\n' +
 '\n' +
@@ -247,6 +371,7 @@ function generateCheatsheet(outputPath) {
 '### `GET /timeline` \u2014 Chronological event feed\n' +
 '\n' +
 'Shows errors in time order so you can understand the sequence of failures.\n' +
+'Each entry now includes `file`, `line`, `sessionId`, and `project` context.\n' +
 '\n' +
 '```\n' +
 'GET /timeline?limit=10\n' +
@@ -260,7 +385,10 @@ function generateCheatsheet(outputPath) {
 '    "title": "Build Failed",\n' +
 '    "message": "Failed to compile. Check terminal for details.",\n' +
 '    "level": "error",\n' +
+'    "file": "/src/App.tsx",\n' +
+'    "line": 42,\n' +
 '    "sessionId": 3,\n' +
+'    "project": "my-app",\n' +
 '    "command": "npm run build",\n' +
 '    "occurrences": 1\n' +
 '  }\n' +
@@ -268,27 +396,9 @@ function generateCheatsheet(outputPath) {
 '```\n' +
 '\n' +
 'Each entry includes the session\'s command so you can trace which operation\n' +
-'triggered the error. Use this when debugging multi-step build or deploy\n' +
+'triggered the error. The `file` and `line` fields let you jump directly to\n' +
+'the failing code. Use this when debugging multi-step build or deploy\n' +
 'processes.\n' +
-'\n' +
-'---\n' +
-'\n' +
-'### `GET /errors/unread-count` \u2014 Quick health check\n' +
-'\n' +
-'The cheapest call. Use this first to decide if you need to investigate\n' +
-'further.\n' +
-'\n' +
-'```\n' +
-'GET /errors/unread-count\n' +
-'```\n' +
-'\n' +
-'```json\n' +
-'{\n' +
-'  "count": 5\n' +
-'}\n' +
-'```\n' +
-'\n' +
-'If `count > 0`, escalate to `GET /errors/latest` or `GET /errors/summary`.\n' +
 '\n' +
 '---\n' +
 '\n' +
@@ -303,7 +413,8 @@ function generateCheatsheet(outputPath) {
 '2. GET /errors/latest\n' +
 '   \u2192 see the most recent errors with file/line\n' +
 '3. Read the failing files from disk\n' +
-'4. Answer based on the actual errors\n' +
+'4. GET /errors/mark-read to reset the counter\n' +
+'5. Answer based on the actual errors\n' +
 '```\n' +
 '\n' +
 '### Pattern B: "Deep investigation"\n' +
@@ -311,12 +422,14 @@ function generateCheatsheet(outputPath) {
 '```\n' +
 '1. GET /errors/summary\n' +
 '   \u2192 see most frequent errors + breakdown by type\n' +
-'2. GET /errors/session/:id for the session with the most errors\n' +
+'2. GET /errors/:id for the highest-occurrence error\n' +
+'   \u2192 get full stack trace and all occurrence lines\n' +
+'3. GET /errors/session/:id for the session with the most errors\n' +
 '   \u2192 see every error from that run in order\n' +
-'3. GET /timeline?limit=20\n' +
+'4. GET /timeline?limit=20\n' +
 '   \u2192 understand the sequence of failures\n' +
-'4. Read the failing files from disk\n' +
-'5. Answer with root cause + affected files\n' +
+'5. Read the failing files from disk\n' +
+'6. Answer with root cause + affected files\n' +
 '```\n' +
 '\n' +
 '### Pattern C: "Session-first investigation"\n' +
@@ -444,6 +557,11 @@ function start(engine) {
         return;
       }
 
+      if (path === '/errors/mark-read') {
+        json(res, 200, errorsApi.markRead(getNotify()));
+        return;
+      }
+
       if (path === '/errors') {
         var level = parsed.searchParams.get('level') || undefined;
         var limit = parseInt(parsed.searchParams.get('limit'), 10) || 50;
@@ -451,6 +569,17 @@ function start(engine) {
         var startDate = parsed.searchParams.get('startDate') || undefined;
         var endDate = parsed.searchParams.get('endDate') || undefined;
         json(res, 200, errorsApi.getErrors(getStorage(), { level: level, limit: limit, offset: offset, startDate: startDate, endDate: endDate }));
+        return;
+      }
+
+      var errorDetailMatch = path.match(/^\/errors\/(\d+)$/);
+      if (errorDetailMatch) {
+        var detail = errorsApi.getErrorDetail(getStorage(), parseInt(errorDetailMatch[1], 10));
+        if (detail) {
+          json(res, 200, detail);
+        } else {
+          error(res, 404, 'Error not found');
+        }
         return;
       }
 

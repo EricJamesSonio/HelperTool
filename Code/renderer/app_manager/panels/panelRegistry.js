@@ -29,6 +29,8 @@ export default class PanelRegistry {
     this._dockerTool = null;
     this._graphifyPanel = null;
     this._graphifyHideCb = null;
+    this._mcpPanel = null;
+    this._mcpHideCb = null;
   }
 
   // Register external tools that don't use a panel element
@@ -49,6 +51,8 @@ export default class PanelRegistry {
   setTerminalUI(t)        { this._terminalUI = t; }
   setGraphifyPanel(p)     { this._graphifyPanel = p; }
   setGraphifyHideCallback(fn) { this._graphifyHideCb = fn; }
+  setMcpPanel(p)          { this._mcpPanel = p; }
+  setMcpHideCallback(fn)  { this._mcpHideCb = fn; }
 
 
   // Register a panel element by name
@@ -129,6 +133,12 @@ export default class PanelRegistry {
     const ecpWrapper = document.querySelector('.ecp-wrapper');
     if (ecpWrapper?.classList.contains('open')) {
       ecpWrapper.classList.remove('open');
+    }
+
+    // MCP — close when any other tool opens
+    if (this._mcpPanel?.classList.contains('open')) {
+      if (this._mcpHideCb) this._mcpHideCb();
+      this._mcpPanel.classList.remove('open');
     }
 
     // Service tracker — close when any tool opens

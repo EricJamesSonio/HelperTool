@@ -146,6 +146,15 @@ export function getOpencodePanel() {
   return document.getElementById('ocPanel');
 }
 
+export function createMcpPanel() {
+  const panel = document.createElement('div');
+  panel.id = 'mcpPanel';
+  panel.className = 'mcp-panel-wrapper';
+  panel.innerHTML = `<div class="mcp-panel-body" id="mcpContainer"></div>`;
+  document.body.appendChild(panel);
+  return { panel, container: panel.querySelector('#mcpContainer') };
+}
+
 export function createGraphifyPanel() {
   const panel = document.createElement('div');
   panel.id = 'graphifyPanel';

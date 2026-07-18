@@ -1,5 +1,13 @@
 require('./utils/log').install();
 
+process.on('uncaughtException', (err) => {
+  console.error('[Main] Uncaught exception:', err.message);
+  console.error(err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Main] Unhandled rejection:', reason?.message || String(reason));
+});
+
 const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
 const path = require('path');
 

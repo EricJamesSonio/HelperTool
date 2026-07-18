@@ -2,9 +2,7 @@ import { state } from './state.js';
 import { getConversation } from './history.js';
 import {
   createTerminalSession,
-  showTerminalSession,
   killTerminalSession,
-  hasTerminalSession,
 } from './terminalManager.js';
 
 export function clearTerminal() {
@@ -25,11 +23,6 @@ export async function openTerminalForRepo(repoPath, slotIndex = 0) {
   const terminal = document.getElementById('ocTerminal');
   if (welcome) welcome.style.display = 'none';
   if (terminal) terminal.style.display = '';
-
-  if (!state.parallelMode && hasTerminalSession(repoPath)) {
-    showTerminalSession(repoPath);
-    return;
-  }
 
   await createTerminalSession(repoPath, slotIndex);
 }
