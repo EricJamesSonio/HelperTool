@@ -53,8 +53,8 @@ class GitToolUI {
           <h2 class="git-title" style="display:flex;align-items:center;gap:8px">
             <span class="git-icon">${ICON_GIT}</span> Git Tool
             <span class="git-stats-compact" id="gitStatsCompact"></span>
-            <span class="gap-selector-wrapper" title="Group threshold — time gap creates a separator">
-              <span class="gap-label">Gap:</span>
+            <span class="gap-selector-wrapper" title="Session threshold — inactivity gap creates a new group">
+              <span class="gap-label">Session:</span>
               <select id="gapSelector" class="gap-selector">
                 <option value="60000">1m</option>
                 <option value="180000">3m</option>

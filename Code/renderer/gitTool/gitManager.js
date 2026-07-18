@@ -36,7 +36,7 @@ class GitManager {
    * Update working tree with git status output
    * @param {Array} files - Array of {file: string, status: string}
    */
-updateWorkingTree(files) {
+updateWorkingTree(files, timestamps = null) {
   const existingMap = new Map(
     this.workingTreeFiles.map(f => [f.file, f])
   );
@@ -47,10 +47,14 @@ updateWorkingTree(files) {
     const isNew = !existing;
     const statusChanged = existing && existing.status !== incoming.status;
 
-    return {
-      ...incoming,
-      modifiedAt: (isNew || statusChanged) ? Date.now() : existing.modifiedAt
-    };
+    let modifiedAt;
+    if (isNew || statusChanged) {
+      modifiedAt = (timestamps && timestamps[incoming.file]) || Date.now();
+    } else {
+      modifiedAt = existing.modifiedAt;
+    }
+
+    return { ...incoming, modifiedAt };
   }).filter(Boolean);
 
   return this.workingTreeFiles;
@@ -133,7 +137,7 @@ getTimeGroupLabel(ts) {
    */
   getSmartGroups(thresholdMs, edges) {
     const effectiveThreshold = thresholdMs || this.groupThresholdMs || 300000;
-    const connectivityEdges = edges || this._connectivityEdges;
+    let connectivityEdges = edges || this._connectivityEdges;
 
     const sorted = [...this.workingTreeFiles].sort(
       (a, b) => (a.modifiedAt || 0) - (b.modifiedAt || 0)
@@ -141,7 +145,7 @@ getTimeGroupLabel(ts) {
 
     if (sorted.length === 0) return [];
 
-    // Stage 1: Time-based clustering
+    // Stage 1: Session-based time clustering
     const timeGroups = [];
     let current = { files: [], label: '', timeRange: { start: null, end: null } };
 
@@ -178,8 +182,13 @@ getTimeGroupLabel(ts) {
 
     const result = timeGroups.reverse();
 
-    // Stage 2: If connectivity edges available, split unrelated files within each time cluster
-    if (connectivityEdges && connectivityEdges.length > 0) {
+    // Stage 2: Build connectivity edges if none provided (directory proximity fallback)
+    if (!connectivityEdges || connectivityEdges.length === 0) {
+      connectivityEdges = this._buildDirectoryEdges(sorted);
+    }
+
+    // Stage 3: Split each time session by connectivity
+    if (connectivityEdges.length > 0) {
       return result.flatMap(group => {
         if (group.files.length <= 1) return [group];
         const subGroups = this._splitByConnectivity(group.files, connectivityEdges);
@@ -192,6 +201,57 @@ getTimeGroupLabel(ts) {
     }
 
     return result;
+  }
+
+  /**
+   * Build directory-proximity edges as fallback when no symbols.json connectivity exists.
+   * Files sharing the same parent directory or top-level module directory are connected.
+   */
+  _buildDirectoryEdges(files) {
+    const edges = [];
+    const seen = new Set();
+
+    const addEdge = (a, b, type) => {
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        edges.push({ from: a, to: b, type });
+      }
+    };
+
+    // Layer 1: Exact parent directory
+    const parentDirGroups = new Map();
+    for (const f of files) {
+      const idx = f.file.lastIndexOf('/');
+      const dir = idx >= 0 ? f.file.substring(0, idx) : '';
+      if (!parentDirGroups.has(dir)) parentDirGroups.set(dir, []);
+      parentDirGroups.get(dir).push(f.file);
+    }
+    for (const [, group] of parentDirGroups) {
+      if (group.length >= 2) {
+        for (let i = 1; i < group.length; i++) {
+          addEdge(group[0], group[i], 'same-dir');
+        }
+      }
+    }
+
+    // Layer 2: Top-level module directory (first path segment)
+    const topDirGroups = new Map();
+    for (const f of files) {
+      const parts = f.file.split('/');
+      const topDir = parts.length > 1 ? parts[0] : '';
+      if (!topDirGroups.has(topDir)) topDirGroups.set(topDir, []);
+      topDirGroups.get(topDir).push(f.file);
+    }
+    for (const [, group] of topDirGroups) {
+      if (group.length >= 2) {
+        for (let i = 1; i < group.length; i++) {
+          addEdge(group[0], group[i], 'dir-proximity');
+        }
+      }
+    }
+
+    return edges;
   }
 
   /**

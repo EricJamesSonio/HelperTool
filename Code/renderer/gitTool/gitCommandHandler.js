@@ -13,6 +13,7 @@ class GitCommandHandler {
     this.lastStatusRefresh = 0;
     this.statusDebounce = 500; // ms
     this._onConnectivityReady = null; // callback when connectivity edges are loaded
+    this._fileTimestamps = new Map(); // file -> last modified timestamp from watcher
   }
 
   /**
@@ -37,9 +38,23 @@ class GitCommandHandler {
       const result = await this.ipc.status(this.repoPath);
       if (result.error) return result;
 
-      // Update manager with fresh status (separate working/staged from git)
-      this.gitManager.updateWorkingTree(result.workingFiles || []);
+      // Pass real watcher timestamps to updateWorkingTree for accurate session grouping
+      const timestamps = this._fileTimestamps.size > 0
+        ? Object.fromEntries(this._fileTimestamps)
+        : null;
+
+      this.gitManager.updateWorkingTree(result.workingFiles || [], timestamps);
       this.gitManager.updateStagedFiles(result.stagedFiles || []);
+
+      // Prune stale timestamps (files no longer in working tree)
+      if (this._fileTimestamps.size > 0 && result.workingFiles) {
+        const currentFiles = new Set(result.workingFiles.map(f => f.file));
+        for (const file of this._fileTimestamps.keys()) {
+          if (!currentFiles.has(file)) {
+            this._fileTimestamps.delete(file);
+          }
+        }
+      }
 
       // Load connectivity data for smart grouping
       this.loadConnectivity();
@@ -245,7 +260,8 @@ class GitCommandHandler {
 
   /**
    * Set up file watching for real-time status updates
-   * Watches for file changes and refreshes git status
+   * Listens for individual file change events with OS timestamps,
+   * stores them for accurate session-based grouping.
    */
   startWatching(repoPath, onUpdate) {
     try {
@@ -254,20 +270,25 @@ class GitCommandHandler {
         return;
       }
 
-      this.ipc.watch(repoPath, (result) => {
-        if (result.workingFiles || result.stagedFiles) {
-          if (result.workingFiles) {
-            this.gitManager.updateWorkingTree(result.workingFiles);
-          }
-          if (result.stagedFiles) {
-            this.gitManager.updateStagedFiles(result.stagedFiles);
-          }
-          if (onUpdate) onUpdate(this.gitManager.getState());
-          // Refresh connectivity after working tree change
-          if (result.workingFiles) {
-            this.loadConnectivity();
-          }
+      this.repoPath = repoPath;
+
+      this.ipc.watch(repoPath, (data) => {
+        // data = { file: 'relative/path.js', modifiedAt: 1234567890000 }
+        if (data && data.file && data.modifiedAt) {
+          this._fileTimestamps.set(data.file, data.modifiedAt);
         }
+
+        // Debounce full status refresh
+        const now = Date.now();
+        if (now - this.lastStatusRefresh < this.statusDebounce) return;
+        this.lastStatusRefresh = now;
+
+        // Fetch latest git status and trigger UI update
+        this.getStatus().then(() => {
+          if (onUpdate) onUpdate(this.gitManager.getState());
+        }).catch(err => {
+          console.warn('[GitCommandHandler] watcher status refresh error:', err);
+        });
       });
     } catch (error) {
       console.error('Error starting file watcher:', error);
@@ -278,8 +299,9 @@ class GitCommandHandler {
    * Stop file watching
    */
   stopWatching() {
+    this._fileTimestamps.clear();
     if (this.ipc?.unwatch) {
-      this.ipc.unwatch();
+      this.ipc.unwatch(this.repoPath);
     }
   }
 
