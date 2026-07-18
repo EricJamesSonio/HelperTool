@@ -8,7 +8,7 @@ function _read(repoPath) {
   if (!repoPath) return null;
   const cached = _jsonCache.get(repoPath);
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
-  const jsonPath = path.join(repoPath, 'graphify', 'symbol-index-storage', 'symbols.json');
+  const jsonPath = path.join(repoPath, 'MCP', 'graphify', 'symbol-index-storage', 'symbols.json');
   try {
     const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     _jsonCache.set(repoPath, { data, ts: Date.now() });

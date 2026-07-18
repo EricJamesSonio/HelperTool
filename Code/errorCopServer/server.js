@@ -50,7 +50,7 @@ function setEngine(engine) {
 
 function generateCheatsheet() {
   try {
-    var cheatsheetPath = path.resolve(__dirname, '..', '..', 'graphify', 'prompts', 'errorcop-cheatsheet.md');
+    var cheatsheetPath = path.resolve(__dirname, '..', '..', 'MCP', 'errorCop', 'errorcop-cheatsheet.md');
     var epTable = ENDPOINTS.map(function (e) {
       return '| `' + e.method + ' ' + e.path + '` | ' + e.description + ' |';
     }).join('\n');

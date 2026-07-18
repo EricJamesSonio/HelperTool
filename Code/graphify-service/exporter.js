@@ -4,9 +4,9 @@ const fs   = require('fs');
 const path = require('path');
 const { getIndexedData } = require('./db');
 
-const STORAGE_DIR = 'graphify/symbol-index-storage';
-const PROMPTS_DIR = 'graphify/prompts';
-const GRAPHIFY_DIR = 'graphify/graphify-storage';
+const STORAGE_DIR = 'MCP/graphify/symbol-index-storage';
+const PROMPTS_DIR = 'MCP/graphify/prompts';
+const GRAPHIFY_DIR = 'MCP/graphify/graphify-storage';
 
 function exportSymbolsJson(repoPath) {
   if (!repoPath) return { ok: false, error: 'No repository path provided.' };
@@ -84,8 +84,8 @@ function generatePrompt(repoPath) {
 
 You are an AI assistant. Your task is to analyze the provided \`symbols.json\` file containing the symbol index of a codebase, and produce two output files:
 
-1. **\`graphify/graphify-storage/graph.json\`** — A structured knowledge graph with semantic labels
-2. **\`graphify/graphify-storage/graph.md\`** — A human-readable markdown report
+1. **\`MCP/graphify/graphify-storage/graph.json\`** — A structured knowledge graph with semantic labels
+2. **\`MCP/graphify/graphify-storage/graph.md\`** — A human-readable markdown report
 
 ## The Challenge
 
@@ -417,8 +417,8 @@ Cross-feature or unexpected relationships detected.
 
 Write two files:
 
-1. \`${repoPath}\\graphify\\graphify-storage\\graph.json\` — the structured graph (must match the schema above exactly)
-2. \`${repoPath}\\graphify\\graphify-storage\\graph.md\` — the human-readable report
+1. \`${repoPath}\\MCP\\graphify\\graphify-storage\\graph.json\` — the structured graph (must match the schema above exactly)
+2. \`${repoPath}\\MCP\\graphify\\graphify-storage\\graph.md\` — the human-readable report
 `;
 
   const promptPath = path.join(outDir, 'generate-graph.md');

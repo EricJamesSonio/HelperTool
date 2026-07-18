@@ -57,7 +57,7 @@ function _buildGraph() {
 async function boot() {
   let repoPath = REPO_PATH;
 
-  if (!repoPath || !fs.existsSync(path.join(repoPath, 'graphify', 'symbol-index-storage', 'symbols.json'))) {
+  if (!repoPath || !fs.existsSync(path.join(repoPath, 'MCP', 'graphify', 'symbol-index-storage', 'symbols.json'))) {
     const dbPath = process.argv[4] || null;
     if (dbPath && fs.existsSync(dbPath)) {
       try {
@@ -77,7 +77,7 @@ async function boot() {
       await initFromJson(repoPath);
       _repoPath = repoPath;
       _dbReady = true;
-      process.stderr.write(`[graphify] Data loaded from ${repoPath}/graphify/symbol-index-storage/symbols.json\n`);
+      process.stderr.write(`[graphify] Data loaded from ${repoPath}/MCP/graphify/symbol-index-storage/symbols.json\n`);
       _buildGraph();
       _initRetrievalEngine();
     } catch (err) {
@@ -269,10 +269,10 @@ function handleEndpoints(req, res) {
     { method: 'POST',   path: '/graph/shortest-path', description: 'Find shortest path between two nodes. Body: { from, to }' },
     { method: 'POST',   path: '/graph/affected',      description: 'Find reverse impact (affected by). Body: { nodeId, depth? }' },
     { method: 'POST',   path: '/graph/search',        description: 'Search nodes by name. Body: { query, limit? }' },
-    { method: 'POST',   path: '/export/symbols',      description: 'Export symbol index to graphify/symbol-index-storage/symbols.json + generate prompt' },
+    { method: 'POST',   path: '/export/symbols',      description: 'Export symbol index to MCP/graphify/symbol-index-storage/symbols.json + generate prompt' },
     { method: 'POST',   path: '/export/prompt',       description: 'Regenerate only the AI prompt file' },
     { method: 'POST',   path: '/export/all',          description: 'Export symbols + generate prompt in one call' },
-    { method: 'GET',    path: '/graph/from-storage',  description: 'Load AI-generated graph.json and graph.md from graphify/graphify-storage/' },
+    { method: 'GET',    path: '/graph/from-storage',  description: 'Load AI-generated graph.json and graph.md from MCP/graphify/graphify-storage/' },
     { method: 'POST',   path: '/retrieval/v1/query',  description: 'Main retrieval query. Body: { query, limit?, depth?, tokenBudget?, diversify? }' },
     { method: 'GET',    path: '/retrieval/v1/features', description: 'List all features with file counts' },
     { method: 'GET',    path: '/retrieval/v1/concepts?q=', description: 'Search or list concepts' },
