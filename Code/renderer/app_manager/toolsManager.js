@@ -905,7 +905,7 @@ export async function initTools(feats, settingsManager) {
   _registry.setDiffViewer(diffViewer);
   _registry.setFileViewer(fileViewer);
   initSidebar();
-  populateSidebar();
+  requestAnimationFrame(() => populateSidebar());
 
   if (feats.teamActivityTool) {
     try { _registry.setTeamActivity(teamActivity); } catch (err) { console.error('[Tools] Team Activity failed:', err); }

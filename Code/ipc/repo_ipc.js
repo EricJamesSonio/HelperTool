@@ -115,7 +115,15 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
             if (workerProxy.isReady()) {
                 result = await workerProxy.send('folderTree', { repoPath, ignoreRules });
             } else {
-                result = await fileOps.getFolderTree(repoPath);
+                // Wait up to 2s for worker to become ready before falling back
+                for (let i = 0; i < 40 && !workerProxy.isReady(); i++) {
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                if (workerProxy.isReady()) {
+                    result = await workerProxy.send('folderTree', { repoPath, ignoreRules });
+                } else {
+                    result = await fileOps.getFolderTree(repoPath);
+                }
             }
 
             await _treeCacheWrite(cacheFile, result);

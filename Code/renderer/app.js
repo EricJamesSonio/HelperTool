@@ -289,19 +289,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     applyFeatureVisibility(feats);
 
-    // Generate controls
-    initProgress();
+    // Only initActionButtons is critical (sets label text visible on first paint)
     initActionButtons();
-    initSplitModeButton();
-    initModeItems();
-    initGenerateButton();
-    initClearSelectionButton();
-
-    // View mode
-    initViewMode();
-
-    // Zoom controls
-    initZoomManager();
     performance.mark('init:controls');
 
     // Theme + Tools run in parallel — theme module is ~50KB with 20 themes
@@ -325,19 +314,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     performance.mark('init:theme-tools');
     performance.measure('init:theme+tools', 'init:controls', 'init:theme-tools');
 
-    setupFilterInput(() => state.cachedTree, displayTree);
-    setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
-
-    // Shortcut mode
-    initShortcutMode();
-
-    // View mode apply
+    // View mode apply — critical (sets button icon, may render tree)
     applyViewMode(state.viewMode);
-
-    // Load filters in background — don't block the tree render
-    const filterPromises = [loadIgnoredExtensions()];
-    if (feats.folderFilters) filterPromises.push(loadFolderFilters());
-    Promise.all(filterPromises).catch(err => console.error('[Init] Filter load error:', err));
 
     performance.mark('init:done');
     performance.measure('init:total', 'init:start', 'init:done');
@@ -353,8 +331,24 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (repoEntry) console.log(`[Init] Background repo load: ${(repoEntry.startTime - performance.getEntriesByName('init:start').pop()?.startTime || 0).toFixed(0)}ms`);
     });
 
-    // Service tracker is non-critical — defer after layout
+    // Defer non-critical setup after first paint — these are pure event wiring
     requestAnimationFrame(() => {
+        initProgress();
+        initSplitModeButton();
+        initModeItems();
+        initGenerateButton();
+        initClearSelectionButton();
+        initViewMode();
+        initZoomManager();
+        initShortcutMode();
+        setupFilterInput(() => state.cachedTree, displayTree);
+        setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
+
+        // Load filters in background
+        const filterPromises = [loadIgnoredExtensions()];
+        if (feats.folderFilters) filterPromises.push(loadFolderFilters());
+        Promise.all(filterPromises).catch(err => console.error('[Init] Filter load error:', err));
+
         initServiceTracker().catch(err => console.error('[ServiceTracker] init error:', err));
     });
 });

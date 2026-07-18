@@ -71,11 +71,11 @@ if (!gotTheLock) {
             initErrorCopDb(app),
         ]);
 
+        // Start worker process BEFORE window creation so it's ready when renderer makes its first getFolderTree call
+        workerProxy.start();
+
         createWindow();
         serviceTrackerIpc.setWindow(mainWindow);
-
-        // Start worker process early so it's ready when renderer makes its first getFolderTree call
-        workerProxy.start();
 
         mainWindow.webContents.once('did-finish-load', () => {
             serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
