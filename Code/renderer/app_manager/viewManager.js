@@ -5,7 +5,7 @@
 
 import { renderTree }  from '../../utils/treeView.js';
 import { filterTree }  from '../filterManager.js';
-import { selectSearchItem } from '../searchManager.js';
+import { selectSearchItem, clearFlatListCache } from '../searchManager.js';
 import { state }       from './appState.js';
 import * as fileSeederTool from '../fileSeederTool.js';
 import * as locDetector from '../locDetector.js';
@@ -196,6 +196,7 @@ export function displayTree(resetScroll = true) {
         treeContainer.textContent = 'No data available';
         return;
     }
+    clearFlatListCache();
     const scrollPos = treeContainer.scrollTop;
     const visibleTree = filterTree(state.cachedTree);
     renderTree(
@@ -275,14 +276,29 @@ export function initViewMode() {
     );
 }
 
-// Global close handlers for root folder cascading dropdown
-document.addEventListener('click', (e) => {
-  if (_activeRootDropdown && !_activeRootDropdown.contains(e.target)) {
-    _closeAllSubMenus();
-    _closeRootDropdown();
-  }
-});
+let _viewDocHandlers = null;
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { _closeAllSubMenus(); _closeRootDropdown(); }
-});
+function _initDocHandlers() {
+  if (_viewDocHandlers) return;
+  const onClick = (e) => {
+    if (_activeRootDropdown && !_activeRootDropdown.contains(e.target)) {
+      _closeAllSubMenus();
+      _closeRootDropdown();
+    }
+  };
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') { _closeAllSubMenus(); _closeRootDropdown(); }
+  };
+  document.addEventListener('click', onClick);
+  document.addEventListener('keydown', onKeyDown);
+  _viewDocHandlers = { onClick, onKeyDown };
+}
+
+function _destroyDocHandlers() {
+  if (!_viewDocHandlers) return;
+  document.removeEventListener('click', _viewDocHandlers.onClick);
+  document.removeEventListener('keydown', _viewDocHandlers.onKeyDown);
+  _viewDocHandlers = null;
+}
+
+_initDocHandlers();

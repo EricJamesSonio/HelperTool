@@ -74,11 +74,12 @@ if (!gotTheLock) {
         createWindow();
         serviceTrackerIpc.setWindow(mainWindow);
 
-        mainWindow.webContents.once('did-finish-load', async () => {
-            serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
-            try {
-                await dbPromise;
+        // Start worker process early so it's ready when renderer makes its first getFolderTree call
+        workerProxy.start();
 
+        mainWindow.webContents.once('did-finish-load', () => {
+            serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
+            dbPromise.then(async () => {
                 setTimeout(async () => {
                   try {
                     const termIpc = require('./ipc/terminal_ipc');
@@ -97,25 +98,23 @@ if (!gotTheLock) {
                   console.log('[DB] size: 0 MB at', _p);
                 }
                 serviceTrackerIpc.updateService('database', 'done');
-            } catch (err) {
+
+                // Start worker and prefetch in background — does not block UI
+                setTimeout(() => {
+                    const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+                    indexerProxy.start(indexerDbPath);
+
+                    prefetchService.registerIpc();
+
+                    setTimeout(() => {
+                        const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+                        prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
+                    }, 800);
+                }, 2000);
+            }).catch(err => {
                 console.error('[Main] Failed to init DB:', err);
                 serviceTrackerIpc.updateService('database', 'failed', err.message);
-                return;
-            }
-
-            // Start worker and prefetch in background — does not block UI
-            setTimeout(() => {
-                const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
-                indexerProxy.start(indexerDbPath);
-                workerProxy.start();
-
-                prefetchService.registerIpc();
-
-                setTimeout(() => {
-                    const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
-                    prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
-                }, 800);
-            }, 2000);
+            });
         });
 
         console.log('[Main] Helper Tool app running...');
@@ -152,10 +151,7 @@ function registerAllIpc() {
       safeRegister('secrets_ipc',     () => require('./ipc/secrets_ipc.js').register(shared));
       safeRegister('apitool_ipc',     () => require('./ipc/apitool_ipc.js').register(shared));
       safeRegister('workspace_ipc',   () => require('./ipc/workspace_ipc.js').register(shared));
-      safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
-      safeRegister('git_ipc',         () => require('./ipc/git_ipc.js').register(shared));
       safeRegister('prompts_ipc',     () => require('./ipc/prompts_ipc.js').register({ app }));
-      safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
       safeRegister('canvas_ipc',      () => require('./ipc/canvas_ipc.js').register());
       safeRegister('fileseeder_ipc',  () => require('./ipc/fileseeder_ipc.js').register(shared));
       safeRegister('loc_ipc',         () => require('./ipc/loc_ipc.js').register(shared));
@@ -165,18 +161,29 @@ function registerAllIpc() {
       safeRegister('teamActivityFeed',() => require('./ipc/teamActivityFeed.js').register());
       safeRegister('blueprintLibrary',() => require('./ipc/blueprintLibrary/index.js').register());
       safeRegister('profile',         () => require('./ipc/profile.js').register(shared));
-      safeRegister('docker_ipc',      () => require('./ipc/docker_ipc.js').register());
       safeRegister('env_ipc',         () => require('./ipc/env_ipc.js').register());
-      safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
       safeRegister('video_ipc',       () => require('./ipc/video_ipc.js').register(shared));
       safeRegister('image_ipc',       () => require('./ipc/image_ipc.js').register(shared));
-      safeRegister('gmail_ipc',       () => require('./ipc/gmail_ipc.js').register(shared));
       safeRegister('automation_ipc',  () => require('./ipc/automation_ipc.js').register());
       safeRegister('github_ipc',      () => require('./ipc/github_ipc.js').register());
       safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
+      safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
+    });
+
+    // Heavier IPC modules — deferred another tick so first paint isn't contested
+    setImmediate(() => {
+      const safeRegister = (name, fn) => {
+        try { fn(); }
+        catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
+      };
+      safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
+      safeRegister('git_ipc',         () => require('./ipc/git_ipc.js').register(shared));
+      safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
+      safeRegister('docker_ipc',      () => require('./ipc/docker_ipc.js').register());
+      safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
+      safeRegister('gmail_ipc',       () => require('./ipc/gmail_ipc.js').register(shared));
       safeRegister('codebaseMap_ipc', () => require('./ipc/codebaseMap_ipc.js').register());
       safeRegister('graphify_ipc',    () => { graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app }); });
-      safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
     });
 
     // ── Window control IPC (registered once, outside createWindow) ──

@@ -11,30 +11,30 @@ function register({ app }) {
         return path.join(app.getPath('userData'), 'workspace.json');
     }
 
-    function readWorkspaceFile() {
+    async function readWorkspaceFile() {
         const p = getWorkspacePath();
         if (!fs.existsSync(p)) return { projects: [], workers: [], tickets: [], globalLogs: [] };
         try {
-            return JSON.parse(fs.readFileSync(p, 'utf-8'));
+            return JSON.parse(await fs.promises.readFile(p, 'utf-8'));
         } catch {
             return { projects: [], workers: [], tickets: [], globalLogs: [] };
         }
     }
 
-    function writeWorkspaceFile(data) {
-        fs.writeFileSync(getWorkspacePath(), JSON.stringify(data, null, 2), 'utf-8');
+    async function writeWorkspaceFile(data) {
+        await fs.promises.writeFile(getWorkspacePath(), JSON.stringify(data, null, 2), 'utf-8');
     }
 
-    ipcMain.handle('workspaceGetAll', () => {
+    ipcMain.handle('workspaceGetAll', async () => {
         try {
-            return readWorkspaceFile();
+            return await readWorkspaceFile();
         } catch (err) {
             console.error('[IPC] workspaceGetAll error:', err);
             return { projects: [], workers: [], tickets: [], globalLogs: [] };
         }
     });
 
-    ipcMain.handle('workspaceSaveAll', (event, data) => {
+    ipcMain.handle('workspaceSaveAll', async (event, data) => {
         try {
             if (!data || typeof data !== 'object') throw new Error('Invalid data');
             const validated = {
@@ -43,7 +43,7 @@ function register({ app }) {
                 tickets:    Array.isArray(data.tickets)      ? data.tickets    : [],
                 globalLogs: Array.isArray(data.globalLogs)   ? data.globalLogs : [],
             };
-            writeWorkspaceFile(validated);
+            await writeWorkspaceFile(validated);
             return true;
         } catch (err) {
             console.error('[IPC] workspaceSaveAll error:', err);

@@ -3,6 +3,7 @@ const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
 
 let _zoom = 1;
+let _zoomKeyHandler = null;
 
 function setZoom(val) {
   _zoom = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, val)) * 10) / 10;
@@ -35,7 +36,8 @@ export function initZoomManager() {
   document.getElementById('zoomResetBtn')?.addEventListener('click', () => setZoom(1));
 
   // Keyboard shortcuts — skip when canvas panel is open or typing in inputs
-  document.addEventListener('keydown', (e) => {
+  if (_zoomKeyHandler) destroyZoomManager();
+  _zoomKeyHandler = (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
     const canvasPanel = document.getElementById('canvasPanelWrapper');
     if (canvasPanel && canvasPanel.style.display !== 'none') return;
@@ -44,7 +46,15 @@ export function initZoomManager() {
     if (e.key === '=' || e.key === '+') { e.preventDefault(); setZoom(_zoom + ZOOM_STEP); }
     else if (e.key === '-') { e.preventDefault(); setZoom(_zoom - ZOOM_STEP); }
     else if (e.key === '0') { e.preventDefault(); setZoom(1); }
-  });
+  };
+  document.addEventListener('keydown', _zoomKeyHandler);
 
   setZoom(1);
+}
+
+export function destroyZoomManager() {
+  if (_zoomKeyHandler) {
+    document.removeEventListener('keydown', _zoomKeyHandler);
+    _zoomKeyHandler = null;
+  }
 }

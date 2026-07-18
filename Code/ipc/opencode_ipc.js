@@ -455,7 +455,7 @@ function register(shared) {
             for (const ext of ['.json', '.session']) {
               const fp = path.join(storagePath, convId + ext);
               if (fs.existsSync(fp)) {
-                fs.unlinkSync(fp);
+                await fs.promises.unlink(fp);
                 return { success: true };
               }
             }

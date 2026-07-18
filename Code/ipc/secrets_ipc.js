@@ -12,69 +12,69 @@ function register({ app }) {
         return path.join(app.getPath('userData'), 'secrets.json');
     }
 
-    function readSecretsFile() {
+    async function readSecretsFile() {
         const p = getSecretsPath();
         if (!fs.existsSync(p)) return { passwordHash: null, secrets: [] };
-        try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { return { passwordHash: null, secrets: [] }; }
+        try { return JSON.parse(await fs.promises.readFile(p, 'utf-8')); } catch { return { passwordHash: null, secrets: [] }; }
     }
 
-    function writeSecretsFile(data) {
-        fs.writeFileSync(getSecretsPath(), JSON.stringify(data, null, 2), 'utf-8');
+    async function writeSecretsFile(data) {
+        await fs.promises.writeFile(getSecretsPath(), JSON.stringify(data, null, 2), 'utf-8');
     }
 
     function hashPassword(pw) {
         return crypto.createHash('sha256').update(pw).digest('hex');
     }
 
-    ipcMain.handle('secrets-has-password', () => !!readSecretsFile().passwordHash);
+    ipcMain.handle('secrets-has-password', async () => !!(await readSecretsFile()).passwordHash);
 
-    ipcMain.handle('secrets-set-password', (event, pw) => {
-        const data = readSecretsFile();
+    ipcMain.handle('secrets-set-password', async (event, pw) => {
+        const data = await readSecretsFile();
         if (data.passwordHash) return false;
         data.passwordHash = hashPassword(pw);
-        writeSecretsFile(data);
+        await writeSecretsFile(data);
         return true;
     });
 
-    ipcMain.handle('secrets-verify-password', (event, pw) => {
-        const data = readSecretsFile();
+    ipcMain.handle('secrets-verify-password', async (event, pw) => {
+        const data = await readSecretsFile();
         if (!data.passwordHash) return false;
         return data.passwordHash === hashPassword(pw);
     });
 
-    ipcMain.handle('secrets-reset-password', (event, oldPw, newPw) => {
-        const data = readSecretsFile();
+    ipcMain.handle('secrets-reset-password', async (event, oldPw, newPw) => {
+        const data = await readSecretsFile();
         if (data.passwordHash !== hashPassword(oldPw)) return false;
         data.passwordHash = hashPassword(newPw);
-        writeSecretsFile(data);
+        await writeSecretsFile(data);
         return true;
     });
 
-    ipcMain.handle('secrets-get-all', () => readSecretsFile().secrets || []);
+    ipcMain.handle('secrets-get-all', async () => (await readSecretsFile()).secrets || []);
 
-    ipcMain.handle('secrets-add', (event, name, value) => {
-        const data = readSecretsFile();
+    ipcMain.handle('secrets-add', async (event, name, value) => {
+        const data = await readSecretsFile();
         data.secrets = data.secrets || [];
         data.secrets.push({ id: Date.now().toString(), name: name.trim(), value: value.trim() });
         data.secrets.sort((a, b) => a.name.localeCompare(b.name));
-        writeSecretsFile(data);
+        await writeSecretsFile(data);
         return true;
     });
 
-    ipcMain.handle('secrets-update', (event, id, name, value) => {
-        const data = readSecretsFile();
+    ipcMain.handle('secrets-update', async (event, id, name, value) => {
+        const data = await readSecretsFile();
         const idx = data.secrets.findIndex(s => s.id === id);
         if (idx === -1) return false;
         data.secrets[idx] = { id, name: name.trim(), value: value.trim() };
         data.secrets.sort((a, b) => a.name.localeCompare(b.name));
-        writeSecretsFile(data);
+        await writeSecretsFile(data);
         return true;
     });
 
-    ipcMain.handle('secrets-delete', (event, id) => {
-        const data = readSecretsFile();
+    ipcMain.handle('secrets-delete', async (event, id) => {
+        const data = await readSecretsFile();
         data.secrets = (data.secrets || []).filter(s => s.id !== id);
-        writeSecretsFile(data);
+        await writeSecretsFile(data);
         return true;
     });
 }

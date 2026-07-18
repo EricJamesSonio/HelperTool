@@ -234,6 +234,7 @@ const errorCopBridge = {
     startServer: () => ipcRenderer.invoke('error-cop:startServer'),
     stopServer: () => ipcRenderer.invoke('error-cop:stopServer'),
     getServerStatus: () => ipcRenderer.invoke('error-cop:serverStatus'),
+    generateCheatsheet: (repoPath) => ipcRenderer.invoke('error-cop:generateCheatsheet', repoPath),
     onNewError: (callback) => {
         ipcRenderer.removeAllListeners('error-cop:new-error');
         ipcRenderer.on('error-cop:new-error', (_, payload) => callback(payload));

@@ -1,4 +1,4 @@
-const initSqlJs = require('sql.js/dist/sql-wasm.js');
+const { getSqlJs } = require('./sharedSqlJs');
 const path = require('path');
 const fs = require('fs');
 
@@ -24,6 +24,7 @@ let _saveTimer = null;
 let _writeWorker = null;
 let _writeWorkerBusy = false;
 let _pendingWrite = null;
+let _dirty = false;
 
 function getDbPath() {
   const dir = path.join(_appRef.getPath('userData'), DB_DIR);
@@ -35,7 +36,7 @@ async function initErrorCopDb(app) {
   if (_db) return _db;
   _appRef = app;
 
-  const SQL = await initSqlJs();
+  const SQL = await getSqlJs();
   const dbPath = getDbPath();
 
   let buffer = null;
@@ -46,6 +47,20 @@ async function initErrorCopDb(app) {
   _db = new SQL.Database(buffer);
   _db.run('PRAGMA journal_mode=WAL');
   _db.run('PRAGMA foreign_keys=ON');
+  _dirty = false;
+
+  _db = new Proxy(_db, {
+    get(target, prop) {
+      const val = target[prop];
+      if (typeof val === 'function' && (prop === 'run' || prop === 'exec' || prop === 'prepare')) {
+        return function (...args) {
+          _dirty = true;
+          return val.apply(target, args);
+        };
+      }
+      return val;
+    }
+  });
 
   createSchema();
   migrateSchema();
@@ -168,7 +183,8 @@ function _getWriteWorker() {
 }
 
 function _flush() {
-  if (!_db) return;
+  if (!_db || !_dirty) return;
+  _dirty = false;
   const data = _db.export();
   const buffer = Buffer.from(data);
   const dbPath = getDbPath();
@@ -182,14 +198,14 @@ function _flush() {
 }
 
 function _flushSync() {
-  if (!_db) return;
+  if (!_db || !_dirty) return;
   const data = _db.export();
   const buffer = Buffer.from(data);
   fs.writeFileSync(getDbPath(), buffer);
 }
 
 function save() {
-  if (!_db) return;
+  if (!_db || !_dirty) return;
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
     _saveTimer = null;

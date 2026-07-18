@@ -5,10 +5,15 @@ const searchSuggestions = document.getElementById('searchSuggestions');
 
 let _getFilteredTree = null;
 let _treeContainer   = null;
+let _flatListCache  = null;
+let _flatListSig    = null;
 
 export function getFlatList() {
   const tree = _getFilteredTree?.();
   if (!tree) return [];
+
+  const sig = tree.length + ':' + (tree[0]?.path || '');
+  if (_flatListCache && _flatListSig === sig) return _flatListCache;
 
   const result = [];
   function flatten(nodes, parentPath = '') {
@@ -19,7 +24,15 @@ export function getFlatList() {
     }
   }
   flatten(tree);
+
+  _flatListCache = result;
+  _flatListSig = sig;
   return result;
+}
+
+export function clearFlatListCache() {
+  _flatListCache = null;
+  _flatListSig = null;
 }
 
 const normPath = (p) => (p || '').replace(/\\/g, '/');

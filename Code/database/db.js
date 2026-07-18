@@ -1,4 +1,4 @@
-const initSqlJs = require('sql.js/dist/sql-wasm.js');
+const { getSqlJs } = require('./sharedSqlJs');
 const path = require('path');
 const fs = require('fs');
 
@@ -24,6 +24,7 @@ let _saveTimer = null;
 let _writeWorker = null;
 let _writeWorkerBusy = false;
 let _pendingWrite = null;
+let _dirty = false;
 
 function getDbPath() {
   const dir = path.join(_appRef.getPath('userData'), DB_DIR);
@@ -35,7 +36,7 @@ async function initDatabase(app) {
   if (_db) return _db;
   _appRef = app;
 
-  const SQL = await initSqlJs();
+  const SQL = await getSqlJs();
   const dbPath = getDbPath();
 
   let buffer = null;
@@ -46,6 +47,20 @@ async function initDatabase(app) {
   _db = new SQL.Database(buffer);
   _db.run('PRAGMA journal_mode=WAL');
   _db.run('PRAGMA foreign_keys=ON');
+  _dirty = false;
+
+  _db = new Proxy(_db, {
+    get(target, prop) {
+      const val = target[prop];
+      if (typeof val === 'function' && (prop === 'run' || prop === 'exec' || prop === 'prepare')) {
+        return function (...args) {
+          _dirty = true;
+          return val.apply(target, args);
+        };
+      }
+      return val;
+    }
+  });
 
   createSchema();
   _flush();
@@ -254,31 +269,6 @@ function createSchema() {
     )
   `);
 
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS chat_conversations (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_path   TEXT NOT NULL,
-      title       TEXT NOT NULL,
-      created_at  TEXT DEFAULT (datetime('now')),
-      updated_at  TEXT DEFAULT (datetime('now'))
-    )
-  `);
-
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS chat_messages (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversation_id INTEGER NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
-      role            TEXT NOT NULL CHECK(role IN ('user','bot')),
-      content         TEXT NOT NULL,
-      query_type      TEXT,
-      file_ref        TEXT,
-      created_at      TEXT DEFAULT (datetime('now'))
-    )
-  `);
-
-  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_conv_repo ON chat_conversations(repo_path)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_msg_conv ON chat_messages(conversation_id)');
-
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_date ON activity_days(date)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_activity_days_repo_path ON activity_days(repo_path)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_file_save_events_ts ON file_save_events(timestamp)');
@@ -330,7 +320,8 @@ function _getWriteWorker() {
 }
 
 function _flush() {
-  if (!_db) return;
+  if (!_db || !_dirty) return;
+  _dirty = false;
   const data = _db.export();
   const buffer = Buffer.from(data);
   const dbPath = getDbPath();
@@ -346,6 +337,7 @@ function _flush() {
 
 function _flushSync() {
   if (!_db) return;
+  if (!_dirty) return;
   try {
     const data = _db.export();
     const buffer = Buffer.from(data);
@@ -356,7 +348,7 @@ function _flushSync() {
 }
 
 function save() {
-  if (!_db) return;
+  if (!_db || !_dirty) return;
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
     _saveTimer = null;

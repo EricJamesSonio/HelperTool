@@ -5,12 +5,12 @@ const fs = require('fs');
 const ENV_CACHE_TTL = 30000;
 const _envFileCache = new Map();
 
-function _getCachedEnvFiles(repoPath) {
+async function _getCachedEnvFiles(repoPath) {
   const cached = _envFileCache.get(repoPath);
   if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) {
     return cached.files;
   }
-  const found = findEnvFiles(repoPath);
+  const found = await findEnvFiles(repoPath);
   const files = sortFiles(found.map(f => path.relative(repoPath, f)));
   _envFileCache.set(repoPath, { files, ts: Date.now() });
   return files;
@@ -43,17 +43,17 @@ function sortFiles(files) {
   });
 }
 
-function findEnvFiles(dir, depth = 0) {
+async function findEnvFiles(dir, depth = 0) {
   if (depth > 5) return [];
   const results = [];
   let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+  try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
   catch { return results; }
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!SKIP_DIRS.has(entry.name)) {
-        results.push(...findEnvFiles(full, depth + 1));
+        results.push(...await findEnvFiles(full, depth + 1));
       }
     } else if (entry.isFile() && isEnvFile(entry.name)) {
       results.push(full);
@@ -66,7 +66,7 @@ function register() {
   ipcMain.handle('env:listFiles', async (_e, { repoPath }) => {
     try {
       if (!repoPath) return { success: false, error: 'No repo path' };
-      const files = _getCachedEnvFiles(repoPath);
+      const files = await _getCachedEnvFiles(repoPath);
       return { success: true, files };
     } catch (err) {
       return { success: false, error: err.message };
@@ -76,7 +76,7 @@ function register() {
   ipcMain.handle('env:readFile', async (_e, { repoPath, fileName }) => {
     try {
       const fullPath = path.join(repoPath, fileName);
-      const content = fs.readFileSync(fullPath, 'utf-8');
+      const content = await fs.promises.readFile(fullPath, 'utf-8');
       const lines = content.split('\n');
       const entries = lines.map(line => {
         if (line.startsWith('#')) return { key: null, value: null, comment: line };
@@ -105,7 +105,7 @@ function register() {
         const val = e.value.includes(' ') || e.value.includes('"') || e.value.includes("'") ? `"${e.value}"` : e.value;
         return `${e.key}=${val}`;
       }).join('\n');
-      fs.writeFileSync(fullPath, content, 'utf-8');
+      await fs.promises.writeFile(fullPath, content, 'utf-8');
       _invalidateEnvCache(repoPath);
       return { success: true };
     } catch (err) {
@@ -116,8 +116,8 @@ function register() {
   ipcMain.handle('env:createFile', async (_e, { repoPath, fileName }) => {
     try {
       const fullPath = path.join(repoPath, fileName);
-      if (fs.existsSync(fullPath)) return { success: false, error: 'File already exists' };
-      fs.writeFileSync(fullPath, '', 'utf-8');
+      try { await fs.promises.access(fullPath); return { success: false, error: 'File already exists' }; } catch {}
+      await fs.promises.writeFile(fullPath, '', 'utf-8');
       _invalidateEnvCache(repoPath);
       return { success: true };
     } catch (err) {
@@ -128,7 +128,7 @@ function register() {
   ipcMain.handle('env:deleteFile', async (_e, { repoPath, fileName }) => {
     try {
       const fullPath = path.join(repoPath, fileName);
-      fs.unlinkSync(fullPath);
+      await fs.promises.unlink(fullPath);
       _invalidateEnvCache(repoPath);
       return { success: true };
     } catch (err) {

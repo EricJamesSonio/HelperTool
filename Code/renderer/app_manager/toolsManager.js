@@ -7,7 +7,6 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
-import DependenciesUI                     from '../dependencies/dependenciesUI.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
 import * as locDetector    from '../locDetector.js';
 import * as sessionNotes   from '../sessionNotes.js';
@@ -115,8 +114,9 @@ let _graphifyPanel      = null;
 let _graphifyContainer   = null;
 let _graphifyInitialized = false;
 
-let _terminalUI   = null;
-let _dockerTool  = null;
+let _terminalUI    = null;
+let _dockerTool   = null;
+let _apiCleanup   = null;
 
 let _feats    = {};
 let _registry = new PanelRegistry();
@@ -127,6 +127,8 @@ function populateSidebar() {
   const body = document.getElementById('toolsSidebarBody');
   if (!body) return;
   body.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  const add = (item) => frag.appendChild(item);
 
   if (_feats.apiTool) {
     const item = createSidebarItem(ICONS.api, 'API Tool', 'Test & manage REST endpoints', () => {
@@ -135,10 +137,10 @@ function populateSidebar() {
       _apiTool?.openApiToolPanel?.();
       item.classList.add('active');
     }, 'api');
-    body.appendChild(item);
+    add(item);
   }
 
-  body.appendChild(createSidebarItem(ICONS.prompt, 'Prompt Tool', 'Manage custom AI prompts', async () => {
+  add(createSidebarItem(ICONS.prompt, 'Prompt Tool', 'Manage custom AI prompts', async () => {
     const existing = document.getElementById('promptToolModal');
     if (existing && existing.style.display !== 'none') { existing.style.display = 'none'; return; }
     _registry.closeAll();
@@ -146,7 +148,7 @@ function populateSidebar() {
       catch (err) { console.error('[Tools] Prompt Tool:', err); }
   }, 'prompt'));
 
-  body.appendChild(createSidebarItem(ICONS.git, 'Git Tool', 'Stage, commit & push changes', () => {
+  add(createSidebarItem(ICONS.git, 'Git Tool', 'Stage, commit & push changes', () => {
     if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_gitPanel) _initGitPanel();
@@ -155,13 +157,13 @@ function populateSidebar() {
       else if (state.selectedRepoPath) _initializeGitTool(state.selectedRepoPath);
   }, 'git'));
 
-  body.appendChild(createSidebarItem(ICONS.fileSeeder, 'File Seeder', 'Seed files into a folder', () => {
+  add(createSidebarItem(ICONS.fileSeeder, 'File Seeder', 'Seed files into a folder', () => {
     if (fileSeederTool.isOpen()) { fileSeederTool.close(); return; }
     _registry.closeAll();
     fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
   }, 'fileSeeder'));
 
-  body.appendChild(createSidebarItem('🎬', 'Video Compressor', 'Compress video files with FFmpeg', () => {
+  add(createSidebarItem('🎬', 'Video Compressor', 'Compress video files with FFmpeg', () => {
     if (_videoPanel?.classList.contains('open')) { _videoPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_videoPanel) _initVideoPanel();
@@ -169,7 +171,7 @@ function populateSidebar() {
     if (!_videoTool) _initializeVideoTool();
   }, 'video'));
 
-  body.appendChild(createSidebarItem(ICONS.api, 'Gmail Inbox', 'Check unread emails', () => {
+  add(createSidebarItem(ICONS.api, 'Gmail Inbox', 'Check unread emails', () => {
     if (_gmailPanel?.classList.contains('open')) { _gmailPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_gmailPanel) _initGmailPanel();
@@ -177,7 +179,7 @@ function populateSidebar() {
     if (!_gmailTool) _initializeGmailTool();
   }, 'gmail'));
 
-  body.appendChild(createSidebarItem(ICONS.flow, 'Automation Sketch', 'Visual flow builder', () => {
+  add(createSidebarItem(ICONS.flow, 'Automation Sketch', 'Visual flow builder', () => {
     if (_automationPanel?.classList.contains('open')) { _automationPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_automationPanel) _initAutomationPanel();
@@ -185,7 +187,7 @@ function populateSidebar() {
     if (!_automationTool) _initializeAutomationTool();
   }, 'automation'));
 
-  body.appendChild(createSidebarItem(ICONS.github, 'GitHub Explorer', 'Browse any public repo file tree', () => {
+  add(createSidebarItem(ICONS.github, 'GitHub Explorer', 'Browse any public repo file tree', () => {
     if (_githubPanel?.classList.contains('open')) { _githubPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_githubPanel) _initGithubPanel();
@@ -193,14 +195,13 @@ function populateSidebar() {
     if (!_githubTool) _initializeGithubTool();
   }, 'github'));
 
-  body.appendChild(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
+  add(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
   if (locDetector.isOpen()) { locDetector.close(); return; }
   _registry.closeAll();
-  // Open without a pre-set path — user can right-click a folder to scan
   locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
 }, 'loc'));
 
-  body.appendChild(createSidebarItem(ICONS.settings, 'Settings', 'Appearance & features', () => {
+  add(createSidebarItem(ICONS.settings, 'Settings', 'Appearance & features', () => {
     const full  = document.getElementById('settingsOverlay');
     const light = document.getElementById('lightSettingsOverlay');
     if (full?.classList.contains('open'))  { full.classList.remove('open');  return; }
@@ -210,21 +211,21 @@ function populateSidebar() {
   }, 'settings'));
 
   if (_feats.secretHolder) {
-    body.appendChild(createSidebarItem(ICONS.secret, 'Secret Holder', 'Manage API keys & secrets', async () => {
+    add(createSidebarItem(ICONS.secret, 'Secret Holder', 'Manage API keys & secrets', async () => {
       if (_secretHolder?.isSecretHolderOpen?.()) { _secretHolder.closeSecretHolder(); return; }
       _registry.closeAll();
       await _secretHolder?.openSecretHolder?.();
     }, 'secret'));
   }
 
-  body.appendChild(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => {
+  add(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => {
     if (isConfigOpen()) { closeConfig(); return; }
     _registry.closeAll();
     openConfig();
   }, 'cli'));
 
   if (_feats.workspaceTool) {
-    body.appendChild(createSidebarItem(ICONS.workspace, 'Workspace', 'Projects, tickets & workers', async () => {
+    add(createSidebarItem(ICONS.workspace, 'Workspace', 'Projects, tickets & workers', async () => {
       if (_workspaceTool?.isWorkspacePanelOpen?.()) { _workspaceTool.closeWorkspacePanel(); return; }
       _registry.closeAll();
       await _workspaceTool?.openWorkspacePanel?.();
@@ -232,7 +233,7 @@ function populateSidebar() {
   }
 
   if (_feats.terminalTool) {
-    body.appendChild(createSidebarItem(ICONS.terminal, 'Terminal', 'Integrated command-line terminal', async () => {
+    add(createSidebarItem(ICONS.terminal, 'Terminal', 'Integrated command-line terminal', async () => {
       if (!_terminalUI) {
         _terminalUI = new TerminalUI();
         _registry.setTerminalUI(_terminalUI);
@@ -245,7 +246,7 @@ function populateSidebar() {
   }
 
   if (_feats.portManagerTool) {
-    body.appendChild(createSidebarItem(ICONS.port, 'Port Manager', 'View & kill processes on ports', () => {
+    add(createSidebarItem(ICONS.port, 'Port Manager', 'View & kill processes on ports', () => {
       if (_portManagerTool?.isPortManagerPanelOpen?.()) { _portManagerTool.closePortManagerPanel(); return; }
       _registry.closeAll();
       _portManagerTool?.openPortManagerPanel?.();
@@ -253,7 +254,7 @@ function populateSidebar() {
   }
 
   if (_feats.teamActivityTool) {
-    body.appendChild(createSidebarItem(ICONS.team, 'Team Activity', 'Contributor stats & commit timeline', () => {
+    add(createSidebarItem(ICONS.team, 'Team Activity', 'Contributor stats & commit timeline', () => {
       if (teamActivity.isOpen()) { teamActivity.close(); return; }
       _registry.closeAll();
       teamActivity.open(state.selectedRepoPath);
@@ -261,7 +262,7 @@ function populateSidebar() {
   }
 
   if (_feats.blueprintLibraryTool) {
-    body.appendChild(createSidebarItem(ICONS.blueprint, 'Blueprint Library', 'Architecture patterns & code structure guides', () => {
+    add(createSidebarItem(ICONS.blueprint, 'Blueprint Library', 'Architecture patterns & code structure guides', () => {
       if (blueprintLibrary.isOpen()) { blueprintLibrary.close(); return; }
       _registry.closeAll();
       blueprintLibrary.open();
@@ -269,7 +270,7 @@ function populateSidebar() {
   }
 
   if (_feats.profileTool) {
-    body.appendChild(createSidebarItem(ICONS.profile, 'Profile', 'Personal stats & activity heatmap', () => {
+    add(createSidebarItem(ICONS.profile, 'Profile', 'Personal stats & activity heatmap', () => {
       if (profileTool.isOpen()) { profileTool.close(); return; }
       _registry.closeAll();
       profileTool.open();
@@ -277,7 +278,7 @@ function populateSidebar() {
   }
 
   if (_feats.dockerTool) {
-    body.appendChild(createSidebarItem(ICONS.docker, 'Docker', 'Manage containers & images', () => {
+    add(createSidebarItem(ICONS.docker, 'Docker', 'Manage containers & images', () => {
       if (_dockerTool?.isOpen?.()) { _dockerTool.close(); return; }
       _registry.closeAll();
       _dockerTool?.open?.();
@@ -285,7 +286,7 @@ function populateSidebar() {
   }
 
   if (_feats.essentialsGlossary) {
-    body.appendChild(createSidebarItem(ICONS.essentials, 'SE Essentials', 'Software engineering term glossary', () => {
+    add(createSidebarItem(ICONS.essentials, 'SE Essentials', 'Software engineering term glossary', () => {
       if (essentialsGlossary.isOpen()) { essentialsGlossary.close(); return; }
       _registry.closeAll();
       essentialsGlossary.open();
@@ -293,7 +294,7 @@ function populateSidebar() {
   }
 
   if (_feats.symbolIndex) {
-    body.appendChild(createSidebarItem(ICONS.symbolIndex, 'Symbol Index', 'Search code symbols & navigate', () => {
+    add(createSidebarItem(ICONS.symbolIndex, 'Symbol Index', 'Search code symbols & navigate', () => {
       if (_symbolIndexPanel?.classList.contains('open')) { _symbolIndexPanel.classList.remove('open'); return; }
       _registry.closeAll();
       if (!_symbolIndexPanel) _initSymbolIndexPanel();
@@ -303,7 +304,7 @@ function populateSidebar() {
   }
 
   if (_feats.canvasTool) {
-    body.appendChild(createSidebarItem(ICONS.canvas, 'Canvas', 'Draw diagrams & sketches', () => {
+    add(createSidebarItem(ICONS.canvas, 'Canvas', 'Draw diagrams & sketches', () => {
       if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
       _registry.closeAll();
       _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
@@ -311,14 +312,14 @@ function populateSidebar() {
   }
 
   if (_feats.dbInspector) {
-    body.appendChild(createSidebarItem(ICONS.db, 'DB Inspector', 'View & explore database schemas', () => {
+    add(createSidebarItem(ICONS.db, 'DB Inspector', 'View & explore database schemas', () => {
       if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
       _registry.closeAll();
       _dbInspector?.openDbInspectorPanel?.();
     }, 'db'));
   }
 
-  body.appendChild(createSidebarItem(ICONS.codebbaseChat, 'HelperChat', 'Query your codebase structure', () => {
+  add(createSidebarItem(ICONS.codebbaseChat, 'HelperChat', 'Query your codebase structure', () => {
     if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_ccPanel) _initCCPanel();
@@ -327,7 +328,7 @@ function populateSidebar() {
     else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
   }, 'codebbaseChat'));
 
-  body.appendChild(createSidebarItem(ICONS.map, 'Codebase Map', 'Visual codebase structure & dependencies', async () => {
+  add(createSidebarItem(ICONS.map, 'Codebase Map', 'Visual codebase structure & dependencies', async () => {
     try {
       const m = await import('../codebaseMap.js');
       if (m.isOpen()) { m.closeCodebaseMap(); return; }
@@ -336,14 +337,14 @@ function populateSidebar() {
     } catch (err) { console.error('[Tools] Codebase Map:', err); }
   }, 'codebaseMap'));
 
-  body.appendChild(createSidebarItem(ICONS.env, 'Env Files', 'Manage .env configuration files', () => {
+  add(createSidebarItem(ICONS.env, 'Env Files', 'Manage .env configuration files', () => {
     const existing = document.getElementById('envOverlay');
     if (existing) { existing.remove(); return; }
     _registry.closeAll();
     openEnvManager(state.selectedRepoPath);
   }, 'env'));
 
-  body.appendChild(createSidebarItem(ICONS.layout, 'UI Layout Helper', 'Draw UI layouts as ASCII art', async () => {
+  add(createSidebarItem(ICONS.layout, 'UI Layout Helper', 'Draw UI layouts as ASCII art', async () => {
     try {
       const ulh = await import('../uiLayoutHelper.js');
       if (ulh.isOpen()) { ulh.closeUI(); return; }
@@ -352,7 +353,7 @@ function populateSidebar() {
     } catch (err) { console.error('[Tools] UI Layout Helper:', err); }
   }, 'layout'));
 
-  body.appendChild(createSidebarItem(ICONS.graphify, 'Graphify', 'Find relevant code by natural language', async () => {
+  add(createSidebarItem(ICONS.graphify, 'Graphify', 'Find relevant code by natural language', async () => {
     if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
     _registry.closeAll();
     if (!_graphifyPanel) _initGraphifyPanel();
@@ -360,7 +361,7 @@ function populateSidebar() {
     await _mountGraphify();
   }, 'graphify'));
 
-  body.appendChild(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
+  add(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
     try {
       const oc = await import('../codeswampUI.js');
       if (oc.isCodeSwampOpen()) { oc.close(); return; }
@@ -368,6 +369,8 @@ function populateSidebar() {
       await oc.open();
     } catch (err) {  console.error('[Tools] CodeSwamp:', err) }
   }, 'opencode'));
+
+  body.appendChild(frag);
 }
 
 // ---- Panel init helpers ----------------------------------------------------
@@ -889,6 +892,7 @@ window.addEventListener('beforeunload', () => {
   _destroyGmailTool();
   _destroyAutomationTool();
   _destroyGithubTool();
+  _apiCleanup?.();
 });
 
 export async function initTools(feats, settingsManager) {
@@ -917,7 +921,7 @@ export async function initTools(feats, settingsManager) {
   }
 
   initContextMenu(
-    (filePath) => {
+    async (filePath) => {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       if (!_depsPanel) {
@@ -927,7 +931,8 @@ export async function initTools(feats, settingsManager) {
       }
       _depsPanel.classList.add('open');
       if (!_depsUI) {
-        _depsUI = new DependenciesUI();
+        const { default: DependenciesUIMod } = await import('../dependencies/dependenciesUI.js');
+        _depsUI = new DependenciesUIMod();
         _depsUI.render(_depsContainer, state.selectedRepoPath);
       }
       _depsUI.showForFile(filePath);
@@ -979,11 +984,13 @@ async function _lazyInitTools(feats) {
     } catch (err) { console.error('[Tools] API Tool failed:', err); }
 
     let _prevSidebarItems = null;
-    document.addEventListener('keydown', () => {
+    let _apiKeyHandler = () => {
       if (!_apiTool || _apiTool.isApiToolPanelOpen?.()) return;
       if (!_prevSidebarItems) _prevSidebarItems = [...document.querySelectorAll('.tools-sidebar-item')];
       _prevSidebarItems.forEach(el => el.classList.remove('active'));
-    });
+    };
+    document.addEventListener('keydown', _apiKeyHandler);
+    _apiCleanup = () => document.removeEventListener('keydown', _apiKeyHandler);
   }
 
   try {

@@ -14,7 +14,7 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
 
             const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
             const outputDir = path.dirname(filePath);
-            if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+            if (!fs.existsSync(outputDir)) await fs.promises.mkdir(outputDir, { recursive: true });
 
             const mainWindow = getMainWindow();
 
@@ -38,7 +38,7 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
 
             let content = '';
             if (fs.existsSync(filePath)) {
-                content = fs.readFileSync(filePath, 'utf-8');
+                content = await fs.promises.readFile(filePath, 'utf-8');
             }
 
             return { success: true, content, filePath };

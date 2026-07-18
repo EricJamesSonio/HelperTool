@@ -15,11 +15,11 @@ const _fileCache = new Map();
 const _mountCache = new Map();
 const MOUNT_CACHE_TTL = 2000;
 
-function _readJsonCached(filePath) {
+async function _readJsonCached(filePath) {
   const cached = _fileCache.get(filePath);
   if (cached && Date.now() - cached.ts < FILE_CACHE_TTL) return cached.data;
   try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
+    const raw = await fs.promises.readFile(filePath, 'utf-8');
     const data = JSON.parse(raw);
     _fileCache.set(filePath, { data, ts: Date.now() });
     return data;
@@ -29,11 +29,11 @@ function _readJsonCached(filePath) {
   }
 }
 
-function _readTextCached(filePath) {
+async function _readTextCached(filePath) {
   const cached = _fileCache.get(filePath);
   if (cached && Date.now() - cached.ts < FILE_CACHE_TTL) return cached.data;
   try {
-    const data = fs.readFileSync(filePath, 'utf-8');
+    const data = await fs.promises.readFile(filePath, 'utf-8');
     _fileCache.set(filePath, { data, ts: Date.now() });
     return data;
   } catch {
@@ -286,7 +286,7 @@ function _fetchInfo() {
 const _repoStatusCache = new Map();
 const REPO_STATUS_CACHE_TTL = 1000;
 
-function _fetchRepoStatus(repoPath) {
+async function _fetchRepoStatus(repoPath) {
   const cached = _repoStatusCache.get(repoPath);
   if (cached && Date.now() - cached.ts < REPO_STATUS_CACHE_TTL) return cached.data;
   _repoStatusCache.delete(repoPath);
@@ -306,7 +306,7 @@ function _fetchRepoStatus(repoPath) {
   let graphStats = null;
   if (graphExists) {
     try {
-      graphData = _readJsonCached(graphPath);
+      graphData = await _readJsonCached(graphPath);
       graphStats = graphData?.stats || null;
     } catch {}
   }
@@ -776,7 +776,7 @@ function register({ app }) {
 
   ipcMain.handle('graphify:checkStatus', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const status = _fetchRepoStatus(repoPath);
+    const status = await _fetchRepoStatus(repoPath);
 
     let symbolsStats = null;
     if (status.symbolsExists) {
@@ -812,7 +812,7 @@ function register({ app }) {
 
     const outDir = path.join(repoPath, PROMPTS_DIR);
     if (!fs.existsSync(outDir)) {
-      fs.mkdirSync(outDir, { recursive: true });
+      await fs.promises.mkdir(outDir, { recursive: true });
     }
 
     const changes = changeDetector.detectChangesSimple(repoPath);
@@ -848,7 +848,7 @@ function register({ app }) {
       promptPath = path.join(outDir, 'generate-graph.md');
     }
 
-    fs.writeFileSync(promptPath, promptText, 'utf-8');
+    await fs.promises.writeFile(promptPath, promptText, 'utf-8');
 
     return {
       ok: true,
@@ -877,8 +877,8 @@ function register({ app }) {
     }
 
     try {
-      const graph = _readJsonCached(graphPath);
-      const report = _readTextCached(reportPath) || '';
+      const graph = await _readJsonCached(graphPath);
+      const report = (await _readTextCached(reportPath)) || '';
       // AI graph loaded successfully â€” save hashes as new baseline
       try { changeDetector.saveCurHashes(repoPath); } catch (_) {}
       try { exporter.generateCheatsheet(repoPath); } catch (_) {}
@@ -930,7 +930,7 @@ function register({ app }) {
 
     let promptText = '';
     if (result.ok && result.path) {
-      promptText = _readTextCached(result.path) || '';
+      promptText = (await _readTextCached(result.path)) || '';
     }
 
     return {
@@ -956,7 +956,7 @@ function register({ app }) {
 
     let graphData;
     try {
-      graphData = _readJsonCached(graphPath);
+      graphData = await _readJsonCached(graphPath);
     } catch {
       return { ok: true, synced: false, reason: 'parse_error' };
     }
@@ -978,8 +978,8 @@ function register({ app }) {
     let pendingUpdate = false;
     if (hasPendingPrompt && totalChanged === 0) {
       // Hash match but prompt was generated â€” check if prompt is newer than graph
-      const promptMtime = fs.statSync(incrPromptPath).mtimeMs;
-      const graphMtime = fs.statSync(graphPath).mtimeMs;
+      const promptMtime = (await fs.promises.stat(incrPromptPath)).mtimeMs;
+      const graphMtime = (await fs.promises.stat(graphPath)).mtimeMs;
       pendingUpdate = promptMtime > graphMtime;
     }
 
@@ -1041,11 +1041,11 @@ function register({ app }) {
     };
   });
 
-  function _buildMountData(repoPath) {
+  async function _buildMountData(repoPath) {
     const cached = _mountCache.get(repoPath);
     if (cached && Date.now() - cached.ts < MOUNT_CACHE_TTL) return cached.data;
 
-    const status = _fetchRepoStatus(repoPath);
+    const status = await _fetchRepoStatus(repoPath);
 
     const infoPromise = status.symbolsExists ? _fetchInfo() : Promise.resolve(null);
     const changesPromise = (status.symbolsExists && status.hashesExist)

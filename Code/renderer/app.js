@@ -54,6 +54,7 @@ import {
     initProgress,
     initActionButtons,
     initSplitModeButton,
+    initModeItems,
     initGenerateButton,
     initClearSelectionButton,
     onSelectionChange
@@ -274,30 +275,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Drag scroll
     initDragScroll();
 
-    // Start loading features AND last repo IN PARALLEL — repo load doesn't need features
-    const [feats] = await Promise.all([
-        initFeatures(),
-        loadLastActiveRepo().catch(err => console.error('[Init] loadLastActiveRepo:', err)),
-    ]);
-    console.log('[Init] Features:', feats);
-    applyFeatureVisibility(feats);
+    performance.mark('init:start');
 
-    // Theme
-    let settingsManager = null;
-    if (feats.themeEngine) {
-        settingsManager = await import('./settingsManager.js');
-        settingsManager.initSettings();
-        settingsManager.hookLegacyThemeToggle();
-    } else {
-        applyFallbackTheme();
-        wireFallbackThemeToggle();
-        settingsManager = { openSettings: openLightSettings };
-    }
+    // Load features first — lightweight IPC call
+    const feats = await initFeatures();
+    performance.mark('init:features');
+    performance.measure('init:features', 'init:start', 'init:features');
+
+    // Fire repo load in background — don't block UI startup on tree walk
+    const repoLoadPromise = loadLastActiveRepo()
+      .then(() => performance.mark('init:repo-loaded'))
+      .catch(err => console.error('[Init] loadLastActiveRepo:', err));
+
+    applyFeatureVisibility(feats);
 
     // Generate controls
     initProgress();
     initActionButtons();
     initSplitModeButton();
+    initModeItems();
     initGenerateButton();
     initClearSelectionButton();
 
@@ -306,9 +302,28 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Zoom controls
     initZoomManager();
+    performance.mark('init:controls');
 
-    // Tools (apiTool, secretHolder, workspaceTool, gitTool)
-    await initTools(feats, settingsManager);
+    // Theme + Tools run in parallel — theme module is ~50KB with 20 themes
+    const settingsRef = { current: null };
+    if (feats.themeEngine) {
+        await Promise.all([
+            import('./settingsManager.js').then(sm => {
+                sm.initSettings();
+                sm.hookLegacyThemeToggle();
+                settingsRef.current = sm;
+            }),
+            initTools(feats, {
+                openSettings: () => settingsRef.current?.openSettings?.() ?? openLightSettings(),
+            }),
+        ]);
+    } else {
+        applyFallbackTheme();
+        wireFallbackThemeToggle();
+        await initTools(feats, { openSettings: openLightSettings });
+    }
+    performance.mark('init:theme-tools');
+    performance.measure('init:theme+tools', 'init:controls', 'init:theme-tools');
 
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
@@ -323,6 +338,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     const filterPromises = [loadIgnoredExtensions()];
     if (feats.folderFilters) filterPromises.push(loadFolderFilters());
     Promise.all(filterPromises).catch(err => console.error('[Init] Filter load error:', err));
+
+    performance.mark('init:done');
+    performance.measure('init:total', 'init:start', 'init:done');
+
+    const entries = ['init:features', 'init:theme+tools', 'init:total']
+      .map(n => performance.getEntriesByName(n).pop())
+      .filter(Boolean);
+    if (entries.length) console.table(entries.map(e => ({ phase: e.name, duration: `${e.duration.toFixed(1)}ms` })));
+
+    // Measure background repo load separately (doesn't block UI)
+    repoLoadPromise.then(() => {
+      const repoEntry = performance.getEntriesByName('init:repo-loaded').pop();
+      if (repoEntry) console.log(`[Init] Background repo load: ${(repoEntry.startTime - performance.getEntriesByName('init:start').pop()?.startTime || 0).toFixed(0)}ms`);
+    });
 
     // Service tracker is non-critical — defer after layout
     requestAnimationFrame(() => {

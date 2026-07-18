@@ -522,7 +522,7 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:getAvatar', async () => {
     try {
       if (fs.existsSync(AVATAR_PATH)) {
-        const data = fs.readFileSync(AVATAR_PATH, { encoding: 'base64' });
+        const data = await fs.promises.readFile(AVATAR_PATH, { encoding: 'base64' });
         return { dataUrl: 'data:image/png;base64,' + data };
       }
     } catch (_) {}
@@ -532,7 +532,7 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:uploadAvatar', async (event, { dataUrl }) => {
     try {
       const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-      fs.writeFileSync(AVATAR_PATH, Buffer.from(base64, 'base64'));
+      await fs.promises.writeFile(AVATAR_PATH, Buffer.from(base64, 'base64'));
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };

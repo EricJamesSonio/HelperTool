@@ -15,6 +15,8 @@ let _onFileDiff   = null;
 let _onFileView   = null;
 let _onFolderTerminal = null;
 
+let _handlers = null;
+
 export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal) {
   _onFileDeps   = onFileDeps;
   _onFolderSeed = onFolderSeed;
@@ -23,7 +25,9 @@ export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDif
   _onFileView   = onFileView;
   _onFolderTerminal = onFolderTerminal;
 
-  document.addEventListener('contextmenu', (e) => {
+  if (_handlers) destroyContextMenu();
+
+  const onContextMenu = (e) => {
     const wrapper = e.target.closest('.node-wrapper');
     if (!wrapper) { closeMenu(); return; }
     e.preventDefault();
@@ -38,15 +42,29 @@ export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDif
 
     if (isFile)        showFileMenu(e.clientX, e.clientY, nodePath);
     else if (isFolder) showFolderMenu(e.clientX, e.clientY, nodePath, nodeName);
-  });
+  };
 
-  document.addEventListener('click', (e) => {
+  const onClick = (e) => {
     if (_activeMenu && !_activeMenu.contains(e.target)) closeMenu();
-  });
+  };
 
-  document.addEventListener('keydown', (e) => {
+  const onKeyDown = (e) => {
     if (e.key === 'Escape') closeMenu();
-  });
+  };
+
+  document.addEventListener('contextmenu', onContextMenu);
+  document.addEventListener('click', onClick);
+  document.addEventListener('keydown', onKeyDown);
+  _handlers = { onContextMenu, onClick, onKeyDown };
+}
+
+export function destroyContextMenu() {
+  if (!_handlers) return;
+  document.removeEventListener('contextmenu', _handlers.onContextMenu);
+  document.removeEventListener('click', _handlers.onClick);
+  document.removeEventListener('keydown', _handlers.onKeyDown);
+  _handlers = null;
+  closeMenu();
 }
 
 function showFileMenu(x, y, filePath) {

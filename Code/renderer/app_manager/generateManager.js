@@ -105,31 +105,37 @@ export function initActionButtons() {
 
 // ── Split mode (Normal / Minified) ────────────────────────────────────────────
 
+let _splitModeClickHandler = null;
+
 export function initSplitModeButton() {
     generateModeToggle.addEventListener('click', (e) => {
         e.stopPropagation();
         generateSplitGroup.classList.toggle('menu-open');
     });
 
-    document.addEventListener('click', (e) => {
+    if (_splitModeClickHandler) destroySplitModeButton();
+    _splitModeClickHandler = (e) => {
         if (generateSplitGroup && !generateSplitGroup.contains(e.target))
             generateSplitGroup.classList.remove('menu-open');
-    });
+    };
+    document.addEventListener('click', _splitModeClickHandler);
+}
 
+export function destroySplitModeButton() {
+    if (_splitModeClickHandler) {
+        document.removeEventListener('click', _splitModeClickHandler);
+        _splitModeClickHandler = null;
+    }
+}
+
+export function initModeItems() {
     document.querySelectorAll('.generate-mode-item').forEach(item => {
         item.addEventListener('click', async () => {
             const mode = item.dataset.mode;
-
-            // mode values: normal | minified | prompt
             state.generateOutputType = mode;
             state.generateMinified = (mode === 'minified');
 
-            if (mode === 'prompt') {
-                generateModeLabel.textContent = 'Prompt';
-            } else {
-                generateModeLabel.textContent = state.generateMinified ? 'Minified' : 'Normal';
-            }
-
+            generateModeLabel.textContent = mode === 'prompt' ? 'Prompt' : state.generateMinified ? 'Minified' : 'Normal';
 
             document.querySelectorAll('.generate-mode-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
@@ -148,7 +154,6 @@ export function initSplitModeButton() {
             }
         });
     });
-
 }
 
 // ── Generated content viewer ──────────────────────────────────────────────────

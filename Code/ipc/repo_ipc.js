@@ -12,7 +12,7 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         try {
             const globalDocignorePath = path.join(app.getPath('userData'), 'global-docignore.json');
             if (!fs.existsSync(globalDocignorePath)) {
-                fs.writeFileSync(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
+                await fs.promises.writeFile(globalDocignorePath, JSON.stringify([], null, 2), 'utf-8');
             }
             await shell.openPath(globalDocignorePath);
             return true;
@@ -33,12 +33,12 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
             const userDataPath = app.getPath('userData');
             const storagePath = path.join(userDataPath, storageName);
 
-            if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
-            if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
-            ['Codes', 'Structures'].forEach(sub => {
+            if (!fs.existsSync(userDataPath)) await fs.promises.mkdir(userDataPath, { recursive: true });
+            if (!fs.existsSync(storagePath)) await fs.promises.mkdir(storagePath, { recursive: true });
+            for (const sub of ['Codes', 'Structures']) {
                 const subPath = path.join(storagePath, sub);
-                if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
-            });
+                if (!fs.existsSync(subPath)) await fs.promises.mkdir(subPath, { recursive: true });
+            }
 
             cfg.projects[repoPath] = {
                 storageName,
@@ -78,20 +78,20 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         return path.join(TREE_CACHE_DIR, `${hash}.json`);
     }
 
-    function _treeCacheRead(cacheFile) {
+    async function _treeCacheRead(cacheFile) {
         try {
             if (!fs.existsSync(cacheFile)) return null;
-            const raw = fs.readFileSync(cacheFile, 'utf-8');
+            const raw = await fs.promises.readFile(cacheFile, 'utf-8');
             const entry = JSON.parse(raw);
             if (Date.now() - entry.ts > TREE_CACHE_TTL) return null;
             return entry.tree;
         } catch { return null; }
     }
 
-    function _treeCacheWrite(cacheFile, tree) {
+    async function _treeCacheWrite(cacheFile, tree) {
         try {
-            fs.mkdirSync(TREE_CACHE_DIR, { recursive: true });
-            fs.writeFileSync(cacheFile, JSON.stringify({ ts: Date.now(), tree }));
+            await fs.promises.mkdir(TREE_CACHE_DIR, { recursive: true });
+            await fs.promises.writeFile(cacheFile, JSON.stringify({ ts: Date.now(), tree }));
         } catch { /* best-effort */ }
     }
 
@@ -103,7 +103,7 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
             const cacheFile = _treeCacheKey(repoPath, ignoreRules);
 
             // Return cached tree instantly if fresh
-            const cached = _treeCacheRead(cacheFile);
+            const cached = await _treeCacheRead(cacheFile);
             if (cached) {
                 const elapsed = performance.now() - t0;
                 if (elapsed > 50) console.warn(`[IPC] getFolderTree cache hit in ${elapsed.toFixed(0)}ms for ${repoPath}`);
@@ -118,7 +118,7 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
                 result = await fileOps.getFolderTree(repoPath);
             }
 
-            _treeCacheWrite(cacheFile, result);
+            await _treeCacheWrite(cacheFile, result);
 
             const elapsed = performance.now() - t0;
             if (elapsed > 200) console.warn(`[IPC] getFolderTree took ${elapsed.toFixed(0)}ms (${workerProxy.isReady() ? 'worker' : 'node'}) for ${repoPath}`);
@@ -136,7 +136,7 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
             if (!repoPath) return false;
             const docignoreFile = path.join(repoPath, '.docignore');
             if (!fs.existsSync(docignoreFile)) {
-                fs.writeFileSync(docignoreFile, '[]\n', 'utf-8');
+                await fs.promises.writeFile(docignoreFile, '[]\n', 'utf-8');
             }
             shell.openPath(docignoreFile);
             return true;
@@ -187,7 +187,7 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
 
     ipcMain.handle('read-file', async (event, filePath) => {
         try {
-            const content = fs.readFileSync(filePath, 'utf-8');
+            const content = await fs.promises.readFile(filePath, 'utf-8');
             return { success: true, content };
         } catch (err) {
             return { success: false, error: err.message };

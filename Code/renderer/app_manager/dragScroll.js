@@ -1,13 +1,17 @@
 /**
  * dragScroll.js
  * Drag-to-scroll behaviour on #treeContainer.
- * Call init() once on DOMContentLoaded.
+ * Call init() once on DOMContentLoaded, destroy() on teardown.
  */
+
+let _scrollHandlers = null;
 
 export function init() {
     const scroller = document.getElementById('treeContainer');
     const cursorEl = document.querySelector('.tree-view-container');
     if (!scroller) return;
+
+    if (_scrollHandlers) destroy();
 
     let isDragging = false;
     let didDrag    = false;
@@ -15,7 +19,7 @@ export function init() {
     let scrollLeft = 0, scrollTop = 0;
     const DRAG_THRESHOLD = 4;
 
-    scroller.addEventListener('mousedown', (e) => {
+    const onMouseDown = (e) => {
         if (e.button !== 0) return;
         if (e.target.closest('button, input, a, label')) return;
         isDragging = true;
@@ -24,9 +28,9 @@ export function init() {
         startY     = e.clientY;
         scrollLeft = scroller.scrollLeft;
         scrollTop  = scroller.scrollTop;
-    });
+    };
 
-    window.addEventListener('mousemove', (e) => {
+    const onMouseMove = (e) => {
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
@@ -39,18 +43,35 @@ export function init() {
         e.preventDefault();
         scroller.scrollLeft = scrollLeft - dx;
         scroller.scrollTop  = scrollTop  - dy;
-    });
+    };
 
-    window.addEventListener('mouseup', () => {
+    const onMouseUp = () => {
         if (!isDragging) return;
         isDragging = false;
         cursorEl?.classList.remove('is-dragging');
         scroller.classList.remove('is-dragging');
-    });
+    };
 
-    window.addEventListener('mouseleave', () => {
+    const onMouseLeave = () => {
         isDragging = false;
         cursorEl?.classList.remove('is-dragging');
         scroller?.classList.remove('is-dragging');
-    });
+    };
+
+    scroller.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mouseleave', onMouseLeave);
+
+    _scrollHandlers = { scroller, onMouseDown, onMouseMove, onMouseUp, onMouseLeave };
+}
+
+export function destroy() {
+    if (!_scrollHandlers) return;
+    const { scroller, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = _scrollHandlers;
+    scroller?.removeEventListener('mousedown', onMouseDown);
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    window.removeEventListener('mouseleave', onMouseLeave);
+    _scrollHandlers = null;
 }
