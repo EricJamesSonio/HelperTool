@@ -26,6 +26,7 @@ export default class McpUI {
 
     container.innerHTML = `
       <div class="mcp-panel">
+        <div class="mcp-bg-glow"></div>
         <div class="mcp-header">
           <div class="mcp-header-left">
             <span class="mcp-header-icon">${MCP_ICON}</span>

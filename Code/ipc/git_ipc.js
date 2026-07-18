@@ -5,6 +5,7 @@ const path = require('path');
 const gitService = require('./gitService.js');
 const { triggerCommitSync } = require('./profile.js');
 const prefetchService = require('./prefetchService.js');
+const symbolsJsonLoader = require('../database/symbolsJsonLoader');
 
 /**
  * @param {{}} _deps - no shared deps needed; GitOperations is instantiated per-call
@@ -548,6 +549,58 @@ function register(_deps) {
             return { success: true, diff };
         } catch (err) {
             return { success: false, error: err.message };
+        }
+    });
+
+    // ── Connectivity check for smart file grouping ──
+
+    ipcMain.handle('git:groupConnectivity', async (_e, repoPath, filePaths) => {
+        try {
+            const data = symbolsJsonLoader.load(repoPath);
+            if (!data || !data.imports || !Array.isArray(data.files)) {
+                return { success: true, edges: [] };
+            }
+
+            const fileSet = new Map();
+            for (const f of data.files) {
+                fileSet.set(f.path, f.id);
+            }
+
+            const changedSet = new Set(filePaths);
+            const edges = [];
+
+            // Check import relationships among the changed files
+            for (const imp of data.imports) {
+                if (!changedSet.has(imp.sourceFile)) continue;
+                if (!imp.resolvedFile || !changedSet.has(imp.resolvedFile)) continue;
+                edges.push({
+                    from: imp.sourceFile,
+                    to: imp.resolvedFile,
+                    type: 'imports',
+                });
+            }
+
+            // Check same-directory relationships
+            const dirGroups = new Map();
+            for (const fp of filePaths) {
+                const dir = path.dirname(fp);
+                if (!dirGroups.has(dir)) dirGroups.set(dir, []);
+                dirGroups.get(dir).push(fp);
+            }
+            for (const [, files] of dirGroups) {
+                for (let i = 1; i < files.length; i++) {
+                    edges.push({
+                        from: files[0],
+                        to: files[i],
+                        type: 'same-dir',
+                    });
+                }
+            }
+
+            return { success: true, edges };
+        } catch (err) {
+            console.error('[IPC] git:groupConnectivity error:', err);
+            return { success: false, error: err.message, edges: [] };
         }
     });
 }

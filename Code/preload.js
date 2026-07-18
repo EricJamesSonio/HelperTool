@@ -93,6 +93,7 @@ const gitBridge = {
         fileLog:     (repoPath, filePath, maxCount) => ipcRenderer.invoke('git:file-log', repoPath, filePath, maxCount || 50),
         fileContent: (repoPath, commitHash, filePath) => ipcRenderer.invoke('git:file-content', repoPath, commitHash, filePath),
         diffCommits: (repoPath, oldCommit, newCommit, filePath) => ipcRenderer.invoke('git:diff-commits', repoPath, oldCommit, newCommit, filePath),
+        checkConnectivity: (repoPath, filePaths)   => ipcRenderer.invoke('git:groupConnectivity', repoPath, filePaths),
     },
 };
 
