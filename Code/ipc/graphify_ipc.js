@@ -1009,49 +1009,6 @@ function register({ app }) {
     }
   });
 
-  ipcMain.handle('graphify:getChangesTabState', async (_, repoPath) => {
-    if (!repoPath) return { ok: false, error: 'No repo path provided' };
-    const status = _fetchRepoStatus(repoPath);
-
-    let changes = null;
-    if (status.symbolsExists && status.hashesExist) {
-      try {
-        const ch = changeDetector.detectContentChanges(repoPath);
-        if (ch) {
-          const totalChanged = ch.changedFiles.length + ch.newFiles.length + ch.deletedFiles.length;
-          changes = {
-            total: totalChanged,
-            changed: ch.changedFiles.length,
-            new: ch.newFiles.length,
-            deleted: ch.deletedFiles.length,
-            changeRatio: ch.changeRatio,
-            tooManyChanges: ch.changeRatio > 0.5,
-            changedFiles: ch.changedFiles,
-            newFiles: ch.newFiles,
-            deletedFiles: ch.deletedFiles,
-          };
-        }
-      } catch {}
-    }
-
-    const info = await _fetchInfo();
-    const stats = info && info.ready !== false
-      ? { files: info.totalFiles || 0, symbols: info.totalSymbols || 0, imports: info.totalImports || 0 }
-      : null;
-
-    return {
-      ok: true,
-      indexed: status.symbolsExists,
-      hashesExist: status.hashesExist,
-      changes,
-      promptGenerated: status.promptGenerated,
-      promptPath: status.promptGenerated ? status.incrPromptPath : null,
-      graphExists: status.graphExists,
-      graphHasData: status.graphHasData,
-      stats,
-    };
-  });
-
   ipcMain.handle('graphify:detectChanges', async (_, repoPath) => {
     if (!repoPath) return { ok: false, error: 'No repo path provided' };
     const symbolsJsonPath = path.join(repoPath, STORAGE_DIR, 'symbols.json');

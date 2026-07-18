@@ -48,9 +48,9 @@ function setEngine(engine) {
   _notify = engine ? engine.getNotify() : null;
 }
 
-function generateCheatsheet() {
+function generateCheatsheet(outputPath) {
   try {
-    var cheatsheetPath = path.resolve(__dirname, '..', '..', 'MCP', 'errorCop', 'errorcop-cheatsheet.md');
+    var cheatsheetPath = outputPath || path.resolve(__dirname, '..', '..', 'MCP', 'errorCop', 'errorcop-cheatsheet.md');
     var epTable = ENDPOINTS.map(function (e) {
       return '| `' + e.method + ' ' + e.path + '` | ' + e.description + ' |';
     }).join('\n');
@@ -374,8 +374,10 @@ function generateCheatsheet() {
     fs.mkdirSync(path.dirname(cheatsheetPath), { recursive: true });
     fs.writeFileSync(cheatsheetPath, content, 'utf8');
     console.log('[ErrorCopServer] Cheatsheet written to ' + cheatsheetPath);
+    return { success: true, content: content };
   } catch (e) {
     console.error('[ErrorCopServer] Failed to write cheatsheet:', e.message);
+    return { success: false, error: e.message };
   }
 }
 
@@ -495,4 +497,4 @@ function start(engine) {
   return _server;
 }
 
-module.exports = { start, stop, isRunning, setEngine };
+module.exports = { start, stop, isRunning, setEngine, generateCheatsheet };

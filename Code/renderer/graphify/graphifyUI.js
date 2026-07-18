@@ -14,6 +14,7 @@ let _mounted       = false;
 let _initialized   = false;
 let _startCancelRequested = false;
 let _loadChangesStatePending = false;
+let _loadMountAbort = null;
 
 // ── DOM cache (populated once in mount) ──
 const _els = {};
@@ -148,7 +149,7 @@ export function mount(container) {
     _initialized = true;
   }
   if (_unsub) _unsub();
-  _unsub = subscribe(_render);
+  _unsub = subscribe(() => _scheduleRender());
   _render(getState());
   _loadMountData();
 }
@@ -240,7 +241,7 @@ export function show() {
   if (!_root) return;
   _mounted = true;
   if (_unsub) _unsub();
-  _unsub = subscribe(_render);
+  _unsub = subscribe(() => _scheduleRender());
   _render(getState());
   _loadMountData();
 }
@@ -252,6 +253,9 @@ export function hide() {
 
 async function _loadMountData() {
   if (!_mounted) return;
+  if (_loadMountAbort) { _loadMountAbort.abort(); _loadMountAbort = null; }
+  const ac = new AbortController();
+  _loadMountAbort = ac;
   try {
     const repoPath = window.__activeRepoPath;
     if (!repoPath) {
@@ -259,7 +263,7 @@ async function _loadMountData() {
       _startWatchdog(); return;
     }
     const mountData = await window.electronAPI.graphifyGetMountData(repoPath);
-    if (!_mounted || !mountData?.ok) {
+    if (!_mounted || ac.signal.aborted || !mountData?.ok) {
       _safeSetState({ repoStatus: null, graphInfo: null, graphHasData: false, symbolsInfo: null, statusLoading: false, indexed: false, promptExists: false, hashesExist: false, exportStatus: null });
       _startWatchdog(); return;
     }
@@ -292,7 +296,9 @@ async function _loadMountData() {
     _safeSetState(patch);
     if (mountData.running) _startHealthTimer();
   } catch {
-    if (_mounted) _safeSetState({ statusLoading: false, repoStatus: null, graphInfo: null, graphHasData: false, symbolsInfo: null, indexed: false, promptExists: false, hashesExist: false, exportStatus: null });
+    if (_mounted && !ac.signal.aborted) _safeSetState({ statusLoading: false, repoStatus: null, graphInfo: null, graphHasData: false, symbolsInfo: null, indexed: false, promptExists: false, hashesExist: false, exportStatus: null });
+  } finally {
+    if (_loadMountAbort === ac) _loadMountAbort = null;
   }
   _startWatchdog();
 }
@@ -727,8 +733,10 @@ async function _handleStart() {
       fetchEndpoints(result.port),
     ]);
     if (!_mounted) return;
-    if (epData && epData.endpoints) _safeSetState({ endpoints: epData.endpoints });
-    if (info && !info.error) _safeSetState({ serverInfo: info });
+    _safeSetState({
+      endpoints: (epData && epData.endpoints) ? epData.endpoints : null,
+      serverInfo: (info && !info.error) ? info : null,
+    });
     _handleRefreshGraph();
   } catch (err) {
     if (_startCancelRequested) {
@@ -794,7 +802,7 @@ async function _handleIndex() {
     } catch {
       if (_mounted) _safeSetState({ error: 'Indexing complete! You can now start the server.' });
     }
-    _checkStatus();
+    await _checkStatus();
   } catch (err) {
     if (_mounted) _safeSetState({ error: `Indexing failed: ${err.message}` });
   } finally {
@@ -1417,17 +1425,6 @@ function _render(state) {
       const graphReady = _els.wizGraphReady;
       if (graphReady) {
         graphReady.style.display = (!state.statusLoading && state.repoStatus === 'indexed' && state.graphInfo?.exists) ? 'flex' : 'none';
-        if (!state.statusLoading && state.repoStatus === 'indexed' && state.graphInfo?.exists) {
-          const gsBtn = graphReady.querySelector('.gfy-start-btn');
-          if (gsBtn) {
-            const show = state.serverStatus === 'stopped' || state.serverStatus === 'error';
-            gsBtn.style.display = show ? 'inline-flex' : 'none';
-            if (show) {
-              const label = gsBtn.querySelector('span');
-              if (label) label.textContent = state.serverStatus === 'error' ? 'Restart Server' : 'Start Server';
-            }
-          }
-        }
       }
 
       const statsLine = _els.wizStatsLine;
@@ -2147,7 +2144,7 @@ function _render(state) {
   const listEl = _els.listEl;
   if (!listEl) return;
 
-  if (prev && state.loading === prev.loading && state.files === prev.files && state.query === prev.query && state.results === prev.results) {
+  if (prev && state.loading === prev.loading && state.query === prev.query && state.results.length === prev.results.length && state.files.length === prev.files.length) {
     return;
   }
 
@@ -2367,10 +2364,6 @@ function _template() {
               </div>
             </div>
             <div class="gfy-wizard-start-row">
-              <button class="gfy-start-btn" style="display:none">
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l12 7-12 7V3z"/></svg>
-                <span>Start Server</span>
-              </button>
               <span class="gfy-wizard-start-hint">Launch the code intelligence server to query, explore, and visualize your knowledge graph.</span>
             </div>
           </div>

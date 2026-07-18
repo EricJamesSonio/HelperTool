@@ -1,4 +1,5 @@
 const { ipcMain } = require('electron');
+const path = require('path');
 const { getErrorEngine } = require('./terminal_ipc');
 
 let _errorEngine = null;
@@ -130,6 +131,14 @@ function register({ getMainWindow }) {
     } catch (e) {
       return { running: false, port: null, error: e.message };
     }
+  }));
+
+  // ── Cheatsheet Generation ──
+
+  ipcMain.handle('error-cop:generateCheatsheet', safe(async (event, repoPath) => {
+    const cheatsheetPath = path.join(repoPath, 'MCP', 'errorCop', 'errorcop-cheatsheet.md').replace(/\\/g, '/');
+    const server = require('../errorCopServer/server');
+    return server.generateCheatsheet(cheatsheetPath);
   }));
 }
 
