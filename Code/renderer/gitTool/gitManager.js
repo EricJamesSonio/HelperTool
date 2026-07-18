@@ -15,6 +15,8 @@ class GitManager {
     this.isWatching = false;
     this.lastStatusRefresh = 0;
     this.statusRefreshInterval = 500; // ms
+    this.groupThresholdMs = 300000; // default 5 min gap
+    this._connectivityEdges = null; // cached import/dir relationships for smart splitting
   }
 
   /**
@@ -24,6 +26,7 @@ class GitManager {
     this.currentRepo = repoPath;
     this.workingTreeFiles = [];
     this.stagedFiles = [];
+    this._connectivityEdges = null;
     const saved = loadCommits(repoPath);
     this.commitHistory = Array.isArray(saved) ? saved : [];
     return { success: true, repo: repoPath };
@@ -99,6 +102,161 @@ getTimeGroupLabel(ts) {
   if (age < 24 * hr)  return 'Earlier today';
   return 'Older changes';
 }
+
+  /**
+   * Set the time gap threshold for smart grouping (ms)
+   */
+  setGroupThreshold(ms) {
+    this.groupThresholdMs = ms;
+  }
+
+  /**
+   * Cache connectivity edges from symbols.json for smart splitting.
+   * @param {Array<{from:string, to:string, type:string}>} edges
+   */
+  setConnectivityEdges(edges) {
+    this._connectivityEdges = Array.isArray(edges) ? edges : null;
+  }
+
+  clearConnectivity() {
+    this._connectivityEdges = null;
+  }
+
+  /**
+   * Smart group files by time proximity + connectivity.
+   * Stage 1: Time-based clustering (gap > threshold = new group)
+   * Stage 2: If edges provided, split each time cluster by import/directory connectivity
+   *
+   * @param {number} [thresholdMs] — optional override, defaults to this.groupThresholdMs
+   * @param {Array<{from:string, to:string, type:string}>} [edges] — optional connectivity edges
+   * @returns {Array<{label:string, files:Array, timeRange:{start:number,end:number}}>}
+   */
+  getSmartGroups(thresholdMs, edges) {
+    const effectiveThreshold = thresholdMs || this.groupThresholdMs || 300000;
+    const connectivityEdges = edges || this._connectivityEdges;
+
+    const sorted = [...this.workingTreeFiles].sort(
+      (a, b) => (a.modifiedAt || 0) - (b.modifiedAt || 0)
+    );
+
+    if (sorted.length === 0) return [];
+
+    // Stage 1: Time-based clustering
+    const timeGroups = [];
+    let current = { files: [], label: '', timeRange: { start: null, end: null } };
+
+    for (let i = 0; i < sorted.length; i++) {
+      const file = sorted[i];
+
+      if (current.files.length === 0) {
+        current.files.push(file);
+        current.timeRange.start = file.modifiedAt;
+        current.timeRange.end = file.modifiedAt;
+        continue;
+      }
+
+      const prev = sorted[i - 1];
+      const gap = (file.modifiedAt || 0) - (prev.modifiedAt || 0);
+
+      if (gap >= effectiveThreshold || gap < 0) {
+        current.label = this._formatTimeRange(current.timeRange);
+        timeGroups.push(current);
+        current = { files: [], label: '', timeRange: { start: null, end: null } };
+      }
+
+      current.files.push(file);
+      if (file.modifiedAt) {
+        if (!current.timeRange.start || file.modifiedAt < current.timeRange.start) current.timeRange.start = file.modifiedAt;
+        if (!current.timeRange.end || file.modifiedAt > current.timeRange.end) current.timeRange.end = file.modifiedAt;
+      }
+    }
+
+    if (current.files.length > 0) {
+      current.label = this._formatTimeRange(current.timeRange);
+      timeGroups.push(current);
+    }
+
+    const result = timeGroups.reverse();
+
+    // Stage 2: If connectivity edges available, split unrelated files within each time cluster
+    if (connectivityEdges && connectivityEdges.length > 0) {
+      return result.flatMap(group => {
+        if (group.files.length <= 1) return [group];
+        const subGroups = this._splitByConnectivity(group.files, connectivityEdges);
+        return subGroups.map(files => ({
+          label: group.label,
+          files,
+          timeRange: this._subGroupTimeRange(files),
+        }));
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Split a list of files into connected components using union-find.
+   * Two files are connected if an edge exists between them (import or same-dir).
+   */
+  _splitByConnectivity(files, edges) {
+    const parent = new Map();
+
+    const find = (x) => {
+      if (!parent.has(x)) parent.set(x, x);
+      if (parent.get(x) !== x) parent.set(x, find(parent.get(x)));
+      return parent.get(x);
+    };
+    const union = (a, b) => {
+      parent.set(find(a), find(b));
+    };
+
+    for (const f of files) {
+      parent.set(f.file, f.file);
+    }
+
+    for (const edge of edges) {
+      if (parent.has(edge.from) && parent.has(edge.to)) {
+        union(edge.from, edge.to);
+      }
+    }
+
+    const compMap = new Map();
+    for (const f of files) {
+      const root = find(f.file);
+      if (!compMap.has(root)) compMap.set(root, []);
+      compMap.get(root).push(f);
+    }
+
+    return Array.from(compMap.values());
+  }
+
+  /**
+   * Compute a time range label for a sub-group of files.
+   */
+  _subGroupTimeRange(files) {
+    let start = null;
+    let end = null;
+    for (const f of files) {
+      if (!f.modifiedAt) continue;
+      if (start === null || f.modifiedAt < start) start = f.modifiedAt;
+      if (end === null || f.modifiedAt > end) end = f.modifiedAt;
+    }
+    return { start, end };
+  }
+
+  /**
+   * Format a time range for display in the group header.
+   */
+  _formatTimeRange(range) {
+    const fmt = (ts) => {
+      if (!ts) return 'Unknown';
+      const d = new Date(ts);
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    };
+    if (!range.start && !range.end) return 'Unknown time';
+    if (!range.start || !range.end || range.start === range.end) return fmt(range.start || range.end);
+    return `${fmt(range.start)} – ${fmt(range.end)}`;
+  }
 
   /**
    * Stage a file (move from working tree to staged)

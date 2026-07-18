@@ -12,6 +12,7 @@ class GitCommandHandler {
     this.fileWatcher = null;
     this.lastStatusRefresh = 0;
     this.statusDebounce = 500; // ms
+    this._onConnectivityReady = null; // callback when connectivity edges are loaded
   }
 
   /**
@@ -39,10 +40,54 @@ class GitCommandHandler {
       // Update manager with fresh status (separate working/staged from git)
       this.gitManager.updateWorkingTree(result.workingFiles || []);
       this.gitManager.updateStagedFiles(result.stagedFiles || []);
+
+      // Load connectivity data for smart grouping
+      this.loadConnectivity();
+
       return result;
     } catch (error) {
       console.error('Error getting git status:', error);
       return { error: error.message };
+    }
+  }
+
+  /**
+   * Load connectivity edges from symbols.json for the current working tree
+   */
+  async loadConnectivity() {
+    try {
+      const files = this.gitManager.workingTreeFiles;
+      if (!files || files.length === 0) {
+        this.gitManager.clearConnectivity();
+        return;
+      }
+      const filePaths = files.map(f => f.file);
+      if (this.ipc?.checkConnectivity) {
+        const result = await this.ipc.checkConnectivity(this.repoPath, filePaths);
+        if (result?.success && Array.isArray(result.edges)) {
+          this.gitManager.setConnectivityEdges(result.edges);
+        } else {
+          this.gitManager.clearConnectivity();
+        }
+      }
+      if (this._onConnectivityReady) {
+        this._onConnectivityReady();
+      }
+    } catch (_) {
+      this.gitManager.clearConnectivity();
+    }
+  }
+
+  /**
+   * Manually trigger connectivity check (used when working tree changes externally)
+   */
+  async checkConnectivity(filePaths) {
+    try {
+      if (!this.ipc?.checkConnectivity) return { edges: [] };
+      const result = await this.ipc.checkConnectivity(this.repoPath, filePaths);
+      return { edges: result?.edges || [] };
+    } catch (_) {
+      return { edges: [] };
     }
   }
 
@@ -218,6 +263,10 @@ class GitCommandHandler {
             this.gitManager.updateStagedFiles(result.stagedFiles);
           }
           if (onUpdate) onUpdate(this.gitManager.getState());
+          // Refresh connectivity after working tree change
+          if (result.workingFiles) {
+            this.loadConnectivity();
+          }
         }
       });
     } catch (error) {

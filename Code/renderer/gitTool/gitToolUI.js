@@ -38,6 +38,8 @@ class GitToolUI {
     this.setupEventListeners();
     this.refreshUI();
     this.setupComplete = true;
+    // When connectivity data finishes loading from symbols.json, re-render with smart splits
+    this.gitHandler._onConnectivityReady = () => this.refreshUI();
   }
 
   /**
@@ -51,6 +53,16 @@ class GitToolUI {
           <h2 class="git-title" style="display:flex;align-items:center;gap:8px">
             <span class="git-icon">${ICON_GIT}</span> Git Tool
             <span class="git-stats-compact" id="gitStatsCompact"></span>
+            <span class="gap-selector-wrapper" title="Group threshold — time gap creates a separator">
+              <span class="gap-label">Gap:</span>
+              <select id="gapSelector" class="gap-selector">
+                <option value="60000">1m</option>
+                <option value="180000">3m</option>
+                <option value="300000" selected>5m</option>
+                <option value="600000">10m</option>
+                <option value="900000">15m</option>
+              </select>
+            </span>
             <span style="flex:1;min-width:8px"></span>
             <button class="btn btn-small" id="gitBranchesBtn" title="Manage branches">
               <span class="btn-icon">${ICON_BRANCH}</span> Branches
@@ -200,6 +212,9 @@ class GitToolUI {
       if (e.target.closest('.stage-btn')) {
         this.handleStageFile(e);
       }
+      if (e.target.closest('.stage-group-btn')) {
+        this.handleStageGroup(e);
+      }
       if (e.target.closest('.unstage-btn')) {
         this.handleUnstageFile(e);
       }
@@ -211,6 +226,16 @@ class GitToolUI {
       }
       if (e.target.closest('.view-tab')) {
         this.handleViewSwitch(e);
+      }
+    });
+
+    // Gap threshold selector
+    const gapSelector = this.container.querySelector('#gapSelector');
+    gapSelector?.addEventListener('change', () => {
+      const val = parseInt(gapSelector.value);
+      if (!isNaN(val)) {
+        this.gitManager.setGroupThreshold(val);
+        this.refreshUI();
       }
     });
 
@@ -341,6 +366,34 @@ class GitToolUI {
     } else {
       console.debug('[GitToolUI] Stage All failed:', result.error);
       this.showError(result.error || 'Failed to stage files');
+    }
+  }
+
+  /**
+   * Stage all files in a smart group
+   */
+  async handleStageGroup(event) {
+    const btn = event.target.closest('.stage-group-btn');
+    if (!btn) return;
+    const groupIndex = parseInt(btn.dataset.groupIndex);
+    if (isNaN(groupIndex)) return;
+
+    const groups = this.gitManager.getSmartGroups();
+    const group = groups[groupIndex];
+    if (!group) return;
+
+    const filePaths = group.files.map(f => f.file);
+    if (filePaths.length === 0) return;
+
+    this.setButtonLoading(btn, true);
+    const result = await this.gitHandler.stageFiles(filePaths);
+    this.setButtonLoading(btn, false);
+
+    if (result.success) {
+      this.refreshUI();
+      this.showSuccess(`Staged ${filePaths.length} file${filePaths.length !== 1 ? 's' : ''} from group`);
+    } else {
+      this.showError(result.error || 'Failed to stage group');
     }
   }
 
@@ -549,6 +602,13 @@ class GitToolUI {
       totalCommits: state.history.length,
       unpushedCommits: state.stats.unpushed
     });
+
+    // Sync gap selector value with manager state
+    const gapSelector = this.container.querySelector('#gapSelector');
+    if (gapSelector) {
+      gapSelector.value = String(this.gitManager.groupThresholdMs);
+    }
+
     this.syncViewTabs();
     
     // Update stats
@@ -613,13 +673,18 @@ renderWorkingTree(files) {
   count.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
   if (stageAllRow) stageAllRow.style.display = '';
 
-  const groups = this.gitManager.getWorkingTreeGroupedByTime();
+  const groups = this.gitManager.getSmartGroups();
 
-  list.innerHTML = groups.map(group => `
-    <div class="time-group">
-      <div class="time-group-header">
-        <span class="time-group-label">${this.escapeHtml(group.label)}</span>
-        <span class="time-group-count">${group.files.length} file${group.files.length !== 1 ? 's' : ''}</span>
+  list.innerHTML = groups.map((group, idx) => `
+    <div class="smart-group">
+      <div class="smart-group-header">
+        <span class="smart-group-label">${this.escapeHtml(group.label)}</span>
+        <div class="smart-group-actions">
+          <span class="smart-group-count">${group.files.length} file${group.files.length !== 1 ? 's' : ''}</span>
+          <button class="stage-group-btn" data-group-index="${idx}" title="Stage all files in this group">
+            ${ICON_PLUS} Stage All
+          </button>
+        </div>
       </div>
       ${group.files.map(file => `
         <div class="file-item working-file-item" data-file="${file.file}">
@@ -627,7 +692,7 @@ renderWorkingTree(files) {
           <span class="file-status-badge status-${this.getStatusClass(file.status)}">
             ${this.getStatusLabel(file.status)}
           </span>
-          <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
+          <span class="file-path" title="${file.file}">${this.escapeHtml(file.file)}</span>
           <button class="stage-btn btn-icon-small" data-file="${file.file}" title="Stage file">
             ${ICON_ARROW_RIGHT}
           </button>
