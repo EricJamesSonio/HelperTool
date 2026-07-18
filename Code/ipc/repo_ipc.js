@@ -303,6 +303,21 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
         }
     });
 
+    ipcMain.handle('clear-folder-tree-cache', async (event, repoPath) => {
+        try {
+            if (!repoPath) return { success: false, error: 'No repo path' };
+            const ignoreRules = await docignoreUtils.getIgnoreRules(repoPath);
+            const cacheFile = _treeCacheKey(repoPath, ignoreRules);
+            if (fs.existsSync(cacheFile)) {
+                await fs.promises.unlink(cacheFile);
+            }
+            return { success: true };
+        } catch (err) {
+            console.error('[IPC] clear-folder-tree-cache error:', err);
+            return { success: false, error: err.message };
+        }
+    });
+
     // ── Session Notes ───────────────────────────────────────────────────────
 
     ipcMain.handle('get-session-notes', () => {

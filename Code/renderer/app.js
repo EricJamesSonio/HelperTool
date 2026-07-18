@@ -202,6 +202,7 @@ refreshBtn.addEventListener('click', async () => {
     refreshBtn.disabled = true;
     try {
         await window.electronAPI.clearDocignoreCache(state.selectedRepoPath);
+        await window.electronAPI.clearFolderTreeCache(state.selectedRepoPath);
         state.cachedTree = await window.electronAPI.getFolderTree(state.selectedRepoPath);
         renderFilterChips();
         const feats = getFeatures();

@@ -7,6 +7,7 @@ const repoBridge = {
     selectRepo:          ()              => ipcRenderer.invoke('select-repo'),
     selectFolder:        ()              => ipcRenderer.invoke('select-folder'),
     getFolderTree:       (repoPath)      => ipcRenderer.invoke('getFolderTree', repoPath),
+    clearFolderTreeCache:(repoPath)      => ipcRenderer.invoke('clear-folder-tree-cache', repoPath),
     getUserDataPath:     ()              => ipcRenderer.invoke('get-user-data-path'),
     openDocignore:       (repoPath)      => ipcRenderer.invoke('open-docignore', repoPath),
     openGlobalDocignore: ()              => ipcRenderer.invoke('open-global-docignore'),
