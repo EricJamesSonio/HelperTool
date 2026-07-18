@@ -903,102 +903,17 @@ export async function initTools(feats, settingsManager) {
   initSidebar();
   populateSidebar();
 
-  // Sync registry with external tool refs after they load
-  if (feats.apiTool) {
-    try {
-      _apiTool = await import('../apiToolUI.js');
-      await _apiTool.initApiToolUI();
-      _registry.setApiTool(_apiTool);
-      console.log('[Tools] API Tool initialised');
-    } catch (err) { console.error('[Tools] API Tool failed:', err); }
-
-    let _prevSidebarItems = null;
-    document.addEventListener('keydown', () => {
-      if (!_apiTool || _apiTool.isApiToolPanelOpen?.()) return;
-      if (!_prevSidebarItems) _prevSidebarItems = [...document.querySelectorAll('.tools-sidebar-item')];
-      _prevSidebarItems.forEach(el => el.classList.remove('active'));
-    });
-  }
-
-  if (feats.secretHolder) {
-    try {
-      _secretHolder = await import('../secretHolder.js');
-      _secretHolder.initSecretHolder();
-      _registry.setSecretHolder(_secretHolder);
-      console.log('[Tools] Secret Holder initialised');
-    } catch (err) { console.error('[Tools] Secret Holder failed:', err); }
-  }
-
-  if (feats.workspaceTool) {
-    try {
-      _workspaceTool = await import('../workspace/workspaceTool.js');
-      await _workspaceTool.initWorkspaceTool();
-      _registry.setWorkspaceTool(_workspaceTool);
-      console.log('[Tools] Workspace Tool initialised');
-    } catch (err) { console.error('[Tools] Workspace Tool failed:', err); }
-  }
-
-  if (feats.canvasTool) {
-    try {
-      _canvasTool = await import('../canvasTool.js');
-      _canvasTool.initCanvasTool();
-      _registry.setCanvasTool(_canvasTool);
-      console.log('[Tools] Canvas Tool initialised');
-    } catch (err) { console.error('[Tools] Canvas Tool failed:', err); }
-  }
-
-  if (feats.dbInspector) {
-    try {
-      _dbInspector = await import('../databaseInspector.js');
-      _dbInspector.initDbInspector();
-      _registry.setDbInspector(_dbInspector);
-      console.log('[Tools] DB Inspector initialised');
-    } catch (err) { console.error('[Tools] DB Inspector failed:', err); }
-  }
-
-  if (feats.portManagerTool) {
-    try {
-      _portManagerTool = await import('../portManagerTool.js');
-      _portManagerTool.initPortManager();
-      _registry.setPortManagerTool(_portManagerTool);
-      console.log('[Tools] Port Manager initialised');
-    } catch (err) { console.error('[Tools] Port Manager failed:', err); }
-  }
-
   if (feats.teamActivityTool) {
-    try {
-      _registry.setTeamActivity(teamActivity);
-      console.log('[Tools] Team Activity initialised');
-    } catch (err) { console.error('[Tools] Team Activity failed:', err); }
+    try { _registry.setTeamActivity(teamActivity); } catch (err) { console.error('[Tools] Team Activity failed:', err); }
   }
-
   if (feats.blueprintLibraryTool) {
-    try {
-      _registry.setBlueprintLibrary(blueprintLibrary);
-      console.log('[Tools] Blueprint Library initialised');
-    } catch (err) { console.error('[Tools] Blueprint Library failed:', err); }
+    try { _registry.setBlueprintLibrary(blueprintLibrary); } catch (err) { console.error('[Tools] Blueprint Library failed:', err); }
   }
-
   if (feats.profileTool) {
-    try {
-      _registry.setProfileTool(profileTool);
-      console.log('[Tools] Profile initialised');
-    } catch (err) { console.error('[Tools] Profile failed:', err); }
+    try { _registry.setProfileTool(profileTool); } catch (err) { console.error('[Tools] Profile failed:', err); }
   }
-
   if (feats.essentialsGlossary) {
-    try {
-      _registry.setEssentialsGlossary(essentialsGlossary);
-      console.log('[Tools] Essentials Glossary initialised');
-    } catch (err) { console.error('[Tools] Essentials Glossary failed:', err); }
-  }
-
-  if (feats.dockerTool) {
-    try {
-      _dockerTool = await import('../dockerTool.js');
-      _registry.setDockerTool(_dockerTool);
-      console.log('[Tools] Docker initialised');
-    } catch (err) { console.error('[Tools] Docker failed:', err); }
+    try { _registry.setEssentialsGlossary(essentialsGlossary); } catch (err) { console.error('[Tools] Essentials Glossary failed:', err); }
   }
 
   initContextMenu(
@@ -1021,21 +936,21 @@ export async function initTools(feats, settingsManager) {
       _registry.closeAll();
       fileSeederTool.open(folderPath, folderName);
     },
-    (folderPath, folderName) => {          // onFolderLoc
+    (folderPath, folderName) => {
       _registry.closeAll();
       locDetector.open(folderPath, folderName);
     },
-    (filePath) => {                        // onFileDiff
+    (filePath) => {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       diffViewer.open(filePath, state.selectedRepoPath);
     },
-    (filePath) => {                        // onFileView
+    (filePath) => {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       fileViewer.open(filePath, state.selectedRepoPath);
     },
-    async (folderPath) => {                 // onFolderTerminal
+    async (folderPath) => {
       if (!_terminalUI) {
         _terminalUI = new TerminalUI();
         _registry.setTerminalUI(_terminalUI);
@@ -1047,4 +962,66 @@ export async function initTools(feats, settingsManager) {
   );
 
   initShortcutManager(_buildShortcutActions(), _feats);
+
+  // ── Lazy-load heavy tool modules after first paint ──
+  requestAnimationFrame(() => {
+    _lazyInitTools(feats);
+  });
+}
+
+async function _lazyInitTools(feats) {
+  if (feats.apiTool) {
+    try {
+      const mod = await import('../apiToolUI.js');
+      _apiTool = mod;
+      await mod.initApiToolUI();
+      _registry.setApiTool(mod);
+    } catch (err) { console.error('[Tools] API Tool failed:', err); }
+
+    let _prevSidebarItems = null;
+    document.addEventListener('keydown', () => {
+      if (!_apiTool || _apiTool.isApiToolPanelOpen?.()) return;
+      if (!_prevSidebarItems) _prevSidebarItems = [...document.querySelectorAll('.tools-sidebar-item')];
+      _prevSidebarItems.forEach(el => el.classList.remove('active'));
+    });
+  }
+
+  try {
+    if (feats.secretHolder) {
+      const mod = await import('../secretHolder.js');
+      _secretHolder = mod;
+      mod.initSecretHolder();
+      _registry.setSecretHolder(mod);
+    }
+    if (feats.workspaceTool) {
+      const mod = await import('../workspace/workspaceTool.js');
+      _workspaceTool = mod;
+      await mod.initWorkspaceTool();
+      _registry.setWorkspaceTool(mod);
+    }
+    if (feats.canvasTool) {
+      const mod = await import('../canvasTool.js');
+      _canvasTool = mod;
+      mod.initCanvasTool();
+      _registry.setCanvasTool(mod);
+    }
+    if (feats.dbInspector) {
+      const mod = await import('../databaseInspector.js');
+      _dbInspector = mod;
+      mod.initDbInspector();
+      _registry.setDbInspector(mod);
+    }
+    if (feats.portManagerTool) {
+      const mod = await import('../portManagerTool.js');
+      _portManagerTool = mod;
+      mod.initPortManager();
+      _registry.setPortManagerTool(mod);
+    }
+    if (feats.dockerTool) {
+      const mod = await import('../dockerTool.js');
+      _dockerTool = mod;
+      _registry.setDockerTool(mod);
+    }
+    console.log('[Tools] Lazy init complete');
+  } catch (err) { console.error('[Tools] Lazy init error:', err); }
 }

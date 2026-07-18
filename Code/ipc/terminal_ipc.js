@@ -19,7 +19,10 @@ function getErrorEngine() {
   return _errorEngine;
 }
 
-function detectShells() {
+let _shellCache = null;
+
+async function detectShells() {
+  if (_shellCache) return _shellCache;
   const shells = [];
   const isWin = process.platform === 'win32';
 
@@ -47,10 +50,15 @@ function detectShells() {
       }
     }
     try {
-      const wslCheck = require('child_process').execSync('where wsl.exe 2>nul', { encoding: 'utf8' }).trim();
-      if (wslCheck) {
-        shells.push({ name: 'WSL / Ubuntu', cmd: 'wsl.exe', args: ['--cd', '~'] });
-      }
+      const { exec } = require('child_process');
+      await new Promise((resolve) => {
+        exec('where wsl.exe', { timeout: 3000 }, (err, stdout) => {
+          if (!err && stdout.trim()) {
+            shells.push({ name: 'WSL / Ubuntu', cmd: 'wsl.exe', args: ['--cd', '~'] });
+          }
+          resolve();
+        });
+      });
     } catch { }
   } else {
     const candidates = [
@@ -60,12 +68,18 @@ function detectShells() {
     ];
     for (const s of candidates) {
       try {
-        require('child_process').execSync(`which ${s.cmd} 2>/dev/null`, { encoding: 'utf8' });
-        shells.push(s);
+        const { exec } = require('child_process');
+        await new Promise((resolve) => {
+          exec(`which ${s.cmd}`, { timeout: 3000 }, (err) => {
+            if (!err) shells.push(s);
+            resolve();
+          });
+        });
       } catch { }
     }
     if (shells.length === 0) shells.push({ name: 'sh', cmd: 'sh', args: [] });
   }
+  _shellCache = shells;
   return shells;
 }
 

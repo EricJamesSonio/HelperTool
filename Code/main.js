@@ -63,20 +63,23 @@ if (!gotTheLock) {
         console.log('[Main] App is ready');
         registerAllIpc();
         createTray();
+
+        // Start DB init BEFORE window creation — runs in parallel with page load
+        const dbPromise = Promise.all([
+            initDatabase(app),
+            initChatDb(app),
+            initErrorCopDb(app),
+        ]);
+
         createWindow();
         serviceTrackerIpc.setWindow(mainWindow);
 
         mainWindow.webContents.once('did-finish-load', async () => {
             serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
             try {
-                await Promise.all([
-                  initDatabase(app),
-                  initChatDb(app),
-                  initErrorCopDb(app),
-                ]);
+                await dbPromise;
 
-                // Clean up stale Error Cop sessions in background
-                setTimeout(() => {
+                setTimeout(async () => {
                   try {
                     const termIpc = require('./ipc/terminal_ipc');
                     const engine = termIpc.getErrorEngine();
@@ -100,8 +103,8 @@ if (!gotTheLock) {
                 return;
             }
 
-            // DB confirmed ready — now start worker and prefetch
-            setImmediate(() => {
+            // Start worker and prefetch in background — does not block UI
+            setTimeout(() => {
                 const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
                 indexerProxy.start(indexerDbPath);
                 workerProxy.start();
@@ -112,7 +115,7 @@ if (!gotTheLock) {
                     const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
                     prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
                 }, 800);
-            });
+            }, 2000);
         });
 
         console.log('[Main] Helper Tool app running...');

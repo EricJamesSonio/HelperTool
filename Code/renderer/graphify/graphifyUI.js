@@ -912,7 +912,7 @@ async function _handleSendCheatsheet() {
   if (!_mounted) return;
   const repoPath = window.__activeRepoPath;
   if (!repoPath) return;
-  const cheatsheetPath = (repoPath + '/graphify/prompts/graphify-cheatsheet.md').replace(/\\/g, '/');
+  const cheatsheetPath = (repoPath + '/MCP/graphify/prompts/graphify-cheatsheet.md').replace(/\\/g, '/');
   try {
     const result = await window.electronAPI.readFile(cheatsheetPath);
     if (!_mounted) return;
@@ -920,7 +920,7 @@ async function _handleSendCheatsheet() {
       _safeSetState({ exportError: null });
       _showSendToAiDialog(result.content);
     } else {
-      _safeSetState({ exportError: (result && result.error) || 'Cheatsheet file not found at graphify/prompts/graphify-cheatsheet.md' });
+      _safeSetState({ exportError: (result && result.error) || 'Cheatsheet file not found at MCP/graphify/prompts/graphify-cheatsheet.md' });
     }
   } catch (err) {
     if (_mounted) _safeSetState({ exportError: 'Failed to read cheatsheet: ' + (err.message || err) });
@@ -1417,6 +1417,17 @@ function _render(state) {
       const graphReady = _els.wizGraphReady;
       if (graphReady) {
         graphReady.style.display = (!state.statusLoading && state.repoStatus === 'indexed' && state.graphInfo?.exists) ? 'flex' : 'none';
+        if (!state.statusLoading && state.repoStatus === 'indexed' && state.graphInfo?.exists) {
+          const gsBtn = graphReady.querySelector('.gfy-start-btn');
+          if (gsBtn) {
+            const show = state.serverStatus === 'stopped' || state.serverStatus === 'error';
+            gsBtn.style.display = show ? 'inline-flex' : 'none';
+            if (show) {
+              const label = gsBtn.querySelector('span');
+              if (label) label.textContent = state.serverStatus === 'error' ? 'Restart Server' : 'Start Server';
+            }
+          }
+        }
       }
 
       const statsLine = _els.wizStatsLine;
@@ -2354,6 +2365,13 @@ function _template() {
                 <span class="gfy-checklist-label">Knowledge graph built</span>
                 <span class="gfy-checklist-meta"></span>
               </div>
+            </div>
+            <div class="gfy-wizard-start-row">
+              <button class="gfy-start-btn" style="display:none">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l12 7-12 7V3z"/></svg>
+                <span>Start Server</span>
+              </button>
+              <span class="gfy-wizard-start-hint">Launch the code intelligence server to query, explore, and visualize your knowledge graph.</span>
             </div>
           </div>
 

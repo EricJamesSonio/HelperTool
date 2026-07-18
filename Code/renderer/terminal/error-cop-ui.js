@@ -1068,7 +1068,7 @@ export default class ErrorCopUI {
   async _handleCheatsheet() {
     const repoPath = window.__activeRepoPath;
     if (!repoPath) return;
-    const csPath = (repoPath + '/graphify/prompts/errorcop-cheatsheet.md').replace(/\\/g, '/');
+    const csPath = (repoPath + '/MCP/errorCop/errorcop-cheatsheet.md').replace(/\\/g, '/');
     try {
       const result = await window.electronAPI.readFile(csPath);
       if (result && result.success && result.content) {

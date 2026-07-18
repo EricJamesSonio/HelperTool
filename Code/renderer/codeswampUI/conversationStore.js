@@ -77,6 +77,8 @@ export const convStore = {
     const idx = arr.findIndex(c => c.id === convId);
     if (idx >= 0) {
       arr[idx].date = new Date().toISOString();
+      const item = arr.splice(idx, 1)[0];
+      arr.unshift(item);
       this._save(repoPath);
     }
   },
@@ -84,11 +86,11 @@ export const convStore = {
   mergeConversations(repoPath, convs) {
     if (!repoPath || !convs) return;
     const arr = this._load(repoPath);
-    const seen = new Set(arr.map(c => c.id));
+    const idxMap = new Map(arr.map((c, i) => [c.id, i]));
     for (const conv of convs) {
       if (!conv || !conv.id) continue;
-      if (seen.has(conv.id)) {
-        const idx = arr.findIndex(c => c.id === conv.id);
+      const idx = idxMap.get(conv.id);
+      if (idx !== undefined) {
         const local = arr[idx];
         if (local && local.customTitle) {
           const { title, ...rest } = conv;
@@ -97,8 +99,8 @@ export const convStore = {
           arr[idx] = { ...arr[idx], ...conv };
         }
       } else {
+        idxMap.set(conv.id, arr.length);
         arr.push({ ...conv });
-        seen.add(conv.id);
       }
     }
     arr.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));

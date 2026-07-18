@@ -246,21 +246,21 @@ export async function startNewChat() {
   if (state.parallelMode) {
     const freeSlot = getFreeSlot();
     if (freeSlot >= 0) {
+      state.activeConvId[repoPath] = null;
       state.activeSlotIndex = freeSlot;
       state.slotData[freeSlot] = { repoPath, convId: null };
       await openTerminalForRepo(repoPath, freeSlot);
     } else {
-      const slotIndex = state.activeSlotIndex;
-      clearTerminalLoading(slotIndex);
-      writeToSlot(slotIndex, '/exit\n');
-      await waitForShellPrompt(repoPath, slotIndex);
-      const provider = getProvider(state.selectedProvider);
-      const binaryPath = state.opencodePath || provider.bin;
-      markTerminalLoading(slotIndex);
-      writeToSlot(slotIndex, provider.newChatCmd(binaryPath));
-      setTimeout(() => clearTerminalLoading(slotIndex), 8000);
+      const picked = await showReplaceDialog();
+      if (picked === null) {
+        renderConvList();
+        return;
+      }
+      killSlot(picked);
       state.activeConvId[repoPath] = null;
-      state.slotData[slotIndex] = { repoPath, convId: null };
+      state.activeSlotIndex = picked;
+      state.slotData[picked] = { repoPath, convId: null };
+      await openTerminalForRepo(repoPath, picked);
     }
     await refreshSidebar();
     renderConvList();
