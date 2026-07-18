@@ -23,6 +23,20 @@ class Deduplicator {
     return { isNew: true, fingerprint: fp, occurrences: 1, firstSeen: now, lastSeen: now };
   }
 
+  seed(records) {
+    if (!records || !records.length) return;
+    for (var i = 0; i < records.length; i++) {
+      var r = records[i];
+      if (r.fingerprint) {
+        this._active.set(r.fingerprint, {
+          occurrences: r.occurrences || 1,
+          firstSeen: r.first_seen || r.firstSeen || new Date().toISOString(),
+          lastSeen: r.last_seen || r.lastSeen || new Date().toISOString(),
+        });
+      }
+    }
+  }
+
   clear() {
     this._active.clear();
   }

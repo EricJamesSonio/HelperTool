@@ -119,6 +119,13 @@ class ErrorStorage {
     return res[0].values.map(r => _rowToObj(res[0], r));
   }
 
+  getErrorById(id) {
+    const db = getErrorCopDb();
+    const res = db.exec('SELECT * FROM errors WHERE id = ?', [id]);
+    if (!res.length || !res[0].values.length) return null;
+    return _rowToObj(res[0], res[0].values[0]);
+  }
+
   getErrors({ project, level, limit = 50, offset = 0, startDate, endDate } = {}) {
     const db = getErrorCopDb();
     let sql = 'SELECT * FROM errors WHERE 1=1';
@@ -134,12 +141,65 @@ class ErrorStorage {
     return res[0].values.map(r => _rowToObj(res[0], r));
   }
 
+  countErrors({ project, level, startDate, endDate } = {}) {
+    const db = getErrorCopDb();
+    let sql = 'SELECT COUNT(*) as cnt FROM errors WHERE 1=1';
+    const params = [];
+    if (project) { sql += ' AND project = ?'; params.push(project); }
+    if (level) { sql += ' AND level = ?'; params.push(level); }
+    const dateFilter = _applyDateRange(sql, params, startDate, endDate);
+    sql = dateFilter.sql;
+    const res = db.exec(sql, params);
+    if (!res.length || !res[0].values.length) return 0;
+    return res[0].values[0][0];
+  }
+
+  getSummary({ limit = 10 } = {}) {
+    const db = getErrorCopDb();
+
+    const freqRes = db.exec(
+      `SELECT fingerprint, level, title, message, stack,
+              COUNT(*) as occurrences,
+              MIN(timestamp) as first_seen,
+              MAX(timestamp) as last_seen,
+              MAX(id) as id,
+              MAX(session_id) as session_id,
+              MAX(project) as project
+       FROM errors
+       WHERE fingerprint IS NOT NULL AND fingerprint != ''
+       GROUP BY fingerprint
+       ORDER BY occurrences DESC
+       LIMIT ?`,
+      [limit]
+    );
+    const mostFrequent = freqRes.length && freqRes[0].values.length
+      ? freqRes[0].values.map(r => _rowToObj(freqRes[0], r))
+      : [];
+
+    const typeRes = db.exec(
+      `SELECT level, COUNT(*) as count
+       FROM errors
+       GROUP BY level`
+    );
+    const byType = { error: 0, warning: 0, info: 0 };
+    if (typeRes.length && typeRes[0].values.length) {
+      typeRes[0].values.forEach(function (r) {
+        const obj = {};
+        typeRes[0].columns.forEach(function (col, i) { obj[col] = r[i]; });
+        if (byType[obj.level] !== undefined) byType[obj.level] = obj.count;
+      });
+    }
+
+    return { mostFrequent, byType };
+  }
+
   getTimeline({ project, limit = 100, startDate, endDate } = {}) {
     const db = getErrorCopDb();
     let sql = `SELECT e.id, e.timestamp, e.level, e.title, e.message, e.occurrences,
-                      e.session_id, COALESCE(e.project, s.project) as project, s.command, s.label
-               FROM errors e
-               LEFT JOIN sessions s ON s.id = e.session_id
+                       e.session_id, COALESCE(e.project, s.project) as project, s.command, s.label,
+                       e.stack
+                FROM errors e
+                LEFT JOIN sessions s ON s.id = e.session_id
                WHERE 1=1`;
     const params = [];
     if (project) { sql += ' AND (e.project = ? OR s.project = ?)'; params.push(project, project); }
@@ -167,6 +227,20 @@ class ErrorStorage {
     );
     if (!res.length) return 0;
     return res[0].values[0][0];
+  }
+
+  getActiveFingerprints(project) {
+    const db = getErrorCopDb();
+    const res = db.exec(
+      `SELECT fingerprint, MAX(occurrences) as occurrences,
+              MIN(first_seen) as first_seen, MAX(last_seen) as last_seen
+       FROM errors
+       WHERE project = ? AND fingerprint IS NOT NULL AND fingerprint != ''
+       GROUP BY fingerprint`,
+      [project || '']
+    );
+    if (!res.length) return [];
+    return res[0].values.map(r => _rowToObj(res[0], r));
   }
 
   // ── Occurrences ──

@@ -25,6 +25,14 @@ class ErrorDetector {
     this._sessionId = sessionId;
     this._project = project || '';
     this._dedup.clear();
+    try {
+      const existing = this._storage.getActiveFingerprints(this._project);
+      if (existing && existing.length) {
+        this._dedup.seed(existing);
+      }
+    } catch (e) {
+      console.error('[ErrorCop] Failed to seed dedup:', e.message);
+    }
     this._browserDiscovery.reset();
     this._outputAccumulator = [];
     this._errorBlock = null;

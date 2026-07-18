@@ -46,11 +46,13 @@ You are an AI assistant with access to a runtime error monitoring system.
 |---|---|
 | `GET /health` | Server health check with uptime |
 | `GET /endpoints` | This list of available endpoints |
-| `GET /errors/latest` | Latest 10 errors |
-| `GET /errors` | Query errors by level, limit, offset, date range |
+| `GET /errors/latest` | Latest 10 errors (paginated shape: { data, pagination }) |
+| `GET /errors` | Query errors by level, limit, offset, date range (paginated) |
 | `GET /errors/session/:id` | Errors for a specific terminal session |
 | `GET /errors/summary` | AI-optimized summary with recent, mostFrequent, byType |
 | `GET /errors/unread-count` | Count of new/unread errors |
+| `GET /errors/:id` | Single error detail with stack and occurrence lines |
+| `GET /errors/mark-read` | Reset unread error count to 0 |
 | `GET /sessions` | Terminal sessions list |
 | `GET /timeline` | Chronological timeline of errors and events |
 
@@ -59,28 +61,38 @@ You are an AI assistant with access to a runtime error monitoring system.
 ### `GET /errors/latest` ← PRIMARY ENTRY POINT
 
 Start here after confirming there are unread errors. Returns the 10 most recent
-errors with file/line info extracted from stack traces.
+errors with file/line, sessionId, and project info.
 
 ```
 GET /errors/latest
 ```
 
 ```json
-[
-  {
-    "id": 42,
-    "type": "error",
-    "message": "TypeError: Cannot read properties of undefined (reading 'map')",
-    "file": "/src/components/TaskList.tsx",
-    "line": 153,
-    "timestamp": 1734567890000,
-    "occurrences": 3
+{
+  "data": [
+    {
+      "id": 42,
+      "sessionId": 3,
+      "project": "my-app",
+      "type": "error",
+      "message": "TypeError: Cannot read properties of undefined (reading 'map')",
+      "file": "/src/components/TaskList.tsx",
+      "line": 153,
+      "timestamp": 1734567890000,
+      "occurrences": 3
+    }
+  ],
+  "pagination": {
+    "total": 15,
+    "hasMore": true,
+    "limit": 10,
+    "offset": 0
   }
-]
+}
 ```
 
 The `file` and `line` fields are extracted from stack traces when available.
-Use them to jump directly to the failing code.
+The `sessionId` links to the terminal session that produced the error.
 
 ---
 
@@ -102,7 +114,35 @@ GET /errors?startDate=2026-07-16T00:00:00Z&endDate=2026-07-17T00:00:00Z
 | `startDate` | string | ISO date — start of range |
 | `endDate` | string | ISO date — end of range |
 
-Response is the same array format as `/errors/latest`.
+Response shape:
+
+```json
+{
+  "data": [
+    {
+      "id": 42,
+      "sessionId": 3,
+      "project": "my-app",
+      "type": "error",
+      "message": "...",
+      "file": "/src/foo.ts",
+      "line": 42,
+      "timestamp": 1734567890000,
+      "occurrences": 1
+    }
+  ],
+  "pagination": {
+    "total": 100,
+    "hasMore": true,
+    "limit": 5,
+    "offset": 0
+  }
+}
+```
+
+Use `pagination.hasMore` to know if there are additional results beyond the
+current page. If `hasMore` is true, increment `offset` by `limit` and call
+again.
 
 ---
 
@@ -115,14 +155,58 @@ session ID via `GET /sessions`.
 GET /errors/session/3
 ```
 
-Returns all errors from that session, oldest first. Same format as above.
+Returns all errors from that session, oldest first. Each entry follows the
+same shape as `/errors/latest` entries (includes `sessionId`, `project`).
+Returns a bare array (no pagination wrapper).
+
+---
+
+### `GET /errors/:id` — Single error detail
+
+Get the full details of a specific error, including the raw stack trace
+and all occurrence lines.
+
+```
+GET /errors/42
+```
+
+```json
+{
+  "id": 42,
+  "sessionId": 3,
+  "project": "my-app",
+  "type": "error",
+  "source": "terminal",
+  "title": "TypeError",
+  "message": "TypeError: Cannot read properties of undefined",
+  "stack": "TypeError: Cannot read properties of undefined\n    at render (/src/App.tsx:42:10)",
+  "file": "/src/App.tsx",
+  "line": 42,
+  "timestamp": 1734567890000,
+  "occurrences": 5,
+  "occurrenceLines": [
+    {
+      "timestamp": 1734567890000,
+      "message": "TypeError: Cannot read properties of undefined",
+      "level": "error"
+    }
+  ],
+  "firstSeen": 1734567890000,
+  "lastSeen": 1734567895000,
+  "fingerprint": "a1b2c3d4e5f6...",
+  "resolved": false
+}
+```
+
+Returns 404 if the error ID does not exist.
 
 ---
 
 ### `GET /errors/summary` — AI-optimized overview
 
 A single call that gives you the full picture: recent errors, most frequent
-recurring errors, and counts by severity.
+recurring errors (aggregated across all sessions by fingerprint), and counts
+by severity.
 
 ```
 GET /errors/summary
@@ -133,6 +217,8 @@ GET /errors/summary
   "recent": [
     {
       "id": 45,
+      "sessionId": 3,
+      "project": "my-app",
       "type": "error",
       "message": "TypeError: Cannot read properties of undefined",
       "file": "/src/app.tsx",
@@ -144,6 +230,8 @@ GET /errors/summary
   "mostFrequent": [
     {
       "id": 45,
+      "sessionId": 3,
+      "project": "my-app",
       "type": "error",
       "message": "TypeError: Cannot read properties of undefined",
       "file": "/src/app.tsx",
@@ -160,8 +248,44 @@ GET /errors/summary
 }
 ```
 
-Use this to quickly identify the most impactful errors (high `occurrences`)
-and decide what to fix first.
+The `mostFrequent` list is computed by SQL GROUP BY fingerprint across all
+errors, so it reflects true recurrence rather than just the last 20.
+
+---
+
+### `GET /errors/unread-count` — Quick health check
+
+The cheapest call. Use this first to decide if you need to investigate
+further.
+
+```
+GET /errors/unread-count
+```
+
+```json
+{
+  "count": 5
+}
+```
+
+If `count > 0`, escalate to `GET /errors/latest` or `GET /errors/summary`.
+
+---
+
+### `GET /errors/mark-read` — Reset unread count
+
+Resets the unread error counter to 0. Call this after the AI has inspected
+all new errors so that subsequent health checks reflect only new issues.
+
+```
+GET /errors/mark-read
+```
+
+```json
+{
+  "success": true
+}
+```
 
 ---
 
@@ -198,6 +322,7 @@ relevant for debugging.
 ### `GET /timeline` — Chronological event feed
 
 Shows errors in time order so you can understand the sequence of failures.
+Each entry now includes `file`, `line`, `sessionId`, and `project` context.
 
 ```
 GET /timeline?limit=10
@@ -211,7 +336,10 @@ GET /timeline?limit=10
     "title": "Build Failed",
     "message": "Failed to compile. Check terminal for details.",
     "level": "error",
+    "file": "/src/App.tsx",
+    "line": 42,
     "sessionId": 3,
+    "project": "my-app",
     "command": "npm run build",
     "occurrences": 1
   }
@@ -219,27 +347,9 @@ GET /timeline?limit=10
 ```
 
 Each entry includes the session's command so you can trace which operation
-triggered the error. Use this when debugging multi-step build or deploy
+triggered the error. The `file` and `line` fields let you jump directly to
+the failing code. Use this when debugging multi-step build or deploy
 processes.
-
----
-
-### `GET /errors/unread-count` — Quick health check
-
-The cheapest call. Use this first to decide if you need to investigate
-further.
-
-```
-GET /errors/unread-count
-```
-
-```json
-{
-  "count": 5
-}
-```
-
-If `count > 0`, escalate to `GET /errors/latest` or `GET /errors/summary`.
 
 ---
 
@@ -254,7 +364,8 @@ If `count > 0`, escalate to `GET /errors/latest` or `GET /errors/summary`.
 2. GET /errors/latest
    → see the most recent errors with file/line
 3. Read the failing files from disk
-4. Answer based on the actual errors
+4. GET /errors/mark-read to reset the counter
+5. Answer based on the actual errors
 ```
 
 ### Pattern B: "Deep investigation"
@@ -262,12 +373,14 @@ If `count > 0`, escalate to `GET /errors/latest` or `GET /errors/summary`.
 ```
 1. GET /errors/summary
    → see most frequent errors + breakdown by type
-2. GET /errors/session/:id for the session with the most errors
+2. GET /errors/:id for the highest-occurrence error
+   → get full stack trace and all occurrence lines
+3. GET /errors/session/:id for the session with the most errors
    → see every error from that run in order
-3. GET /timeline?limit=20
+4. GET /timeline?limit=20
    → understand the sequence of failures
-4. Read the failing files from disk
-5. Answer with root cause + affected files
+5. Read the failing files from disk
+6. Answer with root cause + affected files
 ```
 
 ### Pattern C: "Session-first investigation"
