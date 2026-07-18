@@ -2,10 +2,10 @@
 
 ## Objective
 
-You are an AI assistant. Your task is to analyze the provided `symbols.json` file containing the symbol index of a codebase, and produce two output files:
+You are an AI assistant. Your task is to analyze the provided `symbols.json` file containing the symbol index of a codebase, and produce two output files in the repository's `MCP/graphify/graphify-storage/` directory:
 
-1. **`graphify-storage/graph.json`** — A structured knowledge graph with semantic labels
-2. **`graphify-storage/graph.md`** — A human-readable markdown report
+1. **`graph.json`** — A structured knowledge graph with semantic labels
+2. **`graph.md`** — A human-readable markdown report
 
 ## Input: `symbols.json`
 
@@ -195,7 +195,7 @@ Cross-feature or unexpected relationships detected.
 
 ## Output
 
-Write two files in the repository at `<repo-root>/graphify-storage/`:
+Write two files in the repository at `<repo-root>/MCP/graphify/graphify-storage/`:
 
-1. `<repo-root>/graphify-storage/graph.json` — the structured graph
-2. `<repo-root>/graphify-storage/graph.md` — the human-readable report
+1. `<repo-root>/MCP/graphify/graphify-storage/graph.json` — the structured graph
+2. `<repo-root>/MCP/graphify/graphify-storage/graph.md` — the human-readable report

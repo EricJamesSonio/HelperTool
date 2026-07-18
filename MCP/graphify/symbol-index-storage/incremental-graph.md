@@ -44,12 +44,12 @@ Read the actual source code from disk for the changed files listed below, then:
 
 Write the updated `graph.json` to:
 ```
-C:\Users\Windows 10\Desktop\Personal\Tools\HelperTool\graphify\graphify-storage\graph.json
+C:\Users\Windows 10\Desktop\Personal\Tools\HelperTool\MCP\graphify\graphify-storage\graph.json
 ```
 
 Write the updated report to:
 ```
-C:\Users\Windows 10\Desktop\Personal\Tools\HelperTool\graphify\graphify-storage\graph.md
+C:\Users\Windows 10\Desktop\Personal\Tools\HelperTool\MCP\graphify\graphify-storage\graph.md
 ```
 
 > IMPORTANT: Output the COMPLETE `graph.json` with ALL nodes and edges — not just the changed ones. The unchanged nodes/edges must be preserved exactly as they were.
