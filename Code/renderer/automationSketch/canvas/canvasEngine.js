@@ -30,18 +30,34 @@ export default class CanvasEngine {
     this._resizeObserver.observe(this.canvas);
   }
 
-  markDirty() { this._dirty = true; }
+  markDirty() {
+    if (!this._dirty) {
+      this._dirty = true;
+      this._scheduleFrame();
+    }
+  }
+
+  _scheduleFrame() {
+    if (this._rafId) return;
+    this._rafId = requestAnimationFrame(() => {
+      this._rafId = null;
+      if (this._dirty) {
+        this._render();
+        this._dirty = false;
+      }
+      if (this._dirty) this._scheduleFrame();
+    });
+  }
 
   start() {
-    const loop = () => {
-      if (this._dirty) { this._render(); this._dirty = false; }
-      this._rafId = requestAnimationFrame(loop);
-    };
-    this._rafId = requestAnimationFrame(loop);
+    this._scheduleFrame();
   }
 
   stop() {
-    if (this._rafId) cancelAnimationFrame(this._rafId);
+    if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
     if (this._resizeObserver) this._resizeObserver.disconnect();
   }
 

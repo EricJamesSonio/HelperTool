@@ -21,11 +21,11 @@ export async function fetchEndpoints(port = 3333) {
 }
 
 export async function queryGraphify(query, repoPath = null, port = 3333) {
-  const res = await fetch(`${_base(port)}/graph/relevant-code`, {
+  const res = await _fetchWithTimeout(`${_base(port)}/graph/relevant-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, repoPath }),
-  });
+  }, 30000);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || `HTTP ${res.status}`);
@@ -56,7 +56,7 @@ export async function fetchInfo(port = 3333) {
 
 export async function fetchGraphData(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/graph/data`);
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/data`, {}, 30000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -66,7 +66,7 @@ export async function fetchGraphData(port = 3333) {
 
 export async function fetchGraphReport(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/graph/report`);
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/report`, {}, 30000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -76,7 +76,7 @@ export async function fetchGraphReport(port = 3333) {
 
 export async function fetchGraphCommunities(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/graph/communities`);
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/communities`, {}, 30000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -86,7 +86,7 @@ export async function fetchGraphCommunities(port = 3333) {
 
 export async function fetchGraphStats(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/graph/stats`);
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/stats`, {}, 30000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -96,11 +96,11 @@ export async function fetchGraphStats(port = 3333) {
 
 export async function searchGraphNodes(query, port = 3333, limit = 20) {
   try {
-    const res = await fetch(`${_base(port)}/graph/search`, {
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, limit }),
-    });
+    }, 15000);
     if (!res.ok) return [];
     const data = await res.json();
     return data.results || [];
@@ -111,11 +111,11 @@ export async function searchGraphNodes(query, port = 3333, limit = 20) {
 
 export async function getGraphNeighborhood(nodeId, port = 3333, depth = 1) {
   try {
-    const res = await fetch(`${_base(port)}/graph/neighborhood`, {
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/neighborhood`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodeId, depth }),
-    });
+    }, 15000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -125,11 +125,11 @@ export async function getGraphNeighborhood(nodeId, port = 3333, depth = 1) {
 
 export async function getGraphShortestPath(from, to, port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/graph/shortest-path`, {
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/shortest-path`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from, to }),
-    });
+    }, 15000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -139,11 +139,11 @@ export async function getGraphShortestPath(from, to, port = 3333) {
 
 export async function getGraphAffected(nodeId, port = 3333, depth = 1) {
   try {
-    const res = await fetch(`${_base(port)}/graph/affected`, {
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/affected`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodeId, depth }),
-    });
+    }, 15000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -155,7 +155,7 @@ export async function getGraphAffected(nodeId, port = 3333, depth = 1) {
 
 export async function exportSymbolIndex(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/export/all`, { method: 'POST' });
+    const res = await _fetchWithTimeout(`${_base(port)}/export/all`, { method: 'POST' }, 30000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -165,7 +165,7 @@ export async function exportSymbolIndex(port = 3333) {
 
 export async function generateAIPrompt(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/export/prompt`, { method: 'POST' });
+    const res = await _fetchWithTimeout(`${_base(port)}/export/prompt`, { method: 'POST' }, 30000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -180,7 +180,7 @@ export async function testEndpoint(method, path, port = 3333) {
   if (method === 'POST') options.body = '{}';
   let res;
   try {
-    res = await fetch(url, options);
+    res = await _fetchWithTimeout(url, options, 15000);
   } catch (err) {
     return { data: null, statusCode: 0, elapsed: Date.now() - startTime, error: err.message };
   }
@@ -197,7 +197,7 @@ export async function testEndpoint(method, path, port = 3333) {
 
 export async function loadGraphFromStorage(port = 3333) {
   try {
-    const res = await fetch(`${_base(port)}/graph/from-storage`);
+    const res = await _fetchWithTimeout(`${_base(port)}/graph/from-storage`, {}, 15000);
     if (!res.ok) return null;
     return await res.json();
   } catch {
