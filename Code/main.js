@@ -170,6 +170,7 @@ function registerAllIpc() {
       safeRegister('blueprintLibrary',() => require('./ipc/blueprintLibrary/index.js').register());
       safeRegister('profile',         () => require('./ipc/profile.js').register(shared));
       safeRegister('env_ipc',         () => require('./ipc/env_ipc.js').register());
+      safeRegister('codebaseManager', () => require('./ipc/codebaseManager_ipc.js').register());
       safeRegister('video_ipc',       () => require('./ipc/video_ipc.js').register(shared));
       safeRegister('image_ipc',       () => require('./ipc/image_ipc.js').register(shared));
       safeRegister('automation_ipc',  () => require('./ipc/automation_ipc.js').register());

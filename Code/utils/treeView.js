@@ -12,7 +12,7 @@ const countFiles = (node) => {
 
 const normPath = (p) => p.replace(/\\/g, '/');
 
-export function renderTree(treeData, container, selectedItems, actionType, onToggle, viewMode = 'list') {
+export function renderTree(treeData, container, selectedItems, actionType, onToggle, viewMode = 'list', onDoubleClick, onMoveRequest) {
     container.innerHTML = '';
     container.classList.remove('mode-list', 'mode-tree');
     container.classList.add(viewMode === 'tree' ? 'mode-tree' : 'mode-list');
@@ -22,9 +22,9 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
     }
 
     if (viewMode === 'tree') {
-        _renderTreeMode(treeData, container, selectedItems, actionType, onToggle);
+        _renderTreeMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest);
     } else {
-        _renderListMode(treeData, container, selectedItems, actionType, onToggle);
+        _renderListMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest);
     }
 
     container._treeClickHandler = (e) => {
@@ -38,6 +38,16 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         const node = { path: nodePath, type: nodeType, name: wrapper.dataset.nodeName };
 
         if (nodeType === 'file') {
+            const now = Date.now();
+            const samePath = container._lastClickPath === nodePath;
+            const fastClick = samePath && (now - (container._lastClickTime || 0)) < 2000;
+            container._lastClickPath = nodePath;
+            container._lastClickTime = now;
+            if (fastClick) {
+                e.preventDefault();
+                onDoubleClick?.(nodePath, wrapper.dataset.nodeName);
+                return;
+            }
             _togglePath(selectedItems, nodePath);
         } else if (actionType === 'code') {
             const filePaths = [...wrapper.querySelectorAll('.tree-node.file')]
@@ -92,7 +102,7 @@ function _updateHighlightsForPaths(container, selectedItems, actionType) {
    LIST MODE
    ============================================================ */
 
-function _renderListMode(treeData, container, selectedItems, actionType, onToggle) {
+function _renderListMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest) {
     _presortTree(treeData);
 
     if (!window._expandedFolders) window._expandedFolders = new Map();
@@ -128,6 +138,18 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
             label += ' [ALL]';
         }
         el.textContent = label;
+        if (node.type === 'file') {
+            const moveBtn = document.createElement('button');
+            moveBtn.className = 'cm-move-btn';
+            moveBtn.title = 'Move file';
+            moveBtn.textContent = '↗';
+            moveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onMoveRequest?.(normPath(node.path), wrapper);
+            });
+            el.appendChild(moveBtn);
+        }
         wrapper.appendChild(el);
 
         if (node.type === 'folder' && node.children?.length) {
@@ -157,7 +179,7 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
    TREE MODE
    ============================================================ */
 
-function _renderTreeMode(treeData, container, selectedItems, actionType, onToggle) {
+function _renderTreeMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest) {
     _presortTree(treeData);
 
     function createNode(node, depth = 0) {
@@ -188,6 +210,18 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
             label += ' [ALL]';
         }
         el.textContent = label;
+        if (node.type === 'file') {
+            const moveBtn = document.createElement('button');
+            moveBtn.className = 'cm-move-btn';
+            moveBtn.title = 'Move file';
+            moveBtn.textContent = '↗';
+            moveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onMoveRequest?.(normPath(node.path), wrapper);
+            });
+            el.appendChild(moveBtn);
+        }
         wrapper.appendChild(el);
 
         if (node.type === 'folder' && node.children?.length) {

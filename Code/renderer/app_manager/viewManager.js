@@ -9,6 +9,7 @@ import { selectSearchItem, clearFlatListCache } from '../searchManager.js';
 import { state }       from './appState.js';
 import * as fileSeederTool from '../fileSeederTool.js';
 import * as locDetector from '../locDetector.js';
+import { openRenameModal, startMoveGhost } from '../codebaseManager.js';
 
 const viewModeBtn = document.getElementById('viewModeBtn');
 const rootJumper  = document.getElementById('rootJumper');
@@ -205,7 +206,9 @@ export function displayTree(resetScroll = true) {
         state.selectedItems,
         state.actionType,
         onTreeSelectionChange,
-        state.viewMode
+        state.viewMode,
+        onDoubleClick,
+        onMoveRequest
     );
     if (resetScroll) {
         treeContainer.scrollTo(0, 0);
@@ -220,6 +223,20 @@ export function setSelectionChangeHandler(fn) { _onSelectionChange = fn; }
 
 function onTreeSelectionChange() {
     _onSelectionChange?.();
+}
+
+function onDoubleClick(filePath, fileName) {
+    if (!filePath) return;
+    openRenameModal(filePath, fileName, () => {
+        if (state.cachedTree) displayTree(false);
+    });
+}
+
+function onMoveRequest(filePath, nodeElement) {
+    if (!filePath) return;
+    startMoveGhost(filePath, treeContainer, () => {
+        if (state.cachedTree) displayTree(false);
+    });
 }
 
 export function renderRootJumper(tree) {

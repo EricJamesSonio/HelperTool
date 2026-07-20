@@ -1,0 +1,154 @@
+/* ── Rename/Delete Modal ── */
+
+.cm-modal-overlay {
+  z-index: 100001;
+}
+
+.cm-modal {
+  max-width: 600px;
+  width: 90%;
+}
+
+.cm-file-path {
+  font-size: 11px;
+  color: var(--text-muted, #8b949e);
+  margin-bottom: 10px;
+  word-break: break-all;
+  padding: 4px 8px;
+  background: var(--bg-raised, #161b22);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  line-height: 1.4;
+}
+
+.cm-field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #eef2ff);
+  margin-bottom: 4px;
+}
+
+.cm-rename-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 5px;
+  background: var(--bg-raised, #1a2540);
+  color: var(--text-primary, #eef2ff);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.cm-rename-input:focus {
+  border-color: var(--accent, #22d3ee);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.15);
+}
+
+.cm-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+}
+
+.cm-delete-btn {
+  background: var(--red-dim, rgba(248,81,73,0.12)) !important;
+  color: var(--red, #f87171) !important;
+  border: 1px solid rgba(248,81,73,0.2) !important;
+}
+
+.cm-delete-btn:hover {
+  background: rgba(248,81,73,0.2) !important;
+}
+
+.cm-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Move button ── */
+
+.cm-move-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 4px;
+  background: var(--bg-raised, #1a2540);
+  color: var(--text-secondary, #94a3c4);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 5;
+  opacity: 0.55;
+  transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.tree-node.file {
+  position: relative;
+}
+
+.tree-node.file:hover .cm-move-btn,
+.cm-move-btn {
+  display: block;
+}
+
+.cm-move-btn:hover {
+  opacity: 1;
+  background: var(--accent-dim, rgba(34,211,238,0.12));
+  color: var(--accent, #22d3ee);
+  border-color: rgba(34,211,238,0.25);
+}
+
+/* ── Move ghost ── */
+
+.cm-ghost {
+  position: fixed;
+  z-index: 999999;
+  pointer-events: none;
+  padding: 4px 10px;
+  background: var(--bg-surface, #0c1427);
+  border: 1px solid var(--accent, #22d3ee);
+  border-radius: 6px;
+  color: var(--accent, #22d3ee);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  opacity: 0.85;
+}
+
+/* ── Path preview ── */
+
+.cm-path-preview {
+  position: fixed;
+  z-index: 999999;
+  pointer-events: none;
+  padding: 3px 8px;
+  background: var(--bg-raised, #1a2540);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+  border-radius: 4px;
+  color: var(--text-secondary, #94a3c4);
+  font-size: 11px;
+  white-space: nowrap;
+  display: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+/* ── Drop target highlight ── */
+
+.node-wrapper.cm-drop-target > .tree-node.folder {
+  background: var(--accent-dim, rgba(34,211,238,0.12)) !important;
+  border-color: var(--accent, #22d3ee) !important;
+  box-shadow: 0 0 0 1px var(--accent, #22d3ee);
+}

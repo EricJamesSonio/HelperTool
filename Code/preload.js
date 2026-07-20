@@ -388,11 +388,18 @@ const dockerBridge = {
 };
 
 const envBridge = {
-    listFiles:  (repoPath)              => ipcRenderer.invoke('env:listFiles', { repoPath }),
-    readFile:   (repoPath, fileName)    => ipcRenderer.invoke('env:readFile', { repoPath, fileName }),
-    saveFile:   (repoPath, fileName, entries) => ipcRenderer.invoke('env:saveFile', { repoPath, fileName, entries }),
-    createFile: (repoPath, fileName)    => ipcRenderer.invoke('env:createFile', { repoPath, fileName }),
-    deleteFile: (repoPath, fileName)    => ipcRenderer.invoke('env:deleteFile', { repoPath, fileName }),
+    listFiles:           (repoPath)              => ipcRenderer.invoke('env:listFiles', { repoPath }),
+    listFilesByPattern:  (repoPath, pattern)     => ipcRenderer.invoke('env:listFilesByPattern', { repoPath, pattern }),
+    readFile:            (repoPath, fileName)    => ipcRenderer.invoke('env:readFile', { repoPath, fileName }),
+    saveFile:            (repoPath, fileName, entries) => ipcRenderer.invoke('env:saveFile', { repoPath, fileName, entries }),
+    createFile:          (repoPath, fileName)    => ipcRenderer.invoke('env:createFile', { repoPath, fileName }),
+    deleteFile:          (repoPath, fileName)    => ipcRenderer.invoke('env:deleteFile', { repoPath, fileName }),
+};
+
+const codebaseManagerBridge = {
+    renameFile: (filePath, newName) => ipcRenderer.invoke('cm:renameFile', { filePath, newName }),
+    deleteFile: (filePath)          => ipcRenderer.invoke('cm:deleteFile',  { filePath }),
+    moveFile:   (sourcePath, targetDir) => ipcRenderer.invoke('cm:moveFile', { sourcePath, targetDir }),
 };
 
 const imageBridge = {
@@ -618,6 +625,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...codebaseMapBridge,
     ...graphifyBridge,
     ...automationBridge,
+    ...codebaseManagerBridge,
     ...imageBridge,
     ...videoBridge,
     ...gmailBridge,

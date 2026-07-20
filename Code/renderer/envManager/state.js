@@ -1,14 +1,7 @@
 export const state = {
   open: false,
   repoPath: null,
-  files: [],
-  activeFile: null,
-  entries: [],
-  dirty: false,
-  creating: false,
-  loading: false,
-  error: null,
-  searchQuery: '',
+  sections: [],
 };
 
 export function setState(patch) {

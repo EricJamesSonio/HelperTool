@@ -7,19 +7,23 @@ export function getModalShell() {
           <span class="env-header-title">ENV Manager</span>
           <span class="env-header-repo" id="envHeaderRepo"></span>
           <div class="env-header-spacer"></div>
+          <button class="env-btn env-add-section-btn" id="envHeaderAddBtn">+ Add Section</button>
           <button class="env-btn env-btn-close" id="envCloseBtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg> Close</button>
         </div>
-        <div class="env-body">
-          <div class="env-left" id="envLeft">
-            <div class="env-left-header">ENV FILES</div>
-            <div class="env-file-list" id="envFileList"></div>
-            <div class="env-left-actions">
-              <button class="env-btn env-btn-primary env-btn-sm" id="envNewFileBtn">+ New Env File</button>
+        <div class="env-body" id="envBody">
+          <div class="env-panels" id="envPanels"></div>
+        </div>
+        <div class="env-add-section" id="envAddSection" style="display:none">
+          <div class="env-add-section-overlay" id="envAddSectionOverlay"></div>
+          <div class="env-add-section-card">
+            <div class="env-add-section-title">Add Section</div>
+            <div class="env-add-section-desc">Enter a file pattern to track (e.g. <code>.gitignore</code>, <code>Dockerfile*</code>)</div>
+            <input class="env-add-section-input" id="envAddSectionInput" placeholder="e.g. .gitignore" spellcheck="false">
+            <div class="env-add-section-error" id="envAddSectionError"></div>
+            <div class="env-add-section-actions">
+              <button class="env-btn env-btn-primary env-btn-sm" id="envAddSectionConfirm">Add</button>
+              <button class="env-btn env-btn-sm" id="envAddSectionCancel">Cancel</button>
             </div>
-          </div>
-          <div class="env-right" id="envRight">
-            <div class="env-empty" id="envRightEmpty">Select an env file to edit</div>
-            <div class="env-editor" id="envEditor" style="display:none"></div>
           </div>
         </div>
       </div>

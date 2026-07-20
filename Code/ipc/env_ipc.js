@@ -35,6 +35,15 @@ function isEnvFile(name) {
   return false;
 }
 
+function matchesPattern(name, pattern) {
+  if (name === pattern) return true;
+  if (pattern.includes('*')) {
+    const reStr = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    try { return new RegExp('^' + reStr + '$').test(name); } catch { return false; }
+  }
+  return name.startsWith(pattern);
+}
+
 function sortFiles(files) {
   return files.sort((a, b) => {
     if (a.toLowerCase() === '.env') return -1;
@@ -123,6 +132,22 @@ function register() {
     } catch (err) {
       return { success: false, error: err.message };
     }
+  });
+
+  ipcMain.handle('env:listFilesByPattern', async (_e, { repoPath, pattern }) => {
+    try {
+      if (!repoPath || !pattern) return { success: false, error: 'Missing params' };
+      let entries;
+      try { entries = await fs.promises.readdir(repoPath, { withFileTypes: true }); }
+      catch { return { success: true, files: [] }; }
+      let files = entries.filter(e => e.isFile() && matchesPattern(e.name, pattern)).map(e => e.name);
+      if (files.some(f => f.toLowerCase() === '.env' || f.startsWith('.env.'))) {
+        files = sortFiles(files);
+      } else {
+        files.sort((a, b) => a.localeCompare(b));
+      }
+      return { success: true, files };
+    } catch (err) { return { success: false, error: err.message }; }
   });
 
   ipcMain.handle('env:deleteFile', async (_e, { repoPath, fileName }) => {

@@ -71,6 +71,8 @@ export default class PanelRegistry {
     if (this._portManagerTool?.isPortManagerPanelOpen?.()) this._portManagerTool.closePortManagerPanel();
 
     // Modal overlays
+    const envOverlay = document.getElementById('envOverlay');
+    if (envOverlay) envOverlay.remove();
     const promptModal  = document.getElementById('promptToolModal');
     if (promptModal && promptModal.style.display !== 'none') promptModal.style.display = 'none';
     const cmOverlay  = document.querySelector('.cm-overlay');
