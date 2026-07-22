@@ -1,0 +1,303 @@
+/* ─── Ecosystem Watcher — Modern Amber Theme ─────────────────── */
+
+/* ══ OVERLAY (full-viewport panel, same as graphify) ══ */
+.ew-overlay {
+  position: fixed;
+  inset: 0;
+  top: var(--titlebar-h, 34px);
+  z-index: 89000;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse 45% 55% at 50% 0%, rgba(255, 200, 50, 0.18) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 35% at 85% 95%, rgba(255, 180, 30, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 10% 85%, rgba(255, 180, 30, 0.04) 0%, transparent 55%),
+    linear-gradient(180deg, #0a0806 0%, #0d0a07 40%, #0b0806 70%, #070504 100%);
+  transform: scale(0.97);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  pointer-events: none;
+}
+.ew-overlay.open {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ══ MODAL (fills the overlay) ══ */
+.ew-modal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ══ Background glow signature beam ══ */
+.ew-modal::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  height: 380px;
+  background: linear-gradient(180deg, rgba(255, 200, 50, 0.25) 0%, rgba(255, 180, 30, 0.08) 45%, transparent 80%);
+  filter: blur(18px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ══ HEADER ══ */
+.ew-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(255, 200, 50, 0.10);
+  background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.ew-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #f5f0e8;
+  letter-spacing: 0.3px;
+}
+.ew-title::before {
+  content: '⬡';
+  color: #f0b429;
+  margin-right: 8px;
+  font-size: 1.1rem;
+  display: inline-block;
+}
+.ew-close-btn {
+  background: none;
+  border: none;
+  color: #8a7e6a;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.ew-close-btn:hover {
+  background: rgba(255, 200, 50, 0.10);
+  color: #f0b429;
+}
+
+/* ══ BODY ══ */
+.ew-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  z-index: 1;
+}
+.ew-body::-webkit-scrollbar {
+  width: 5px;
+}
+.ew-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ew-body::-webkit-scrollbar-thumb {
+  background: rgba(240, 180, 41, 0.25);
+  border-radius: 4px;
+}
+.ew-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(240, 180, 41, 0.4);
+}
+
+/* ══ SECTION ══ */
+.ew-section-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #a0927a;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ══ HEALTH GRID ══ */
+.ew-health {
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.ew-health-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 200, 50, 0.08);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.ew-health-label {
+  color: #8a7e6a;
+  font-size: 0.78rem;
+}
+.ew-health-value {
+  color: #f5f0e8;
+  font-weight: 500;
+}
+.ew-health-value.running {
+  color: #f0b429;
+  text-shadow: 0 0 8px rgba(240, 180, 41, 0.4);
+}
+.ew-health-value.stopped {
+  color: #f87171;
+}
+
+/* ══ SESSION LIST ══ */
+.ew-sessions {
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.ew-session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.ew-session-item:hover {
+  background: rgba(255, 200, 50, 0.05);
+  border-color: rgba(255, 200, 50, 0.12);
+  box-shadow: 0 0 16px rgba(240, 180, 41, 0.06);
+}
+.ew-session-item + .ew-session-item {
+  margin-top: 4px;
+}
+.ew-session-id {
+  font-weight: 600;
+  color: #f0b429;
+}
+.ew-session-meta {
+  font-size: 0.74rem;
+  color: #8a7e6a;
+  margin-top: 2px;
+}
+
+/* ══ EVENT ITEMS ══ */
+.ew-detail {
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.ew-event-item {
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 200, 50, 0.06);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.ew-event-item:last-child {
+  border-bottom: none;
+}
+.ew-event-type {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.ew-event-type.log {
+  background: rgba(240, 180, 41, 0.12);
+  color: #f0b429;
+}
+.ew-event-type.error {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+.ew-event-type.request {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+}
+.ew-event-type.process {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}
+.ew-event-type.browser_error {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+.ew-event-type.process_stats {
+  background: rgba(147, 51, 234, 0.12);
+  color: #c084fc;
+}
+.ew-event-msg {
+  flex: 1;
+  word-break: break-word;
+  color: #c4baa8;
+}
+.ew-event-time {
+  font-size: 0.7rem;
+  color: #6a6050;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+/* ══ SUMMARY BOX ══ */
+.ew-summary-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 200, 50, 0.08);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.ew-summary-box .ew-summary-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a0927a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.ew-key-event {
+  color: #f0b429;
+  font-size: 0.8rem;
+  padding: 2px 0;
+}
+
+/* ══ BACK BUTTON ══ */
+.ew-back-btn {
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: 0;
+  background: rgba(240, 180, 41, 0.08);
+  border: 1px solid rgba(240, 180, 41, 0.15);
+  color: #f0b429;
+  padding: 3px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  margin-left: auto;
+  font-family: inherit;
+}
+.ew-back-btn:hover {
+  background: rgba(240, 180, 41, 0.18);
+  border-color: rgba(240, 180, 41, 0.3);
+}
+
+/* ══ EMPTY STATE ══ */
+.ew-empty {
+  color: #6a6050;
+  font-style: italic;
+  padding: 12px 0;
+  text-align: center;
+}
