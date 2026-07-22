@@ -1,21 +1,38 @@
-const generateTask = require('./tasks/generate');
-const locTask = require('./tasks/loc');
-const dbInspectorTask = require('./tasks/dbInspector');
-const gitGraphTask = require('./tasks/gitGraph');
-const profileDataTask = require('./tasks/profileData');
-const teamActivityTask = require('./tasks/teamActivity');
-const portManagerTask = require('./tasks/portManager');
-const gitBranchesTask = require('./tasks/gitBranches');
-const gitOperationsTask = require('./tasks/gitOperations');
-const walkDirTask = require('./tasks/walkDir');
-const folderTreeTask = require('./tasks/folderTree');
-const profileSyncTask = require('./tasks/profileSync');
-const videoCompressTask = require('./tasks/videoCompress');
-const imageToIcoTask = require('./tasks/imageToIco');
-const imageCompressTask = require('./tasks/imageCompress');
-const videoToGifTask = require('./tasks/videoToGif');
-const videoRenderTask = require('./tasks/videoRender');
-const videoPreviewTask = require('./tasks/videoPreview');
+function lazy(mod) {
+  let _mod = null;
+  return (...args) => {
+    if (!_mod) _mod = require(mod);
+    return _mod(...args);
+  };
+}
+
+// Lazy-loading task modules — only require()d on first use
+const tasks = {
+  'loc:scan':       lazy('./tasks/loc'),
+  'gitGraph':       lazy('./tasks/gitGraph'),
+  'profileData':    lazy('./tasks/profileData'),
+  'teamActivity':   lazy('./tasks/teamActivity'),
+  'portManager':    lazy('./tasks/portManager'),
+  'gitBranches':    lazy('./tasks/gitBranches'),
+  'gitOperations':  lazy('./tasks/gitOperations'),
+  'walkDir':        lazy('./tasks/walkDir'),
+  'folderTree':     lazy('./tasks/folderTree'),
+  'profileSync':    lazy('./tasks/profileSync'),
+};
+
+const multiTypeTasks = {
+  db:       lazy('./tasks/dbInspector'),
+};
+
+const progressTasks = {
+  generate:         lazy('./tasks/generate'),
+  'video:compress': lazy('./tasks/videoCompress'),
+  'image:toIco':    lazy('./tasks/imageToIco'),
+  'video:gif':      lazy('./tasks/videoToGif'),
+  'video:render':   lazy('./tasks/videoRender'),
+  'image:compress': lazy('./tasks/imageCompress'),
+  'video:preview':  lazy('./tasks/videoPreview'),
+};
 
 process.send({ id: 'bootstrap', type: 'ready' });
 
@@ -32,83 +49,18 @@ process.on('message', async (msg) => {
   try {
     let result;
 
-    switch (type) {
-      case 'generate':
-        result = await generateTask(payload, onProgress);
-        break;
-
-      case 'loc:scan':
-        result = await locTask(payload);
-        break;
-
-      case 'db:testConnection':
-      case 'db:scan':
-      case 'db:executeQuery':
-        result = await dbInspectorTask(type, payload);
-        break;
-
-      case 'gitGraph':
-        result = await gitGraphTask(payload);
-        break;
-
-      case 'profileData':
-        result = await profileDataTask(payload);
-        break;
-
-      case 'teamActivity':
-        result = await teamActivityTask(payload);
-        break;
-
-      case 'portManager':
-        result = await portManagerTask(payload);
-        break;
-
-      case 'gitBranches':
-        result = await gitBranchesTask(payload);
-        break;
-
-      case 'gitOperations':
-        result = await gitOperationsTask(payload);
-        break;
-
-      case 'walkDir':
-        result = await walkDirTask(payload);
-        break;
-
-      case 'folderTree':
-        result = await folderTreeTask(payload);
-        break;
-
-      case 'profileSync':
-        result = await profileSyncTask(payload);
-        break;
-
-      case 'video:compress':
-        result = await videoCompressTask(payload, onProgress);
-        break;
-
-      case 'image:toIco':
-        result = await imageToIcoTask(payload, onProgress);
-        break;
-
-      case 'video:gif':
-        result = await videoToGifTask(payload, onProgress);
-        break;
-
-      case 'video:render':
-        result = await videoRenderTask(payload, onProgress);
-        break;
-
-      case 'image:compress':
-        result = await imageCompressTask(payload, onProgress);
-        break;
-
-      case 'video:preview':
-        result = await videoPreviewTask(payload, onProgress);
-        break;
-
-      default:
+    const simpleTask = tasks[type];
+    if (simpleTask) {
+      result = await simpleTask(payload);
+    } else if (type === 'db:testConnection' || type === 'db:scan' || type === 'db:executeQuery') {
+      result = await multiTypeTasks.db(type, payload);
+    } else {
+      const progressTask = progressTasks[type];
+      if (progressTask) {
+        result = await progressTask(payload, onProgress);
+      } else {
         throw new Error('Unknown task type: ' + type);
+      }
     }
 
     process.send({ id, type: 'result', data: result });

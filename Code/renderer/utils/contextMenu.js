@@ -6,6 +6,8 @@ const ICON_SEED = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" st
 const ICON_RULER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="9" x2="14" y2="9"/><line x1="3" y1="13" x2="17" y2="13"/><line x1="3" y1="17" x2="11" y2="17"/></svg>';
 
 const ICON_TERMINAL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>';
+const ICON_RENAME  = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5z"/><line x1="11" y1="5.5" x2="14.5" y2="9"/></svg>';
+const ICON_DELETE  = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3,6 5,6 17,6"/><path d="M6 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 6v9"/><path d="M12 6v9"/><path d="M5 6l1 11a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-11"/></svg>';
 
 let _activeMenu   = null;
 let _onFileDeps   = null;
@@ -14,16 +16,20 @@ let _onFolderLoc  = null;
 let _onFileDiff   = null;
 let _onFileView   = null;
 let _onFolderTerminal = null;
+let _onRename   = null;
+let _onDelete   = null;
 
 let _handlers = null;
 
-export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal) {
+export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal, onRename, onDelete) {
   _onFileDeps   = onFileDeps;
   _onFolderSeed = onFolderSeed;
   _onFolderLoc  = onFolderLoc;
   _onFileDiff   = onFileDiff;
   _onFileView   = onFileView;
   _onFolderTerminal = onFolderTerminal;
+  _onRename     = onRename;
+  _onDelete     = onDelete;
 
   if (_handlers) destroyContextMenu();
 
@@ -90,6 +96,18 @@ function showFileMenu(x, y, filePath) {
       <span class="context-menu-label">Find Dependencies</span>
       <span class="context-menu-hint">File</span>
     </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="file-rename">
+      <span class="context-menu-icon">${ICON_RENAME}</span>
+      <span class="context-menu-label">Rename</span>
+      <span class="context-menu-hint">File</span>
+    </div>
+    <div class="context-menu-item" data-action="file-delete">
+      <span class="context-menu-icon">${ICON_DELETE}</span>
+      <span class="context-menu-label">Delete</span>
+      <span class="context-menu-hint">File</span>
+    </div>
+    <div class="context-menu-divider"></div>
     <div class="context-menu-item context-menu-item-disabled" data-action="func-deps" title="Coming soon">
       <span class="context-menu-icon">${ICON_WRENCH}</span>
       <span class="context-menu-label">Find Dependencies</span>
@@ -103,6 +121,8 @@ function showFileMenu(x, y, filePath) {
     if (item.dataset.action === 'file-view' && _onFileView) _onFileView(filePath);
     if (item.dataset.action === 'file-diff' && _onFileDiff) _onFileDiff(filePath);
     if (item.dataset.action === 'file-deps' && _onFileDeps) _onFileDeps(filePath);
+    if (item.dataset.action === 'file-rename' && _onRename) { _onRename(filePath, false); return; }
+    if (item.dataset.action === 'file-delete' && _onDelete) { _onDelete(filePath); return; }
     closeMenu();
   });
 
@@ -133,6 +153,17 @@ function showFolderMenu(x, y, folderPath, folderName) {
       <span class="context-menu-label">Open Terminal Here</span>
       <span class="context-menu-hint">Folder</span>
     </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="folder-rename">
+      <span class="context-menu-icon">${ICON_RENAME}</span>
+      <span class="context-menu-label">Rename</span>
+      <span class="context-menu-hint">Folder</span>
+    </div>
+    <div class="context-menu-item" data-action="folder-delete">
+      <span class="context-menu-icon">${ICON_DELETE}</span>
+      <span class="context-menu-label">Delete</span>
+      <span class="context-menu-hint">Folder</span>
+    </div>
   `;
 
   menu.addEventListener('click', (e) => {
@@ -141,6 +172,8 @@ function showFolderMenu(x, y, folderPath, folderName) {
     if (item.dataset.action === 'folder-seed' && _onFolderSeed) _onFolderSeed(folderPath, folderName);
     if (item.dataset.action === 'folder-loc'  && _onFolderLoc)  _onFolderLoc(folderPath, folderName);
     if (item.dataset.action === 'folder-terminal' && _onFolderTerminal) _onFolderTerminal(folderPath);
+    if (item.dataset.action === 'folder-rename' && _onRename) { _onRename(folderPath, true); return; }
+    if (item.dataset.action === 'folder-delete' && _onDelete) { _onDelete(folderPath); return; }
     closeMenu();
   });
 

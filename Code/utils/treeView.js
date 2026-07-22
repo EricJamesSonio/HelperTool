@@ -37,17 +37,18 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
         const nodeType = el.classList.contains('folder') ? 'folder' : 'file';
         const node = { path: nodePath, type: nodeType, name: wrapper.dataset.nodeName };
 
+        const now = Date.now();
+        const samePath = container._lastClickPath === nodePath;
+        const fastClick = samePath && (now - (container._lastClickTime || 0)) < 2000;
+        container._lastClickPath = nodePath;
+        container._lastClickTime = now;
+        if (fastClick) {
+            e.preventDefault();
+            onDoubleClick?.(nodePath, wrapper.dataset.nodeName, nodeType === 'folder');
+            return;
+        }
+
         if (nodeType === 'file') {
-            const now = Date.now();
-            const samePath = container._lastClickPath === nodePath;
-            const fastClick = samePath && (now - (container._lastClickTime || 0)) < 2000;
-            container._lastClickPath = nodePath;
-            container._lastClickTime = now;
-            if (fastClick) {
-                e.preventDefault();
-                onDoubleClick?.(nodePath, wrapper.dataset.nodeName);
-                return;
-            }
             _togglePath(selectedItems, nodePath);
         } else if (actionType === 'code') {
             const filePaths = [...wrapper.querySelectorAll('.tree-node.file')]
@@ -138,10 +139,10 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
             label += ' [ALL]';
         }
         el.textContent = label;
-        if (node.type === 'file') {
+        if (node.type === 'file' || node.type === 'folder') {
             const moveBtn = document.createElement('button');
             moveBtn.className = 'cm-move-btn';
-            moveBtn.title = 'Move file';
+            moveBtn.title = node.type === 'folder' ? 'Move folder' : 'Move file';
             moveBtn.textContent = '↗';
             moveBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -210,10 +211,10 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
             label += ' [ALL]';
         }
         el.textContent = label;
-        if (node.type === 'file') {
+        if (node.type === 'file' || node.type === 'folder') {
             const moveBtn = document.createElement('button');
             moveBtn.className = 'cm-move-btn';
-            moveBtn.title = 'Move file';
+            moveBtn.title = node.type === 'folder' ? 'Move folder' : 'Move file';
             moveBtn.textContent = '↗';
             moveBtn.addEventListener('click', (e) => {
                 e.stopPropagation();

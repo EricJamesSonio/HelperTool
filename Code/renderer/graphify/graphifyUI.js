@@ -139,15 +139,19 @@ function _populateDomCache() {
   }
 }
 
-export function mount(container) {
-  _root = container;
-  _mounted = true;
-  if (!_initialized) {
+function _ensureDom() {
+  if (!_initialized || !_root || !_root.firstChild) {
     _root.innerHTML = _template();
     _populateDomCache();
     _bindEvents();
     _initialized = true;
   }
+}
+
+export function mount(container) {
+  _root = container;
+  _mounted = true;
+  _ensureDom();
   if (_unsub) _unsub();
   _unsub = subscribe(() => _scheduleRender());
   _render(getState());
@@ -240,6 +244,7 @@ export function unmount() {
 export function show() {
   if (!_root) return;
   _mounted = true;
+  _ensureDom();
   if (_unsub) _unsub();
   _unsub = subscribe(() => _scheduleRender());
   _render(getState());

@@ -1,21 +1,13 @@
 const fs = require('fs');
 const path = require('path');
-
-let _SQL = null;
-async function _loadSqlJs() {
-  if (!_SQL) {
-    const initSqlJs = require('sql.js/dist/sql-wasm.js');
-    _SQL = await initSqlJs();
-  }
-  return _SQL;
-}
+const { getSqlJs } = require('../workerSqlJs');
 
 let _db = null;
 let _dbPath = null;
 async function _openDb(filePath) {
   if (_db && _dbPath === filePath) return _db;
   if (_db) { try { _db.close(); } catch (_) {} }
-  const SQL = await _loadSqlJs();
+  const SQL = await getSqlJs();
   if (!fs.existsSync(filePath)) throw new Error('DB not found: ' + filePath);
   const buffer = fs.readFileSync(filePath);
   _db = new SQL.Database(buffer);

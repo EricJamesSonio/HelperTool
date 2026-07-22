@@ -6,7 +6,7 @@ const crypto = require('crypto');
 /**
  * @param {{ app, config, fileOps, docignoreUtils, getMainWindow }} deps
  */
-function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
+function register({ app, config, fileOps, docignoreUtils, getMainWindow, onRepoSelected }) {
 
     ipcMain.handle('open-global-docignore', async () => {
         try {
@@ -261,6 +261,7 @@ function register({ app, config, fileOps, docignoreUtils, getMainWindow }) {
             }
             cfg.activeProject = repoPath;
             config.writeConfig(cfg);
+            if (onRepoSelected) onRepoSelected(repoPath);
         } catch (err) {
             console.error('[IPC] set-active-project error:', err);
         }

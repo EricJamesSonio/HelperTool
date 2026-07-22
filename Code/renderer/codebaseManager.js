@@ -1,7 +1,9 @@
 import { confirmDialog, alertDialog } from './utils/confirmDialog.js';
 
-export function openRenameModal(filePath, fileName, onComplete) {
+export function openRenameModal(filePath, fileName, onComplete, isFolder) {
   if (!filePath) return;
+
+  const title = isFolder ? 'Manage Folder' : 'Manage File';
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay cm-modal-overlay';
@@ -9,7 +11,7 @@ export function openRenameModal(filePath, fileName, onComplete) {
   overlay.innerHTML = `
     <div class="modal-content cm-modal">
       <div class="modal-header">
-        <h3 class="modal-title">Manage File</h3>
+        <h3 class="modal-title">${title}</h3>
         <button class="modal-close-btn cm-modal-close">×</button>
       </div>
       <div class="modal-body">
@@ -119,7 +121,7 @@ export function startMoveGhost(sourcePath, treeContainer, onComplete) {
 
     if (wrapper && isFolder) {
       const fp = wrapper.dataset.nodePath;
-      if (fp && !sourcePath.startsWith(fp + '/') && fp !== sourcePath) {
+      if (fp && fp !== sourcePath && !sourcePath.startsWith(fp + '/') && !fp.startsWith(sourcePath + '/')) {
         activeTarget = wrapper;
         activeTarget.classList.add('cm-drop-target');
         preview.textContent = '→ ' + fp;
@@ -147,7 +149,7 @@ export function startMoveGhost(sourcePath, treeContainer, onComplete) {
 
     if (wrapper && isFolder) {
       const targetDir = wrapper.dataset.nodePath;
-      if (targetDir && !sourcePath.startsWith(targetDir + '/') && targetDir !== sourcePath) {
+      if (targetDir && targetDir !== sourcePath && !sourcePath.startsWith(targetDir + '/') && !targetDir.startsWith(sourcePath + '/')) {
         done = true;
         cleanup();
         _executeMove(sourcePath, targetDir, onComplete);

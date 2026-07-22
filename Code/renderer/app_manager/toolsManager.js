@@ -7,6 +7,9 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
+import { openRenameModal }                from '../codebaseManager.js';
+import { displayTree }                    from './viewManager.js';
+import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
 import * as locDetector    from '../locDetector.js';
 import * as sessionNotes   from '../sessionNotes.js';
@@ -881,8 +884,11 @@ function _buildShortcutActions() {
 
 // ---- Public API ------------------------------------------------------------
 
-function _destroyGraphify() {
-  import('../graphify.js').then(m => m.deactivate()).catch(() => {});
+async function _destroyGraphify() {
+  try {
+    const m = await import('../graphify.js');
+    m.deactivate();
+  } catch {}
   _graphifyInitialized = false;
   if (_graphifyContainer) _graphifyContainer.innerHTML = '';
   if (_graphifyPanel) _graphifyPanel.classList.remove('open');
@@ -902,8 +908,8 @@ export function closeAllPanels() {
   _destroyGithubTool();
 }
 
-export function handleRepoChange(newRepoPath) {
-  _destroyGraphify();
+export async function handleRepoChange(newRepoPath) {
+  await _destroyGraphify();
   sessionNotes.handleRepoChange(newRepoPath);
   _destroyGitTool();
   _destroySymbolIndexTool();
@@ -999,6 +1005,16 @@ export async function initTools(feats, settingsManager) {
       }
       _registry.closeAll();
       _terminalUI.openTerminalHere(folderPath);
+    },
+    (filePath, isFolder) => {
+      const name = filePath.split(/[/\\]/).filter(Boolean).pop() || '';
+      openRenameModal(filePath, name, () => { if (state.cachedTree) displayTree(false); }, isFolder);
+    },
+    async (filePath) => {
+      const ok = await confirmDialog('Delete <strong>' + filePath.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</strong>? This cannot be undone.');
+      if (!ok) return;
+      const res = await window.electronAPI.deleteFile(filePath);
+      if (res.success && state.cachedTree) displayTree(false);
     }
   );
 

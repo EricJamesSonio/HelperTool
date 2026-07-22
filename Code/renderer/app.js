@@ -294,24 +294,27 @@ window.addEventListener('DOMContentLoaded', async () => {
     initActionButtons();
     performance.mark('init:controls');
 
-    // Theme + Tools run in parallel — theme module is ~50KB with 20 themes
+    // Theme — fast fallback for first paint, full engine (~50KB) deferred
     const settingsRef = { current: null };
+    applyFallbackTheme();
+    wireFallbackThemeToggle();
     if (feats.themeEngine) {
-        await Promise.all([
-            import('./settingsManager.js').then(sm => {
+        requestAnimationFrame(async () => {
+            try {
+                const sm = await import('./settingsManager.js');
                 sm.initSettings();
                 sm.hookLegacyThemeToggle();
                 settingsRef.current = sm;
-            }),
-            initTools(feats, {
-                openSettings: () => { if (settingsRef.current?.openSettings) settingsRef.current.openSettings(); else openLightSettings(); },
-            }),
-        ]);
-    } else {
-        applyFallbackTheme();
-        wireFallbackThemeToggle();
-        await initTools(feats, { openSettings: openLightSettings });
+            } catch (err) {
+                console.error('[Init] settingsManager:', err);
+            }
+        });
     }
+
+    // Tools — populates sidebar
+    await initTools(feats, {
+        openSettings: () => { if (settingsRef.current?.openSettings) settingsRef.current.openSettings(); else openLightSettings(); },
+    });
     performance.mark('init:theme-tools');
     performance.measure('init:theme+tools', 'init:controls', 'init:theme-tools');
 

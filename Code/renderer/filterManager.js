@@ -237,8 +237,12 @@ export function filterTree(tree) {
                 const isDescendant = isInsideFolder(node.path, focusedFolders);
                 if (!isFocused && !isAncestor && !isDescendant) return null;
             }
+            const hadChildren = (node.children || []).length > 0;
             const filteredChildren = (node.children || []).map(filterNode).filter(Boolean);
-            if (filteredChildren.length === 0 && focusedFolders.size === 0) return null;
+            if (filteredChildren.length === 0) {
+                if (!hadChildren) return { ...node, children: [] };
+                if (focusedFolders.size === 0) return null;
+            }
             return { ...node, children: filteredChildren };
         }
         return node;

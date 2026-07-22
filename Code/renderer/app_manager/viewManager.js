@@ -225,11 +225,11 @@ function onTreeSelectionChange() {
     _onSelectionChange?.();
 }
 
-function onDoubleClick(filePath, fileName) {
+function onDoubleClick(filePath, fileName, isFolder) {
     if (!filePath) return;
     openRenameModal(filePath, fileName, () => {
         if (state.cachedTree) displayTree(false);
-    });
+    }, isFolder);
 }
 
 function onMoveRequest(filePath, nodeElement) {

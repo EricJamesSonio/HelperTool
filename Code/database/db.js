@@ -68,7 +68,20 @@ async function initDatabase(app) {
   return _db;
 }
 
+function _tablesExist(names) {
+  try {
+    const r = _db.exec(`SELECT count(*) c FROM sqlite_master WHERE type='table' AND name IN (${names.map(n => `'${n}'`).join(',')})`);
+    return r.length > 0 && r[0].values[0][0] === names.length;
+  } catch { return false; }
+}
+
 function createSchema() {
+  if (_tablesExist(['repositories','indexed_files','symbols','file_imports','boards','blueprint_categories','blueprints','kit_items','profile','profile_meta','activity_days','file_save_events','github_repo_trees'])) {
+    try { _db.run("ALTER TABLE profile ADD COLUMN bio TEXT DEFAULT ''"); } catch (e) {}
+    try { _db.run("ALTER TABLE profile ADD COLUMN website TEXT DEFAULT ''"); } catch (e) {}
+    return;
+  }
+
   _db.run(`
     CREATE TABLE IF NOT EXISTS repositories (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,

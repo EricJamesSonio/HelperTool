@@ -69,7 +69,21 @@ if (!gotTheLock) {
 
     app.whenReady().then(async () => {
         console.log('[Main] App is ready');
-        registerAllIpc();
+
+        // Indexer + prefetch — deferred until first repo selection (or 15s fallback)
+        let _indexerStarted = false;
+        const startIndexerAndPrefetch = (repoPath) => {
+            if (_indexerStarted) return;
+            _indexerStarted = true;
+            const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+            indexerProxy.start(indexerDbPath);
+            prefetchService.registerIpc();
+            setTimeout(() => {
+                prefetchService.start(indexerDbPath, repoPath || '', getMainWindow);
+            }, 800);
+        };
+
+        registerAllIpc(startIndexerAndPrefetch);
         createTray();
 
         // Start DB init BEFORE window creation — runs in parallel with page load
@@ -107,18 +121,13 @@ if (!gotTheLock) {
                 }
                 serviceTrackerIpc.updateService('database', 'done');
 
-                // Start worker and prefetch in background — does not block UI
-                setTimeout(() => {
-                    const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
-                    indexerProxy.start(indexerDbPath);
-
-                    prefetchService.registerIpc();
-
-                    setTimeout(() => {
-                        const dbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
-                        prefetchService.start(dbPath, config.readConfig()?.activeProject || '', getMainWindow);
-                    }, 800);
-                }, 2000);
+                // Start indexer+prefetch for already-active project
+                const activeProject = config.readConfig()?.activeProject;
+                if (activeProject) {
+                    startIndexerAndPrefetch(activeProject);
+                } else {
+                    setTimeout(() => startIndexerAndPrefetch(''), 15000);
+                }
             }).catch(err => {
                 console.error('[Main] Failed to init DB:', err);
                 serviceTrackerIpc.updateService('database', 'failed', err.message);
@@ -141,8 +150,8 @@ if (!gotTheLock) {
 // ----------------------------
 // Register all IPC modules
 // ----------------------------
-function registerAllIpc() {
-    const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow };
+function registerAllIpc(onRepoSelected) {
+    const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow, onRepoSelected };
 
     terminalIpc = require('./ipc/terminal_ipc.js'); terminalIpc.register(shared);
     serviceTrackerIpc.register();

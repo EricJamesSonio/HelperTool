@@ -1,11 +1,10 @@
-let _SQL = null;
+const _promise = (async () => {
+  const initSqlJs = require('sql.js/dist/sql-wasm.js');
+  return await initSqlJs();
+})();
 
 async function getSqlJs() {
-  if (!_SQL) {
-    const initSqlJs = require('sql.js/dist/sql-wasm.js');
-    _SQL = await initSqlJs();
-  }
-  return _SQL;
+  return await _promise;
 }
 
 module.exports = { getSqlJs };

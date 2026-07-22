@@ -63,30 +63,39 @@ async function initChatDb(app) {
     }
   });
 
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS chat_conversations (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_path   TEXT NOT NULL,
-      title       TEXT NOT NULL,
-      created_at  TEXT DEFAULT (datetime('now')),
-      updated_at  TEXT DEFAULT (datetime('now'))
-    )
-  `);
+  const hasTables = (() => {
+    try {
+      const r = _db.exec("SELECT count(*) c FROM sqlite_master WHERE type='table' AND name IN ('chat_conversations','chat_messages')");
+      return r.length > 0 && r[0].values[0][0] === 2;
+    } catch { return false; }
+  })();
 
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS chat_messages (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversation_id INTEGER NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
-      role            TEXT NOT NULL CHECK(role IN ('user','bot')),
-      content         TEXT NOT NULL,
-      query_type      TEXT,
-      file_ref        TEXT,
-      created_at      TEXT DEFAULT (datetime('now'))
-    )
-  `);
+  if (!hasTables) {
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS chat_conversations (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_path   TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        created_at  TEXT DEFAULT (datetime('now')),
+        updated_at  TEXT DEFAULT (datetime('now'))
+      )
+    `);
 
-  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_conv_repo ON chat_conversations(repo_path)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_chat_msg_conv ON chat_messages(conversation_id)');
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+        role            TEXT NOT NULL CHECK(role IN ('user','bot')),
+        content         TEXT NOT NULL,
+        query_type      TEXT,
+        file_ref        TEXT,
+        created_at      TEXT DEFAULT (datetime('now'))
+      )
+    `);
+
+    _db.run('CREATE INDEX IF NOT EXISTS idx_chat_conv_repo ON chat_conversations(repo_path)');
+    _db.run('CREATE INDEX IF NOT EXISTS idx_chat_msg_conv ON chat_messages(conversation_id)');
+  }
 
   _flush();
   save();

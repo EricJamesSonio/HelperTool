@@ -70,6 +70,11 @@ async function initErrorCopDb(app) {
 }
 
 function createSchema() {
+  try {
+    const r = _db.exec("SELECT count(*) c FROM sqlite_master WHERE type='table' AND name IN ('sessions','errors','error_occurrences','browser_servers')");
+    if (r.length > 0 && r[0].values[0][0] === 4) return;
+  } catch {}
+
   _db.run(`
     CREATE TABLE IF NOT EXISTS sessions (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
