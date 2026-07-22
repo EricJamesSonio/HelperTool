@@ -2,6 +2,8 @@ const { ErrorStorage } = require('./error-storage');
 const { ErrorDetector } = require('./error-detector');
 const { NotificationService } = require('./notification-service');
 const { BrowserCollector } = require('./browser-collector');
+const { CommandRunner } = require('./command-runner');
+const { UrlTracker } = require('./url-tracker');
 const { detectProject } = require('../terminal-session');
 
 class ErrorEngine {
@@ -15,6 +17,8 @@ class ErrorEngine {
     this._browserCollector = null;
     this._browserDedup = new Map();
     this._sessionBrowserPorts = new Map();
+    this._urlTracker = new UrlTracker();
+    this._commandRunner = null;
   }
 
   _initBrowserCollector() {
@@ -132,6 +136,13 @@ class ErrorEngine {
 
       const detector = new ErrorDetector(this._storage, this._notify, {
         onServerDetected: (info) => {
+          this._urlTracker.register({
+            port: info.port,
+            url: info.url,
+            framework: info.framework,
+            sessionId,
+            source: 'terminal',
+          });
           this.attachBrowser(sessionId, info.port, info.url);
         },
       });
@@ -290,6 +301,17 @@ class ErrorEngine {
 
   getNotify() {
     return this._notify;
+  }
+
+  getUrlTracker() {
+    return this._urlTracker;
+  }
+
+  getCommandRunner() {
+    if (!this._commandRunner) {
+      this._commandRunner = new CommandRunner(this, this._urlTracker);
+    }
+    return this._commandRunner;
   }
 }
 
