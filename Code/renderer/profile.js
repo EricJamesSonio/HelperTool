@@ -165,7 +165,6 @@ async function _load() {
   const cacheAge = _lastLoadTime ? now - _lastLoadTime : Infinity;
   if (cacheAge > 60000) {
     _cache = {};
-    _avatarDataUrl = null;
   }
   _lastLoadTime = now;
 
@@ -259,13 +258,26 @@ function _wireReposNav() {
 function _switchToRepos() {
   _viewSection = 'repos';
   const body = _panel.querySelector('#pfBody');
-  body.innerHTML = _buildReposSkeleton();
-  _renderRepos();
+  let reposSection = body.querySelector('.pf-body-repos-full');
+
+  if (!reposSection) {
+    body.insertAdjacentHTML('beforeend', _buildReposSkeleton());
+    reposSection = body.querySelector('.pf-body-repos-full');
+    _renderRepos();
+  }
+
+  // Hide sidebar + main, show repos
+  body.querySelector('.pf-body-sidebar')?.classList.add('pf-hidden');
+  body.querySelector('.pf-body-main')?.classList.add('pf-hidden');
+  reposSection?.classList.remove('pf-hidden');
 }
 
 function _switchToMain() {
   _viewSection = 'main';
-  _renderBody('full');
+  const body = _panel.querySelector('#pfBody');
+  body.querySelector('.pf-body-sidebar')?.classList.remove('pf-hidden');
+  body.querySelector('.pf-body-main')?.classList.remove('pf-hidden');
+  body.querySelector('.pf-body-repos-full')?.classList.add('pf-hidden');
 }
 
 function _buildReposSkeleton() {

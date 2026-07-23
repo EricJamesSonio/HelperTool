@@ -10,7 +10,9 @@
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:dbgraph": "esbuild renderer/databaseInspector/graph.jsx --bundle --outfile=renderer/databaseInspector/graph-bundle.js --format=esm",
-    "build:codebasegraph": "esbuild renderer/codebaseMap/codebaseMapGraph.jsx --bundle --outfile=renderer/codebaseMap/codebaseMap-graph-bundle.js --format=esm"
+    "build:codebasegraph": "esbuild renderer/codebaseMap/codebaseMapGraph.jsx --bundle --outfile=renderer/codebaseMap/codebaseMap-graph-bundle.js --format=esm",
+    "build:css": "node scripts/build-css.js",
+    "postinstall": "node scripts/build-css.js"
   },
   "build": {
     "appId": "com.eric.helpertool",

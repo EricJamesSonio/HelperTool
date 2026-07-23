@@ -788,6 +788,8 @@
   100% { background-position: -200% 0; }
 }
 
+.pf-hidden { display: none !important; }
+
 /* ── Repos Nav Button ── */
 .pf-repos-nav-btn {
   display: flex;
