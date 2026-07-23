@@ -21,6 +21,11 @@ You are an AI assistant with access to a runtime error monitoring system.
   sessions, then `GET /errors/session/:id` for specific sessions.
 - You may call **multiple endpoints in sequence** to trace the full error
   context before answering.
+- **You can also launch commands** via `POST /commands/run` to start a dev server
+  and monitor its output for errors in real time.
+- **You can check running services** via `GET /urls` and test if a URL is
+  responding via `GET /urls/:port/health` or fetch its content via
+  `GET /urls/:port/test`.
 
 ---
 
@@ -37,6 +42,11 @@ You are an AI assistant with access to a runtime error monitoring system.
 | "Quick check — any new issues?" | `GET /errors/unread-count` |
 | "Server alive?" | `GET /health` |
 | "What endpoints are available?" | `GET /endpoints` |
+| "Run the dev server and watch for errors" | `POST /commands/run` |
+| "Is my dev server responding?" | `GET /urls` → `GET /urls/:port/health` |
+| "What does the page look like?" | `GET /urls/:port/test` |
+| "Stop the running command" | `POST /commands/stop` |
+| "List running commands" | `GET /commands` |
 
 ---
 
@@ -55,6 +65,204 @@ You are an AI assistant with access to a runtime error monitoring system.
 | `GET /errors/mark-read` | Reset unread error count to 0 |
 | `GET /sessions` | Terminal sessions list |
 | `GET /timeline` | Chronological timeline of errors and events |
+| `POST /commands/run` | Run a command in a project folder and monitor for errors |
+| `POST /commands/stop` | Stop a running command by id |
+| `GET /commands` | List all running commands with status and detected URLs |
+| `GET /commands/:id` | Get status of a specific running command |
+| `GET /commands/:id/output` | Get recent terminal output from a running command |
+| `GET /urls` | List all discovered dev server URLs |
+| `GET /urls/:port/health` | Health check a discovered URL (GET request to the URL) |
+| `GET /urls/:port/test` | Fetch a URL and return its content preview for AI inspection |
+| `GET /urls/:port/wait` | Poll a URL until it responds (timeout in ms via ?timeout= param) |
+
+---
+
+### `POST /commands/run` — Run a command and monitor for errors
+
+Starts a command in a project folder and pipes its output through ErrorCop
+for real-time error detection. Detected dev server URLs are automatically
+registered so you can health-check them later.
+
+```json
+POST /commands/run
+{
+  "command": "npm run dev",
+  "cwd": "/path/to/project",
+  "shell": "powershell.exe"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "sessionId": 3,
+    "command": "npm run dev",
+    "cwd": "/path/to/project"
+  }
+}
+```
+
+The `id` is the command runner ID. Use it with `POST /commands/stop` or
+`GET /commands/:id/output`. The `sessionId` links to ErrorCop's session
+error data (`GET /errors/session/:id`).
+
+Use `GET /urls` after running to check if a dev server URL was detected.
+
+---
+
+### `POST /commands/stop` — Stop a running command
+
+Kills a process started via `POST /commands/run`.
+
+```json
+POST /commands/stop
+{
+  "id": 1
+}
+```
+
+```json
+{
+  "success": true
+}
+```
+
+---
+
+### `GET /commands` — List running commands
+
+Returns all processes started via the command runner, their status,
+and any detected dev server URLs.
+
+```json
+GET /commands
+[
+  {
+    "id": 1,
+    "sessionId": 3,
+    "command": "npm run dev",
+    "status": "running",
+    "outputLength": 4520,
+    "detectedUrls": [
+      { "port": 5173, "framework": "Vite", "url": "http://localhost:5173" }
+    ]
+  }
+]
+```
+
+---
+
+### `GET /commands/:id` — Single command status
+
+```
+GET /commands/1
+```
+
+Returns the same shape as a single list entry, or `null` if not found.
+
+---
+
+### `GET /commands/:id/output` — Recent terminal output
+
+Returns the last N lines of terminal output from a running or completed
+command. Useful for seeing what happened beyond just errors.
+
+```
+GET /commands/1/output?tail=100
+```
+
+```json
+{
+  "id": 1,
+  "output": "VITE v6.0.0 ready in 320ms\n\n  Local: http://localhost:5173/\n... "
+}
+```
+
+---
+
+### `GET /urls` — All discovered dev server URLs
+
+Returns every URL that ErrorCop has detected (either from terminal output
+or from the command runner). This is the starting point for checking if
+a dev server is actually responding.
+
+```json
+GET /urls
+[
+  {
+    "port": 5173,
+    "url": "http://localhost:5173",
+    "framework": "Vite",
+    "source": "command-runner",
+    "sessionId": 3,
+    "detectedAt": "2026-07-22T12:00:00.000Z"
+  }
+]
+```
+
+---
+
+### `GET /urls/:port/health` — Check if a URL responds
+
+Makes a GET request to the URL and returns its HTTP status. Use this
+to verify a dev server is actually running before trying to use it.
+
+```
+GET /urls/5173/health
+```
+
+```json
+{
+  "alive": true,
+  "port": 5173,
+  "url": "http://localhost:5173",
+  "statusCode": 200,
+  "statusMessage": "OK"
+}
+```
+
+---
+
+### `GET /urls/:port/test` — Fetch URL content for AI inspection
+
+Fetches the full page content (up to 5000 chars) so you can inspect
+the HTML, API response, or error page returned by the server.
+Use this when the health check returns a non-200 status or you need
+to understand what the server is serving.
+
+```
+GET /urls/5173/test
+```
+
+```json
+{
+  "success": true,
+  "port": 5173,
+  "url": "http://localhost:5173",
+  "statusCode": 200,
+  "contentType": "text/html",
+  "bodyPreview": "<!DOCTYPE html>\n<html>...",
+  "bodyLength": 12345,
+  "truncated": true
+}
+```
+
+---
+
+### `GET /urls/:port/wait` — Poll until server responds
+
+Polls the URL every second until it responds or the timeout expires.
+Use this after launching a command to wait for the dev server to
+finish starting up.
+
+```
+GET /urls/5173/wait?timeout=15000
+```
+
+Returns the same shape as `/health` once the server responds.
 
 ---
 
@@ -394,6 +602,34 @@ processes.
    → broader search if needed
 ```
 
+### Pattern D: "Launch and monitor"
+
+```
+1. POST /commands/run { "command": "npm run dev", "cwd": "/project" }
+   → returns { id, sessionId }
+2. GET /commands/:id/output?tail=50
+   → wait until you see "Local: http://localhost:..."
+3. GET /urls
+   → find the detected dev server URL
+4. GET /urls/:port/wait?timeout=30000
+   → poll until the server responds with 200
+5. GET /urls/:port/test
+   → fetch the page content to verify it serves correctly
+6. GET /errors/unread-count (or /errors/session/:sessionId)
+   → check for any errors during startup
+```
+
+### Pattern E: "Check running services"
+
+```
+1. GET /urls
+   → list all discovered URLs
+2. For each URL: GET /urls/:port/health
+   → check which are alive
+3. For alive URLs: GET /urls/:port/test
+   → fetch the page to understand what's running
+```
+
 ---
 
 ## How Errors Are Captured
@@ -404,6 +640,7 @@ processes.
 | Browser console | Uncaught exceptions, unhandled promise rejections, HTTP errors, network failures |
 | Page load events | Failed navigations, renderer crashes |
 | Dev server logs | Framework server starts (Vite, Webpack, Next.js, etc.) |
+| Command runner | Any process launched via `POST /commands/run` |
 
 Errors are deduplicated by content fingerprint. The `occurrences` field tells
 you how many times the same error was seen.
@@ -418,6 +655,8 @@ you how many times the same error was seen.
 - When multiple errors exist, prioritize by severity (`error` > `warning`) and
   frequency (`occurrences`).
 - Keep answers concise but grounded in actual error data.
+- If you launched a command, check `GET /commands` to see its status and URLs.
+- Before debugging, try `GET /urls/:port/health` to confirm the server is up.
 
 ---
 
@@ -432,5 +671,19 @@ you how many times the same error was seen.
 4. Answers: "There's a TypeError on line 42 of `BookingForm.tsx` — it's trying to
    call `.map()` on an undefined value. The `occurrences` field shows this
    happened 3 times. The `attendees` prop likely isn't being passed correctly."
+
+**User:** "Start the dev server for my project and check if it runs."
+
+**AI:**
+1. POST /commands/run { "command": "npm run dev", "cwd": "/project" }
+2. GET /commands/1/output?tail=50
+   → sees "Local: http://localhost:5173"
+3. GET /urls/5173/wait?timeout=30000
+   → server responds with 200
+4. GET /urls/5173/test
+   → fetches the HTML, confirms the app is running
+5. GET /errors/unread-count
+   → 0 errors during startup — clean launch
+6. Answers: "Your dev server is running at http://localhost:5173 and started cleanly."
 
 **Never answer without checking the API first.**

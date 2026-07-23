@@ -104,6 +104,15 @@ function register({ getMainWindow }) {
     try {
       const server = require('../errorCopServer/server');
       server.start(_errorEngine);
+
+      // Start ecosystem watcher alongside the server (store already set by watcher_ipc)
+      try {
+        const watcher = require('../ecosystem-watcher');
+        watcher.start();
+      } catch (we) {
+        console.error('[ErrorCop] Failed to start ecosystem watcher:', we.message);
+      }
+
       _serverStarted = true;
       return { success: true, port: 3334 };
     } catch (e) {
@@ -139,6 +148,46 @@ function register({ getMainWindow }) {
     const cheatsheetPath = path.join(repoPath, 'MCP', 'errorCop', 'errorcop-cheatsheet.md').replace(/\\/g, '/');
     const server = require('../errorCopServer/server');
     return server.generateCheatsheet(cheatsheetPath);
+  }));
+
+  // ── Command Runner IPC ──
+
+  ipcMain.handle('error-cop:commandRun', safe((event, opts) => {
+    return _errorEngine.getCommandRunner().run(opts);
+  }));
+
+  ipcMain.handle('error-cop:commandStop', safe((event, id) => {
+    return { success: _errorEngine.getCommandRunner().stop(id) };
+  }));
+
+  ipcMain.handle('error-cop:commandList', safe(() => {
+    return _errorEngine.getCommandRunner().list();
+  }));
+
+  ipcMain.handle('error-cop:commandGetStatus', safe((event, id) => {
+    return _errorEngine.getCommandRunner().getStatus(id);
+  }));
+
+  ipcMain.handle('error-cop:commandGetOutput', safe((event, { id, tail }) => {
+    return { id, output: _errorEngine.getCommandRunner().getOutput(id, { tail }) };
+  }));
+
+  // ── URL Tracker IPC ──
+
+  ipcMain.handle('error-cop:urlList', safe(() => {
+    return _errorEngine.getUrlTracker().getAll();
+  }));
+
+  ipcMain.handle('error-cop:urlHealthCheck', safe(async (event, port) => {
+    return await _errorEngine.getUrlTracker().healthCheck(port);
+  }));
+
+  ipcMain.handle('error-cop:urlFetchTest', safe(async (event, port) => {
+    return await _errorEngine.getUrlTracker().fetchTest(port);
+  }));
+
+  ipcMain.handle('error-cop:urlWaitForReady', safe(async (event, { port, timeout }) => {
+    return await _errorEngine.getUrlTracker().waitForReady(port, { timeout: timeout || 30000 });
   }));
 }
 

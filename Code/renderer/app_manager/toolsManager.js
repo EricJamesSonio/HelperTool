@@ -56,6 +56,8 @@ const ICONS = {
     essentials: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 6l8 4 8-4L10 2z"/><path d="M2 14l8 4 8-4"/><path d="M2 10l8 4 8-4"/></svg>',
     graphify: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/><path d="M4 3h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M4 9h8a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z"/></svg>',
     mcp: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
+    eye: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4c-4 0-7.5 2.5-9 6 1.5 3.5 5 6 9 6s7.5-2.5 9-6c-1.5-3.5-5-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>',
+    radar: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -227,6 +229,17 @@ function populateSidebar() {
       _registry.closeAll();
       await _secretHolder?.openSecretHolder?.();
     }, 'secret'));
+  }
+
+  if (_feats.ecosystemWatcher) {
+    add(createSidebarItem(ICONS.eye, 'Ecosystem Watcher', 'Real-time runtime observability & event timeline', async () => {
+      try {
+        const w = await import('../ecosystemWatcherUI.js');
+        if (w.isOpen()) { w.close(); return; }
+        _registry.closeAll();
+        w.open();
+      } catch (err) { console.error('[Tools] Ecosystem Watcher:', err); }
+    }, 'ecosystemWatcher'));
   }
 
   add(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => {
@@ -724,6 +737,17 @@ function _buildShortcutActions() {
     };
   }
 
+  if (_feats.ecosystemWatcher) {
+    actions.ecosystemWatcher = async () => {
+      try {
+        const w = await import('../ecosystemWatcherUI.js');
+        if (w.isOpen()) { w.close(); return; }
+        _registry.closeAll();
+        w.open();
+      } catch (err) { console.error('[Shortcuts] Ecosystem Watcher:', err); }
+    };
+  }
+
   if (_feats.canvasTool) {
     actions.canvasTool = () => {
       if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
@@ -1073,6 +1097,34 @@ function _registerMcpTools() {
       }
       _registry.closeAll();
       _terminalUI._errorCop.toggle();
+    },
+  });
+
+  toolRegistry.register({
+    id: 'ecosystemWatcher',
+    name: 'Ecosystem Watcher',
+    description: 'Real-time runtime observability — log, error, network & process event timeline across sessions.',
+    color: '#4F8EF7',
+    icon: ICONS.radar,
+    cheatsheetPath: 'MCP/ecosystemWatcher/watcher-cheatsheet.md',
+    startFn: async () => {
+      try { return await window.electronAPI.watcher.health(); }
+      catch { return { success: false, error: 'Watcher unavailable' }; }
+    },
+    stopFn: async () => {
+      return { success: true };
+    },
+    statusFn: async () => {
+      try { const h = await window.electronAPI.watcher.health(); return h && h.data && h.data.running ? 'running' : 'stopped'; }
+      catch { return 'error'; }
+    },
+    openPanelFn: async () => {
+      try {
+        const w = await import('../ecosystemWatcherUI.js');
+        if (w.isOpen()) { w.close(); return; }
+        _registry.closeAll();
+        w.open();
+      } catch (err) { console.error('[Tools] Ecosystem Watcher:', err); }
     },
   });
 }

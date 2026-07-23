@@ -136,6 +136,7 @@ function listSessions() {
     result.push({
       sessionId: id,
       source: ws.meta.source || 'ai',
+      command: ws.meta.command || '',
       status: 'running',
       eventCount: ws.eventCount,
       startedAt: ws.startedAt,
