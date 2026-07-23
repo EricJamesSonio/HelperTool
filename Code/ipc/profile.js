@@ -72,12 +72,13 @@ function _startWatcher(repoPath, repoName) {
       '**/vendor/**',
       /node_modules/,
       /[\/\\]\.git[\/\\]/,
+      /\.(png|jpe?g|gif|ico|exe|dll|wasm|zip|tar|gz|mp[34]|avi|mov|wav|ttf|woff2?|eot|pdf|lock)$/i,
     ],
     ignoreInitial: true,
     persistent: true,
     usePolling: false,
     awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
-    depth: 10,
+    depth: 5,
     disableGlobbing: false,
   });
   watcher.on('ready', () => {

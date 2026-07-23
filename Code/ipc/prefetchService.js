@@ -125,16 +125,13 @@ async function _prefetchProfile() {
     const dbPath = _dbPath;
     const year = new Date().getFullYear();
 
-    const [profile, stats, heatmap, donuts, history] = await Promise.all([
-      _fetchFromWorker('profileData', { action: 'getProfile', dbPath, params: {} }),
-      _fetchFromWorker('profileData', { action: 'getStats', dbPath, params: { range: 'all' } }),
-      _fetchFromWorker('profileData', { action: 'getHeatmap', dbPath, params: { year } }),
-      _fetchFromWorker('profileData', { action: 'getDonutData', dbPath, params: { range: 'all' } }),
-      _fetchFromWorker('profileData', { action: 'getHistory', dbPath, params: { page: 1, repoPath: '' } }),
-    ]);
+    const data = await _fetchFromWorker('profileData', {
+      action: 'getAll',
+      dbPath,
+      params: { statsRange: 'all', heatmapYear: year, donutRange: 'all', historyPage: 1, historyRepo: '' },
+    });
 
-    if (profile || stats) {
-      const data = { profile, avatar: null, stats, heatmap, donuts, history };
+    if (data && (data.profile || data.stats)) {
       _set('profile', data, TTL.profile);
       console.log('[Prefetch] Profile data cached');
       updateService('prefetchProfile', 'done');

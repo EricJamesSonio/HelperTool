@@ -6,6 +6,28 @@ const watcher = require('../indexer/watcher');
 const indexerProxy = require('./indexerProxy.js');
 const workerProxy = require('./workerProxy.js');
 const { updateService } = require('./serviceTracker_ipc.js');
+const dualWrite = require('../database/dualWrite');
+
+let _dualWriteWired = false;
+
+function _ensureDualWrite() {
+  if (_dualWriteWired || !indexerProxy.isReady()) return;
+  _dualWriteWired = true;
+  const dw = dualWrite.init(indexerProxy);
+  if (process.env.SKIP_SHARED_DB) {
+    dw.setEnabled(true);
+    dw.setReadFromProxy(true);
+    console.log('[DualWrite] skip-shared-db mode — proxy is primary');
+  }
+  const wrapped = dw.wrapAll({
+    repoDb: require('../database/repositories'),
+    fileDb: require('../database/indexedFiles'),
+    symbolDb: require('../database/symbols'),
+    importDb: require('../database/imports'),
+  });
+  indexer.setDbs(wrapped);
+  console.log('[DualWrite] wired to indexer');
+}
 
 let _getMainWindow = null;
 let _activeRepoPath = null;
@@ -47,6 +69,8 @@ async function register({ app, docignoreUtils, getMainWindow }) {
   _getMainWindow = getMainWindow;
   _userDataPath = app.getPath('userData');
 
+  _ensureDualWrite();
+
   ipcMain.handle('symbolIndex:init', async () => {
     try {
       await parser.initParser();
@@ -74,6 +98,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
   });
 
   ipcMain.handle('symbolIndex:startIndexing', async (_, repoPath) => {
+    _ensureDualWrite();
     updateService('symbolIndexer', 'running', 'Indexing symbols...');
     try {
       _activeRepoPath = repoPath;
@@ -96,7 +121,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
         }
       }
       if (!allFiles.length) {
-        indexer.walkDir(repoPath, allFiles, repoPath, docignoreUtils);
+        allFiles = await indexer.asyncWalkDir(repoPath, repoPath, docignoreUtils);
         totalFiles = allFiles.length;
       }
 
@@ -276,6 +301,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
   });
 
   ipcMain.handle('symbolIndex:reset', async (_, repoPath) => {
+    _ensureDualWrite();
     try {
       indexer.resetIndex(repoPath);
       if (indexerProxy.isReady()) {
@@ -290,6 +316,7 @@ async function register({ app, docignoreUtils, getMainWindow }) {
   });
 
   ipcMain.handle('symbolIndex:delete', async (_, repoPath) => {
+    _ensureDualWrite();
     try {
       watcher.destroyWatcher(repoPath);
       indexer.deleteIndex(repoPath);

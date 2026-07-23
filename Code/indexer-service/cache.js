@@ -27,10 +27,12 @@ class LRUCache {
 }
 
 class SymbolCache {
-  constructor() {
+  constructor(maxStore) {
+    this._maxStore = maxStore || 10000;
     this._store = new Map();
     this._searchCache = new LRUCache(50);
     this._fileSymbolsCache = new LRUCache(100);
+    this._evictCount = 0;
   }
 
   has(filePath) {
@@ -38,10 +40,21 @@ class SymbolCache {
   }
 
   get(filePath) {
-    return this._store.get(filePath) || null;
+    if (!this._store.has(filePath)) return null;
+    // LRU refresh: re-insert to move to end of Map iteration order
+    const value = this._store.get(filePath);
+    this._store.delete(filePath);
+    this._store.set(filePath, value);
+    return value;
   }
 
   set(filePath, data) {
+    // Evict oldest entry if at capacity
+    if (this._store.size >= this._maxStore && !this._store.has(filePath)) {
+      const oldest = this._store.keys().next().value;
+      this._store.delete(oldest);
+      this._evictCount++;
+    }
     this._store.set(filePath, {
       symbols: data.symbols || [],
       imports: data.imports || [],
@@ -51,6 +64,10 @@ class SymbolCache {
 
   delete(filePath) {
     this._store.delete(filePath);
+  }
+
+  evictionStats() {
+    return { evicted: this._evictCount, size: this._store.size, max: this._maxStore };
   }
 
   getFileSymbols(filePath, limit, offset) {

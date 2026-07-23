@@ -37,13 +37,23 @@ function readConfig() {
     return _cache;
 }
 
-function _doWrite() {
+function _doWriteSync() {
     _writeTimer = null;
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(_cache, null, 2));
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(_cache));
+}
+
+async function _doWrite() {
+    _writeTimer = null;
+    try {
+        await fs.promises.writeFile(CONFIG_PATH, JSON.stringify(_cache));
+    } catch (err) {
+        console.error('[Config] Async write failed, falling back to sync:', err.message);
+        _doWriteSync();
+    }
 }
 
 function writeConfig(config) {
-    _cache = config;                             // keep cache in sync
+    _cache = config;
     if (_writeTimer) clearTimeout(_writeTimer);
     _writeTimer = setTimeout(_doWrite, 500);
 }
@@ -51,7 +61,7 @@ function writeConfig(config) {
 function flushConfig() {
     if (_writeTimer) {
         clearTimeout(_writeTimer);
-        _doWrite();
+        _doWriteSync();
     }
 }
 

@@ -11,6 +11,22 @@ process.on('unhandledRejection', (reason) => {
 const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
 const path = require('path');
 
+// ── IPC timing wrapper (Phase 0 instrumentation) ──
+const _origHandle = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = function (channel, handler) {
+  return _origHandle(channel, async (event, ...args) => {
+    const start = performance.now();
+    try {
+      return await handler(event, ...args);
+    } finally {
+      const duration = performance.now() - start;
+      if (duration > 10) {
+        console.warn(`[Perf] IPC ${channel}: ${duration.toFixed(1)}ms`);
+      }
+    }
+  });
+};
+
 const config = require('./config/config.js');
 const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
@@ -186,6 +202,15 @@ function registerAllIpc(onRepoSelected) {
       safeRegister('github_ipc',      () => require('./ipc/github_ipc.js').register());
       safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
       safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
+    });
+
+    // Deferred another tick
+    setImmediate(() => {
+      const safeRegister = (name, fn) => {
+        try { fn(); }
+        catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
+      };
+      safeRegister('watcher_ipc',     () => require('./ipc/watcher_ipc.js').register());
     });
 
     // Heavier IPC modules — deferred another tick so first paint isn't contested
