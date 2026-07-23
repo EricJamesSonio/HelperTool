@@ -1,6 +1,7 @@
 'use strict';
 
 const os = require('os');
+const path = require('path');
 const fs = require('fs');
 const pty = require('node-pty');
 const { BrowserDiscovery } = require('../../terminal/error-cop/browser-discovery');
@@ -74,11 +75,33 @@ function run({ command, cwd, shell } = {}) {
   if (!command) return { success: false, error: 'command is required' };
   _init();
 
-  const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
+  let resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
+  let resolvedCommand = command;
   const shellCmd = shell || _defaultShell();
   const runnerId = _nextRunnerId();
   const discovery = new BrowserDiscovery();
   const outputBuf = _createOutputBuffer(MAX_OUTPUT_LINES);
+
+  // Smart cwd: if command starts with a relative directory path (e.g. "client\npm"),
+  // chdir into that directory and use the rest as the command
+  const firstSep = command.search(/[/\\]/);
+  if (firstSep > 0) {
+    const potentialDir = command.slice(0, firstSep);
+    const afterSep = command.slice(firstSep + 1);
+    const testDir = path.resolve(resolvedCwd, potentialDir);
+    if (fs.existsSync(testDir)) {
+      resolvedCwd = testDir;
+      resolvedCommand = afterSep;
+    }
+  }
+
+  // Build shell args: use -Command on Windows for reliable argv passing (avoids stdin issues)
+  let shellArgs;
+  if (process.platform === 'win32') {
+    shellArgs = ['-NoProfile', '-NoExit', '-Command', resolvedCommand];
+  } else {
+    shellArgs = ['-c', resolvedCommand];
+  }
 
   // Create watcher session
   let watcherSession;
@@ -93,7 +116,7 @@ function run({ command, cwd, shell } = {}) {
     return { success: false, error: 'Failed to create session: ' + e.message };
   }
 
-  const p = pty.spawn(shellCmd, [], {
+  const p = pty.spawn(shellCmd, shellArgs, {
     name: 'xterm-256color',
     cols: 80,
     rows: 24,
@@ -105,7 +128,8 @@ function run({ command, cwd, shell } = {}) {
     runnerId,
     sessionId: runnerId,
     pty: p,
-    command,
+    command: resolvedCommand,
+    originalCommand: command,
     cwd: resolvedCwd,
     shell: shellCmd,
     outputBuf,
@@ -129,7 +153,6 @@ function run({ command, cwd, shell } = {}) {
     }
 
     // Process as watcher events via log-adapter
-    // perf: processChunk() avg 0.01ms per chunk
     processChunk(data, runnerId, function (sid, events) {
       session.pushEvents(sid, events);
     });
@@ -175,11 +198,8 @@ function run({ command, cwd, shell } = {}) {
   p.onData(onData);
   p.onExit(onExit);
 
-  // Write command to the PTY
-  p.write(command + '\n');
-
-  log('Process started:', runnerId, 'command:', command.slice(0, 80));
-  return { success: true, data: { runnerId, sessionId: runnerId, command, cwd: resolvedCwd } };
+  log('Process started:', runnerId, 'command:', resolvedCommand.slice(0, 80), 'cwd:', resolvedCwd);
+  return { success: true, data: { runnerId, sessionId: runnerId, command: resolvedCommand, originalCommand: command, cwd: resolvedCwd } };
 }
 
 function stop(runnerId) {

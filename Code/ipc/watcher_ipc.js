@@ -51,7 +51,18 @@ function _wirePushHandler(getMainWindow) {
   }
 }
 
+function _ensureWatcherStarted() {
+  try {
+    const watcher = require('../ecosystem-watcher');
+    if (!watcher.isRunning()) watcher.start();
+  } catch (e) {
+    console.warn('[WatcherIPC] Could not start watcher:', e.message);
+  }
+}
+
 function register(getMainWindow) {
+  // Start watcher early so Health shows Running even if DB init hasn't finished
+  _ensureWatcherStarted();
   const inited = _init();
   if (inited) _wirePushHandler(getMainWindow);
 
@@ -90,6 +101,7 @@ function register(getMainWindow) {
 
   ipcMain.handle('watcher:health', safe(async function () {
     const watcher = require('../ecosystem-watcher');
+    if (!watcher.isRunning()) watcher.start();
     return watcher.getHealth();
   }));
 

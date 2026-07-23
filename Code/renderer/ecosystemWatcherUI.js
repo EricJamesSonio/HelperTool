@@ -3,10 +3,13 @@ let _open = false;
 let _pollTimer = null;
 let _runners = [];
 let _urls = [];
-let _expandedOutput = null;
 let _activeCwd = window.__activeRepoPath || '';
 let _selectedPath = window.__activeRepoPath || '';
 let _userSetPath = false;
+let _sessionPage = 0;
+let _allSessions = [];
+let _selectedRunnerId = null;
+let _selectedSessionId = null;
 
 function _el(tag, attrs, children) {
   const el = document.createElement(tag);
@@ -52,9 +55,9 @@ async function _refresh() {
     ]);
     _runners = cmdList && cmdList.success ? cmdList.data : [];
     _urls = urlList && urlList.success ? urlList.data : [];
+    _allSessions = sessions && sessions.data ? sessions.data : (sessions || []);
     _renderHealth(health);
-    _renderRunners();
-    _renderSessions(sessions);
+    _renderSessions();
 
     // Sync path from global repo selection if user never picked one via the UI
     if (!_userSetPath && window.__activeRepoPath) {
@@ -67,35 +70,26 @@ async function _refresh() {
   }
 }
 
-async function _selectSession(sessionId) {
-  try {
-    const [snapshot, timeline] = await Promise.all([
-      window.electronAPI.watcher.snapshot(sessionId),
-      window.electronAPI.watcher.timeline(sessionId, 50),
-    ]);
-    _renderDetail(snapshot, timeline);
-  } catch (err) {
-    console.error('[EcoWatcher] Session detail error:', err);
+function _selectSession(sessionId) {
+  const runner = _runners.find(function (r) { return r.sessionId === sessionId; });
+  if (runner) {
+    _selectedRunnerId = runner.runnerId;
+    _selectedSessionId = null;
+    _selectRunner(runner.runnerId);
+  } else {
+    _selectedSessionId = sessionId;
+    _selectedRunnerId = null;
+    _showEventsOnly(sessionId);
   }
 }
 
 function _updatePathDisplay() {
   const pathEl = document.getElementById('ewRunPath');
-  const prefixEl = document.getElementById('ewPathPrefix');
   const useBtn = document.getElementById('ewCwdUseBtn');
   const isActive = useBtn && useBtn.classList.contains('ew-cwd-in-use');
 
   const label = _selectedPath || _activeCwd;
   if (pathEl) pathEl.textContent = _esc(label || '(none selected)');
-
-  if (isActive && _activeCwd) {
-    if (prefixEl) {
-      prefixEl.textContent = _activeCwd.replace(/[/\\]$/, '') + '>';
-      prefixEl.style.display = '';
-    }
-  } else {
-    if (prefixEl) prefixEl.style.display = 'none';
-  }
 }
 
 function _handleUsePath() {
@@ -104,11 +98,16 @@ function _handleUsePath() {
   const isActive = useBtn.classList.contains('ew-cwd-in-use');
 
   if (isActive) {
+    const prevCwd = _activeCwd;
     useBtn.classList.remove('ew-cwd-in-use');
     useBtn.textContent = 'Use';
     _activeCwd = '';
     const statusEl = document.getElementById('ewRunStatus');
     if (statusEl) statusEl.textContent = 'Path unset — pick one with Change';
+    const input = document.getElementById('ewCmdInput');
+    const pathPrefix = prevCwd.replace(/[/\\]$/, '') + '\\';
+    if (input && input.value.startsWith(pathPrefix)) input.value = input.value.slice(pathPrefix.length);
+    else if (input) input.value = '';
   } else {
     _activeCwd = _selectedPath || window.__activeRepoPath || '';
     if (!_activeCwd) {
@@ -120,6 +119,8 @@ function _handleUsePath() {
     useBtn.textContent = 'Active';
     const statusEl = document.getElementById('ewRunStatus');
     if (statusEl) statusEl.textContent = '✓ ' + _activeCwd;
+    const input = document.getElementById('ewCmdInput');
+    if (input) input.value = _activeCwd + '\\';
   }
   _updatePathDisplay();
 }
@@ -221,14 +222,20 @@ async function _handleRun() {
     return;
   }
 
+  // Strip cwd prefix from command if present, so process-runner gets just the relative part
+  let command = cmd;
+  const cwdPrefix = cwd.replace(/[/\\]$/, '') + '\\';
+  if (command.startsWith(cwdPrefix)) {
+    command = command.slice(cwdPrefix.length);
+  }
+
   const runBtn = document.getElementById('ewRunBtn');
-  const stopBtn = document.getElementById('ewStopBtn');
   if (runBtn) runBtn.disabled = true;
   const statusEl = document.getElementById('ewRunStatus');
   if (statusEl) statusEl.textContent = 'Starting...';
 
   try {
-    const result = await window.electronAPI.watcher.runCommand({ command: cmd, cwd });
+    const result = await window.electronAPI.watcher.runCommand({ command: command, cwd: cwd });
     if (result && result.success) {
       if (statusEl) statusEl.textContent = 'Running';
       input.value = '';
@@ -243,47 +250,78 @@ async function _handleRun() {
   }
 }
 
-async function _handleStop() {
-  if (!_runners.length) return;
-  const last = _runners[_runners.length - 1];
-  const runBtn = document.getElementById('ewRunBtn');
-  const statusEl = document.getElementById('ewRunStatus');
+async function _handleStop(runnerId) {
   try {
-    await window.electronAPI.watcher.stopCommand(last.runnerId);
-    if (statusEl) statusEl.textContent = 'Stopped';
+    await window.electronAPI.watcher.stopCommand(runnerId);
+    if (_selectedRunnerId === runnerId) {
+      _selectedRunnerId = null;
+      _selectedSessionId = null;
+      document.getElementById('ewSplitView').style.display = 'none';
+    }
   } catch (e) {
     console.error('[EcoWatcher] Stop error:', e);
-    if (statusEl) statusEl.textContent = 'Stop error: ' + e.message;
   }
-  if (runBtn) runBtn.disabled = false;
 }
 
 function _stripAnsi(s) {
-  return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+  return s
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
+    .replace(/\x1b\][0-9;]*[^\x1b]*\x1b\\/g, '')
+    .replace(/\x1b\][^\x07]*\x07/g, '')
+    .replace(/\x1b[^\[\(]/g, '')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
+    .replace(/\r/g, '');
 }
 
-async function _toggleOutput(runnerId) {
-  const outputSection = document.getElementById('ewOutputSection');
-  const outputArea = document.getElementById('ewOutputArea');
-  if (!outputSection || !outputArea) return;
+async function _selectRunner(runnerId) {
+  _selectedRunnerId = runnerId;
+  _renderSessions();
+  const splitEl = document.getElementById('ewSplitView');
+  if (!splitEl) return;
+  splitEl.style.display = '';
 
-  if (_expandedOutput === runnerId) {
-    outputSection.style.display = 'none';
-    _expandedOutput = null;
-    return;
-  }
+  const terminalEl = document.getElementById('ewSplitTerminal');
+  const eventsEl = document.getElementById('ewSplitEvents');
+  if (terminalEl) terminalEl.textContent = 'Loading output...';
+  if (eventsEl) eventsEl.textContent = 'Loading events...';
 
-  _expandedOutput = runnerId;
-  outputSection.style.display = '';
-  outputArea.textContent = 'Loading output...';
+  const runner = _runners.find(function (r) { return r.runnerId === runnerId; });
+  const sessionId = runner ? runner.sessionId : null;
+
+  let termText = '(no output)';
+  let events = [];
+  let sessionEvents = [];
 
   try {
     const result = await window.electronAPI.watcher.commandOutput({ runnerId, tail: 200 });
-    const text = result && result.success ? result.data : '(no output)';
-    outputArea.textContent = _stripAnsi(text || '(empty)');
-    outputArea.scrollTop = outputArea.scrollHeight;
-  } catch (e) {
-    outputArea.textContent = 'Error loading output: ' + e.message;
+    termText = result && result.success ? result.data : '(no output)';
+  } catch (e) { /* ignore */ }
+
+  if (sessionId) {
+    try {
+      const timeline = await window.electronAPI.watcher.timeline(sessionId, 50);
+      sessionEvents = timeline && timeline.data ? timeline.data : [];
+    } catch (e) { /* ignore */ }
+  }
+
+  if (terminalEl) terminalEl.textContent = _stripAnsi(termText || '(empty)');
+  if (terminalEl) terminalEl.scrollTop = terminalEl.scrollHeight;
+
+  if (eventsEl) {
+    if (!sessionEvents.length) {
+      eventsEl.textContent = '(no events)';
+    } else {
+      eventsEl.innerHTML = sessionEvents.map(function (e) {
+        const type = e.type || 'log';
+        const ts = e.ts ? new Date(e.ts).toLocaleTimeString() : '';
+        const msg = e.summary || e.message || e.data && e.data.raw || '(no message)';
+        return '<div class="ew-split-event">' +
+          '<span class="ew-event-type ' + type + '">' + type + '</span>' +
+          '<span class="ew-split-event-msg">' + _esc(msg).slice(0, 200) + '</span>' +
+          '<span class="ew-split-event-time">' + ts + '</span>' +
+          '</div>';
+      }).join('');
+    }
   }
 }
 
@@ -312,11 +350,9 @@ function _buildPanel() {
       </div>
       <div class="ew-body">
         <div class="ew-run-bar">
-          <div class="ew-run-bar-row ew-run-bar-input-row">
-            <span class="ew-path-prefix" id="ewPathPrefix" style="display:none"></span>
+          <div class="ew-run-bar-row">
             <input class="ew-run-input" id="ewCmdInput" type="text" placeholder="npm run dev" spellcheck="false" autocomplete="off" />
             <button class="ew-run-btn" id="ewRunBtn">Run</button>
-            <button class="ew-stop-btn" id="ewStopBtn">Stop</button>
           </div>
           <div class="ew-run-bar-row ew-run-bar-meta">
             <div class="ew-cwd-row">
@@ -331,30 +367,26 @@ function _buildPanel() {
           </div>
         </div>
 
-        <div class="ew-runners-section" id="ewRunnersSection" style="display:none">
-          <div class="ew-section-title">Running Commands</div>
-          <div id="ewRunners" class="ew-runners"></div>
+        <div class="ew-section">
+          <div class="ew-section-title">Sessions</div>
+          <div id="ewSessions" class="ew-sessions">Loading...</div>
         </div>
 
-        <div class="ew-output-section" id="ewOutputSection" style="display:none">
-          <div class="ew-section-title">Command Output</div>
-          <pre class="ew-output-area" id="ewOutputArea"></pre>
+        <div class="ew-split-view" id="ewSplitView" style="display:none">
+          <div class="ew-split-pane ew-split-terminal-pane">
+            <div class="ew-section-title">Terminal Output</div>
+            <pre class="ew-split-terminal" id="ewSplitTerminal"></pre>
+          </div>
+          <div class="ew-split-divider"></div>
+          <div class="ew-split-pane ew-split-events-pane">
+            <div class="ew-section-title">Events</div>
+            <div class="ew-split-events" id="ewSplitEvents"></div>
+          </div>
         </div>
 
         <div class="ew-section">
           <div class="ew-section-title">Health</div>
           <div id="ewHealth" class="ew-health">Loading...</div>
-        </div>
-        <div class="ew-section">
-          <div class="ew-section-title">Sessions</div>
-          <div id="ewSessions" class="ew-sessions">Loading...</div>
-        </div>
-        <div class="ew-section" id="ewDetailSection" style="display:none">
-          <div class="ew-section-title">
-            Session Detail
-            <button class="ew-back-btn" id="ewBackBtn">Back</button>
-          </div>
-          <div id="ewDetail" class="ew-detail"></div>
         </div>
       </div>
     </div>
@@ -363,16 +395,12 @@ function _buildPanel() {
   document.body.appendChild(_panel);
 
   _panel.querySelector('#ewCloseBtn').addEventListener('click', close);
-  _panel.querySelector('#ewBackBtn').addEventListener('click', () => {
-    document.getElementById('ewDetailSection').style.display = 'none';
-  });
   _panel.addEventListener('click', (e) => {
     if (e.target === _panel) close();
   });
   document.addEventListener('keydown', _escHandler);
 
   document.getElementById('ewRunBtn').addEventListener('click', _handleRun);
-  document.getElementById('ewStopBtn').addEventListener('click', _handleStop);
 
   document.getElementById('ewCmdInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') _handleRun();
@@ -404,136 +432,201 @@ function _renderHealth(health) {
   `;
 }
 
-function _renderRunners() {
-  const section = document.getElementById('ewRunnersSection');
-  const el = document.getElementById('ewRunners');
-  const outputSection = document.getElementById('ewOutputSection');
-  if (!section || !el) return;
-
-  if (!_runners || _runners.length === 0) {
-    section.style.display = 'none';
-    return;
-  }
-
-  section.style.display = '';
-  el.innerHTML = '';
-
-  for (const r of _runners) {
-    const statusDot = r.status === 'running' ? 'ew-dot-running' : r.status === 'ended' ? 'ew-dot-ended' : r.status === 'killed' ? 'ew-dot-killed' : 'ew-dot-failed';
-
-    const card = document.createElement('div');
-    card.className = 'ew-runner-card';
-
-    const urlHtml = r.detectedUrls && r.detectedUrls.length > 0
-      ? '<div class="ew-runner-urls">' + r.detectedUrls.map(u => {
-          const urlInfo = _urls.find(x => x.port === u.port);
-          const healthDot = urlInfo ? (urlInfo.status === 'online' ? '🟢' : urlInfo.status === 'offline' ? '🔴' : '🟡') : '⚪';
-          const healthText = urlInfo ? (urlInfo.status + (urlInfo.responseTimeMs ? ' ' + urlInfo.responseTimeMs + 'ms' : '')) : 'checking...';
-          return `<div class="ew-runner-url">
-            <span class="ew-url-dot">${healthDot}</span>
-            <span class="ew-url-text">${_esc(u.url)}</span>
-            <span class="ew-url-framework">${_esc(u.framework || 'Dev Server')}</span>
-            <span class="ew-url-health">${healthText}</span>
-          </div>`;
-        }).join('') + '</div>'
-      : '';
-
-    const uptime = r.uptime != null ? _fmtUptime(r.uptime) : _fmtUptime(Math.floor((Date.now() - r.startedAt) / 1000));
-
-    card.innerHTML = `
-      <div class="ew-runner-row">
-        <span class="ew-runner-dot ${statusDot}"></span>
-        <div class="ew-runner-info">
-          <span class="ew-runner-cmd">${_esc(r.command)}</span>
-          <span class="ew-runner-meta">${r.status} · ${uptime} · ${r.outputLineCount || 0} lines</span>
-        </div>
-        <button class="ew-runner-view-btn" data-runner-id="${_esc(r.runnerId)}">Output</button>
-      </div>
-      ${urlHtml}
-    `;
-
-    el.appendChild(card);
-
-    const viewBtn = card.querySelector('.ew-runner-view-btn');
-    viewBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      _toggleOutput(r.runnerId);
-    });
-
-    // Auto-register URLs from running commands
-    if (r.detectedUrls && r.status === 'running') {
-      for (const u of r.detectedUrls) {
-        const exists = _urls.some(x => x.port === u.port);
-        if (!exists) {
-          _registerUrl({ url: u.url, port: u.port, framework: u.framework, sessionId: r.sessionId });
-        }
-      }
-    }
-  }
-}
-
-function _renderSessions(result) {
+function _renderSessions() {
   const el = document.getElementById('ewSessions');
   if (!el) return;
-  const sessions = result && result.data ? result.data : result;
-  if (!sessions || !sessions.length) {
-    el.innerHTML = '<div class="ew-empty">No active sessions</div>';
-    return;
+
+  // Build merged list
+  const items = [];
+  const usedSessionIds = new Set();
+
+  // Runners (active commands)
+  for (const r of _runners) {
+    const uptime = r.uptime != null ? _fmtUptime(r.uptime) : _fmtUptime(Math.floor((Date.now() - r.startedAt) / 1000));
+    items.push({
+      id: r.runnerId,
+      sessionId: r.sessionId,
+      label: r.command || ('Runner ' + r.runnerId),
+      status: r.status,
+      startedAt: r.startedAt || Date.now(),
+      meta: uptime + ' \u00b7 ' + (r.outputLineCount || 0) + ' lines',
+      isRunner: true,
+      runner: r,
+    });
+    usedSessionIds.add(r.sessionId);
   }
-  el.innerHTML = sessions.map(s => {
+
+  // Watcher-only sessions (no active runner)
+  for (const s of _allSessions) {
+    if (usedSessionIds.has(s.sessionId)) continue;
     const cmdInfo = s.command || '';
     const label = cmdInfo || ('Session ' + s.sessionId);
     const sourceLabel = cmdInfo ? 'run' : (s.source || 'ai');
-    return `
-    <div class="ew-session-item" data-id="${s.sessionId}">
-      <div>
-        <div class="ew-session-id">${_esc(label)}</div>
-        <div class="ew-session-meta">${sourceLabel} | ${s.eventCount || 0} events | ${_fmtUptime(Math.floor((Date.now() - (s.startedAt || Date.now())) / 1000))}</div>
-      </div>
-      <span style="color:var(--text-faint,#364060);font-size:0.75rem">View &rarr;</span>
-    </div>
-  `}).join('');
-  el.querySelectorAll('.ew-session-item').forEach(item => {
-    item.addEventListener('click', () => _selectSession(item.dataset.id));
-  });
-}
-
-function _renderDetail(snapshot, timeline) {
-  const section = document.getElementById('ewDetailSection');
-  const el = document.getElementById('ewDetail');
-  if (!section || !el) return;
-  section.style.display = '';
-
-  const snap = snapshot && snapshot.data ? snapshot.data : {};
-  const events = timeline && timeline.data ? timeline.data : [];
-
-  let html = '';
-  if (snap.summary) {
-    html += `<div class="ew-summary-box"><div class="ew-summary-label">Summary</div>${_esc(snap.summary)}</div>`;
+    items.push({
+      id: s.sessionId,
+      sessionId: s.sessionId,
+      label: label,
+      status: 'stopped',
+      startedAt: s.startedAt || Date.now(),
+      meta: sourceLabel + ' | ' + (s.eventCount || 0) + ' events',
+      isRunner: false,
+      watcherSession: s,
+    });
   }
-  if (snap.keyEvents && snap.keyEvents.length) {
-    html += '<div class="ew-summary-box"><div class="ew-summary-label">Key Events</div>';
-    html += snap.keyEvents.map(k => `<div class="ew-key-event">${_esc(k)}</div>`).join('');
+
+  // Sort — most recent first
+  items.sort(function (a, b) { return b.startedAt - a.startedAt; });
+
+  if (!items.length) {
+    el.innerHTML = '<div class="ew-empty">No sessions</div>';
+    return;
+  }
+
+  // Paginate (show 5)
+  const pageSize = 5;
+  const totalPages = Math.ceil(items.length / pageSize) || 1;
+  if (_sessionPage >= totalPages) _sessionPage = totalPages - 1;
+  const start = _sessionPage * pageSize;
+  const page = items.slice(start, start + pageSize);
+
+  let html = '<div class="ew-sessions-list">';
+  for (const item of page) {
+    const dotClass = item.status === 'running' ? 'ew-dot-running' : 'ew-dot-ended';
+    const isSelected = (item.isRunner && item.runner.runnerId === _selectedRunnerId) || (!item.isRunner && item.sessionId === _selectedSessionId);
+    const statusLabel = item.status === 'running' ? 'Running' : 'Stopped';
+
+    html += '<div class="ew-session-item' + (isSelected ? ' ew-session-item--selected' : '') + '" data-id="' + item.sessionId + '" data-runner-id="' + (item.isRunner ? item.runner.runnerId : '') + '">';
+
+    html += '<span class="ew-runner-dot ' + dotClass + '" title="' + statusLabel + '"></span>';
+
+    html += '<div class="ew-session-info">';
+    html += '<div class="ew-session-id">' + _esc(item.label) + '</div>';
+    html += '<div class="ew-session-meta"><span class="ew-status-label ' + item.status + '">' + statusLabel + '</span> &middot; ' + _esc(item.meta) + '</div>';
+    if (item.isRunner && item.runner.detectedUrls && item.runner.detectedUrls.length) {
+      html += '<div class="ew-session-urls">';
+      for (const u of item.runner.detectedUrls) {
+        const urlInfo = _urls.find(function (x) { return x.port === u.port; });
+        const healthDot = urlInfo ? (urlInfo.status === 'online' ? '\ud83d\udfe2' : urlInfo.status === 'offline' ? '\ud83d\udd34' : '\ud83d\udfe1') : '\u26aa';
+        html += '<span class="ew-session-url">' + healthDot + ' ' + _esc(u.url) + '</span>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="ew-session-actions">';
+    html += '<button class="ew-session-view-btn" data-action="view">View</button>';
+    if (item.isRunner && item.status === 'running') {
+      html += '<button class="ew-session-stop-btn" data-action="stop" data-runner-id="' + item.runner.runnerId + '">Stop</button>';
+    }
+    html += '</div>';
+
+    html += '</div>';
+  }
+  html += '</div>';
+
+  if (totalPages > 1) {
+    html += '<div class="ew-session-pages">';
+    html += '<span class="ew-page-info">Page ' + (_sessionPage + 1) + ' of ' + totalPages + '</span>';
+    if (_sessionPage < totalPages - 1) {
+      html += '<button class="ew-page-btn" id="ewNextPage">Next</button>';
+    }
     html += '</div>';
   }
 
-  html += '<div class="ew-summary-label" style="margin-bottom:6px">Event Timeline</div>';
-  if (!events.length) {
-    html += '<div class="ew-empty">No events recorded yet</div>';
-  } else {
-    html += events.map(e => {
-      const type = e.type || 'log';
-      const ts = e.ts ? new Date(e.ts).toLocaleTimeString() : '';
-      const msg = e.summary || e.message || e.data?.raw || '(no message)';
-      return `<div class="ew-event-item">
-        <span class="ew-event-type ${type}">${type}</span>
-        <span class="ew-event-msg">${_esc(msg).slice(0, 200)}</span>
-        <span class="ew-event-time">${ts}</span>
-      </div>`;
-    }).join('');
-  }
-
   el.innerHTML = html;
+
+  // Click on item body toggles split view
+  el.querySelectorAll('.ew-session-item').forEach(function (item) {
+    item.addEventListener('click', function (e) {
+      if (e.target.closest('[data-action]')) return;
+      const runnerId = item.dataset.runnerId;
+      const sessionId = item.dataset.id;
+      if (runnerId) {
+        const r = _runners.find(function (x) { return x.runnerId === runnerId; });
+        if (r) {
+          if (_selectedRunnerId === runnerId) {
+            _selectedRunnerId = null;
+            _selectedSessionId = null;
+            document.getElementById('ewSplitView').style.display = 'none';
+          } else {
+            _selectedRunnerId = runnerId;
+            _selectedSessionId = null;
+            _selectRunner(runnerId);
+          }
+        }
+      } else {
+        if (_selectedSessionId === sessionId) {
+          _selectedSessionId = null;
+          _selectedRunnerId = null;
+          document.getElementById('ewSplitView').style.display = 'none';
+        } else {
+          _selectedSessionId = sessionId;
+          _selectedRunnerId = null;
+          _showEventsOnly(sessionId);
+        }
+      }
+      _renderSessions();
+    });
+  });
+
+  // View buttons
+  el.querySelectorAll('.ew-session-view-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const item = btn.closest('.ew-session-item');
+      if (!item) return;
+      item.click();
+    });
+  });
+
+  // Stop buttons
+  el.querySelectorAll('.ew-session-stop-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const runnerId = btn.dataset.runnerId;
+      if (runnerId) _handleStop(runnerId);
+    });
+  });
+
+  const nextBtn = document.getElementById('ewNextPage');
+  if (nextBtn) nextBtn.addEventListener('click', function () {
+    _sessionPage++;
+    _renderSessions();
+  });
+}
+
+async function _showEventsOnly(sessionId) {
+  const splitEl = document.getElementById('ewSplitView');
+  if (!splitEl) return;
+  splitEl.style.display = '';
+
+  const terminalEl = document.getElementById('ewSplitTerminal');
+  const eventsEl = document.getElementById('ewSplitEvents');
+  if (terminalEl) terminalEl.textContent = '(no terminal — session only)';
+  if (eventsEl) eventsEl.textContent = 'Loading events...';
+
+  let sessionEvents = [];
+  try {
+    const timeline = await window.electronAPI.watcher.timeline(sessionId, 50);
+    sessionEvents = timeline && timeline.data ? timeline.data : [];
+  } catch (e) { /* ignore */ }
+
+  if (eventsEl) {
+    if (!sessionEvents.length) {
+      eventsEl.textContent = '(no events)';
+    } else {
+      eventsEl.innerHTML = sessionEvents.map(function (e) {
+        const type = e.type || 'log';
+        const ts = e.ts ? new Date(e.ts).toLocaleTimeString() : '';
+        const msg = e.summary || e.message || e.data && e.data.raw || '(no message)';
+        return '<div class="ew-split-event">' +
+          '<span class="ew-event-type ' + type + '">' + type + '</span>' +
+          '<span class="ew-split-event-msg">' + _esc(msg).slice(0, 200) + '</span>' +
+          '<span class="ew-split-event-time">' + ts + '</span>' +
+          '</div>';
+      }).join('');
+    }
+  }
 }
 
 function _fmtUptime(sec) {

@@ -114,7 +114,30 @@ function createFilter(eventStore, session) {
   }
 
   function getSessionTimeline(sessionId, limit) {
-    return eventStore.getSessionTimeline(sessionId, limit);
+    const storeResult = eventStore.getSessionTimeline(sessionId, limit);
+
+    const ws = session.getSession(sessionId);
+    let bufferEvents = [];
+    if (ws) {
+      bufferEvents = ws.buffer.getAll();
+      for (let i = 0; i < bufferEvents.length; i++) {
+        _stripInternal(bufferEvents[i]);
+      }
+    }
+
+    // Merge — store events first (ordered by id), then buffer events sorted by ts/seq
+    const merged = storeResult.events.concat(bufferEvents);
+    merged.sort(_sortByTsSeq);
+    const capped = merged.slice(0, limit || 200);
+
+    return {
+      events: capped,
+      meta: {
+        count: capped.length,
+        total: ws ? ws.eventCount : storeResult.meta.count,
+        hasMore: merged.length > (limit || 200) || storeResult.meta.hasMore,
+      },
+    };
   }
 
   function getSessionSummary(sessionId) {
