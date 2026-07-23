@@ -60,6 +60,16 @@ const ROUTES = Object.freeze({
   SNAPSHOT: '/watcher/snapshot',
 });
 
+// ─── Event Source Map ───
+const SOURCES = Object.freeze({
+  log: 'terminal',
+  error: 'terminal',
+  request: 'backend',
+  process: 'backend',
+  browser: 'browser',
+});
+const DEFAULT_SOURCE = 'terminal';
+
 // ─── Debug Flag ───
 const DEBUG = !!process.env.DEBUG_WATCHER;
 const log = DEBUG ? (...args) => console.log('[watcher]', ...args) : () => {};
@@ -71,6 +81,8 @@ module.exports = {
   VALID_LOG_LEVELS,
   SESSION_STATUS,
   SESSION_SOURCE,
+  SOURCES,
+  DEFAULT_SOURCE,
   MAX_EVENTS_PER_SESSION,
   MAX_EVENT_SIZE_BYTES,
   SESSION_TTL_MS,

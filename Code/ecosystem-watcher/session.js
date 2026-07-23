@@ -2,11 +2,13 @@
 
 const { createTTLBuffer } = require('./buffer');
 const { MAX_EVENTS_PER_SESSION, SESSION_TTL_MS, VALID_EVENT_TYPES, VALID_LOG_LEVELS, MAX_EVENTS_PER_SEC, DEFAULT_SAMPLE_RATIO, log } = require('./constants');
+const { normalizeEvent } = require('./normalizer');
 
 let _sessions = null;
 let _cleanupTimer = null;
 let _rateCounters = null;
 let _store = null;
+let _pushHandler = null;
 
 function _init() {
   if (_sessions) return;
@@ -43,6 +45,14 @@ function _purgeExpired() {
   if (_sessions.size === 0) {
     _stopCleanupTimer();
   }
+}
+
+function setPushHandler(fn) {
+  _pushHandler = fn;
+}
+
+function getPushHandler() {
+  return _pushHandler;
 }
 
 function validateEvent(evt) {
@@ -151,20 +161,26 @@ function pushEvent(sessionId, event) {
   const ws = _sessions.get(sessionId);
   if (!ws) return false;
 
-  if (!validateEvent(event)) {
-    log('Invalid event dropped for session', sessionId, event);
+  const normalized = normalizeEvent(event, sessionId, ws.meta && ws.meta.source);
+  if (!normalized) return false;
+
+  if (!validateEvent(normalized)) {
+    log('Invalid event dropped for session', sessionId, normalized);
     return false;
   }
 
   if (!_checkRateLimit(sessionId)) {
-    ws.buffer.getDropped();
     return false;
   }
 
-  ws.buffer.push(event);
+  ws.buffer.push(normalized);
   ws.eventCount++;
   ws.buffer.resetTTL();
   _spillToStore(sessionId, ws);
+
+  if (_pushHandler) {
+    try { _pushHandler(normalized); } catch (e) { log('pushHandler error:', e.message); }
+  }
   return true;
 }
 
@@ -174,28 +190,44 @@ function pushEvents(sessionId, events) {
   let pushed = 0;
 
   for (let i = 0; i < events.length; i++) {
-    const evt = events[i];
-    if (validateEvent(evt) && _checkRateLimit(sessionId)) {
-      ws.buffer.push(evt);
-      ws.eventCount++;
-      pushed++;
-    }
+    const normalized = normalizeEvent(events[i], sessionId, ws.meta && ws.meta.source);
+    if (!normalized) continue;
+    if (!validateEvent(normalized)) continue;
+    if (!_checkRateLimit(sessionId)) continue;
+
+    ws.buffer.push(normalized);
+    ws.eventCount++;
+    pushed++;
   }
   ws.buffer.resetTTL();
   if (pushed > 0) _spillToStore(sessionId, ws);
   return pushed > 0;
 }
 
+function _stripInternal(event) {
+  if (event && typeof event === 'object') {
+    delete event._ts;
+  }
+  return event;
+}
+
+function _stripInternalMany(events) {
+  for (let i = 0; i < events.length; i++) {
+    _stripInternal(events[i]);
+  }
+  return events;
+}
+
 function getEvents(sessionId, start, limit) {
   const ws = _sessions.get(sessionId);
   if (!ws) return [];
-  return ws.buffer.getRange(start || 0, limit || ws.buffer.size());
+  return _stripInternalMany(ws.buffer.getRange(start || 0, limit || ws.buffer.size()));
 }
 
 function getLastEvents(sessionId, n) {
   const ws = _sessions.get(sessionId);
   if (!ws) return [];
-  return ws.buffer.getLast(n || 50);
+  return _stripInternalMany(ws.buffer.getLast(n || 50));
 }
 
 function getSessionCount() {
@@ -240,6 +272,7 @@ function getHealth(sessionId) {
       eventCount: ws.eventCount,
       bufferSize: ws.buffer.size(),
       bufferDropped: ws.buffer.getDropped(),
+      droppedEvents: ws.buffer.getDropped(),
       sampleRatio: rs ? rs.sampleRatio : DEFAULT_SAMPLE_RATIO,
       uptime: Math.floor((Date.now() - ws.startedAt) / 1000),
     };
@@ -257,6 +290,7 @@ function getHealth(sessionId) {
     totalEvents: totalEvents,
     totalDropped: totalDropped,
     totalBufferSize: totalBuffer,
+    droppedEvents: totalDropped,
     sessions: listSessions(),
   };
 }
@@ -274,5 +308,7 @@ module.exports = {
   endAllSessions,
   validateEvent,
   setStore,
+  setPushHandler,
+  getPushHandler,
   getHealth,
 };

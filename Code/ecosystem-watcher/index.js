@@ -197,6 +197,74 @@ function setStore(store) {
   session.setStore(store);
 }
 
+function setPushHandler(fn) {
+  session.setPushHandler(fn);
+}
+
+function getSessionDetail(sessionId) {
+  const ws = session.getSession(sessionId);
+  if (!ws) {
+    return {
+      session: null,
+      stats: { events: 0, errors: 0, requests: 0, dropped: 0, process: 0, browser: 0 },
+      live: { status: 'not_found', uptime: 0 },
+      recent: [],
+      throughput: 0,
+      lastEventAt: 0,
+    };
+  }
+
+  const bufEvents = ws.buffer.getAll();
+  for (let i = 0; i < bufEvents.length; i++) {
+    if (bufEvents[i] && typeof bufEvents[i] === 'object') delete bufEvents[i]._ts;
+  }
+
+  const health = session.getHealth(sessionId);
+  const storeCount = _storeRef ? _storeRef.getEventCount(sessionId) : 0;
+
+  let errors = 0;
+  let requests = 0;
+  let process = 0;
+  let browser = 0;
+  for (let i = 0; i < bufEvents.length; i++) {
+    const e = bufEvents[i];
+    if (e.type === 'error') errors++;
+    else if (e.type === 'request') requests++;
+    else if (e.type === 'process') process++;
+    else if (e.type === 'browser') browser++;
+  }
+
+  const lastEvent = bufEvents.length > 0 ? bufEvents[bufEvents.length - 1] : null;
+  const recent = bufEvents.slice(-20);
+
+  return {
+    session: {
+      id: sessionId,
+      status: 'running',
+      startedAt: ws.startedAt,
+      uptime: health ? health.uptime : 0,
+    },
+    stats: {
+      events: ws.eventCount,
+      errors: errors,
+      requests: requests,
+      process: process,
+      browser: browser,
+      dropped: health ? health.droppedEvents : 0,
+      inStore: storeCount,
+      inBuffer: bufEvents.length,
+    },
+    live: {
+      status: 'running',
+      uptime: health ? health.uptime : 0,
+      sampleRatio: health ? health.sampleRatio : 1,
+    },
+    recent: recent,
+    throughput: bufEvents.length > 0 ? Math.round(bufEvents.length / ((Date.now() - ws.startedAt) / 1000)) : 0,
+    lastEventAt: lastEvent ? lastEvent.ts : 0,
+  };
+}
+
 module.exports = {
   start,
   stop,
@@ -207,6 +275,8 @@ module.exports = {
   endSession,
   connectToErrorEngine,
   setStore,
+  setPushHandler,
+  getSessionDetail,
   constants,
   buffer,
   session,

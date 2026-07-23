@@ -22,14 +22,14 @@ function summarize(events) {
     types[typ] = (types[typ] || 0) + 1;
 
     if (lvl === 'error') {
-      const msg = e.data && e.data.raw ? e.data.raw.slice(0, 150) : (e.data ? JSON.stringify(e.data).slice(0, 150) : '');
-      errors.push({ message: msg, time: e.timestamp });
+      const msg = (e.summary || e.data?.raw || '').slice(0, 150);
+      errors.push({ message: msg, time: e.ts || e.timestamp });
     }
     if (lvl === 'warn') {
-      const msg = e.data && e.data.raw ? e.data.raw.slice(0, 120) : '';
-      warnings.push({ message: msg, time: e.timestamp });
+      const msg = (e.summary || e.data?.raw || '').slice(0, 120);
+      warnings.push({ message: msg, time: e.ts || e.timestamp });
     }
-    timelines.push({ type: typ, level: lvl, time: e.timestamp });
+    timelines.push({ type: typ, level: lvl, time: e.ts || e.timestamp });
   }
 
   const keyEvents = [];
