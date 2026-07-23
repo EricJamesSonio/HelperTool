@@ -157,6 +157,20 @@
 
 /* ── Drop target highlight ── */
 
+/* ── Move cancel button ── */
+
+.move-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--red, #f87171);
+  border-color: rgba(248,81,73,0.2);
+}
+.move-cancel-btn:hover {
+  background: var(--red-dim, rgba(248,81,73,0.12));
+  border-color: var(--red, #f87171);
+}
+
 .node-wrapper.cm-drop-target > .tree-node.folder {
   background: var(--accent-dim, rgba(34,211,238,0.12)) !important;
   border-color: var(--accent, #22d3ee) !important;

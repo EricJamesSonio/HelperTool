@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'helpertool-shortcuts';
 
 const DEFAULT_SHORTCUTS = {
+  shortcutTool:  null,
   apiTool:       null,
   gitTool:       null,
   promptTool:    null,
