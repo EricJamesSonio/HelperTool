@@ -6,8 +6,29 @@ let _store = null;
 let _filter = null;
 let _initialized = false;
 
+function _init() {
+  if (_initialized) return true;
+  try {
+    const { getErrorCopDb, save } = require('../database/errorCopDb');
+    const { createEventStore } = require('../ecosystem-watcher/store/event-store');
+    const { createFilter } = require('../ecosystem-watcher/query/filter');
+    const watcherSession = require('../ecosystem-watcher/session');
+
+    _store = createEventStore({ db: getErrorCopDb(), save: save });
+    watcherSession.setStore(_store);
+    const watcher = require('../ecosystem-watcher');
+    watcher.setStore(_store);
+    _filter = createFilter(_store, watcherSession);
+    _initialized = true;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 function safe(fn) {
   return async function () {
+    _init();
     try { return await fn.apply(this, arguments); }
     catch (e) {
       console.error('[WatcherIPC] Error:', e.message);
@@ -16,26 +37,35 @@ function safe(fn) {
   };
 }
 
-function _init() {
-  if (_initialized) return;
-  const { getErrorCopDb, save } = require('../database/errorCopDb');
-  const { createEventStore } = require('../ecosystem-watcher/store/event-store');
-  const { createFilter } = require('../ecosystem-watcher/query/filter');
-  const watcherSession = require('../ecosystem-watcher/session');
-
-  _store = createEventStore({ db: getErrorCopDb(), save: save });
-  watcherSession.setStore(_store);
-  const watcher = require('../ecosystem-watcher');
-  watcher.setStore(_store);
-  _filter = createFilter(_store, watcherSession);
-  _initialized = true;
+function _wirePushHandler(getMainWindow) {
+  try {
+    const watcher = require('../ecosystem-watcher');
+    watcher.setPushHandler(function (event) {
+      const win = typeof getMainWindow === 'function' ? getMainWindow() : null;
+      if (win && !win.isDestroyed()) {
+        try { win.webContents.send('watcher:event', event); } catch (e) { /* ignore */ }
+      }
+    });
+  } catch (e) {
+    console.warn('[WatcherIPC] Push handler not wired:', e.message);
+  }
 }
 
-function register() {
-  _init();
+function register(getMainWindow) {
+  const inited = _init();
+  if (inited) _wirePushHandler(getMainWindow);
 
   ipcMain.handle('watcher:query', safe(async function (_, opts) {
     return _filter.filter(opts || {});
+  }));
+
+  ipcMain.handle('watcher:feed', safe(async function (_, opts) {
+    return _filter.getFeed(opts || {});
+  }));
+
+  ipcMain.handle('watcher:sessionDetail', safe(async function (_, sessionId) {
+    const watcher = require('../ecosystem-watcher');
+    return watcher.getSessionDetail(sessionId);
   }));
 
   ipcMain.handle('watcher:timeline', safe(async function (_, sessionId, limit) {

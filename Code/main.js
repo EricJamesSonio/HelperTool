@@ -50,7 +50,6 @@ const serviceTrackerIpc = require('./ipc/serviceTracker_ipc.js');
 // Must be set BEFORE app.whenReady()
 // ----------------------------
 app.commandLine.appendSwitch('disable-gpu-sandbox');
-app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('num-raster-threads', '1');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
@@ -102,12 +101,12 @@ if (!gotTheLock) {
         registerAllIpc(startIndexerAndPrefetch);
         createTray();
 
-        // Start DB init BEFORE window creation — runs in parallel with page load
-        const dbPromise = Promise.all([
-            initDatabase(app),
-            initChatDb(app),
-            initErrorCopDb(app),
-        ]);
+        // Start DB init BEFORE window creation — sequential to avoid main-thread contention
+        const dbPromise = (async () => {
+            await initDatabase(app);
+            await initChatDb(app);
+            await initErrorCopDb(app);
+        })();
 
         // Start worker process BEFORE window creation so it's ready when renderer makes its first getFolderTree call
         workerProxy.start();
@@ -210,7 +209,7 @@ function registerAllIpc(onRepoSelected) {
         try { fn(); }
         catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
       };
-      safeRegister('watcher_ipc',     () => require('./ipc/watcher_ipc.js').register());
+      safeRegister('watcher_ipc',     () => require('./ipc/watcher_ipc.js').register(getMainWindow));
     });
 
     // Heavier IPC modules — deferred another tick so first paint isn't contested

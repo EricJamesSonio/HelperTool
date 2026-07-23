@@ -1,6 +1,7 @@
 'use strict';
 
-const { VALID_EVENT_TYPES, VALID_LOG_LEVELS, MAX_EVENTS_PER_SESSION, log } = require('../constants');
+const { VALID_EVENT_TYPES, VALID_LOG_LEVELS, MAX_EVENTS_PER_SESSION, log, SOURCES, DEFAULT_SOURCE } = require('../constants');
+const { denormalizeStored } = require('../normalizer');
 
 const MAX_RETRIES = 3;
 const BASE_RETRY_MS = 50;
@@ -107,6 +108,16 @@ function createEventStore(dbProvider) {
     _batchTimer = setTimeout(function () { _flushBatch(); }, FLUSH_INTERVAL_MS);
   }
 
+  function _storePayload(event) {
+    return {
+      summary: event.summary || '',
+      detail: event.detail || {},
+      source: event.source || SOURCES[event.type] || DEFAULT_SOURCE,
+      tags: event.tags || [],
+      seq: event.seq || 0,
+    };
+  }
+
   function insertEvent(sessionId, event) {
     _init();
     if (!event || !event.type) return false;
@@ -116,8 +127,8 @@ function createEventStore(dbProvider) {
       session_id: sessionId,
       type: event.type,
       level: event.level || 'info',
-      timestamp: new Date(event.timestamp || Date.now()).toISOString(),
-      data: event.data || {},
+      timestamp: new Date(event.ts || Date.now()).toISOString(),
+      data: _storePayload(event),
     });
     if (_batch.length >= BATCH_FLUSH_LIMIT) {
       _flushBatch();
@@ -138,8 +149,8 @@ function createEventStore(dbProvider) {
           session_id: sessionId,
           type: evt.type,
           level: evt.level || 'info',
-          timestamp: new Date(evt.timestamp || Date.now()).toISOString(),
-          data: evt.data || {},
+          timestamp: new Date(evt.ts || Date.now()).toISOString(),
+          data: _storePayload(evt),
         });
         count++;
       }
@@ -188,8 +199,7 @@ function createEventStore(dbProvider) {
     const events = res[0].values.map(function (row) {
       const obj = {};
       cols.forEach(function (col, i) { obj[col] = row[i]; });
-      try { obj.data = JSON.parse(obj.data); } catch (e) { obj.data = {}; }
-      return obj;
+      return denormalizeStored(obj);
     });
 
     const hasMore = events.length >= limit;
