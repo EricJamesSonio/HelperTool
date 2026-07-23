@@ -315,11 +315,38 @@
   align-items: center;
   gap: 8px;
 }
+.ew-run-bar-input-row {
+  gap: 0;
+}
 .ew-run-bar-meta {
   margin-top: 8px;
   font-size: 0.75rem;
   color: #8a7e6a;
   justify-content: space-between;
+}
+.ew-path-prefix {
+  font-size: 0.78rem;
+  color: #8a7e6a;
+  font-family: inherit;
+  white-space: nowrap;
+  padding: 8px 0 8px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 200, 50, 0.12);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  user-select: none;
+  flex-shrink: 0;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ew-run-bar-input-row .ew-run-input {
+  border-radius: 0 6px 6px 0;
+  flex: 1;
+}
+.ew-run-bar-input-row .ew-run-btn {
+  border-radius: 6px;
+  margin-left: 8px;
 }
 .ew-run-input {
   flex: 1;
@@ -378,15 +405,137 @@
   background: rgba(248, 113, 113, 0.2);
   border-color: rgba(248, 113, 113, 0.35);
 }
+.ew-cwd-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
 .ew-run-cwd {
   color: #6a6050;
+  font-size: 0.72rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ew-run-cwd span {
   color: #c4baa8;
 }
+.ew-cwd-use-btn {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(240, 180, 41, 0.2);
+  background: rgba(240, 180, 41, 0.08);
+  color: #f0b429;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.ew-cwd-use-btn:hover {
+  background: rgba(240, 180, 41, 0.2);
+  border-color: rgba(240, 180, 41, 0.4);
+}
+.ew-cwd-use-btn.ew-cwd-in-use {
+  background: rgba(52, 211, 153, 0.15);
+  border-color: #34d399;
+  color: #34d399;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.25);
+}
+.ew-cwd-select-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.ew-cwd-change-btn {
+  font-size: 0.68rem;
+  padding: 2px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 200, 50, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #8a7e6a;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.ew-cwd-change-btn:hover {
+  background: rgba(255, 200, 50, 0.08);
+  color: #c4baa8;
+  border-color: rgba(255, 200, 50, 0.2);
+}
+.ew-cwd-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 260px;
+  max-width: 360px;
+  background: linear-gradient(135deg, #1a1208, #0d0a06);
+  border: 1px solid rgba(240, 180, 41, 0.2);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 90000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.ew-cwd-dropdown-loading {
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  color: #8a7e6a;
+  text-align: center;
+}
+.ew-cwd-dropdown-item {
+  padding: 8px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 0.75rem;
+}
+.ew-cwd-dropdown-item:hover {
+  background: rgba(240, 180, 41, 0.1);
+}
+.ew-cwd-dropdown-item--active {
+  background: rgba(240, 180, 41, 0.12);
+  border-left: 2px solid #f0b429;
+}
+.ew-cwd-dropdown-empty {
+  color: #6a6050;
+  font-style: italic;
+  cursor: default;
+}
+.ew-cwd-dropdown-item-name {
+  font-weight: 600;
+  color: #f5f0e8;
+  margin-bottom: 1px;
+}
+.ew-cwd-dropdown-item-path {
+  font-size: 0.68rem;
+  color: #6a6050;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ew-cwd-dropdown-divider {
+  height: 1px;
+  background: rgba(240, 180, 41, 0.1);
+  margin: 4px 0;
+}
+.ew-cwd-dropdown-browse-icon {
+  margin-right: 6px;
+  font-size: 0.8rem;
+}
 .ew-run-status {
   color: #f0b429;
   font-weight: 500;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ══ RUNNERS SECTION ══ */

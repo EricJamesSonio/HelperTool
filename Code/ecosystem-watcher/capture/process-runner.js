@@ -1,5 +1,7 @@
 'use strict';
 
+const os = require('os');
+const fs = require('fs');
 const pty = require('node-pty');
 const { BrowserDiscovery } = require('../../terminal/error-cop/browser-discovery');
 const { processChunk } = require('./log-adapter');
@@ -72,7 +74,7 @@ function run({ command, cwd, shell } = {}) {
   if (!command) return { success: false, error: 'command is required' };
   _init();
 
-  const resolvedCwd = cwd || process.cwd();
+  const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
   const shellCmd = shell || _defaultShell();
   const runnerId = _nextRunnerId();
   const discovery = new BrowserDiscovery();

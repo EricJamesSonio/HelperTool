@@ -40,7 +40,7 @@ function createLogEvent(line) {
 
   return {
     timestamp: Date.now(),
-    type: isError ? 'log' : 'log',
+    type: isError ? 'error' : 'log',
     level: level,
     data: {
       raw: cleaned.slice(0, 2000),

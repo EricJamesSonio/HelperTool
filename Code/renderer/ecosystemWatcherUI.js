@@ -4,6 +4,9 @@ let _pollTimer = null;
 let _runners = [];
 let _urls = [];
 let _expandedOutput = null;
+let _activeCwd = window.__activeRepoPath || '';
+let _selectedPath = window.__activeRepoPath || '';
+let _userSetPath = false;
 
 function _el(tag, attrs, children) {
   const el = document.createElement(tag);
@@ -52,6 +55,13 @@ async function _refresh() {
     _renderHealth(health);
     _renderRunners();
     _renderSessions(sessions);
+
+    // Sync path from global repo selection if user never picked one via the UI
+    if (!_userSetPath && window.__activeRepoPath) {
+      _activeCwd = window.__activeRepoPath;
+      _selectedPath = window.__activeRepoPath;
+      _updatePathDisplay();
+    }
   } catch (err) {
     console.error('[EcoWatcher] Refresh error:', err);
   }
@@ -69,15 +79,145 @@ async function _selectSession(sessionId) {
   }
 }
 
+function _updatePathDisplay() {
+  const pathEl = document.getElementById('ewRunPath');
+  const prefixEl = document.getElementById('ewPathPrefix');
+  const useBtn = document.getElementById('ewCwdUseBtn');
+  const isActive = useBtn && useBtn.classList.contains('ew-cwd-in-use');
+
+  const label = _selectedPath || _activeCwd;
+  if (pathEl) pathEl.textContent = _esc(label || '(none selected)');
+
+  if (isActive && _activeCwd) {
+    if (prefixEl) {
+      prefixEl.textContent = _activeCwd.replace(/[/\\]$/, '') + '>';
+      prefixEl.style.display = '';
+    }
+  } else {
+    if (prefixEl) prefixEl.style.display = 'none';
+  }
+}
+
+function _handleUsePath() {
+  const useBtn = document.getElementById('ewCwdUseBtn');
+  if (!useBtn) return;
+  const isActive = useBtn.classList.contains('ew-cwd-in-use');
+
+  if (isActive) {
+    useBtn.classList.remove('ew-cwd-in-use');
+    useBtn.textContent = 'Use';
+    _activeCwd = '';
+    const statusEl = document.getElementById('ewRunStatus');
+    if (statusEl) statusEl.textContent = 'Path unset — pick one with Change';
+  } else {
+    _activeCwd = _selectedPath || window.__activeRepoPath || '';
+    if (!_activeCwd) {
+      const statusEl = document.getElementById('ewRunStatus');
+      if (statusEl) statusEl.textContent = 'No path selected — click Change first';
+      return;
+    }
+    useBtn.classList.add('ew-cwd-in-use');
+    useBtn.textContent = 'Active';
+    const statusEl = document.getElementById('ewRunStatus');
+    if (statusEl) statusEl.textContent = '✓ ' + _activeCwd;
+  }
+  _updatePathDisplay();
+}
+
+async function _togglePathDropdown() {
+  const dropdown = document.getElementById('ewCwdDropdown');
+  const btn = document.getElementById('ewCwdChangeBtn');
+  if (!dropdown) return;
+  if (dropdown.style.display !== 'none') {
+    dropdown.style.display = 'none';
+    return;
+  }
+  dropdown.innerHTML = '<div class="ew-cwd-dropdown-loading">Loading...</div>';
+  dropdown.style.display = '';
+
+  let repos = [];
+  try { repos = await window.electronAPI.getRecentRepos?.() || []; } catch (e) { repos = []; }
+
+  dropdown.innerHTML = '';
+
+  if (repos.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'ew-cwd-dropdown-item ew-cwd-dropdown-empty';
+    empty.textContent = 'No recent repos';
+    dropdown.appendChild(empty);
+  } else {
+    for (const r of repos) {
+      const item = document.createElement('div');
+      item.className = 'ew-cwd-dropdown-item';
+      if (r.repoPath === _selectedPath) item.classList.add('ew-cwd-dropdown-item--active');
+      item.innerHTML = '<div class="ew-cwd-dropdown-item-name">' + _esc(r.repoPath.split(/[/\\]/).pop()) + '</div><div class="ew-cwd-dropdown-item-path">' + _esc(r.repoPath) + '</div>';
+      item.addEventListener('click', function() {
+        _selectPath(r.repoPath);
+        dropdown.style.display = 'none';
+      });
+      dropdown.appendChild(item);
+    }
+  }
+
+  const divider = document.createElement('div');
+  divider.className = 'ew-cwd-dropdown-divider';
+  dropdown.appendChild(divider);
+
+  const browse = document.createElement('div');
+  browse.className = 'ew-cwd-dropdown-item';
+  browse.innerHTML = '<span class="ew-cwd-dropdown-browse-icon">📁</span> Browse for another folder...';
+  browse.addEventListener('click', async function() {
+    dropdown.style.display = 'none';
+    try {
+      const repoPath = await window.electronAPI.selectRepo();
+      if (repoPath) _selectPath(repoPath);
+    } catch (e) { /* ignore */ }
+  });
+  dropdown.appendChild(browse);
+
+  const closeDropdown = function(ev) {
+    if (!dropdown.contains(ev.target) && ev.target !== btn) {
+      dropdown.style.display = 'none';
+      document.removeEventListener('click', closeDropdown);
+      document.removeEventListener('keydown', closeOnEscape);
+    }
+  };
+  const closeOnEscape = function(ev) {
+    if (ev.key === 'Escape') {
+      dropdown.style.display = 'none';
+      document.removeEventListener('click', closeDropdown);
+      document.removeEventListener('keydown', closeOnEscape);
+    }
+  };
+  setTimeout(function() {
+    document.addEventListener('click', closeDropdown);
+    document.addEventListener('keydown', closeOnEscape);
+  }, 0);
+}
+
+function _selectPath(path) {
+  _userSetPath = true;
+  _selectedPath = path;
+  const useBtn = document.getElementById('ewCwdUseBtn');
+  if (useBtn) {
+    useBtn.classList.remove('ew-cwd-in-use');
+    useBtn.textContent = 'Use';
+  }
+  _activeCwd = '';
+  _updatePathDisplay();
+  const statusEl = document.getElementById('ewRunStatus');
+  if (statusEl) statusEl.textContent = 'Click Use to activate this path';
+}
+
 async function _handleRun() {
   const input = document.getElementById('ewCmdInput');
   const cmd = input ? input.value.trim() : '';
   if (!cmd) return;
 
-  const cwd = window.__activeRepoPath || '';
+  const cwd = _activeCwd;
   if (!cwd) {
     const statusEl = document.getElementById('ewRunStatus');
-    if (statusEl) statusEl.textContent = 'No repo path selected';
+    if (statusEl) statusEl.textContent = 'No path selected — click Change, pick a folder, then Use';
     return;
   }
 
@@ -118,6 +258,10 @@ async function _handleStop() {
   if (runBtn) runBtn.disabled = false;
 }
 
+function _stripAnsi(s) {
+  return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+}
+
 async function _toggleOutput(runnerId) {
   const outputSection = document.getElementById('ewOutputSection');
   const outputArea = document.getElementById('ewOutputArea');
@@ -134,9 +278,9 @@ async function _toggleOutput(runnerId) {
   outputArea.textContent = 'Loading output...';
 
   try {
-    const result = await window.electronAPI.watcher.commandOutput({ runnerId, tail: 100 });
+    const result = await window.electronAPI.watcher.commandOutput({ runnerId, tail: 200 });
     const text = result && result.success ? result.data : '(no output)';
-    outputArea.textContent = text || '(empty)';
+    outputArea.textContent = _stripAnsi(text || '(empty)');
     outputArea.scrollTop = outputArea.scrollHeight;
   } catch (e) {
     outputArea.textContent = 'Error loading output: ' + e.message;
@@ -168,13 +312,21 @@ function _buildPanel() {
       </div>
       <div class="ew-body">
         <div class="ew-run-bar">
-          <div class="ew-run-bar-row">
+          <div class="ew-run-bar-row ew-run-bar-input-row">
+            <span class="ew-path-prefix" id="ewPathPrefix" style="display:none"></span>
             <input class="ew-run-input" id="ewCmdInput" type="text" placeholder="npm run dev" spellcheck="false" autocomplete="off" />
             <button class="ew-run-btn" id="ewRunBtn">Run</button>
             <button class="ew-stop-btn" id="ewStopBtn">Stop</button>
           </div>
           <div class="ew-run-bar-row ew-run-bar-meta">
-            <span class="ew-run-cwd" id="ewRunCwd">Path: <span id="ewRunPath">${_esc(window.__activeRepoPath || '(none selected)')}</span></span>
+            <div class="ew-cwd-row">
+              <span class="ew-run-cwd" id="ewRunCwd">Path: <span id="ewRunPath">${_esc(_activeCwd || '(none selected)')}</span></span>
+              <button class="ew-cwd-use-btn" id="ewCwdUseBtn">Use</button>
+              <div class="ew-cwd-select-wrap">
+                <button class="ew-cwd-change-btn" id="ewCwdChangeBtn">Change ▾</button>
+                <div class="ew-cwd-dropdown" id="ewCwdDropdown" style="display:none"></div>
+              </div>
+            </div>
             <span class="ew-run-status" id="ewRunStatus"></span>
           </div>
         </div>
@@ -225,6 +377,9 @@ function _buildPanel() {
   document.getElementById('ewCmdInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') _handleRun();
   });
+
+  document.getElementById('ewCwdUseBtn').addEventListener('click', _handleUsePath);
+  document.getElementById('ewCwdChangeBtn').addEventListener('click', _togglePathDropdown);
 }
 
 function _escHandler(e) {
@@ -368,10 +523,11 @@ function _renderDetail(snapshot, timeline) {
   } else {
     html += events.map(e => {
       const type = e.type || 'log';
-      const ts = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '';
+      const ts = e.ts ? new Date(e.ts).toLocaleTimeString() : '';
+      const msg = e.summary || e.message || e.data?.raw || '(no message)';
       return `<div class="ew-event-item">
         <span class="ew-event-type ${type}">${type}</span>
-        <span class="ew-event-msg">${_esc(e.message || e.data?.raw || '(no message)').slice(0, 200)}</span>
+        <span class="ew-event-msg">${_esc(msg).slice(0, 200)}</span>
         <span class="ew-event-time">${ts}</span>
       </div>`;
     }).join('');

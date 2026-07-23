@@ -1,3 +1,5 @@
+const os = require('os');
+const fs = require('fs');
 const pty = require('node-pty');
 const { BrowserDiscovery } = require('./browser-discovery');
 
@@ -12,7 +14,7 @@ class CommandRunner {
   run({ command, cwd, shell } = {}) {
     if (!command) throw new Error('command is required');
 
-    const resolvedCwd = cwd || process.cwd();
+    const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
     const shellCmd = shell || this._defaultShell();
     const id = this._nextId++;
     const discovery = new BrowserDiscovery();
