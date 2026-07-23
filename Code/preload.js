@@ -513,6 +513,9 @@ const githubBridge = {
     listSaved: () => ipcRenderer.invoke('github:listSaved'),
     loadSaved: (repoUrl) => ipcRenderer.invoke('github:loadSaved', repoUrl),
     deleteSaved: (repoUrl) => ipcRenderer.invoke('github:deleteSaved', repoUrl),
+    listRepos: (payload) => ipcRenderer.invoke('github:listRepos', payload),
+    getCommitCounts: (payload) => ipcRenderer.invoke('github:getCommitCounts', payload),
+    openUrl: (url) => ipcRenderer.invoke('github:openUrl', url),
   },
 };
 
