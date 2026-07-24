@@ -58,6 +58,7 @@ const ICONS = {
     mcp: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
     eye: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4c-4 0-7.5 2.5-9 6 1.5 3.5 5 6 9 6s7.5-2.5 9-6c-1.5-3.5-5-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>',
     radar: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg>',
+    inspector: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 7v6"/><path d="M7 10h6"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -70,6 +71,7 @@ import {
   createAutomationPanel,
   createCodebaseChatPanel,
   createGithubExplorerPanel,
+  createProjectInspectorPanel,
   createGraphifyPanel,
   createMcpPanel,
 } from './panels/panelFactory.js';
@@ -122,6 +124,10 @@ let _githubContainer = null;
 let _graphifyPanel      = null;
 let _graphifyContainer   = null;
 let _graphifyInitialized = false;
+
+let _piPanel      = null;
+let _piContainer  = null;
+let _piModule     = null;
 
 let _mcpPanel           = null;
 let _mcpContainer        = null;
@@ -393,6 +399,15 @@ function populateSidebar() {
     mcpModule.show();
   }, 'mcp'));
 
+  add(createSidebarItem(ICONS.inspector, 'Project Inspector', 'Analyze languages, frameworks & tools used in this project', async () => {
+    if (_piPanel?.classList.contains('open')) { _piPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_piPanel) _initProjectInspectorPanel();
+    _piPanel.classList.add('open');
+    if (_piModule && state.selectedRepoPath) _piModule.updateRepo(state.selectedRepoPath);
+    else if (state.selectedRepoPath) _mountProjectInspector(state.selectedRepoPath);
+  }, 'projectInspector'));
+
   add(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
     try {
       const oc = await import('../codeswampUI.js');
@@ -472,6 +487,23 @@ function _initMcpPanel() {
   if (!_mcpInitialized) {
     mcpModule.activate(container);
     _mcpInitialized = true;
+  }
+}
+
+function _initProjectInspectorPanel() {
+  const { panel, container } = createProjectInspectorPanel();
+  _piPanel = panel;
+  _piContainer = container;
+  _registry.register('projectInspector', _piPanel);
+}
+
+async function _mountProjectInspector(repoPath) {
+  if (!_piContainer) return;
+  try {
+    const { initProjectInspector } = await import('../../project-inspector/ui.js');
+    _piModule = initProjectInspector(_piContainer, repoPath);
+  } catch (err) {
+    console.error('[Tools] Project Inspector:', err);
   }
 }
 
@@ -769,6 +801,15 @@ function _buildShortcutActions() {
     };
   }
 
+  actions.projectInspector = () => {
+    if (_piPanel?.classList.contains('open')) { _piPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_piPanel) _initProjectInspectorPanel();
+    _piPanel.classList.add('open');
+    if (_piModule && state.selectedRepoPath) _piModule.updateRepo(state.selectedRepoPath);
+    else if (state.selectedRepoPath) _mountProjectInspector(state.selectedRepoPath);
+  };
+
   if (_feats.teamActivityTool) {
     actions.teamActivityTool = () => {
       if (teamActivity.isOpen()) { teamActivity.close(); return; }
@@ -942,6 +983,9 @@ export async function handleRepoChange(newRepoPath) {
   _initializeSymbolIndexTool(newRepoPath);
   _initializeCCTool(newRepoPath);
   startPrefetch(newRepoPath);
+
+  // Update Project Inspector if panel is open
+  if (_piModule) _piModule.updateRepo(newRepoPath);
 
   // Update Code Swamp active repo
   import('../codeswampUI.js').then(mod => {
