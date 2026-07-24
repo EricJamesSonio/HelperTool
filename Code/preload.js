@@ -401,6 +401,11 @@ const branchBridge = {
       ipcRenderer.invoke('git:commitFileDiff', { repoPath, hash, filePath }),
 };
 
+const shortcutBridge = {
+  shortcutGetConfig: (repoPath) => ipcRenderer.invoke('shortcut:getConfig', repoPath),
+  shortcutSetConfig: (payload) => ipcRenderer.invoke('shortcut:setConfig', payload),
+};
+
 const dockerBridge = {
     ping:            ()             => ipcRenderer.invoke('docker:ping'),
     listContainers:  ()             => ipcRenderer.invoke('docker:listContainers'),
@@ -655,6 +660,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...codebaseMapBridge,
     ...graphifyBridge,
     ...automationBridge,
+    ...shortcutBridge,
     watcher: watcherBridge,
     ...codebaseManagerBridge,
     ...imageBridge,
