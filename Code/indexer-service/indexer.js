@@ -626,27 +626,25 @@ function h_dbGetFileDeps(id, type, payload) {
   }
   importStmt.free();
 
-  const allStmt = _db.prepare(`
+  // Optimized path: use resolved_file_id index for reverse dependency lookup
+  const optStmt = _db.prepare(`
     SELECT fi.path as source_path, fi2.import_path, fi2.import_type, fi2.imported_symbols
     FROM file_imports fi2
     JOIN indexed_files fi ON fi.id = fi2.file_id
-    WHERE fi2.repo_id = ? AND fi.path != ?
+    WHERE fi2.resolved_file_id = ? AND fi2.repo_id = ?
   `);
-  allStmt.bind([repo.id, filePath]);
+  optStmt.bind([file.id, repo.id]);
   const imported_by = [];
-  const fileName = filePath.split('/').pop();
-  while (allStmt.step()) {
-    const row = allStmt.getAsObject();
-    if (row.import_path === filePath || row.import_path === fileName || filePath.endsWith('/' + row.import_path)) {
-      imported_by.push({
-        source_path: row.source_path,
-        import_path: row.import_path,
-        import_type: row.import_type,
-        imported_symbols: row.imported_symbols ? JSON.parse(row.imported_symbols) : [],
-      });
-    }
+  while (optStmt.step()) {
+    const row = optStmt.getAsObject();
+    imported_by.push({
+      source_path: row.source_path,
+      import_path: row.import_path,
+      import_type: row.import_type,
+      imported_symbols: row.imported_symbols ? JSON.parse(row.imported_symbols) : [],
+    });
   }
-  allStmt.free();
+  optStmt.free();
 
   const result = { imports, imported_by };
 
@@ -722,28 +720,91 @@ function h_indexFiles(id, type, payload) {
 }
 
 function h_dbGetCodebaseMapData(id, type, payload) {
-  const { repoPath } = payload || {};
+  const { repoPath, limit, offset } = payload || {};
   if (!repoPath) return respond({ id, type, ok: false, error: 'Missing repoPath' });
   const repo = repoGetByPath(repoPath);
   if (!repo) return respond({ id, type, ok: true, data: null });
 
-  const fStmt = _db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? ORDER BY path');
-  fStmt.bind([repo.id]);
+  if (limit == null) {
+    const fStmt = _db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? ORDER BY path');
+    fStmt.bind([repo.id]);
+    const files = [];
+    while (fStmt.step()) files.push(fStmt.getAsObject());
+    fStmt.free();
+
+    const sStmt = _db.prepare(`SELECT s.name, s.type, s.line, s.column, s.is_exported, s.class_name, s.signature, f.path as file_path
+      FROM symbols s JOIN indexed_files f ON f.id = s.file_id WHERE s.repo_id = ? ORDER BY f.path, s.line`);
+    sStmt.bind([repo.id]);
+    const symbols = [];
+    while (sStmt.step()) symbols.push(sStmt.getAsObject());
+    sStmt.free();
+
+    const iStmt = _db.prepare(`SELECT fi.import_path, fi.import_type, fi.imported_symbols, fi.line, fi.column, f.path as source_path, rf.path as resolved_path
+      FROM file_imports fi JOIN indexed_files f ON f.id = fi.file_id LEFT JOIN indexed_files rf ON rf.id = fi.resolved_file_id
+      WHERE fi.repo_id = ? ORDER BY f.path, fi.line`);
+    iStmt.bind([repo.id]);
+    const fileImports = [];
+    while (iStmt.step()) {
+      const row = iStmt.getAsObject();
+      if (row.imported_symbols) {
+        try { row.imported_symbols = JSON.parse(row.imported_symbols); } catch (e) { row.imported_symbols = []; }
+      } else {
+        row.imported_symbols = [];
+      }
+      fileImports.push(row);
+    }
+    iStmt.free();
+
+    return respond({ id, type, ok: true, data: { files, symbols, imports: fileImports } });
+  }
+
+  const effectiveLimit = Math.min(limit, 500);
+  const effectiveOffset = offset || 0;
+
+  const countStmt = _db.prepare('SELECT COUNT(*) as count FROM indexed_files WHERE repo_id = ?');
+  countStmt.bind([repo.id]);
+  countStmt.step();
+  const totalFiles = countStmt.getAsObject().count;
+  countStmt.free();
+
+  const symCountStmt = _db.prepare('SELECT COUNT(*) as count FROM symbols WHERE repo_id = ?');
+  symCountStmt.bind([repo.id]);
+  symCountStmt.step();
+  const totalSymbols = symCountStmt.getAsObject().count;
+  symCountStmt.free();
+
+  const impCountStmt = _db.prepare('SELECT COUNT(*) as count FROM file_imports WHERE repo_id = ?');
+  impCountStmt.bind([repo.id]);
+  impCountStmt.step();
+  const totalImports = impCountStmt.getAsObject().count;
+  impCountStmt.free();
+
+  const fStmt = _db.prepare('SELECT * FROM indexed_files WHERE repo_id = ? ORDER BY path LIMIT ? OFFSET ?');
+  fStmt.bind([repo.id, effectiveLimit, effectiveOffset]);
   const files = [];
   while (fStmt.step()) files.push(fStmt.getAsObject());
   fStmt.free();
 
+  const fileIds = files.map(f => f.id);
+  if (fileIds.length === 0) {
+    return respond({ id, type, ok: true, data: {
+      files: [], symbols: [], imports: [],
+      totalFiles, totalSymbols, totalImports,
+    }});
+  }
+
+  const placeholders = fileIds.map(() => '?').join(',');
   const sStmt = _db.prepare(`SELECT s.name, s.type, s.line, s.column, s.is_exported, s.class_name, s.signature, f.path as file_path
-    FROM symbols s JOIN indexed_files f ON f.id = s.file_id WHERE s.repo_id = ? ORDER BY f.path, s.line`);
-  sStmt.bind([repo.id]);
+    FROM symbols s JOIN indexed_files f ON f.id = s.file_id WHERE s.file_id IN (${placeholders}) ORDER BY f.path, s.line`);
+  sStmt.bind(fileIds);
   const symbols = [];
   while (sStmt.step()) symbols.push(sStmt.getAsObject());
   sStmt.free();
 
   const iStmt = _db.prepare(`SELECT fi.import_path, fi.import_type, fi.imported_symbols, fi.line, fi.column, f.path as source_path, rf.path as resolved_path
     FROM file_imports fi JOIN indexed_files f ON f.id = fi.file_id LEFT JOIN indexed_files rf ON rf.id = fi.resolved_file_id
-    WHERE fi.repo_id = ? ORDER BY f.path, fi.line`);
-  iStmt.bind([repo.id]);
+    WHERE fi.file_id IN (${placeholders}) ORDER BY f.path, fi.line`);
+  iStmt.bind(fileIds);
   const fileImports = [];
   while (iStmt.step()) {
     const row = iStmt.getAsObject();
@@ -756,7 +817,10 @@ function h_dbGetCodebaseMapData(id, type, payload) {
   }
   iStmt.free();
 
-  return respond({ id, type, ok: true, data: { files, symbols, imports: fileImports } });
+  return respond({ id, type, ok: true, data: {
+    files, symbols, imports: fileImports,
+    totalFiles, totalSymbols, totalImports,
+  }});
 }
 
 function h_symbolsGet(id, type, payload) {

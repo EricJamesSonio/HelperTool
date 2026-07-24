@@ -155,6 +155,16 @@ export function createMcpPanel() {
   return { panel, container: panel.querySelector('#mcpContainer') };
 }
 
+export function createProjectInspectorPanel() {
+  return createPanel({
+    id:          'projectInspectorPanel',
+    className:   'pi-panel',
+    title:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg> Project Inspector',
+    containerId: 'projectInspectorContainer',
+    closeBtnId:  'closeProjectInspectorBtn',
+  });
+}
+
 export function createGraphifyPanel() {
   const panel = document.createElement('div');
   panel.id = 'graphifyPanel';

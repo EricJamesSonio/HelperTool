@@ -135,6 +135,13 @@ export function startMoveGhost(sourcePath, treeContainer, onComplete) {
   function onCaptureClick(e) {
     if (done) return;
 
+    const cancelBtn = document.getElementById('moveCancelBtn');
+    if (cancelBtn && cancelBtn.contains(e.target)) {
+      done = true;
+      cleanup();
+      return;
+    }
+
     const inTree = treeContainer.contains(e.target);
     if (!inTree) {
       done = true;
@@ -168,6 +175,8 @@ export function startMoveGhost(sourcePath, treeContainer, onComplete) {
     }
   }
 
+  const cancelBtn = document.getElementById('moveCancelBtn');
+
   function cleanup() {
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('click', onCaptureClick, true);
@@ -175,10 +184,13 @@ export function startMoveGhost(sourcePath, treeContainer, onComplete) {
     if (activeTarget) activeTarget.classList.remove('cm-drop-target');
     ghost.remove();
     preview.remove();
+    if (cancelBtn) cancelBtn.style.display = 'none';
     _moveState = null;
   }
 
   _moveState = { cleanup };
+
+  if (cancelBtn) cancelBtn.style.display = 'inline-flex';
 
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('click', onCaptureClick, true);

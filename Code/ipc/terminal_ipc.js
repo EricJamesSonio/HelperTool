@@ -158,16 +158,13 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('terminal:resize', (event, { id, cols, rows }) => {
     const t = terminals.get(id);
-    if (t) t.term.resize(cols, rows);
+    if (t && cols > 0 && rows > 0) t.term.resize(cols, rows);
   });
 
   ipcMain.handle('terminal:kill', (event, id) => {
     const t = terminals.get(id);
     if (t) {
-      try { t.term.kill(); } catch { }
-      if (_errorEngine && t.sessionId) {
-        try { _errorEngine.endSession(t.sessionId, 0, 'killed'); } catch { }
-      }
+      try { t.term.kill(); } catch (e) { console.error('[Terminal] kill error:', e); }
       terminals.delete(id);
     }
   });

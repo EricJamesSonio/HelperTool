@@ -261,15 +261,40 @@ export default class TerminalUI {
     return this.panel?.classList.contains('open');
   }
 
+  hasTabWithLabel(label) {
+    if (!this.tabBar) return false;
+    const names = this.tabBar.querySelectorAll('.terminal-tab-name');
+    return Array.from(names).some(el => el.textContent.trim() === label);
+  }
+
   openTerminalHere(folderPath) {
     this._lastCwd = folderPath;
     this.open();
     this._addTerminal(folderPath);
   }
 
+  async openTerminal(cwd, label, command) {
+    this._lastCwd = cwd;
+    if (!this.panel.classList.contains('open')) {
+      this.panel.classList.add('open');
+      this.panel.style.height = '';
+    }
+    const id = this.nextId++;
+    const useShell = this._selectedShell || this.shells[0];
+    await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
+    if (command && this.instances.has(id)) {
+      await window.electronAPI.terminalWrite({ id, data: command + '\r' });
+    }
+  }
+
   async _addTerminal(cwd, shell) {
     const id = this.nextId++;
     const useShell = shell || this._selectedShell || this.shells[0];
+    await this._addTerminalInstance(id, cwd, useShell);
+  }
+
+  async _addTerminalInstance(id, cwd, useShell, label) {
+    label = label || `${useShell.name} ${id}`;
 
     const inst = document.createElement('div');
     inst.className = 'terminal-instance';
@@ -300,11 +325,10 @@ export default class TerminalUI {
     const tab = document.createElement('button');
     tab.className = 'terminal-tab';
     tab.dataset.terminalId = id;
-    const sessionLabel = `${useShell.name} ${id}`;
     tab.innerHTML = `
       <span class="terminal-tab-shell">
         <span class="terminal-tab-icon">${ICON_SHELL}</span>
-        <span class="terminal-tab-name">${sessionLabel}</span>
+        <span class="terminal-tab-name">${label}</span>
       </span>
       <span class="terminal-tab-close">${ICON_CLOSE}</span>
     `;
@@ -321,7 +345,7 @@ export default class TerminalUI {
         cwd: cwd || '',
         shell: useShell.cmd,
         args: useShell.args,
-        label: sessionLabel,
+        label,
       });
       if (result) sessionId = result.sessionId || null;
     } catch (err) {

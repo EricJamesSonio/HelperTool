@@ -404,12 +404,12 @@
   background: var(--dl4-line);
 }
 
-/* depth 5+ — cycle colors (depth % 5) */
-#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder { color: var(--dl0-color); font-weight: 500; }
-#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder { color: var(--dl1-color); font-weight: 500; }
-#treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder { color: var(--dl2-color); font-weight: 500; }
-#treeContainer.mode-list [data-depth-level="8"] > .tree-node.folder { color: var(--dl3-color); font-weight: 500; }
-#treeContainer.mode-list [data-depth-level="9"] > .tree-node.folder { color: var(--dl4-color); font-weight: 500; }
+/* depth 5-9 — independent colors */
+#treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder { color: var(--dl5-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder { color: var(--dl6-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder { color: var(--dl7-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="8"] > .tree-node.folder { color: var(--dl8-color); font-weight: 500; }
+#treeContainer.mode-list [data-depth-level="9"] > .tree-node.folder { color: var(--dl9-color); font-weight: 500; }
 
 /* ── DEPTH-COHESIVE SELECTION — toned-down solid fill ────────
    ~45% opacity background + full-color border + bright text.
@@ -470,45 +470,45 @@
   font-weight: 700;
 }
 
-/* depth 5+ — cycle colors (depth % 5) */
+/* depth 5-9 — independent colors */
 #treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-list [data-depth-level="5"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="5"] > .tree-node.file.file-selected {
   background: rgba(240, 180, 41, 0.28) !important;
-  border-color: var(--dl0-color) !important;
-  color: var(--dl0-color) !important;
+  border-color: var(--dl5-color) !important;
+  color: var(--dl5-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-list [data-depth-level="6"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="6"] > .tree-node.file.file-selected {
   background: rgba(56, 189, 248, 0.22) !important;
-  border-color: var(--dl1-color) !important;
-  color: var(--dl1-color) !important;
+  border-color: var(--dl6-color) !important;
+  color: var(--dl6-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-list [data-depth-level="7"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="7"] > .tree-node.file.file-selected {
   background: rgba(167, 139, 250, 0.22) !important;
-  border-color: var(--dl2-color) !important;
-  color: var(--dl2-color) !important;
+  border-color: var(--dl7-color) !important;
+  color: var(--dl7-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-list [data-depth-level="8"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-list [data-depth-level="8"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="8"] > .tree-node.file.file-selected {
   background: rgba(45, 212, 191, 0.20) !important;
-  border-color: var(--dl3-color) !important;
-  color: var(--dl3-color) !important;
+  border-color: var(--dl8-color) !important;
+  color: var(--dl8-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-list [data-depth-level="9"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-list [data-depth-level="9"] > .tree-node.folder.selected,
 #treeContainer.mode-list [data-depth-level="9"] > .tree-node.file.file-selected {
   background: rgba(251, 113, 133, 0.22) !important;
-  border-color: var(--dl4-color) !important;
-  color: var(--dl4-color) !important;
+  border-color: var(--dl9-color) !important;
+  color: var(--dl9-color) !important;
   font-weight: 700;
 }
 
@@ -630,11 +630,11 @@
 #treeContainer .node-wrapper[data-parent-depth="2"] > .tree-node.file::before { background: var(--dl2-color); }
 #treeContainer .node-wrapper[data-parent-depth="3"] > .tree-node.file::before { background: var(--dl3-color); }
 #treeContainer .node-wrapper[data-parent-depth="4"] > .tree-node.file::before { background: var(--dl4-color); }
-#treeContainer .node-wrapper[data-parent-depth="5"] > .tree-node.file::before { background: var(--dl0-color); }
-#treeContainer .node-wrapper[data-parent-depth="6"] > .tree-node.file::before { background: var(--dl1-color); }
-#treeContainer .node-wrapper[data-parent-depth="7"] > .tree-node.file::before { background: var(--dl2-color); }
-#treeContainer .node-wrapper[data-parent-depth="8"] > .tree-node.file::before { background: var(--dl3-color); }
-#treeContainer .node-wrapper[data-parent-depth="9"] > .tree-node.file::before { background: var(--dl4-color); }
+#treeContainer .node-wrapper[data-parent-depth="5"] > .tree-node.file::before { background: var(--dl5-color); }
+#treeContainer .node-wrapper[data-parent-depth="6"] > .tree-node.file::before { background: var(--dl6-color); }
+#treeContainer .node-wrapper[data-parent-depth="7"] > .tree-node.file::before { background: var(--dl7-color); }
+#treeContainer .node-wrapper[data-parent-depth="8"] > .tree-node.file::before { background: var(--dl8-color); }
+#treeContainer .node-wrapper[data-parent-depth="9"] > .tree-node.file::before { background: var(--dl9-color); }
 
 /* ── DEPTH-LEVEL COLORS: folder nodes in mode-tree ───────── */
 
@@ -746,45 +746,45 @@
   font-weight: 700;
 }
 
-/* depth 5+ — cycle colors (depth % 5) */
+/* depth 5-9 — independent colors */
 #treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-tree [data-depth-level="5"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="5"] > .tree-node.file.file-selected {
   background: rgba(240, 180, 41, 0.28) !important;
-  border-color: var(--dl0-color) !important;
-  color: var(--dl0-color) !important;
+  border-color: var(--dl5-color) !important;
+  color: var(--dl5-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-tree [data-depth-level="6"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="6"] > .tree-node.file.file-selected {
   background: rgba(56, 189, 248, 0.22) !important;
-  border-color: var(--dl1-color) !important;
-  color: var(--dl1-color) !important;
+  border-color: var(--dl6-color) !important;
+  color: var(--dl6-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-tree [data-depth-level="7"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-tree [data-depth-level="7"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="7"] > .tree-node.file.file-selected {
   background: rgba(167, 139, 250, 0.22) !important;
-  border-color: var(--dl2-color) !important;
-  color: var(--dl2-color) !important;
+  border-color: var(--dl7-color) !important;
+  color: var(--dl7-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-tree [data-depth-level="8"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-tree [data-depth-level="8"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="8"] > .tree-node.file.file-selected {
   background: rgba(45, 212, 191, 0.20) !important;
-  border-color: var(--dl3-color) !important;
-  color: var(--dl3-color) !important;
+  border-color: var(--dl8-color) !important;
+  color: var(--dl8-color) !important;
   font-weight: 700;
 }
 #treeContainer.mode-tree [data-depth-level="9"] > .tree-node.folder.folder-selected,
 #treeContainer.mode-tree [data-depth-level="9"] > .tree-node.folder.selected,
 #treeContainer.mode-tree [data-depth-level="9"] > .tree-node.file.file-selected {
   background: rgba(251, 113, 133, 0.22) !important;
-  border-color: var(--dl4-color) !important;
-  color: var(--dl4-color) !important;
+  border-color: var(--dl9-color) !important;
+  color: var(--dl9-color) !important;
   font-weight: 700;
 }
 
@@ -908,6 +908,40 @@
 #treeContainer.mode-tree [data-depth-level="4"] > .children > .node-wrapper::before {
   background: var(--dl4-line);
 
+}
+
+#treeContainer.mode-tree [data-depth-level="5"] > .children,
+#treeContainer.mode-tree [data-depth-level="5"] > .children > .node-wrapper {
+  --connector-color: var(--dl5-line);
+}
+#treeContainer.mode-tree [data-depth-level="5"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="5"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="5"] > .children > .node-wrapper::before {
+  background: var(--dl5-line);
+}
+
+#treeContainer.mode-tree [data-depth-level="6"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="6"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="6"] > .children > .node-wrapper::before {
+  background: var(--dl6-line);
+}
+
+#treeContainer.mode-tree [data-depth-level="7"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="7"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="7"] > .children > .node-wrapper::before {
+  background: var(--dl7-line);
+}
+
+#treeContainer.mode-tree [data-depth-level="8"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="8"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="8"] > .children > .node-wrapper::before {
+  background: var(--dl8-line);
+}
+
+#treeContainer.mode-tree [data-depth-level="9"] > .children::before,
+#treeContainer.mode-tree [data-depth-level="9"] > .children::after,
+#treeContainer.mode-tree [data-depth-level="9"] > .children > .node-wrapper::before {
+  background: var(--dl9-line);
 }
 
 /* ── Drag-to-scroll cursor feedback ── */

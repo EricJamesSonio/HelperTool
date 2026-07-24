@@ -172,19 +172,17 @@
 .ecp-left-column {
   display: flex;
   flex-direction: column;
-  width: 50%;
+  width: 60%;
   min-width: 0;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   padding-right: 2px;
 }
-.ecp-left-column::-webkit-scrollbar { width: 4px; }
-.ecp-left-column::-webkit-scrollbar-track { background: transparent; }
-.ecp-left-column::-webkit-scrollbar-thumb { background: rgba(255, 34, 34, 0.3); border-radius: 4px; }
 
 .ecp-right-column {
   display: flex;
   flex-direction: column;
-  width: 50%;
+  width: 40%;
   min-width: 0;
   overflow: hidden;
 }
@@ -230,6 +228,8 @@
   gap: 4px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+  height: 0;
   padding-right: 4px;
 }
 .ecp-timeline::-webkit-scrollbar { width: 4px; }
@@ -238,7 +238,7 @@
 
 .ecp-event {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 8px 12px;
   background: rgba(20, 10, 10, 0.45);
@@ -282,6 +282,7 @@
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  padding: 2px 0;
   position: relative;
   z-index: 1;
 }
@@ -300,7 +301,8 @@
   color: #a78484;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  max-height: 2.8em;
   margin-top: 1px;
 }
 

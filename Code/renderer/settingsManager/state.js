@@ -1,4 +1,4 @@
-const DEFAULT_SETTINGS = { themeId: 'github-hc-dark', customAccent: null, fontSize: 14, uiScale: 50 };
+const DEFAULT_SETTINGS = { themeId: 'github-hc-dark', customAccent: null, fontSize: 14, uiScale: 50, folderDepths: [] };
 const STORAGE_KEY = 'helpertool-settings';
 
 const S = {

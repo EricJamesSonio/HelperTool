@@ -11,6 +11,25 @@ let _historyRepo = '';
 let _dayDetail = null;
 let _editingProfile = false;
 
+// Repositories section state
+let _viewSection = 'main'; // 'main' | 'repos'
+let _repos = [];
+let _reposFilter = 'all';
+let _reposSort = 'date';
+let _reposLoading = false;
+let _reposToken = '';
+let _reposCommitCounts = {};
+let _reposCountsLoading = false;
+let _reposError = '';
+let _reposLoadedFromCache = false;
+let _reposPage = 1;
+
+const _REPOS_PER_PAGE = 20;
+const _REPOS_CACHE_KEY = 'profile.githubRepos';
+const _REPOS_COMMITS_CACHE_KEY = 'profile.githubReposCommits';
+const _REPOS_CACHE_TS_KEY = 'profile.githubReposFetchedAt';
+const _REPOS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const PROFILE_COLORS = ['#4F8EF7', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#fbbf24'];
 
 const HEATMAP_COLORS = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'];
@@ -82,6 +101,7 @@ export function open() {
   if (!_panel) _buildPanel();
   _panel.classList.add('open');
   _open = true;
+  _viewSection = 'main';
   _load();
 }
 
@@ -91,6 +111,7 @@ export function close() {
   _open = false;
   _dayDetail = null;
   _editingProfile = false;
+  _viewSection = 'main';
 }
 
 function _buildPanel() {
@@ -132,17 +153,18 @@ async function _escHandler(e) {
   if (e.key === 'Escape' && _open) {
     if (_dayDetail) { _dayDetail = null; _renderBody('full'); return; }
     if (_editingProfile) { _editingProfile = false; _renderBody('card'); return; }
+    if (_viewSection === 'repos') { _switchToMain(); return; }
     close();
   }
 }
 
 async function _load() {
+  _viewSection = 'main';
   const body = _panel.querySelector('#pfBody');
   const now = Date.now();
   const cacheAge = _lastLoadTime ? now - _lastLoadTime : Infinity;
   if (cacheAge > 60000) {
     _cache = {};
-    _avatarDataUrl = null;
   }
   _lastLoadTime = now;
 
@@ -175,6 +197,7 @@ async function _load() {
     _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
     _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
     _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {});
+    _wireReposNav();
     return;
   }
 
@@ -221,7 +244,413 @@ async function _load() {
     _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
     _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
     _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {});
+    _wireReposNav();
   });
+}
+
+function _wireReposNav() {
+  const btn = _panel?.querySelector('#pfReposNavBtn');
+  if (btn) {
+    btn.addEventListener('click', () => _switchToRepos());
+  }
+}
+
+function _switchToRepos() {
+  _viewSection = 'repos';
+  const body = _panel.querySelector('#pfBody');
+  let reposSection = body.querySelector('.pf-body-repos-full');
+
+  if (!reposSection) {
+    body.insertAdjacentHTML('beforeend', _buildReposSkeleton());
+    reposSection = body.querySelector('.pf-body-repos-full');
+    _renderRepos();
+  }
+
+  // Hide sidebar + main, show repos
+  body.querySelector('.pf-body-sidebar')?.classList.add('pf-hidden');
+  body.querySelector('.pf-body-main')?.classList.add('pf-hidden');
+  reposSection?.classList.remove('pf-hidden');
+}
+
+function _switchToMain() {
+  _viewSection = 'main';
+  const body = _panel.querySelector('#pfBody');
+  body.querySelector('.pf-body-sidebar')?.classList.remove('pf-hidden');
+  body.querySelector('.pf-body-main')?.classList.remove('pf-hidden');
+  body.querySelector('.pf-body-repos-full')?.classList.add('pf-hidden');
+}
+
+function _buildReposSkeleton() {
+  const token = _reposToken || localStorage.getItem('profile.githubToken') || '';
+  const hasCache = !!localStorage.getItem(_REPOS_CACHE_KEY);
+  return `
+    <div class="pf-body-repos-full">
+      <div class="pf-repos-header">
+        <button class="pf-btn" id="pfReposBackBtn">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M12 5l-5 5 5 5"/></svg>
+          Back
+        </button>
+        <h2 class="pf-repos-title">Repositories</h2>
+        <button class="pf-btn" id="pfReposSyncBtn" title="Force re-fetch from GitHub">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M1 4v6h6"/><path d="M19 16v-6h-6"/><path d="M17.65 6.35A8 8 0 0 0 3.3 9.7M2.35 13.65A8 8 0 0 0 16.7 10.3"/></svg>
+          Resync
+        </button>
+        <div class="pf-repos-token-area">
+          <input type="password" class="pf-repos-token-input" id="pfReposToken" placeholder="GitHub Personal Access Token" value="${_esc(token)}">
+          <button class="pf-btn primary" id="pfReposLoadBtn">Load</button>
+        </div>
+      </div>
+      <div class="pf-repos-body">
+        <div class="pf-repos-loading">${hasCache ? 'Loading cached repositories\u2026' : 'Enter a GitHub token to list your repositories'}</div>
+      </div>
+    </div>
+  `;
+}
+
+async function _renderRepos() {
+  const body = _panel.querySelector('#pfBody');
+  const reposBody = body.querySelector('.pf-repos-body');
+  if (!reposBody) return;
+
+  _reposToken = localStorage.getItem('profile.githubToken') || '';
+
+  body.querySelector('#pfReposBackBtn')?.addEventListener('click', _switchToMain);
+  const loadBtn = body.querySelector('#pfReposLoadBtn');
+  const syncBtn = body.querySelector('#pfReposSyncBtn');
+  const tokenInput = body.querySelector('#pfReposToken');
+
+  syncBtn?.addEventListener('click', () => {
+    _clearReposCache();
+    _fetchAndRenderRepos();
+  });
+
+  loadBtn?.addEventListener('click', () => _fetchAndRenderRepos());
+  tokenInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') _fetchAndRenderRepos();
+  });
+  tokenInput?.addEventListener('input', () => {
+    _reposToken = tokenInput.value;
+  });
+
+  // Try loading from cache first
+  if (_reposToken && _loadReposFromCache()) {
+    return;
+  }
+
+  if (_reposToken) {
+    await _fetchAndRenderRepos();
+  }
+}
+
+function _saveReposCache() {
+  try {
+    localStorage.setItem(_REPOS_CACHE_KEY, JSON.stringify(_repos));
+    localStorage.setItem(_REPOS_COMMITS_CACHE_KEY, JSON.stringify(_reposCommitCounts));
+    localStorage.setItem(_REPOS_CACHE_TS_KEY, String(Date.now()));
+  } catch (_) {}
+}
+
+function _loadReposFromCache() {
+  try {
+    const raw = localStorage.getItem(_REPOS_CACHE_KEY);
+    const ts = parseInt(localStorage.getItem(_REPOS_CACHE_TS_KEY) || '0', 10);
+    if (!raw) return false;
+    _repos = JSON.parse(raw);
+    const commitsRaw = localStorage.getItem(_REPOS_COMMITS_CACHE_KEY);
+    _reposCommitCounts = commitsRaw ? JSON.parse(commitsRaw) : {};
+    _reposLoading = false;
+    _reposCountsLoading = false;
+    _reposError = '';
+    _reposLoadedFromCache = true;
+    _renderReposContent();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function _clearReposCache() {
+  try {
+    localStorage.removeItem(_REPOS_CACHE_KEY);
+    localStorage.removeItem(_REPOS_COMMITS_CACHE_KEY);
+    localStorage.removeItem(_REPOS_CACHE_TS_KEY);
+  } catch (_) {}
+  _repos = [];
+  _reposCommitCounts = {};
+  _reposLoadedFromCache = false;
+}
+
+async function _fetchAndRenderRepos() {
+  const token = _reposToken.trim();
+  if (!token) return;
+
+  localStorage.setItem('profile.githubToken', token);
+
+  _repos = [];
+  _reposCommitCounts = {};
+  _reposCountsLoading = false;
+  _reposError = '';
+  _reposLoading = true;
+
+  _renderReposContent();
+
+  try {
+    const result = await window.electronAPI.github.listRepos({
+      token,
+      type: _reposFilter,
+      sort: _reposSort,
+    });
+
+    if (!result.success) {
+      _reposError = result.error || 'Failed to load repositories';
+      _reposLoading = false;
+      _renderReposContent();
+      return;
+    }
+
+    _repos = result.repos || [];
+    _reposLoading = false;
+    _reposPage = 1;
+    _saveReposCache();
+    _renderReposContent();
+
+    // If sorting by commits, batch-fetch commit counts
+    if (_reposSort === 'commits' && _repos.length > 0) {
+      _reposCountsLoading = true;
+      _renderReposContent();
+
+      const repoEntries = _repos.map(r => {
+        const parts = r.fullName.split('/');
+        return { owner: parts[0], name: parts[1] };
+      });
+
+      const countsResult = await window.electronAPI.github.getCommitCounts({ token, repos: repoEntries });
+      if (countsResult.success) {
+        _reposCommitCounts = countsResult.counts || {};
+      }
+      _reposCountsLoading = false;
+      _saveReposCache();
+      _renderReposContent();
+    }
+  } catch (err) {
+    _reposError = err.message || 'Network error';
+    _reposLoading = false;
+    _renderReposContent();
+  }
+}
+
+function _renderReposContent() {
+  const body = _panel.querySelector('#pfBody');
+  const reposBody = body?.querySelector('.pf-repos-body');
+  if (!reposBody) return;
+
+  const filterChips = [
+    { id: 'all', label: 'All' },
+    { id: 'public', label: 'Public' },
+    { id: 'private', label: 'Private' },
+  ];
+
+  const sortOptions = [
+    { id: 'date', label: 'Last Updated' },
+    { id: 'commits', label: 'Most Commits' },
+  ];
+
+  let reposHtml = '';
+  let totalFiltered = 0;
+  let totalPages = 0;
+
+  if (_reposLoading) {
+    reposHtml = '<div class="pf-repos-loading"><div class="pf-spinner"></div> Loading repositories\u2026</div>';
+  } else if (_reposError) {
+    reposHtml = `<div class="pf-repos-error">${_esc(_reposError)}</div>`;
+  } else if (_repos.length === 0) {
+    reposHtml = '<div class="pf-repos-empty">No repositories found</div>';
+  } else {
+    let filtered = _repos;
+    if (_reposFilter === 'public') filtered = filtered.filter(r => !r.private);
+    else if (_reposFilter === 'private') filtered = filtered.filter(r => r.private);
+
+    const sorted = [...filtered];
+    if (_reposSort === 'date') {
+      sorted.sort((a, b) => new Date(b.pushedAt || b.updatedAt) - new Date(a.pushedAt || a.updatedAt));
+    } else if (_reposSort === 'commits') {
+      sorted.sort((a, b) => {
+        const ca = _reposCommitCounts[a.fullName] || 0;
+        const cb = _reposCommitCounts[b.fullName] || 0;
+        return cb - ca;
+      });
+    }
+
+    totalFiltered = sorted.length;
+    totalPages = Math.max(1, Math.ceil(totalFiltered / _REPOS_PER_PAGE));
+    if (_reposPage > totalPages) _reposPage = totalPages;
+
+    const start = (_reposPage - 1) * _REPOS_PER_PAGE;
+    const pageItems = sorted.slice(start, start + _REPOS_PER_PAGE);
+
+    reposHtml = `<div class="pf-repos-list">${pageItems.map(r => _buildRepoCard(r)).join('')}</div>`;
+  }
+
+  const pagesHtml = totalPages > 1 ? _buildReposPages(totalPages) : '';
+
+  reposBody.innerHTML = `
+    <div class="pf-repos-toolbar">
+      <div class="pf-repos-filters">
+        ${filterChips.map(f => `<button class="pf-repos-filter-chip${_reposFilter === f.id ? ' active' : ''}" data-filter="${f.id}">${f.label}</button>`).join('')}
+      </div>
+      <div class="pf-repos-sort-group">
+        <span class="pf-repos-sort-label">Sort:</span>
+        <select class="pf-repos-sort-select" id="pfReposSortSelect">
+          ${sortOptions.map(s => `<option value="${s.id}"${_reposSort === s.id ? ' selected' : ''}>${s.label}</option>`).join('')}
+        </select>
+        ${_reposCountsLoading ? '<span class="pf-repos-counts-loading">Loading counts\u2026</span>' : ''}
+        <span class="pf-repos-count">${totalFiltered} repo${totalFiltered !== 1 ? 's' : ''}</span>
+      </div>
+    </div>
+    ${reposHtml}
+    ${pagesHtml ? `<div class="pf-repos-pages">${pagesHtml}</div>` : ''}
+  `;
+
+  // Wire filter chips
+  reposBody.querySelectorAll('.pf-repos-filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      _reposFilter = chip.dataset.filter;
+      _reposPage = 1;
+      _renderReposContent();
+    });
+  });
+
+  // Wire sort select
+  const sortSelect = reposBody.querySelector('#pfReposSortSelect');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', () => {
+      const newSort = sortSelect.value;
+      if (newSort === _reposSort) return;
+      _reposSort = newSort;
+      _reposPage = 1;
+      if (_reposSort === 'commits' && Object.keys(_reposCommitCounts).length === 0) {
+        _fetchAndRenderRepos();
+      } else {
+        _renderReposContent();
+      }
+    });
+  }
+
+  // Wire visit buttons
+  reposBody.querySelectorAll('.pf-repo-visit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const url = btn.dataset.url;
+      if (url && window.electronAPI?.github?.openUrl) {
+        window.electronAPI.github.openUrl(url).catch(() => window.open(url, '_blank'));
+      } else if (url) {
+        window.open(url, '_blank');
+      }
+    });
+  });
+
+  // Wire page buttons
+  reposBody.querySelectorAll('.pf-repo-page-btn, .pf-repo-page-nav').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      const target = btn.dataset.page;
+      if (target === 'prev' && _reposPage > 1) { _reposPage--; _renderReposContent(); }
+      else if (target === 'next') { _reposPage++; _renderReposContent(); }
+      else if (target) { _reposPage = parseInt(target); _renderReposContent(); }
+    });
+  });
+}
+
+function _buildReposPages(totalPages) {
+  const cur = _reposPage;
+  const parts = [];
+  const addPage = (p) => { parts.push(`<button class="pf-repo-page-btn${p === cur ? ' active' : ''}" data-page="${p}">${p}</button>`); };
+  const addDots = () => { parts.push('<span class="pf-repo-page-dots">\u2026</span>'); };
+
+  parts.push(`<button class="pf-repo-page-nav" data-page="prev" ${cur <= 1 ? 'disabled' : ''}>\u25C0</button>`);
+
+  if (totalPages <= 9) {
+    for (let i = 1; i <= totalPages; i++) addPage(i);
+  } else {
+    addPage(1);
+    if (cur > 4) addDots();
+    const start = Math.max(2, cur - 2);
+    const end = Math.min(totalPages - 1, cur + 2);
+    for (let i = start; i <= end; i++) addPage(i);
+    if (cur < totalPages - 3) addDots();
+    addPage(totalPages);
+  }
+
+  parts.push(`<button class="pf-repo-page-nav" data-page="next" ${cur >= totalPages ? 'disabled' : ''}>\u25B6</button>`);
+  return parts.join('');
+}
+
+function _buildRepoCard(r) {
+  const visibility = r.private ? 'Private' : 'Public';
+  const visClass = r.private ? 'pf-repo-vis-private' : 'pf-repo-vis-public';
+  const commitCount = _reposCommitCounts[r.fullName];
+  const commitHtml = commitCount !== undefined
+    ? `<span class="pf-repo-meta-item" title="Commits">${commitCount.toLocaleString()} commits</span>`
+    : '';
+  const starsHtml = r.stars > 0
+    ? `<span class="pf-repo-meta-item" title="Stars">\u2605 ${r.stars.toLocaleString()}</span>`
+    : '';
+  const langHtml = r.language
+    ? `<span class="pf-repo-meta-item pf-repo-lang"><span class="pf-repo-lang-dot" style="background:${_langColor(r.language)}"></span>${_esc(r.language)}</span>`
+    : '';
+
+  return `
+    <div class="pf-repo-card">
+      <div class="pf-repo-card-top">
+        <div class="pf-repo-card-info">
+          <div class="pf-repo-name">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 3h5l2 2h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
+            ${_esc(r.name)}
+          </div>
+          <span class="pf-repo-visibility ${visClass}">${visibility}</span>
+        </div>
+        <button class="pf-repo-visit-btn" data-url="${_esc(r.htmlUrl)}" title="Open in browser">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M5 15L15 5M15 5H9M15 5v6"/></svg>
+          Visit
+        </button>
+      </div>
+      ${r.description ? `<div class="pf-repo-desc">${_esc(r.description)}</div>` : ''}
+      <div class="pf-repo-meta">
+        ${langHtml}
+        ${starsHtml}
+        ${commitHtml}
+        <span class="pf-repo-meta-item">Updated ${_timeAgo(r.pushedAt || r.updatedAt)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function _langColor(lang) {
+  const colors = {
+    JavaScript: '#f1e05a', TypeScript: '#3178c6', Python: '#3572A5',
+    Go: '#00ADD8', Rust: '#dea584', Java: '#b07219', 'C++': '#f34b7d',
+    C: '#555555', Ruby: '#701516', PHP: '#4F5D95', Swift: '#F05138',
+    Kotlin: '#A97BFF', Dart: '#00B4AB', Shell: '#89e051', HTML: '#e34c26',
+    CSS: '#563d7c', Vue: '#41b883', 'C#': '#178600',
+  };
+  return colors[lang] || '#6b7280';
+}
+
+function _timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
 }
 
 function _buildBodyHtml(all) {
@@ -232,6 +661,13 @@ function _buildBodyHtml(all) {
       </div>
     </div>
     <div class="pf-body-main">
+      <div class="pf-section" data-section="repos-nav">
+        <button class="pf-repos-nav-btn" id="pfReposNavBtn">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M2 3h5l2 2h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
+          Repositories
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;margin-left:auto"><path d="M8 5l5 5-5 5"/></svg>
+        </button>
+      </div>
       <div class="pf-section" data-section="stats"><div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div></div>
       <div class="pf-section" data-section="heatmap"><div class="pf-skel-line" style="width:100%;height:140px"></div></div>
       <div class="pf-section" data-section="donuts"><div class="pf-skel-donuts" style="display:flex;gap:16px"><div class="pf-skel-line" style="flex:1;height:120px"></div><div class="pf-skel-line" style="flex:1;height:120px"></div></div></div>
@@ -250,6 +686,9 @@ function _buildSkeleton() {
       </div>
     </div>
     <div class="pf-body-main">
+      <div class="pf-section" data-section="repos-nav">
+        <div class="pf-repos-nav-btn pf-skel" style="height:36px;border-radius:8px;margin-bottom:8px"></div>
+      </div>
       <div class="pf-section" data-section="stats">
         <div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div>
       </div>

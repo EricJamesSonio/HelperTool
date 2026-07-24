@@ -13,6 +13,7 @@ let TerminalClass = null;
 let FitAddonClass = null;
 let _xtermLoaded = false;
 const _loadingTimestamps = {};
+const _loadingOutputBuffer = {};
 
 async function loadXterm() {
   if (_xtermLoaded) return;
@@ -726,9 +727,33 @@ export function setupTerminalDataHandler() {
   window.electronAPI.opencode.onTermData(({ id, data }) => {
     if (_loadingTerminalIds.has(id)) {
       const elapsed = Date.now() - (_loadingTimestamps[id] || 0);
+
+      // Buffer output during loading to detect "session not found" across chunks
+      if (!_loadingOutputBuffer[id]) _loadingOutputBuffer[id] = '';
+      _loadingOutputBuffer[id] += data;
+      if (_loadingOutputBuffer[id].toLowerCase().includes('session not found')) {
+        const inst = Object.values(instances).find(i => i && i.id === id);
+        if (inst) {
+          console.log(`[CS] session not found for terminal ${id} (repo: ${inst.repoPath}), auto-fallback to new chat`);
+          const provider = getProvider(state.selectedProvider);
+          const binaryPath = state.opencodePath || provider.bin;
+          window.electronAPI.opencode.termWrite({ id, data: provider.newChatCmd(binaryPath) });
+          state.activeConvId[inst.repoPath] = null;
+          if (state.slotData[inst.slotIndex]) {
+            state.slotData[inst.slotIndex].convId = null;
+          }
+        }
+        _loadingTerminalIds.delete(id);
+        delete _loadingTimestamps[id];
+        delete _loadingOutputBuffer[id];
+        getLoadingController().finish('Session not found, started new chat', 600);
+        return;
+      }
+
       if (elapsed >= 2500) {
         _loadingTerminalIds.delete(id);
         delete _loadingTimestamps[id];
+        delete _loadingOutputBuffer[id];
         getLoadingController().finish('Ready', 600);
       }
     }

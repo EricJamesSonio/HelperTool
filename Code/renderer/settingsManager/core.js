@@ -7,16 +7,20 @@ function applySettings(s = S.settings) {
   const theme     = FULL_THEMES[s.themeId] || FULL_THEMES['github-hc-dark'];
   const accentHex = s.customAccent || theme.accent;
 
-  const depths = s.customAccent
+  const themeDepths = s.customAccent
     ? [s.customAccent, ...theme.depths.slice(1)]
     : theme.depths;
 
-  const depthVars = depths.map((color, i) => `
+  const depthCount = 10;
+  const depthVars = Array.from({ length: depthCount }, (_, i) => {
+    const color = s.folderDepths?.[i] || themeDepths[i % themeDepths.length];
+    return `
   --dl${i}-color:  ${color};
   --dl${i}-bg:     ${rgba(color, 0.10)};
   --dl${i}-bg-h:   ${rgba(color, 0.18)};
   --dl${i}-border: ${rgba(color, 0.40)};
-  --dl${i}-line:   ${rgba(color, 0.35)};`).join('');
+  --dl${i}-line:   ${rgba(color, 0.35)};`;
+  }).join('');
 
   const uiScale = Math.max(1, Math.min(100, s.uiScale ?? 50));
   const cssScale = uiScale <= 50

@@ -457,6 +457,59 @@ unstageFile(filePath) {
   }
 
   /**
+   * Generate a commit message from a smart group's files.
+   * Extracts the common module name from file paths and picks a verb from statuses.
+   */
+  generateGroupMessage(group) {
+    const files = group.files;
+    if (!files || files.length === 0) return 'Update files';
+
+    const filePaths = files.map(f => f.file);
+    const statuses = new Set(files.map(f => f.status));
+
+    let verb = 'Update';
+    if (statuses.has('A') || statuses.has('?')) verb = 'Add';
+    if (statuses.size === 1 && statuses.has('D')) verb = 'Remove';
+
+    // Single file → use file name without extension
+    if (filePaths.length === 1) {
+      const name = filePaths[0].split('/').pop().replace(/\.[^/.]+$/, '');
+      return `${verb} ${name}`;
+    }
+
+    // Find common directory prefix among all files
+    const dirs = filePaths.map(p => {
+      const idx = p.lastIndexOf('/');
+      return idx >= 0 ? p.substring(0, idx) : '';
+    });
+    const commonDir = this._longestCommonPrefix(dirs);
+    const segments = commonDir ? commonDir.split('/').filter(Boolean) : [];
+
+    if (segments.length >= 2) {
+      return `${verb} ${segments[segments.length - 1]} module`;
+    }
+
+    return `${verb} ${filePaths.length} files`;
+  }
+
+  /**
+   * Find the longest common directory prefix among an array of paths.
+   */
+  _longestCommonPrefix(strings) {
+    if (!strings || strings.length === 0) return '';
+    if (strings.length === 1) return strings[0];
+    let prefix = strings[0];
+    for (let i = 1; i < strings.length; i++) {
+      while (strings[i].indexOf(prefix) !== 0) {
+        const idx = prefix.lastIndexOf('/');
+        if (idx < 0) { prefix = ''; break; }
+        prefix = prefix.substring(0, idx);
+      }
+    }
+    return prefix;
+  }
+
+  /**
    * Generate a unique commit ID (simplified - use git hash in production)
    */
   generateCommitId() {

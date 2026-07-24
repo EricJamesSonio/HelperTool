@@ -11,6 +11,22 @@ process.on('unhandledRejection', (reason) => {
 const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
 const path = require('path');
 
+// ── IPC timing wrapper (Phase 0 instrumentation) ──
+const _origHandle = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = function (channel, handler) {
+  return _origHandle(channel, async (event, ...args) => {
+    const start = performance.now();
+    try {
+      return await handler(event, ...args);
+    } finally {
+      const duration = performance.now() - start;
+      if (duration > 10) {
+        console.warn(`[Perf] IPC ${channel}: ${duration.toFixed(1)}ms`);
+      }
+    }
+  });
+};
+
 const config = require('./config/config.js');
 const fileOps = require('./utils/fileOps.js');
 const docignoreUtils = require('./utils/docignore.js');
@@ -34,7 +50,6 @@ const serviceTrackerIpc = require('./ipc/serviceTracker_ipc.js');
 // Must be set BEFORE app.whenReady()
 // ----------------------------
 app.commandLine.appendSwitch('disable-gpu-sandbox');
-app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('num-raster-threads', '1');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
@@ -68,6 +83,7 @@ if (!gotTheLock) {
     });
 
     app.whenReady().then(async () => {
+        performance.mark('app:ready');
         console.log('[Main] App is ready');
 
         // Indexer + prefetch — deferred until first repo selection (or 15s fallback)
@@ -86,20 +102,33 @@ if (!gotTheLock) {
         registerAllIpc(startIndexerAndPrefetch);
         createTray();
 
-        // Start DB init BEFORE window creation — runs in parallel with page load
-        const dbPromise = Promise.all([
-            initDatabase(app),
-            initChatDb(app),
-            initErrorCopDb(app),
-        ]);
+        // ── Start DB init before window creation ──
+        // getSqlJs() already eagerly loaded + WASM fetch started in sharedSqlJs at module init.
+        // Add yield points between each init so renderer IPC (features, activeProject) gets through
+        // without waiting for all 3 DB chains to finish.
+        const yieldTick = () => new Promise(r => setTimeout(r, 0));
+        const dbPromise = (async () => {
+            await initDatabase(app);
+            await yieldTick();
+            await initChatDb(app);
+            await yieldTick();
+            await initErrorCopDb(app);
+        })();
 
-        // Start worker process BEFORE window creation so it's ready when renderer makes its first getFolderTree call
+        // ── Worker fork (non-blocking) ──
         workerProxy.start();
 
+        // ── Create window ──
         createWindow();
         serviceTrackerIpc.setWindow(mainWindow);
 
         mainWindow.webContents.once('did-finish-load', () => {
+            performance.mark('startup:renderer-loaded');
+            performance.measure('startup:critical-path', 'app:ready', 'startup:renderer-loaded');
+            const measures = performance.getEntriesByType('measure').filter(m => m.name.startsWith('startup:'));
+            for (const m of measures) {
+              console.log(`[Perf] ${m.name}: ${m.duration.toFixed(1)}ms`);
+            }
             serviceTrackerIpc.updateService('database', 'running', 'Initializing database...');
             dbPromise.then(async () => {
                 setTimeout(async () => {
@@ -149,27 +178,47 @@ if (!gotTheLock) {
 
 // ----------------------------
 // Register all IPC modules
+// Staggered to free event loop for first paint + renderer init
 // ----------------------------
 function registerAllIpc(onRepoSelected) {
     const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow, onRepoSelected };
 
+    const safeRegister = (name, fn) => {
+      try { fn(); } catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
+    };
+
+    // Tier 0: Eager — needed before first paint
     terminalIpc = require('./ipc/terminal_ipc.js'); terminalIpc.register(shared);
     serviceTrackerIpc.register();
     require('./ipc/opencode_ipc.js').register(shared);
 
-    // Defer non-critical IPC registration to after first paint
-    setImmediate(() => {
-      const safeRegister = (name, fn) => {
-        try { fn(); }
-        catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
-      };
+    // Tier 1 (100ms): All common tools — loaded before renderer first paint finishes
+    setTimeout(() => {
       safeRegister('repo_ipc',        () => require('./ipc/repo_ipc.js').register(shared));
       safeRegister('features_ipc',    () => require('./ipc/features_ipc.js').register(shared));
       safeRegister('secrets_ipc',     () => require('./ipc/secrets_ipc.js').register(shared));
-      safeRegister('apitool_ipc',     () => require('./ipc/apitool_ipc.js').register(shared));
+      safeRegister('watcher_ipc',     () => require('./ipc/watcher_ipc.js').register(getMainWindow));
+      safeRegister('git_ipc',         () => require('./ipc/git_ipc.js').register(shared));
+      safeRegister('profile',         () => require('./ipc/profile.js').register(shared));
+      safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
+      safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
+      safeRegister('codebaseManager', () => require('./ipc/codebaseManager_ipc.js').register());
       safeRegister('workspace_ipc',   () => require('./ipc/workspace_ipc.js').register(shared));
       safeRegister('prompts_ipc',     () => require('./ipc/prompts_ipc.js').register({ app }));
+      safeRegister('apitool_ipc',     () => require('./ipc/apitool_ipc.js').register(shared));
       safeRegister('canvas_ipc',      () => require('./ipc/canvas_ipc.js').register());
+      safeRegister('env_ipc',         () => require('./ipc/env_ipc.js').register());
+      safeRegister('github_ipc',      () => require('./ipc/github_ipc.js').register());
+      safeRegister('shortcut_ipc',    () => require('./ipc/shortcut_ipc.js').register(shared));
+      safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
+      safeRegister('projectInspector', () => require('./project-inspector/ipc.js').register());
+      performance.mark('tier1:done');
+      performance.measure('startup:tier1-ready', 'app:ready', 'tier1:done');
+      console.log(`[Perf] Tier 1 (${performance.getEntriesByName('startup:tier1-ready')[0]?.duration.toFixed(1)}ms): all common IPC modules loaded`);
+    }, 100);
+
+    // Tier 2 (4s): Heavy / rarely used tools — deferred well past startup
+    setTimeout(() => {
       safeRegister('fileseeder_ipc',  () => require('./ipc/fileseeder_ipc.js').register(shared));
       safeRegister('loc_ipc',         () => require('./ipc/loc_ipc.js').register(shared));
       safeRegister('portManager',     () => require('./ipc/portManager.js').register());
@@ -177,32 +226,17 @@ function registerAllIpc(onRepoSelected) {
       safeRegister('docignoreManager',() => require('./ipc/docignoreManager_ipc.js').register(shared));
       safeRegister('teamActivityFeed',() => require('./ipc/teamActivityFeed.js').register());
       safeRegister('blueprintLibrary',() => require('./ipc/blueprintLibrary/index.js').register());
-      safeRegister('profile',         () => require('./ipc/profile.js').register(shared));
-      safeRegister('env_ipc',         () => require('./ipc/env_ipc.js').register());
-      safeRegister('codebaseManager', () => require('./ipc/codebaseManager_ipc.js').register());
       safeRegister('video_ipc',       () => require('./ipc/video_ipc.js').register(shared));
       safeRegister('image_ipc',       () => require('./ipc/image_ipc.js').register(shared));
       safeRegister('automation_ipc',  () => require('./ipc/automation_ipc.js').register());
-      safeRegister('github_ipc',      () => require('./ipc/github_ipc.js').register());
       safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
       safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
-    });
-
-    // Heavier IPC modules — deferred another tick so first paint isn't contested
-    setImmediate(() => {
-      const safeRegister = (name, fn) => {
-        try { fn(); }
-        catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
-      };
-      safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
-      safeRegister('git_ipc',         () => require('./ipc/git_ipc.js').register(shared));
-      safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
       safeRegister('docker_ipc',      () => require('./ipc/docker_ipc.js').register());
-      safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
       safeRegister('gmail_ipc',       () => require('./ipc/gmail_ipc.js').register(shared));
       safeRegister('codebaseMap_ipc', () => require('./ipc/codebaseMap_ipc.js').register());
       safeRegister('graphify_ipc',    () => { graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app }); });
-    });
+      console.log('[Main] Tier 2: heavy/rarely used IPC modules loaded');
+    }, 4000);
 
     // ── Window control IPC (registered once, outside createWindow) ──
     ipcMain.on('window:minimize', () => mainWindow?.minimize());

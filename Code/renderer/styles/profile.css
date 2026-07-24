@@ -787,3 +787,468 @@
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+.pf-hidden { display: none !important; }
+
+/* ── Repos Nav Button ── */
+.pf-repos-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.pf-repos-nav-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+.pf-repos-nav-btn svg { flex-shrink: 0; }
+
+/* ── Repos Full View ── */
+.pf-body-repos-full {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.pf-repos-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.pf-repos-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.pf-repos-token-area {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex: 1;
+  max-width: 420px;
+}
+.pf-repos-token-input {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  font-family: var(--font-mono);
+}
+.pf-repos-token-input:focus { border-color: var(--accent); }
+.pf-repos-token-input::placeholder { color: var(--text-faint); font-family: var(--font-ui); }
+
+.pf-repos-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── Repos Toolbar ── */
+.pf-repos-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.pf-repos-filters {
+  display: flex;
+  gap: 6px;
+}
+.pf-repos-filter-chip {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  transition: all 0.1s;
+}
+.pf-repos-filter-chip:hover { color: var(--text-muted); border-color: var(--border-default); }
+.pf-repos-filter-chip.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.pf-repos-sort-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.pf-repos-sort-label {
+  font-size: 12px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.pf-repos-sort-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+.pf-repos-sort-select:focus { border-color: var(--accent); }
+.pf-repos-counts-loading {
+  font-size: 11px;
+  color: var(--text-faint);
+  animation: pfPulse 1s infinite;
+}
+.pf-repos-count {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+@keyframes pfPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* ── Repo Cards ── */
+.pf-repos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-repo-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: border-color 0.1s;
+}
+.pf-repo-card:hover { border-color: var(--border-default); }
+.pf-repo-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pf-repo-card-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.pf-repo-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-repo-name svg { color: var(--text-muted); flex-shrink: 0; }
+.pf-repo-visibility {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.pf-repo-vis-public { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+.pf-repo-vis-private { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.pf-repo-visit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.1s;
+}
+.pf-repo-visit-btn:hover { background: var(--bg-hover); color: var(--accent); border-color: var(--accent); }
+.pf-repo-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-repo-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.pf-repo-meta-item {
+  font-size: 12px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.pf-repo-lang { display: flex; align-items: center; gap: 4px; }
+.pf-repo-lang-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Repos States ── */
+.pf-repos-loading, .pf-repos-error, .pf-repos-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  color: var(--text-faint);
+  font-size: 14px;
+  text-align: center;
+}
+.pf-repos-error { color: var(--red); }
+.pf-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: pfSpin 0.6s linear infinite;
+}
+@keyframes pfSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Repos Pagination ── */
+.pf-repos-pages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 0 4px;
+  flex-shrink: 0;
+}
+.pf-repo-page-btn {
+  width: 30px; height: 30px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.pf-repo-page-btn:hover { background: var(--bg-hover); border-color: var(--border-default); }
+.pf-repo-page-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.pf-repo-page-nav {
+  width: 30px; height: 30px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.pf-repo-page-nav:hover:not(:disabled) { background: var(--bg-hover); }
+.pf-repo-page-nav:disabled { opacity: 0.3; cursor: default; }
+.pf-repo-page-dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ── Server/Client Shortcut Buttons ── */
+
+.shortcut-btn {
+  position: relative;
+}
+.shortcut-btn.shortcut-unconfigured {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+#serverBtn.shortcut-configured {
+  color: var(--red, #f85149);
+  border-color: var(--red-dim, rgba(248,81,73,0.35));
+}
+#serverBtn.shortcut-configured:hover {
+  background: var(--red-dim, rgba(248,81,73,0.12));
+  border-color: var(--red, #f85149);
+}
+
+#clientBtn.shortcut-configured {
+  color: var(--blue, #58a6ff);
+  border-color: var(--blue-dim, rgba(88,166,255,0.35));
+}
+#clientBtn.shortcut-configured:hover {
+  background: var(--blue-dim, rgba(88,166,255,0.12));
+  border-color: var(--blue, #58a6ff);
+}
+
+#serverBtn.shortcut-running::after,
+#clientBtn.shortcut-running::after {
+  content: '✓';
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green, #23d18b);
+  line-height: 1;
+  text-shadow: 0 0 4px var(--green-dim, rgba(35,209,139,0.4));
+}
+
+/* ── Shortcut Setup Modal ── */
+
+.shortcut-setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+}
+.shortcut-setup-modal {
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  width: 460px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.shortcut-setup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.shortcut-setup-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.shortcut-setup-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.shortcut-setup-close:hover { color: var(--text-primary); }
+.shortcut-setup-body {
+  padding: 20px;
+}
+.shortcut-setup-field {
+  margin-bottom: 16px;
+}
+.shortcut-setup-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.shortcut-setup-input {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+.shortcut-setup-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+.shortcut-setup-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+.shortcut-setup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.shortcut-setup-btn {
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transition: all 0.1s;
+}
+.shortcut-setup-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.shortcut-setup-btn-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.shortcut-setup-btn-save:hover {
+  background: var(--accent-hover, var(--accent));
+  opacity: 0.9;
+}

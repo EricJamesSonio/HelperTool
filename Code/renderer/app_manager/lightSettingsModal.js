@@ -22,6 +22,7 @@ const FEATURES_META = [
     { id: 'themeEngine',   icon: ICON_LS_PALETTE,   label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)' },
     { id: 'folderFilters', icon: ICON_LS_FOLDER,    label: 'Folder Filters',    desc: 'Ignore / Focus folder panels' },
     { id: 'swagger',       icon: ICON_LS_LIGHTNING, label: 'Swagger Import',    desc: 'Auto-import from OpenAPI specs' },
+    { id: 'ecosystemWatcher', icon: ICON_LS_SEARCH, label: 'Ecosystem Watcher', desc: 'Real-time runtime observability & event timeline' },
 ];
 
 function ensureModal(getFeatures, saveFeatures) {

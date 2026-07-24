@@ -238,6 +238,15 @@ const errorCopBridge = {
     stopServer: () => ipcRenderer.invoke('error-cop:stopServer'),
     getServerStatus: () => ipcRenderer.invoke('error-cop:serverStatus'),
     generateCheatsheet: (repoPath) => ipcRenderer.invoke('error-cop:generateCheatsheet', repoPath),
+    commandRun: (opts) => ipcRenderer.invoke('error-cop:commandRun', opts),
+    commandStop: (id) => ipcRenderer.invoke('error-cop:commandStop', id),
+    commandList: () => ipcRenderer.invoke('error-cop:commandList'),
+    commandGetStatus: (id) => ipcRenderer.invoke('error-cop:commandGetStatus', id),
+    commandGetOutput: (opts) => ipcRenderer.invoke('error-cop:commandGetOutput', opts),
+    urlList: () => ipcRenderer.invoke('error-cop:urlList'),
+    urlHealthCheck: (port) => ipcRenderer.invoke('error-cop:urlHealthCheck', port),
+    urlFetchTest: (port) => ipcRenderer.invoke('error-cop:urlFetchTest', port),
+    urlWaitForReady: (opts) => ipcRenderer.invoke('error-cop:urlWaitForReady', opts),
     onNewError: (callback) => {
         ipcRenderer.removeAllListeners('error-cop:new-error');
         ipcRenderer.on('error-cop:new-error', (_, payload) => callback(payload));
@@ -250,6 +259,24 @@ const errorCopBridge = {
         ipcRenderer.removeAllListeners('error-cop:timeline-event');
         ipcRenderer.on('error-cop:timeline-event', (_, payload) => callback(payload));
     },
+};
+
+const watcherBridge = {
+    query:            (opts)              => ipcRenderer.invoke('watcher:query', opts),
+    timeline:         (sessionId, limit)  => ipcRenderer.invoke('watcher:timeline', sessionId, limit),
+    summary:          (sessionId)         => ipcRenderer.invoke('watcher:summary', sessionId),
+    sessions:         ()                  => ipcRenderer.invoke('watcher:sessions'),
+    snapshot:         (sessionId)         => ipcRenderer.invoke('watcher:snapshot', sessionId),
+    health:           ()                  => ipcRenderer.invoke('watcher:health'),
+    runCommand:       (opts)              => ipcRenderer.invoke('watcher:runCommand', opts),
+    stopCommand:      (runnerId)          => ipcRenderer.invoke('watcher:stopCommand', runnerId),
+    commandStatus:    (runnerId)          => ipcRenderer.invoke('watcher:commandStatus', runnerId),
+    commandOutput:    (opts)              => ipcRenderer.invoke('watcher:commandOutput', opts),
+    commandList:      ()                  => ipcRenderer.invoke('watcher:commandList'),
+    urlRegister:      (opts)              => ipcRenderer.invoke('watcher:urlRegister', opts),
+    urlUnregister:    (port)              => ipcRenderer.invoke('watcher:urlUnregister', port),
+    urlList:          ()                  => ipcRenderer.invoke('watcher:urlList'),
+    urlHealthHistory: (opts)              => ipcRenderer.invoke('watcher:urlHealthHistory', opts),
 };
 
 // ── Window controls ──
@@ -374,6 +401,11 @@ const branchBridge = {
       ipcRenderer.invoke('git:commitFileDiff', { repoPath, hash, filePath }),
 };
 
+const shortcutBridge = {
+  shortcutGetConfig: (repoPath) => ipcRenderer.invoke('shortcut:getConfig', repoPath),
+  shortcutSetConfig: (payload) => ipcRenderer.invoke('shortcut:setConfig', payload),
+};
+
 const dockerBridge = {
     ping:            ()             => ipcRenderer.invoke('docker:ping'),
     listContainers:  ()             => ipcRenderer.invoke('docker:listContainers'),
@@ -486,6 +518,9 @@ const githubBridge = {
     listSaved: () => ipcRenderer.invoke('github:listSaved'),
     loadSaved: (repoUrl) => ipcRenderer.invoke('github:loadSaved', repoUrl),
     deleteSaved: (repoUrl) => ipcRenderer.invoke('github:deleteSaved', repoUrl),
+    listRepos: (payload) => ipcRenderer.invoke('github:listRepos', payload),
+    getCommitCounts: (payload) => ipcRenderer.invoke('github:getCommitCounts', payload),
+    openUrl: (url) => ipcRenderer.invoke('github:openUrl', url),
   },
 };
 
@@ -539,6 +574,13 @@ const opencodeBridge = {
 const geminiBridge = {
   discover:           ()                            => ipcRenderer.invoke('gemini:discover'),
   listConversations:  (repoPath)                    => ipcRenderer.invoke('gemini:listConversations', { repoPath }),
+};
+
+const projectInspectorBridge = {
+  inspect:          (repoPath) => ipcRenderer.invoke('projectInspector:inspect', repoPath),
+  get:              (repoPath) => ipcRenderer.invoke('projectInspector:get', repoPath),
+  list:             ()         => ipcRenderer.invoke('projectInspector:list'),
+  delete:           (repoPath) => ipcRenderer.invoke('projectInspector:delete', repoPath),
 };
 
 
@@ -625,6 +667,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...codebaseMapBridge,
     ...graphifyBridge,
     ...automationBridge,
+    ...shortcutBridge,
+    watcher: watcherBridge,
     ...codebaseManagerBridge,
     ...imageBridge,
     ...videoBridge,
@@ -634,6 +678,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     gemini: geminiBridge,
     windowControls,
 });
+
+contextBridge.exposeInMainWorld('projectInspector', projectInspectorBridge);
 
 contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
 

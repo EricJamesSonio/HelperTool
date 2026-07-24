@@ -1,6 +1,6 @@
 import { S, DEFAULT_SETTINGS } from './state.js';
 import { FEATURES_META, _renderFeaturesList, saveFeatures } from './features.js';
-import { renderThemeGrid, renderSwatches } from './ui.js';
+import { renderThemeGrid, renderSwatches, renderFolderDepthSwatches } from './ui.js';
 import { saveAndApply } from './utils.js';
 
 const ICON_SETTINGS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="10" cy="10" r="7"/><circle cx="7" cy="8" r="1" fill="currentColor"/><circle cx="13" cy="8" r="1" fill="currentColor"/><circle cx="10" cy="13" r="1" fill="currentColor"/></svg>';
@@ -40,6 +40,14 @@ function _ensureModal() {
                 <small>Replaces the theme's default accent color</small>
               </div>
               <div class="settings-swatches" id="settingsSwatches"></div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-label">Folder Depth Colors</div>
+            <div class="settings-row" style="flex-direction:column;align-items:stretch">
+              <div style="display:flex;flex-wrap:wrap;gap:4px" id="folderDepthGrid"></div>
+              <button id="resetDepthBtn" class="settings-btn" style="align-self:flex-end">Reset to theme</button>
             </div>
           </div>
 
@@ -119,6 +127,12 @@ function _ensureModal() {
     sliderVal.textContent = `${S.settings.fontSize}px`;
     saveAndApply();
   });
+  document.getElementById('resetDepthBtn')?.addEventListener('click', () => {
+    S.settings.folderDepths = [];
+    saveAndApply();
+    renderFolderDepthSwatches();
+  });
+
   document.getElementById('settingsResetBtn')?.addEventListener('click', () => {
     Object.assign(S.settings, DEFAULT_SETTINGS);
     saveAndApply();
@@ -149,6 +163,7 @@ function syncControls() {
   if (fontValue)     { fontValue.textContent  = `${S.settings.fontSize}px`; }
   renderThemeGrid();
   renderSwatches();
+  renderFolderDepthSwatches();
   _renderFeaturesList();
 }
 

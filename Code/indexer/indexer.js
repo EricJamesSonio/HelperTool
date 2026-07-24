@@ -3,11 +3,12 @@ const path = require('path');
 const crypto = require('crypto');
 const parser = require('./parser');
 const resolver = require('./resolver');
-const repoDb = require('../database/repositories');
-const fileDb = require('../database/indexedFiles');
-const symbolDb = require('../database/symbols');
-const importDb = require('../database/imports');
 const db = require('../database/db');
+
+let _repoDb = require('../database/repositories');
+let _fileDb = require('../database/indexedFiles');
+let _symbolDb = require('../database/symbols');
+let _importDb = require('../database/imports');
 
 const BATCH_SIZE = 8;
 const PROGRESS_THROTTLE_PCT = 1; // at most one IPC per 1% change
@@ -32,10 +33,9 @@ function detectLanguage(ext) {
 
 async function indexRepo(repoPath, docignoreUtils, onProgress, onError) {
   const repoName = path.basename(repoPath);
-  const repoId = repoDb.upsert(repoPath, repoName, {});
+  const repoId = _repoDb.upsert(repoPath, repoName, {});
 
-  const allFiles = [];
-  walkDir(repoPath, allFiles, repoPath, docignoreUtils);
+  const allFiles = await asyncWalkDir(repoPath, repoPath, docignoreUtils);
 
   let indexedCount = 0;
   let symbolCount = 0;
@@ -71,8 +71,8 @@ async function indexRepo(repoPath, docignoreUtils, onProgress, onError) {
 
   }
 
-  repoDb.markIndexed(repoId, totalFiles, symbolCount);
-  db.save();
+  _repoDb.markIndexed(repoId, totalFiles, symbolCount);
+  db.saveImmediate();
 
   return { totalFiles, symbolCount };
 }
@@ -82,22 +82,28 @@ async function indexFile(repoId, repoPath, relPath) {
   let stat;
   try { stat = await fs.promises.stat(fullPath); } catch { return null; }
 
-  const content = await fs.promises.readFile(fullPath, 'utf-8');
-  const hash = crypto.createHash('md5').update(content).digest('hex');
   const ext = path.extname(relPath).toLowerCase();
   const language = detectLanguage(ext);
+  const existingFile = _fileDb.getByRepoAndPath(repoId, relPath);
 
-  const existingFile = fileDb.getByRepoAndPath(repoId, relPath);
+  // Fast path: mtime matches — file content hasn't changed, skip read+hash
+  if (existingFile && existingFile.last_modified === stat.mtime.toISOString()) {
+    return { fileId: existingFile.id, symbolsCount: 0, reused: true };
+  }
+
+  const content = await fs.promises.readFile(fullPath, 'utf-8');
+  const hash = crypto.createHash('md5').update(content).digest('hex');
+
   if (existingFile && existingFile.file_hash === hash) {
     return { fileId: existingFile.id, symbolsCount: 0, reused: true };
   }
 
   if (existingFile) {
-    symbolDb.deleteByFile(existingFile.id);
-    importDb.deleteByFile(existingFile.id);
+    _symbolDb.deleteByFile(existingFile.id);
+    _importDb.deleteByFile(existingFile.id);
   }
 
-  const fileId = fileDb.insert(repoId, relPath, language, hash, stat.mtime.toISOString());
+  const fileId = _fileDb.insert(repoId, relPath, language, hash, stat.mtime.toISOString());
 
   if (!language) return { fileId, symbolsCount: 0, reused: false };
 
@@ -107,7 +113,7 @@ async function indexFile(repoId, repoPath, relPath) {
     const imports = result.imports || [];
 
     if (symbols.length > 0) {
-      symbolDb.insertBatch(symbols.map(s => ({
+      _symbolDb.insertBatch(symbols.map(s => ({
         ...s,
         repo_id: repoId,
         file_id: fileId,
@@ -122,7 +128,7 @@ async function indexFile(repoId, repoPath, relPath) {
         let resolvedFileId = null;
         if (resolvedFull) {
           const resolvedRel = resolver.toRelPath(resolvedFull, repoPath);
-          const resolvedFile = fileDb.getByRepoAndPath(repoId, resolvedRel);
+          const resolvedFile = _fileDb.getByRepoAndPath(repoId, resolvedRel);
           if (resolvedFile) resolvedFileId = resolvedFile.id;
         }
         return {
@@ -136,23 +142,23 @@ async function indexFile(repoId, repoPath, relPath) {
           column: imp.column,
         };
       });
-      importDb.insertBatch(enriched);
+      _importDb.insertBatch(enriched);
     }
 
     return { fileId, symbolsCount: symbols.length, reused: false };
   } catch (parseErr) {
     if (existingFile) {
-      fileDb.markDirty(repoId, relPath);
+      _fileDb.markDirty(repoId, relPath);
     }
     return { fileId, symbolsCount: 0, reused: false, error: parseErr.message };
   }
 }
 
 async function reindexDirty(repoPath, onProgress, onError) {
-  const repo = repoDb.getByPath(repoPath);
+  const repo = _repoDb.getByPath(repoPath);
   if (!repo) return { totalFiles: 0, symbolCount: 0 };
 
-  const dirtyFiles = fileDb.getDirtyByRepo(repo.id);
+  const dirtyFiles = _fileDb.getDirtyByRepo(repo.id);
   let symbolCount = 0;
   let lastReportedPct = -1;
 
@@ -166,11 +172,11 @@ async function reindexDirty(repoPath, onProgress, onError) {
       const df = batch[j];
       const result = results[j];
       if (result.status === 'fulfilled' && result.value) {
-        fileDb.markClean(df.id);
+        _fileDb.markClean(df.id);
         symbolCount += result.value.symbolsCount;
       } else if (result.status === 'rejected' && onError) {
         onError(`Failed to reindex ${df.path}: ${result.reason?.message || 'Unknown'}`);
-        fileDb.markClean(df.id);
+        _fileDb.markClean(df.id);
       }
     }
 
@@ -186,8 +192,8 @@ async function reindexDirty(repoPath, onProgress, onError) {
     }
   }
 
-  repoDb.markIndexed(repo.id, repo.total_files, symbolCount);
-  db.save();
+  _repoDb.markIndexed(repo.id, repo.total_files, symbolCount);
+  db.saveImmediate();
 
   return { totalFiles: dirtyFiles.length, symbolCount };
 }
@@ -215,25 +221,59 @@ function walkDir(dirPath, results, repoPath, docignoreUtils, prefix) {
   }
 }
 
+async function asyncWalkDir(dirPath, repoPath, docignoreUtils, prefix, results) {
+  const out = results || [];
+  try {
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+    const dirs = [];
+    for (const entry of entries) {
+      const relPath = (prefix ? path.join(prefix, entry.name) : entry.name).replace(/\\/g, '/');
+      const fullPath = path.join(dirPath, entry.name);
+
+      if (docignoreUtils.isIgnored(fullPath, repoPath)) continue;
+
+      if (entry.isDirectory()) {
+        dirs.push(asyncWalkDir(fullPath, repoPath, docignoreUtils, relPath, out));
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (detectLanguage(ext)) {
+          out.push(relPath);
+        }
+      }
+    }
+    await Promise.all(dirs);
+  } catch (err) {
+    // Permission denied, skip
+  }
+  return out;
+}
+
 function resetIndex(repoPath) {
-  const repo = repoDb.getByPath(repoPath);
+  const repo = _repoDb.getByPath(repoPath);
   if (!repo) return;
-  symbolDb.deleteByRepo(repo.id);
-  fileDb.removeByRepo(repo.id);
-  repoDb.markUnindexed(repo.id);
-  db.save();
+  _symbolDb.deleteByRepo(repo.id);
+  _fileDb.removeByRepo(repo.id);
+  _repoDb.markUnindexed(repo.id);
+  db.saveImmediate();
 }
 
 function deleteIndex(repoPath) {
-  const repo = repoDb.getByPath(repoPath);
+  const repo = _repoDb.getByPath(repoPath);
   if (!repo) return;
-  symbolDb.deleteByRepo(repo.id);
-  fileDb.removeByRepo(repo.id);
-  repoDb.remove(repoPath);
-  db.save();
+  _symbolDb.deleteByRepo(repo.id);
+  _fileDb.removeByRepo(repo.id);
+  _repoDb.remove(repoPath);
+  db.saveImmediate();
+}
+
+function setDbs(dbs) {
+  if (dbs.repoDb) _repoDb = dbs.repoDb;
+  if (dbs.fileDb) _fileDb = dbs.fileDb;
+  if (dbs.symbolDb) _symbolDb = dbs.symbolDb;
+  if (dbs.importDb) _importDb = dbs.importDb;
 }
 
 module.exports = {
-  indexRepo, indexFile, reindexDirty, walkDir,
-  resetIndex, deleteIndex,
+  indexRepo, indexFile, reindexDirty, walkDir, asyncWalkDir,
+  resetIndex, deleteIndex, setDbs,
 };

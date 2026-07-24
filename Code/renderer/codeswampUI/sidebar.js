@@ -131,10 +131,17 @@ export async function refreshSidebar(forceLoading = false) {
 
   if (serverConvs.length > 0) {
     convStore.mergeConversations(repoPath, serverConvs);
-    const merged = convStore.getConversations(repoPath);
     const serverIds = new Set(serverConvs.map(c => c.id));
+    // Prune stale entries from store (non-local_ conversations that no longer exist on the server)
+    const allStored = convStore.getConversations(repoPath);
+    for (const c of allStored) {
+      if (!c.id.startsWith('local_') && !serverIds.has(c.id)) {
+        convStore.removeConversation(repoPath, c.id);
+      }
+    }
+    const merged = convStore.getConversations(repoPath);
     const localOnly = localConvs.filter(c => c.id.startsWith('local_') && !serverIds.has(c.id));
-    state.conversations[repoPath] = [...localOnly, ...merged.filter(c => !c.id.startsWith('local_') || serverIds.has(c.id))];
+    state.conversations[repoPath] = [...localOnly, ...merged.filter(c => !c.id.startsWith('local_'))];
 
     if (!state.messageCache[repoPath]) state.messageCache[repoPath] = {};
     for (const c of serverConvs) {
@@ -171,6 +178,21 @@ export async function loadConversation(convId) {
   }
   // Bump to top — loaded conversations are recently used
   convStore.touchConversation(repoPath, convId);
+
+  // Validate session still exists on the server side (skip local_ artificial entries)
+  if (!convId.startsWith('local_')) {
+    const knownConvs = state.conversations[repoPath];
+    if (knownConvs && knownConvs.length > 0) {
+      const knownIds = new Set(knownConvs.map(c => c.id));
+      if (!knownIds.has(convId)) {
+        console.log(`[CS] loadConversation: session "${convId}" not in server list, removing stale entry`);
+        convStore.removeConversation(repoPath, convId);
+        await refreshSidebar();
+        startNewChat();
+        return;
+      }
+    }
+  }
 
   if (!state.parallelMode) {
     state.activeConvId[repoPath] = convId;

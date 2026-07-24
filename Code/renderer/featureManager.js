@@ -25,6 +25,7 @@ const DEFAULT_FEATURES = {
   dockerTool: true,
   essentialsGlossary: true,
   uiLayoutHelper: true,
+  ecosystemWatcher: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -75,6 +76,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-docker', !_features.dockerTool);
   document.body.classList.toggle('feat-no-ui-layout-helper', !_features.uiLayoutHelper);
   document.body.classList.toggle('feat-no-essentials-glossary', !_features.essentialsGlossary);
+  document.body.classList.toggle('feat-no-ecosystem-watcher', !_features.ecosystemWatcher);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────

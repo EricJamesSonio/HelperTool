@@ -49,12 +49,17 @@ async function initDatabase(app) {
   _db.run('PRAGMA foreign_keys=ON');
   _dirty = false;
 
+  const _debugQuery = !!process.env.DEBUG_QUERY;
   _db = new Proxy(_db, {
     get(target, prop) {
       const val = target[prop];
       if (typeof val === 'function' && (prop === 'run' || prop === 'exec' || prop === 'prepare')) {
         return function (...args) {
           _dirty = true;
+          if (_debugQuery && typeof args[0] === 'string') {
+            const sql = args[0].replace(/\s+/g, ' ').trim().slice(0, 120);
+            console.log(`[DB] ${prop}: ${sql}`);
+          }
           return val.apply(target, args);
         };
       }
@@ -62,6 +67,8 @@ async function initDatabase(app) {
     }
   });
 
+  // Yield before schema creation so any pending renderer IPC (features, activeProject) gets processed
+  await new Promise(r => setTimeout(r, 0));
   createSchema();
   _flush();
 
@@ -76,95 +83,122 @@ function _tablesExist(names) {
 }
 
 function createSchema() {
-  if (_tablesExist(['repositories','indexed_files','symbols','file_imports','boards','blueprint_categories','blueprints','kit_items','profile','profile_meta','activity_days','file_save_events','github_repo_trees'])) {
+  const localTables = ['boards','blueprint_categories','blueprints','kit_items','profile','profile_meta','activity_days','file_save_events','github_repo_trees'];
+
+  if (!process.env.SKIP_SHARED_DB) {
+    localTables.push('repositories','indexed_files','symbols','file_imports');
+  }
+
+  if (_tablesExist(localTables)) {
     try { _db.run("ALTER TABLE profile ADD COLUMN bio TEXT DEFAULT ''"); } catch (e) {}
     try { _db.run("ALTER TABLE profile ADD COLUMN website TEXT DEFAULT ''"); } catch (e) {}
     return;
   }
 
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS repositories (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_path     TEXT UNIQUE NOT NULL,
-      name          TEXT NOT NULL,
-      indexed       INTEGER DEFAULT 0,
-      last_indexed  TEXT,
-      total_files   INTEGER DEFAULT 0,
-      total_symbols INTEGER DEFAULT 0,
-      config_json   TEXT DEFAULT '{}',
-      created_at    TEXT DEFAULT (datetime('now')),
-      updated_at    TEXT DEFAULT (datetime('now'))
-    )
-  `);
+  if (!process.env.SKIP_SHARED_DB) {
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS repositories (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_path     TEXT UNIQUE NOT NULL,
+        name          TEXT NOT NULL,
+        indexed       INTEGER DEFAULT 0,
+        last_indexed  TEXT,
+        total_files   INTEGER DEFAULT 0,
+        total_symbols INTEGER DEFAULT 0,
+        config_json   TEXT DEFAULT '{}',
+        created_at    TEXT DEFAULT (datetime('now')),
+        updated_at    TEXT DEFAULT (datetime('now'))
+      )
+    `);
 
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS indexed_files (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
-      path          TEXT NOT NULL,
-      language      TEXT,
-      file_hash     TEXT,
-      last_modified TEXT,
-      indexed_at    TEXT,
-      is_dirty      INTEGER DEFAULT 0,
-      UNIQUE(repo_id, path)
-    )
-  `);
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS indexed_files (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+        path          TEXT NOT NULL,
+        language      TEXT,
+        file_hash     TEXT,
+        last_modified TEXT,
+        indexed_at    TEXT,
+        is_dirty      INTEGER DEFAULT 0,
+        UNIQUE(repo_id, path)
+      )
+    `);
 
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS symbols (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
-      file_id       INTEGER NOT NULL REFERENCES indexed_files(id) ON DELETE CASCADE,
-      name          TEXT NOT NULL,
-      type          TEXT NOT NULL,
-      line          INTEGER,
-      column        INTEGER,
-      is_exported   INTEGER DEFAULT 0,
-      class_name    TEXT,
-      language      TEXT,
-      signature     TEXT,
-      created_at    TEXT DEFAULT (datetime('now'))
-    )
-  `);
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS symbols (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+        file_id       INTEGER NOT NULL REFERENCES indexed_files(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        type          TEXT NOT NULL,
+        line          INTEGER,
+        column        INTEGER,
+        is_exported   INTEGER DEFAULT 0,
+        class_name    TEXT,
+        language      TEXT,
+        signature     TEXT,
+        created_at    TEXT DEFAULT (datetime('now'))
+      )
+    `);
 
-  try {
-    _db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, signature, content=symbols, content_rowid=id)`);
     try {
-      const existing = _db.exec("SELECT COUNT(*) as cnt FROM symbols_fts");
-      if (existing.length > 0 && existing[0].values[0][0] === 0) {
-        _db.run("INSERT INTO symbols_fts(rowid, name, signature) SELECT id, name, signature FROM symbols");
-        console.log('[DB] FTS5 populated with existing symbols');
+      _db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, signature, content=symbols, content_rowid=id)`);
+      try {
+        const existing = _db.exec("SELECT COUNT(*) as cnt FROM symbols_fts");
+        if (existing.length > 0 && existing[0].values[0][0] === 0) {
+          _db.run("INSERT INTO symbols_fts(rowid, name, signature) SELECT id, name, signature FROM symbols");
+          console.log('[DB] FTS5 populated with existing symbols');
+        }
+      } catch (e) {
+        console.log('[DB] FTS5 population skipped:', e.message);
       }
     } catch (e) {
-      console.log('[DB] FTS5 population skipped:', e.message);
+      console.log('[DB] FTS5 not available, search fallback will be used:', e.message);
     }
-  } catch (e) {
-    console.log('[DB] FTS5 not available, search fallback will be used:', e.message);
+
+    _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_repo_id ON symbols(repo_id)');
+    _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id)');
+    _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name)');
+    _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_type ON symbols(type)');
+    _db.run('CREATE INDEX IF NOT EXISTS idx_indexed_files_repo_dirty ON indexed_files(repo_id, is_dirty)');
+
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS file_imports (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+        file_id       INTEGER NOT NULL REFERENCES indexed_files(id) ON DELETE CASCADE,
+        import_path   TEXT NOT NULL,
+        import_type   TEXT NOT NULL,
+        resolved_file_id INTEGER,
+        imported_symbols TEXT,
+        line          INTEGER,
+        column        INTEGER
+      )
+    `);
+    _db.run('CREATE INDEX IF NOT EXISTS idx_imports_file ON file_imports(file_id)');
+    _db.run('CREATE INDEX IF NOT EXISTS idx_imports_resolved ON file_imports(resolved_file_id)');
+    _db.run('CREATE INDEX IF NOT EXISTS idx_imports_repo ON file_imports(repo_id)');
+
+    const row = _db.exec("SELECT name FROM sqlite_master WHERE type='trigger' AND name='symbols_ai'");
+    const hasFts = _db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols_fts'");
+    if (row.length === 0 && hasFts.length > 0) {
+      try {
+        _db.run(`CREATE TRIGGER symbols_ai AFTER INSERT ON symbols BEGIN
+          INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
+        END`);
+        _db.run(`CREATE TRIGGER symbols_ad AFTER DELETE ON symbols BEGIN
+          INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
+        END`);
+        _db.run(`CREATE TRIGGER symbols_au AFTER UPDATE ON symbols BEGIN
+          INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
+          INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
+        END`);
+      } catch (e) {
+        console.log('[DB] FTS5 triggers skipped:', e.message);
+      }
+    }
   }
-
-  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_repo_id ON symbols(repo_id)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_symbols_type ON symbols(type)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_indexed_files_repo_dirty ON indexed_files(repo_id, is_dirty)');
-
-  _db.run(`
-    CREATE TABLE IF NOT EXISTS file_imports (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_id       INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
-      file_id       INTEGER NOT NULL REFERENCES indexed_files(id) ON DELETE CASCADE,
-      import_path   TEXT NOT NULL,
-      import_type   TEXT NOT NULL,
-      resolved_file_id INTEGER,
-      imported_symbols TEXT,
-      line          INTEGER,
-      column        INTEGER
-    )
-  `);
-  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_file ON file_imports(file_id)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_resolved ON file_imports(resolved_file_id)');
-  _db.run('CREATE INDEX IF NOT EXISTS idx_imports_repo ON file_imports(repo_id)');
 
   _db.run(`
     CREATE TABLE IF NOT EXISTS boards (
@@ -213,25 +247,6 @@ function createSchema() {
     )
   `);
 
-  const row = _db.exec("SELECT name FROM sqlite_master WHERE type='trigger' AND name='symbols_ai'");
-  const hasFts = _db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols_fts'");
-  if (row.length === 0 && hasFts.length > 0) {
-    try {
-      _db.run(`CREATE TRIGGER symbols_ai AFTER INSERT ON symbols BEGIN
-        INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
-      END`);
-      _db.run(`CREATE TRIGGER symbols_ad AFTER DELETE ON symbols BEGIN
-        INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
-      END`);
-      _db.run(`CREATE TRIGGER symbols_au AFTER UPDATE ON symbols BEGIN
-        INSERT INTO symbols_fts(symbols_fts, rowid, name, signature) VALUES('delete', old.id, old.name, old.signature);
-        INSERT INTO symbols_fts(rowid, name, signature) VALUES (new.id, new.name, new.signature);
-      END`);
-    } catch (e) {
-      console.log('[DB] FTS5 triggers skipped:', e.message);
-    }
-  }
-
   _db.run(`
     CREATE TABLE IF NOT EXISTS profile (
       id            INTEGER PRIMARY KEY DEFAULT 1,
@@ -246,9 +261,6 @@ function createSchema() {
       updated_at    TEXT DEFAULT (datetime('now'))
     )
   `);
-  try { _db.run("ALTER TABLE profile ADD COLUMN bio TEXT DEFAULT ''"); } catch (e) {}
-  try { _db.run("ALTER TABLE profile ADD COLUMN website TEXT DEFAULT ''"); } catch (e) {}
-
   _db.run(`
     CREATE TABLE IF NOT EXISTS profile_meta (
       key   TEXT PRIMARY KEY,
@@ -366,17 +378,29 @@ function save() {
   _saveTimer = setTimeout(() => {
     _saveTimer = null;
     _flush();
-  }, 2000);
+  }, 5000);
+}
+
+function saveImmediate() {
+  if (!_db || !_dirty) return;
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = null;
+  _flush();
 }
 
 function close() {
   if (_db) {
     if (_saveTimer) clearTimeout(_saveTimer);
+    const start = performance.now();
     _flushSync();
+    const duration = performance.now() - start;
+    if (duration > 100) {
+      console.warn(`[DB] Sync flush took ${duration.toFixed(0)}ms on close`);
+    }
     if (_writeWorker) { try { _writeWorker.terminate(); } catch (_) {} }
     _db.close();
     _db = null;
   }
 }
 
-module.exports = { initDatabase, getDb, save, close, getDbPath };
+module.exports = { initDatabase, getDb, save, saveImmediate, close, getDbPath };

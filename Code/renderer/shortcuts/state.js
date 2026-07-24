@@ -1,8 +1,15 @@
 const STORAGE_KEY = 'helpertool-shortcuts';
 
 const DEFAULT_SHORTCUTS = {
+  shortcutTool:  null,
   apiTool:       null,
   gitTool:       null,
+  dbInspector:   null,
+  locDetector:   null,
+  terminalTool:  null,
+  blueprintLibraryTool: null,
+  profileTool:   null,
+  dockerTool:    null,
   promptTool:    null,
   settings:      null,
   secretHolder:  null,
@@ -24,7 +31,9 @@ const DEFAULT_SHORTCUTS = {
   essentialsGlossary: null,
   graphify: null,
   errorCop: null,
+  ecosystemWatcher: null,
   mcp: null,
+  projectInspector: null,
 };
 
 const S = { shortcuts: {} };
@@ -43,7 +52,15 @@ function loadShortcuts() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
-    S.shortcuts = { ...DEFAULT_SHORTCUTS, ...data };
+    // Strip any keys that are no longer in DEFAULT_SHORTCUTS (e.g. removed tools)
+    const cleaned = {};
+    for (const key of Object.keys(data)) {
+      if (key in DEFAULT_SHORTCUTS) cleaned[key] = data[key];
+    }
+    if (Object.keys(cleaned).length !== Object.keys(data).length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+    }
+    S.shortcuts = { ...DEFAULT_SHORTCUTS, ...cleaned };
   } catch {
     S.shortcuts = { ...DEFAULT_SHORTCUTS };
   }

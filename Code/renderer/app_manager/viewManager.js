@@ -272,12 +272,24 @@ export function renderRootJumper(tree) {
     });
 }
 
+const _virtualEnabled = () => localStorage.getItem('helpertool-virtual-enabled') === 'true';
+
+const _nextViewMode = (current) => {
+    const modes = _virtualEnabled() ? ['list', 'tree', 'virtual'] : ['list', 'tree'];
+    const idx = modes.indexOf(current);
+    return modes[(idx + 1) % modes.length];
+};
+
 export function applyViewMode(mode) {
     state.viewMode = mode;
     localStorage.setItem('helpertool-viewmode', mode);
     if (mode === 'tree') {
         viewModeBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:4px"><path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"/></svg> Tree Mode';
         viewModeBtn.className   = 'view-mode-btn active-tree';
+        viewModeBtn.title       = _virtualEnabled() ? 'Switch to Virtual mode' : 'Switch to List mode';
+    } else if (mode === 'virtual') {
+        viewModeBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:4px"><rect x="2" y="2" width="16" height="16" rx="2" fill="none"/><line x1="5" y1="7" x2="15" y2="7"/><line x1="5" y1="10" x2="15" y2="10"/><line x1="5" y1="13" x2="15" y2="13"/></svg> Virtual Mode';
+        viewModeBtn.className   = 'view-mode-btn active-virtual';
         viewModeBtn.title       = 'Switch to List mode';
     } else {
         viewModeBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle;margin-right:4px"><line x1="3" y1="4" x2="17" y2="4"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="16" x2="17" y2="16"/></svg> Roof Mode';
@@ -289,7 +301,7 @@ export function applyViewMode(mode) {
 
 export function initViewMode() {
     viewModeBtn.addEventListener('click', () =>
-        applyViewMode(state.viewMode === 'list' ? 'tree' : 'list')
+        applyViewMode(_nextViewMode(state.viewMode))
     );
 }
 
