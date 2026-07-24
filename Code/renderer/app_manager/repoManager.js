@@ -38,6 +38,39 @@ function hideTreeSkeleton() {
     if (sk) sk.remove();
 }
 
+function showRepoLoading(repoPath) {
+    const existing = document.getElementById('repoLoadingOverlay');
+    if (existing) existing.remove();
+
+    const name = repoPath.split(/[/\\]/).pop() || 'Repository';
+    const el = document.createElement('div');
+    el.className = 'app-loading-overlay';
+    el.id = 'repoLoadingOverlay';
+    el.innerHTML = `
+        <div class="app-loading-inner">
+            <div class="app-loading-orb">
+                <div class="app-loading-ring"></div>
+                <div class="app-loading-icon">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+                        <path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="app-loading-text">${name}</div>
+            <div class="app-loading-sub">Loading repository...</div>
+            <div class="app-loading-dots"><span></span><span></span><span></span></div>
+        </div>
+    `;
+    document.body.appendChild(el);
+}
+
+function hideRepoLoading() {
+    const el = document.getElementById('repoLoadingOverlay');
+    if (!el) return;
+    el.classList.add('app-loading-hidden');
+    setTimeout(() => el.remove(), 400);
+}
+
 // Injected by app.js — called after every repo load so toolsManager
 // can reinitialise the git tool without a circular import.
 let _onRepoChange = null;
@@ -102,6 +135,7 @@ export async function loadRepo(repoPath, resetSel = true, skipGuard = false) {
 
     updateActiveRepo(repoPath.split(/[/\\]/).pop());
 
+    if (!skipGuard) showRepoLoading(repoPath);
     showTreeSkeleton();
     state.cachedTree = await window.electronAPI.getFolderTree(repoPath);
     hideTreeSkeleton();
@@ -119,6 +153,7 @@ export async function loadRepo(repoPath, resetSel = true, skipGuard = false) {
     renderRootJumper(state.cachedTree);
     displayTree();
 
+    hideRepoLoading();
     document.dispatchEvent(new CustomEvent('repo:switched', { detail: { repoPath } }));
 }
 
