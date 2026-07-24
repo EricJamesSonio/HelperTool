@@ -23,7 +23,11 @@ let _discoveryCache = null;
 let _dataRootCache = null;
 let _convListCache = null;
 let _convListCacheTs = 0;
-const CONV_CACHE_TTL = 15000;
+const CONV_CACHE_TTL = 60000;
+// Shared CLI session list cache — both listRepos and listConversations reuse this
+let _sessionListCache = null;
+let _sessionListCacheTs = 0;
+const SESSION_LIST_CACHE_TTL = 60000;
 
 function _invalidateConvCache() {
   _convListCache = null;
@@ -68,8 +72,19 @@ function getStorageDir(repoPath) {
 
 async function findOpencode() {
   const isWin = process.platform === 'win32';
+
+  // Quick check if 'opencode' is in PATH via where/which (fast, no --version hang).
+  // Return just the name — shell resolves it via PATH, avoids spaces-in-path issues.
+  if (isWin) {
+    const out = await execAsync(`where opencode 2>nul`, { timeout: 1000 });
+    if (out !== null) return 'opencode';
+  } else {
+    const out = await execAsync(`which opencode 2>/dev/null`, { timeout: 1000 });
+    if (out !== null) return 'opencode';
+  }
+
+  // Fallback: check explicit paths for non-PATH installations
   const commonPaths = [
-    'opencode',
     ...(isWin ? [
       path.join(process.env.LOCALAPPDATA || '', 'opencode', 'opencode.exe'),
       path.join(process.env.APPDATA || '', 'npm', 'opencode'),
@@ -80,13 +95,11 @@ async function findOpencode() {
     ]),
   ];
   for (const bin of commonPaths) {
-    // Skip non-existent paths to avoid unnecessary process spawns
-    if (bin !== 'opencode') {
-      try { fs.accessSync(bin, fs.constants.X_OK); } catch { continue; }
-    }
-    const out = await execAsync(`"${bin}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 3000 });
+    try { fs.accessSync(bin, fs.constants.X_OK); } catch { continue; }
+    const out = await execAsync(`"${bin}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 2000 });
     if (out !== null) return bin;
   }
+
   return 'opencode';
 }
 
@@ -94,9 +107,12 @@ async function discover(force = false) {
   if (_discoveryCache && !force) return _discoveryCache;
   const binaryPath = await findOpencode();
   let version = 'unknown';
-  const isWin = process.platform === 'win32';
-  const out = await execAsync(`"${binaryPath}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 3000 });
-  if (out) version = out;
+  // Only check version if binary was actually found — skip if fallback
+  if (binaryPath !== 'opencode') {
+    const isWin = process.platform === 'win32';
+    const out = await execAsync(`"${binaryPath}" --version 2>${isWin ? 'nul' : '/dev/null'}`, { timeout: 2000 });
+    if (out) version = out;
+  }
   const dataRoot = getDataRoot();
   _discoveryCache = { binaryPath, dataRoot, version };
   console.log(`[CS-IPC] discover: binaryPath="${binaryPath}" version="${version}" dataRoot="${dataRoot}"`);
@@ -104,6 +120,7 @@ async function discover(force = false) {
 }
 
 async function listViaCli(binaryPath) {
+  if (!binaryPath || binaryPath === 'opencode') return null; // not installed, skip
   try {
     const out = await execAsync(`"${binaryPath}" session list --format json 2>${process.platform === 'win32' ? 'nul' : '/dev/null'}`, { timeout: 10000 });
     if (!out) return null;
@@ -169,9 +186,20 @@ function register(shared) {
     if (_convListCache && (now - _convListCacheTs) < CONV_CACHE_TTL) {
       return _convListCache;
     }
-    const { binaryPath } = await discover();
-    console.log(`[CS-IPC] listConversations: binary="${binaryPath}" repoPath="${repoPath}"`);
-    const cliResult = await listViaCli(binaryPath);
+
+    // Reuse the shared session list cache — listRepos may have already fetched it
+    let cliResult;
+    if (_sessionListCache && (now - _sessionListCacheTs) < SESSION_LIST_CACHE_TTL) {
+      cliResult = _sessionListCache;
+    } else {
+      const { binaryPath } = await discover();
+      console.log(`[CS-IPC] listConversations: binary="${binaryPath}" repoPath="${repoPath}"`);
+      cliResult = await listViaCli(binaryPath);
+      if (cliResult && Array.isArray(cliResult)) {
+        _sessionListCache = cliResult;
+        _sessionListCacheTs = now;
+      }
+    }
     if (cliResult && Array.isArray(cliResult)) {
       console.log(`[CS-IPC] listConversations: CLI returned ${cliResult.length} sessions`);
       const np = repoPath ? normPath(repoPath) : null;
@@ -383,8 +411,19 @@ function register(shared) {
   });
 
   ipcMain.handle('opencode:listRepos', async () => {
-    const { binaryPath } = await discover();
-    const cliResult = await listViaCli(binaryPath);
+    const now = Date.now();
+    let cliResult;
+    if (_sessionListCache && (now - _sessionListCacheTs) < SESSION_LIST_CACHE_TTL) {
+      cliResult = _sessionListCache;
+    } else {
+      const { binaryPath } = await discover();
+      cliResult = await listViaCli(binaryPath);
+      if (cliResult && Array.isArray(cliResult)) {
+        _sessionListCache = cliResult;
+        _sessionListCacheTs = now;
+      }
+    }
+
     if (cliResult && Array.isArray(cliResult)) {
       console.log(`[CS-IPC] listRepos: CLI returned ${cliResult.length} sessions`);
       const repoMap = {};

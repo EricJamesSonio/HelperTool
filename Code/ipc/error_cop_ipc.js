@@ -13,6 +13,11 @@ function register({ getMainWindow }) {
   const termIpc = require('./terminal_ipc');
   termIpc.setErrorEngine(_errorEngine);
 
+  // Sweep stale 'running' sessions every 60s
+  setInterval(() => {
+    try { _errorEngine.getStorage().cleanupStaleSessions(); } catch {}
+  }, 60000).unref();
+
   const storage = () => _errorEngine.getStorage();
   const notify = () => _errorEngine.getNotify();
 
