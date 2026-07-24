@@ -15,7 +15,7 @@ const countFiles = (node) => {
 
 const normPath = (p) => p.replace(/\\/g, '/');
 
-export function renderTree(treeData, container, selectedItems, actionType, onToggle, viewMode = 'list', onDoubleClick, onMoveRequest) {
+export function renderTree(treeData, container, selectedItems, actionType, onToggle, viewMode = 'list', onDoubleClick, onMoveRequest, onAddFile) {
     container.innerHTML = '';
     container._treeNodeMap = null;
     container.classList.remove('mode-list', 'mode-tree', 'mode-virtual');
@@ -29,16 +29,16 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
     if (viewMode === 'virtual') {
         container.classList.add('mode-virtual');
-        _renderVirtualMode(treeData, container, selectedItems, actionType, onToggle, onDoubleClick, onMoveRequest);
+        _renderVirtualMode(treeData, container, selectedItems, actionType, onToggle, onDoubleClick, onMoveRequest, onAddFile);
         return;
     }
 
     container.classList.add(viewMode === 'tree' ? 'mode-tree' : 'mode-list');
 
     if (viewMode === 'tree') {
-        _renderTreeMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest);
+        _renderTreeMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest, onAddFile);
     } else {
-        _renderListMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest);
+        _renderListMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest, onAddFile);
     }
 
     container._treeClickHandler = (e) => {
@@ -53,7 +53,7 @@ export function renderTree(treeData, container, selectedItems, actionType, onTog
 
         const now = Date.now();
         const samePath = container._lastClickPath === nodePath;
-        const fastClick = samePath && (now - (container._lastClickTime || 0)) < 2000;
+        const fastClick = samePath && (now - (container._lastClickTime || 0)) < 1000;
         container._lastClickPath = nodePath;
         container._lastClickTime = now;
         if (fastClick) {
@@ -170,7 +170,7 @@ function _setVirtualExpanded(container, path, expanded) {
     else container._virtualExpanded.delete(path);
 }
 
-function _renderVirtualMode(treeData, container, selectedItems, actionType, onToggle, onDoubleClick, onMoveRequest) {
+function _renderVirtualMode(treeData, container, selectedItems, actionType, onToggle, onDoubleClick, onMoveRequest, onAddFile) {
     _presortTree(treeData);
 
     if (!container._virtualExpanded) container._virtualExpanded = new Map();
@@ -219,6 +219,9 @@ function _renderVirtualMode(treeData, container, selectedItems, actionType, onTo
             if (item.type === 'file' || item.type === 'folder') {
                 html += `<button class="cm-move-btn" data-index="${i}" title="Move ${item.type}">↗</button>`;
             }
+            if (item.type === 'folder') {
+                html += `<button class="cm-add-file-btn" data-index="${i}" title="Create files">+</button>`;
+            }
             html += `</div></div>`;
         }
         visibleEl.innerHTML = html;
@@ -258,13 +261,21 @@ function _renderVirtualMode(treeData, container, selectedItems, actionType, onTo
             return;
         }
 
+        const addBtn = e.target.closest('.cm-add-file-btn');
+        if (addBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            onAddFile?.(item.path);
+            return;
+        }
+
         e.stopPropagation();
         const nodePath = item.path;
         const nodeType = item.type;
 
         const now = Date.now();
         const samePath = container._lastClickPath === nodePath;
-        const fastClick = samePath && (now - (container._lastClickTime || 0)) < 2000;
+        const fastClick = samePath && (now - (container._lastClickTime || 0)) < 1000;
         container._lastClickPath = nodePath;
         container._lastClickTime = now;
 
@@ -310,7 +321,7 @@ function _renderVirtualMode(treeData, container, selectedItems, actionType, onTo
    LIST MODE
    ============================================================ */
 
-function _renderListMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest) {
+function _renderListMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest, onAddFile) {
     _presortTree(treeData);
 
     if (!window._expandedFolders) window._expandedFolders = new Map();
@@ -358,6 +369,18 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
             });
             el.appendChild(moveBtn);
         }
+        if (node.type === 'folder') {
+            const addBtn = document.createElement('button');
+            addBtn.className = 'cm-add-file-btn';
+            addBtn.title = 'Create files';
+            addBtn.textContent = '+';
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onAddFile?.(normPath(node.path));
+            });
+            el.appendChild(addBtn);
+        }
         wrapper.appendChild(el);
 
         if (node.type === 'folder' && node.children?.length) {
@@ -388,7 +411,7 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
    TREE MODE
    ============================================================ */
 
-function _renderTreeMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest) {
+function _renderTreeMode(treeData, container, selectedItems, actionType, onToggle, onMoveRequest, onAddFile) {
     _presortTree(treeData);
 
     function createNode(node, depth = 0) {
@@ -430,6 +453,18 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
                 onMoveRequest?.(normPath(node.path), wrapper);
             });
             el.appendChild(moveBtn);
+        }
+        if (node.type === 'folder') {
+            const addBtn = document.createElement('button');
+            addBtn.className = 'cm-add-file-btn';
+            addBtn.title = 'Create files';
+            addBtn.textContent = '+';
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onAddFile?.(normPath(node.path));
+            });
+            el.appendChild(addBtn);
         }
         wrapper.appendChild(el);
 
