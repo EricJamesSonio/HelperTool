@@ -175,6 +175,7 @@
   width: 60%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   padding-right: 2px;
 }
 
@@ -227,6 +228,8 @@
   gap: 4px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+  height: 0;
   padding-right: 4px;
 }
 .ecp-timeline::-webkit-scrollbar { width: 4px; }
