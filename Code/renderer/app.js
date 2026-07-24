@@ -209,6 +209,9 @@ setSelectionChangeHandler(onSelectionChange);
 // repoManager notifies toolsManager (git tool) on every repo change
 setRepoChangeHandler(handleRepoChange);
 
+// Reload shortcut config on every repo switch
+document.addEventListener('repo:switched', () => loadShortcutConfig());
+
 // ── Navbar listeners ──────────────────────────────────────────────────────────
 
 selectRepoBtn.addEventListener('click', async () => {
