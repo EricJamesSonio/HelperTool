@@ -1160,3 +1160,109 @@ body {
 .gen-viewer-content:focus {
   outline: none;
 }
+
+/* ══ Loading Overlay (shown during app startup) ══ */
+
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base, #010409);
+  transition: opacity 0.4s ease;
+}
+.app-loading-overlay.app-loading-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-loading-orb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.app-loading-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2.5px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-top-color: var(--accent, #22d3ee);
+  border-bottom-color: var(--purple, #8b5cf6);
+  animation: app-loading-spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.app-loading-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-loading-icon svg {
+  width: 26px;
+  height: 26px;
+  color: var(--accent, #22d3ee);
+  opacity: 0.55;
+}
+
+@keyframes app-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+.app-loading-text {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary, #f0f6fc);
+  letter-spacing: -0.3px;
+}
+
+.app-loading-sub {
+  font-size: 13px;
+  color: var(--text-muted, #8b949e);
+  animation: app-loading-fade 1.6s ease-in-out infinite;
+  min-height: 1.2em;
+}
+
+@keyframes app-loading-fade {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+.app-loading-timer {
+  font-size: 11px;
+  color: var(--text-faint, rgba(255,255,255,0.2));
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  min-height: 1.2em;
+}
+
+.app-loading-dots {
+  display: flex;
+  gap: 5px;
+  margin-top: 4px;
+}
+.app-loading-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent, #22d3ee);
+  animation: app-loading-bounce 1s ease-in-out infinite;
+}
+.app-loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+.app-loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes app-loading-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+  40% { transform: scale(1); opacity: 1; }
+}

@@ -174,12 +174,9 @@
   flex-direction: column;
   width: 60%;
   min-width: 0;
-  overflow-y: auto;
+  min-height: 0;
   padding-right: 2px;
 }
-.ecp-left-column::-webkit-scrollbar { width: 4px; }
-.ecp-left-column::-webkit-scrollbar-track { background: transparent; }
-.ecp-left-column::-webkit-scrollbar-thumb { background: rgba(255, 34, 34, 0.3); border-radius: 4px; }
 
 .ecp-right-column {
   display: flex;
@@ -299,10 +296,10 @@
 .ecp-event-message {
   font-size: 10px;
   color: #a78484;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  max-height: 2.8em;
   margin-top: 1px;
 }
 
