@@ -7,7 +7,7 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
-import { openRenameModal }                from '../codebaseManager.js';
+import { openRenameModal, openCreateFilesModal } from '../codebaseManager.js';
 import { displayTree }                    from './viewManager.js';
 import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
@@ -1083,6 +1083,11 @@ export async function initTools(feats, settingsManager) {
       if (!ok) return;
       const res = await window.electronAPI.deleteFile(filePath);
       if (res.success && state.cachedTree) displayTree(false);
+    },
+    async (folderPath) => {
+      if (!state.selectedRepoPath) return;
+      _registry.closeAll();
+      openCreateFilesModal(folderPath, () => { if (state.cachedTree) displayTree(false); });
     }
   );
 
