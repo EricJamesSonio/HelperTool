@@ -74,4 +74,49 @@ function renderSwatches() {
   container.appendChild(custom);
 }
 
-export { renderThemeGrid, renderSwatches };
+function renderFolderDepthSwatches() {
+  const container = document.getElementById('folderDepthGrid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const depths = S.settings.folderDepths || [];
+  const theme = FULL_THEMES[S.settings.themeId] || FULL_THEMES['github-hc-dark'];
+
+  for (let i = 0; i < 10; i++) {
+    const swatch = document.createElement('div');
+    swatch.className = 'depth-swatch';
+
+    const themeColor = i === 0 && S.settings.customAccent
+      ? S.settings.customAccent
+      : theme.depths[i % theme.depths.length];
+    const color = depths[i] || themeColor;
+
+    const label = document.createElement('span');
+    label.className = 'depth-swatch-label';
+    label.textContent = i;
+
+    const box = document.createElement('span');
+    box.className = 'depth-swatch-box';
+    box.style.background = color;
+    box.title = color;
+
+    const picker = document.createElement('input');
+    picker.type = 'color';
+    picker.value = color;
+    picker.addEventListener('input', e => {
+      const val = e.target.value;
+      const arr = [...(S.settings.folderDepths || [])];
+      arr[i] = val;
+      S.settings.folderDepths = arr;
+      saveAndApply();
+      renderFolderDepthSwatches();
+    });
+
+    swatch.appendChild(label);
+    swatch.appendChild(box);
+    swatch.appendChild(picker);
+    container.appendChild(swatch);
+  }
+}
+
+export { renderThemeGrid, renderSwatches, renderFolderDepthSwatches };
