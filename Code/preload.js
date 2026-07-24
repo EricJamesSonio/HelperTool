@@ -95,6 +95,8 @@ const gitBridge = {
         fileContent: (repoPath, commitHash, filePath) => ipcRenderer.invoke('git:file-content', repoPath, commitHash, filePath),
         diffCommits: (repoPath, oldCommit, newCommit, filePath) => ipcRenderer.invoke('git:diff-commits', repoPath, oldCommit, newCommit, filePath),
         checkConnectivity: (repoPath, filePaths)   => ipcRenderer.invoke('git:groupConnectivity', repoPath, filePaths),
+        checkUpstream: (repoPath)                     => ipcRenderer.invoke('git:checkUpstream', { repoPath }),
+        pushSetUpstream: (repoPath)                   => ipcRenderer.invoke('git:pushSetUpstream', { repoPath }),
     },
 };
 
@@ -432,6 +434,7 @@ const codebaseManagerBridge = {
     renameFile: (filePath, newName) => ipcRenderer.invoke('cm:renameFile', { filePath, newName }),
     deleteFile: (filePath)          => ipcRenderer.invoke('cm:deleteFile',  { filePath }),
     moveFile:   (sourcePath, targetDir) => ipcRenderer.invoke('cm:moveFile', { sourcePath, targetDir }),
+    createFiles: (parentPath, fileNames) => ipcRenderer.invoke('cm:createFiles', { parentPath, fileNames }),
 };
 
 const imageBridge = {

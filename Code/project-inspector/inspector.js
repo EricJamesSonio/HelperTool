@@ -29,6 +29,8 @@ const FRAMEWORK_MAP = {
   'nuxt':                { name: 'Nuxt', type: 'fullstack' },
   'remix':               { name: 'Remix', type: 'fullstack' },
   'astro':               { name: 'Astro', type: 'frontend' },
+  'laravel-vite-plugin': { name: 'Laravel', type: 'backend' },
+  'inertiajs/inertia':   { name: 'Inertia.js', type: 'fullstack' },
 };
 
 const DB_MAP = {
@@ -136,6 +138,251 @@ const TOOL_MAP = {
   'commitlint':           'Commitlint',
   'semver':               'semver',
 };
+
+const COMPOSER_FRAMEWORK_MAP = {
+  'laravel/framework': { name: 'Laravel', type: 'backend' },
+  'livewire/livewire': { name: 'Livewire', type: 'frontend' },
+  'filament/filament': { name: 'Filament', type: 'frontend' },
+  'symfony/symfony': { name: 'Symfony', type: 'backend' },
+  'symfony/http-kernel': { name: 'Symfony', type: 'backend' },
+  'cakephp/cakephp': { name: 'CakePHP', type: 'backend' },
+  'codeigniter4/framework': { name: 'CodeIgniter', type: 'backend' },
+  'yiisoft/yii2': { name: 'Yii2', type: 'backend' },
+  'slim/slim': { name: 'Slim', type: 'backend' },
+  'phalcon/cphalcon': { name: 'Phalcon', type: 'backend' },
+  'zendframework/zend-mvc': { name: 'Zend', type: 'backend' },
+  'laminas/laminas-mvc': { name: 'Laminas', type: 'backend' },
+  'laravel/lumen-framework': { name: 'Lumen', type: 'backend' },
+  'october/rain': { name: 'October CMS', type: 'backend' },
+  'roots/bedrock': { name: 'WordPress', type: 'frontend' },
+};
+const COMPOSER_DB_MAP = {
+  'doctrine/dbal': 'Doctrine DBAL',
+  'doctrine/orm': 'Doctrine ORM',
+  'doctrine/mongodb-odm': 'Doctrine MongoDB ODM',
+  'mongodb/mongodb': 'MongoDB',
+  'predis/predis': 'Redis',
+};
+const COMPOSER_TOOL_MAP = {
+  'phpunit/phpunit': 'PHPUnit',
+  'phpstan/phpstan': 'PHPStan',
+  'squizlabs/php_codesniffer': 'PHP_CodeSniffer',
+  'friendsofphp/php-cs-fixer': 'PHP-CS-Fixer',
+  'barryvdh/laravel-debugbar': 'Laravel Debugbar',
+  'barryvdh/laravel-ide-helper': 'Laravel IDE Helper',
+  'spatie/laravel-permission': 'Spatie Permissions',
+  'spatie/laravel-medialibrary': 'Spatie Media Library',
+  'laravel/tinker': 'Laravel Tinker',
+  'laravel/sanctum': 'Laravel Sanctum',
+  'laravel/horizon': 'Laravel Horizon',
+  'laravel/telescope': 'Laravel Telescope',
+  'laravel/passport': 'Laravel Passport',
+};
+
+const PYPI_FRAMEWORK_MAP = {
+  'django': { name: 'Django', type: 'backend' },
+  'flask': { name: 'Flask', type: 'backend' },
+  'fastapi': { name: 'FastAPI', type: 'backend' },
+  'starlette': { name: 'Starlette', type: 'backend' },
+  'tornado': { name: 'Tornado', type: 'backend' },
+  'aiohttp': { name: 'aiohttp', type: 'backend' },
+  'bottle': { name: 'Bottle', type: 'backend' },
+  'pyramid': { name: 'Pyramid', type: 'backend' },
+  'sanic': { name: 'Sanic', type: 'backend' },
+  'streamlit': { name: 'Streamlit', type: 'frontend' },
+  'gradio': { name: 'Gradio', type: 'frontend' },
+  'djangorestframework': { name: 'Django REST Framework', type: 'backend' },
+  'wagtail': { name: 'Wagtail CMS', type: 'backend' },
+  'flask-restful': { name: 'Flask-RESTful', type: 'backend' },
+  'flet': { name: 'Flet', type: 'frontend' },
+  'reflex': { name: 'Reflex', type: 'fullstack' },
+  'kivy': { name: 'Kivy', type: 'mobile' },
+};
+const PYPI_DB_MAP = {
+  'sqlalchemy': 'SQLAlchemy',
+  'psycopg2': 'PostgreSQL',
+  'psycopg': 'PostgreSQL',
+  'pymongo': 'MongoDB',
+  'redis': 'Redis',
+  'django-redis': 'Redis',
+};
+const PYPI_TOOL_MAP = {
+  'celery': 'Celery',
+  'gunicorn': 'Gunicorn',
+  'uvicorn': 'Uvicorn',
+  'pytest': 'Pytest',
+  'black': 'Black',
+  'ruff': 'Ruff',
+  'mypy': 'Mypy',
+  'pylint': 'Pylint',
+  'flake8': 'Flake8',
+  'poetry': 'Poetry',
+  'pre-commit': 'pre-commit',
+  'sphinx': 'Sphinx',
+};
+
+const GEM_FRAMEWORK_MAP = {
+  'rails': { name: 'Ruby on Rails', type: 'fullstack' },
+  'sinatra': { name: 'Sinatra', type: 'backend' },
+  'rack': { name: 'Rack', type: 'backend' },
+  'hanami': { name: 'Hanami', type: 'backend' },
+  'jekyll': { name: 'Jekyll', type: 'frontend' },
+  'middleman': { name: 'Middleman', type: 'frontend' },
+};
+const GEM_DB_MAP = {
+  'activerecord': 'ActiveRecord',
+  'mongoid': 'MongoDB (Mongoid)',
+  'sequel': 'Sequel',
+  'pg': 'PostgreSQL',
+  'mysql2': 'MySQL',
+  'sqlite3': 'SQLite',
+};
+const GEM_TOOL_MAP = {
+  'rspec': 'RSpec',
+  'rspec-rails': 'RSpec',
+  'rubocop': 'RuboCop',
+  'brakeman': 'Brakeman',
+  'sidekiq': 'Sidekiq',
+  'devise': 'Devise',
+  'pundit': 'Pundit',
+  'carrierwave': 'CarrierWave',
+  'paperclip': 'Paperclip',
+  'sassc': 'SassC',
+};
+
+const GO_FRAMEWORK_MAP = {
+  'github.com/gin-gonic/gin': { name: 'Gin', type: 'backend' },
+  'github.com/labstack/echo': { name: 'Echo', type: 'backend' },
+  'github.com/gofiber/fiber': { name: 'Fiber', type: 'backend' },
+  'github.com/gorilla/mux': { name: 'Gorilla Mux', type: 'backend' },
+  'github.com/beego/beego': { name: 'Beego', type: 'backend' },
+  'github.com/revel/revel': { name: 'Revel', type: 'backend' },
+  'github.com/go-chi/chi': { name: 'Chi', type: 'backend' },
+  'github.com/gofiber/fiber/v2': { name: 'Fiber', type: 'backend' },
+  'github.com/bufbuild/connect-go': { name: 'Connect', type: 'backend' },
+  'google.golang.org/grpc': { name: 'gRPC Go', type: 'backend' },
+};
+const GO_TOOL_MAP = {
+  'github.com/spf13/cobra': 'Cobra',
+  'github.com/spf13/viper': 'Viper',
+  'go.uber.org/zap': 'Zap',
+  'github.com/sirupsen/logrus': 'Logrus',
+  'gorm.io/gorm': 'GORM',
+  'github.com/jmoiron/sqlx': 'SQLx',
+  'github.com/stretchr/testify': 'Testify',
+  'github.com/golang/mock': 'GoMock',
+  'github.com/rs/zerolog': 'Zerolog',
+};
+
+const CRATE_FRAMEWORK_MAP = {
+  'actix-web': { name: 'Actix Web', type: 'backend' },
+  'axum': { name: 'Axum', type: 'backend' },
+  'rocket': { name: 'Rocket', type: 'backend' },
+  'warp': { name: 'Warp', type: 'backend' },
+  'tide': { name: 'Tide', type: 'backend' },
+  'salvo': { name: 'Salvo', type: 'backend' },
+  'leptos': { name: 'Leptos', type: 'fullstack' },
+  'yew': { name: 'Yew', type: 'frontend' },
+  'dioxus': { name: 'Dioxus', type: 'fullstack' },
+  'tauri': { name: 'Tauri', type: 'desktop' },
+};
+const CRATE_DB_MAP = {
+  'diesel': 'Diesel ORM',
+  'sqlx': 'SQLx',
+  'mongodb': 'MongoDB',
+  'redis': 'Redis',
+};
+const CRATE_TOOL_MAP = {
+  'tokio': 'Tokio',
+  'serde': 'Serde',
+  'reqwest': 'Reqwest',
+  'clap': 'Clap',
+  'tracing': 'Tracing',
+  'anyhow': 'Anyhow',
+  'thiserror': 'ThisError',
+  'rayon': 'Rayon',
+};
+
+const MAVEN_FRAMEWORK_MAP = {
+  'spring-boot-starter-web': { name: 'Spring Boot', type: 'backend' },
+  'spring-boot': { name: 'Spring Boot', type: 'backend' },
+  'spring-core': { name: 'Spring', type: 'backend' },
+  'spring-webmvc': { name: 'Spring MVC', type: 'backend' },
+  'spring-webflux': { name: 'Spring WebFlux', type: 'backend' },
+  'quarkus': { name: 'Quarkus', type: 'backend' },
+  'micronaut': { name: 'Micronaut', type: 'backend' },
+  'jakarta.platform': { name: 'Jakarta EE', type: 'backend' },
+  'javax': { name: 'Java EE', type: 'backend' },
+  'hibernate': { name: 'Hibernate', type: 'backend' },
+  'struts': { name: 'Struts', type: 'backend' },
+  'vaadin': { name: 'Vaadin', type: 'frontend' },
+  'wicket': { name: 'Wicket', type: 'frontend' },
+  'grails': { name: 'Grails', type: 'fullstack' },
+  'dropwizard': { name: 'Dropwizard', type: 'backend' },
+  'helidon': { name: 'Helidon', type: 'backend' },
+};
+const MAVEN_DB_MAP = {
+  'hibernate-core': 'Hibernate ORM',
+  'hibernate-entitymanager': 'Hibernate ORM',
+  'mybatis': 'MyBatis',
+  'mongodb-driver': 'MongoDB',
+  'jedis': 'Redis',
+  'spring-data-jpa': 'Spring Data JPA',
+  'spring-data-mongodb': 'Spring Data MongoDB',
+  'spring-data-redis': 'Spring Data Redis',
+};
+const MAVEN_TOOL_MAP = {
+  'lombok': 'Lombok',
+  'mapstruct': 'MapStruct',
+  'logback': 'Logback',
+  'log4j': 'Log4j',
+  'junit': 'JUnit',
+  'junit-jupiter': 'JUnit 5',
+  'mockito': 'Mockito',
+  'assertj': 'AssertJ',
+  'spring-boot-maven-plugin': 'Spring Boot Maven',
+};
+
+function readScriptSources(dirPath) {
+  const commands = [];
+
+  const npm = path.join(dirPath, 'package.json');
+  if (fs.existsSync(npm)) {
+    const pkg = readPackageJson(npm);
+    if (pkg && pkg.scripts) {
+      for (const [name, cmd] of Object.entries(pkg.scripts)) {
+        commands.push({ name: name, cmd: cmd, source: 'npm' });
+      }
+    }
+  }
+
+  const composer = path.join(dirPath, 'composer.json');
+  if (fs.existsSync(composer)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(composer, 'utf-8'));
+      if (data.scripts) {
+        for (const [name, raw] of Object.entries(data.scripts)) {
+          const cmd = Array.isArray(raw) ? raw.join(' && ') : raw;
+          commands.push({ name: name, cmd: cmd, source: 'composer' });
+        }
+      }
+    } catch {}
+  }
+
+  const makefile = path.join(dirPath, 'Makefile');
+  if (fs.existsSync(makefile)) {
+    try {
+      const content = fs.readFileSync(makefile, 'utf-8');
+      const targetRe = /^([a-zA-Z0-9_-]+):/gm;
+      let m;
+      while ((m = targetRe.exec(content)) !== null) {
+        commands.push({ name: m[1], cmd: 'make ' + m[1], source: 'make' });
+      }
+    } catch {}
+  }
+
+  return commands;
+}
 
 const ENV_PATTERNS = [
   '.env', '.env.local', '.env.development', '.env.production',
@@ -328,12 +575,8 @@ function detectProjectType(frameworks, languages) {
   return 'unknown';
 }
 
-function analyzePackageJson(pkg) {
-  const frameworks = [];
-  const databases = [];
-  const tools = [];
-  const scripts = pkg.scripts || null;
-
+function analyzeNpmPackage(pkg) {
+  const result = { frameworks: [], databases: [], tools: [], scripts: pkg.scripts || null };
   const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
   const seenFrameworks = new Set();
   const seenDatabases = new Set();
@@ -341,42 +584,198 @@ function analyzePackageJson(pkg) {
 
   for (const [depName, depVersion] of Object.entries(allDeps)) {
     const cleanVersion = String(depVersion || '').replace(/^[\^~]/, '');
-
     const fw = FRAMEWORK_MAP[depName];
     if (fw && !seenFrameworks.has(fw.name)) {
       seenFrameworks.add(fw.name);
-      frameworks.push({ name: fw.name, version: cleanVersion || null, type: fw.type });
+      result.frameworks.push({ name: fw.name, version: cleanVersion || null, type: fw.type });
     }
-
     const db = DB_MAP[depName];
     if (db && !seenDatabases.has(db)) {
       seenDatabases.add(db);
-      databases.push(db);
+      result.databases.push(db);
     }
-
     const tool = matchTool(depName);
     if (tool && !seenTools.has(tool)) {
       seenTools.add(tool);
-      tools.push(tool);
+      result.tools.push(tool);
     }
   }
+  return result;
+}
 
-  return { frameworks, databases, tools, scripts };
+function analyzeComposerFile(filePath) {
+  const result = { frameworks: [], databases: [], tools: [] };
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const composer = JSON.parse(content);
+  const allReqs = { ...composer.require, ...composer['require-dev'] };
+  const seen = { frameworks: new Set(), databases: new Set(), tools: new Set() };
+
+  for (const [dep, ver] of Object.entries(allReqs || {})) {
+    const cleanVersion = String(ver || '').replace(/^[\^~]/, '');
+    const fw = COMPOSER_FRAMEWORK_MAP[dep];
+    if (fw && !seen.frameworks.has(fw.name)) {
+      seen.frameworks.add(fw.name);
+      result.frameworks.push({ name: fw.name, version: cleanVersion || null, type: fw.type });
+    }
+    const db = COMPOSER_DB_MAP[dep];
+    if (db && !seen.databases.has(db)) { seen.databases.add(db); result.databases.push(db); }
+    const tool = COMPOSER_TOOL_MAP[dep];
+    if (tool && !seen.tools.has(tool)) { seen.tools.add(tool); result.tools.push(tool); }
+    if (!fw && !db && !tool && dep.toLowerCase().includes('laravel') && !seen.frameworks.has('Laravel')) {
+      seen.frameworks.add('Laravel');
+      result.frameworks.push({ name: 'Laravel', version: cleanVersion || null, type: 'backend' });
+    }
+  }
+  return result;
+}
+
+function analyzePipFile(filePath) {
+  const result = { frameworks: [], databases: [], tools: [] };
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const seen = { frameworks: new Set(), databases: new Set(), tools: new Set() };
+
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-') || trimmed.startsWith('git+')) continue;
+    const pkgName = trimmed.split(/[=<>!~@#]/)[0].trim().toLowerCase().replace(/_/g, '-');
+    if (!pkgName) continue;
+    const fw = PYPI_FRAMEWORK_MAP[pkgName];
+    if (fw && !seen.frameworks.has(fw.name)) { seen.frameworks.add(fw.name); result.frameworks.push({ name: fw.name, version: null, type: fw.type }); }
+    const db = PYPI_DB_MAP[pkgName];
+    if (db && !seen.databases.has(db)) { seen.databases.add(db); result.databases.push(db); }
+    const tool = PYPI_TOOL_MAP[pkgName];
+    if (tool && !seen.tools.has(tool)) { seen.tools.add(tool); result.tools.push(tool); }
+  }
+  return result;
+}
+
+function analyzeGoModFile(filePath) {
+  const result = { frameworks: [], databases: [], tools: [] };
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const seen = { frameworks: new Set(), databases: new Set(), tools: new Set() };
+
+  for (const line of content.split('\n')) {
+    const m = line.match(/^\s+([a-zA-Z0-9_.\/-]+)\s+v/);
+    if (m) {
+      const modPath = m[1].toLowerCase();
+      const fw = GO_FRAMEWORK_MAP[modPath];
+      if (fw && !seen.frameworks.has(fw.name)) { seen.frameworks.add(fw.name); result.frameworks.push({ name: fw.name, version: null, type: fw.type }); }
+      const tool = GO_TOOL_MAP[modPath];
+      if (tool && !seen.tools.has(tool)) { seen.tools.add(tool); result.tools.push(tool); }
+    }
+  }
+  return result;
+}
+
+function analyzeCargoFile(filePath) {
+  const result = { frameworks: [], databases: [], tools: [] };
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const seen = { frameworks: new Set(), databases: new Set(), tools: new Set() };
+
+  const depSection = content.match(/\[dependencies\]([^[]*)/);
+  if (depSection) {
+    for (const line of depSection[1].split('\n')) {
+      const m = line.match(/^\s*([a-zA-Z0-9_-]+)\s*=/);
+      if (m) {
+        const crate = m[1].toLowerCase().replace(/_/g, '-');
+        const fw = CRATE_FRAMEWORK_MAP[crate];
+        if (fw && !seen.frameworks.has(fw.name)) { seen.frameworks.add(fw.name); result.frameworks.push({ name: fw.name, version: null, type: fw.type }); }
+        const db = CRATE_DB_MAP[crate];
+        if (db && !seen.databases.has(db)) { seen.databases.add(db); result.databases.push(db); }
+        const tool = CRATE_TOOL_MAP[crate];
+        if (tool && !seen.tools.has(tool)) { seen.tools.add(tool); result.tools.push(tool); }
+      }
+    }
+  }
+  return result;
+}
+
+function analyzeGemFile(filePath) {
+  const result = { frameworks: [], databases: [], tools: [] };
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const seen = { frameworks: new Set(), databases: new Set(), tools: new Set() };
+  const gemRe = /gem\s+['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = gemRe.exec(content)) !== null) {
+    const gem = m[1].toLowerCase().replace(/_/g, '-');
+    const fw = GEM_FRAMEWORK_MAP[gem];
+    if (fw && !seen.frameworks.has(fw.name)) { seen.frameworks.add(fw.name); result.frameworks.push({ name: fw.name, version: null, type: fw.type }); }
+    const db = GEM_DB_MAP[gem];
+    if (db && !seen.databases.has(db)) { seen.databases.add(db); result.databases.push(db); }
+    const tool = GEM_TOOL_MAP[gem];
+    if (tool && !seen.tools.has(tool)) { seen.tools.add(tool); result.tools.push(tool); }
+  }
+  return result;
+}
+
+function analyzePomFile(filePath) {
+  const result = { frameworks: [], databases: [], tools: [] };
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const seen = { frameworks: new Set(), databases: new Set(), tools: new Set() };
+  const artifactRe = /<artifactId>([^<]+)<\/artifactId>/gi;
+  let m;
+  while ((m = artifactRe.exec(content)) !== null) {
+    const artifact = m[1].toLowerCase().replace(/_/g, '-');
+    const fw = MAVEN_FRAMEWORK_MAP[artifact];
+    if (fw && !seen.frameworks.has(fw.name)) { seen.frameworks.add(fw.name); result.frameworks.push({ name: fw.name, version: null, type: fw.type }); }
+    const db = MAVEN_DB_MAP[artifact];
+    if (db && !seen.databases.has(db)) { seen.databases.add(db); result.databases.push(db); }
+    const tool = MAVEN_TOOL_MAP[artifact];
+    if (tool && !seen.tools.has(tool)) { seen.tools.add(tool); result.tools.push(tool); }
+  }
+  return result;
+}
+
+function detectDependencies(dirPath) {
+  const result = { frameworks: [], databases: [], tools: [], scripts: null, packageManager: null, commands: [] };
+  const mergeResult = (sub) => {
+    for (const fw of sub.frameworks || []) { if (!result.frameworks.some(f => f.name === fw.name)) result.frameworks.push(fw); }
+    for (const db of sub.databases || []) { if (!result.databases.includes(db)) result.databases.push(db); }
+    for (const tool of sub.tools || []) { if (!result.tools.includes(tool)) result.tools.push(tool); }
+  };
+
+  const pkgPath = path.join(dirPath, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    const pkg = readPackageJson(pkgPath);
+    if (pkg) {
+      result.packageManager = detectPackageManager(dirPath);
+      if (pkg.scripts) result.scripts = pkg.scripts;
+      mergeResult(analyzeNpmPackage(pkg));
+    }
+  }
+  const composerPath = path.join(dirPath, 'composer.json');
+  if (fs.existsSync(composerPath)) mergeResult(analyzeComposerFile(composerPath));
+  const reqPath = path.join(dirPath, 'requirements.txt');
+  if (fs.existsSync(reqPath)) mergeResult(analyzePipFile(reqPath));
+  const pipfilePath = path.join(dirPath, 'Pipfile');
+  if (fs.existsSync(pipfilePath)) mergeResult(analyzePipFile(pipfilePath));
+  const gemfilePath = path.join(dirPath, 'Gemfile');
+  if (fs.existsSync(gemfilePath)) mergeResult(analyzeGemFile(gemfilePath));
+  const goModPath = path.join(dirPath, 'go.mod');
+  if (fs.existsSync(goModPath)) mergeResult(analyzeGoModFile(goModPath));
+  const cargoPath = path.join(dirPath, 'Cargo.toml');
+  if (fs.existsSync(cargoPath)) mergeResult(analyzeCargoFile(cargoPath));
+  const pomPath = path.join(dirPath, 'pom.xml');
+  if (fs.existsSync(pomPath)) mergeResult(analyzePomFile(pomPath));
+
+  result.commands = readScriptSources(dirPath);
+
+  return result;
 }
 
 function scanMonorepoSubProjects(rootDir) {
   const subProjects = [];
+  const scanDir = (name, dirPath) => {
+    const deps = detectDependencies(dirPath);
+    if (deps.frameworks.length > 0 || deps.databases.length > 0 || deps.tools.length > 0 || deps.commands.length > 0) {
+      subProjects.push({ name, ...deps });
+    }
+  };
 
   for (const dir of MONOREPO_NAMED_DIRS) {
-    const pkgPath = path.join(rootDir, dir, 'package.json');
-    if (fs.existsSync(pkgPath)) {
-      const pkg = readPackageJson(pkgPath);
-      if (pkg) {
-        subProjects.push({ name: dir, ...analyzePackageJson(pkg) });
-      }
-    }
+    const fullPath = path.join(rootDir, dir);
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) scanDir(dir, fullPath);
   }
-
   for (const parentDir of MONOREPO_GLOB_DIRS) {
     const parentPath = path.join(rootDir, parentDir);
     if (fs.existsSync(parentPath)) {
@@ -384,19 +783,10 @@ function scanMonorepoSubProjects(rootDir) {
       try { entries = fs.readdirSync(parentPath, { withFileTypes: true }); }
       catch { continue; }
       for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const pkgPath = path.join(parentPath, entry.name, 'package.json');
-          if (fs.existsSync(pkgPath)) {
-            const pkg = readPackageJson(pkgPath);
-            if (pkg) {
-              subProjects.push({ name: parentDir + '/' + entry.name, ...analyzePackageJson(pkg) });
-            }
-          }
-        }
+        if (entry.isDirectory()) scanDir(parentDir + '/' + entry.name, path.join(parentPath, entry.name));
       }
     }
   }
-
   return subProjects;
 }
 
@@ -433,74 +823,22 @@ function inspect(repoPath) {
     }
   }
 
-  // --- Read package.json if exists ---
+  // --- Detect dependencies (all ecosystems) ---
+  const deps = detectDependencies(repoPath);
+  result.packageManager = deps.packageManager;
+  if (deps.scripts) result.scripts = deps.scripts;
+  result.frameworks = deps.frameworks;
+  result.databases = deps.databases;
+  result.thirdPartyTools = deps.tools;
+
+  // --- Entry points from root package.json ---
   const pkg = readPackageJson(path.join(repoPath, 'package.json'));
   if (pkg) {
-    result.packageManager = detectPackageManager(repoPath);
-    if (pkg.scripts) result.scripts = pkg.scripts;
     if (pkg.main) result.entryPoints.push(pkg.main);
     if (pkg.bin) {
       if (typeof pkg.bin === 'string') result.entryPoints.push(pkg.bin);
       else result.entryPoints.push(...Object.values(pkg.bin));
     }
-
-    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
-    const seenFrameworks = new Set();
-    const seenDatabases = new Set();
-    const seenTools = new Set();
-
-    for (const [depName, depVersion] of Object.entries(allDeps)) {
-      const cleanVersion = String(depVersion || '').replace(/^[\^~]/, '');
-
-      const fw = FRAMEWORK_MAP[depName];
-      if (fw && !seenFrameworks.has(fw.name)) {
-        seenFrameworks.add(fw.name);
-        result.frameworks.push({
-          name: fw.name,
-          version: cleanVersion || null,
-          type: fw.type,
-        });
-      }
-
-      const db = DB_MAP[depName];
-      if (db && !seenDatabases.has(db)) {
-        seenDatabases.add(db);
-        result.databases.push(db);
-      }
-
-      const tool = matchTool(depName);
-      if (tool && !seenTools.has(tool)) {
-        seenTools.add(tool);
-        result.thirdPartyTools.push(tool);
-      }
-    }
-  }
-
-  // --- Detect Composer (PHP) ---
-  const composerPath = path.join(repoPath, 'composer.json');
-  if (fs.existsSync(composerPath)) {
-    result.configFiles.push('composer.json');
-    try {
-      const composer = JSON.parse(fs.readFileSync(composerPath, 'utf-8'));
-      if (composer.require) {
-        for (const [dep] of Object.entries(composer.require)) {
-          const lower = dep.toLowerCase();
-          if (lower.includes('laravel')) {
-            result.frameworks.push({ name: 'Laravel', version: composer.require[dep]?.replace(/^[\^~]/, '') || null, type: 'backend' });
-          } else if (lower.includes('symfony')) {
-            result.frameworks.push({ name: 'Symfony', version: composer.require[dep]?.replace(/^[\^~]/, '') || null, type: 'backend' });
-          } else if (lower.includes('cakephp')) {
-            result.frameworks.push({ name: 'CakePHP', version: composer.require[dep]?.replace(/^[\^~]/, '') || null, type: 'backend' });
-          } else if (lower.includes('wordpress') || lower.includes('wp-')) {
-            result.frameworks.push({ name: 'WordPress', version: null, type: 'frontend' });
-          } else if (lower.includes('phpunit')) {
-            if (!result.thirdPartyTools.includes('PHPUnit')) result.thirdPartyTools.push('PHPUnit');
-          } else if (lower.includes('doctrine')) {
-            result.databases.push('Doctrine ORM + Database');
-          }
-        }
-      }
-    } catch {}
   }
 
   // --- Scan monorepo sub-projects ---
@@ -508,8 +846,8 @@ function inspect(repoPath) {
   if (subProjects.length > 0) {
     result.subProjects = subProjects;
 
-    // If root had no package.json, aggregate frameworks/databases/tools from sub-projects
-    if (!pkg) {
+    // If root had no detectable dependencies, aggregate frameworks/databases/tools from sub-projects
+    if (deps.frameworks.length === 0 && deps.databases.length === 0 && deps.tools.length === 0) {
       const aggFrameworks = new Set();
       const aggDatabases = new Set();
       const aggTools = new Set();

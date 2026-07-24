@@ -178,6 +178,22 @@
   color: var(--text-muted, #8b949e);
 }
 
+.git-current-branch {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--panel-accent, var(--accent, #22d3ee));
+  padding: 2px 7px;
+  background: var(--panel-accent-dim, rgba(139,92,246,0.12));
+  border-radius: var(--r-xs, 4px);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.set-upstream-row {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+}
+
 .panel-body {
   flex: 1;
   overflow-y: auto;

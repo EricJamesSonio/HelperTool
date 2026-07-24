@@ -18,10 +18,11 @@ let _onFileView   = null;
 let _onFolderTerminal = null;
 let _onRename   = null;
 let _onDelete   = null;
+let _onCreateFiles = null;
 
 let _handlers = null;
 
-export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal, onRename, onDelete) {
+export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal, onRename, onDelete, onCreateFiles) {
   _onFileDeps   = onFileDeps;
   _onFolderSeed = onFolderSeed;
   _onFolderLoc  = onFolderLoc;
@@ -30,6 +31,7 @@ export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDif
   _onFolderTerminal = onFolderTerminal;
   _onRename     = onRename;
   _onDelete     = onDelete;
+  _onCreateFiles = onCreateFiles;
 
   if (_handlers) destroyContextMenu();
 
@@ -154,6 +156,12 @@ function showFolderMenu(x, y, folderPath, folderName) {
       <span class="context-menu-hint">Folder</span>
     </div>
     <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="folder-create-files">
+      <span class="context-menu-icon">${ICON_FILE}</span>
+      <span class="context-menu-label">New Files</span>
+      <span class="context-menu-hint">Folder</span>
+    </div>
+    <div class="context-menu-divider"></div>
     <div class="context-menu-item" data-action="folder-rename">
       <span class="context-menu-icon">${ICON_RENAME}</span>
       <span class="context-menu-label">Rename</span>
@@ -172,6 +180,7 @@ function showFolderMenu(x, y, folderPath, folderName) {
     if (item.dataset.action === 'folder-seed' && _onFolderSeed) _onFolderSeed(folderPath, folderName);
     if (item.dataset.action === 'folder-loc'  && _onFolderLoc)  _onFolderLoc(folderPath, folderName);
     if (item.dataset.action === 'folder-terminal' && _onFolderTerminal) _onFolderTerminal(folderPath);
+    if (item.dataset.action === 'folder-create-files' && _onCreateFiles) { _onCreateFiles(folderPath); return; }
     if (item.dataset.action === 'folder-rename' && _onRename) { _onRename(folderPath, true); return; }
     if (item.dataset.action === 'folder-delete' && _onDelete) { _onDelete(folderPath); return; }
     closeMenu();

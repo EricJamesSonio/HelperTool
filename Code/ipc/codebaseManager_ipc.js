@@ -28,6 +28,27 @@ function register() {
     }
   });
 
+  ipcMain.handle('cm:createFiles', async (_e, { parentPath, fileNames }) => {
+    try {
+      if (!parentPath) return { success: false, error: 'No parent path' };
+      if (!fileNames || !fileNames.length) return { success: false, error: 'No file names provided' };
+      const created = [];
+      const errors = [];
+      for (const name of fileNames) {
+        const fullPath = path.join(parentPath, name);
+        try {
+          await fs.promises.writeFile(fullPath, '', 'utf-8');
+          created.push({ fileName: name, path: fullPath });
+        } catch (err) {
+          errors.push({ fileName: name, error: err.message });
+        }
+      }
+      return { success: true, created, errors };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('cm:moveFile', async (_e, { sourcePath, targetDir }) => {
     try {
       if (!sourcePath) return { success: false, error: 'No source path' };

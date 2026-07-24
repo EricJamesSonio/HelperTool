@@ -296,6 +296,29 @@ function register(_deps) {
         }
     });
 
+    ipcMain.handle('git:checkUpstream', async (_e, { repoPath }) => {
+        try {
+            const git = simpleGit(repoPath);
+            await git.raw(['rev-parse', '--abbrev-ref', '@{upstream}']);
+            return { hasUpstream: true };
+        } catch {
+            return { hasUpstream: false };
+        }
+    });
+
+    ipcMain.handle('git:pushSetUpstream', async (_e, { repoPath }) => {
+        try {
+            const git = simpleGit(repoPath);
+            const branch = (await git.raw(['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+            if (branch === 'HEAD') return { success: false, error: 'Not on any branch (detached HEAD)' };
+            await git.push('origin', branch, ['--set-upstream']);
+            prefetchService.invalidate('branches:' + repoPath);
+            return { success: true, branch };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
     ipcMain.handle('git:pullBranch', async (_e, { repoPath, name, remote }) => {
         try {
             const git = simpleGit(repoPath);

@@ -55,6 +55,7 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
     if (res.success) {
       close();
       onComplete?.();
+      showToast('File renamed successfully');
     } else {
       await alertDialog(res.error || 'Failed to rename file');
       renameBtn.disabled = false;
@@ -71,6 +72,7 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
     if (res.success) {
       close();
       onComplete?.();
+      showToast('Deleted successfully');
     } else {
       await alertDialog(res.error || 'Failed to delete file');
       deleteBtn.disabled = false;
@@ -208,9 +210,122 @@ async function _executeMove(sourcePath, targetDir, onComplete) {
   const res = await window.electronAPI.moveFile(sourcePath, targetDir);
   if (res.success) {
     onComplete?.();
+    showToast('File moved successfully');
   } else {
     await alertDialog(res.error || 'Failed to move file');
   }
+}
+
+export function parseFileNames(input, logPrefix = '') {
+  if (!input || !input.trim()) return [];
+  const items = input.trim().split(/\s+/);
+  const result = [];
+  for (const raw of items) {
+    const trimmed = raw.replace(/[.,;:!?)]+$/, '');
+    if (!trimmed) continue;
+    if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith(';') || trimmed.startsWith('--')) continue;
+    if (!trimmed.includes('.') || trimmed.endsWith('.')) {
+      console.warn(`${logPrefix}Skipping "${raw}" — no extension or invalid`);
+      continue;
+    }
+    result.push(trimmed);
+  }
+  return result;
+}
+
+export function openCreateFilesModal(parentPath, onComplete) {
+  if (!parentPath) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay cm-modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-content cm-modal cm-create-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Files</h3>
+        <button class="modal-close-btn cm-modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="cm-file-path">${_esc(parentPath)}</div>
+        <label class="cm-field-label">File names (space-separated):</label>
+        <textarea class="cm-create-input" placeholder="index.ts button.tsx utils/helpers.ts types.ts&#10;// comment line ignored&#10;# also ignored" rows="6"></textarea>
+        <div class="cm-create-hint">Separate names with spaces. Names without extensions are skipped.</div>
+        <div class="cm-create-error" style="display:none"></div>
+      </div>
+      <div class="modal-actions cm-modal-actions">
+        <button class="modal-btn modal-btn-primary cm-create-btn">Create</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  const textarea = overlay.querySelector('.cm-create-input');
+  const createBtn = overlay.querySelector('.cm-create-btn');
+  const closeBtn = overlay.querySelector('.cm-modal-close');
+  const errorEl = overlay.querySelector('.cm-create-error');
+
+  const keyHandler = (e) => {
+    if (e.key === 'Escape') close();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') createBtn.click();
+  };
+  document.addEventListener('keydown', keyHandler);
+
+  function close() {
+    document.removeEventListener('keydown', keyHandler);
+    overlay.classList.remove('open');
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+    setTimeout(() => { if (overlay.isConnected) overlay.remove(); }, 250);
+  }
+
+  createBtn.addEventListener('click', async () => {
+    const raw = textarea.value;
+    const names = parseFileNames(raw, '[CreateFiles] ');
+    if (!names.length) {
+      errorEl.textContent = 'No valid file names found. Add names with extensions (e.g. "index.ts").';
+      errorEl.style.display = 'block';
+      return;
+    }
+    errorEl.style.display = 'none';
+    createBtn.disabled = true;
+    createBtn.textContent = '...';
+    const res = await window.electronAPI.createFiles(parentPath, names);
+    if (res.success) {
+      const count = res.created?.length || names.length;
+      close();
+      onComplete?.();
+      showToast(`Created ${count} file${count !== 1 ? 's' : ''}`);
+    } else {
+      let msg = res.error || 'Failed to create files';
+      if (res.errors?.length) {
+        msg += '\n' + res.errors.map(e => `  ${e.fileName}: ${e.error}`).join('\n');
+      }
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+      createBtn.disabled = false;
+      createBtn.textContent = 'Create';
+    }
+  });
+
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  setTimeout(() => { textarea.focus(); }, 50);
+}
+
+export function showToast(message, type = 'success', duration = 3000) {
+  const existing = document.querySelector('.cm-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = `cm-toast cm-toast-${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 200);
+  }, duration);
 }
 
 function _esc(s) {

@@ -185,10 +185,16 @@ class GitToolUI {
                   <button class="view-tab" data-view="history">History</button>
                   <button class="view-tab active" data-view="unpushed">Unpushed</button>
                 </div>
+                <span class="git-current-branch" id="currentBranchLabel"></span>
               </div>
               <span class="panel-count" id="historyCount">0 commits</span>
             </div>
             <div class="panel-body">
+              <div class="set-upstream-row" id="setUpstreamRow" style="display:none">
+                <button id="setUpstreamBtn" class="btn btn-primary push-all-btn">
+                  <span class="btn-icon">${ICON_ARROW_UP}</span> Set upstream
+                </button>
+              </div>
               <div class="push-all-row" id="pushAllRow" style="display:none">
                 <button id="pushAllBtn" class="btn btn-primary push-all-btn">
                   <span class="btn-icon">${ICON_ARROW_UP}</span> Push All Unpushed
@@ -309,6 +315,9 @@ class GitToolUI {
 
     const pushAllBtn = this.container.querySelector('#pushAllBtn');
     pushAllBtn?.addEventListener('click', () => this.handlePushAll());
+
+    const setUpstreamBtn = this.container.querySelector('#setUpstreamBtn');
+    setUpstreamBtn?.addEventListener('click', () => this.handleSetUpstream());
 
     const stageAllBtn = this.container.querySelector('#stageAllBtn');
     stageAllBtn?.addEventListener('click', () => this.handleStageAll());
@@ -592,6 +601,24 @@ class GitToolUI {
     }
   }
 
+  async handleSetUpstream() {
+    const btn = this.container.querySelector('#setUpstreamBtn');
+    if (!btn) return;
+
+    this.setButtonLoading(btn, true);
+
+    const result = await this.gitHandler.pushSetUpstream();
+
+    this.setButtonLoading(btn, false);
+
+    if (result.success) {
+      this.refreshUI();
+      this.showSuccess(`Upstream set for origin/${this.gitHandler.currentBranch} · pushed successfully!`);
+    } else {
+      this.showError(result.error || 'Failed to set upstream');
+    }
+  }
+
   syncViewTabs() {
     const tabs = this.container.querySelectorAll('.view-tab');
     tabs.forEach(t => t.classList.toggle('active', t.dataset.view === this.historyViewMode));
@@ -669,6 +696,26 @@ class GitToolUI {
         const hasMessage = messageInput.value.trim().length > 0;
         commitBtn.disabled = !(hasMessage && hasStaged);
       }
+    }
+
+    // Update branch label and upstream button
+    const branchLabel = this.container.querySelector('#currentBranchLabel');
+    const setUpstreamRow = this.container.querySelector('#setUpstreamRow');
+    if (branchLabel) {
+      branchLabel.textContent = this.gitHandler.currentBranch || '';
+    }
+    if (setUpstreamRow && this.gitHandler.currentBranch) {
+      const setUpstreamBtn = this.container.querySelector('#setUpstreamBtn');
+      if (setUpstreamBtn) {
+        setUpstreamBtn.innerHTML = `<span class="btn-icon">${ICON_ARROW_UP}</span> Set upstream origin/${this.gitHandler.currentBranch}`;
+      }
+      this.gitHandler.checkUpstream().then(result => {
+        setUpstreamRow.style.display = !result.hasUpstream ? '' : 'none';
+      }).catch(() => {
+        setUpstreamRow.style.display = '';
+      });
+    } else if (setUpstreamRow) {
+      setUpstreamRow.style.display = 'none';
     }
   }
 

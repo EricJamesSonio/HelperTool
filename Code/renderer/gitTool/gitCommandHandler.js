@@ -14,6 +14,7 @@ class GitCommandHandler {
     this.statusDebounce = 500; // ms
     this._onConnectivityReady = null; // callback when connectivity edges are loaded
     this._fileTimestamps = new Map(); // file -> last modified timestamp from watcher
+    this.currentBranch = null;
   }
 
   /**
@@ -45,6 +46,7 @@ class GitCommandHandler {
 
       this.gitManager.updateWorkingTree(result.workingFiles || [], timestamps);
       this.gitManager.updateStagedFiles(result.stagedFiles || []);
+      this.currentBranch = result.currentBranch || null;
 
       // Prune stale timestamps (files no longer in working tree)
       if (this._fileTimestamps.size > 0 && result.workingFiles) {
@@ -316,6 +318,16 @@ class GitCommandHandler {
       console.error('Error pushing all commits:', error);
       return { error: error.message };
     }
+  }
+
+  async checkUpstream() {
+    if (!this.ipc?.checkUpstream) return { hasUpstream: false };
+    return await this.ipc.checkUpstream(this.repoPath);
+  }
+
+  async pushSetUpstream() {
+    if (!this.ipc?.pushSetUpstream) return { error: 'Push set-upstream not available' };
+    return await this.ipc.pushSetUpstream(this.repoPath);
   }
 
   /**
