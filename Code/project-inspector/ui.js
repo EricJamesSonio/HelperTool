@@ -56,10 +56,14 @@ export function initProjectInspector(container, repoPath) {
       data.databases && data.databases.length > 0 ? renderSection('Databases', renderChips(data.databases, 'db')) : '',
       data.thirdPartyTools && data.thirdPartyTools.length > 0 ? renderSection('Third-Party Tools', renderChips(data.thirdPartyTools, 'tool')) : '',
       data.envKeys && data.envKeys.length > 0 ? renderSection('Environment Keys', renderEnvKeys(data.envKeys)) : '',
-      data.scripts ? renderSection('Scripts', renderScripts(data.scripts)) : '',
+      data.commands && data.commands.length > 0
+        ? renderSection('Commands', renderCommands(data.commands))
+        : (data.scripts ? renderSection('Scripts', renderScripts(data.scripts)) : ''),
       ...(data.subProjects && data.subProjects.length > 0
-        ? data.subProjects.filter(sp => sp.scripts && Object.keys(sp.scripts).length > 0).map(sp =>
-            renderSection('Scripts (' + esc(sp.name) + ')', renderScripts(sp.scripts))
+        ? data.subProjects.filter(sp => sp.commands || (sp.scripts && Object.keys(sp.scripts).length > 0)).map(sp =>
+            renderSection('Commands (' + esc(sp.name) + ')',
+              sp.commands && sp.commands.length > 0 ? renderCommands(sp.commands) : renderScripts(sp.scripts)
+            )
           )
         : []),
       data.packageManager ? renderSection('Package Manager', `<span class="pi-chip pi-chip-pm">${data.packageManager}</span>`) : '',
@@ -135,6 +139,15 @@ export function initProjectInspector(container, repoPath) {
             ? entry.keys.map(k => `<code class="pi-code pi-env-key">${esc(k)}</code>`).join(' ')
             : '<span class="pi-env-empty">(empty or comments only)</span>'}
         </div>
+      </div>
+    `).join('');
+  }
+
+  function renderCommands(commands) {
+    return commands.map(c => `
+      <div class="pi-script-row">
+        <span class="pi-script-name">${esc(c.source ? '[' + esc(c.source) + '] ' : '')}${esc(c.name)}</span>
+        <code class="pi-code pi-script-cmd">${esc(c.cmd)}</code>
       </div>
     `).join('');
   }

@@ -343,6 +343,47 @@ const MAVEN_TOOL_MAP = {
   'spring-boot-maven-plugin': 'Spring Boot Maven',
 };
 
+function readScriptSources(dirPath) {
+  const commands = [];
+
+  const npm = path.join(dirPath, 'package.json');
+  if (fs.existsSync(npm)) {
+    const pkg = readPackageJson(npm);
+    if (pkg && pkg.scripts) {
+      for (const [name, cmd] of Object.entries(pkg.scripts)) {
+        commands.push({ name: name, cmd: cmd, source: 'npm' });
+      }
+    }
+  }
+
+  const composer = path.join(dirPath, 'composer.json');
+  if (fs.existsSync(composer)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(composer, 'utf-8'));
+      if (data.scripts) {
+        for (const [name, raw] of Object.entries(data.scripts)) {
+          const cmd = Array.isArray(raw) ? raw.join(' && ') : raw;
+          commands.push({ name: name, cmd: cmd, source: 'composer' });
+        }
+      }
+    } catch {}
+  }
+
+  const makefile = path.join(dirPath, 'Makefile');
+  if (fs.existsSync(makefile)) {
+    try {
+      const content = fs.readFileSync(makefile, 'utf-8');
+      const targetRe = /^([a-zA-Z0-9_-]+):/gm;
+      let m;
+      while ((m = targetRe.exec(content)) !== null) {
+        commands.push({ name: m[1], cmd: 'make ' + m[1], source: 'make' });
+      }
+    } catch {}
+  }
+
+  return commands;
+}
+
 const ENV_PATTERNS = [
   '.env', '.env.local', '.env.development', '.env.production',
   '.env.test', '.env.staging', '.env.example',
@@ -686,7 +727,7 @@ function analyzePomFile(filePath) {
 }
 
 function detectDependencies(dirPath) {
-  const result = { frameworks: [], databases: [], tools: [], scripts: null, packageManager: null };
+  const result = { frameworks: [], databases: [], tools: [], scripts: null, packageManager: null, commands: [] };
   const mergeResult = (sub) => {
     for (const fw of sub.frameworks || []) { if (!result.frameworks.some(f => f.name === fw.name)) result.frameworks.push(fw); }
     for (const db of sub.databases || []) { if (!result.databases.includes(db)) result.databases.push(db); }
@@ -717,6 +758,8 @@ function detectDependencies(dirPath) {
   const pomPath = path.join(dirPath, 'pom.xml');
   if (fs.existsSync(pomPath)) mergeResult(analyzePomFile(pomPath));
 
+  result.commands = readScriptSources(dirPath);
+
   return result;
 }
 
@@ -724,7 +767,7 @@ function scanMonorepoSubProjects(rootDir) {
   const subProjects = [];
   const scanDir = (name, dirPath) => {
     const deps = detectDependencies(dirPath);
-    if (deps.frameworks.length > 0 || deps.databases.length > 0 || deps.tools.length > 0 || deps.scripts) {
+    if (deps.frameworks.length > 0 || deps.databases.length > 0 || deps.tools.length > 0 || deps.commands.length > 0) {
       subProjects.push({ name, ...deps });
     }
   };
