@@ -176,3 +176,84 @@
   border-color: var(--accent, #22d3ee) !important;
   box-shadow: 0 0 0 1px var(--accent, #22d3ee);
 }
+
+/* ── Add-file button ── */
+
+.cm-add-file-btn {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 4px;
+  background: var(--bg-raised, #1a2540);
+  color: var(--green, #2dd4b0);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 5;
+  opacity: 0.55;
+  transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.tree-node.file:hover .cm-add-file-btn,
+.tree-node.folder:hover .cm-add-file-btn,
+.cm-add-file-btn {
+  display: block;
+}
+
+.cm-add-file-btn:hover {
+  opacity: 1;
+  background: var(--green-dim, rgba(45,212,176,0.13));
+  color: var(--green, #2dd4b0);
+  border-color: rgba(45,212,176,0.25);
+}
+
+/* ── Create files modal ── */
+
+.cm-create-modal {
+  max-width: 520px;
+}
+
+.cm-create-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 5px;
+  background: var(--bg-raised, #1a2540);
+  color: var(--text-primary, #eef2ff);
+  font-size: 13px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  outline: none;
+  box-sizing: border-box;
+  resize: vertical;
+  transition: border-color 0.15s;
+  line-height: 1.5;
+}
+
+.cm-create-input:focus {
+  border-color: var(--accent, #22d3ee);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.15);
+}
+
+.cm-create-hint {
+  font-size: 11px;
+  color: var(--text-muted, #8b949e);
+  margin-top: 4px;
+}
+
+.cm-create-error {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--red-dim, rgba(248,81,73,0.12));
+  border: 1px solid rgba(248,81,73,0.25);
+  border-radius: 5px;
+  color: var(--red, #f87171);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
