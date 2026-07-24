@@ -432,6 +432,7 @@ const codebaseManagerBridge = {
     renameFile: (filePath, newName) => ipcRenderer.invoke('cm:renameFile', { filePath, newName }),
     deleteFile: (filePath)          => ipcRenderer.invoke('cm:deleteFile',  { filePath }),
     moveFile:   (sourcePath, targetDir) => ipcRenderer.invoke('cm:moveFile', { sourcePath, targetDir }),
+    createFiles: (parentPath, fileNames) => ipcRenderer.invoke('cm:createFiles', { parentPath, fileNames }),
 };
 
 const imageBridge = {
