@@ -7,7 +7,7 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
-import { openRenameModal, openCreateFilesModal } from '../codebaseManager.js';
+import { openRenameModal, openCreateFilesModal, showToast } from '../codebaseManager.js';
 import { displayTree }                    from './viewManager.js';
 import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
@@ -1082,7 +1082,10 @@ export async function initTools(feats, settingsManager) {
       const ok = await confirmDialog('Delete <strong>' + filePath.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</strong>? This cannot be undone.');
       if (!ok) return;
       const res = await window.electronAPI.deleteFile(filePath);
-      if (res.success && state.cachedTree) displayTree(false);
+      if (res.success) {
+        if (state.cachedTree) displayTree(false);
+        showToast('Deleted successfully');
+      }
     },
     async (folderPath) => {
       if (!state.selectedRepoPath) return;

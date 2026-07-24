@@ -312,17 +312,20 @@ export function initViewMode() {
         applyViewMode(_nextViewMode(state.viewMode))
     );
 
-    const rootCreateBtn = document.createElement('button');
-    rootCreateBtn.id = 'rootCreateFileBtn';
-    rootCreateBtn.className = 'action-btn';
-    rootCreateBtn.title = 'Create files at project root';
-    rootCreateBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:4px"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg> New File';
-    rootCreateBtn.addEventListener('click', () => {
-        if (state.selectedRepoPath) {
-            onAddFile(state.selectedRepoPath);
-        }
-    });
-    viewModeBtn.parentNode?.insertBefore(rootCreateBtn, viewModeBtn);
+    const barRight = document.querySelector('.status-filter-bar .bar-right');
+    if (barRight) {
+        const rootCreateBtn = document.createElement('button');
+        rootCreateBtn.id = 'rootCreateFileBtn';
+        rootCreateBtn.className = 'panel-toggle-btn';
+        rootCreateBtn.title = 'Create files at project root';
+        rootCreateBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg> New File';
+        rootCreateBtn.addEventListener('click', () => {
+            if (state.selectedRepoPath) {
+                onAddFile(state.selectedRepoPath);
+            }
+        });
+        barRight.insertBefore(rootCreateBtn, barRight.firstChild);
+    }
 }
 
 let _viewDocHandlers = null;
