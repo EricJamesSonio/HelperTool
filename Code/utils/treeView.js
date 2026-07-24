@@ -324,9 +324,9 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
         wrapper.style.setProperty('--depth', depth);
         wrapper.dataset.nodePath = normPath(node.path);
         wrapper.dataset.nodeName = node.name;
-        wrapper.dataset.depthLevel = depth % 5;
+        wrapper.dataset.depthLevel = depth % 10;
         if (node.type === 'file' && depth > 0) {
-            wrapper.dataset.parentDepth = (depth - 1) % 5;
+            wrapper.dataset.parentDepth = (depth - 1) % 10;
         }
 
         const el = document.createElement('div');
@@ -398,9 +398,9 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
         wrapper.className = 'node-wrapper';
         wrapper.dataset.nodePath = normPath(node.path);
         wrapper.dataset.nodeName = node.name;
-        wrapper.dataset.depthLevel = depth % 5;
+        wrapper.dataset.depthLevel = depth % 10;
         if (node.type === 'file' && depth > 0) {
-            wrapper.dataset.parentDepth = (depth - 1) % 5;
+            wrapper.dataset.parentDepth = (depth - 1) % 10;
         }
 
         const el = document.createElement('div');
