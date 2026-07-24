@@ -100,8 +100,8 @@ async function loadShortcutConfig() {
   }
   try {
     const cfg = await window.electronAPI.shortcutGetConfig(state.selectedRepoPath);
-    shortcutState.server = cfg?.server || null;
-    shortcutState.client = cfg?.client || null;
+    shortcutState.server = cfg?.server ? { ...cfg.server, running: false } : null;
+    shortcutState.client = cfg?.client ? { ...cfg.client, running: false } : null;
   } catch {
     shortcutState.server = null;
     shortcutState.client = null;
@@ -109,14 +109,33 @@ async function loadShortcutConfig() {
   updateShortcutButtons();
 }
 
+function _shortcutLabel(type) {
+  return `${type === 'server' ? 'Server' : 'Client'} — ${(state.selectedRepoPath || '').split(/[/\\]/).pop()}`;
+}
+
+function _checkShortcutRunning() {
+  const termUI = getTerminalUI();
+  if (!termUI) return;
+  ['server', 'client'].forEach(type => {
+    const cfg = shortcutState[type];
+    if (!cfg) return;
+    const wasRunning = cfg.running;
+    cfg.running = termUI.hasTabWithLabel(_shortcutLabel(type));
+    if (wasRunning !== cfg.running) updateShortcutButtons();
+  });
+}
+
 function updateShortcutButtons() {
   [['server', serverBtn], ['client', clientBtn]].forEach(([type, btn]) => {
     if (!btn) return;
     const cfg = shortcutState[type];
-    btn.classList.remove('shortcut-configured', 'shortcut-unconfigured');
+    btn.classList.remove('shortcut-configured', 'shortcut-unconfigured', 'shortcut-running');
     if (cfg) {
       btn.classList.add('shortcut-configured');
-      btn.title = `Run ${type === 'server' ? 'Server' : 'Client'}: ${cfg.command}`;
+      if (cfg.running) btn.classList.add('shortcut-running');
+      btn.title = cfg.running
+        ? `${type === 'server' ? 'Server' : 'Client'} is running — ${cfg.command}`
+        : `Run ${type === 'server' ? 'Server' : 'Client'}: ${cfg.command}`;
     } else {
       btn.classList.add('shortcut-unconfigured');
       btn.title = `Right-click to set up ${type === 'server' ? 'Server' : 'Client'} shortcut`;
@@ -128,17 +147,24 @@ async function runShortcut(type, repoPath) {
   const cfg = shortcutState[type];
   if (!cfg) return;
   try {
-    const label = `${type === 'server' ? 'Server' : 'Client'} — ${repoPath.split(/[/\\]/).pop()}`;
+    const label = _shortcutLabel(type);
     const termUI = getTerminalUI();
     if (!termUI) {
       console.error('[Shortcut] Terminal UI not initialized yet');
       return;
     }
     await termUI.openTerminal(cfg.cwd, label, cfg.command);
+    cfg.running = true;
+    updateShortcutButtons();
   } catch (err) {
     console.error(`[Shortcut] Failed to run ${type}:`, err);
   }
 }
+
+// Listen for terminal exit events to clear running state
+window.electronAPI?.terminal?.onTerminalExit?.(() => {
+  setTimeout(_checkShortcutRunning, 200);
+});
 
 function setupShortcutButton(type, btn) {
   if (!btn) return;
