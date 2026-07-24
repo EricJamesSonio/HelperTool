@@ -261,6 +261,12 @@ export default class TerminalUI {
     return this.panel?.classList.contains('open');
   }
 
+  hasTabWithLabel(label) {
+    if (!this.tabBar) return false;
+    const names = this.tabBar.querySelectorAll('.terminal-tab-name');
+    return Array.from(names).some(el => el.textContent.trim() === label);
+  }
+
   openTerminalHere(folderPath) {
     this._lastCwd = folderPath;
     this.open();
