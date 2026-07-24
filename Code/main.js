@@ -217,6 +217,11 @@ function registerAllIpc(onRepoSelected) {
       console.log(`[Perf] Tier 1 (${performance.getEntriesByName('startup:tier1-ready')[0]?.duration.toFixed(1)}ms): all common IPC modules loaded`);
     }, 100);
 
+    // Tier 1b (600ms): Error Cop — before user can open terminal but not blocking first paint
+    setTimeout(() => {
+      safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
+    }, 600);
+
     // Tier 2 (4s): Heavy / rarely used tools — deferred well past startup
     setTimeout(() => {
       safeRegister('fileseeder_ipc',  () => require('./ipc/fileseeder_ipc.js').register(shared));
@@ -230,7 +235,6 @@ function registerAllIpc(onRepoSelected) {
       safeRegister('image_ipc',       () => require('./ipc/image_ipc.js').register(shared));
       safeRegister('automation_ipc',  () => require('./ipc/automation_ipc.js').register());
       safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
-      safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
       safeRegister('docker_ipc',      () => require('./ipc/docker_ipc.js').register());
       safeRegister('gmail_ipc',       () => require('./ipc/gmail_ipc.js').register(shared));
       safeRegister('codebaseMap_ipc', () => require('./ipc/codebaseMap_ipc.js').register());
