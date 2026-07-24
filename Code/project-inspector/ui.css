@@ -91,8 +91,13 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+}
+
+.pi-sections-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
 .pi-panel-body::-webkit-scrollbar {
@@ -114,8 +119,7 @@
 
 .pi-wrapper {
   padding: 20px;
-  max-width: 700px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .pi-header {

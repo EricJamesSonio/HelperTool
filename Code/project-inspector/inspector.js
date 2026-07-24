@@ -143,6 +143,9 @@ const ENV_PATTERNS = [
   '.env.development.local', '.env.production.local',
 ];
 
+const MONOREPO_NAMED_DIRS = ['frontend', 'backend', 'client', 'server', 'api', 'web', 'mobile'];
+const MONOREPO_GLOB_DIRS = ['packages', 'apps'];
+
 const KNOWN_CONFIG_FILES = new Set([
   'package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
   'tsconfig.json', 'jsconfig.json', '.babelrc', 'babel.config.js',
@@ -325,6 +328,78 @@ function detectProjectType(frameworks, languages) {
   return 'unknown';
 }
 
+function analyzePackageJson(pkg) {
+  const frameworks = [];
+  const databases = [];
+  const tools = [];
+  const scripts = pkg.scripts || null;
+
+  const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+  const seenFrameworks = new Set();
+  const seenDatabases = new Set();
+  const seenTools = new Set();
+
+  for (const [depName, depVersion] of Object.entries(allDeps)) {
+    const cleanVersion = String(depVersion || '').replace(/^[\^~]/, '');
+
+    const fw = FRAMEWORK_MAP[depName];
+    if (fw && !seenFrameworks.has(fw.name)) {
+      seenFrameworks.add(fw.name);
+      frameworks.push({ name: fw.name, version: cleanVersion || null, type: fw.type });
+    }
+
+    const db = DB_MAP[depName];
+    if (db && !seenDatabases.has(db)) {
+      seenDatabases.add(db);
+      databases.push(db);
+    }
+
+    const tool = matchTool(depName);
+    if (tool && !seenTools.has(tool)) {
+      seenTools.add(tool);
+      tools.push(tool);
+    }
+  }
+
+  return { frameworks, databases, tools, scripts };
+}
+
+function scanMonorepoSubProjects(rootDir) {
+  const subProjects = [];
+
+  for (const dir of MONOREPO_NAMED_DIRS) {
+    const pkgPath = path.join(rootDir, dir, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = readPackageJson(pkgPath);
+      if (pkg) {
+        subProjects.push({ name: dir, ...analyzePackageJson(pkg) });
+      }
+    }
+  }
+
+  for (const parentDir of MONOREPO_GLOB_DIRS) {
+    const parentPath = path.join(rootDir, parentDir);
+    if (fs.existsSync(parentPath)) {
+      let entries;
+      try { entries = fs.readdirSync(parentPath, { withFileTypes: true }); }
+      catch { continue; }
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const pkgPath = path.join(parentPath, entry.name, 'package.json');
+          if (fs.existsSync(pkgPath)) {
+            const pkg = readPackageJson(pkgPath);
+            if (pkg) {
+              subProjects.push({ name: parentDir + '/' + entry.name, ...analyzePackageJson(pkg) });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return subProjects;
+}
+
 function inspect(repoPath) {
   const result = {
     repoPath,
@@ -340,6 +415,7 @@ function inspect(repoPath) {
     entryPoints: [],
     configFiles: [],
     totalFiles: 0,
+    subProjects: [],
   };
 
   if (!repoPath || !fs.existsSync(repoPath)) {
@@ -425,6 +501,40 @@ function inspect(repoPath) {
         }
       }
     } catch {}
+  }
+
+  // --- Scan monorepo sub-projects ---
+  const subProjects = scanMonorepoSubProjects(repoPath);
+  if (subProjects.length > 0) {
+    result.subProjects = subProjects;
+
+    // If root had no package.json, aggregate frameworks/databases/tools from sub-projects
+    if (!pkg) {
+      const aggFrameworks = new Set();
+      const aggDatabases = new Set();
+      const aggTools = new Set();
+
+      for (const sub of subProjects) {
+        for (const fw of sub.frameworks || []) {
+          if (!aggFrameworks.has(fw.name)) {
+            aggFrameworks.add(fw.name);
+            result.frameworks.push(fw);
+          }
+        }
+        for (const db of sub.databases || []) {
+          if (!aggDatabases.has(db)) {
+            aggDatabases.add(db);
+            result.databases.push(db);
+          }
+        }
+        for (const tool of sub.tools || []) {
+          if (!aggTools.has(tool)) {
+            aggTools.add(tool);
+            result.thirdPartyTools.push(tool);
+          }
+        }
+      }
+    }
   }
 
   // --- File extension scan ---

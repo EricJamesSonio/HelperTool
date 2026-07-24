@@ -50,6 +50,22 @@ export function initProjectInspector(container, repoPath) {
   function renderInspection(data) {
     const timeAgo = data.inspectedAt ? formatTimeAgo(data.inspectedAt) : '';
 
+    const gridSections = [
+      data.languages && data.languages.length > 0 ? renderSection('Languages', renderLanguages(data.languages)) : '',
+      data.frameworks && data.frameworks.length > 0 ? renderSection('Frameworks', renderFrameworks(data.frameworks)) : '',
+      data.databases && data.databases.length > 0 ? renderSection('Databases', renderChips(data.databases, 'db')) : '',
+      data.thirdPartyTools && data.thirdPartyTools.length > 0 ? renderSection('Third-Party Tools', renderChips(data.thirdPartyTools, 'tool')) : '',
+      data.envKeys && data.envKeys.length > 0 ? renderSection('Environment Keys', renderEnvKeys(data.envKeys)) : '',
+      data.scripts ? renderSection('Scripts', renderScripts(data.scripts)) : '',
+      ...(data.subProjects && data.subProjects.length > 0
+        ? data.subProjects.filter(sp => sp.scripts && Object.keys(sp.scripts).length > 0).map(sp =>
+            renderSection('Scripts (' + esc(sp.name) + ')', renderScripts(sp.scripts))
+          )
+        : []),
+      data.packageManager ? renderSection('Package Manager', `<span class="pi-chip pi-chip-pm">${data.packageManager}</span>`) : '',
+      data.entryPoints && data.entryPoints.length > 0 ? renderSection('Entry Points', data.entryPoints.map(e => `<code class="pi-code">${esc(e)}</code>`).join(' ')) : '',
+    ].filter(Boolean).join('');
+
     return `
       <div class="pi-summary">
         <div class="pi-summary-item">
@@ -66,14 +82,7 @@ export function initProjectInspector(container, repoPath) {
         </div>
       </div>
 
-      ${data.languages && data.languages.length > 0 ? renderSection('Languages', renderLanguages(data.languages)) : ''}
-      ${data.frameworks && data.frameworks.length > 0 ? renderSection('Frameworks', renderFrameworks(data.frameworks)) : ''}
-      ${data.databases && data.databases.length > 0 ? renderSection('Databases', renderChips(data.databases, 'db')) : ''}
-      ${data.thirdPartyTools && data.thirdPartyTools.length > 0 ? renderSection('Third-Party Tools', renderChips(data.thirdPartyTools, 'tool')) : ''}
-      ${data.envKeys && data.envKeys.length > 0 ? renderSection('Environment Keys', renderEnvKeys(data.envKeys)) : ''}
-      ${data.scripts ? renderSection('Scripts', renderScripts(data.scripts)) : ''}
-      ${data.packageManager ? renderSection('Package Manager', `<span class="pi-chip pi-chip-pm">${data.packageManager}</span>`) : ''}
-      ${data.entryPoints && data.entryPoints.length > 0 ? renderSection('Entry Points', data.entryPoints.map(e => `<code class="pi-code">${esc(e)}</code>`).join(' ')) : ''}
+      <div class="pi-sections-grid">${gridSections}</div>
     `;
   }
 
