@@ -211,6 +211,7 @@ function registerAllIpc(onRepoSelected) {
       safeRegister('github_ipc',      () => require('./ipc/github_ipc.js').register());
       safeRegister('shortcut_ipc',    () => require('./ipc/shortcut_ipc.js').register(shared));
       safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
+      safeRegister('projectInspector', () => require('./project-inspector/ipc.js').register());
       performance.mark('tier1:done');
       performance.measure('startup:tier1-ready', 'app:ready', 'tier1:done');
       console.log(`[Perf] Tier 1 (${performance.getEntriesByName('startup:tier1-ready')[0]?.duration.toFixed(1)}ms): all common IPC modules loaded`);

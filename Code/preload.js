@@ -576,6 +576,13 @@ const geminiBridge = {
   listConversations:  (repoPath)                    => ipcRenderer.invoke('gemini:listConversations', { repoPath }),
 };
 
+const projectInspectorBridge = {
+  inspect:          (repoPath) => ipcRenderer.invoke('projectInspector:inspect', repoPath),
+  get:              (repoPath) => ipcRenderer.invoke('projectInspector:get', repoPath),
+  list:             ()         => ipcRenderer.invoke('projectInspector:list'),
+  delete:           (repoPath) => ipcRenderer.invoke('projectInspector:delete', repoPath),
+};
+
 
 
 const codebaseChatBridge = {
@@ -671,6 +678,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     gemini: geminiBridge,
     windowControls,
 });
+
+contextBridge.exposeInMainWorld('projectInspector', projectInspectorBridge);
 
 contextBridge.exposeInMainWorld('dockerAPI', dockerBridge);
 
