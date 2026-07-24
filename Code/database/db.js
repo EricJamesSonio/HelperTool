@@ -67,6 +67,8 @@ async function initDatabase(app) {
     }
   });
 
+  // Yield before schema creation so any pending renderer IPC (features, activeProject) gets processed
+  await new Promise(r => setTimeout(r, 0));
   createSchema();
   _flush();
 
