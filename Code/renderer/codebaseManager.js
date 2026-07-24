@@ -55,6 +55,7 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
     if (res.success) {
       close();
       onComplete?.();
+      showToast('File renamed successfully');
     } else {
       await alertDialog(res.error || 'Failed to rename file');
       renameBtn.disabled = false;
@@ -71,6 +72,7 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
     if (res.success) {
       close();
       onComplete?.();
+      showToast('Deleted successfully');
     } else {
       await alertDialog(res.error || 'Failed to delete file');
       deleteBtn.disabled = false;
@@ -208,6 +210,7 @@ async function _executeMove(sourcePath, targetDir, onComplete) {
   const res = await window.electronAPI.moveFile(sourcePath, targetDir);
   if (res.success) {
     onComplete?.();
+    showToast('File moved successfully');
   } else {
     await alertDialog(res.error || 'Failed to move file');
   }
@@ -287,8 +290,10 @@ export function openCreateFilesModal(parentPath, onComplete) {
     createBtn.textContent = '...';
     const res = await window.electronAPI.createFiles(parentPath, names);
     if (res.success) {
+      const count = res.created?.length || names.length;
       close();
       onComplete?.();
+      showToast(`Created ${count} file${count !== 1 ? 's' : ''}`);
     } else {
       let msg = res.error || 'Failed to create files';
       if (res.errors?.length) {
@@ -305,6 +310,22 @@ export function openCreateFilesModal(parentPath, onComplete) {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
   setTimeout(() => { textarea.focus(); }, 50);
+}
+
+export function showToast(message, type = 'success', duration = 3000) {
+  const existing = document.querySelector('.cm-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = `cm-toast cm-toast-${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 200);
+  }, duration);
 }
 
 function _esc(s) {
