@@ -85,6 +85,9 @@ class GitToolUI {
                 <button id="stageAllBtn" class="btn btn-primary stage-all-btn">
                   <span class="btn-icon">${ICON_PLUS}</span> Stage All
                 </button>
+                <button id="commitAllBtn" class="btn btn-primary stage-all-btn" style="margin-top:4px">
+                  <span class="btn-icon">${ICON_CHECK}</span> Commit All Groups
+                </button>
               </div>
               <div id="workingTreeList" class="file-list">
                 <div class="empty-state">No changes</div>
@@ -310,6 +313,9 @@ class GitToolUI {
     const stageAllBtn = this.container.querySelector('#stageAllBtn');
     stageAllBtn?.addEventListener('click', () => this.handleStageAll());
 
+    const commitAllBtn = this.container.querySelector('#commitAllBtn');
+    commitAllBtn?.addEventListener('click', () => this.handleCommitAll());
+
     const unstageAllBtn = this.container.querySelector('#unstageAllBtn');
     unstageAllBtn?.addEventListener('click', () => this.handleUnstageAll());
   }
@@ -366,6 +372,33 @@ class GitToolUI {
     } else {
       console.debug('[GitToolUI] Stage All failed:', result.error);
       this.showError(result.error || 'Failed to stage files');
+    }
+  }
+
+  /**
+   * Commit all smart groups — one commit per group with auto-generated messages
+   */
+  async handleCommitAll() {
+    const btn = this.container.querySelector('#commitAllBtn');
+    if (!btn) return;
+
+    this.setButtonLoading(btn, true);
+
+    const result = await this.gitHandler.commitAllGroups();
+
+    this.setButtonLoading(btn, false);
+
+    if (result.error) {
+      this.showError(result.error);
+      return;
+    }
+
+    this.refreshUI();
+
+    if (result.failed > 0) {
+      this.showError(`Committed ${result.succeeded}/${result.total} groups (${result.failed} failed)`);
+    } else {
+      this.showSuccess(`Committed ${result.succeeded} group${result.succeeded !== 1 ? 's' : ''}`);
     }
   }
 

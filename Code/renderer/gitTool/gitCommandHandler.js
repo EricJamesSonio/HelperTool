@@ -212,6 +212,66 @@ class GitCommandHandler {
   }
 
   /**
+   * Iterate through all smart groups, auto-generate a commit message for each,
+   * stage + commit each group to real git, and refresh state once at the end.
+   */
+  async commitAllGroups() {
+    const groups = this.gitManager.getSmartGroups();
+    if (!groups || groups.length === 0) {
+      return { error: 'No changes to commit' };
+    }
+
+    const results = [];
+
+    for (const group of groups) {
+      const filePaths = group.files.map(f => f.file);
+      const message = this.gitManager.generateGroupMessage(group);
+
+      try {
+        // Real git stage
+        if (this.ipc?.stage) {
+          const stageResult = await this.ipc.stage(this.repoPath, filePaths);
+          if (!stageResult.success) {
+            results.push({ files: group.files, message, error: stageResult.error || 'Stage failed', success: false });
+            continue;
+          }
+        }
+
+        // Real git commit
+        if (this.ipc?.commit) {
+          const commitResult = await this.ipc.commit(this.repoPath, message, filePaths);
+          if (!commitResult.success) {
+            results.push({ files: group.files, message, error: commitResult.error || 'Commit failed', success: false });
+            continue;
+          }
+        }
+
+        // Update local state
+        this.gitManager.stageFiles(filePaths);
+        this.gitManager.createCommit(message);
+
+        results.push({ files: group.files, message, success: true });
+      } catch (err) {
+        results.push({ files: group.files, message, error: err.message, success: false });
+      }
+    }
+
+    // Single refresh at end to reconcile with real git state
+    await this.getStatus();
+
+    const succeeded = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
+    return {
+      success: failed === 0,
+      results,
+      total: groups.length,
+      succeeded,
+      failed
+    };
+  }
+
+  /**
    * Push a commit to remote
    */
   async pushCommit(commitId) {
