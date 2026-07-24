@@ -33,6 +33,7 @@ const DEFAULT_SHORTCUTS = {
   errorCop: null,
   ecosystemWatcher: null,
   mcp: null,
+  projectInspector: null,
 };
 
 const S = { shortcuts: {} };
