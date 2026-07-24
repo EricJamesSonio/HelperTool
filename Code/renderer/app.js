@@ -63,7 +63,8 @@ import {
 import {
     initTools,
     handleRepoChange,
-    closeAllPanels
+    closeAllPanels,
+    getTerminalUI
 } from './app_manager/toolsManager.js';
 
 import * as sessionNotes from './sessionNotes.js';
@@ -74,6 +75,7 @@ import { init as initServiceTracker } from './serviceTracker.js';
 
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 import * as essentialsGlossary from './essentialsGlossary.js';
+import { openShortcutSetup, onShortcutSave } from './shortcut-setup.js';
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
@@ -82,6 +84,79 @@ const notesBtn       = document.getElementById('notesBtn');
 const refreshBtn     = document.getElementById('refreshBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
 const treeContainer  = document.getElementById('treeContainer');
+const serverBtn      = document.getElementById('serverBtn');
+const clientBtn      = document.getElementById('clientBtn');
+
+// ── Shortcut state ────────────────────────────────────────────────────────────
+
+const shortcutState = { server: null, client: null };
+
+async function loadShortcutConfig() {
+  if (!state.selectedRepoPath) {
+    shortcutState.server = null;
+    shortcutState.client = null;
+    updateShortcutButtons();
+    return;
+  }
+  try {
+    const cfg = await window.electronAPI.shortcutGetConfig(state.selectedRepoPath);
+    shortcutState.server = cfg?.server || null;
+    shortcutState.client = cfg?.client || null;
+  } catch {
+    shortcutState.server = null;
+    shortcutState.client = null;
+  }
+  updateShortcutButtons();
+}
+
+function updateShortcutButtons() {
+  [['server', serverBtn], ['client', clientBtn]].forEach(([type, btn]) => {
+    if (!btn) return;
+    const cfg = shortcutState[type];
+    btn.classList.remove('shortcut-configured', 'shortcut-unconfigured');
+    if (cfg) {
+      btn.classList.add('shortcut-configured');
+      btn.title = `Run ${type === 'server' ? 'Server' : 'Client'}: ${cfg.command}`;
+    } else {
+      btn.classList.add('shortcut-unconfigured');
+      btn.title = `Right-click to set up ${type === 'server' ? 'Server' : 'Client'} shortcut`;
+    }
+  });
+}
+
+async function runShortcut(type, repoPath) {
+  const cfg = shortcutState[type];
+  if (!cfg) return;
+  try {
+    const label = `${type === 'server' ? 'Server' : 'Client'} — ${repoPath.split(/[/\\]/).pop()}`;
+    const termUI = getTerminalUI();
+    if (!termUI) {
+      console.error('[Shortcut] Terminal UI not initialized yet');
+      return;
+    }
+    await termUI.openTerminal(cfg.cwd, label, cfg.command);
+  } catch (err) {
+    console.error(`[Shortcut] Failed to run ${type}:`, err);
+  }
+}
+
+function setupShortcutButton(type, btn) {
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (!state.selectedRepoPath) return;
+    const cfg = shortcutState[type];
+    if (!cfg) {
+      openShortcutSetup(type, state.selectedRepoPath, null);
+      return;
+    }
+    await runShortcut(type, state.selectedRepoPath);
+  });
+  btn.addEventListener('contextmenu', async (e) => {
+    e.preventDefault();
+    if (!state.selectedRepoPath) return;
+    openShortcutSetup(type, state.selectedRepoPath, shortcutState[type]);
+  });
+}
 
 // ── Title bar controls ─────────────────────────────────────────────────────────
 
@@ -246,6 +321,15 @@ document.getElementById('essentialsBtn')?.addEventListener('click', () => {
     }
 });
 
+// ── Shortcut buttons ─────────────────────────────────────────────────────────
+
+setupShortcutButton('server', serverBtn);
+setupShortcutButton('client', clientBtn);
+
+onShortcutSave(() => {
+  loadShortcutConfig();
+});
+
 // ── Feature visibility ────────────────────────────────────────────────────────
 
 function applyFeatureVisibility(feats) {
@@ -333,6 +417,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     repoLoadPromise.then(() => {
       const repoEntry = performance.getEntriesByName('init:repo-loaded').pop();
       if (repoEntry) console.log(`[Init] Background repo load: ${(repoEntry.startTime - performance.getEntriesByName('init:start').pop()?.startTime || 0).toFixed(0)}ms`);
+      loadShortcutConfig();
     });
 
     // Defer non-critical setup after first paint — these are pure event wiring
