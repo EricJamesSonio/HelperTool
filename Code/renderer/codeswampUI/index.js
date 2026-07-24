@@ -83,13 +83,13 @@ if (!panel || !panel.querySelector('.oc-header')) {
   // Init xterm.js (async, fire-and-forget)
   initXterm().catch(e => console.error('[CS] xterm init error:', e));
 
-  // Discover opencode binary path FIRST — before any terminal is created
-  let info = null;
-  try { info = await discoverOpencode(); } catch {}
-  if (info) {
-    state.opencodePath = info.binaryPath;
-    state.dataRoot = info.dataRoot;
-  }
+  // Discover opencode binary path in background — don't block UI init
+  discoverOpencode().then(info => {
+    if (info) {
+      state.opencodePath = info.binaryPath;
+      state.dataRoot = info.dataRoot;
+    }
+  }).catch(() => {});
 
   // Load active repo
   const activeRepo = await getActiveRepoPath();

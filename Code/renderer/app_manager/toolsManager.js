@@ -1187,3 +1187,5 @@ async function _lazyInitTools(feats) {
     console.log('[Tools] Lazy init complete');
   } catch (err) { console.error('[Tools] Lazy init error:', err); }
 }
+
+export function getTerminalUI() { return _terminalUI; }

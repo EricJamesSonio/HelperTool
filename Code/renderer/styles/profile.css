@@ -1098,3 +1098,130 @@
   font-size: 12px;
   color: var(--text-faint);
 }
+
+/* ── Server/Client Shortcut Buttons ── */
+
+.shortcut-btn {
+  position: relative;
+}
+.shortcut-btn.shortcut-configured {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+.shortcut-btn.shortcut-unconfigured {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+/* ── Shortcut Setup Modal ── */
+
+.shortcut-setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+}
+.shortcut-setup-modal {
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  width: 460px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.shortcut-setup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.shortcut-setup-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.shortcut-setup-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.shortcut-setup-close:hover { color: var(--text-primary); }
+.shortcut-setup-body {
+  padding: 20px;
+}
+.shortcut-setup-field {
+  margin-bottom: 16px;
+}
+.shortcut-setup-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.shortcut-setup-input {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+.shortcut-setup-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+.shortcut-setup-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+.shortcut-setup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.shortcut-setup-btn {
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transition: all 0.1s;
+}
+.shortcut-setup-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.shortcut-setup-btn-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.shortcut-setup-btn-save:hover {
+  background: var(--accent-hover, var(--accent));
+  opacity: 0.9;
+}
