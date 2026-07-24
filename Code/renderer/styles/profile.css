@@ -1104,13 +1104,40 @@
 .shortcut-btn {
   position: relative;
 }
-.shortcut-btn.shortcut-configured {
-  color: var(--accent);
-  border-color: var(--accent-dim);
-}
 .shortcut-btn.shortcut-unconfigured {
   opacity: 0.6;
   border-style: dashed;
+}
+
+#serverBtn.shortcut-configured {
+  color: var(--red, #f85149);
+  border-color: var(--red-dim, rgba(248,81,73,0.35));
+}
+#serverBtn.shortcut-configured:hover {
+  background: var(--red-dim, rgba(248,81,73,0.12));
+  border-color: var(--red, #f85149);
+}
+
+#clientBtn.shortcut-configured {
+  color: var(--blue, #58a6ff);
+  border-color: var(--blue-dim, rgba(88,166,255,0.35));
+}
+#clientBtn.shortcut-configured:hover {
+  background: var(--blue-dim, rgba(88,166,255,0.12));
+  border-color: var(--blue, #58a6ff);
+}
+
+#serverBtn.shortcut-running::after,
+#clientBtn.shortcut-running::after {
+  content: '✓';
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green, #23d18b);
+  line-height: 1;
+  text-shadow: 0 0 4px var(--green-dim, rgba(35,209,139,0.4));
 }
 
 /* ── Shortcut Setup Modal ── */
