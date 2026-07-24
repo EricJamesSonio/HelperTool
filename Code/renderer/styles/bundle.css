@@ -30011,6 +30011,7 @@ Claude Fab
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   padding: 20px 24px;
   box-sizing: border-box;
   font-family: inherit;
@@ -30159,7 +30160,6 @@ Claude Fab
   width: 60%;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
   padding-right: 2px;
 }
 
@@ -30211,9 +30211,9 @@ Claude Fab
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  height: 0;
+  overflow-x: hidden;
   padding-right: 4px;
 }
 .ecp-timeline::-webkit-scrollbar { width: 4px; }
@@ -30232,6 +30232,7 @@ Claude Fab
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
   position: relative;
   overflow: hidden;
+  flex-shrink: 0;
 }
 .ecp-event::before {
   content: '';
@@ -30318,6 +30319,7 @@ Claude Fab
 /* ─── Empty state ─── */
 
 .ecp-empty {
+  flex-shrink: 0;
   color: #a78484;
   font-size: 13px;
   padding: 28px 0;
@@ -30328,6 +30330,11 @@ Claude Fab
   gap: 8px;
 }
 .ecp-empty-icon { font-size: 24px; opacity: 0.6; }
+
+/* ─── Occurrence view: keep header/browser box fixed, only list scrolls ─── */
+.ecp-left-column > div:not(.ecp-timeline):not(.ecp-empty) {
+  flex-shrink: 0;
+}
 
 /* ─── Session List ─── */
 
