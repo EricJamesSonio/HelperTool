@@ -389,12 +389,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Drag scroll
     initDragScroll();
 
+    const loadingOverlay = document.getElementById('appLoadingOverlay');
+    const loadingSub = document.getElementById('appLoadingSub');
+    const loadingTimer = document.getElementById('appLoadingTimer');
+
     performance.mark('init:start');
 
     // Load features first — lightweight IPC call
     const feats = await initFeatures();
     performance.mark('init:features');
     performance.measure('init:features', 'init:start', 'init:features');
+    if (loadingSub) loadingSub.textContent = 'Loading workspace...';
 
     // Fire repo load in background — don't block UI startup on tree walk
     const repoLoadPromise = loadLastActiveRepo()
@@ -441,6 +446,17 @@ window.addEventListener('DOMContentLoaded', async () => {
       .map(n => performance.getEntriesByName(n).pop())
       .filter(Boolean);
     if (entries.length) console.table(entries.map(e => ({ phase: e.name, duration: `${e.duration.toFixed(1)}ms` })));
+
+    // Hide loading overlay + show boot time
+    if (loadingTimer && entries.length) {
+      const total = entries.find(e => e.name === 'init:total');
+      if (total) loadingTimer.textContent = `Booted in ${total.duration.toFixed(0)}ms`;
+    }
+    if (loadingSub) loadingSub.textContent = 'Ready';
+    if (loadingOverlay) {
+      loadingOverlay.classList.add('app-loading-hidden');
+      setTimeout(() => loadingOverlay.remove(), 400);
+    }
 
     // Measure background repo load separately (doesn't block UI)
     repoLoadPromise.then(() => {
