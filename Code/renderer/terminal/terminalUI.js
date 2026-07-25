@@ -120,6 +120,7 @@ export default class TerminalUI {
       const inst = this.instances.get(id);
       if (inst && inst.terminal) {
         inst.terminal.write(data);
+        this._detectUrls(inst, data);
       }
     });
 
@@ -267,6 +268,17 @@ export default class TerminalUI {
     return Array.from(names).some(el => el.textContent.trim() === label);
   }
 
+  killTerminalByLabel(label) {
+    for (const [id, inst] of this.instances) {
+      const nameEl = inst.tab?.querySelector('.terminal-tab-name');
+      if (nameEl && nameEl.textContent.trim() === label) {
+        this._killTerminal(id);
+        return true;
+      }
+    }
+    return false;
+  }
+
   openTerminalHere(folderPath) {
     this._lastCwd = folderPath;
     this.open();
@@ -304,6 +316,10 @@ export default class TerminalUI {
       e.stopPropagation();
       this._viewTerminalOutputById(id);
     });
+    const urlBar = document.createElement('div');
+    urlBar.className = 'terminal-url-bar';
+    urlBar.id = 'terminalUrlBar_' + id;
+    inst.appendChild(urlBar);
     this.body.appendChild(inst);
 
     const terminal = new TerminalClass({
@@ -352,7 +368,7 @@ export default class TerminalUI {
       terminal.write(`\r\n\x1b[31mFailed to spawn terminal: ${err.message}\x1b[0m\r\n`);
     }
 
-    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, sessionId });
+    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, sessionId, discoveredUrls: new Set() });
 
     terminal.onData((data) => {
       window.electronAPI.terminalWrite({ id, data });
@@ -505,6 +521,39 @@ export default class TerminalUI {
     } else if (this.activeId === id) {
       const next = this.instances.keys().next().value;
       this._activateTerminal(next);
+    }
+  }
+
+  _detectUrls(inst, data) {
+    const URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d+)(?:\/[^\s"')\]]*)?/gi;
+    let match;
+    let changed = false;
+    while ((match = URL_RE.exec(data)) !== null) {
+      let url = match[0];
+      url = url.replace(/[^a-zA-Z0-9:/._~%+?&=#@!*'()-]/g, '');
+      if (!inst.discoveredUrls.has(url)) {
+        inst.discoveredUrls.add(url);
+        changed = true;
+      }
+    }
+    if (changed) this._renderUrlBar(inst);
+  }
+
+  _renderUrlBar(inst) {
+    const bar = inst.inst.querySelector('.terminal-url-bar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    for (const url of inst.discoveredUrls) {
+      const btn = document.createElement('button');
+      btn.className = 'terminal-url-btn';
+      const label = url.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      btn.textContent = label;
+      btn.title = url;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.electronAPI.openExternal(url);
+      });
+      bar.appendChild(btn);
     }
   }
 }
