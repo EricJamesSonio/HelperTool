@@ -49,6 +49,19 @@ function register() {
     }
   });
 
+  ipcMain.handle('cm:createFolder', async (_e, { parentPath, folderName }) => {
+    try {
+      if (!parentPath) return { success: false, error: 'No parent path' };
+      if (!folderName || !folderName.trim()) return { success: false, error: 'Folder name cannot be empty' };
+      const fullPath = path.join(parentPath, folderName.trim());
+      try { await fs.promises.access(fullPath); return { success: false, error: 'A folder with that name already exists' }; } catch {}
+      await fs.promises.mkdir(fullPath, { recursive: true });
+      return { success: true, path: fullPath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('cm:moveFile', async (_e, { sourcePath, targetDir }) => {
     try {
       if (!sourcePath) return { success: false, error: 'No source path' };

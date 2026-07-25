@@ -3,8 +3,13 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-let pty = null;
-try { pty = require('node-pty'); } catch { }
+let _pty = null;
+function getPty() {
+  if (!_pty) {
+    try { _pty = require('node-pty'); } catch (e) { console.error('[Terminal] node-pty not available:', e.message); }
+  }
+  return _pty;
+}
 
 const terminals = new Map();
 let nextId = 1;
@@ -84,7 +89,7 @@ async function detectShells() {
 }
 
 function register({ getMainWindow }) {
-  if (!pty) {
+  if (!getPty()) {
     console.error('[Terminal] node-pty not available — terminal feature disabled');
     return;
   }
@@ -98,7 +103,7 @@ function register({ getMainWindow }) {
     const resolvedCwd = defaultCwd && fs.existsSync(defaultCwd) ? defaultCwd : os.homedir();
 
     const env = Object.assign({}, process.env);
-    const term = pty.spawn(shell, args || [], {
+    const term = getPty().spawn(shell, args || [], {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
