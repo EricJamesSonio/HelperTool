@@ -25,12 +25,25 @@ function clearText() {
 
 async function insertTicket() {
   const { openTicketPanel } = await import('../../../codeswampUI/ticketPanel.js');
+  window.electronAPI.researcher.hideBrowserView();
   openTicketPanel('rsTextarea');
+  _watchModalClose('ocTicketPanelModal');
 }
 
 async function applyPrompt() {
   const { openPromptPicker } = await import('../../../codeswampUI/promptPicker.js');
+  window.electronAPI.researcher.hideBrowserView();
   openPromptPicker('rsTextarea');
+  _watchModalClose('ocPromptPickerModal');
+}
+
+function _watchModalClose(modalId) {
+  const check = setInterval(() => {
+    if (!document.getElementById(modalId)) {
+      clearInterval(check);
+      window.electronAPI.researcher.showBrowserView();
+    }
+  }, 200);
 }
 
 export function getTextarea() { return _textarea; }
