@@ -3,7 +3,8 @@ const CAT_PALETTE = [
   '#f472b6', '#fb923c', '#2dd4bf', '#e879f9', '#38bdf8',
 ];
 
-export async function openPromptPicker() {
+export async function openPromptPicker(targetTextareaId) {
+  const inputId = targetTextareaId || 'ocInput';
   const existing = document.getElementById('ocPromptPickerModal');
   if (existing) existing.remove();
 
@@ -101,7 +102,7 @@ export async function openPromptPicker() {
         <div class="oc-pp-prompt-preview">${_esc((p.body || '').trim()) || '<span class="oc-pp-empty-inline">(empty)</span>'}</div>
       `;
       card.addEventListener('click', () => {
-        const input = document.getElementById('ocInput');
+        const input = document.getElementById(inputId);
         if (input) {
           const existing = input.value.trim();
           const body = (p.body || '').trim();

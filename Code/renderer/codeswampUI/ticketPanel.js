@@ -22,7 +22,8 @@ function _timeAgo(iso) {
   return `${days}d ago`;
 }
 
-export async function openTicketPanel() {
+export async function openTicketPanel(targetTextareaId) {
+  const inputId = targetTextareaId || 'ocInput';
   const existing = document.getElementById('ocTicketPanelModal');
   if (existing) existing.remove();
 
@@ -60,7 +61,7 @@ export async function openTicketPanel() {
   document.addEventListener('keydown', kbHandler);
 
   function populateInput(text) {
-    const input = document.getElementById('ocInput');
+    const input = document.getElementById(inputId);
     if (!input) return;
     const existing = input.value.trim();
     input.value = existing ? existing + '\n' + text : text;
