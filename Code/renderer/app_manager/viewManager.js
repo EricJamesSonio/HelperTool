@@ -9,7 +9,7 @@ import { selectSearchItem, clearFlatListCache } from '../searchManager.js';
 import { state }       from './appState.js';
 import * as fileSeederTool from '../fileSeederTool.js';
 import * as locDetector from '../locDetector.js';
-import { openRenameModal, startMoveGhost, openCreateFilesModal } from '../codebaseManager.js';
+import { openRenameModal, startMoveGhost, openCreateFilesModal, openCreateFolderModal } from '../codebaseManager.js';
 
 const viewModeBtn = document.getElementById('viewModeBtn');
 const rootJumper  = document.getElementById('rootJumper');
@@ -247,6 +247,13 @@ function onAddFile(folderPath) {
     });
 }
 
+function onAddFolder(folderPath) {
+    if (!folderPath) return;
+    openCreateFolderModal(folderPath, () => {
+        if (state.cachedTree) displayTree(false);
+    });
+}
+
 export function renderRootJumper(tree) {
     if (!rootJumper) return;
     rootJumper.innerHTML = '';
@@ -325,6 +332,18 @@ export function initViewMode() {
             }
         });
         barRight.insertBefore(rootCreateBtn, barRight.firstChild);
+
+        const rootFolderBtn = document.createElement('button');
+        rootFolderBtn.id = 'rootCreateFolderBtn';
+        rootFolderBtn.className = 'panel-toggle-btn';
+        rootFolderBtn.title = 'Create folder at project root';
+        rootFolderBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;margin-right:3px"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/><line x1="10" y1="9" x2="10" y2="15"/><line x1="7" y1="12" x2="13" y2="12"/></svg> New Folder';
+        rootFolderBtn.addEventListener('click', () => {
+            if (state.selectedRepoPath) {
+                onAddFolder(state.selectedRepoPath);
+            }
+        });
+        barRight.insertBefore(rootFolderBtn, barRight.firstChild);
     }
 }
 

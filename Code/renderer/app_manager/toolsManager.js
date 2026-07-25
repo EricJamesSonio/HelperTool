@@ -7,7 +7,7 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
-import { openRenameModal, openCreateFilesModal, showToast } from '../codebaseManager.js';
+import { openRenameModal, openCreateFilesModal, openCreateFolderModal, showToast } from '../codebaseManager.js';
 import { displayTree }                    from './viewManager.js';
 import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
@@ -1109,6 +1109,11 @@ export async function initTools(feats, settingsManager) {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       openCreateFilesModal(folderPath, () => { if (state.cachedTree) displayTree(false); });
+    },
+    async (folderPath) => {
+      if (!state.selectedRepoPath) return;
+      _registry.closeAll();
+      openCreateFolderModal(folderPath, () => { if (state.cachedTree) displayTree(false); });
     }
   );
 
@@ -1256,6 +1261,15 @@ async function _lazyInitTools(feats) {
     }
     console.log('[Tools] Lazy init complete');
   } catch (err) { console.error('[Tools] Lazy init error:', err); }
+}
+
+export async function ensureTerminalUI() {
+  if (!_terminalUI) {
+    _terminalUI = new TerminalUI();
+    _registry.setTerminalUI(_terminalUI);
+    await _terminalUI.init();
+  }
+  return _terminalUI;
 }
 
 export function getTerminalUI() { return _terminalUI; }
