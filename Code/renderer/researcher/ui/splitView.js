@@ -4,59 +4,90 @@ import { initPromptEditor } from './left/promptEditor.js';
 let _resizeObserver = null;
 let _windowResizeHandler = null;
 
-export function openSplitView(researcher) {
+export function openSplitView(researcher, accountId) {
   state.activeUrl = researcher.url;
 
   document.getElementById('rsHome').classList.add('rs-hidden');
-  document.getElementById('rsSplitView').classList.remove('rs-hidden');
+  const splitView = document.getElementById('rsSplitView');
+  splitView.classList.remove('rs-hidden');
+  splitView.style.display = 'flex';
 
   const titleEl = document.getElementById('rsLeftTitle');
   if (titleEl) titleEl.textContent = researcher.name;
+
+  // Show save form for new accounts, account info for saved ones
+  const saveSection = document.getElementById('rsSaveAccount');
+  const accountInfo = document.getElementById('rsAccountInfo');
+  if (accountId) {
+    if (saveSection) saveSection.classList.add('rs-hidden');
+    if (accountInfo) {
+      accountInfo.classList.remove('rs-hidden');
+      const badge = document.getElementById('rsAccountBadge');
+      if (badge) badge.textContent = researcher.name;
+    }
+  } else {
+    if (saveSection) saveSection.classList.remove('rs-hidden');
+    if (accountInfo) accountInfo.classList.add('rs-hidden');
+  }
 
   initPromptEditor();
 
   const backBtn = document.getElementById('rsBackBtn');
   if (backBtn) backBtn.addEventListener('click', goBack);
 
-  ensureBrowserView(researcher.url);
-  startBoundsSync();
+  ensureBrowserView(researcher.url, accountId);
+  startLayoutSync();
 }
 
 function goBack() {
   destroyBrowserView();
-  stopBoundsSync();
+  stopLayoutSync();
 
   document.getElementById('rsSplitView').classList.add('rs-hidden');
+  document.getElementById('rsSplitView').style.display = 'none';
   document.getElementById('rsHome').classList.remove('rs-hidden');
+  document.getElementById('rsHome').style.display = 'flex';
 
   state.selectedResearcher = null;
   state.activeUrl = null;
 }
 
-function getBrowserBounds() {
+export { goBack as goHome };
+
+/**
+ * We deliberately do NOT compute x/y/width/height here anymore.
+ * Main process derives the real BrowserView bounds from the window's
+ * actual content bounds (win.getContentBounds()), which can never
+ * drift out of sync or overflow the window the way independently
+ * measured renderer coordinates could.
+ *
+ * The ONLY things the renderer knows better than main: pure layout
+ * choices — how wide the left panel is, and how far down the header
+ * pushes the split view. Those two numbers are all we send.
+ */
+function getLayoutHints() {
   const rightPanel = document.getElementById('rsRightPanel');
-  if (!rightPanel) return null;
+  const leftPanel = document.getElementById('rsLeftPanel');
+  if (!rightPanel || !leftPanel) return null;
 
-  const rect = rightPanel.getBoundingClientRect();
+  const rightRect = rightPanel.getBoundingClientRect();
+  const leftRect = leftPanel.getBoundingClientRect();
 
-  if (rect.width <= 0 || rect.height <= 0) return null;
+  if (rightRect.width <= 0 || rightRect.height <= 0) return null;
 
   return {
-    x: Math.round(rect.left),
-    y: Math.round(rect.top),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
+    leftPanelWidth: Math.round(leftRect.width),
+    topOffset: Math.round(rightRect.top),
   };
 }
 
-async function createBrowserView(url) {
-  const bounds = getBrowserBounds();
-  if (!bounds) return;
-  await window.electronAPI.researcher.createBrowserView(url, bounds);
+async function createBrowserView(url, accountId) {
+  const layout = getLayoutHints();
+  await window.electronAPI.researcher.createBrowserView(url, layout, accountId);
 }
 
-export function ensureBrowserView(url) {
-  createBrowserView(url);
+export function ensureBrowserView(url, accountId) {
+  createBrowserView(url, accountId);
 }
 
 export function isSplitViewActive() {
@@ -65,28 +96,33 @@ export function isSplitViewActive() {
 }
 
 export function resizeBrowserView() {
-  const bounds = getBrowserBounds();
-  if (!bounds) return Promise.resolve();
-  return window.electronAPI.researcher.resizeBrowserView(bounds);
+  const layout = getLayoutHints();
+  if (!layout) return Promise.resolve();
+  return window.electronAPI.researcher.resizeBrowserView(layout);
 }
 
 export function destroyBrowserView() {
   return window.electronAPI.researcher.destroyBrowserView();
 }
 
-function startBoundsSync() {
-  stopBoundsSync();
+/**
+ * Only needed to catch LAYOUT changes (left panel width changing),
+ * not window resizes — main now self-heals on window resize/maximize
+ * on its own. This just tells main when the left-panel-width /
+ * top-offset numbers themselves change.
+ */
+function startLayoutSync() {
+  stopLayoutSync();
 
   const rightPanel = document.getElementById('rsRightPanel');
-  if (!rightPanel) return;
+  const leftPanel = document.getElementById('rsLeftPanel');
+  if (!rightPanel || !leftPanel) return;
 
   const sync = () => resizeBrowserView().catch(console.error);
 
   _resizeObserver = new ResizeObserver(sync);
   _resizeObserver.observe(rightPanel);
-
-  const leftPanel = document.getElementById('rsLeftPanel');
-  if (leftPanel) _resizeObserver.observe(leftPanel);
+  _resizeObserver.observe(leftPanel);
 
   _windowResizeHandler = sync;
   window.addEventListener('resize', _windowResizeHandler);
@@ -94,7 +130,7 @@ function startBoundsSync() {
   requestAnimationFrame(sync);
 }
 
-function stopBoundsSync() {
+function stopLayoutSync() {
   if (_resizeObserver) {
     _resizeObserver.disconnect();
     _resizeObserver = null;
