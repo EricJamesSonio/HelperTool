@@ -737,3 +737,36 @@
   background: rgba(255,255,255,0.15);
   background-clip: content-box;
 }
+
+/* ── Terminal URL bar (per-instance) ── */
+
+.terminal-url-bar {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.terminal-url-btn {
+  pointer-events: auto;
+  padding: 2px 8px;
+  border: 1px solid rgba(35, 209, 139, 0.25);
+  border-radius: 4px;
+  background: rgba(12, 12, 12, 0.85);
+  color: #23d18b;
+  font-size: 11px;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+.terminal-url-btn:hover {
+  background: rgba(35, 209, 139, 0.15);
+  border-color: #23d18b;
+}

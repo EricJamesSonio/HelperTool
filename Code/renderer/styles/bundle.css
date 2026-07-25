@@ -13900,6 +13900,39 @@ body {
   background-clip: content-box;
 }
 
+/* ── Terminal URL bar (per-instance) ── */
+
+.terminal-url-bar {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.terminal-url-btn {
+  pointer-events: auto;
+  padding: 2px 8px;
+  border: 1px solid rgba(35, 209, 139, 0.25);
+  border-radius: 4px;
+  background: rgba(12, 12, 12, 0.85);
+  color: #23d18b;
+  font-size: 11px;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+.terminal-url-btn:hover {
+  background: rgba(35, 209, 139, 0.15);
+  border-color: #23d18b;
+}
+
 
 /* port-manager.css */
 /* ── Port Manager Panel ────────────────────────────────── */
@@ -19062,6 +19095,68 @@ body {
 }
 .shortcut-setup-btn-save:hover {
   background: var(--accent-hover, var(--accent));
+  opacity: 0.9;
+}
+
+/* ── Confirm Dialog ── */
+
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+}
+.confirm-dialog-modal {
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.confirm-dialog-body {
+  padding: 24px 20px 16px;
+}
+.confirm-dialog-message {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.5;
+  text-align: center;
+}
+.confirm-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.confirm-dialog-btn {
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transition: all 0.1s;
+}
+.confirm-dialog-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.confirm-dialog-btn-confirm {
+  background: var(--red, #f85149);
+  border-color: var(--red, #f85149);
+  color: #fff;
+}
+.confirm-dialog-btn-confirm:hover {
   opacity: 0.9;
 }
 
@@ -32118,6 +32213,10 @@ Claude Fab
   flex-direction: column;
   box-sizing: border-box;
 }
+/* Add this anywhere in researcher.css */
+.rs-hidden {
+  display: none !important;
+}
 
 .rs-panel.open {
   display: flex;
@@ -32195,16 +32294,23 @@ Claude Fab
 /* ── Home / Selection Screen ── */
 
 .rs-home {
-  padding: 40px 24px;
+  padding: 24px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
 .rs-header {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   text-align: center;
+}
+
+.rs-home-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 24px;
+  justify-content: center;
 }
 
 .rs-title-row {
@@ -32296,8 +32402,8 @@ Claude Fab
 }
 
 .rs-left-panel {
-  flex: 1 1 50%;
-  min-width: 300px;
+  flex: 1 1 10%;
+  min-width: 200px;
   border-right: 1px solid var(--rs-border);
   display: flex;
   flex-direction: column;
@@ -32465,6 +32571,242 @@ Claude Fab
 
 .rs-hidden {
   display: none !important;
+}
+
+/* ── Account List ── */
+
+.rs-account-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  max-width: 500px;
+}
+
+.rs-section-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--rs-muted);
+  margin-bottom: 10px;
+  padding: 0 4px;
+}
+
+.rs-account-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rs-empty-accounts {
+  text-align: center;
+  color: var(--rs-muted);
+  font-size: 0.9rem;
+  padding: 20px 0;
+}
+
+.rs-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--rs-border);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rs-account-row:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: var(--rs-accent);
+  transform: translateX(2px);
+}
+
+.rs-account-info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rs-account-type-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rs-accent);
+}
+
+.rs-account-type-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.rs-account-details {
+  min-width: 0;
+}
+
+.rs-account-email {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--rs-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rs-account-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.rs-account-type-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+.rs-type-chatgpt {
+  background: rgba(25,195,125,0.15);
+  color: #19c37d;
+}
+
+.rs-type-claude {
+  background: rgba(204,139,84,0.15);
+  color: #cc8b54;
+}
+
+.rs-account-delete-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--rs-muted);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+
+.rs-account-row:hover .rs-account-delete-btn {
+  opacity: 1;
+}
+
+.rs-account-delete-btn:hover {
+  color: #f85149;
+  background: rgba(248,81,73,0.12);
+}
+
+/* ── Add New Section ── */
+
+.rs-add-new-section {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.rs-add-new-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rs-add-new-card {
+  flex: 1;
+  padding: 16px 12px;
+  border: 1px dashed var(--rs-border);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--rs-muted);
+}
+
+.rs-add-new-card:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: var(--rs-accent);
+  color: var(--rs-text);
+  border-style: solid;
+}
+
+/* ── Save Account Form ── */
+
+.rs-save-account {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rs-border);
+  margin-bottom: 12px;
+}
+
+.rs-save-info {
+  font-size: 0.85rem;
+  color: var(--rs-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.rs-save-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--rs-border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.05);
+  color: var(--rs-text);
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.12s;
+}
+
+.rs-save-input:focus {
+  border-color: var(--rs-accent);
+}
+
+.rs-save-error {
+  font-size: 0.8rem;
+  color: #f85149;
+  margin-top: 6px;
+  min-height: 0;
+}
+
+.rs-save-account .rs-btn {
+  margin-top: 8px;
+  width: 100%;
+}
+
+/* ── Account Info Badge (split view) ── */
+
+.rs-account-info {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rs-border);
+  margin-bottom: 12px;
+}
+
+.rs-account-badge {
+  font-size: 0.85rem;
+  color: var(--rs-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* mcp.css */
