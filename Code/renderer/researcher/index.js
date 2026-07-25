@@ -1,13 +1,15 @@
-import { state } from './state.js';
+import { state, loadAccounts, saveAccounts } from './state.js';
 import { getTemplate } from './template.js';
-import { initHome } from './ui/home.js';
-import { ensureBrowserView, destroyBrowserView, isSplitViewActive } from './ui/splitView.js';
+import { initHome, renderAccountList } from './ui/home.js';
+import { ensureBrowserView, destroyBrowserView, isSplitViewActive, goHome } from './ui/splitView.js';
 
 let _initialized = false;
 
 export function initResearcher() {
   if (_initialized) return;
   _initialized = true;
+
+  loadAccounts();
 
   const container = document.body;
   container.insertAdjacentHTML('beforeend', getTemplate());
@@ -26,28 +28,36 @@ export function initResearcher() {
 
 export function openResearcher() {
   if (!_initialized) initResearcher();
+  console.log('[RS] openResearcher, accounts in memory:', state.accounts.length);
+  // Reload accounts from localStorage each time the panel opens
+  loadAccounts();
+  console.log('[RS] openResearcher after reload, accounts:', state.accounts.length);
 
   const panel = document.getElementById('rsPanel');
   if (panel) {
     panel.classList.add('open');
     state.open = true;
+    renderAccountList();
 
-    // Restore BrowserView if split view was active
-    if (state.selectedResearcher && isSplitViewActive()) {
-      ensureBrowserView(state.activeUrl);
+    // If split view was showing when we closed, restore the BrowserView
+    if (state.selectedAccount && isSplitViewActive()) {
+      ensureBrowserView(state.selectedAccount.url);
     }
   }
 }
 
 export function closeResearcher() {
+  console.log('[RS] closeResearcher, accounts:', state.accounts.length);
+  // Always return to home view on close
+  if (isSplitViewActive()) {
+    goHome();
+  }
+
   const panel = document.getElementById('rsPanel');
   if (panel) {
     panel.classList.remove('open');
-    if (state.selectedResearcher) {
-      destroyBrowserView();
-    }
     state.open = false;
-    // Keep selectedResearcher/activeUrl alive so we can restore on re-open
+    saveAccounts();
   }
 }
 
