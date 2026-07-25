@@ -436,6 +436,7 @@ const codebaseManagerBridge = {
     deleteFile: (filePath)          => ipcRenderer.invoke('cm:deleteFile',  { filePath }),
     moveFile:   (sourcePath, targetDir) => ipcRenderer.invoke('cm:moveFile', { sourcePath, targetDir }),
     createFiles: (parentPath, fileNames) => ipcRenderer.invoke('cm:createFiles', { parentPath, fileNames }),
+    createFolder: (parentPath, folderName) => ipcRenderer.invoke('cm:createFolder', { parentPath, folderName }),
 };
 
 const imageBridge = {
@@ -581,10 +582,12 @@ const geminiBridge = {
 };
 
 const researcherBridge = {
-  createBrowserView: (url, bounds) => ipcRenderer.invoke('researcher:createBrowserView', { url, bounds }),
-  resizeBrowserView: (bounds) => ipcRenderer.invoke('researcher:resizeBrowserView', { bounds }),
+  createBrowserView: (url, layout, accountId) => ipcRenderer.invoke('researcher:createBrowserView', { url, layout, accountId }),
+  resizeBrowserView: (layout) => ipcRenderer.invoke('researcher:resizeBrowserView', { layout }),
   destroyBrowserView: () => ipcRenderer.invoke('researcher:destroyBrowserView'),
   navigate: (url) => ipcRenderer.invoke('researcher:navigate', { url }),
+  hideBrowserView: () => ipcRenderer.invoke('researcher:hideBrowserView'),
+  showBrowserView: () => ipcRenderer.invoke('researcher:showBrowserView'),
 };
 
 const projectInspectorBridge = {
@@ -689,6 +692,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     opencode: opencodeBridge,
     gemini: geminiBridge,
     windowControls,
+    openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 });
 
 contextBridge.exposeInMainWorld('projectInspector', projectInspectorBridge);

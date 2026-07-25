@@ -9,7 +9,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('[Main] Unhandled rejection:', reason?.message || String(reason));
 });
 
-const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, screen } = require('electron');
 const path = require('path');
 
 // ── IPC timing wrapper (Phase 0 instrumentation) ──
@@ -250,17 +250,28 @@ function registerAllIpc(onRepoSelected) {
         mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
     });
     ipcMain.on('window:close', () => mainWindow?.close());
+
+    ipcMain.handle('shell:openExternal', (event, url) => {
+      if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
+        shell.openExternal(url);
+      }
+    });
 }
 
 // ----------------------------
 // Window
 // ----------------------------
+function fitToWorkArea(win) {
+  const display = screen.getDisplayMatching(win.getBounds());
+  win.setBounds(display.workArea);
+}
+
 function createWindow() {
     console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        show: true,
+        show: false,
         frame: false,
         maximizable: true,
         minimizable: true,
@@ -276,9 +287,12 @@ function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    mainWindow.once('ready-to-show', () => mainWindow.show());
 
-    // Start maximized (fills screen, keeps custom titlebar)
-    mainWindow.maximize();
+    // Immediately size to the display's workArea to avoid the frameless
+    // maximize overflow bug on Windows (invisible resize-border padding
+    // pushes content past visible screen area).
+    fitToWorkArea(mainWindow);
 
     // Prevent handler accumulation if createWindow is called more than once
     mainWindow.removeAllListeners('close');
@@ -305,7 +319,10 @@ function createWindow() {
     });
 
     // Notify renderer when maximized state changes
-    mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximize-changed', true));
+    mainWindow.on('maximize', () => {
+        fitToWorkArea(mainWindow);
+        mainWindow.webContents.send('window:maximize-changed', true);
+    });
     mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximize-changed', false));
 }
 
