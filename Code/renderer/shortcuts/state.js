@@ -34,6 +34,7 @@ const DEFAULT_SHORTCUTS = {
   ecosystemWatcher: null,
   mcp: null,
   projectInspector: null,
+  researcherTool: null,
 };
 
 const S = { shortcuts: {} };
