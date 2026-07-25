@@ -143,6 +143,13 @@ export default class PanelRegistry {
       this._mcpPanel.classList.remove('open');
     }
 
+    // Researcher — close panel + destroy browser view when any other tool opens
+    const rsPanel = document.getElementById('rsPanel');
+    if (rsPanel?.classList.contains('open')) {
+      rsPanel.classList.remove('open');
+      window.electronAPI.researcher.destroyBrowserView().catch(() => {});
+    }
+
     // Service tracker — close when any tool opens
     closeServiceTracker();
   }
