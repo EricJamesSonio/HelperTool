@@ -64,7 +64,8 @@ import {
     initTools,
     handleRepoChange,
     closeAllPanels,
-    getTerminalUI
+    getTerminalUI,
+    ensureTerminalUI
 } from './app_manager/toolsManager.js';
 
 import * as sessionNotes from './sessionNotes.js';
@@ -75,7 +76,7 @@ import { init as initServiceTracker } from './serviceTracker.js';
 
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 import * as essentialsGlossary from './essentialsGlossary.js';
-import { openShortcutSetup, onShortcutSave } from './shortcut-setup.js';
+import { openShortcutSetup, onShortcutSave, showConfirmDialog } from './shortcut-setup.js';
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
@@ -113,8 +114,8 @@ function _shortcutLabel(type) {
   return `${type === 'server' ? 'Server' : 'Client'} — ${(state.selectedRepoPath || '').split(/[/\\]/).pop()}`;
 }
 
-function _checkShortcutRunning() {
-  const termUI = getTerminalUI();
+async function _checkShortcutRunning() {
+  const termUI = await ensureTerminalUI();
   if (!termUI) return;
   ['server', 'client'].forEach(type => {
     const cfg = shortcutState[type];
@@ -148,11 +149,7 @@ async function runShortcut(type, repoPath) {
   if (!cfg) return;
   try {
     const label = _shortcutLabel(type);
-    const termUI = getTerminalUI();
-    if (!termUI) {
-      console.error('[Shortcut] Terminal UI not initialized yet');
-      return;
-    }
+    const termUI = await ensureTerminalUI();
     await termUI.openTerminal(cfg.cwd, label, cfg.command);
     cfg.running = true;
     updateShortcutButtons();
@@ -162,7 +159,7 @@ async function runShortcut(type, repoPath) {
 }
 
 // Listen for terminal exit events to clear running state
-window.electronAPI?.terminal?.onTerminalExit?.(() => {
+window.electronAPI?.onTerminalExit?.(() => {
   setTimeout(_checkShortcutRunning, 200);
 });
 
@@ -173,6 +170,22 @@ function setupShortcutButton(type, btn) {
     const cfg = shortcutState[type];
     if (!cfg) {
       openShortcutSetup(type, state.selectedRepoPath, null);
+      return;
+    }
+    if (cfg.running) {
+      const label = _shortcutLabel(type);
+      const termUI = await ensureTerminalUI();
+      if (!termUI.hasTabWithLabel(label)) {
+        cfg.running = false;
+        updateShortcutButtons();
+        return;
+      }
+      const confirmed = await showConfirmDialog(`Stop the ${type === 'server' ? 'Server' : 'Client'}?`);
+      if (confirmed) {
+        termUI.killTerminalByLabel(label);
+        cfg.running = false;
+        updateShortcutButtons();
+      }
       return;
     }
     await runShortcut(type, state.selectedRepoPath);

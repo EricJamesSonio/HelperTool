@@ -312,6 +312,83 @@ export function openCreateFilesModal(parentPath, onComplete) {
   setTimeout(() => { textarea.focus(); }, 50);
 }
 
+export function openCreateFolderModal(parentPath, onComplete) {
+  if (!parentPath) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay cm-modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-content cm-modal cm-create-modal" style="max-width:420px">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Folder</h3>
+        <button class="modal-close-btn cm-modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="cm-file-path">${_esc(parentPath)}</div>
+        <label class="cm-field-label">Folder name:</label>
+        <input type="text" class="cm-rename-input" placeholder="e.g. my-folder" autocomplete="off">
+        <div class="cm-create-error" style="display:none"></div>
+      </div>
+      <div class="modal-actions cm-modal-actions">
+        <button class="modal-btn modal-btn-primary cm-create-btn">Create Folder</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  const input = overlay.querySelector('.cm-rename-input');
+  const createBtn = overlay.querySelector('.cm-create-btn');
+  const closeBtn = overlay.querySelector('.cm-modal-close');
+  const errorEl = overlay.querySelector('.cm-create-error');
+
+  const keyHandler = (e) => {
+    if (e.key === 'Escape') close();
+    if (e.key === 'Enter' && document.activeElement === input) createBtn.click();
+  };
+  document.addEventListener('keydown', keyHandler);
+
+  function close() {
+    document.removeEventListener('keydown', keyHandler);
+    overlay.classList.remove('open');
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+    setTimeout(() => { if (overlay.isConnected) overlay.remove(); }, 250);
+  }
+
+  createBtn.addEventListener('click', async () => {
+    const name = input.value.trim();
+    if (!name) {
+      errorEl.textContent = 'Folder name cannot be empty.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (/[<>:"/\\|?*]/.test(name)) {
+      errorEl.textContent = 'Invalid characters in folder name.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    errorEl.style.display = 'none';
+    createBtn.disabled = true;
+    createBtn.textContent = '...';
+    const res = await window.electronAPI.createFolder(parentPath, name);
+    if (res.success) {
+      close();
+      onComplete?.();
+      showToast('Folder created');
+    } else {
+      errorEl.textContent = res.error || 'Failed to create folder';
+      errorEl.style.display = 'block';
+      createBtn.disabled = false;
+      createBtn.textContent = 'Create Folder';
+    }
+  });
+
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  setTimeout(() => { input.focus(); }, 50);
+}
+
 export function showToast(message, type = 'success', duration = 3000) {
   const existing = document.querySelector('.cm-toast');
   if (existing) existing.remove();
