@@ -417,6 +417,15 @@ function populateSidebar() {
     } catch (err) {  console.error('[Tools] CodeSwamp:', err) }
   }, 'opencode'));
 
+  add(createSidebarItem(ICONS.radar, 'Researcher', 'Select AI & build prompts with live browser', async () => {
+    try {
+      const mod = await import('../researcherUI.js');
+      if (mod.isResearcherOpen()) { mod.close(); return; }
+      _registry.closeAll();
+      await mod.open();
+    } catch (err) { console.error('[Tools] Researcher:', err); }
+  }, 'researcher'));
+
   body.appendChild(frag);
 }
 
@@ -942,6 +951,15 @@ function _buildShortcutActions() {
       _registry.closeAll();
       await oc.open();
     } catch (err) { console.error('[Shortcuts] CodeSwamp:', err); }
+  };
+
+  actions.researcherTool = async () => {
+    try {
+      const mod = await import('../researcherUI.js');
+      if (mod.isResearcherOpen()) { mod.close(); return; }
+      _registry.closeAll();
+      await mod.open();
+    } catch (err) { console.error('[Shortcuts] Researcher:', err); }
   };
 
   return actions;
