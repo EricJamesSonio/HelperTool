@@ -14,6 +14,7 @@ const repoBridge = {
     getDocignore:        (repoPath)      => ipcRenderer.invoke('get-docignore', repoPath),
     getLastSelected:     ()              => ipcRenderer.invoke('get-last-selected'),
     setLastSelected:     (items)         => ipcRenderer.invoke('set-last-selected', items),
+    getAppStartTime:     ()              => ipcRenderer.invoke('get-app-start-time'),
     getActiveProject:    ()              => ipcRenderer.invoke('get-active-project'),
     readFile:            (filePath)      => ipcRenderer.invoke('read-file', filePath),
     writeFile:           (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
@@ -579,6 +580,13 @@ const geminiBridge = {
   listConversations:  (repoPath)                    => ipcRenderer.invoke('gemini:listConversations', { repoPath }),
 };
 
+const researcherBridge = {
+  createBrowserView: (url, bounds) => ipcRenderer.invoke('researcher:createBrowserView', { url, bounds }),
+  resizeBrowserView: (bounds) => ipcRenderer.invoke('researcher:resizeBrowserView', { bounds }),
+  destroyBrowserView: () => ipcRenderer.invoke('researcher:destroyBrowserView'),
+  navigate: (url) => ipcRenderer.invoke('researcher:navigate', { url }),
+};
+
 const projectInspectorBridge = {
   inspect:          (repoPath) => ipcRenderer.invoke('projectInspector:inspect', repoPath),
   get:              (repoPath) => ipcRenderer.invoke('projectInspector:get', repoPath),
@@ -672,6 +680,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...automationBridge,
     ...shortcutBridge,
     watcher: watcherBridge,
+    researcher: researcherBridge,
     ...codebaseManagerBridge,
     ...imageBridge,
     ...videoBridge,
