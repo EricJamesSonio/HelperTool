@@ -603,6 +603,7 @@ const ecoBridge = {
   run:      (path, cmd, terminalId) => ipcRenderer.invoke('eco:run', path, cmd, terminalId),
   stop:     ()             => ipcRenderer.invoke('eco:stop'),
   status:   ()             => ipcRenderer.invoke('eco:status'),
+  setUrl:   (url)          => ipcRenderer.invoke('eco:setUrl', url),
 };
 
 

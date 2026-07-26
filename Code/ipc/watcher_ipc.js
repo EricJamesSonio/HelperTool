@@ -180,6 +180,10 @@ function register(getMainWindow) {
   ipcMain.handle('eco:status', safe(async function () {
     return _ecoTool.getStatus();
   }));
+
+  ipcMain.handle('eco:setUrl', safe(async function (_, url) {
+    return _ecoTool.setUrl(url);
+  }));
 }
 
 module.exports = { register };

@@ -39,6 +39,7 @@ function start(path, command, terminalId) {
 
   _urlTimeout = setTimeout(function () {
     if (!_status.url) {
+      _status.url = '__MANUAL_INPUT_REQUIRED__';
       _store.push('terminalErrors', {
         source: 'system',
         level: 'warn',
@@ -121,6 +122,33 @@ function _attachToTerminal(id) {
 
   termApi.addDataListener(id, _onTerminalData);
   termApi.addExitListener(id, _onTerminalExit);
+
+  var backfill = termApi.getTerminalBuffer(id);
+  if (backfill) _processOutput(backfill);
+}
+
+function _detectUrl(text) {
+  if (!text) return null;
+
+  var m = text.match(/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})/i);
+  if (m) {
+    var port = parseInt(m[1], 10);
+    if (port >= 1024) return 'http://' + m[0];
+  }
+
+  m = text.match(/port[:\s]*(\d{4,5})/i);
+  if (m) {
+    port = parseInt(m[1], 10);
+    if (port >= 1024) return 'http://localhost:' + port;
+  }
+
+  m = text.match(/(?:listening|running|started|serve)\D*(\d{4,5})/i);
+  if (m) {
+    port = parseInt(m[1], 10);
+    if (port >= 1024) return 'http://localhost:' + port;
+  }
+
+  return null;
 }
 
 function _processOutput(data) {
@@ -137,6 +165,14 @@ function _processOutput(data) {
     if (result && !_status.url) {
       _status.url = result.url;
       _openBrowser(result.url);
+    }
+
+    if (!_status.url) {
+      var urlFromLine = _detectUrl(trimmed);
+      if (urlFromLine) {
+        _status.url = urlFromLine;
+        _openBrowser(urlFromLine);
+      }
     }
 
     var trimmed = line.trim();
@@ -322,4 +358,12 @@ function getStatus() {
   };
 }
 
-module.exports = { start: start, stop: stop, getStatus: getStatus };
+function setUrl(url) {
+  if (!url || _status.url && _status.url !== '__MANUAL_INPUT_REQUIRED__') return { success: false, error: 'Already connected' };
+  _status.url = url;
+  _openBrowser(url);
+  if (_urlTimeout) { clearTimeout(_urlTimeout); _urlTimeout = null; }
+  return { success: true };
+}
+
+module.exports = { start: start, stop: stop, getStatus: getStatus, setUrl: setUrl };

@@ -12,6 +12,7 @@ function getPty() {
 }
 
 const terminals = new Map();
+const _outputBuffers = new Map();
 let nextId = 1;
 
 let _errorEngine = null;
@@ -116,7 +117,13 @@ function killTerminal(id) {
   if (t) {
     try { t.term.kill(); } catch (e) { /* ignore */ }
     terminals.delete(id);
+    _outputBuffers.delete(id);
   }
+}
+
+function getTerminalBuffer(id) {
+  var buf = _outputBuffers.get(id);
+  return buf ? buf.join('') : '';
 }
 
 function register({ getMainWindow }) {
@@ -157,6 +164,13 @@ function register({ getMainWindow }) {
       if (win && !win.isDestroyed()) {
         win.webContents.send('terminal:data', { id, data });
 
+        // ── Buffer output for backfill ──
+        var buf = _outputBuffers.get(id);
+        if (buf) {
+          buf.push(data);
+          if (buf.length > 200) buf.shift();
+        }
+
         // ── Error Cop: Process output ──
         if (_errorEngine && sessionId) {
           try {
@@ -190,10 +204,12 @@ function register({ getMainWindow }) {
       if (els) els.forEach(function (cb) { try { cb(exitCode, signal); } catch (e) { /* ignore */ } });
       _exitListeners.delete(id);
       _dataListeners.delete(id);
+      _outputBuffers.delete(id);
       terminals.delete(id);
     });
 
     terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId });
+    _outputBuffers.set(id, []);
     return { id, cwd: resolvedCwd, sessionId };
   });
 
@@ -222,4 +238,4 @@ function register({ getMainWindow }) {
   });
 }
 
-module.exports = { register, setErrorEngine, getErrorEngine, addDataListener, removeDataListener, addExitListener, removeExitListener, killTerminal };
+module.exports = { register, setErrorEngine, getErrorEngine, addDataListener, removeDataListener, addExitListener, removeExitListener, killTerminal, getTerminalBuffer };

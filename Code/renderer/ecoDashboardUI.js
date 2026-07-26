@@ -211,6 +211,7 @@ async function _handleShortcut(type) {
   var cmd = cfg.command || '';
   if (!cwd || !cmd) return;
 
+  var delay = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   var label = type === 'server' ? 'Server' : 'Client';
   document.getElementById('ecoPathInput').value = cwd;
   document.getElementById('ecoCmdInput').value = cmd;
@@ -230,6 +231,9 @@ async function _handleShortcut(type) {
     var tm = await import('./app_manager/toolsManager.js');
     var termUI = await tm.ensureTerminalUI();
     var termId = await termUI.openTerminal(cwd, label, cmd);
+
+    await delay(300);
+
     var res = await window.electronAPI.eco.run(cwd, cmd, termId);
     if (!res || !res.success) {
       document.getElementById('ecoStatusText').textContent = 'Failed: ' + ((res && res.error) || 'unknown');
@@ -240,10 +244,23 @@ async function _handleShortcut(type) {
       document.getElementById('ecoShortcutClient').disabled = false;
     }
   } catch (e) {
-    document.getElementById('ecoStatusText').textContent = 'Error: ' + e.message;
-    document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
-    document.getElementById('ecoRunBtn').style.display = '';
-    document.getElementById('ecoStopBtn').style.display = 'none';
+    document.getElementById('ecoStatusText').textContent = 'Terminal unavailable, switching to direct mode\u2026';
+    document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-waiting';
+    await delay(500);
+    try {
+      var res = await window.electronAPI.eco.run(cwd, cmd);
+      if (!res || !res.success) {
+        document.getElementById('ecoStatusText').textContent = 'Failed: ' + ((res && res.error) || 'unknown');
+        document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
+        document.getElementById('ecoRunBtn').style.display = '';
+        document.getElementById('ecoStopBtn').style.display = 'none';
+      }
+    } catch (e2) {
+      document.getElementById('ecoStatusText').textContent = 'Error: ' + e2.message;
+      document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
+      document.getElementById('ecoRunBtn').style.display = '';
+      document.getElementById('ecoStopBtn').style.display = 'none';
+    }
     document.getElementById('ecoShortcutServer').disabled = false;
     document.getElementById('ecoShortcutClient').disabled = false;
   }
@@ -314,15 +331,16 @@ async function _refreshStatus() {
         dot.className = 'eco-status-indicator eco-status-waiting';
         txt.textContent = 'Waiting for URL \u2014 enter manually:';
         urlDisp.style.display = '';
-        urlDisp.innerHTML = '<input class="eco-manual-url" id="ecoManualUrl" type="text" placeholder="http://localhost:XXXX" />' +
-          '<button class="eco-quadrant-btn" id="ecoManualUrlBtn">Connect</button>';
-        document.getElementById('ecoManualUrlBtn').addEventListener('click', async function () {
-          var u = document.getElementById('ecoManualUrl').value.trim();
-          if (u) {
-            try { await window.electronAPI.eco.stop(); } catch (e) {}
-            try { await window.electronAPI.eco.run(document.getElementById('ecoPathInput').value.trim(), document.getElementById('ecoCmdInput').value.trim()); } catch (e) {}
-          }
-        });
+        if (!urlDisp.querySelector('#ecoManualUrl')) {
+          urlDisp.innerHTML = '<input class="eco-manual-url" id="ecoManualUrl" type="text" placeholder="http://localhost:XXXX" />' +
+            '<button class="eco-quadrant-btn" id="ecoManualUrlBtn">Connect</button>';
+          document.getElementById('ecoManualUrlBtn').addEventListener('click', async function () {
+            var u = document.getElementById('ecoManualUrl').value.trim();
+            if (u) {
+              try { await window.electronAPI.eco.setUrl(u); } catch (e) {}
+            }
+          });
+        }
       } else {
         dot.className = 'eco-status-indicator eco-status-waiting';
         txt.textContent = 'Running \u2014 waiting for URL\u2026';
