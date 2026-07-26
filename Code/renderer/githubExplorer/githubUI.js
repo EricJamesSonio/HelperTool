@@ -33,7 +33,6 @@ export async function initUI(container) {
   state.savedTrees = result.success ? result.trees : [];
   container.innerHTML = getInputTemplate(state);
   bindInputEvents(container);
-  container.querySelector('#geUrlInput')?.focus();
 }
 
 export function switchToTreeView(container) {
