@@ -22,7 +22,8 @@ const FEATURES_META = [
     { id: 'themeEngine',   icon: ICON_LS_PALETTE,   label: 'Full Theme Engine', desc: '20 themes + accent pickers (reload required)' },
     { id: 'folderFilters', icon: ICON_LS_FOLDER,    label: 'Folder Filters',    desc: 'Ignore / Focus folder panels' },
     { id: 'swagger',       icon: ICON_LS_LIGHTNING, label: 'Swagger Import',    desc: 'Auto-import from OpenAPI specs' },
-    { id: 'ecosystemWatcher', icon: ICON_LS_SEARCH, label: 'Ecosystem Watcher', desc: 'Real-time runtime observability & event timeline' },
+    { id: 'ecosystemWatcher', icon: ICON_LS_SEARCH, label: 'Ecosystem Dashboard', desc: 'Real-time 2x2 grid: logs, network, console & errors' },
+    { id: 'performanceTracker', icon: ICON_LS_SEARCH, label: 'Performance Tracker', desc: 'Browser performance metrics with color-coded status' },
 ];
 
 function ensureModal(getFeatures, saveFeatures) {

@@ -238,14 +238,25 @@ function populateSidebar() {
   }
 
   if (_feats.ecosystemWatcher) {
-    add(createSidebarItem(ICONS.eye, 'Ecosystem Watcher', 'Real-time runtime observability & event timeline', async () => {
+    add(createSidebarItem(ICONS.eye, 'Ecosystem Dashboard', 'Real-time 2x2 grid: logs, network, console & errors', async () => {
       try {
-        const w = await import('../ecosystemWatcherUI.js');
+        const w = await import('../ecoDashboard.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
-      } catch (err) { console.error('[Tools] Ecosystem Watcher:', err); }
+      } catch (err) { console.error('[Tools] Ecosystem Dashboard:', err); }
     }, 'ecosystemWatcher'));
+  }
+
+  if (_feats.performanceTracker) {
+    add(createSidebarItem(ICONS.radar, 'Performance Tracker', 'Browser performance metrics & timing data', async () => {
+      try {
+        const p = await import('../performanceTracker.js');
+        if (p.isOpen()) { p.close(); return; }
+        _registry.closeAll();
+        p.open();
+      } catch (err) { console.error('[Tools] Performance Tracker:', err); }
+    }, 'performanceTracker'));
   }
 
   add(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => {
@@ -781,11 +792,22 @@ function _buildShortcutActions() {
   if (_feats.ecosystemWatcher) {
     actions.ecosystemWatcher = async () => {
       try {
-        const w = await import('../ecosystemWatcherUI.js');
+        const w = await import('../ecoDashboard.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
-      } catch (err) { console.error('[Shortcuts] Ecosystem Watcher:', err); }
+      } catch (err) { console.error('[Shortcuts] Ecosystem Dashboard:', err); }
+    };
+  }
+
+  if (_feats.performanceTracker) {
+    actions.performanceTracker = async () => {
+      try {
+        const p = await import('../performanceTracker.js');
+        if (p.isOpen()) { p.close(); return; }
+        _registry.closeAll();
+        p.open();
+      } catch (err) { console.error('[Shortcuts] Performance Tracker:', err); }
     };
   }
 
@@ -1177,8 +1199,8 @@ function _registerMcpTools() {
 
   toolRegistry.register({
     id: 'ecosystemWatcher',
-    name: 'Ecosystem Watcher',
-    description: 'Real-time runtime observability — log, error, network & process event timeline across sessions.',
+    name: 'Ecosystem Dashboard',
+    description: 'Real-time 2x2 grid dashboard — logs, network, console & errors from the app ecosystem.',
     color: '#4F8EF7',
     icon: ICONS.radar,
     cheatsheetPath: 'MCP/ecosystemWatcher/watcher-cheatsheet.md',
@@ -1195,7 +1217,7 @@ function _registerMcpTools() {
     },
     openPanelFn: async () => {
       try {
-        const w = await import('../ecosystemWatcherUI.js');
+        const w = await import('../ecoDashboard.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
