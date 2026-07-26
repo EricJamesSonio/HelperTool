@@ -26,6 +26,7 @@ const DEFAULT_FEATURES = {
   essentialsGlossary: true,
   uiLayoutHelper: true,
   ecosystemWatcher: true,
+  performanceTracker: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -77,6 +78,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-ui-layout-helper', !_features.uiLayoutHelper);
   document.body.classList.toggle('feat-no-essentials-glossary', !_features.essentialsGlossary);
   document.body.classList.toggle('feat-no-ecosystem-watcher', !_features.ecosystemWatcher);
+  document.body.classList.toggle('feat-no-performance-tracker', !_features.performanceTracker);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────
@@ -204,6 +206,14 @@ function _injectWizard() {
     desc: 'Manage Docker containers, images & stats via Windows named pipes.',
     heavy: false,
     color: 'var(--blue)',
+  },
+  {
+    id: 'performanceTracker',
+    icon: ICON_FW_SEARCH,
+    label: 'Performance Tracker',
+    desc: 'Browser performance metrics — navigation & resource timing with color-coded status.',
+    heavy: false,
+    color: 'var(--green)',
   },
   ];
 
@@ -428,6 +438,7 @@ function _injectWizard() {
     .fw-feature[data-feature="dbInspector"]   .fw-feature-icon svg { color: var(--blue); }
     .fw-feature[data-feature="portManagerTool"] .fw-feature-icon svg { color: var(--blue); }
   .fw-feature[data-feature="dockerTool"] .fw-feature-icon svg { color: var(--blue); }
+  .fw-feature[data-feature="performanceTracker"] .fw-feature-icon svg { color: var(--green); }
   `;
 
   document.head.appendChild(style);
