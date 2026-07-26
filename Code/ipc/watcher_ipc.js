@@ -3,36 +3,7 @@
 const { ipcMain } = require('electron');
 
 const _ecoStore = require('../ecoStore');
-
-let _ecoPushing = false;
-
-function _ecoPushMain(type, level, args) {
-  if (_ecoPushing) return;
-  _ecoPushing = true;
-  try {
-    const text = Array.from(args).map(function (a) { return typeof a === 'string' ? a : JSON.stringify(a, null, 2); }).join(' ');
-    _ecoStore.push(type, { source: 'main', level: level, text: text, ts: Date.now() });
-  } catch (e) { /* ignore */ }
-  _ecoPushing = false;
-}
-
-var _ecoOrigLog = console.log;
-var _ecoOrigWarn = console.warn;
-var _ecoOrigError = console.error;
-var _ecoOrigInfo = console.info;
-
-console.log = function () { _ecoPushMain('logs', 'log', arguments); _ecoOrigLog.apply(console, arguments); };
-console.warn = function () { _ecoPushMain('logs', 'warn', arguments); _ecoOrigWarn.apply(console, arguments); };
-console.error = function () { _ecoPushMain('logs', 'error', arguments); _ecoOrigError.apply(console, arguments); };
-console.info = function () { _ecoPushMain('logs', 'info', arguments); _ecoOrigInfo.apply(console, arguments); };
-
-process.on('uncaughtException', function (err) {
-  _ecoStore.push('errors', { source: 'main', level: 'error', text: err.message || String(err), details: err.stack || '', ts: Date.now() });
-});
-
-process.on('unhandledRejection', function (reason) {
-  _ecoStore.push('errors', { source: 'main', level: 'error', text: reason && reason.message ? reason.message : String(reason), details: reason && reason.stack ? reason.stack : '', ts: Date.now() });
-});
+const _ecoTool = require('../ecoTool');
 
 let _store = null;
 let _filter = null;
@@ -187,7 +158,7 @@ function register(getMainWindow) {
     return urlMonitor.getHealthHistory(port, limit);
   }));
 
-  // ─── Eco Dashboard IPC ───
+  // ─── Ecosystem Tool IPC ───
 
   ipcMain.handle('eco:feed', safe(async function (_, type, cursor) {
     return _ecoStore.feed(type, cursor);
@@ -198,29 +169,17 @@ function register(getMainWindow) {
     return { success: true };
   }));
 
-  ipcMain.on('eco:push', function (_, event) {
-    if (!event || !event.type) return;
-    if (event.type === 'network' && !_ecoShouldCaptureNetwork(event)) return;
-    _ecoStore.push(event.type, event);
-  });
+  ipcMain.handle('eco:run', safe(async function (_, path, command) {
+    return _ecoTool.start(path, command);
+  }));
 
-  function _ecoShouldCaptureNetwork(e) {
-    if (!e.url) return false;
-    var url = e.url.toLowerCase();
-    var qIdx = url.indexOf('?');
-    var path = qIdx !== -1 ? url.slice(0, qIdx) : url;
-    var fIdx = path.indexOf('#');
-    if (fIdx !== -1) path = path.slice(0, fIdx);
-    var staticExts = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.woff', '.ico', '.map'];
-    for (var i = 0; i < staticExts.length; i++) {
-      if (path.endsWith(staticExts[i])) return false;
-    }
-    if (url.indexOf('/api') !== -1) return true;
-    if (url.indexOf('/graphql') !== -1) return true;
-    if (url.indexOf('/rest') !== -1) return true;
-    if (e.contentType && e.contentType.indexOf('application/json') !== -1) return true;
-    return false;
-  }
+  ipcMain.handle('eco:stop', safe(async function () {
+    return _ecoTool.stop();
+  }));
+
+  ipcMain.handle('eco:status', safe(async function () {
+    return _ecoTool.getStatus();
+  }));
 }
 
 module.exports = { register };
