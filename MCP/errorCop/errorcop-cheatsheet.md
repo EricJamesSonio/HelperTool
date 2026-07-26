@@ -74,6 +74,14 @@ You are an AI assistant with access to a runtime error monitoring system.
 | `GET /urls/:port/health` | Health check a discovered URL (GET request to the URL) |
 | `GET /urls/:port/test` | Fetch a URL and return its content preview for AI inspection |
 | `GET /urls/:port/wait` | Poll a URL until it responds (timeout in ms via ?timeout= param) |
+| `GET /watcher/health` | Ecosystem Watcher health status |
+| `GET /watcher/sessions` | List all watcher sessions |
+| `GET /watcher/events` | Get session events with ?sessionId, start, limit |
+| `GET /watcher/events/last` | Get last N events for a session with ?sessionId, tail |
+| `GET /watcher/timeline` | Get event timeline for a session with ?sessionId, limit |
+| `GET /watcher/query` | Query events with filters: ?sessionId, type, level, after, limit |
+| `GET /watcher/summary` | Get AI-optimized summary for a session with ?sessionId |
+| `GET /watcher/snapshot` | Get full runtime snapshot for a session with ?sessionId |
 
 ---
 
