@@ -39,6 +39,7 @@ export function getTemplate() {
                 <div class="rs-account-list" id="rsAccountList">
                   <div class="rs-section-label">Saved Accounts</div>
                   <div class="rs-account-rows" id="rsAccountRows"></div>
+                  <button class="rs-add-account-btn" id="rsAddAccountBtn">+ Add Account</button>
                   <div class="rs-empty-accounts" id="rsEmptyAccounts">No saved accounts yet</div>
                 </div>
 
@@ -77,6 +78,9 @@ export function getTemplate() {
                   <div class="rs-toolbar">
                     <button class="rs-btn rs-btn-secondary" id="rsInsertTicketBtn">Insert Ticket</button>
                     <button class="rs-btn rs-btn-secondary" id="rsApplyPromptBtn">Apply Prompt</button>
+                    <button class="rs-btn rs-btn-secondary" id="rsPlanningBtn">Planning</button>
+                    <button class="rs-btn rs-btn-secondary" id="rsStonesBtn">Stones</button>
+                    <button class="rs-btn rs-btn-secondary" id="rsKitBtn">Kit</button>
                   </div>
                   <div class="rs-actions">
                     <button class="rs-btn rs-btn-primary" id="rsCopyBtn">Copy</button>
