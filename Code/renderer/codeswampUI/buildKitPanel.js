@@ -42,7 +42,8 @@ function _formatItemDetail(kit, item) {
   return lines.join('\n');
 }
 
-export async function openBuildKitPanel() {
+export async function openBuildKitPanel(targetTextareaId) {
+  const inputId = targetTextareaId || 'ocInput';
   const existing = document.getElementById('ocBuildKitPanelModal');
   if (existing) existing.remove();
 
@@ -78,7 +79,7 @@ export async function openBuildKitPanel() {
   document.addEventListener('keydown', kbHandler);
 
   function populateInput(text) {
-    const input = document.getElementById('ocInput');
+    const input = document.getElementById(inputId);
     if (!input) return;
     const existing = input.value.trim();
     input.value = existing ? existing + '\n' + text : text;
