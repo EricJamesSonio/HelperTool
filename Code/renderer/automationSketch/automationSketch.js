@@ -115,9 +115,29 @@ export default class AutomationSketch {
     });
   }
 
+  _readThemeColors() {
+    const s = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => s.getPropertyValue(name).trim() || fallback;
+    return {
+      bg: v('--bg-base', '#010409'),
+      surface: v('--bg-surface', '#0a0c10'),
+      elevated: v('--bg-elevated', '#0f1117'),
+      border: v('--border-default', 'rgba(255,255,255,0.12)'),
+      borderStrong: v('--border-strong', 'rgba(255,255,255,0.20)'),
+      textPrimary: v('--text-primary', '#f0f6fc'),
+      textSecondary: v('--text-secondary', '#8b949e'),
+      accent: v('--accent', '#22d3ee'),
+      accentGlow: v('--accent-glow', 'rgba(34,211,238,0.20)'),
+      accentDim: v('--accent-dim', 'rgba(34,211,238,0.12)'),
+      grid: 'rgba(255,255,255,0.04)',
+      edgeColor: 'rgba(255,255,255,0.15)',
+      portStroke: v('--text-primary', '#f0f6fc'),
+    };
+  }
+
   _initCanvas() {
     if (!this._canvasEl) return;
-    this.canvasEngine = new CanvasEngine(this._canvasEl, this.state);
+    this.canvasEngine = new CanvasEngine(this._canvasEl, this.state, this._readThemeColors());
   }
 
   _bindCanvasEvents() {

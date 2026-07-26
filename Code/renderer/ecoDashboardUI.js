@@ -32,11 +32,19 @@ export function open() {
   _panel.classList.add('open');
   _open = true;
   _initState();
+  _autoFillPath();
   _refreshStatus();
   _poll();
   if (_pollTimer) clearInterval(_pollTimer);
   _pollTimer = setInterval(_pollAndStatus, 2000);
   document.addEventListener('keydown', _escHandler);
+}
+
+async function _autoFillPath() {
+  try {
+    var p = await window.electronAPI.getActiveProject();
+    if (p && p.repoPath) document.getElementById('ecoPathInput').value = p.repoPath;
+  } catch (e) { /* ignore */ }
 }
 
 export function close() {
