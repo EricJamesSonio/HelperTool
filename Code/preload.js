@@ -595,6 +595,14 @@ const projectInspectorBridge = {
   get:              (repoPath) => ipcRenderer.invoke('projectInspector:get', repoPath),
   list:             ()         => ipcRenderer.invoke('projectInspector:list'),
   delete:           (repoPath) => ipcRenderer.invoke('projectInspector:delete', repoPath),
+  scanApi:          (repoPath) => ipcRenderer.invoke('projectInspector:scanApi', repoPath),
+  getApiEndpoints:  (repoPath) => ipcRenderer.invoke('projectInspector:getApiEndpoints', repoPath),
+};
+
+const ecoBridge = {
+  feed:     (type, cursor) => ipcRenderer.invoke('eco:feed', type, cursor),
+  clear:    (type)         => ipcRenderer.invoke('eco:clear', type),
+  push:     (event)        => ipcRenderer.send('eco:push', event),
 };
 
 
@@ -683,6 +691,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...automationBridge,
     ...shortcutBridge,
     watcher: watcherBridge,
+    eco: ecoBridge,
     researcher: researcherBridge,
     ...codebaseManagerBridge,
     ...imageBridge,
