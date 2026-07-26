@@ -169,8 +169,8 @@ function register(getMainWindow) {
     return { success: true };
   }));
 
-  ipcMain.handle('eco:run', safe(async function (_, path, command) {
-    return _ecoTool.start(path, command);
+  ipcMain.handle('eco:run', safe(async function (_, path, command, terminalId) {
+    return _ecoTool.start(path, command, terminalId);
   }));
 
   ipcMain.handle('eco:stop', safe(async function () {
