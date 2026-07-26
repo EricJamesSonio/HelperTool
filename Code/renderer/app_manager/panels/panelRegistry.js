@@ -6,6 +6,7 @@
 
 import * as fileSeederTool from '../../fileSeederTool.js';
 import * as locDetector from '../../locDetector.js';
+import * as ecoDashboard from '../../ecoDashboard.js';
 import { close as closeServiceTracker } from '../../serviceTracker.js';
 import { closeConfig as closeCliConfig } from '../../shortcuts/ui.js';
 import { state as csState } from '../../codeswampUI/state.js';
@@ -148,6 +149,15 @@ export default class PanelRegistry {
     if (rsPanel?.classList.contains('open')) {
       rsPanel.classList.remove('open');
       window.electronAPI.researcher.destroyBrowserView().catch(() => {});
+    }
+
+    // Ecosystem Dashboard — close when any other tool opens
+    if (ecoDashboard.isOpen()) { ecoDashboard.close(); }
+
+    // Performance Tracker — close when any other tool opens
+    const ptPanel = document.getElementById('perfTrackerPanel');
+    if (ptPanel?.classList.contains('open')) {
+      ptPanel.classList.remove('open');
     }
 
     // Service tracker — close when any tool opens
