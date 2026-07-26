@@ -602,7 +602,9 @@ const projectInspectorBridge = {
 const ecoBridge = {
   feed:     (type, cursor) => ipcRenderer.invoke('eco:feed', type, cursor),
   clear:    (type)         => ipcRenderer.invoke('eco:clear', type),
-  push:     (event)        => ipcRenderer.send('eco:push', event),
+  run:      (path, cmd)    => ipcRenderer.invoke('eco:run', path, cmd),
+  stop:     ()             => ipcRenderer.invoke('eco:stop'),
+  status:   ()             => ipcRenderer.invoke('eco:status'),
 };
 
 
