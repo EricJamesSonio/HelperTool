@@ -1,15 +1,27 @@
 let _panel = null;
 let _open = false;
 let _pollTimer = null;
+let _lastPath = '';
+let _lastCmd = '';
+let _shortcutConfig = null;
+let _shortcutRepoPath = '';
+
+document.addEventListener('repo:switched', function () {
+  _lastPath = '';
+  _lastCmd = '';
+  _shortcutConfig = null;
+  _shortcutRepoPath = '';
+});
 
 const _QUADRANTS = {
   consoleLogs:    { title: 'Console Logs',    icon: '\u2261', order: 0 },
   apiCalls:       { title: 'API Calls',       icon: '\u25CE', order: 1 },
   terminalErrors: { title: 'Terminal Errors', icon: '\u26A0', order: 2 },
-  browserErrors:  { title: 'Browser Errors',  icon: '\u2716', order: 3 },
+  apiErrors:      { title: 'API Errors',      icon: '\u2297', order: 3 },
+  browserErrors:  { title: 'Browser Errors',  icon: '\u2716', order: 4 },
 };
 
-const _TYPES = ['consoleLogs', 'apiCalls', 'terminalErrors', 'browserErrors'];
+const _TYPES = ['consoleLogs', 'apiCalls', 'terminalErrors', 'apiErrors', 'browserErrors'];
 const _state = {};
 
 function _initState() {
@@ -26,13 +38,14 @@ function _initState() {
 
 export function isOpen() { return _open; }
 
-export function open() {
+export async function open() {
   if (_open) return;
   if (!_panel) _buildPanel();
   _panel.classList.add('open');
   _open = true;
   _initState();
-  _autoFillPath();
+  await _autoFillPath();
+  _fetchShortcutConfig();
   _refreshStatus();
   _poll();
   if (_pollTimer) clearInterval(_pollTimer);
@@ -41,18 +54,33 @@ export function open() {
 }
 
 async function _autoFillPath() {
+  var pathInput = document.getElementById('ecoPathInput');
+  var cmdInput = document.getElementById('ecoCmdInput');
+
+  if (_lastPath) {
+    pathInput.value = _lastPath;
+    cmdInput.value = _lastCmd;
+    return;
+  }
+
   try {
     var p = await window.electronAPI.getActiveProject();
-    if (p && p.repoPath) document.getElementById('ecoPathInput').value = p.repoPath;
+    if (p && p.repoPath) pathInput.value = p.repoPath;
   } catch (e) { /* ignore */ }
 }
 
 export function close() {
   if (!_open) return;
+  _saveInputs();
   _panel.classList.remove('open');
   _open = false;
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
   document.removeEventListener('keydown', _escHandler);
+}
+
+function _saveInputs() {
+  _lastPath = document.getElementById('ecoPathInput').value.trim();
+  _lastCmd = document.getElementById('ecoCmdInput').value.trim();
 }
 
 function _escHandler(e) {
@@ -80,6 +108,10 @@ function _buildPanel() {
         '<div class="eco-control-row eco-status-row">' +
           '<span class="eco-status-indicator" id="ecoStatusDot"></span>' +
           '<span class="eco-status-text" id="ecoStatusText">Stopped</span>' +
+          '<span class="eco-shortcut-pills" id="ecoShortcutPills" style="display:none">' +
+            '<button class="eco-pill eco-pill-server" id="ecoShortcutServer">S</button>' +
+            '<button class="eco-pill eco-pill-client" id="ecoShortcutClient">C</button>' +
+          '</span>' +
           '<span class="eco-url-display" id="ecoUrlDisplay" style="display:none"></span>' +
         '</div>' +
       '</div>' +
@@ -96,6 +128,11 @@ function _buildPanel() {
   document.getElementById('ecoCmdInput').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') _handleRun();
   });
+  document.getElementById('ecoPathInput').addEventListener('input', _saveInputs);
+  document.getElementById('ecoPathInput').addEventListener('change', _fetchShortcutConfig);
+  document.getElementById('ecoCmdInput').addEventListener('input', _saveInputs);
+  document.getElementById('ecoShortcutServer').addEventListener('click', function () { _handleShortcut('server'); });
+  document.getElementById('ecoShortcutClient').addEventListener('click', function () { _handleShortcut('client'); });
 
   var grid = document.getElementById('ecoGrid');
   var sorted = _TYPES.slice().sort(function (a, b) { return _QUADRANTS[a].order - _QUADRANTS[b].order; });
@@ -142,6 +179,76 @@ async function _handleBrowse() {
   } catch (e) { /* ignore */ }
 }
 
+async function _fetchShortcutConfig() {
+  var pathInput = document.getElementById('ecoPathInput');
+  var repoPath = pathInput ? pathInput.value.trim() : '';
+  if (!repoPath || repoPath === _shortcutRepoPath) return;
+  _shortcutRepoPath = repoPath;
+  try {
+    _shortcutConfig = await window.electronAPI.shortcutGetConfig(repoPath);
+  } catch (e) { _shortcutConfig = null; }
+  _updateShortcutButtons();
+}
+
+function _updateShortcutButtons() {
+  var pills = document.getElementById('ecoShortcutPills');
+  if (!pills) return;
+  if (!_shortcutConfig || (!_shortcutConfig.server && !_shortcutConfig.client)) {
+    pills.style.display = 'none';
+    return;
+  }
+  pills.style.display = '';
+  var sBtn = document.getElementById('ecoShortcutServer');
+  var cBtn = document.getElementById('ecoShortcutClient');
+  if (sBtn) sBtn.style.display = _shortcutConfig.server ? '' : 'none';
+  if (cBtn) cBtn.style.display = _shortcutConfig.client ? '' : 'none';
+}
+
+async function _handleShortcut(type) {
+  if (!_shortcutConfig || !_shortcutConfig[type]) return;
+  var cfg = _shortcutConfig[type];
+  var cwd = cfg.cwd || '';
+  var cmd = cfg.command || '';
+  if (!cwd || !cmd) return;
+
+  var label = type === 'server' ? 'Server' : 'Client';
+  document.getElementById('ecoPathInput').value = cwd;
+  document.getElementById('ecoCmdInput').value = cmd;
+  document.getElementById('ecoShortcutServer').disabled = true;
+  document.getElementById('ecoShortcutClient').disabled = true;
+  document.getElementById('ecoRunBtn').style.display = 'none';
+  document.getElementById('ecoStopBtn').style.display = '';
+  document.getElementById('ecoStatusText').textContent = 'Starting\u2026';
+  document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-waiting';
+
+  for (var i = 0; i < _TYPES.length; i++) {
+    _state[_TYPES[i]] = { events: [], oldestSeq: null, hasMore: false, autoScroll: true, loading: false };
+    _renderQuadrant(_TYPES[i]);
+  }
+
+  try {
+    var tm = await import('./app_manager/toolsManager.js');
+    var termUI = await tm.ensureTerminalUI();
+    var termId = await termUI.openTerminal(cwd, label, cmd);
+    var res = await window.electronAPI.eco.run(cwd, cmd, termId);
+    if (!res || !res.success) {
+      document.getElementById('ecoStatusText').textContent = 'Failed: ' + ((res && res.error) || 'unknown');
+      document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
+      document.getElementById('ecoRunBtn').style.display = '';
+      document.getElementById('ecoStopBtn').style.display = 'none';
+      document.getElementById('ecoShortcutServer').disabled = false;
+      document.getElementById('ecoShortcutClient').disabled = false;
+    }
+  } catch (e) {
+    document.getElementById('ecoStatusText').textContent = 'Error: ' + e.message;
+    document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
+    document.getElementById('ecoRunBtn').style.display = '';
+    document.getElementById('ecoStopBtn').style.display = 'none';
+    document.getElementById('ecoShortcutServer').disabled = false;
+    document.getElementById('ecoShortcutClient').disabled = false;
+  }
+}
+
 async function _handleRun() {
   var path = document.getElementById('ecoPathInput').value.trim();
   var cmd = document.getElementById('ecoCmdInput').value.trim();
@@ -171,6 +278,8 @@ async function _handleRun() {
 }
 
 async function _handleStop() {
+  _lastPath = '';
+  _lastCmd = '';
   try {
     await window.electronAPI.eco.stop();
   } catch (e) { /* ignore */ }
@@ -179,6 +288,8 @@ async function _handleStop() {
   document.getElementById('ecoUrlDisplay').style.display = 'none';
   document.getElementById('ecoStatusText').textContent = 'Stopped';
   document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
+  document.getElementById('ecoShortcutServer').disabled = false;
+  document.getElementById('ecoShortcutClient').disabled = false;
 }
 
 async function _refreshStatus() {
@@ -225,6 +336,8 @@ async function _refreshStatus() {
         document.getElementById('ecoRunBtn').style.display = '';
         document.getElementById('ecoStopBtn').style.display = 'none';
       }
+      document.getElementById('ecoShortcutServer').disabled = false;
+      document.getElementById('ecoShortcutClient').disabled = false;
     }
   } catch (e) { /* ignore */ }
 }
