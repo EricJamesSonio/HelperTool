@@ -23,7 +23,8 @@ function _preview(s, max = 120) {
   return trimmed.slice(0, max).trimEnd() + '…';
 }
 
-export async function openStonePanel() {
+export async function openStonePanel(targetTextareaId) {
+  const inputId = targetTextareaId || 'ocInput';
   const existing = document.getElementById('ocStonePanelModal');
   if (existing) existing.remove();
 
@@ -56,7 +57,7 @@ export async function openStonePanel() {
   document.addEventListener('keydown', kbHandler);
 
   function populateInput(text) {
-    const input = document.getElementById('ocInput');
+    const input = document.getElementById(inputId);
     if (!input) return;
     const existing = input.value.trim();
     input.value = existing ? existing + '\n' + text : text;

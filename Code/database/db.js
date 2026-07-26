@@ -1,6 +1,7 @@
 const { getSqlJs } = require('./sharedSqlJs');
 const path = require('path');
 const fs = require('fs');
+const fsp = fs.promises;
 
 const DB_DIR = 'symbol-index';
 const DB_FILE = 'index.db';
@@ -37,11 +38,16 @@ async function initDatabase(app) {
   _appRef = app;
 
   const SQL = await getSqlJs();
+
+  // Yield before any sync I/O + WASM SQLite parsing
+  // so createWindow + renderer first paint aren't blocked
+  await new Promise(r => setTimeout(r, 0));
+
   const dbPath = getDbPath();
 
   let buffer = null;
   if (fs.existsSync(dbPath)) {
-    buffer = fs.readFileSync(dbPath);
+    buffer = await fsp.readFile(dbPath);
   }
 
   _db = new SQL.Database(buffer);

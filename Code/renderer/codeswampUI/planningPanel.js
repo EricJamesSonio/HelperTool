@@ -14,7 +14,8 @@ function _preview(s, max = 180) {
   return trimmed.slice(0, max).trimEnd() + '…';
 }
 
-export async function openPlanningPanel() {
+export async function openPlanningPanel(targetTextareaId) {
+  const inputId = targetTextareaId || 'ocInput';
   const existing = document.getElementById('ocPlanningPanelModal');
   if (existing) existing.remove();
 
@@ -49,7 +50,7 @@ export async function openPlanningPanel() {
   document.addEventListener('keydown', kbHandler);
 
   function populateInput(text) {
-    const input = document.getElementById('ocInput');
+    const input = document.getElementById(inputId);
     if (!input) return;
     const existing = input.value.trim();
     input.value = existing ? existing + '\n' + text : text;

@@ -27,10 +27,16 @@ function _esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-export function isOpen() { return _open; }
+function _hasOpenClass() {
+  const p = document.getElementById('ecosystemWatcherPanel');
+  return p?.classList.contains('open') ?? false;
+}
+
+export function isOpen() { return _hasOpenClass(); }
 
 export function open() {
-  if (_open) return;
+  if (_hasOpenClass()) return;
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
   if (!_panel) _buildPanel();
   _panel.classList.add('open');
   _open = true;
@@ -39,7 +45,7 @@ export function open() {
 }
 
 export function close() {
-  if (!_open) return;
+  if (!_hasOpenClass()) return;
   _panel.classList.remove('open');
   _open = false;
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }

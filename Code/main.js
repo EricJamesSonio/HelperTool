@@ -1,3 +1,4 @@
+const __appStartTime = Date.now();
 require('./utils/log').install();
 
 process.on('uncaughtException', (err) => {
@@ -8,7 +9,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('[Main] Unhandled rejection:', reason?.message || String(reason));
 });
 
-const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, screen } = require('electron');
 const path = require('path');
 
 // ── IPC timing wrapper (Phase 0 instrumentation) ──
@@ -103,17 +104,14 @@ if (!gotTheLock) {
         createTray();
 
         // ── Start DB init before window creation ──
-        // getSqlJs() already eagerly loaded + WASM fetch started in sharedSqlJs at module init.
-        // Add yield points between each init so renderer IPC (features, activeProject) gets through
-        // without waiting for all 3 DB chains to finish.
-        const yieldTick = () => new Promise(r => setTimeout(r, 0));
-        const dbPromise = (async () => {
-            await initDatabase(app);
-            await yieldTick();
-            await initChatDb(app);
-            await yieldTick();
-            await initErrorCopDb(app);
-        })();
+        // Each init*Db yields internally before sync I/O, so the event loop
+        // processes renderer IPC between them. Running in parallel lets them
+        // all start their async file reads concurrently.
+        const dbPromise = Promise.all([
+            initDatabase(app),
+            initChatDb(app),
+            initErrorCopDb(app),
+        ]);
 
         // ── Worker fork (non-blocking) ──
         workerProxy.start();
@@ -183,6 +181,8 @@ if (!gotTheLock) {
 function registerAllIpc(onRepoSelected) {
     const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow, onRepoSelected };
 
+    ipcMain.handle('get-app-start-time', () => __appStartTime);
+
     const safeRegister = (name, fn) => {
       try { fn(); } catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
     };
@@ -212,6 +212,7 @@ function registerAllIpc(onRepoSelected) {
       safeRegister('shortcut_ipc',    () => require('./ipc/shortcut_ipc.js').register(shared));
       safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
       safeRegister('projectInspector', () => require('./project-inspector/ipc.js').register());
+      safeRegister('researcher_ipc',   () => { const r = require('./ipc/researcher_ipc.js'); r.register(shared); });
       performance.mark('tier1:done');
       performance.measure('startup:tier1-ready', 'app:ready', 'tier1:done');
       console.log(`[Perf] Tier 1 (${performance.getEntriesByName('startup:tier1-ready')[0]?.duration.toFixed(1)}ms): all common IPC modules loaded`);
@@ -249,17 +250,28 @@ function registerAllIpc(onRepoSelected) {
         mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
     });
     ipcMain.on('window:close', () => mainWindow?.close());
+
+    ipcMain.handle('shell:openExternal', (event, url) => {
+      if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
+        shell.openExternal(url);
+      }
+    });
 }
 
 // ----------------------------
 // Window
 // ----------------------------
+function fitToWorkArea(win) {
+  const display = screen.getDisplayMatching(win.getBounds());
+  win.setBounds(display.workArea);
+}
+
 function createWindow() {
     console.log('[Main] Creating main window...');
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        show: true,
+        show: false,
         frame: false,
         maximizable: true,
         minimizable: true,
@@ -275,9 +287,12 @@ function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    mainWindow.once('ready-to-show', () => mainWindow.show());
 
-    // Start maximized (fills screen, keeps custom titlebar)
-    mainWindow.maximize();
+    // Immediately size to the display's workArea to avoid the frameless
+    // maximize overflow bug on Windows (invisible resize-border padding
+    // pushes content past visible screen area).
+    fitToWorkArea(mainWindow);
 
     // Prevent handler accumulation if createWindow is called more than once
     mainWindow.removeAllListeners('close');
@@ -304,7 +319,10 @@ function createWindow() {
     });
 
     // Notify renderer when maximized state changes
-    mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximize-changed', true));
+    mainWindow.on('maximize', () => {
+        fitToWorkArea(mainWindow);
+        mainWindow.webContents.send('window:maximize-changed', true);
+    });
     mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximize-changed', false));
 }
 
@@ -391,4 +409,5 @@ function cleanupAndExit(deleteIndex) {
     try { workerProxy.stop(); } catch (_) {}
     try { indexerProxy.stop(); } catch (_) {}
     try { graphifyIpc.shutdown(); } catch (_) {}
+    try { require('./ipc/researcher_ipc.js').cleanup(); } catch (_) {}
 }

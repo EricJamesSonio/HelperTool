@@ -52,6 +52,9 @@
   <link rel="stylesheet" href="./styles/codebase-manager.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/error-cop.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/ecosystem-watcher.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="./styles/performance-tracker.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="./styles/researcher.css">
+  <link rel="stylesheet" href="./styles/eco-dashboard.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/mcp.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="../project-inspector/ui.css" media="print" onload="this.media='all'">
 </head>
@@ -221,10 +224,10 @@
   <div class="app-body">
 
     <!-- ══ Sidebar (collapsible tools panel) ══ -->
-    <div id="toolsSidebar" class="tools-sidebar">
+    <div id="toolsSidebar" class="tools-sidebar pinned expanded">
       <div class="tools-sidebar-header">
         <span class="tools-sidebar-title">Tools</span>
-        <button class="tools-sidebar-pin" id="sidebarPinBtn" title="Pin sidebar open"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 2L8 6M12 2l2 2-4 4M12 2L6 8M4 12l4-4"/></svg></button>
+        <button class="tools-sidebar-pin" id="sidebarPinBtn" title="Unpin sidebar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 2L8 6M12 2l2 2-4 4M12 2L6 8M4 12l4-4"/></svg></button>
       </div>
       <div class="tools-sidebar-body" id="toolsSidebarBody"></div>
     </div>

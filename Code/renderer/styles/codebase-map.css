@@ -14,9 +14,9 @@
 }
 
 .cm-modal {
-  width: 94%;
-  max-width: 1400px;
-  height: 90vh;
+  width: 97%;
+  max-width: 1800px;
+  height: 92vh;
   background: var(--bg-surface, #0f1117);
   border: 1px solid var(--border-default, rgba(255,255,255,0.12));
   border-radius: 14px;

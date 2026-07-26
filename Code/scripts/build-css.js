@@ -54,6 +54,7 @@ const CSS_ORDER = [
   'codebase-manager.css',
   'error-cop.css',
   'ecosystem-watcher.css',
+  'researcher.css',
   'mcp.css',
 ];
 

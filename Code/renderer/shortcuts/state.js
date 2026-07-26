@@ -32,8 +32,10 @@ const DEFAULT_SHORTCUTS = {
   graphify: null,
   errorCop: null,
   ecosystemWatcher: null,
+  performanceTracker: null,
   mcp: null,
   projectInspector: null,
+  researcherTool: null,
 };
 
 const S = { shortcuts: {} };

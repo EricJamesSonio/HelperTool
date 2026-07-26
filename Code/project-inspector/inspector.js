@@ -908,4 +908,132 @@ function inspect(repoPath) {
   return result;
 }
 
-module.exports = { inspect };
+// ── API Endpoint Scanner ─────────────────────────────────────────────────────
+
+const API_FILE_EXTS = new Set(['.js', '.ts', '.mjs', '.cjs', '.jsx', '.tsx', '.py', '.json']);
+const SKIP_API_DIRS = new Set([...SKIP_DIRS, 'test', 'tests', '__tests__', 'spec', 'fixtures', 'migrations', 'seed']);
+
+const ROUTE_PATTERNS = [
+  // Express / Fastify / Koa / generic Node router
+  {
+    name: 'node',
+    test: (ext) => ['.js', '.ts', '.mjs', '.cjs', '.jsx', '.tsx'].includes(ext),
+    re: /(\w+)\.(get|post|put|delete|patch|head|options|all)\s*\(\s*['"`]([^'"`]+)['"`]\s*,/g,
+    map: (m, file) => ({ method: m[2].toUpperCase(), path: m[3], handler: extractHandler(m[0]), framework: null }),
+  },
+  // NestJS decorator
+  {
+    name: 'nestjs',
+    test: (ext) => ['.ts', '.tsx', '.js', '.jsx'].includes(ext),
+    re: /@(Get|Post|Put|Delete|Patch|Options|Head)\(\s*['"`]([^'"`]*)['"`]?\s*\)/g,
+    map: (m, file) => ({ method: m[1].toUpperCase(), path: m[2] || '/', handler: null, framework: 'NestJS' }),
+  },
+  // Python FastAPI
+  {
+    name: 'fastapi',
+    test: (ext) => ext === '.py',
+    re: /@\w+\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    map: (m, file) => ({ method: m[1].toUpperCase(), path: m[2], handler: null, framework: 'FastAPI' }),
+  },
+  // Python Flask
+  {
+    name: 'flask',
+    test: (ext) => ext === '.py',
+    re: /@\w+\.route\(\s*['"]([^'"]+)['"]\s*(?:,\s*methods\s*=\s*\[([^\]]*)\])?\s*\)/g,
+    map: (m, file) => {
+      const methods = m[2] ? m[2].split(',').map(s => s.trim().toUpperCase().replace(/['"]/g, '')) : ['GET'];
+      return methods.map(method => ({ method, path: m[1], handler: null, framework: 'Flask' }));
+    },
+  },
+  // Python Django (urls.py)
+  {
+    name: 'django',
+    test: (ext) => ext === '.py' && file.endsWith('urls.py'),
+    re: /(?:path|re_path)\(\s*['"]([^'"]+)['"]\s*,\s*(\w+)/g,
+    map: (m, file) => ({ method: 'GET', path: m[1], handler: m[2], framework: 'Django' }),
+  },
+];
+
+function extractHandler(line) {
+  const m = line.match(/,\s*(\w+)\s*[,)]/);
+  return m ? m[1] : null;
+}
+
+function scanApiEndpoints(repoPath) {
+  const endpoints = [];
+
+  function walk(dir) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+    catch { return; }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      if (SKIP_API_DIRS.has(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (!API_FILE_EXTS.has(ext)) continue;
+
+        // OpenAPI / Swagger JSON detection
+        if (ext === '.json') {
+          const base = path.basename(entry.name).toLowerCase();
+          if (base === 'openapi.json' || base === 'swagger.json' || base === 'api-docs.json') {
+            try {
+              const spec = JSON.parse(fs.readFileSync(full, 'utf-8'));
+              if (spec.paths) {
+                for (const [p, methods] of Object.entries(spec.paths)) {
+                  for (const method of ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']) {
+                    if (methods[method]) {
+                      endpoints.push({
+                        method: method.toUpperCase(),
+                        path: p,
+                        handler: methods[method].operationId || methods[method].summary || null,
+                        file: path.relative(repoPath, full),
+                        line: 0,
+                        framework: 'OpenAPI',
+                      });
+                    }
+                  }
+                }
+              }
+            } catch {}
+          }
+          continue;
+        }
+
+        // Route pattern matching for code files
+        try {
+          const content = fs.readFileSync(full, 'utf-8');
+          const relPath = path.relative(repoPath, full);
+          const lines = content.split('\n');
+
+          for (const pattern of ROUTE_PATTERNS) {
+            if (!pattern.test(ext, entry.name)) continue;
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+              pattern.re.lastIndex = 0;
+              let m;
+              while ((m = pattern.re.exec(line)) !== null) {
+                const results = pattern.map(m, entry.name);
+                const list = Array.isArray(results) ? results : [results];
+                for (const ep of list) {
+                  ep.line = i + 1;
+                  ep.file = relPath;
+                  endpoints.push(ep);
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+  }
+
+  walk(repoPath);
+  return endpoints;
+}
+
+module.exports = { inspect, scanApiEndpoints };

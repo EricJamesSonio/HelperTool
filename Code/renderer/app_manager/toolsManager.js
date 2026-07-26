@@ -7,7 +7,7 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
-import { openRenameModal, openCreateFilesModal, showToast } from '../codebaseManager.js';
+import { openRenameModal, openCreateFilesModal, openCreateFolderModal, showToast } from '../codebaseManager.js';
 import { displayTree }                    from './viewManager.js';
 import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
@@ -238,14 +238,25 @@ function populateSidebar() {
   }
 
   if (_feats.ecosystemWatcher) {
-    add(createSidebarItem(ICONS.eye, 'Ecosystem Watcher', 'Real-time runtime observability & event timeline', async () => {
+    add(createSidebarItem(ICONS.eye, 'Ecosystem Dashboard', 'Real-time 2x2 grid: logs, network, console & errors', async () => {
       try {
-        const w = await import('../ecosystemWatcherUI.js');
+        const w = await import('../ecoDashboard.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
-      } catch (err) { console.error('[Tools] Ecosystem Watcher:', err); }
+      } catch (err) { console.error('[Tools] Ecosystem Dashboard:', err); }
     }, 'ecosystemWatcher'));
+  }
+
+  if (_feats.performanceTracker) {
+    add(createSidebarItem(ICONS.radar, 'Performance Tracker', 'Browser performance metrics & timing data', async () => {
+      try {
+        const p = await import('../performanceTracker.js');
+        if (p.isOpen()) { p.close(); return; }
+        _registry.closeAll();
+        p.open();
+      } catch (err) { console.error('[Tools] Performance Tracker:', err); }
+    }, 'performanceTracker'));
   }
 
   add(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => {
@@ -416,6 +427,15 @@ function populateSidebar() {
       await oc.open();
     } catch (err) {  console.error('[Tools] CodeSwamp:', err) }
   }, 'opencode'));
+
+  add(createSidebarItem(ICONS.radar, 'Researcher', 'Select AI & build prompts with live browser', async () => {
+    try {
+      const mod = await import('../researcherUI.js');
+      if (mod.isResearcherOpen()) { mod.close(); return; }
+      _registry.closeAll();
+      await mod.open();
+    } catch (err) { console.error('[Tools] Researcher:', err); }
+  }, 'researcher'));
 
   body.appendChild(frag);
 }
@@ -772,11 +792,22 @@ function _buildShortcutActions() {
   if (_feats.ecosystemWatcher) {
     actions.ecosystemWatcher = async () => {
       try {
-        const w = await import('../ecosystemWatcherUI.js');
+        const w = await import('../ecoDashboard.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
-      } catch (err) { console.error('[Shortcuts] Ecosystem Watcher:', err); }
+      } catch (err) { console.error('[Shortcuts] Ecosystem Dashboard:', err); }
+    };
+  }
+
+  if (_feats.performanceTracker) {
+    actions.performanceTracker = async () => {
+      try {
+        const p = await import('../performanceTracker.js');
+        if (p.isOpen()) { p.close(); return; }
+        _registry.closeAll();
+        p.open();
+      } catch (err) { console.error('[Shortcuts] Performance Tracker:', err); }
     };
   }
 
@@ -944,6 +975,15 @@ function _buildShortcutActions() {
     } catch (err) { console.error('[Shortcuts] CodeSwamp:', err); }
   };
 
+  actions.researcherTool = async () => {
+    try {
+      const mod = await import('../researcherUI.js');
+      if (mod.isResearcherOpen()) { mod.close(); return; }
+      _registry.closeAll();
+      await mod.open();
+    } catch (err) { console.error('[Shortcuts] Researcher:', err); }
+  };
+
   return actions;
 }
 
@@ -1091,6 +1131,11 @@ export async function initTools(feats, settingsManager) {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       openCreateFilesModal(folderPath, () => { if (state.cachedTree) displayTree(false); });
+    },
+    async (folderPath) => {
+      if (!state.selectedRepoPath) return;
+      _registry.closeAll();
+      openCreateFolderModal(folderPath, () => { if (state.cachedTree) displayTree(false); });
     }
   );
 
@@ -1154,8 +1199,8 @@ function _registerMcpTools() {
 
   toolRegistry.register({
     id: 'ecosystemWatcher',
-    name: 'Ecosystem Watcher',
-    description: 'Real-time runtime observability — log, error, network & process event timeline across sessions.',
+    name: 'Ecosystem Dashboard',
+    description: 'Real-time 2x2 grid dashboard — logs, network, console & errors from the app ecosystem.',
     color: '#4F8EF7',
     icon: ICONS.radar,
     cheatsheetPath: 'MCP/ecosystemWatcher/watcher-cheatsheet.md',
@@ -1172,7 +1217,7 @@ function _registerMcpTools() {
     },
     openPanelFn: async () => {
       try {
-        const w = await import('../ecosystemWatcherUI.js');
+        const w = await import('../ecoDashboard.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
@@ -1238,6 +1283,15 @@ async function _lazyInitTools(feats) {
     }
     console.log('[Tools] Lazy init complete');
   } catch (err) { console.error('[Tools] Lazy init error:', err); }
+}
+
+export async function ensureTerminalUI() {
+  if (!_terminalUI) {
+    _terminalUI = new TerminalUI();
+    _registry.setTerminalUI(_terminalUI);
+    await _terminalUI.init();
+  }
+  return _terminalUI;
 }
 
 export function getTerminalUI() { return _terminalUI; }

@@ -8,6 +8,7 @@ const ICON_RULER = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" s
 const ICON_TERMINAL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>';
 const ICON_RENAME  = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5z"/><line x1="11" y1="5.5" x2="14.5" y2="9"/></svg>';
 const ICON_DELETE  = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3,6 5,6 17,6"/><path d="M6 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 6v9"/><path d="M12 6v9"/><path d="M5 6l1 11a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-11"/></svg>';
+const ICON_FOLDER  = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/><line x1="10" y1="9" x2="10" y2="15"/><line x1="7" y1="12" x2="13" y2="12"/></svg>';
 
 let _activeMenu   = null;
 let _onFileDeps   = null;
@@ -19,10 +20,11 @@ let _onFolderTerminal = null;
 let _onRename   = null;
 let _onDelete   = null;
 let _onCreateFiles = null;
+let _onCreateFolder = null;
 
 let _handlers = null;
 
-export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal, onRename, onDelete, onCreateFiles) {
+export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDiff, onFileView, onFolderTerminal, onRename, onDelete, onCreateFiles, onCreateFolder) {
   _onFileDeps   = onFileDeps;
   _onFolderSeed = onFolderSeed;
   _onFolderLoc  = onFolderLoc;
@@ -32,6 +34,7 @@ export function initContextMenu(onFileDeps, onFolderSeed, onFolderLoc, onFileDif
   _onRename     = onRename;
   _onDelete     = onDelete;
   _onCreateFiles = onCreateFiles;
+  _onCreateFolder = onCreateFolder;
 
   if (_handlers) destroyContextMenu();
 
@@ -161,6 +164,11 @@ function showFolderMenu(x, y, folderPath, folderName) {
       <span class="context-menu-label">New Files</span>
       <span class="context-menu-hint">Folder</span>
     </div>
+    <div class="context-menu-item" data-action="folder-create-folder">
+      <span class="context-menu-icon">${ICON_FOLDER}</span>
+      <span class="context-menu-label">New Folder</span>
+      <span class="context-menu-hint">Folder</span>
+    </div>
     <div class="context-menu-divider"></div>
     <div class="context-menu-item" data-action="folder-rename">
       <span class="context-menu-icon">${ICON_RENAME}</span>
@@ -181,6 +189,7 @@ function showFolderMenu(x, y, folderPath, folderName) {
     if (item.dataset.action === 'folder-loc'  && _onFolderLoc)  _onFolderLoc(folderPath, folderName);
     if (item.dataset.action === 'folder-terminal' && _onFolderTerminal) _onFolderTerminal(folderPath);
     if (item.dataset.action === 'folder-create-files' && _onCreateFiles) { _onCreateFiles(folderPath); return; }
+    if (item.dataset.action === 'folder-create-folder' && _onCreateFolder) { _onCreateFolder(folderPath); return; }
     if (item.dataset.action === 'folder-rename' && _onRename) { _onRename(folderPath, true); return; }
     if (item.dataset.action === 'folder-delete' && _onDelete) { _onDelete(folderPath); return; }
     closeMenu();

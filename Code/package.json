@@ -26,6 +26,7 @@
     ],
     "asarUnpack": [
       "grammars/**",
+      "node_modules/node-pty/**",
       "node_modules/web-tree-sitter/**",
       "node_modules/sql.js/**",
       "node_modules/tree-sitter-*/**",

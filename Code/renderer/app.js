@@ -64,7 +64,8 @@ import {
     initTools,
     handleRepoChange,
     closeAllPanels,
-    getTerminalUI
+    getTerminalUI,
+    ensureTerminalUI
 } from './app_manager/toolsManager.js';
 
 import * as sessionNotes from './sessionNotes.js';
@@ -75,7 +76,7 @@ import { init as initServiceTracker } from './serviceTracker.js';
 
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 import * as essentialsGlossary from './essentialsGlossary.js';
-import { openShortcutSetup, onShortcutSave } from './shortcut-setup.js';
+import { openShortcutSetup, onShortcutSave, showConfirmDialog } from './shortcut-setup.js';
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
@@ -113,8 +114,8 @@ function _shortcutLabel(type) {
   return `${type === 'server' ? 'Server' : 'Client'} — ${(state.selectedRepoPath || '').split(/[/\\]/).pop()}`;
 }
 
-function _checkShortcutRunning() {
-  const termUI = getTerminalUI();
+async function _checkShortcutRunning() {
+  const termUI = await ensureTerminalUI();
   if (!termUI) return;
   ['server', 'client'].forEach(type => {
     const cfg = shortcutState[type];
@@ -148,11 +149,7 @@ async function runShortcut(type, repoPath) {
   if (!cfg) return;
   try {
     const label = _shortcutLabel(type);
-    const termUI = getTerminalUI();
-    if (!termUI) {
-      console.error('[Shortcut] Terminal UI not initialized yet');
-      return;
-    }
+    const termUI = await ensureTerminalUI();
     await termUI.openTerminal(cfg.cwd, label, cfg.command);
     cfg.running = true;
     updateShortcutButtons();
@@ -162,7 +159,7 @@ async function runShortcut(type, repoPath) {
 }
 
 // Listen for terminal exit events to clear running state
-window.electronAPI?.terminal?.onTerminalExit?.(() => {
+window.electronAPI?.onTerminalExit?.(() => {
   setTimeout(_checkShortcutRunning, 200);
 });
 
@@ -173,6 +170,22 @@ function setupShortcutButton(type, btn) {
     const cfg = shortcutState[type];
     if (!cfg) {
       openShortcutSetup(type, state.selectedRepoPath, null);
+      return;
+    }
+    if (cfg.running) {
+      const label = _shortcutLabel(type);
+      const termUI = await ensureTerminalUI();
+      if (!termUI.hasTabWithLabel(label)) {
+        cfg.running = false;
+        updateShortcutButtons();
+        return;
+      }
+      const confirmed = await showConfirmDialog(`Stop the ${type === 'server' ? 'Server' : 'Client'}?`);
+      if (confirmed) {
+        termUI.killTerminalByLabel(label);
+        cfg.running = false;
+        updateShortcutButtons();
+      }
       return;
     }
     await runShortcut(type, state.selectedRepoPath);
@@ -394,6 +407,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     const loadingTimer = document.getElementById('appLoadingTimer');
 
     performance.mark('init:start');
+    const _t0 = Date.now();
+
+    // Fetch main process start time (offsets timer to reflect total app startup)
+    let _mainOffset = 0;
+    window.electronAPI.getAppStartTime().then(mainStart => {
+      _mainOffset = _t0 - mainStart;
+    }).catch(() => {});
+
+    // Live timer — updates loading overlay via requestAnimationFrame
+    let _timerFrame;
+    if (loadingTimer) {
+      loadingTimer.textContent = 'loading... 0.0s';
+      const tick = () => {
+        const s = (Date.now() - _t0 + _mainOffset) / 1000;
+        if (s >= 0) loadingTimer.textContent = `loading... ${s.toFixed(1)}s`;
+        _timerFrame = requestAnimationFrame(tick);
+      };
+      _timerFrame = requestAnimationFrame(tick);
+    }
 
     // Load features first — lightweight IPC call
     const feats = await initFeatures();
@@ -412,21 +444,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     initActionButtons();
     performance.mark('init:controls');
 
-    // Theme — fast fallback for first paint, full engine (~50KB) deferred
+    // Theme — fast fallback for first paint, full engine (~50KB)
     const settingsRef = { current: null };
     applyFallbackTheme();
     wireFallbackThemeToggle();
+    let themePromise = Promise.resolve();
     if (feats.themeEngine) {
-        requestAnimationFrame(async () => {
-            try {
-                const sm = await import('./settingsManager.js');
-                sm.initSettings();
-                sm.hookLegacyThemeToggle();
-                settingsRef.current = sm;
-            } catch (err) {
-                console.error('[Init] settingsManager:', err);
-            }
-        });
+        themePromise = import('./settingsManager.js').then(sm => {
+            sm.initSettings();
+            sm.hookLegacyThemeToggle();
+            settingsRef.current = sm;
+        }).catch(err => console.error('[Init] settingsManager:', err));
     }
 
     // Tools — populates sidebar
@@ -442,47 +470,63 @@ window.addEventListener('DOMContentLoaded', async () => {
     performance.mark('init:done');
     performance.measure('init:total', 'init:start', 'init:done');
 
+    // Wait for deferred CSS + full theme engine before hiding overlay
+    // (RAF keeps the live timer ticking during this wait)
+    const deferredCss = document.querySelectorAll('link[rel="stylesheet"][media="print"]');
+    await Promise.all([
+      themePromise,
+      ...Array.from(deferredCss).map(link => {
+        if (link.sheet) return;
+        return new Promise(r => { link.addEventListener('load', r, { once: true }); link.addEventListener('error', r, { once: true }); });
+      })
+    ]);
+
+    // UI setup that used to be deferred to RAF — run now while overlay is still visible
+    initProgress();
+    initSplitModeButton();
+    initModeItems();
+    initGenerateButton();
+    initClearSelectionButton();
+    initViewMode();
+    initZoomManager();
+    initShortcutMode();
+    setupFilterInput(() => state.cachedTree, displayTree);
+    setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
+    const filterPromises = [loadIgnoredExtensions()];
+    if (feats.folderFilters) filterPromises.push(loadFolderFilters());
+    Promise.all(filterPromises).catch(err => console.error('[Init] Filter load error:', err));
+    initServiceTracker().catch(err => console.error('[ServiceTracker] init error:', err));
+
+    if (_timerFrame) cancelAnimationFrame(_timerFrame);
+
     const entries = ['init:features', 'init:theme+tools', 'init:total']
       .map(n => performance.getEntriesByName(n).pop())
       .filter(Boolean);
     if (entries.length) console.table(entries.map(e => ({ phase: e.name, duration: `${e.duration.toFixed(1)}ms` })));
 
-    // Hide loading overlay + show boot time
-    if (loadingTimer && entries.length) {
-      const total = entries.find(e => e.name === 'init:total');
-      if (total) loadingTimer.textContent = `Booted in ${total.duration.toFixed(0)}ms`;
-    }
+    // Show boot time as toast, then fade overlay
+    const bootSeconds = (Date.now() - _t0 + _mainOffset) / 1000;
+
     if (loadingSub) loadingSub.textContent = 'Ready';
     if (loadingOverlay) {
       loadingOverlay.classList.add('app-loading-hidden');
       setTimeout(() => loadingOverlay.remove(), 400);
     }
 
+    // Toast notification — "Booted in X.Xs"
+    const toast = document.createElement('div');
+    toast.className = 'boot-toast';
+    toast.textContent = `Booted in ${bootSeconds.toFixed(1)}s`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('boot-toast-hide');
+      setTimeout(() => toast.remove(), 400);
+    }, 3000);
+
     // Measure background repo load separately (doesn't block UI)
     repoLoadPromise.then(() => {
       const repoEntry = performance.getEntriesByName('init:repo-loaded').pop();
       if (repoEntry) console.log(`[Init] Background repo load: ${(repoEntry.startTime - performance.getEntriesByName('init:start').pop()?.startTime || 0).toFixed(0)}ms`);
       loadShortcutConfig();
-    });
-
-    // Defer non-critical setup after first paint — these are pure event wiring
-    requestAnimationFrame(() => {
-        initProgress();
-        initSplitModeButton();
-        initModeItems();
-        initGenerateButton();
-        initClearSelectionButton();
-        initViewMode();
-        initZoomManager();
-        initShortcutMode();
-        setupFilterInput(() => state.cachedTree, displayTree);
-        setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
-
-        // Load filters in background
-        const filterPromises = [loadIgnoredExtensions()];
-        if (feats.folderFilters) filterPromises.push(loadFolderFilters());
-        Promise.all(filterPromises).catch(err => console.error('[Init] Filter load error:', err));
-
-        initServiceTracker().catch(err => console.error('[ServiceTracker] init error:', err));
     });
 });
