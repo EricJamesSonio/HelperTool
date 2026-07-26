@@ -82,17 +82,19 @@ export function updateActiveRepo(name) {
 
 async function _guardActiveServices() {
     const repoPath = state.selectedRepoPath;
-    const [gStatus, csStatus, termStatus, ecStatus] = await Promise.all([
+    const [gStatus, csStatus, termStatus, ecStatus, ecosStatus] = await Promise.all([
         window.electronAPI.graphifyIsRunning?.() || { running: false },
         window.electronAPI.opencode?.isRunning?.() || { running: false },
         window.electronAPI.terminalHasRunningInRepo?.(repoPath) || { running: false, count: 0 },
         window.electronAPI.getServerStatus?.() || { running: false },
+        window.electronAPI.eco?.status() || { running: false },
     ]);
     const items = [];
     if (gStatus.running) items.push({ name: 'Graphify', stop: () => window.electronAPI.graphifyStop?.() });
     if (csStatus.running) items.push({ name: 'CodeSwamp', stop: () => window.electronAPI.opencode?.stop?.() });
     if (termStatus.running) items.push({ name: 'Terminal', count: termStatus.count, stop: null });
     if (ecStatus.running) items.push({ name: 'Error Cop', stop: () => window.electronAPI.stopServer?.() });
+    if (ecosStatus.running) items.push({ name: 'Ecosystem Tool', stop: () => window.electronAPI.eco?.stop() });
     if (items.length === 0) return true;
 
     const listHtml = items.map((s) => {
