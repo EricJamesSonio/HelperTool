@@ -6,24 +6,53 @@ var _BrowserDiscovery = require('./terminal/error-cop/browser-discovery').Browse
 var _store = require('./ecoStore');
 
 var _process = null;
+var _terminalId = null;
 var _browser = null;
 var _discovery = null;
-var _stdoutBuf = [];
+var _ctxBuf = [];
+var _lineBuf = '';
 var _urlTimeout = null;
+var _onTerminalData = null;
+var _onTerminalExit = null;
 var _status = { running: false, url: null, browserConnected: false };
 
-function start(path, command) {
-  if (_process) return { success: false, error: 'Already running' };
+function start(path, command, terminalId) {
+  if (_process || _terminalId) return { success: false, error: 'Already running' };
 
   _store.clear('consoleLogs');
   _store.clear('apiCalls');
+  _store.clear('apiErrors');
   _store.clear('terminalErrors');
   _store.clear('browserErrors');
 
   _discovery = new _BrowserDiscovery();
-  _stdoutBuf = [];
+  _ctxBuf = [];
+  _lineBuf = '';
   _status = { running: false, url: null, browserConnected: false };
 
+  if (terminalId != null) {
+    _terminalId = terminalId;
+    _attachToTerminal(terminalId);
+  } else {
+    _spawnProcess(path, command);
+  }
+
+  _urlTimeout = setTimeout(function () {
+    if (!_status.url) {
+      _store.push('terminalErrors', {
+        source: 'system',
+        level: 'warn',
+        text: 'No URL detected within 30 seconds.',
+        ts: Date.now(),
+      });
+    }
+  }, 30000);
+
+  _status.running = true;
+  return { success: true };
+}
+
+function _spawnProcess(path, command) {
   _process = _spawn(command, [], {
     cwd: path,
     shell: true,
@@ -32,18 +61,7 @@ function start(path, command) {
   });
 
   _process.stdout.on('data', function (chunk) {
-    var lines = chunk.toString().split('\n');
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      _stdoutBuf.push(line);
-      if (_stdoutBuf.length > 200) _stdoutBuf.shift();
-
-      var result = _discovery.scanLine(line, null, _stdoutBuf);
-      if (result && !_status.url) {
-        _status.url = result.url;
-        _openBrowser(result.url);
-      }
-    }
+    _processOutput(chunk.toString());
   });
 
   _process.stderr.on('data', function (chunk) {
@@ -82,20 +100,60 @@ function start(path, command) {
     });
     _cleanup();
   });
+}
 
-  _urlTimeout = setTimeout(function () {
-    if (!_status.url) {
-      _store.push('terminalErrors', {
-        source: 'system',
-        level: 'warn',
-        text: 'No URL detected within 30 seconds — you can enter the URL manually above.',
-        ts: Date.now(),
-      });
+function _attachToTerminal(id) {
+  var termApi = require('./ipc/terminal_ipc');
+
+  _onTerminalData = function (data) {
+    _processOutput(data);
+  };
+
+  _onTerminalExit = function (code) {
+    _store.push('terminalErrors', {
+      source: 'terminal',
+      level: 'info',
+      text: 'Terminal session exited with code ' + code,
+      ts: Date.now(),
+    });
+    _cleanup();
+  };
+
+  termApi.addDataListener(id, _onTerminalData);
+  termApi.addExitListener(id, _onTerminalExit);
+}
+
+function _processOutput(data) {
+  _lineBuf += data;
+  var parts = _lineBuf.split('\n');
+  _lineBuf = parts.pop();
+
+  for (var i = 0; i < parts.length; i++) {
+    var line = parts[i];
+    _ctxBuf.push(line);
+    if (_ctxBuf.length > 200) _ctxBuf.shift();
+
+    var result = _discovery.scanLine(line, null, _ctxBuf);
+    if (result && !_status.url) {
+      _status.url = result.url;
+      _openBrowser(result.url);
     }
-  }, 30000);
 
-  _status.running = true;
-  return { success: true };
+    var trimmed = line.trim();
+    if (trimmed) {
+      var lower = trimmed.toLowerCase();
+      if (lower.indexOf('error') !== -1 || lower.indexOf('failed') !== -1 ||
+          lower.indexOf('exception') !== -1 || lower.indexOf('traceback') !== -1 ||
+          lower.indexOf('killed') !== -1 || lower.indexOf('refused') !== -1) {
+        _store.push('terminalErrors', {
+          source: 'terminal',
+          level: 'error',
+          text: trimmed,
+          ts: Date.now(),
+        });
+      }
+    }
+  }
 }
 
 function _openBrowser(url) {
@@ -146,6 +204,15 @@ function _openBrowser(url) {
       text: details.method + ' ' + details.url + ' \u2192 ' + details.statusCode,
       ts: Date.now(),
     });
+    if (details.statusCode >= 400) {
+      _store.push('apiErrors', {
+        source: 'browser',
+        level: details.statusCode >= 500 ? 'error' : 'warn',
+        text: details.method + ' ' + details.url + ' returned ' + details.statusCode,
+        details: 'HTTP ' + details.statusCode + ' response for ' + details.method + ' ' + details.url,
+        ts: Date.now(),
+      });
+    }
   });
 
   _browser.webContents.session.webRequest.onErrorOccurred(filter, function (details) {
@@ -157,6 +224,13 @@ function _openBrowser(url) {
       status: 0,
       error: details.error || 'Unknown',
       text: (details.method || 'GET') + ' ' + details.url + ' \u2192 FAILED: ' + (details.error || 'Unknown'),
+      ts: Date.now(),
+    });
+    _store.push('apiErrors', {
+      source: 'browser',
+      level: 'error',
+      text: (details.method || 'GET') + ' ' + details.url + ' failed: ' + (details.error || 'Unknown'),
+      details: 'Network error: ' + (details.error || 'Unknown') + ' for ' + (details.method || 'GET') + ' ' + details.url,
       ts: Date.now(),
     });
   });
@@ -190,6 +264,12 @@ function _openBrowser(url) {
 }
 
 function stop() {
+  _store.clear('consoleLogs');
+  _store.clear('apiCalls');
+  _store.clear('apiErrors');
+  _store.clear('terminalErrors');
+  _store.clear('browserErrors');
+
   if (_process) {
     _process.kill('SIGTERM');
     setTimeout(function () {
@@ -198,6 +278,12 @@ function stop() {
       }
     }, 5000);
   }
+
+  if (_terminalId) {
+    var termApi = require('./ipc/terminal_ipc');
+    termApi.killTerminal(_terminalId);
+  }
+
   _closeBrowser();
   _cleanup();
   return { success: true };
@@ -211,7 +297,17 @@ function _closeBrowser() {
 }
 
 function _cleanup() {
+  if (_terminalId) {
+    var termApi = require('./ipc/terminal_ipc');
+    if (_onTerminalData) termApi.removeDataListener(_terminalId, _onTerminalData);
+    if (_onTerminalExit) termApi.removeExitListener(_terminalId, _onTerminalExit);
+    _terminalId = null;
+    _onTerminalData = null;
+    _onTerminalExit = null;
+  }
   _process = null;
+  _ctxBuf = [];
+  _lineBuf = '';
   if (_urlTimeout) { clearTimeout(_urlTimeout); _urlTimeout = null; }
   _status = { running: false, url: null, browserConnected: false };
 }
@@ -222,7 +318,7 @@ function getStatus() {
     running: _status.running,
     url: _status.url,
     browserConnected: bs,
-    processAlive: _process !== null,
+    processAlive: _process !== null || _terminalId !== null,
   };
 }
 

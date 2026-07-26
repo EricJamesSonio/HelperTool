@@ -5,6 +5,7 @@ var MAX = 200;
 var _buffers = {
   consoleLogs: [],
   apiCalls: [],
+  apiErrors: [],
   terminalErrors: [],
   browserErrors: [],
 };
