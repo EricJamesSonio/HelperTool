@@ -212,11 +212,9 @@ const terminalBridge = {
     terminalListShells: ()    => ipcRenderer.invoke('terminal:listShells'),
     terminalHasRunningInRepo: (repoPath) => ipcRenderer.invoke('terminal:hasRunningInRepo', repoPath),
     onTerminalData: (callback) => {
-        ipcRenderer.removeAllListeners('terminal:data');
         ipcRenderer.on('terminal:data', (_, payload) => callback(payload));
     },
     onTerminalExit: (callback) => {
-        ipcRenderer.removeAllListeners('terminal:exit');
         ipcRenderer.on('terminal:exit', (_, payload) => callback(payload));
     },
 };
@@ -602,7 +600,10 @@ const projectInspectorBridge = {
 const ecoBridge = {
   feed:     (type, cursor) => ipcRenderer.invoke('eco:feed', type, cursor),
   clear:    (type)         => ipcRenderer.invoke('eco:clear', type),
-  push:     (event)        => ipcRenderer.send('eco:push', event),
+  run:      (path, cmd, terminalId) => ipcRenderer.invoke('eco:run', path, cmd, terminalId),
+  stop:     ()             => ipcRenderer.invoke('eco:stop'),
+  status:   ()             => ipcRenderer.invoke('eco:status'),
+  setUrl:   (url)          => ipcRenderer.invoke('eco:setUrl', url),
 };
 
 

@@ -240,7 +240,7 @@ function populateSidebar() {
   if (_feats.ecosystemWatcher) {
     add(createSidebarItem(ICONS.eye, 'Ecosystem Dashboard', 'Real-time 2x2 grid: logs, network, console & errors', async () => {
       try {
-        const w = await import('../ecoDashboard.js');
+        const w = await import('../ecoDashboardUI.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
@@ -792,7 +792,7 @@ function _buildShortcutActions() {
   if (_feats.ecosystemWatcher) {
     actions.ecosystemWatcher = async () => {
       try {
-        const w = await import('../ecoDashboard.js');
+        const w = await import('../ecoDashboardUI.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();
@@ -1217,7 +1217,7 @@ function _registerMcpTools() {
     },
     openPanelFn: async () => {
       try {
-        const w = await import('../ecoDashboard.js');
+        const w = await import('../ecoDashboardUI.js');
         if (w.isOpen()) { w.close(); return; }
         _registry.closeAll();
         w.open();

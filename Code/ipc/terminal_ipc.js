@@ -12,6 +12,7 @@ function getPty() {
 }
 
 const terminals = new Map();
+const _outputBuffers = new Map();
 let nextId = 1;
 
 let _errorEngine = null;
@@ -88,6 +89,43 @@ async function detectShells() {
   return shells;
 }
 
+const _dataListeners = new Map();
+const _exitListeners = new Map();
+
+function addDataListener(id, cb) {
+  if (!_dataListeners.has(id)) _dataListeners.set(id, new Set());
+  _dataListeners.get(id).add(cb);
+}
+
+function removeDataListener(id, cb) {
+  const s = _dataListeners.get(id);
+  if (s) { s.delete(cb); if (s.size === 0) _dataListeners.delete(id); }
+}
+
+function addExitListener(id, cb) {
+  if (!_exitListeners.has(id)) _exitListeners.set(id, new Set());
+  _exitListeners.get(id).add(cb);
+}
+
+function removeExitListener(id, cb) {
+  const s = _exitListeners.get(id);
+  if (s) { s.delete(cb); if (s.size === 0) _exitListeners.delete(id); }
+}
+
+function killTerminal(id) {
+  const t = terminals.get(id);
+  if (t) {
+    try { t.term.kill(); } catch (e) { /* ignore */ }
+    terminals.delete(id);
+    _outputBuffers.delete(id);
+  }
+}
+
+function getTerminalBuffer(id) {
+  var buf = _outputBuffers.get(id);
+  return buf ? buf.join('') : '';
+}
+
 function register({ getMainWindow }) {
   if (!getPty()) {
     console.error('[Terminal] node-pty not available — terminal feature disabled');
@@ -126,6 +164,13 @@ function register({ getMainWindow }) {
       if (win && !win.isDestroyed()) {
         win.webContents.send('terminal:data', { id, data });
 
+        // ── Buffer output for backfill ──
+        var buf = _outputBuffers.get(id);
+        if (buf) {
+          buf.push(data);
+          if (buf.length > 200) buf.shift();
+        }
+
         // ── Error Cop: Process output ──
         if (_errorEngine && sessionId) {
           try {
@@ -134,6 +179,10 @@ function register({ getMainWindow }) {
             console.error('[ErrorCop] processOutput failed:', e);
           }
         }
+
+        // ── Ecosystem Tool: data listeners ──
+        const dls = _dataListeners.get(id);
+        if (dls) dls.forEach(function (cb) { try { cb(data); } catch (e) { /* ignore */ } });
       }
     });
 
@@ -149,10 +198,18 @@ function register({ getMainWindow }) {
           console.error('[ErrorCop] endSession failed:', e);
         }
       }
+
+      // ── Ecosystem Tool: exit listeners ──
+      const els = _exitListeners.get(id);
+      if (els) els.forEach(function (cb) { try { cb(exitCode, signal); } catch (e) { /* ignore */ } });
+      _exitListeners.delete(id);
+      _dataListeners.delete(id);
+      _outputBuffers.delete(id);
       terminals.delete(id);
     });
 
     terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId });
+    _outputBuffers.set(id, []);
     return { id, cwd: resolvedCwd, sessionId };
   });
 
@@ -181,4 +238,4 @@ function register({ getMainWindow }) {
   });
 }
 
-module.exports = { register, setErrorEngine, getErrorEngine };
+module.exports = { register, setErrorEngine, getErrorEngine, addDataListener, removeDataListener, addExitListener, removeExitListener, killTerminal, getTerminalBuffer };

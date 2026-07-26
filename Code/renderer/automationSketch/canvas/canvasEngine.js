@@ -3,13 +3,29 @@ import { NODE_TYPES } from '../nodes/nodeRegistry.js';
 const NODE_WIDTH = 200;
 
 export default class CanvasEngine {
-  constructor(canvasEl, state) {
+  constructor(canvasEl, state, theme) {
     this.canvas = canvasEl;
     this.ctx = canvasEl.getContext('2d');
     this.state = state;
     this._dirty = true;
     this._rafId = null;
     this._resizeObserver = null;
+
+    this.theme = Object.assign({
+      bg: '#010409',
+      surface: '#0a0c10',
+      elevated: '#0f1117',
+      border: 'rgba(255,255,255,0.12)',
+      borderStrong: 'rgba(255,255,255,0.20)',
+      textPrimary: '#f0f6fc',
+      textSecondary: '#8b949e',
+      accent: '#22d3ee',
+      accentGlow: 'rgba(34,211,238,0.20)',
+      accentDim: 'rgba(34,211,238,0.12)',
+      grid: 'rgba(255,255,255,0.04)',
+      edgeColor: 'rgba(255,255,255,0.15)',
+      portStroke: '#f0f6fc',
+    }, theme);
 
     this._setupResize();
     this.start();
@@ -62,7 +78,7 @@ export default class CanvasEngine {
   }
 
   _render() {
-    const { ctx, canvas, state } = this;
+    const { ctx, canvas, state, theme } = this;
     const vp = state.viewport;
 
     ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
@@ -79,7 +95,7 @@ export default class CanvasEngine {
   }
 
   _drawGrid() {
-    const { ctx, state } = this;
+    const { ctx, state, theme } = this;
     const vp = state.viewport;
     const gridSize = 20;
 
@@ -91,7 +107,7 @@ export default class CanvasEngine {
     const startX = Math.floor(left / gridSize) * gridSize;
     const startY = Math.floor(top / gridSize) * gridSize;
 
-    ctx.strokeStyle = 'rgba(128,128,128,0.08)';
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 1;
 
     ctx.beginPath();
@@ -143,6 +159,7 @@ export default class CanvasEngine {
   }
 
   _drawBezier(ctx, fromX, fromY, toX, toY, isSelected) {
+    const { theme } = this;
     const cp1x = fromX + Math.abs(toX - fromX) * 0.5;
     const cp1y = fromY;
     const cp2x = toX  - Math.abs(toX - fromX) * 0.5;
@@ -151,8 +168,8 @@ export default class CanvasEngine {
     ctx.beginPath();
     ctx.moveTo(fromX, fromY);
     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, toX, toY);
-    ctx.strokeStyle = isSelected ? '#ff6b4a' : 'rgba(200,200,200,0.25)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = isSelected ? theme.accent : theme.edgeColor;
+    ctx.lineWidth = isSelected ? 2.5 : 2;
     ctx.stroke();
 
     this._drawArrow(ctx, cp2x, cp2y, fromX, fromY);
@@ -187,7 +204,7 @@ export default class CanvasEngine {
   }
 
   drawNode(node, isSelected) {
-    const { ctx } = this;
+    const { ctx, theme } = this;
     const def = NODE_TYPES[node.type];
     if (!def) return;
 
@@ -196,30 +213,30 @@ export default class CanvasEngine {
 
     if (isSelected) {
       ctx.save();
-      ctx.shadowColor = '#ff6b4a';
-      ctx.shadowBlur = 16;
-      ctx.fillStyle = 'rgba(255,107,74,0.12)';
-      roundRect(ctx, node.x - 2, node.y - 2, w + 4, h + 4, 6);
+      ctx.shadowColor = theme.accent;
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = theme.accentDim;
+      roundRect(ctx, node.x - 3, node.y - 3, w + 6, h + 6, 8);
       ctx.fill();
       ctx.restore();
     }
 
-    roundRect(ctx, node.x, node.y, w, h, 6);
-    ctx.fillStyle = '#2b2b2b';
+    roundRect(ctx, node.x, node.y, w, h, 8);
+    ctx.fillStyle = theme.elevated;
     ctx.fill();
-    ctx.strokeStyle = isSelected ? '#ff6b4a' : '#3a3a4a';
+    ctx.strokeStyle = isSelected ? theme.accent : theme.borderStrong;
     ctx.lineWidth = isSelected ? 2 : 1;
     ctx.stroke();
 
     ctx.save();
-    roundRect(ctx, node.x, node.y, 4, h, [4, 0, 0, 4]);
+    roundRect(ctx, node.x, node.y, 5, h, [5, 0, 0, 5]);
     ctx.fillStyle = def.color;
     ctx.fill();
     ctx.restore();
 
     this._drawNodeIcon(ctx, def, node.x + 14, node.y + 17);
 
-    ctx.fillStyle = '#cdd6f4';
+    ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -227,7 +244,7 @@ export default class CanvasEngine {
 
     const firstFieldKey = def.fields?.[0];
     if (firstFieldKey && node.fields[firstFieldKey]) {
-      ctx.fillStyle = '#888';
+      ctx.fillStyle = theme.textSecondary;
       ctx.font = '11px sans-serif';
       ctx.textBaseline = 'middle';
       ctx.fillText(node.fields[firstFieldKey], node.x + 14, node.y + 40);
@@ -237,7 +254,7 @@ export default class CanvasEngine {
   }
 
   _drawPorts(node, def) {
-    const { ctx } = this;
+    const { ctx, theme } = this;
     const h = this._getNodeHeight(node);
     const inCount = def.maxInputs || 0;
     const outCount = def.maxOutputs || 0;
@@ -253,7 +270,7 @@ export default class CanvasEngine {
         ctx.arc(node.x, py, portR, 0, Math.PI * 2);
         ctx.fillStyle = def.color;
         ctx.fill();
-        ctx.strokeStyle = '#fff';
+        ctx.strokeStyle = theme.portStroke;
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
@@ -267,12 +284,12 @@ export default class CanvasEngine {
         ctx.arc(node.x + NODE_WIDTH, py, portR, 0, Math.PI * 2);
         ctx.fillStyle = def.color;
         ctx.fill();
-        ctx.strokeStyle = '#fff';
+        ctx.strokeStyle = theme.portStroke;
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
         if (outCount > 1) {
-          ctx.fillStyle = '#888';
+          ctx.fillStyle = theme.textSecondary;
           ctx.font = '9px sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'middle';

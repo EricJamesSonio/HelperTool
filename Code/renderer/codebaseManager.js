@@ -247,7 +247,7 @@ export function openCreateFilesModal(parentPath, onComplete) {
       <div class="modal-body">
         <div class="cm-file-path">${_esc(parentPath)}</div>
         <label class="cm-field-label">File names (space-separated):</label>
-        <textarea class="cm-create-input" placeholder="index.ts button.tsx utils/helpers.ts types.ts&#10;// comment line ignored&#10;# also ignored" rows="6"></textarea>
+        <textarea class="cm-create-input" placeholder="index.ts button.tsx utils/helpers.ts types.ts&#10;// comment line ignored&#10;# also ignored" rows="3"></textarea>
         <div class="cm-create-hint">Separate names with spaces. Names without extensions are skipped.</div>
         <div class="cm-create-error" style="display:none"></div>
       </div>

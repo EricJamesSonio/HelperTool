@@ -6,7 +6,7 @@
 
 import * as fileSeederTool from '../../fileSeederTool.js';
 import * as locDetector from '../../locDetector.js';
-import * as ecoDashboard from '../../ecoDashboard.js';
+import * as ecoDashboard from '../../ecoDashboardUI.js';
 import { close as closeServiceTracker } from '../../serviceTracker.js';
 import { closeConfig as closeCliConfig } from '../../shortcuts/ui.js';
 import { state as csState } from '../../codeswampUI/state.js';

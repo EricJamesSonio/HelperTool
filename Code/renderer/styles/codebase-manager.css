@@ -10,19 +10,19 @@
 }
 
 .cm-modal .modal-body {
-  padding: 12px 16px;
+  padding: 6px 16px;
 }
 
 .cm-modal .modal-header {
-  padding: 10px 16px;
+  padding: 6px 12px;
 }
 
 .cm-file-path {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted, #8b949e);
-  margin-bottom: 6px;
+  margin-bottom: 2px;
   word-break: break-all;
-  padding: 3px 8px;
+  padding: 2px 4px;
   background: var(--bg-raised, #161b22);
   border-radius: 4px;
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
@@ -31,20 +31,20 @@
 
 .cm-field-label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-primary, #eef2ff);
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 
 .cm-rename-input {
   width: 100%;
-  padding: 7px 10px;
+  padding: 4px 6px;
   border: 1px solid var(--border-default, rgba(255,255,255,0.12));
   border-radius: 5px;
   background: var(--bg-raised, #1a2540);
   color: var(--text-primary, #eef2ff);
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
   outline: none;
   box-sizing: border-box;
@@ -60,8 +60,14 @@
   display: flex;
   gap: 8px;
   justify-content: space-between;
-  padding: 8px 16px;
+  padding: 4px 10px;
   border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+}
+
+.cm-modal-actions .modal-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
 .cm-delete-btn {
@@ -251,12 +257,12 @@
 
 .cm-create-input {
   width: 100%;
-  padding: 8px 10px;
+  padding: 4px 6px;
   border: 1px solid var(--border-default, rgba(255,255,255,0.12));
   border-radius: 5px;
   background: var(--bg-raised, #1a2540);
   color: var(--text-primary, #eef2ff);
-  font-size: 13px;
+  font-size: 12px;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   outline: none;
   box-sizing: border-box;
@@ -271,19 +277,19 @@
 }
 
 .cm-create-hint {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted, #8b949e);
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .cm-create-error {
-  margin-top: 8px;
-  padding: 8px 10px;
+  margin-top: 2px;
+  padding: 4px 6px;
   background: var(--red-dim, rgba(248,81,73,0.12));
   border: 1px solid rgba(248,81,73,0.25);
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--red, #f87171);
-  font-size: 12px;
+  font-size: 11px;
   white-space: pre-wrap;
   word-break: break-all;
 }

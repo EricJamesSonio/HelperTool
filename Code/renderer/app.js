@@ -91,39 +91,32 @@ const clientBtn      = document.getElementById('clientBtn');
 // ── Shortcut state ────────────────────────────────────────────────────────────
 
 const shortcutState = { server: null, client: null };
+const _shortcutBusy = { server: false, client: false };
+let _shortcutConfigPromise = Promise.resolve();
 
 async function loadShortcutConfig() {
-  if (!state.selectedRepoPath) {
-    shortcutState.server = null;
-    shortcutState.client = null;
+  _shortcutConfigPromise = (async () => {
+    if (!state.selectedRepoPath) {
+      shortcutState.server = null;
+      shortcutState.client = null;
+      updateShortcutButtons();
+      return;
+    }
+    try {
+      const cfg = await window.electronAPI.shortcutGetConfig(state.selectedRepoPath);
+      shortcutState.server = cfg?.server ? { ...cfg.server, running: false } : null;
+      shortcutState.client = cfg?.client ? { ...cfg.client, running: false } : null;
+    } catch {
+      shortcutState.server = null;
+      shortcutState.client = null;
+    }
     updateShortcutButtons();
-    return;
-  }
-  try {
-    const cfg = await window.electronAPI.shortcutGetConfig(state.selectedRepoPath);
-    shortcutState.server = cfg?.server ? { ...cfg.server, running: false } : null;
-    shortcutState.client = cfg?.client ? { ...cfg.client, running: false } : null;
-  } catch {
-    shortcutState.server = null;
-    shortcutState.client = null;
-  }
-  updateShortcutButtons();
+  })();
+  return _shortcutConfigPromise;
 }
 
 function _shortcutLabel(type) {
   return `${type === 'server' ? 'Server' : 'Client'} — ${(state.selectedRepoPath || '').split(/[/\\]/).pop()}`;
-}
-
-async function _checkShortcutRunning() {
-  const termUI = await ensureTerminalUI();
-  if (!termUI) return;
-  ['server', 'client'].forEach(type => {
-    const cfg = shortcutState[type];
-    if (!cfg) return;
-    const wasRunning = cfg.running;
-    cfg.running = termUI.hasTabWithLabel(_shortcutLabel(type));
-    if (wasRunning !== cfg.running) updateShortcutButtons();
-  });
 }
 
 function updateShortcutButtons() {
@@ -150,7 +143,8 @@ async function runShortcut(type, repoPath) {
   try {
     const label = _shortcutLabel(type);
     const termUI = await ensureTerminalUI();
-    await termUI.openTerminal(cfg.cwd, label, cfg.command);
+    const id = await termUI.openTerminal(cfg.cwd, label, cfg.command);
+    cfg.termId = id;
     cfg.running = true;
     updateShortcutButtons();
   } catch (err) {
@@ -158,37 +152,55 @@ async function runShortcut(type, repoPath) {
   }
 }
 
-// Listen for terminal exit events to clear running state
-window.electronAPI?.onTerminalExit?.(() => {
-  setTimeout(_checkShortcutRunning, 200);
+function _shortcutTermExited(id) {
+  for (const type of ['server', 'client']) {
+    const cfg = shortcutState[type];
+    if (cfg && cfg.termId === id) {
+      cfg.termId = null;
+      cfg.running = false;
+      updateShortcutButtons();
+      break;
+    }
+  }
+}
+
+window.electronAPI?.onTerminalExit?.(payload => {
+  _shortcutTermExited(payload.id);
 });
 
 function setupShortcutButton(type, btn) {
   if (!btn) return;
   btn.addEventListener('click', async () => {
     if (!state.selectedRepoPath) return;
-    const cfg = shortcutState[type];
-    if (!cfg) {
-      openShortcutSetup(type, state.selectedRepoPath, null);
-      return;
-    }
-    if (cfg.running) {
-      const label = _shortcutLabel(type);
-      const termUI = await ensureTerminalUI();
-      if (!termUI.hasTabWithLabel(label)) {
-        cfg.running = false;
-        updateShortcutButtons();
+    await _shortcutConfigPromise;
+    if (_shortcutBusy[type]) return;
+    _shortcutBusy[type] = true;
+    try {
+      const cfg = shortcutState[type];
+      if (!cfg) {
+        openShortcutSetup(type, state.selectedRepoPath, null);
         return;
       }
-      const confirmed = await showConfirmDialog(`Stop the ${type === 'server' ? 'Server' : 'Client'}?`);
-      if (confirmed) {
-        termUI.killTerminalByLabel(label);
-        cfg.running = false;
-        updateShortcutButtons();
+      if (cfg.running) {
+        const label = _shortcutLabel(type);
+        const termUI = await ensureTerminalUI();
+        if (!termUI.hasTabWithLabel(label)) {
+          cfg.running = false;
+          updateShortcutButtons();
+          return;
+        }
+        const confirmed = await showConfirmDialog(`Stop the ${type === 'server' ? 'Server' : 'Client'}?`);
+        if (confirmed) {
+          termUI.killTerminalByLabel(label);
+          cfg.running = false;
+          updateShortcutButtons();
+        }
+        return;
       }
-      return;
+      await runShortcut(type, state.selectedRepoPath);
+    } finally {
+      _shortcutBusy[type] = false;
     }
-    await runShortcut(type, state.selectedRepoPath);
   });
   btn.addEventListener('contextmenu', async (e) => {
     e.preventDefault();

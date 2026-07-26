@@ -101,6 +101,7 @@ export default class TerminalUI {
     this._addLabel = null;
     this._shellDropdown = null;
     this._errorCop = new ErrorCopUI();
+    this._firstDataDeferred = new Map();
   }
 
   async init() {
@@ -121,6 +122,10 @@ export default class TerminalUI {
       if (inst && inst.terminal) {
         inst.terminal.write(data);
         this._detectUrls(inst, data);
+      }
+      if (this._firstDataDeferred.has(id)) {
+        this._firstDataDeferred.get(id).resolve();
+        this._firstDataDeferred.delete(id);
       }
     });
 
@@ -295,8 +300,11 @@ export default class TerminalUI {
     const useShell = this._selectedShell || this.shells[0];
     await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
     if (command && this.instances.has(id)) {
+      const d = this._firstDataDeferred.get(id);
+      if (d) await d.promise;
       await window.electronAPI.terminalWrite({ id, data: command + '\r' });
     }
+    return id;
   }
 
   async _addTerminal(cwd, shell) {
@@ -356,6 +364,17 @@ export default class TerminalUI {
     this.tabBar.insertBefore(tab, this.tabBar.querySelector('.terminal-tabs-right'));
 
     let sessionId = null;
+    var deferred = {};
+    deferred.promise = new Promise(function (resolve) {
+      deferred.resolve = resolve;
+      setTimeout(function () {
+        if (this._firstDataDeferred.has(id)) {
+          this._firstDataDeferred.delete(id);
+          resolve();
+        }
+      }.bind(this), 5000);
+    }.bind(this));
+    this._firstDataDeferred.set(id, deferred);
     try {
       const result = await window.electronAPI.terminalSpawn({
         cwd: cwd || '',
@@ -410,7 +429,7 @@ export default class TerminalUI {
   _readTerminalBuffer(inst) {
     if (!inst || !inst.terminal) return '';
     const buf = inst.terminal.buffer.active;
-    const totalLines = buf.baseY + buf.cursorY;
+    const totalLines = buf.baseY + buf.cursorY + 1;
     const lines = [];
     for (let i = 0; i < totalLines; i++) {
       const line = buf.getLine(i);
