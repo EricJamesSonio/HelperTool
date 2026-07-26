@@ -82,10 +82,40 @@ function hasInspection(repoPath) {
   return data !== null;
 }
 
+function _apiFilePath(repoPath) {
+  return path.join(_getStoreDir(), _hashPath(repoPath) + '-api.json');
+}
+
+function saveApiEndpoints(repoPath, endpoints) {
+  const filePath = _apiFilePath(repoPath);
+  const data = { repoPath, endpoints, scannedAt: new Date().toISOString() };
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  _cache.set(repoPath + ':api', { data, ts: Date.now() });
+}
+
+function loadApiEndpoints(repoPath) {
+  const cached = _cache.get(repoPath + ':api');
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data;
+  }
+  const filePath = _apiFilePath(repoPath);
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const data = JSON.parse(raw);
+    _cache.set(repoPath + ':api', { data, ts: Date.now() });
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   saveInspection,
   loadInspection,
   deleteInspection,
   listInspections,
   hasInspection,
+  saveApiEndpoints,
+  loadApiEndpoints,
 };

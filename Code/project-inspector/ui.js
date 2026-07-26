@@ -1,7 +1,14 @@
+const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'ALL'];
+
 export function initProjectInspector(container, repoPath) {
   let currentRepo = repoPath;
   let inspection = null;
   let loading = false;
+  let activeView = 'project';
+  let apiEndpoints = null;
+  let apiLoading = false;
+  let apiFilterMethod = null;
+  let apiFilterText = '';
 
   function render() {
     container.innerHTML = '';
@@ -17,18 +24,30 @@ export function initProjectInspector(container, repoPath) {
           <button class="pi-btn pi-btn-primary" id="piInspectBtn">
             ${inspection ? 'Re-inspect' : 'Inspect Codebase'}
           </button>
+          <button class="pi-btn" id="piInspectApiBtn">Inspect API</button>
           ${inspection ? '<button class="pi-btn pi-btn-danger" id="piDeleteBtn">Delete</button>' : ''}
         </div>
       </div>
+      <div class="pi-tab-bar">
+        <button class="pi-tab ${activeView === 'project' ? 'active' : ''}" data-view="project">Project</button>
+        <button class="pi-tab ${activeView === 'api' ? 'active' : ''}" data-view="api">API Endpoints</button>
+      </div>
       <div class="pi-body" id="piBody">
-        ${inspection ? renderInspection(inspection) : renderEmpty()}
+        ${activeView === 'api' ? renderApiView() : (inspection ? renderInspection(inspection) : renderEmpty())}
       </div>
     `;
     container.appendChild(wrapper);
 
     document.getElementById('piInspectBtn').addEventListener('click', () => runInspection());
+    document.getElementById('piInspectApiBtn').addEventListener('click', () => runApiScan());
     const deleteBtn = document.getElementById('piDeleteBtn');
     if (deleteBtn) deleteBtn.addEventListener('click', () => deleteInspection());
+    wrapper.querySelectorAll('.pi-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        activeView = tab.dataset.view;
+        render();
+      });
+    });
   }
 
   function renderEmpty() {
@@ -212,16 +231,122 @@ export function initProjectInspector(container, repoPath) {
     }
   }
 
+  function renderApiView() {
+    if (apiLoading) {
+      return `<div class="pi-empty"><p class="pi-empty-text">Scanning for API endpoints...</p></div>`;
+    }
+    if (!apiEndpoints) {
+      return `
+        <div class="pi-empty">
+          <div class="pi-empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+              <path d="M13 2L4 11h5l-2 7 9-9h-5l2-7z"/>
+            </svg>
+          </div>
+          <p class="pi-empty-text">No API endpoints scanned yet.</p>
+          <p class="pi-empty-sub">Click <strong>Inspect API</strong> to discover routes, controllers, and OpenAPI specs.</p>
+        </div>
+      `;
+    }
+
+    const filtered = apiEndpoints.filter(ep => {
+      if (apiFilterMethod && ep.method !== apiFilterMethod) return false;
+      if (apiFilterText) {
+        const q = apiFilterText.toLowerCase();
+        if (!ep.path.toLowerCase().includes(q) &&
+            !(ep.handler && ep.handler.toLowerCase().includes(q)) &&
+            !ep.file.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+
+    const rows = filtered.map(ep => `
+      <tr>
+        <td><span class="pi-method-badge pi-method-${ep.method}">${ep.method}</span></td>
+        <td><span class="pi-endpoint-path">${esc(ep.path)}</span></td>
+        <td><span class="pi-endpoint-handler">${ep.handler ? esc(ep.handler) : '—'}</span></td>
+        <td><span class="pi-endpoint-file">${esc(ep.file)}${ep.line ? ':' + ep.line : ''}</span></td>
+        <td>${ep.framework ? '<span class="pi-endpoint-fw fw-' + ep.framework.toLowerCase() + '">' + esc(ep.framework) + '</span>' : '—'}</td>
+      </tr>
+    `).join('');
+
+    const methodPills = METHODS.map(m => `
+      <button class="pi-filter-pill pill-${m.toLowerCase()} ${apiFilterMethod === m ? 'active' : ''}" data-method="${m}">${m}</button>
+    `).join('');
+
+    return `
+      <div class="pi-api-header">
+        <span class="pi-api-count">${apiEndpoints.length} endpoint${apiEndpoints.length !== 1 ? 's' : ''} found</span>
+        <div class="pi-api-filters">
+          <button class="pi-filter-pill ${!apiFilterMethod ? 'active' : ''}" data-method="">All</button>
+          ${methodPills}
+        </div>
+      </div>
+      <div class="pi-endpoint-table-wrap">
+        <table class="pi-endpoint-table">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Path</th>
+              <th>Handler</th>
+              <th>File</th>
+              <th>Framework</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--pi-muted)">No matching endpoints</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async function runApiScan() {
+    if (apiLoading) return;
+    if (!currentRepo) return;
+    apiLoading = true;
+    activeView = 'api';
+    render();
+
+    try {
+      const res = await window.projectInspector.scanApi(currentRepo);
+      if (res.success) {
+        apiEndpoints = res.endpoints;
+      } else {
+        console.error('[PI] API scan failed:', res.error);
+        apiEndpoints = [];
+      }
+    } catch (err) {
+      console.error('[PI] API scan error:', err);
+      apiEndpoints = [];
+    } finally {
+      apiLoading = false;
+      render();
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const pill = e.target.closest('.pi-filter-pill');
+    if (!pill || !pill.closest('.pi-wrapper')) return;
+    const method = pill.dataset.method || null;
+    apiFilterMethod = apiFilterMethod === method ? null : method;
+    render();
+  });
+
   async function loadExisting() {
     if (!currentRepo) return;
     try {
-      const res = await window.projectInspector.get(currentRepo);
-      if (res.success && res.data) {
-        inspection = res.data;
-        render();
-      } else {
-        render();
+      const [insRes, apiRes] = await Promise.all([
+        window.projectInspector.get(currentRepo),
+        window.projectInspector.getApiEndpoints(currentRepo),
+      ]);
+      if (insRes.success && insRes.data) {
+        inspection = insRes.data;
       }
+      if (apiRes.success && apiRes.endpoints) {
+        apiEndpoints = apiRes.endpoints;
+      }
+      render();
     } catch {
       render();
     }
@@ -230,6 +355,9 @@ export function initProjectInspector(container, repoPath) {
   function updateRepo(newRepo) {
     currentRepo = newRepo;
     inspection = null;
+    apiEndpoints = null;
+    apiFilterMethod = null;
+    activeView = 'project';
     loadExisting();
   }
 
