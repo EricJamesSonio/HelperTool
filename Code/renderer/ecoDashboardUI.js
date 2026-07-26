@@ -198,9 +198,8 @@ function _updateShortcutButtons() {
   if (!sBtn || !cBtn) return;
   var hasS = _shortcutConfig && _shortcutConfig.server;
   var hasC = _shortcutConfig && _shortcutConfig.client;
-  var isRunning = document.getElementById('ecoStopBtn').style.display !== 'none';
-  sBtn.disabled = !hasS || isRunning;
-  cBtn.disabled = !hasC || isRunning;
+  sBtn.disabled = !hasS;
+  cBtn.disabled = !hasC;
   sBtn.title = hasS ? 'Run Server: ' + _shortcutConfig.server.command : 'Server shortcut not configured';
   cBtn.title = hasC ? 'Run Client: ' + _shortcutConfig.client.command : 'Client shortcut not configured';
 }

@@ -78,10 +78,24 @@ function enforceLimit() {
   }
 }
 
+function prunePushedOlderThan(commits, days) {
+  if (!Array.isArray(commits) || commits.length === 0) return commits;
+  days = days || 30;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return commits.filter(c => !(c.pushed && new Date(c.timestamp).getTime() < cutoff));
+}
+
 export function loadCommits(repoPath) {
   try {
     const raw = localStorage.getItem(repoKey(repoPath));
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    let commits = JSON.parse(raw);
+    if (!Array.isArray(commits)) return null;
+    const pruned = prunePushedOlderThan(commits);
+    if (pruned.length !== commits.length) {
+      saveCommits(repoPath, pruned);
+    }
+    return pruned;
   } catch {
     return null;
   }
@@ -92,6 +106,7 @@ export function saveCommits(repoPath, commits) {
     localStorage.removeItem(repoKey(repoPath));
     return true;
   }
+  commits = prunePushedOlderThan(commits);
   try {
     localStorage.setItem(repoKey(repoPath), JSON.stringify(commits));
     enforceLimit();
