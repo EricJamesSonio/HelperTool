@@ -295,8 +295,10 @@ export default class TerminalUI {
     const useShell = this._selectedShell || this.shells[0];
     await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
     if (command && this.instances.has(id)) {
+      await new Promise(r => setTimeout(r, 200));
       await window.electronAPI.terminalWrite({ id, data: command + '\r' });
     }
+    return id;
   }
 
   async _addTerminal(cwd, shell) {
