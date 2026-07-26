@@ -18,16 +18,17 @@ export function openSplitView(researcher, accountId) {
   // Show save form for new accounts, account info for saved ones
   const saveSection = document.getElementById('rsSaveAccount');
   const accountInfo = document.getElementById('rsAccountInfo');
-  if (accountId) {
+  const isNew = !accountId || !state.accounts.some(a => a.id === accountId);
+  if (isNew) {
+    if (saveSection) saveSection.classList.remove('rs-hidden');
+    if (accountInfo) accountInfo.classList.add('rs-hidden');
+  } else {
     if (saveSection) saveSection.classList.add('rs-hidden');
     if (accountInfo) {
       accountInfo.classList.remove('rs-hidden');
       const badge = document.getElementById('rsAccountBadge');
       if (badge) badge.textContent = researcher.name;
     }
-  } else {
-    if (saveSection) saveSection.classList.remove('rs-hidden');
-    if (accountInfo) accountInfo.classList.add('rs-hidden');
   }
 
   initPromptEditor();

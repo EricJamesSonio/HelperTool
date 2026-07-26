@@ -1,10 +1,53 @@
 import { state, getSavedAccounts, removeAccount } from '../state.js';
-import { getServiceType, getAccountTypeIcon, getAccountTypeName } from '../template.js';
+import { getServiceType, getServiceTypes, getAccountTypeIcon, getAccountTypeName } from '../template.js';
 import { openSplitView } from './splitView.js';
 
 export function initHome() {
   renderAccountList();
   setupAddNewGrid();
+  setupAddAccountBtn();
+}
+
+function setupAddAccountBtn() {
+  const btn = document.getElementById('rsAddAccountBtn');
+  if (!btn) return;
+  btn.addEventListener('click', showAddAccountPicker);
+}
+
+function showAddAccountPicker() {
+  const existing = document.getElementById('rsAddAccountPicker');
+  if (existing) { existing.remove(); return; }
+
+  const types = getServiceTypes();
+  const overlay = document.createElement('div');
+  overlay.id = 'rsAddAccountPicker';
+  overlay.className = 'rs-add-picker-overlay';
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  const box = document.createElement('div');
+  box.className = 'rs-add-picker-box';
+
+  types.forEach(t => {
+    const card = document.createElement('button');
+    card.className = 'rs-add-picker-card';
+    card.dataset.id = t.id;
+    card.innerHTML = `
+      <div class="rs-researcher-icon">${t.icon}</div>
+      <div class="rs-researcher-name">${t.name}</div>
+    `;
+    card.addEventListener('click', () => {
+      overlay.remove();
+      const accountId = 'acc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+      openSplitView({ url: t.url, name: t.name }, accountId);
+    });
+    box.appendChild(card);
+  });
+
+  overlay.appendChild(box);
 }
 
 function setupAddNewGrid() {
