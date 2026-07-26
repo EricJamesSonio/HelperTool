@@ -108,9 +108,9 @@ function _buildPanel() {
         '<div class="eco-control-row eco-status-row">' +
           '<span class="eco-status-indicator" id="ecoStatusDot"></span>' +
           '<span class="eco-status-text" id="ecoStatusText">Stopped</span>' +
-          '<span class="eco-shortcut-pills" id="ecoShortcutPills" style="display:none">' +
-            '<button class="eco-pill eco-pill-server" id="ecoShortcutServer">S</button>' +
-            '<button class="eco-pill eco-pill-client" id="ecoShortcutClient">C</button>' +
+          '<span class="eco-shortcut-pills" id="ecoShortcutPills">' +
+            '<button class="eco-pill eco-pill-server" id="ecoShortcutServer" title="Server shortcut not configured">S</button>' +
+            '<button class="eco-pill eco-pill-client" id="ecoShortcutClient" title="Client shortcut not configured">C</button>' +
           '</span>' +
           '<span class="eco-url-display" id="ecoUrlDisplay" style="display:none"></span>' +
         '</div>' +
@@ -193,15 +193,16 @@ async function _fetchShortcutConfig() {
 function _updateShortcutButtons() {
   var pills = document.getElementById('ecoShortcutPills');
   if (!pills) return;
-  if (!_shortcutConfig || (!_shortcutConfig.server && !_shortcutConfig.client)) {
-    pills.style.display = 'none';
-    return;
-  }
-  pills.style.display = '';
   var sBtn = document.getElementById('ecoShortcutServer');
   var cBtn = document.getElementById('ecoShortcutClient');
-  if (sBtn) sBtn.style.display = _shortcutConfig.server ? '' : 'none';
-  if (cBtn) cBtn.style.display = _shortcutConfig.client ? '' : 'none';
+  if (!sBtn || !cBtn) return;
+  var hasS = _shortcutConfig && _shortcutConfig.server;
+  var hasC = _shortcutConfig && _shortcutConfig.client;
+  var isRunning = document.getElementById('ecoStopBtn').style.display !== 'none';
+  sBtn.disabled = !hasS || isRunning;
+  cBtn.disabled = !hasC || isRunning;
+  sBtn.title = hasS ? 'Run Server: ' + _shortcutConfig.server.command : 'Server shortcut not configured';
+  cBtn.title = hasC ? 'Run Client: ' + _shortcutConfig.client.command : 'Client shortcut not configured';
 }
 
 async function _handleShortcut(type) {
@@ -215,12 +216,11 @@ async function _handleShortcut(type) {
   var label = type === 'server' ? 'Server' : 'Client';
   document.getElementById('ecoPathInput').value = cwd;
   document.getElementById('ecoCmdInput').value = cmd;
-  document.getElementById('ecoShortcutServer').disabled = true;
-  document.getElementById('ecoShortcutClient').disabled = true;
   document.getElementById('ecoRunBtn').style.display = 'none';
   document.getElementById('ecoStopBtn').style.display = '';
   document.getElementById('ecoStatusText').textContent = 'Starting\u2026';
   document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-waiting';
+  _updateShortcutButtons();
 
   for (var i = 0; i < _TYPES.length; i++) {
     _state[_TYPES[i]] = { events: [], oldestSeq: null, hasMore: false, autoScroll: true, loading: false };
@@ -240,8 +240,7 @@ async function _handleShortcut(type) {
       document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
       document.getElementById('ecoRunBtn').style.display = '';
       document.getElementById('ecoStopBtn').style.display = 'none';
-      document.getElementById('ecoShortcutServer').disabled = false;
-      document.getElementById('ecoShortcutClient').disabled = false;
+      _updateShortcutButtons();
     }
   } catch (e) {
     document.getElementById('ecoStatusText').textContent = 'Terminal unavailable, switching to direct mode\u2026';
@@ -261,8 +260,7 @@ async function _handleShortcut(type) {
       document.getElementById('ecoRunBtn').style.display = '';
       document.getElementById('ecoStopBtn').style.display = 'none';
     }
-    document.getElementById('ecoShortcutServer').disabled = false;
-    document.getElementById('ecoShortcutClient').disabled = false;
+    _updateShortcutButtons();
   }
 }
 
@@ -305,8 +303,7 @@ async function _handleStop() {
   document.getElementById('ecoUrlDisplay').style.display = 'none';
   document.getElementById('ecoStatusText').textContent = 'Stopped';
   document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
-  document.getElementById('ecoShortcutServer').disabled = false;
-  document.getElementById('ecoShortcutClient').disabled = false;
+  _updateShortcutButtons();
 }
 
 async function _refreshStatus() {
@@ -350,12 +347,11 @@ async function _refreshStatus() {
       dot.className = 'eco-status-indicator eco-status-stopped';
       txt.textContent = 'Stopped';
       urlDisp.style.display = 'none';
+      _updateShortcutButtons();
       if (document.getElementById('ecoRunBtn').style.display === 'none') {
         document.getElementById('ecoRunBtn').style.display = '';
         document.getElementById('ecoStopBtn').style.display = 'none';
       }
-      document.getElementById('ecoShortcutServer').disabled = false;
-      document.getElementById('ecoShortcutClient').disabled = false;
     }
   } catch (e) { /* ignore */ }
 }
