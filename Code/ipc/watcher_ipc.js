@@ -153,6 +153,11 @@ function register(getMainWindow) {
     return urlMonitor.list();
   }));
 
+  ipcMain.handle('watcher:urlCheckNow', safe(async function (_, port) {
+    const urlMonitor = require('../ecosystem-watcher/capture/url-monitor');
+    return urlMonitor.checkNow(port);
+  }));
+
   ipcMain.handle('watcher:urlHealthHistory', safe(async function (_, { port, limit }) {
     const urlMonitor = require('../ecosystem-watcher/capture/url-monitor');
     return urlMonitor.getHealthHistory(port, limit);

@@ -210,6 +210,9 @@ function register({ getMainWindow }) {
 
     terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId });
     _outputBuffers.set(id, []);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('terminal:ready', { id });
+    }
     return { id, cwd: resolvedCwd, sessionId };
   });
 
