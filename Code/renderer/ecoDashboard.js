@@ -325,7 +325,7 @@ function _installPatches() {
             duration: Date.now() - startTime,
             contentType: ct,
             ts: startTime, text: method + ' ' + url + ' \u2192 ' + response.status,
-            details: { url: url, method: method, status: response.status, duration: Date.now() - startTime, body: body.slice(0, 2000) },
+            details: { url: url, method: method, status: response.status, duration: Date.now() - startTime, body: body },
           });
         }).catch(function () {});
       }
