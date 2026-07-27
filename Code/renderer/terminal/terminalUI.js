@@ -117,6 +117,13 @@ export default class TerminalUI {
 
     this._createPanel();
 
+    window.electronAPI.onTerminalReady(({ id }) => {
+      if (this._firstDataDeferred.has(id)) {
+        this._firstDataDeferred.get(id).resolve();
+        this._firstDataDeferred.delete(id);
+      }
+    });
+
     window.electronAPI.onTerminalData(({ id, data }) => {
       const inst = this.instances.get(id);
       if (inst && inst.terminal) {
@@ -301,10 +308,34 @@ export default class TerminalUI {
     await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
     if (command && this.instances.has(id)) {
       const d = this._firstDataDeferred.get(id);
-      if (d) await d.promise;
+      if (d) {
+        try { await d.promise; } catch { return id; }
+      }
       await window.electronAPI.terminalWrite({ id, data: command + '\r' });
     }
     return id;
+  }
+
+  async openShortcutTerminal(cwd, label, command) {
+    if (!this.panel.classList.contains('open')) {
+      this.panel.classList.add('open');
+      this.panel.style.height = '';
+    }
+    const id = this.nextId++;
+    const useShell = this._selectedShell || this.shells[0];
+    await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
+    if (command && this.instances.has(id)) {
+      const d = this._firstDataDeferred.get(id);
+      if (d) {
+        try { await d.promise; } catch { return id; }
+      }
+      await window.electronAPI.terminalWrite({ id, data: command + '\r' });
+    }
+    return id;
+  }
+
+  updateLastCwd(cwd) {
+    this._lastCwd = cwd || this._lastCwd;
   }
 
   async _addTerminal(cwd, shell) {
@@ -365,8 +396,9 @@ export default class TerminalUI {
 
     let sessionId = null;
     var deferred = {};
-    deferred.promise = new Promise(function (resolve) {
+    deferred.promise = new Promise(function (resolve, reject) {
       deferred.resolve = resolve;
+      deferred.reject = reject;
       setTimeout(function () {
         if (this._firstDataDeferred.has(id)) {
           this._firstDataDeferred.delete(id);
@@ -385,6 +417,10 @@ export default class TerminalUI {
       if (result) sessionId = result.sessionId || null;
     } catch (err) {
       terminal.write(`\r\n\x1b[31mFailed to spawn terminal: ${err.message}\x1b[0m\r\n`);
+      if (this._firstDataDeferred.has(id)) {
+        this._firstDataDeferred.get(id).reject(err);
+        this._firstDataDeferred.delete(id);
+      }
     }
 
     this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, sessionId, discoveredUrls: new Set() });
