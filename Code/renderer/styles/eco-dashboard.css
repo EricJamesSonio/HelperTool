@@ -666,3 +666,125 @@
   font-size: 0.85rem;
   font-style: italic;
 }
+
+/* ─── API Detail Modal ─── */
+.eco-api-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.eco-api-detail-overlay.open {
+  opacity: 1;
+}
+.eco-api-detail-modal {
+  background: var(--bg-surface, #111);
+  border: 1px solid var(--border-strong, rgba(255,255,255,0.12));
+  border-radius: 12px;
+  width: 90vw;
+  max-width: 1100px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.eco-api-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  flex-shrink: 0;
+}
+.eco-api-detail-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+.eco-api-detail-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+.eco-api-detail-close:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.eco-api-detail-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.eco-api-detail-left {
+  width: 320px;
+  flex-shrink: 0;
+  padding: 16px 20px;
+  border-right: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.eco-api-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.eco-api-detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eco-api-detail-value {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+.eco-api-detail-url {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.eco-api-detail-right {
+  flex: 1;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.eco-api-detail-right .eco-api-detail-label {
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+.eco-api-detail-body-pre {
+  flex: 1;
+  margin: 0;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.08));
+  border-radius: 6px;
+  overflow: auto;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.eco-api-detail-body-pre code {
+  font-family: inherit;
+}
