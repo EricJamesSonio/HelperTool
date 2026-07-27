@@ -36,6 +36,7 @@ const DEFAULT_SHORTCUTS = {
   mcp: null,
   projectInspector: null,
   researcherTool: null,
+  harnessTool: null,
 };
 
 const S = { shortcuts: {} };
