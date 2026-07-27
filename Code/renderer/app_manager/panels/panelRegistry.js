@@ -148,7 +148,7 @@ export default class PanelRegistry {
     const rsPanel = document.getElementById('rsPanel');
     if (rsPanel?.classList.contains('open')) {
       rsPanel.classList.remove('open');
-      window.electronAPI.researcher.destroyBrowserView().catch(() => {});
+      window.electronAPI.researcher.hideBrowserView().catch(() => {});
     }
 
     // Ecosystem Dashboard — close when any other tool opens
