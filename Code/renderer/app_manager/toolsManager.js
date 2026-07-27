@@ -7,7 +7,7 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
-import { openRenameModal, openCreateFilesModal, openCreateFolderModal, showToast } from '../codebaseManager.js';
+import { openRenameModal, openCreateFilesModal, openCreateFolderModal, showToast, openInputContentModal } from '../codebaseManager.js';
 import { displayTree }                    from './viewManager.js';
 import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
@@ -1136,6 +1136,11 @@ export async function initTools(feats, settingsManager) {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       openCreateFolderModal(folderPath, () => { if (state.cachedTree) displayTree(false); });
+    },
+    async (filePath) => {
+      if (!state.selectedRepoPath) return;
+      _registry.closeAll();
+      openInputContentModal(filePath, () => { if (state.cachedTree) displayTree(false); });
     }
   );
 
