@@ -389,6 +389,79 @@ export function openCreateFolderModal(parentPath, onComplete) {
   setTimeout(() => { input.focus(); }, 50);
 }
 
+export function openInputContentModal(filePath, onComplete) {
+  if (!filePath) return;
+
+  const fileName = filePath.split(/[/\\]/).filter(Boolean).pop() || '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay cm-modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-content cm-modal cm-content-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Input Content</h3>
+        <button class="modal-close-btn cm-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="cm-file-path">${_esc(filePath)}</div>
+        <textarea class="cm-content-textarea" placeholder="Type or paste file content here..." spellcheck="false"></textarea>
+        <div class="cm-content-error" style="display:none"></div>
+      </div>
+      <div class="modal-actions cm-modal-actions">
+        <button class="modal-btn modal-btn-primary cm-content-save-btn">Save</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  const textarea = overlay.querySelector('.cm-content-textarea');
+  const saveBtn = overlay.querySelector('.cm-content-save-btn');
+  const closeBtn = overlay.querySelector('.cm-modal-close');
+  const errorEl = overlay.querySelector('.cm-content-error');
+
+  const keyHandler = (e) => {
+    if (e.key === 'Escape') close();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveBtn.click();
+  };
+  document.addEventListener('keydown', keyHandler);
+
+  function close() {
+    document.removeEventListener('keydown', keyHandler);
+    overlay.classList.remove('open');
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+    setTimeout(() => { if (overlay.isConnected) overlay.remove(); }, 250);
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    const content = textarea.value;
+    if (!content) {
+      errorEl.textContent = 'Content cannot be empty. Type or paste something.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    errorEl.style.display = 'none';
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+    const res = await window.electronAPI.writeFile(filePath, content);
+    if (res.success) {
+      close();
+      onComplete?.();
+      showToast('Content saved to ' + fileName);
+    } else {
+      errorEl.textContent = res.error || 'Failed to save content';
+      errorEl.style.display = 'block';
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    }
+  });
+
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  setTimeout(() => { textarea.focus(); }, 50);
+}
+
 export function showToast(message, type = 'success', duration = 3000) {
   const existing = document.querySelector('.cm-toast');
   if (existing) existing.remove();
