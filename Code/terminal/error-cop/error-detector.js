@@ -170,7 +170,7 @@ class ErrorDetector {
 
     const first = block.firstParsed;
     const fullText = block.lines.map(l => l.raw).join('\n');
-    const title = first.parsed.title || first.parsed.raw.slice(0, 120);
+    const title = first ? (first.title || first.raw.slice(0, 120)) : fullText.slice(0, 120);
 
     this._emitErrorBlock(title, fullText, block.level, block.startTime);
   }
