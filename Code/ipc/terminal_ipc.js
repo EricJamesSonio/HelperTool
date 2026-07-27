@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+let _activeRepoPath = null;
+
 let _pty = null;
 function getPty() {
   if (!_pty) {
@@ -134,11 +136,30 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('terminal:listShells', () => detectShells());
 
+  try {
+    const config = require('./config/config.js');
+    _activeRepoPath = config.readConfig()?.activeProject || null;
+  } catch { _activeRepoPath = null; }
+
   ipcMain.handle('terminal:spawn', (event, { cwd, shell, args, label }) => {
     const id = nextId++;
     const win = getMainWindow();
-    const defaultCwd = cwd || os.homedir();
-    const resolvedCwd = defaultCwd && fs.existsSync(defaultCwd) ? defaultCwd : os.homedir();
+    let resolvedCwd = cwd || os.homedir();
+    if (!path.isAbsolute(resolvedCwd)) {
+      resolvedCwd = path.resolve(resolvedCwd);
+    }
+    if (!fs.existsSync(resolvedCwd)) {
+      if (_activeRepoPath) {
+        const altCwd = path.resolve(_activeRepoPath, cwd || '');
+        if (fs.existsSync(altCwd)) {
+          resolvedCwd = altCwd;
+        }
+      }
+      if (!fs.existsSync(resolvedCwd)) {
+        console.warn(`[Terminal] CWD "${resolvedCwd}" does not exist, falling back to homedir`);
+        resolvedCwd = os.homedir();
+      }
+    }
 
     const env = Object.assign({}, process.env);
     const term = getPty().spawn(shell, args || [], {
