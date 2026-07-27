@@ -15,7 +15,7 @@ This transforms AI usage from:
 
 > manual trial-and-error
 > into
-> automated, testable, repeatable execution
+> automated, testable, repeatable executions
 
 ---
 
