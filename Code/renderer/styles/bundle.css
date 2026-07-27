@@ -30252,6 +30252,52 @@ Claude Fab
   word-break: break-all;
 }
 
+/* ── Input Content modal ── */
+
+.cm-content-modal {
+  max-width: 800px;
+  width: 90vw;
+}
+
+.cm-content-textarea {
+  width: 100%;
+  min-height: 400px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.12));
+  border-radius: 6px;
+  background: var(--bg-elevated, #0f1117);
+  color: var(--text-primary, #f0f6fc);
+  font-size: 13px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  outline: none;
+  box-sizing: border-box;
+  resize: vertical;
+  transition: border-color 0.15s;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.cm-content-textarea:focus {
+  border-color: var(--accent, #22d3ee);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.15);
+}
+
+.cm-content-textarea::placeholder {
+  color: var(--text-faint, #545d68);
+}
+
+.cm-content-error {
+  margin-top: 2px;
+  padding: 4px 6px;
+  background: var(--red-dim, rgba(248,81,73,0.12));
+  border: 1px solid rgba(248,81,73,0.25);
+  border-radius: 4px;
+  color: var(--red, #f87171);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 
 /* error-cop.css */
 /* ─── Error Cop — Red/Neon Theme ─────────────────────────── */
