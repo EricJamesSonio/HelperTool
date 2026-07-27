@@ -10,6 +10,8 @@ let _contentLeft = [];
 let _contentRight = [];
 let _viewMode = false;
 let _showContent = false;
+let _editMode = false;
+let _rawContent = '';
 
 const CLOSE_SVG = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5l-10 10"/></svg>';
 const COPY_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="10" height="12" rx="1"/><path d="M2 5v8a1 1 0 0 0 1 1h7"/></svg>';
@@ -21,6 +23,8 @@ export function isOpen() {
 export function open(filePath, repoPath, opts) {
   _viewMode = opts?.viewMode === true;
   _showContent = opts?.showContent === true;
+  _editMode = false;
+  _rawContent = '';
   _filePath = filePath;
   _repoPath = repoPath;
   _commits = [];
@@ -40,6 +44,34 @@ export function open(filePath, repoPath, opts) {
 
 export function close() {
   if (!_open) return;
+  if (_editMode) {
+    _autoSaveAndClose();
+    return;
+  }
+  _panel.classList.remove('dv-open');
+  _open = false;
+}
+
+function _autoSaveAndClose() {
+  const leftBody = document.getElementById('dvLeftBody');
+  if (!leftBody) { _forceClose(); return; }
+  const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
+  const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+  if (content !== _rawContent) {
+    window.electronAPI.writeFile(_filePath, content).then(() => {
+      _rawContent = content;
+      _forceClose();
+    }).catch(() => _forceClose());
+  } else {
+    _forceClose();
+  }
+}
+
+function _forceClose() {
+  _editMode = false;
+  _showFloatingBanner(false);
+  const leftBody = document.getElementById('dvLeftBody');
+  if (leftBody) leftBody.classList.remove('dv-editor-active');
   _panel.classList.remove('dv-open');
   _open = false;
 }
@@ -55,6 +87,7 @@ function _buildPanel() {
         <span class="dv-file-path" id="dvFilePath"></span>
       </div>
       <div class="dv-header-actions">
+        <button class="dv-btn dv-btn-edit" id="dvEditBtn" style="display:none">Edit</button>
         <button class="dv-btn dv-btn-toggle" id="dvToggleBtn">View Diff</button>
         <button class="dv-btn dv-btn-close" id="dvCloseBtn">${CLOSE_SVG}</button>
       </div>
@@ -109,6 +142,7 @@ function _buildPanel() {
   document.getElementById('dvCopyLeft').addEventListener('click', () => _copyPanel('left'));
   document.getElementById('dvCopyRight').addEventListener('click', () => _copyPanel('right'));
   document.getElementById('dvToggleBtn').addEventListener('click', _toggleContentHistory);
+  document.getElementById('dvEditBtn').addEventListener('click', _toggleEditMode);
 }
 
 function _applyViewMode() {
@@ -193,18 +227,125 @@ async function _loadContent() {
   let lines;
   try {
     const res = await window.electronAPI.readFile(_filePath);
-    lines = (res.success ? res.content : '').split('\n');
+    _rawContent = res.success ? res.content : '';
+    lines = _rawContent.split('\n');
   } catch {
+    _rawContent = '';
     lines = [];
   }
   if (!_showContent) return;
   leftBody.innerHTML = lines.map((line, i) =>
     '<div class="dv-line dv-line-context"><span class="dv-ln">' + (i + 1) + '</span><span class="dv-text">' + _escape(line) + '</span></div>'
   ).join('') || '<div class="dv-empty">Unable to read file</div>';
+
+  const editBtn = document.getElementById('dvEditBtn');
+  if (editBtn) editBtn.style.display = _editMode ? 'none' : '';
 }
 
 function _escHandler(e) {
-  if (e.key === 'Escape' && _open) close();
+  if (!_open) return;
+  if (_editMode) {
+    if (e.key === 'Escape') _toggleEditMode();
+    return;
+  }
+  if (e.key === 'Escape') close();
+}
+
+function _toggleEditMode() {
+  _editMode = !_editMode;
+  const leftBody = document.getElementById('dvLeftBody');
+  const editBtn = document.getElementById('dvEditBtn');
+  const toggleBtn = document.getElementById('dvToggleBtn');
+  if (!leftBody) return;
+
+  if (_editMode) {
+    editBtn.textContent = 'Cancel';
+    if (toggleBtn) toggleBtn.style.display = 'none';
+    leftBody.innerHTML =
+      '<div class="dv-editor-lines">' +
+      _rawContent.split('\n').map((line, i) =>
+        '<div class="dv-line dv-line-context dv-line-editable"><span class="dv-ln">' + (i + 1) +
+        '</span><span class="dv-text" contenteditable="true">' + _escape(line) + '</span></div>'
+      ).join('') +
+      '</div>' +
+      '<div class="dv-editor-actions"><button class="dv-btn dv-editor-save-btn" id="dvSaveBtn">Save</button></div>';
+    leftBody.classList.add('dv-editor-active');
+    _showFloatingBanner(true);
+
+    const linesContainer = leftBody.querySelector('.dv-editor-lines');
+    const saveBtn = document.getElementById('dvSaveBtn');
+    const firstText = leftBody.querySelector('.dv-text[contenteditable]');
+
+    saveBtn.addEventListener('click', _saveContent);
+    if (firstText) {
+      firstText.focus();
+      window.getSelection().selectAllChildren(firstText);
+      window.getSelection().collapseToEnd();
+    }
+
+    leftBody._editorKeydown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        _saveContent();
+      }
+    };
+    leftBody.addEventListener('keydown', leftBody._editorKeydown);
+  } else {
+    editBtn.textContent = 'Edit';
+    if (toggleBtn) toggleBtn.style.display = '';
+    leftBody.classList.remove('dv-editor-active');
+    if (leftBody._editorKeydown) {
+      leftBody.removeEventListener('keydown', leftBody._editorKeydown);
+      delete leftBody._editorKeydown;
+    }
+    _showFloatingBanner(false);
+    _loadContent();
+  }
+}
+
+function _showFloatingBanner(show) {
+  let banner = document.getElementById('dvEditBanner');
+  if (show) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'dvEditBanner';
+      banner.className = 'dv-floating-banner';
+      banner.textContent = 'Edit mode is enabled \u2014 Ctrl+S to save, Esc to cancel';
+      document.body.appendChild(banner);
+      requestAnimationFrame(() => banner.classList.add('dv-fb-visible'));
+    } else {
+      banner.classList.add('dv-fb-visible');
+    }
+  } else if (banner) {
+    banner.classList.remove('dv-fb-visible');
+  }
+}
+
+async function _saveContent() {
+  const leftBody = document.getElementById('dvLeftBody');
+  if (!leftBody) return;
+  const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
+  if (!textSpans.length) return;
+  const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+  if (content === _rawContent) {
+    _toggleEditMode();
+    return;
+  }
+  const saveBtn = document.getElementById('dvSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+  }
+  const res = await window.electronAPI.writeFile(_filePath, content);
+  if (res.success) {
+    _rawContent = content;
+    _toggleEditMode();
+  } else {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Failed \u2014 Retry';
+    }
+  }
 }
 
 async function _load() {
