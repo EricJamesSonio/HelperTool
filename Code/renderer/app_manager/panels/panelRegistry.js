@@ -154,6 +154,11 @@ export default class PanelRegistry {
     // Ecosystem Dashboard — close when any other tool opens
     if (ecoDashboard.isOpen()) { ecoDashboard.close(); }
 
+    const harnessPanel = document.getElementById('harnessPanel');
+    if (harnessPanel?.classList.contains('open')) {
+      harnessPanel.classList.remove('open');
+    }
+
     // Performance Tracker — close when any other tool opens
     const ptPanel = document.getElementById('perfTrackerPanel');
     if (ptPanel?.classList.contains('open')) {
