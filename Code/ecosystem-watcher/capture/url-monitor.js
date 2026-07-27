@@ -151,6 +151,14 @@ function getHealthHistory(port, limit) {
   return { success: true, data: history };
 }
 
+function checkNow(port) {
+  if (!_urls) return { success: false, error: 'No URLs registered' };
+  const state = _urls.get(port);
+  if (!state) return { success: false, error: 'URL not found for port: ' + port };
+  _checkOne(port, state);
+  return { success: true, data: { port, status: state.status } };
+}
+
 function stopAll() {
   _stopTimer();
   if (_urls) _urls.clear();
@@ -163,5 +171,6 @@ module.exports = {
   unregister,
   list,
   getHealthHistory,
+  checkNow,
   stopAll,
 };

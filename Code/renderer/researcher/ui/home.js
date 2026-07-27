@@ -42,7 +42,7 @@ function showAddAccountPicker() {
     card.addEventListener('click', () => {
       overlay.remove();
       const accountId = 'acc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-      openSplitView({ url: t.url, name: t.name }, accountId);
+      openSplitView({ url: t.url, name: t.name, type: t.id }, accountId);
     });
     box.appendChild(card);
   });
@@ -61,7 +61,7 @@ function setupAddNewGrid() {
     const serviceType = getServiceType(id);
     if (!serviceType) return;
     const accountId = 'acc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-    openSplitView({ url: serviceType.url, name: serviceType.name }, accountId);
+    openSplitView({ url: serviceType.url, name: serviceType.name, type: serviceType.id }, accountId);
   });
 }
 
@@ -112,7 +112,7 @@ export function renderAccountList() {
 
     row.addEventListener('click', (e) => {
       if (e.target.closest('.rs-account-delete-btn')) return;
-      openSplitView({ url: acc.url, name: acc.email || getAccountTypeName(acc.type) }, acc.id);
+      openSplitView({ url: acc.url, name: acc.email || getAccountTypeName(acc.type), type: acc.type }, acc.id);
     });
 
     const delBtn = row.querySelector('.rs-account-delete-btn');

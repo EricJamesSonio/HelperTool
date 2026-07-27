@@ -95,7 +95,10 @@ function _buildPanel() {
     '<div class="eco-modal">' +
       '<div class="eco-header">' +
         '<span class="eco-title">Ecosystem Tool</span>' +
-        '<button class="eco-close-btn" id="ecoCloseBtn">&times;</button>' +
+        '<div class="eco-header-actions">' +
+          '<button class="eco-clear-all-btn" id="ecoClearAllBtn">Clear All</button>' +
+          '<button class="eco-close-btn" id="ecoCloseBtn">&times;</button>' +
+        '</div>' +
       '</div>' +
       '<div class="eco-control-bar" id="ecoControlBar">' +
         '<div class="eco-control-row">' +
@@ -121,6 +124,7 @@ function _buildPanel() {
     '</div>';
   document.body.appendChild(_panel);
   document.getElementById('ecoCloseBtn').addEventListener('click', close);
+  document.getElementById('ecoClearAllBtn').addEventListener('click', _clearAll);
   _panel.addEventListener('click', function (e) { if (e.target === _panel) close(); });
   document.getElementById('ecoBrowseBtn').addEventListener('click', _handleBrowse);
   document.getElementById('ecoRunBtn').addEventListener('click', _handleRun);
@@ -229,7 +233,7 @@ async function _handleShortcut(type) {
   try {
     var tm = await import('./app_manager/toolsManager.js');
     var termUI = await tm.ensureTerminalUI();
-    var termId = await termUI.openTerminal(cwd, label, cmd);
+    var termId = await termUI.openShortcutTerminal(cwd, label, cmd);
 
     await delay(300);
 
@@ -422,6 +426,87 @@ function _clearQuadrant(type) {
   _renderQuadrant(type);
 }
 
+function _clearAll() {
+  for (var i = 0; i < _TYPES.length; i++) {
+    _state[_TYPES[i]].events = [];
+    _state[_TYPES[i]].oldestSeq = null;
+    _state[_TYPES[i]].hasMore = false;
+    window.electronAPI.eco.clear(_TYPES[i]);
+    _renderQuadrant(_TYPES[i]);
+  }
+}
+
+function _fmtBody(body) {
+  if (!body) return '(no body)';
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return body;
+  }
+}
+
+function _showApiDetail(evt) {
+  var existing = document.getElementById('ecoApiDetailModal');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'ecoApiDetailModal';
+  overlay.className = 'eco-api-detail-overlay';
+
+  var d = evt.details || {};
+  var body = _fmtBody(d.body);
+  var contentType = d.contentType || evt.contentType || '';
+  var status = d.status || evt.status || '—';
+  var method = d.method || evt.method || 'GET';
+  var url = d.url || evt.url || '';
+  var duration = d.duration || evt.duration || '—';
+  var statusClass = status >= 200 && status < 400 ? 'ok' : 'fail';
+
+  overlay.innerHTML =
+    '<div class="eco-api-detail-modal">' +
+      '<div class="eco-api-detail-header">' +
+        '<span class="eco-api-detail-title">API Call Detail</span>' +
+        '<button class="eco-api-detail-close" id="ecoApiDetailClose">&times;</button>' +
+      '</div>' +
+      '<div class="eco-api-detail-body">' +
+        '<div class="eco-api-detail-left">' +
+          '<div class="eco-api-detail-field"><span class="eco-api-detail-label">Method</span><span class="eco-api-detail-value"><span class="eco-api-method">' + _esc(method) + '</span></span></div>' +
+          '<div class="eco-api-detail-field"><span class="eco-api-detail-label">Status</span><span class="eco-api-detail-value"><span class="eco-event-status ' + statusClass + '">' + status + '</span></span></div>' +
+          '<div class="eco-api-detail-field"><span class="eco-api-detail-label">Duration</span><span class="eco-api-detail-value">' + duration + 'ms</span></div>' +
+          '<div class="eco-api-detail-field"><span class="eco-api-detail-label">URL</span><span class="eco-api-detail-value eco-api-detail-url">' + _esc(url) + '</span></div>' +
+          (contentType ? '<div class="eco-api-detail-field"><span class="eco-api-detail-label">Content-Type</span><span class="eco-api-detail-value">' + _esc(contentType) + '</span></div>' : '') +
+        '</div>' +
+        '<div class="eco-api-detail-right">' +
+          '<div class="eco-api-detail-label">Response Body</div>' +
+          '<pre class="eco-api-detail-body-pre"><code>' + _esc(body) + '</code></pre>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  requestAnimationFrame(function () { overlay.classList.add('open'); });
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) _closeApiDetail();
+  });
+  document.getElementById('ecoApiDetailClose').addEventListener('click', _closeApiDetail);
+  document.addEventListener('keydown', _apiDetailEscHandler);
+}
+
+function _closeApiDetail() {
+  var overlay = document.getElementById('ecoApiDetailModal');
+  if (overlay) {
+    overlay.classList.remove('open');
+    setTimeout(function () { overlay.remove(); }, 200);
+  }
+  document.removeEventListener('keydown', _apiDetailEscHandler);
+}
+
+function _apiDetailEscHandler(e) {
+  if (e.key === 'Escape') _closeApiDetail();
+}
+
 function _toggleScroll(type) {
   var st = _state[type];
   st.autoScroll = !st.autoScroll;
@@ -483,7 +568,7 @@ function _renderQuadrant(type) {
     if (extraHtml) html += extraHtml;
     html += '</div>';
 
-    if (e.details) {
+    if (e.details && type !== 'apiCalls') {
       html += '<div class="eco-event-details" id="ecoDetails_' + e.seq + '">' + _esc(typeof e.details === 'string' ? e.details : JSON.stringify(e.details, null, 2)) + '</div>';
     }
   }
@@ -494,7 +579,14 @@ function _renderQuadrant(type) {
   for (var i = 0; i < rows.length; i++) {
     (function (row) {
       row.addEventListener('click', function () {
-        row.classList.toggle('expanded');
+        if (row.dataset.type === 'apiCalls') {
+          var seq = row.dataset.seq;
+          var st = _state.apiCalls;
+          var evt = st.events.find(function (e) { return String(e.seq) === seq; });
+          if (evt) _showApiDetail(evt);
+        } else {
+          row.classList.toggle('expanded');
+        }
       });
     }(rows[i]));
   }

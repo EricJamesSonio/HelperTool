@@ -1,11 +1,13 @@
-import { state } from '../state.js';
+import { state, addAccount, findAccountByEmail } from '../state.js';
 import { initPromptEditor } from './left/promptEditor.js';
+import { renderAccountList } from './home.js';
 
 let _resizeObserver = null;
 let _windowResizeHandler = null;
 
 export function openSplitView(researcher, accountId) {
   state.activeUrl = researcher.url;
+  state.selectedAccount = { url: researcher.url, name: researcher.name, type: researcher.type, id: accountId };
 
   document.getElementById('rsHome').classList.add('rs-hidden');
   const splitView = document.getElementById('rsSplitView');
@@ -22,6 +24,14 @@ export function openSplitView(researcher, accountId) {
   if (isNew) {
     if (saveSection) saveSection.classList.remove('rs-hidden');
     if (accountInfo) accountInfo.classList.add('rs-hidden');
+
+    // Reset any leftover input/error from a previous "add account" attempt
+    const input = document.getElementById('rsSaveInput');
+    const errorEl = document.getElementById('rsSaveError');
+    if (input) input.value = '';
+    if (errorEl) errorEl.textContent = '';
+
+    setupSaveAccount(researcher, accountId);
   } else {
     if (saveSection) saveSection.classList.add('rs-hidden');
     if (accountInfo) {
@@ -40,6 +50,64 @@ export function openSplitView(researcher, accountId) {
   startLayoutSync();
 }
 
+/**
+ * Wires the "Save Account" form. Rebinds the button via cloneNode so
+ * repeated openSplitView() calls (e.g. reopening "Add Account") don't
+ * stack duplicate click listeners on the same DOM node.
+ */
+function setupSaveAccount(researcher, accountId) {
+  const saveBtn = document.getElementById('rsSaveBtn');
+  const input = document.getElementById('rsSaveInput');
+  const errorEl = document.getElementById('rsSaveError');
+  if (!saveBtn || !input) return;
+
+  const freshBtn = saveBtn.cloneNode(true);
+  saveBtn.parentNode.replaceChild(freshBtn, saveBtn);
+
+  const doSave = () => {
+    if (errorEl) errorEl.textContent = '';
+    const email = input.value.trim();
+
+    if (!email) {
+      if (errorEl) errorEl.textContent = 'Please enter an email or label.';
+      return;
+    }
+
+    const duplicate = findAccountByEmail(email, researcher.type);
+    if (duplicate) {
+      if (errorEl) errorEl.textContent = 'An account with that email is already saved.';
+      return;
+    }
+
+    addAccount({
+      id: accountId,
+      email,
+      type: researcher.type,
+      url: researcher.url,
+      saved: true,
+    });
+
+    // Switch the left panel from the save form to the saved-account badge
+    const saveSection = document.getElementById('rsSaveAccount');
+    const accountInfo = document.getElementById('rsAccountInfo');
+    if (saveSection) saveSection.classList.add('rs-hidden');
+    if (accountInfo) {
+      accountInfo.classList.remove('rs-hidden');
+      const badge = document.getElementById('rsAccountBadge');
+      if (badge) badge.textContent = email;
+    }
+
+    // Refresh the home list in the background so it's up to date when the
+    // user clicks Back.
+    renderAccountList();
+  };
+
+  freshBtn.addEventListener('click', doSave);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doSave();
+  });
+}
+
 function goBack() {
   destroyBrowserView();
   stopLayoutSync();
@@ -49,7 +117,7 @@ function goBack() {
   document.getElementById('rsHome').classList.remove('rs-hidden');
   document.getElementById('rsHome').style.display = 'flex';
 
-  state.selectedResearcher = null;
+  state.selectedAccount = null;
   state.activeUrl = null;
 }
 

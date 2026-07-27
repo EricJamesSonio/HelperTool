@@ -344,6 +344,58 @@ async function _registerUrl(info) {
   }
 }
 
+async function _handleUrlReconnect(port) {
+  try {
+    await window.electronAPI.watcher.urlCheckNow(port);
+    await _refresh();
+  } catch (e) {
+    console.error('[EcoWatcher] URL reconnect error:', e);
+  }
+}
+
+async function _handleManualUrlConnect(sessionId) {
+  const input = document.getElementById('ewManualUrl_' + sessionId);
+  if (!input) return;
+  const raw = input.value.trim();
+  if (!raw) return;
+
+  const btn = document.getElementById('ewManualUrlBtn_' + sessionId);
+  if (btn) btn.disabled = true;
+
+  let url = raw;
+  let port = 0;
+  const match = raw.match(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)/);
+  if (match) {
+    port = parseInt(match[1], 10);
+  } else {
+    const portMatch = raw.match(/:(\d+)/);
+    if (portMatch) {
+      port = parseInt(portMatch[1], 10);
+      url = 'http://localhost:' + port;
+    }
+  }
+
+  if (!port) {
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  try {
+    await window.electronAPI.watcher.urlRegister({
+      url: url,
+      port: port,
+      framework: 'manual',
+      sessionId: sessionId,
+    });
+    await window.electronAPI.watcher.urlCheckNow(port);
+    input.value = '';
+    await _refresh();
+  } catch (e) {
+    console.error('[EcoWatcher] Manual URL connect error:', e);
+  }
+  if (btn) btn.disabled = false;
+}
+
 function _buildPanel() {
   _panel = document.createElement('div');
   _panel.id = 'ecosystemWatcherPanel';
@@ -512,11 +564,19 @@ function _renderSessions() {
       html += '<div class="ew-session-urls">';
       for (const u of item.runner.detectedUrls) {
         const urlInfo = _urls.find(function (x) { return x.port === u.port; });
-        const healthDot = urlInfo ? (urlInfo.status === 'online' ? '\ud83d\udfe2' : urlInfo.status === 'offline' ? '\ud83d\udd34' : '\ud83d\udfe1') : '\u26aa';
-        html += '<span class="ew-session-url">' + healthDot + ' ' + _esc(u.url) + '</span>';
+        const isOnline = urlInfo && urlInfo.status === 'online';
+        const healthDot = urlInfo ? (isOnline ? '\ud83d\udfe2' : urlInfo.status === 'offline' ? '\ud83d\udd34' : '\ud83d\udfe1') : '\u26aa';
+        html += '<span class="ew-session-url' + (isOnline ? '' : ' ew-session-url--offline') + '">' + healthDot + ' ' + _esc(u.url) + '</span>';
+        if (!isOnline) {
+          html += '<button class="ew-url-reconnect-btn" data-port="' + u.port + '" title="Re-check URL">\u27f3</button>';
+        }
       }
       html += '</div>';
     }
+    html += '<div class="ew-manual-url-row" data-session-id="' + item.sessionId + '">';
+    html += '<input class="ew-manual-url-input" id="ewManualUrl_' + item.sessionId + '" type="text" placeholder="Add URL manually e.g. http://localhost:5173" spellcheck="false" />';
+    html += '<button class="ew-manual-url-btn" id="ewManualUrlBtn_' + item.sessionId + '" data-session-id="' + item.sessionId + '">Connect</button>';
+    html += '</div>';
     html += '</div>';
 
     html += '<div class="ew-session-actions">';
@@ -591,6 +651,35 @@ function _renderSessions() {
       e.stopPropagation();
       const runnerId = btn.dataset.runnerId;
       if (runnerId) _handleStop(runnerId);
+    });
+  });
+
+  // Reconnect URL buttons
+  el.querySelectorAll('.ew-url-reconnect-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const port = parseInt(btn.dataset.port, 10);
+      if (port) _handleUrlReconnect(port);
+    });
+  });
+
+  // Manual URL Connect buttons
+  el.querySelectorAll('.ew-manual-url-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const sessionId = btn.dataset.sessionId;
+      if (sessionId) _handleManualUrlConnect(sessionId);
+    });
+  });
+
+  // Manual URL input Enter key
+  el.querySelectorAll('.ew-manual-url-input').forEach(function (input) {
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.stopPropagation();
+        const sessionId = input.closest('.ew-session-item')?.dataset?.id;
+        if (sessionId) _handleManualUrlConnect(sessionId);
+      }
     });
   });
 

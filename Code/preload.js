@@ -217,6 +217,9 @@ const terminalBridge = {
     onTerminalExit: (callback) => {
         ipcRenderer.on('terminal:exit', (_, payload) => callback(payload));
     },
+    onTerminalReady: (callback) => {
+        ipcRenderer.on('terminal:ready', (_, payload) => callback(payload));
+    },
 };
 
 const errorCopBridge = {

@@ -143,7 +143,7 @@ async function runShortcut(type, repoPath) {
   try {
     const label = _shortcutLabel(type);
     const termUI = await ensureTerminalUI();
-    const id = await termUI.openTerminal(cfg.cwd, label, cfg.command);
+    const id = await termUI.openShortcutTerminal(cfg.cwd, label, cfg.command);
     cfg.termId = id;
     cfg.running = true;
     updateShortcutButtons();
@@ -235,7 +235,11 @@ setSelectionChangeHandler(onSelectionChange);
 setRepoChangeHandler(handleRepoChange);
 
 // Reload shortcut config on every repo switch
-document.addEventListener('repo:switched', () => loadShortcutConfig());
+document.addEventListener('repo:switched', () => {
+  loadShortcutConfig();
+  const termUI = getTerminalUI();
+  if (termUI) termUI.updateLastCwd(state.selectedRepoPath);
+});
 
 // ── Navbar listeners ──────────────────────────────────────────────────────────
 
