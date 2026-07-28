@@ -1,8 +1,10 @@
 function validate(result, config) {
   const { output, exitCode } = result;
-  const validation = config.validation || {};
+  const type = config.validationType || 'json';
+  const keyword = config.keyword || '';
+  const pattern = config.pattern || '';
 
-  switch (validation.type) {
+  switch (type) {
     case 'json':
       try {
         JSON.parse(output);
@@ -12,7 +14,6 @@ function validate(result, config) {
       }
 
     case 'keyword': {
-      const keyword = validation.keyword;
       if (!keyword) return { pass: true, reason: '' };
       const found = output.toLowerCase().includes(keyword.toLowerCase());
       return found
@@ -26,12 +27,12 @@ function validate(result, config) {
         : { pass: false, reason: `Exit code ${exitCode} is not 0` };
 
     case 'regex': {
-      if (!validation.pattern) return { pass: true, reason: '' };
+      if (!pattern) return { pass: true, reason: '' };
       try {
-        const re = new RegExp(validation.pattern);
+        const re = new RegExp(pattern);
         return re.test(output)
           ? { pass: true, reason: '' }
-          : { pass: false, reason: `Output does not match pattern ${validation.pattern}` };
+          : { pass: false, reason: `Output does not match pattern ${pattern}` };
       } catch {
         return { pass: false, reason: 'Invalid regex pattern' };
       }

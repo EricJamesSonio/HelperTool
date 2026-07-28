@@ -2,10 +2,19 @@ const { runOpencode } = require('./runner');
 const { validate } = require('./validator');
 const { improvePrompt } = require('./promptFixer');
 const { runTest } = require('./testRunner');
+const { discover } = require('../ipc/opencode_ipc');
 
 async function runHarness(config, onEvent) {
-  const { prompt, maxRetries = 3, testCommand } = config;
+  const { prompt, maxRetries = 3, testCommand, timeoutMs } = config;
   const results = [];
+
+  const { binaryPath, version } = await discover();
+  if (binaryPath === 'opencode') {
+    onEvent({ type: 'log', attempt: 0, message: '[Setup] opencode binary not found on PATH or known install locations.' });
+    onEvent({ type: 'final', success: false, attempts: 0, output: '', error: 'opencode not found' });
+    return { success: false, attempts: 0, output: '', results, error: 'opencode not found' };
+  }
+  onEvent({ type: 'log', attempt: 0, message: `[Setup] Using opencode at "${binaryPath}" (${version})` });
 
   let currentPrompt = prompt;
   const attempts = [];
@@ -15,7 +24,7 @@ async function runHarness(config, onEvent) {
 
     onEvent({ type: 'log', attempt, message: `[Attempt ${attempt}] Running opencode...` });
 
-    const result = await runOpencode(config.repoPath || process.cwd(), currentPrompt);
+    const result = await runOpencode(config.repoPath || process.cwd(), currentPrompt, binaryPath, timeoutMs);
 
     attempts.push(result);
     onEvent({ type: 'log', attempt, message: result.output || '(no output)' });
