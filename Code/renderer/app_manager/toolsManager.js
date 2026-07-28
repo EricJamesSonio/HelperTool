@@ -7,7 +7,7 @@
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
-import { openRenameModal, openCreateFilesModal, openCreateFolderModal, showToast } from '../codebaseManager.js';
+import { openRenameModal, openCreateFilesModal, openCreateFolderModal, showToast, openInputContentModal } from '../codebaseManager.js';
 import { displayTree }                    from './viewManager.js';
 import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
@@ -59,6 +59,7 @@ const ICONS = {
     eye: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4c-4 0-7.5 2.5-9 6 1.5 3.5 5 6 9 6s7.5-2.5 9-6c-1.5-3.5-5-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>',
     radar: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg>',
     inspector: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 7v6"/><path d="M7 10h6"/></svg>',
+    harness: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12v12H4z"/><path d="M8 8h4v4H8z"/><circle cx="10" cy="10" r="1.5"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -264,6 +265,17 @@ function populateSidebar() {
     _registry.closeAll();
     openConfig();
   }, 'cli'));
+
+  if (_feats.harnessTool) {
+    add(createSidebarItem(ICONS.harness, 'Harness Tool', 'Controlled AI execution loop', async () => {
+      try {
+        const h = await import('../harnessTool/harnessUI.js');
+        if (h.isOpen()) { h.close(); return; }
+        _registry.closeAll();
+        h.open(state.selectedRepoPath);
+      } catch (err) { console.error('[Tools] Harness Tool:', err); }
+    }, 'harness'));
+  }
 
   if (_feats.workspaceTool) {
     add(createSidebarItem(ICONS.workspace, 'Workspace', 'Projects, tickets & workers', async () => {
@@ -984,6 +996,15 @@ function _buildShortcutActions() {
     } catch (err) { console.error('[Shortcuts] Researcher:', err); }
   };
 
+  actions.harnessTool = async () => {
+    try {
+      const mod = await import('../harnessTool/harnessUI.js');
+      if (mod.isOpen()) { mod.close(); return; }
+      _registry.closeAll();
+      mod.open(state.selectedRepoPath);
+    } catch (err) { console.error('[Shortcuts] Harness Tool:', err); }
+  };
+
   return actions;
 }
 
@@ -1136,6 +1157,11 @@ export async function initTools(feats, settingsManager) {
       if (!state.selectedRepoPath) return;
       _registry.closeAll();
       openCreateFolderModal(folderPath, () => { if (state.cachedTree) displayTree(false); });
+    },
+    async (filePath) => {
+      if (!state.selectedRepoPath) return;
+      _registry.closeAll();
+      openInputContentModal(filePath, () => { if (state.cachedTree) displayTree(false); });
     }
   );
 

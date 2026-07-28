@@ -1030,6 +1030,7 @@ body {
 .tools-sidebar-item[data-tool="port"]        .tools-sidebar-item-icon svg { color: var(--blue); }
 .tools-sidebar-item[data-tool="team"]        .tools-sidebar-item-icon svg { color: var(--green); }
 .tools-sidebar-item[data-tool="profile"]     .tools-sidebar-item-icon svg { color: var(--purple); }
+.tools-sidebar-item[data-tool="harness"]    .tools-sidebar-item-icon svg { color: var(--accent); }
 
 /* ── Main screen toolbar icon colors ── */
 #selectRepoBtn     .btn-icon svg { color: var(--accent); }

@@ -188,6 +188,7 @@ function registerAllIpc(onRepoSelected) {
     };
 
     // Tier 0: Eager — needed before first paint
+    require('./ipc/harness_ipc.js').register(shared);
     terminalIpc = require('./ipc/terminal_ipc.js'); terminalIpc.register(shared);
     serviceTrackerIpc.register();
     require('./ipc/opencode_ipc.js').register(shared);

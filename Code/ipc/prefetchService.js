@@ -252,22 +252,21 @@ async function _startProfileWatcher(repoPath) {
 async function _doPrefetch(repoPath) {
   console.log('[Prefetch] start', Date.now());
 
+  // Start file watcher first
+  await _startProfileWatcher(repoPath).catch(err =>
+    console.warn('[Prefetch] Profile watcher failed:', err.message)
+  );
+
+  // Sync commits to populate activity_days before we cache profile data
+  await _triggerProfileSync(repoPath).catch(err =>
+    console.warn('[Prefetch] Profile sync failed:', err.message)
+  );
+
+  // Now prefetch — activity_days includes synced commits
   await Promise.all([
     _prefetchProfile(),
     _prefetchBranches(repoPath),
   ]);
-
-  setTimeout(() => {
-    _startProfileWatcher(repoPath).catch(err =>
-      console.warn('[Prefetch] Profile watcher failed:', err.message)
-    );
-  }, 5000);
-
-  setTimeout(() => {
-    _triggerProfileSync(repoPath).catch(err =>
-      console.warn('[Prefetch] Profile sync failed:', err.message)
-    );
-  }, 8000);
 
   console.log('[Prefetch] Background refresh scheduled');
 }

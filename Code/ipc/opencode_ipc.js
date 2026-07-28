@@ -608,4 +608,4 @@ function register(shared) {
   });
 }
 
-module.exports = { register };
+module.exports = { register, discover };

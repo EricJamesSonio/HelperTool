@@ -27,6 +27,7 @@ const DEFAULT_FEATURES = {
   uiLayoutHelper: true,
   ecosystemWatcher: true,
   performanceTracker: true,
+  harnessTool: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
@@ -79,6 +80,7 @@ function _applyBodyClasses() {
   document.body.classList.toggle('feat-no-essentials-glossary', !_features.essentialsGlossary);
   document.body.classList.toggle('feat-no-ecosystem-watcher', !_features.ecosystemWatcher);
   document.body.classList.toggle('feat-no-performance-tracker', !_features.performanceTracker);
+  document.body.classList.toggle('feat-no-harness-tool', !_features.harnessTool);
 }
 
 // ─── First-launch wizard ─────────────────────────────────────────────
