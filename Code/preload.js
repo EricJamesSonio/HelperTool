@@ -412,6 +412,7 @@ const shortcutBridge = {
 
 const harnessBridge = {
   harnessRun: (config) => ipcRenderer.invoke('harness:run', config),
+  harnessCheckStatus: () => ipcRenderer.invoke('harness:checkStatus'),
   onHarnessEvent: (callback) => {
     ipcRenderer.removeAllListeners('harness:event');
     ipcRenderer.on('harness:event', (_, data) => callback(data));
@@ -706,6 +707,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ...automationBridge,
     ...shortcutBridge,
     harnessRun: harnessBridge.harnessRun,
+    harnessCheckStatus: harnessBridge.harnessCheckStatus,
     onHarnessEvent: harnessBridge.onHarnessEvent,
     removeHarnessListeners: harnessBridge.removeHarnessListeners,
     watcher: watcherBridge,

@@ -188,6 +188,7 @@ function registerAllIpc(onRepoSelected) {
     };
 
     // Tier 0: Eager — needed before first paint
+    require('./ipc/harness_ipc.js').register(shared);
     terminalIpc = require('./ipc/terminal_ipc.js'); terminalIpc.register(shared);
     serviceTrackerIpc.register();
     require('./ipc/opencode_ipc.js').register(shared);
@@ -213,7 +214,6 @@ function registerAllIpc(onRepoSelected) {
       safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
       safeRegister('projectInspector', () => require('./project-inspector/ipc.js').register());
       safeRegister('researcher_ipc',   () => { const r = require('./ipc/researcher_ipc.js'); r.register(shared); });
-      safeRegister('harness_ipc',      () => require('./ipc/harness_ipc.js').register(shared));
       performance.mark('tier1:done');
       performance.measure('startup:tier1-ready', 'app:ready', 'tier1:done');
       console.log(`[Perf] Tier 1 (${performance.getEntriesByName('startup:tier1-ready')[0]?.duration.toFixed(1)}ms): all common IPC modules loaded`);
