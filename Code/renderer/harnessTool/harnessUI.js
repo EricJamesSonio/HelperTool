@@ -201,6 +201,8 @@ async function _run() {
   const config = _readConfig();
   if (!config.prompt) return;
 
+  try { window.electronAPI.harnessPrewarmStop(); } catch (_) {}
+
   resetState();
   setRunning(true);
   _renderRunBtn();
@@ -309,8 +311,9 @@ async function _checkOpencodeStatus() {
     const status = await window.electronAPI.harnessCheckStatus();
     if (status.found) {
       badge.className = 'harness-status-badge ready';
-      badge.textContent = `Opencode Ready (${status.version})`;
+      badge.textContent = `Opencode Ready`;
       runBtn.disabled = getState().isRunning;
+      _prewarmOpencode();
     } else {
       badge.className = 'harness-status-badge not-found';
       badge.textContent = 'Opencode Not Found';
@@ -321,6 +324,20 @@ async function _checkOpencodeStatus() {
     badge.className = 'harness-status-badge not-found';
     badge.textContent = 'Status Check Failed';
     runBtn.disabled = true;
+  }
+}
+
+async function _prewarmOpencode() {
+  const badge = _panel.querySelector('#harnessStatusBadge');
+  badge.className = 'harness-status-badge checking';
+  badge.textContent = 'Warming up...';
+  try {
+    await window.electronAPI.harnessPrewarm();
+    badge.className = 'harness-status-badge ready';
+    badge.textContent = 'Opencode Ready';
+  } catch {
+    badge.className = 'harness-status-badge not-found';
+    badge.textContent = 'Pre-warm Failed';
   }
 }
 
@@ -449,6 +466,7 @@ export function close() {
   if (!_open) return;
   _panel.classList.remove('open');
   _open = false;
+  try { window.electronAPI.harnessPrewarmStop(); } catch (_) {}
 }
 
 export function isOpen() {
