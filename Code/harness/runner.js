@@ -4,13 +4,13 @@ function _stripAnsi(str) {
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').trim();
 }
 
-function runOpencode(repoPath, prompt, binaryPath = 'opencode', timeoutMs = 60000) {
+function runOpencode(repoPath, prompt, timeoutMs = 60000) {
   return new Promise((resolve) => {
     const args = ['run'];
 
     let proc;
     try {
-      proc = spawn(binaryPath, args, {
+      proc = spawn('opencode', args, {
         cwd: repoPath,
         env: { ...process.env },
         windowsHide: true,
@@ -33,7 +33,7 @@ function runOpencode(repoPath, prompt, binaryPath = 'opencode', timeoutMs = 6000
       try { proc.kill(); } catch (_) {}
       resolve({
         output: _stripAnsi(stdout),
-        error: `Timed out after ${timeoutMs}ms waiting for opencode`,
+        error: `Timed out after ${timeoutMs}ms`,
         exitCode: -1,
         duration: Date.now() - start,
       });
