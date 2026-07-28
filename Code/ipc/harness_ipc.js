@@ -1,7 +1,17 @@
 const { ipcMain } = require('electron');
 const { runHarness } = require('../harness/loop');
+const { discover } = require('./opencode_ipc');
 
 function register({ getMainWindow }) {
+  ipcMain.handle('harness:checkStatus', async () => {
+    const { binaryPath, version } = await discover();
+    return {
+      found: binaryPath !== 'opencode',
+      binaryPath,
+      version,
+    };
+  });
+
   ipcMain.handle('harness:run', async (event, config) => {
     const win = getMainWindow();
 
