@@ -19,6 +19,7 @@ const GLUED_LANG_RE = /(\.[a-zA-Z0-9]{1,10})(js|jsx|ts|tsx|css|scss|less|html|ht
 const FENCE_BLOCK_RE = /```[ \t]*[a-zA-Z0-9]*\r?\n([\s\S]*?)```/g;
 const CODE_CHARS_RE = /[{}\[\]();=<>`"'$]/;
 const INSTRUCTION_PREFIX_RE = /^(replace|and|update|note|this|here|please|the|you can|update the|replace the)\b/i;
+const PARTIAL_RE = /\(partial\)/i;
 
 /**
  * Extract path candidate from a single line.
@@ -29,7 +30,10 @@ const INSTRUCTION_PREFIX_RE = /^(replace|and|update|note|this|here|please|the|yo
 function extractPathCandidate(line) {
     let raw = line.trim();
     if (!raw) return null;
-    // strip surrounding backticks / quotes
+    // strip common markdown heading / list markers before any other logic
+    raw = raw.replace(/^#{1,6}\s+/, '').replace(/^[-*•]\s+/, '').replace(/^\d+\.\s+/, '').trim();
+    if (!raw) return null;
+    // strip surrounding backticks / quotes (whole line)
     raw = raw.replace(/^`+|`+$/g, '').replace(/^'+|'+$/g, '').replace(/^"+|"+$/g, '').trim();
     if (!raw) return null;
     // take first token before space that contains '.'/'/'; handle "hooks/a.ts — update"
@@ -42,12 +46,15 @@ function extractPathCandidate(line) {
         const pathTok = tokens.find(t => t.includes('/') || EXT_RE.test(t));
         first = pathTok || tokens[0];
     }
+    // strip wrapping backticks/quotes/brackets from the token itself (e.g. "`components/...`" )
+    first = first.replace(/^`+|`+$/g, '').replace(/^'+|'+$/g, '').replace(/^"+|"+$/g, '').trim();
     // strip trailing punctuation
     first = first.replace(/[:;,]+$/, '').trim();
     // strip leading ./ or /
     first = first.replace(/^\.?\//, '').trim();
     // strip wrapping [] ()
     first = first.replace(/^[\[\(]+|[\]\)]+$/g, '').trim();
+    first = first.replace(/^`+|`+$/g, '').trim();
 
     // handle glued lang token: "SharePanel.module.csscss" => "SharePanel.module.css"
     const glued = first.match(GLUED_LANG_RE);
@@ -130,6 +137,8 @@ function cleanContentBuffer(buf) {
  * Smart content parser: handles fenced and unfenced pastes, noise filtering.
  * Flow: path line → buffer until next path line → clean buffer → entry.
  * Handles glued csscss, em-dash suffix, backticked paths.
+ * Fence-aware: lines inside ``` fences are never treated as path headers (so file-tree blocks are ignored).
+ * Partial-aware: any path line containing "(Partial)" is skipped entirely.
  */
 export function parseContentBlocks(raw) {
     const lines = raw.split(/\r?\n/);
@@ -138,17 +147,24 @@ export function parseContentBlocks(raw) {
 
     let curPath = null;
     let buf = [];
+    let curIsPartial = false;
+    let inFence = false;
 
     function flush() {
         if (!curPath) return;
+        if (curIsPartial) {
+            // skip Partial files completely — user handles manually
+            curPath = null;
+            buf = [];
+            curIsPartial = false;
+            return;
+        }
         const content = cleanContentBuffer(buf);
         // normalize path
         const relPath = curPath.replace(/\\/g, '/').replace(/^\.?\//, '');
-        // skip empty content? still create file with empty? allow but skip if both empty? We'll keep even empty -> create empty file
         // dedup last wins
         if (byPath.has(relPath)) {
             byPath.get(relPath).content = content;
-            // also update in entries order — keep original index
             const idx = entries.findIndex(e => e.relPath === relPath);
             if (idx !== -1) entries[idx].content = content;
         } else {
@@ -160,22 +176,35 @@ export function parseContentBlocks(raw) {
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        const trimmed = line.trim();
+        const isFenceLine = trimmed.startsWith('```');
+
+        if (isFenceLine) {
+            // fence delimiter — push to current file's buffer and toggle state, never treat as path
+            if (curPath !== null) buf.push(line);
+            inFence = !inFence;
+            continue;
+        }
+
+        if (inFence) {
+            if (curPath !== null) buf.push(line);
+            continue;
+        }
+
+        // Outside fence — check for path candidate
         const cand = extractPathCandidate(line);
         if (cand) {
-            // Heuristic: avoid treating import paths like "@/lib/formConfig" as new file
-            // They contain '/' but also '"' or "'" wrappers — extractPathCandidate already strips quotes but import line has "from ..."
-            // Import lines typically have "from" / "import" keywords — skip if line contains import/from and quotes
             const t = line.trim();
             if (/^\s*(import|export)\b/.test(t) && /from\s+["']/.test(t)) {
-                // this is code, not header — push to buf
                 if (curPath !== null) buf.push(line);
                 continue;
             }
-            // Looks like a header — flush previous and start new
+            // Check Partial flag on the original line (on path line, case-insensitive)
+            const isPartial = PARTIAL_RE.test(line);
             flush();
             curPath = cand;
+            curIsPartial = isPartial;
             buf = [];
-            // If original line had glued lang token suffix, we already extracted pure path — no need to keep suffix
             continue;
         }
         if (curPath !== null) {
@@ -183,7 +212,5 @@ export function parseContentBlocks(raw) {
         }
     }
     flush();
-    // filter out entries where path looked valid but content is pure instruction noise and path was false positive?
-    // keep all for now; don't drop empty content due to user maybe wants empty file
     return entries;
 }
