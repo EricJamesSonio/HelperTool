@@ -11,6 +11,10 @@ const fileSeeder  = require('../utils/fileSeeder');
  * @param {{}} _deps
  */
 function register(_deps) {
+    // Make handlers idempotent — Electron throws if we register twice (hot-reload)
+    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent']) {
+        try { ipcMain.removeHandler(ch); } catch (_) {}
+    }
 
     /**
      * Preview: returns which paths will be created vs skipped.
@@ -41,6 +45,30 @@ function register(_deps) {
         } catch (err) {
             console.error('[IPC] fileseeder:seed error:', err);
             return { error: err.message, created: [], errors: [] };
+        }
+    });
+
+    ipcMain.handle('fileseeder:previewContent', (event, basePath, entries) => {
+        try {
+            if (!basePath || !Array.isArray(entries) || !entries.length) {
+                return { error: 'Invalid arguments', toCreate: [], toOverwrite: [], details: [] };
+            }
+            return fileSeeder.previewContent(basePath, entries);
+        } catch (err) {
+            console.error('[IPC] fileseeder:previewContent error:', err);
+            return { error: err.message, toCreate: [], toOverwrite: [], details: [] };
+        }
+    });
+
+    ipcMain.handle('fileseeder:seedContent', (event, basePath, entries) => {
+        try {
+            if (!basePath || !Array.isArray(entries) || !entries.length) {
+                return { error: 'Invalid arguments', created: [], overwritten: [], errors: [] };
+            }
+            return fileSeeder.seedContent(basePath, entries);
+        } catch (err) {
+            console.error('[IPC] fileseeder:seedContent error:', err);
+            return { error: err.message, created: [], overwritten: [], errors: [] };
         }
     });
 }
