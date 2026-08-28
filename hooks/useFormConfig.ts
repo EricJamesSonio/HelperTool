@@ -1,1 +1,0 @@
-export type { FieldType, FormField, FormConfigPayload, HeaderAlign } from "@/lib/formConfig";
