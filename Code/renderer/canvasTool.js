@@ -63,6 +63,15 @@ export function openCanvasPanel(repoPath) {
   });
 
   engine.setActionCallback((result) => {
+    if (result.action === 'tool-commit') {
+      // Single-use: after arrow/shape/pen/etc, go back to select so drag = pan/move, not create
+      const oneShot = new Set(['arrow','line','rect','ellipse','pen','terminator','diamond','parallelogram','double-rect','circle','text']);
+      if (oneShot.has(result.tool)) {
+        activateTool('select');
+        updateToolbarUI();
+      }
+      return;
+    }
     if (result.action === 'place-text') {
       if (_textOverlay) {
         _textCommitting = true;
@@ -71,6 +80,8 @@ export function openCanvasPanel(repoPath) {
       }
       if (_textCommitting) return;
       createTextOverlay(result.x, result.y, result.clientX, result.clientY);
+      // text is also one-shot — next click should be move, not another text
+      // keep text tool active for this one placement only; after commit it will auto-reset via tool-commit
     } else if (result.action === 'edit-text') {
       if (_textOverlay) {
         _textCommitting = true;
@@ -191,6 +202,26 @@ function attachListeners() {
     }
     updateUI();
   });
+
+  // Export as PNG — whole canvas content (cropped to elements)
+  const exportBtn = _panel.querySelector('#canvasExportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      try {
+        const url = engine.exportAsPng();
+        if (!url) { showCanvasToast('Nothing to export', 'warn'); return; }
+        const a = document.createElement('a');
+        const name = (state.getState().currentBoard?.name || 'canvas').replace(/[^a-z0-9-_ ]/gi, '').trim() || 'canvas';
+        a.download = `${name}.png`;
+        a.href = url;
+        a.click();
+        showCanvasToast('PNG exported', 'info');
+      } catch (e) {
+        console.error('[Canvas] Export failed', e);
+        showCanvasToast('Export failed', 'error');
+      }
+    });
+  }
 
   _panel.querySelector('#canvasNewBoardBtn').addEventListener('click', showTemplateModal);
   _panel.querySelector('#canvasTemplateModalClose').addEventListener('click', hideTemplateModal);
@@ -492,16 +523,25 @@ function showCanvasToast(msg, type = 'warn') {
 
 async function commitTextOverlay() {
   if (!_textOverlay) return;
-  const textarea = _textOverlay.querySelector('textarea');
+  const overlay = _textOverlay;
+  const textarea = overlay.querySelector('textarea');
   const text = textarea?.value || '';
   // Use exact stored world position — do not recompute from DOM, keeps 1:1
-  let worldX = parseFloat(_textOverlay.dataset.worldX);
-  let worldY = parseFloat(_textOverlay.dataset.worldY);
-  const color = _textOverlay.dataset.color || (state.getState().theme === 'light' ? '#1e1e1e' : '#ffffff');
-  const fontSize = parseInt(_textOverlay.dataset.fontSize, 10) || 20;
-  const parentIdRaw = _textOverlay.dataset.parentId || null;
+  let worldX = parseFloat(overlay.dataset.worldX);
+  let worldY = parseFloat(overlay.dataset.worldY);
+  const color = overlay.dataset.color || (state.getState().theme === 'light' ? '#1e1e1e' : '#ffffff');
+  const fontSize = parseInt(overlay.dataset.fontSize, 10) || 20;
+  const parentIdRaw = overlay.dataset.parentId || null;
+  const overlayWpx = overlay.clientWidth;
+  const viewportSnap = engine.getViewport();
+  const zoomSnap = viewportSnap.zoom || 1;
   removeTextOverlay();
-  if (!text.trim()) return;
+  if (!text.trim()) {
+    // empty text — still go back to move
+    activateTool('select');
+    updateToolbarUI();
+    return;
+  }
 
   // Determine parent shape (use stored or recompute)
   const st = state.getState();
@@ -521,33 +561,47 @@ async function commitTextOverlay() {
     }
   }
 
-  // If inside shape, check overflow — prevent text going out
-  if (parentEl) {
-    const pad = 8;
-    const availW = Math.max(20, parentEl.x + parentEl.width - pad - worldX);
-    const availH = Math.max(20, parentEl.y + parentEl.height - pad - worldY);
-    // measure required height using same logic as engine wrap
-    const ctx = document.createElement('canvas').getContext('2d');
-    ctx.font = `${fontSize}px 'Segoe UI', sans-serif`;
-    // replicate wrapTextToWidth
-    const maxWidth = availW;
-    const paragraphs = text.split('\n');
-    let lineCount = 0;
-    for (const para of paragraphs) {
-      if (!para) { lineCount++; continue; }
+  // Frozen WYSIWYG: hard-wrap exactly as it appeared in the textarea
+  // Use overlay's actual screen width + display font so save == typing, no re-wrap drift
+  let wrapWidth = null;
+  let frozenText = text;
+  // overlayWpx / zoomSnap already captured before remove
+  if (parentEl && overlayWpx > 0) {
+    const zoom = zoomSnap;
+    const displayFontPx = Math.round(fontSize * zoom);
+    const maxWscreen = overlayWpx; // textarea is width:100% of overlay
+    // hard-wrap using same metrics as textarea
+    const mctx = document.createElement('canvas').getContext('2d');
+    mctx.font = `${displayFontPx}px 'Segoe UI', sans-serif`;
+    const paras = text.split('\n');
+    const outLines = [];
+    for (const para of paras) {
+      if (!para) { outLines.push(''); continue; }
       const words = para.split(' ');
-      let line = '';
-      for (const word of words) {
-        const test = line ? line + ' ' + word : word;
-        if (ctx.measureText(test).width > maxWidth && line) { lineCount++; line = word; } else line = test;
+      let cur = '';
+      for (const w of words) {
+        const test = cur ? cur + ' ' + w : w;
+        if (mctx.measureText(test).width > maxWscreen && cur) {
+          outLines.push(cur);
+          cur = w;
+          // if single word still too wide, let it overflow (will be clipped, but we have toast)
+        } else cur = test;
       }
-      if (line) lineCount++;
+      if (cur || para.endsWith(' ')) outLines.push(cur);
     }
-    const neededH = lineCount * fontSize * 1.2;
+    frozenText = outLines.join('\n');
+    wrapWidth = maxWscreen / zoom; // world units, frozen
+    // overflow check using frozen line count
+    const pad = 4;
+    const availH = Math.max(20, parentEl.y + parentEl.height - pad - worldY);
+    const neededH = outLines.length * fontSize * 1.2;
     if (neededH > availH + 1) {
       showCanvasToast('No more room inside shape — expand the shape or shorten text', 'warn');
-      // still create but clamp? we allow but warn; user can expand
     }
+  } else if (parentEl) {
+    // fallback if overlay width not ready
+    const pad = 4;
+    wrapWidth = Math.max(20, parentEl.x + parentEl.width - pad - worldX);
   }
 
   state.addElement({
@@ -555,14 +609,19 @@ async function commitTextOverlay() {
     type: 'text',
     x: worldX,
     y: worldY,
-    text,
+    text: frozenText,
     fontSize,
     color,
     align: 'left',
     opacity: state.getState().opacity,
     parentId,
+    ...(wrapWidth ? { wrapWidth } : {}),
+    frozen: true,
   });
   boards.markDirty();
+  // after text placed, go back to default (move) — prevents next drag creating another text
+  activateTool('select');
+  updateToolbarUI();
 }
 
 function createTextOverlay(worldX, worldY, clientX, clientY, existingText, existingFontSize) {
@@ -592,18 +651,12 @@ function createTextOverlay(worldX, worldY, clientX, clientY, existingText, exist
     if ((el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
          el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') &&
         worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
-      const pad = 12;
+      const pad = 4;
       const v = engine.getViewport();
       const z = v.zoom || 1;
-      // Full inner width like Excalidraw — text is centered/padded inside shape, not just from click to edge
-      // Keep click x/y for anchor, but allow wrapping within shape's inner width
-      const innerW = Math.max(60, (el.width - pad * 2) * z);
-      // If click is more than pad from left, keep overlay at click but expand to fill shape if needed
-      const clickOffsetPx = (worldX - (el.x + pad)) * z;
-      // Use the larger of remaining-to-right and inner width so initial typing isn't tiny
       const remainingPx = (el.x + el.width - pad - worldX) * z;
-      overlay.style.width = Math.max(120, Math.min(innerW, Math.max(remainingPx, innerW * 0.6))) + 'px';
-      // Don't clip horizontally — only limit height, let textarea wrap
+      // Use remaining width exactly — this is what will be stored as wrapWidth
+      overlay.style.width = Math.max(60, remainingPx) + 'px';
       overlay.style.maxHeight = ((el.y + el.height - pad - worldY) * z) + 'px';
       overlay.style.overflow = 'visible';
       parentId = el.id;
