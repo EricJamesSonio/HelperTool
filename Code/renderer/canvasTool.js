@@ -44,6 +44,11 @@ export function openCanvasPanel(repoPath) {
 
   _panel.style.display = 'flex';
   _panelOpen = true;
+  // apply theme to panel
+  const stTheme = state.getState().theme || 'light';
+  _panel.dataset.theme = stTheme;
+  const cp = _panel.querySelector('#canvasPanel');
+  if (cp) cp.dataset.theme = stTheme;
 
   if (!_listenersAttached) {
     attachListeners();
@@ -58,6 +63,15 @@ export function openCanvasPanel(repoPath) {
   });
 
   engine.setActionCallback((result) => {
+    if (result.action === 'tool-commit') {
+      // Single-use: after arrow/shape/pen/etc, go back to select so drag = pan/move, not create
+      const oneShot = new Set(['arrow','line','rect','ellipse','pen','terminator','diamond','parallelogram','double-rect','circle','text']);
+      if (oneShot.has(result.tool)) {
+        activateTool('select');
+        updateToolbarUI();
+      }
+      return;
+    }
     if (result.action === 'place-text') {
       if (_textOverlay) {
         _textCommitting = true;
@@ -66,6 +80,8 @@ export function openCanvasPanel(repoPath) {
       }
       if (_textCommitting) return;
       createTextOverlay(result.x, result.y, result.clientX, result.clientY);
+      // text is also one-shot — next click should be move, not another text
+      // keep text tool active for this one placement only; after commit it will auto-reset via tool-commit
     } else if (result.action === 'edit-text') {
       if (_textOverlay) {
         _textCommitting = true;
@@ -187,6 +203,26 @@ function attachListeners() {
     updateUI();
   });
 
+  // Export as PNG — whole canvas content (cropped to elements)
+  const exportBtn = _panel.querySelector('#canvasExportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      try {
+        const url = engine.exportAsPng();
+        if (!url) { showCanvasToast('Nothing to export', 'warn'); return; }
+        const a = document.createElement('a');
+        const name = (state.getState().currentBoard?.name || 'canvas').replace(/[^a-z0-9-_ ]/gi, '').trim() || 'canvas';
+        a.download = `${name}.png`;
+        a.href = url;
+        a.click();
+        showCanvasToast('PNG exported', 'info');
+      } catch (e) {
+        console.error('[Canvas] Export failed', e);
+        showCanvasToast('Export failed', 'error');
+      }
+    });
+  }
+
   _panel.querySelector('#canvasNewBoardBtn').addEventListener('click', showTemplateModal);
   _panel.querySelector('#canvasTemplateModalClose').addEventListener('click', hideTemplateModal);
   _panel.querySelector('#canvasTemplateModal').addEventListener('click', (e) => {
@@ -271,6 +307,44 @@ function attachListeners() {
   if (brRange) {
     brRange.addEventListener('input', () => {
       state.setState({ borderRadius: parseInt(brRange.value, 10) });
+    });
+  }
+
+  // Theme toggle (light/dark — excalidraw is light by default)
+  const themeBtn = _panel.querySelector('#canvasThemeToggle');
+  if (themeBtn) {
+    const applyTheme = () => {
+      const st = state.getState();
+      const isLight = st.theme === 'light';
+      themeBtn.textContent = isLight ? '🌙' : '☀️';
+      themeBtn.title = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+      document.getElementById('canvasPanel').dataset.theme = st.theme;
+      _panel.dataset.theme = st.theme;
+    };
+    applyTheme();
+    themeBtn.addEventListener('click', () => {
+      const st = state.getState();
+      const next = st.theme === 'light' ? 'dark' : 'light';
+      state.setState({ theme: next });
+      if (next === 'light') state.setState({ color: '#1e1e1e', fillColor: 'transparent' });
+      else state.setState({ color: '#ffffff', fillColor: 'transparent' });
+      applyTheme();
+    });
+  }
+
+  // Rough toggle (hand-drawn)
+  const roughBtn = _panel.querySelector('#canvasRoughToggle');
+  if (roughBtn) {
+    const syncRough = () => {
+      const r = state.getState().roughness;
+      roughBtn.classList.toggle('active', r !== 0);
+      roughBtn.title = r !== 0 ? 'Hand-drawn on' : 'Hand-drawn off';
+    };
+    syncRough();
+    roughBtn.addEventListener('click', () => {
+      const cur = state.getState().roughness;
+      state.setState({ roughness: cur === 0 ? 1 : 0 });
+      syncRough();
     });
   }
 
@@ -430,28 +504,104 @@ function removeTextOverlay() {
   }
 }
 
+function showCanvasToast(msg, type = 'warn') {
+  let el = document.getElementById('canvasToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'canvasToast';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100000;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.3);transition:opacity 0.2s;pointer-events:none;max-width:90vw;text-align:center;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = type === 'error' ? 'rgba(248,81,73,0.95)' : type === 'warn' ? 'rgba(251,146,60,0.95)' : 'rgba(34,211,238,0.95)';
+  el.style.color = '#fff';
+  el.style.border = '1px solid rgba(255,255,255,0.15)';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 2600);
+}
+
 async function commitTextOverlay() {
   if (!_textOverlay) return;
-  const text = _textOverlay.querySelector('textarea')?.value || '';
-  const worldX = parseFloat(_textOverlay.dataset.worldX);
-  const worldY = parseFloat(_textOverlay.dataset.worldY);
-  const color = _textOverlay.dataset.color || '#ffffff';
-  const fontSize = parseInt(_textOverlay.dataset.fontSize, 10) || 20;
+  const overlay = _textOverlay;
+  const textarea = overlay.querySelector('textarea');
+  const text = textarea?.value || '';
+  // Use exact stored world position — do not recompute from DOM, keeps 1:1
+  let worldX = parseFloat(overlay.dataset.worldX);
+  let worldY = parseFloat(overlay.dataset.worldY);
+  const color = overlay.dataset.color || (state.getState().theme === 'light' ? '#1e1e1e' : '#ffffff');
+  const fontSize = parseInt(overlay.dataset.fontSize, 10) || 20;
+  const parentIdRaw = overlay.dataset.parentId || null;
+  const overlayWpx = overlay.clientWidth;
+  const viewportSnap = engine.getViewport();
+  const zoomSnap = viewportSnap.zoom || 1;
   removeTextOverlay();
-  if (!text.trim()) return;
+  if (!text.trim()) {
+    // empty text — still go back to move
+    activateTool('select');
+    updateToolbarUI();
+    return;
+  }
 
-  // Check if text position is inside a shape — auto-attach without asking
+  // Determine parent shape (use stored or recompute)
   const st = state.getState();
-  let parentId = null;
-  for (let i = st.elements.length - 1; i >= 0; i--) {
-    const el = st.elements[i];
-    if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
-        el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') {
-      if (worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
-        parentId = el.id;
-        break;
+  let parentId = parentIdRaw;
+  let parentEl = parentId ? st.elements.find(e => e.id === parentId) : null;
+  if (!parentEl) {
+    for (let i = st.elements.length - 1; i >= 0; i--) {
+      const el = st.elements[i];
+      if (el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
+          el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') {
+        if (worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
+          parentId = el.id;
+          parentEl = el;
+          break;
+        }
       }
     }
+  }
+
+  // Frozen WYSIWYG: hard-wrap exactly as it appeared in the textarea
+  // Use overlay's actual screen width + display font so save == typing, no re-wrap drift
+  let wrapWidth = null;
+  let frozenText = text;
+  // overlayWpx / zoomSnap already captured before remove
+  if (parentEl && overlayWpx > 0) {
+    const zoom = zoomSnap;
+    const displayFontPx = Math.round(fontSize * zoom);
+    const maxWscreen = overlayWpx; // textarea is width:100% of overlay
+    // hard-wrap using same metrics as textarea
+    const mctx = document.createElement('canvas').getContext('2d');
+    mctx.font = `${displayFontPx}px 'Segoe UI', sans-serif`;
+    const paras = text.split('\n');
+    const outLines = [];
+    for (const para of paras) {
+      if (!para) { outLines.push(''); continue; }
+      const words = para.split(' ');
+      let cur = '';
+      for (const w of words) {
+        const test = cur ? cur + ' ' + w : w;
+        if (mctx.measureText(test).width > maxWscreen && cur) {
+          outLines.push(cur);
+          cur = w;
+          // if single word still too wide, let it overflow (will be clipped, but we have toast)
+        } else cur = test;
+      }
+      if (cur || para.endsWith(' ')) outLines.push(cur);
+    }
+    frozenText = outLines.join('\n');
+    wrapWidth = maxWscreen / zoom; // world units, frozen
+    // overflow check using frozen line count
+    const pad = 4;
+    const availH = Math.max(20, parentEl.y + parentEl.height - pad - worldY);
+    const neededH = outLines.length * fontSize * 1.2;
+    if (neededH > availH + 1) {
+      showCanvasToast('No more room inside shape — expand the shape or shorten text', 'warn');
+    }
+  } else if (parentEl) {
+    // fallback if overlay width not ready
+    const pad = 4;
+    wrapWidth = Math.max(20, parentEl.x + parentEl.width - pad - worldX);
   }
 
   state.addElement({
@@ -459,14 +609,19 @@ async function commitTextOverlay() {
     type: 'text',
     x: worldX,
     y: worldY,
-    text,
+    text: frozenText,
     fontSize,
     color,
     align: 'left',
     opacity: state.getState().opacity,
     parentId,
+    ...(wrapWidth ? { wrapWidth } : {}),
+    frozen: true,
   });
   boards.markDirty();
+  // after text placed, go back to default (move) — prevents next drag creating another text
+  activateTool('select');
+  updateToolbarUI();
 }
 
 function createTextOverlay(worldX, worldY, clientX, clientY, existingText, existingFontSize) {
@@ -476,29 +631,46 @@ function createTextOverlay(worldX, worldY, clientX, clientY, existingText, exist
   overlay.className = 'canvas-text-overlay';
   overlay.dataset.worldX = worldX;
   overlay.dataset.worldY = worldY;
-  overlay.dataset.color = state.getState().color;
-  overlay.dataset.fontSize = String(existingFontSize || 20);
+  const stCol = state.getState();
+  overlay.dataset.color = stCol.color || (stCol.theme === 'light' ? '#1e1e1e' : '#ffffff');
+  overlay.dataset.fontSize = String(existingFontSize || stCol.fontSize || 20);
 
   const vp = _panel.querySelector('#canvasViewport');
   const vpRect = vp.getBoundingClientRect();
+  const v0 = engine.getViewport();
+  const zoom = v0.zoom || 1;
+  // Exact screen position for 1:1 with canvas
   overlay.style.left = (clientX - vpRect.left) + 'px';
   overlay.style.top = (clientY - vpRect.top) + 'px';
 
-  // If inside a shape, constrain width from click to shape's right edge
+  // Detect parent shape and constrain width/height, store parentId
   const st2 = state.getState();
+  let parentId = null;
   for (let i = st2.elements.length - 1; i >= 0; i--) {
     const el = st2.elements[i];
     if ((el.type === 'rect' || el.type === 'ellipse' || el.type === 'terminator' ||
          el.type === 'diamond' || el.type === 'parallelogram' || el.type === 'double-rect' || el.type === 'circle') &&
         worldX >= el.x && worldX <= el.x + el.width && worldY >= el.y && worldY <= el.y + el.height) {
+      const pad = 4;
       const v = engine.getViewport();
-      const remainingPx = (el.x + el.width - worldX) * v.zoom - 4;
+      const z = v.zoom || 1;
+      const remainingPx = (el.x + el.width - pad - worldX) * z;
+      // Use remaining width exactly — this is what will be stored as wrapWidth
       overlay.style.width = Math.max(60, remainingPx) + 'px';
+      overlay.style.maxHeight = ((el.y + el.height - pad - worldY) * z) + 'px';
+      overlay.style.overflow = 'visible';
+      parentId = el.id;
       break;
     }
   }
+  if (parentId) overlay.dataset.parentId = parentId;
 
-  overlay.innerHTML = '<textarea class="canvas-text-input" rows="1" placeholder="Type..." spellcheck="false"></textarea>';
+  const isLight = st2.theme === 'light';
+  const displayFontPx = Math.round((parseInt(overlay.dataset.fontSize, 10) || 20) * zoom);
+  // textarea fills overlay width exactly — prevents "ing the followi" clipping
+  overlay.innerHTML = `<textarea class="canvas-text-input" rows="1" placeholder="Type..." spellcheck="false" style="color:${overlay.dataset.color};font-size:${displayFontPx}px;line-height:1.2;width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word"></textarea>`;
+  // pass theme to overlay for CSS
+  overlay.dataset.theme = isLight ? 'light' : 'dark';
   _panel.querySelector('#canvasViewport').appendChild(overlay);
   _textOverlay = overlay;
 
@@ -517,7 +689,7 @@ function createTextOverlay(worldX, worldY, clientX, clientY, existingText, exist
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }
 
-  // Only Escape cancels — Enter inserts newline naturally
+  // Only Escape cancels — Enter inserts newline naturally; live overflow check
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -525,10 +697,24 @@ function createTextOverlay(worldX, worldY, clientX, clientY, existingText, exist
     }
   });
 
-  // Auto-resize textarea
+  // Auto-resize with overflow guard
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
     textarea.style.height = textarea.scrollHeight + 'px';
+    if (parentId) {
+      const parentEl = state.getState().elements.find(e => e.id === parentId);
+      if (parentEl) {
+        const v = engine.getViewport();
+        const maxHpx = (parentEl.y + parentEl.height - 8 - worldY) * v.zoom;
+        if (textarea.scrollHeight > maxHpx + 2) {
+          showCanvasToast('No more room — expand the shape', 'warn');
+          // cap height and allow scroll
+          textarea.style.overflowY = 'auto';
+        } else {
+          textarea.style.overflowY = 'hidden';
+        }
+      }
+    }
   });
 }
 

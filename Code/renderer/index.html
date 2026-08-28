@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="./styles/dependencies.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/canvas-tool.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/file-seeder.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="./styles/global-seeder.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/loc-detector.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/terminal.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/port-manager.css" media="print" onload="this.media='all'">
@@ -104,6 +105,10 @@
         <input type="text" id="treeSearchInput" placeholder="Search files & folders…" class="search-input" />
         <button id="shortcutModeBtn" class="shortcut-mode-btn" title="Shortcut Mode - Paste file list to auto-select">
           <span class="shortcut-label">Shortcut</span>
+        </button>
+        <button id="globalSeederNavbarBtn" class="global-seeder-navbar-btn" title="Global Seeder - Seed files across the whole repo">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="10" cy="10" r="7"/><path d="M2.5 10h15"/><path d="M10 3c2 2.2 3 5 3 7s-1 5-3 7c-2-2-3-4.8-3-7s1-4.8 3-7z"/></svg>
+          <span class="global-seeder-label">Global Seed</span>
         </button>
         <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></span></button>
       </div>

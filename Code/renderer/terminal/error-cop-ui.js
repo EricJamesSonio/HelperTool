@@ -82,6 +82,15 @@ export default class ErrorCopUI {
     this._timePreset = 'today';
     this._pickMonthEl = null;
     this._timeDropdownEl = null;
+    this._loadedTimelineCount = 0;
+    this._loadedErrorCount = 0;
+    this._loadedSessionCount = 0;
+    this._hasMoreTimeline = true;
+    this._hasMoreErrors = true;
+    this._hasMoreSessions = true;
+    this._loadingMoreTimeline = false;
+    this._loadingMoreErrors = false;
+    this._loadingMoreSessions = false;
   }
 
   init() {
@@ -295,6 +304,11 @@ export default class ErrorCopUI {
       try {
         if (error && error.title) {
           this._showToast(`🔴 ${error.title}`);
+          if (error.timestamp) {
+            this._errors.unshift(error);
+            if (this._errors.length > 2000) this._errors.length = 2000;
+            if (this._isOpen && this._activeTab === 'errors') this._renderErrors();
+          }
         }
       } catch (e) {
         console.error('[ErrorCop] onNewError handler failed:', e);
@@ -411,8 +425,92 @@ export default class ErrorCopUI {
       this._errors = errors || [];
       this._sessions = sessions || [];
       this._allBrowserServers = allBrowserServers || [];
+      this._loadedTimelineCount = this._timeline.length;
+      this._loadedErrorCount = this._errors.length;
+      this._loadedSessionCount = this._sessions.length;
+      this._hasMoreTimeline = this._timeline.length >= 200;
+      this._hasMoreErrors = this._errors.length >= 200;
+      this._hasMoreSessions = this._sessions.length >= 100;
     } catch (err) {
       console.error('[ErrorCop] Load failed:', err);
+    }
+  }
+
+  async _loadMoreTimeline() {
+    if (this._loadingMoreTimeline || !this._hasMoreTimeline) return;
+    this._loadingMoreTimeline = true;
+    try {
+      let dateOpts = {};
+      if (this._timePreset === 'custom' && this._customRange) {
+        dateOpts = this._customRange;
+      } else {
+        dateOpts = _getDateRange(this._timePreset);
+      }
+      const more = await window.electronAPI.getTimeline({ limit: 200, offset: this._loadedTimelineCount, ...dateOpts });
+      if (more && more.length) {
+        this._timeline = this._timeline.concat(more);
+        this._loadedTimelineCount += more.length;
+        this._hasMoreTimeline = more.length >= 200;
+      } else {
+        this._hasMoreTimeline = false;
+      }
+      if (this._isOpen && this._activeTab === 'timeline') this._renderTimeline();
+    } catch (e) {
+      console.error('[ErrorCop] loadMoreTimeline failed:', e);
+    } finally {
+      this._loadingMoreTimeline = false;
+    }
+  }
+
+  async _loadMoreErrors() {
+    if (this._loadingMoreErrors || !this._hasMoreErrors) return;
+    this._loadingMoreErrors = true;
+    try {
+      let dateOpts = {};
+      if (this._timePreset === 'custom' && this._customRange) {
+        dateOpts = this._customRange;
+      } else {
+        dateOpts = _getDateRange(this._timePreset);
+      }
+      const more = await window.electronAPI.getErrors({ limit: 200, offset: this._loadedErrorCount, ...dateOpts });
+      if (more && more.length) {
+        this._errors = this._errors.concat(more);
+        this._loadedErrorCount += more.length;
+        this._hasMoreErrors = more.length >= 200;
+      } else {
+        this._hasMoreErrors = false;
+      }
+      if (this._isOpen && this._activeTab === 'errors') this._renderErrors();
+    } catch (e) {
+      console.error('[ErrorCop] loadMoreErrors failed:', e);
+    } finally {
+      this._loadingMoreErrors = false;
+    }
+  }
+
+  async _loadMoreSessions() {
+    if (this._loadingMoreSessions || !this._hasMoreSessions) return;
+    this._loadingMoreSessions = true;
+    try {
+      let dateOpts = {};
+      if (this._timePreset === 'custom' && this._customRange) {
+        dateOpts = this._customRange;
+      } else {
+        dateOpts = _getDateRange(this._timePreset);
+      }
+      const more = await window.electronAPI.getSessions({ limit: 100, offset: this._loadedSessionCount, ...dateOpts });
+      if (more && more.length) {
+        this._sessions = this._sessions.concat(more);
+        this._loadedSessionCount += more.length;
+        this._hasMoreSessions = more.length >= 100;
+      } else {
+        this._hasMoreSessions = false;
+      }
+      if (this._isOpen && this._activeTab === 'sessions' && !this._showOccurrenceView) this._renderSessions();
+    } catch (e) {
+      console.error('[ErrorCop] loadMoreSessions failed:', e);
+    } finally {
+      this._loadingMoreSessions = false;
     }
   }
 
@@ -462,6 +560,15 @@ export default class ErrorCopUI {
     }
 
     this._leftCol.appendChild(list);
+
+    if (this._hasMoreTimeline) {
+      const loadMoreBtn = document.createElement('button');
+      loadMoreBtn.className = 'ecp-filter-btn';
+      loadMoreBtn.style.cssText = 'display:block;width:100%;margin-top:8px;padding:6px;text-align:center;flex-shrink:0';
+      loadMoreBtn.textContent = this._loadingMoreTimeline ? 'Loading\u2026' : 'Load More';
+      loadMoreBtn.addEventListener('click', () => this._loadMoreTimeline());
+      this._leftCol.appendChild(loadMoreBtn);
+    }
 
     // Right column: show stats
     const errorCount = items.filter(e => e.type === 'error').length;
@@ -541,6 +648,15 @@ export default class ErrorCopUI {
     }
 
     this._leftCol.appendChild(list);
+
+    if (this._hasMoreErrors) {
+      const loadMoreBtn = document.createElement('button');
+      loadMoreBtn.className = 'ecp-filter-btn';
+      loadMoreBtn.style.cssText = 'display:block;width:100%;margin-top:8px;padding:6px;text-align:center;flex-shrink:0';
+      loadMoreBtn.textContent = this._loadingMoreErrors ? 'Loading\u2026' : 'Load More';
+      loadMoreBtn.addEventListener('click', () => this._loadMoreErrors());
+      this._leftCol.appendChild(loadMoreBtn);
+    }
 
     // Right column: stats
     const errCount = items.filter(e => e.level === 'error').length;
@@ -708,6 +824,15 @@ export default class ErrorCopUI {
     }
 
     this._leftCol.appendChild(list);
+
+    if (this._hasMoreSessions && !this._selectMode) {
+      const loadMoreBtn = document.createElement('button');
+      loadMoreBtn.className = 'ecp-filter-btn';
+      loadMoreBtn.style.cssText = 'display:block;width:100%;margin-top:8px;padding:6px;text-align:center;flex-shrink:0';
+      loadMoreBtn.textContent = this._loadingMoreSessions ? 'Loading\u2026' : 'Load More';
+      loadMoreBtn.addEventListener('click', () => this._loadMoreSessions());
+      this._leftCol.appendChild(loadMoreBtn);
+    }
 
     this._rightCol.innerHTML = '';
   }

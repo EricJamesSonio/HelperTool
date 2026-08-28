@@ -36,8 +36,8 @@ function register({ getMainWindow }) {
     return storage().getErrorsBySession(sessionId);
   }));
 
-  ipcMain.handle('error-cop:getTimeline', safe((event, { project, limit, startDate, endDate } = {}) => {
-    return storage().getTimeline({ project, limit, startDate, endDate });
+  ipcMain.handle('error-cop:getTimeline', safe((event, { project, limit, offset, startDate, endDate } = {}) => {
+    return storage().getTimeline({ project, limit, offset, startDate, endDate });
   }));
 
   ipcMain.handle('error-cop:getSessions', safe((event, opts) => {
