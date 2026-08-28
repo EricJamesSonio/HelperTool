@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const Parser = require('web-tree-sitter');
-
+const WTS = require('web-tree-sitter');
+const Parser = WTS.Parser || WTS.default || WTS;
+const Language = WTS.Language || (WTS.Parser && WTS.Parser.Language) || Parser.Language;
 const GRAMMAR_DIR = path.join(__dirname, '..', 'grammars');
 
 const EXT_LANG = {
@@ -28,7 +29,8 @@ async function loadLanguage(lang) {
     if (langCache.has(lang)) return langCache.get(lang);
     await ensureInit();
     const wasmPath = path.join(GRAMMAR_DIR, `tree-sitter-${lang}.wasm`);
-    const Lang = await Parser.Language.load(wasmPath);
+    const LangCtor = Language || Parser.Language;
+    const Lang = await LangCtor.load(wasmPath);
     langCache.set(lang, Lang);
     return Lang;
 }
@@ -90,6 +92,17 @@ function findNamedNode(rootNode, target) {
     let found = null;
     (function walk(node) {
         if (found) return;
+        // direct export_statement wrapping a function/class — patch the whole export so `export` is not duplicated
+        if (node.type === 'export_statement') {
+            for (let i = 0; i < node.namedChildCount; i++) {
+                const child = node.namedChild(i);
+                const nameNode = child.childForFieldName && child.childForFieldName('name');
+                if (nameNode && nameNode.text === target) {
+                    found = node;
+                    return;
+                }
+            }
+        }
         const nameNode = node.childForFieldName && node.childForFieldName('name');
         if (nameNode && nameNode.text === target) {
             let n = node;
@@ -114,6 +127,27 @@ function findNamedNode(rootNode, target) {
         for (let i = 0; i < node.childCount; i++) walk(node.child(i));
     })(rootNode);
     return found;
+}
+
+async function canPatch(filePath, target) {
+    const ext = extOf(filePath);
+    const lang = EXT_LANG[ext] || (ext === 'json' ? 'javascript' : null);
+    if (!lang) return { ok: false, reason: `no grammar for .${ext}` };
+    try {
+        const Lang = await loadLanguage(lang === 'javascript' && ext === 'json' ? 'javascript' : lang);
+        const source = fs.readFileSync(filePath, 'utf-8');
+        const parser = new Parser();
+        parser.setLanguage(Lang);
+        const tree = parser.parse(source);
+        let node = null;
+        if (lang === 'css') node = findCssRule(tree.rootNode, target);
+        else if (ext === 'json') node = findJsonPath(tree.rootNode, target) || findNamedNode(tree.rootNode, target);
+        else node = findNamedNode(tree.rootNode, target);
+        if (!node) return { ok: false, reason: `target "${target}" not found` };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, reason: err.message };
+    }
 }
 
 function leadingWhitespace(source, index) {
@@ -173,4 +207,4 @@ async function applyUpdate(filePath, target, newContent) {
     return { ok: true };
 }
 
-module.exports = { applyUpdate };
+module.exports = { applyUpdate, canPatch };

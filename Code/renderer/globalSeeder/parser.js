@@ -92,6 +92,7 @@ function isInstructionLine(line) {
     if (!t) return false;
     if (t.startsWith('```')) return false;
     if (LANG_TOKENS.has(t.toLowerCase())) return false;
+    if (/^(that's|this is|the shape|no prose|immediately followed)\b/i.test(t)) return true;
     // long prose ending with period, no code chars, starts with capital instruction
     if (INSTRUCTION_PREFIX_RE.test(t)) return true;
     // contains em dash and no code chars
@@ -120,19 +121,32 @@ function cleanContentBuffer(buf) {
     if (fences.length) {
         return fences.join('\n').trim();
     }
-    // Priority 2: unfenced — strip language token lines and instruction lines
+    // Priority 2: unfenced — strip language token lines and instruction lines,
+    // and treat the first instruction-like line after code as a terminator (drops trailing prose like "That's the shape: …")
     const out = [];
+    let seenCode = false;
     for (let i = 0; i < buf.length; i++) {
         const line = buf[i];
         const t = line.trim();
-        // skip standalone lang token line (single word lang)
         if (LANG_TOKENS.has(t.toLowerCase())) continue;
-        if (isInstructionLine(line)) continue;
+        const isInstr = isInstructionLine(line);
+        if (isInstr) {
+            if (seenCode) break; // trailing prose after code — stop here
+            continue;
+        }
+        // consider a line code-like if it has a code char or is blank (blank is allowed between code lines)
+        if (CODE_CHARS_RE.test(line) || t === '') {
+            if (t !== '') seenCode = true;
+        } else if (seenCode && t.length > 0) {
+            // prose-like line after code without being an instruction (e.g. "That's the shape: …" without em dash)
+            // treat as terminator as well
+            const isProse = t.length > 30 && /\s/.test(t) && !CODE_CHARS_RE.test(t);
+            if (isProse) break;
+        }
         out.push(line);
     }
     // trim leading/trailing blank lines
     let s = out.join('\n');
-    // remove leading blank line after path if first line was lang token and got stripped
     s = s.replace(/^\n+/, '').replace(/\n+$/, '');
     return s;
 }

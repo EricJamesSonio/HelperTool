@@ -48,15 +48,15 @@ function register(_deps) {
         }
     });
 
-    ipcMain.handle('fileseeder:previewContent', (event, basePath, entries) => {
+    ipcMain.handle('fileseeder:previewContent', async (event, basePath, entries) => {
         try {
             if (!basePath || !Array.isArray(entries) || !entries.length) {
-                return { error: 'Invalid arguments', toCreate: [], toOverwrite: [], toPatch: [], details: [] };
+                return { error: 'Invalid arguments', toCreate: [], toOverwrite: [], toPatch: [], warnings: [], details: [] };
             }
-            return fileSeeder.previewContent(basePath, entries);
+            return await fileSeeder.previewContent(basePath, entries);
         } catch (err) {
             console.error('[IPC] fileseeder:previewContent error:', err);
-            return { error: err.message, toCreate: [], toOverwrite: [], toPatch: [], details: [] };
+            return { error: err.message, toCreate: [], toOverwrite: [], toPatch: [], warnings: [], details: [] };
         }
     });
 

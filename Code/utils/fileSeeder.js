@@ -153,10 +153,11 @@ function seed(basePath, relPaths) {
 // Content mode — smart-anchored
 // ---------------------------------------------------------------------------
 
-function previewContent(basePath, entries) {
+async function previewContent(basePath, entries) {
     const toCreate    = [];
     const toOverwrite = [];
     const toPatch     = [];
+    const warnings    = [];
     const details     = [];
     const cache       = new Map();
 
@@ -165,7 +166,23 @@ function previewContent(basePath, entries) {
         const abs = path.join(basePath, resolved);
         const exists = fs.existsSync(abs);
 
-        if (mode === 'update') {
+        let warning = null;
+        let effMode = mode ?? 'full';
+        if (effMode === 'update') {
+            if (!exists) {
+                warning = `file not found — will create full file`;
+                // keep as patch in preview but mark warning; seed will fallback to full
+            } else if (target) {
+                try {
+                    const check = await astPatch.canPatch(abs, target);
+                    if (!check.ok) {
+                        warning = check.reason;
+                        // keep mode as update but flag; UI will show warning badge
+                    }
+                } catch (e) {
+                    warning = e.message;
+                }
+            }
             toPatch.push(resolved);
         } else {
             if (exists) toOverwrite.push(resolved);
@@ -178,12 +195,14 @@ function previewContent(basePath, entries) {
             candidates,
             ambiguous,
             exists,
-            mode: mode ?? 'full',
+            mode: effMode,
             target: target ?? null,
+            warning,
         });
+        if (warning) warnings.push({ path: resolved, warning });
     }
 
-    return { toCreate, toOverwrite, toPatch, details };
+    return { toCreate, toOverwrite, toPatch, details, warnings };
 }
 
 async function seedContent(basePath, entries) {

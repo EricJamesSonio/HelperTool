@@ -324,6 +324,13 @@
     color: #a855f7;
     border-color: rgba(168,85,247,0.28);
 }
+.gs-preview-row--patch-warn { background: rgba(251,146,60,0.08); border-left-color: rgba(251,146,60,0.5); }
+.gs-preview-row--patch-warn .gs-row-icon { color: #fb923c; }
+.gs-preview-row--patch-warn .gs-row-badge {
+    background: rgba(251,146,60,0.14);
+    color: #fb923c;
+    border-color: rgba(251,146,60,0.24);
+}
 
 /* Preview list — larger */
 .gs-preview-list {
