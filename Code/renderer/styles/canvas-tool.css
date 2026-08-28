@@ -60,16 +60,25 @@
   min-height: 0;
 }
 
-/* ══ TOOLBAR ══ */
+/* ══ TOOLBAR — Excalidraw-like pill ── */
 .canvas-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  gap: 6px;
+  padding: 6px 10px;
   flex-shrink: 0;
-  background: var(--bg-surface, #0a0c10);
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px;
+  margin: 10px auto 8px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.06);
   flex-wrap: wrap;
+  max-width: max-content;
+}
+.canvas-panel[data-theme="dark"] .canvas-toolbar {
+  background: var(--bg-surface, #0f1117);
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 
 .canvas-toolbar-group {
@@ -77,7 +86,10 @@
   align-items: center;
   gap: 4px;
   padding: 0 8px;
-  border-right: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-right: 1px solid rgba(0,0,0,0.08);
+}
+.canvas-panel[data-theme="dark"] .canvas-toolbar-group {
+  border-right-color: rgba(255,255,255,0.06);
 }
 
 .canvas-toolbar-group:last-child {
@@ -92,21 +104,31 @@
   justify-content: center;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--text-secondary, #b1bac4);
-  font-size: 16px;
+  border-radius: 8px;
+  color: #6b6b6b;
+  font-size: 15px;
   cursor: pointer;
   transition: all 0.12s;
 }
-
+.canvas-panel[data-theme="dark"] .canvas-tool-btn {
+  color: var(--text-secondary, #b1bac4);
+}
 .canvas-tool-btn:hover {
+  background: rgba(0,0,0,0.06);
+  color: #1e1e1e;
+}
+.canvas-panel[data-theme="dark"] .canvas-tool-btn:hover {
   background: var(--bg-hover, rgba(255,255,255,0.06));
   color: var(--text-primary, #f0f6fc);
 }
-
 .canvas-tool-btn.active {
+  background: #e0f2ff;
+  border-color: #6965db;
+  color: #6965db;
+}
+.canvas-panel[data-theme="dark"] .canvas-tool-btn.active {
   background: var(--accent-dim, rgba(34,211,238,0.12));
-  border-color: var(--accent-dim, rgba(34,211,238,0.3));
+  border-color: var(--accent, #22d3ee);
   color: var(--accent, #22d3ee);
 }
 
@@ -432,32 +454,73 @@
   font-weight: 500;
 }
 
+/* ── Light theme overrides (Excalidraw replica is light) ── */
+.canvas-panel[data-theme="light"] {
+  background: #ffffff;
+  color: #1e1e1e;
+}
+.canvas-panel[data-theme="light"] .canvas-navbar,
+.canvas-panel[data-theme="light"] .canvas-toolbar,
+.canvas-panel[data-theme="light"] .canvas-sidebar,
+.canvas-panel[data-theme="light"] .canvas-props-panel {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.08);
+}
+.canvas-panel[data-theme="light"] .canvas-viewport {
+  background: #ffffff;
+}
+.canvas-panel[data-theme="light"] .canvas-board-item:hover {
+  background: rgba(0,0,0,0.04);
+}
+.canvas-panel[data-theme="light"] .canvas-board-item.active {
+  background: rgba(34,211,238,0.08);
+  border-color: rgba(34,211,238,0.2);
+}
+
 /* ── Text overlay (inline text input) ── */
 .canvas-text-overlay {
   position: absolute;
   z-index: 100;
   pointer-events: auto;
+  background: transparent;
+  border: 1px dashed rgba(34,211,238,0.0);
+  border-radius: 4px;
+}
+.canvas-text-overlay:focus-within {
+  border-color: rgba(34,211,238,0.35);
 }
 
 .canvas-text-input {
   background: transparent;
   border: none;
   outline: none;
-  color: #ffffff;
-  font-family: 'Segoe UI', sans-serif;
+  color: #1e1e1e;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
   font-size: 20px;
   line-height: 1.2;
-  padding: 4px 2px;
-  min-width: 60px;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  min-width: 0;
   min-height: 1.2em;
   resize: none;
   overflow: hidden;
   caret-color: #22d3ee;
   white-space: pre-wrap;
   word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  letter-spacing: 0.01em;
+  box-sizing: border-box;
+  display: block;
 }
-
+.canvas-panel[data-theme="dark"] .canvas-text-input {
+  color: #ffffff;
+}
 .canvas-text-input::placeholder {
+  color: rgba(0,0,0,0.28);
+}
+.canvas-panel[data-theme="dark"] .canvas-text-input::placeholder {
   color: rgba(255,255,255,0.25);
 }
 
