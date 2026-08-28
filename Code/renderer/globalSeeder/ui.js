@@ -109,13 +109,19 @@ function renderContentPreview(preview) {
             list.appendChild(header);
         }
         for (const { d, idx } of arr) {
-            const isPatch = d.mode === 'update';
+            const surgical = d.mode && d.mode !== 'full' && d.mode !== 'partial';
+            const isPatch = surgical;
             const hasWarning = !!d.warning;
             const status = hasWarning ? 'patch-warn' : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
             const row = document.createElement('div');
             row.className = `gs-preview-row gs-preview-row--${status}${d.ambiguous ? ' gs-preview-row--ambig' : ''}`;
             const icon  = hasWarning ? '⚠' : (isPatch ? '🩹' : (d.exists ? '⟳' : '✚'));
-            const label = hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? `patch: ${escapeHtml(d.target || '')}` : (d.exists ? 'overwrite' : 'new'));
+            let patchLabel = '';
+            if (d.mode === 'addAfter') patchLabel = `add after: ${escapeHtml(d.target||'')}`;
+            else if (d.mode === 'addBefore') patchLabel = `add before: ${escapeHtml(d.target||'')}`;
+            else if (d.mode === 'remove') patchLabel = `remove: ${escapeHtml(d.target||'')}`;
+            else if (isPatch) patchLabel = `patch: ${escapeHtml(d.target||'')}`;
+            const label = hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? patchLabel : (d.exists ? 'overwrite' : 'new'));
             const subdir = d.resolved.includes('/') ? d.resolved.substring(0, d.resolved.lastIndexOf('/') + 1) : '';
             const name   = d.resolved.split('/').pop();
             const hasSelector = d.ambiguous && d.candidates && d.candidates.length > 1;

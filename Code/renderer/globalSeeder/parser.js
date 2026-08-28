@@ -20,7 +20,7 @@ const FENCE_BLOCK_RE = /```[ \t]*[a-zA-Z0-9]*\r?\n([\s\S]*?)```/g;
 const CODE_CHARS_RE = /[{}\[\]();=<>`"'$]/;
 const INSTRUCTION_PREFIX_RE = /^(replace|and|update|note|this|here|please|the|you can|update the|replace the)\b/i;
 const PARTIAL_RE = /\(partial\)/i;
-const UPDATE_RE  = /\(update:\s*([^)]+)\)/i;
+const SURGICAL_RE = /\((add(?:\s+after|\s+before)?|replace|update|remove)\s*:\s*([^)]+)\)/i;
 
 /**
  * Extract path candidate from a single line.
@@ -178,12 +178,15 @@ export function parseContentBlocks(raw) {
         const content = cleanContentBuffer(buf);
         const relPath = curPath.replace(/\\/g, '/').replace(/^\.?\//, '');
         const entry = { relPath, content, mode: curMode, target: curTarget };
-        if (byPath.has(relPath)) {
+        const isSurgical = curMode !== 'full';
+        if (!isSurgical && byPath.has(relPath)) {
+            // full mode: last wins
             Object.assign(byPath.get(relPath), entry);
-            const idx = entries.findIndex(e => e.relPath === relPath);
+            const idx = entries.findIndex(e => e.relPath === relPath && e.mode === 'full');
             if (idx !== -1) entries[idx] = { ...entries[idx], ...entry };
+            else entries.push(entry);
         } else {
-            byPath.set(relPath, entry);
+            if (!isSurgical) byPath.set(relPath, entry);
             entries.push(entry);
         }
         curPath = null; buf = []; curMode = 'full'; curTarget = null;
@@ -212,12 +215,25 @@ export function parseContentBlocks(raw) {
                     if (j < lines.length && lines[j].trim().startsWith('```')) isHeader = true;
                 }
                 if (isHeader) {
-                    const isPartial   = PARTIAL_RE.test(line);
-                    const updateMatch = line.match(UPDATE_RE);
+                    const surgicalMatch = line.match(SURGICAL_RE);
+                    const isPartial = !surgicalMatch && PARTIAL_RE.test(line);
                     flush();
-                    curPath   = cand;
-                    curMode   = isPartial ? 'partial' : (updateMatch ? 'update' : 'full');
-                    curTarget = updateMatch ? updateMatch[1].trim() : null;
+                    curPath = cand;
+                    if (isPartial) {
+                        curMode = 'partial';
+                        curTarget = null;
+                    } else if (surgicalMatch) {
+                        const opRaw = surgicalMatch[1].toLowerCase().replace(/\s+/g, '');
+                        const targetRaw = surgicalMatch[2].trim();
+                        if (opRaw === 'update' || opRaw === 'replace') { curMode = 'update'; curTarget = targetRaw; }
+                        else if (opRaw === 'addafter' || opRaw === 'add') { curMode = 'addAfter'; curTarget = targetRaw; }
+                        else if (opRaw === 'addbefore') { curMode = 'addBefore'; curTarget = targetRaw; }
+                        else if (opRaw === 'remove') { curMode = 'remove'; curTarget = targetRaw; }
+                        else { curMode = 'update'; curTarget = targetRaw; }
+                    } else {
+                        curMode = 'full';
+                        curTarget = null;
+                    }
                     buf = [];
                     continue;
                 }

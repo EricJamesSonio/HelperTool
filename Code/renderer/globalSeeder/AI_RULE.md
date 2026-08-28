@@ -96,35 +96,46 @@ Frontend/
 
 If you must explain changes, write them as a separate markdown section **above** the file blocks, not interleaved.
 
-### 4) Surgical updates — AST-patched, not overwritten
+### 4) Surgical edits — add / remove / replace (AST-patched, not overwritten)
 
-To update only *part* of an existing file, annotate the path line with `(Update: <target>)`:
+For small, targeted changes you don't need to paste the whole file. Use a verb on the path line and paste **the full new node** (not a diff):
 
 ```
-components/layout/AppShell.module.css (Update: .content)
+utils.js (Add after: imports)
+```js
+import { formatCurrency } from './helpers';
+```
 
-```css
-.content {
-  padding: 32px;
-  max-width: 1440px;
+utils.js (Replace: calculateTotal)
+```js
+function calculateTotal(items) {
+  return items.reduce((total, item) => total + item.price, 0);
 }
 ```
+
+utils.js (Remove: formatDate)
 ```
 
-- `<target>` is:
-  - a **CSS selector** for `.css`/`.scss` (e.g. `.content`, `#nav .item`)
-  - a **function/class/const/component name** for `.js`/`.jsx`/`.ts`/`.tsx` (e.g. `handleSubmit`, `AppShell`)
-  - a **dot-path key** for `.json` (e.g. `scripts.build`)
-- Only that node is replaced. Everything else in the file is left byte-for-byte untouched.
-- If the target isn't found, or the file doesn't exist yet, the seeder falls back to full create/overwrite with a warning — never silently drops the change.
-- `(Partial)` still means "fragment shown for you to apply by hand — skip entirely." `(Update: ...)` means "apply this patch automatically." Don't combine them.
+* Verbs:
+  * ` (Replace: <target>)` — alias ` (Update: <target>)` — replace the whole node named `<target>` with the fenced block. **Always paste the full function / class / rule**, never ` -` / `+` diff lines.
+  * ` (Add after: <target>)` / ` (Add before: <target>)` — insert the fenced block **after / before** `<target>`. Use `imports` to add an import after the last import, or `end` to append at EOF. The seeder adds one blank line so the result is clean.
+  * ` (Remove: <target>)` — delete the node named `<target>` entirely (leaves one blank line).
+* `<target>` is:
+  * a **CSS selector** for `.css`/`.scss` (e.g. `.content`, `#nav .item`)
+  * a **function/class/const/component name** for `.js`/`.jsx`/`.ts`/`.tsx`/`.py`/`.php`/`.vue` (e.g. `calculateTotal`, `AppShell`, `getUser`) — `tsx` and `python` were already supported, `php` and `vue` now work via the same AST (php/vue use string fallback if wasm missing, still surgical)
+  * `imports` or `end` for file edges
+  * a **dot-path** for `.json` (e.g. `scripts.build`)
+* **Multiple surgical blocks for the same file are a batch** — paste them in top-to-bottom order (e.g. `Add after: imports` first, then `Replace: calculateTotal` near bottom). Each is applied sequentially, so offsets stay correct. The file is read fresh after each patch.
+* If a target isn't found or the file doesn't exist, that one patch falls back to a full create/overwrite with a warning — it never silently drops, and the other patches in the batch still run.
+* `(Partial)` still means "fragment shown for you to apply by hand — skip entirely." Don't combine `(Partial)` with a surgical verb.
 
 ---
 
 ## How the seeder uses this
 
 - **Structure mode**: creates at repo root; if `First-Automation` exists it skips and creates children.
-- **Content mode**: smart-anchored. `components/...` is resolved to the nearest `components` folder found by BFS (skips `node_modules/.git/.next/dist/build`). If duplicates exist, UI shows a selector — user picks target. If no match, falls back to `repo/<path>`. Existing files are **overwritten** with pasted content. Fenced file-tree blocks (e.g. ```` ``` … lib/... ``` ````) are **ignored** — only path lines **outside** fences trigger seeding. Any path line with ` (Partial)` is also ignored.
+- **Content mode (full)**: smart-anchored. `components/...` is resolved to the nearest `components` folder found by BFS (skips `node_modules/.git/.next/dist/build`). If duplicates exist, UI shows a selector — user picks target. If no match, falls back to `repo/<path>`. Existing files are **overwritten** with pasted content.
+- **Content mode (surgical)**: same anchoring, but ` (Replace: X)` / ` (Add after: X)` / ` (Remove: X)` are **patches** — preview shows `🩹 add after: X` etc., seed does AST byte-range splice via `tree-sitter` (`grammars/`), leaving the rest of the file untouched. Multiple surgical blocks with the same path are applied in pasted order (top→bottom). Fenced file-tree blocks (e.g. ```` ``` … lib/... ``` ````) are **ignored** — only path lines **outside** fences trigger seeding. Any path line with ` (Partial)` is also ignored.
 
 Force this format on every generation that targets HelperTool.
 `````

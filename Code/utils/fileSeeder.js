@@ -153,6 +153,9 @@ function seed(basePath, relPaths) {
 // Content mode — smart-anchored
 // ---------------------------------------------------------------------------
 
+const SURGICAL_MODES = new Set(['update', 'replace', 'addafter', 'addbefore', 'remove']);
+function isSurgical(mode) { return SURGICAL_MODES.has((mode||'').toLowerCase().replace(/\s+/g,'')); }
+
 async function previewContent(basePath, entries) {
     const toCreate    = [];
     const toOverwrite = [];
@@ -168,20 +171,22 @@ async function previewContent(basePath, entries) {
 
         let warning = null;
         let effMode = mode ?? 'full';
-        if (effMode === 'update') {
-            if (!exists) {
+        const surgical = isSurgical(effMode);
+        if (surgical) {
+            if (!exists && effMode !== 'addAfter' && effMode !== 'addBefore') {
+                // remove/replace on non-existent file will fallback
                 warning = `file not found — will create full file`;
-                // keep as patch in preview but mark warning; seed will fallback to full
-            } else if (target) {
+            } else if (target && exists) {
                 try {
-                    const check = await astPatch.canPatch(abs, target);
+                    const check = await astPatch.canPatch(abs, target, effMode);
                     if (!check.ok) {
                         warning = check.reason;
-                        // keep mode as update but flag; UI will show warning badge
                     }
                 } catch (e) {
                     warning = e.message;
                 }
+            } else if (!target && effMode !== 'addAfter' && effMode !== 'addBefore') {
+                warning = `surgical mode requires a target`;
             }
             toPatch.push(resolved);
         } else {
@@ -231,14 +236,33 @@ async function seedContent(basePath, entries) {
             fs.mkdirSync(dir, { recursive: true });
             const existed = fs.existsSync(abs);
 
-            if (mode === 'update' && target && existed) {
-                const result = await astPatch.applyUpdate(abs, target, content ?? '');
-                if (result.ok) {
-                    patched.push(resolved);
+            const surgical = isSurgical(mode);
+            if (surgical && target) {
+                if (!existed) {
+                    const n = (mode||'').toLowerCase().replace(/\s+/g,'');
+                    if (n === 'addafter' || n === 'addbefore') {
+                        fs.writeFileSync(abs, content ?? '', 'utf-8');
+                        patched.push(resolved);
+                        continue;
+                    }
+                    errors.push({ path: resolved, original: relPath, warning: `patch fallback: file not found — created full file` });
+                    // fall through to full create below
+                } else {
+                    const normMode = (mode||'').toLowerCase().replace(/\s+/g,'');
+                    const effMode = normMode === 'replace' ? 'update' : normMode;
+                    let result;
+                    if (effMode === 'addafter') result = await astPatch.applyAddAfter(abs, target, content ?? '');
+                    else if (effMode === 'addbefore') result = await astPatch.applyAddBefore(abs, target, content ?? '');
+                    else if (effMode === 'remove') result = await astPatch.applyRemove(abs, target);
+                    else result = await astPatch.applyUpdate(abs, target, content ?? '');
+                    if (result.ok) {
+                        patched.push(resolved);
+                        continue;
+                    }
+                    // Do not fallback to full overwrite for surgical batch — just warn and skip, keep file as-is (or with prior patches)
+                    errors.push({ path: resolved, original: relPath, warning: `patch skipped: ${result.reason}` });
                     continue;
                 }
-                errors.push({ path: resolved, original: relPath, warning: `patch fallback: ${result.reason}` });
-                // falls through to full write below
             }
 
             fs.writeFileSync(abs, content ?? '', 'utf-8');
