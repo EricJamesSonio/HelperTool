@@ -6,6 +6,8 @@ The project acts as a centralized helper environment for working with repositori
 
 This application is actively evolving, with new systems, workflow improvements, and productivity-focused features being added continuously.
 
+![Version 2 UI](./Resources/home.png)
+
 ---
 
 # Purpose
