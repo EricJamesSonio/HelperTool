@@ -108,17 +108,44 @@ function loop() {
   _rafId = requestAnimationFrame(loop);
 }
 
+function getTheme() {
+  try { return state.getState().theme || 'dark'; } catch { return 'dark'; }
+}
+function themeStroke(raw) {
+  const t = getTheme();
+  if (!raw) return t === 'light' ? '#1e1e1e' : '#ffffff';
+  // Auto-fix low-contrast strokes when theme mismatched (e.g. dark stroke on dark bg)
+  const isDarkStroke = /^#0{2,}|^#1e1e1e|^#11|^#22|^#000/i.test(raw) || raw.toLowerCase() === 'black';
+  const isLightStroke = raw.toLowerCase() === '#ffffff' || raw.toLowerCase() === 'white' || /^#f{6}/i.test(raw);
+  if (t === 'dark' && isDarkStroke) return '#ffffff';
+  if (t === 'light' && isLightStroke) return '#1e1e1e';
+  return raw;
+}
+function themeTextColor(raw) {
+  const t = getTheme();
+  if (!raw) return t === 'light' ? '#1e1e1e' : '#ffffff';
+  const isDark = /^#0|^#1e/i.test(raw);
+  const isLight = /^#f{6}|^#fff|^white/i.test(raw);
+  if (t === 'dark' && isDark && raw.toLowerCase() !== 'transparent') return '#e8eaf0';
+  if (t === 'light' && isLight) return '#1e1e1e';
+  return raw;
+}
+
 function render() {
   if (!_ctx || !_canvas) return;
   const w = _canvas.width / (window.devicePixelRatio || 1);
   const h = _canvas.height / (window.devicePixelRatio || 1);
+  const theme = getTheme();
+  const isLight = theme === 'light';
 
-  _ctx.clearRect(0, 0, w, h);
+  // Canvas background
+  _ctx.fillStyle = isLight ? '#ffffff' : '#010409';
+  _ctx.fillRect(0, 0, w, h);
 
   // Background grid (only when zoomed out enough)
   const gridSize = 20 * viewport.zoom;
   if (gridSize > 8) {
-    _ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    _ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
     _ctx.lineWidth = 1;
     const ox = viewport.x % gridSize;
     const oy = viewport.y % gridSize;
@@ -258,16 +285,68 @@ function drawPen(ctx, el) {
   ctx.stroke();
 }
 
+function hashSeed(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function seededRand(seed, idx) {
+  const x = Math.sin(seed * 0.0001 + idx * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+function drawRoughRect(ctx, x, y, w, h, r, seed) {
+  const s = hashSeed(seed || '0');
+  const j = (i, amt = 0.9) => (seededRand(s, i) - 0.5) * amt;
+  const rEff = Math.min(r != null ? r : 12, Math.min(w, h) * 0.18);
+  const bow = 0.8;
+  // Clean closed path — each edge is a subtle bow, corners are true arcs via bezier
+  ctx.beginPath();
+  ctx.moveTo(x + rEff + j(0, 0.6), y + j(1, 0.6));
+  // top edge
+  ctx.bezierCurveTo(x + w * 0.35 + j(2), y - bow + j(3), x + w * 0.65 + j(4), y + bow + j(5), x + w - rEff + j(6, 0.6), y + j(7, 0.6));
+  // top-right corner
+  ctx.bezierCurveTo(x + w + j(8, 0.5), y + j(9, 0.5), x + w + j(10, 0.5), y + j(11, 0.5), x + w + j(12, 0.6), y + rEff + j(13, 0.6));
+  // right edge
+  ctx.bezierCurveTo(x + w + bow + j(14), y + h * 0.35 + j(15), x + w - bow + j(16), y + h * 0.65 + j(17), x + w + j(18, 0.6), y + h - rEff + j(19, 0.6));
+  // bottom-right corner
+  ctx.bezierCurveTo(x + w + j(20, 0.5), y + h + j(21, 0.5), x + w + j(22, 0.5), y + h + j(23, 0.5), x + w - rEff + j(24, 0.6), y + h + j(25, 0.6));
+  // bottom edge
+  ctx.bezierCurveTo(x + w * 0.65 + j(26), y + h + bow + j(27), x + w * 0.35 + j(28), y + h - bow + j(29), x + rEff + j(30, 0.6), y + h + j(31, 0.6));
+  // bottom-left corner
+  ctx.bezierCurveTo(x + j(32, 0.5), y + h + j(33, 0.5), x + j(34, 0.5), y + h + j(35, 0.5), x + j(36, 0.6), y + h - rEff + j(37, 0.6));
+  // left edge
+  ctx.bezierCurveTo(x - bow + j(38), y + h * 0.65 + j(39), x + bow + j(40), y + h * 0.35 + j(41), x + j(42, 0.6), y + rEff + j(43, 0.6));
+  // top-left corner back to start
+  ctx.bezierCurveTo(x + j(44, 0.5), y + j(45, 0.5), x + j(46, 0.5), y + j(47, 0.5), x + rEff + j(48, 0.6), y + j(49, 0.6));
+  ctx.closePath();
+}
 function drawRect(ctx, el) {
-  const r = el.borderRadius || 0;
-  if (r > 0) {
+  const stroke = themeStroke(el.stroke);
+  const r = el.borderRadius != null ? el.borderRadius : (el.roughness === 0 ? 0 : 10);
+  const useRough = el.roughness !== 0;
+  if (useRough) {
+    drawRoughRect(ctx, el.x, el.y, el.width, el.height, r, el.id);
+    if (el.fill && el.fill !== 'transparent') {
+      ctx.fillStyle = el.fill;
+      ctx.fill();
+    }
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = el.strokeWidth || 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    // Second faint stroke for sketch double-line effect
+    ctx.globalAlpha = 0.22;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  } else if (r > 0) {
     ctx.beginPath();
     ctx.roundRect(el.x, el.y, el.width, el.height, r);
     if (el.fill && el.fill !== 'transparent') {
       ctx.fillStyle = el.fill;
       ctx.fill();
     }
-    ctx.strokeStyle = el.stroke || '#ffffff';
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = el.strokeWidth || 2;
     ctx.stroke();
   } else {
@@ -275,25 +354,41 @@ function drawRect(ctx, el) {
       ctx.fillStyle = el.fill;
       ctx.fillRect(el.x, el.y, el.width, el.height);
     }
-    ctx.strokeStyle = el.stroke || '#ffffff';
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = el.strokeWidth || 2;
     ctx.strokeRect(el.x, el.y, el.width, el.height);
   }
 }
 
 function drawEllipse(ctx, el) {
+  const isLight = getTheme() === 'light';
+  const stroke = el.stroke || (isLight ? '#1e1e1e' : '#ffffff');
   const cx = el.x + el.width / 2;
   const cy = el.y + el.height / 2;
   const rx = el.width / 2;
   const ry = el.height / 2;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  // Slight hand-drawn ellipse wobble
+  if (el.roughness !== 0) {
+    const s = hashSeed(el.id || 'e');
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 2; a += 0.12) {
+      const rWob = 1 + (seededRand(s, Math.floor(a*10)) - 0.5) * 0.015;
+      const x = cx + Math.cos(a) * rx * rWob;
+      const y = cy + Math.sin(a) * ry * rWob;
+      if (a === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  }
   if (el.fill && el.fill !== 'transparent') {
     ctx.fillStyle = el.fill;
     ctx.fill();
   }
-  ctx.strokeStyle = el.stroke || '#ffffff';
+  ctx.strokeStyle = stroke;
   ctx.lineWidth = el.strokeWidth || 2;
+  ctx.lineCap = 'round';
   ctx.stroke();
 }
 

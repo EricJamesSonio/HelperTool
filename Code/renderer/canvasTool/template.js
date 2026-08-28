@@ -55,6 +55,8 @@ export function getPanelTemplate() {
             <button class="canvas-btn" id="canvasFitBtn" title="Fit to screen (Ctrl+Shift+F)">⊡ Fit</button>
           </div>
           <div class="canvas-toolbar-group">
+            <button class="canvas-btn canvas-btn-icon" id="canvasThemeToggle" title="Toggle light/dark">🌙</button>
+            <button class="canvas-btn canvas-btn-icon" id="canvasRoughToggle" title="Hand-drawn (Excalidraw style)">〰️</button>
             <button class="canvas-btn canvas-btn-icon" id="canvasShortcutsBtn" title="Keyboard Shortcuts">⌨️</button>
             <span class="canvas-zoom-indicator" id="canvasZoomIndicator" title="Click to reset zoom">120%</span>
           </div>
