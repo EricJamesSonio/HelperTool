@@ -55,7 +55,7 @@ class ErrorStorage {
     return _rowToObj(res[0], res[0].values[0]);
   }
 
-  getSessions({ startDate, endDate, limit = 50 } = {}) {
+  getSessions({ startDate, endDate, limit = 50, offset = 0 } = {}) {
     const db = getErrorCopDb();
     if (!startDate && !endDate) {
       const range = _todayRange();
@@ -66,8 +66,8 @@ class ErrorStorage {
     const params = [];
     if (startDate) { sql += ' AND started_at >= ?'; params.push(startDate); }
     if (endDate)   { sql += ' AND started_at <= ?'; params.push(endDate); }
-    sql += ' ORDER BY started_at DESC LIMIT ?';
-    params.push(limit);
+    sql += ' ORDER BY started_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
     const res = db.exec(sql, params);
     if (!res.length) return [];
     return res[0].values.map(r => _rowToObj(res[0], r));
@@ -193,7 +193,7 @@ class ErrorStorage {
     return { mostFrequent, byType };
   }
 
-  getTimeline({ project, limit = 100, startDate, endDate } = {}) {
+  getTimeline({ project, limit = 100, offset = 0, startDate, endDate } = {}) {
     const db = getErrorCopDb();
     let sql = `SELECT e.id, e.timestamp, e.level, e.title, e.message, e.occurrences,
                        e.session_id, COALESCE(e.project, s.project) as project, s.command, s.label,
@@ -205,8 +205,8 @@ class ErrorStorage {
     if (project) { sql += ' AND (e.project = ? OR s.project = ?)'; params.push(project, project); }
     const dateFilter = _applyDateRange(sql, params, startDate, endDate);
     sql = dateFilter.sql;
-    sql += ' ORDER BY e.timestamp DESC LIMIT ?';
-    params.push(limit);
+    sql += ' ORDER BY e.timestamp DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
     const res = db.exec(sql, params);
     if (!res.length) return [];
     return res[0].values.map(r => _rowToObj(res[0], r));

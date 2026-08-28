@@ -37,4 +37,27 @@ function register({ config }) {
     });
 }
 
+    ipcMain.handle('fileseeder:previewContent', (event, basePath, entries) => {
+        try {
+            if (!basePath || !Array.isArray(entries) || !entries.length) {
+                return { error: 'Invalid arguments', toCreate: [], toOverwrite: [] };
+            }
+            return fileSeeder.previewContent(basePath, entries);
+        } catch (err) {
+            console.error('[IPC] fileseeder:previewContent error:', err);
+            return { error: err.message, toCreate: [], toOverwrite: [] };
+        }
+    });
+
+    ipcMain.handle('fileseeder:seedContent', (event, basePath, entries) => {
+        try {
+            if (!basePath || !Array.isArray(entries) || !entries.length) {
+                return { error: 'Invalid arguments', created: [], overwritten: [], errors: [] };
+            }
+            return fileSeeder.seedContent(basePath, entries);
+        } catch (err) {
+            console.error('[IPC] fileseeder:seedContent error:', err);
+            return { error: err.message, created: [], overwritten: [], errors: [] };
+        }
+    });
 module.exports = { register, DEFAULT_FEATURES };

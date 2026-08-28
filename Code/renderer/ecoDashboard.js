@@ -137,8 +137,8 @@ function _mergeEvents(type, res) {
     st.hasMore = res.hasMore;
     return;
   }
-  st.events = st.events.concat(newEvts);
-  st.oldestSeq = st.events.length > 0 ? st.events[0].seq : null;
+  st.events = newEvts.reverse().concat(st.events);
+  st.oldestSeq = st.events.length > 0 ? st.events[st.events.length - 1].seq : null;
   st.hasMore = res.hasMore;
   _renderQuadrant(type);
 }
@@ -150,8 +150,8 @@ async function _loadMore(type) {
   try {
     var res = await window.electronAPI.eco.feed(type, st.oldestSeq);
     if (res && res.events && res.events.length) {
-      st.events = res.events.concat(st.events);
-      st.oldestSeq = st.events.length > 0 ? st.events[0].seq : null;
+      st.events = st.events.concat(res.events.reverse());
+      st.oldestSeq = st.events.length > 0 ? st.events[st.events.length - 1].seq : null;
       st.hasMore = res.hasMore;
       _renderQuadrant(type);
     } else if (res) {
@@ -175,12 +175,12 @@ function _toggleScroll(type) {
   st.autoScroll = !st.autoScroll;
   var btn = document.getElementById('ecoScroll_' + type);
   if (btn) btn.classList.toggle('active');
-  if (st.autoScroll) _scrollToBottom(type);
+  if (st.autoScroll) _scrollToTop(type);
 }
 
-function _scrollToBottom(type) {
+function _scrollToTop(type) {
   var list = document.getElementById('ecoList_' + type);
-  if (list) list.scrollTop = list.scrollHeight;
+  if (list) list.scrollTop = 0;
 }
 
 function _renderQuadrant(type) {
@@ -235,7 +235,7 @@ function _renderQuadrant(type) {
   list.innerHTML = html;
   _attachEventListeners(type);
 
-  if (st.autoScroll) _scrollToBottom(type);
+  if (st.autoScroll) _scrollToTop(type);
 }
 
 function _attachEventListeners(type) {

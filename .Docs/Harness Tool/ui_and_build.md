@@ -15,6 +15,7 @@ Unlike web apps:
 # 🧱 Architecture (Electron)
 
 ```text
+
 Renderer (React UI)
         ↓ IPC
 Electron Main Process

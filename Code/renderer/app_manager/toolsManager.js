@@ -23,6 +23,7 @@ import * as essentialsGlossary from '../essentialsGlossary.js';
 import { openEnvManager } from '../envManager.js';
 import toolRegistry        from '../mcp/toolRegistry.js';
 import * as mcpModule      from '../mcp/index.js';
+import * as globalSeeder from '../globalSeeder.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 import { startPrefetch } from './prefetchManager.js';
@@ -60,6 +61,7 @@ const ICONS = {
     radar: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg>',
     inspector: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 7v6"/><path d="M7 10h6"/></svg>',
     harness: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12v12H4z"/><path d="M8 8h4v4H8z"/><circle cx="10" cy="10" r="1.5"/></svg>',
+    globalSeeder: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2 2.2 3 5 3 7.5s-1 5.3-3 7.5c-2-2.2-3-5-3-7.5s1-5.3 3-7.5z"/></svg>',
   };
 import PanelRegistry                      from './panels/panelRegistry.js';
 import {
@@ -439,6 +441,11 @@ function populateSidebar() {
       await oc.open();
     } catch (err) {  console.error('[Tools] CodeSwamp:', err) }
   }, 'opencode'));
+    add(createSidebarItem(ICONS.globalSeeder, 'Global Seeder', 'Seed structure or code across the whole repo', () => {
+    if (globalSeeder.isOpen()) { globalSeeder.close(); return; }
+    _registry.closeAll();
+    globalSeeder.open();
+  }, 'globalSeeder'));
 
   add(createSidebarItem(ICONS.radar, 'Researcher', 'Select AI & build prompts with live browser', async () => {
     try {
@@ -1071,6 +1078,7 @@ export async function initTools(feats, settingsManager) {
   _settingsManager = settingsManager;
 
   fileSeederTool.init();
+  globalSeeder.init();
   sessionNotes.initSessionNotes();
   _registry.setSessionNotes(sessionNotes);
   _registry.setDiffViewer(diffViewer);

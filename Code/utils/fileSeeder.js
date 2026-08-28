@@ -41,4 +41,44 @@ function seed(basePath, relPaths) {
     return { created, errors };
 }
 
-module.exports = { preview, seed };
+function previewContent(basePath, entries) {
+    const toCreate    = [];
+    const toOverwrite = [];
+
+    for (const { relPath } of entries) {
+        const abs = path.join(basePath, relPath);
+        if (fs.existsSync(abs)) {
+            toOverwrite.push(relPath);
+        } else {
+            toCreate.push(relPath);
+        }
+    }
+
+    return { toCreate, toOverwrite };
+}
+
+function seedContent(basePath, entries) {
+    const created     = [];
+    const overwritten = [];
+    const errors      = [];
+
+    for (const { relPath, content } of entries) {
+        const abs = path.join(basePath, relPath);
+        try {
+            const dir = path.dirname(abs);
+            fs.mkdirSync(dir, { recursive: true });
+
+            const existed = fs.existsSync(abs);
+            fs.writeFileSync(abs, content ?? '', 'utf-8');
+
+            if (existed) overwritten.push(relPath);
+            else created.push(relPath);
+        } catch (err) {
+            errors.push({ path: relPath, error: err.message });
+        }
+    }
+
+    return { created, overwritten, errors };
+}
+
+module.exports = { preview, seed, previewContent, seedContent };

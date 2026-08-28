@@ -10,6 +10,7 @@ import * as ecoDashboard from '../../ecoDashboardUI.js';
 import { close as closeServiceTracker } from '../../serviceTracker.js';
 import { closeConfig as closeCliConfig } from '../../shortcuts/ui.js';
 import { state as csState } from '../../codeswampUI/state.js';
+import * as globalSeeder from '../../globalSeeder.js';
 
 export default class PanelRegistry {
   constructor() {
@@ -91,6 +92,9 @@ export default class PanelRegistry {
 
     // File Seeder
     if (fileSeederTool.isOpen()) fileSeederTool.close();
+
+    // Global seeder
+    if (globalSeeder.isOpen()) globalSeeder.close();
 
     // LOC Detector
     if (locDetector.isOpen()) locDetector.close();

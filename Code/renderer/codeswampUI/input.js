@@ -128,9 +128,9 @@ export function renderInput() {
     } catch {}
   });
 
-  promptBtn.addEventListener('click', openPromptPicker);
-  ticketBtn.addEventListener('click', openTicketPanel);
-  stoneBtn.addEventListener('click', openStonePanel);
+  promptBtn.addEventListener('click', () => openPromptPicker());
+  ticketBtn.addEventListener('click', () => openTicketPanel());
+  stoneBtn.addEventListener('click', () => openStonePanel());
   planningBtn.addEventListener('click', openPlanningPanel);
   kitBtn.addEventListener('click', openBuildKitPanel);
 }
