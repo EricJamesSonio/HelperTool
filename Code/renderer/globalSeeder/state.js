@@ -2,8 +2,8 @@ export const state = {
     mode: 'structure',        // 'structure' | 'content'
     rawInput: '',
     preview: null,             // structure mode: { toCreate, toSkip }
-    contentEntries: null,      // content mode: [{ relPath, content }]
-    contentPreview: null,      // content mode: { toCreate, toOverwrite }
+    contentEntries: null,      // content mode: [{ relPath, content, resolved, candidates, ambiguous }]
+    contentPreview: null,      // content mode: { toCreate, toOverwrite, details }
     isOpen: false,
 };
 

@@ -69,16 +69,110 @@ function renderContentPreview(preview) {
     const list    = document.getElementById('gsPreviewList');
     if (!summary || !list) return;
 
+    const ambiguousCount = (preview.details || []).filter(d => d.ambiguous).length;
+
     summary.innerHTML = `
         <span class="gs-badge gs-badge-create">✚ ${preview.toCreate.length} to create</span>
         ${preview.toOverwrite.length > 0 ? `<span class="gs-badge gs-badge-overwrite">⟳ ${preview.toOverwrite.length} will be overwritten</span>` : ''}
+        ${ambiguousCount > 0 ? `<span class="gs-badge gs-badge-ambig">⚠ ${ambiguousCount} need target choice</span>` : ''}
     `;
 
-    const items = [
-        ...preview.toCreate.map(p    => ({ path: p, status: 'create'    })),
-        ...preview.toOverwrite.map(p => ({ path: p, status: 'overwrite' })),
-    ];
-    renderRows(list, items);
+    list.innerHTML = '';
+    if (!preview.details || !preview.details.length) {
+        const items = [
+            ...preview.toCreate.map(p    => ({ path: p, status: 'create'    })),
+            ...preview.toOverwrite.map(p => ({ path: p, status: 'overwrite' })),
+        ];
+        renderRows(list, items);
+        return;
+    }
+
+    // Group by resolved top folder but keep ambiguous selector inline
+    const grouped = {};
+    for (let i = 0; i < preview.details.length; i++) {
+        const d = preview.details[i];
+        const top = d.resolved.includes('/') ? d.resolved.split('/')[0] : '__root__';
+        if (!grouped[top]) grouped[top] = [];
+        grouped[top].push({ d, idx: i });
+    }
+
+    for (const [folder, arr] of Object.entries(grouped)) {
+        if (folder !== '__root__') {
+            const header = document.createElement('div');
+            header.className   = 'gs-preview-folder';
+            header.textContent = `📁 ${folder}/`;
+            list.appendChild(header);
+        }
+        for (const { d, idx } of arr) {
+            const status = d.exists ? 'overwrite' : 'create';
+            const row = document.createElement('div');
+            row.className = `gs-preview-row gs-preview-row--${status}${d.ambiguous ? ' gs-preview-row--ambig' : ''}`;
+            const icon  = d.exists ? '⟳' : '✚';
+            const label = d.exists ? 'overwrite' : 'new';
+            const subdir = d.resolved.includes('/') ? d.resolved.substring(0, d.resolved.lastIndexOf('/') + 1) : '';
+            const name   = d.resolved.split('/').pop();
+            const hasSelector = d.ambiguous && d.candidates && d.candidates.length > 1;
+
+            // Build base row
+            const pathHtml = `${subdir ? `<span class="gs-row-subdir">${escapeHtml(subdir)}</span>` : ''}${escapeHtml(name)}`;
+            const origHint = d.original !== d.resolved ? ` title="from: ${escapeHtml(d.original)}"` : '';
+
+            row.innerHTML = `
+                <span class="gs-row-icon">${icon}</span>
+                <span class="gs-row-path"${origHint}>${pathHtml}</span>
+                ${d.original !== d.resolved ? `<span class="gs-row-orig" title="${escapeHtml(d.original)}">← ${escapeHtml(d.original.split('/')[0])}/…</span>` : ''}
+                <span class="gs-row-badge">${label}</span>
+            `;
+
+            // If ambiguous, append a selector for the target base
+            if (hasSelector) {
+                const selWrap = document.createElement('div');
+                selWrap.className = 'gs-ambig-wrap';
+                const sel = document.createElement('select');
+                sel.className = 'gs-ambig-select';
+                sel.dataset.idx = String(idx);
+                for (const cand of d.candidates) {
+                    const opt = document.createElement('option');
+                    opt.value = cand;
+                    // show relative candidate base + rest hint
+                    const rest = d.resolved.slice(d.resolved.indexOf('/') + 1);
+                    // cand is like "src/components" — display that
+                    opt.textContent = cand;
+                    // select current resolved prefix
+                    const curPrefix = d.resolved.slice(0, d.resolved.length - rest.length - 1);
+                    if (cand === curPrefix) opt.selected = true;
+                    sel.appendChild(opt);
+                }
+                sel.addEventListener('change', (e) => {
+                    const newBase = e.target.value;
+                    const originalRest = d.original.split('/').slice(1).join('/');
+                    const newResolved = originalRest ? `${newBase}/${originalRest}` : newBase;
+                    // update preview model and row display
+                    d.resolved = newResolved;
+                    if (state.contentEntries && state.contentEntries[idx]) {
+                        state.contentEntries[idx].resolved = newResolved;
+                    }
+                    // update path visuals in row
+                    const newSubdir = newResolved.includes('/') ? newResolved.substring(0, newResolved.lastIndexOf('/') + 1) : '';
+                    const newName = newResolved.split('/').pop();
+                    const pathEl = row.querySelector('.gs-row-path');
+                    if (pathEl) {
+                        pathEl.innerHTML = `${newSubdir ? `<span class="gs-row-subdir">${escapeHtml(newSubdir)}</span>` : ''}${escapeHtml(newName)}`;
+                    }
+                    // also need to re-check exists state? preview counts already done; we keep original exists flag for now
+                    // but update status badge if target changes from exists to not — re-query optimistically skip
+                });
+                selWrap.appendChild(sel);
+                row.appendChild(selWrap);
+            }
+
+            list.appendChild(row);
+        }
+    }
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function setModeUI(mode) {
@@ -89,10 +183,10 @@ function setModeUI(mode) {
     const hint  = document.getElementById('gsInputHint');
     if (mode === 'structure') {
         if (label) label.textContent = 'Paste file structure below';
-        if (hint)  hint.textContent  = 'Supports flat lists, indented trees, and box-drawing trees. Missing folders/files are created; existing ones are skipped.';
+        if (hint)  hint.textContent  = 'Flat lists, indented/box trees. Files missing are created at repo root (existing folders/files skipped).';
     } else {
         if (label) label.textContent = 'Paste file paths + code blocks below';
-        if (hint)  hint.textContent  = 'Paste Claude-style output: a file path followed by a fenced code block. New files are created, existing files are overwritten.';
+        if (hint)  hint.textContent  = 'Paste Claude/Copilot output: each file path + code (fenced or plain). Smart-anchored to nearest matching folder — choose target if duplicates.';
     }
 }
 
@@ -157,7 +251,18 @@ export function wireUI(onClose, getBasePath) {
                     showStage('gsInputStage');
                     return;
                 }
-                state.contentEntries = entries;
+                // Enrich entries with resolved/candidates for seeding
+                const enriched = entries.map((e, i) => {
+                    const d = preview.details?.[i];
+                    return {
+                        relPath: e.relPath,
+                        content: e.content,
+                        resolved: d?.resolved ?? e.relPath,
+                        candidates: d?.candidates ?? [],
+                        ambiguous: !!d?.ambiguous,
+                    };
+                });
+                state.contentEntries = enriched;
                 state.contentPreview = preview;
                 renderContentPreview(preview);
             }
@@ -201,7 +306,13 @@ export function wireUI(onClose, getBasePath) {
                     showStage('gsPreviewStage');
                     return;
                 }
-                result = await window.electronAPI.fileSeeder.seedContent(basePath, state.contentEntries);
+                // send enriched entries with chosen resolved
+                const payload = state.contentEntries.map(e => ({
+                    relPath: e.relPath,
+                    content: e.content,
+                    resolved: e.resolved,
+                }));
+                result = await window.electronAPI.fileSeeder.seedContent(basePath, payload);
             }
 
             if (result.error) {
