@@ -38,6 +38,7 @@ function _estimateWrappedLines(text, maxWidth, fontSize) {
 }
 
 function _parentTextWidth(el) {
+  if (el.wrapWidth != null) return el.wrapWidth;
   const st = state.getState();
   const parent = st.elements.find(e => e.id === el.parentId);
   if (parent) return Math.max(0, parent.x + parent.width - 4 - el.x);
@@ -45,6 +46,8 @@ function _parentTextWidth(el) {
 }
 
 function textWidth(el) {
+  if (el.frozen && el.wrapWidth != null) return el.wrapWidth;
+  if (el.wrapWidth != null) return el.wrapWidth;
   if (el.parentId) {
     const w = _parentTextWidth(el);
     if (w !== null) return w;
@@ -53,6 +56,14 @@ function textWidth(el) {
 }
 
 function textHeight(el) {
+  if (el.frozen) {
+    const lines = (el.text || '').split('\n').length;
+    return lines * (el.fontSize || 20) * 1.2;
+  }
+  if (el.wrapWidth != null) {
+    const lines = _estimateWrappedLines(el.text || '', el.wrapWidth, el.fontSize || 20);
+    return lines * (el.fontSize || 20) * 1.2;
+  }
   if (el.parentId) {
     const st = state.getState();
     const parent = st.elements.find(e => e.id === el.parentId);
@@ -695,13 +706,45 @@ function doResize(el, handleId, fixedBBox, startSnap, mouseWorld) {
   const oppFx = def.opp.fx, oppFy = def.opp.fy;
   const fixedX = fixedBBox.x + fixedBBox.w * oppFx;
   const fixedY = fixedBBox.y + fixedBBox.h * oppFy;
-  el.x = Math.min(fixedX, mouseWorld.x);
-  el.y = Math.min(fixedY, mouseWorld.y);
-  el.width  = Math.max(MIN_SIZE, Math.abs(mouseWorld.x - fixedX));
-  el.height = Math.max(MIN_SIZE, Math.abs(mouseWorld.y - fixedY));
+  let newX = Math.min(fixedX, mouseWorld.x);
+  let newY = Math.min(fixedY, mouseWorld.y);
+  let newW = Math.max(MIN_SIZE, Math.abs(mouseWorld.x - fixedX));
+  let newH = Math.max(MIN_SIZE, Math.abs(mouseWorld.y - fixedY));
+  // Enforce expand-only for parent shapes with frozen text: cannot shrink below text bounds
+  const st = state.getState();
+  const contained = st.elements.filter(e => e.type === 'text' && e.parentId === el.id && e.frozen);
+  if (contained.length) {
+    const pad = 8;
+    let newLeft = newX, newRight = newX + newW, newTop = newY, newBottom = newY + newH;
+    for (const t of contained) {
+      const tw = t.wrapWidth != null ? t.wrapWidth : textWidth(t);
+      const th = t.frozen ? (t.text||'').split('\n').length * (t.fontSize||20)*1.2 : textHeight(t);
+      const needLeft = t.x - pad;
+      const needRight = t.x + tw + pad;
+      const needTop = t.y - pad;
+      const needBottom = t.y + th + pad;
+      if (newLeft > needLeft) newLeft = needLeft;
+      if (newRight < needRight) newRight = needRight;
+      if (newTop > needTop) newTop = needTop;
+      if (newBottom < needBottom) newBottom = needBottom;
+    }
+    // Ensure at least MIN_SIZE and respect fixed corner when possible
+    newW = Math.max(MIN_SIZE, newRight - newLeft);
+    newH = Math.max(MIN_SIZE, newBottom - newTop);
+    newX = newLeft;
+    newY = newTop;
+    // If resizing anchored to fixed corner (opp), try to keep fixed corner stable:
+    // For left/top handles, fixedX/fixedY is opposite; our newLeft/newRight already ensures containment,
+    // but if we had to expand beyond fixed corner, we allow it (shape grows past original fixed edge)
+  }
+  el.x = newX;
+  el.y = newY;
+  el.width  = newW;
+  el.height = newH;
   // Preserve circle aspect ratio
   if (el.type === 'circle' || el.lockAspect) {
     const side = Math.max(el.width, el.height);
+    // For circle, also enforce min side covering text
     el.width = side;
     el.height = side;
   }

@@ -53,6 +53,7 @@ export function getPanelTemplate() {
             <button class="canvas-btn" id="canvasClearBtn" title="Clear all">🗑️ Clear</button>
             <button class="canvas-btn" id="canvasResetViewBtn" title="Reset view">⊞ Reset View</button>
             <button class="canvas-btn" id="canvasFitBtn" title="Fit to screen (Ctrl+Shift+F)">⊡ Fit</button>
+            <button class="canvas-btn" id="canvasExportBtn" title="Export as PNG (whole canvas)">⤓ PNG</button>
           </div>
           <div class="canvas-toolbar-group">
             <button class="canvas-btn canvas-btn-icon" id="canvasThemeToggle" title="Toggle light/dark">🌙</button>
