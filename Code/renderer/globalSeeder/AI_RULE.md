@@ -26,6 +26,7 @@ Rules:
 - Opening fence must be triple backticks + language (`css`, `tsx`, `ts`, `py`, `json`, etc.) on its own line.
 - Closing fence triple backticks on its own line.
 - **No prose between path and fence.** Put explanations BEFORE the block or AFTER all blocks, never between.
+- **No code comments inside the fence** — do NOT include `// ...`, `/* ... */`, or `# ...` comments in the file content. The parser treats `//` + `—` lines as prose and will **truncate the file** after that comment (e.g. `// Sheet write already succeeded — …` cuts off the `try` block). If you must explain, put it outside the fence as markdown.
 - One blank line between files is allowed.
 - Use **posixed forward slashes** (`/`), lowercase extensions.
 
@@ -65,7 +66,7 @@ components/sheet-builder/SharePanel.module.csscss // glued lang
 components/sheet-builder/SharePanel.module.css — this is the panel // prose on path line
 components/sheet-builder/SharePanel.tsx tsx // lang not fenced
 components/sheet-builder/SharePanel.tsx // missing fence, raw code without ```
-
+app/api/public/submit/route.ts with `// Sheet write already succeeded — …` comment inside the fence // comment truncates file after that line
 ```
 
 ### 2) STRUCTURE MODE (empty files, folders only)
@@ -92,6 +93,7 @@ Frontend/
 ### 3) Never add
 - `hooks/useFormConfig.ts — update the type exports` (em-dash notes on path line)
 - `Replace the ...` / `And update the ...` sentences inside the fence
+- `//` or `/* */` comments inside the fence — put explanations outside the fence instead (they can contain `—` and will be mis-detected as prose, truncating the file)
 - Wrapped paths like `` `components/.../Foo.tsx` `` (backticks unnecessary, but tolerated)
 
 If you must explain changes, write them as a separate markdown section **above** the file blocks, not interleaved.

@@ -91,6 +91,7 @@ function isInstructionLine(line) {
     const t = line.trim();
     if (!t) return false;
     if (t.startsWith('```')) return false;
+    if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('* ') || t.startsWith('#')) return false; // code comment, keep as code
     if (LANG_TOKENS.has(t.toLowerCase())) return false;
     if (/^(that's|this is|the shape|no prose|immediately followed)\b/i.test(t)) return true;
     // long prose ending with period, no code chars, starts with capital instruction
@@ -134,13 +135,14 @@ function cleanContentBuffer(buf) {
             if (seenCode) break; // trailing prose after code — stop here
             continue;
         }
-        // consider a line code-like if it has a code char or is blank (blank is allowed between code lines)
-        if (CODE_CHARS_RE.test(line) || t === '') {
+        // consider a line code-like if it has a code char, is a comment, or is blank (blank is allowed between code lines)
+        const isCodeComment = t.startsWith('//') || t.startsWith('/*') || t.startsWith('*');
+        if (CODE_CHARS_RE.test(line) || t === '' || isCodeComment) {
             if (t !== '') seenCode = true;
         } else if (seenCode && t.length > 0) {
             // prose-like line after code without being an instruction (e.g. "That's the shape: …" without em dash)
-            // treat as terminator as well
-            const isProse = t.length > 30 && /\s/.test(t) && !CODE_CHARS_RE.test(t);
+            // treat as terminator as well — but not for code comments
+            const isProse = t.length > 30 && /\s/.test(t) && !CODE_CHARS_RE.test(t) && !isCodeComment;
             if (isProse) break;
         }
         out.push(line);
