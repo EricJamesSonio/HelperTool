@@ -20,6 +20,7 @@ const FENCE_BLOCK_RE = /```[ \t]*[a-zA-Z0-9]*\r?\n([\s\S]*?)```/g;
 const CODE_CHARS_RE = /[{}\[\]();=<>`"'$]/;
 const INSTRUCTION_PREFIX_RE = /^(replace|and|update|note|this|here|please|the|you can|update the|replace the)\b/i;
 const PARTIAL_RE = /\(partial\)/i;
+const UPDATE_RE  = /\(update:\s*([^)]+)\)/i;
 
 /**
  * Extract path candidate from a single line.
@@ -150,31 +151,28 @@ export function parseContentBlocks(raw) {
 
     let curPath = null;
     let buf = [];
-    let curIsPartial = false;
+    let curMode = 'full'; // 'full' | 'partial' | 'update'
+    let curTarget = null;
     let inFence = false;
 
     function flush() {
         if (!curPath) return;
-        if (curIsPartial) {
-            // skip Partial files completely — user handles manually
-            curPath = null;
-            buf = [];
-            curIsPartial = false;
+        if (curMode === 'partial') {
+            curPath = null; buf = []; curMode = 'full'; curTarget = null;
             return;
         }
         const content = cleanContentBuffer(buf);
-        // normalize path
         const relPath = curPath.replace(/\\/g, '/').replace(/^\.?\//, '');
-        // dedup last wins
+        const entry = { relPath, content, mode: curMode, target: curTarget };
         if (byPath.has(relPath)) {
-            byPath.get(relPath).content = content;
+            Object.assign(byPath.get(relPath), entry);
             const idx = entries.findIndex(e => e.relPath === relPath);
-            if (idx !== -1) entries[idx].content = content;
+            if (idx !== -1) entries[idx] = { ...entries[idx], ...entry };
         } else {
-            const entry = { relPath, content };
             byPath.set(relPath, entry);
             entries.push(entry);
         }
+        curPath = null; buf = []; curMode = 'full'; curTarget = null;
     }
 
     for (let i = 0; i < lines.length; i++) {
@@ -200,10 +198,12 @@ export function parseContentBlocks(raw) {
                     if (j < lines.length && lines[j].trim().startsWith('```')) isHeader = true;
                 }
                 if (isHeader) {
-                    const isPartial = PARTIAL_RE.test(line);
+                    const isPartial   = PARTIAL_RE.test(line);
+                    const updateMatch = line.match(UPDATE_RE);
                     flush();
-                    curPath = cand;
-                    curIsPartial = isPartial;
+                    curPath   = cand;
+                    curMode   = isPartial ? 'partial' : (updateMatch ? 'update' : 'full');
+                    curTarget = updateMatch ? updateMatch[1].trim() : null;
                     buf = [];
                     continue;
                 }

@@ -2,6 +2,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const astPatch = require('./astPatch');
 
 const IGNORE_DIRS = new Set([
     'node_modules', '.git', '.next', 'dist', 'build', '.turbo',
@@ -155,15 +156,21 @@ function seed(basePath, relPaths) {
 function previewContent(basePath, entries) {
     const toCreate    = [];
     const toOverwrite = [];
+    const toPatch     = [];
     const details     = [];
     const cache       = new Map();
 
-    for (const { relPath } of entries) {
+    for (const { relPath, mode, target } of entries) {
         const { resolved, candidates, ambiguous } = resolveRelPath(basePath, relPath, cache);
         const abs = path.join(basePath, resolved);
         const exists = fs.existsSync(abs);
-        if (exists) toOverwrite.push(resolved);
-        else toCreate.push(resolved);
+
+        if (mode === 'update') {
+            toPatch.push(resolved);
+        } else {
+            if (exists) toOverwrite.push(resolved);
+            else toCreate.push(resolved);
+        }
 
         details.push({
             original: relPath,
@@ -171,20 +178,23 @@ function previewContent(basePath, entries) {
             candidates,
             ambiguous,
             exists,
+            mode: mode ?? 'full',
+            target: target ?? null,
         });
     }
 
-    return { toCreate, toOverwrite, details };
+    return { toCreate, toOverwrite, toPatch, details };
 }
 
-function seedContent(basePath, entries) {
+async function seedContent(basePath, entries) {
     const created     = [];
     const overwritten = [];
+    const patched     = [];
     const errors      = [];
     const cache       = new Map();
 
-    for (const { relPath, content, resolved: providedResolved } of entries) {
-        // UI may have already resolved ambiguous pick; if providedResolved use it
+    for (const entry of entries) {
+        const { relPath, content, resolved: providedResolved, mode, target } = entry;
         let resolved;
         let candidates = [];
         let ambiguous  = false;
@@ -200,10 +210,19 @@ function seedContent(basePath, entries) {
         try {
             const dir = path.dirname(abs);
             fs.mkdirSync(dir, { recursive: true });
-
             const existed = fs.existsSync(abs);
-            fs.writeFileSync(abs, content ?? '', 'utf-8');
 
+            if (mode === 'update' && target && existed) {
+                const result = await astPatch.applyUpdate(abs, target, content ?? '');
+                if (result.ok) {
+                    patched.push(resolved);
+                    continue;
+                }
+                errors.push({ path: resolved, original: relPath, warning: `patch fallback: ${result.reason}` });
+                // falls through to full write below
+            }
+
+            fs.writeFileSync(abs, content ?? '', 'utf-8');
             if (existed) overwritten.push(resolved);
             else created.push(resolved);
         } catch (err) {
@@ -211,7 +230,7 @@ function seedContent(basePath, entries) {
         }
     }
 
-    return { created, overwritten, errors };
+    return { created, overwritten, patched, errors };
 }
 
 module.exports = { preview, seed, previewContent, seedContent, findCandidates, resolveRelPath, IGNORE_DIRS };

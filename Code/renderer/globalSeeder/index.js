@@ -38,10 +38,12 @@ function handleClose(result) {
     if (result?.seeded) {
         const created     = result.created?.length ?? 0;
         const overwritten = result.overwritten?.length ?? 0;
+        const patched     = result.patched?.length ?? 0;
         const errs        = result.errors?.length ?? 0;
         const parts = [];
         if (created) parts.push(`${created} created`);
         if (overwritten) parts.push(`${overwritten} overwritten`);
+        if (patched) parts.push(`${patched} patched`);
         const msg = errs > 0
             ? `✅ ${parts.join(', ') || 'Done'}. ⚠️ ${errs} error(s) — check console.`
             : `✅ ${parts.join(', ') || 'Done'}.`;
