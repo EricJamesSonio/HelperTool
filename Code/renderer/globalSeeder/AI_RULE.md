@@ -100,12 +100,15 @@ If you must explain changes, write them as a separate markdown section **above**
 If you are showing only a **fragment** of a file (not a full replacement), append ` (Partial)` to the path line:
 
 ```
+
 app/admin/sheet-builder/page.tsx (Partial)
+
 ```tsx
 // only the updated imports — not the whole file
 export type { FieldType } from "@/lib/formConfig";
 ```
-```
+
+`````
 
 The seeder will **skip** any path with ` (Partial)` entirely — no file will be created or overwritten. Use it for `// update this function` snippets you will apply by hand. Only full file replacements **without** `(Partial)` are seeded.
 
@@ -117,4 +120,4 @@ The seeder will **skip** any path with ` (Partial)` entirely — no file will be
 - **Content mode**: smart-anchored. `components/...` is resolved to the nearest `components` folder found by BFS (skips `node_modules/.git/.next/dist/build`). If duplicates exist, UI shows a selector — user picks target. If no match, falls back to `repo/<path>`. Existing files are **overwritten** with pasted content. Fenced file-tree blocks (e.g. ```` ``` … lib/... ``` ````) are **ignored** — only path lines **outside** fences trigger seeding. Any path line with ` (Partial)` is also ignored.
 
 Force this format on every generation that targets HelperTool.
-```
+`````

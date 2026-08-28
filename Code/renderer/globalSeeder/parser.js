@@ -33,7 +33,11 @@ function extractPathCandidate(line) {
     // strip common markdown heading / list markers before any other logic
     raw = raw.replace(/^#{1,6}\s+/, '').replace(/^[-*•]\s+/, '').replace(/^\d+\.\s+/, '').trim();
     if (!raw) return null;
-    // strip surrounding backticks / quotes (whole line)
+    // strip obvious wrapper noise before/after the path (e.g. "``!components/.../!``" -> "components/...")
+    // only strip leading/trailing non-path symbols, keep the literal path intact (no dot->slash conversion)
+    raw = raw.replace(/^[`'\"!*~>\|\s]+/, '').replace(/[`'\"!*~>\|\s]+$/, '').trim();
+    if (!raw) return null;
+    // strip surrounding backticks / quotes (whole line) — second pass for nested wrappers
     raw = raw.replace(/^`+|`+$/g, '').replace(/^'+|'+$/g, '').replace(/^"+|"+$/g, '').trim();
     if (!raw) return null;
     // take first token before space that contains '.'/'/'; handle "hooks/a.ts — update"
@@ -46,15 +50,14 @@ function extractPathCandidate(line) {
         const pathTok = tokens.find(t => t.includes('/') || EXT_RE.test(t));
         first = pathTok || tokens[0];
     }
-    // strip wrapping backticks/quotes/brackets from the token itself (e.g. "`components/...`" )
-    first = first.replace(/^`+|`+$/g, '').replace(/^'+|'+$/g, '').replace(/^"+|"+$/g, '').trim();
+    // strip wrapping backticks/quotes/brackets/decorators from the token itself (e.g. "`components/...`" or "``!components/.../!``")
+    first = first.replace(/^[`'\"!*~>\|\[\(\s]+/, '').replace(/[`'\"!*~>\|\)\]\s]+$/, '').trim();
     // strip trailing punctuation
     first = first.replace(/[:;,]+$/, '').trim();
     // strip leading ./ or /
     first = first.replace(/^\.?\//, '').trim();
-    // strip wrapping [] ()
-    first = first.replace(/^[\[\(]+|[\]\)]+$/g, '').trim();
-    first = first.replace(/^`+|`+$/g, '').trim();
+    // final pass strip any remaining wrapping ` " '
+    first = first.replace(/^`+|`+$/g, '').replace(/^'+|'+$/g, '').replace(/^"+|"+$/g, '').trim();
 
     // handle glued lang token: "SharePanel.module.csscss" => "SharePanel.module.css"
     const glued = first.match(GLUED_LANG_RE);
@@ -179,8 +182,36 @@ export function parseContentBlocks(raw) {
         const trimmed = line.trim();
         const isFenceLine = trimmed.startsWith('```');
 
+        // Path check first — even inside an outer wrapper fence we want to catch headers like
+        // "```" (outer) -> "components/foo.tsx" -> "```tsx"
+        // So we peek ahead: a path inside a fence is only a header if the next non-empty line is a fence
+        if (!isFenceLine) {
+            const cand = extractPathCandidate(line);
+            if (cand) {
+                const t = line.trim();
+                if (/^\s*(import|export)\b/.test(t) && /from\s+["']/.test(t)) {
+                    if (curPath !== null) buf.push(line);
+                    continue;
+                }
+                let isHeader = !inFence;
+                if (inFence) {
+                    let j = i + 1;
+                    while (j < lines.length && !lines[j].trim()) j++;
+                    if (j < lines.length && lines[j].trim().startsWith('```')) isHeader = true;
+                }
+                if (isHeader) {
+                    const isPartial = PARTIAL_RE.test(line);
+                    flush();
+                    curPath = cand;
+                    curIsPartial = isPartial;
+                    buf = [];
+                    continue;
+                }
+            }
+        }
+
         if (isFenceLine) {
-            // fence delimiter — push to current file's buffer and toggle state, never treat as path
+            // fence delimiter — push to current file's buffer and toggle state
             if (curPath !== null) buf.push(line);
             inFence = !inFence;
             continue;
@@ -191,22 +222,6 @@ export function parseContentBlocks(raw) {
             continue;
         }
 
-        // Outside fence — check for path candidate
-        const cand = extractPathCandidate(line);
-        if (cand) {
-            const t = line.trim();
-            if (/^\s*(import|export)\b/.test(t) && /from\s+["']/.test(t)) {
-                if (curPath !== null) buf.push(line);
-                continue;
-            }
-            // Check Partial flag on the original line (on path line, case-insensitive)
-            const isPartial = PARTIAL_RE.test(line);
-            flush();
-            curPath = cand;
-            curIsPartial = isPartial;
-            buf = [];
-            continue;
-        }
         if (curPath !== null) {
             buf.push(line);
         }
