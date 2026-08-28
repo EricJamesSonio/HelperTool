@@ -96,18 +96,28 @@ Frontend/
 
 If you must explain changes, write them as a separate markdown section **above** the file blocks, not interleaved.
 
-### 4) Partial / surgical edits — skip
-If you are showing only a **fragment** of a file (not a full replacement), append ` (Partial)` to the path line:
+### 4) Surgical updates — AST-patched, not overwritten
+
+To update only *part* of an existing file, annotate the path line with `(Update: <target>)`:
 
 ```
-app/admin/sheet-builder/page.tsx (Partial)
-```tsx
-// only the updated imports — not the whole file
-export type { FieldType } from "@/lib/formConfig";
+components/layout/AppShell.module.css (Update: .content)
+
+```css
+.content {
+  padding: 32px;
+  max-width: 1440px;
+}
 ```
 ```
 
-The seeder will **skip** any path with ` (Partial)` entirely — no file will be created or overwritten. Use it for `// update this function` snippets you will apply by hand. Only full file replacements **without** `(Partial)` are seeded.
+- `<target>` is:
+  - a **CSS selector** for `.css`/`.scss` (e.g. `.content`, `#nav .item`)
+  - a **function/class/const/component name** for `.js`/`.jsx`/`.ts`/`.tsx` (e.g. `handleSubmit`, `AppShell`)
+  - a **dot-path key** for `.json` (e.g. `scripts.build`)
+- Only that node is replaced. Everything else in the file is left byte-for-byte untouched.
+- If the target isn't found, or the file doesn't exist yet, the seeder falls back to full create/overwrite with a warning — never silently drops the change.
+- `(Partial)` still means "fragment shown for you to apply by hand — skip entirely." `(Update: ...)` means "apply this patch automatically." Don't combine them.
 
 ---
 
@@ -117,4 +127,4 @@ The seeder will **skip** any path with ` (Partial)` entirely — no file will be
 - **Content mode**: smart-anchored. `components/...` is resolved to the nearest `components` folder found by BFS (skips `node_modules/.git/.next/dist/build`). If duplicates exist, UI shows a selector — user picks target. If no match, falls back to `repo/<path>`. Existing files are **overwritten** with pasted content. Fenced file-tree blocks (e.g. ```` ``` … lib/... ``` ````) are **ignored** — only path lines **outside** fences trigger seeding. Any path line with ` (Partial)` is also ignored.
 
 Force this format on every generation that targets HelperTool.
-```
+`````

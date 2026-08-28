@@ -48,27 +48,27 @@ function register(_deps) {
         }
     });
 
-    ipcMain.handle('fileseeder:previewContent', (event, basePath, entries) => {
+    ipcMain.handle('fileseeder:previewContent', async (event, basePath, entries) => {
         try {
             if (!basePath || !Array.isArray(entries) || !entries.length) {
-                return { error: 'Invalid arguments', toCreate: [], toOverwrite: [], details: [] };
+                return { error: 'Invalid arguments', toCreate: [], toOverwrite: [], toPatch: [], warnings: [], details: [] };
             }
-            return fileSeeder.previewContent(basePath, entries);
+            return await fileSeeder.previewContent(basePath, entries);
         } catch (err) {
             console.error('[IPC] fileseeder:previewContent error:', err);
-            return { error: err.message, toCreate: [], toOverwrite: [], details: [] };
+            return { error: err.message, toCreate: [], toOverwrite: [], toPatch: [], warnings: [], details: [] };
         }
     });
 
-    ipcMain.handle('fileseeder:seedContent', (event, basePath, entries) => {
+    ipcMain.handle('fileseeder:seedContent', async (event, basePath, entries) => {
         try {
             if (!basePath || !Array.isArray(entries) || !entries.length) {
-                return { error: 'Invalid arguments', created: [], overwritten: [], errors: [] };
+                return { error: 'Invalid arguments', created: [], overwritten: [], patched: [], errors: [] };
             }
-            return fileSeeder.seedContent(basePath, entries);
+            return await fileSeeder.seedContent(basePath, entries);
         } catch (err) {
             console.error('[IPC] fileseeder:seedContent error:', err);
-            return { error: err.message, created: [], overwritten: [], errors: [] };
+            return { error: err.message, created: [], overwritten: [], patched: [], errors: [] };
         }
     });
 }

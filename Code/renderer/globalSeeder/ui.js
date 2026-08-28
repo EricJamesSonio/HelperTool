@@ -70,10 +70,15 @@ function renderContentPreview(preview) {
     if (!summary || !list) return;
 
     const ambiguousCount = (preview.details || []).filter(d => d.ambiguous).length;
+    const patchCount = (preview.toPatch || []).length;
+    const warnCount = (preview.details || []).filter(d => d.warning).length;
+    const warnings = preview.warnings || [];
 
     summary.innerHTML = `
         <span class="gs-badge gs-badge-create">✚ ${preview.toCreate.length} to create</span>
         ${preview.toOverwrite.length > 0 ? `<span class="gs-badge gs-badge-overwrite">⟳ ${preview.toOverwrite.length} will be overwritten</span>` : ''}
+        ${patchCount > 0 ? `<span class="gs-badge gs-badge-patch">🩹 ${patchCount} to patch</span>` : ''}
+        ${warnCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.map(w=>w.warning).join('; '))}">⚠ ${warnCount} patch will fallback to full</span>` : ''}
         ${ambiguousCount > 0 ? `<span class="gs-badge gs-badge-ambig">⚠ ${ambiguousCount} need target choice</span>` : ''}
     `;
 
@@ -104,11 +109,13 @@ function renderContentPreview(preview) {
             list.appendChild(header);
         }
         for (const { d, idx } of arr) {
-            const status = d.exists ? 'overwrite' : 'create';
+            const isPatch = d.mode === 'update';
+            const hasWarning = !!d.warning;
+            const status = hasWarning ? 'patch-warn' : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
             const row = document.createElement('div');
             row.className = `gs-preview-row gs-preview-row--${status}${d.ambiguous ? ' gs-preview-row--ambig' : ''}`;
-            const icon  = d.exists ? '⟳' : '✚';
-            const label = d.exists ? 'overwrite' : 'new';
+            const icon  = hasWarning ? '⚠' : (isPatch ? '🩹' : (d.exists ? '⟳' : '✚'));
+            const label = hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? `patch: ${escapeHtml(d.target || '')}` : (d.exists ? 'overwrite' : 'new'));
             const subdir = d.resolved.includes('/') ? d.resolved.substring(0, d.resolved.lastIndexOf('/') + 1) : '';
             const name   = d.resolved.split('/').pop();
             const hasSelector = d.ambiguous && d.candidates && d.candidates.length > 1;
@@ -260,6 +267,8 @@ export function wireUI(onClose, getBasePath) {
                         resolved: d?.resolved ?? e.relPath,
                         candidates: d?.candidates ?? [],
                         ambiguous: !!d?.ambiguous,
+                        mode: e.mode ?? 'full',
+                        target: e.target ?? null,
                     };
                 });
                 state.contentEntries = enriched;
@@ -311,6 +320,8 @@ export function wireUI(onClose, getBasePath) {
                     relPath: e.relPath,
                     content: e.content,
                     resolved: e.resolved,
+                    mode: e.mode,
+                    target: e.target,
                 }));
                 result = await window.electronAPI.fileSeeder.seedContent(basePath, payload);
             }
@@ -328,6 +339,7 @@ export function wireUI(onClose, getBasePath) {
                 seeded: true,
                 created: result.created,
                 overwritten: result.overwritten ?? [],
+                patched: result.patched ?? [],
                 errors: result.errors,
             });
         } catch (err) {
