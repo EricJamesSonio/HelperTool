@@ -87,6 +87,7 @@ const editDocignoreBtn = document.getElementById('editDocignoreBtn');
 const treeContainer  = document.getElementById('treeContainer');
 const serverBtn      = document.getElementById('serverBtn');
 const clientBtn      = document.getElementById('clientBtn');
+const globalSeederNavbarBtn = document.getElementById('globalSeederNavbarBtn');
 
 // ── Shortcut state ────────────────────────────────────────────────────────────
 
@@ -378,6 +379,18 @@ document.getElementById('essentialsBtn')?.addEventListener('click', () => {
         essentialsGlossary.open();
     }
 });
+
+// ── Global Seeder navbar button ──────────────────────────────────────────
+if (globalSeederNavbarBtn) {
+  globalSeederNavbarBtn.addEventListener('click', async () => {
+    try {
+      const mod = await import('./globalSeeder.js');
+      if (mod.isOpen()) { mod.close(); return; }
+      closeAllPanels();
+      mod.open();
+    } catch (err) { console.error('[UI] Global Seeder:', err); }
+  });
+}
 
 // ── Shortcut buttons ─────────────────────────────────────────────────────────
 
