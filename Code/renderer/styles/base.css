@@ -384,6 +384,34 @@ body {
 .shortcut-icon { font-size: 14px; line-height: 1; }
 .shortcut-label { font-size: 11.5px; font-weight: 600; }
 
+/* ── Global Seeder navbar button ─────────────────────────── */
+.global-seeder-navbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--ease);
+  white-space: nowrap;
+}
+.global-seeder-navbar-btn:hover {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34,211,238,0.22);
+}
+.global-seeder-navbar-btn:active { transform: translateY(0); }
+.global-seeder-navbar-btn svg { flex-shrink: 0; }
+.global-seeder-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; }
+
 /* ── Modal overlay ─────────────────────────────────────────── */
 .modal-overlay {
   display: none;
