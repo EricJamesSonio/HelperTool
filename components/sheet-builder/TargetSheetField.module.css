@@ -1,0 +1,14 @@
+.field {
+  margin: 16px 0 20px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--ink-700);
+}
+
+.field input {
+  width: 260px;
+}
