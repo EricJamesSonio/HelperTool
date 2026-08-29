@@ -42,12 +42,176 @@ export function open(filePath, repoPath, opts) {
   _load();
 }
 
+let _previewMode = false;
+let _previewLeftText = '';
+let _previewRightText = '';
+let _previewFileIndex = 0;
+let _previewTotal = 0;
+let _previewOnSave = null;
+let _previewOnNavigate = null;
+
+export function openPreview(opts) {
+  // opts: { filePath, repoPath, leftText, rightText, mode, target, fileIndex, total, onSave, onNavigate }
+  _previewMode = true;
+  _viewMode = false;
+  _showContent = false;
+  _editMode = false;
+  _filePath = opts.filePath;
+  _repoPath = opts.repoPath;
+  _previewLeftText = opts.leftText || '';
+  _previewRightText = opts.rightText || '';
+  _previewFileIndex = opts.fileIndex || 0;
+  _previewTotal = opts.total || 1;
+  _previewOnSave = opts.onSave || null;
+  _previewOnNavigate = opts.onNavigate || null;
+  _commits = [];
+  if (!_panel) _buildPanel();
+  // Update header for preview
+  const filePathEl = document.getElementById('dvFilePath');
+  if (filePathEl) {
+    const statusLabel = opts.mode ? ` — ${opts.mode}${opts.target ? ': '+opts.target : ''}` : '';
+    filePathEl.textContent = opts.filePath + statusLabel;
+  }
+  // Hide commit selects for preview, show file nav
+  const leftSelect = document.getElementById('dvLeftSelect');
+  const rightSelect = document.getElementById('dvRightSelect');
+  if (leftSelect) leftSelect.style.display = 'none';
+  if (rightSelect) rightSelect.style.display = 'none';
+  const leftMsg = document.getElementById('dvLeftMsg');
+  const rightMsg = document.getElementById('dvRightMsg');
+  if (leftMsg) leftMsg.textContent = 'Current on Disk';
+  if (rightMsg) rightMsg.textContent = 'Will Be (after Seed)';
+  const toggleBtn = document.getElementById('dvToggleBtn');
+  if (toggleBtn) toggleBtn.style.display = 'none';
+  const editBtn = document.getElementById('dvEditBtn');
+  if (editBtn) editBtn.style.display = '';
+  _panel.classList.add('dv-open');
+  _open = true;
+  _renderPreviewDiff();
+}
+
+function _renderPreviewDiff() {
+  const leftBody = document.getElementById('dvLeftBody');
+  const rightBody = document.getElementById('dvRightBody');
+  const footer = document.getElementById('dvFooter');
+  const stats = document.getElementById('dvStats');
+  const navCount = document.getElementById('dvNavCount');
+  if (!leftBody || !rightBody) return;
+  // Show loading
+  leftBody.innerHTML = '<div class="dv-loading">Loading diff…</div>';
+  rightBody.innerHTML = '<div class="dv-loading">Loading diff…</div>';
+  // Use a simple diff: generate unified diff via JS diff lib if available, else fallback to side-by-side
+  // For now, render as diff lines by computing via main IPC or via simple line diff
+  // We will request main to generate diff via git diff --no-index on temp files
+  // But for lazy per-click, we already have left/right texts, so we can generate diff in renderer using a simple diff
+  // Use a minimal diff: split lines and mark added/removed
+  // For better diff, call electronAPI.diffStrings if available, else fallback
+  const leftLines = _previewLeftText.split('\n');
+  const rightLines = _previewRightText.split('\n');
+  // Try to use IPC for proper diff
+  if (window.electronAPI && window.electronAPI.git && window.electronAPI.git.diff) {
+    // Fallback to simple diff if no IPC
+  }
+  // Simple line diff: use diff lib if available, else naive
+  let diffText = '';
+  // Try to use the existing _parseDiff by synthesizing a unified diff
+  // For now, do a naive diff: treat all right lines as added if left empty (create), else compute via simple LCS
+  // To keep it simple, we will generate a unified diff by comparing lines
+  const useSimpleDiff = () => {
+    const leftSet = new Set(leftLines);
+    const rightSet = new Set(rightLines);
+    let out = '';
+    out += `--- a/${_filePath}\n+++ b/${_filePath}\n`;
+    // Find hunks - for preview, just show full file diff
+    // Use a simple approach: if left empty, all right are added
+    if (_previewLeftText === '') {
+      out += `@@ -0,0 +1,${rightLines.length} @@\n`;
+      for (const l of rightLines) out += `+${l}\n`;
+    } else {
+      // For surgical, show context with 3 lines
+      // Use a simple diff: compare line by line
+      const max = Math.max(leftLines.length, rightLines.length);
+      let hunkAdded = false;
+      for (let i = 0; i < max; i++) {
+        const l = leftLines[i];
+        const r = rightLines[i];
+        if (l !== r) {
+          if (!hunkAdded) {
+            out += `@@ -${i+1},1 +${i+1},1 @@\n`;
+            hunkAdded = true;
+          }
+          if (l !== undefined) out += `-${l}\n`;
+          if (r !== undefined) out += `+${r}\n`;
+        } else {
+          out += ` ${l}\n`;
+        }
+      }
+    }
+    return out;
+  };
+  const doRender = (diffStr) => {
+    _diffLines = _parseDiff(diffStr);
+    _renderDiff();
+    // Update footer for file navigation
+    const footerLeft = document.getElementById('dvFooter');
+    if (footerLeft) {
+      // Add file nav if not exists
+      let fileNav = document.getElementById('dvFileNav');
+      if (!fileNav) {
+        fileNav = document.createElement('div');
+        fileNav.id = 'dvFileNav';
+        fileNav.className = 'dv-file-nav';
+        fileNav.innerHTML = '<button class="dv-btn dv-btn-nav" id="dvPrevFile">< Prev</button><span class="dv-nav-count" id="dvFileCount"></span><button class="dv-btn dv-btn-nav" id="dvNextFile">Next ></button>';
+        footerLeft.appendChild(fileNav);
+        document.getElementById('dvPrevFile').addEventListener('click', () => { if (_previewOnNavigate) _previewOnNavigate(-1); });
+        document.getElementById('dvNextFile').addEventListener('click', () => { if (_previewOnNavigate) _previewOnNavigate(1); });
+      }
+      const countEl = document.getElementById('dvFileCount');
+      if (countEl) countEl.textContent = `${_previewFileIndex + 1} / ${_previewTotal}`;
+    }
+    // Show file status in analysis
+    const analysis = document.getElementById('dvAnalysis');
+    if (analysis) {
+      analysis.style.display = '';
+      analysis.innerHTML = `<div class="dv-analysis-header"><span class="dv-analysis-title">Seed Preview — ${escapeForAnalysis(_filePath)}</span><span class="dv-risk dv-risk-medium">${_previewLeftText ? 'Overwrite' : 'Create'}</span></div><div class="dv-analysis-body"><div class="dv-finding"><span class="dv-finding-label">Left: Current on Disk</span><span class="dv-finding-detail">${leftLines.length} lines</span></div><div class="dv-finding"><span class="dv-finding-label">Right: Will Be</span><span class="dv-finding-detail">${rightLines.length} lines — editable, Save to update preview</span></div></div>`;
+    }
+  };
+  // Try IPC diffStrings if available
+  if (window.electronAPI && window.electronAPI.git && window.electronAPI.git.diffStrings) {
+    window.electronAPI.git.diffStrings(_previewLeftText, _previewRightText).then(diff => {
+      doRender(diff || useSimpleDiff());
+    }).catch(() => doRender(useSimpleDiff()));
+  } else {
+    // Check for our new IPC
+    if (window.electronAPI && window.electronAPI.fileSeeder && window.electronAPI.fileSeeder.getPatchedPreview) {
+      // Already have texts, just render
+      doRender(useSimpleDiff());
+    } else {
+      doRender(useSimpleDiff());
+    }
+  }
+}
+
+function escapeForAnalysis(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 export function close() {
   if (!_open) return;
   if (_editMode) {
     _autoSaveAndClose();
     return;
   }
+  // Reset preview mode
+  _previewMode = false;
+  _previewLeftText = '';
+  _previewRightText = '';
+  const leftSelect = document.getElementById('dvLeftSelect');
+  const rightSelect = document.getElementById('dvRightSelect');
+  if (leftSelect) leftSelect.style.display = '';
+  if (rightSelect) rightSelect.style.display = '';
+  const toggleBtn = document.getElementById('dvToggleBtn');
+  if (toggleBtn) toggleBtn.style.display = '';
+  const fileNav = document.getElementById('dvFileNav');
+  if (fileNav) fileNav.remove();
   _panel.classList.remove('dv-open');
   _open = false;
 }
@@ -57,6 +221,17 @@ function _autoSaveAndClose() {
   if (!leftBody) { _forceClose(); return; }
   const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
   const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+
+  if (_previewMode) {
+    const sourceText = _previewRightText;
+    if (content !== sourceText) {
+      _previewRightText = content;
+      if (_previewOnSave) _previewOnSave(content);
+    }
+    _forceClose();
+    return;
+  }
+
   if (content !== _rawContent) {
     window.electronAPI.writeFile(_filePath, content).then(() => {
       _rawContent = content;
@@ -259,11 +434,12 @@ function _toggleEditMode() {
   if (!leftBody) return;
 
   if (_editMode) {
+    const sourceText = _previewMode ? _previewRightText : _rawContent;
     editBtn.textContent = 'Cancel';
     if (toggleBtn) toggleBtn.style.display = 'none';
     leftBody.innerHTML =
       '<div class="dv-editor-lines">' +
-      _rawContent.split('\n').map((line, i) =>
+      sourceText.split('\n').map((line, i) =>
         '<div class="dv-line dv-line-context dv-line-editable"><span class="dv-ln">' + (i + 1) +
         '</span><span class="dv-text" contenteditable="true">' + _escape(line) + '</span></div>'
       ).join('') +
@@ -299,7 +475,11 @@ function _toggleEditMode() {
       delete leftBody._editorKeydown;
     }
     _showFloatingBanner(false);
-    _loadContent();
+    if (_previewMode) {
+      _renderPreviewDiff();
+    } else {
+      _loadContent();
+    }
   }
 }
 
@@ -327,6 +507,19 @@ async function _saveContent() {
   const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
   if (!textSpans.length) return;
   const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+
+  if (_previewMode) {
+    const sourceText = _previewRightText;
+    if (content === sourceText) {
+      _toggleEditMode();
+      return;
+    }
+    _previewRightText = content;
+    if (_previewOnSave) _previewOnSave(content);
+    _toggleEditMode();
+    return;
+  }
+
   if (content === _rawContent) {
     _toggleEditMode();
     return;
