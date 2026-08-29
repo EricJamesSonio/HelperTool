@@ -9,6 +9,8 @@ import {
   shortcutResultsModal,
 } from './modal.js';
 
+let _currentMode = 'find';
+
 export function initShortcutMode() {
   const shortcutModeBtn        = document.getElementById('shortcutModeBtn');
   const shortcutInputCloseBtn  = document.getElementById('shortcutInputCloseBtn');
@@ -16,6 +18,7 @@ export function initShortcutMode() {
   const shortcutCancelBtn      = document.getElementById('shortcutCancelBtn');
   const shortcutResultsCloseBtn  = document.getElementById('shortcutResultsCloseBtn');
   const shortcutResultsCloseBtn2 = document.getElementById('shortcutResultsCloseBtn2');
+  const shortcutModeToggle     = document.getElementById('shortcutModeToggle');
 
   function showError(msg) {
     const el = document.getElementById('shortcutInputError');
@@ -24,6 +27,23 @@ export function initShortcutMode() {
   function hideError() {
     const el = document.getElementById('shortcutInputError');
     if (el) { el.textContent = ''; el.style.display = 'none'; }
+  }
+
+  if (shortcutModeToggle) {
+    shortcutModeToggle.addEventListener('click', (e) => {
+      const btn = e.target.closest('.shortcut-mode-btn');
+      if (!btn) return;
+      shortcutModeToggle.querySelectorAll('.shortcut-mode-btn').forEach(b => b.classList.remove('shortcut-mode-btn--active'));
+      btn.classList.add('shortcut-mode-btn--active');
+      _currentMode = btn.dataset.mode;
+      const processBtn = document.getElementById('shortcutProcessBtn');
+      if (processBtn) {
+        processBtn.textContent = _currentMode === 'remove' ? 'Find & Remove' : 'Process';
+        processBtn.className = _currentMode === 'remove'
+          ? 'modal-btn modal-btn-danger'
+          : 'modal-btn modal-btn-primary';
+      }
+    });
   }
 
   shortcutModeBtn.addEventListener('click', () => {
@@ -36,19 +56,13 @@ export function initShortcutMode() {
 
   getShortcutInputTextarea().addEventListener('input', hideError);
 
-  // When a key is pressed inside the textarea, check if it's a modifier+key
-  // combo (i.e. a registered shortcut, not plain typing). If so, blur the
-  // textarea immediately so the shortcuts/listener.js handler can receive it
-  // without being blocked by the TEXTAREA focus guard.
-  // Skip common editing combos that the textarea should handle natively.
   const EDIT_KEYS = new Set(['v', 'c', 'x', 'z', 'y', 'a']);
   getShortcutInputTextarea().addEventListener('keydown', (e) => {
     const isModified = e.ctrlKey || e.altKey || e.metaKey;
     if (isModified && e.key && EDIT_KEYS.has(e.key.toLowerCase())) return;
     if (isModified && e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Meta') {
-      e.stopPropagation(); // don't double-fire
+      e.stopPropagation();
       getShortcutInputTextarea().blur();
-      // Re-dispatch so listener.js picks it up on the document
       document.dispatchEvent(new KeyboardEvent('keydown', {
         key: e.key,
         code: e.code,
@@ -62,17 +76,17 @@ export function initShortcutMode() {
     }
   });
 
-  shortcutProcessBtn.addEventListener('click', () => {
+  shortcutProcessBtn.addEventListener('click', async () => {
     hideError();
     const inputText = getShortcutInputTextarea().value.trim();
     if (!inputText) {
       showError('Please paste some content first');
       return;
     }
-    const result = processShortcutInput(inputText);
+    const result = await processShortcutInput(inputText, _currentMode);
     if (result.success) {
       closeShortcutInputModal();
-      openShortcutResultsModal(result);
+      openShortcutResultsModal(result, _currentMode);
     } else {
       showError(result.message);
     }

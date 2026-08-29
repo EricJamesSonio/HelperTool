@@ -409,6 +409,63 @@ body {
 .shortcut-input-modal { max-width: 700px; }
 .shortcut-results-modal { max-width: 500px; }
 
+/* ── Shortcut mode toggle (inside input modal) ────────────── */
+.shortcut-mode-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.shortcut-mode-toggle .shortcut-mode-btn {
+  flex: 1;
+  height: 32px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  justify-content: center;
+}
+.shortcut-mode-toggle .shortcut-mode-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  transform: none;
+  box-shadow: none;
+}
+.shortcut-mode-toggle .shortcut-mode-btn--active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.shortcut-mode-toggle .shortcut-mode-btn[data-mode="remove"].shortcut-mode-btn--active {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* ── Modal danger button ───────────────────────────────────── */
+.modal-btn-danger {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  background: var(--red);
+  border: none;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.modal-btn-danger:hover {
+  background: #ef4444;
+  box-shadow: 0 4px 12px rgba(248, 81, 73, 0.3);
+}
+
 /* ── Modal header ──────────────────────────────────────────── */
 .modal-header {
   display: flex;
