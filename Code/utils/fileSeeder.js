@@ -2,6 +2,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const os   = require('os');
 const astPatch = require('./astPatch');
 
 const IGNORE_DIRS = new Set([
@@ -11,6 +12,26 @@ const IGNORE_DIRS = new Set([
 
 const MAX_SEARCH_DEPTH = 6;
 const MAX_DIRS_SCANNED = 6000;
+
+function isTruncatedContent(content) {
+    if (!content || content.trim().length < 20) return null;
+    const s = content.trim();
+    // Check for unbalanced braces/brackets/parens
+    const openBrace = (s.match(/\{/g) || []).length;
+    const closeBrace = (s.match(/\}/g) || []).length;
+    const openParen = (s.match(/\(/g) || []).length;
+    const closeParen = (s.match(/\)/g) || []).length;
+    const openBracket = (s.match(/\[/g) || []).length;
+    const closeBracket = (s.match(/\]/g) || []).length;
+    if (openBrace > closeBrace || openParen > closeParen || openBracket > closeBracket) {
+        return `content may be truncated — unbalanced ${openBrace>closeBrace?'braces':openParen>closeParen?'parens':'brackets'}`;
+    }
+    // Ends with dangling syntax that suggests truncation
+    if (/[,\:\(\[\{=]$/.test(s) || s.endsWith('=>')) {
+        return `content may be truncated — ends with "${s.slice(-10)}"`;
+    }
+    return null;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers: smart anchoring
@@ -172,21 +193,26 @@ async function previewContent(basePath, entries) {
         let warning = null;
         let effMode = mode ?? 'full';
         const surgical = isSurgical(effMode);
+        // Check for likely truncated content (unbalanced braces or ends with dangling syntax)
+        const contentStr = entries.find(e => e.relPath === relPath)?.content || '';
+        const truncWarning = isTruncatedContent(contentStr);
+        if (truncWarning) warning = (warning ? warning + '; ' : '') + truncWarning;
+
         if (surgical) {
             if (!exists && effMode !== 'addAfter' && effMode !== 'addBefore') {
                 // remove/replace on non-existent file will fallback
-                warning = `file not found — will create full file`;
+                warning = (warning ? warning + '; ' : '') + `file not found — will create full file`;
             } else if (target && exists) {
                 try {
                     const check = await astPatch.canPatch(abs, target, effMode);
                     if (!check.ok) {
-                        warning = check.reason;
+                        warning = (warning ? warning + '; ' : '') + check.reason;
                     }
                 } catch (e) {
-                    warning = e.message;
+                    warning = (warning ? warning + '; ' : '') + e.message;
                 }
             } else if (!target && effMode !== 'addAfter' && effMode !== 'addBefore') {
-                warning = `surgical mode requires a target`;
+                warning = (warning ? warning + '; ' : '') + `surgical mode requires a target`;
             }
             toPatch.push(resolved);
         } else {
@@ -276,4 +302,61 @@ async function seedContent(basePath, entries) {
     return { created, overwritten, patched, errors };
 }
 
-module.exports = { preview, seed, previewContent, seedContent, findCandidates, resolveRelPath, IGNORE_DIRS };
+async function getPatchedPreview(basePath, resolved, allEntries) {
+    const abs = path.join(basePath, resolved);
+    const exists = fs.existsSync(abs);
+    let left = exists ? fs.readFileSync(abs, 'utf-8') : '';
+    // Collect all entries for this resolved file in pasted order
+    const group = allEntries.filter(e => {
+        // entries may have providedResolved or need to resolve
+        const r = e.resolved || e.relPath;
+        // For preview, resolved is already the anchored path; match directly
+        // Also match by relPath's resolved via cache for robustness
+        return r === resolved;
+    });
+    // If no direct match (e.g., preview details vs entries mismatch), fallback to single entry lookup
+    let entriesForFile = group.length ? group : allEntries.filter(e => e.relPath === resolved);
+    // If still none, try to find by original relPath that resolves to this
+    if (!entriesForFile.length) {
+        // Fallback: find any entry whose resolved equals this
+        entriesForFile = allEntries.filter(e => e.resolved === resolved);
+    }
+    if (!entriesForFile.length) {
+        // No entries for this file, return left as both
+        return { left, right: left };
+    }
+    // Determine if this file is surgical batch or full
+    const hasSurgical = entriesForFile.some(e => isSurgical(e.mode));
+    if (!hasSurgical) {
+        // Full mode: last wins
+        const last = entriesForFile[entriesForFile.length - 1];
+        return { left, right: last.content ?? '' };
+    }
+    // Surgical batch: apply sequentially to a copy of left in memory
+    let right = left;
+    // Create a temp file to use astPatch dry logic without writing to disk
+    // We will simulate by writing to a temp file, applying patches, reading back, then discarding
+    const tmpFile = path.join(os.tmpdir(), `gs-dry-${Date.now()}-${Math.random().toString(36).slice(2,6)}.tmp`);
+    try {
+        fs.writeFileSync(tmpFile, left, 'utf-8');
+        for (const e of entriesForFile) {
+            const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
+            const effMode = m === 'replace' ? 'update' : m;
+            let res;
+            if (effMode === 'addafter') res = await astPatch.applyAddAfter(tmpFile, e.target, e.content ?? '');
+            else if (effMode === 'addbefore') res = await astPatch.applyAddBefore(tmpFile, e.target, e.content ?? '');
+            else if (effMode === 'remove') res = await astPatch.applyRemove(tmpFile, e.target);
+            else res = await astPatch.applyUpdate(tmpFile, e.target, e.content ?? '');
+            if (!res.ok) {
+                // For preview, if patch would fail, show the original left and annotate
+                // We still continue to next patch
+            }
+        }
+        right = fs.readFileSync(tmpFile, 'utf-8');
+    } finally {
+        try { fs.unlinkSync(tmpFile); } catch {}
+    }
+    return { left, right };
+}
+
+module.exports = { preview, seed, previewContent, seedContent, findCandidates, resolveRelPath, IGNORE_DIRS, getPatchedPreview };

@@ -101,7 +101,7 @@ function findNamedNode(rootNode, target) {
                 const nameNode = child.childForFieldName && child.childForFieldName('name');
                 if (nameNode && nameNode.text === target) {
                     found = node;
-                    return;
+                    return; // stop walk — don't let inner variable_declarator overwrite found
                 }
             }
         }
@@ -114,6 +114,11 @@ function findNamedNode(rootNode, target) {
                     const declarators = parent.namedChildren.filter(c => c.type === 'variable_declarator');
                     if (declarators.length === 1) n = parent;
                 }
+            }
+            // climb from lexical/variable_declaration into export_statement so the
+            // whole `export const ...` is patched (avoids orphaned `export` keyword)
+            if ((n.type === 'lexical_declaration' || n.type === 'variable_declaration') && n.parent && n.parent.type === 'export_statement') {
+                n = n.parent;
             }
             found = n;
             return;
@@ -451,4 +456,134 @@ async function applyUpdate(filePath, target, newContent) {
     return { ok: true };
 }
 
-module.exports = { applyUpdate, canPatch, applyAddAfter, applyAddBefore, applyRemove, applySurgical };
+async function getDryPatchedContent(filePath, mode, target, newContent) {
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    const exists = fs.existsSync(filePath);
+    if (!exists) {
+        // For create, the patched content is just the new file content
+        return newContent ?? '';
+    }
+    const source = fs.readFileSync(filePath, 'utf-8');
+    const m = (mode||'').toLowerCase();
+    if (m === 'addafter') {
+        if (target === 'end') return source + (source.endsWith('\n') ? '' : '\n') + (newContent||'').trim() + '\n';
+        if (target === 'imports') {
+            // string fallback for imports case - find last import
+            const lastImportRe = /(?:import\s+.*?;|require\(.*?\);|<\?php)/g;
+            let last = null, mm;
+            while ((mm = lastImportRe.exec(source)) !== null) last = mm;
+            if (last) {
+                const pos = last.index + last[0].length;
+                return source.slice(0, pos) + '\n' + (newContent||'').trim() + '\n' + source.slice(pos);
+            }
+            return (newContent||'').trim() + '\n' + source;
+        }
+        // For regular addAfter, reuse applyAddAfter logic but without writing
+        const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
+        if (ext === 'php' || ext === 'vue') {
+            if (!node) return source;
+            const before = source.slice(0, node.endIndex);
+            const after = source.slice(node.endIndex);
+            return before + '\n' + (newContent||'').trim() + '\n' + after;
+        }
+        // For tree-sitter languages, do in-memory patch
+        try {
+            const lang = EXT_LANG[ext] || (ext === 'json' ? 'javascript' : null);
+            if (!lang) return source;
+            const Lang = await loadLanguage(lang === 'javascript' && ext === 'json' ? 'javascript' : lang);
+            const parser = new Parser();
+            parser.setLanguage(Lang);
+            const tree = parser.parse(source);
+            let node2 = null;
+            if (lang === 'css') node2 = findCssRule(tree.rootNode, target);
+            else if (ext === 'json') node2 = findJsonPath(tree.rootNode, target) || findNamedNode(tree.rootNode, target);
+            else node2 = findNamedNode(tree.rootNode, target);
+            if (!node2) return source;
+            const before2 = source.slice(0, node2.endIndex);
+            const after2 = source.slice(node2.endIndex);
+            const indent = leadingWhitespace(source, node2.startIndex);
+            const toInsert = '\n' + reindent((newContent||'').trim(), indent) + '\n';
+            return before2 + toInsert + after2;
+        } catch { return source; }
+    }
+    if (m === 'addbefore') {
+        const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
+        if (ext === 'php' || ext === 'vue') {
+            if (!node) return source;
+            return source.slice(0, node.startIndex) + (newContent||'').trim() + '\n' + source.slice(node.startIndex);
+        }
+        try {
+            const lang = EXT_LANG[ext] || (ext === 'json' ? 'javascript' : null);
+            if (!lang) return source;
+            const Lang = await loadLanguage(lang === 'javascript' && ext === 'json' ? 'javascript' : lang);
+            const parser = new Parser();
+            parser.setLanguage(Lang);
+            const tree = parser.parse(source);
+            let node2 = null;
+            if (lang === 'css') node2 = findCssRule(tree.rootNode, target);
+            else if (ext === 'json') node2 = findJsonPath(tree.rootNode, target) || findNamedNode(tree.rootNode, target);
+            else node2 = findNamedNode(tree.rootNode, target);
+            if (!node2) return source;
+            const indent = leadingWhitespace(source, node2.startIndex);
+            return source.slice(0, node2.startIndex) + reindent((newContent||'').trim(), indent) + '\n' + source.slice(node2.startIndex);
+        } catch { return source; }
+    }
+    if (m === 'remove') {
+        const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
+        if (ext === 'php' || ext === 'vue') {
+            if (!node) return source;
+            let start = node.startIndex;
+            while (start > 0 && source[start-1] !== '\n') start--;
+            let end = node.endIndex;
+            if (source[end] === '\n') end++;
+            let patched = source.slice(0, start) + source.slice(end);
+            patched = patched.replace(/\n{3,}/g, '\n\n');
+            return patched;
+        }
+        try {
+            const lang = EXT_LANG[ext] || (ext === 'json' ? 'javascript' : null);
+            if (!lang) return source;
+            const Lang = await loadLanguage(lang === 'javascript' && ext === 'json' ? 'javascript' : lang);
+            const parser = new Parser();
+            parser.setLanguage(Lang);
+            const tree = parser.parse(source);
+            let node2 = null;
+            if (lang === 'css') node2 = findCssRule(tree.rootNode, target);
+            else if (ext === 'json') node2 = findJsonPath(tree.rootNode, target) || findNamedNode(tree.rootNode, target);
+            else node2 = findNamedNode(tree.rootNode, target);
+            if (!node2) return source;
+            const start = node2.startIndex - leadingWhitespace(source, node2.startIndex).length;
+            let end = node2.endIndex;
+            if (source[end] === '\n') end++;
+            let patched = source.slice(0, start) + source.slice(end);
+            patched = patched.replace(/\n{3,}/g, '\n\n');
+            return patched;
+        } catch { return source; }
+    }
+    // replace / update
+    const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
+    if (ext === 'php' || ext === 'vue') {
+        if (!node) return source;
+        const ws = source.slice(0, node.startIndex).split('\n').pop().match(/^[ \t]*/)[0];
+        const reindented = (newContent||'').trim().split('\n').map((l,i)=> i===0?l: ws + l).join('\n');
+        return source.slice(0, node.startIndex) + reindented + source.slice(node.endIndex);
+    }
+    try {
+        const lang = EXT_LANG[ext] || (ext === 'json' ? 'javascript' : null);
+        if (!lang) return source;
+        const Lang = await loadLanguage(lang === 'javascript' && ext === 'json' ? 'javascript' : lang);
+        const parser = new Parser();
+        parser.setLanguage(Lang);
+        const tree = parser.parse(source);
+        let node2 = null;
+        if (lang === 'css') node2 = findCssRule(tree.rootNode, target);
+        else if (ext === 'json') node2 = findJsonPath(tree.rootNode, target) || findNamedNode(tree.rootNode, target);
+        else node2 = findNamedNode(tree.rootNode, target);
+        if (!node2) return source;
+        const indent = leadingWhitespace(source, node2.startIndex);
+        const replacement = reindent((newContent||'').trim(), indent);
+        return source.slice(0, node2.startIndex) + replacement + source.slice(node2.endIndex);
+    } catch { return source; }
+}
+
+module.exports = { applyUpdate, canPatch, applyAddAfter, applyAddBefore, applyRemove, applySurgical, getDryPatchedContent };
