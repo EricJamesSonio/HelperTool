@@ -81,8 +81,11 @@ function isValidPath(p) {
     if (!EXT_RE.test(p)) return false;
     if (p.length < 3) return false;
     if (p.startsWith('-') || p.startsWith('.')) return false;
-    if (!/^[a-zA-Z0-9._\-\/]+$/.test(p)) return false;
-    const ext = p.split('.').pop().toLowerCase();
+    // Allow Next.js dynamic segments: [param], [[...param]], (group), and catch-all ... inside
+    if (!/^[a-zA-Z0-9._\-\/\[\]\(\)\.]+$/.test(p)) return false;
+    // Strip bracket/parenthesis wrappers for ext check, but keep them for path validity
+    const cleanForExt = p.replace(/[\[\]\(\)]/g, '');
+    const ext = cleanForExt.split('.').pop().toLowerCase();
     if (!ALLOWED_EXTS.has(ext) && !LANG_TOKENS.has(ext)) return false;
     return true;
 }
@@ -121,6 +124,15 @@ function cleanContentBuffer(buf) {
     }
     if (fences.length) {
         return fences.join('\n').trim();
+    }
+    // Fallback for unclosed fence (truncated paste): if buf starts with ``` but no closing found, return everything after opening fence
+    const firstFenceIdx = buf.findIndex(l => l.trim().startsWith('```'));
+    if (firstFenceIdx !== -1) {
+        // Check if there's no closing fence after it
+        const hasClosing = buf.slice(firstFenceIdx + 1).some(l => l.trim().startsWith('```'));
+        if (!hasClosing) {
+            return buf.slice(firstFenceIdx + 1).join('\n').trim();
+        }
     }
     // Priority 2: unfenced — strip language token lines and instruction lines,
     // and treat the first instruction-like line after code as a terminator (drops trailing prose like "That's the shape: …")

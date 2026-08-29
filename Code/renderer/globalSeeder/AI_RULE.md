@@ -21,12 +21,12 @@ For every file, output **exactly**:
 ````
 
 Rules:
-- `posix-rel-path` on **its own line** with no decoration. Example: `components/sheet-builder/SharePanel.tsx` . No backticks, no quotes, no trailing ` — update ...`, no colon.
+- `posix-rel-path` on **its own line** with no decoration. Example: `components/sheet-builder/SharePanel.tsx` or `app/api/admin/orders/[row]/route.ts` (brackets `[]` and parentheses `()` for Next.js dynamic/group segments are allowed as-is). No backticks, no quotes, no trailing ` — update ...`, no colon.
 - Do **NOT** glue the language to the path (`SharePanel.module.csscss` is WRONG). Always newline before ```.
-- Opening fence must be triple backticks + language (`css`, `tsx`, `ts`, `py`, `json`, etc.) on its own line.
-- Closing fence triple backticks on its own line.
+- Opening fence must be triple backticks + language (`css`, `tsx`, `ts`, `py`, `json`, `php`, `vue`, etc.) on its own line.
+- Closing fence triple backticks on its own line — **never omit it**. If you paste a large file, ensure the closing ``` is present; the seeder will warn `content may be truncated — unbalanced braces` if you forget it or the paste was cut off (e.g. ends with `",` or unbalanced `{`).
 - **No prose between path and fence.** Put explanations BEFORE the block or AFTER all blocks, never between.
-- **No code comments inside the fence** — do NOT include `// ...`, `/* ... */`, or `# ...` comments in the file content. The parser treats `//` + `—` lines as prose and will **truncate the file** after that comment (e.g. `// Sheet write already succeeded — …` cuts off the `try` block). If you must explain, put it outside the fence as markdown.
+- **No code comments that contain `—` inside the fence** — do NOT include `// Sheet write already succeeded — …` in the file content. The parser treats `//` + `—` as prose in unfenced mode and may truncate. Put explanations outside the fence.
 - One blank line between files is allowed.
 - Use **posixed forward slashes** (`/`), lowercase extensions.
 

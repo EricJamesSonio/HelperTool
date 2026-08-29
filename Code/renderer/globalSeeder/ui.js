@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { parseInput, parseContentBlocks } from './parser.js';
+import * as diffViewer from '../diffViewer.js';
 
 function showStage(id) {
     ['gsInputStage', 'gsPreviewStage', 'gsSeedingStage'].forEach(s => {
@@ -179,8 +180,83 @@ function renderContentPreview(preview) {
                 row.appendChild(selWrap);
             }
 
+            // Make row clickable to show full diff (lazy per-click, with loading)
+            row.style.cursor = 'pointer';
+            row.title = 'Click to view diff: Current ↔ Will Be';
+            row.classList.add('gs-preview-row--clickable');
+            row.addEventListener('click', (e) => {
+                if (e.target.closest('.gs-ambig-select') || e.target.closest('.gs-ambig-wrap')) return;
+                openPreviewDiff(idx);
+            });
+
             list.appendChild(row);
         }
+    }
+}
+
+let _previewDiffIndex = 0;
+async function openPreviewDiff(idx) {
+    const basePath = window._gsGetBasePath ? window._gsGetBasePath() : null;
+    if (basePath == null) return;
+    const preview = state.contentPreview;
+    if (!preview || !preview.details || !preview.details[idx]) return;
+    _previewDiffIndex = idx;
+    const d = preview.details[idx];
+    const resolved = d.resolved;
+    const absPath = basePath.replace(/[\/\\]+$/, '') + '/' + resolved.replace(/^[\/\\]+/, '');
+    try {
+        // Show loading in diffViewer
+        const allEntries = state.contentEntries || [];
+        // Use global loading overlay for processing
+        const loadingEl = document.getElementById('appLoadingOverlay');
+        if (loadingEl) {
+            loadingEl.classList.remove('app-loading-hidden');
+            const sub = document.getElementById('appLoadingSub');
+            if (sub) sub.textContent = `Generating diff for ${resolved}…`;
+        }
+        const result = await window.electronAPI.fileSeeder.getPatchedPreview(basePath, resolved, allEntries);
+        if (loadingEl) loadingEl.classList.add('app-loading-hidden');
+        if (result.error) {
+            showNotice(`Diff error: ${result.error}`);
+            return;
+        }
+        const leftText = result.left ?? '';
+        const rightText = result.right ?? '';
+        const total = preview.details.length;
+        diffViewer.openPreview({
+            filePath: absPath,
+            repoPath: basePath,
+            leftText,
+            rightText,
+            mode: d.mode,
+            target: d.target,
+            fileIndex: idx,
+            total,
+            onSave: async (newRightText) => {
+                const entriesForFile = allEntries.filter(e => e.resolved === resolved);
+                if (entriesForFile.length === 1) {
+                    entriesForFile[0].content = newRightText;
+                } else if (entriesForFile.length > 1) {
+                    const last = entriesForFile[entriesForFile.length - 1];
+                    last.content = newRightText;
+                    last.mode = 'full';
+                    last.target = null;
+                    for (let i = 0; i < entriesForFile.length - 1; i++) {
+                        entriesForFile[i].mode = 'partial';
+                    }
+                }
+                showNotice('Preview edited — will be used on Seed');
+            },
+            onNavigate: (dir) => {
+                const nextIdx = (_previewDiffIndex + dir + total) % total;
+                openPreviewDiff(nextIdx);
+            }
+        });
+    } catch (err) {
+        const loadingEl = document.getElementById('appLoadingOverlay');
+        if (loadingEl) loadingEl.classList.add('app-loading-hidden');
+        console.error('[GlobalSeeder] diff preview error:', err);
+        showNotice('Failed to load diff preview');
     }
 }
 
@@ -204,6 +280,7 @@ function setModeUI(mode) {
 }
 
 export function wireUI(onClose, getBasePath) {
+    window._gsGetBasePath = getBasePath;
     document.getElementById('gsCloseBtn')?.addEventListener('click', onClose);
 
     document.querySelectorAll('.gs-mode-tab').forEach(tab => {
