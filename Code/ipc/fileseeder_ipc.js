@@ -12,7 +12,7 @@ const fileSeeder  = require('../utils/fileSeeder');
  */
 function register(_deps) {
     // Make handlers idempotent — Electron throws if we register twice (hot-reload)
-    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent']) {
+    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent', 'fileseeder:getPatchedPreview']) {
         try { ipcMain.removeHandler(ch); } catch (_) {}
     }
 
@@ -69,6 +69,19 @@ function register(_deps) {
         } catch (err) {
             console.error('[IPC] fileseeder:seedContent error:', err);
             return { error: err.message, created: [], overwritten: [], patched: [], errors: [] };
+        }
+    });
+
+    ipcMain.handle('fileseeder:getPatchedPreview', async (event, basePath, resolved, allEntries) => {
+        try {
+            if (!basePath || !resolved) {
+                return { error: 'Invalid arguments', left: '', right: '' };
+            }
+            const result = await fileSeeder.getPatchedPreview(basePath, resolved, allEntries || []);
+            return result;
+        } catch (err) {
+            console.error('[IPC] fileseeder:getPatchedPreview error:', err);
+            return { error: err.message, left: '', right: '' };
         }
     });
 }
