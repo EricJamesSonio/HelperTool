@@ -158,7 +158,7 @@ function renderContentPreview(preview) {
                     }
                     // select current resolved prefix
                     const curPrefix = d.resolved.slice(0, d.resolved.length - rest.length - 1);
-                    if (cand === curPrefix || (cand === '' && curPrefix === d.original.split('/')[0])) opt.selected = true;
+                    if (cand === curPrefix || (cand === '' && d.resolved === d.original)) opt.selected = true;
                     sel.appendChild(opt);
                 }
                 sel.addEventListener('change', (e) => {

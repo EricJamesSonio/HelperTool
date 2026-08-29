@@ -236,10 +236,6 @@ async function previewContent(basePath, entries) {
     return { toCreate, toOverwrite, toPatch, details, warnings };
 }
 
-That replaces entries.find(e => e.relPath === relPath)?.content (always grabs the first match) with the content already destructured straight off the current entry being iterated — each entry now checks its own content, not whichever entry happened to share its path first.
-
-#2 — the export/async modifier-restore patch, updated to also carry restoredPrefix through so the UI can report it:
-
 async function seedContent(basePath, entries) {
     const created     = [];
     const overwritten = [];

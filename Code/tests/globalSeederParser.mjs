@@ -18,7 +18,7 @@ const ALLOWED_EXTS = new Set([
 const EXT_RE = /\.[a-zA-Z0-9]{1,10}$/;
 const GLUED_LANG_RE = /(\.[a-zA-Z0-9]{1,10})(js|jsx|ts|tsx|css|scss|less|html|htm|py|json|md|sh|bash|yaml|yml|sql|xml|vue|svelte|go|rs|java|c|cpp|rb|php|env)$/i;
 const FENCE_BLOCK_RE = /```[ \t]*[a-zA-Z0-9]*\r?\n([\s\S]*?)```/g;
-const CODE_CHARS_RE = /[{}\[\]();=<>`"'$]/;
+const CODE_CHARS_RE = /[{}\[\]();=<>`"'$:,?]/;
 const INSTRUCTION_PREFIX_RE = /^(replace|and|update|note|this|here|please|the|you can|update the|replace the)\b/i;
 const PARTIAL_RE = /\(partial\)/i;
 const SURGICAL_RE = /\((add(?:\s+after|\s+before)?|replace|update|remove)\s*:\s*([^)]+)\)/i;
@@ -101,7 +101,7 @@ function isInstructionLine(line) {
     // long prose ending with period, no code chars, starts with capital instruction
     if (INSTRUCTION_PREFIX_RE.test(t)) return true;
     // contains em dash and no code chars (allow parens/commas — common in prose descriptions)
-    if (/[—–]/.test(t) && !/[{}\[\];=<>`"'$]/.test(t)) return true;
+    if (/[—–]/.test(t) && !CODE_CHARS_RE.test(t)) return true;
     // sentence-like: >40 chars, contains spaces, ends with ., no code chars, no leading code keyword
     if (t.length > 40 && /\s/.test(t) && t.endsWith('.') && !CODE_CHARS_RE.test(t)) {
         if (!/^(import|export|const|let|var|function|class|interface|type|return|if|for|while|async|await|from|wrap|trigger|panel|hint|row|input)\b/i.test(t)) {
