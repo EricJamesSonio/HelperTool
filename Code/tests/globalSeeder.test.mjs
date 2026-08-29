@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const fileSeeder = require('../utils/fileSeeder.js');
+const astPatch = require('../utils/astPatch.js');
 
 // Parser is ESM but package is commonjs - copy to .mjs for test
 let parseInput, parseContentBlocks;
@@ -415,10 +416,11 @@ describe('GlobalSeeder - FileSeeder Smart Anchoring (real FS)', () => {
       fs.mkdirSync(path.join(fresh, 'real/components'), { recursive: true });
       fs.mkdirSync(path.join(fresh, 'src/components'), { recursive: true });
       const cands = fileSeeder.findCandidates(fresh, 'components');
-      assert.ok(!cands.some(p => p.includes('node_modules')), 'should ignore node_modules');
-      assert.ok(!cands.some(p => p.includes('.git')), 'should ignore .git');
-      assert.ok(cands.some(p => p.includes('real/components')), 'should find real/components');
-      assert.ok(cands.some(p => p.includes('src/components')), 'should find src/components');
+      const norm = cands.map(p => p.replace(/\\/g, '/'));
+      assert.ok(!norm.some(p => p.includes('node_modules')), 'should ignore node_modules');
+      assert.ok(!norm.some(p => p.includes('.git')), 'should ignore .git');
+      assert.ok(norm.some(p => p.includes('real/components')), 'should find real/components');
+      assert.ok(norm.some(p => p.includes('src/components')), 'should find src/components');
     } finally {
       rmRf(fresh);
     }
@@ -632,5 +634,138 @@ describe('GlobalSeeder - Structure Mode Integration', () => {
     const entries = [{ relPath: 'MyApp/src/app.ts', content: 'filled', mode:'full', resolved:'MyApp/src/app.ts' }];
     await fileSeeder.seedContent(tmp, entries);
     assert.equal(read(path.join(tmp, 'MyApp/src/app.ts')), 'filled');
+  });
+});
+
+describe('GlobalSeeder - Surgical Batch Integration (full user scenario)', () => {
+  let tmp;
+  before(() => { tmp = mkTmp(); });
+  after(() => rmRf(tmp));
+
+  const FILES = {
+    'app/api/admin/orders/route.ts': `import { NextResponse } from "next/server";
+import { getOrders } from "@/lib/orders";
+
+export async function GET() {
+  const orders = await getOrders();
+  return NextResponse.json({ orders });
+}`,
+    'app/api/admin/orders/[id]/route.ts': `import { NextResponse } from "next/server";
+import { updateOrderStatus } from "@/lib/orders";
+
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const body = await req.json();
+  const updated = await updateOrderStatus(params.id, body.status);
+  return NextResponse.json({ order: updated });
+}`,
+    'lib/orders.ts': `export const orderConfig = {
+  defaultTargetSheet: "Orders",
+  statuses: ["pending", "processing", "shipped", "cancelled"],
+};
+
+export async function getOrders() {
+  return [];
+}
+
+export async function updateOrderStatus(id: string, status: string) {
+  return { id, status };
+}
+
+export function legacyOrderFormatter(order: unknown) {
+  return JSON.stringify(order);
+}`,
+  };
+
+  before(() => {
+    for (const [rel, content] of Object.entries(FILES)) {
+      const abs = path.join(tmp, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content, 'utf-8');
+    }
+  });
+
+  it('Replace: PATCH in bracket-path file replaces correctly', async () => {
+    const file = path.join(tmp, 'app/api/admin/orders/[id]/route.ts');
+    const newBody = `export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const body = await req.json();
+  if (!body.status) {
+    return NextResponse.json({ error: "status is required" }, { status: 400 });
+  }
+  const updated = await updateOrderStatus(params.id, body.status);
+  return NextResponse.json({ order: updated });
+}`;
+    const res = await astPatch.applyUpdate(file, 'PATCH', newBody);
+    assert.ok(res.ok, res.reason);
+    const result = read(file);
+    assert.ok(result.includes('status is required'), 'should contain validation');
+    // Old unconditional body should be gone (no `const updated` before the if-check)
+    const patchFnMatch = result.match(/export async function PATCH[\s\S]*?\n\}/);
+    assert.ok(patchFnMatch, 'PATCH function should exist');
+    assert.ok(patchFnMatch[0].includes('if (!body.status)'), 'PATCH should have validation guard');
+    assert.ok(result.includes('import { NextResponse }'), 'imports preserved');
+    assert.ok(result.includes('import { updateOrderStatus }'), 'updateOrderStatus import preserved');
+  });
+
+  it('Add after: imports — adds formatCurrency import to lib/orders.ts', async () => {
+    const file = path.join(tmp, 'lib/orders.ts');
+    const res = await astPatch.applyAddAfter(file, 'imports', 'import { formatCurrency } from "./helpers";');
+    assert.ok(res.ok, res.reason);
+    const result = read(file);
+    assert.ok(result.includes('import { formatCurrency }'), 'formatCurrency import should exist');
+    // formatCurrency should appear before any export statements
+    const lines = result.split('\n');
+    const formatIdx = lines.findIndex(l => l.includes('formatCurrency'));
+    const firstExportIdx = lines.findIndex(l => /^export\b/.test(l));
+    assert.ok(formatIdx < firstExportIdx, 'formatCurrency should be before exports');
+  });
+
+  it('Update: orderConfig — replaces const with object literal', async () => {
+    const file = path.join(tmp, 'lib/orders.ts');
+    const newConfig = `export const orderConfig = {
+  defaultTargetSheet: "Orders",
+  statuses: ["pending", "processing", "shipped", "delivered", "cancelled"],
+};`;
+    const res = await astPatch.applyUpdate(file, 'orderConfig', newConfig);
+    assert.ok(res.ok, res.reason);
+    const result = read(file);
+    assert.ok(result.includes('"delivered"'), 'should contain delivered status');
+    assert.ok(result.includes('export const orderConfig'), 'export keyword preserved');
+    assert.ok(result.includes('export async function getOrders'), 'getOrders should still exist');
+    assert.ok(result.includes('export function legacyOrderFormatter'), 'legacyOrderFormatter should still exist');
+  });
+
+  it('Remove: legacyOrderFormatter — removes function cleanly', async () => {
+    const file = path.join(tmp, 'lib/orders.ts');
+    const res = await astPatch.applyRemove(file, 'legacyOrderFormatter');
+    assert.ok(res.ok, res.reason);
+    const result = read(file);
+    assert.ok(!result.includes('legacyOrderFormatter'), 'function should be removed');
+    assert.ok(result.includes('export async function getOrders'), 'getOrders preserved');
+    assert.ok(result.includes('orderConfig'), 'orderConfig preserved');
+    assert.ok(!result.includes('JSON.stringify(order)'), 'body should be gone');
+  });
+
+  it('full batch produces correct final lib/orders.ts', async () => {
+    const file = path.join(tmp, 'lib/orders.ts');
+    const result = read(file);
+    // Should have: imports (original + formatCurrency), orderConfig with delivered, getOrders, updateOrderStatus
+    assert.ok(result.includes('import { formatCurrency }'), 'has formatCurrency import');
+    assert.ok(result.includes('export const orderConfig'), 'has orderConfig');
+    assert.ok(result.includes('"delivered"'), 'has delivered status');
+    assert.ok(result.includes('export async function getOrders'), 'has getOrders');
+    assert.ok(result.includes('export async function updateOrderStatus'), 'has updateOrderStatus');
+    assert.ok(!result.includes('legacyOrderFormatter'), 'no legacyOrderFormatter');
+    // No orphaned export keyword
+    const exportLines = result.split('\n').filter(l => l.trim() === 'export');
+    assert.equal(exportLines.length, 0, 'no bare export keyword lines');
+  });
+
+  it('full batch produces correct bracket-path route.ts', async () => {
+    const file = path.join(tmp, 'app/api/admin/orders/[id]/route.ts');
+    const result = read(file);
+    assert.ok(result.includes('status is required'), 'has validation');
+    assert.ok(result.includes('import { NextResponse }'), 'imports intact');
+    assert.ok(result.includes('import { updateOrderStatus }'), 'updateOrderStatus import intact');
+    assert.ok(!result.includes('export\n'), 'no orphaned export keyword');
   });
 });

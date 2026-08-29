@@ -334,9 +334,9 @@ async function getPatchedPreview(basePath, resolved, allEntries) {
     }
     // Surgical batch: apply sequentially to a copy of left in memory
     let right = left;
-    // Create a temp file to use astPatch dry logic without writing to disk
-    // We will simulate by writing to a temp file, applying patches, reading back, then discarding
-    const tmpFile = path.join(os.tmpdir(), `gs-dry-${Date.now()}-${Math.random().toString(36).slice(2,6)}.tmp`);
+    // Create a temp file with the original extension so astPatch can load the right grammar
+    const ext = path.extname(abs) || '.txt';
+    const tmpFile = path.join(os.tmpdir(), `gs-dry-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
     try {
         fs.writeFileSync(tmpFile, left, 'utf-8');
         for (const e of entriesForFile) {
