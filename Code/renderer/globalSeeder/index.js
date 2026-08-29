@@ -45,8 +45,8 @@ function handleClose(result) {
         if (overwritten) parts.push(`${overwritten} overwritten`);
         if (patched) parts.push(`${patched} patched`);
         const msg = errs > 0
-            ? `✅ ${parts.join(', ') || 'Done'}. ⚠️ ${errs} error(s) — check console.`
-            : `✅ ${parts.join(', ') || 'Done'}.`;
+            ? `[OK] ${parts.join(', ') || 'Done'}. [!] ${errs} error(s) — check console.`
+            : `[OK] ${parts.join(', ') || 'Done'}.`;
         console.info('[GlobalSeeder]', msg);
         document.getElementById('refreshBtn')?.click();
     }

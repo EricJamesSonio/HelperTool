@@ -28,13 +28,13 @@ function renderRows(list, items) {
         if (folder !== '__root__') {
             const header = document.createElement('div');
             header.className   = 'gs-preview-folder';
-            header.textContent = `📁 ${folder}/`;
+            header.textContent = `${folder}/`;
             list.appendChild(header);
         }
         for (const item of entries) {
             const row = document.createElement('div');
             row.className = `gs-preview-row gs-preview-row--${item.status}`;
-            const icon   = item.status === 'create' ? '✚' : item.status === 'overwrite' ? '⟳' : '⊘';
+            const icon   = item.status === 'create' ? '+' : item.status === 'overwrite' ? '~' : 'x';
             const label  = item.status === 'create' ? 'new' : item.status === 'overwrite' ? 'overwrite' : 'exists';
             const name   = item.path.split('/').pop();
             const subdir = item.path.includes('/') ? item.path.substring(0, item.path.lastIndexOf('/') + 1) : '';
@@ -54,8 +54,8 @@ function renderStructurePreview(preview) {
     if (!summary || !list) return;
 
     summary.innerHTML = `
-        <span class="gs-badge gs-badge-create">✚ ${preview.toCreate.length} to create</span>
-        ${preview.toSkip.length > 0 ? `<span class="gs-badge gs-badge-skip">⊘ ${preview.toSkip.length} already exist</span>` : ''}
+        <span class="gs-badge gs-badge-create">+ ${preview.toCreate.length} to create</span>
+        ${preview.toSkip.length > 0 ? `<span class="gs-badge gs-badge-skip">x ${preview.toSkip.length} already exist</span>` : ''}
     `;
 
     const items = [
@@ -76,11 +76,11 @@ function renderContentPreview(preview) {
     const warnings = preview.warnings || [];
 
     summary.innerHTML = `
-        <span class="gs-badge gs-badge-create">✚ ${preview.toCreate.length} to create</span>
-        ${preview.toOverwrite.length > 0 ? `<span class="gs-badge gs-badge-overwrite">⟳ ${preview.toOverwrite.length} will be overwritten</span>` : ''}
-        ${patchCount > 0 ? `<span class="gs-badge gs-badge-patch">🩹 ${patchCount} to patch</span>` : ''}
-        ${warnCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.map(w=>w.warning).join('; '))}">⚠ ${warnCount} patch will fallback to full</span>` : ''}
-        ${ambiguousCount > 0 ? `<span class="gs-badge gs-badge-ambig">⚠ ${ambiguousCount} need target choice</span>` : ''}
+        <span class="gs-badge gs-badge-create">+${preview.toCreate.length} to create</span>
+        ${preview.toOverwrite.length > 0 ? `<span class="gs-badge gs-badge-overwrite">~${preview.toOverwrite.length} will be overwritten</span>` : ''}
+        ${patchCount > 0 ? `<span class="gs-badge gs-badge-patch">~${patchCount} to patch</span>` : ''}
+        ${warnCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.map(w=>w.warning).join('; '))}">!${warnCount} patch will fallback to full</span>` : ''}
+        ${ambiguousCount > 0 ? `<span class="gs-badge gs-badge-ambig">!${ambiguousCount} need target choice</span>` : ''}
     `;
 
     list.innerHTML = '';
@@ -106,7 +106,7 @@ function renderContentPreview(preview) {
         if (folder !== '__root__') {
             const header = document.createElement('div');
             header.className   = 'gs-preview-folder';
-            header.textContent = `📁 ${folder}/`;
+            header.textContent = `${folder}/`;
             list.appendChild(header);
         }
         for (const { d, idx } of arr) {
@@ -116,7 +116,7 @@ function renderContentPreview(preview) {
             const status = hasWarning ? 'patch-warn' : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
             const row = document.createElement('div');
             row.className = `gs-preview-row gs-preview-row--${status}${d.ambiguous ? ' gs-preview-row--ambig' : ''}`;
-            const icon  = hasWarning ? '⚠' : (isPatch ? '🩹' : (d.exists ? '⟳' : '✚'));
+            const icon  = hasWarning ? '!' : (isPatch ? '~' : (d.exists ? '~' : '+'));
             let patchLabel = '';
             if (d.mode === 'addAfter') patchLabel = `add after: ${escapeHtml(d.target||'')}`;
             else if (d.mode === 'addBefore') patchLabel = `add before: ${escapeHtml(d.target||'')}`;
@@ -145,22 +145,25 @@ function renderContentPreview(preview) {
                 const sel = document.createElement('select');
                 sel.className = 'gs-ambig-select';
                 sel.dataset.idx = String(idx);
+                const rest = d.resolved.includes('/') ? d.resolved.substring(d.resolved.indexOf('/') + 1) : '';
                 for (const cand of d.candidates) {
                     const opt = document.createElement('option');
                     opt.value = cand;
-                    // show relative candidate base + rest hint
-                    const rest = d.resolved.slice(d.resolved.indexOf('/') + 1);
-                    // cand is like "src/components" — display that
-                    opt.textContent = cand;
+                    if (cand === '') {
+                        const origName = d.original.split('/').pop();
+                        opt.textContent = `Root (repo root/${origName})`;
+                    } else {
+                        opt.textContent = cand;
+                    }
                     // select current resolved prefix
                     const curPrefix = d.resolved.slice(0, d.resolved.length - rest.length - 1);
-                    if (cand === curPrefix) opt.selected = true;
+                    if (cand === curPrefix || (cand === '' && curPrefix === d.original.split('/')[0])) opt.selected = true;
                     sel.appendChild(opt);
                 }
                 sel.addEventListener('change', (e) => {
                     const newBase = e.target.value;
                     const originalRest = d.original.split('/').slice(1).join('/');
-                    const newResolved = originalRest ? `${newBase}/${originalRest}` : newBase;
+                    const newResolved = newBase === '' ? d.original : (originalRest ? `${newBase}/${originalRest}` : newBase);
                     // update preview model and row display
                     d.resolved = newResolved;
                     if (state.contentEntries && state.contentEntries[idx]) {
@@ -356,6 +359,7 @@ export function wireUI(onClose, getBasePath) {
                 });
                 state.contentEntries = enriched;
                 state.contentPreview = preview;
+                console.log('[GS DEBUG] enriched entries:', JSON.stringify(enriched.map(e => ({ resolved: e.resolved, mode: e.mode, target: e.target })), null, 2));
                 renderContentPreview(preview);
             }
             showStage('gsPreviewStage');

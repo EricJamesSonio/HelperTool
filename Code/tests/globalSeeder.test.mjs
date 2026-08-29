@@ -769,3 +769,155 @@ export function legacyOrderFormatter(order: unknown) {
     assert.ok(!result.includes('export\n'), 'no orphaned export keyword');
   });
 });
+
+describe('GlobalSeeder - Batch 2: JSON dot-path, CSS Replace+AddAfter, TS Remove', () => {
+  let tmp;
+  before(() => { tmp = mkTmp(); });
+  after(() => rmRf(tmp));
+
+  const FILES = {
+    'lib/settings.ts': `export const appSettings = {
+  timezone: "UTC",
+  maxUploadSizeMb: 25,
+  features: ["billing", "reports"],
+};
+
+export function legacyHelper(x: unknown) {
+  return String(x);
+}`,
+    'config/app.json': `{
+  "name": "helper-tool",
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run"
+  }
+}`,
+    'styles/panel.css': `.panel {
+  margin-top: 20px;
+  background: #fff;
+}`,
+  };
+
+  before(() => {
+    for (const [rel, content] of Object.entries(FILES)) {
+      const abs = path.join(tmp, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content, 'utf-8');
+    }
+  });
+
+  it('isolation: Update appSettings (object-literal) works alone', async () => {
+    const file = path.join(tmp, 'lib/settings.ts');
+    const res = await astPatch.applyUpdate(file, 'appSettings', `export const appSettings = {
+  timezone: "UTC",
+  maxUploadSizeMb: 50,
+  features: ["billing", "reports", "audit-log"],
+};`);
+    assert.ok(res.ok, res.reason);
+    const result = read(file);
+    assert.ok(result.includes('maxUploadSizeMb: 50'), 'has updated value');
+    assert.ok(result.includes('"audit-log"'), 'has new feature');
+    assert.ok(result.includes('export const appSettings'), 'export preserved');
+    assert.ok(result.includes('export function legacyHelper'), 'legacyHelper still present');
+  });
+
+  it('isolation: Update appSettings via getPatchedPreview', async () => {
+    // Reset file
+    fs.writeFileSync(path.join(tmp, 'lib/settings.ts'), FILES['lib/settings.ts'], 'utf-8');
+    const entries = [
+      { relPath: 'lib/settings.ts', content: `export const appSettings = {\n  timezone: "UTC",\n  maxUploadSizeMb: 50,\n  features: ["billing", "reports", "audit-log"],\n};`, resolved: 'lib/settings.ts', mode: 'update', target: 'appSettings' },
+    ];
+    const preview = await fileSeeder.getPatchedPreview(tmp, 'lib/settings.ts', entries);
+    assert.ok(preview.right.includes('maxUploadSizeMb: 50'), 'preview has updated value');
+    assert.ok(preview.right.includes('"audit-log"'), 'preview has new feature');
+    assert.ok(preview.right.includes('legacyHelper'), 'preview preserves other functions');
+  });
+
+  it('JSON dot-path Update: scripts.build', async () => {
+    const file = path.join(tmp, 'config/app.json');
+    const res = await astPatch.applyUpdate(file, 'scripts.build', '"tsc -p . --incremental"');
+    assert.ok(res.ok, res.reason);
+    const result = JSON.parse(read(file));
+    assert.equal(result.scripts.build, 'tsc -p . --incremental');
+    assert.equal(result.scripts.test, 'vitest run', 'other values preserved');
+  });
+
+  it('CSS: Replace .panel then Add after .panel in batch', async () => {
+    const file = path.join(tmp, 'styles/panel.css');
+    // Reset
+    fs.writeFileSync(file, FILES['styles/panel.css'], 'utf-8');
+    const entries = [
+      { relPath: 'styles/panel.css', content: `.panel {\n  margin-top: 24px;\n  background: #fafafa;\n  border-radius: 8px;\n}`, resolved: 'styles/panel.css', mode: 'replace', target: '.panel' },
+      { relPath: 'styles/panel.css', content: `.panel-header {\n  font-weight: 600;\n}`, resolved: 'styles/panel.css', mode: 'addAfter', target: '.panel' },
+    ];
+    const result = await fileSeeder.seedContent(tmp, entries);
+    assert.equal(result.errors.length, 0, 'no errors');
+    assert.equal(result.patched.length, 2, 'both patches applied');
+    const css = read(file);
+    assert.ok(css.includes('border-radius: 8px'), 'Replace applied');
+    assert.ok(css.includes('.panel-header'), 'Add after applied');
+    assert.ok(css.includes('font-weight: 600'), 'Add after content present');
+  });
+
+  it('CSS: Replace .panel then Add after via getPatchedPreview', async () => {
+    const file = path.join(tmp, 'styles/panel.css');
+    fs.writeFileSync(file, FILES['styles/panel.css'], 'utf-8');
+    const entries = [
+      { relPath: 'styles/panel.css', content: `.panel {\n  margin-top: 24px;\n  background: #fafafa;\n  border-radius: 8px;\n}`, resolved: 'styles/panel.css', mode: 'replace', target: '.panel' },
+      { relPath: 'styles/panel.css', content: `.panel-header {\n  font-weight: 600;\n}`, resolved: 'styles/panel.css', mode: 'addAfter', target: '.panel' },
+    ];
+    const preview = await fileSeeder.getPatchedPreview(tmp, 'styles/panel.css', entries);
+    assert.ok(preview.right.includes('border-radius: 8px'), 'preview has Replace');
+    assert.ok(preview.right.includes('.panel-header'), 'preview has Add after');
+  });
+
+  it('TS Remove: legacyHelper removes export function cleanly', async () => {
+    const file = path.join(tmp, 'lib/settings.ts');
+    fs.writeFileSync(file, FILES['lib/settings.ts'], 'utf-8');
+    const res = await astPatch.applyRemove(file, 'legacyHelper');
+    assert.ok(res.ok, res.reason);
+    const result = read(file);
+    assert.ok(!result.includes('legacyHelper'), 'function removed');
+    assert.ok(!result.includes('String(x)'), 'body removed');
+    assert.ok(result.includes('appSettings'), 'other code preserved');
+    const exportLines = result.split('\n').filter(l => l.trim() === 'export');
+    assert.equal(exportLines.length, 0, 'no bare export keyword');
+  });
+
+  it('full batch: all 5 patches across 3 files', async () => {
+    // Reset all files
+    for (const [rel, content] of Object.entries(FILES)) {
+      fs.writeFileSync(path.join(tmp, rel), content, 'utf-8');
+    }
+    const entries = [
+      // Isolation: Update appSettings
+      { relPath: 'lib/settings.ts', content: `export const appSettings = {\n  timezone: "UTC",\n  maxUploadSizeMb: 50,\n  features: ["billing", "reports", "audit-log"],\n};`, resolved: 'lib/settings.ts', mode: 'update', target: 'appSettings' },
+      // JSON dot-path Update
+      { relPath: 'config/app.json', content: '"tsc -p . --incremental"', resolved: 'config/app.json', mode: 'update', target: 'scripts.build' },
+      // CSS Replace + Add after
+      { relPath: 'styles/panel.css', content: `.panel {\n  margin-top: 24px;\n  background: #fafafa;\n  border-radius: 8px;\n}`, resolved: 'styles/panel.css', mode: 'replace', target: '.panel' },
+      { relPath: 'styles/panel.css', content: `.panel-header {\n  font-weight: 600;\n}`, resolved: 'styles/panel.css', mode: 'addAfter', target: '.panel' },
+      // TS Remove
+      { relPath: 'lib/settings.ts', content: '', resolved: 'lib/settings.ts', mode: 'remove', target: 'legacyHelper' },
+    ];
+    const result = await fileSeeder.seedContent(tmp, entries);
+    assert.equal(result.errors.length, 0, 'no errors');
+    assert.equal(result.patched.length, 5, 'all 5 patches applied');
+
+    // Verify lib/settings.ts
+    const ts = read(path.join(tmp, 'lib/settings.ts'));
+    assert.ok(ts.includes('maxUploadSizeMb: 50'), 'appSettings updated');
+    assert.ok(ts.includes('"audit-log"'), 'appSettings has new feature');
+    assert.ok(!ts.includes('legacyHelper'), 'legacyHelper removed');
+    assert.ok(!/^\s*export\s*$/m.test(ts), 'no bare export');
+
+    // Verify config/app.json
+    const json = JSON.parse(read(path.join(tmp, 'config/app.json')));
+    assert.equal(json.scripts.build, 'tsc -p . --incremental', 'JSON dot-path updated');
+
+    // Verify styles/panel.css
+    const css = read(path.join(tmp, 'styles/panel.css'));
+    assert.ok(css.includes('border-radius: 8px'), 'CSS Replace applied');
+    assert.ok(css.includes('.panel-header'), 'CSS Add after applied');
+  });
+});

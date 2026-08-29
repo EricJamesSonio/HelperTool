@@ -100,8 +100,8 @@ function isInstructionLine(line) {
     if (/^(that's|this is|the shape|no prose|immediately followed)\b/i.test(t)) return true;
     // long prose ending with period, no code chars, starts with capital instruction
     if (INSTRUCTION_PREFIX_RE.test(t)) return true;
-    // contains em dash and no code chars
-    if (/[—–]/.test(t) && !CODE_CHARS_RE.test(t)) return true;
+    // contains em dash and no code chars (allow parens/commas — common in prose descriptions)
+    if (/[—–]/.test(t) && !/[{}\[\];=<>`"'$]/.test(t)) return true;
     // sentence-like: >40 chars, contains spaces, ends with ., no code chars, no leading code keyword
     if (t.length > 40 && /\s/.test(t) && t.endsWith('.') && !CODE_CHARS_RE.test(t)) {
         if (!/^(import|export|const|let|var|function|class|interface|type|return|if|for|while|async|await|from|wrap|trigger|panel|hint|row|input)\b/i.test(t)) {

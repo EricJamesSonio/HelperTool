@@ -114,13 +114,14 @@ function resolveRelPath(basePath, relPath, cache) {
     }
     const rest = parts.slice(1).join('/');
     // candidates as rel paths from base (for preview display)
-    const relCands = cands.map(abs => path.relative(basePath, abs).replace(/\\/g, '/'));
+    // Prepend '' as "root" option — file goes directly under basePath
+    const relCands = [''].concat(cands.map(abs => path.relative(basePath, abs).replace(/\\/g, '/')));
     if (cands.length === 1) {
-        const anchored = path.posix.join(relCands[0], rest);
+        const anchored = path.posix.join(relCands[1], rest);
         return { resolved: anchored, candidates: relCands, ambiguous: false };
     }
     // ambiguous — default to first/shallowest but expose all
-    const anchored = path.posix.join(relCands[0], rest);
+    const anchored = path.posix.join(relCands[1], rest);
     return { resolved: anchored, candidates: relCands, ambiguous: true };
 }
 
@@ -333,14 +334,20 @@ async function getPatchedPreview(basePath, resolved, allEntries) {
         return { left, right: last.content ?? '' };
     }
     // Surgical batch: apply sequentially to a copy of left in memory
+    // Full-mode entries set the base content; surgical entries patch on top
     let right = left;
+    const fullEntries = entriesForFile.filter(e => !isSurgical(e.mode));
+    if (fullEntries.length) {
+        right = fullEntries[fullEntries.length - 1].content ?? '';
+    }
     // Create a temp file with the original extension so astPatch can load the right grammar
     const ext = path.extname(abs) || '.txt';
     const tmpFile = path.join(os.tmpdir(), `gs-dry-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
     try {
-        fs.writeFileSync(tmpFile, left, 'utf-8');
+        fs.writeFileSync(tmpFile, right, 'utf-8');
         for (const e of entriesForFile) {
             const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
+            if (!isSurgical(m)) continue;
             const effMode = m === 'replace' ? 'update' : m;
             let res;
             if (effMode === 'addafter') res = await astPatch.applyAddAfter(tmpFile, e.target, e.content ?? '');

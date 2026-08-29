@@ -65,7 +65,17 @@ function findCssRule(rootNode, target) {
 // ---- JSON: dot-path traversal ----
 function findJsonPath(rootNode, target) {
     const parts = target.split('.');
+    // Tree-sitter JSON wraps in expression_statement > object; find the root object
     let cur = rootNode;
+    if (cur.type === 'program' && cur.namedChildCount === 1) {
+        const only = cur.namedChild(0);
+        if (only.type === 'expression_statement') {
+            const obj = only.childForFieldName('value') || only.namedChild(0);
+            if (obj && obj.type === 'object') cur = obj;
+        } else if (only.type === 'object') {
+            cur = only;
+        }
+    }
     for (const key of parts) {
         let found = null;
         // object → pair → key
@@ -115,9 +125,9 @@ function findNamedNode(rootNode, target) {
                     if (declarators.length === 1) n = parent;
                 }
             }
-            // climb from lexical/variable_declaration into export_statement so the
-            // whole `export const ...` is patched (avoids orphaned `export` keyword)
-            if ((n.type === 'lexical_declaration' || n.type === 'variable_declaration') && n.parent && n.parent.type === 'export_statement') {
+            // climb from lexical/variable/function_declaration into export_statement so the
+            // whole `export const ...` / `export function ...` is patched (avoids orphaned `export` keyword)
+            if ((n.type === 'lexical_declaration' || n.type === 'variable_declaration' || n.type === 'function_declaration' || n.type === 'class_declaration') && n.parent && n.parent.type === 'export_statement') {
                 n = n.parent;
             }
             found = n;
@@ -448,9 +458,16 @@ async function applyUpdate(filePath, target, newContent) {
 
     if (!node) return { ok: false, reason: `target "${target}" not found in ${filePath}` };
 
-    const indent = leadingWhitespace(source, node.startIndex);
+    // For JSON pairs, replace only the value, not the whole key:value pair
+    let replaceNode = node;
+    if (node.type === 'pair') {
+        const val = node.childForFieldName('value');
+        if (val) replaceNode = val;
+    }
+
+    const indent = leadingWhitespace(source, replaceNode.startIndex);
     const replacement = reindent(newContent.trim(), indent);
-    const patched = source.slice(0, node.startIndex) + replacement + source.slice(node.endIndex);
+    const patched = source.slice(0, replaceNode.startIndex) + replacement + source.slice(replaceNode.endIndex);
 
     fs.writeFileSync(filePath, patched, 'utf-8');
     return { ok: true };
