@@ -19,12 +19,16 @@ function detectMode(lines) {
     if (!nonEmpty.length) return 'flat';
 
     const hasBox = nonEmpty.some(l => BOX_CHARS.test(l));
-    const hasPathSep = nonEmpty.some(l => /[^/]\//.test(l));
-    if (hasBox || hasPathSep) return 'tree';
+    if (hasBox) return 'tree';
 
     const indented = nonEmpty.filter(l => /^\s/.test(l)).length;
     const rootLevel = nonEmpty.filter(l => /^\S/.test(l)).length;
     if (indented > 0 && rootLevel > 0) return 'tree';
+
+    const hasPathSep = nonEmpty.some(l => /[^/]\//.test(l));
+    // Flat lists with slashes (e.g. "components/Button.tsx") are still flat if no indentation/box
+    // Only treat as tree if there's also indentation
+    if (hasPathSep && indented > 0) return 'tree';
 
     return 'flat';
 }
@@ -38,8 +42,11 @@ function detectIndentUnit(lines) {
 }
 
 function indentLevel(rawLine, indentUnit) {
-    const boxMatches = rawLine.match(/(?:│\s*|[├└]──\s*)/g);
-    if (boxMatches) return boxMatches.length;
+    // Find the column of the first branch character (├/└)
+    const branchIdx = rawLine.search(/[├└]──/);
+    if (branchIdx >= 0) {
+        return Math.floor(branchIdx / indentUnit) + 1;
+    }
 
     const spaces = rawLine.match(/^(\s+)/)?.[1] ?? '';
     const tabs = (spaces.match(/\t/g) ?? []).length;
