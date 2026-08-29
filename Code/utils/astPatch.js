@@ -237,6 +237,24 @@ function reindent(newBlock, indent) {
     const lines = newBlock.replace(/\r\n/g, '\n').split('\n');
     return lines.map((l, i) => (i === 0 ? l : indent + l)).join('\n');
 }
+function getLeadingModifiers(text) {
+    const m = text.match(/^\s*(export\s+default\s+|export\s+)?(async\s+)?/);
+    return {
+        exportPrefix: m && m[1] ? m[1].trim().replace(/\s+/g, ' ') + ' ' : '',
+        asyncPrefix: m && m[2] ? 'async ' : '',
+    };
+}
+
+function reconcileModifiers(originalNodeText, newContent) {
+    const orig = getLeadingModifiers(originalNodeText);
+    const trimmedNew = newContent.trim();
+    const incoming = getLeadingModifiers(trimmedNew);
+    let restored = '';
+    if (orig.exportPrefix && !incoming.exportPrefix) restored += orig.exportPrefix;
+    if (orig.asyncPrefix && !incoming.asyncPrefix) restored += orig.asyncPrefix;
+    if (!restored) return { content: newContent, restoredPrefix: null };
+    return { content: restored + trimmedNew, restoredPrefix: restored.trim() };
+}
 
 async function applyAddAfter(filePath, target, newContent) {
     const ext = extOf(filePath);
@@ -422,13 +440,12 @@ async function applyUpdate(filePath, target, newContent) {
         const source = fs.readFileSync(filePath, 'utf-8');
         const node = findViaString(source, target);
         if (!node) return { ok: false, reason: `target "${target}" not found` };
-        const indent = source.slice(node.startIndex - (source.slice(0, node.startIndex).split('\n').pop().match(/^[ \t]*/)[0].length), node.startIndex).match(/^[ \t]*/)?.[0] || '';
-        // simpler indent
         const ws = source.slice(0, node.startIndex).split('\n').pop().match(/^[ \t]*/)[0];
-        const reindented = newContent.trim().split('\n').map((l,i)=> i===0?l: ws + l).join('\n');
+        const { content: reconciled, restoredPrefix } = reconcileModifiers(node.text, newContent);
+        const reindented = reconciled.trim().split('\n').map((l,i)=> i===0?l: ws + l).join('\n');
         const patched = source.slice(0, node.startIndex) + reindented + source.slice(node.endIndex);
         fs.writeFileSync(filePath, patched, 'utf-8');
-        return { ok: true };
+        return { ok: true, restoredPrefix };
     }
     // JSON handled via json language (same wasm as javascript handles json? use javascript grammar as fallback)
     const lang = EXT_LANG[ext] || (ext === 'json' ? 'javascript' : null);
@@ -465,12 +482,20 @@ async function applyUpdate(filePath, target, newContent) {
         if (val) replaceNode = val;
     }
 
+    let contentToWrite = newContent;
+    let restoredPrefix = null;
+    if (replaceNode.type === 'export_statement' || /^(export|async)\b/.test(replaceNode.text.trim())) {
+        const reconciled = reconcileModifiers(replaceNode.text, newContent);
+        contentToWrite = reconciled.content;
+        restoredPrefix = reconciled.restoredPrefix;
+    }
+
     const indent = leadingWhitespace(source, replaceNode.startIndex);
-    const replacement = reindent(newContent.trim(), indent);
+    const replacement = reindent(contentToWrite.trim(), indent);
     const patched = source.slice(0, replaceNode.startIndex) + replacement + source.slice(replaceNode.endIndex);
 
     fs.writeFileSync(filePath, patched, 'utf-8');
-    return { ok: true };
+    return { ok: true, restoredPrefix };
 }
 
 async function getDryPatchedContent(filePath, mode, target, newContent) {

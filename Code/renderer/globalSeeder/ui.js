@@ -1,3 +1,4 @@
+
 import { state } from './state.js';
 import { parseInput, parseContentBlocks } from './parser.js';
 import * as diffViewer from '../diffViewer.js';
@@ -359,7 +360,6 @@ export function wireUI(onClose, getBasePath) {
                 });
                 state.contentEntries = enriched;
                 state.contentPreview = preview;
-                console.log('[GS DEBUG] enriched entries:', JSON.stringify(enriched.map(e => ({ resolved: e.resolved, mode: e.mode, target: e.target })), null, 2));
                 renderContentPreview(preview);
             }
             showStage('gsPreviewStage');

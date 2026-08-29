@@ -186,7 +186,7 @@ async function previewContent(basePath, entries) {
     const details     = [];
     const cache       = new Map();
 
-    for (const { relPath, mode, target } of entries) {
+    for (const { relPath, mode, target, content } of entries) {
         const { resolved, candidates, ambiguous } = resolveRelPath(basePath, relPath, cache);
         const abs = path.join(basePath, resolved);
         const exists = fs.existsSync(abs);
@@ -195,8 +195,7 @@ async function previewContent(basePath, entries) {
         let effMode = mode ?? 'full';
         const surgical = isSurgical(effMode);
         // Check for likely truncated content (unbalanced braces or ends with dangling syntax)
-        const contentStr = entries.find(e => e.relPath === relPath)?.content || '';
-        const truncWarning = isTruncatedContent(contentStr);
+        const truncWarning = isTruncatedContent(content || '');
         if (truncWarning) warning = (warning ? warning + '; ' : '') + truncWarning;
 
         if (surgical) {
@@ -237,11 +236,16 @@ async function previewContent(basePath, entries) {
     return { toCreate, toOverwrite, toPatch, details, warnings };
 }
 
+That replaces entries.find(e => e.relPath === relPath)?.content (always grabs the first match) with the content already destructured straight off the current entry being iterated — each entry now checks its own content, not whichever entry happened to share its path first.
+
+#2 — the export/async modifier-restore patch, updated to also carry restoredPrefix through so the UI can report it:
+
 async function seedContent(basePath, entries) {
     const created     = [];
     const overwritten = [];
     const patched     = [];
     const errors      = [];
+    const notices     = [];
     const cache       = new Map();
 
     for (const entry of entries) {
@@ -284,6 +288,9 @@ async function seedContent(basePath, entries) {
                     else result = await astPatch.applyUpdate(abs, target, content ?? '');
                     if (result.ok) {
                         patched.push(resolved);
+                        if (result.restoredPrefix) {
+                            notices.push({ path: resolved, original: relPath, notice: `auto-restored "${result.restoredPrefix}" — your pasted replacement was missing it` });
+                        }
                         continue;
                     }
                     // Do not fallback to full overwrite for surgical batch — just warn and skip, keep file as-is (or with prior patches)
@@ -300,7 +307,7 @@ async function seedContent(basePath, entries) {
         }
     }
 
-    return { created, overwritten, patched, errors };
+    return { created, overwritten, patched, errors, notices };
 }
 
 async function getPatchedPreview(basePath, resolved, allEntries) {
