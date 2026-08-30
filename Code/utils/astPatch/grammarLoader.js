@@ -14,6 +14,7 @@ const EXT_LANG = {
     py: 'python',
     php: 'php',
     vue: 'vue',
+    html: 'html', htm: 'html',
 };
 
 let initPromise = null;

@@ -108,7 +108,6 @@ async function computeAddBefore(ext, source, target, newContent) {
 
 async function computeRemove(ext, source, target) {
     const located = await locateNode(ext, source, target);
-    console.error('[computeRemove] ext=' + ext + ' target=' + target + ' located=' + !!located + ' viaGrammar=' + (located?.viaGrammar ?? 'n/a') + ' nodeType=' + (located?.node?.type ?? 'n/a') + ' start=' + (located?.node?.startIndex ?? 'n/a') + ' end=' + (located?.node?.endIndex ?? 'n/a'));
     if (!located) return { ok: false, reason: `target "${target}" not found` };
     const { node, viaGrammar } = located;
     const start = node.startIndex - leadingWhitespace(source, node.startIndex).length;
@@ -122,7 +121,6 @@ async function computeRemove(ext, source, target) {
 
 async function computeUpdate(ext, source, target, newContent) {
     const located = await locateNode(ext, source, target);
-    console.error('[computeUpdate] ext=' + ext + ' target=' + target + ' located=' + !!located + ' viaGrammar=' + (located?.viaGrammar ?? 'n/a') + ' nodeType=' + (located?.node?.type ?? 'n/a') + ' start=' + (located?.node?.startIndex ?? 'n/a') + ' end=' + (located?.node?.endIndex ?? 'n/a'));
     if (!located) return { ok: false, reason: `target "${target}" not found` };
     const { node, viaGrammar } = located;
 
