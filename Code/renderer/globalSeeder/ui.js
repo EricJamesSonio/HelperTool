@@ -360,6 +360,9 @@ export function wireUI(onClose, getBasePath) {
                 });
                 state.contentEntries = enriched;
                 state.contentPreview = preview;
+                enriched.forEach((e, i) => {
+                    window.electronAPI.fileSeeder.debugLog('[GSDebug] enriched[' + i + ']: mode=' + e.mode + ' target=' + e.target + ' content.length=' + (e.content?.length ?? 0) + ' content.preview=' + JSON.stringify((e.content ?? '').substring(0, 80)));
+                });
                 renderContentPreview(preview);
             }
             showStage('gsPreviewStage');
@@ -377,6 +380,7 @@ export function wireUI(onClose, getBasePath) {
     });
 
     document.getElementById('gsSeedBtn')?.addEventListener('click', async () => {
+        window.electronAPI.fileSeeder.debugLog('[GSDebug] gsSeedBtn clicked');
         const basePath = getBasePath();
         if (!basePath) {
             showNotice('No repo selected.');
@@ -384,6 +388,7 @@ export function wireUI(onClose, getBasePath) {
         }
 
         showStage('gsSeedingStage');
+        window.electronAPI.fileSeeder.debugLog('[GSDebug] showing gsSeedingStage, mode=' + state.mode);
         const seedingLabel = document.getElementById('gsSeedingLabel');
         if (seedingLabel) seedingLabel.textContent = 'Seeding…';
 
@@ -410,6 +415,9 @@ export function wireUI(onClose, getBasePath) {
                     mode: e.mode,
                     target: e.target,
                 }));
+                payload.forEach((p, i) => {
+                    window.electronAPI.fileSeeder.debugLog('[GSDebug] IPC payload[' + i + ']: mode=' + p.mode + ' target=' + p.target + ' content.length=' + (p.content?.length ?? 0));
+                });
                 result = await window.electronAPI.fileSeeder.seedContent(basePath, payload);
             }
 

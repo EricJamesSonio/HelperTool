@@ -282,7 +282,10 @@ async function seedContent(basePath, entries) {
                     if (effMode === 'addafter') result = await astPatch.applyAddAfter(abs, target, content ?? '');
                     else if (effMode === 'addbefore') result = await astPatch.applyAddBefore(abs, target, content ?? '');
                     else if (effMode === 'remove') result = await astPatch.applyRemove(abs, target);
-                    else result = await astPatch.applyUpdate(abs, target, content ?? '');
+                    else {
+                        console.error('[SeedDebug] content going into applyUpdate:', JSON.stringify(content));
+                        result = await astPatch.applyUpdate(abs, target, content ?? '');
+                    }
                     console.error(`[SeedDebug] surgical result ok=${result.ok} viaGrammar=${result.viaGrammar} reason=${result.reason || 'none'}`);
                     if (result.ok) {
                         patched.push(resolved);

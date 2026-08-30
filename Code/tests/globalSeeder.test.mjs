@@ -920,4 +920,55 @@ export function legacyHelper(x: unknown) {
     assert.ok(css.includes('border-radius: 8px'), 'CSS Replace applied');
     assert.ok(css.includes('.panel-header'), 'CSS Add after applied');
   });
+
+  it('PHP batch: Replace + Remove on same file (user-reported bug repro)', async () => {
+    const utilsDir = path.join(tmp, 'utils');
+    fs.mkdirSync(utilsDir, { recursive: true });
+    const phpFile = path.join(utilsDir, 'refactorTest.php');
+    const original = `<?php
+namespace App\\Utils;
+
+class RefactorTest
+{
+    public function calculateTotal(): float
+    {
+        return $this->qty * $this->priceMultiplier;
+    }
+
+    public function oldMethod(): string
+    {
+        return 'remove me';
+    }
+}`;
+    fs.writeFileSync(phpFile, original, 'utf-8');
+
+    const entries = [
+      {
+        relPath: 'utils/refactorTest.php',
+        content: `public function calculateTotal(): float\n    {\n        return $this->qty * $this->priceMultiplier * 1.1;\n    }`,
+        resolved: 'utils/refactorTest.php',
+        mode: 'update',
+        target: 'calculateTotal',
+      },
+      {
+        relPath: 'utils/refactorTest.php',
+        content: '',
+        resolved: 'utils/refactorTest.php',
+        mode: 'remove',
+        target: 'oldMethod',
+      },
+    ];
+
+    const result = await fileSeeder.seedContent(tmp, entries);
+    console.error('[TEST] seed result:', JSON.stringify(result));
+    assert.equal(result.errors.length, 0, 'no errors: ' + JSON.stringify(result.errors));
+    assert.equal(result.patched.length, 2, 'both patches applied');
+
+    const after = read(phpFile);
+    console.error('[TEST] after content:', after);
+    assert.ok(after.includes('priceMultiplier * 1.1'), 'calculateTotal was updated with new content');
+    assert.ok(after.includes('calculateTotal'), 'calculateTotal method still present');
+    assert.ok(!after.includes('oldMethod'), 'oldMethod removed');
+    assert.ok(!after.includes('remove me'), 'oldMethod body removed');
+  });
 });

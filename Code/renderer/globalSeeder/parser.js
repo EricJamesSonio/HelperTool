@@ -115,6 +115,7 @@ function isInstructionLine(line) {
 function cleanContentBuffer(buf) {
     if (!buf.length) return '';
     const raw = buf.join('\n');
+    console.error('[ParserDebug] cleanContentBuffer: buf.length=' + buf.length + ' raw.length=' + raw.length + ' raw.preview=' + JSON.stringify(raw.substring(0, 120)));
     // Priority 1: if fenced blocks exist, concatenate their interiors
     const fences = [];
     let m;
@@ -123,7 +124,9 @@ function cleanContentBuffer(buf) {
         fences.push(m[1].replace(/\n$/, ''));
     }
     if (fences.length) {
-        return fences.join('\n').trim();
+        const result = fences.join('\n').trim();
+        console.error('[ParserDebug] cleanContentBuffer: FENCED branch, fences.length=' + fences.length + ' result.length=' + result.length + ' result.preview=' + JSON.stringify(result.substring(0, 120)));
+        return result;
     }
     // Fallback for unclosed fence (truncated paste): if buf starts with ``` but no closing found, return everything after opening fence
     const firstFenceIdx = buf.findIndex(l => l.trim().startsWith('```'));
@@ -131,20 +134,23 @@ function cleanContentBuffer(buf) {
         // Check if there's no closing fence after it
         const hasClosing = buf.slice(firstFenceIdx + 1).some(l => l.trim().startsWith('```'));
         if (!hasClosing) {
-            return buf.slice(firstFenceIdx + 1).join('\n').trim();
+            const result = buf.slice(firstFenceIdx + 1).join('\n').trim();
+            console.error('[ParserDebug] cleanContentBuffer: UNCLOSED_FENCE branch, result.length=' + result.length);
+            return result;
         }
     }
     // Priority 2: unfenced — strip language token lines and instruction lines,
     // and treat the first instruction-like line after code as a terminator (drops trailing prose like "That's the shape: …")
     const out = [];
     let seenCode = false;
+    let brokeAt = -1;
     for (let i = 0; i < buf.length; i++) {
         const line = buf[i];
         const t = line.trim();
         if (LANG_TOKENS.has(t.toLowerCase())) continue;
         const isInstr = isInstructionLine(line);
         if (isInstr) {
-            if (seenCode) break; // trailing prose after code — stop here
+            if (seenCode) { brokeAt = i; break; } // trailing prose after code — stop here
             continue;
         }
         // consider a line code-like if it has a code char, is a comment, or is blank (blank is allowed between code lines)
@@ -155,13 +161,14 @@ function cleanContentBuffer(buf) {
             // prose-like line after code without being an instruction (e.g. "That's the shape: …" without em dash)
             // treat as terminator as well — but not for code comments
             const isProse = t.length > 30 && /\s/.test(t) && !CODE_CHARS_RE.test(t) && !isCodeComment;
-            if (isProse) break;
+            if (isProse) { brokeAt = i; break; }
         }
         out.push(line);
     }
     // trim leading/trailing blank lines
     let s = out.join('\n');
     s = s.replace(/^\n+/, '').replace(/\n+$/, '');
+    console.error('[ParserDebug] cleanContentBuffer: UNFENCED branch, out.length=' + out.length + ' brokeAt=' + brokeAt + ' result.length=' + s.length + ' result.preview=' + JSON.stringify(s.substring(0, 120)));
     return s;
 }
 
@@ -186,12 +193,15 @@ export function parseContentBlocks(raw) {
     function flush() {
         if (!curPath) return;
         if (curMode === 'partial') {
+            console.error('[ParserDebug] flush: SKIP partial entry, curPath=' + curPath);
             curPath = null; buf = []; curMode = 'full'; curTarget = null;
             return;
         }
+        console.error('[ParserDebug] flush: curPath=' + curPath + ' buf.length=' + buf.length + ' raw=' + JSON.stringify(buf.join('\n')));
         const content = cleanContentBuffer(buf);
         const relPath = curPath.replace(/\\/g, '/').replace(/^\.?\//, '');
         const entry = { relPath, content, mode: curMode, target: curTarget };
+        console.error('[ParserDebug] flush: relPath=' + relPath + ' mode=' + curMode + ' target=' + curTarget + ' content.length=' + content.length + ' content.preview=' + JSON.stringify(content.substring(0, 80)));
         const isSurgical = curMode !== 'full';
         if (!isSurgical && byPath.has(relPath)) {
             // full mode: last wins
@@ -256,13 +266,18 @@ export function parseContentBlocks(raw) {
 
         if (isFenceLine) {
             // fence delimiter — push to current file's buffer and toggle state
+            console.error('[ParserDebug] FENCE_LINE: line=' + JSON.stringify(line) + ' inFence(before)=' + inFence + ' curPath=' + curPath);
             if (curPath !== null) buf.push(line);
             inFence = !inFence;
+            console.error('[ParserDebug] FENCE_LINE: inFence(after)=' + inFence);
             continue;
         }
 
         if (inFence) {
-            if (curPath !== null) buf.push(line);
+            if (curPath !== null) {
+                console.error('[ParserDebug] BUF_PUSH(inFence): ' + JSON.stringify(line));
+                buf.push(line);
+            }
             continue;
         }
 
@@ -270,6 +285,7 @@ export function parseContentBlocks(raw) {
             buf.push(line);
         }
     }
+    console.error('[ParserDebug] end of loop: inFence=' + inFence + ' curPath=' + curPath + ' buf.length=' + buf.length);
     flush();
     return entries;
 }
