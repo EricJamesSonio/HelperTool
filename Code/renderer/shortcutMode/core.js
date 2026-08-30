@@ -289,8 +289,8 @@ export async function processShortcutInput(inputText, mode = 'find') {
     if (removed > 0) {
       onSelectionChange();
       updateGenerateState();
-      displayTree();
-      // Also trigger app tree refresh
+      // Let refreshBtn re-fetch the tree and re-render — displayTree() here
+      // would show stale data since state.cachedTree still has deleted files.
       document.getElementById('refreshBtn')?.click();
     }
 

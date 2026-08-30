@@ -36,6 +36,26 @@ async function loadLanguage(lang) {
     langCache.set(lang, Lang);
     return Lang;
 }
+async function tryLoadLanguage(lang) {
+    try {
+        return await loadLanguage(lang);
+    } catch (err) {
+        return null;
+    }
+}
+
+async function findGrammarNode(filePath, lang, target) {
+    const Lang = await tryLoadLanguage(lang);
+    if (!Lang) return null;
+    const source = fs.readFileSync(filePath, 'utf-8');
+    const parser = new Parser();
+    parser.setLanguage(Lang);
+    const tree = parser.parse(source);
+    const node = findNamedNode(tree.rootNode, target);
+    if (!node) return null;
+    return { node, source };
+}
+
 
 function extOf(filePath) {
     return path.extname(filePath).slice(1).toLowerCase();
@@ -198,9 +218,11 @@ async function canPatch(filePath, target, mode = 'update') {
     if ((mode === 'addAfter' || mode === 'addBefore') && (target === 'end' || target === 'imports')) {
         return { ok: true };
     }
-    // For php/vue without wasm, use string fallback
-    const needsWasm = !(ext === 'php' || ext === 'vue');
-    if (!needsWasm) {
+    if (ext === 'php' || ext === 'vue') {
+        const grammarLang = ext === 'php' ? 'php' : 'vue';
+        const found = await findGrammarNode(filePath, grammarLang, target);
+        if (found) return { ok: true };
+        // fall back to string match
         try {
             const src = fs.readFileSync(filePath, 'utf-8');
             const node = findViaString(src, target);
@@ -224,6 +246,7 @@ async function canPatch(filePath, target, mode = 'update') {
         return { ok: false, reason: err.message };
     }
 }
+
 
 function leadingWhitespace(source, index) {
     let start = index;
@@ -258,7 +281,6 @@ function reconcileModifiers(originalNodeText, newContent) {
 
 async function applyAddAfter(filePath, target, newContent) {
     const ext = extOf(filePath);
-    // PHP/Vue fallback via string
     if (ext === 'php' || ext === 'vue') {
         const source = fs.readFileSync(filePath, 'utf-8');
         if (target === 'end') {
@@ -267,17 +289,28 @@ async function applyAddAfter(filePath, target, newContent) {
             return { ok: true };
         }
         if (target === 'imports') {
-            // for php/vue just prepend after <?php or after <script>
             const lastImportRe = /(?:import\s+.*?;|require\(.*?\);|<\?php)/g;
             let last = null, m;
             while ((m = lastImportRe.exec(source)) !== null) last = m;
             const pos = last ? last.index + last[0].length : 0;
-            const indent = '';
             const before = source.slice(0, pos);
             const after = source.slice(pos);
             const toInsert = '\n' + newContent.trim() + '\n';
             fs.writeFileSync(filePath, before + toInsert + after, 'utf-8');
             return { ok: true };
+        }
+        const grammarLang = ext === 'php' ? 'php' : 'vue';
+        const found = await findGrammarNode(filePath, grammarLang, target);
+        if (found) {
+            const { node, source: src } = found;
+            const indent = leadingWhitespace(src, node.startIndex);
+            const before = src.slice(0, node.endIndex);
+            const after = src.slice(node.endIndex);
+            const needsLeadingNewline = !before.endsWith('\n');
+            let toInsert = needsLeadingNewline ? '\n' : '';
+            toInsert += reindent(newContent.trim(), indent) + '\n';
+            fs.writeFileSync(filePath, before + toInsert + after, 'utf-8');
+            return { ok: true, viaGrammar: true };
         }
         const node = findViaString(source, target);
         if (!node) return { ok: false, reason: `target "${target}" not found` };
@@ -298,7 +331,6 @@ async function applyAddAfter(filePath, target, newContent) {
     let indent = '';
     if (target === 'end') {
         insertPos = source.length;
-        // ensure file ends with newline before adding
         const needsNewline = !source.endsWith('\n');
         const toInsert = (needsNewline ? '\n' : '') + newContent.trim() + '\n';
         fs.writeFileSync(filePath, source + toInsert, 'utf-8');
@@ -310,9 +342,7 @@ async function applyAddAfter(filePath, target, newContent) {
             insertPos = lastImport.endIndex;
             indent = leadingWhitespace(source, lastImport.startIndex);
         } else {
-            // no imports, insert at top (after possible "use strict" or comments)
             insertPos = 0;
-            // skip initial comments/directives? For simplicity insert at 0
         }
     } else {
         let node = null;
@@ -323,10 +353,8 @@ async function applyAddAfter(filePath, target, newContent) {
         insertPos = node.endIndex;
         indent = leadingWhitespace(source, node.startIndex);
     }
-    // Ensure we insert after the node's line, with a blank line separation
     const before = source.slice(0, insertPos);
     const after = source.slice(insertPos);
-    // Avoid duplicating newlines: ensure one blank line before and after
     const needsLeadingNewline = !before.endsWith('\n');
     const needsTrailingNewline = !after.startsWith('\n');
     let toInsert = '';
@@ -342,6 +370,18 @@ async function applyAddAfter(filePath, target, newContent) {
 async function applyAddBefore(filePath, target, newContent) {
     const ext = extOf(filePath);
     if (ext === 'php' || ext === 'vue') {
+        const grammarLang = ext === 'php' ? 'php' : 'vue';
+        const found = await findGrammarNode(filePath, grammarLang, target);
+        if (found) {
+            const { node, source } = found;
+            const indent = leadingWhitespace(source, node.startIndex);
+            const before = source.slice(0, node.startIndex);
+            const after = source.slice(node.startIndex);
+            let toInsert = reindent(newContent.trim(), indent) + '\n';
+            if (!before.endsWith('\n')) toInsert = '\n' + toInsert;
+            fs.writeFileSync(filePath, before + toInsert + after, 'utf-8');
+            return { ok: true, viaGrammar: true };
+        }
         const source = fs.readFileSync(filePath, 'utf-8');
         const node = findViaString(source, target);
         if (!node) return { ok: false, reason: `target "${target}" not found` };
@@ -368,7 +408,6 @@ async function applyAddBefore(filePath, target, newContent) {
     const after = source.slice(node.startIndex);
     let toInsert = reindent(newContent.trim(), indent) + '\n';
     if (!before.endsWith('\n')) toInsert = '\n' + toInsert;
-    // keep one blank line before target? Inserted block already has newline after
     fs.writeFileSync(filePath, before + toInsert + after, 'utf-8');
     return { ok: true };
 }
@@ -376,12 +415,24 @@ async function applyAddBefore(filePath, target, newContent) {
 async function applyRemove(filePath, target) {
     const ext = extOf(filePath);
     if (ext === 'php' || ext === 'vue') {
+        const grammarLang = ext === 'php' ? 'php' : 'vue';
+        const found = await findGrammarNode(filePath, grammarLang, target);
+        if (found) {
+            const { node, source } = found;
+            let start = node.startIndex - leadingWhitespace(source, node.startIndex).length;
+            let end = node.endIndex;
+            if (source[end] === '\r' && source[end+1] === '\n') end += 2;
+            else if (source[end] === '\n') end += 1;
+            let patched = source.slice(0, start) + source.slice(end);
+            patched = patched.replace(/\n{3,}/g, '\n\n');
+            fs.writeFileSync(filePath, patched, 'utf-8');
+            return { ok: true, viaGrammar: true };
+        }
         const source = fs.readFileSync(filePath, 'utf-8');
         const node = findViaString(source, target);
         if (!node) return { ok: false, reason: `target "${target}" not found` };
         let start = node.startIndex;
         while (start > 0 && source[start-1] !== '\n') start--;
-        // include leading whitespace line
         const wsLen = source.slice(start, node.startIndex).match(/^[ \t]*/)[0].length;
         start = node.startIndex - wsLen;
         let end = node.endIndex;
@@ -404,16 +455,11 @@ async function applyRemove(filePath, target) {
     else if (ext === 'json') node = findJsonPath(tree.rootNode, target) || findNamedNode(tree.rootNode, target);
     else node = findNamedNode(tree.rootNode, target);
     if (!node) return { ok: false, reason: `target "${target}" not found` };
-    // Remove node plus its leading indent and one trailing newline, but leave a single blank line
     const start = node.startIndex - leadingWhitespace(source, node.startIndex).length;
     let end = node.endIndex;
-    // consume one trailing newline if present
     if (source[end] === '\r' && source[end+1] === '\n') end += 2;
     else if (source[end] === '\n') end += 1;
-    // If next char is also newline (blank line), keep one blank line
     let patched = source.slice(0, start) + source.slice(end);
-    // Ensure we leave exactly one blank line where node was (so file doesn't have triple blanks)
-    // If patched has \n\n\n where node was, collapse to \n\n
     patched = patched.replace(/\n{3,}/g, '\n\n');
     fs.writeFileSync(filePath, patched, 'utf-8');
     return { ok: true };
@@ -437,6 +483,18 @@ async function applySurgical(filePath, mode, target, newContent) {
 async function applyUpdate(filePath, target, newContent) {
     const ext = extOf(filePath);
     if (ext === 'php' || ext === 'vue') {
+        const grammarLang = ext === 'php' ? 'php' : 'vue';
+        const found = await findGrammarNode(filePath, grammarLang, target);
+        if (found) {
+            const { node, source } = found;
+            const indent = leadingWhitespace(source, node.startIndex);
+            const { content: reconciled, restoredPrefix } = reconcileModifiers(node.text, newContent);
+            const replacement = reindent(reconciled.trim(), indent);
+            const patched = source.slice(0, node.startIndex) + replacement + source.slice(node.endIndex);
+            fs.writeFileSync(filePath, patched, 'utf-8');
+            return { ok: true, restoredPrefix, viaGrammar: true };
+        }
+        // fall back to string match
         const source = fs.readFileSync(filePath, 'utf-8');
         const node = findViaString(source, target);
         if (!node) return { ok: false, reason: `target "${target}" not found` };
@@ -467,7 +525,6 @@ async function applyUpdate(filePath, target, newContent) {
     if (lang === 'css') {
         node = findCssRule(tree.rootNode, target);
     } else if (ext === 'json') {
-        // try dot-path first, then plain name
         node = findJsonPath(tree.rootNode, target) || findNamedNode(tree.rootNode, target);
     } else {
         node = findNamedNode(tree.rootNode, target);
@@ -475,7 +532,6 @@ async function applyUpdate(filePath, target, newContent) {
 
     if (!node) return { ok: false, reason: `target "${target}" not found in ${filePath}` };
 
-    // For JSON pairs, replace only the value, not the whole key:value pair
     let replaceNode = node;
     if (node.type === 'pair') {
         const val = node.childForFieldName('value');
@@ -498,11 +554,11 @@ async function applyUpdate(filePath, target, newContent) {
     return { ok: true, restoredPrefix };
 }
 
+
 async function getDryPatchedContent(filePath, mode, target, newContent) {
     const ext = path.extname(filePath).slice(1).toLowerCase();
     const exists = fs.existsSync(filePath);
     if (!exists) {
-        // For create, the patched content is just the new file content
         return newContent ?? '';
     }
     const source = fs.readFileSync(filePath, 'utf-8');
@@ -510,7 +566,6 @@ async function getDryPatchedContent(filePath, mode, target, newContent) {
     if (m === 'addafter') {
         if (target === 'end') return source + (source.endsWith('\n') ? '' : '\n') + (newContent||'').trim() + '\n';
         if (target === 'imports') {
-            // string fallback for imports case - find last import
             const lastImportRe = /(?:import\s+.*?;|require\(.*?\);|<\?php)/g;
             let last = null, mm;
             while ((mm = lastImportRe.exec(source)) !== null) last = mm;
@@ -520,15 +575,22 @@ async function getDryPatchedContent(filePath, mode, target, newContent) {
             }
             return (newContent||'').trim() + '\n' + source;
         }
-        // For regular addAfter, reuse applyAddAfter logic but without writing
-        const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
         if (ext === 'php' || ext === 'vue') {
+            const grammarLang = ext === 'php' ? 'php' : 'vue';
+            const found = await findGrammarNode(filePath, grammarLang, target);
+            if (found) {
+                const { node, source: src } = found;
+                const indent = leadingWhitespace(src, node.startIndex);
+                const before = src.slice(0, node.endIndex);
+                const after = src.slice(node.endIndex);
+                return before + '\n' + reindent((newContent||'').trim(), indent) + '\n' + after;
+            }
+            const node = findViaString(source, target);
             if (!node) return source;
             const before = source.slice(0, node.endIndex);
             const after = source.slice(node.endIndex);
             return before + '\n' + (newContent||'').trim() + '\n' + after;
         }
-        // For tree-sitter languages, do in-memory patch
         try {
             const lang = EXT_LANG[ext] || (ext === 'json' ? 'javascript' : null);
             if (!lang) return source;
@@ -549,8 +611,15 @@ async function getDryPatchedContent(filePath, mode, target, newContent) {
         } catch { return source; }
     }
     if (m === 'addbefore') {
-        const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
         if (ext === 'php' || ext === 'vue') {
+            const grammarLang = ext === 'php' ? 'php' : 'vue';
+            const found = await findGrammarNode(filePath, grammarLang, target);
+            if (found) {
+                const { node, source: src } = found;
+                const indent = leadingWhitespace(src, node.startIndex);
+                return src.slice(0, node.startIndex) + reindent((newContent||'').trim(), indent) + '\n' + src.slice(node.startIndex);
+            }
+            const node = findViaString(source, target);
             if (!node) return source;
             return source.slice(0, node.startIndex) + (newContent||'').trim() + '\n' + source.slice(node.startIndex);
         }
@@ -571,8 +640,19 @@ async function getDryPatchedContent(filePath, mode, target, newContent) {
         } catch { return source; }
     }
     if (m === 'remove') {
-        const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
         if (ext === 'php' || ext === 'vue') {
+            const grammarLang = ext === 'php' ? 'php' : 'vue';
+            const found = await findGrammarNode(filePath, grammarLang, target);
+            if (found) {
+                const { node, source: src } = found;
+                let start = node.startIndex - leadingWhitespace(src, node.startIndex).length;
+                let end = node.endIndex;
+                if (src[end] === '\n') end++;
+                let patched = src.slice(0, start) + src.slice(end);
+                patched = patched.replace(/\n{3,}/g, '\n\n');
+                return patched;
+            }
+            const node = findViaString(source, target);
             if (!node) return source;
             let start = node.startIndex;
             while (start > 0 && source[start-1] !== '\n') start--;
@@ -602,7 +682,6 @@ async function getDryPatchedContent(filePath, mode, target, newContent) {
             return patched;
         } catch { return source; }
     }
-    // replace / update
     const node = ext === 'php' || ext === 'vue' ? findViaString(source, target) : null;
     if (ext === 'php' || ext === 'vue') {
         if (!node) return source;
