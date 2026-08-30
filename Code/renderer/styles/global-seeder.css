@@ -337,6 +337,23 @@
     border-color: rgba(251,146,60,0.24);
 }
 
+.gs-badge-verify {
+    background: var(--red-dim, rgba(239,68,68,0.14));
+    color: var(--red, #ef4444);
+    border-color: rgba(239,68,68,0.28);
+}
+.gs-preview-row--verify-warn { background: rgba(239,68,68,0.08); border-left-color: rgba(239,68,68,0.55); }
+.gs-preview-row--verify-warn .gs-row-icon { color: #ef4444; }
+.gs-preview-row--verify-warn .gs-row-badge {
+    background: rgba(239,68,68,0.14);
+    color: #ef4444;
+    border-color: rgba(239,68,68,0.30);
+    max-width: 52%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Preview list */
 .gs-preview-list {
     flex: 1;
