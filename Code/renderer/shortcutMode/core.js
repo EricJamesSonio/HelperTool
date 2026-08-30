@@ -5,6 +5,7 @@ import { displayTree } from '../app_manager/viewManager.js';
 import { getFlatList } from '../searchManager.js';
 import { FILE_EXTENSIONS } from './constants.js';
 import { levenshteinDistance } from './levenshtein.js';
+import { confirmDialog } from '../utils/confirmDialog.js';
 
 // ── Extraction ────────────────────────────────────────────────────────────────
 
@@ -174,7 +175,7 @@ export function unselectMatchedFile(filePath) {
   }
 }
 
-export function processShortcutInput(inputText) {
+export async function processShortcutInput(inputText, mode = 'find') {
   const flatList = getFlatList();
   if (!flatList || flatList.length === 0) {
     return { success: false, message: 'No files available in current tree' };
@@ -250,15 +251,69 @@ export function processShortcutInput(inputText) {
     results.push(result);
   }
 
+  const foundResults = results.filter(r => r.found);
+  const foundCount = foundResults.filter(r => !r.alreadySelected).length;
+  const alreadySelectedCount = foundResults.filter(r => r.alreadySelected).length;
+  const notFoundCount = results.filter(r => !r.found).length;
+
+  // ── Remove mode ────────────────────────────────────────────────────────────
+  if (mode === 'remove' && foundResults.length > 0) {
+    const fileList = foundResults.map(r => r.path || r.original).join('<br>');
+    const ok = await confirmDialog(
+      `Delete <strong>${foundResults.length}</strong> matched file(s)?<br><br>` +
+      `<div style="max-height:200px;overflow-y:auto;font-size:12px;font-family:var(--font-mono);color:var(--text-secondary);line-height:1.6;border:1px solid var(--border-subtle);border-radius:6px;padding:8px 12px;background:var(--bg-raised)">${fileList}</div>` +
+      `<br>This cannot be undone.`
+    );
+    if (!ok) {
+      return { success: true, results, summary: { total: results.length, newlySelected: 0, alreadySelected: 0, notFound: notFoundCount, removed: 0, cancelled: true } };
+    }
+
+    let removed = 0;
+    const errors = [];
+    for (const r of foundResults) {
+      try {
+        const res = await window.electronAPI.deleteFile(r.filePath);
+        if (res.success) {
+          removed++;
+          // Remove from selectedItems if it was selected
+          const idx = state.selectedItems.findIndex(p => p.replace(/\\/g, '/') === r.filePath.replace(/\\/g, '/'));
+          if (idx !== -1) state.selectedItems.splice(idx, 1);
+        } else {
+          errors.push({ path: r.path, error: res.error });
+        }
+      } catch (err) {
+        errors.push({ path: r.path, error: err.message });
+      }
+    }
+
+    if (removed > 0) {
+      onSelectionChange();
+      updateGenerateState();
+      // Let refreshBtn re-fetch the tree and re-render — displayTree() here
+      // would show stale data since state.cachedTree still has deleted files.
+      document.getElementById('refreshBtn')?.click();
+    }
+
+    return {
+      success: true,
+      results,
+      summary: {
+        total: results.length,
+        newlySelected: 0,
+        alreadySelected: 0,
+        notFound: notFoundCount,
+        removed,
+        errors,
+      },
+    };
+  }
+
+  // ── Find mode (default) ────────────────────────────────────────────────────
   if (newlySelected.length > 0) {
     onSelectionChange();
     updateGenerateState();
     displayTree();
   }
-
-  const foundCount           = results.filter(r => r.found && !r.alreadySelected).length;
-  const alreadySelectedCount = results.filter(r => r.found && r.alreadySelected).length;
-  const notFoundCount        = results.filter(r => !r.found).length;
 
   return {
     success: true,

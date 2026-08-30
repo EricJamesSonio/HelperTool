@@ -17,10 +17,10 @@ const ALLOWED_EXTS = new Set([
 const EXT_RE = /\.[a-zA-Z0-9]{1,10}$/;
 const GLUED_LANG_RE = /(\.[a-zA-Z0-9]{1,10})(js|jsx|ts|tsx|css|scss|less|html|htm|py|json|md|sh|bash|yaml|yml|sql|xml|vue|svelte|go|rs|java|c|cpp|rb|php|env)$/i;
 const FENCE_BLOCK_RE = /```[ \t]*[a-zA-Z0-9]*\r?\n([\s\S]*?)```/g;
-const CODE_CHARS_RE = /[{}\[\]();=<>`"'$]/;
+const CODE_CHARS_RE = /[{}\[\]();=<>`"'$:,?]/;
 const INSTRUCTION_PREFIX_RE = /^(replace|and|update|note|this|here|please|the|you can|update the|replace the)\b/i;
 const PARTIAL_RE = /\(partial\)/i;
-const UPDATE_RE  = /\(update:\s*([^)]+)\)/i;
+const SURGICAL_RE = /\((add(?:\s+after|\s+before)?|replace|update|remove)\s*:\s*([^)]+)\)/i;
 
 /**
  * Extract path candidate from a single line.
@@ -81,8 +81,11 @@ function isValidPath(p) {
     if (!EXT_RE.test(p)) return false;
     if (p.length < 3) return false;
     if (p.startsWith('-') || p.startsWith('.')) return false;
-    if (!/^[a-zA-Z0-9._\-\/]+$/.test(p)) return false;
-    const ext = p.split('.').pop().toLowerCase();
+    // Allow Next.js dynamic segments: [param], [[...param]], (group), and catch-all ... inside
+    if (!/^[a-zA-Z0-9._\-\/\[\]\(\)\.]+$/.test(p)) return false;
+    // Strip bracket/parenthesis wrappers for ext check, but keep them for path validity
+    const cleanForExt = p.replace(/[\[\]\(\)]/g, '');
+    const ext = cleanForExt.split('.').pop().toLowerCase();
     if (!ALLOWED_EXTS.has(ext) && !LANG_TOKENS.has(ext)) return false;
     return true;
 }
@@ -91,11 +94,12 @@ function isInstructionLine(line) {
     const t = line.trim();
     if (!t) return false;
     if (t.startsWith('```')) return false;
+    if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('* ') || t.startsWith('#')) return false; // code comment, keep as code
     if (LANG_TOKENS.has(t.toLowerCase())) return false;
     if (/^(that's|this is|the shape|no prose|immediately followed)\b/i.test(t)) return true;
     // long prose ending with period, no code chars, starts with capital instruction
     if (INSTRUCTION_PREFIX_RE.test(t)) return true;
-    // contains em dash and no code chars
+    // contains em dash and no code chars (allow parens/commas — common in prose descriptions)
     if (/[—–]/.test(t) && !CODE_CHARS_RE.test(t)) return true;
     // sentence-like: >40 chars, contains spaces, ends with ., no code chars, no leading code keyword
     if (t.length > 40 && /\s/.test(t) && t.endsWith('.') && !CODE_CHARS_RE.test(t)) {
@@ -121,6 +125,33 @@ function cleanContentBuffer(buf) {
     if (fences.length) {
         return fences.join('\n').trim();
     }
+    // Priority 1.5: closing fence but no opening — treat content before closing fence as fenced
+    // This handles the common AI output pattern where the opening ``` is missing:
+    //   path (Replace: target)
+    //   php
+    //       code...
+    //   ```
+    if (!fences.length) {
+        const lastFenceIdx = buf.findLastIndex(l => l.trim().startsWith('```'));
+        if (lastFenceIdx > 0) {
+            const hasOpening = buf.slice(0, lastFenceIdx).some(l => l.trim().startsWith('```'));
+            if (!hasOpening) {
+                // Take everything before the closing fence, strip lang tokens and leading/trailing blanks
+                return buf.slice(0, lastFenceIdx)
+                    .filter(l => !LANG_TOKENS.has(l.trim().toLowerCase()))
+                    .join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
+            }
+        }
+    }
+    // Fallback for unclosed fence (truncated paste): if buf starts with ``` but no closing found, return everything after opening fence
+    const firstFenceIdx = buf.findIndex(l => l.trim().startsWith('```'));
+    if (firstFenceIdx !== -1) {
+        // Check if there's no closing fence after it
+        const hasClosing = buf.slice(firstFenceIdx + 1).some(l => l.trim().startsWith('```'));
+        if (!hasClosing) {
+            return buf.slice(firstFenceIdx + 1).join('\n').trim();
+        }
+    }
     // Priority 2: unfenced — strip language token lines and instruction lines,
     // and treat the first instruction-like line after code as a terminator (drops trailing prose like "That's the shape: …")
     const out = [];
@@ -129,18 +160,20 @@ function cleanContentBuffer(buf) {
         const line = buf[i];
         const t = line.trim();
         if (LANG_TOKENS.has(t.toLowerCase())) continue;
+        if (t.startsWith('```')) continue; // skip fence delimiters
         const isInstr = isInstructionLine(line);
         if (isInstr) {
             if (seenCode) break; // trailing prose after code — stop here
             continue;
         }
-        // consider a line code-like if it has a code char or is blank (blank is allowed between code lines)
-        if (CODE_CHARS_RE.test(line) || t === '') {
+        // consider a line code-like if it has a code char, is a comment, or is blank (blank is allowed between code lines)
+        const isCodeComment = t.startsWith('//') || t.startsWith('/*') || t.startsWith('*');
+        if (CODE_CHARS_RE.test(line) || t === '' || isCodeComment) {
             if (t !== '') seenCode = true;
         } else if (seenCode && t.length > 0) {
             // prose-like line after code without being an instruction (e.g. "That's the shape: …" without em dash)
-            // treat as terminator as well
-            const isProse = t.length > 30 && /\s/.test(t) && !CODE_CHARS_RE.test(t);
+            // treat as terminator as well — but not for code comments
+            const isProse = t.length > 30 && /\s/.test(t) && !CODE_CHARS_RE.test(t) && !isCodeComment;
             if (isProse) break;
         }
         out.push(line);
@@ -178,12 +211,15 @@ export function parseContentBlocks(raw) {
         const content = cleanContentBuffer(buf);
         const relPath = curPath.replace(/\\/g, '/').replace(/^\.?\//, '');
         const entry = { relPath, content, mode: curMode, target: curTarget };
-        if (byPath.has(relPath)) {
+        const isSurgical = curMode !== 'full';
+        if (!isSurgical && byPath.has(relPath)) {
+            // full mode: last wins
             Object.assign(byPath.get(relPath), entry);
-            const idx = entries.findIndex(e => e.relPath === relPath);
+            const idx = entries.findIndex(e => e.relPath === relPath && e.mode === 'full');
             if (idx !== -1) entries[idx] = { ...entries[idx], ...entry };
+            else entries.push(entry);
         } else {
-            byPath.set(relPath, entry);
+            if (!isSurgical) byPath.set(relPath, entry);
             entries.push(entry);
         }
         curPath = null; buf = []; curMode = 'full'; curTarget = null;
@@ -212,12 +248,25 @@ export function parseContentBlocks(raw) {
                     if (j < lines.length && lines[j].trim().startsWith('```')) isHeader = true;
                 }
                 if (isHeader) {
-                    const isPartial   = PARTIAL_RE.test(line);
-                    const updateMatch = line.match(UPDATE_RE);
+                    const surgicalMatch = line.match(SURGICAL_RE);
+                    const isPartial = !surgicalMatch && PARTIAL_RE.test(line);
                     flush();
-                    curPath   = cand;
-                    curMode   = isPartial ? 'partial' : (updateMatch ? 'update' : 'full');
-                    curTarget = updateMatch ? updateMatch[1].trim() : null;
+                    curPath = cand;
+                    if (isPartial) {
+                        curMode = 'partial';
+                        curTarget = null;
+                    } else if (surgicalMatch) {
+                        const opRaw = surgicalMatch[1].toLowerCase().replace(/\s+/g, '');
+                        const targetRaw = surgicalMatch[2].trim();
+                        if (opRaw === 'update' || opRaw === 'replace') { curMode = 'update'; curTarget = targetRaw; }
+                        else if (opRaw === 'addafter' || opRaw === 'add') { curMode = 'addAfter'; curTarget = targetRaw; }
+                        else if (opRaw === 'addbefore') { curMode = 'addBefore'; curTarget = targetRaw; }
+                        else if (opRaw === 'remove') { curMode = 'remove'; curTarget = targetRaw; }
+                        else { curMode = 'update'; curTarget = targetRaw; }
+                    } else {
+                        curMode = 'full';
+                        curTarget = null;
+                    }
                     buf = [];
                     continue;
                 }

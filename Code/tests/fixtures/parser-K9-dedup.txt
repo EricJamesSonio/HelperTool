@@ -1,0 +1,9 @@
+a.ts
+```ts
+first
+```
+
+a.ts
+```ts
+second
+```

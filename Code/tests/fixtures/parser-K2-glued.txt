@@ -1,0 +1,4 @@
+components/a/B.module.csscss
+```css
+.panel { margin: 0; }
+```

@@ -1,0 +1,9 @@
+a.ts (Partial)
+```ts
+function partial(){ return 1; }
+```
+
+a.ts
+```ts
+export const keep = 1;
+```

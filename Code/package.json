@@ -7,6 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
+    "test": "node --test tests/*.test.mjs",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:dbgraph": "esbuild renderer/databaseInspector/graph.jsx --bundle --outfile=renderer/databaseInspector/graph-bundle.js --format=esm",
@@ -54,7 +55,8 @@
   "devDependencies": {
     "electron": "^44.0.0",
     "electron-builder": "^26.8.1",
-    "esbuild": "^0.28.0"
+    "esbuild": "^0.28.0",
+    "tree-sitter-cli": "^0.26.13"
   },
   "dependencies": {
     "@ffprobe-installer/ffprobe": "^2.1.2",
@@ -80,6 +82,7 @@
     "tree-sitter-css": "^0.25.0",
     "tree-sitter-html": "^0.23.2",
     "tree-sitter-javascript": "^0.25.0",
+    "tree-sitter-php": "^0.24.2",
     "tree-sitter-python": "^0.25.0",
     "tree-sitter-typescript": "^0.23.2",
     "web-tree-sitter": "^0.26.9"

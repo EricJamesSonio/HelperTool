@@ -1,0 +1,7 @@
+utils/refactorTest.php (Replace: calculateTotal)
+php
+    public function calculateTotal(array $items): float
+    {
+        return 42;
+    }
+```

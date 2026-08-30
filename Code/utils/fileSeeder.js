@@ -2,7 +2,10 @@
 
 const fs   = require('fs');
 const path = require('path');
+const os   = require('os');
 const astPatch = require('./astPatch');
+const syntaxVerifier = require('./syntaxVerifier');
+const { extOf } = require('./astPatch/textUtils');
 
 const IGNORE_DIRS = new Set([
     'node_modules', '.git', '.next', 'dist', 'build', '.turbo',
@@ -11,6 +14,55 @@ const IGNORE_DIRS = new Set([
 
 const MAX_SEARCH_DEPTH = 6;
 const MAX_DIRS_SCANNED = 6000;
+const MIN_VERIFY_LEN = 20;
+
+function isTruncatedContent(content) {
+    if (!content || content.trim().length < MIN_VERIFY_LEN) return null;
+    const s = content.trim();
+    // String-aware unbalanced check — skip inside ', ", `, //, /* */
+    let openBrace = 0, closeBrace = 0, openParen = 0, closeParen = 0, openBracket = 0, closeBracket = 0;
+    let inSingle = false, inDouble = false, inTick = false, inLineComment = false, inBlockComment = false;
+    let esc = false;
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        const nxt = s[i+1];
+        if (inLineComment) {
+            if (ch === '\n') inLineComment = false;
+            continue;
+        }
+        if (inBlockComment) {
+            if (ch === '*' && nxt === '/') { inBlockComment = false; i++; }
+            continue;
+        }
+        if (esc) { esc = false; continue; }
+        if (ch === '\\' && (inSingle || inDouble || inTick)) { esc = true; continue; }
+        if (!inSingle && !inDouble && !inTick) {
+            if (ch === '/' && nxt === '/') { inLineComment = true; continue; }
+            if (ch === '/' && nxt === '*') { inBlockComment = true; continue; }
+            if (ch === "'") { inSingle = true; continue; }
+            if (ch === '"') { inDouble = true; continue; }
+            if (ch === '`') { inTick = true; continue; }
+            if (ch === '{') openBrace++;
+            else if (ch === '}') closeBrace++;
+            else if (ch === '(') openParen++;
+            else if (ch === ')') closeParen++;
+            else if (ch === '[') openBracket++;
+            else if (ch === ']') closeBracket++;
+        } else {
+            if (inSingle && ch === "'") inSingle = false;
+            else if (inDouble && ch === '"') inDouble = false;
+            else if (inTick && ch === '`') inTick = false;
+        }
+    }
+    if (openBrace > closeBrace || openParen > closeParen || openBracket > closeBracket) {
+        return `content may be truncated — unbalanced ${openBrace>closeBrace?'braces':openParen>closeParen?'parens':'brackets'}`;
+    }
+    // Ends with dangling syntax that suggests truncation
+    if (/[,\:\(\[\{=]$/.test(s) || s.endsWith('=>')) {
+        return `content may be truncated — ends with "${s.slice(-10)}"`;
+    }
+    return null;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers: smart anchoring
@@ -93,13 +145,14 @@ function resolveRelPath(basePath, relPath, cache) {
     }
     const rest = parts.slice(1).join('/');
     // candidates as rel paths from base (for preview display)
-    const relCands = cands.map(abs => path.relative(basePath, abs).replace(/\\/g, '/'));
+    // Prepend '' as "root" option — file goes directly under basePath
+    const relCands = [''].concat(cands.map(abs => path.relative(basePath, abs).replace(/\\/g, '/')));
     if (cands.length === 1) {
-        const anchored = path.posix.join(relCands[0], rest);
-        return { resolved: anchored, candidates: relCands, ambiguous: false };
+        const anchored = path.posix.join(relCands[1], rest);
+        return { resolved: anchored, candidates: relCands, ambiguous: true };
     }
     // ambiguous — default to first/shallowest but expose all
-    const anchored = path.posix.join(relCands[0], rest);
+    const anchored = path.posix.join(relCands[1], rest);
     return { resolved: anchored, candidates: relCands, ambiguous: true };
 }
 
@@ -153,6 +206,32 @@ function seed(basePath, relPaths) {
 // Content mode — smart-anchored
 // ---------------------------------------------------------------------------
 
+const SURGICAL_MODES = new Set(['update', 'replace', 'addafter', 'addbefore', 'remove']);
+function isSurgical(mode) { return SURGICAL_MODES.has((mode||'').toLowerCase().replace(/\s+/g,'')); }
+
+async function computePatchedRight(basePath, resolved, entriesForFile, left) {
+    let right = left;
+    const fullEntries = entriesForFile.filter(e => !isSurgical(e.mode||'full'));
+    if (fullEntries.length) right = fullEntries[fullEntries.length - 1].content ?? '';
+    const ext = path.extname(path.join(basePath, resolved)) || '.txt';
+    const tmpFile = path.join(os.tmpdir(), `gs-patched-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
+    try {
+        fs.writeFileSync(tmpFile, right, 'utf-8');
+        for (const e of entriesForFile) {
+            const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
+            if (!isSurgical(m)) continue;
+            const effMode = m === 'replace' ? 'update' : m;
+            let res;
+            if (effMode === 'addafter') res = await astPatch.applyAddAfter(tmpFile, e.target, e.content ?? '');
+            else if (effMode === 'addbefore') res = await astPatch.applyAddBefore(tmpFile, e.target, e.content ?? '');
+            else if (effMode === 'remove') res = await astPatch.applyRemove(tmpFile, e.target);
+            else res = await astPatch.applyUpdate(tmpFile, e.target, e.content ?? '');
+        }
+        right = fs.readFileSync(tmpFile, 'utf-8');
+    } finally { try { fs.unlinkSync(tmpFile); } catch {} }
+    return right;
+}
+
 async function previewContent(basePath, entries) {
     const toCreate    = [];
     const toOverwrite = [];
@@ -161,27 +240,53 @@ async function previewContent(basePath, entries) {
     const details     = [];
     const cache       = new Map();
 
-    for (const { relPath, mode, target } of entries) {
+    for (const { relPath, mode, target, content } of entries) {
         const { resolved, candidates, ambiguous } = resolveRelPath(basePath, relPath, cache);
         const abs = path.join(basePath, resolved);
         const exists = fs.existsSync(abs);
 
         let warning = null;
         let effMode = mode ?? 'full';
-        if (effMode === 'update') {
-            if (!exists) {
-                warning = `file not found — will create full file`;
-                // keep as patch in preview but mark warning; seed will fallback to full
-            } else if (target) {
+        const surgical = isSurgical(effMode);
+        // Check for likely truncated content (unbalanced braces or ends with dangling syntax)
+        const truncWarning = isTruncatedContent(content || '');
+        if (truncWarning) warning = (warning ? warning + '; ' : '') + truncWarning;
+
+        // For full-mode entries, verify the pasted content itself (basic structure)
+        if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN) {
+            try {
+                const v = await syntaxVerifier.verifySyntax(content, extOf(resolved));
+                if (v && !v.ok) {
+                    const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+                    warning = (warning ? warning + '; ' : '') + syn;
+                }
+            } catch (_) {}
+        } else if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN / 2 && content.trim().length < MIN_VERIFY_LEN) {
+            // Transitional: keep B3 extraClose (15 chars, close>open) flagged while unifying to 20
+            try {
+                const v = await syntaxVerifier.verifySyntax(content, extOf(resolved));
+                if (v && !v.ok && v.error.includes('unexpected closing')) {
+                    const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+                    warning = (warning ? warning + '; ' : '') + syn;
+                }
+            } catch (_) {}
+        }
+
+        if (surgical) {
+            if (!exists && effMode !== 'addAfter' && effMode !== 'addBefore') {
+                // remove/replace on non-existent file will fallback
+                warning = (warning ? warning + '; ' : '') + `file not found — will create full file`;
+            } else if (target && exists) {
                 try {
-                    const check = await astPatch.canPatch(abs, target);
+                    const check = await astPatch.canPatch(abs, target, effMode);
                     if (!check.ok) {
-                        warning = check.reason;
-                        // keep mode as update but flag; UI will show warning badge
+                        warning = (warning ? warning + '; ' : '') + check.reason;
                     }
                 } catch (e) {
-                    warning = e.message;
+                    warning = (warning ? warning + '; ' : '') + e.message;
                 }
+            } else if (!target && effMode !== 'addAfter' && effMode !== 'addBefore') {
+                warning = (warning ? warning + '; ' : '') + `surgical mode requires a target`;
             }
             toPatch.push(resolved);
         } else {
@@ -202,6 +307,40 @@ async function previewContent(basePath, entries) {
         if (warning) warnings.push({ path: resolved, warning });
     }
 
+    // Second pass: for surgical batches, verify the *patched* result per resolved file
+    // so the preview list shows "syntax error" before the user clicks into diff.
+    try {
+        const groups = new Map();
+        for (let i = 0; i < details.length; i++) {
+            const d = details[i];
+            if (!isSurgical(d.mode)) continue;
+            if (!groups.has(d.resolved)) groups.set(d.resolved, []);
+            groups.get(d.resolved).push(i);
+        }
+        for (const [resolved, idxs] of groups) {
+            const abs = path.join(basePath, resolved);
+            const exists = fs.existsSync(abs);
+            const left = exists ? fs.readFileSync(abs, 'utf-8') : '';
+            const groupEntries = idxs.map(i => entries[i]).filter(Boolean);
+            const right = await computePatchedRight(basePath, resolved, groupEntries, left);
+            const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
+            let extra = null;
+            if (v && !v.ok) {
+                extra = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+            }
+            const trunc = isTruncatedContent(right);
+            if (trunc) extra = extra ? extra + '; ' + trunc : trunc;
+            if (extra) {
+                for (const i of idxs) {
+                    const d = details[i];
+                    d.warning = d.warning ? d.warning + '; ' + extra : extra;
+                }
+                const existing = warnings.find(w=>w.path===resolved && w.warning.includes(extra));
+                if (!existing) warnings.push({ path: resolved, warning: extra });
+            }
+        }
+    } catch (_) {}
+
     return { toCreate, toOverwrite, toPatch, details, warnings };
 }
 
@@ -210,6 +349,7 @@ async function seedContent(basePath, entries) {
     const overwritten = [];
     const patched     = [];
     const errors      = [];
+    const notices     = [];
     const cache       = new Map();
 
     for (const entry of entries) {
@@ -231,14 +371,36 @@ async function seedContent(basePath, entries) {
             fs.mkdirSync(dir, { recursive: true });
             const existed = fs.existsSync(abs);
 
-            if (mode === 'update' && target && existed) {
-                const result = await astPatch.applyUpdate(abs, target, content ?? '');
-                if (result.ok) {
-                    patched.push(resolved);
+            const surgical = isSurgical(mode);
+            if (surgical && target) {
+                if (!existed) {
+                    const n = (mode||'').toLowerCase().replace(/\s+/g,'');
+                    if (n === 'addafter' || n === 'addbefore') {
+                        fs.writeFileSync(abs, content ?? '', 'utf-8');
+                        patched.push(resolved);
+                        continue;
+                    }
+                    errors.push({ path: resolved, original: relPath, warning: `patch fallback: file not found — created full file` });
+                    // fall through to full create below
+                } else {
+                    const normMode = (mode||'').toLowerCase().replace(/\s+/g,'');
+                    const effMode = normMode === 'replace' ? 'update' : normMode;
+                    let result;
+                    if (effMode === 'addafter') result = await astPatch.applyAddAfter(abs, target, content ?? '');
+                    else if (effMode === 'addbefore') result = await astPatch.applyAddBefore(abs, target, content ?? '');
+                    else if (effMode === 'remove') result = await astPatch.applyRemove(abs, target);
+                    else result = await astPatch.applyUpdate(abs, target, content ?? '');
+                    if (result.ok) {
+                        patched.push(resolved);
+                        if (result.restoredPrefix) {
+                            notices.push({ path: resolved, original: relPath, notice: `auto-restored "${result.restoredPrefix}" — your pasted replacement was missing it` });
+                        }
+                        continue;
+                    }
+                    // Do not fallback to full overwrite for surgical batch — just warn and skip, keep file as-is (or with prior patches)
+                    errors.push({ path: resolved, original: relPath, warning: `patch skipped: ${result.reason}` });
                     continue;
                 }
-                errors.push({ path: resolved, original: relPath, warning: `patch fallback: ${result.reason}` });
-                // falls through to full write below
             }
 
             fs.writeFileSync(abs, content ?? '', 'utf-8');
@@ -249,7 +411,39 @@ async function seedContent(basePath, entries) {
         }
     }
 
-    return { created, overwritten, patched, errors };
+    return { created, overwritten, patched, errors, notices };
 }
 
-module.exports = { preview, seed, previewContent, seedContent, findCandidates, resolveRelPath, IGNORE_DIRS };
+async function getPatchedPreview(basePath, resolved, allEntries) {
+    const abs = path.join(basePath, resolved);
+    const exists = fs.existsSync(abs);
+    let left = exists ? fs.readFileSync(abs, 'utf-8') : '';
+    const cache = new Map();
+    const mapped = allEntries.map(e => ({ ...e, resolved: e.resolved || resolveRelPath(basePath, e.relPath, cache).resolved }));
+    const entriesForFile = mapped.filter(e => e.resolved === resolved);
+    if (!entriesForFile.length) {
+        return { left, right: left };
+    }
+    const hasSurgical = entriesForFile.some(e => isSurgical(e.mode));
+    if (!hasSurgical) {
+        const last = entriesForFile[entriesForFile.length - 1];
+        const right = last.content ?? '';
+        try {
+            const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
+            if (v && !v.ok) return { left, right, syntaxError: v };
+            const trunc = isTruncatedContent(right);
+            if (trunc) return { left, right, syntaxError: { ok:false, error: trunc } };
+        } catch (_) {}
+        return { left, right };
+    }
+    const right = await computePatchedRight(basePath, resolved, entriesForFile, left);
+    try {
+        const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
+        if (v && !v.ok) return { left, right, syntaxError: v };
+        const trunc = isTruncatedContent(right);
+        if (trunc) return { left, right, syntaxError: { ok:false, error: trunc } };
+    } catch (_) {}
+    return { left, right };
+}
+
+module.exports = { preview, seed, previewContent, seedContent, findCandidates, resolveRelPath, IGNORE_DIRS, getPatchedPreview };

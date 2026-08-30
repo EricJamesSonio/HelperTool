@@ -1,0 +1,14 @@
+app/api/admin/orders/[row]/route.ts
+```ts
+export async function GET(){ return 1; }
+```
+
+app/[[...slug]]/page.tsx
+```tsx
+export default function Page(){ return null; }
+```
+
+app/(admin)/layout.tsx
+```tsx
+export default function Layout(){ return null; }
+```

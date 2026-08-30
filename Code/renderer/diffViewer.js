@@ -42,12 +42,336 @@ export function open(filePath, repoPath, opts) {
   _load();
 }
 
+let _previewMode = false;
+let _previewLeftText = '';
+let _previewRightText = '';
+let _previewFileIndex = 0;
+let _previewTotal = 0;
+let _previewOnSave = null;
+let _previewOnNavigate = null;
+let _previewSyntaxError = null;
+let _editInputDebounce = null;
+
+export function openPreview(opts) {
+  // opts: { filePath, repoPath, leftText, rightText, syntaxError, mode, target, fileIndex, total, onSave, onNavigate }
+  _previewMode = true;
+  _previewSyntaxError = opts.syntaxError || null;
+  _viewMode = false;
+  _showContent = false;
+  _editMode = false;
+  _filePath = opts.filePath;
+  _repoPath = opts.repoPath;
+  _previewLeftText = opts.leftText || '';
+  _previewRightText = opts.rightText || '';
+  _previewFileIndex = opts.fileIndex || 0;
+  _previewTotal = opts.total || 1;
+  _previewOnSave = opts.onSave || null;
+  _previewOnNavigate = opts.onNavigate || null;
+  _commits = [];
+  if (!_panel) _buildPanel();
+  // Update header for preview
+  const filePathEl = document.getElementById('dvFilePath');
+  if (filePathEl) {
+    const statusLabel = opts.mode ? ` — ${opts.mode}${opts.target ? ': '+opts.target : ''}` : '';
+    filePathEl.textContent = opts.filePath + statusLabel;
+  }
+  // Hide commit selects for preview, show file nav
+  const leftSelect = document.getElementById('dvLeftSelect');
+  const rightSelect = document.getElementById('dvRightSelect');
+  if (leftSelect) leftSelect.style.display = 'none';
+  if (rightSelect) rightSelect.style.display = 'none';
+  const leftMsg = document.getElementById('dvLeftMsg');
+  const rightMsg = document.getElementById('dvRightMsg');
+  if (leftMsg) leftMsg.textContent = 'Current on Disk';
+  if (rightMsg) rightMsg.textContent = 'Will Be (after Seed)';
+  const toggleBtn = document.getElementById('dvToggleBtn');
+  if (toggleBtn) toggleBtn.style.display = 'none';
+  const editBtn = document.getElementById('dvEditBtn');
+  if (editBtn) editBtn.style.display = '';
+  _panel.classList.add('dv-open');
+  _open = true;
+  _renderPreviewDiff();
+}
+
+function _renderPreviewDiff() {
+  const leftBody = document.getElementById('dvLeftBody');
+  const rightBody = document.getElementById('dvRightBody');
+  const footer = document.getElementById('dvFooter');
+  const stats = document.getElementById('dvStats');
+  const navCount = document.getElementById('dvNavCount');
+  if (!leftBody || !rightBody) return;
+  // Show loading
+  leftBody.innerHTML = '<div class="dv-loading">Loading diff…</div>';
+  rightBody.innerHTML = '<div class="dv-loading">Loading diff…</div>';
+  // Use a simple diff: generate unified diff via JS diff lib if available, else fallback to side-by-side
+  // For now, render as diff lines by computing via main IPC or via simple line diff
+  // We will request main to generate diff via git diff --no-index on temp files
+  // But for lazy per-click, we already have left/right texts, so we can generate diff in renderer using a simple diff
+  // Use a minimal diff: split lines and mark added/removed
+  // For better diff, call electronAPI.diffStrings if available, else fallback
+  const leftLines = _previewLeftText.split('\n');
+  const rightLines = _previewRightText.split('\n');
+  // Try to use IPC for proper diff
+  if (window.electronAPI && window.electronAPI.git && window.electronAPI.git.diff) {
+    // Fallback to simple diff if no IPC
+  }
+  // Simple line diff: use diff lib if available, else naive
+  let diffText = '';
+  // Try to use the existing _parseDiff by synthesizing a unified diff
+  // For now, do a naive diff: treat all right lines as added if left empty (create), else compute via simple LCS
+  // To keep it simple, we will generate a unified diff by comparing lines
+  const useSimpleDiff = () => {
+    const leftSet = new Set(leftLines);
+    const rightSet = new Set(rightLines);
+    let out = '';
+    out += `--- a/${_filePath}\n+++ b/${_filePath}\n`;
+    // Find hunks - for preview, just show full file diff
+    // Use a simple approach: if left empty, all right are added
+    if (_previewLeftText === '') {
+      out += `@@ -0,0 +1,${rightLines.length} @@\n`;
+      for (const l of rightLines) out += `+${l}\n`;
+    } else {
+      // For surgical, show context with 3 lines
+      // Use a simple diff: compare line by line
+      const max = Math.max(leftLines.length, rightLines.length);
+      let hunkAdded = false;
+      for (let i = 0; i < max; i++) {
+        const l = leftLines[i];
+        const r = rightLines[i];
+        if (l !== r) {
+          if (!hunkAdded) {
+            out += `@@ -${i+1},1 +${i+1},1 @@\n`;
+            hunkAdded = true;
+          }
+          if (l !== undefined) out += `-${l}\n`;
+          if (r !== undefined) out += `+${r}\n`;
+        } else {
+          out += ` ${l}\n`;
+        }
+      }
+    }
+    return out;
+  };
+  const doRender = (diffStr) => {
+    _diffLines = _parseDiff(diffStr);
+    _renderDiff();
+    // Verify banner — always above diff when syntaxError exists
+    const verifyHost = document.getElementById('dvVerifyBannerHost');
+    if (_previewSyntaxError && verifyHost !== null) {
+      // will be handled via host; fallback to inject
+    }
+    // Inject banner above diff bodies (severity-aware, multi-diagnostic, data-line)
+    let banner = document.getElementById('dvVerifyBanner');
+    if (_previewSyntaxError) {
+      const arr = Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError];
+      const first = arr[0];
+      const severity = first.severity || 'high';
+      const bannerClass = severity === 'medium' ? 'dv-verify-banner dv-verify-banner--medium' : 'dv-verify-banner dv-verify-banner--high';
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'dvVerifyBanner';
+        banner.className = bannerClass;
+        const container = leftBody.parentElement;
+        if (container) container.insertBefore(banner, leftBody);
+      }
+      banner.className = bannerClass;
+      banner.style.display = 'flex';
+      if (arr.length === 1) {
+        const v = first;
+        const lineInfo = v.line ? `Line ${v.line}${v.column ? `:${v.column}` : ''}` : 'Structure';
+        const detail = escapeForAnalysis(v.error || 'syntax error');
+        const snippet = v.snippet ? ` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>` : '';
+        banner.innerHTML = `<span class="dv-verify-icon">!</span><span class="dv-verify-text"><strong>${lineInfo}:</strong> ${detail}${snippet}</span><button class="dv-verify-go" data-line="${v.line||1}">Go to line</button>`;
+      } else {
+        const items = arr.map(v=>{
+          const li = v.line ? `${v.line}${v.column?`:${v.column}`:''}` : 'Structure';
+          const sev = v.severity === 'medium' ? 'medium' : 'high';
+          return `<div class="dv-verify-item dv-verify-item--${sev}"><strong>${escapeForAnalysis(li)}:</strong> ${escapeForAnalysis(v.error||'syntax error')}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>`:''}</div>`;
+        }).join('');
+        banner.innerHTML = `<span class="dv-verify-icon">!</span><div class="dv-verify-list">${items}</div><button class="dv-verify-go" data-line="${first.line||1}">Go to line</button>`;
+      }
+      const goBtn = banner.querySelector('.dv-verify-go');
+      if (goBtn) goBtn.onclick = () => {
+        const lineNum = parseInt(goBtn.dataset.line,10) || 1;
+        const target = document.querySelector(`[data-line="${lineNum}"]`) || document.getElementById('dvRightBody');
+        if (target && target.scrollIntoView) target.scrollIntoView({behavior:'smooth', block:'center'});
+        const rb = document.getElementById('dvRightBody');
+        if (rb) {
+          const sample = document.querySelector('.dv-line');
+          const lh = sample ? parseFloat(getComputedStyle(sample).lineHeight) || 18 : 18;
+          rb.scrollTop = Math.max(0, (lineNum-5)*lh);
+          const lb = document.getElementById('dvLeftBody');
+          if (lb) lb.scrollTop = rb.scrollTop;
+        }
+      };
+    } else if (banner) {
+      banner.style.display = 'none';
+    }
+    // Update footer for file navigation
+    const footerLeft = document.getElementById('dvFooter');
+    if (footerLeft) {
+      // Add file nav if not exists
+      let fileNav = document.getElementById('dvFileNav');
+      if (!fileNav) {
+        fileNav = document.createElement('div');
+        fileNav.id = 'dvFileNav';
+        fileNav.className = 'dv-file-nav';
+        fileNav.innerHTML = '<button class="dv-btn dv-btn-nav" id="dvPrevFile">< Prev</button><span class="dv-nav-count" id="dvFileCount"></span><button class="dv-btn dv-btn-nav" id="dvNextFile">Next ></button>';
+        footerLeft.appendChild(fileNav);
+        document.getElementById('dvPrevFile').addEventListener('click', () => { if (_previewOnNavigate) _previewOnNavigate(-1); });
+        document.getElementById('dvNextFile').addEventListener('click', () => { if (_previewOnNavigate) _previewOnNavigate(1); });
+      }
+      const countEl = document.getElementById('dvFileCount');
+      if (countEl) countEl.textContent = `${_previewFileIndex + 1} / ${_previewTotal}`;
+    }
+    // Show file status in analysis (severity-aware, supports array)
+    const analysis = document.getElementById('dvAnalysis');
+    if (analysis) {
+      analysis.style.display = '';
+      const arr = _previewSyntaxError ? (Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError]) : null;
+      const sev = arr ? (arr[0].severity || 'high') : null;
+      const riskClass = arr ? (sev === 'medium' ? 'dv-risk-medium' : 'dv-risk-high') : 'dv-risk-medium';
+      const riskLabel = arr ? 'Syntax Error' : (_previewLeftText ? 'Overwrite' : 'Create');
+      let synFinding = '';
+      if (arr) {
+        synFinding = arr.map(v=>{
+          const sClass = (v.severity === 'medium') ? 'dv-finding-medium' : 'dv-finding-high';
+          const sevLabel = v.severity === 'medium' ? 'Duplicate import' : 'Syntax error';
+          return `<div class="dv-finding ${sClass}"><span class="dv-finding-icon">!</span><span class="dv-finding-label">${sevLabel}</span><span class="dv-finding-detail">${escapeForAnalysis(v.error)}${v.line ? ` — line ${v.line}${v.column?`:${v.column}`:''}` : ''}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,40))}</code>`:''}</span></div>`;
+        }).join('');
+      }
+      analysis.innerHTML = `<div class="dv-analysis-header"><span class="dv-analysis-title">Seed Preview — ${escapeForAnalysis(_filePath)}</span><span class="dv-risk ${riskClass}">${riskLabel}</span></div><div class="dv-analysis-body"><div class="dv-finding"><span class="dv-finding-label">Left: Current on Disk</span><span class="dv-finding-detail">${leftLines.length} lines</span></div><div class="dv-finding"><span class="dv-finding-label">Right: Will Be</span><span class="dv-finding-detail">${rightLines.length} lines — editable, Save to update preview</span></div>${synFinding}</div>`;
+    }
+  };
+  // Try IPC diffStrings if available
+  if (window.electronAPI && window.electronAPI.git && window.electronAPI.git.diffStrings) {
+    window.electronAPI.git.diffStrings(_previewLeftText, _previewRightText).then(diff => {
+      doRender(diff || useSimpleDiff());
+    }).catch(() => doRender(useSimpleDiff()));
+  } else {
+    // Check for our new IPC
+    if (window.electronAPI && window.electronAPI.fileSeeder && window.electronAPI.fileSeeder.getPatchedPreview) {
+      // Already have texts, just render
+      doRender(useSimpleDiff());
+    } else {
+      doRender(useSimpleDiff());
+    }
+  }
+}
+
+function escapeForAnalysis(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+export function updateSyntaxError(newV) {
+  _previewSyntaxError = newV || null;
+  const leftBody = document.getElementById('dvLeftBody');
+  const rightBody = document.getElementById('dvRightBody');
+  let banner = document.getElementById('dvVerifyBanner');
+  if (_previewSyntaxError) {
+    const arr = Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError];
+    const first = arr[0];
+    const severity = first.severity || 'high';
+    const bannerClass = severity === 'medium' ? 'dv-verify-banner dv-verify-banner--medium' : 'dv-verify-banner dv-verify-banner--high';
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'dvVerifyBanner';
+      banner.className = bannerClass;
+      const container = leftBody ? leftBody.parentElement : null;
+      const anchor = leftBody || rightBody;
+      if (container && anchor) container.insertBefore(banner, anchor);
+      else if (container) container.prepend(banner);
+    }
+    banner.className = bannerClass;
+    banner.style.display = 'flex';
+    if (arr.length === 1) {
+      const v = first;
+      const lineInfo = v.line ? `Line ${v.line}${v.column ? `:${v.column}` : ''}` : 'Structure';
+      const detail = escapeForAnalysis(v.error || 'syntax error');
+      const snippet = v.snippet ? ` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>` : '';
+      banner.innerHTML = `<span class="dv-verify-icon">!</span><span class="dv-verify-text"><strong>${lineInfo}:</strong> ${detail}${snippet}</span><button class="dv-verify-go" data-line="${v.line||1}">Go to line</button>`;
+    } else {
+      const items = arr.map(v=>{
+        const li = v.line ? `${v.line}${v.column?`:${v.column}`:''}` : 'Structure';
+        const sev = v.severity === 'medium' ? 'medium' : 'high';
+        return `<div class="dv-verify-item dv-verify-item--${sev}"><strong>${escapeForAnalysis(li)}:</strong> ${escapeForAnalysis(v.error||'syntax error')}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>`:''}</div>`;
+      }).join('');
+      banner.innerHTML = `<span class="dv-verify-icon">!</span><div class="dv-verify-list">${items}</div><button class="dv-verify-go" data-line="${first.line||1}">Go to line</button>`;
+    }
+    const goBtn = banner.querySelector('.dv-verify-go');
+    if (goBtn) goBtn.onclick = () => {
+      const lineNum = parseInt(goBtn.dataset.line,10) || 1;
+      const target = document.querySelector(`[data-line="${lineNum}"]`) || document.getElementById('dvRightBody');
+      if (target && target.scrollIntoView) target.scrollIntoView({behavior:'smooth', block:'center'});
+      const rb = document.getElementById('dvRightBody');
+      if (rb) {
+        const sample = document.querySelector('.dv-line');
+        const lh = sample ? parseFloat(getComputedStyle(sample).lineHeight) || 18 : 18;
+        rb.scrollTop = Math.max(0, (lineNum-5)*lh);
+        const lb = document.getElementById('dvLeftBody');
+        if (lb) lb.scrollTop = rb.scrollTop;
+      }
+    };
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
+  // also refresh analysis panel severity
+  const analysis = document.getElementById('dvAnalysis');
+  if (analysis) {
+    const arr = _previewSyntaxError ? (Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError]) : null;
+    if (arr) {
+      const sev = arr[0].severity || 'high';
+      const riskClass = sev === 'medium' ? 'dv-risk-medium' : 'dv-risk-high';
+      const headerRisk = analysis.querySelector('.dv-risk');
+      if (headerRisk) { headerRisk.className = `dv-risk ${riskClass}`; headerRisk.textContent = 'Syntax Error'; }
+      // rebuild findings if needed — append or replace syntax finding
+      let existingFindings = analysis.querySelector('.dv-analysis-body');
+      if (existingFindings) {
+        // remove old syntax findings then re-add
+        existingFindings.querySelectorAll('.dv-finding-high, .dv-finding-medium').forEach(el=>{
+          if (el.textContent.includes('Syntax error') || el.textContent.includes('Duplicate import')) el.remove();
+        });
+        const synHtml = arr.map(v=>{
+          const sClass = (v.severity === 'medium') ? 'dv-finding-medium' : 'dv-finding-high';
+          const sevLabel = v.severity === 'medium' ? 'Duplicate import' : 'Syntax error';
+          return `<div class="dv-finding ${sClass}"><span class="dv-finding-icon">!</span><div class="dv-finding-content"><span class="dv-finding-label">${sevLabel}</span><span class="dv-finding-detail">${escapeForAnalysis(v.error)}${v.line ? ` — line ${v.line}${v.column?`:${v.column}`:''}` : ''}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,40))}</code>`:''}</span></div></div>`;
+        }).join('');
+        existingFindings.insertAdjacentHTML('beforeend', synHtml);
+      }
+    } else {
+      const headerRisk = analysis.querySelector('.dv-risk');
+      if (headerRisk) {
+        const hasLeft = _previewLeftText && _previewLeftText.length > 0;
+        headerRisk.className = 'dv-risk dv-risk-medium';
+        headerRisk.textContent = hasLeft ? 'Overwrite' : 'Create';
+      }
+      analysis.querySelectorAll('.dv-finding-high, .dv-finding-medium').forEach(el=>{
+        if (el.textContent.includes('Syntax error') || el.textContent.includes('Duplicate import')) el.remove();
+      });
+    }
+  }
+  // keep _previewRightText in sync if needed by caller
+}
+
 export function close() {
   if (!_open) return;
   if (_editMode) {
     _autoSaveAndClose();
     return;
   }
+  // Reset preview mode
+  _previewMode = false;
+  _previewLeftText = '';
+  _previewRightText = '';
+  _previewSyntaxError = null;
+  const vb = document.getElementById('dvVerifyBanner');
+  if (vb) vb.style.display = 'none';
+  const leftSelect = document.getElementById('dvLeftSelect');
+  const rightSelect = document.getElementById('dvRightSelect');
+  if (leftSelect) leftSelect.style.display = '';
+  if (rightSelect) rightSelect.style.display = '';
+  const toggleBtn = document.getElementById('dvToggleBtn');
+  if (toggleBtn) toggleBtn.style.display = '';
+  const fileNav = document.getElementById('dvFileNav');
+  if (fileNav) fileNav.remove();
   _panel.classList.remove('dv-open');
   _open = false;
 }
@@ -57,6 +381,17 @@ function _autoSaveAndClose() {
   if (!leftBody) { _forceClose(); return; }
   const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
   const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+
+  if (_previewMode) {
+    const sourceText = _previewRightText;
+    if (content !== sourceText) {
+      _previewRightText = content;
+      if (_previewOnSave) _previewOnSave(content);
+    }
+    _forceClose();
+    return;
+  }
+
   if (content !== _rawContent) {
     window.electronAPI.writeFile(_filePath, content).then(() => {
       _rawContent = content;
@@ -259,11 +594,12 @@ function _toggleEditMode() {
   if (!leftBody) return;
 
   if (_editMode) {
+    const sourceText = _previewMode ? _previewRightText : _rawContent;
     editBtn.textContent = 'Cancel';
     if (toggleBtn) toggleBtn.style.display = 'none';
     leftBody.innerHTML =
       '<div class="dv-editor-lines">' +
-      _rawContent.split('\n').map((line, i) =>
+      sourceText.split('\n').map((line, i) =>
         '<div class="dv-line dv-line-context dv-line-editable"><span class="dv-ln">' + (i + 1) +
         '</span><span class="dv-text" contenteditable="true">' + _escape(line) + '</span></div>'
       ).join('') +
@@ -290,6 +626,30 @@ function _toggleEditMode() {
       }
     };
     leftBody.addEventListener('keydown', leftBody._editorKeydown);
+    // debounce 300ms on input for live re-verify (mark stale until save re-verifies)
+    const _onEditorInput = () => {
+      if (_editInputDebounce) clearTimeout(_editInputDebounce);
+      _editInputDebounce = setTimeout(() => {
+        const cur = Array.from(linesContainer.querySelectorAll('.dv-text[contenteditable]')).map(el=>el.textContent).join('\n');
+        // keep preview text in sync for diff re-render on cancel/save
+        if (_previewMode) {
+          // mark banner stale until onSave verifies via getPatchedPreview
+          let b = document.getElementById('dvVerifyBanner');
+          if (b) {
+            b.classList.add('dv-verify-banner--stale');
+            b.title = 'Edited — save to re-verify';
+          }
+        } else {
+          // for non-preview, try lightweight fallback check and update if obvious
+          // simple bracket check: if unbalanced, show generic banner
+          let b = document.getElementById('dvVerifyBanner');
+          if (b && cur.trim().length < 10) { b.style.display = 'none'; }
+        }
+      }, 300);
+    };
+    linesContainer.addEventListener('input', _onEditorInput);
+    leftBody._editorInputHandler = _onEditorInput;
+    leftBody._editorLinesContainer = linesContainer;
   } else {
     editBtn.textContent = 'Edit';
     if (toggleBtn) toggleBtn.style.display = '';
@@ -298,8 +658,20 @@ function _toggleEditMode() {
       leftBody.removeEventListener('keydown', leftBody._editorKeydown);
       delete leftBody._editorKeydown;
     }
+    if (leftBody._editorInputHandler && leftBody._editorLinesContainer) {
+      leftBody._editorLinesContainer.removeEventListener('input', leftBody._editorInputHandler);
+      delete leftBody._editorInputHandler;
+      delete leftBody._editorLinesContainer;
+    }
+    if (_editInputDebounce) { clearTimeout(_editInputDebounce); _editInputDebounce = null; }
+    const staleBanner = document.getElementById('dvVerifyBanner');
+    if (staleBanner) staleBanner.classList.remove('dv-verify-banner--stale');
     _showFloatingBanner(false);
-    _loadContent();
+    if (_previewMode) {
+      _renderPreviewDiff();
+    } else {
+      _loadContent();
+    }
   }
 }
 
@@ -327,6 +699,19 @@ async function _saveContent() {
   const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
   if (!textSpans.length) return;
   const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+
+  if (_previewMode) {
+    const sourceText = _previewRightText;
+    if (content === sourceText) {
+      _toggleEditMode();
+      return;
+    }
+    _previewRightText = content;
+    if (_previewOnSave) _previewOnSave(content);
+    _toggleEditMode();
+    return;
+  }
+
   if (content === _rawContent) {
     _toggleEditMode();
     return;
@@ -610,16 +995,16 @@ function _renderDiff() {
     if (line.type === 'hunk' || line.type === 'note') continue;
 
     if (line.type === 'context') {
-      leftHtml += '<div class="dv-line dv-line-context"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
-      rightHtml += '<div class="dv-line dv-line-context"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      leftHtml += '<div class="dv-line dv-line-context" data-line="' + line.oldLine + '"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      rightHtml += '<div class="dv-line dv-line-context" data-line="' + line.newLine + '"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
     } else if (line.type === 'removed') {
       removed++;
-      leftHtml += '<div class="dv-line dv-line-removed"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      leftHtml += '<div class="dv-line dv-line-removed" data-line="' + line.oldLine + '"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
       rightHtml += '<div class="dv-line dv-line-gap"' + blockAttr + '></div>';
     } else if (line.type === 'added') {
       added++;
       leftHtml += '<div class="dv-line dv-line-gap"' + blockAttr + '></div>';
-      rightHtml += '<div class="dv-line dv-line-added"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      rightHtml += '<div class="dv-line dv-line-added" data-line="' + line.newLine + '"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
     }
   }
 
