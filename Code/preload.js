@@ -180,9 +180,6 @@ const fileseederBridge = {
 
         getPatchedPreview: (basePath, resolved, allEntries) =>
             ipcRenderer.invoke('fileseeder:getPatchedPreview', basePath, resolved, allEntries),
-
-        debugLog: (msg) =>
-            ipcRenderer.invoke('fileseeder:debugLog', msg),
     },
 };
 
