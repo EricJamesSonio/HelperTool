@@ -264,6 +264,7 @@ async function seedContent(basePath, entries) {
             const existed = fs.existsSync(abs);
 
             const surgical = isSurgical(mode);
+            console.error(`[SeedDebug] entry relPath=${relPath} mode=${mode} target=${target} surgical=${surgical} existed=${existed} resolved=${resolved}`);
             if (surgical && target) {
                 if (!existed) {
                     const n = (mode||'').toLowerCase().replace(/\s+/g,'');
@@ -282,6 +283,7 @@ async function seedContent(basePath, entries) {
                     else if (effMode === 'addbefore') result = await astPatch.applyAddBefore(abs, target, content ?? '');
                     else if (effMode === 'remove') result = await astPatch.applyRemove(abs, target);
                     else result = await astPatch.applyUpdate(abs, target, content ?? '');
+                    console.error(`[SeedDebug] surgical result ok=${result.ok} viaGrammar=${result.viaGrammar} reason=${result.reason || 'none'}`);
                     if (result.ok) {
                         patched.push(resolved);
                         if (result.restoredPrefix) {
@@ -295,6 +297,7 @@ async function seedContent(basePath, entries) {
                 }
             }
 
+            console.error(`[SeedDebug] FALLTHROUGH writeFileSync abs=${abs} content.length=${(content ?? '').length} content.preview=${(content ?? '').substring(0, 80)}`);
             fs.writeFileSync(abs, content ?? '', 'utf-8');
             if (existed) overwritten.push(resolved);
             else created.push(resolved);
