@@ -118,7 +118,7 @@ function resolveRelPath(basePath, relPath, cache) {
     const relCands = [''].concat(cands.map(abs => path.relative(basePath, abs).replace(/\\/g, '/')));
     if (cands.length === 1) {
         const anchored = path.posix.join(relCands[1], rest);
-        return { resolved: anchored, candidates: relCands, ambiguous: false };
+        return { resolved: anchored, candidates: relCands, ambiguous: true };
     }
     // ambiguous — default to first/shallowest but expose all
     const anchored = path.posix.join(relCands[1], rest);

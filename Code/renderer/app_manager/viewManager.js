@@ -218,6 +218,13 @@ export function displayTree(resetScroll = true) {
     }
 }
 
+export async function refreshTree() {
+    if (!state.selectedRepoPath) return;
+    await window.electronAPI.clearFolderTreeCache(state.selectedRepoPath);
+    state.cachedTree = await window.electronAPI.getFolderTree(state.selectedRepoPath);
+    displayTree(false);
+}
+
 // Callback wired by app.js after generateManager is ready
 let _onSelectionChange = null;
 export function setSelectionChangeHandler(fn) { _onSelectionChange = fn; }
@@ -228,30 +235,22 @@ function onTreeSelectionChange() {
 
 function onDoubleClick(filePath, fileName, isFolder) {
     if (!filePath) return;
-    openRenameModal(filePath, fileName, () => {
-        if (state.cachedTree) displayTree(false);
-    }, isFolder);
+    openRenameModal(filePath, fileName, () => refreshTree(), isFolder);
 }
 
 function onMoveRequest(filePath, nodeElement) {
     if (!filePath) return;
-    startMoveGhost(filePath, treeContainer, () => {
-        if (state.cachedTree) displayTree(false);
-    });
+    startMoveGhost(filePath, treeContainer, () => refreshTree());
 }
 
 function onAddFile(folderPath) {
     if (!folderPath) return;
-    openCreateFilesModal(folderPath, () => {
-        if (state.cachedTree) displayTree(false);
-    });
+    openCreateFilesModal(folderPath, () => refreshTree());
 }
 
 function onAddFolder(folderPath) {
     if (!folderPath) return;
-    openCreateFolderModal(folderPath, () => {
-        if (state.cachedTree) displayTree(false);
-    });
+    openCreateFolderModal(folderPath, () => refreshTree());
 }
 
 export function renderRootJumper(tree) {

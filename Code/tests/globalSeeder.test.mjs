@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const fileSeeder = require('../utils/fileSeeder.js');
-const astPatch = require('../utils/astPatch.js');
+const astPatch = require('../utils/astPatch/index.js');
 
 // Parser is ESM but package is commonjs - copy to .mjs for test
 let parseInput, parseContentBlocks;
