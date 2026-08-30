@@ -74,13 +74,17 @@ function renderContentPreview(preview) {
     const ambiguousCount = (preview.details || []).filter(d => d.ambiguous).length;
     const patchCount = (preview.toPatch || []).length;
     const warnCount = (preview.details || []).filter(d => d.warning).length;
+    const syntaxCount = (preview.details || []).filter(d => d.warning?.includes('syntax error')).length;
+    const fallbackCount = warnCount - syntaxCount;
     const warnings = preview.warnings || [];
+    const syntaxWarnings = (preview.details || []).filter(d=>d.warning?.includes('syntax error')).map(d=>`${d.resolved}: ${d.warning}`);
 
     summary.innerHTML = `
         <span class="gs-badge gs-badge-create">+${preview.toCreate.length} to create</span>
         ${preview.toOverwrite.length > 0 ? `<span class="gs-badge gs-badge-overwrite">~${preview.toOverwrite.length} will be overwritten</span>` : ''}
         ${patchCount > 0 ? `<span class="gs-badge gs-badge-patch">~${patchCount} to patch</span>` : ''}
-        ${warnCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.map(w=>w.warning).join('; '))}">!${warnCount} patch will fallback to full</span>` : ''}
+        ${syntaxCount > 0 ? `<span class="gs-badge gs-badge-verify" title="${escapeHtml(syntaxWarnings.join('\n'))}">! ${syntaxCount} syntax error</span>` : ''}
+        ${fallbackCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.filter(w=>!w.warning.includes('syntax error')).map(w=>w.warning).join('; '))}">!${fallbackCount} patch will fallback to full</span>` : ''}
         ${ambiguousCount > 0 ? `<span class="gs-badge gs-badge-ambig">!${ambiguousCount} need target choice</span>` : ''}
     `;
 
@@ -113,17 +117,19 @@ function renderContentPreview(preview) {
         for (const { d, idx } of arr) {
             const surgical = d.mode && d.mode !== 'full' && d.mode !== 'partial';
             const isPatch = surgical;
+            const isSyntax = !!(d.warning && d.warning.includes('syntax error'));
             const hasWarning = !!d.warning;
-            const status = hasWarning ? 'patch-warn' : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
+            const status = isSyntax ? 'verify-warn' : hasWarning ? 'patch-warn' : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
             const row = document.createElement('div');
             row.className = `gs-preview-row gs-preview-row--${status}${d.ambiguous ? ' gs-preview-row--ambig' : ''}`;
-            const icon  = hasWarning ? '!' : (isPatch ? '~' : (d.exists ? '~' : '+'));
+            const icon  = isSyntax ? '!' : hasWarning ? '!' : (isPatch ? '~' : (d.exists ? '~' : '+'));
             let patchLabel = '';
             if (d.mode === 'addAfter') patchLabel = `add after: ${escapeHtml(d.target||'')}`;
             else if (d.mode === 'addBefore') patchLabel = `add before: ${escapeHtml(d.target||'')}`;
             else if (d.mode === 'remove') patchLabel = `remove: ${escapeHtml(d.target||'')}`;
             else if (isPatch) patchLabel = `patch: ${escapeHtml(d.target||'')}`;
-            const label = hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? patchLabel : (d.exists ? 'overwrite' : 'new'));
+            const syntaxLabel = isSyntax ? d.warning.split(';').find(s=>s.includes('syntax error'))?.trim() || d.warning : '';
+            const label = isSyntax ? `${escapeHtml(syntaxLabel)}` : hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? patchLabel : (d.exists ? 'overwrite' : 'new'));
             const subdir = d.resolved.includes('/') ? d.resolved.substring(0, d.resolved.lastIndexOf('/') + 1) : '';
             const name   = d.resolved.split('/').pop();
             const hasSelector = d.ambiguous && d.candidates && d.candidates.length > 1;
@@ -226,12 +232,14 @@ async function openPreviewDiff(idx) {
         }
         const leftText = result.left ?? '';
         const rightText = result.right ?? '';
+        const syntaxError = result.syntaxError || null;
         const total = preview.details.length;
         diffViewer.openPreview({
             filePath: absPath,
             repoPath: basePath,
             leftText,
             rightText,
+            syntaxError,
             mode: d.mode,
             target: d.target,
             fileIndex: idx,
@@ -360,9 +368,6 @@ export function wireUI(onClose, getBasePath) {
                 });
                 state.contentEntries = enriched;
                 state.contentPreview = preview;
-                enriched.forEach((e, i) => {
-                    window.electronAPI.fileSeeder.debugLog('[GSDebug] enriched[' + i + ']: mode=' + e.mode + ' target=' + e.target + ' content.length=' + (e.content?.length ?? 0) + ' content.preview=' + JSON.stringify((e.content ?? '').substring(0, 80)));
-                });
                 renderContentPreview(preview);
             }
             showStage('gsPreviewStage');
@@ -380,7 +385,6 @@ export function wireUI(onClose, getBasePath) {
     });
 
     document.getElementById('gsSeedBtn')?.addEventListener('click', async () => {
-        window.electronAPI.fileSeeder.debugLog('[GSDebug] gsSeedBtn clicked');
         const basePath = getBasePath();
         if (!basePath) {
             showNotice('No repo selected.');
@@ -388,7 +392,6 @@ export function wireUI(onClose, getBasePath) {
         }
 
         showStage('gsSeedingStage');
-        window.electronAPI.fileSeeder.debugLog('[GSDebug] showing gsSeedingStage, mode=' + state.mode);
         const seedingLabel = document.getElementById('gsSeedingLabel');
         if (seedingLabel) seedingLabel.textContent = 'Seeding…';
 
@@ -415,9 +418,6 @@ export function wireUI(onClose, getBasePath) {
                     mode: e.mode,
                     target: e.target,
                 }));
-                payload.forEach((p, i) => {
-                    window.electronAPI.fileSeeder.debugLog('[GSDebug] IPC payload[' + i + ']: mode=' + p.mode + ' target=' + p.target + ' content.length=' + (p.content?.length ?? 0));
-                });
                 result = await window.electronAPI.fileSeeder.seedContent(basePath, payload);
             }
 
