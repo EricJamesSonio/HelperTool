@@ -22,7 +22,18 @@ const langCache = new Map();
 
 async function ensureInit() {
     if (!initPromise) initPromise = Parser.init({
-        locateFile: (file) => path.join(__dirname, '..', '..', 'node_modules', 'web-tree-sitter', file),
+        locateFile: (file) => {
+            try {
+                if (process.resourcesPath) {
+                    return path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'web-tree-sitter', file);
+                }
+            } catch {}
+            try {
+                const appPath = require('electron').app.getAppPath();
+                return path.join(appPath, 'node_modules', 'web-tree-sitter', file);
+            } catch {}
+            return path.join(__dirname, '..', '..', 'node_modules', 'web-tree-sitter', file);
+        },
     });
     return initPromise;
 }
