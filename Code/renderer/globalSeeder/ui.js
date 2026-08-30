@@ -3,6 +3,11 @@ import { state } from './state.js';
 import { parseInput, parseContentBlocks } from './parser.js';
 import * as diffViewer from '../diffViewer.js';
 
+function isSyntaxWarning(w){ return w && w.includes('syntax error'); }
+function syntaxLabel(w){ return w.split(';').find(s=>s.includes('syntax error'))?.trim()||w; }
+
+let _selectorDebounce = null;
+
 function showStage(id) {
     ['gsInputStage', 'gsPreviewStage', 'gsSeedingStage'].forEach(s => {
         const el = document.getElementById(s);
@@ -74,17 +79,17 @@ function renderContentPreview(preview) {
     const ambiguousCount = (preview.details || []).filter(d => d.ambiguous).length;
     const patchCount = (preview.toPatch || []).length;
     const warnCount = (preview.details || []).filter(d => d.warning).length;
-    const syntaxCount = (preview.details || []).filter(d => d.warning?.includes('syntax error')).length;
+    const syntaxCount = (preview.details || []).filter(d => isSyntaxWarning(d.warning)).length;
     const fallbackCount = warnCount - syntaxCount;
     const warnings = preview.warnings || [];
-    const syntaxWarnings = (preview.details || []).filter(d=>d.warning?.includes('syntax error')).map(d=>`${d.resolved}: ${d.warning}`);
+    const syntaxWarnings = (preview.details || []).filter(d=>isSyntaxWarning(d.warning)).map(d=>`${d.resolved}: ${d.warning}`);
 
     summary.innerHTML = `
         <span class="gs-badge gs-badge-create">+${preview.toCreate.length} to create</span>
         ${preview.toOverwrite.length > 0 ? `<span class="gs-badge gs-badge-overwrite">~${preview.toOverwrite.length} will be overwritten</span>` : ''}
         ${patchCount > 0 ? `<span class="gs-badge gs-badge-patch">~${patchCount} to patch</span>` : ''}
         ${syntaxCount > 0 ? `<span class="gs-badge gs-badge-verify" title="${escapeHtml(syntaxWarnings.join('\n'))}">! ${syntaxCount} syntax error</span>` : ''}
-        ${fallbackCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.filter(w=>!w.warning.includes('syntax error')).map(w=>w.warning).join('; '))}">!${fallbackCount} patch will fallback to full</span>` : ''}
+        ${fallbackCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.filter(w=>!isSyntaxWarning(w.warning)).map(w=>w.warning).join('; '))}">!${fallbackCount} patch will fallback to full</span>` : ''}
         ${ambiguousCount > 0 ? `<span class="gs-badge gs-badge-ambig">!${ambiguousCount} need target choice</span>` : ''}
     `;
 
@@ -117,7 +122,7 @@ function renderContentPreview(preview) {
         for (const { d, idx } of arr) {
             const surgical = d.mode && d.mode !== 'full' && d.mode !== 'partial';
             const isPatch = surgical;
-            const isSyntax = !!(d.warning && d.warning.includes('syntax error'));
+            const isSyntax = isSyntaxWarning(d.warning);
             const hasWarning = !!d.warning;
             const status = isSyntax ? 'verify-warn' : hasWarning ? 'patch-warn' : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
             const row = document.createElement('div');
@@ -128,8 +133,8 @@ function renderContentPreview(preview) {
             else if (d.mode === 'addBefore') patchLabel = `add before: ${escapeHtml(d.target||'')}`;
             else if (d.mode === 'remove') patchLabel = `remove: ${escapeHtml(d.target||'')}`;
             else if (isPatch) patchLabel = `patch: ${escapeHtml(d.target||'')}`;
-            const syntaxLabel = isSyntax ? d.warning.split(';').find(s=>s.includes('syntax error'))?.trim() || d.warning : '';
-            const label = isSyntax ? `${escapeHtml(syntaxLabel)}` : hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? patchLabel : (d.exists ? 'overwrite' : 'new'));
+            const _syntaxLabel = isSyntax ? syntaxLabel(d.warning) : '';
+            const label = isSyntax ? `${escapeHtml(_syntaxLabel)}` : hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? patchLabel : (d.exists ? 'overwrite' : 'new'));
             const subdir = d.resolved.includes('/') ? d.resolved.substring(0, d.resolved.lastIndexOf('/') + 1) : '';
             const name   = d.resolved.split('/').pop();
             const hasSelector = d.ambiguous && d.candidates && d.candidates.length > 1;
@@ -183,8 +188,75 @@ function renderContentPreview(preview) {
                     if (pathEl) {
                         pathEl.innerHTML = `${newSubdir ? `<span class="gs-row-subdir">${escapeHtml(newSubdir)}</span>` : ''}${escapeHtml(newName)}`;
                     }
-                    // also need to re-check exists state? preview counts already done; we keep original exists flag for now
-                    // but update status badge if target changes from exists to not — re-query optimistically skip
+                    // live re-verify: debounce 150ms then refresh exists/warning via previewContent
+                    row.classList.add('gs-preview-row--stale');
+                    row.title = 're-run Preview to verify new path';
+                    if (_selectorDebounce) clearTimeout(_selectorDebounce);
+                    _selectorDebounce = setTimeout(async () => {
+                        const basePath = window._gsGetBasePath ? window._gsGetBasePath() : null;
+                        if (!basePath || !window.electronAPI?.fileSeeder?.previewContent) {
+                            return;
+                        }
+                        try {
+                            const result = await window.electronAPI.fileSeeder.previewContent(basePath, state.contentEntries);
+                            if (!result || !result.details || !result.details[idx]) {
+                                return;
+                            }
+                            const nd = result.details[idx];
+                            // refresh model
+                            d.warning = nd.warning;
+                            d.exists = nd.exists;
+                            d.resolved = nd.resolved;
+                            // sync state preview details for badge counts
+                            if (state.contentPreview && state.contentPreview.details && state.contentPreview.details[idx]) {
+                                state.contentPreview.details[idx].warning = nd.warning;
+                                state.contentPreview.details[idx].exists = nd.exists;
+                            }
+                            // update row classes & badge without full re-render
+                            const isSyn = isSyntaxWarning(nd.warning);
+                            const hasWarn = !!nd.warning;
+                            const surg = nd.mode && nd.mode !== 'full' && nd.mode !== 'partial';
+                            const newStatus = isSyn ? 'verify-warn' : hasWarn ? 'patch-warn' : (surg ? 'patch' : (nd.exists ? 'overwrite' : 'create'));
+                            row.className = `gs-preview-row gs-preview-row--${newStatus}${nd.ambiguous ? ' gs-preview-row--ambig' : ''} gs-preview-row--clickable`;
+                            const badge = row.querySelector('.gs-row-badge');
+                            const iconEl = row.querySelector('.gs-row-icon');
+                            if (badge) {
+                                if (isSyn) badge.textContent = syntaxLabel(nd.warning);
+                                else if (hasWarn) badge.textContent = `fallback: ${nd.warning || 'target not found'}`;
+                                else if (surg) badge.textContent = `patch: ${nd.target || ''}`;
+                                else badge.textContent = nd.exists ? 'overwrite' : 'new';
+                            }
+                            if (iconEl) iconEl.textContent = isSyn || hasWarn ? '!' : (surg ? '~' : (nd.exists ? '~' : '+'));
+                            row.classList.remove('gs-preview-row--stale');
+                            row.title = 'Click to view diff: Current ↔ Will Be';
+                            // update badge counts in summary without full re-render
+                            const summary = document.getElementById('gsPreviewSummary');
+                            if (summary && state.contentPreview) {
+                                const details = state.contentPreview.details || [];
+                                const syntaxCount = details.filter(x=>isSyntaxWarning(x.warning)).length;
+                                const warnCount = details.filter(x=>x.warning).length;
+                                const fallbackCount = warnCount - syntaxCount;
+                                const preview = state.contentPreview;
+                                const syntaxWarnings = details.filter(x=>isSyntaxWarning(x.warning)).map(x=>`${x.resolved}: ${x.warning}`);
+                                summary.innerHTML = `
+        <span class="gs-badge gs-badge-create">+${preview.toCreate.length} to create</span>
+        ${preview.toOverwrite.length > 0 ? `<span class="gs-badge gs-badge-overwrite">~${preview.toOverwrite.length} will be overwritten</span>` : ''}
+        ${preview.toPatch.length > 0 ? `<span class="gs-badge gs-badge-patch">~${preview.toPatch.length} to patch</span>` : ''}
+        ${syntaxCount > 0 ? `<span class="gs-badge gs-badge-verify" title="${escapeHtml(syntaxWarnings.join('\n'))}">! ${syntaxCount} syntax error</span>` : ''}
+        ${fallbackCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml((preview.warnings||[]).filter(w=>!isSyntaxWarning(w.warning)).map(w=>w.warning).join('; '))}">!${fallbackCount} patch will fallback to full</span>` : ''}
+        ${details.filter(x=>x.ambiguous).length > 0 ? `<span class="gs-badge gs-badge-ambig">!${details.filter(x=>x.ambiguous).length} need target choice</span>` : ''}
+    `;
+                                // mark stale badge if pending
+                                if (row.classList.contains('gs-preview-row--stale')) {
+                                    const vBadge = summary.querySelector('.gs-badge-verify');
+                                    if (vBadge) vBadge.classList.add('gs-badge-verify--stale');
+                                }
+                            }
+                        } catch (err) {
+                            row.classList.add('gs-preview-row--stale');
+                            row.title = 're-run Preview to verify new path';
+                        }
+                    }, 150);
                 });
                 selWrap.appendChild(sel);
                 row.appendChild(selWrap);
@@ -258,6 +330,34 @@ async function openPreviewDiff(idx) {
                     }
                 }
                 showNotice('Preview edited — will be used on Seed');
+                // live re-verify after edit via getPatchedPreview and update banner without closing
+                try {
+                    if (window.electronAPI?.fileSeeder?.getPatchedPreview) {
+                        const res = await window.electronAPI.fileSeeder.getPatchedPreview(basePath, resolved, allEntries);
+                        const newV = res.syntaxError || null;
+                        let synStr = null;
+                        if (newV) synStr = `syntax error — ${newV.error}` + (newV.line ? ` at line ${newV.line}` : '');
+                        if (synStr) {
+                            if (d.warning && isSyntaxWarning(d.warning)) {
+                                const nonSyntax = d.warning.split(';').filter(s=> !s.includes('syntax error')).map(s=>s.trim()).filter(Boolean).join('; ');
+                                d.warning = nonSyntax ? nonSyntax + '; ' + synStr : synStr;
+                            } else if (d.warning) {
+                                d.warning = d.warning + '; ' + synStr;
+                            } else {
+                                d.warning = synStr;
+                            }
+                        } else {
+                            if (d.warning && isSyntaxWarning(d.warning)) {
+                                const nonSyntax = d.warning.split(';').filter(s=> !s.includes('syntax error')).map(s=>s.trim()).filter(Boolean).join('; ');
+                                d.warning = nonSyntax || null;
+                            }
+                        }
+                        if (state.contentPreview && state.contentPreview.details && state.contentPreview.details[idx]) {
+                            state.contentPreview.details[idx].warning = d.warning;
+                        }
+                        if (diffViewer.updateSyntaxError) diffViewer.updateSyntaxError(newV);
+                    }
+                } catch (_) {}
             },
             onNavigate: (dir) => {
                 const nextIdx = (_previewDiffIndex + dir + total) % total;

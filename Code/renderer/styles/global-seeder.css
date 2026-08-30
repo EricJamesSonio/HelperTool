@@ -342,6 +342,13 @@
     color: var(--red, #ef4444);
     border-color: rgba(239,68,68,0.28);
 }
+.gs-badge-verify--stale {
+    background: rgba(234,179,8,0.14);
+    color: #eab308;
+    border-color: rgba(234,179,8,0.28);
+}
+.gs-preview-row--stale { opacity: 0.85; border-left-color: rgba(234,179,8,0.5) !important; background: rgba(234,179,8,0.06); }
+.gs-preview-row--stale .gs-row-icon { color: #eab308; }
 .gs-preview-row--verify-warn { background: rgba(239,68,68,0.08); border-left-color: rgba(239,68,68,0.55); }
 .gs-preview-row--verify-warn .gs-row-icon { color: #ef4444; }
 .gs-preview-row--verify-warn .gs-row-badge {

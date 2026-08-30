@@ -379,6 +379,17 @@
   flex-shrink: 0;
 }
 .dv-verify-banner--high { background: rgba(239,68,68,0.12); }
+.dv-verify-banner--medium { background: rgba(234,179,8,0.12); border-bottom-color: rgba(234,179,8,0.30); border-top-color: rgba(234,179,8,0.18); }
+.dv-verify-banner--medium .dv-verify-icon { background: rgba(234,179,8,0.18); color: #eab308; border-color: rgba(234,179,8,0.35); }
+.dv-verify-banner--medium .dv-verify-text { color: #fde68a; }
+.dv-verify-banner--medium .dv-verify-text code { color: #fef3c7; background: rgba(0,0,0,0.25); }
+.dv-verify-banner--medium .dv-verify-go { background: rgba(234,179,8,0.15); color: #eab308; border-color: rgba(234,179,8,0.30); }
+.dv-verify-banner--medium .dv-verify-go:hover { background: rgba(234,179,8,0.22); }
+.dv-verify-banner--stale { opacity: 0.85; border-style: dashed; }
+.dv-verify-list { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.dv-verify-item { font-size: 12px; }
+.dv-verify-item--medium { color: #fde68a; }
+.dv-verify-item--high { color: #fca5a5; }
 .dv-verify-icon {
   width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;

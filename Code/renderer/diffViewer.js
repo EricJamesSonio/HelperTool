@@ -50,6 +50,7 @@ let _previewTotal = 0;
 let _previewOnSave = null;
 let _previewOnNavigate = null;
 let _previewSyntaxError = null;
+let _editInputDebounce = null;
 
 export function openPreview(opts) {
   // opts: { filePath, repoPath, leftText, rightText, syntaxError, mode, target, fileIndex, total, onSave, onNavigate }
@@ -159,31 +160,49 @@ function _renderPreviewDiff() {
     if (_previewSyntaxError && verifyHost !== null) {
       // will be handled via host; fallback to inject
     }
-    // Inject banner above diff bodies
+    // Inject banner above diff bodies (severity-aware, multi-diagnostic, data-line)
     let banner = document.getElementById('dvVerifyBanner');
     if (_previewSyntaxError) {
-      const v = _previewSyntaxError;
-      const lineInfo = v.line ? `Line ${v.line}${v.column ? `:${v.column}` : ''}` : 'Structure';
-      const detail = escapeForAnalysis(v.error || 'syntax error');
-      const snippet = v.snippet ? ` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>` : '';
+      const arr = Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError];
+      const first = arr[0];
+      const severity = first.severity || 'high';
+      const bannerClass = severity === 'medium' ? 'dv-verify-banner dv-verify-banner--medium' : 'dv-verify-banner dv-verify-banner--high';
       if (!banner) {
         banner = document.createElement('div');
         banner.id = 'dvVerifyBanner';
-        banner.className = 'dv-verify-banner dv-verify-banner--high';
+        banner.className = bannerClass;
         const container = leftBody.parentElement;
         if (container) container.insertBefore(banner, leftBody);
       }
+      banner.className = bannerClass;
       banner.style.display = 'flex';
-      banner.innerHTML = `<span class="dv-verify-icon">!</span><span class="dv-verify-text"><strong>${lineInfo}:</strong> ${detail}${snippet}</span><button class="dv-verify-go" data-line="${v.line||1}">Go to line</button>`;
+      if (arr.length === 1) {
+        const v = first;
+        const lineInfo = v.line ? `Line ${v.line}${v.column ? `:${v.column}` : ''}` : 'Structure';
+        const detail = escapeForAnalysis(v.error || 'syntax error');
+        const snippet = v.snippet ? ` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>` : '';
+        banner.innerHTML = `<span class="dv-verify-icon">!</span><span class="dv-verify-text"><strong>${lineInfo}:</strong> ${detail}${snippet}</span><button class="dv-verify-go" data-line="${v.line||1}">Go to line</button>`;
+      } else {
+        const items = arr.map(v=>{
+          const li = v.line ? `${v.line}${v.column?`:${v.column}`:''}` : 'Structure';
+          const sev = v.severity === 'medium' ? 'medium' : 'high';
+          return `<div class="dv-verify-item dv-verify-item--${sev}"><strong>${escapeForAnalysis(li)}:</strong> ${escapeForAnalysis(v.error||'syntax error')}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>`:''}</div>`;
+        }).join('');
+        banner.innerHTML = `<span class="dv-verify-icon">!</span><div class="dv-verify-list">${items}</div><button class="dv-verify-go" data-line="${first.line||1}">Go to line</button>`;
+      }
       const goBtn = banner.querySelector('.dv-verify-go');
       if (goBtn) goBtn.onclick = () => {
         const lineNum = parseInt(goBtn.dataset.line,10) || 1;
-        // Try to scroll diff to that line — find first hunk containing line
         const target = document.querySelector(`[data-line="${lineNum}"]`) || document.getElementById('dvRightBody');
         if (target && target.scrollIntoView) target.scrollIntoView({behavior:'smooth', block:'center'});
-        // fallback: scroll container
         const rb = document.getElementById('dvRightBody');
-        if (rb) rb.scrollTop = Math.max(0, (lineNum-5)*18);
+        if (rb) {
+          const sample = document.querySelector('.dv-line');
+          const lh = sample ? parseFloat(getComputedStyle(sample).lineHeight) || 18 : 18;
+          rb.scrollTop = Math.max(0, (lineNum-5)*lh);
+          const lb = document.getElementById('dvLeftBody');
+          if (lb) lb.scrollTop = rb.scrollTop;
+        }
       };
     } else if (banner) {
       banner.style.display = 'none';
@@ -205,13 +224,22 @@ function _renderPreviewDiff() {
       const countEl = document.getElementById('dvFileCount');
       if (countEl) countEl.textContent = `${_previewFileIndex + 1} / ${_previewTotal}`;
     }
-    // Show file status in analysis
+    // Show file status in analysis (severity-aware, supports array)
     const analysis = document.getElementById('dvAnalysis');
     if (analysis) {
       analysis.style.display = '';
-      const riskClass = _previewSyntaxError ? 'dv-risk-high' : 'dv-risk-medium';
-      const riskLabel = _previewSyntaxError ? 'Syntax Error' : (_previewLeftText ? 'Overwrite' : 'Create');
-      const synFinding = _previewSyntaxError ? `<div class="dv-finding dv-finding-high"><span class="dv-finding-icon">!</span><span class="dv-finding-label">Syntax error</span><span class="dv-finding-detail">${escapeForAnalysis(_previewSyntaxError.error)}${_previewSyntaxError.line ? ` — line ${_previewSyntaxError.line}` : ''}</span></div>` : '';
+      const arr = _previewSyntaxError ? (Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError]) : null;
+      const sev = arr ? (arr[0].severity || 'high') : null;
+      const riskClass = arr ? (sev === 'medium' ? 'dv-risk-medium' : 'dv-risk-high') : 'dv-risk-medium';
+      const riskLabel = arr ? 'Syntax Error' : (_previewLeftText ? 'Overwrite' : 'Create');
+      let synFinding = '';
+      if (arr) {
+        synFinding = arr.map(v=>{
+          const sClass = (v.severity === 'medium') ? 'dv-finding-medium' : 'dv-finding-high';
+          const sevLabel = v.severity === 'medium' ? 'Duplicate import' : 'Syntax error';
+          return `<div class="dv-finding ${sClass}"><span class="dv-finding-icon">!</span><span class="dv-finding-label">${sevLabel}</span><span class="dv-finding-detail">${escapeForAnalysis(v.error)}${v.line ? ` — line ${v.line}${v.column?`:${v.column}`:''}` : ''}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,40))}</code>`:''}</span></div>`;
+        }).join('');
+      }
       analysis.innerHTML = `<div class="dv-analysis-header"><span class="dv-analysis-title">Seed Preview — ${escapeForAnalysis(_filePath)}</span><span class="dv-risk ${riskClass}">${riskLabel}</span></div><div class="dv-analysis-body"><div class="dv-finding"><span class="dv-finding-label">Left: Current on Disk</span><span class="dv-finding-detail">${leftLines.length} lines</span></div><div class="dv-finding"><span class="dv-finding-label">Right: Will Be</span><span class="dv-finding-detail">${rightLines.length} lines — editable, Save to update preview</span></div>${synFinding}</div>`;
     }
   };
@@ -232,6 +260,96 @@ function _renderPreviewDiff() {
 }
 
 function escapeForAnalysis(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+export function updateSyntaxError(newV) {
+  _previewSyntaxError = newV || null;
+  const leftBody = document.getElementById('dvLeftBody');
+  const rightBody = document.getElementById('dvRightBody');
+  let banner = document.getElementById('dvVerifyBanner');
+  if (_previewSyntaxError) {
+    const arr = Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError];
+    const first = arr[0];
+    const severity = first.severity || 'high';
+    const bannerClass = severity === 'medium' ? 'dv-verify-banner dv-verify-banner--medium' : 'dv-verify-banner dv-verify-banner--high';
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'dvVerifyBanner';
+      banner.className = bannerClass;
+      const container = leftBody ? leftBody.parentElement : null;
+      const anchor = leftBody || rightBody;
+      if (container && anchor) container.insertBefore(banner, anchor);
+      else if (container) container.prepend(banner);
+    }
+    banner.className = bannerClass;
+    banner.style.display = 'flex';
+    if (arr.length === 1) {
+      const v = first;
+      const lineInfo = v.line ? `Line ${v.line}${v.column ? `:${v.column}` : ''}` : 'Structure';
+      const detail = escapeForAnalysis(v.error || 'syntax error');
+      const snippet = v.snippet ? ` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>` : '';
+      banner.innerHTML = `<span class="dv-verify-icon">!</span><span class="dv-verify-text"><strong>${lineInfo}:</strong> ${detail}${snippet}</span><button class="dv-verify-go" data-line="${v.line||1}">Go to line</button>`;
+    } else {
+      const items = arr.map(v=>{
+        const li = v.line ? `${v.line}${v.column?`:${v.column}`:''}` : 'Structure';
+        const sev = v.severity === 'medium' ? 'medium' : 'high';
+        return `<div class="dv-verify-item dv-verify-item--${sev}"><strong>${escapeForAnalysis(li)}:</strong> ${escapeForAnalysis(v.error||'syntax error')}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>`:''}</div>`;
+      }).join('');
+      banner.innerHTML = `<span class="dv-verify-icon">!</span><div class="dv-verify-list">${items}</div><button class="dv-verify-go" data-line="${first.line||1}">Go to line</button>`;
+    }
+    const goBtn = banner.querySelector('.dv-verify-go');
+    if (goBtn) goBtn.onclick = () => {
+      const lineNum = parseInt(goBtn.dataset.line,10) || 1;
+      const target = document.querySelector(`[data-line="${lineNum}"]`) || document.getElementById('dvRightBody');
+      if (target && target.scrollIntoView) target.scrollIntoView({behavior:'smooth', block:'center'});
+      const rb = document.getElementById('dvRightBody');
+      if (rb) {
+        const sample = document.querySelector('.dv-line');
+        const lh = sample ? parseFloat(getComputedStyle(sample).lineHeight) || 18 : 18;
+        rb.scrollTop = Math.max(0, (lineNum-5)*lh);
+        const lb = document.getElementById('dvLeftBody');
+        if (lb) lb.scrollTop = rb.scrollTop;
+      }
+    };
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
+  // also refresh analysis panel severity
+  const analysis = document.getElementById('dvAnalysis');
+  if (analysis) {
+    const arr = _previewSyntaxError ? (Array.isArray(_previewSyntaxError) ? _previewSyntaxError : [_previewSyntaxError]) : null;
+    if (arr) {
+      const sev = arr[0].severity || 'high';
+      const riskClass = sev === 'medium' ? 'dv-risk-medium' : 'dv-risk-high';
+      const headerRisk = analysis.querySelector('.dv-risk');
+      if (headerRisk) { headerRisk.className = `dv-risk ${riskClass}`; headerRisk.textContent = 'Syntax Error'; }
+      // rebuild findings if needed — append or replace syntax finding
+      let existingFindings = analysis.querySelector('.dv-analysis-body');
+      if (existingFindings) {
+        // remove old syntax findings then re-add
+        existingFindings.querySelectorAll('.dv-finding-high, .dv-finding-medium').forEach(el=>{
+          if (el.textContent.includes('Syntax error') || el.textContent.includes('Duplicate import')) el.remove();
+        });
+        const synHtml = arr.map(v=>{
+          const sClass = (v.severity === 'medium') ? 'dv-finding-medium' : 'dv-finding-high';
+          const sevLabel = v.severity === 'medium' ? 'Duplicate import' : 'Syntax error';
+          return `<div class="dv-finding ${sClass}"><span class="dv-finding-icon">!</span><div class="dv-finding-content"><span class="dv-finding-label">${sevLabel}</span><span class="dv-finding-detail">${escapeForAnalysis(v.error)}${v.line ? ` — line ${v.line}${v.column?`:${v.column}`:''}` : ''}${v.snippet?` — <code>${escapeForAnalysis(v.snippet.slice(0,40))}</code>`:''}</span></div></div>`;
+        }).join('');
+        existingFindings.insertAdjacentHTML('beforeend', synHtml);
+      }
+    } else {
+      const headerRisk = analysis.querySelector('.dv-risk');
+      if (headerRisk) {
+        const hasLeft = _previewLeftText && _previewLeftText.length > 0;
+        headerRisk.className = 'dv-risk dv-risk-medium';
+        headerRisk.textContent = hasLeft ? 'Overwrite' : 'Create';
+      }
+      analysis.querySelectorAll('.dv-finding-high, .dv-finding-medium').forEach(el=>{
+        if (el.textContent.includes('Syntax error') || el.textContent.includes('Duplicate import')) el.remove();
+      });
+    }
+  }
+  // keep _previewRightText in sync if needed by caller
+}
 
 export function close() {
   if (!_open) return;
@@ -508,6 +626,30 @@ function _toggleEditMode() {
       }
     };
     leftBody.addEventListener('keydown', leftBody._editorKeydown);
+    // debounce 300ms on input for live re-verify (mark stale until save re-verifies)
+    const _onEditorInput = () => {
+      if (_editInputDebounce) clearTimeout(_editInputDebounce);
+      _editInputDebounce = setTimeout(() => {
+        const cur = Array.from(linesContainer.querySelectorAll('.dv-text[contenteditable]')).map(el=>el.textContent).join('\n');
+        // keep preview text in sync for diff re-render on cancel/save
+        if (_previewMode) {
+          // mark banner stale until onSave verifies via getPatchedPreview
+          let b = document.getElementById('dvVerifyBanner');
+          if (b) {
+            b.classList.add('dv-verify-banner--stale');
+            b.title = 'Edited — save to re-verify';
+          }
+        } else {
+          // for non-preview, try lightweight fallback check and update if obvious
+          // simple bracket check: if unbalanced, show generic banner
+          let b = document.getElementById('dvVerifyBanner');
+          if (b && cur.trim().length < 10) { b.style.display = 'none'; }
+        }
+      }, 300);
+    };
+    linesContainer.addEventListener('input', _onEditorInput);
+    leftBody._editorInputHandler = _onEditorInput;
+    leftBody._editorLinesContainer = linesContainer;
   } else {
     editBtn.textContent = 'Edit';
     if (toggleBtn) toggleBtn.style.display = '';
@@ -516,6 +658,14 @@ function _toggleEditMode() {
       leftBody.removeEventListener('keydown', leftBody._editorKeydown);
       delete leftBody._editorKeydown;
     }
+    if (leftBody._editorInputHandler && leftBody._editorLinesContainer) {
+      leftBody._editorLinesContainer.removeEventListener('input', leftBody._editorInputHandler);
+      delete leftBody._editorInputHandler;
+      delete leftBody._editorLinesContainer;
+    }
+    if (_editInputDebounce) { clearTimeout(_editInputDebounce); _editInputDebounce = null; }
+    const staleBanner = document.getElementById('dvVerifyBanner');
+    if (staleBanner) staleBanner.classList.remove('dv-verify-banner--stale');
     _showFloatingBanner(false);
     if (_previewMode) {
       _renderPreviewDiff();
@@ -845,16 +995,16 @@ function _renderDiff() {
     if (line.type === 'hunk' || line.type === 'note') continue;
 
     if (line.type === 'context') {
-      leftHtml += '<div class="dv-line dv-line-context"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
-      rightHtml += '<div class="dv-line dv-line-context"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      leftHtml += '<div class="dv-line dv-line-context" data-line="' + line.oldLine + '"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      rightHtml += '<div class="dv-line dv-line-context" data-line="' + line.newLine + '"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
     } else if (line.type === 'removed') {
       removed++;
-      leftHtml += '<div class="dv-line dv-line-removed"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      leftHtml += '<div class="dv-line dv-line-removed" data-line="' + line.oldLine + '"' + blockAttr + '><span class="dv-ln">' + line.oldLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
       rightHtml += '<div class="dv-line dv-line-gap"' + blockAttr + '></div>';
     } else if (line.type === 'added') {
       added++;
       leftHtml += '<div class="dv-line dv-line-gap"' + blockAttr + '></div>';
-      rightHtml += '<div class="dv-line dv-line-added"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
+      rightHtml += '<div class="dv-line dv-line-added" data-line="' + line.newLine + '"' + blockAttr + '><span class="dv-ln">' + line.newLine + '</span><span class="dv-text">' + _escape(line.text) + '</span></div>';
     }
   }
 
