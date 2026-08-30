@@ -14,17 +14,46 @@ const IGNORE_DIRS = new Set([
 
 const MAX_SEARCH_DEPTH = 6;
 const MAX_DIRS_SCANNED = 6000;
+const MIN_VERIFY_LEN = 20;
 
 function isTruncatedContent(content) {
-    if (!content || content.trim().length < 20) return null;
+    if (!content || content.trim().length < MIN_VERIFY_LEN) return null;
     const s = content.trim();
-    // Check for unbalanced braces/brackets/parens
-    const openBrace = (s.match(/\{/g) || []).length;
-    const closeBrace = (s.match(/\}/g) || []).length;
-    const openParen = (s.match(/\(/g) || []).length;
-    const closeParen = (s.match(/\)/g) || []).length;
-    const openBracket = (s.match(/\[/g) || []).length;
-    const closeBracket = (s.match(/\]/g) || []).length;
+    // String-aware unbalanced check — skip inside ', ", `, //, /* */
+    let openBrace = 0, closeBrace = 0, openParen = 0, closeParen = 0, openBracket = 0, closeBracket = 0;
+    let inSingle = false, inDouble = false, inTick = false, inLineComment = false, inBlockComment = false;
+    let esc = false;
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        const nxt = s[i+1];
+        if (inLineComment) {
+            if (ch === '\n') inLineComment = false;
+            continue;
+        }
+        if (inBlockComment) {
+            if (ch === '*' && nxt === '/') { inBlockComment = false; i++; }
+            continue;
+        }
+        if (esc) { esc = false; continue; }
+        if (ch === '\\' && (inSingle || inDouble || inTick)) { esc = true; continue; }
+        if (!inSingle && !inDouble && !inTick) {
+            if (ch === '/' && nxt === '/') { inLineComment = true; continue; }
+            if (ch === '/' && nxt === '*') { inBlockComment = true; continue; }
+            if (ch === "'") { inSingle = true; continue; }
+            if (ch === '"') { inDouble = true; continue; }
+            if (ch === '`') { inTick = true; continue; }
+            if (ch === '{') openBrace++;
+            else if (ch === '}') closeBrace++;
+            else if (ch === '(') openParen++;
+            else if (ch === ')') closeParen++;
+            else if (ch === '[') openBracket++;
+            else if (ch === ']') closeBracket++;
+        } else {
+            if (inSingle && ch === "'") inSingle = false;
+            else if (inDouble && ch === '"') inDouble = false;
+            else if (inTick && ch === '`') inTick = false;
+        }
+    }
     if (openBrace > closeBrace || openParen > closeParen || openBracket > closeBracket) {
         return `content may be truncated — unbalanced ${openBrace>closeBrace?'braces':openParen>closeParen?'parens':'brackets'}`;
     }
@@ -180,6 +209,29 @@ function seed(basePath, relPaths) {
 const SURGICAL_MODES = new Set(['update', 'replace', 'addafter', 'addbefore', 'remove']);
 function isSurgical(mode) { return SURGICAL_MODES.has((mode||'').toLowerCase().replace(/\s+/g,'')); }
 
+async function computePatchedRight(basePath, resolved, entriesForFile, left) {
+    let right = left;
+    const fullEntries = entriesForFile.filter(e => !isSurgical(e.mode||'full'));
+    if (fullEntries.length) right = fullEntries[fullEntries.length - 1].content ?? '';
+    const ext = path.extname(path.join(basePath, resolved)) || '.txt';
+    const tmpFile = path.join(os.tmpdir(), `gs-patched-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
+    try {
+        fs.writeFileSync(tmpFile, right, 'utf-8');
+        for (const e of entriesForFile) {
+            const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
+            if (!isSurgical(m)) continue;
+            const effMode = m === 'replace' ? 'update' : m;
+            let res;
+            if (effMode === 'addafter') res = await astPatch.applyAddAfter(tmpFile, e.target, e.content ?? '');
+            else if (effMode === 'addbefore') res = await astPatch.applyAddBefore(tmpFile, e.target, e.content ?? '');
+            else if (effMode === 'remove') res = await astPatch.applyRemove(tmpFile, e.target);
+            else res = await astPatch.applyUpdate(tmpFile, e.target, e.content ?? '');
+        }
+        right = fs.readFileSync(tmpFile, 'utf-8');
+    } finally { try { fs.unlinkSync(tmpFile); } catch {} }
+    return right;
+}
+
 async function previewContent(basePath, entries) {
     const toCreate    = [];
     const toOverwrite = [];
@@ -201,10 +253,19 @@ async function previewContent(basePath, entries) {
         if (truncWarning) warning = (warning ? warning + '; ' : '') + truncWarning;
 
         // For full-mode entries, verify the pasted content itself (basic structure)
-        if (!surgical && content && content.trim().length >= 10) {
+        if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN) {
             try {
                 const v = await syntaxVerifier.verifySyntax(content, extOf(resolved));
                 if (v && !v.ok) {
+                    const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+                    warning = (warning ? warning + '; ' : '') + syn;
+                }
+            } catch (_) {}
+        } else if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN / 2 && content.trim().length < MIN_VERIFY_LEN) {
+            // Transitional: keep B3 extraClose (15 chars, close>open) flagged while unifying to 20
+            try {
+                const v = await syntaxVerifier.verifySyntax(content, extOf(resolved));
+                if (v && !v.ok && v.error.includes('unexpected closing')) {
                     const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
                     warning = (warning ? warning + '; ' : '') + syn;
                 }
@@ -261,37 +322,21 @@ async function previewContent(basePath, entries) {
             const exists = fs.existsSync(abs);
             const left = exists ? fs.readFileSync(abs, 'utf-8') : '';
             const groupEntries = idxs.map(i => entries[i]).filter(Boolean);
-            // Build right via temp file replay (same as getPatchedPreview)
-            let right = left;
-            const fullInGroup = groupEntries.filter(e => !isSurgical(e.mode||'full'));
-            if (fullInGroup.length) right = fullInGroup[fullInGroup.length-1].content ?? '';
-            const ext = path.extname(abs) || '.txt';
-            const tmpFile = path.join(os.tmpdir(), `gs-verify-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
-            try {
-                fs.writeFileSync(tmpFile, right, 'utf-8');
-                for (const e of groupEntries) {
-                    const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
-                    if (!isSurgical(m)) continue;
-                    const effMode = m === 'replace' ? 'update' : m;
-                    let res;
-                    if (effMode === 'addafter') res = await astPatch.applyAddAfter(tmpFile, e.target, e.content ?? '');
-                    else if (effMode === 'addbefore') res = await astPatch.applyAddBefore(tmpFile, e.target, e.content ?? '');
-                    else if (effMode === 'remove') res = await astPatch.applyRemove(tmpFile, e.target);
-                    else res = await astPatch.applyUpdate(tmpFile, e.target, e.content ?? '');
-                    // ignore !ok — keep file as-is for next patch
-                }
-                right = fs.readFileSync(tmpFile, 'utf-8');
-            } finally { try { fs.unlinkSync(tmpFile); } catch {} }
+            const right = await computePatchedRight(basePath, resolved, groupEntries, left);
             const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
+            let extra = null;
             if (v && !v.ok) {
-                const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+                extra = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+            }
+            const trunc = isTruncatedContent(right);
+            if (trunc) extra = extra ? extra + '; ' + trunc : trunc;
+            if (extra) {
                 for (const i of idxs) {
                     const d = details[i];
-                    d.warning = d.warning ? d.warning + '; ' + syn : syn;
-                    // ensure warnings array reflects it
-                    const existing = warnings.find(w=>w.path===d.resolved && w.warning.includes(syn));
-                    if (!existing) warnings.push({ path: d.resolved, warning: syn });
+                    d.warning = d.warning ? d.warning + '; ' + extra : extra;
                 }
+                const existing = warnings.find(w=>w.path===resolved && w.warning.includes(extra));
+                if (!existing) warnings.push({ path: resolved, warning: extra });
             }
         }
     } catch (_) {}
@@ -373,71 +418,30 @@ async function getPatchedPreview(basePath, resolved, allEntries) {
     const abs = path.join(basePath, resolved);
     const exists = fs.existsSync(abs);
     let left = exists ? fs.readFileSync(abs, 'utf-8') : '';
-    // Collect all entries for this resolved file in pasted order
-    const group = allEntries.filter(e => {
-        // entries may have providedResolved or need to resolve
-        const r = e.resolved || e.relPath;
-        // For preview, resolved is already the anchored path; match directly
-        // Also match by relPath's resolved via cache for robustness
-        return r === resolved;
-    });
-    // If no direct match (e.g., preview details vs entries mismatch), fallback to single entry lookup
-    let entriesForFile = group.length ? group : allEntries.filter(e => e.relPath === resolved);
-    // If still none, try to find by original relPath that resolves to this
+    const cache = new Map();
+    const mapped = allEntries.map(e => ({ ...e, resolved: e.resolved || resolveRelPath(basePath, e.relPath, cache).resolved }));
+    const entriesForFile = mapped.filter(e => e.resolved === resolved);
     if (!entriesForFile.length) {
-        // Fallback: find any entry whose resolved equals this
-        entriesForFile = allEntries.filter(e => e.resolved === resolved);
-    }
-    if (!entriesForFile.length) {
-        // No entries for this file, return left as both
         return { left, right: left };
     }
-    // Determine if this file is surgical batch or full
     const hasSurgical = entriesForFile.some(e => isSurgical(e.mode));
     if (!hasSurgical) {
-        // Full mode: last wins
         const last = entriesForFile[entriesForFile.length - 1];
         const right = last.content ?? '';
         try {
             const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
             if (v && !v.ok) return { left, right, syntaxError: v };
+            const trunc = isTruncatedContent(right);
+            if (trunc) return { left, right, syntaxError: { ok:false, error: trunc } };
         } catch (_) {}
         return { left, right };
     }
-    // Surgical batch: apply sequentially to a copy of left in memory
-    // Full-mode entries set the base content; surgical entries patch on top
-    let right = left;
-    const fullEntries = entriesForFile.filter(e => !isSurgical(e.mode));
-    if (fullEntries.length) {
-        right = fullEntries[fullEntries.length - 1].content ?? '';
-    }
-    // Create a temp file with the original extension so astPatch can load the right grammar
-    const ext = path.extname(abs) || '.txt';
-    const tmpFile = path.join(os.tmpdir(), `gs-dry-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
-    try {
-        fs.writeFileSync(tmpFile, right, 'utf-8');
-        for (const e of entriesForFile) {
-            const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
-            if (!isSurgical(m)) continue;
-            const effMode = m === 'replace' ? 'update' : m;
-            let res;
-            if (effMode === 'addafter') res = await astPatch.applyAddAfter(tmpFile, e.target, e.content ?? '');
-            else if (effMode === 'addbefore') res = await astPatch.applyAddBefore(tmpFile, e.target, e.content ?? '');
-            else if (effMode === 'remove') res = await astPatch.applyRemove(tmpFile, e.target);
-            else res = await astPatch.applyUpdate(tmpFile, e.target, e.content ?? '');
-            if (!res.ok) {
-                // For preview, if patch would fail, show the original left and annotate
-                // We still continue to next patch
-            }
-        }
-        right = fs.readFileSync(tmpFile, 'utf-8');
-    } finally {
-        try { fs.unlinkSync(tmpFile); } catch {}
-    }
-    // Verify patched result for diff-viewer banner
+    const right = await computePatchedRight(basePath, resolved, entriesForFile, left);
     try {
         const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
         if (v && !v.ok) return { left, right, syntaxError: v };
+        const trunc = isTruncatedContent(right);
+        if (trunc) return { left, right, syntaxError: { ok:false, error: trunc } };
     } catch (_) {}
     return { left, right };
 }
