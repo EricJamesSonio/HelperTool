@@ -4,6 +4,8 @@ const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
 const astPatch = require('./astPatch');
+const syntaxVerifier = require('./syntaxVerifier');
+const { extOf } = require('./astPatch/textUtils');
 
 const IGNORE_DIRS = new Set([
     'node_modules', '.git', '.next', 'dist', 'build', '.turbo',
@@ -198,6 +200,17 @@ async function previewContent(basePath, entries) {
         const truncWarning = isTruncatedContent(content || '');
         if (truncWarning) warning = (warning ? warning + '; ' : '') + truncWarning;
 
+        // For full-mode entries, verify the pasted content itself (basic structure)
+        if (!surgical && content && content.trim().length >= 10) {
+            try {
+                const v = await syntaxVerifier.verifySyntax(content, extOf(resolved));
+                if (v && !v.ok) {
+                    const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+                    warning = (warning ? warning + '; ' : '') + syn;
+                }
+            } catch (_) {}
+        }
+
         if (surgical) {
             if (!exists && effMode !== 'addAfter' && effMode !== 'addBefore') {
                 // remove/replace on non-existent file will fallback
@@ -233,6 +246,56 @@ async function previewContent(basePath, entries) {
         if (warning) warnings.push({ path: resolved, warning });
     }
 
+    // Second pass: for surgical batches, verify the *patched* result per resolved file
+    // so the preview list shows "syntax error" before the user clicks into diff.
+    try {
+        const groups = new Map();
+        for (let i = 0; i < details.length; i++) {
+            const d = details[i];
+            if (!isSurgical(d.mode)) continue;
+            if (!groups.has(d.resolved)) groups.set(d.resolved, []);
+            groups.get(d.resolved).push(i);
+        }
+        for (const [resolved, idxs] of groups) {
+            const abs = path.join(basePath, resolved);
+            const exists = fs.existsSync(abs);
+            const left = exists ? fs.readFileSync(abs, 'utf-8') : '';
+            const groupEntries = idxs.map(i => entries[i]).filter(Boolean);
+            // Build right via temp file replay (same as getPatchedPreview)
+            let right = left;
+            const fullInGroup = groupEntries.filter(e => !isSurgical(e.mode||'full'));
+            if (fullInGroup.length) right = fullInGroup[fullInGroup.length-1].content ?? '';
+            const ext = path.extname(abs) || '.txt';
+            const tmpFile = path.join(os.tmpdir(), `gs-verify-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
+            try {
+                fs.writeFileSync(tmpFile, right, 'utf-8');
+                for (const e of groupEntries) {
+                    const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
+                    if (!isSurgical(m)) continue;
+                    const effMode = m === 'replace' ? 'update' : m;
+                    let res;
+                    if (effMode === 'addafter') res = await astPatch.applyAddAfter(tmpFile, e.target, e.content ?? '');
+                    else if (effMode === 'addbefore') res = await astPatch.applyAddBefore(tmpFile, e.target, e.content ?? '');
+                    else if (effMode === 'remove') res = await astPatch.applyRemove(tmpFile, e.target);
+                    else res = await astPatch.applyUpdate(tmpFile, e.target, e.content ?? '');
+                    // ignore !ok — keep file as-is for next patch
+                }
+                right = fs.readFileSync(tmpFile, 'utf-8');
+            } finally { try { fs.unlinkSync(tmpFile); } catch {} }
+            const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
+            if (v && !v.ok) {
+                const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
+                for (const i of idxs) {
+                    const d = details[i];
+                    d.warning = d.warning ? d.warning + '; ' + syn : syn;
+                    // ensure warnings array reflects it
+                    const existing = warnings.find(w=>w.path===d.resolved && w.warning.includes(syn));
+                    if (!existing) warnings.push({ path: d.resolved, warning: syn });
+                }
+            }
+        }
+    } catch (_) {}
+
     return { toCreate, toOverwrite, toPatch, details, warnings };
 }
 
@@ -264,7 +327,6 @@ async function seedContent(basePath, entries) {
             const existed = fs.existsSync(abs);
 
             const surgical = isSurgical(mode);
-            console.error(`[SeedDebug] entry relPath=${relPath} mode=${mode} target=${target} surgical=${surgical} existed=${existed} resolved=${resolved}`);
             if (surgical && target) {
                 if (!existed) {
                     const n = (mode||'').toLowerCase().replace(/\s+/g,'');
@@ -282,11 +344,7 @@ async function seedContent(basePath, entries) {
                     if (effMode === 'addafter') result = await astPatch.applyAddAfter(abs, target, content ?? '');
                     else if (effMode === 'addbefore') result = await astPatch.applyAddBefore(abs, target, content ?? '');
                     else if (effMode === 'remove') result = await astPatch.applyRemove(abs, target);
-                    else {
-                        console.error('[SeedDebug] content going into applyUpdate:', JSON.stringify(content));
-                        result = await astPatch.applyUpdate(abs, target, content ?? '');
-                    }
-                    console.error(`[SeedDebug] surgical result ok=${result.ok} viaGrammar=${result.viaGrammar} reason=${result.reason || 'none'}`);
+                    else result = await astPatch.applyUpdate(abs, target, content ?? '');
                     if (result.ok) {
                         patched.push(resolved);
                         if (result.restoredPrefix) {
@@ -300,7 +358,6 @@ async function seedContent(basePath, entries) {
                 }
             }
 
-            console.error(`[SeedDebug] FALLTHROUGH writeFileSync abs=${abs} content.length=${(content ?? '').length} content.preview=${(content ?? '').substring(0, 80)}`);
             fs.writeFileSync(abs, content ?? '', 'utf-8');
             if (existed) overwritten.push(resolved);
             else created.push(resolved);
@@ -340,7 +397,12 @@ async function getPatchedPreview(basePath, resolved, allEntries) {
     if (!hasSurgical) {
         // Full mode: last wins
         const last = entriesForFile[entriesForFile.length - 1];
-        return { left, right: last.content ?? '' };
+        const right = last.content ?? '';
+        try {
+            const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
+            if (v && !v.ok) return { left, right, syntaxError: v };
+        } catch (_) {}
+        return { left, right };
     }
     // Surgical batch: apply sequentially to a copy of left in memory
     // Full-mode entries set the base content; surgical entries patch on top
@@ -372,6 +434,11 @@ async function getPatchedPreview(basePath, resolved, allEntries) {
     } finally {
         try { fs.unlinkSync(tmpFile); } catch {}
     }
+    // Verify patched result for diff-viewer banner
+    try {
+        const v = await syntaxVerifier.verifySyntax(right, extOf(resolved));
+        if (v && !v.ok) return { left, right, syntaxError: v };
+    } catch (_) {}
     return { left, right };
 }
 
