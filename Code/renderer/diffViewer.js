@@ -49,10 +49,12 @@ let _previewFileIndex = 0;
 let _previewTotal = 0;
 let _previewOnSave = null;
 let _previewOnNavigate = null;
+let _previewSyntaxError = null;
 
 export function openPreview(opts) {
-  // opts: { filePath, repoPath, leftText, rightText, mode, target, fileIndex, total, onSave, onNavigate }
+  // opts: { filePath, repoPath, leftText, rightText, syntaxError, mode, target, fileIndex, total, onSave, onNavigate }
   _previewMode = true;
+  _previewSyntaxError = opts.syntaxError || null;
   _viewMode = false;
   _showContent = false;
   _editMode = false;
@@ -152,6 +154,40 @@ function _renderPreviewDiff() {
   const doRender = (diffStr) => {
     _diffLines = _parseDiff(diffStr);
     _renderDiff();
+    // Verify banner — always above diff when syntaxError exists
+    const verifyHost = document.getElementById('dvVerifyBannerHost');
+    if (_previewSyntaxError && verifyHost !== null) {
+      // will be handled via host; fallback to inject
+    }
+    // Inject banner above diff bodies
+    let banner = document.getElementById('dvVerifyBanner');
+    if (_previewSyntaxError) {
+      const v = _previewSyntaxError;
+      const lineInfo = v.line ? `Line ${v.line}${v.column ? `:${v.column}` : ''}` : 'Structure';
+      const detail = escapeForAnalysis(v.error || 'syntax error');
+      const snippet = v.snippet ? ` — <code>${escapeForAnalysis(v.snippet.slice(0,60))}</code>` : '';
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'dvVerifyBanner';
+        banner.className = 'dv-verify-banner dv-verify-banner--high';
+        const container = leftBody.parentElement;
+        if (container) container.insertBefore(banner, leftBody);
+      }
+      banner.style.display = 'flex';
+      banner.innerHTML = `<span class="dv-verify-icon">!</span><span class="dv-verify-text"><strong>${lineInfo}:</strong> ${detail}${snippet}</span><button class="dv-verify-go" data-line="${v.line||1}">Go to line</button>`;
+      const goBtn = banner.querySelector('.dv-verify-go');
+      if (goBtn) goBtn.onclick = () => {
+        const lineNum = parseInt(goBtn.dataset.line,10) || 1;
+        // Try to scroll diff to that line — find first hunk containing line
+        const target = document.querySelector(`[data-line="${lineNum}"]`) || document.getElementById('dvRightBody');
+        if (target && target.scrollIntoView) target.scrollIntoView({behavior:'smooth', block:'center'});
+        // fallback: scroll container
+        const rb = document.getElementById('dvRightBody');
+        if (rb) rb.scrollTop = Math.max(0, (lineNum-5)*18);
+      };
+    } else if (banner) {
+      banner.style.display = 'none';
+    }
     // Update footer for file navigation
     const footerLeft = document.getElementById('dvFooter');
     if (footerLeft) {
@@ -173,7 +209,10 @@ function _renderPreviewDiff() {
     const analysis = document.getElementById('dvAnalysis');
     if (analysis) {
       analysis.style.display = '';
-      analysis.innerHTML = `<div class="dv-analysis-header"><span class="dv-analysis-title">Seed Preview — ${escapeForAnalysis(_filePath)}</span><span class="dv-risk dv-risk-medium">${_previewLeftText ? 'Overwrite' : 'Create'}</span></div><div class="dv-analysis-body"><div class="dv-finding"><span class="dv-finding-label">Left: Current on Disk</span><span class="dv-finding-detail">${leftLines.length} lines</span></div><div class="dv-finding"><span class="dv-finding-label">Right: Will Be</span><span class="dv-finding-detail">${rightLines.length} lines — editable, Save to update preview</span></div></div>`;
+      const riskClass = _previewSyntaxError ? 'dv-risk-high' : 'dv-risk-medium';
+      const riskLabel = _previewSyntaxError ? 'Syntax Error' : (_previewLeftText ? 'Overwrite' : 'Create');
+      const synFinding = _previewSyntaxError ? `<div class="dv-finding dv-finding-high"><span class="dv-finding-icon">!</span><span class="dv-finding-label">Syntax error</span><span class="dv-finding-detail">${escapeForAnalysis(_previewSyntaxError.error)}${_previewSyntaxError.line ? ` — line ${_previewSyntaxError.line}` : ''}</span></div>` : '';
+      analysis.innerHTML = `<div class="dv-analysis-header"><span class="dv-analysis-title">Seed Preview — ${escapeForAnalysis(_filePath)}</span><span class="dv-risk ${riskClass}">${riskLabel}</span></div><div class="dv-analysis-body"><div class="dv-finding"><span class="dv-finding-label">Left: Current on Disk</span><span class="dv-finding-detail">${leftLines.length} lines</span></div><div class="dv-finding"><span class="dv-finding-label">Right: Will Be</span><span class="dv-finding-detail">${rightLines.length} lines — editable, Save to update preview</span></div>${synFinding}</div>`;
     }
   };
   // Try IPC diffStrings if available
@@ -204,6 +243,9 @@ export function close() {
   _previewMode = false;
   _previewLeftText = '';
   _previewRightText = '';
+  _previewSyntaxError = null;
+  const vb = document.getElementById('dvVerifyBanner');
+  if (vb) vb.style.display = 'none';
   const leftSelect = document.getElementById('dvLeftSelect');
   const rightSelect = document.getElementById('dvRightSelect');
   if (leftSelect) leftSelect.style.display = '';
