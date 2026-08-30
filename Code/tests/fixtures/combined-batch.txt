@@ -1,0 +1,51 @@
+Below is a realistic multi-file batch mixing full and surgical — paste into Global Seeder Content mode:
+
+components/sheet-builder/SharePanel.tsx
+```tsx
+"use client";
+import Button from "@/components/ui/Button";
+export default function SharePanel(){ return null; }
+```
+
+utils/calc.ts (Replace: calculateTotal)
+```ts
+export function calculateTotal(items: any[]){ return items.length; }
+```
+
+utils/calc.ts (Add after: imports)
+```ts
+import { formatCurrency } from './helpers';
+```
+
+styles/theme.css (Replace: .panel)
+```css
+.panel { margin: 0; }
+```
+
+config/app.json (Replace: scripts.build)
+```json
+"tsc --incremental"
+```
+
+app/api/[id]/route.ts
+```ts
+export async function GET(){ return 1; }
+```
+
+utils/legacy.ts (Remove: oldHelper)
+```
+
+utils/dup.ts (Remove: dup)
+```
+
+utils/dup.ts — note duplicate name fixture uses this file too
+
+lib/userService.ts (Partial)
+```ts
+export async function partialUser(){ return 1; }
+```
+
+lib/userService.ts
+```ts
+export async function getUser(){ return 42; }
+```

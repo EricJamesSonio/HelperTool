@@ -1,0 +1,5 @@
+lib/userService.ts
+```ts
+export async function getUser(){ return 1; }
+```
+That's the shape: path alone is enough for the seeder to know where to put it.

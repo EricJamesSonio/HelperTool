@@ -1,0 +1,9 @@
+a.ts (Add after: imports)
+```ts
+import a from './a';
+```
+
+a.ts (Add after: imports)
+```ts
+import b from './b';
+```
