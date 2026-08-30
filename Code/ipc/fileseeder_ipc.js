@@ -12,14 +12,9 @@ const fileSeeder  = require('../utils/fileSeeder');
  */
 function register(_deps) {
     // Make handlers idempotent — Electron throws if we register twice (hot-reload)
-    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent', 'fileseeder:getPatchedPreview', 'fileseeder:debugLog']) {
+    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent', 'fileseeder:getPatchedPreview']) {
         try { ipcMain.removeHandler(ch); } catch (_) {}
     }
-
-    // Temporary debug bridge: forward renderer logs to terminal
-    ipcMain.handle('fileseeder:debugLog', (_ev, msg) => {
-        console.error('[Renderer]', msg);
-    });
 
     /**
      * Preview: returns which paths will be created vs skipped.
