@@ -971,4 +971,32 @@ class RefactorTest
     assert.ok(!after.includes('oldMethod'), 'oldMethod removed');
     assert.ok(!after.includes('remove me'), 'oldMethod body removed');
   });
+
+  it('Parser: closing-fence-only format (no opening ```)', async () => {
+    // This is the exact format the user pastes — no opening ``` fence, only closing ```
+    const input = `utils/refactorTest.php (Replace: calculateTotal)
+php
+    public function calculateTotal(array $items): float
+    {
+        $total = 0;
+        foreach ($items as $item) {
+            $total += $item['price'] * ($item['qty'] ?? 1);
+        }
+        return $total;
+    }
+\`\`\`
+
+utils/refactorTest.php (Remove: oldMethod)
+\`\`\``;
+
+    const entries = parseContentBlocks(input);
+    console.error('[TEST] entries:', JSON.stringify(entries.map(e => ({ mode: e.mode, target: e.target, relPath: e.relPath, contentLen: e.content?.length }))));
+    assert.equal(entries.length, 2, 'two entries parsed');
+    assert.equal(entries[0].mode, 'update', 'entry[0] is update');
+    assert.equal(entries[0].target, 'calculateTotal', 'entry[0] target is calculateTotal');
+    assert.ok(entries[0].content.length > 0, 'entry[0] content is not empty: ' + JSON.stringify(entries[0].content));
+    assert.ok(entries[0].content.includes('qty'), 'entry[0] content contains replacement code with qty');
+    assert.equal(entries[1].mode, 'remove', 'entry[1] is remove');
+    assert.equal(entries[1].target, 'oldMethod', 'entry[1] target is oldMethod');
+  });
 });
