@@ -1,5 +1,5 @@
 export const state = {
-    mode: 'structure',        // 'structure' | 'content'
+    mode: 'content',        // 'structure' | 'content'
     rawInput: '',
     preview: null,             // structure mode: { toCreate, toSkip }
     contentEntries: null,      // content mode: [{ relPath, content, resolved, candidates, ambiguous, mode, target }]
@@ -8,7 +8,7 @@ export const state = {
 };
 
 export function resetState() {
-    state.mode           = 'structure';
+    state.mode           = 'content';
     state.rawInput        = '';
     state.preview          = null;
     state.contentEntries   = null;

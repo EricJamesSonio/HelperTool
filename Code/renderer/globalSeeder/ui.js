@@ -415,9 +415,10 @@ export function wireUI(onClose, getBasePath) {
             return;
         }
 
-        const ta  = document.getElementById('gsInput');
+            const ta  = document.getElementById('gsInput');
         const raw = ta?.value ?? '';
         if (!raw.trim()) return;
+        console.error('[RawDebug] textarea raw input:', JSON.stringify(raw));
         state.rawInput = raw;
 
         showStage('gsSeedingStage');
@@ -550,7 +551,7 @@ export function resetUI() {
     const ta = document.getElementById('gsInput');
     if (ta) ta.value = '';
     state.rawInput = '';
-    setModeUI('structure');
+    setModeUI('content');
     const summary = document.getElementById('gsPreviewSummary');
     const list    = document.getElementById('gsPreviewList');
     if (summary) summary.innerHTML = '';
