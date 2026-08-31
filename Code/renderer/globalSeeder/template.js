@@ -21,19 +21,19 @@ export function getPanelHTML() {
     </div>
 
     <div class="gs-mode-tabs">
-        <button class="gs-mode-tab gs-mode-tab--active" id="gsModeStructure" data-mode="structure">
+        <button class="gs-mode-tab" id="gsModeStructure" data-mode="structure">
             Structure
         </button>
-        <button class="gs-mode-tab" id="gsModeContent" data-mode="content">
+        <button class="gs-mode-tab gs-mode-tab--active" id="gsModeContent" data-mode="content">
             Structure + Content
         </button>
     </div>
 
     <!-- Input stage -->
     <div class="gs-stage" id="gsInputStage">
-        <div class="gs-section-label" id="gsInputLabel">Paste file structure below</div>
+        <div class="gs-section-label" id="gsInputLabel">Paste file paths + code blocks below</div>
         <div class="gs-hint" id="gsInputHint">
-            Supports flat lists, indented trees, and box-drawing trees. Missing folders/files are created; existing ones are skipped.
+            Paste Claude/Copilot output: each file path + code (fenced or plain). Smart-anchored to nearest matching folder — choose target if duplicates.
         </div>
         <textarea
             id="gsInput"
