@@ -137,12 +137,31 @@ async function treeSitterCheck(text, ext) {
     return { ok:false, error: msg, line: sp.row+1, column: sp.column+1, snippet };
 }
 
+function jsonCheck(text, ext) {
+    if (ext !== 'json') return null;
+    try { JSON.parse(text); return null; } catch (e) {
+        const m = e.message || 'invalid JSON';
+        let line = 1;
+        const posM = m.match(/position\s+(\d+)/i);
+        if (posM) {
+            const pos = parseInt(posM[1],10);
+            line = text.slice(0, pos).split('\n').length;
+        }
+        return { ok:false, error: `invalid JSON — ${m.slice(0,80)}`, line, column:1 };
+    }
+}
+
 /**
  * Verify text for given ext. Returns null if ok / unsupported, or {ok:false, error, line, column, snippet, severity}
  */
 async function verifySyntax(text, ext) {
     if (!text || !text.trim()) return null;
     const e = (ext||'').toLowerCase().replace(/^\./,'');
+    // JSON strict check first — catches polluted package.json (json + plain list)
+    if (e === 'json') {
+        const jc = jsonCheck(text, e);
+        if (jc) return jc;
+    }
     // Very short content — skip (handled by isTruncatedContent)
     if (text.trim().length < 10) return null;
 

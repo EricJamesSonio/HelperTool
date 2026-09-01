@@ -69,6 +69,48 @@ function isTruncatedContent(content) {
 // ---------------------------------------------------------------------------
 
 /**
+ * BFS search for all files named `targetName` under `basePath`.
+ * Returns absolute file paths, shallowest first, up to 12 candidates.
+ */
+function findFileCandidates(basePath, targetName, opts = {}) {
+    const maxDepth = opts.maxDepth ?? MAX_SEARCH_DEPTH;
+    const ignore   = opts.ignore   ?? IGNORE_DIRS;
+    const lower    = targetName.toLowerCase();
+    const results  = [];
+    const queue    = [{ dir: basePath, depth: 0 }];
+    let scanned    = 0;
+    while (queue.length && scanned < MAX_DIRS_SCANNED) {
+        const { dir, depth } = queue.shift();
+        if (depth > maxDepth) continue;
+        let entries;
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+        for (const ent of entries) {
+            if (ent.isDirectory()) {
+                if (ignore.has(ent.name)) continue;
+                if (ent.name.startsWith('.') && !ignore.has(ent.name)) continue;
+                scanned++;
+                const abs = path.join(dir, ent.name);
+                if (depth + 1 <= maxDepth) queue.push({ dir: abs, depth: depth + 1 });
+                if (scanned >= MAX_DIRS_SCANNED) break;
+                continue;
+            }
+            if (ignore.has(ent.name)) continue;
+            if (ent.name.toLowerCase() === lower) {
+                results.push(path.join(dir, ent.name));
+                if (results.length >= 12) return results;
+            }
+        }
+    }
+    results.sort((a, b) => {
+        const da = a.split(path.sep).length;
+        const db = b.split(path.sep).length;
+        if (da !== db) return da - db;
+        return a.localeCompare(b);
+    });
+    return results;
+}
+
+/**
  * BFS search for all directories named `targetName` under `basePath`.
  * Returns absolute paths, shallowest first, up to 12 candidates.
  */
@@ -129,8 +171,50 @@ function resolveRelPath(basePath, relPath, cache) {
     const norm = relPath.replace(/\\/g, '/').replace(/^\.?\//, '');
     const parts = norm.split('/').filter(Boolean);
     if (!parts.length) return { resolved: norm, candidates: [], ambiguous: false };
-    // single file at root — no anchoring
-    if (parts.length === 1) return { resolved: norm, candidates: [], ambiguous: false };
+    if (parts.length === 1) {
+        // bare file like package.json, main.js, .gitignore — search anywhere
+        const absRoot = path.join(basePath, norm);
+        const key = `__file:${norm.toLowerCase()}`;
+        let fileCands = cache.get(key);
+        if (fileCands === undefined) {
+            fileCands = findFileCandidates(basePath, norm);
+            cache.set(key, fileCands);
+        }
+        if (!fileCands.length) return { resolved: norm, candidates: [], ambiguous: false };
+        const rels = fileCands.map(abs => path.relative(basePath, abs).replace(/\\/g, '/'));
+        const rootExists = fs.existsSync(absRoot);
+        const filteredRels = rels.filter(r => r !== norm);
+        // Distinct resolved paths: root creation target (norm via '') + unique existing rels
+        // Root sentinel '' always represents `norm` even when file doesn't exist yet (create at root)
+        const totalDistinct = 1 + filteredRels.length; // '' + filteredRels
+        if (totalDistinct <= 1) {
+            // Only one existing file and it's at root, no alternative
+            if (rootExists) return { resolved: norm, candidates: [norm], ambiguous: false };
+            // No file at all shouldn't happen here (rels empty handled above), fall through
+            return { resolved: norm, candidates: [], ambiguous: false };
+        }
+        // If only one distinct existing location but it's not root, still offer root-create vs nested-overwrite
+        // e.g. single nested package.json at renderer/nested/package.json → candidates ["", "renderer/nested/package.json"]
+        const all = [''].concat(rels); // '' = Root option (resolves to norm)
+        const seen = new Set();
+        const deduped = [];
+        for (const c of all) {
+            const resolvedForCand = c === '' ? norm : c;
+            if (!seen.has(resolvedForCand)) {
+                seen.add(resolvedForCand);
+                deduped.push(c);
+            }
+        }
+        // deduped length 1 means only root exists (already handled), but double-check
+        if (deduped.length <= 1) {
+            return { resolved: norm, candidates: deduped.length ? deduped : [norm], ambiguous: false };
+        }
+        if (rootExists) {
+            return { resolved: norm, candidates: deduped, ambiguous: true };
+        }
+        // Root doesn't exist: default to shallowest nested, but offer root create choice
+        return { resolved: rels[0], candidates: deduped, ambiguous: true };
+    }
 
     const seg = parts[0];
     // cache per seg to avoid re-scanning same folder many times per batch
@@ -208,11 +292,45 @@ function seed(basePath, relPaths) {
 
 const SURGICAL_MODES = new Set(['update', 'replace', 'addafter', 'addbefore', 'remove']);
 function isSurgical(mode) { return SURGICAL_MODES.has((mode||'').toLowerCase().replace(/\s+/g,'')); }
+function isPlainNoGrammarExt(ext) {
+    const e = (ext||'').toLowerCase();
+    if (!e) return true; // .gitignore, .env, no ext
+    const { EXT_LANG } = require('./astPatch/grammarLoader');
+    if (EXT_LANG[e]) return false;
+    if (e === 'json') return false;
+    return true;
+}
+function patchPlainText(source, target, newContent, mode) {
+    const m = (mode||'').toLowerCase().replace(/\s+/g,'');
+    if (target === 'end') {
+        const needsNL = source && !source.endsWith('\n');
+        const ins = (needsNL ? '\n' : '') + (newContent||'').trim() + '\n';
+        return source + ins;
+    }
+    // for plain text other targets, just append (safe fallback)
+    return null;
+}
 
 async function computePatchedRight(basePath, resolved, entriesForFile, left) {
     let right = left;
     const fullEntries = entriesForFile.filter(e => !isSurgical(e.mode||'full'));
     if (fullEntries.length) right = fullEntries[fullEntries.length - 1].content ?? '';
+    // plain text files with target 'end' can be patched without temp file
+    const plainExt = extOf(resolved);
+    const isPlain = isPlainNoGrammarExt(plainExt);
+    if (isPlain) {
+        for (const e of entriesForFile) {
+            const m = (e.mode||'').toLowerCase().replace(/\s+/g,'');
+            if (!isSurgical(m)) continue;
+            if (e.target === 'end') {
+                const patched = patchPlainText(right, e.target, e.content ?? '', m);
+                if (patched !== null) right = patched;
+            }
+        }
+        // if we handled plain text end, return early if no ast patches remain
+        const hasAst = entriesForFile.some(e=> isSurgical(e.mode) && e.target !== 'end');
+        if (!hasAst) return right;
+    }
     const ext = path.extname(path.join(basePath, resolved)) || '.txt';
     const tmpFile = path.join(os.tmpdir(), `gs-patched-${Date.now()}-${Math.random().toString(36).slice(2,6)}${ext}`);
     try {
@@ -273,17 +391,22 @@ async function previewContent(basePath, entries) {
         }
 
         if (surgical) {
-            if (!exists && effMode !== 'addAfter' && effMode !== 'addBefore') {
+            const plainEnd = isPlainNoGrammarExt(extOf(resolved)) && target === 'end';
+            if (!exists && effMode !== 'addAfter' && effMode !== 'addBefore' && !plainEnd) {
                 // remove/replace on non-existent file will fallback
                 warning = (warning ? warning + '; ' : '') + `file not found — will create full file`;
             } else if (target && exists) {
-                try {
-                    const check = await astPatch.canPatch(abs, target, effMode);
-                    if (!check.ok) {
-                        warning = (warning ? warning + '; ' : '') + check.reason;
+                if (plainEnd) {
+                    // plain text append always ok — no warning
+                } else {
+                    try {
+                        const check = await astPatch.canPatch(abs, target, effMode);
+                        if (!check.ok) {
+                            warning = (warning ? warning + '; ' : '') + check.reason;
+                        }
+                    } catch (e) {
+                        warning = (warning ? warning + '; ' : '') + e.message;
                     }
-                } catch (e) {
-                    warning = (warning ? warning + '; ' : '') + e.message;
                 }
             } else if (!target && effMode !== 'addAfter' && effMode !== 'addBefore') {
                 warning = (warning ? warning + '; ' : '') + `surgical mode requires a target`;
@@ -373,9 +496,10 @@ async function seedContent(basePath, entries) {
 
             const surgical = isSurgical(mode);
             if (surgical && target) {
+                const plainEndSeed = isPlainNoGrammarExt(extOf(resolved)) && target === 'end';
                 if (!existed) {
                     const n = (mode||'').toLowerCase().replace(/\s+/g,'');
-                    if (n === 'addafter' || n === 'addbefore') {
+                    if (n === 'addafter' || n === 'addbefore' || plainEndSeed) {
                         fs.writeFileSync(abs, content ?? '', 'utf-8');
                         patched.push(resolved);
                         continue;
@@ -383,6 +507,15 @@ async function seedContent(basePath, entries) {
                     errors.push({ path: resolved, original: relPath, warning: `patch fallback: file not found — created full file` });
                     // fall through to full create below
                 } else {
+                    if (plainEndSeed) {
+                        const src = fs.readFileSync(abs, 'utf-8');
+                        const patchedText = patchPlainText(src, target, content ?? '', mode);
+                        if (patchedText !== null) {
+                            fs.writeFileSync(abs, patchedText, 'utf-8');
+                            patched.push(resolved);
+                            continue;
+                        }
+                    }
                     const normMode = (mode||'').toLowerCase().replace(/\s+/g,'');
                     const effMode = normMode === 'replace' ? 'update' : normMode;
                     let result;
@@ -446,4 +579,4 @@ async function getPatchedPreview(basePath, resolved, allEntries) {
     return { left, right };
 }
 
-module.exports = { preview, seed, previewContent, seedContent, findCandidates, resolveRelPath, IGNORE_DIRS, getPatchedPreview };
+module.exports = { preview, seed, previewContent, seedContent, findCandidates, findFileCandidates, resolveRelPath, IGNORE_DIRS, getPatchedPreview };
