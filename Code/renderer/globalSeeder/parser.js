@@ -12,7 +12,7 @@ const LANG_TOKENS = new Set([
 const ALLOWED_EXTS = new Set([
     'js','jsx','ts','tsx','mjs','cjs','css','scss','less','html','htm','py',
     'json','jsonc','md','markdown','sh','bash','yaml','yml','sql','txt','xml',
-    'vue','svelte','go','rs','java','c','cpp','rb','php','env','module.css','ts',
+    'vue','svelte','go','rs','java','c','cpp','rb','php','env','gitignore','module.css','ts',
 ]);
 const EXT_RE = /\.[a-zA-Z0-9]{1,10}$/;
 const GLUED_LANG_RE = /(\.[a-zA-Z0-9]{1,10})(js|jsx|ts|tsx|css|scss|less|html|htm|py|json|md|sh|bash|yaml|yml|sql|xml|vue|svelte|go|rs|java|c|cpp|rb|php|env)$/i;
@@ -78,9 +78,12 @@ function isValidPath(p) {
     if (!p) return false;
     if (/\s/.test(p)) return false;
     if (LANG_TOKENS.has(p.toLowerCase())) return false;
-    if (!EXT_RE.test(p)) return false;
+    // dotfiles like .gitignore / .env are valid
+    const isDotfile = p.startsWith('.') && !p.includes('/');
+    if (p.startsWith('-')) return false;
+    if (p.startsWith('.') && !isDotfile) return false;
+    if (!isDotfile && !EXT_RE.test(p)) return false;
     if (p.length < 3) return false;
-    if (p.startsWith('-') || p.startsWith('.')) return false;
     // Allow Next.js dynamic segments: [param], [[...param]], (group), and catch-all ... inside
     if (!/^[a-zA-Z0-9._\-\/\[\]\(\)\.]+$/.test(p)) return false;
     // Strip bracket/parenthesis wrappers for ext check, but keep them for path validity
@@ -96,6 +99,16 @@ function isInstructionLine(line) {
     if (t.startsWith('```')) return false;
     if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('* ') || t.startsWith('#')) return false; // code comment, keep as code
     if (LANG_TOKENS.has(t.toLowerCase())) return false;
+    // JSX text nodes are indented and should not be treated as instruction prose
+    // Only top-level (column 0) prose after a file should terminate
+    const isIndented = /^\s/.test(line);
+    if (isIndented) {
+        // Indented lines inside a file (JSX text like "Helper for doctors view...") often contain
+        // em dashes or read like prose but are legitimate code content — don't treat as instruction
+        // Only allow indented instruction if it clearly is top-level AI prose (e.g. "  That's the shape...")
+        // which would still be at least 2 spaces but we keep it non-instruction to avoid false truncation
+        return false;
+    }
     if (/^(that's|this is|the shape|no prose|immediately followed)\b/i.test(t)) return true;
     // long prose ending with period, no code chars, starts with capital instruction
     if (INSTRUCTION_PREFIX_RE.test(t)) return true;
@@ -163,7 +176,7 @@ function cleanContentBuffer(buf) {
         if (t.startsWith('```')) continue; // skip fence delimiters
         const isInstr = isInstructionLine(line);
         if (isInstr) {
-            if (seenCode) break; // trailing prose after code — stop here
+            if (seenCode) break; // trailing prose after code — stop here (only top-level, not indented JSX text)
             continue;
         }
         // consider a line code-like if it has a code char, is a comment, or is blank (blank is allowed between code lines)
@@ -172,9 +185,10 @@ function cleanContentBuffer(buf) {
             if (t !== '') seenCode = true;
         } else if (seenCode && t.length > 0) {
             // prose-like line after code without being an instruction (e.g. "That's the shape: …" without em dash)
-            // treat as terminator as well — but not for code comments
+            // treat as terminator as well — but not for code comments and not for indented JSX text
+            const isTopLevel = !/^\s/.test(line);
             const isProse = t.length > 30 && /\s/.test(t) && !CODE_CHARS_RE.test(t) && !isCodeComment;
-            if (isProse) break;
+            if (isProse && isTopLevel) break;
         }
         out.push(line);
     }
