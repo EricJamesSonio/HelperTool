@@ -14,6 +14,10 @@ function findCssRule(rootNode, target) {
                 .replace(/\s+/g, ' ')
                 .trim();
             if (selText === norm) { found = node; return; }
+            // Support targets that are a single selector within a comma-separated rule
+            // e.g. target ".a th:nth-child(1)" should match rule ".a th:nth-child(1), .a td:nth-child(1)"
+            const selParts = selText.split(',').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+            if (selParts.includes(norm)) { found = node; return; }
         }
         for (let i = 0; i < node.childCount; i++) walk(node.child(i));
     })(rootNode);
