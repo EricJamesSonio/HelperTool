@@ -157,6 +157,7 @@ function renderContentPreview(preview) {
                 const sel = document.createElement('select');
                 sel.className = 'gs-ambig-select';
                 sel.dataset.idx = String(idx);
+                const isBare = !d.original.includes('/');
                 const rest = d.resolved.includes('/') ? d.resolved.substring(d.resolved.indexOf('/') + 1) : '';
                 for (const cand of d.candidates) {
                     const opt = document.createElement('option');
@@ -167,15 +168,27 @@ function renderContentPreview(preview) {
                     } else {
                         opt.textContent = cand;
                     }
-                    // select current resolved prefix
-                    const curPrefix = d.resolved.slice(0, d.resolved.length - rest.length - 1);
-                    if (cand === curPrefix || (cand === '' && d.resolved === d.original)) opt.selected = true;
+                    // select current resolved: bare files compare full path, folder-anchored compare prefix
+                    if (isBare) {
+                        if (cand === '' && d.resolved === d.original) opt.selected = true;
+                        else if (cand !== '' && cand === d.resolved) opt.selected = true;
+                        else if (d.candidates.length === 1 && cand === d.resolved) opt.selected = true;
+                    } else {
+                        const curPrefix = d.resolved.slice(0, d.resolved.length - rest.length - 1);
+                        if (cand === curPrefix || (cand === '' && d.resolved === d.original)) opt.selected = true;
+                    }
                     sel.appendChild(opt);
                 }
                 sel.addEventListener('change', (e) => {
                     const newBase = e.target.value;
-                    const originalRest = d.original.split('/').slice(1).join('/');
-                    const newResolved = newBase === '' ? d.original : (originalRest ? `${newBase}/${originalRest}` : newBase);
+                    let newResolved;
+                    if (isBare) {
+                        // candidates are full file paths for bare files
+                        newResolved = newBase === '' ? d.original : newBase;
+                    } else {
+                        const originalRest = d.original.split('/').slice(1).join('/');
+                        newResolved = newBase === '' ? d.original : (originalRest ? `${newBase}/${originalRest}` : newBase);
+                    }
                     // update preview model and row display
                     d.resolved = newResolved;
                     if (state.contentEntries && state.contentEntries[idx]) {
