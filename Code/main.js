@@ -101,7 +101,12 @@ if (!gotTheLock) {
         };
 
         registerAllIpc(startIndexerAndPrefetch);
-        createTray();
+
+        try {
+            createTray();
+        } catch (e) {
+            console.error('[Tray] createTray failed:', e);
+        }
 
         // ── Start DB init before window creation ──
         // Each init*Db yields internally before sync I/O, so the event loop
@@ -166,6 +171,11 @@ if (!gotTheLock) {
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
         });
+    }).catch((e) => {
+        console.error('[Main] Fatal error during app startup:', e);
+        try {
+            if (!tray) createTray();
+        } catch (_) {}
     });
 
     app.on('before-quit', () => {
@@ -365,15 +375,23 @@ function createTray() {
 // Previous Repos Menu
 // ----------------------------
 function getPreviousReposMenu() {
-    const cfg = config.readConfig();
-    const submenu = [];
+    let cfg;
+    try {
+        cfg = config.readConfig();
+    } catch (e) {
+        console.error('[Config] readConfig failed in getPreviousReposMenu:', e);
+    }
 
-    for (const repoPath in cfg.projects) {
+    const submenu = [];
+    const projects = (cfg && cfg.projects) ? cfg.projects : {};
+
+    for (const repoPath in projects) {
         submenu.push({
             label: path.basename(repoPath),
             click: () => {
-                cfg.activeProject = repoPath;
-                config.writeConfig(cfg);
+                const liveCfg = config.readConfig() || {};
+                liveCfg.activeProject = repoPath;
+                config.writeConfig(liveCfg);
             }
         });
     }
