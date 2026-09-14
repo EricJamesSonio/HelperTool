@@ -1,4 +1,15 @@
-# Helper Tool
+```
+██╗  ██╗███████╗██╗     ██████╗ ███████╗██████╗     ████████╗ ██████╗  ██████╗ ██╗
+██║  ██║██╔════╝██║     ██╔══██╗██╔════╝██╔══██╗    ╚══██╔══╝██╔═══██╗██╔═══██╗██║
+███████║█████╗  ██║     ██████╔╝█████╗  ██████╔╝       ██║   ██║   ██║██║   ██║██║
+██╔══██║██╔══╝  ██║     ██╔═══╝ ██╔══╝  ██╔══██╗       ██║   ██║   ██║██║   ██║██║
+██║  ██║███████╗███████╗██║     ███████╗██║  ██║       ██║   ╚██████╔╝╚██████╔╝███████╗
+╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝
+```
+
+D E V E L O P M E N T   W O R K F L O W   C O M P A N I O N
+
+---
 
 Helper Tool is a personal desktop application built with Electron and continuously developed to improve development workflows, repository management, and AI-assisted productivity.
 
