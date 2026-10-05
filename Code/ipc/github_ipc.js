@@ -1,6 +1,8 @@
 const { ipcMain, shell } = require('electron');
 const https = require('https');
 const { saveTree, listTrees, getTree, deleteTree } = require('../database/githubTrees');
+const docignoreUtils = require('../utils/docignore');
+const { fetchBundle } = require('../utils/githubFetcher');
 
 // In-memory cache for commit counts: { 'owner/repo': { count, fetchedAt } }
 const _commitCountCache = {};
@@ -134,6 +136,22 @@ function register() {
         tree: allItems,
         totalFiles: fileItems.length,
       };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('github:generateBundle', async (event, { repoName, branch, files, token }) => {
+    try {
+      const [owner, repo] = repoName.split('/');
+      const result = await fetchBundle({
+        owner, repo, branch, files, token,
+        ignoreRules: docignoreUtils.loadGlobalIgnoreRules(),
+        onProgress: (done, total) => {
+          if (!event.sender.isDestroyed()) event.sender.send('github:bundleProgress', { done, total });
+        },
+      });
+      return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
     }

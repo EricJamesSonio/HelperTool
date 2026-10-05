@@ -49,8 +49,10 @@ function toggleFile(path) {
 function updateFooter() {
   const count = state.selectedPaths.size;
   const btn = document.querySelector('#geGenerateBtn');
+  const contentsBtn = document.querySelector('#geContentsBtn');
   const label = document.querySelector('#geSelectedCount');
   if (btn) btn.disabled = count === 0;
+  if (contentsBtn) contentsBtn.disabled = count === 0;
   if (label) label.textContent = `${count} selected`;
 }
 
@@ -63,7 +65,7 @@ export function renderTree(container) {
 
   container.innerHTML = '';
   const frag = document.createDocumentFragment();
-  renderNode(root, 0, frag);
+  renderNode(root, 0, frag, '');
 
   if (!frag.childNodes.length) {
     container.innerHTML = '<div class="ge-empty">Empty repository — no files found.</div>';
@@ -74,11 +76,11 @@ export function renderTree(container) {
   updateFooter();
 }
 
-function renderNode(node, depth, parentEl) {
+function renderNode(node, depth, parentEl, basePath) {
   const dirNames = Object.keys(node.__dirs).sort();
   for (const dirName of dirNames) {
     const dir = node.__dirs[dirName];
-    const fullPath = findDirPath(node, dirName);
+    const fullPath = basePath ? basePath + '/' + dirName : dirName;
     const expanded = state.expandedPaths.has(fullPath);
 
     const row = document.createElement('div');
@@ -114,7 +116,7 @@ function renderNode(node, depth, parentEl) {
 
     if (expanded) {
       const childContainer = document.createElement('div');
-      renderNode(dir, depth + 1, childContainer);
+      renderNode(dir, depth + 1, childContainer, fullPath);
       parentEl.appendChild(childContainer);
     }
   }
@@ -123,19 +125,4 @@ function renderNode(node, depth, parentEl) {
   for (const file of files) {
     parentEl.appendChild(createFileRow(file, depth));
   }
-}
-
-function findDirPath(parentNode, dirName) {
-  function search(node, path) {
-    if (node.__dirs && node.__dirs[dirName]) {
-      if (path === '') return dirName;
-      return path + '/' + dirName;
-    }
-    for (const [name, child] of Object.entries(node.__dirs || {})) {
-      const found = search(child, path ? path + '/' + name : name);
-      if (found) return found;
-    }
-    return null;
-  }
-  return search(parentNode, '');
 }

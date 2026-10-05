@@ -543,6 +543,12 @@ const gmailBridge = {
 const githubBridge = {
   github: {
     loadTree: (payload) => ipcRenderer.invoke('github:loadTree', payload),
+    generateBundle: (payload) => ipcRenderer.invoke('github:generateBundle', payload),
+    onBundleProgress: (callback) => {
+      ipcRenderer.removeAllListeners('github:bundleProgress');
+      ipcRenderer.on('github:bundleProgress', (_, data) => callback(data));
+    },
+    removeBundleProgress: () => ipcRenderer.removeAllListeners('github:bundleProgress'),
     saveTree: (data) => ipcRenderer.invoke('github:saveTree', data),
     listSaved: () => ipcRenderer.invoke('github:listSaved'),
     loadSaved: (repoUrl) => ipcRenderer.invoke('github:loadSaved', repoUrl),

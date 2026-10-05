@@ -140,6 +140,10 @@ function getTreeTemplate(st) {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
           Copy Folder Structure
         </button>
+        <button class="ge-btn ge-btn--primary" id="geContentsBtn" ${st.selectedPaths.size === 0 ? 'disabled' : ''}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/></svg>
+          Copy File Contents
+        </button>
       </div>
     </div>
   `;
@@ -235,6 +239,45 @@ function bindTreeEvents(container) {
     const root = buildFilteredTree(state.tree, selected);
     const text = treeToFolderString(root, state.repoName);
     showTreeViewer(text, state.repoName + ' (selected)');
+  });
+
+  container.querySelector('#geContentsBtn').addEventListener('click', async () => {
+    if (state.selectedPaths.size === 0) return;
+    const btn = container.querySelector('#geContentsBtn');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Fetching...';
+
+    window.electronAPI.github.onBundleProgress(({ done, total }) => {
+      btn.textContent = `Fetching ${done}/${total}...`;
+    });
+
+    const files = state.tree
+      .filter(i => i.type === 'blob' && state.selectedPaths.has(i.path))
+      .map(i => ({ path: i.path, size: i.size || 0 }));
+
+    const res = await window.electronAPI.github.generateBundle({
+      repoName: state.repoName,
+      branch: state.branch,
+      files,
+      token: state.token || undefined,
+    });
+
+    // Unsubscribe BEFORE restoring innerHTML: late progress events would otherwise
+    // set textContent and wipe the button's icon permanently.
+    window.electronAPI.github.removeBundleProgress();
+    btn.innerHTML = original;
+    btn.disabled = state.selectedPaths.size === 0;
+
+    if (!res.success) { alert('Failed: ' + res.error); return; }
+    if (res.skipped.length) console.warn('[GitHub bundle] skipped:', res.skipped);
+    if (res.failed.length) console.warn('[GitHub bundle] failed:', res.failed);
+
+    const extra = [
+      res.skipped.length ? `${res.skipped.length} skipped` : '',
+      res.failed.length ? `${res.failed.length} failed` : '',
+    ].filter(Boolean).join(', ');
+    showTreeViewer(res.content, `${state.repoName} (${res.fileCount} files${extra ? ', ' + extra : ''})`);
   });
 }
 
@@ -464,8 +507,10 @@ function showTreeViewer(content, title) {
   const textarea = overlay.querySelector('.ge-viewer-content');
   textarea.value = content;
   requestAnimationFrame(() => {
+    // Cap the height: a multi-MB bundle forces a full text layout otherwise.
+    // .ge-viewer-body already scrolls (overflow: auto).
     textarea.style.height = 'auto';
-    textarea.style.height = textarea.scrollHeight + 'px';
+    textarea.style.height = Math.min(textarea.scrollHeight, 20000) + 'px';
   });
   overlay.querySelector('.ge-viewer-copy-btn').addEventListener('click', async () => {
     try {
