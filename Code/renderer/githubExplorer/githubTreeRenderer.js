@@ -4,7 +4,38 @@ const ICON_FOLDER = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" 
 const ICON_FILE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><polyline points="9,2 9,5 12,5"/></svg>';
 const ICON_CHECKED = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2" fill="currentColor"/><path d="M5 8l2 2 4-4" stroke="#010409"/></svg>';
 const ICON_UNCHECKED = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/></svg>';
+const ICON_INDETERMINATE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2" fill="currentColor"/><path d="M5.5 8h5" stroke="#010409"/></svg>';
 const ICON_CHEVRON = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 3l3 3-3 3"/></svg>';
+
+const _descendantCache = new WeakMap();
+
+/** Recursively collect the path of every file under a node. */
+function collectFilePaths(node, out = []) {
+  for (const f of node.__files || []) out.push(f.path);
+  for (const dir of Object.values(node.__dirs || {})) collectFilePaths(dir, out);
+  return out;
+}
+
+/**
+ * Memoized per tree node. buildTreeFromPaths recreates nodes on every
+ * switchToTreeView, so entries die with the old tree — no manual invalidation.
+ */
+function descendantPaths(dir) {
+  let cached = _descendantCache.get(dir);
+  if (!cached) {
+    cached = collectFilePaths(dir);
+    _descendantCache.set(dir, cached);
+  }
+  return cached;
+}
+
+function selectionState(paths) {
+  let selected = 0;
+  for (const p of paths) if (state.selectedPaths.has(p)) selected++;
+  if (selected === 0) return 'none';
+  if (selected === paths.length) return 'all';
+  return 'some';
+}
 
 function createFileRow(file, depth) {
   const selected = state.selectedPaths.has(file.path);
@@ -46,14 +77,34 @@ function toggleFile(path) {
   updateFooter();
 }
 
+function toggleFiles(paths, deselect) {
+  if (deselect) {
+    for (const p of paths) state.selectedPaths.delete(p);
+  } else {
+    for (const p of paths) state.selectedPaths.add(p);
+  }
+  const container = document.querySelector('#geTreeContainer');
+  if (container) renderTree(container);
+  updateFooter();
+}
+
 function updateFooter() {
   const count = state.selectedPaths.size;
   const btn = document.querySelector('#geGenerateBtn');
   const contentsBtn = document.querySelector('#geContentsBtn');
   const label = document.querySelector('#geSelectedCount');
+  const selectAllBtn = document.querySelector('#geSelectAllBtn');
   if (btn) btn.disabled = count === 0;
   if (contentsBtn) contentsBtn.disabled = count === 0;
   if (label) label.textContent = `${count} selected`;
+
+  // "Select All" is a toggle: it only reads as "Deselect All" when every
+  // file is genuinely selected. count > 0 keeps an empty repo from reading as
+  // "all selected" (0 === 0).
+  if (selectAllBtn) {
+    const total = state.tree.filter(i => i.type === 'blob').length;
+    selectAllBtn.textContent = (count > 0 && count === total) ? 'Deselect All' : 'Select All';
+  }
 }
 
 export function renderTree(container) {
@@ -92,6 +143,24 @@ function renderNode(node, depth, parentEl, basePath) {
     chevron.innerHTML = ICON_CHEVRON;
     row.appendChild(chevron);
 
+    const paths = descendantPaths(dir);
+    if (paths.length > 0) {
+      const checkbox = document.createElement('span');
+      checkbox.className = 'ge-tree-checkbox';
+      const render = selectionState(paths);
+      checkbox.innerHTML =
+        render === 'all' ? ICON_CHECKED :
+        render === 'some' ? ICON_INDETERMINATE :
+        ICON_UNCHECKED;
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Decide from live state, not the captured `render`: this handler can
+        // fire after the row was re-rendered, and selection may have changed.
+        toggleFiles(paths, selectionState(paths) === 'all');
+      });
+      row.appendChild(checkbox);
+    }
+
     const icon = document.createElement('span');
     icon.className = 'ge-tree-icon ge-tree-icon--dir';
     icon.innerHTML = ICON_FOLDER;
@@ -126,3 +195,6 @@ function renderNode(node, depth, parentEl, basePath) {
     parentEl.appendChild(createFileRow(file, depth));
   }
 }
+
+// Exported for headless testing of the selection logic (see verify step).
+export { collectFilePaths, selectionState, descendantPaths, ICON_INDETERMINATE };

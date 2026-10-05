@@ -229,8 +229,9 @@ function bindTreeEvents(container) {
   });
 
   container.querySelector('#geSelectAllBtn').addEventListener('click', () => {
-    const visible = container.querySelectorAll('.ge-tree-row--visible, .ge-tree-row:not(.ge-tree-row--hidden)');
-    fileSelectToggleAll(container, true);
+    const allBlobs = state.tree.filter(i => i.type === 'blob');
+    const allSelected = state.selectedPaths.size > 0 && state.selectedPaths.size === allBlobs.length;
+    fileSelectToggleAll(container, !allSelected);
   });
 
   container.querySelector('#geGenerateBtn').addEventListener('click', () => {
@@ -488,10 +489,13 @@ function showTreeViewer(content, title) {
   closeTreeViewer();
   const overlay = document.createElement('div');
   overlay.className = 'ge-viewer-overlay';
+  const charCount = content.length;
+  const tokenCount = Math.round(charCount / 4);
   overlay.innerHTML = `
     <div class="ge-viewer">
       <div class="ge-viewer-header">
         <span class="ge-viewer-title">${escapeHtml(title)}</span>
+        <span class="ge-viewer-stats">${charCount.toLocaleString()} chars · ~${tokenCount.toLocaleString()} tokens</span>
         <div class="ge-viewer-actions">
           <button class="ge-viewer-btn ge-viewer-copy-btn" title="Copy to clipboard">Copy to Clipboard</button>
           <button class="ge-viewer-btn ge-viewer-close-btn" title="Close (Esc)">✕</button>
@@ -506,12 +510,6 @@ function showTreeViewer(content, title) {
   _treeViewerOverlay = overlay;
   const textarea = overlay.querySelector('.ge-viewer-content');
   textarea.value = content;
-  requestAnimationFrame(() => {
-    // Cap the height: a multi-MB bundle forces a full text layout otherwise.
-    // .ge-viewer-body already scrolls (overflow: auto).
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 20000) + 'px';
-  });
   overlay.querySelector('.ge-viewer-copy-btn').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(content);
