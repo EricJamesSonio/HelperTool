@@ -210,6 +210,18 @@
   font-size: 13px;
 }
 
+.ge-btn--shortcut {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fff;
+  font-weight: 700;
+}
+
+.ge-btn--shortcut:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border-color: rgba(245, 158, 11, 0.8);
+}
+
 .ge-btn--back {
   background: none;
   border: none;
@@ -900,4 +912,192 @@
 .ge-saved-btn--delete svg {
   width: 14px;
   height: 14px;
+}
+
+/* ── Shortcut Modals (find & select) ─────────────────────────── */
+
+.ge-shortcut-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: overlayFadeIn 0.2s ease;
+}
+
+.ge-shortcut-modal {
+  background: var(--bg-base);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  width: 95vw;
+  max-width: 700px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ge-shortcut-modal--results {
+  max-width: 500px;
+}
+
+.ge-shortcut-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ge-shortcut-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.ge-shortcut-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: var(--r-xs);
+  line-height: 1;
+}
+
+.ge-shortcut-close-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.ge-shortcut-body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ge-shortcut-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.ge-shortcut-textarea {
+  width: 100%;
+  min-height: 180px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px 14px;
+  resize: vertical;
+  outline: none;
+}
+
+.ge-shortcut-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.ge-shortcut-error {
+  padding: 10px 14px;
+  background: var(--bg-error, #2d1111);
+  border: 1px solid var(--border-error, #5c1717);
+  border-radius: var(--r-sm);
+  color: var(--text-error, #e74c3c);
+  font-size: 13px;
+}
+
+.ge-shortcut-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ge-shortcut-summary {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.ge-shortcut-ok { color: var(--green, #3fb950); font-weight: 600; }
+.ge-shortcut-muted { color: var(--text-muted); }
+.ge-shortcut-bad { color: var(--red, #e74c3c); font-weight: 600; }
+
+.ge-shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.ge-shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+}
+
+.ge-shortcut-item.found { border-left: 3px solid var(--green, #3fb950); }
+.ge-shortcut-item.not-found { border-left: 3px solid var(--red, #e74c3c); opacity: 0.8; }
+.ge-shortcut-item.unselected { opacity: 0.55; }
+
+.ge-shortcut-item-icon { flex-shrink: 0; }
+.ge-shortcut-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.ge-shortcut-item-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ge-shortcut-unselect-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-xs);
+  color: var(--text-muted);
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ge-shortcut-unselect-btn:hover:not(:disabled) {
+  color: var(--red, #e74c3c);
+  border-color: var(--red, #e74c3c);
+}
+
+.ge-shortcut-unselect-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }

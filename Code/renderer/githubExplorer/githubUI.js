@@ -129,6 +129,7 @@ function getTreeTemplate(st) {
 
       <div class="ge-tree-toolbar">
         <input type="text" class="ge-search-input" id="geSearchInput" placeholder="Search files..." value="${st.searchQuery}">
+        <button class="ge-btn ge-btn--small ge-btn--shortcut" id="geShortcutBtn" title="Paste file list to auto-select">⚡ Shortcut</button>
         <button class="ge-btn ge-btn--small" id="geSelectAllBtn">Select All</button>
       </div>
 
@@ -232,6 +233,11 @@ function bindTreeEvents(container) {
     const allBlobs = state.tree.filter(i => i.type === 'blob');
     const allSelected = state.selectedPaths.size > 0 && state.selectedPaths.size === allBlobs.length;
     fileSelectToggleAll(container, !allSelected);
+  });
+
+  container.querySelector('#geShortcutBtn').addEventListener('click', async () => {
+    const { openGithubShortcutModal } = await import('./githubShortcut.js');
+    openGithubShortcutModal();
   });
 
   container.querySelector('#geGenerateBtn').addEventListener('click', () => {

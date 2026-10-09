@@ -18,6 +18,7 @@ import { confirmDialog } from '../utils/confirmDialog.js';
  * the most specific (longest) path first.
  */
 function extractPotentialFilenames(text) {
+  // Exported for reuse (e.g. GitHub Explorer shortcut). Pure: strings in, candidates out.
   const potentialFiles = new Set();
 
   const cleanedText = text
@@ -81,6 +82,7 @@ function stripDynamicSegments(path) {
  *  5. Fuzzy on full displayPath for path-context candidates
  */
 function findBestMatch(candidate, flatList) {
+  // Exported for reuse (e.g. GitHub Explorer shortcut). Pure: candidate + flatList in, match out.
   const candidateLower   = candidate.toLowerCase();
   const segments         = candidateLower.split('/');
   const lastName         = segments[segments.length - 1];
@@ -164,6 +166,11 @@ function findBestMatch(candidate, flatList) {
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
+
+// Named exports for reuse outside the main tree (GitHub Explorer shortcut mode
+// imports these two pure helpers plus FILE_EXTENSIONS/levenshtein and runs its
+// own find-only loop against githubState.selectedPaths).
+export { extractPotentialFilenames, findBestMatch };
 
 export function unselectMatchedFile(filePath) {
   const idx = state.selectedItems.findIndex(item => item.replace(/\\/g, '/') === filePath.replace(/\\/g, '/'));
