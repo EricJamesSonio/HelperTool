@@ -51,6 +51,11 @@ export function getPanelHTML() {
     <div class="gs-stage gs-stage-hidden" id="gsPreviewStage">
         <div class="gs-section-label">Review before seeding</div>
         <div class="gs-preview-summary" id="gsPreviewSummary"></div>
+        <div class="gs-preview-toolbar" id="gsPreviewToolbar">
+            <button class="gs-btn gs-btn-secondary gs-btn-xs" id="gsSelectAllBtn" type="button">Select all</button>
+            <button class="gs-btn gs-btn-secondary gs-btn-xs" id="gsSelectNoneBtn" type="button">Select none</button>
+            <span class="gs-preview-count" id="gsPreviewCount"></span>
+        </div>
         <div class="gs-preview-list" id="gsPreviewList"></div>
         <div class="gs-preview-actions">
             <button class="gs-btn gs-btn-secondary" id="gsBackBtn">Edit</button>

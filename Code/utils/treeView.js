@@ -328,7 +328,9 @@ function _renderListMode(treeData, container, selectedItems, actionType, onToggl
     const expandedFolders = window._expandedFolders;
 
     function createNode(node, depth = 0) {
-        if (actionType === 'structure' && node.type === 'file') return null;
+        // Structure mode hides nested files, but root files (depth 0 — no
+        // parent folder) are still shown so they can be seen and selected.
+        if (actionType === 'structure' && node.type === 'file' && depth > 0) return null;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'node-wrapper';
@@ -415,7 +417,9 @@ function _renderTreeMode(treeData, container, selectedItems, actionType, onToggl
     _presortTree(treeData);
 
     function createNode(node, depth = 0) {
-        if (actionType === 'structure' && node.type === 'file') return null;
+        // Structure mode hides nested files, but root files (depth 0 — no
+        // parent folder) are still shown so they can be seen and selected.
+        if (actionType === 'structure' && node.type === 'file' && depth > 0) return null;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'node-wrapper';

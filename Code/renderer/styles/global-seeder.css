@@ -543,6 +543,63 @@
     font-weight: 500;
 }
 
+/* Preview toolbar + skip */
+.gs-preview-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.gs-btn-xs {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 0.75rem;
+}
+.gs-preview-count {
+    margin-left: auto;
+    font-size: 0.73rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+.gs-row-check {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.gs-row-cancel {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--r-xs);
+    color: var(--text-faint);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.gs-row-cancel:hover {
+    background: var(--red-dim);
+    border-color: var(--red);
+    color: var(--red);
+}
+.gs-preview-row--skipped {
+    opacity: 0.5;
+}
+.gs-preview-row--skipped .gs-row-path {
+    text-decoration: line-through;
+}
+.gs-preview-row--skipped .gs-row-badge {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    border: 1px solid var(--border-default);
+}
+
 /* Notice */
 .gs-notice {
     position: absolute;

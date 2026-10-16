@@ -27,6 +27,8 @@ const ICONS = {
 
 const FEATURES = [
   { id: 'shortcutTool',  icon: ICONS.cli,  name: 'CLI Tool' },
+  { id: 'shortcutMode',  icon: ICONS.cli,  name: 'Shortcut Mode' },
+  { id: 'globalSeeder',  icon: ICONS.cli,  name: 'Global Seeder' },
   { id: 'apiTool',       icon: ICONS.api,       name: 'API Tool' },
   { id: 'gitTool',       icon: ICONS.git,       name: 'Git Tool' },
   { id: 'promptTool',    icon: ICONS.prompt,    name: 'Prompt Tool' },

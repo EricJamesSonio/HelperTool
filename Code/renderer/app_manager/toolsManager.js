@@ -729,6 +729,30 @@ function _buildShortcutActions() {
 
   actions.exitInput = () => document.activeElement?.blur();
 
+  // Shortcut Mode (paste file list → auto-select). Unconditional like
+  // shortcutTool/exitInput: it has no feature flag and must always show
+  // in the Keyboard Shortcuts dialog.
+  actions.shortcutMode = async () => {
+    try {
+      const modal = document.getElementById('shortcutInputModal');
+      const { openShortcutInputModal, closeShortcutInputModal } = await import('../shortcutMode/modal.js');
+      if (modal?.classList.contains('open')) { closeShortcutInputModal(); return; }
+      _registry.closeAll();
+      openShortcutInputModal();
+    } catch (err) { console.error('[Shortcuts] Shortcut Mode:', err); }
+  };
+
+  // Global Seeder toggle (default Shift+G). Unconditional so it always
+  // shows in the Keyboard Shortcuts dialog like shortcutMode.
+  actions.globalSeeder = () => {
+    try {
+      if (globalSeeder.isOpen()) { globalSeeder.close(); return; }
+      _registry.closeAll();
+      if (diffViewer.isOpen()) diffViewer.close();
+      globalSeeder.open();
+    } catch (err) { console.error('[Shortcuts] Global Seeder:', err); }
+  };
+
   actions.gitTool = () => {
     if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
     _registry.closeAll();

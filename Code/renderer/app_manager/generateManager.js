@@ -5,6 +5,7 @@
 
 import { state }       from './appState.js';
 import { displayTree } from './viewManager.js';
+import { filterTree }  from '../filterManager.js';
 
 
 const generateBtn        = document.getElementById('generateBtn');
@@ -275,6 +276,31 @@ export function initGenerateButton() {
             console.error('[Generate] Failed:', err);
             alert('Generation failed.');
         }
+    });
+}
+
+// ── Select all button ─────────────────────────────────────────────────────────
+
+export function initSelectAllButton() {
+    const btn = document.getElementById('selectAllBtn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        if (!state.cachedTree?.length) return;
+        const norm = (p) => (p || '').replace(/\\/g, '/');
+        // All visible top-level nodes (respects active folder/extension
+        // filters): every root folder plus every root file. Selecting the
+        // roots covers everything underneath, so the generated output has
+        // no duplicates.
+        const roots = filterTree(state.cachedTree);
+        const allPaths = roots.map(n => n.path);
+        if (!allPaths.length) return;
+        const sel = new Set(state.selectedItems.map(norm));
+        const allSelected = allPaths.every(p => sel.has(norm(p)));
+        state.selectedItems.length = 0;
+        if (!allSelected) state.selectedItems.push(...allPaths);
+        window.electronAPI.setLastSelected([...state.selectedItems]);
+        updateGenerateState();
+        displayTree(false);
     });
 }
 

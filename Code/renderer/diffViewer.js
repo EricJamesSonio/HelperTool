@@ -376,11 +376,21 @@ export function close() {
   _open = false;
 }
 
+function _readEditorContent() {
+  const area = document.getElementById('dvEditArea');
+  if (area) return area.value;
+  // legacy fallback (per-line contenteditable spans)
+  const leftBody = document.getElementById('dvLeftBody');
+  if (!leftBody) return '';
+  const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
+  if (!textSpans.length) return '';
+  return Array.from(textSpans).map(el => el.textContent).join('\n');
+}
+
 function _autoSaveAndClose() {
   const leftBody = document.getElementById('dvLeftBody');
   if (!leftBody) { _forceClose(); return; }
-  const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
-  const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+  const content = _readEditorContent();
 
   if (_previewMode) {
     const sourceText = _previewRightText;
@@ -586,51 +596,66 @@ function _escHandler(e) {
   if (e.key === 'Escape') close();
 }
 
+function _editHost() {
+  // Preview (seeder) mode edits the RIGHT side ("Will Be"), so the left
+  // ("Current on Disk") stays visible for reference — same layout, just editing.
+  // Normal file view edits the single visible panel (left).
+  if (_previewMode) return document.getElementById('dvRightBody');
+  return document.getElementById('dvLeftBody');
+}
+
 function _toggleEditMode() {
   _editMode = !_editMode;
-  const leftBody = document.getElementById('dvLeftBody');
+  const host = _editHost();
   const editBtn = document.getElementById('dvEditBtn');
   const toggleBtn = document.getElementById('dvToggleBtn');
-  if (!leftBody) return;
+  if (!host) return;
 
   if (_editMode) {
     const sourceText = _previewMode ? _previewRightText : _rawContent;
     editBtn.textContent = 'Cancel';
     if (toggleBtn) toggleBtn.style.display = 'none';
-    leftBody.innerHTML =
-      '<div class="dv-editor-lines">' +
-      sourceText.split('\n').map((line, i) =>
-        '<div class="dv-line dv-line-context dv-line-editable"><span class="dv-ln">' + (i + 1) +
-        '</span><span class="dv-text" contenteditable="true">' + _escape(line) + '</span></div>'
-      ).join('') +
-      '</div>' +
-      '<div class="dv-editor-actions"><button class="dv-btn dv-editor-save-btn" id="dvSaveBtn">Save</button></div>';
-    leftBody.classList.add('dv-editor-active');
+    // Notepad-style: single textarea so Ctrl+A selects the whole file,
+    // native undo/redo, Tab and paste all behave like a plain editor.
+    // Rendered inside the same panel (same size/position) — layout unchanged.
+    host.innerHTML =
+      '<textarea id="dvEditArea" class="dv-edit-area" spellcheck="false" wrap="off" placeholder="Edit file content…"></textarea>' +
+      '<div class="dv-editor-actions"><span class="dv-editor-hint">Ctrl+A selects all · Ctrl+S saves · Esc cancels · Tab indents</span><button class="dv-btn dv-editor-save-btn" id="dvSaveBtn">Save</button></div>';
+    host.classList.add('dv-editor-active');
     _showFloatingBanner(true);
 
-    const linesContainer = leftBody.querySelector('.dv-editor-lines');
+    const editArea = host.querySelector('#dvEditArea');
+    if (editArea) editArea.value = sourceText;
     const saveBtn = document.getElementById('dvSaveBtn');
-    const firstText = leftBody.querySelector('.dv-text[contenteditable]');
 
     saveBtn.addEventListener('click', _saveContent);
-    if (firstText) {
-      firstText.focus();
-      window.getSelection().selectAllChildren(firstText);
-      window.getSelection().collapseToEnd();
+    if (editArea) {
+      editArea.focus();
+      // place cursor at end, don't auto-select (user asked for manual Ctrl+A)
+      editArea.selectionStart = editArea.selectionEnd = editArea.value.length;
     }
 
-    leftBody._editorKeydown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    host._editorKeydown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         _saveContent();
+        return;
+      }
+      // Tab indents with 2 spaces inside textarea (notepad-like)
+      if (e.key === 'Tab' && document.activeElement === editArea) {
+        e.preventDefault();
+        const start = editArea.selectionStart;
+        const end = editArea.selectionEnd;
+        editArea.setRangeText('  ', start, end, 'end');
+        editArea.dispatchEvent(new Event('input', { bubbles: true }));
       }
     };
-    leftBody.addEventListener('keydown', leftBody._editorKeydown);
+    host.addEventListener('keydown', host._editorKeydown);
     // debounce 300ms on input for live re-verify (mark stale until save re-verifies)
     const _onEditorInput = () => {
       if (_editInputDebounce) clearTimeout(_editInputDebounce);
       _editInputDebounce = setTimeout(() => {
-        const cur = Array.from(linesContainer.querySelectorAll('.dv-text[contenteditable]')).map(el=>el.textContent).join('\n');
+        const cur = editArea ? editArea.value : '';
         // keep preview text in sync for diff re-render on cancel/save
         if (_previewMode) {
           // mark banner stale until onSave verifies via getPatchedPreview
@@ -647,21 +672,24 @@ function _toggleEditMode() {
         }
       }, 300);
     };
-    linesContainer.addEventListener('input', _onEditorInput);
-    leftBody._editorInputHandler = _onEditorInput;
-    leftBody._editorLinesContainer = linesContainer;
+    if (editArea) editArea.addEventListener('input', _onEditorInput);
+    host._editorInputHandler = _onEditorInput;
+    host._editorLinesContainer = editArea;
   } else {
     editBtn.textContent = 'Edit';
     if (toggleBtn) toggleBtn.style.display = '';
-    leftBody.classList.remove('dv-editor-active');
-    if (leftBody._editorKeydown) {
-      leftBody.removeEventListener('keydown', leftBody._editorKeydown);
-      delete leftBody._editorKeydown;
-    }
-    if (leftBody._editorInputHandler && leftBody._editorLinesContainer) {
-      leftBody._editorLinesContainer.removeEventListener('input', leftBody._editorInputHandler);
-      delete leftBody._editorInputHandler;
-      delete leftBody._editorLinesContainer;
+    document.getElementById('dvLeftBody')?.classList.remove('dv-editor-active');
+    document.getElementById('dvRightBody')?.classList.remove('dv-editor-active');
+    for (const el of [document.getElementById('dvLeftBody'), document.getElementById('dvRightBody')]) {
+      if (el && el._editorKeydown) {
+        el.removeEventListener('keydown', el._editorKeydown);
+        delete el._editorKeydown;
+      }
+      if (el && el._editorInputHandler && el._editorLinesContainer) {
+        try { el._editorLinesContainer.removeEventListener('input', el._editorInputHandler); } catch (_) {}
+        delete el._editorInputHandler;
+        delete el._editorLinesContainer;
+      }
     }
     if (_editInputDebounce) { clearTimeout(_editInputDebounce); _editInputDebounce = null; }
     const staleBanner = document.getElementById('dvVerifyBanner');
@@ -696,9 +724,9 @@ function _showFloatingBanner(show) {
 async function _saveContent() {
   const leftBody = document.getElementById('dvLeftBody');
   if (!leftBody) return;
-  const textSpans = leftBody.querySelectorAll('.dv-text[contenteditable]');
-  if (!textSpans.length) return;
-  const content = Array.from(textSpans).map(el => el.textContent).join('\n');
+  const area = document.getElementById('dvEditArea');
+  if (!area) return;
+  const content = area.value;
 
   if (_previewMode) {
     const sourceText = _previewRightText;

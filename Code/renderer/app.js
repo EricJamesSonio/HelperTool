@@ -57,6 +57,7 @@ import {
     initModeItems,
     initGenerateButton,
     initClearSelectionButton,
+    initSelectAllButton,
     onSelectionChange
 } from './app_manager/generateManager.js';
 
@@ -516,6 +517,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     initModeItems();
     initGenerateButton();
     initClearSelectionButton();
+    initSelectAllButton();
     initViewMode();
     initZoomManager();
     initShortcutMode();

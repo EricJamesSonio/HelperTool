@@ -21,6 +21,23 @@ const CODE_CHARS_RE = /[{}\[\]();=<>`"'$:,?]/;
 const INSTRUCTION_PREFIX_RE = /^(replace|and|update|note|this|here|please|the|you can|update the|replace the)\b/i;
 const PARTIAL_RE = /\(partial\)/i;
 const SURGICAL_RE = /\((add(?:\s+after|\s+before)?|replace|update|remove)\s*:\s*([^)]+)\)/i;
+// Import-like lines must never become file headers — their quoted string
+// literals (e.g. from "@/lib/..." or from "./Checkbox.js") look path-like.
+const IMPORT_LINE_RE = /^\s*(import|export)\b.*\bfrom\b\s*["']/;
+const REQUIRE_CALL_RE = /(require|import)\s*\(\s*["']/;
+const FROM_STRING_RE = /\bfrom\s*["'][^"']+["']/;
+const DECL_FROM_RE = /^\s*(import|export|const|let|var)\b.*\bfrom\b\s*["']/;
+
+export function isImportLike(line) {
+    if (!line) return false;
+    const t = line.trim();
+    if (!t) return false;
+    if (t.startsWith('```')) return false;
+    if (IMPORT_LINE_RE.test(line)) return true;
+    if (REQUIRE_CALL_RE.test(line)) return true;
+    if (DECL_FROM_RE.test(line) && FROM_STRING_RE.test(line)) return true;
+    return false;
+}
 
 /**
  * Extract path candidate from a single line.
@@ -31,6 +48,10 @@ const SURGICAL_RE = /\((add(?:\s+after|\s+before)?|replace|update|remove)\s*:\s*
 function extractPathCandidate(line) {
     let raw = line.trim();
     if (!raw) return null;
+    // Never treat import/export/from lines as headers (checked on raw line too)
+    if (isImportLike(line)) return null;
+    // Overlong lines are code/prose, never a path header
+    if (raw.length > 260) return null;
     // strip common markdown heading / list markers before any other logic
     raw = raw.replace(/^#{1,6}\s+/, '').replace(/^[-*•]\s+/, '').replace(/^\d+\.\s+/, '').trim();
     if (!raw) return null;
@@ -45,11 +66,14 @@ function extractPathCandidate(line) {
     // split on em-dash / en-dash / " — " / " - "
     const dashSplit = raw.split(/\s+[—–-]\s+/);
     let first = dashSplit[0].trim();
-    // if first contains spaces, take leading token that looks path-like
+    // Header must START with the path — the first token must be path-like.
+    // This rejects mid-line import string literals like: import X from "@/a/b.js"
     if (/\s/.test(first)) {
         const tokens = first.split(/\s+/);
-        const pathTok = tokens.find(t => t.includes('/') || EXT_RE.test(t));
-        first = pathTok || tokens[0];
+        const head = tokens[0];
+        const headLooksPath = head.includes('/') || EXT_RE.test(head);
+        if (!headLooksPath) return null;
+        first = head;
     }
     // strip wrapping backticks/quotes/brackets/decorators from the token itself (e.g. "`components/...`" or "``!components/.../!``")
     first = first.replace(/^[`'\"!*~>\|\[\(\s]+/, '').replace(/[`'\"!*~>\|\)\]\s]+$/, '').trim();
@@ -246,20 +270,26 @@ export function parseContentBlocks(raw) {
 
         // Path check first — even inside an outer wrapper fence we want to catch headers like
         // "```" (outer) -> "components/foo.tsx" -> "```tsx"
-        // So we peek ahead: a path inside a fence is only a header if the next non-empty line is a fence
+        // Code fences belonging to an open file are never headers (kills
+        // import string literals and file-tree blocks inside code).
         if (!isFenceLine) {
+            if (isImportLike(line)) {
+                if (curPath !== null) buf.push(line);
+                continue;
+            }
             const cand = extractPathCandidate(line);
             if (cand) {
-                const t = line.trim();
-                if (/^\s*(import|export)\b/.test(t) && /from\s+["']/.test(t)) {
-                    if (curPath !== null) buf.push(line);
-                    continue;
-                }
                 let isHeader = !inFence;
                 if (inFence) {
+                    // Inside a file's own code fence: never a new header.
+                    if (curPath !== null) {
+                        buf.push(line);
+                        continue;
+                    }
                     let j = i + 1;
                     while (j < lines.length && !lines[j].trim()) j++;
                     if (j < lines.length && lines[j].trim().startsWith('```')) isHeader = true;
+                    else isHeader = false;
                 }
                 if (isHeader) {
                     const surgicalMatch = line.match(SURGICAL_RE);

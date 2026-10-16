@@ -2,6 +2,8 @@ const STORAGE_KEY = 'helpertool-shortcuts';
 
 const DEFAULT_SHORTCUTS = {
   shortcutTool:  null,
+  shortcutMode:  'G',
+  globalSeeder:  'Shift+G',
   apiTool:       null,
   gitTool:       null,
   dbInspector:   null,
@@ -52,6 +54,19 @@ function loadShortcuts() {
         data.codeswampChat = data.opencodeChat;
       }
       delete data.opencodeChat;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    // New key: if the user already bound our default ('G') to another tool,
+    // leave Shortcut Mode unassigned instead of creating a conflict.
+    // The dialog's capture-time check prevents future conflicts.
+    if (data.shortcutMode === undefined && Object.values(data).includes(DEFAULT_SHORTCUTS.shortcutMode)) {
+      data.shortcutMode = null;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+    // Same for Global Seeder ('Shift+G') — don't steal a user binding.
+    if (data.globalSeeder === undefined && Object.values(data).includes(DEFAULT_SHORTCUTS.globalSeeder)) {
+      data.globalSeeder = null;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
