@@ -1,3 +1,5 @@
+import { CONVERT_FORMATS, QUALITY_PRESETS } from './imageState.js';
+
 const ICONS = {
   image: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/></svg>',
   x: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>',
@@ -16,7 +18,14 @@ function formatSize(bytes) {
   return (kb / 1024).toFixed(1) + ' MB';
 }
 
-export function renderImageOutputRow(outputFolder) {
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+export function renderConvertOutputRow(outputFolder) {
   const displayPath = outputFolder || 'Temp folder (default)';
   return `
     <div class="vt-output-row">
@@ -26,65 +35,23 @@ export function renderImageOutputRow(outputFolder) {
     </div>`;
 }
 
-export function renderImageDropZone(inputPath, inputMeta) {
-  if (inputPath && inputMeta) {
-    const name = inputPath.split(/[\\/]/).pop();
+export function renderConvertDropZone(files, metas) {
+  if (files.length === 1) {
+    const name = files[0].split(/[\\/]/).pop();
+    const meta = metas[0] || {};
     return `
       <div class="im-file-info">
         <span class="im-file-icon">${ICONS.image}</span>
         <div class="im-file-details">
           <div class="im-file-name">${escapeHtml(name)}</div>
-          <div class="im-file-meta"><span>${inputMeta.resolution}</span><span class="vt-meta-sep">|</span><span>${formatSize(inputMeta.fileSize)}</span></div>
+          <div class="im-file-meta"><span>${meta.resolution || '?'}</span><span class="vt-meta-sep">|</span><span>${formatSize(meta.fileSize)}</span></div>
         </div>
-        <button class="im-file-remove" id="imRemoveFile" title="Remove image">${ICONS.x}</button>
+        <button class="ic-browse-btn" id="imAddMoreBtn">Add More</button>
+        <button class="im-file-remove" data-idx="0" title="Remove image">${ICONS.x}</button>
       </div>`;
   }
-  return `
-    <div class="im-drop-zone" id="imDropZone">
-      <div class="im-drop-icon">${ICONS.image}</div>
-      <div class="im-drop-title">Convert Image to ICO</div>
-      <div class="im-drop-sub">PNG or JPG &middot; Generates 16×16 to 256×256</div>
-      <button class="im-browse-btn" id="imBrowseBtn">Select Image</button>
-    </div>`;
-}
 
-export function renderImageResult(result) {
-  if (!result) return '';
-  const sizesStr = result.sizesIncluded.map(s => s + '×' + s).join(', ');
-  return `
-    <div class="im-result">
-      <div class="im-result-title">${ICONS.download} ICO Created!</div>
-      <div class="im-result-row"><span class="im-result-label">Sizes</span><span class="im-result-value">${sizesStr}</span></div>
-      <div class="im-result-row"><span class="im-result-label">Source</span><span class="im-result-value">${result.originalResolution} (${formatSize(result.srcSize)})</span></div>
-      <div class="im-result-row"><span class="im-result-label">ICO size</span><span class="im-result-value im-result-highlight">${formatSize(result.fileSize)}</span></div>
-      ${result.skippedSizes > 0 ? `<div class="im-result-warn">${result.skippedSizes} size(s) skipped (larger than source)</div>` : ''}
-      <div class="im-result-actions">
-        <button class="im-result-btn im-result-btn--primary" id="imOpenFileBtn">${ICONS.download} Open File</button>
-        <button class="im-result-btn" id="imOpenFolderBtn">Open Folder</button>
-        <button class="im-result-btn" id="imConvertAnotherBtn">Convert Another</button>
-      </div>
-    </div>`;
-}
-
-export function renderImageProgress(progress) {
-  if (!progress) return '';
-  const pct = progress.percent || 0;
-  const step = progress.step || '';
-  return `
-    <div class="im-progress-section">
-      <div class="im-progress-label">Converting... ${pct}%</div>
-      <div class="im-progress-track"><div class="im-progress-fill" style="width:${pct}%"></div></div>
-      ${step ? `<div class="im-progress-step">${escapeHtml(step)}</div>` : ''}
-    </div>`;
-}
-
-export function renderImageError(error) {
-  if (!error) return '';
-  return `<div class="im-error"><span>${escapeHtml(error)}</span><button class="im-error-retry" id="imRetryBtn">Retry</button></div>`;
-}
-
-export function renderCompressDropZone(mode, files, metas) {
-  if (mode === 'batch' && files.length > 0) {
+  if (files.length > 1) {
     const items = files.map((f, i) => {
       const name = f.split(/[\\/]/).pop();
       const meta = metas[i] || {};
@@ -102,161 +69,149 @@ export function renderCompressDropZone(mode, files, metas) {
       <div class="ic-file-list">
         <div class="ic-file-list-header">
           <span>${files.length} image(s) selected</span>
-          <button class="ic-browse-btn" id="icAddMoreBtn">Add More</button>
+          <button class="ic-browse-btn" id="imAddMoreBtn">Add More</button>
         </div>
         ${items}
       </div>`;
   }
-  if (mode === 'single' && files.length === 1) {
-    const name = files[0].split(/[\\/]/).pop();
-    const meta = metas[0] || {};
-    return `
-      <div class="im-file-info">
-        <span class="im-file-icon">${ICONS.image}</span>
-        <div class="im-file-details">
-          <div class="im-file-name">${escapeHtml(name)}</div>
-          <div class="im-file-meta"><span>${meta.resolution || '?'}</span><span class="vt-meta-sep">|</span><span>${formatSize(meta.fileSize)}</span></div>
-        </div>
-        <button class="im-file-remove" id="icRemoveFile" title="Remove">${ICONS.x}</button>
-      </div>`;
-  }
+
   return `
-    <div class="im-drop-zone" id="icDropZone">
+    <div class="im-drop-zone" id="imDropZone">
       <div class="im-drop-icon">${ICONS.image}</div>
-      <div class="im-drop-title">Compress Images</div>
-      <div class="im-drop-sub">PNG, JPG or WebP &middot; Single or batch mode</div>
-      <button class="im-browse-btn" id="icBrowseBtn">Select Image(s)</button>
+      <div class="im-drop-title">Convert Image</div>
+      <div class="im-drop-sub">PNG, JPG, WebP, GIF, TIFF, AVIF or SVG &middot; Convert to PNG, JPG, WebP, ICO or SVG</div>
+      <button class="im-browse-btn" id="imBrowseBtn">Select Image(s)</button>
     </div>`;
 }
 
-export function renderCompressControls(preset, format) {
-  const presets = [
-    { id: 'lossless', label: 'Lossless', desc: 'Maximum quality, larger file', icon: 'max' },
-    { id: 'high',     label: 'High',     desc: '90% quality, great balance',  icon: 'high' },
-    { id: 'balanced', label: 'Balanced', desc: '75% quality, recommended',    icon: 'bal' },
-    { id: 'small',    label: 'Small',    desc: '50% quality, smallest file',  icon: 'min' },
-  ];
-  const formatOptions = [
-    { id: 'auto', label: 'Auto (keep original)' },
-    { id: 'jpeg', label: 'JPEG' },
-    { id: 'png',  label: 'PNG' },
-    { id: 'webp', label: 'WebP' },
-  ];
-  const presetCards = presets.map(p => `
-    <div class="vt-preset-card ${preset === p.id ? 'vt-preset-card--active' : ''}" data-preset="${p.id}">
-      <div class="vt-preset-card-icon">${ICONS[p.icon] || ICONS.image}</div>
-      <div class="vt-preset-card-body">
-        <div class="vt-preset-label">${p.label}</div>
-        <div class="vt-preset-desc">${p.desc}</div>
-      </div>
-    </div>`).join('');
-  const formatSelect = formatOptions.map(o =>
-    `<option value="${o.id}" ${format === o.id ? 'selected' : ''}>${o.label}</option>`
+export function renderConvertControls(format, preset) {
+  const formatOptions = CONVERT_FORMATS.map(f =>
+    `<option value="${f.id}" ${format === f.id ? 'selected' : ''}>${f.label}</option>`
   ).join('');
+
+  const active = CONVERT_FORMATS.find(f => f.id === format);
+  const showPresets = active ? active.supportsQuality : true;
+
+  const presetCards = showPresets
+    ? QUALITY_PRESETS.map(p => `
+        <div class="vt-preset-card ${preset === p.id ? 'vt-preset-card--active' : ''}" data-preset="${p.id}">
+          <div class="vt-preset-card-icon">${ICONS[p.icon] || ICONS.image}</div>
+          <div class="vt-preset-card-body">
+            <div class="vt-preset-label">${p.label}</div>
+            <div class="vt-preset-desc">${p.desc}</div>
+          </div>
+        </div>`).join('')
+    : '';
+
+  const presetHint = showPresets ? '' : `
+    <div class="im-format-hint">${format === 'ico'
+      ? 'ICO generates 16&times;16 to 256&times;256 from your source image.'
+      : 'SVG wraps your image as an embedded picture that scales cleanly.'}</div>`;
+
   return `
     <div class="vt-layout">
       <div class="vt-sidebar">
-        <div class="vt-section-label">Quality Preset</div>
-        <div class="vt-presets">${presetCards}</div>
+        ${showPresets ? `
+          <div class="vt-section-label">Quality Preset</div>
+          <div class="vt-presets" id="imPresets">${presetCards}</div>` : presetHint}
       </div>
       <div class="vt-main">
         <div class="vt-section">
           <div class="vt-output-row">
-            <span>Format:</span>
-            <select class="ic-format-select" id="icFormatSelect">${formatSelect}</select>
+            <span>Convert to:</span>
+            <select class="ic-format-select" id="imFormatSelect">${formatOptions}</select>
           </div>
         </div>
       </div>
     </div>`;
 }
 
-export function renderCompressOutputRow(outputFolder) {
-  const displayPath = outputFolder || 'Temp folder (default)';
-  return `
-    <div class="vt-output-row">
-      <span>Output:</span>
-      <span class="vt-output-path">${escapeHtml(displayPath)}</span>
-      <button class="vt-output-change-btn" id="icChangeOutputBtn">Change</button>
-    </div>`;
+export function renderConvertButton(formatLabel, fileCount) {
+  const label = fileCount > 1 ? `Convert All (${fileCount} files) to ${formatLabel}` : `Convert to ${formatLabel}`;
+  return `<button class="vt-compress-btn" id="imConvertBtn">${ICONS.download} ${label}</button>`;
 }
 
-export function renderCompressButton(mode, fileCount) {
-  const label = mode === 'batch' ? `Compress All (${fileCount} files)` : 'Compress Image';
-  return `<button class="vt-compress-btn" id="icCompressBtn">${ICONS.download} ${label}</button>`;
-}
-
-export function renderCompressProgress(progress) {
+export function renderConvertProgress(progress) {
   if (!progress) return '';
   const pct = progress.percent || 0;
+  const step = progress.step || '';
   const fileInfo = progress.fileName
     ? `<div class="vt-progress-size">${escapeHtml(progress.fileName)} (${progress.currentFile}/${progress.totalFiles})</div>`
     : '';
   return `
-    <div class="vt-progress-section">
-      <div class="vt-progress-label">Compressing... ${pct}%</div>
-      <div class="vt-progress-track"><div class="vt-progress-fill" style="width:${pct}%"></div></div>
+    <div class="im-progress-section">
+      <div class="im-progress-label">Converting... ${pct}%</div>
+      <div class="im-progress-track"><div class="im-progress-fill" style="width:${pct}%"></div></div>
+      ${step ? `<div class="im-progress-step">${escapeHtml(step)}</div>` : ''}
       ${fileInfo}
     </div>`;
 }
 
-export function renderCompressResult(result) {
+function renderIcoRows(ico) {
+  if (!ico) return '';
+  const sizesStr = (ico.sizesIncluded || []).map(s => s + '×' + s).join(', ');
+  return `
+    <div class="vt-result-row"><span class="vt-result-label">Sizes</span><span class="vt-result-value">${sizesStr}</span></div>
+    ${ico.skippedSizes > 0 ? `<div class="vt-result-warn">${ico.skippedSizes} size(s) skipped (larger than source)</div>` : ''}`;
+}
+
+export function renderConvertResult(result, formatLabel, warning) {
   if (!result) return '';
+
   if (result.batch) {
-    const totalSaved = result.totalOriginalSize - result.totalCompressedSize;
+    const totalSaved = result.totalOriginalSize - result.totalOutputSize;
     const rows = result.results.filter(r => !r.error).map(r => {
       const name = r.inputPath.split(/[\\/]/).pop();
-      const saved = r.originalSize - r.compressedSize;
+      const pct = r.reductionPercent || 0;
+      const sign = pct > 0 ? '-' : (pct < 0 ? '+' : '');
       return `
         <div class="ic-result-file">
           <span class="ic-result-fname">${escapeHtml(name)}</span>
-          <span class="ic-result-fsize">${formatSize(r.originalSize)} → ${formatSize(r.compressedSize)}</span>
-          <span class="ic-result-fsave ${r.reductionPercent > 0 ? 'ic-result-fsave--pos' : ''}">-${r.reductionPercent}%</span>
+          <span class="ic-result-fsize">${formatSize(r.originalSize)} → ${formatSize(r.outputSize)}</span>
+          <span class="ic-result-fsave ${pct > 0 ? 'ic-result-fsave--pos' : ''}">${sign}${Math.abs(pct)}%</span>
         </div>`;
     }).join('');
     const errCount = result.errors ? result.errors.length : 0;
     return `
       <div class="vt-result">
-        <div class="vt-result-title">${ICONS.download} Batch Complete!</div>
+        <div class="vt-result-title">${ICONS.download} Converted to ${escapeHtml(formatLabel)}!</div>
         <div class="vt-result-row"><span class="vt-result-label">Files processed</span><span class="vt-result-value">${result.results.length - errCount} / ${result.results.length}</span></div>
         <div class="vt-result-row"><span class="vt-result-label">Total original</span><span class="vt-result-value">${formatSize(result.totalOriginalSize)}</span></div>
-        <div class="vt-result-row"><span class="vt-result-label">Total compressed</span><span class="vt-result-value vt-result-highlight">${formatSize(result.totalCompressedSize)}</span></div>
-        <div class="vt-result-row"><span class="vt-result-label">Total saved</span><span class="vt-result-value vt-result-highlight">${formatSize(totalSaved)} (${result.totalReductionPercent}%)</span></div>
+        <div class="vt-result-row"><span class="vt-result-label">Total output</span><span class="vt-result-value vt-result-highlight">${formatSize(result.totalOutputSize)}</span></div>
+        <div class="vt-result-row"><span class="vt-result-label">Total saved</span><span class="vt-result-value vt-result-highlight">${totalSaved >= 0 ? '-' : '+'}${formatSize(Math.abs(totalSaved))} (${Math.abs(result.totalReductionPercent)}%)</span></div>
         <div class="ic-result-files">${rows}</div>
-        ${errCount > 0 ? `<div class="im-result-warn">${errCount} file(s) failed</div>` : ''}
+        ${errCount > 0 ? `<div class="vt-result-warn">${errCount} file(s) failed</div>` : ''}
+        ${warning ? `<div class="vt-result-warn">${escapeHtml(warning)}</div>` : ''}
         <div class="vt-result-actions">
-          <button class="vt-result-btn vt-result-btn--primary" id="icOpenFolderBtn">${ICONS.download} Open Folder</button>
-          <button class="vt-result-btn" id="icCompressAnotherBtn">Compress More</button>
+          <button class="vt-result-btn vt-result-btn--primary" id="imOpenFolderBtn">${ICONS.download} Open Folder</button>
+          <button class="vt-result-btn" id="imConvertAnotherBtn">Convert More</button>
         </div>
       </div>`;
   }
-  const saved = result.originalSize - result.compressedSize;
+
+  const saved = result.originalSize - result.outputSize;
   return `
     <div class="vt-result">
-      <div class="vt-result-title">${ICONS.download} Compressed!</div>
+      <div class="vt-result-title">${ICONS.download} Converted to ${escapeHtml(formatLabel)}!</div>
       <div class="vt-result-row"><span class="vt-result-label">Original</span><span class="vt-result-value">${formatSize(result.originalSize)}</span></div>
-      <div class="vt-result-row"><span class="vt-result-label">Compressed</span><span class="vt-result-value vt-result-highlight">${formatSize(result.compressedSize)}</span></div>
-      <div class="vt-result-row"><span class="vt-result-label">Saved</span><span class="vt-result-value vt-result-highlight">${formatSize(saved)} (${result.reductionPercent}%)</span></div>
+      <div class="vt-result-row"><span class="vt-result-label">Output</span><span class="vt-result-value vt-result-highlight">${formatSize(result.outputSize)}</span></div>
+      <div class="vt-result-row"><span class="vt-result-label">Size change</span><span class="vt-result-value">${saved >= 0 ? '-' : '+'}${formatSize(Math.abs(saved))} (${Math.abs(result.reductionPercent)}%)</span></div>
       <div class="vt-result-row"><span class="vt-result-label">Resolution</span><span class="vt-result-value">${result.originalResolution}</span></div>
+      ${renderIcoRows(result.ico)}
+      ${warning ? `<div class="vt-result-warn">${escapeHtml(warning)}</div>` : ''}
       <div class="vt-result-actions">
-        <button class="vt-result-btn vt-result-btn--primary" id="icOpenFileBtn">${ICONS.download} Open File</button>
-        <button class="vt-result-btn" id="icOpenFolderBtn">Open Folder</button>
-        <button class="vt-result-btn" id="icCompressAnotherBtn">Compress Another</button>
+        <button class="vt-result-btn vt-result-btn--primary" id="imOpenFileBtn">${ICONS.download} Open File</button>
+        <button class="vt-result-btn" id="imOpenFolderBtn">Open Folder</button>
+        <button class="vt-result-btn" id="imConvertAnotherBtn">Convert Another</button>
       </div>
     </div>`;
 }
 
-export function renderCompressError(error) {
+export function renderConvertError(error) {
   if (!error) return '';
   return `
     <div class="vt-error">
       <span>${escapeHtml(error)}</span>
-      <button class="vt-error-retry" id="icRetryBtn">Retry</button>
+      <button class="vt-error-retry" id="imRetryBtn">Retry</button>
     </div>`;
-}
-
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }

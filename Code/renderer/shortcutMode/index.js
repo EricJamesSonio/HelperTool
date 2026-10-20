@@ -1,4 +1,5 @@
 import { processShortcutInput } from './core.js';
+import { triggerGenerate } from '../app_manager/generateManager.js';
 import {
   openShortcutInputModal,
   closeShortcutInputModal,
@@ -92,8 +93,14 @@ export function initShortcutMode() {
     }
   });
 
+  const shortcutResultsGenerateBtn = document.getElementById('shortcutResultsGenerateBtn');
+
   shortcutResultsCloseBtn.addEventListener('click',  closeShortcutResultsModal);
   shortcutResultsCloseBtn2.addEventListener('click', closeShortcutResultsModal);
+  shortcutResultsGenerateBtn.addEventListener('click', () => {
+    closeShortcutResultsModal();
+    triggerGenerate();
+  });
 
   shortcutInputModal.addEventListener('click', (e) => {
     if (e.target === shortcutInputModal) closeShortcutInputModal();

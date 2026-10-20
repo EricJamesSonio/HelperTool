@@ -27,10 +27,9 @@ const multiTypeTasks = {
 const progressTasks = {
   generate:         lazy('./tasks/generate'),
   'video:compress': lazy('./tasks/videoCompress'),
-  'image:toIco':    lazy('./tasks/imageToIco'),
+  'image:convert':  lazy('./tasks/imageConvert'),
   'video:gif':      lazy('./tasks/videoToGif'),
   'video:render':   lazy('./tasks/videoRender'),
-  'image:compress': lazy('./tasks/imageCompress'),
   'video:preview':  lazy('./tasks/videoPreview'),
 };
 

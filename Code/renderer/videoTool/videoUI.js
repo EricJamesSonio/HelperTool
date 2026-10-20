@@ -1,5 +1,5 @@
 import { renderFileDropZone, renderPresetCards, renderOutputRow as renderVideoCompressOutputRow, renderCompressButton as renderVideoCompressButton, renderProgress as renderVideoCompressProgress, renderResult as renderVideoCompressResult, renderError as renderVideoCompressError } from './videoRenderer.js';
-import { renderImageDropZone, renderImageOutputRow, renderImageResult, renderImageProgress, renderImageError, renderCompressDropZone, renderCompressControls, renderCompressOutputRow, renderCompressButton, renderCompressProgress, renderCompressResult, renderCompressError } from './imageRenderer.js';
+import { renderConvertDropZone, renderConvertOutputRow, renderConvertControls, renderConvertButton, renderConvertProgress, renderConvertResult, renderConvertError } from './imageRenderer.js';
 import {
   renderDropZone, renderFileInfo, renderOutputRow, renderPlayerSlot,
   renderTimeline, renderSegmentActions,
@@ -37,26 +37,17 @@ export default class VideoUI {
     this._onCompressOpenFolder = null;
     this._onCompressAnother = null;
 
-    this._onImagePickFile = null;
+    this._onImagePickFiles = null;
+    this._onImageAddMore = null;
     this._onImageRemoveFile = null;
     this._onImageChangeOutput = null;
+    this._onImageFormatChange = null;
+    this._onImagePresetChange = null;
     this._onImageConvert = null;
     this._onImageRetry = null;
     this._onImageOpenFile = null;
     this._onImageOpenFolder = null;
     this._onImageConvertAnother = null;
-
-    this._onIcPickFiles = null;
-    this._onIcAddMore = null;
-    this._onIcRemoveFile = null;
-    this._onIcCompress = null;
-    this._onIcChangeOutput = null;
-    this._onIcPresetChange = null;
-    this._onIcFormatChange = null;
-    this._onIcRetry = null;
-    this._onIcOpenFile = null;
-    this._onIcOpenFolder = null;
-    this._onIcCompressAnother = null;
 
     this._onTabChange = null;
   }
@@ -86,26 +77,17 @@ export default class VideoUI {
     this._onCompressOpenFolder = cbs.onCompressOpenFolder || null;
     this._onCompressAnother = cbs.onCompressAnother || null;
 
-    this._onImagePickFile = cbs.onImagePickFile || null;
+    this._onImagePickFiles = cbs.onImagePickFiles || null;
+    this._onImageAddMore = cbs.onImageAddMore || null;
     this._onImageRemoveFile = cbs.onImageRemoveFile || null;
     this._onImageChangeOutput = cbs.onImageChangeOutput || null;
+    this._onImageFormatChange = cbs.onImageFormatChange || null;
+    this._onImagePresetChange = cbs.onImagePresetChange || null;
     this._onImageConvert = cbs.onImageConvert || null;
     this._onImageRetry = cbs.onImageRetry || null;
     this._onImageOpenFile = cbs.onImageOpenFile || null;
     this._onImageOpenFolder = cbs.onImageOpenFolder || null;
     this._onImageConvertAnother = cbs.onImageConvertAnother || null;
-
-    this._onIcPickFiles = cbs.onIcPickFiles || null;
-    this._onIcAddMore = cbs.onIcAddMore || null;
-    this._onIcRemoveFile = cbs.onIcRemoveFile || null;
-    this._onIcCompress = cbs.onIcCompress || null;
-    this._onIcChangeOutput = cbs.onIcChangeOutput || null;
-    this._onIcPresetChange = cbs.onIcPresetChange || null;
-    this._onIcFormatChange = cbs.onIcFormatChange || null;
-    this._onIcRetry = cbs.onIcRetry || null;
-    this._onIcOpenFile = cbs.onIcOpenFile || null;
-    this._onIcOpenFolder = cbs.onIcOpenFolder || null;
-    this._onIcCompressAnother = cbs.onIcCompressAnother || null;
 
     this._onTabChange = cbs.onTabChange || null;
   }
@@ -236,11 +218,7 @@ export default class VideoUI {
         </button>
         <button class="vt-tab ${active === 'image' ? 'vt-tab--active' : ''}" data-tab="image">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/></svg>
-          Image to ICO
-        </button>
-        <button class="vt-tab ${active === 'imgCompress' ? 'vt-tab--active' : ''}" data-tab="imgCompress">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14l7-7 7 7"/><path d="M10 7v10"/></svg>
-          Image Compress
+          Image Converter
         </button>
       </div>`;
   }
@@ -319,39 +297,17 @@ export default class VideoUI {
 
     let imageContent = '';
     if (st.activeSection === 'image') {
-      const drop = renderImageDropZone(im.inputPath, im.inputMeta);
+      const drop = renderConvertDropZone(im.inputPaths, im.inputMetas);
       let inner = '';
-      if (im.inputPath) {
-        const outputSection = renderImageOutputRow(im.outputFolder);
-        const convertSection = im.status !== 'done' ? `<button class="im-convert-btn" id="imConvertBtn">Convert to ICO</button>` : '';
-        const progressSection = im.status === 'converting' ? renderImageProgress(im.progress) : '';
-        const resultSection = im.status === 'done' && im.result ? renderImageResult(im.result) : '';
-        const errorSection = im.status === 'error' ? renderImageError(im.error) : '';
-        inner = `
-          <div class="im-output-area">
-            <div class="vt-section">${outputSection}</div>
-            ${convertSection ? `<div class="vt-section">${convertSection}</div>` : ''}
-            ${progressSection ? `<div class="vt-section">${progressSection}</div>` : ''}
-            ${resultSection ? `<div class="vt-section">${resultSection}</div>` : ''}
-            ${errorSection ? `<div class="vt-section">${errorSection}</div>` : ''}
-          </div>`;
-      }
-      imageContent = drop + inner;
-    }
-
-    let imgCompressContent = '';
-    if (st.activeSection === 'imgCompress') {
-      const mode = im.compressInputPaths.length > 1 ? 'batch' : 'single';
-      const drop = renderCompressDropZone(mode, im.compressInputPaths, im.compressInputMetas);
-      let inner = '';
-      if (im.compressInputPaths.length > 0) {
-        const outputSection = renderCompressOutputRow(im.outputFolder);
-        const controls = im.compressStatus !== 'compressing' && im.compressStatus !== 'done' ? renderCompressControls(im.compressPreset, im.compressFormat) : '';
-        const btnSection = im.compressStatus !== 'compressing' && im.compressStatus !== 'done'
-          ? renderCompressButton(mode, im.compressInputPaths.length) : '';
-        const progressSection = im.compressStatus === 'compressing' ? renderCompressProgress(im.compressProgress) : '';
-        const resultSection = im.compressStatus === 'done' && im.compressResult ? renderCompressResult(im.compressResult) : '';
-        const errorSection = im.compressStatus === 'error' ? renderCompressError(im.compressError) : '';
+      if (im.inputPaths.length > 0) {
+        const outputSection = renderConvertOutputRow(im.outputFolder);
+        const controls = im.status !== 'converting' && im.status !== 'done'
+          ? renderConvertControls(im.format, im.preset) : '';
+        const btnSection = im.status !== 'converting' && im.status !== 'done'
+          ? renderConvertButton(im.formatLabel, im.inputPaths.length) : '';
+        const progressSection = im.status === 'converting' ? renderConvertProgress(im.progress) : '';
+        const resultSection = im.status === 'done' && im.result ? renderConvertResult(im.result, im.formatLabel, im.warning) : '';
+        const errorSection = im.status === 'error' ? renderConvertError(im.error) : '';
         inner = `
           <div class="vt-section">${outputSection}</div>
           ${controls}
@@ -360,7 +316,7 @@ export default class VideoUI {
           ${resultSection ? `<div class="vt-section">${resultSection}</div>` : ''}
           ${errorSection ? `<div class="vt-section">${errorSection}</div>` : ''}`;
       }
-      imgCompressContent = drop + inner;
+      imageContent = drop + inner;
     }
 
     return `
@@ -369,7 +325,6 @@ export default class VideoUI {
         ${timelineContent}
         ${compressContent}
         ${imageContent}
-        ${imgCompressContent}
       </div>`;
   }
 
@@ -525,23 +480,34 @@ export default class VideoUI {
     const cmpCA = this._container.querySelector('#vtCompressAnotherBtn');
     if (cmpCA && this._onCompressAnother) cmpCA.addEventListener('click', () => this._onCompressAnother());
 
-    // ── Image events ──
+    // ── Image Converter events ──
     const imDrop = this._container.querySelector('#imDropZone');
     if (imDrop) {
       imDrop.addEventListener('dragover', (e) => { e.preventDefault(); imDrop.classList.add('im-drag-over'); });
       imDrop.addEventListener('dragleave', () => imDrop.classList.remove('im-drag-over'));
       imDrop.addEventListener('drop', (e) => {
         e.preventDefault(); imDrop.classList.remove('im-drag-over');
-        const file = e.dataTransfer.files[0];
-        if (file && file.path && this._onImagePickFile) this._onImagePickFile(file.path);
+        const files = Array.from(e.dataTransfer.files).map(f => f.path).filter(Boolean);
+        if (files.length > 0 && this._onImagePickFiles) this._onImagePickFiles(files);
       });
     }
 
     const imBtn = this._container.querySelector('#imBrowseBtn');
-    if (imBtn && this._onImagePickFile) imBtn.addEventListener('click', () => this._onImagePickFile(null));
+    if (imBtn && this._onImagePickFiles) imBtn.addEventListener('click', () => this._onImagePickFiles(null));
 
-    const imRem = this._container.querySelector('#imRemoveFile');
-    if (imRem && this._onImageRemoveFile) imRem.addEventListener('click', () => this._onImageRemoveFile());
+    const imAddMore = this._container.querySelector('#imAddMoreBtn');
+    if (imAddMore && this._onImageAddMore) imAddMore.addEventListener('click', () => this._onImageAddMore());
+
+    this._container.querySelectorAll('.im-file-remove, .ic-file-remove').forEach(btn => {
+      if (this._onImageRemoveFile) btn.addEventListener('click', () => this._onImageRemoveFile(parseInt(btn.dataset.idx, 10) || 0));
+    });
+
+    this._container.querySelectorAll('#imPresets .vt-preset-card').forEach(c => {
+      c.addEventListener('click', () => { if (this._onImagePresetChange) this._onImagePresetChange(c.dataset.preset); });
+    });
+
+    const imFormat = this._container.querySelector('#imFormatSelect');
+    if (imFormat && this._onImageFormatChange) imFormat.addEventListener('change', () => this._onImageFormatChange(imFormat.value));
 
     const imCoBtn = this._container.querySelector('#imChangeOutputBtn');
     if (imCoBtn && this._onImageChangeOutput) imCoBtn.addEventListener('click', () => this._onImageChangeOutput());
@@ -560,56 +526,6 @@ export default class VideoUI {
 
     const imCA = this._container.querySelector('#imConvertAnotherBtn');
     if (imCA && this._onImageConvertAnother) imCA.addEventListener('click', () => this._onImageConvertAnother());
-
-    // ── Image Compress events ──
-    const icDrop = this._container.querySelector('#icDropZone');
-    if (icDrop) {
-      icDrop.addEventListener('dragover', (e) => { e.preventDefault(); icDrop.classList.add('im-drag-over'); });
-      icDrop.addEventListener('dragleave', () => icDrop.classList.remove('im-drag-over'));
-      icDrop.addEventListener('drop', (e) => {
-        e.preventDefault(); icDrop.classList.remove('im-drag-over');
-        const files = Array.from(e.dataTransfer.files).map(f => f.path).filter(Boolean);
-        if (files.length > 0 && this._onIcPickFiles) this._onIcPickFiles(files);
-      });
-    }
-
-    const icBtn = this._container.querySelector('#icBrowseBtn');
-    if (icBtn && this._onIcPickFiles) icBtn.addEventListener('click', () => this._onIcPickFiles(null));
-
-    const icAddMore = this._container.querySelector('#icAddMoreBtn');
-    if (icAddMore && this._onIcAddMore) icAddMore.addEventListener('click', () => this._onIcAddMore());
-
-    this._container.querySelectorAll('.ic-file-remove').forEach(btn => {
-      if (this._onIcRemoveFile) btn.addEventListener('click', () => this._onIcRemoveFile(parseInt(btn.dataset.idx)));
-    });
-
-    const icRem = this._container.querySelector('#icRemoveFile');
-    if (icRem && this._onIcRemoveFile) icRem.addEventListener('click', () => this._onIcRemoveFile(0));
-
-    this._container.querySelectorAll('#icPresets .vt-preset-card').forEach(c => {
-      c.addEventListener('click', () => { if (this._onIcPresetChange) this._onIcPresetChange(c.dataset.preset); });
-    });
-
-    const icFormat = this._container.querySelector('#icFormatSelect');
-    if (icFormat && this._onIcFormatChange) icFormat.addEventListener('change', () => this._onIcFormatChange(icFormat.value));
-
-    const icCoBtn = this._container.querySelector('#icChangeOutputBtn');
-    if (icCoBtn && this._onIcChangeOutput) icCoBtn.addEventListener('click', () => this._onIcChangeOutput());
-
-    const icCmpBtn = this._container.querySelector('#icCompressBtn');
-    if (icCmpBtn && this._onIcCompress) icCmpBtn.addEventListener('click', () => this._onIcCompress());
-
-    const icRetry = this._container.querySelector('#icRetryBtn');
-    if (icRetry && this._onIcRetry) icRetry.addEventListener('click', () => this._onIcRetry());
-
-    const icOF = this._container.querySelector('#icOpenFileBtn');
-    if (icOF && this._onIcOpenFile) icOF.addEventListener('click', () => this._onIcOpenFile());
-
-    const icOFd = this._container.querySelector('#icOpenFolderBtn');
-    if (icOFd && this._onIcOpenFolder) icOFd.addEventListener('click', () => this._onIcOpenFolder());
-
-    const icCA = this._container.querySelector('#icCompressAnotherBtn');
-    if (icCA && this._onIcCompressAnother) icCA.addEventListener('click', () => this._onIcCompressAnother());
 
     if (this._onUndo || this._onRedo) {
       if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);

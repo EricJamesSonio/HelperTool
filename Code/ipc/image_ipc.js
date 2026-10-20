@@ -1,6 +1,10 @@
 const { ipcMain, dialog } = require('electron');
 const workerProxy = require('./workerProxy.js');
 
+const IMAGE_FILTERS = [
+  { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'tiff', 'svg'] }
+];
+
 function register({ getMainWindow }) {
   ipcMain.handle('image:getMetadata', async (event, { inputPath }) => {
     try {
@@ -20,19 +24,6 @@ function register({ getMainWindow }) {
     }
   });
 
-  ipcMain.handle('image:pickFile', async () => {
-    const win = getMainWindow();
-    const result = await dialog.showOpenDialog(win, {
-      title: 'Select Image',
-      filters: [
-        { name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }
-      ],
-      properties: ['openFile']
-    });
-    if (result.canceled || !result.filePaths.length) return null;
-    return result.filePaths[0];
-  });
-
   ipcMain.handle('image:pickOutputFolder', async () => {
     const win = getMainWindow();
     const result = await dialog.showOpenDialog(win, {
@@ -49,46 +40,27 @@ function register({ getMainWindow }) {
     return { success: true };
   });
 
-  ipcMain.handle('image:toIco', async (event, payload) => {
-    const win = getMainWindow();
-    try {
-      const progressHandler = (progress) => {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('image:progress', progress);
-        }
-      };
-      workerProxy.onProgress(progressHandler);
-      const result = await workerProxy.send('image:toIco', payload);
-      workerProxy.offProgress(progressHandler);
-      return { success: true, ...result };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
   ipcMain.handle('image:pickFiles', async () => {
     const win = getMainWindow();
     const result = await dialog.showOpenDialog(win, {
       title: 'Select Images',
-      filters: [
-        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }
-      ],
+      filters: IMAGE_FILTERS,
       properties: ['openFile', 'multiSelections']
     });
     if (result.canceled || !result.filePaths.length) return [];
     return result.filePaths;
   });
 
-  ipcMain.handle('image:compress', async (event, payload) => {
+  ipcMain.handle('image:convert', async (event, payload) => {
     const win = getMainWindow();
     try {
       const progressHandler = (progress) => {
         if (win && !win.isDestroyed()) {
-          win.webContents.send('image:compressProgress', progress);
+          win.webContents.send('image:convertProgress', progress);
         }
       };
       workerProxy.onProgress(progressHandler);
-      const result = await workerProxy.send('image:compress', payload);
+      const result = await workerProxy.send('image:convert', payload);
       workerProxy.offProgress(progressHandler);
       return { success: true, ...result };
     } catch (err) {

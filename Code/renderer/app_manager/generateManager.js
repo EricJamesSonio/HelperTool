@@ -240,43 +240,41 @@ function escapeHtml(text) {
 
 // ── Generate button ───────────────────────────────────────────────────────────
 
-export function initGenerateButton() {
+export async function triggerGenerate() {
+    try {
+        if (!state.selectedRepoPath || !state.selectedItems.length)
+            return alert('Select repo and items first!');
 
+        const { filePath } = await window.electronAPI.saveFileDialog(state.actionType);
+        if (!filePath) return;
 
-    generateBtn.addEventListener('click', async () => {
+        progressBar.value        = 0;
+        progressText.textContent = '0%';
 
+        const result = await window.electronAPI.generate(
+            state.actionType,
+            state.selectedRepoPath,
+            state.selectedItems,
+            filePath,
+            state.actionType === 'code' ? state.generateMinified : false,
+            state.selectedPromptText || ''
+        );
 
-        try {
-            if (!state.selectedRepoPath || !state.selectedItems.length)
-                return alert('Select repo and items first!');
-
-            const { filePath } = await window.electronAPI.saveFileDialog(state.actionType);
-            if (!filePath) return;
-
-            progressBar.value        = 0;
-            progressText.textContent = '0%';
-
-            const result = await window.electronAPI.generate(
-                state.actionType,
-                state.selectedRepoPath,
-                state.selectedItems,
-                filePath,
-                state.actionType === 'code' ? state.generateMinified : false,
-                state.selectedPromptText || ''
-            );
-
-            if (result && result.success && result.content) {
-                showGeneratedViewer(result.content, result.filePath);
-            } else if (!result || !result.success) {
-                alert('Generation failed.');
-            }
-            resetSelection();
-            displayTree(false);
-        } catch (err) {
-            console.error('[Generate] Failed:', err);
+        if (result && result.success && result.content) {
+            showGeneratedViewer(result.content, result.filePath);
+        } else if (!result || !result.success) {
             alert('Generation failed.');
         }
-    });
+        resetSelection();
+        displayTree(false);
+    } catch (err) {
+        console.error('[Generate] Failed:', err);
+        alert('Generation failed.');
+    }
+}
+
+export function initGenerateButton() {
+    generateBtn.addEventListener('click', triggerGenerate);
 }
 
 // ── Select all button ─────────────────────────────────────────────────────────

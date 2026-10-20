@@ -19,6 +19,9 @@ export function closeShortcutInputModal() {
 }
 
 export function openShortcutResultsModal(results, mode = 'find') {
+  const generateBtn = document.getElementById('shortcutResultsGenerateBtn');
+  if (generateBtn) generateBtn.style.display = (mode === 'find') ? '' : 'none';
+
   const { total, newlySelected, alreadySelected, notFound, removed, errors, cancelled } = results.summary;
 
   if (mode === 'remove') {
