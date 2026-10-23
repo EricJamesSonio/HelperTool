@@ -242,7 +242,19 @@
     <div class="app-main">
 
       <!-- ══ ROW 2: Root folder jumper ══ -->
-      <div id="rootJumper" class="root-jumper" style="display:none"></div>
+      <div class="jumper-row">
+        <div id="rootJumper" class="root-jumper" style="display:none"></div>
+        <div class="jumper-row-actions">
+          <button id="addSelectShortcutBtn" class="jumper-add-btn" title="Create a shortcut that selects a set of folders or files">
+            <span>
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle;margin-right:4px"><path d="M10 4v12M4 10h12"/></svg>
+              Add shortcut to select
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div id="selectShortcutBar" class="select-shortcut-bar" style="display:none"></div>
 
       <!-- ══ ROW 3: Status + Filter bar ══ -->
       <div class="status-filter-bar">

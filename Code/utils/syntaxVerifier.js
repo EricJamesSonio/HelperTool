@@ -97,8 +97,21 @@ function htmlTagCheck(text, ext) {
 // ---------------------------------------------------------------------------
 // Tree-sitter path
 // ---------------------------------------------------------------------------
+
+// web-tree-sitter exposes hasError / isMissing as PROPERTIES since 0.26 —
+// calling them as functions throws and silently disables the whole check.
+function nodeHasError(node) {
+    if (!node) return false;
+    return typeof node.hasError === 'function' ? !!node.hasError() : !!node.hasError;
+}
+
+function nodeIsMissing(node) {
+    if (!node) return false;
+    return typeof node.isMissing === 'function' ? !!node.isMissing() : !!node.isMissing;
+}
+
 function findErrorNode(node) {
-    if (node.type === 'ERROR' || node.isMissing()) return node;
+    if (node.type === 'ERROR' || nodeIsMissing(node)) return node;
     for (let i = 0; i < node.childCount; i++) {
         const c = node.child(i);
         const found = findErrorNode(c);
@@ -116,25 +129,85 @@ async function treeSitterCheck(text, ext) {
     const tree = await grammarLoader.tryParseSource(lang, text);
     if (!tree) return null;
     const root = tree.rootNode;
-    if (!root.hasError()) {
+    if (!nodeHasError(root)) {
         // still check for MISSING nodes (e.g. missing } that tree-sitter inserts as missing)
         const missing = findErrorNode(root);
         if (!missing) return null;
-        // missing nodes have isMissing() true — treat as error
-        if (!missing.isMissing()) return null;
+        // missing nodes have isMissing true — treat as error
+        if (!nodeIsMissing(missing)) return null;
     }
     const err = findErrorNode(root);
     if (!err) {
-        // hasError but no ERROR node found — generic
-        return { ok:false, error:'syntax error — parse failed', line:1, column:1 };
+        // hasError but no ERROR node found — the grammar knows something is
+        // wrong but does not point at it. Let the language specific checks
+        // (html tag balance, php namespace order) produce a better message.
+        return { ok:false, error:'syntax error — parse failed', line:1, column:1, generic:true };
     }
     const sp = err.startPosition;
     const snippet = text.split('\n')[sp.row]?.slice(sp.column, sp.column+60) || err.text?.slice(0,60) || '';
-    const missing = err.isMissing();
+    const missing = nodeIsMissing(err);
+    const raw = (err.text || err.type || '').replace(/\s+/g, ' ').trim();
     const msg = missing
         ? `missing \`${err.type}\` at line ${sp.row+1}`
-        : `unexpected \`${(err.text||err.type).slice(0,40)}\` at line ${sp.row+1}`;
+        : `unexpected \`${raw.slice(0,40)}\` at line ${sp.row+1}`;
     return { ok:false, error: msg, line: sp.row+1, column: sp.column+1, snippet };
+}
+
+// ---------------------------------------------------------------------------
+// PHP specific checks
+// ---------------------------------------------------------------------------
+
+function phpCheck(text) {
+    if (!/\?php/.test(text)) {
+        return { ok:false, error:'missing `<?php` opening tag', line:1, column:1 };
+    }
+    const lines = text.split('\n');
+    const stmt = (line) => line.trim().replace(/^<\?php\s*/, '').trim();
+    // Locate the namespace declaration
+    let nsLine = -1;
+    for (let i = 0; i < lines.length; i++) {
+        if (/^namespace\s+[^;]+;/.test(stmt(lines[i]))) { nsLine = i; break; }
+    }
+    if (nsLine === -1) return null;   // no namespace — nothing to check
+    // ...and it must be the first statement in the file
+    for (let i = 0; i < nsLine; i++) {
+        const t = stmt(lines[i]);
+        if (!t) continue;
+        if (t.startsWith('//') || t.startsWith('#') || t.startsWith('/*') || t.startsWith('*')) continue;
+        return { ok:false, error:'`namespace` declaration must be the first statement in the file', line:i+1, column:1 };
+    }
+    return null;
+}
+
+// ---------------------------------------------------------------------------
+// Vue specific checks
+// ---------------------------------------------------------------------------
+
+async function vueCheck(text) {
+    const vueBlocks = require('./astPatch/vueBlocks');
+    const blocks = await vueBlocks.getVueBlocks(text);
+    if (!blocks) return null;
+    for (const block of blocks) {
+        if (block.kind !== 'script') continue;
+        const lang = vueBlocks.langForScriptBlock(block.attrs);
+        const content = text.slice(block.start, block.end);
+        if (!content.trim()) continue;
+        const tree = await grammarLoader.tryParseSource(lang, content);
+        if (!tree) continue;
+        const err = findErrorNode(tree.rootNode);
+        if (!err) continue;
+        const blockLine = text.slice(0, block.start).split('\n').length - 1;
+        const row = blockLine + err.startPosition.row;
+        const snippet = content.split('\n')[err.startPosition.row]?.slice(0, 60) || '';
+        return {
+            ok:false,
+            error:`syntax error in <script> — unexpected \`${(err.text||err.type).slice(0,40)}\``,
+            line: row + 1,
+            column: err.startPosition.column + 1,
+            snippet,
+        };
+    }
+    return null;
 }
 
 function jsonCheck(text, ext) {
@@ -165,10 +238,28 @@ async function verifySyntax(text, ext) {
     // Very short content — skip (handled by isTruncatedContent)
     if (text.trim().length < 10) return null;
 
+    // PHP specific rules (opening tag + namespace order)
+    if (e === 'php') {
+        const pc = phpCheck(text);
+        if (pc) return pc;
+    }
+
     // Try tree-sitter first
+    let ts = null;
     try {
-        const ts = await treeSitterCheck(text, e);
-        if (ts && !ts.ok) return ts;
+        ts = await treeSitterCheck(text, e);
+        // A located error wins immediately.
+        if (ts && !ts.ok && !ts.generic) return ts;
+        // Vue: the SFC grammar keeps <script> as raw text — check it separately
+        if (e === 'vue') {
+            const vc = await vueCheck(text);
+            if (vc) return vc;
+        }
+        // HTML/Vue tag balance — gives a better message than a generic parse failure
+        if (e === 'html' || e === 'vue') {
+            const tagErr = htmlTagCheck(text, e);
+            if (tagErr) return tagErr;
+        }
         // Even if tree-sitter says ok, run fallback for bracket/duplicate checks (php/vue are permissive)
         const fb = fallbackCheck(text);
         // For supported langs, only surface fallback if it's a bracket/string error, not duplicate import noise
@@ -180,12 +271,8 @@ async function verifySyntax(text, ext) {
             // duplicate import is medium severity — still surface
             if (fb.severity === 'medium') return fb;
         }
-        // HTML/Vue tag check
-        if (e === 'html' || e === 'vue') {
-            const tagErr = htmlTagCheck(text, e);
-            if (tagErr) return tagErr;
-        }
-        if (ts) return null; // tree-sitter ok and no bracket error
+        if (ts && !ts.ok) return ts;   // generic parse failure
+        if (ts) return null;           // tree-sitter ok and no bracket error
     } catch (_) {
         // fall through to fallback
     }
@@ -195,6 +282,10 @@ async function verifySyntax(text, ext) {
     if (e === 'html' || e === 'vue') {
         const tagErr = htmlTagCheck(text, e);
         if (tagErr) return tagErr;
+    }
+    if (e === 'php') {
+        const pc = phpCheck(text);
+        if (pc) return pc;
     }
     return null;
 }

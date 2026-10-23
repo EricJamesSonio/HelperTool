@@ -21,6 +21,10 @@ import {
 } from './shortcutMode.js';
 
 import {
+    initSelectShortcuts
+} from './selectShortcuts/index.js';
+
+import {
     initFeatures,
     getFeatures
 } from './featureManager.js';
@@ -521,6 +525,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     initViewMode();
     initZoomManager();
     initShortcutMode();
+    initSelectShortcuts();
     setupFilterInput(() => state.cachedTree, displayTree);
     setupSearch(() => state.cachedTree, () => state.cachedTree ? filterTree(state.cachedTree) : [], treeContainer);
     const filterPromises = [loadIgnoredExtensions()];

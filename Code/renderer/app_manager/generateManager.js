@@ -87,6 +87,35 @@ function updateGeneratorModeButton() {
     generatorModeLabel.textContent = state.actionType === 'code' ? 'Code' : 'Structure';
 }
 
+/**
+ * Switch the tree between 'code' and 'structure'.
+ *
+ * @param {'code'|'structure'} type
+ * @param {{ resetSelection?: boolean }} [opts]
+ *   resetSelection: false keeps the current selection (used when the switch
+ *   happens as a side effect of picking files, not of an explicit toggle).
+ */
+export function setActionType(type, opts = {}) {
+    const next = type === 'structure' ? 'structure' : 'code';
+    state.actionType = next;
+    updateModeForActionType();      // minified output visibility depends on the mode
+    updateGeneratorModeButton();    // Code / Structure label
+    if (opts.resetSelection !== false) resetSelection();
+    displayTree(true);              // explicitly reset scroll on toggle
+    return state.actionType;
+}
+
+/**
+ * Make sure the tree is in code mode.
+ * Used by the shortcut mode: picking files only makes sense when the files
+ * are actually visible and the generated output is their code.
+ */
+export function ensureCodeMode() {
+    if (state.actionType === 'code') return false;
+    setActionType('code', { resetSelection: false });
+    return true;
+}
+
 export function initActionButtons() {
     // Set initial mode to 'code' if not already set
     if (!state.actionType || state.actionType === 'structure') {
@@ -95,11 +124,7 @@ export function initActionButtons() {
     updateGeneratorModeButton(); // Update button label on initialization
 
     generatorModeToggleBtn.addEventListener('click', () => {
-        state.actionType = (state.actionType === 'code') ? 'structure' : 'code';
-        updateModeForActionType(); // Handles minified output visibility based on new actionType
-        updateGeneratorModeButton(); // Update the button text
-        resetSelection();
-        displayTree(true); // Explicitly reset scroll on toggle
+        setActionType(state.actionType === 'code' ? 'structure' : 'code');
     });
 }
 

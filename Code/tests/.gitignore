@@ -1,0 +1,7 @@
+# Generated from the ESM sources in ../renderer at test time.
+fileSeederParser.mjs
+fileSeederParser.*.mjs
+globalSeederParser.mjs
+globalSeederParser.*.mjs
+blockFormat.mjs
+blockFormat.*.mjs

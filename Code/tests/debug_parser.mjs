@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-// Load fileSeeder parser via copy to mjs
-const __dirname = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, '$1'));
-import { parseInput } from './fileSeederParser.mjs';
+// Load parsers via the shared helper (copies the ESM sources to .mjs)
+const { loadParsers } = await import('./helpers.mjs');
+const { parseInput } = await loadParsers();
 
 const raw = `First-Automation/
 ├── app.py

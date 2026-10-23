@@ -5,6 +5,7 @@ const path = require('path');
 const os   = require('os');
 const astPatch = require('./astPatch');
 const syntaxVerifier = require('./syntaxVerifier');
+const { prepareContent } = require('./contentRepair');
 const { extOf } = require('./astPatch/textUtils');
 
 const IGNORE_DIRS = new Set([
@@ -358,7 +359,7 @@ async function previewContent(basePath, entries) {
     const details     = [];
     const cache       = new Map();
 
-    for (const { relPath, mode, target, content } of entries) {
+    for (const { relPath, mode, target, content, warning: parseWarning } of entries) {
         const { resolved, candidates, ambiguous } = resolveRelPath(basePath, relPath, cache);
         const abs = path.join(basePath, resolved);
         const exists = fs.existsSync(abs);
@@ -366,24 +367,38 @@ async function previewContent(basePath, entries) {
         let warning = null;
         let effMode = mode ?? 'full';
         const surgical = isSurgical(effMode);
+        const ext = extOf(resolved);
+
+        // Repair obvious LLM formatting damage (one-line files, smart quotes)
+        // before validating, so a collapsed file is fixed instead of rejected.
+        let finalContent = content;
+        let repairs = [];
+        let verifyError = null;
+        if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN) {
+            try {
+                const prep = await prepareContent(content, ext);
+                finalContent = prep.text;
+                repairs = prep.repairs;
+                verifyError = prep.error;
+            } catch (_) {
+                finalContent = content;
+            }
+        }
+
         // Check for likely truncated content (unbalanced braces or ends with dangling syntax)
-        const truncWarning = isTruncatedContent(content || '');
+        const truncWarning = isTruncatedContent(finalContent || '');
         if (truncWarning) warning = (warning ? warning + '; ' : '') + truncWarning;
 
         // For full-mode entries, verify the pasted content itself (basic structure)
-        if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN) {
+        if (!surgical && verifyError && !verifyError.ok) {
+            const syn = `syntax error — ${verifyError.error}` + (verifyError.line ? ` at line ${verifyError.line}` : '');
+            warning = (warning ? warning + '; ' : '') + syn;
+        } else if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN / 2 && content.trim().length < MIN_VERIFY_LEN) {
+            // Transitional: keep B3 extraClose (15 chars, close>open) flagged while unifying to 20.
+            // The tree-sitter check is authoritative now, so any real syntax error counts.
             try {
                 const v = await syntaxVerifier.verifySyntax(content, extOf(resolved));
                 if (v && !v.ok) {
-                    const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
-                    warning = (warning ? warning + '; ' : '') + syn;
-                }
-            } catch (_) {}
-        } else if (!surgical && content && content.trim().length >= MIN_VERIFY_LEN / 2 && content.trim().length < MIN_VERIFY_LEN) {
-            // Transitional: keep B3 extraClose (15 chars, close>open) flagged while unifying to 20
-            try {
-                const v = await syntaxVerifier.verifySyntax(content, extOf(resolved));
-                if (v && !v.ok && v.error.includes('unexpected closing')) {
                     const syn = `syntax error — ${v.error}` + (v.line ? ` at line ${v.line}` : '');
                     warning = (warning ? warning + '; ' : '') + syn;
                 }
@@ -426,6 +441,10 @@ async function previewContent(basePath, entries) {
             mode: effMode,
             target: target ?? null,
             warning,
+            parseWarning: parseWarning ?? null,
+            content: finalContent,
+            repairs,
+            invalid: !!(verifyError && !verifyError.ok),
         });
         if (warning) warnings.push({ path: resolved, warning });
     }
@@ -476,7 +495,8 @@ async function seedContent(basePath, entries) {
     const cache       = new Map();
 
     for (const entry of entries) {
-        const { relPath, content, resolved: providedResolved, mode, target } = entry;
+        const { relPath, resolved: providedResolved, mode, target } = entry;
+        let content = entry.content;
         let resolved;
         let candidates = [];
         let ambiguous  = false;
@@ -489,12 +509,29 @@ async function seedContent(basePath, entries) {
             ambiguous  = r.ambiguous;
         }
         const abs = path.join(basePath, resolved);
+        const surgical = isSurgical(mode);
+
+        // Final gate: never write a file that does not parse. The preview
+        // already repairs + flags these; this is the defence in depth (the UI
+        // may hand us edited or stale content).
+        if (!surgical) {
+            const prep = await prepareContent(content ?? '', extOf(resolved));
+            content = prep.text;
+            if (prep.error && !prep.error.ok && entry.allowInvalid !== true) {
+                errors.push({
+                    path: resolved,
+                    original: relPath,
+                    warning: `skipped — invalid syntax: ${prep.error.error}`,
+                });
+                continue;
+            }
+        }
+
         try {
             const dir = path.dirname(abs);
             fs.mkdirSync(dir, { recursive: true });
             const existed = fs.existsSync(abs);
 
-            const surgical = isSurgical(mode);
             if (surgical && target) {
                 const plainEndSeed = isPlainNoGrammarExt(extOf(resolved)) && target === 'end';
                 if (!existed) {

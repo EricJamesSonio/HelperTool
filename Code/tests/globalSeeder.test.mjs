@@ -10,27 +10,13 @@ const require = createRequire(import.meta.url);
 const fileSeeder = require('../utils/fileSeeder.js');
 const astPatch = require('../utils/astPatch/index.js');
 
-// Parser is ESM but package is commonjs - copy to .mjs for test
+// Parser is ESM but package is commonjs — helpers.mjs copies it to .mjs for tests
 let parseInput, parseContentBlocks;
 before(async () => {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  // Copy fileSeederTool parser to .mjs
-  const src1 = path.join(__dirname, '../renderer/fileSeederTool/parser.js');
-  const dest1 = path.join(__dirname, './fileSeederParser.mjs');
-  const src2 = path.join(__dirname, '../renderer/globalSeeder/parser.js');
-  const dest2 = path.join(__dirname, './globalSeederParser.mjs');
-  if (!fs.existsSync(dest1)) {
-    fs.copyFileSync(src1, dest1);
-  }
-  let parserCode = fs.readFileSync(src2, 'utf-8');
-  // Fix the import to point to our .mjs copy
-  parserCode = parserCode.replace(`export { parseInput } from '../fileSeederTool/parser.js';`, `import { parseInput } from './fileSeederParser.mjs';
-export { parseInput };`);
-  fs.writeFileSync(dest2, parserCode, 'utf-8');
-  const parser = await import('./globalSeederParser.mjs');
-  parseInput = parser.parseInput;
-  parseContentBlocks = parser.parseContentBlocks;
+  const { loadParsers } = await import('./helpers.mjs');
+  const p = await loadParsers();
+  parseInput = p.parseInput;
+  parseContentBlocks = p.parseContentBlocks;
 });
 
 // Helpers
@@ -569,7 +555,8 @@ export { calculateTotal, formatDate };
 
   it('seedContent handles unclosed fence fallback', async () => {
     // This tests parser's fallback, but we test fileSeeder handles content with unclosed fence correctly
-    const entries = [{ relPath: 'unclosed.ts', content: 'code without closing fence\nstill code', mode:'full', resolved:'unclosed.ts' }];
+    // (prose in a .ts file is not valid TS, so opt in explicitly)
+    const entries = [{ relPath: 'unclosed.ts', content: 'code without closing fence\nstill code', mode:'full', resolved:'unclosed.ts', allowInvalid: true }];
     const res = await fileSeeder.seedContent(tmp, entries);
     assert.ok(exists(path.join(tmp, 'unclosed.ts')));
     assert.equal(read(path.join(tmp, 'unclosed.ts')), 'code without closing fence\nstill code');

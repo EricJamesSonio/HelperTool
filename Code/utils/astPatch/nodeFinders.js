@@ -71,6 +71,30 @@ function findNamedNode(rootNode, target) {
                 }
             }
         }
+        // PHP: "const MAX = 10;" — the name lives on the const element
+        if (node.type === 'const_declaration' || node.type === 'const_element') {
+            const el = node.type === 'const_element'
+                ? node
+                : node.children.find(c => c.type === 'const_element');
+            if (el) {
+                const nameNode = el.childForFieldName && el.childForFieldName('name');
+                if (nameNode && nameNode.text === target) {
+                    found = node.type === 'const_element' ? el : node;
+                    return;
+                }
+            }
+        }
+        // PHP: "$protected $qty;" / "public string $name;"
+        if (node.type === 'property_declaration') {
+            const el = node.children.find(c => c.type === 'property_element');
+            if (el) {
+                const nameNode = el.childForFieldName && el.childForFieldName('name');
+                if (nameNode && nameNode.text === target) {
+                    found = node;
+                    return;
+                }
+            }
+        }
         const nameNode = node.childForFieldName && node.childForFieldName('name');
         if (nameNode && nameNode.text === target) {
             let n = node;
@@ -99,6 +123,38 @@ function findNamedNode(rootNode, target) {
     return found;
 }
 
+// --- PHP anchors ----------------------------------------------------------
+
+// Top-level "use App\Models\Resort;" statements
+function findPhpUses(rootNode) {
+    const uses = [];
+    (function walk(node) {
+        if (node.type === 'namespace_use_declaration') uses.push(node);
+        for (let i = 0; i < node.childCount; i++) walk(node.child(i));
+    })(rootNode);
+    return uses;
+}
+
+function findPhpNamespace(rootNode) {
+    let found = null;
+    (function walk(node) {
+        if (found) return;
+        if (node.type === 'namespace_definition') { found = node; return; }
+        for (let i = 0; i < node.childCount; i++) walk(node.child(i));
+    })(rootNode);
+    return found;
+}
+
+function findPhpOpenTag(rootNode) {
+    let found = null;
+    (function walk(node) {
+        if (found) return;
+        if (node.type === 'php_tag') { found = node; return; }
+        for (let i = 0; i < node.childCount; i++) walk(node.child(i));
+    })(rootNode);
+    return found;
+}
+
 function findLastImport(rootNode) {
     let last = null;
     (function walk(node) {
@@ -108,6 +164,14 @@ function findLastImport(rootNode) {
     return last;
 }
 
+/**
+ * Regex fallback for languages/targets the grammar cannot resolve.
+ *
+ * The brace scan is BOUNDED: it stops at the end of the enclosing top-level
+ * construct. Without that bound a `const x = ref([])` in a .vue file would
+ * swallow everything up to the next `}` in the <style> block — deleting
+ * `</script>` and the whole stylesheet.
+ */
 function findViaString(source, target) {
     const esc = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const patterns = [
@@ -126,17 +190,45 @@ function findViaString(source, target) {
             const start = m.index;
             let end = source.indexOf('\n', start);
             if (end === -1) end = source.length;
-            const after = source.slice(start);
+            const limit = findConstructLimit(source, start);
+            const after = source.slice(start, limit);
             let depth = 0, foundBrace = false;
             for (let i = 0; i < after.length; i++) {
                 if (after[i] === '{') { depth++; foundBrace = true; }
                 else if (after[i] === '}') { depth--; if (foundBrace && depth === 0) { end = start + i + 1; break; } }
             }
             if (end <= start) end = start + m[0].length;
+            if (end > limit) end = limit;
             return { startIndex: start, endIndex: end, text: source.slice(start, end) };
         }
     }
     return null;
 }
 
-module.exports = { findCssRule, findJsonPath, findNamedNode, findLastImport, findViaString };
+/**
+ * End offset of the top-level construct that contains `start`.
+ * A construct ends at a column-0 "}", "<?php", "</script>" or "</style>".
+ * Only column 0 counts — an indented "}" closes an inner block, not the
+ * construct the target lives in.
+ */
+function findConstructLimit(source, start) {
+    const limitRe = /^(?:\}|<\?php|<\/script\s*>|<\/style\s*>)/gm;
+    limitRe.lastIndex = 0;
+    let m;
+    while ((m = limitRe.exec(source)) !== null) {
+        if (m.index > start) return m.index;
+    }
+    return source.length;
+}
+
+module.exports = {
+    findCssRule,
+    findJsonPath,
+    findNamedNode,
+    findLastImport,
+    findViaString,
+    findPhpUses,
+    findPhpNamespace,
+    findPhpOpenTag,
+    findConstructLimit,
+};

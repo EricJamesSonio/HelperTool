@@ -1,6 +1,6 @@
 
 import { state } from './state.js';
-import { parseInput, parseContentBlocks } from './parser.js';
+import { parseInput, parseContentBlocks, hasExplicitBlocks } from './parser.js';
 import * as diffViewer from '../diffViewer.js';
 
 function isSyntaxWarning(w){ return w && w.includes('syntax error'); }
@@ -139,11 +139,42 @@ function refreshContentSummary() {
     const skipped = details.length - active.length;
     const syntaxWarnings = syntaxOnes.map(d => `${d.resolved}: ${d.warning}`);
     const warnings = preview.warnings || [];
+    const parseOnes = active.filter(d => d.parseWarning);
+
+    // Repairs / invalid blocks live on the entry (editable by the user).
+    const entryAt = (i) => (state.contentEntries ? state.contentEntries[i] : null) || {};
+    const invalidIdx = [];
+    const allowedInvalidIdx = [];
+    const fixedIdx = [];
+    for (let i = 0; i < details.length; i++) {
+        const e = entryAt(i);
+        const invalid = e.invalid ?? details[i].invalid;
+        const repaired = (e.repairs ?? details[i].repairs ?? []).length > 0;
+        if (repaired) fixedIdx.push(i);
+        if (!invalid) continue;
+        if (e.allowInvalid) allowedInvalidIdx.push(i);
+        else invalidIdx.push(i);
+    }
+    const invalidNote = invalidIdx
+        .map(i => `${(state.contentEntries?.[i]?.resolved) || details[i].resolved}: ${details[i].warning || 'invalid syntax'}`)
+        .join('\n');
+    const fixedNote = fixedIdx
+        .map(i => `${(state.contentEntries?.[i]?.resolved) || details[i].resolved}: ${(entryAt(i).repairs ?? details[i].repairs).join(', ')}`)
+        .join('\n');
+
+    const fmtBadge = state.contentFormat === 'explicit'
+        ? `<span class="gs-badge gs-badge-patch" title="Parsed with &lt;&lt;&lt;START / &lt;&lt;&lt;END blocks — content taken verbatim">explicit blocks</span>`
+        : `<span class="gs-badge gs-badge-ambig" title="No &lt;&lt;&lt;START markers found — the parser had to guess where each file ends. Use the explicit block format for exact results.">legacy parse</span>`;
     summary.innerHTML = `
+        ${fmtBadge}
         <span class="gs-badge gs-badge-create">+${toCreateN} to create</span>
         ${toOverwriteN > 0 ? `<span class="gs-badge gs-badge-overwrite">~${toOverwriteN} will be overwritten</span>` : ''}
         ${toPatchN > 0 ? `<span class="gs-badge gs-badge-patch">~${toPatchN} to patch</span>` : ''}
+        ${parseOnes.length > 0 ? `<span class="gs-badge gs-badge-verify" title="${escapeHtml(parseOnes.map(d=>`${d.resolved}: ${d.parseWarning}`).join('\n'))}">! ${parseOnes.length} parse warning</span>` : ''}
         ${syntaxOnes.length > 0 ? `<span class="gs-badge gs-badge-verify" title="${escapeHtml(syntaxWarnings.join('\n'))}">! ${syntaxOnes.length} syntax error</span>` : ''}
+        ${invalidIdx.length > 0 ? `<span class="gs-badge gs-badge-invalid" title="${escapeHtml(invalidNote)}">! ${invalidIdx.length} invalid — not seeded</span>` : ''}
+        ${allowedInvalidIdx.length > 0 ? `<span class="gs-badge gs-badge-verify" title="These files failed the syntax check but you chose to seed them anyway.">! ${allowedInvalidIdx.length} invalid — seeding anyway</span>` : ''}
+        ${fixedIdx.length > 0 ? `<span class="gs-badge gs-badge-fixed" title="${escapeHtml(fixedNote)}">auto-fixed ${fixedIdx.length}</span>` : ''}
         ${fallbackCount > 0 ? `<span class="gs-badge gs-badge-ambig" title="${escapeHtml(warnings.filter(w=>!isSyntaxWarning(w.warning)).map(w=>w.warning).join('; '))}">!${fallbackCount} patch will fallback to full</span>` : ''}
         ${ambiguousCount > 0 ? `<span class="gs-badge gs-badge-ambig">!${ambiguousCount} need target choice</span>` : ''}
         ${skipped > 0 ? `<span class="gs-badge gs-badge-skip">${skipped} skipped</span>` : ''}
@@ -212,17 +243,36 @@ function renderContentPreview(preview) {
             const isSyntax = isSyntaxWarning(d.warning);
             const hasWarning = !!d.warning;
             const skipped = isEntrySkipped(idx);
-            const status = skipped ? 'skipped' : isSyntax ? 'verify-warn' : hasWarning ? 'patch-warn' : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
+            const entry   = (state.contentEntries && state.contentEntries[idx]) || {};
+            const repairs = entry.repairs ?? d.repairs ?? [];
+            const autoFixed = repairs.length > 0;
+            const invalid = !!(entry.invalid ?? d.invalid);
+            const seedingAnyway = invalid && !!entry.allowInvalid;
+            const blocked = invalid && !seedingAnyway;
+            const status = blocked ? 'invalid'
+                : skipped ? 'skipped'
+                : invalid ? 'verify-warn'
+                : isSyntax ? 'verify-warn'
+                : hasWarning ? 'patch-warn'
+                : (isPatch ? 'patch' : (d.exists ? 'overwrite' : 'create'));
             const row = document.createElement('div');
-            row.className = `gs-preview-row gs-preview-row--${status}${d.ambiguous ? ' gs-preview-row--ambig' : ''}${skipped ? ' gs-preview-row--skipped' : ''}`;
-            const icon  = skipped ? 'x' : isSyntax ? '!' : hasWarning ? '!' : (isPatch ? '~' : (d.exists ? '~' : '+'));
+            row.className = `gs-preview-row gs-preview-row--${status}${d.ambiguous ? ' gs-preview-row--ambig' : ''}${skipped || blocked ? ' gs-preview-row--skipped' : ''}`;
+            const icon  = blocked ? '!' : skipped ? 'x' : isSyntax || invalid ? '!' : hasWarning ? '!' : (isPatch ? '~' : (d.exists ? '~' : '+'));
             let patchLabel = '';
             if (d.mode === 'addAfter') patchLabel = `add after: ${escapeHtml(d.target||'')}`;
             else if (d.mode === 'addBefore') patchLabel = `add before: ${escapeHtml(d.target||'')}`;
             else if (d.mode === 'remove') patchLabel = `remove: ${escapeHtml(d.target||'')}`;
             else if (isPatch) patchLabel = `patch: ${escapeHtml(d.target||'')}`;
             const _syntaxLabel = isSyntax ? syntaxLabel(d.warning) : '';
-            const label = skipped ? 'skipped' : isSyntax ? `${escapeHtml(_syntaxLabel)}` : hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}` : (isPatch ? patchLabel : (d.exists ? 'overwrite' : 'new'));
+            const parseWarn = d.parseWarning ? `parse: ${d.parseWarning}` : '';
+            const fixedLabel = autoFixed ? ` · fixed: ${escapeHtml(repairs.join(' + '))}` : '';
+            const label = blocked ? `${escapeHtml(syntaxLabel(d.warning || 'invalid syntax — not seeded'))}`
+                : seedingAnyway ? `invalid — seeding anyway${fixedLabel}`
+                : skipped ? 'skipped'
+                : isSyntax ? `${escapeHtml(_syntaxLabel)}${fixedLabel}`
+                : parseWarn ? escapeHtml(parseWarn)
+                : hasWarning ? `fallback: ${escapeHtml(d.warning || 'target not found')}`
+                : (isPatch ? patchLabel : (d.exists ? 'overwrite' : 'new')) + fixedLabel;
             const subdir = d.resolved.includes('/') ? d.resolved.substring(0, d.resolved.lastIndexOf('/') + 1) : '';
             const name   = d.resolved.split('/').pop();
             const hasSelector = d.ambiguous && d.candidates && d.candidates.length > 1;
@@ -232,17 +282,22 @@ function renderContentPreview(preview) {
             const origHint = d.original !== d.resolved ? ` title="from: ${escapeHtml(d.original)}"` : '';
 
             row.innerHTML = `
-                <input type="checkbox" class="gs-row-check" ${skipped ? '' : 'checked'} title="Uncheck to skip this file (won't be seeded)" />
+                <input type="checkbox" class="gs-row-check" ${skipped || blocked ? '' : 'checked'} title="${blocked ? 'Invalid syntax — not seeded. Check to seed anyway.' : 'Uncheck to skip this file (won\'t be seeded)'}" />
                 <span class="gs-row-icon">${icon}</span>
                 <span class="gs-row-path"${origHint}>${pathHtml}</span>
-                ${d.original !== d.resolved ? `<span class="gs-row-orig" title="${escapeHtml(d.original)}">← ${escapeHtml(d.original.split('/')[0])}/…</span>` : ''}
+                ${d.original !== d.resolved ? `<span class="gs-row-orig" title="${escapeHtml(d.original)}">�+? ${escapeHtml(d.original.split('/')[0])}/�?�</span>` : ''}
                 <span class="gs-row-badge">${label}</span>
-                <button class="gs-row-cancel" title="Skip this file">×</button>
+                <button class="gs-row-cancel" title="Skip this file">A-</button>
             `;
             const checkEl = row.querySelector('.gs-row-check');
             const cancelEl = row.querySelector('.gs-row-cancel');
             const applySkip = (skip) => {
-                if (state.contentEntries && state.contentEntries[idx]) state.contentEntries[idx].skipped = skip;
+                const ent = state.contentEntries && state.contentEntries[idx];
+                if (ent) {
+                    ent.skipped = skip;
+                    // Checking an invalid row is an explicit opt-in to seed it.
+                    if (ent.invalid) ent.allowInvalid = !skip;
+                }
                 row.classList.toggle('gs-preview-row--skipped', skip);
                 if (checkEl) checkEl.checked = !skip;
                 const badge = row.querySelector('.gs-row-badge');
@@ -470,6 +525,26 @@ async function openPreviewDiff(idx) {
                         if (state.contentPreview && state.contentPreview.details && state.contentPreview.details[idx]) {
                             state.contentPreview.details[idx].warning = d.warning;
                         }
+                        // An edit is a fresh chance: re-validate the entry so a
+                        // fixed file is no longer blocked (and vice versa).
+                        const ent = state.contentEntries && state.contentEntries[idx];
+                        if (ent && entriesForFile.length === 1) {
+                            if (newV) {
+                                ent.invalid = true;
+                                ent.allowInvalid = false;
+                                ent.skipped = true;
+                            } else {
+                                ent.invalid = false;
+                                ent.allowInvalid = false;
+                                ent.skipped = false;
+                                ent.repairs = [];
+                            }
+                            refreshContentSummary();
+                            const curScroll = document.getElementById('gsPreviewList')?.scrollTop || 0;
+                            renderContentPreview(state.contentPreview);
+                            const listEl = document.getElementById('gsPreviewList');
+                            if (listEl) listEl.scrollTop = curScroll;
+                        }
                         if (diffViewer.updateSyntaxError) diffViewer.updateSyntaxError(newV);
                     }
                 } catch (_) {}
@@ -504,12 +579,33 @@ function setModeUI(mode) {
 
     const label = document.getElementById('gsInputLabel');
     const hint  = document.getElementById('gsInputHint');
+    const sample = document.getElementById('gsFormatSample');
     if (mode === 'structure') {
         if (label) label.textContent = 'Paste file structure below';
         if (hint)  hint.textContent  = 'Flat lists, indented/box trees. Files missing are created at repo root (existing folders/files skipped).';
+        if (sample) sample.style.display = 'none';
     } else {
         if (label) label.textContent = 'Paste file paths + code blocks below';
-        if (hint)  hint.textContent  = 'Paste Claude/Copilot output: each file path + code (fenced or plain). Smart-anchored to nearest matching folder — choose target if duplicates.';
+        if (hint)  hint.innerHTML    = 'One code container for the whole batch — inside it, one path, then <code>&lt;&lt;&lt;START</code>, the code, then <code>&lt;&lt;&lt;END</code>. Smart-anchored to nearest matching folder — choose target if duplicates.';
+        if (sample) sample.style.display = '';
+    }
+}
+
+async function copyAiRule() {
+    const btn = document.getElementById('gsCopyRuleBtn');
+    try {
+        const res = await window.electronAPI.fileSeeder.getAiRule();
+        const text = res?.text || '';
+        if (!text) { showNotice('Could not read the AI rule.'); return; }
+        await navigator.clipboard.writeText(text);
+        if (btn) {
+            const prev = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = prev; }, 1200);
+        }
+    } catch (err) {
+        console.error('[GlobalSeeder] copy AI rule failed:', err);
+        showNotice('Could not copy the AI rule.');
     }
 }
 
@@ -523,6 +619,8 @@ export function wireUI(onClose, getBasePath) {
             setModeUI(state.mode);
         });
     });
+
+    document.getElementById('gsCopyRuleBtn')?.addEventListener('click', copyAiRule);
 
     document.getElementById('gsClearBtn')?.addEventListener('click', () => {
         const ta = document.getElementById('gsInput');
@@ -571,6 +669,7 @@ export function wireUI(onClose, getBasePath) {
                     showStage('gsInputStage');
                     return;
                 }
+                state.contentFormat = hasExplicitBlocks(raw) ? 'explicit' : 'legacy';
                 const preview = await window.electronAPI.fileSeeder.previewContent(basePath, entries);
                 if (preview.error) {
                     showNotice(`Error: ${preview.error}`);
@@ -580,15 +679,22 @@ export function wireUI(onClose, getBasePath) {
                 // Enrich entries with resolved/candidates for seeding
                 const enriched = entries.map((e, i) => {
                     const d = preview.details?.[i];
+                    const invalid = !!d?.invalid;
                     return {
                         relPath: e.relPath,
-                        content: e.content,
+                        // The main process repairs collapsed / smart-quoted blocks.
+                        // Seed exactly what the preview verified.
+                        content: d?.content ?? e.content,
                         resolved: d?.resolved ?? e.relPath,
                         candidates: d?.candidates ?? [],
                         ambiguous: !!d?.ambiguous,
                         mode: e.mode ?? 'full',
                         target: e.target ?? null,
-                        skipped: false,
+                        repairs: d?.repairs ?? [],
+                        invalid,
+                        allowInvalid: false,
+                        // Broken files are not seeded unless the user opts in.
+                        skipped: invalid,
                     };
                 });
                 state.contentEntries = enriched;
@@ -645,6 +751,7 @@ export function wireUI(onClose, getBasePath) {
                     resolved: e.resolved,
                     mode: e.mode,
                     target: e.target,
+                    allowInvalid: e.allowInvalid === true,
                 }));
                 result = await window.electronAPI.fileSeeder.seedContent(basePath, payload);
             }

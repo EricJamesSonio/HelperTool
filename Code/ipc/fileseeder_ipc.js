@@ -5,6 +5,8 @@
 'use strict';
 
 const { ipcMain } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const fileSeeder  = require('../utils/fileSeeder');
 
 /**
@@ -12,7 +14,7 @@ const fileSeeder  = require('../utils/fileSeeder');
  */
 function register(_deps) {
     // Make handlers idempotent — Electron throws if we register twice (hot-reload)
-    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent', 'fileseeder:getPatchedPreview']) {
+    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent', 'fileseeder:getPatchedPreview', 'fileseeder:getAiRule']) {
         try { ipcMain.removeHandler(ch); } catch (_) {}
     }
 
@@ -82,6 +84,28 @@ function register(_deps) {
         } catch (err) {
             console.error('[IPC] fileseeder:getPatchedPreview error:', err);
             return { error: err.message, left: '', right: '' };
+        }
+    });
+
+    /**
+     * The AI output rule the Global Seeder expects (AI_RULE.md).
+     * The renderer can not read files directly, so it goes through here.
+     * Only the "SYSTEM RULE" block is returned — the trailing sections are
+     * documentation for humans, not instructions for the model.
+     */
+    ipcMain.handle('fileseeder:getAiRule', () => {
+        try {
+            const rulePath = path.join(__dirname, '..', 'renderer', 'globalSeeder', 'AI_RULE.md');
+            const full = fs.readFileSync(rulePath, 'utf-8');
+            const start = full.indexOf('## SYSTEM RULE');
+            const end = full.indexOf('## How the seeder uses this');
+            const text = (start !== -1 && end !== -1 && end > start)
+                ? full.slice(start, end).trim()
+                : full;
+            return { text };
+        } catch (err) {
+            console.error('[IPC] fileseeder:getAiRule error:', err);
+            return { error: err.message, text: '' };
         }
     });
 }

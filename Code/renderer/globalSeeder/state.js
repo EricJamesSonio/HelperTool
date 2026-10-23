@@ -5,6 +5,7 @@ export const state = {
     previewSkipped: null,      // structure mode: Set of relPath skipped by user
     contentEntries: null,      // content mode: [{ relPath, content, resolved, candidates, ambiguous, mode, target, skipped }]
     contentPreview: null,      // content mode: { toCreate, toOverwrite, details, patched }
+    contentFormat: null,       // content mode: 'explicit' | 'legacy'
     isOpen: false,
 };
 
@@ -15,6 +16,7 @@ export function resetState() {
     state.previewSkipped   = null;
     state.contentEntries   = null;
     state.contentPreview   = null;
+    state.contentFormat    = null;
     state.isOpen           = false;
 }
 

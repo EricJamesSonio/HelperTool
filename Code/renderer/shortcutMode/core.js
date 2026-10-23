@@ -1,6 +1,6 @@
 // ===== File: Code\renderer\shortcutMode\core.js =====
 import { state } from '../app_manager/appState.js';
-import { onSelectionChange, updateGenerateState } from '../app_manager/generateManager.js';
+import { onSelectionChange, updateGenerateState, ensureCodeMode } from '../app_manager/generateManager.js';
 import { displayTree } from '../app_manager/viewManager.js';
 import { getFlatList } from '../searchManager.js';
 import { FILE_EXTENSIONS } from './constants.js';
@@ -187,6 +187,12 @@ export async function processShortcutInput(inputText, mode = 'find') {
   if (!flatList || flatList.length === 0) {
     return { success: false, message: 'No files available in current tree' };
   }
+
+  // Shortcut mode means "get the codes": in structure mode the tree hides
+  // nested files and a folder only contributes its path, so the picked files
+  // would be invisible and the generated output would be a structure.
+  // Switch to code mode first (keeping the current selection).
+  ensureCodeMode();
 
   const potentialFiles = extractPotentialFilenames(inputText);
   if (potentialFiles.length === 0) {

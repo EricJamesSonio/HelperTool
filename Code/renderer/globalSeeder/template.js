@@ -33,12 +33,39 @@ export function getPanelHTML() {
     <div class="gs-stage" id="gsInputStage">
         <div class="gs-section-label" id="gsInputLabel">Paste file paths + code blocks below</div>
         <div class="gs-hint" id="gsInputHint">
-            Paste Claude/Copilot output: each file path + code (fenced or plain). Smart-anchored to nearest matching folder — choose target if duplicates.
+            One code container for the whole batch — inside it, one path, then <code>&lt;&lt;&lt;START</code>, the code, then <code>&lt;&lt;&lt;END</code>.
+            Smart-anchored to nearest matching folder — choose target if duplicates.
+        </div>
+        <div class="gs-format-sample" id="gsFormatSample">
+            <div class="gs-format-sample-head">
+                <span>Example</span>
+                <button class="gs-btn gs-btn-secondary gs-btn-xs" id="gsCopyRuleBtn" type="button" title="Copy the full AI output rule">Copy AI rule</button>
+            </div>
+            <pre class="gs-format-sample-body">&#96;&#96;&#96;text
+server/app/Models/Resort.php
+&lt;&lt;&lt;START
+&lt;?php
+
+namespace App\Models;
+
+class Resort extends Model
+{
+    protected $fillable = ['name'];
+}
+&lt;&lt;&lt;END
+
+client/src/components/resort/ResortCard.vue
+&lt;&lt;&lt;START
+&lt;template&gt;
+  &lt;div class="resort-card"&gt;{{ resort.name }}&lt;/div&gt;
+&lt;/template&gt;
+&lt;&lt;&lt;END
+&#96;&#96;&#96;</pre>
         </div>
         <textarea
             id="gsInput"
             class="gs-textarea"
-            placeholder="Paste your file structure or Claude-style file blocks here…"
+            placeholder="Paste your file structure or AI file blocks here…"
             spellcheck="false"
         ></textarea>
         <div class="gs-input-actions">

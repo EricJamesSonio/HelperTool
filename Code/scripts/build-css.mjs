@@ -30,6 +30,7 @@ const files = [
   'styles/dependencies.css',
   'styles/canvas-tool.css',
   'styles/file-seeder.css',
+  'styles/global-seeder.css',
   'styles/loc-detector.css',
   'styles/terminal.css',
   'styles/port-manager.css',

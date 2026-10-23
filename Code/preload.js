@@ -180,6 +180,9 @@ const fileseederBridge = {
 
         getPatchedPreview: (basePath, resolved, allEntries) =>
             ipcRenderer.invoke('fileseeder:getPatchedPreview', basePath, resolved, allEntries),
+
+        getAiRule: () =>
+            ipcRenderer.invoke('fileseeder:getAiRule'),
     },
 };
 
