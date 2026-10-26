@@ -426,3 +426,32 @@ include 'helpers/Foo.php';
     assert.ok(e[0].content.includes("include 'helpers/Foo.php';"));
   });
 });
+describe('N: Config files and dot-folders', () => {
+  it('N1: toml, ini, mako, dotfiles and dot-folders are accepted', () => {
+    const paths = [
+      '.gitignore',
+      '.github/workflows/ci.yml',
+      'backend/pyproject.toml',
+      'backend/alembic.ini',
+      'backend/.env.example',
+      'backend/migrations/script.py.mako',
+      'backend/Dockerfile',
+      'frontend/tsconfig.node.json',
+    ];
+    const raw = paths.map(p => `${p}\n<<<START\nkey = 1\n<<<END`).join('\n\n');
+    const e = parseContentBlocks(raw);
+    assert.deepEqual(e.map(x => x.relPath), paths);
+  });
+
+  it('N2: path traversal is still rejected', () => {
+    const raw = '../evil.toml\n<<<START\na = 1\n<<<END';
+    assert.equal(parseContentBlocks(raw).length, 0);
+  });
+
+  it('N3: a CSS selector line is not mistaken for a dotfile', () => {
+    const raw = 'app/a.css\n```css\n.panel {\n  color: red;\n}\n```';
+    const e = parseContentBlocks(raw);
+    assert.equal(e.length, 1);
+    assert.equal(e[0].relPath, 'app/a.css');
+  });
+});
