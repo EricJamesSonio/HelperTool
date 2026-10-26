@@ -7,7 +7,7 @@ const LANG_TOKENS = new Set([
     'js', 'jsx', 'ts', 'tsx', 'css', 'scss', 'less', 'html', 'htm', 'py',
     'json', 'md', 'markdown', 'sh', 'bash', 'shell', 'yaml', 'yml', 'sql',
     'txt', 'xml', 'vue', 'svelte', 'go', 'rs', 'java', 'c', 'cpp', 'rb',
-    'php', 'graphql', 'env', 'jsonc',
+    'php', 'graphql', 'env', 'jsonc', 'toml', 'ini',
 ]);
 
 // extensions we recognise as file-like — only known code/config extensions
@@ -15,7 +15,14 @@ const ALLOWED_EXTS = new Set([
     'js','jsx','ts','tsx','mjs','cjs','mts','cts','css','scss','less','html','htm','py',
     'json','jsonc','md','markdown','sh','bash','yaml','yml','sql','txt','xml',
     'vue','svelte','go','rs','java','c','cpp','rb','php','blade','env','gitignore',
+    'toml','ini','cfg','conf','mako','lock','properties','csv','svg','gql','prisma','proto','j2','jinja',
+    'gitattributes','dockerignore','editorconfig','prettierrc','prettierignore','eslintrc','eslintignore','npmrc','nvmrc',
 ]);
+// Well-known files that have no extension.
+const SPECIAL_BASENAMES = new Set(['Dockerfile', 'Makefile', 'Procfile']);
+// .env, .env.example, .env.local, .env.production ...
+const ENV_FILE_RE = /^\.env(\.[A-Za-z0-9_-]+)?$/;
+
 const EXT_RE = /\.[a-zA-Z0-9]{1,10}$/;
 const GLUED_LANG_RE = /(\.[a-zA-Z0-9]{1,10})(js|jsx|ts|tsx|css|scss|less|html|htm|py|json|md|sh|bash|yaml|yml|sql|xml|vue|svelte|go|rs|java|c|cpp|rb|php|env)$/i;
 const CODE_CHARS_RE = /[{}\[\]();=<>`"'$:,?]/;
@@ -130,16 +137,21 @@ function isValidPath(p) {
     if (!p) return false;
     if (/\s/.test(p)) return false;
     if (LANG_TOKENS.has(p.toLowerCase())) return false;
-    // dotfiles like .gitignore / .env are valid
-    const isDotfile = p.startsWith('.') && !p.includes('/');
     if (p.startsWith('-')) return false;
-    if (p.startsWith('.') && !isDotfile) return false;
-    if (!isDotfile && !EXT_RE.test(p)) return false;
     if (p.length < 3) return false;
+    // Never allow traversal ("../x"). Dot-folders such as ".github" are fine.
+    if (p.split('/').some(seg => seg === '..' || seg === '.')) return false;
     // Allow Next.js dynamic segments: [param], [[...param]], (group), and catch-all ... inside
-    if (!/^[a-zA-Z0-9._\-\/\[\]\(\)\.]+$/.test(p)) return false;
-    // Strip bracket/parenthesis wrappers for ext check, but keep them for path validity
-    const cleanForExt = p.replace(/[\[\]\(\)]/g, '');
+    if (!/^[a-zA-Z0-9._\-\/\[\]\(\)]+$/.test(p)) return false;
+    const base = p.split('/').pop() || '';
+    if (!base) return false;
+    if (SPECIAL_BASENAMES.has(base)) return true;
+    if (ENV_FILE_RE.test(base)) return true;
+    // dotfiles like .gitignore / .dockerignore (no second dot in the name)
+    const isDotfile = base.startsWith('.') && base.indexOf('.', 1) === -1;
+    if (!isDotfile && !EXT_RE.test(base)) return false;
+    // Strip bracket/parenthesis wrappers for ext check
+    const cleanForExt = base.replace(/[\[\]\(\)]/g, '');
     const ext = cleanForExt.split('.').pop().toLowerCase();
     if (!ALLOWED_EXTS.has(ext) && !LANG_TOKENS.has(ext)) return false;
     return true;
