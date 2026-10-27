@@ -4,46 +4,55 @@
 // The claude.ai BrowserView owns focus after the user copies a reply, so the
 // renderer cannot use navigator.clipboard; the main process clipboard works
 // regardless of focus.
+// Channels are namespaced "researcherAssist:" and every reply is a JSON
+// string, so nothing here can collide with another handler or fail to clone.
 
 const { ipcMain, clipboard } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CHANNELS = ['researcher:readClipboard', 'researcher:writeClipboard', 'researcher:tempFile'];
+const CHANNELS = ['researcherAssist:readClipboard', 'researcherAssist:writeClipboard', 'researcherAssist:tempFile'];
+
+function reply(obj) {
+    try {
+        return JSON.stringify(obj);
+    } catch (err) {
+        return JSON.stringify({ success: false, error: String(err && err.message ? err.message : err) });
+    }
+}
 
 function register() {
     for (const ch of CHANNELS) {
         try { ipcMain.removeHandler(ch); } catch (_) {}
     }
 
-    ipcMain.handle('researcher:readClipboard', () => {
+    ipcMain.handle('researcherAssist:readClipboard', () => {
         try {
-            return { success: true, text: clipboard.readText() || '' };
+            return reply({ success: true, text: String(clipboard.readText() || '') });
         } catch (err) {
-            return { success: false, text: '', error: err.message };
+            return reply({ success: false, text: '', error: err.message });
         }
     });
 
-    ipcMain.handle('researcher:writeClipboard', (event, payload) => {
+    ipcMain.handle('researcherAssist:writeClipboard', (event, text) => {
         try {
-            const text = payload && typeof payload.text === 'string' ? payload.text : '';
-            clipboard.writeText(text);
-            return { success: true };
+            clipboard.writeText(typeof text === 'string' ? text : '');
+            return reply({ success: true });
         } catch (err) {
-            return { success: false, error: err.message };
+            return reply({ success: false, error: err.message });
         }
     });
 
-    ipcMain.handle('researcher:tempFile', (event, payload) => {
+    ipcMain.handle('researcherAssist:tempFile', (event, name) => {
         try {
-            const raw = payload && payload.name ? String(payload.name) : 'out.txt';
+            const raw = name ? String(name) : 'out.txt';
             const safe = raw.replace(/[^a-zA-Z0-9._-]/g, '_');
             const dir = path.join(os.tmpdir(), 'helpertool-researcher');
             fs.mkdirSync(dir, { recursive: true });
-            return { success: true, filePath: path.join(dir, safe) };
+            return reply({ success: true, filePath: path.join(dir, safe) });
         } catch (err) {
-            return { success: false, error: err.message };
+            return reply({ success: false, error: err.message });
         }
     });
 }
