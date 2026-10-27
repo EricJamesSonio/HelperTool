@@ -615,9 +615,9 @@ const researcherBridge = {
   navigate: (url) => ipcRenderer.invoke('researcher:navigate', { url }),
   hideBrowserView: () => ipcRenderer.invoke('researcher:hideBrowserView'),
   showBrowserView: () => ipcRenderer.invoke('researcher:showBrowserView'),
-  readClipboard: () => ipcRenderer.invoke('researcher:readClipboard'),
-  writeClipboard: (text) => ipcRenderer.invoke('researcher:writeClipboard', { text }),
-  tempFile: (name) => ipcRenderer.invoke('researcher:tempFile', { name }),
+  readClipboard: async () => JSON.parse(await ipcRenderer.invoke('researcherAssist:readClipboard')),
+  writeClipboard: async (text) => JSON.parse(await ipcRenderer.invoke('researcherAssist:writeClipboard', text)),
+  tempFile: async (name) => JSON.parse(await ipcRenderer.invoke('researcherAssist:tempFile', name)),
 };
 
 const projectInspectorBridge = {
