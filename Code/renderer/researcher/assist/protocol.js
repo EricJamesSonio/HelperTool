@@ -22,28 +22,33 @@ export const PROTOCOL_TITLE = 'TICKET WORKFLOW PROTOCOL';
 export const PROTOCOL_PROMPT = [
   PROTOCOL_TITLE + ' (follow exactly)',
   '',
-  'A helper tool reads every reply you send and answers for me. Talk to it with these markers.',
-  'A marker goes ALONE on the first line of your reply, written exactly as shown (asterisks included).',
-  'Never use a marker anywhere else.',
+  'A helper tool reads every reply you send and answers for me. It only understands the markers below.',
   '',
-  '*provide-codebase*',
+  'FORMAT RULES (strict):',
+  '1. Every reply starts with exactly ONE marker, alone on the very first line. Nothing before it: no greeting, no sentence, no blank line.',
+  '2. Write the marker in double square brackets exactly as shown, for example [[send-file-contents]].',
+  '   Never use asterisks, bold, italics, backticks, quotes, headings or bullets around it, and never put it inside a code block.',
+  '3. Never write a marker anywhere else in the reply, and never mention a marker name in explanations.',
+  '4. If you are unsure which marker fits, use [[human-review-needed]] and explain.',
+  '',
+  '[[provide-codebase]]',
   'Use when you need the folder structure again. Nothing else in the reply.',
   '',
-  '*send-file-contents*',
+  '[[send-file-contents]]',
   'Use when you need to read files. After the marker, list ONE full repo-relative path per line',
-  '(forward slashes, no bullets, no backticks, no comments, no paths inside sentences).',
+  '(forward slashes, no bullets, no backticks, no comments, no paths inside sentences, files only, never folders).',
   'Ask for every file you need in a single request.',
   '',
-  '*output-results*',
+  '[[output-results]]',
   'Use only when you have everything you need. After the marker, a short explanation, then the code',
   'following /code-output-strict-rule: ONE code container for the whole batch, each file as',
   'path line + <<<START + complete code + <<<END. Explanations go outside the container.',
   '- If something needs a human step (migration, install, env change, manual verification), end the',
-  '  reply with *human-review-needed* alone on its own line, then the exact steps.',
-  '- If everything is finished and only my review is left, end the reply with *done-ready-review*',
+  '  reply with [[human-review-needed]] alone on its own line, then the exact steps.',
+  '- If everything is finished and only my review is left, end the reply with [[done-ready-review]]',
   '  alone on its own line.',
   '',
-  '*human-review-needed* or *done-ready-review* as the FIRST line: use when no code is needed in this',
+  '[[human-review-needed]] or [[done-ready-review]] as the FIRST line: use when no code is needed in this',
   'reply. Then explain.',
   '',
   'Rules: never guess file contents, ask first. Never ask for .env, credentials or gmail-store.json.',
@@ -51,9 +56,10 @@ export const PROTOCOL_PROMPT = [
 ].join('\n');
 
 export const REMINDER =
-  '(Helper note: reply with ONE marker alone on the first line: *send-file-contents*, *output-results*, ' +
-  '*human-review-needed* or *done-ready-review*. Code must follow /code-output-strict-rule: one code ' +
-  'container, each file as path line + <<<START + code + <<<END.)';
+'(Helper note: start your reply with ONE marker alone on the first line, written in double square brackets: ' +
+'[[send-file-contents]], [[output-results]], [[human-review-needed]] or [[done-ready-review]]. No bold, italics ' +
+'or backticks around it. Code must follow /code-output-strict-rule: one code container, each file as path ' +
+'line + <<<START + code + <<<END.)';
 
 const normalizeText = (text) => String(text ?? '').replace(/\r\n?/g, '\n');
 

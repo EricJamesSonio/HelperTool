@@ -7,6 +7,8 @@ import { handleReply, getSession, resetSession } from '../../assist/orchestrator
 import { detectReply, PROTOCOL_PROMPT, PROTOCOL_TITLE } from '../../assist/protocol.js';
 
 const AUTO_KEY = 'rs_assist_auto';
+const SEED_KEY = 'rs_assist_autoseed';
+
 const POLL_MS = 700;
 
 const TEMPLATE = `
@@ -15,6 +17,9 @@ const TEMPLATE = `
     <span class="rs-assist-badge" id="rsAssistBadge" data-state="idle">Idle</span>
     <label class="rs-assist-auto" title="Watch the clipboard and process Claude's reply as soon as you copy it">
       <input type="checkbox" id="rsAssistAuto"> Auto
+    </label>
+    <label class="rs-assist-auto" title="Open the Global Seeder automatically when the dry run is clean">
+      <input type="checkbox" id="rsAssistAutoSeed"> Seeder
     </label>
   </div>
   <div class="rs-assist-round" id="rsAssistRound">Round 0</div>
@@ -50,6 +55,8 @@ let _busy = false;
 let _ticking = false;
 let _runId = 0;
 let _auto = true;
+let _autoSeed = true;
+
 let _lastSeen = '';
 let _seederText = '';
 
@@ -61,6 +68,19 @@ function loadAuto() {
   }
 }
 
+function loadAutoSeed() {
+  try {
+    return localStorage.getItem(SEED_KEY) !== '0';
+  } catch (_) {
+    return true;
+  }
+}
+
+function saveAutoSeed(on) {
+  try {
+    localStorage.setItem(SEED_KEY, on ? '1' : '0');
+  } catch (_) { /* storage unavailable */ }
+}
 function saveAuto(on) {
   try {
     localStorage.setItem(AUTO_KEY, on ? '1' : '0');
@@ -202,6 +222,11 @@ async function run(text) {
   _els.seederBtn.textContent = result.legacy ? 'Open in Global Seeder (legacy parse)' : 'Open in Global Seeder';
   show(_els.seederBtn, !!_seederText);
 
+  if (_autoSeed && _seederText && result.status === 'ready' && !result.legacy) {
+    addLine('info', 'Opening the Global Seeder...');
+    openInSeeder().catch((err) => addLine('warn', 'Could not open the Global Seeder: ' + ((err && err.message) || err)));
+  }
+
   if (result.replyText) {
     const textarea = document.getElementById('rsTextarea');
     if (textarea) textarea.value = result.replyText;
@@ -308,6 +333,7 @@ export function initAssistPanel() {
     protocolBtn: root.querySelector('#rsAssistProtocolBtn'),
     resetBtn: root.querySelector('#rsAssistResetBtn'),
     auto: root.querySelector('#rsAssistAuto'),
+    autoSeed: root.querySelector('#rsAssistAutoSeed'),
   };
 
   _auto = loadAuto();
@@ -316,6 +342,13 @@ export function initAssistPanel() {
     _auto = _els.auto.checked;
     saveAuto(_auto);
     if (_auto) _lastSeen = await readClip();
+  });
+
+  _autoSeed = loadAutoSeed();
+  _els.autoSeed.checked = _autoSeed;
+  _els.autoSeed.addEventListener('change', () => {
+    _autoSeed = _els.autoSeed.checked;
+    saveAutoSeed(_autoSeed);
   });
 
   _els.processBtn.addEventListener('click', processClipboard);
