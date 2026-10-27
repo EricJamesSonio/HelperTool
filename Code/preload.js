@@ -615,6 +615,9 @@ const researcherBridge = {
   navigate: (url) => ipcRenderer.invoke('researcher:navigate', { url }),
   hideBrowserView: () => ipcRenderer.invoke('researcher:hideBrowserView'),
   showBrowserView: () => ipcRenderer.invoke('researcher:showBrowserView'),
+  readClipboard: () => ipcRenderer.invoke('researcher:readClipboard'),
+  writeClipboard: (text) => ipcRenderer.invoke('researcher:writeClipboard', { text }),
+  tempFile: (name) => ipcRenderer.invoke('researcher:tempFile', { name }),
 };
 
 const projectInspectorBridge = {

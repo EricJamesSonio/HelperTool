@@ -174,3 +174,9 @@ function cleanup() {
 }
 
 module.exports = { register, cleanup };
+// Registers the assist panel clipboard and temp-file handlers together with the BrowserView handlers.
+const _registerBrowserView = module.exports.register;
+module.exports.register = function registerWithAssist(deps) {
+  _registerBrowserView(deps);
+  require('./researcherAssist_ipc.js').register(deps);
+};

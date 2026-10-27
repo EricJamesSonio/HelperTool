@@ -17,6 +17,10 @@ export function initPromptEditor() {
   if (planningBtn) planningBtn.addEventListener('click', openPlanning);
   if (stonesBtn) stonesBtn.addEventListener('click', openStones);
   if (kitBtn) kitBtn.addEventListener('click', openKit);
+
+  import('./assistPanel.js')
+    .then((m) => m.initAssistPanel())
+    .catch((err) => console.error('[RS] assist panel failed to load:', err));
 }
 
 function copyText() {
