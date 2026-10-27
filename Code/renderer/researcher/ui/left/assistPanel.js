@@ -40,6 +40,7 @@ const BADGE_TEXT = {
   error: 'Problem',
   review: 'Human review',
   done: 'Done',
+  unknown: 'No marker',
 };
 const STEP_ICON = { pending: '-', active: '', done: '+', warn: '!', error: 'x' };
 
@@ -216,8 +217,10 @@ async function run(text) {
 }
 
 async function processClipboard() {
-  const text = await readClip();
+  let text = await readClip();
   _lastSeen = text;
+  const box = document.getElementById('rsTextarea');
+  if (!detectReply(text) && box && detectReply(box.value)) text = box.value;
   if (!text.trim()) {
     setBadge('idle');
     renderResult({ title: 'Clipboard is empty', lines: [{ tone: 'info', text: 'Copy Claude\'s reply first.' }] });
