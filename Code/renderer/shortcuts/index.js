@@ -4,11 +4,12 @@ import { openConfig, closeConfig, isConfigOpen } from './ui.js';
 
 function initShortcutManager(actions, enabledFeats) {
   loadShortcuts();
+  _enabledFeats = enabledFeats || {};
   for (const [id, fn] of Object.entries(actions)) {
+    if (_enabledFeats[id] === false) continue;
     registerAction(id, fn);
   }
   initListener();
-  _enabledFeats = enabledFeats || {};
 }
 
 let _enabledFeats = {};
