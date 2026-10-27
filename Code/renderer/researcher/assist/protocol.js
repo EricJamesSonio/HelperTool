@@ -105,6 +105,9 @@ export function stripSensitiveTreeLines(tree) {
 
 export function markerFromLine(line) {
   const t = String(line ?? '')
+    .replace(/[\uFEFF\u200B-\u200D\u2060]/g, '')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[\u00A0\u2007\u202F]/g, ' ')
     .trim()
     .replace(/^[\s*_`#>\[\(-]+/, '')
     .replace(/[\s*_`\]\).:!]+$/, '')

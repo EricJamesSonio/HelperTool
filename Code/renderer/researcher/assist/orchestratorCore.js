@@ -63,6 +63,13 @@ function createStepper(labels, onStep) {
   };
 }
 
+function previewText(text) {
+  const raw = String(text ?? '');
+  const head = raw.slice(0, 90).replace(/[^\x20-\x7e]/g, (c) =>
+    c === '\n' ? '\\n' : c === '\r' ? '' : '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')
+  );
+  return 'Read ' + raw.length + ' chars. Starts with: "' + head + (raw.length > 90 ? '...' : '') + '"';
+}
 export function createOrchestrator(deps) {
   const session = { round: 0, sent: new Map() };
 
@@ -436,6 +443,7 @@ export function createOrchestrator(deps) {
             tone: 'info',
             text: 'Expected *provide-codebase*, *send-file-contents*, *output-results*, *human-review-needed* or *done-ready-review* alone on the first line.',
           },
+          { tone: 'warn', text: previewText(text) },
         ],
       });
     }
