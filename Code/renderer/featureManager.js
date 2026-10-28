@@ -45,6 +45,7 @@ const DEFAULT_FEATURES = {
   codeswampChat: true,
   globalSeeder: true,
   researcherTool: true,
+  flowTool:      true,
   shortcutMode: true,
 };
 
