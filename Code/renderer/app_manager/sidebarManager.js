@@ -41,6 +41,7 @@ const TOOL_FEATURE = {
   opencode: 'codeswampChat',
   globalSeeder: 'globalSeeder',
   researcher: 'researcherTool',
+  flow: 'flowTool',
 };
 
 function isToolEnabled(toolKey) {

@@ -185,7 +185,7 @@ function populateSidebar() {
     fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
   }, 'fileSeeder'));
 
-  add(createSidebarItem('🎬', 'Video Compressor', 'Compress video files with FFmpeg', () => {
+  add(createSidebarItem('\uD83C\uDFAC', 'Video Compressor', 'Compress video files with FFmpeg', () => {
     if (_videoPanel?.classList.contains('open')) { _videoPanel.classList.remove('open'); return; }
     _registry.closeAll();
     if (!_videoPanel) _initVideoPanel();
@@ -455,6 +455,16 @@ function populateSidebar() {
       await mod.open();
     } catch (err) { console.error('[Tools] Researcher:', err); }
   }, 'researcher'));
+
+  add(createSidebarItem('<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h9"/><path d="M3 10h14"/><path d="M3 15h6"/><path d="M14 3l3 2-3 2"/><path d="M12 13l3 2-3 2"/></svg>', 'Flow Tool', 'Process Claude replies and review changes before applying', async () => {
+    try {
+      const mod = await import('../flowTool/index.js');
+      if (mod.isOpen()) { mod.close(); return; }
+      _registry.closeAll();
+      await mod.open();
+      _registry.register('flowTool', mod.getPanel());
+    } catch (err) { console.error('[Tools] Flow Tool:', err); }
+  }, 'flow'));
 
   body.appendChild(frag);
 }
