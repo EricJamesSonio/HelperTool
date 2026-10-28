@@ -128,9 +128,59 @@ export function diffStats(ops) {
 export function entryKind(e) {
   if (e.applied) return 'applied';
   if (e.invalid) return 'invalid';
-  if (e.ambiguous) return 'problem';
   if (e.mode && e.mode !== 'full') return 'patch';
   return e.exists ? 'overwrite' : 'new';
+}
+export function isMulti(e) {
+  return !!(e.ambiguous && e.candidates && e.candidates.length > 1);
+}
+
+
+export function candidateLabel(e, cand) {
+  if (cand === '') return 'Root (repo root/' + String(e.relPath).split('/').pop() + ')';
+  return cand;
+}
+
+
+export function candidateResolved(e, cand) {
+  const rel = String(e.relPath);
+  if (!rel.includes('/')) return cand === '' ? rel : cand;
+  if (cand === '') return rel;
+  const rest = rel.split('/').slice(1).join('/');
+  return rest ? cand + '/' + rest : cand;
+}
+
+
+export function currentCandidate(e) {
+  const list = e.candidates || [];
+  const hit = list.find((c) => candidateResolved(e, c) === e.resolved);
+  return hit === undefined ? null : hit;
+}
+
+export function isMulti(e) {
+  return !!(e.ambiguous && e.candidates && e.candidates.length > 1);
+}
+
+
+export function candidateLabel(e, cand) {
+  if (cand === '') return 'Root (repo root/' + String(e.relPath).split('/').pop() + ')';
+  return cand;
+}
+
+
+export function candidateResolved(e, cand) {
+  const rel = String(e.relPath);
+  if (!rel.includes('/')) return cand === '' ? rel : cand;
+  if (cand === '') return rel;
+  const rest = rel.split('/').slice(1).join('/');
+  return rest ? cand + '/' + rest : cand;
+}
+
+
+export function currentCandidate(e) {
+  const list = e.candidates || [];
+  const hit = list.find((c) => candidateResolved(e, c) === e.resolved);
+  return hit === undefined ? null : hit;
 }
 
 export function isActive(e) {
@@ -227,23 +277,23 @@ export async function loadDiff(review, index, api) {
   return e;
 }
 
-export function chooseCandidate(review, index, resolved) {
+export function chooseCandidate(review, index, cand) {
   const e = review.entries[index];
   if (!e) return;
-  e.resolved = resolved;
-  e.ambiguous = false;
+  e.resolved = candidateResolved(e, cand);
   e.diff = null;
   e.diffError = '';
 }
 
 export function summarize(review) {
-  const counts = { new: 0, overwrite: 0, patch: 0, invalid: 0, problem: 0, applied: 0, skip: 0 };
+  const counts = { new: 0, overwrite: 0, patch: 0, invalid: 0, applied: 0, skip: 0, multi: 0 };
   for (const e of review.entries) {
     const k = entryKind(e);
     if (k === 'applied') counts.applied += 1;
     else if (k === 'invalid') counts.invalid += 1;
     else if (!isActive(e)) counts.skip += 1;
     else counts[k] = (counts[k] || 0) + 1;
+    if (isMulti(e) && !e.applied) counts.multi += 1;
   }
   return counts;
 }
@@ -251,8 +301,6 @@ export function summarize(review) {
 export async function applyReview(review, api) {
   const active = review.entries.filter(isActive);
   if (!active.length) return { error: 'Nothing selected to apply.' };
-  const blocked = active.filter((e) => e.ambiguous);
-  if (blocked.length) return { error: 'Pick a target for: ' + blocked.map((e) => e.relPath).join(', ') };
   const res = await api.seedContent(review.basePath, active.map(toPayload));
   if (!res || res.error) return { error: (res && res.error) || 'Seed failed.' };
   const failed = new Set((res.errors || []).map((x) => (x && (x.path || x.relPath || x.file)) || ''));

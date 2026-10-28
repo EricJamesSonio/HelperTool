@@ -13,7 +13,11 @@ import {
   isActive,
   collapseDiff,
 } from './review.js';
+import { isMulti, candidateLabel, currentCandidate } from './review.js';
+import { isMulti, candidateLabel, currentCandidate } from './review.js';
 
+let lastReply = '';
+let lastReply = '';
 const BADGE_TEXT = {
   idle: 'Idle',
   working: 'Working...',
@@ -30,8 +34,8 @@ const KIND_LABEL = {
   overwrite: 'overwrite',
   patch: 'patch',
   invalid: 'invalid',
-  problem: 'pick target',
   applied: 'applied',
+  multi: 'several targets',
 };
 
 let els = null;
@@ -144,7 +148,7 @@ function renderChips() {
   els.chips.textContent = '';
   if (!state.review) return;
   const c = summarize(state.review);
-  const order = ['new', 'overwrite', 'patch', 'problem', 'invalid', 'applied', 'skip'];
+  const order = ['new', 'overwrite', 'patch', 'invalid', 'applied', 'skip', 'multi'];
   for (const k of order) {
     if (!c[k]) continue;
     const chip = makeEl('span', 'ft-chip', c[k] + ' ' + (KIND_LABEL[k] || k));
@@ -183,7 +187,8 @@ function renderFiles() {
     });
     const main = makeEl('div', 'ft-file-main');
     main.appendChild(makeEl('div', 'ft-file-name', e.resolved));
-    const sub = e.resolved !== e.relPath ? 'from ' + e.relPath : e.mode !== 'full' ? 'mode: ' + e.mode : '';
+    let sub = e.resolved !== e.relPath ? 'from ' + e.relPath : e.mode !== 'full' ? 'mode: ' + e.mode : '';
+    if (isMulti(e)) sub = (sub ? sub + ' | ' : '') + e.candidates.length + ' possible targets';
     if (sub) main.appendChild(makeEl('div', 'ft-file-sub', sub));
     const kind = entryKind(e);
     const chip = makeEl('span', 'ft-chip', KIND_LABEL[kind] || kind);
@@ -236,19 +241,25 @@ function renderDetail() {
   if (e.stats) head.appendChild(makeEl('span', 'ft-note', '+' + e.stats.add + ' / -' + e.stats.del));
   els.detail.appendChild(head);
 
-  if (e.ambiguous && e.candidates.length) {
+  if (isMulti(e)) {
+    els.detail.appendChild(makeEl('div', 'ft-note', e.candidates.length + ' possible targets. The seeder picked one; change it here if needed.'));
     const sel = document.createElement('select');
     sel.className = 'ft-select';
-    const ph = makeEl('option', '', 'Several matches. Pick the target file...');
-    ph.value = '';
-    sel.appendChild(ph);
+    const cur = currentCandidate(e);
+    if (cur === null) {
+      const o0 = makeEl('option', '', e.resolved + ' (current)');
+      o0.value = '__current__';
+      o0.selected = true;
+      sel.appendChild(o0);
+    }
     for (const c of e.candidates) {
-      const o = makeEl('option', '', c);
+      const o = makeEl('option', '', candidateLabel(e, c));
       o.value = c;
+      if (c === cur) o.selected = true;
       sel.appendChild(o);
     }
     sel.addEventListener('change', () => {
-      if (!sel.value) return;
+      if (sel.value === '__current__') return;
       chooseCandidate(r, state.selected, sel.value);
       renderAll();
     });
@@ -411,6 +422,7 @@ async function run(text) {
     els.box.value = result.replyText;
     const copied = await writeClip(result.replyText);
     state.lastSeen = result.replyText;
+    lastReply = result.replyText;
     addLine(
       copied ? 'ok' : 'warn',
       copied
@@ -424,6 +436,17 @@ async function processClipboard() {
   let text = await readClip();
   state.lastSeen = text;
   if (!detectReply(text) && detectReply(els.box.value)) text = els.box.value;
+  if (lastReply && text === lastReply) {
+    setBadge('idle');
+    renderResult({
+      title: 'Already processed',
+      lines: [
+        { tone: 'info', text: 'The clipboard holds the reply for Claude that this tool already copied.' },
+        { tone: 'info', text: 'Paste it into Claude, then copy Claude\'s next answer. With Auto on, it is processed as soon as you copy it.' },
+      ],
+    });
+    return;
+  }
   if (text.trim() === '[object Promise]') {
     setBadge('idle');
     renderResult({
