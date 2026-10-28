@@ -335,6 +335,9 @@ function createWindow() {
         mainWindow.webContents.send('window:maximize-changed', true);
     });
     mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximize-changed', false));
+    mainWindow.webContents.on('unresponsive', () => { console.warn('[Main] renderer unresponsive'); mainWindow.webContents.send('app:unresponsive'); });
+    mainWindow.webContents.on('render-process-gone', (e, details) => { console.warn('[Main] render-process-gone', details); mainWindow.webContents.send('app:render-gone', details); });
+    mainWindow.webContents.on('did-fail-load', (e, code, desc) => { console.warn('[Main] did-fail-load', code, desc); });
 }
 
 // ----------------------------
