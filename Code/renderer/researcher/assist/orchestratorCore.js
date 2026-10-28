@@ -441,7 +441,7 @@ export function createOrchestrator(deps) {
         lines: [
           {
             tone: 'info',
-            text: 'Expected *provide-codebase*, *send-file-contents*, *output-results*, *human-review-needed* or *done-ready-review* alone on the first line.',
+            text: 'Expected ^|provide-codebase|^, ^|send-file-contents|^, ^|output-results|^, ^|human-review-needed|^ or ^|done-ready-review|^ on the first line.',
           },
           { tone: 'warn', text: previewText(text) },
         ],

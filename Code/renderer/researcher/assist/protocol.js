@@ -25,30 +25,31 @@ export const PROTOCOL_PROMPT = [
   'A helper tool reads every reply you send and answers for me. It only understands the markers below.',
   '',
   'FORMAT RULES (strict):',
-  '1. Every reply starts with exactly ONE marker, alone on the very first line. Nothing before it: no greeting, no sentence, no blank line.',
-  '2. Write the marker in double square brackets exactly as shown, for example [[send-file-contents]].',
-  '   Never use asterisks, bold, italics, backticks, quotes, headings or bullets around it, and never put it inside a code block.',
+  '1. Every reply has exactly ONE opening marker, written exactly like ^|send-file-contents|^ (caret, pipe, name, pipe, caret).',
+  '   Never use asterisks, bold, italics, quotes, headings or bullets around it.',
+  '2. For ^|provide-codebase|^ and ^|send-file-contents|^ the WHOLE reply is ONE code container (```text) and the marker is its first line,',
+  '   so I can copy it in one click. For every other marker the marker is alone on the very first line of the reply, outside any container.',
   '3. Never write a marker anywhere else in the reply, and never mention a marker name in explanations.',
-  '4. If you are unsure which marker fits, use [[human-review-needed]] and explain.',
+  '4. If you are unsure which marker fits, use ^|human-review-needed|^ and explain.',
   '',
-  '[[provide-codebase]]',
-  'Use when you need the folder structure again. Nothing else in the reply.',
+  '^|provide-codebase|^',
+  'Use when you need the folder structure again. The container holds only the marker.',
   '',
-  '[[send-file-contents]]',
-  'Use when you need to read files. After the marker, list ONE full repo-relative path per line',
-  '(forward slashes, no bullets, no backticks, no comments, no paths inside sentences, files only, never folders).',
+  '^|send-file-contents|^',
+  'Use when you need to read files. Inside the same container, below the marker, list ONE full repo-relative path per line',
+  '(complete path from the repo root, forward slashes, no bullets, no backticks, no comments, no prose, files only, never folders).',
   'Ask for every file you need in a single request.',
   '',
-  '[[output-results]]',
+  '^|output-results|^',
   'Use only when you have everything you need. After the marker, a short explanation, then the code',
   'following /code-output-strict-rule: ONE code container for the whole batch, each file as',
   'path line + <<<START + complete code + <<<END. Explanations go outside the container.',
   '- If something needs a human step (migration, install, env change, manual verification), end the',
-  '  reply with [[human-review-needed]] alone on its own line, then the exact steps.',
-  '- If everything is finished and only my review is left, end the reply with [[done-ready-review]]',
+  '  reply with ^|human-review-needed|^ alone on its own line, then the exact steps.',
+  '- If everything is finished and only my review is left, end the reply with ^|done-ready-review|^',
   '  alone on its own line.',
   '',
-  '[[human-review-needed]] or [[done-ready-review]] as the FIRST line: use when no code is needed in this',
+  '^|human-review-needed|^ or ^|done-ready-review|^ as the FIRST line: use when no code is needed in this',
   'reply. Then explain.',
   '',
   'Rules: never guess file contents, ask first. Never ask for .env, credentials or gmail-store.json.',
@@ -56,9 +57,9 @@ export const PROTOCOL_PROMPT = [
 ].join('\n');
 
 export const REMINDER =
-'(Helper note: start your reply with ONE marker alone on the first line, written in double square brackets: ' +
-'[[send-file-contents]], [[output-results]], [[human-review-needed]] or [[done-ready-review]]. No bold, italics ' +
-'or backticks around it. Code must follow /code-output-strict-rule: one code container, each file as path ' +
+'(Helper note: every reply needs ONE marker such as ^|send-file-contents|^, ^|output-results|^, ' +
+'^|human-review-needed|^ or ^|done-ready-review|^. File requests: ONE code container, marker first line, ' +
+'then full paths one per line. Code: marker alone on the first line, one code container, each file as path ' +
 'line + <<<START + code + <<<END.)';
 
 const normalizeText = (text) => String(text ?? '').replace(/\r\n?/g, '\n');
@@ -115,8 +116,8 @@ export function markerFromLine(line) {
     .replace(/[\u2010-\u2015\u2212]/g, '-')
     .replace(/[\u00A0\u2007\u202F]/g, ' ')
     .trim()
-    .replace(/^[\s*_`#>\[\(-]+/, '')
-    .replace(/[\s*_`\]\).:!]+$/, '')
+    .replace(/^[\s*_`#>\[\(<^|-]+/, '')
+    .replace(/[\s*_`\]\).:!>|^]+$/, '')
     .toLowerCase();
   return MARKER_NAMES.has(t) ? t : null;
 }
