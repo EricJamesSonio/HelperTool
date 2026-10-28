@@ -108,6 +108,9 @@ function register({ getMainWindow }) {
       applyBounds();
 
       _view.webContents.on('destroyed', () => { _view = null; _viewAccountId = null; });
+      _view.webContents.on('unresponsive', () => { console.warn('[researcher] BrowserView unresponsive'); });
+      _view.webContents.on('render-process-gone', (e, d) => { console.warn('[researcher] render-process-gone', d); });
+      _view.webContents.on('did-fail-load', (e, c, desc) => { console.warn('[researcher] did-fail-load', c, desc); });
 
       return { success: true };
     } catch (err) {
