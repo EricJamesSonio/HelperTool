@@ -3,6 +3,7 @@ import { handleReply, getSession, resetSession } from '../researcher/assist/orch
 import { detectReply, PROTOCOL_PROMPT, PROTOCOL_TITLE } from '../researcher/assist/protocol.js';
 import { parseContentBlocks } from '../globalSeeder/parser.js';
 import { state, POLL_MS, loadAuto, saveAuto } from './state.js';
+import { guardAsync, GUARDS } from '../shared/guards.js';
 import {
   buildReview,
   loadDiff,
@@ -14,9 +15,7 @@ import {
   collapseDiff,
 } from './review.js';
 import { isMulti, candidateLabel, currentCandidate } from './review.js';
-import { isMulti, candidateLabel, currentCandidate } from './review.js';
 
-let lastReply = '';
 let lastReply = '';
 const BADGE_TEXT = {
   idle: 'Idle',
@@ -125,6 +124,27 @@ function renderResult(result) {
   show(els.result, true);
 }
 
+let replyText = '';
+
+function showReply(text, label) {
+  replyText = text;
+  els.replyTitle.textContent = label ? 'Reply for Claude - ' + label : 'Reply for Claude';
+  els.replyText.textContent = text;
+  els.replyMeta.textContent = text.length + ' chars';
+  const withReview = !!state.review;
+  els.right.dataset.reply = withReview ? 'compact' : 'full';
+  els.reply.dataset.open = String(!withReview);
+  els.replyToggle.textContent = 'Show';
+  show(els.replyToggle, withReview);
+  show(els.reply, true);
+}
+
+function hideReply() {
+  replyText = '';
+  els.replyText.textContent = '';
+  els.right.dataset.reply = 'none';
+  show(els.reply, false);
+}
 function setBanner(tone, text) {
   els.banner.dataset.tone = tone;
   els.banner.textContent = text;
@@ -140,7 +160,8 @@ function clearReview() {
   els.detail.textContent = '';
   setBanner('info', '');
   els.applyBtn.disabled = true;
-  const empty = makeEl('div', 'ft-empty', 'Nothing to review yet. Copy Claude\'s reply and press Process clipboard. When it contains file blocks, the dry run result appears here.');
+  hideReply();
+  const empty = makeEl('div', 'ft-empty', 'Nothing to review yet. Copy Claude\'s reply and press Process clipboard. File contents and the dry run result appear here.');
   els.detail.appendChild(empty);
 }
 
@@ -355,7 +376,7 @@ async function openReview(seederText) {
   renderAll();
 }
 
-async function applySelected() {
+const applySelected = guardAsync(async function applySelected() {
   const r = state.review;
   if (!r || state.busy) return;
   els.applyBtn.disabled = true;
@@ -380,7 +401,7 @@ async function applySelected() {
   const refresh = document.getElementById('refreshBtn');
   if (refresh) refresh.click();
   renderAll();
-}
+}, { key: 'ft:apply', minGapMs: GUARDS.APPLY_GAP_MS });
 
 async function run(text) {
   if (state.busy) return;
@@ -418,21 +439,22 @@ async function run(text) {
   renderResult(result);
   updateRound();
   if (result.seederText) await openReview(result.seederText);
+  if (runId !== state.runId) return;
   if (result.replyText) {
-    els.box.value = result.replyText;
+    showReply(result.replyText, result.title);
     const copied = await writeClip(result.replyText);
     state.lastSeen = result.replyText;
     lastReply = result.replyText;
     addLine(
       copied ? 'ok' : 'warn',
       copied
-        ? 'Reply copied (' + result.replyText.length + ' chars). Paste it into Claude.'
-        : 'Could not copy automatically. Use Copy box.'
+        ? 'Reply copied (' + result.replyText.length + ' chars) and shown on the right. Paste it into Claude.'
+        : 'Could not copy automatically. Use Copy reply on the right.'
     );
   }
 }
 
-async function processClipboard() {
+const processClipboard = guardAsync(async function processClipboard() {
   let text = await readClip();
   state.lastSeen = text;
   if (!detectReply(text) && detectReply(els.box.value)) text = els.box.value;
@@ -461,7 +483,7 @@ async function processClipboard() {
     return;
   }
   run(text);
-}
+}, { key: 'ft:process', minGapMs: GUARDS.PROCESS_GAP_MS });
 
 async function tick() {
   if (state.ticking || !state.auto || state.busy || !isOpen()) return;
@@ -511,11 +533,19 @@ export function isOpen() {
 
 export function startPolling() {
   stopPolling();
-  state.timer = setInterval(tick, POLL_MS);
+  state.timer = null;
+  const schedule = () => {
+    state.timer = setTimeout(async () => {
+      if (!isOpen()) { stopPolling(); return; }
+      try { await tick(); } catch (_) {}
+      if (isOpen()) schedule();
+    }, POLL_MS);
+  };
+  schedule();
 }
 
 export function stopPolling() {
-  if (state.timer) clearInterval(state.timer);
+  if (state.timer) { clearTimeout(state.timer); clearInterval(state.timer); }
   state.timer = null;
 }
 
@@ -541,6 +571,13 @@ export function wire(root, onClose) {
     detail: root.querySelector('#ftDetail'),
     reviewBody: root.querySelector('#ftReviewBody'),
     applyBtn: root.querySelector('#ftApplyBtn'),
+    right: root.querySelector('#ftRight'),
+    reply: root.querySelector('#ftReply'),
+    replyTitle: root.querySelector('#ftReplyTitle'),
+    replyMeta: root.querySelector('#ftReplyMeta'),
+    replyText: root.querySelector('#ftReplyText'),
+    replyToggle: root.querySelector('#ftReplyToggle'),
+    replyCopy: root.querySelector('#ftReplyCopy'),
   };
   state.auto = loadAuto();
   els.auto.checked = state.auto;
@@ -561,6 +598,19 @@ export function wire(root, onClose) {
     const ok = await writeClip(els.box.value);
     addLine(ok ? 'ok' : 'warn', ok ? 'Box copied.' : 'Could not copy.');
     show(els.result, true);
+  });
+  els.replyCopy.addEventListener('click', async () => {
+    if (!replyText) return;
+    const ok = await writeClip(replyText);
+    els.replyCopy.textContent = ok ? 'Copied' : 'Copy failed';
+    setTimeout(() => {
+      els.replyCopy.textContent = 'Copy reply';
+    }, 1200);
+  });
+  els.replyToggle.addEventListener('click', () => {
+    const open = els.reply.dataset.open === 'true';
+    els.reply.dataset.open = String(!open);
+    els.replyToggle.textContent = open ? 'Show' : 'Hide';
   });
   root.querySelector('#ftSelAllBtn').addEventListener('click', () => setAll(true));
   root.querySelector('#ftSelNoneBtn').addEventListener('click', () => setAll(false));

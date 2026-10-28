@@ -16,7 +16,7 @@ export function getTemplate() {
   <div class="ft-body">
     <section class="ft-col ft-left">
       <div class="ft-col-title">Ticket and replies</div>
-      <textarea class="ft-box" id="ftBox" spellcheck="false" placeholder="Paste your ticket here. The reply for Claude appears here after you process Claude's answer."></textarea>
+      <textarea class="ft-box" id="ftBox" spellcheck="false" placeholder="Paste your ticket here. Claude's replies are processed from the clipboard and the result is shown on the right."></textarea>
       <div class="ft-row">
         <button class="ft-btn ft-primary" id="ftProcessBtn">Process clipboard</button>
         <button class="ft-btn ft-danger ft-hidden" id="ftCancelBtn">Cancel</button>
@@ -29,7 +29,7 @@ export function getTemplate() {
         <div class="ft-lines" id="ftLines"></div>
       </div>
     </section>
-    <section class="ft-col ft-right">
+    <section class="ft-col ft-right" id="ftRight" data-reply="none">
       <div class="ft-review-head">
         <div class="ft-col-title">Review</div>
         <div class="ft-chips" id="ftChips"></div>
@@ -39,6 +39,16 @@ export function getTemplate() {
         <button class="ft-btn ft-primary" id="ftApplyBtn" disabled>Apply selected</button>
       </div>
       <div class="ft-banner ft-hidden" id="ftBanner"></div>
+      <div class="ft-reply ft-hidden" id="ftReply" data-open="true">
+        <div class="ft-reply-head">
+          <span class="ft-reply-title" id="ftReplyTitle">Reply for Claude</span>
+          <span class="ft-note" id="ftReplyMeta"></span>
+          <div class="ft-spacer"></div>
+          <button class="ft-btn ft-hidden" id="ftReplyToggle">Show</button>
+          <button class="ft-btn ft-primary" id="ftReplyCopy">Copy reply</button>
+        </div>
+        <pre class="ft-reply-text" id="ftReplyText"></pre>
+      </div>
       <div class="ft-review-body" id="ftReviewBody" data-empty="true">
         <div class="ft-files" id="ftFiles"></div>
         <div class="ft-detail" id="ftDetail"></div>

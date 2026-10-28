@@ -157,32 +157,6 @@ export function currentCandidate(e) {
   return hit === undefined ? null : hit;
 }
 
-export function isMulti(e) {
-  return !!(e.ambiguous && e.candidates && e.candidates.length > 1);
-}
-
-
-export function candidateLabel(e, cand) {
-  if (cand === '') return 'Root (repo root/' + String(e.relPath).split('/').pop() + ')';
-  return cand;
-}
-
-
-export function candidateResolved(e, cand) {
-  const rel = String(e.relPath);
-  if (!rel.includes('/')) return cand === '' ? rel : cand;
-  if (cand === '') return rel;
-  const rest = rel.split('/').slice(1).join('/');
-  return rest ? cand + '/' + rest : cand;
-}
-
-
-export function currentCandidate(e) {
-  const list = e.candidates || [];
-  const hit = list.find((c) => candidateResolved(e, c) === e.resolved);
-  return hit === undefined ? null : hit;
-}
-
 export function isActive(e) {
   if (e.applied || e.skipped) return false;
   if (e.invalid && !e.allowInvalid) return false;
