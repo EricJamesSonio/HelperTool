@@ -62,6 +62,14 @@ const FEATURES_META = [
   { id: 'folderFilters',        group: 'Appearance', label: 'Folder Filters',       desc: 'Ignore / Focus folder panels' },
 ].map((f) => ({ ...f, icon: FEATURE_SVGS[f.id] || FEATURE_SVGS.generic, heavy: !!f.heavy }));
 
+FEATURES_META.push({
+  id: 'flowTool',
+  group: 'AI and Prompts',
+  label: 'Flow Tool',
+  desc: 'Full-screen reply processing and change review (shortcut: Space)',
+  icon: FEATURE_SVGS.generic,
+  heavy: false,
+});
 const HEAVY_BADGE =
   '<span style="display:inline-block;font-size:0.6rem;font-weight:700;' +
   'text-transform:uppercase;letter-spacing:0.5px;color:var(--yellow);background:var(--yellow-dim);' +
@@ -116,6 +124,7 @@ function _setVisible(on) {
 
 function _buildToolbar() {
   const bar = document.createElement('div');
+  bar.className = 'sf-feat-toolbar';
   bar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px';
   bar.innerHTML =
     '<input type="search" id="settingsFeatureFilter" placeholder="Filter tools..." style="' + INPUT_STYLE + '" />' +
