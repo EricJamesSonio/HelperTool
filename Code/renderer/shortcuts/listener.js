@@ -10,6 +10,7 @@ function registerAction(featureId, actionFn) {
 }
 
 function handleKeyDown(e) {
+  if (e.repeat) return;
   const combo = eventToString(e);
   if (!combo) return;
 
