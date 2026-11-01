@@ -411,6 +411,12 @@ onShortcutSave(() => {
 function applyFeatureVisibility(feats) {
     const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
     if (!feats.folderFilters) { hide('folderToggleBtn'); hide('folderPanel'); }
+    if (!feats.gmailTool) hide('gmailBtn');
+    if (!feats.automationSketch) hide('automationSketchBtn');
+    if (!feats.essentialsGlossary) hide('essentialsBtn');
+    if (!feats.globalSeeder) hide('globalSeederNavbarBtn');
+    if (!feats.shortcutMode) hide('shortcutModeBtn');
+    if (!feats.terminalTool) { hide('serverBtn'); hide('clientBtn'); }
 }
 
 // ── Receive prefetch data from main process ──────────────────────────────────
