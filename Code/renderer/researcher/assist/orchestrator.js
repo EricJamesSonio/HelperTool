@@ -2,7 +2,7 @@
 // generate IPC, Global Seeder parser and dry-run IPC.
 
 import { state as appState } from '../../app_manager/appState.js';
-import { getFlatList } from '../../searchManager.js';
+import { getFullFlatList } from '../../searchManager.js';
 import { parseContentBlocks } from '../../globalSeeder/parser.js';
 import { createOrchestrator } from './orchestratorCore.js';
 
@@ -14,7 +14,7 @@ async function tempFile(name) {
 
 const orchestrator = createOrchestrator({
   getRepoPath: () => appState.selectedRepoPath || null,
-  getFlatList: () => getFlatList() || [],
+  getFlatList: () => getFullFlatList() || [],
   generate: (actionType, repoPath, items, filePath, minify, promptText) =>
     window.electronAPI.generate(actionType, repoPath, items, filePath, minify, promptText),
   tempFile,
