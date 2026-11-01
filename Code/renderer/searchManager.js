@@ -33,6 +33,30 @@ export function getFlatList() {
 export function clearFlatListCache() {
   _flatListCache = null;
   _flatListSig = null;
+  _fullFlatCache = null;
+  _fullFlatTree = null;
+}
+
+let _getCachedTreeFn = null;
+let _fullFlatCache = null;
+let _fullFlatTree = null;
+
+export function getFullFlatList() {
+  const tree = _getCachedTreeFn ? _getCachedTreeFn() : null;
+  if (!Array.isArray(tree) || !tree.length) return getFlatList();
+  if (_fullFlatCache && _fullFlatTree === tree) return _fullFlatCache;
+  const result = [];
+  function walk(nodes, parentPath) {
+    for (const node of nodes) {
+      const displayPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+      result.push({ ...node, displayPath });
+      if (node.children && node.children.length) walk(node.children, displayPath);
+    }
+  }
+  walk(tree, '');
+  _fullFlatCache = result;
+  _fullFlatTree = tree;
+  return result;
 }
 
 const normPath = (p) => (p || '').replace(/\\/g, '/');
@@ -236,6 +260,7 @@ function positionSuggestions() {
 
 export function setupSearch(_getCachedTree, getFilteredTree, treeContainer) {
   _getFilteredTree = getFilteredTree;
+  _getCachedTreeFn = typeof _getCachedTree === 'function' ? _getCachedTree : null;
   _treeContainer   = treeContainer;
 
   const debouncedSearch = debounce((val) => searchTree(val), 80);
