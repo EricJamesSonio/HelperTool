@@ -1105,3 +1105,161 @@
   0%   { background: rgba(52,211,153,0.3); }
   100% { background: transparent; }
 }
+/* ── Busy state: spinner, locked buttons, floating progress pill ── */
+@keyframes bmSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes bmPillIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bm-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: var(--accent,#f0b429);
+  border-radius: 50%;
+  animation: bmSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.bm-busy-pill {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 60%;
+  padding: 10px 16px;
+  background: var(--bg-elevated,#111d34);
+  border: 1px solid var(--accent,rgba(240,180,41,0.4));
+  border-radius: 999px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+  color: var(--text-primary,#eef2ff);
+  font-size: 0.88rem;
+  font-weight: 600;
+  pointer-events: none;
+  animation: bmPillIn 0.2s ease-out;
+}
+.bm-busy-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bm-btn-loading {
+  position: relative;
+  pointer-events: none;
+  cursor: progress;
+}
+.bm-btn-loading::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: bmSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.bm-btn.bm-btn-loading:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.bm-is-busy .bm-toolbar .bm-btn,
+.bm-is-busy .bm-branch-actions,
+.bm-is-busy .bm-mode-btn,
+.bm-is-busy .bm-pr-trigger {
+  pointer-events: none;
+}
+.bm-is-busy .bm-toolbar .bm-btn:not(.bm-btn-loading),
+.bm-is-busy .bm-branch-actions .bm-btn:not(.bm-btn-loading),
+.bm-is-busy .bm-mode-btn {
+  opacity: 0.45;
+}
+/* ── Busy state: spinner, locked buttons, floating progress pill ── */
+@keyframes bmSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes bmPillIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bm-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: var(--accent,#f0b429);
+  border-radius: 50%;
+  animation: bmSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.bm-busy-pill {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 60%;
+  padding: 10px 16px;
+  background: var(--bg-elevated,#111d34);
+  border: 1px solid var(--accent,rgba(240,180,41,0.4));
+  border-radius: 999px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+  color: var(--text-primary,#eef2ff);
+  font-size: 0.88rem;
+  font-weight: 600;
+  pointer-events: none;
+  animation: bmPillIn 0.2s ease-out;
+}
+.bm-busy-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bm-btn-loading {
+  position: relative;
+  pointer-events: none;
+  cursor: progress;
+}
+.bm-btn-loading::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: bmSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.bm-btn.bm-btn-loading:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.bm-is-busy .bm-toolbar .bm-btn,
+.bm-is-busy .bm-branch-actions,
+.bm-is-busy .bm-mode-btn,
+.bm-is-busy .bm-pr-trigger {
+  pointer-events: none;
+}
+.bm-is-busy .bm-toolbar .bm-btn:not(.bm-btn-loading),
+.bm-is-busy .bm-branch-actions .bm-btn:not(.bm-btn-loading),
+.bm-is-busy .bm-mode-btn {
+  opacity: 0.45;
+}

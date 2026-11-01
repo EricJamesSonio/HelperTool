@@ -4,6 +4,7 @@ import { animateMergeDiagram, flashSuccess } from './animations.js';
 import { isAnimated, branchColor, escHtml } from './utils.js';
 import { render } from './list.js';
 import { showRight, showError } from './index.js';
+import { isBusy, startBusy } from './busy.js';
 
 function colorizeDiff(diff) {
   if (!diff) return '';
@@ -19,6 +20,7 @@ function colorizeDiff(diff) {
 }
 
 export function open(fromBranch) {
+  if (isBusy()) return;
   const into = state.current;
   if (!fromBranch || !into) return;
   setState({ mergeFlow: { from: fromBranch, into, step: 'confirm' }, conflicts: [], activeConflictFile: null, selectedConflicts: [] });
@@ -33,14 +35,26 @@ function _renderInto() {
     showRight(getMergeConfirm(mf.from, mf.into, branchColor(mf.from), branchColor(mf.into)));
 
     document.getElementById('bmMergeCancel')?.addEventListener('click', close);
-    document.getElementById('bmMergeStart')?.addEventListener('click', async () => {
-      if (isAnimated()) {
+    document.getElementById('bmMergeStart')?.addEventListener('click', async (ev) => {
+      if (isBusy()) return;
+      const startBtn = ev.currentTarget;
+      const cancelBtn = document.getElementById('bmMergeCancel');
+      const end = startBusy('Merging ' + mf.from + ' into ' + mf.into + '…', startBtn);
+      startBtn.textContent = 'Merging…';
+      if (cancelBtn) cancelBtn.disabled = true;
+      try {
         const svg = document.getElementById('bmMergeDiagram');
-        animateMergeDiagram(svg, async () => {
+        if (isAnimated() && svg) {
+          await new Promise((resolve) => {
+            animateMergeDiagram(svg, async () => {
+              try { await _executeMerge(); } finally { resolve(); }
+            });
+          });
+        } else {
           await _executeMerge();
-        });
-      } else {
-        await _executeMerge();
+        }
+      } finally {
+        end();
       }
     });
   }
@@ -83,8 +97,9 @@ async function _executeMerge() {
 
       document.getElementById('bmMergePushRetry')?.addEventListener('click', async (ev) => {
         const btn = ev.currentTarget;
+        if (isBusy()) return;
         const statusEl = document.getElementById('bmMergePushStatus');
-        btn.disabled = true;
+        const end = startBusy('Pushing ' + mf.into + '…', btn);
         btn.textContent = 'Pushing…';
         try {
           const pr = await window.electronAPI.gitPushBranch(state.repoPath, mf.into, 'origin');
@@ -93,13 +108,13 @@ async function _executeMerge() {
             btn.remove();
           } else {
             if (statusEl) statusEl.textContent = 'Push failed: ' + ((pr && pr.error) || 'unknown error');
-            btn.disabled = false;
             btn.textContent = 'Retry push';
           }
         } catch (err) {
           if (statusEl) statusEl.textContent = 'Push failed: ' + err.message;
-          btn.disabled = false;
           btn.textContent = 'Retry push';
+        } finally {
+          end();
         }
       });
 
