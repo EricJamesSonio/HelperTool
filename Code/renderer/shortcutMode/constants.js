@@ -14,6 +14,7 @@ export const FILE_EXTENSIONS = [
   '.dart',
   '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1',
   '.json', '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf',
-  '.txt', '.md', '.markdown', '.rst',
-  '.sql', '.r', '.m', '.lua', '.pl', '.pm', '.tcl'
+  '.txt', '.md', '.markdown', '.mdx', '.rst',
+  '.sql', '.r', '.m', '.lua', '.pl', '.pm', '.tcl',
+  '.prisma', '.dbml', '.edmx', '.hbm', '.graphql', '.gql', '.proto'
 ];
