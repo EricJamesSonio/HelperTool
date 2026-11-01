@@ -65,6 +65,12 @@ const FEATURES = [
       { id: 'researcherTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg>',name: 'Researcher' },
       { id: 'harnessTool',icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12v12H4z"/><path d="M8 8h4v4H8z"/><circle cx="10" cy="10" r="1.5"/></svg>',name: 'Harness Tool' },
 ];
+FEATURES.push({
+  id: 'flowTool',
+  icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h9"/><path d="M3 10h14"/><path d="M3 15h6"/><path d="M14 3l3 2-3 2"/><path d="M12 13l3 2-3 2"/></svg>',
+  name: 'Flow Tool',
+});
+
 
 let _modal = null;
 let _capturingId = null;

@@ -3,6 +3,7 @@ const GitOperations = require('../utils/gitOps');
 const simpleGit = require('simple-git');
 const path = require('path');
 const gitService = require('./gitService.js');
+const { mergeBranch } = require('./gitMerge.js');
 const { triggerCommitSync } = require('./profile.js');
 const prefetchService = require('./prefetchService.js');
 const symbolsJsonLoader = require('../database/symbolsJsonLoader');
@@ -342,52 +343,10 @@ function register(_deps) {
     });
 
     ipcMain.handle('git:mergeBranch', async (_e, { repoPath, from, into }) => {
-        try {
-            const git = simpleGit(repoPath);
-            await git.checkout(into);
-            console.debug('[git:mergeBranch] merging', from, 'into', into, 'at', repoPath);
-            const result = await git.merge([from, '--no-ff']);
-            console.debug('[git:mergeBranch] result:', result);
-            const noChanges = !result.merges?.length && !result.files?.length;
-            const files = (result.files || []).map(f => ({
-                file: f,
-                insertions: (result.insertions && result.insertions[f]) || 0,
-                deletions: (result.deletions && result.deletions[f]) || 0
-            }));
-            let pushed = false;
-            let pushError = null;
-            if (!noChanges) {
-                try {
-                    await git.push();
-                    pushed = true;
-                } catch (pushErr) {
-                    pushError = pushErr.message;
-                    console.debug('[git:mergeBranch] push failed:', pushError);
-                }
-            }
-            prefetchService.invalidate('branches:' + repoPath);
-            return {
-                success: true,
-                isUpToDate: !!result?.isAlreadyUpToDate || noChanges,
-                result: result?.result || 'Merge successful',
-                files,
-                summary: result.summary || { changes: 0, insertions: 0, deletions: 0 },
-                pushed,
-                pushError
-            };
-        } catch (err) {
-            const msg = err.message || '';
-            console.debug('[git:mergeBranch] error:', msg);
-            if (msg.includes('CONFLICT') || msg.includes('conflict')) {
-                const lines = msg.split('\n').filter(l => l.includes('CONFLICT'));
-                const conflictFiles = lines.map(l => {
-                    const m = l.match(/CONFLICT\s+\([^)]+\):\s+(\S+)/);
-                    return m ? m[1] : '';
-                }).filter(Boolean);
-                return { success: false, conflict: true, files: conflictFiles.length ? conflictFiles : ['(unknown)'] };
-            }
-            return { success: false, error: msg };
-        }
+        const result = await mergeBranch(repoPath, from, into);
+        gitService.clearCache(repoPath);
+        prefetchService.invalidate('branches:' + repoPath);
+        return result;
     });
 
     ipcMain.handle('git:mergeBranchDiff', async (_e, { repoPath, filePath }) => {

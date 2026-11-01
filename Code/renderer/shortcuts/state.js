@@ -39,6 +39,7 @@ const DEFAULT_SHORTCUTS = {
   projectInspector: null,
   researcherTool: null,
   harnessTool: null,
+  flowTool: 'Space',
 };
 
 const S = { shortcuts: {} };

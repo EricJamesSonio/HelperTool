@@ -54,14 +54,54 @@ async function _executeMerge() {
     console.debug('[mergeFlow] merge result:', r);
     if (r.success) {
       mf.step = 'success';
-      let detail;
-      if (r.isUpToDate) {
-        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> — already up to date`;
-      } else {
-        detail = `<strong>${mf.from}</strong> → <strong>${mf.into}</strong> merged (merge commit created)`;
+      const names = `<strong>${escHtml(mf.from)}</strong> → <strong>${escHtml(mf.into)}</strong>`;
+      let detail = r.isUpToDate
+        ? `${names} — already up to date locally`
+        : `${names} merged locally (merge commit created)`;
+
+      if (r.syncedFromUpstream > 0) {
+        detail += `<br>Updated local <strong>${escHtml(mf.into)}</strong> from the remote first (${r.syncedFromUpstream} new commit(s))`;
       }
+
+      if (r.pushed) {
+        detail += '<br>Pushed to the remote';
+      } else if (r.pushError) {
+        detail += `<br><span id="bmMergePushStatus" style="color:#f59e0b">Not pushed — the remote rejected it: ${escHtml(r.pushError)}</span>`
+          + ' <button class="bm-btn" id="bmMergePushRetry">Retry push</button>';
+      } else if (r.pushSkipped === 'no-upstream') {
+        detail += `<br><span style="color:#f59e0b">Not pushed — <strong>${escHtml(mf.into)}</strong> has no upstream branch. Push it from the branch list.</span>`;
+      } else {
+        detail += '<br>Nothing to push';
+      }
+
+      if (r.fetchError) {
+        detail += `<br><span style="color:#f59e0b">Could not fetch from the remote first: ${escHtml(r.fetchError)}</span>`;
+      }
+
       showRight(getMergeSuccessText(mf.from, mf.into, detail, r.files, r.summary, r.pushed));
       flashSuccess(document.getElementById('bmRightPanel'));
+
+      document.getElementById('bmMergePushRetry')?.addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        const statusEl = document.getElementById('bmMergePushStatus');
+        btn.disabled = true;
+        btn.textContent = 'Pushing…';
+        try {
+          const pr = await window.electronAPI.gitPushBranch(state.repoPath, mf.into, 'origin');
+          if (pr && pr.success) {
+            if (statusEl) { statusEl.style.color = ''; statusEl.textContent = 'Pushed to the remote'; }
+            btn.remove();
+          } else {
+            if (statusEl) statusEl.textContent = 'Push failed: ' + ((pr && pr.error) || 'unknown error');
+            btn.disabled = false;
+            btn.textContent = 'Retry push';
+          }
+        } catch (err) {
+          if (statusEl) statusEl.textContent = 'Push failed: ' + err.message;
+          btn.disabled = false;
+          btn.textContent = 'Retry push';
+        }
+      });
 
       document.querySelectorAll('.bm-merge-view-diff').forEach(btn => {
         btn.addEventListener('click', async () => {

@@ -108,6 +108,9 @@ function register({ getMainWindow }) {
       applyBounds();
 
       _view.webContents.on('destroyed', () => { _view = null; _viewAccountId = null; });
+      _view.webContents.on('unresponsive', () => { console.warn('[researcher] BrowserView unresponsive'); });
+      _view.webContents.on('render-process-gone', (e, d) => { console.warn('[researcher] render-process-gone', d); });
+      _view.webContents.on('did-fail-load', (e, c, desc) => { console.warn('[researcher] did-fail-load', c, desc); });
 
       return { success: true };
     } catch (err) {
@@ -174,3 +177,9 @@ function cleanup() {
 }
 
 module.exports = { register, cleanup };
+// Registers the assist panel clipboard and temp-file handlers together with the BrowserView handlers.
+const _registerBrowserView = module.exports.register;
+module.exports.register = function registerWithAssist(deps) {
+  _registerBrowserView(deps);
+  require('./researcherAssist_ipc.js').register(deps);
+};

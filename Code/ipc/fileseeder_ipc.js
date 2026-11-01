@@ -93,10 +93,10 @@ function register(_deps) {
      * Only the "SYSTEM RULE" block is returned — the trailing sections are
      * documentation for humans, not instructions for the model.
      */
-    ipcMain.handle('fileseeder:getAiRule', () => {
+    ipcMain.handle('fileseeder:getAiRule', async () => {
         try {
             const rulePath = path.join(__dirname, '..', 'renderer', 'globalSeeder', 'AI_RULE.md');
-            const full = fs.readFileSync(rulePath, 'utf-8');
+            const full = await fs.promises.readFile(rulePath, 'utf-8');
             const start = full.indexOf('## SYSTEM RULE');
             const end = full.indexOf('## How the seeder uses this');
             const text = (start !== -1 && end !== -1 && end > start)

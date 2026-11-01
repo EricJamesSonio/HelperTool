@@ -480,3 +480,53 @@
 .compact-mode .tools-sidebar-item-icon { font-size: calc(18px * var(--ui-scale, 1)) !important; width: calc(24px * var(--ui-scale, 1)) !important; }
 .compact-mode .tools-sidebar-item-name { font-size: calc(13px * var(--ui-scale, 1)) !important; }
 .compact-mode .tools-sidebar-item-desc { font-size: calc(11px * var(--ui-scale, 1)) !important; }
+.settings-overlay {
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+  background: var(--bg-base);
+  backdrop-filter: none;
+  overflow: hidden;
+}
+.settings-modal {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  transform: none;
+}
+.settings-body {
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  gap: 40px;
+  padding: 28px 40px 0;
+}
+#settingsFeaturesSection {
+  min-width: 0;
+}
+#settingsFeatureList {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 8px !important;
+  align-content: start;
+}
+.sf-feat-toolbar {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: -28px;
+  z-index: 5;
+  padding: 12px 0;
+  background: var(--bg-surface);
+}
+.sf-feat-group {
+  grid-column: 1 / -1;
+}
+#settingsFeaturesSection > div:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 14px 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+}
