@@ -6,15 +6,13 @@
 
 import * as fileSeederTool from '../../fileSeederTool.js';
 import * as locDetector from '../../locDetector.js';
-import * as ecoDashboard from '../../ecoDashboardUI.js';
 import { close as closeServiceTracker } from '../../serviceTracker.js';
 import { closeConfig as closeCliConfig } from '../../shortcuts/ui.js';
 import { state as csState } from '../../codeswampUI/state.js';
-import * as globalSeeder from '../../globalSeeder.js';
 
 export default class PanelRegistry {
   constructor() {
-    this._panels   = new Map(); // name → { panel, isOpen, close }
+    this._panels   = new Map(); // name -> panel element
     this._apiTool      = null;
     this._secretHolder = null;
     this._sessionNotes = null;
@@ -29,13 +27,15 @@ export default class PanelRegistry {
     this._profileTool = null;
     this._essentialsGlossary = null;
     this._dockerTool = null;
+    this._terminalUI = null;
+    this._ecoDashboard = null;
+    this._globalSeeder = null;
     this._graphifyPanel = null;
     this._graphifyHideCb = null;
     this._mcpPanel = null;
     this._mcpHideCb = null;
   }
 
-  // Register external tools that don't use a panel element
   setApiTool(t)        { this._apiTool = t; }
   setSecretHolder(t)   { this._secretHolder = t; }
   setSessionNotes(t)   { this._sessionNotes = t; }
@@ -51,13 +51,13 @@ export default class PanelRegistry {
   setEssentialsGlossary(t){ this._essentialsGlossary = t; }
   setDockerTool(t)        { this._dockerTool = t; }
   setTerminalUI(t)        { this._terminalUI = t; }
+  setEcoDashboard(t)      { this._ecoDashboard = t; }
+  setGlobalSeeder(t)      { this._globalSeeder = t; }
   setGraphifyPanel(p)     { this._graphifyPanel = p; }
   setGraphifyHideCallback(fn) { this._graphifyHideCb = fn; }
   setMcpPanel(p)          { this._mcpPanel = p; }
   setMcpHideCallback(fn)  { this._mcpHideCb = fn; }
 
-
-  // Register a panel element by name
   register(name, panel) {
     this._panels.set(name, panel);
   }
@@ -93,83 +93,76 @@ export default class PanelRegistry {
     // File Seeder
     if (fileSeederTool.isOpen()) fileSeederTool.close();
 
-    // Global seeder
-    if (globalSeeder.isOpen()) globalSeeder.close();
+    // Global seeder (only when loaded)
+    if (this._globalSeeder?.isOpen?.()) this._globalSeeder.close();
 
     // LOC Detector
     if (locDetector.isOpen()) locDetector.close();
 
-    // Diff Viewer
     if (this._diffViewer?.isOpen?.()) this._diffViewer.close();
-    // File Viewer
     if (this._fileViewer?.isOpen?.()) this._fileViewer.close();
-    // Team Activity
     if (this._teamActivity?.isOpen?.()) this._teamActivity.close();
-    // Blueprint Library
     if (this._blueprintLibrary?.isOpen?.()) this._blueprintLibrary.close();
-    // Profile
     if (this._profileTool?.isOpen?.()) this._profileTool.close();
-    // Essentials Glossary
     if (this._essentialsGlossary?.isOpen?.()) this._essentialsGlossary.close();
-    // Docker
     if (this._dockerTool?.isOpen?.()) this._dockerTool.close();
 
     // Terminal
     if (this._terminalUI?.isOpen?.()) this._terminalUI.close();
 
-    // Code Swamp — close panel when any other tool opens (keep running in bg)
+    // Code Swamp - close panel when any other tool opens (keep running in bg)
     const ocPanel = document.getElementById('ocPanel');
     if (ocPanel?.classList.contains('open')) {
       ocPanel.classList.remove('open');
       csState.open = false;
     }
 
-    // UI Layout Helper — close when any other tool opens
+    // UI Layout Helper
     const ulhPanel = document.getElementById('ulhPanel');
     if (ulhPanel?.classList.contains('ulh-visible')) {
       ulhPanel.classList.remove('ulh-visible');
     }
 
-    // Graphify — close panel when any other tool opens
+    // Graphify
     if (this._graphifyPanel?.classList.contains('open')) {
       if (this._graphifyHideCb) this._graphifyHideCb();
       this._graphifyPanel.classList.remove('open');
     }
 
-    // Error Cop — close when any other tool opens
+    // Error Cop
     const ecpWrapper = document.querySelector('.ecp-wrapper');
     if (ecpWrapper?.classList.contains('open')) {
       ecpWrapper.classList.remove('open');
     }
 
-    // MCP — close when any other tool opens
+    // MCP
     if (this._mcpPanel?.classList.contains('open')) {
       if (this._mcpHideCb) this._mcpHideCb();
       this._mcpPanel.classList.remove('open');
     }
 
-    // Researcher — close panel + destroy browser view when any other tool opens
+    // Researcher - close panel + hide browser view when any other tool opens
     const rsPanel = document.getElementById('rsPanel');
     if (rsPanel?.classList.contains('open')) {
       rsPanel.classList.remove('open');
-      window.electronAPI.researcher.hideBrowserView().catch(() => {});
+      window.electronAPI.researcher?.hideBrowserView?.().catch(() => {});
     }
 
-    // Ecosystem Dashboard — close when any other tool opens
-    if (ecoDashboard.isOpen()) { ecoDashboard.close(); }
+    // Ecosystem Dashboard (only when loaded)
+    if (this._ecoDashboard?.isOpen?.()) this._ecoDashboard.close();
 
     const harnessPanel = document.getElementById('harnessPanel');
     if (harnessPanel?.classList.contains('open')) {
       harnessPanel.classList.remove('open');
     }
 
-    // Performance Tracker — close when any other tool opens
+    // Performance Tracker
     const ptPanel = document.getElementById('perfTrackerPanel');
     if (ptPanel?.classList.contains('open')) {
       ptPanel.classList.remove('open');
     }
 
-    // Service tracker — close when any tool opens
+    // Service tracker
     closeServiceTracker();
   }
 }
