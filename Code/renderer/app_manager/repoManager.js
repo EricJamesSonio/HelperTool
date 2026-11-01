@@ -82,19 +82,43 @@ export function updateActiveRepo(name) {
 
 async function _guardActiveServices() {
     const repoPath = state.selectedRepoPath;
+    const feats = getFeatures();
+    const api = window.electronAPI;
+    const idle = { running: false };
+
+    const safeCall = async (fn, fallback) => {
+        try {
+            const result = await fn();
+            return result || fallback;
+        } catch (_) {
+            return fallback;
+        }
+    };
+
+    const safeStop = async (fn) => {
+        try {
+            await fn?.();
+        } catch (_) {}
+    };
+
     const [gStatus, csStatus, termStatus, ecStatus, ecosStatus] = await Promise.all([
-        window.electronAPI.graphifyIsRunning?.() || { running: false },
-        window.electronAPI.opencode?.isRunning?.() || { running: false },
-        window.electronAPI.terminalHasRunningInRepo?.(repoPath) || { running: false, count: 0 },
-        window.electronAPI.getServerStatus?.() || { running: false },
-        window.electronAPI.eco?.status() || { running: false },
+        feats.graphify !== false
+            ? safeCall(() => api.graphifyIsRunning?.(), idle)
+            : idle,
+        safeCall(() => api.opencode?.isRunning?.(), idle),
+        safeCall(() => api.terminalHasRunningInRepo?.(repoPath), { running: false, count: 0 }),
+        safeCall(() => api.getServerStatus?.(), idle),
+        feats.ecosystemWatcher !== false
+            ? safeCall(() => api.eco?.status(), idle)
+            : idle,
     ]);
+
     const items = [];
-    if (gStatus.running) items.push({ name: 'Graphify', stop: () => window.electronAPI.graphifyStop?.() });
-    if (csStatus.running) items.push({ name: 'CodeSwamp', stop: () => window.electronAPI.opencode?.stop?.() });
+    if (gStatus.running) items.push({ name: 'Graphify', stop: () => safeStop(() => api.graphifyStop?.()) });
+    if (csStatus.running) items.push({ name: 'CodeSwamp', stop: () => safeStop(() => api.opencode?.stop?.()) });
     if (termStatus.running) items.push({ name: 'Terminal', count: termStatus.count, stop: null });
-    if (ecStatus.running) items.push({ name: 'Error Cop', stop: () => window.electronAPI.stopServer?.() });
-    if (ecosStatus.running) items.push({ name: 'Ecosystem Tool', stop: () => window.electronAPI.eco?.stop() });
+    if (ecStatus.running) items.push({ name: 'Error Cop', stop: () => safeStop(() => api.stopServer?.()) });
+    if (ecosStatus.running) items.push({ name: 'Ecosystem Tool', stop: () => safeStop(() => api.eco?.stop()) });
     if (items.length === 0) return true;
 
     const listHtml = items.map((s) => {
@@ -114,7 +138,9 @@ async function _guardActiveServices() {
         <div style="margin-top:14px;font-size:13px;color:#eef2ff;">Switching repositories will stop them. Continue?</div>
     `);
     if (!ok) return false;
-    for (const s of items) { if (s.stop) await s.stop(); }
+    for (const s of items) {
+        if (s.stop) await s.stop();
+    }
     return true;
 }
 
