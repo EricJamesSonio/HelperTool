@@ -197,7 +197,7 @@ function renderFiles() {
     box.type = 'checkbox';
     box.checked = isActive(e) || e.applied;
     box.disabled = e.applied;
-    box.title = e.invalid ? 'Invalid syntax. Check to apply anyway.' : 'Include in Apply';
+    box.title = e.invalid ? 'Invalid syntax. It is selected anyway; untick to skip it.' : 'Include in Apply';
     box.addEventListener('click', (ev) => ev.stopPropagation());
     box.addEventListener('change', () => {
       e.skipped = !box.checked;
@@ -288,7 +288,7 @@ function renderDetail() {
   }
 
   const notes = makeEl('div', 'ft-notes');
-  if (e.invalid) addNote(notes, 'error', 'Syntax problem: this file is skipped unless you tick it to apply anyway.');
+  if (e.invalid) addNote(notes, 'error', 'Syntax problem detected. This file is still selected for Apply; untick it to skip.');
   if (e.syntaxError) addNote(notes, 'error', 'Syntax: ' + e.syntaxError);
   if (e.warning) addNote(notes, 'warn', e.warning);
   if (e.parseWarning) addNote(notes, 'warn', e.parseWarning);
