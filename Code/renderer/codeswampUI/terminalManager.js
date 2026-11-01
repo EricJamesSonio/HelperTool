@@ -19,7 +19,8 @@ async function loadXterm() {
   if (_xtermLoaded) return;
   const xtermMod = await import('../../node_modules/@xterm/xterm/lib/xterm.mjs');
   const fitMod = await import('../../node_modules/@xterm/addon-fit/lib/addon-fit.mjs');
-  TerminalClass = xtermMod.Terminal;
+  const { createEnhancedTerminal } = await import('../terminal/terminalEnhancements.js');
+  TerminalClass = createEnhancedTerminal(xtermMod.Terminal);
   FitAddonClass = fitMod.FitAddon;
 
   const link = document.createElement('link');
