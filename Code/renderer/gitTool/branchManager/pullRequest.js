@@ -4,8 +4,10 @@ import { flashSuccess } from './animations.js';
 import { escHtml } from './utils.js';
 import { render } from './list.js';
 import { showRight, showError } from './index.js';
+import { isBusy, startBusy } from './busy.js';
 
 export async function openCreate(source, target) {
+  if (isBusy()) return;
   setState({ activePRTab: 'create', activePRId: null, prCreateData: null });
   showRight('<div class="bm-conflict-diff-loading">Loading branch diff…</div>');
   try {
@@ -29,6 +31,7 @@ function renderCreateForm() {
   });
 
   document.getElementById('bmPRCreateSubmit')?.addEventListener('click', async () => {
+    if (isBusy()) return;
     const title = document.getElementById('bmPRCreateTitle')?.value?.trim();
     if (!title) { showError('Please enter a title'); return; }
     const desc = document.getElementById('bmPRCreateDesc')?.value?.trim() || '';
@@ -61,6 +64,7 @@ export function renderList() {
 
   document.querySelectorAll('.bm-pr-row').forEach(row => {
     row.addEventListener('click', () => {
+      if (isBusy()) return;
       const id = row.dataset.prId;
       if (id) renderDetail(id);
     });
@@ -74,10 +78,16 @@ export function renderDetail(prId) {
   setState({ activePRTab: 'detail', activePRId: prId });
   showRight(getPRDetail(pr));
 
-  document.getElementById('bmPRBack')?.addEventListener('click', renderList);
+  document.getElementById('bmPRBack')?.addEventListener('click', () => {
+    if (isBusy()) return;
+    renderList();
+  });
 
   document.getElementById('bmPRAccept')?.addEventListener('click', () => acceptPR(prId));
-  document.getElementById('bmPRDecline')?.addEventListener('click', () => declinePR(prId));
+  document.getElementById('bmPRDecline')?.addEventListener('click', () => {
+    if (isBusy()) return;
+    declinePR(prId);
+  });
 
   document.querySelectorAll('.bm-pr-view-diff').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -103,16 +113,19 @@ export function renderDetail(prId) {
 async function acceptPR(prId) {
   const pr = (state.pullRequests || []).find(p => p.id === prId);
   if (!pr || pr.status !== 'open') return;
+  if (isBusy()) return;
 
   const btn = document.getElementById('bmPRAccept');
-  if (btn) { btn.disabled = true; btn.textContent = 'Merging…'; }
+  const declineBtn = document.getElementById('bmPRDecline');
+  const end = startBusy('Merging ' + pr.sourceBranch + ' into ' + pr.targetBranch + '…', btn);
+  if (btn) btn.textContent = 'Merging…';
+  if (declineBtn) declineBtn.disabled = true;
 
   try {
     const r = await window.electronAPI.gitMergeBranch(state.repoPath, pr.sourceBranch, pr.targetBranch);
     if (r.success) {
       if (r.isUpToDate) {
         showError('Already up to date — nothing to merge');
-        if (btn) { btn.disabled = false; btn.textContent = 'Accept & Merge'; }
         return;
       }
       const updated = (state.pullRequests || []).map(p =>
@@ -124,14 +137,14 @@ async function acceptPR(prId) {
       render();
     } else if (r.conflict) {
       showError('Merge conflicts detected. Open the merge flow to resolve them.');
-      if (btn) { btn.disabled = false; btn.textContent = 'Accept & Merge'; }
     } else {
       showError(r.error || 'Merge failed');
-      if (btn) { btn.disabled = false; btn.textContent = 'Accept & Merge'; }
     }
   } catch (err) {
     showError(err.message);
-    if (btn) { btn.disabled = false; btn.textContent = 'Accept & Merge'; }
+  } finally {
+    end();
+    if (declineBtn) declineBtn.disabled = false;
   }
 }
 

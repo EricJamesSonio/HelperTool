@@ -3,6 +3,7 @@ import { getCreateForm } from './template.js';
 import { slideIn } from './animations.js';
 import { render } from './list.js';
 import { showRight } from './index.js';
+import { isBusy, startBusy } from './busy.js';
 
 export function open() {
   setState({ createOpen: true, createPrefix: 'feature/', createName: '' });
@@ -49,13 +50,20 @@ export function open() {
     if (preview) preview.textContent = full || 'feature/my-branch-name';
   }
 
-  container.querySelector('#bmCreateSubmit')?.addEventListener('click', async () => {
+  container.querySelector('#bmCreateSubmit')?.addEventListener('click', async (e) => {
+    const submitBtn = e.currentTarget;
+    if (isBusy()) return;
     const name = (nameInput?.value || '').trim();
     const errorEl = document.getElementById('bmCreateError');
     if (!name) { if (errorEl) errorEl.textContent = 'Branch name is required'; return; }
     if (/[^a-zA-Z0-9_\/-]/.test(name)) { if (errorEl) errorEl.textContent = 'Only letters, numbers, hyphens, underscores and slashes allowed'; return; }
     const fullName = prefix + name;
     const baseBranch = base?.value || state.current;
+    if (errorEl) errorEl.textContent = '';
+
+    const cancelBtn = container.querySelector('#bmCreateCancel');
+    const end = startBusy('Creating ' + fullName + '…', submitBtn);
+    if (cancelBtn) cancelBtn.disabled = true;
     try {
       const r = await window.electronAPI.gitCreateBranch(state.repoPath, fullName, baseBranch);
       if (!r.success) { if (errorEl) errorEl.textContent = r.error; return; }
@@ -70,6 +78,9 @@ export function open() {
       setTimeout(() => toast.remove(), 2500);
     } catch (err) {
       if (errorEl) errorEl.textContent = err.message;
+    } finally {
+      end();
+      if (cancelBtn) cancelBtn.disabled = false;
     }
   });
 

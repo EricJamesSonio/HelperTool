@@ -7,6 +7,7 @@ import { escHtml } from './utils.js';
 import { open as openMerge } from './mergeFlow.js';
 import { open as openGraph } from './graph.js';
 import { openCreate as openPRCreate, renderList as renderPRList } from './pullRequest.js';
+import { isBusy, runBusy } from './busy.js';
 
 let _container = null;
 let _repoPath = null;
@@ -67,14 +68,18 @@ function _wireEvents() {
 
   _container.querySelector('#bmCloseBtn')?.addEventListener('click', close);
 
-  _container.querySelector('#bmNewBranchBtn')?.addEventListener('click', () => openCreate());
+  _container.querySelector('#bmNewBranchBtn')?.addEventListener('click', () => {
+    if (isBusy()) return;
+    openCreate();
+  });
 
-  _container.querySelector('#bmFetchBtn')?.addEventListener('click', async () => {
-    await fetch();
-    await renderList();
+  _container.querySelector('#bmFetchBtn')?.addEventListener('click', async (e) => {
+    if (isBusy()) return;
+    await fetch(e.currentTarget);
   });
 
   _container.querySelector('#bmPRBtn')?.addEventListener('click', () => {
+    if (isBusy()) return;
     hideError();
     renderPRList();
   });
@@ -85,6 +90,7 @@ function _wireEvents() {
 
   _container.querySelectorAll('.bm-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (isBusy()) return;
       const mode = btn.dataset.mode;
       localStorage.setItem('helpertool-branch-mode', mode);
       _container.querySelectorAll('.bm-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
@@ -100,21 +106,24 @@ function _wireBranchListEvents() {
   _container?.querySelector('#bmBranchList')?.addEventListener('click', async (e) => {
     const actionBtn = e.target.closest('[data-action]');
     if (!actionBtn) return;
+    if (isBusy()) return;
     const row = actionBtn.closest('[data-name]');
     const name = row?.dataset.name || '';
     const action = actionBtn.dataset.action;
 
     if (action === 'switch') {
       hideError();
-      const r = await window.electronAPI.gitSwitchBranch(_repoPath, name);
-      if (r.success) { await renderList(); _showToast('Switched to ' + name); }
-      else { showError(r.error); }
+      await runBusy('Switching to ' + name + '…', actionBtn, async () => {
+        const r = await window.electronAPI.gitSwitchBranch(_repoPath, name);
+        if (r.success) { await renderList(); _showToast('Switched to ' + name); }
+        else { showError(r.error); }
+      });
     } else if (action === 'merge') {
       openMerge(name);
     } else if (action === 'push') {
-      await push(name);
+      await push(name, actionBtn);
     } else if (action === 'pull') {
-      await pull(name);
+      await pull(name, actionBtn);
     } else if (action === 'graph') {
       await openGraph(name);
     } else if (action === 'delete') {
@@ -123,8 +132,8 @@ function _wireBranchListEvents() {
         message: `Delete "${name}"?`,
         danger: true,
         confirmLabel: 'Delete',
-        onConfirm: async () => { await deleteBranch(name); setState({ confirm: null }); },
-        onCancel: () => setState({ confirm: null }),
+        onConfirm: async () => { await deleteBranch(name); },
+        onCancel: () => {},
       });
     } else if (action === 'delete-remote') {
       _confirm({
@@ -132,8 +141,8 @@ function _wireBranchListEvents() {
         message: `Delete remote "${name}"?`,
         danger: true,
         confirmLabel: 'Delete',
-        onConfirm: async () => { await deleteRemote(name); setState({ confirm: null }); },
-        onCancel: () => setState({ confirm: null }),
+        onConfirm: async () => { await deleteRemote(name); },
+        onCancel: () => {},
       });
     } else if (action === 'pr-behind') {
       hideError();
@@ -159,6 +168,7 @@ function _wireDropdowns() {
       m.classList.remove('open');
     });
     if (!toggle) return;
+    if (isBusy()) return;
     e.stopPropagation();
     const menu = toggle.closest('.bm-dropdown')?.querySelector('.bm-dropdown-menu');
     if (menu) menu.classList.toggle('open');
@@ -182,8 +192,23 @@ export function _confirm(opts) {
   el.style.display = opts ? '' : 'none';
 
   if (opts) {
-    el.querySelector('#bmConfirmCancel')?.addEventListener('click', () => opts.onCancel?.());
-    el.querySelector('#bmConfirmOk')?.addEventListener('click', () => opts.onConfirm?.());
+    el.querySelector('#bmConfirmCancel')?.addEventListener('click', () => {
+      opts.onCancel?.();
+      _confirm(null);
+    });
+    el.querySelector('#bmConfirmOk')?.addEventListener('click', async (e) => {
+      const okBtn = e.currentTarget;
+      if (okBtn.disabled) return;
+      okBtn.disabled = true;
+      okBtn.classList.add('bm-btn-loading');
+      const cancelBtn = el.querySelector('#bmConfirmCancel');
+      if (cancelBtn) cancelBtn.disabled = true;
+      try {
+        await opts.onConfirm?.();
+      } finally {
+        _confirm(null);
+      }
+    });
   }
 }
 
