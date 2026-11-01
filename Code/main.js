@@ -197,13 +197,56 @@ function registerAllIpc(onRepoSelected) {
       try { fn(); } catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
     };
 
-    // Tier 0: Eager — needed before first paint
+    // Feature-gated IPC modules. null features (first launch) means everything is on.
+    const featureOn = (feats, flags) => !feats || flags.some((id) => feats[id] !== false);
+    const registeredFeatureIpc = new Set();
+
+    const FEATURE_IPC = [
+      { name: 'workspace_ipc',    tier: 1, flags: ['workspaceTool', 'codeswampChat'],          load: () => require('./ipc/workspace_ipc.js').register(shared) },
+      { name: 'apitool_ipc',      tier: 1, flags: ['apiTool', 'swagger'],                      load: () => require('./ipc/apitool_ipc.js').register(shared) },
+      { name: 'canvas_ipc',       tier: 1, flags: ['canvasTool'],                              load: () => require('./ipc/canvas_ipc.js').register() },
+      { name: 'env_ipc',          tier: 1, flags: ['envManager'],                              load: () => require('./ipc/env_ipc.js').register() },
+      { name: 'github_ipc',       tier: 1, flags: ['githubExplorer'],                          load: () => require('./ipc/github_ipc.js').register() },
+      { name: 'codebbaseChat_ipc',tier: 1, flags: ['codebbaseChat'],                           load: () => require('./ipc/codebbaseChat_ipc.js').register() },
+      { name: 'projectInspector', tier: 1, flags: ['projectInspector', 'apiTool'],             load: () => require('./project-inspector/ipc.js').register() },
+      { name: 'researcher_ipc',   tier: 1, flags: ['researcherTool'],                          load: () => { const r = require('./ipc/researcher_ipc.js'); r.register(shared); } },
+
+      { name: 'fileseeder_ipc',   tier: 2, flags: ['fileSeeder', 'globalSeeder', 'flowTool'],  load: () => require('./ipc/fileseeder_ipc.js').register(shared) },
+      { name: 'loc_ipc',          tier: 2, flags: ['locDetector'],                             load: () => require('./ipc/loc_ipc.js').register(shared) },
+      { name: 'portManager',      tier: 2, flags: ['portManagerTool'],                         load: () => require('./ipc/portManager.js').register() },
+      { name: 'dbInspector_ipc',  tier: 2, flags: ['dbInspector'],                             load: () => require('./ipc/dbInspector_ipc.js').register(shared) },
+      { name: 'teamActivityFeed', tier: 2, flags: ['teamActivityTool'],                        load: () => require('./ipc/teamActivityFeed.js').register() },
+      { name: 'video_ipc',        tier: 2, flags: ['videoTool'],                               load: () => require('./ipc/video_ipc.js').register(shared) },
+      { name: 'image_ipc',        tier: 2, flags: ['videoTool'],                               load: () => require('./ipc/image_ipc.js').register(shared) },
+      { name: 'automation_ipc',   tier: 2, flags: ['automationSketch'],                        load: () => require('./ipc/automation_ipc.js').register() },
+      { name: 'docker_ipc',       tier: 2, flags: ['dockerTool'],                              load: () => require('./ipc/docker_ipc.js').register() },
+      { name: 'gmail_ipc',        tier: 2, flags: ['gmailTool', 'codebbaseChat'],              load: () => require('./ipc/gmail_ipc.js').register(shared) },
+      { name: 'codebaseMap_ipc',  tier: 2, flags: ['codebaseMap'],                             load: () => require('./ipc/codebaseMap_ipc.js').register() },
+      { name: 'graphify_ipc',     tier: 2, flags: ['graphify'],                                load: () => { graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app }); } },
+    ];
+
+    const registerFeatureIpc = (tier) => {
+      let feats = null;
+      try { feats = config.readConfig()?.features ?? null; } catch (_) {}
+      for (const m of FEATURE_IPC) {
+        if (tier && m.tier !== tier) continue;
+        if (registeredFeatureIpc.has(m.name)) continue;
+        if (!featureOn(feats, m.flags)) continue;
+        registeredFeatureIpc.add(m.name);
+        safeRegister(m.name, m.load);
+      }
+    };
+
+    // Called by features-set so newly enabled features work without an app restart
+    shared.onFeaturesChanged = () => registerFeatureIpc();
+
+    // Tier 0: Eager - needed before first paint
     require('./ipc/harness_ipc.js').register(shared);
     terminalIpc = require('./ipc/terminal_ipc.js'); terminalIpc.register(shared);
     serviceTrackerIpc.register();
     require('./ipc/opencode_ipc.js').register(shared);
 
-    // Tier 1 (100ms): All common tools — loaded before renderer first paint finishes
+    // Tier 1 (100ms): core modules + enabled common tools
     setTimeout(() => {
       safeRegister('repo_ipc',        () => require('./ipc/repo_ipc.js').register(shared));
       safeRegister('features_ipc',    () => require('./ipc/features_ipc.js').register(shared));
@@ -214,47 +257,29 @@ function registerAllIpc(onRepoSelected) {
       safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
       safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
       safeRegister('codebaseManager', () => require('./ipc/codebaseManager_ipc.js').register());
-      safeRegister('workspace_ipc',   () => require('./ipc/workspace_ipc.js').register(shared));
       safeRegister('prompts_ipc',     () => require('./ipc/prompts_ipc.js').register({ app }));
-      safeRegister('apitool_ipc',     () => require('./ipc/apitool_ipc.js').register(shared));
-      safeRegister('canvas_ipc',      () => require('./ipc/canvas_ipc.js').register());
-      safeRegister('env_ipc',         () => require('./ipc/env_ipc.js').register());
-      safeRegister('github_ipc',      () => require('./ipc/github_ipc.js').register());
       safeRegister('shortcut_ipc',    () => require('./ipc/shortcut_ipc.js').register(shared));
-      safeRegister('codebbaseChat_ipc',() => require('./ipc/codebbaseChat_ipc.js').register());
-      safeRegister('projectInspector', () => require('./project-inspector/ipc.js').register());
-      safeRegister('researcher_ipc',   () => { const r = require('./ipc/researcher_ipc.js'); r.register(shared); });
+      registerFeatureIpc(1);
       performance.mark('tier1:done');
       performance.measure('startup:tier1-ready', 'app:ready', 'tier1:done');
-      console.log(`[Perf] Tier 1 (${performance.getEntriesByName('startup:tier1-ready')[0]?.duration.toFixed(1)}ms): all common IPC modules loaded`);
+      console.log(`[Perf] Tier 1 (${performance.getEntriesByName('startup:tier1-ready')[0]?.duration.toFixed(1)}ms): core + enabled IPC modules loaded`);
     }, 100);
 
-    // Tier 1b (600ms): Error Cop — before user can open terminal but not blocking first paint
+    // Tier 1b (600ms): Error Cop - before user can open terminal but not blocking first paint
     setTimeout(() => {
       safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
     }, 600);
 
-    // Tier 2 (4s): Heavy / rarely used tools — deferred well past startup
+    // Tier 2 (4s): heavy / rarely used tools - only the enabled ones
     setTimeout(() => {
-      safeRegister('fileseeder_ipc',  () => require('./ipc/fileseeder_ipc.js').register(shared));
-      safeRegister('loc_ipc',         () => require('./ipc/loc_ipc.js').register(shared));
-      safeRegister('portManager',     () => require('./ipc/portManager.js').register());
-      safeRegister('dbInspector_ipc', () => require('./ipc/dbInspector_ipc.js').register(shared));
       safeRegister('docignoreManager',() => require('./ipc/docignoreManager_ipc.js').register(shared));
-      safeRegister('teamActivityFeed',() => require('./ipc/teamActivityFeed.js').register());
       safeRegister('blueprintLibrary',() => require('./ipc/blueprintLibrary/index.js').register());
-      safeRegister('video_ipc',       () => require('./ipc/video_ipc.js').register(shared));
-      safeRegister('image_ipc',       () => require('./ipc/image_ipc.js').register(shared));
-      safeRegister('automation_ipc',  () => require('./ipc/automation_ipc.js').register());
       safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
-      safeRegister('docker_ipc',      () => require('./ipc/docker_ipc.js').register());
-      safeRegister('gmail_ipc',       () => require('./ipc/gmail_ipc.js').register(shared));
-      safeRegister('codebaseMap_ipc', () => require('./ipc/codebaseMap_ipc.js').register());
-      safeRegister('graphify_ipc',    () => { graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app }); });
-      console.log('[Main] Tier 2: heavy/rarely used IPC modules loaded');
+      registerFeatureIpc(2);
+      console.log('[Main] Tier 2: enabled heavy IPC modules loaded');
     }, 4000);
 
-    // ── Window control IPC (registered once, outside createWindow) ──
+    // Window control IPC (registered once, outside createWindow)
     ipcMain.on('window:minimize', () => mainWindow?.minimize());
     ipcMain.on('window:maximize', () => {
         if (!mainWindow) return;
