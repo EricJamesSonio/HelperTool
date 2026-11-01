@@ -636,15 +636,14 @@ export function wireUI(onClose, getBasePath) {
             return;
         }
 
-            const ta  = document.getElementById('gsInput');
+        const ta  = document.getElementById('gsInput');
         const raw = ta?.value ?? '';
         if (!raw.trim()) return;
-        console.error('[RawDebug] textarea raw input:', JSON.stringify(raw));
         state.rawInput = raw;
 
         showStage('gsSeedingStage');
         const seedingLabel = document.getElementById('gsSeedingLabel');
-        if (seedingLabel) seedingLabel.textContent = 'Analysing…';
+        if (seedingLabel) seedingLabel.textContent = 'Analysing...';
 
         try {
             if (state.mode === 'structure') {
@@ -677,14 +676,11 @@ export function wireUI(onClose, getBasePath) {
                     showStage('gsInputStage');
                     return;
                 }
-                // Enrich entries with resolved/candidates for seeding
                 const enriched = entries.map((e, i) => {
                     const d = preview.details?.[i];
                     const invalid = !!d?.invalid;
                     return {
                         relPath: e.relPath,
-                        // The main process repairs collapsed / smart-quoted blocks.
-                        // Seed exactly what the preview verified.
                         content: d?.content ?? e.content,
                         resolved: d?.resolved ?? e.relPath,
                         candidates: d?.candidates ?? [],
@@ -693,9 +689,8 @@ export function wireUI(onClose, getBasePath) {
                         target: e.target ?? null,
                         repairs: d?.repairs ?? [],
                         invalid,
-                        allowInvalid: false,
-                        // Broken files are not seeded unless the user opts in.
-                        skipped: invalid,
+                        allowInvalid: invalid,
+                        skipped: false,
                     };
                 });
                 state.contentEntries = enriched;
@@ -725,7 +720,7 @@ export function wireUI(onClose, getBasePath) {
 
         showStage('gsSeedingStage');
         const seedingLabel = document.getElementById('gsSeedingLabel');
-        if (seedingLabel) seedingLabel.textContent = 'Seeding…';
+        if (seedingLabel) seedingLabel.textContent = 'Seeding...';
 
         try {
             let result;
@@ -733,7 +728,7 @@ export function wireUI(onClose, getBasePath) {
                 const skipped = state.previewSkipped || new Set();
                 const active = (state.preview?.toCreate || []).filter(p => !skipped.has(p));
                 if (!active.length) {
-                    showNotice(state.preview?.toCreate?.length ? 'All files skipped — nothing to seed.' : 'Nothing to create.');
+                    showNotice(state.preview?.toCreate?.length ? 'All files skipped - nothing to seed.' : 'Nothing to create.');
                     showStage('gsPreviewStage');
                     return;
                 }
@@ -741,11 +736,10 @@ export function wireUI(onClose, getBasePath) {
             } else {
                 const activeEntries = (state.contentEntries || []).filter(e => !e.skipped);
                 if (!activeEntries?.length) {
-                    showNotice(state.contentEntries?.length ? 'All files skipped — nothing to seed.' : 'Nothing to seed.');
+                    showNotice(state.contentEntries?.length ? 'All files skipped - nothing to seed.' : 'Nothing to seed.');
                     showStage('gsPreviewStage');
                     return;
                 }
-                // send enriched entries with chosen resolved (skipped excluded)
                 const payload = activeEntries.map(e => ({
                     relPath: e.relPath,
                     content: e.content,
