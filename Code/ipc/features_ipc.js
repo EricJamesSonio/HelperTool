@@ -9,14 +9,14 @@ const DEFAULT_FEATURES = {
 };
 
 /**
- * @param {{ config }} deps
+ * @param {{ config, onFeaturesChanged }} deps
  */
-function register({ config }) {
+function register({ config, onFeaturesChanged }) {
 
     ipcMain.handle('features-get', () => {
         try {
             const cfg = config.readConfig();
-            // null means "never been asked" → trigger first-launch wizard
+            // null means "never been asked" -> trigger first-launch wizard
             return cfg.features ?? null;
         } catch (err) {
             console.error('[IPC] features-get error:', err);
@@ -29,6 +29,10 @@ function register({ config }) {
             const cfg = config.readConfig();
             cfg.features = { ...DEFAULT_FEATURES, ...features };
             config.writeConfig(cfg);
+            if (typeof onFeaturesChanged === 'function') {
+                try { onFeaturesChanged(cfg.features); }
+                catch (e) { console.error('[IPC] onFeaturesChanged error:', e); }
+            }
             return true;
         } catch (err) {
             console.error('[IPC] features-set error:', err);
