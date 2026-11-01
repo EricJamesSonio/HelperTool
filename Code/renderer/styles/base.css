@@ -14,74 +14,128 @@
   --font-ui:   'Syne', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --titlebar-h: 34px;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+  --ui-scale: 1;
 
-  /* Backgrounds — GitHub Dark High Contrast */
-  --bg-base:        #010409;
-  --bg-surface:     #0a0c10;
-  --bg-elevated:    #0f1117;
-  --bg-overlay:     #15181d;
-  --bg-hover:       rgba(255,255,255,0.05);
-  --bg-active:      rgba(255,255,255,0.09);
-  --bg-raised:      #1c2028;
-  --bg-statusbar:   #010409;
-  --bg-root:        #010409;
-  --bg-tree:        #05070a;
+  /* Backgrounds - GitHub Dark High Contrast */
+  --bg-base:        #000000;
+  --bg-surface:     #050505;
+  --bg-elevated:    #0a0a0a;
+  --bg-overlay:     #101010;
+  --bg-hover:       rgba(255,255,255,0.10);
+  --bg-active:      rgba(255,255,255,0.14);
+  --bg-raised:      #181818;
+  --bg-statusbar:   #000000;
+  --bg-root:        #000000;
+  --bg-tree:        #000000;
 
-  /* Borders — more visible on darker bg */
-  --border-subtle:  rgba(255,255,255,0.07);
-  --border-default: rgba(255,255,255,0.12);
-  --border-strong:  rgba(255,255,255,0.20);
-  --border-mid:     rgba(255,255,255,0.14);
+  /* Borders */
+  --border-subtle:  rgba(255,255,255,0.18);
+  --border-default: rgba(255,255,255,0.28);
+  --border-strong:  rgba(255,255,255,0.44);
+  --border-mid:     rgba(255,255,255,0.22);
 
-  /* Text — High Contrast */
-  --text-primary:   #f0f6fc;
-  --text-secondary: #b1bac4;
-  --text-muted:     #8b949e;
-  --text-faint:     #545d68;
+  /* Text */
+  --text-primary:   #ffffff;
+  --text-secondary: #e0e4e8;
+  --text-muted:     #a0a8b0;
+  --text-faint:     #707880;
 
-  /* Primary accent — cyan */
-  --accent:         #22d3ee;
-  --accent-dim:     rgba(34,211,238,0.12);
-  --accent-glow:    rgba(34,211,238,0.20);
-  --accent-border:  rgba(34,211,238,0.30);
+  /* Primary accent */
+  --accent:         #2f81f7;
+  --accent-hover:   #58a6ff;
+  --accent-dim:     rgba(47,129,247,0.15);
+  --accent-glow:    rgba(47,129,247,0.25);
+  --accent-border:  rgba(47,129,247,0.35);
 
-  /* Secondary accent — purple */
+  /* Secondary accent */
   --purple-accent:      #8b5cf6;
   --purple-accent-dim:  rgba(139,92,246,0.12);
   --purple-accent-glow: rgba(139,92,246,0.20);
 
   /* Semantic */
-  --green:          #2dd4b0;
-  --green-dim:      rgba(45,212,176,0.13);
-  --red:            #f85149;
-  --red-dim:        rgba(248,81,73,0.13);
-  --blue:           #58a6ff;
-  --blue-dim:       rgba(88,166,255,0.13);
-  --purple:         #8b5cf6;
-  --purple-dim:     rgba(139,92,246,0.13);
+  --green:          #3fb950;
+  --green-dim:      rgba(63,185,80,0.13);
+  --red:            #ff6b69;
+  --red-dim:        rgba(255,107,105,0.13);
+  --blue:           #2f81f7;
+  --blue-dim:       rgba(47,129,247,0.13);
+  --purple:         #bc8cff;
+  --purple-dim:     rgba(188,140,255,0.13);
   --yellow:         #d29922;
   --yellow-dim:     rgba(210,153,34,0.13);
 
   /* Tree node colors */
-  --node-folder:          #22d3ee;
-  --node-file:            #8b949e;
-  --node-selected-file:   #d29922;
-  --node-selected-folder: #2dd4b0;
+  --node-folder:          #2f81f7;
+  --node-file:            #e0e4e8;
+  --node-selected-file:   #2f81f7;
+  --node-selected-folder: #3fb950;
 
   /* Folder/file tokens */
-  --folder-bg:           rgba(34,211,238,0.08);
-  --folder-border:       rgba(34,211,238,0.18);
-  --folder-text:         #22d3ee;
-  --folder-bg-h:         rgba(34,211,238,0.14);
-  --folder-hover-border: rgba(34,211,238,0.35);
-  --folder-hover-color:  #a5f3fc;
-  --file-bg:             rgba(139,148,158,0.05);
-  --file-border:         rgba(139,148,158,0.13);
-  --file-text:           #8b949e;
-  --file-bg-h:           rgba(139,148,158,0.10);
-  --file-hover-border:   rgba(139,148,158,0.28);
-  --file-hover-color:    #c9d1d9;
+  --folder-bg:           rgba(47,129,247,0.08);
+  --folder-border:       rgba(47,129,247,0.20);
+  --folder-text:         #2f81f7;
+  --folder-bg-h:         rgba(47,129,247,0.14);
+  --folder-hover-border: rgba(47,129,247,0.38);
+  --folder-hover-color:  #ffffff;
+  --file-bg:             rgba(160,168,176,0.05);
+  --file-border:         rgba(160,168,176,0.13);
+  --file-text:           #e0e4e8;
+  --file-bg-h:           rgba(160,168,176,0.10);
+  --file-hover-border:   rgba(160,168,176,0.28);
+  --file-hover-color:    #ffffff;
   --connector-color:     rgba(255,255,255,0.10);
+
+  /* Folder depth colors */
+  --dl0-color:  #2f81f7;
+  --dl0-bg:     rgba(47,129,247,0.10);
+  --dl0-bg-h:   rgba(47,129,247,0.18);
+  --dl0-border: rgba(47,129,247,0.40);
+  --dl0-line:   rgba(47,129,247,0.35);
+  --dl1-color:  #bc8cff;
+  --dl1-bg:     rgba(188,140,255,0.10);
+  --dl1-bg-h:   rgba(188,140,255,0.18);
+  --dl1-border: rgba(188,140,255,0.40);
+  --dl1-line:   rgba(188,140,255,0.35);
+  --dl2-color:  #3fb950;
+  --dl2-bg:     rgba(63,185,80,0.10);
+  --dl2-bg-h:   rgba(63,185,80,0.18);
+  --dl2-border: rgba(63,185,80,0.40);
+  --dl2-line:   rgba(63,185,80,0.35);
+  --dl3-color:  #d29922;
+  --dl3-bg:     rgba(210,153,34,0.10);
+  --dl3-bg-h:   rgba(210,153,34,0.18);
+  --dl3-border: rgba(210,153,34,0.40);
+  --dl3-line:   rgba(210,153,34,0.35);
+  --dl4-color:  #ff6b69;
+  --dl4-bg:     rgba(255,107,105,0.10);
+  --dl4-bg-h:   rgba(255,107,105,0.18);
+  --dl4-border: rgba(255,107,105,0.40);
+  --dl4-line:   rgba(255,107,105,0.35);
+  --dl5-color:  #2f81f7;
+  --dl5-bg:     rgba(47,129,247,0.10);
+  --dl5-bg-h:   rgba(47,129,247,0.18);
+  --dl5-border: rgba(47,129,247,0.40);
+  --dl5-line:   rgba(47,129,247,0.35);
+  --dl6-color:  #bc8cff;
+  --dl6-bg:     rgba(188,140,255,0.10);
+  --dl6-bg-h:   rgba(188,140,255,0.18);
+  --dl6-border: rgba(188,140,255,0.40);
+  --dl6-line:   rgba(188,140,255,0.35);
+  --dl7-color:  #3fb950;
+  --dl7-bg:     rgba(63,185,80,0.10);
+  --dl7-bg-h:   rgba(63,185,80,0.18);
+  --dl7-border: rgba(63,185,80,0.40);
+  --dl7-line:   rgba(63,185,80,0.35);
+  --dl8-color:  #d29922;
+  --dl8-bg:     rgba(210,153,34,0.10);
+  --dl8-bg-h:   rgba(210,153,34,0.18);
+  --dl8-border: rgba(210,153,34,0.40);
+  --dl8-line:   rgba(210,153,34,0.35);
+  --dl9-color:  #ff6b69;
+  --dl9-bg:     rgba(255,107,105,0.10);
+  --dl9-bg-h:   rgba(255,107,105,0.18);
+  --dl9-border: rgba(255,107,105,0.40);
+  --dl9-line:   rgba(255,107,105,0.35);
 
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);

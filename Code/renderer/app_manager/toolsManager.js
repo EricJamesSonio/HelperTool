@@ -1,32 +1,38 @@
 /**
  * toolsManager.js
- * Orchestrator only — composes panels, sidebar, shortcuts, and tool lifecycles.
- * Does NOT own panel DOM creation, sidebar behaviour, or close logic directly.
+ * Orchestrator only - composes panels, sidebar, shortcuts, and tool lifecycles.
+ * Every tool is gated by its feature flag; heavy modules load on first use.
  */
 
 import { state }                          from './appState.js';
 import { initShortcutManager, openConfig, closeConfig, isConfigOpen } from '../shortcutEntry.js';
 import { initContextMenu }                from '../utils/contextMenu.js';
 import { openRenameModal, openCreateFilesModal, openCreateFolderModal, showToast, openInputContentModal } from '../codebaseManager.js';
-import { displayTree, refreshTree }                    from './viewManager.js';
+import { refreshTree }                    from './viewManager.js';
 import { confirmDialog }                  from '../utils/confirmDialog.js';
 import * as fileSeederTool                from '../fileSeederTool.js';
-import * as locDetector    from '../locDetector.js';
-import * as sessionNotes   from '../sessionNotes.js';
-import * as diffViewer     from '../diffViewer.js';
-import * as fileViewer     from '../fileViewer.js';
-import TerminalUI          from '../terminal/terminalUI.js';
-import * as teamActivity   from '../teamActivityFeed.js';
-import * as blueprintLibrary from '../blueprintLibrary.js';
-import * as profileTool from '../profile.js';
-import * as essentialsGlossary from '../essentialsGlossary.js';
-import { openEnvManager } from '../envManager.js';
-import toolRegistry        from '../mcp/toolRegistry.js';
-import * as mcpModule      from '../mcp/index.js';
-import * as globalSeeder from '../globalSeeder.js';
+import * as locDetector                   from '../locDetector.js';
+import * as sessionNotes                  from '../sessionNotes.js';
+import * as diffViewer                    from '../diffViewer.js';
+import * as fileViewer                    from '../fileViewer.js';
+import * as essentialsGlossary            from '../essentialsGlossary.js';
 
 import { initSidebar, createSidebarItem } from './sidebarManager.js';
 import { startPrefetch } from './prefetchManager.js';
+import PanelRegistry                      from './panels/panelRegistry.js';
+import {
+  createGitPanel,
+  createSymbolIndexPanel,
+  createDepsPanel,
+  createVideoPanel,
+  createGmailPanel,
+  createAutomationPanel,
+  createCodebaseChatPanel,
+  createGithubExplorerPanel,
+  createProjectInspectorPanel,
+  createGraphifyPanel,
+  createMcpPanel,
+} from './panels/panelFactory.js';
 
 const ICONS = {
   api: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="19"/><line x1="1" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="19" y2="10"/></svg>',
@@ -43,41 +49,27 @@ const ICONS = {
   db: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4" rx="7" ry="2"/><path d="M3 4v6c0 1.1 3.13 2 7 2s7-.9 7-2V4"/><path d="M3 10v6c0 1.1 3.13 2 7 2s7-.9 7-2v-6"/></svg>',
   terminal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M5 8l3 2-3 2M10 12h5"/></svg>',
   port: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10M5 13h10"/><path d="M7 7V3M13 7V3M7 13v4M13 13v4"/><rect x="3" y="7" width="14" height="6" rx="1"/></svg>',
-   team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>',
-   blueprint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>',
-   profile: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M2 18a8 8 0 0 1 16 0"/></svg>',
-   docker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></svg>',
-   env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><circle cx="10" cy="12" r="1"/><path d="M10 13v2"/></svg>',
-   codebbaseChat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="10" cy="9" r="1.5"/><circle cx="6" cy="9" r="1.5"/><circle cx="14" cy="9" r="1.5"/></svg>',
-   flow: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',
-    github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>',
-    opencode: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',
-    map: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 7 10 4 17 7"/><polyline points="3 17 10 14 17 17"/><line x1="10" y1="4" x2="10" y2="14"/><path d="M3 7v10"/><path d="M17 7v10"/></svg>',
-    layout: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="8" y1="7" x2="8" y2="18"/><line x1="2" y1="13" x2="18" y2="13"/><line x1="14" y1="7" x2="14" y2="18"/></svg>',
-    essentials: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 6l8 4 8-4L10 2z"/><path d="M2 14l8 4 8-4"/><path d="M2 10l8 4 8-4"/></svg>',
-    graphify: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/><path d="M4 3h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M4 9h8a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z"/></svg>',
-    mcp: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
-    eye: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4c-4 0-7.5 2.5-9 6 1.5 3.5 5 6 9 6s7.5-2.5 9-6c-1.5-3.5-5-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>',
-    radar: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg>',
-    inspector: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 7v6"/><path d="M7 10h6"/></svg>',
-    harness: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12v12H4z"/><path d="M8 8h4v4H8z"/><circle cx="10" cy="10" r="1.5"/></svg>',
-    globalSeeder: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2 2.2 3 5 3 7.5s-1 5.3-3 7.5c-2-2.2-3-5-3-7.5s1-5.3 3-7.5z"/></svg>',
-  };
-import PanelRegistry                      from './panels/panelRegistry.js';
-import {
-  createGitPanel,
-  createSymbolIndexPanel,
-  createDepsPanel,
-  createLocPanel,
-  createVideoPanel,
-  createGmailPanel,
-  createAutomationPanel,
-  createCodebaseChatPanel,
-  createGithubExplorerPanel,
-  createProjectInspectorPanel,
-  createGraphifyPanel,
-  createMcpPanel,
-} from './panels/panelFactory.js';
+  team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6"/><rect x="3" y="6" width="14" height="4" rx="1"/><path d="M10 3v7"/><path d="M7 6l3-3 3 3"/></svg>',
+  blueprint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/><line x1="6" y1="16" x2="10" y2="16"/></svg>',
+  profile: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M2 18a8 8 0 0 1 16 0"/></svg>',
+  docker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></svg>',
+  env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14"/><path d="M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><circle cx="10" cy="12" r="1"/><path d="M10 13v2"/></svg>',
+  codebbaseChat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><circle cx="10" cy="9" r="1.5"/><circle cx="6" cy="9" r="1.5"/><circle cx="14" cy="9" r="1.5"/></svg>',
+  flow: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.5"/><circle cx="4" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/><line x1="10" y1="6.5" x2="4" y2="13.5"/><line x1="10" y1="6.5" x2="16" y2="13.5"/></svg>',
+  flowTool: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h9"/><path d="M3 10h14"/><path d="M3 15h6"/><path d="M14 3l3 2-3 2"/><path d="M12 13l3 2-3 2"/></svg>',
+  github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>',
+  opencode: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/><path d="M8 9h4"/><path d="M8 12h2"/></svg>',
+  map: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 7 10 4 17 7"/><polyline points="3 17 10 14 17 17"/><line x1="10" y1="4" x2="10" y2="14"/><path d="M3 7v10"/><path d="M17 7v10"/></svg>',
+  layout: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="8" y1="7" x2="8" y2="18"/><line x1="2" y1="13" x2="18" y2="13"/><line x1="14" y1="7" x2="14" y2="18"/></svg>',
+  essentials: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 6l8 4 8-4L10 2z"/><path d="M2 14l8 4 8-4"/><path d="M2 10l8 4 8-4"/></svg>',
+  graphify: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/><path d="M4 3h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M4 9h8a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z"/></svg>',
+  mcp: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 4v12"/><path d="M4 10h12"/></svg>',
+  eye: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4c-4 0-7.5 2.5-9 6 1.5 3.5 5 6 9 6s7.5-2.5 9-6c-1.5-3.5-5-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>',
+  radar: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg>',
+  inspector: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 7v6"/><path d="M7 10h6"/></svg>',
+  harness: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12v12H4z"/><path d="M8 8h4v4H8z"/><circle cx="10" cy="10" r="1.5"/></svg>',
+  globalSeeder: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2 2.2 3 5 3 7.5s-1 5.3-3 7.5c-2-2.2-3-5-3-7.5s1-5.3 3-7.5z"/></svg>',
+};
 
 // ---- Tool handles ----------------------------------------------------------
 
@@ -100,9 +92,6 @@ let _symbolIndexContainer = null;
 let _depsUI        = null;
 let _depsPanel     = null;
 let _depsContainer = null;
-
-let _locPanel     = null;
-let _locContainer = null;
 
 let _ccPanel      = null;
 let _ccContainer  = null;
@@ -137,337 +126,59 @@ let _mcpContainer        = null;
 let _mcpInitialized      = false;
 
 let _terminalUI    = null;
+let _terminalInit  = null;
 let _dockerTool   = null;
 let _apiCleanup   = null;
 
 let _feats    = {};
 let _registry = new PanelRegistry();
+let _toolsReady = false;
+let _pendingRepoPath = null;
 
-// ---- Sidebar population ----------------------------------------------------
+const on = (flag) => !flag || _feats[flag] !== false;
 
-function populateSidebar() {
-  const body = document.getElementById('toolsSidebarBody');
-  if (!body) return;
-  body.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  const add = (item) => frag.appendChild(item);
+// ---- Lazy module loading ---------------------------------------------------
 
-  if (_feats.apiTool) {
-    const item = createSidebarItem(ICONS.api, 'API Tool', 'Test & manage REST endpoints', () => {
-      if (_apiTool?.isApiToolPanelOpen?.()) { _apiTool.closeApiToolPanel(); item.classList.remove('active'); return; }
-      _registry.closeAll();
-      _apiTool?.openApiToolPanel?.();
-      item.classList.add('active');
-    }, 'api');
-    add(item);
+const _modPromises = {};
+
+function loadMod(key, loader, onLoad) {
+  if (!_modPromises[key]) {
+    _modPromises[key] = loader().then((m) => {
+      if (onLoad) onLoad(m);
+      return m;
+    }).catch((err) => {
+      delete _modPromises[key];
+      throw err;
+    });
   }
-
-  add(createSidebarItem(ICONS.prompt, 'Prompt Tool', 'Manage custom AI prompts', async () => {
-    const existing = document.getElementById('promptToolModal');
-    if (existing && existing.style.display !== 'none') { existing.style.display = 'none'; return; }
-    _registry.closeAll();
-    try { const { openPromptToolModal } = await import('../promptTool.js'); openPromptToolModal(); }
-      catch (err) { console.error('[Tools] Prompt Tool:', err); }
-  }, 'prompt'));
-
-  add(createSidebarItem(ICONS.git, 'Git Tool', 'Stage, commit & push changes', () => {
-    if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_gitPanel) _initGitPanel();
-    _gitPanel.classList.add('open');
-    if (_gitTool?.isInitialized) _gitTool.refresh();
-      else if (state.selectedRepoPath) _initializeGitTool(state.selectedRepoPath);
-  }, 'git'));
-
-  add(createSidebarItem(ICONS.fileSeeder, 'File Seeder', 'Seed files into a folder', () => {
-    if (fileSeederTool.isOpen()) { fileSeederTool.close(); return; }
-    _registry.closeAll();
-    fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
-  }, 'fileSeeder'));
-
-  add(createSidebarItem('\uD83C\uDFAC', 'Video Compressor', 'Compress video files with FFmpeg', () => {
-    if (_videoPanel?.classList.contains('open')) { _videoPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_videoPanel) _initVideoPanel();
-    _videoPanel.classList.add('open');
-    if (!_videoTool) _initializeVideoTool();
-  }, 'video'));
-
-  add(createSidebarItem(ICONS.api, 'Gmail Inbox', 'Check unread emails', () => {
-    if (_gmailPanel?.classList.contains('open')) { _gmailPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_gmailPanel) _initGmailPanel();
-    _gmailPanel.classList.add('open');
-    if (!_gmailTool) _initializeGmailTool();
-  }, 'gmail'));
-
-  add(createSidebarItem(ICONS.flow, 'Automation Sketch', 'Visual flow builder', () => {
-    if (_automationPanel?.classList.contains('open')) { _automationPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_automationPanel) _initAutomationPanel();
-    _automationPanel.classList.add('open');
-    if (!_automationTool) _initializeAutomationTool();
-  }, 'automation'));
-
-  add(createSidebarItem(ICONS.github, 'GitHub Explorer', 'Browse any public repo file tree', () => {
-    if (_githubPanel?.classList.contains('open')) { _githubPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_githubPanel) _initGithubPanel();
-    _githubPanel.classList.add('open');
-    if (!_githubTool) _initializeGithubTool();
-  }, 'github'));
-
-  add(createSidebarItem(ICONS.loc, 'LOC Detector', 'Find bloated files by line count', () => {
-  if (locDetector.isOpen()) { locDetector.close(); return; }
-  _registry.closeAll();
-  locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
-}, 'loc'));
-
-  add(createSidebarItem(ICONS.settings, 'Settings', 'Appearance & features', () => {
-    const full  = document.getElementById('settingsOverlay');
-    const light = document.getElementById('lightSettingsOverlay');
-    if (full?.classList.contains('open'))  { full.classList.remove('open');  return; }
-    if (light?.classList.contains('open')) { light.classList.remove('open'); return; }
-    _registry.closeAll();
-    _settingsManager?.openSettings?.();
-  }, 'settings'));
-
-  if (_feats.secretHolder) {
-    add(createSidebarItem(ICONS.secret, 'Secret Holder', 'Manage API keys & secrets', async () => {
-      if (_secretHolder?.isSecretHolderOpen?.()) { _secretHolder.closeSecretHolder(); return; }
-      _registry.closeAll();
-      await _secretHolder?.openSecretHolder?.();
-    }, 'secret'));
-  }
-
-  if (_feats.ecosystemWatcher) {
-    add(createSidebarItem(ICONS.eye, 'Ecosystem Dashboard', 'Real-time 2x2 grid: logs, network, console & errors', async () => {
-      try {
-        const w = await import('../ecoDashboardUI.js');
-        if (w.isOpen()) { w.close(); return; }
-        _registry.closeAll();
-        w.open();
-      } catch (err) { console.error('[Tools] Ecosystem Dashboard:', err); }
-    }, 'ecosystemWatcher'));
-  }
-
-  if (_feats.performanceTracker) {
-    add(createSidebarItem(ICONS.radar, 'Performance Tracker', 'Browser performance metrics & timing data', async () => {
-      try {
-        const p = await import('../performanceTracker.js');
-        if (p.isOpen()) { p.close(); return; }
-        _registry.closeAll();
-        p.open();
-      } catch (err) { console.error('[Tools] Performance Tracker:', err); }
-    }, 'performanceTracker'));
-  }
-
-  add(createSidebarItem(ICONS.cli, 'CLI Tool', 'Keyboard shortcuts config', () => {
-    if (isConfigOpen()) { closeConfig(); return; }
-    _registry.closeAll();
-    openConfig();
-  }, 'cli'));
-
-  if (_feats.harnessTool) {
-    add(createSidebarItem(ICONS.harness, 'Harness Tool', 'Controlled AI execution loop', async () => {
-      try {
-        const h = await import('../harnessTool/harnessUI.js');
-        if (h.isOpen()) { h.close(); return; }
-        _registry.closeAll();
-        h.open(state.selectedRepoPath);
-      } catch (err) { console.error('[Tools] Harness Tool:', err); }
-    }, 'harness'));
-  }
-
-  if (_feats.workspaceTool) {
-    add(createSidebarItem(ICONS.workspace, 'Workspace', 'Projects, tickets & workers', async () => {
-      if (_workspaceTool?.isWorkspacePanelOpen?.()) { _workspaceTool.closeWorkspacePanel(); return; }
-      _registry.closeAll();
-      await _workspaceTool?.openWorkspacePanel?.();
-    }, 'workspace'));
-  }
-
-  if (_feats.terminalTool) {
-    add(createSidebarItem(ICONS.terminal, 'Terminal', 'Integrated command-line terminal', async () => {
-      if (!_terminalUI) {
-        _terminalUI = new TerminalUI();
-        _registry.setTerminalUI(_terminalUI);
-        await _terminalUI.init();
-      }
-      if (_terminalUI.isOpen()) { _terminalUI.close(); return; }
-      _registry.closeAll();
-      _terminalUI.open(state.selectedRepoPath);
-    }, 'terminal'));
-  }
-
-  if (_feats.portManagerTool) {
-    add(createSidebarItem(ICONS.port, 'Port Manager', 'View & kill processes on ports', () => {
-      if (_portManagerTool?.isPortManagerPanelOpen?.()) { _portManagerTool.closePortManagerPanel(); return; }
-      _registry.closeAll();
-      _portManagerTool?.openPortManagerPanel?.();
-    }, 'port'));
-  }
-
-  if (_feats.teamActivityTool) {
-    add(createSidebarItem(ICONS.team, 'Team Activity', 'Contributor stats & commit timeline', () => {
-      if (teamActivity.isOpen()) { teamActivity.close(); return; }
-      _registry.closeAll();
-      teamActivity.open(state.selectedRepoPath);
-    }, 'team'));
-  }
-
-  if (_feats.blueprintLibraryTool) {
-    add(createSidebarItem(ICONS.blueprint, 'Blueprint Library', 'Architecture patterns & code structure guides', () => {
-      if (blueprintLibrary.isOpen()) { blueprintLibrary.close(); return; }
-      _registry.closeAll();
-      blueprintLibrary.open();
-    }, 'blueprint'));
-  }
-
-  if (_feats.profileTool) {
-    add(createSidebarItem(ICONS.profile, 'Profile', 'Personal stats & activity heatmap', () => {
-      if (profileTool.isOpen()) { profileTool.close(); return; }
-      _registry.closeAll();
-      profileTool.open();
-    }, 'profile'));
-  }
-
-  if (_feats.dockerTool) {
-    add(createSidebarItem(ICONS.docker, 'Docker', 'Manage containers & images', () => {
-      if (_dockerTool?.isOpen?.()) { _dockerTool.close(); return; }
-      _registry.closeAll();
-      _dockerTool?.open?.();
-    }, 'docker'));
-  }
-
-  if (_feats.essentialsGlossary) {
-    add(createSidebarItem(ICONS.essentials, 'SE Essentials', 'Software engineering term glossary', () => {
-      if (essentialsGlossary.isOpen()) { essentialsGlossary.close(); return; }
-      _registry.closeAll();
-      essentialsGlossary.open();
-    }, 'essentials'));
-  }
-
-  if (_feats.symbolIndex) {
-    add(createSidebarItem(ICONS.symbolIndex, 'Symbol Index', 'Search code symbols & navigate', () => {
-      if (_symbolIndexPanel?.classList.contains('open')) { _symbolIndexPanel.classList.remove('open'); return; }
-      _registry.closeAll();
-      if (!_symbolIndexPanel) _initSymbolIndexPanel();
-      _symbolIndexPanel.classList.add('open');
-      if (!_symbolIndexTool?.isInitialized && state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
-    }, 'symbolIndex'));
-  }
-
-  if (_feats.canvasTool) {
-    add(createSidebarItem(ICONS.canvas, 'Canvas', 'Draw diagrams & sketches', () => {
-      if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
-      _registry.closeAll();
-      _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
-    }, 'canvas'));
-  }
-
-  if (_feats.dbInspector) {
-    add(createSidebarItem(ICONS.db, 'DB Inspector', 'View & explore database schemas', () => {
-      if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
-      _registry.closeAll();
-      _dbInspector?.openDbInspectorPanel?.();
-    }, 'db'));
-  }
-
-  add(createSidebarItem(ICONS.codebbaseChat, 'HelperChat', 'Query your codebase structure', () => {
-    if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_ccPanel) _initCCPanel();
-    _ccPanel.classList.add('open');
-    if (_ccTool?.isInitialized) _ccTool.refresh();
-    else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
-  }, 'codebbaseChat'));
-
-  add(createSidebarItem(ICONS.map, 'Codebase Map', 'Visual codebase structure & dependencies', async () => {
-    try {
-      const m = await import('../codebaseMap.js');
-      if (m.isOpen()) { m.closeCodebaseMap(); return; }
-      _registry.closeAll();
-      await m.openCodebaseMap();
-    } catch (err) { console.error('[Tools] Codebase Map:', err); }
-  }, 'codebaseMap'));
-
-  add(createSidebarItem(ICONS.env, 'Env Files', 'Manage .env configuration files', () => {
-    const existing = document.getElementById('envOverlay');
-    if (existing) { existing.remove(); return; }
-    _registry.closeAll();
-    openEnvManager(state.selectedRepoPath);
-  }, 'env'));
-
-  add(createSidebarItem(ICONS.layout, 'UI Layout Helper', 'Draw UI layouts as ASCII art', async () => {
-    try {
-      const ulh = await import('../uiLayoutHelper.js');
-      if (ulh.isOpen()) { ulh.closeUI(); return; }
-      _registry.closeAll();
-      ulh.openUI();
-    } catch (err) { console.error('[Tools] UI Layout Helper:', err); }
-  }, 'layout'));
-
-  add(createSidebarItem(ICONS.graphify, 'Graphify', 'Find relevant code by natural language', async () => {
-    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
-    _registry.closeAll();
-    if (!_graphifyPanel) _initGraphifyPanel();
-    _graphifyPanel.classList.add('open');
-    await _mountGraphify();
-  }, 'graphify'));
-
-  add(createSidebarItem(ICONS.mcp, 'MCP', 'Tool provider & server manager', async () => {
-    if (_mcpPanel?.classList.contains('open')) { _mcpPanel.classList.remove('open'); mcpModule.hide(); return; }
-    _registry.closeAll();
-    if (!_mcpPanel) _initMcpPanel();
-    _mcpPanel.classList.add('open');
-    mcpModule.show();
-  }, 'mcp'));
-
-  add(createSidebarItem(ICONS.inspector, 'Project Inspector', 'Analyze languages, frameworks & tools used in this project', async () => {
-    if (_piPanel?.classList.contains('open')) { _piPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_piPanel) _initProjectInspectorPanel();
-    _piPanel.classList.add('open');
-    if (_piModule && state.selectedRepoPath) _piModule.updateRepo(state.selectedRepoPath);
-    else if (state.selectedRepoPath) _mountProjectInspector(state.selectedRepoPath);
-  }, 'projectInspector'));
-
-  add(createSidebarItem(ICONS.opencode, 'Code Swamp', 'Chat with AI via Code Swamp', async () => {
-    try {
-      const oc = await import('../codeswampUI.js');
-      if (oc.isCodeSwampOpen()) { oc.close(); return; }
-      _registry.closeAll();
-      await oc.open();
-    } catch (err) {  console.error('[Tools] CodeSwamp:', err) }
-  }, 'opencode'));
-    add(createSidebarItem(ICONS.globalSeeder, 'Global Seeder', 'Seed structure or code across the whole repo', () => {
-    if (globalSeeder.isOpen()) { globalSeeder.close(); return; }
-    _registry.closeAll();
-    globalSeeder.open();
-  }, 'globalSeeder'));
-
-  add(createSidebarItem(ICONS.radar, 'Researcher', 'Select AI & build prompts with live browser', async () => {
-    try {
-      const mod = await import('../researcherUI.js');
-      if (mod.isResearcherOpen()) { mod.close(); return; }
-      _registry.closeAll();
-      await mod.open();
-    } catch (err) { console.error('[Tools] Researcher:', err); }
-  }, 'researcher'));
-
-  add(createSidebarItem('<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h9"/><path d="M3 10h14"/><path d="M3 15h6"/><path d="M14 3l3 2-3 2"/><path d="M12 13l3 2-3 2"/></svg>', 'Flow Tool', 'Process Claude replies and review changes before applying', async () => {
-    try {
-      const mod = await import('../flowTool/index.js');
-      if (mod.isOpen()) { mod.close(); return; }
-      _registry.closeAll();
-      await mod.open();
-      _registry.register('flowTool', mod.getPanel());
-    } catch (err) { console.error('[Tools] Flow Tool:', err); }
-  }, 'flow'));
-
-  body.appendChild(frag);
+  return _modPromises[key];
 }
+
+const loadTeamActivity = () => loadMod('team', () => import('../teamActivityFeed.js'), (m) => _registry.setTeamActivity(m));
+const loadBlueprint    = () => loadMod('blueprint', () => import('../blueprintLibrary.js'), (m) => _registry.setBlueprintLibrary(m));
+const loadProfile      = () => loadMod('profile', () => import('../profile.js'), (m) => _registry.setProfileTool(m));
+const loadGlobalSeeder = () => loadMod('globalSeeder', () => import('../globalSeeder.js'), (m) => _registry.setGlobalSeeder(m));
+const loadEco          = () => loadMod('eco', () => import('../ecoDashboardUI.js'), (m) => _registry.setEcoDashboard(m));
+
+export async function ensureTerminalUI() {
+  if (_terminalUI) return _terminalUI;
+  if (!_terminalInit) {
+    _terminalInit = (async () => {
+      const { default: TerminalUI } = await import('../terminal/terminalUI.js');
+      const ui = new TerminalUI();
+      _registry.setTerminalUI(ui);
+      await ui.init();
+      _terminalUI = ui;
+      return ui;
+    })().catch((err) => {
+      _terminalInit = null;
+      throw err;
+    });
+  }
+  return _terminalInit;
+}
+
+export function getTerminalUI() { return _terminalUI; }
 
 // ---- Panel init helpers ----------------------------------------------------
 
@@ -527,7 +238,7 @@ function _initGraphifyPanel() {
   _registry.setGraphifyPanel(_graphifyPanel);
 }
 
-function _initMcpPanel() {
+function _initMcpPanel(mcpModule) {
   const { panel, container } = createMcpPanel();
   _mcpPanel = panel;
   _mcpContainer = container;
@@ -576,16 +287,6 @@ function _hideGraphify() {
   import('../graphify.js').then(m => m.hide()).catch(() => {});
 }
 
-function _initLocPanel() {
-  const { panel, container } = createLocPanel();
-  _locPanel = panel;
-  _locContainer = container;
-  _registry.register('loc', _locPanel);
-
-  import('../locDetector.js').then(mod => { console.log('[LOC] keys:', Object.keys(mod)); console.log('[LOC] fn:', mod.initLocDetector); if (typeof mod.initLocDetector === 'function') mod.initLocDetector(_locContainer); else console.error('[LOC] initLocDetector missing'); })
-    .catch(err => console.error('[Tools] LOC Detector:', err));
-}
-
 // ---- Tool lifecycles -------------------------------------------------------
 
 async function _initializeGitTool(repoPath) {
@@ -609,7 +310,7 @@ function _destroyGitTool() {
 }
 
 async function _initializeCCTool(repoPath) {
-  if (!repoPath) { console.warn('[Tools] _initializeCCTool skipped — no repoPath'); return; }
+  if (!repoPath) { console.warn('[Tools] _initializeCCTool skipped - no repoPath'); return; }
   try {
     const { default: CodebaseChat } = await import('../codebbaseChat.js');
     if (!_ccTool) _ccTool = new CodebaseChat();
@@ -719,338 +420,6 @@ function _destroyGithubTool() {
   _githubPanel?._escCleanup?.(); _githubPanel?.classList.remove('open');
 }
 
-// ---- Shortcut actions ------------------------------------------------------
-
-function _buildShortcutActions() {
-  const actions = {};
-
-  if (_feats.apiTool) {
-    actions.apiTool = () => {
-      if (_apiTool?.isApiToolPanelOpen?.()) { _apiTool.closeApiToolPanel(); return; }
-      _registry.closeAll(); _apiTool?.openApiToolPanel?.();
-    };
-  }
-
-  actions.shortcutTool = () => {
-    if (isConfigOpen()) { closeConfig(); return; }
-    _registry.closeAll();
-    openConfig();
-  };
-
-  actions.exitInput = () => document.activeElement?.blur();
-
-  // Shortcut Mode (paste file list → auto-select). Unconditional like
-  // shortcutTool/exitInput: it has no feature flag and must always show
-  // in the Keyboard Shortcuts dialog.
-  actions.shortcutMode = async () => {
-    try {
-      const modal = document.getElementById('shortcutInputModal');
-      const { openShortcutInputModal, closeShortcutInputModal } = await import('../shortcutMode/modal.js');
-      if (modal?.classList.contains('open')) { closeShortcutInputModal(); return; }
-      _registry.closeAll();
-      openShortcutInputModal();
-    } catch (err) { console.error('[Shortcuts] Shortcut Mode:', err); }
-  };
-
-  // Global Seeder toggle (default Shift+G). Unconditional so it always
-  // shows in the Keyboard Shortcuts dialog like shortcutMode.
-  actions.globalSeeder = () => {
-    try {
-      if (globalSeeder.isOpen()) { globalSeeder.close(); return; }
-      _registry.closeAll();
-      if (diffViewer.isOpen()) diffViewer.close();
-      globalSeeder.open();
-    } catch (err) { console.error('[Shortcuts] Global Seeder:', err); }
-  };
-
-  actions.gitTool = () => {
-    if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_gitPanel) _initGitPanel();
-    _gitPanel.classList.add('open');
-    if (_gitTool?.isInitialized) _gitTool.refresh();
-    else if (state.selectedRepoPath) _initializeGitTool(state.selectedRepoPath);
-  };
-
-  actions.promptTool = async () => {
-    const modal = document.getElementById('promptToolModal');
-    if (modal && modal.style.display !== 'none') { modal.style.display = 'none'; return; }
-    _registry.closeAll();
-    try { const { openPromptToolModal } = await import('../promptTool.js'); openPromptToolModal(); }
-    catch (err) { console.error('[Shortcuts] Prompt Tool:', err); }
-  };
-
-  actions.settings = () => {
-    const full  = document.getElementById('settingsOverlay');
-    const light = document.getElementById('lightSettingsOverlay');
-    if (full?.classList.contains('open'))  { full.classList.remove('open');  return; }
-    if (light?.classList.contains('open')) { light.classList.remove('open'); return; }
-    _registry.closeAll(); _settingsManager?.openSettings?.();
-  };
-
-  actions.locDetector = () => {
-    if (locDetector.isOpen()) { locDetector.close(); return; }
-    _registry.closeAll();
-    locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
-  };
-
-  if (_feats.secretHolder) {
-    actions.secretHolder = async () => {
-      if (_secretHolder?.isSecretHolderOpen?.()) { _secretHolder.closeSecretHolder(); return; }
-      _registry.closeAll(); await _secretHolder?.openSecretHolder?.();
-    };
-  }
-
-  if (_feats.workspaceTool) {
-    actions.workspaceTool = async () => {
-      if (_workspaceTool?.isWorkspacePanelOpen?.()) { _workspaceTool.closeWorkspacePanel(); return; }
-      _registry.closeAll(); await _workspaceTool?.openWorkspacePanel?.();
-    };
-  }
-
-  if (_feats.symbolIndex) {
-    actions.symbolIndex = () => {
-      if (_symbolIndexPanel?.classList.contains('open')) { _symbolIndexPanel.classList.remove('open'); return; }
-      _registry.closeAll();
-      if (!_symbolIndexPanel) _initSymbolIndexPanel();
-      _symbolIndexPanel.classList.add('open');
-      if (_symbolIndexTool?.isInitialized) _symbolIndexTool.refresh();
-      else if (state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
-    };
-  }
-
-  if (_feats.terminalTool) {
-    actions.terminalTool = async () => {
-      if (!_terminalUI) {
-        _terminalUI = new TerminalUI();
-        _registry.setTerminalUI(_terminalUI);
-        await _terminalUI.init();
-      }
-      if (_terminalUI.isOpen()) { _terminalUI.close(); return; }
-      _registry.closeAll();
-      _terminalUI.open(state.selectedRepoPath);
-    };
-
-    actions.errorCop = async () => {
-      if (!_terminalUI) {
-        _terminalUI = new TerminalUI();
-        _registry.setTerminalUI(_terminalUI);
-        await _terminalUI.init();
-      }
-      _registry.closeAll();
-      _terminalUI._errorCop.toggle();
-    };
-  }
-
-  if (_feats.ecosystemWatcher) {
-    actions.ecosystemWatcher = async () => {
-      try {
-        const w = await import('../ecoDashboardUI.js');
-        if (w.isOpen()) { w.close(); return; }
-        _registry.closeAll();
-        w.open();
-      } catch (err) { console.error('[Shortcuts] Ecosystem Dashboard:', err); }
-    };
-  }
-
-  if (_feats.performanceTracker) {
-    actions.performanceTracker = async () => {
-      try {
-        const p = await import('../performanceTracker.js');
-        if (p.isOpen()) { p.close(); return; }
-        _registry.closeAll();
-        p.open();
-      } catch (err) { console.error('[Shortcuts] Performance Tracker:', err); }
-    };
-  }
-
-  if (_feats.canvasTool) {
-    actions.canvasTool = () => {
-      if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
-      _registry.closeAll(); _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
-    };
-  }
-
-  if (_feats.dbInspector) {
-    actions.dbInspector = () => {
-      if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
-      _registry.closeAll(); _dbInspector?.openDbInspectorPanel?.();
-    };
-  }
-
-  if (_feats.portManagerTool) {
-    actions.portManagerTool = () => {
-      if (_portManagerTool?.isPortManagerPanelOpen?.()) { _portManagerTool.closePortManagerPanel(); return; }
-      _registry.closeAll(); _portManagerTool?.openPortManagerPanel?.();
-    };
-  }
-
-  actions.projectInspector = () => {
-    if (_piPanel?.classList.contains('open')) { _piPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_piPanel) _initProjectInspectorPanel();
-    _piPanel.classList.add('open');
-    if (_piModule && state.selectedRepoPath) _piModule.updateRepo(state.selectedRepoPath);
-    else if (state.selectedRepoPath) _mountProjectInspector(state.selectedRepoPath);
-  };
-
-  if (_feats.teamActivityTool) {
-    actions.teamActivityTool = () => {
-      if (teamActivity.isOpen()) { teamActivity.close(); return; }
-      _registry.closeAll();
-      teamActivity.open(state.selectedRepoPath);
-    };
-  }
-
-  if (_feats.blueprintLibraryTool) {
-    actions.blueprintLibraryTool = () => {
-      if (blueprintLibrary.isOpen()) { blueprintLibrary.close(); return; }
-      _registry.closeAll();
-      blueprintLibrary.open();
-    };
-  }
-
-  if (_feats.profileTool) {
-    actions.profileTool = () => {
-      if (profileTool.isOpen()) { profileTool.close(); return; }
-      _registry.closeAll();
-      profileTool.open();
-    };
-  }
-
-  if (_feats.dockerTool) {
-    actions.dockerTool = () => {
-      if (_dockerTool?.isOpen?.()) { _dockerTool.close(); return; }
-      _registry.closeAll();
-      _dockerTool?.open?.();
-    };
-  }
-
-  if (_feats.essentialsGlossary) {
-    actions.essentialsGlossary = () => {
-      if (essentialsGlossary.isOpen()) { essentialsGlossary.close(); return; }
-      _registry.closeAll();
-      essentialsGlossary.open();
-    };
-  }
-
-  actions.codebbaseChat = () => {
-    if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_ccPanel) _initCCPanel();
-    _ccPanel.classList.add('open');
-    if (_ccTool?.isInitialized) _ccTool.refresh();
-    else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
-  };
-
-  actions.codebaseMap = async () => {
-    try {
-      const m = await import('../codebaseMap.js');
-      if (m.isOpen()) { m.closeCodebaseMap(); return; }
-      _registry.closeAll();
-      await m.openCodebaseMap();
-    } catch (err) { console.error('[Shortcuts] Codebase Map:', err); }
-  };
-
-  actions.uiLayoutHelper = async () => {
-    try {
-      const ulh = await import('../uiLayoutHelper.js');
-      if (ulh.isOpen()) { ulh.closeUI(); return; }
-      _registry.closeAll();
-      ulh.openUI();
-    } catch (err) { console.error('[Shortcuts] UI Layout Helper:', err); }
-  };
-
-  actions.envManager = () => {
-    const existing = document.getElementById('envOverlay');
-    if (existing) { existing.remove(); return; }
-    _registry.closeAll();
-    openEnvManager(state.selectedRepoPath);
-  };
-
-  actions.videoTool = () => {
-    if (_videoPanel?.classList.contains('open')) { _videoPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_videoPanel) _initVideoPanel();
-    _videoPanel.classList.add('open');
-    if (!_videoTool) _initializeVideoTool();
-  };
-
-  actions.gmailTool = () => {
-    if (_gmailPanel?.classList.contains('open')) { _gmailPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_gmailPanel) _initGmailPanel();
-    _gmailPanel.classList.add('open');
-    if (!_gmailTool) _initializeGmailTool();
-  };
-
-  actions.automationSketch = () => {
-    if (_automationPanel?.classList.contains('open')) { _automationPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_automationPanel) _initAutomationPanel();
-    _automationPanel.classList.add('open');
-    if (!_automationTool) _initializeAutomationTool();
-  };
-
-  actions.githubExplorer = () => {
-    if (_githubPanel?.classList.contains('open')) { _githubPanel.classList.remove('open'); return; }
-    _registry.closeAll();
-    if (!_githubPanel) _initGithubPanel();
-    _githubPanel.classList.add('open');
-    if (!_githubTool) _initializeGithubTool();
-  };
-
-  actions.graphify = async () => {
-    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
-    _registry.closeAll();
-    if (!_graphifyPanel) _initGraphifyPanel();
-    _graphifyPanel.classList.add('open');
-    await _mountGraphify();
-  };
-
-  actions.mcp = async () => {
-    if (_mcpPanel?.classList.contains('open')) { _mcpPanel.classList.remove('open'); mcpModule.hide(); return; }
-    _registry.closeAll();
-    if (!_mcpPanel) _initMcpPanel();
-    _mcpPanel.classList.add('open');
-    mcpModule.show();
-  };
-
-  actions.codeswampChat = async () => {
-    try {
-      const oc = await import('../codeswampUI.js');
-      if (oc.isCodeSwampOpen()) {
-        oc.close();
-        return;
-      }
-      _registry.closeAll();
-      await oc.open();
-    } catch (err) { console.error('[Shortcuts] CodeSwamp:', err); }
-  };
-
-  actions.researcherTool = async () => {
-    try {
-      const mod = await import('../researcherUI.js');
-      if (mod.isResearcherOpen()) { mod.close(); return; }
-      _registry.closeAll();
-      await mod.open();
-    } catch (err) { console.error('[Shortcuts] Researcher:', err); }
-  };
-
-  actions.harnessTool = async () => {
-    try {
-      const mod = await import('../harnessTool/harnessUI.js');
-      if (mod.isOpen()) { mod.close(); return; }
-      _registry.closeAll();
-      mod.open(state.selectedRepoPath);
-    } catch (err) { console.error('[Shortcuts] Harness Tool:', err); }
-  };
-
-  return actions;
-}
-
-// ---- Public API ------------------------------------------------------------
-
 async function _destroyGraphify() {
   try {
     const m = await import('../graphify.js');
@@ -1061,42 +430,428 @@ async function _destroyGraphify() {
   if (_graphifyPanel) _graphifyPanel.classList.remove('open');
 }
 
+// ---- Tool actions (shared by sidebar + shortcuts) --------------------------
+
+const RUN = {
+  api: (item) => {
+    if (_apiTool?.isApiToolPanelOpen?.()) { _apiTool.closeApiToolPanel(); item?.classList.remove('active'); return; }
+    _registry.closeAll();
+    _apiTool?.openApiToolPanel?.();
+    item?.classList.add('active');
+  },
+
+  prompt: async () => {
+    const existing = document.getElementById('promptToolModal');
+    if (existing && existing.style.display !== 'none') { existing.style.display = 'none'; return; }
+    _registry.closeAll();
+    const { openPromptToolModal } = await import('../promptTool.js');
+    openPromptToolModal();
+  },
+
+  git: () => {
+    if (_gitPanel?.classList.contains('open')) { _gitPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_gitPanel) _initGitPanel();
+    _gitPanel.classList.add('open');
+    if (_gitTool?.isInitialized) _gitTool.refresh();
+    else if (state.selectedRepoPath) _initializeGitTool(state.selectedRepoPath);
+  },
+
+  fileSeeder: () => {
+    if (fileSeederTool.isOpen()) { fileSeederTool.close(); return; }
+    _registry.closeAll();
+    fileSeederTool.open(state.selectedRepoPath || '', 'Select a folder via right-click');
+  },
+
+  video: () => {
+    if (_videoPanel?.classList.contains('open')) { _videoPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_videoPanel) _initVideoPanel();
+    _videoPanel.classList.add('open');
+    if (!_videoTool) _initializeVideoTool();
+  },
+
+  gmail: () => {
+    if (_gmailPanel?.classList.contains('open')) { _gmailPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_gmailPanel) _initGmailPanel();
+    _gmailPanel.classList.add('open');
+    if (!_gmailTool) _initializeGmailTool();
+  },
+
+  automation: () => {
+    if (_automationPanel?.classList.contains('open')) { _automationPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_automationPanel) _initAutomationPanel();
+    _automationPanel.classList.add('open');
+    if (!_automationTool) _initializeAutomationTool();
+  },
+
+  github: () => {
+    if (_githubPanel?.classList.contains('open')) { _githubPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_githubPanel) _initGithubPanel();
+    _githubPanel.classList.add('open');
+    if (!_githubTool) _initializeGithubTool();
+  },
+
+  loc: () => {
+    if (locDetector.isOpen()) { locDetector.close(); return; }
+    _registry.closeAll();
+    locDetector.open(state.selectedRepoPath || '', state.selectedRepoPath?.split(/[\\/]/).pop() || 'Select a folder');
+  },
+
+  settings: () => {
+    const full  = document.getElementById('settingsOverlay');
+    const light = document.getElementById('lightSettingsOverlay');
+    if (full?.classList.contains('open'))  { full.classList.remove('open');  return; }
+    if (light?.classList.contains('open')) { light.classList.remove('open'); return; }
+    _registry.closeAll();
+    _settingsManager?.openSettings?.();
+  },
+
+  secret: async () => {
+    if (_secretHolder?.isSecretHolderOpen?.()) { _secretHolder.closeSecretHolder(); return; }
+    _registry.closeAll();
+    await _secretHolder?.openSecretHolder?.();
+  },
+
+  ecosystemWatcher: async () => {
+    const w = await loadEco();
+    if (w.isOpen()) { w.close(); return; }
+    _registry.closeAll();
+    w.open();
+  },
+
+  performanceTracker: async () => {
+    const p = await import('../performanceTracker.js');
+    if (p.isOpen()) { p.close(); return; }
+    _registry.closeAll();
+    p.open();
+  },
+
+  cli: () => {
+    if (isConfigOpen()) { closeConfig(); return; }
+    _registry.closeAll();
+    openConfig();
+  },
+
+  harness: async () => {
+    const h = await import('../harnessTool/harnessUI.js');
+    if (h.isOpen()) { h.close(); return; }
+    _registry.closeAll();
+    h.open(state.selectedRepoPath);
+  },
+
+  workspace: async () => {
+    if (_workspaceTool?.isWorkspacePanelOpen?.()) { _workspaceTool.closeWorkspacePanel(); return; }
+    _registry.closeAll();
+    await _workspaceTool?.openWorkspacePanel?.();
+  },
+
+  terminal: async () => {
+    const ui = await ensureTerminalUI();
+    if (ui.isOpen()) { ui.close(); return; }
+    _registry.closeAll();
+    ui.open(state.selectedRepoPath);
+  },
+
+  errorCop: async () => {
+    const ui = await ensureTerminalUI();
+    _registry.closeAll();
+    ui._errorCop.toggle();
+  },
+
+  port: () => {
+    if (_portManagerTool?.isPortManagerPanelOpen?.()) { _portManagerTool.closePortManagerPanel(); return; }
+    _registry.closeAll();
+    _portManagerTool?.openPortManagerPanel?.();
+  },
+
+  team: async () => {
+    const m = await loadTeamActivity();
+    if (m.isOpen()) { m.close(); return; }
+    _registry.closeAll();
+    m.open(state.selectedRepoPath);
+  },
+
+  blueprint: async () => {
+    const m = await loadBlueprint();
+    if (m.isOpen()) { m.close(); return; }
+    _registry.closeAll();
+    m.open();
+  },
+
+  profile: async () => {
+    const m = await loadProfile();
+    if (m.isOpen()) { m.close(); return; }
+    _registry.closeAll();
+    m.open();
+  },
+
+  docker: () => {
+    if (_dockerTool?.isOpen?.()) { _dockerTool.close(); return; }
+    _registry.closeAll();
+    _dockerTool?.open?.();
+  },
+
+  essentials: () => {
+    if (essentialsGlossary.isOpen()) { essentialsGlossary.close(); return; }
+    _registry.closeAll();
+    essentialsGlossary.open();
+  },
+
+  symbolIndex: () => {
+    if (_symbolIndexPanel?.classList.contains('open')) { _symbolIndexPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_symbolIndexPanel) _initSymbolIndexPanel();
+    _symbolIndexPanel.classList.add('open');
+    if (_symbolIndexTool?.isInitialized) _symbolIndexTool.refresh();
+    else if (state.selectedRepoPath) _initializeSymbolIndexTool(state.selectedRepoPath);
+  },
+
+  canvas: () => {
+    if (_canvasTool?.isCanvasPanelOpen?.()) { _canvasTool.closeCanvasPanel(); return; }
+    _registry.closeAll();
+    _canvasTool?.openCanvasPanel?.(state.selectedRepoPath);
+  },
+
+  db: () => {
+    if (_dbInspector?.isDbInspectorPanelOpen?.()) { _dbInspector.closeDbInspectorPanel(); return; }
+    _registry.closeAll();
+    _dbInspector?.openDbInspectorPanel?.();
+  },
+
+  codebbaseChat: () => {
+    if (_ccPanel?.classList.contains('open')) { _ccPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_ccPanel) _initCCPanel();
+    _ccPanel.classList.add('open');
+    if (_ccTool?.isInitialized) _ccTool.refresh();
+    else if (state.selectedRepoPath) _initializeCCTool(state.selectedRepoPath);
+  },
+
+  codebaseMap: async () => {
+    const m = await import('../codebaseMap.js');
+    if (m.isOpen()) { m.closeCodebaseMap(); return; }
+    _registry.closeAll();
+    await m.openCodebaseMap();
+  },
+
+  env: async () => {
+    const existing = document.getElementById('envOverlay');
+    if (existing) { existing.remove(); return; }
+    _registry.closeAll();
+    const { openEnvManager } = await import('../envManager.js');
+    openEnvManager(state.selectedRepoPath);
+  },
+
+  layout: async () => {
+    const ulh = await import('../uiLayoutHelper.js');
+    if (ulh.isOpen()) { ulh.closeUI(); return; }
+    _registry.closeAll();
+    ulh.openUI();
+  },
+
+  graphify: async () => {
+    if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
+    _registry.closeAll();
+    if (!_graphifyPanel) _initGraphifyPanel();
+    _graphifyPanel.classList.add('open');
+    await _mountGraphify();
+  },
+
+  mcp: async () => {
+    const mcpModule = await import('../mcp/index.js');
+    if (_mcpPanel?.classList.contains('open')) { _mcpPanel.classList.remove('open'); mcpModule.hide(); return; }
+    _registry.closeAll();
+    if (!_mcpPanel) _initMcpPanel(mcpModule);
+    _mcpPanel.classList.add('open');
+    mcpModule.show();
+  },
+
+  projectInspector: async () => {
+    if (_piPanel?.classList.contains('open')) { _piPanel.classList.remove('open'); return; }
+    _registry.closeAll();
+    if (!_piPanel) _initProjectInspectorPanel();
+    _piPanel.classList.add('open');
+    if (_piModule && state.selectedRepoPath) _piModule.updateRepo(state.selectedRepoPath);
+    else if (state.selectedRepoPath) _mountProjectInspector(state.selectedRepoPath);
+  },
+
+  codeswamp: async () => {
+    const oc = await import('../codeswampUI.js');
+    if (oc.isCodeSwampOpen()) { oc.close(); return; }
+    _registry.closeAll();
+    await oc.open();
+  },
+
+  globalSeeder: async () => {
+    const gs = await loadGlobalSeeder();
+    if (gs.isOpen()) { gs.close(); return; }
+    _registry.closeAll();
+    if (diffViewer.isOpen()) diffViewer.close();
+    gs.open();
+  },
+
+  researcher: async () => {
+    const mod = await import('../researcherUI.js');
+    if (mod.isResearcherOpen()) { mod.close(); return; }
+    _registry.closeAll();
+    await mod.open();
+  },
+
+  flow: async () => {
+    const mod = await import('../flowTool/index.js');
+    if (mod.isOpen()) { mod.close(); return; }
+    _registry.closeAll();
+    await mod.open();
+    _registry.register('flowTool', mod.getPanel());
+  },
+};
+
+// id = sidebar tool id, key = RUN key, shortcut = shortcut action name
+const TOOLS = [
+  { id: 'api',              key: 'api',              flag: 'apiTool',            icon: ICONS.api,          name: 'API Tool',             desc: 'Test & manage REST endpoints',                              shortcut: 'apiTool' },
+  { id: 'prompt',           key: 'prompt',           flag: 'promptTool',         icon: ICONS.prompt,       name: 'Prompt Tool',          desc: 'Manage custom AI prompts',                                  shortcut: 'promptTool' },
+  { id: 'git',              key: 'git',              flag: 'gitTool',            icon: ICONS.git,          name: 'Git Tool',             desc: 'Stage, commit & push changes',                              shortcut: 'gitTool' },
+  { id: 'fileSeeder',       key: 'fileSeeder',       flag: 'fileSeeder',         icon: ICONS.fileSeeder,   name: 'File Seeder',          desc: 'Seed files into a folder',                                  shortcut: null },
+  { id: 'video',            key: 'video',            flag: 'videoTool',          icon: '\uD83C\uDFAC',     name: 'Video Compressor',     desc: 'Compress video files with FFmpeg',                          shortcut: 'videoTool' },
+  { id: 'gmail',            key: 'gmail',            flag: 'gmailTool',          icon: ICONS.api,          name: 'Gmail Inbox',          desc: 'Check unread emails',                                       shortcut: 'gmailTool' },
+  { id: 'automation',       key: 'automation',       flag: 'automationSketch',   icon: ICONS.flow,         name: 'Automation Sketch',    desc: 'Visual flow builder',                                       shortcut: 'automationSketch' },
+  { id: 'github',           key: 'github',           flag: 'githubExplorer',     icon: ICONS.github,       name: 'GitHub Explorer',      desc: 'Browse any public repo file tree',                          shortcut: 'githubExplorer' },
+  { id: 'loc',              key: 'loc',              flag: 'locDetector',        icon: ICONS.loc,          name: 'LOC Detector',         desc: 'Find bloated files by line count',                          shortcut: 'locDetector' },
+  { id: 'settings',         key: 'settings',         flag: null,                 icon: ICONS.settings,     name: 'Settings',             desc: 'Appearance & features',                                     shortcut: 'settings' },
+  { id: 'secret',           key: 'secret',           flag: 'secretHolder',       icon: ICONS.secret,       name: 'Secret Holder',        desc: 'Manage API keys & secrets',                                 shortcut: 'secretHolder' },
+  { id: 'ecosystemWatcher', key: 'ecosystemWatcher', flag: 'ecosystemWatcher',   icon: ICONS.eye,          name: 'Ecosystem Dashboard',  desc: 'Real-time 2x2 grid: logs, network, console & errors',       shortcut: 'ecosystemWatcher' },
+  { id: 'performanceTracker', key: 'performanceTracker', flag: 'performanceTracker', icon: ICONS.radar,     name: 'Performance Tracker',  desc: 'Browser performance metrics & timing data',                 shortcut: 'performanceTracker' },
+  { id: 'cli',              key: 'cli',              flag: null,                 icon: ICONS.cli,          name: 'CLI Tool',             desc: 'Keyboard shortcuts config',                                 shortcut: 'shortcutTool' },
+  { id: 'harness',          key: 'harness',          flag: 'harnessTool',        icon: ICONS.harness,      name: 'Harness Tool',         desc: 'Controlled AI execution loop',                              shortcut: 'harnessTool' },
+  { id: 'workspace',        key: 'workspace',        flag: 'workspaceTool',      icon: ICONS.workspace,    name: 'Workspace',            desc: 'Projects, tickets & workers',                               shortcut: 'workspaceTool' },
+  { id: 'terminal',         key: 'terminal',         flag: 'terminalTool',       icon: ICONS.terminal,     name: 'Terminal',             desc: 'Integrated command-line terminal',                          shortcut: 'terminalTool' },
+  { id: 'port',             key: 'port',             flag: 'portManagerTool',    icon: ICONS.port,         name: 'Port Manager',         desc: 'View & kill processes on ports',                            shortcut: 'portManagerTool' },
+  { id: 'team',             key: 'team',             flag: 'teamActivityTool',   icon: ICONS.team,         name: 'Team Activity',        desc: 'Contributor stats & commit timeline',                       shortcut: 'teamActivityTool' },
+  { id: 'blueprint',        key: 'blueprint',        flag: 'blueprintLibraryTool', icon: ICONS.blueprint,  name: 'Blueprint Library',    desc: 'Architecture patterns & code structure guides',             shortcut: 'blueprintLibraryTool' },
+  { id: 'profile',          key: 'profile',          flag: 'profileTool',        icon: ICONS.profile,      name: 'Profile',              desc: 'Personal stats & activity heatmap',                         shortcut: 'profileTool' },
+  { id: 'docker',           key: 'docker',           flag: 'dockerTool',         icon: ICONS.docker,       name: 'Docker',               desc: 'Manage containers & images',                                shortcut: 'dockerTool' },
+  { id: 'essentials',       key: 'essentials',       flag: 'essentialsGlossary', icon: ICONS.essentials,   name: 'SE Essentials',        desc: 'Software engineering term glossary',                        shortcut: 'essentialsGlossary' },
+  { id: 'symbolIndex',      key: 'symbolIndex',      flag: 'symbolIndex',        icon: ICONS.symbolIndex,  name: 'Symbol Index',         desc: 'Search code symbols & navigate',                            shortcut: 'symbolIndex' },
+  { id: 'canvas',           key: 'canvas',           flag: 'canvasTool',         icon: ICONS.canvas,       name: 'Canvas',               desc: 'Draw diagrams & sketches',                                  shortcut: 'canvasTool' },
+  { id: 'db',               key: 'db',               flag: 'dbInspector',        icon: ICONS.db,           name: 'DB Inspector',         desc: 'View & explore database schemas',                           shortcut: 'dbInspector' },
+  { id: 'codebbaseChat',    key: 'codebbaseChat',    flag: 'codebbaseChat',      icon: ICONS.codebbaseChat, name: 'HelperChat',          desc: 'Query your codebase structure',                             shortcut: 'codebbaseChat' },
+  { id: 'codebaseMap',      key: 'codebaseMap',      flag: 'codebaseMap',        icon: ICONS.map,          name: 'Codebase Map',         desc: 'Visual codebase structure & dependencies',                  shortcut: 'codebaseMap' },
+  { id: 'env',              key: 'env',              flag: 'envManager',         icon: ICONS.env,          name: 'Env Files',            desc: 'Manage .env configuration files',                           shortcut: 'envManager' },
+  { id: 'layout',           key: 'layout',           flag: 'uiLayoutHelper',     icon: ICONS.layout,       name: 'UI Layout Helper',     desc: 'Draw UI layouts as ASCII art',                              shortcut: 'uiLayoutHelper' },
+  { id: 'graphify',         key: 'graphify',         flag: 'graphify',           icon: ICONS.graphify,     name: 'Graphify',             desc: 'Find relevant code by natural language',                    shortcut: 'graphify' },
+  { id: 'mcp',              key: 'mcp',              flag: 'mcp',                icon: ICONS.mcp,          name: 'MCP',                  desc: 'Tool provider & server manager',                            shortcut: 'mcp' },
+  { id: 'projectInspector', key: 'projectInspector', flag: 'projectInspector',   icon: ICONS.inspector,    name: 'Project Inspector',    desc: 'Analyze languages, frameworks & tools used in this project', shortcut: 'projectInspector' },
+  { id: 'opencode',         key: 'codeswamp',        flag: 'codeswampChat',      icon: ICONS.opencode,     name: 'Code Swamp',           desc: 'Chat with AI via Code Swamp',                               shortcut: 'codeswampChat' },
+  { id: 'globalSeeder',     key: 'globalSeeder',     flag: 'globalSeeder',       icon: ICONS.globalSeeder, name: 'Global Seeder',        desc: 'Seed structure or code across the whole repo',              shortcut: 'globalSeeder' },
+  { id: 'researcher',       key: 'researcher',       flag: 'researcherTool',     icon: ICONS.radar,        name: 'Researcher',           desc: 'Select AI & build prompts with live browser',               shortcut: 'researcherTool' },
+  { id: 'flow',             key: 'flow',             flag: 'flowTool',           icon: ICONS.flowTool,     name: 'Flow Tool',            desc: 'Process Claude replies and review changes before applying', shortcut: null },
+];
+
+async function _run(key, item) {
+  try {
+    await RUN[key]?.(item);
+  } catch (err) {
+    console.error('[Tools] ' + key + ':', err);
+  }
+}
+
+// ---- Sidebar population ----------------------------------------------------
+
+function populateSidebar() {
+  const body = document.getElementById('toolsSidebarBody');
+  if (!body) return;
+  body.innerHTML = '';
+  const frag = document.createDocumentFragment();
+
+  for (const t of TOOLS) {
+    if (!on(t.flag)) continue;
+    const item = createSidebarItem(t.icon, t.name, t.desc, () => _run(t.key, item), t.id);
+    frag.appendChild(item);
+  }
+
+  body.appendChild(frag);
+}
+
+// ---- Shortcut actions ------------------------------------------------------
+
+function _buildShortcutActions() {
+  const actions = {};
+
+  for (const t of TOOLS) {
+    if (!t.shortcut || !on(t.flag)) continue;
+    actions[t.shortcut] = () => _run(t.key);
+  }
+
+  actions.exitInput = () => document.activeElement?.blur();
+
+  if (on('shortcutMode')) {
+    actions.shortcutMode = async () => {
+      try {
+        const modal = document.getElementById('shortcutInputModal');
+        const { openShortcutInputModal, closeShortcutInputModal } = await import('../shortcutMode/modal.js');
+        if (modal?.classList.contains('open')) { closeShortcutInputModal(); return; }
+        _registry.closeAll();
+        openShortcutInputModal();
+      } catch (err) { console.error('[Shortcuts] Shortcut Mode:', err); }
+    };
+  }
+
+  if (on('terminalTool')) {
+    actions.errorCop = () => _run('errorCop');
+  }
+
+  return actions;
+}
+
+// ---- Public API ------------------------------------------------------------
+
 export function closeAllPanels() {
   _registry.closeAll();
   if (diffViewer.isOpen()) diffViewer.close();
   if (fileViewer.isOpen()) fileViewer.close();
-  if (teamActivity.isOpen()) teamActivity.close();
-  if (blueprintLibrary.isOpen()) blueprintLibrary.close();
-  if (profileTool.isOpen()) profileTool.close();
-  if (essentialsGlossary.isOpen()) essentialsGlossary.close();
-  if (_dockerTool?.isOpen?.()) _dockerTool.close();
   _destroyGmailTool();
   _destroyAutomationTool();
   _destroyGithubTool();
 }
 
 export async function handleRepoChange(newRepoPath) {
-  await _destroyGraphify();
-  sessionNotes.handleRepoChange(newRepoPath);
-  _destroyGitTool();
-  _destroySymbolIndexTool();
-  _destroyCCTool();
-  _initializeGitTool(newRepoPath);
-  _initializeSymbolIndexTool(newRepoPath);
-  _initializeCCTool(newRepoPath);
-  startPrefetch(newRepoPath);
+  if (!_toolsReady) { _pendingRepoPath = newRepoPath; return; }
 
-  // Update Project Inspector if panel is open
+  if (on('graphify') && (_graphifyInitialized || _graphifyPanel)) await _destroyGraphify();
+  sessionNotes.handleRepoChange(newRepoPath);
+
+  if (on('gitTool')) {
+    _destroyGitTool();
+    _initializeGitTool(newRepoPath);
+  }
+  if (on('symbolIndex')) {
+    _destroySymbolIndexTool();
+    _initializeSymbolIndexTool(newRepoPath);
+  }
+  if (on('codebbaseChat')) {
+    _destroyCCTool();
+    _initializeCCTool(newRepoPath);
+  }
+
+  if (on('gitTool') || on('teamActivityTool') || on('profileTool')) {
+    startPrefetch(newRepoPath);
+  }
+
   if (_piModule) _piModule.updateRepo(newRepoPath);
 
-  // Update Code Swamp active repo
-  import('../codeswampUI.js').then(mod => {
-    mod.handleRepoChange?.(newRepoPath);
-  }).catch(() => {});
+  if (on('codeswampChat')) {
+    import('../codeswampUI.js').then(mod => {
+      mod.handleRepoChange?.(newRepoPath);
+    }).catch(() => {});
+  }
 }
 
 window.addEventListener('beforeunload', () => {
-  _destroyGraphify();
+  if (_graphifyInitialized) _destroyGraphify();
   _gitTool?.destroy();
   _symbolIndexTool?.destroy();
   _ccTool?.destroy();
@@ -1112,26 +867,16 @@ export async function initTools(feats, settingsManager) {
   _settingsManager = settingsManager;
 
   fileSeederTool.init();
-  globalSeeder.init();
+  if (on('globalSeeder')) {
+    loadGlobalSeeder().then((m) => m.init()).catch((err) => console.error('[Tools] Global Seeder failed:', err));
+  }
   sessionNotes.initSessionNotes();
   _registry.setSessionNotes(sessionNotes);
   _registry.setDiffViewer(diffViewer);
   _registry.setFileViewer(fileViewer);
+  if (on('essentialsGlossary')) _registry.setEssentialsGlossary(essentialsGlossary);
   initSidebar();
   requestAnimationFrame(() => populateSidebar());
-
-  if (feats.teamActivityTool) {
-    try { _registry.setTeamActivity(teamActivity); } catch (err) { console.error('[Tools] Team Activity failed:', err); }
-  }
-  if (feats.blueprintLibraryTool) {
-    try { _registry.setBlueprintLibrary(blueprintLibrary); } catch (err) { console.error('[Tools] Blueprint Library failed:', err); }
-  }
-  if (feats.profileTool) {
-    try { _registry.setProfileTool(profileTool); } catch (err) { console.error('[Tools] Profile failed:', err); }
-  }
-  if (feats.essentialsGlossary) {
-    try { _registry.setEssentialsGlossary(essentialsGlossary); } catch (err) { console.error('[Tools] Essentials Glossary failed:', err); }
-  }
 
   initContextMenu(
     async (filePath) => {
@@ -1151,10 +896,12 @@ export async function initTools(feats, settingsManager) {
       _depsUI.showForFile(filePath);
     },
     (folderPath, folderName) => {
+      if (!on('fileSeeder')) return;
       _registry.closeAll();
       fileSeederTool.open(folderPath, folderName);
     },
     (folderPath, folderName) => {
+      if (!on('locDetector')) return;
       _registry.closeAll();
       locDetector.open(folderPath, folderName);
     },
@@ -1169,13 +916,10 @@ export async function initTools(feats, settingsManager) {
       fileViewer.open(filePath, state.selectedRepoPath);
     },
     async (folderPath) => {
-      if (!_terminalUI) {
-        _terminalUI = new TerminalUI();
-        _registry.setTerminalUI(_terminalUI);
-        await _terminalUI.init();
-      }
+      if (!on('terminalTool')) return;
+      const ui = await ensureTerminalUI();
       _registry.closeAll();
-      _terminalUI.openTerminalHere(folderPath);
+      ui.openTerminalHere(folderPath);
     },
     (filePath, isFolder) => {
       const name = filePath.split(/[/\\]/).filter(Boolean).pop() || '';
@@ -1209,89 +953,83 @@ export async function initTools(feats, settingsManager) {
 
   initShortcutManager(_buildShortcutActions(), _feats);
 
-  // ── Register tools in MCP registry ──
-  _registerMcpTools();
+  if (on('mcp')) {
+    _registerMcpTools().catch((err) => console.error('[Tools] MCP registry failed:', err));
+  }
 
-  // ── Lazy-load heavy tool modules after first paint ──
   requestAnimationFrame(() => {
     _lazyInitTools(feats);
   });
+
+  _toolsReady = true;
+  if (_pendingRepoPath) {
+    const pending = _pendingRepoPath;
+    _pendingRepoPath = null;
+    handleRepoChange(pending);
+  }
 }
 
-function _registerMcpTools() {
-  toolRegistry.register({
-    id: 'graphify',
-    name: 'Graphify',
-    description: 'Find relevant code by natural language query against a knowledge graph.',
-    color: '#22ff7a',
-    icon: ICONS.graphify,
-    cheatsheetPath: 'MCP/graphify/prompts/graphify-cheatsheet.md',
-    startFn: (repoPath) => window.electronAPI.graphifyStart(repoPath),
-    stopFn: () => window.electronAPI.graphifyStop(),
-    statusFn: async () => {
-      try { const s = await window.electronAPI.graphifyStatus(); return s.running ? 'running' : 'stopped'; }
-      catch { return 'error'; }
-    },
-    openPanelFn: async () => {
-      if (_graphifyPanel?.classList.contains('open')) { _graphifyPanel.classList.remove('open'); _hideGraphify(); return; }
-      _registry.closeAll();
-      if (!_graphifyPanel) _initGraphifyPanel();
-      _graphifyPanel.classList.add('open');
-      await _mountGraphify();
-    },
-  });
+async function _registerMcpTools() {
+  const { default: toolRegistry } = await import('../mcp/toolRegistry.js');
 
-  toolRegistry.register({
-    id: 'errorCop',
-    name: 'Error Cop',
-    description: 'Real-time terminal error monitoring with session timelines and occurrence tracking.',
-    color: '#ff4444',
-    icon: ICONS.cli,
-    cheatsheetPath: 'MCP/errorCop/errorcop-cheatsheet.md',
-    startFn: () => window.electronAPI.startServer(),
-    stopFn: () => window.electronAPI.stopServer(),
-    statusFn: async () => {
-      try { const s = await window.electronAPI.getServerStatus(); return s.running ? 'running' : 'stopped'; }
-      catch { return 'error'; }
-    },
-    openPanelFn: async () => {
-      if (!_terminalUI) {
-        _terminalUI = new TerminalUI();
-        _registry.setTerminalUI(_terminalUI);
-        await _terminalUI.init();
-      }
-      _registry.closeAll();
-      _terminalUI._errorCop.toggle();
-    },
-  });
+  if (on('graphify')) {
+    toolRegistry.register({
+      id: 'graphify',
+      name: 'Graphify',
+      description: 'Find relevant code by natural language query against a knowledge graph.',
+      color: '#22ff7a',
+      icon: ICONS.graphify,
+      cheatsheetPath: 'MCP/graphify/prompts/graphify-cheatsheet.md',
+      startFn: (repoPath) => window.electronAPI.graphifyStart(repoPath),
+      stopFn: () => window.electronAPI.graphifyStop(),
+      statusFn: async () => {
+        try { const s = await window.electronAPI.graphifyStatus(); return s.running ? 'running' : 'stopped'; }
+        catch { return 'error'; }
+      },
+      openPanelFn: () => _run('graphify'),
+    });
+  }
 
-  toolRegistry.register({
-    id: 'ecosystemWatcher',
-    name: 'Ecosystem Dashboard',
-    description: 'Real-time 2x2 grid dashboard — logs, network, console & errors from the app ecosystem.',
-    color: '#4F8EF7',
-    icon: ICONS.radar,
-    cheatsheetPath: 'MCP/ecosystemWatcher/watcher-cheatsheet.md',
-    startFn: async () => {
-      try { return await window.electronAPI.watcher.health(); }
-      catch { return { success: false, error: 'Watcher unavailable' }; }
-    },
-    stopFn: async () => {
-      return { success: true };
-    },
-    statusFn: async () => {
-      try { const h = await window.electronAPI.watcher.health(); return h && h.data && h.data.running ? 'running' : 'stopped'; }
-      catch { return 'error'; }
-    },
-    openPanelFn: async () => {
-      try {
-        const w = await import('../ecoDashboardUI.js');
-        if (w.isOpen()) { w.close(); return; }
-        _registry.closeAll();
-        w.open();
-      } catch (err) { console.error('[Tools] Ecosystem Watcher:', err); }
-    },
-  });
+  if (on('terminalTool')) {
+    toolRegistry.register({
+      id: 'errorCop',
+      name: 'Error Cop',
+      description: 'Real-time terminal error monitoring with session timelines and occurrence tracking.',
+      color: '#ff4444',
+      icon: ICONS.cli,
+      cheatsheetPath: 'MCP/errorCop/errorcop-cheatsheet.md',
+      startFn: () => window.electronAPI.startServer(),
+      stopFn: () => window.electronAPI.stopServer(),
+      statusFn: async () => {
+        try { const s = await window.electronAPI.getServerStatus(); return s.running ? 'running' : 'stopped'; }
+        catch { return 'error'; }
+      },
+      openPanelFn: () => _run('errorCop'),
+    });
+  }
+
+  if (on('ecosystemWatcher')) {
+    toolRegistry.register({
+      id: 'ecosystemWatcher',
+      name: 'Ecosystem Dashboard',
+      description: 'Real-time 2x2 grid dashboard - logs, network, console & errors from the app ecosystem.',
+      color: '#4F8EF7',
+      icon: ICONS.radar,
+      cheatsheetPath: 'MCP/ecosystemWatcher/watcher-cheatsheet.md',
+      startFn: async () => {
+        try { return await window.electronAPI.watcher.health(); }
+        catch { return { success: false, error: 'Watcher unavailable' }; }
+      },
+      stopFn: async () => {
+        return { success: true };
+      },
+      statusFn: async () => {
+        try { const h = await window.electronAPI.watcher.health(); return h && h.data && h.data.running ? 'running' : 'stopped'; }
+        catch { return 'error'; }
+      },
+      openPanelFn: () => _run('ecosystemWatcher'),
+    });
+  }
 }
 
 async function _lazyInitTools(feats) {
@@ -1352,14 +1090,3 @@ async function _lazyInitTools(feats) {
     console.log('[Tools] Lazy init complete');
   } catch (err) { console.error('[Tools] Lazy init error:', err); }
 }
-
-export async function ensureTerminalUI() {
-  if (!_terminalUI) {
-    _terminalUI = new TerminalUI();
-    _registry.setTerminalUI(_terminalUI);
-    await _terminalUI.init();
-  }
-  return _terminalUI;
-}
-
-export function getTerminalUI() { return _terminalUI; }
