@@ -8,6 +8,14 @@ const ICONS = {
   check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>',
 };
 
+function updateCounts(shown, filtering) {
+    const total = S.secrets.length;
+    const tab = document.getElementById('shTabSecretsCount');
+    if (tab) tab.textContent = String(total);
+    const match = document.getElementById('shSecretsMatch');
+    if (match) match.textContent = filtering ? `${shown} of ${total}` : `${total} total`;
+}
+
 export async function refreshSecrets() {
     try { S.secrets = await window.electronAPI.secretsGetAll(); }
     catch { S.secrets = []; }
@@ -25,10 +33,15 @@ export function renderSecrets() {
           )
         : S.secrets;
 
+    updateCounts(list.length, !!q);
+
     if (list.length === 0) {
-        secretsList.innerHTML = q
-            ? `<div class="sh-empty">No secrets match "<strong>${q}</strong>".</div>`
-            : '<div class="sh-empty">No secrets yet — add one above.</div>';
+        const empty = document.createElement('div');
+        empty.className = 'sh-empty';
+        empty.textContent = q
+            ? 'No secrets match "' + (S.searchSecrets || '').trim() + '".'
+            : 'No secrets yet - add one above.';
+        secretsList.appendChild(empty);
         return;
     }
 
@@ -40,9 +53,11 @@ export function renderSecrets() {
         const nm = document.createElement('div');
         nm.className   = 'sh-row-name';
         nm.textContent = s.name;
+        nm.title       = s.name;
         const vl = document.createElement('div');
         vl.className   = 'sh-row-val';
         vl.textContent = s.value;
+        vl.title       = s.value;
         info.appendChild(nm);
         info.appendChild(vl);
         const acts = document.createElement('div');

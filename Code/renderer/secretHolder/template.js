@@ -44,8 +44,8 @@ export function getTemplate() {
     </div>
   </div>
   <div class="sh-tabs">
-    <button id="shTabSecrets" class="sh-tab sh-tab-active" type="button">${icon('key')} Secrets</button>
-    <button id="shTabNotes"   class="sh-tab"               type="button">${icon('note')} Notes</button>
+    <button id="shTabSecrets" class="sh-tab sh-tab-active" type="button">${icon('key')} Secrets <span class="sh-tab-count" id="shTabSecretsCount"></span></button>
+    <button id="shTabNotes"   class="sh-tab"               type="button">${icon('note')} Notes <span class="sh-tab-count" id="shTabNotesCount"></span></button>
   </div>
   <div id="shPanelSecrets" class="sh-tab-panel">
     <div class="sh-add-bar">
@@ -59,6 +59,12 @@ export function getTemplate() {
         <input id="shSearchSecrets" class="sh-input sh-input-sm sh-search-input"
                placeholder="Search by name or value..." autocomplete="off" />
       </div>
+      <span class="sh-match" id="shSecretsMatch"></span>
+    </div>
+    <div class="sh-list-head">
+      <span>Name</span>
+      <span>Value</span>
+      <span></span>
     </div>
     <div id="shSecretsList" class="sh-list"></div>
     <details class="sh-settings" id="shResetSection">
