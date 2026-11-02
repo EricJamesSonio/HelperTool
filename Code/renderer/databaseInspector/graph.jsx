@@ -56,15 +56,15 @@ function FlowGraph({ graphData, onSelectNode }) {
         type: 'default',
         position: n.position,
         data: {
-          label: n.data.label + (n.data.rowCount ? ` (${n.data.rowCount.toLocaleString()})` : ''),
+          label: n.data.label + (n.data.rowCount > 0 ? ` (${n.data.rowCount.toLocaleString()})` : ''),
         },
         style: {
           background: color.bg,
           color: color.text,
           border: `2px solid ${color.bg}`,
-          borderRadius: '8px',
-          padding: '8px 14px',
-          fontSize: '13px',
+          borderRadius: '10px',
+          padding: '10px 14px',
+          fontSize: '15px',
           fontFamily: 'JetBrains Mono, monospace',
           fontWeight: 600,
         },
@@ -76,8 +76,8 @@ function FlowGraph({ graphData, onSelectNode }) {
       target: e.target,
       label: e.label || '',
       markerEnd: { type: MarkerType.ArrowClosed, color: '#60a5fa' },
-      style: { stroke: '#556080', strokeWidth: 1.5 },
-      labelStyle: { fill: '#94a3c4', fontSize: 10 },
+      style: { stroke: '#6b7a9c', strokeWidth: 1.6 },
+      labelStyle: { fill: '#c3cde0', fontSize: 12 },
     })));
   }, [graphData]);
 
@@ -105,7 +105,7 @@ function FlowGraph({ graphData, onSelectNode }) {
         <Controls style={{ background: '#0c1427', color: '#94a3c4', border: '1px solid rgba(255,255,255,0.10)' }} />
         <MiniMap
           style={{ background: '#0c1427', border: '1px solid rgba(255,255,255,0.10)' }}
-          nodeColor="#1a2540"
+          nodeColor="#2a3a5c"
           maskColor="rgba(7,13,26,0.7)"
         />
       </ReactFlow>
@@ -120,7 +120,7 @@ function computeAutoLayout(nodes, edges) {
   const levels = topologicalLayout(dag);
 
   const spaced = [];
-  const xGap = 220, yGap = 80;
+  const xGap = 250, yGap = 90;
   const startX = 50, startY = 50;
 
   for (const [level, nodeIds] of levels.entries()) {

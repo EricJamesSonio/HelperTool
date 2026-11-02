@@ -1,11 +1,15 @@
 import { state, setState } from './state.js';
-import { getPanelTemplate, getScanDialogHtml, getTableDetailHtml, getConnectionManagerHtml, getConnectionListHtml, getConnectionEditHtml } from './template.js';
+import { getPanelTemplate, getConnectionManagerHtml, getConnectionListHtml, getConnectionEditHtml, dbiIcon, connIconHtml, fmtCount } from './template.js';
 import { mount as mountQueryBuilder, unmount as unmountQueryBuilder, setSchema, getMode, setMode, getBuiltQuery } from './queryBuilder/index.js';
 import { openScannerModal } from './scanner.js';
 import { renderDetails } from './detailsPanel.js';
 import { initGraph, updateGraph } from './graph-bundle.js';
 import { getTableColor } from './colors.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+
+const LAYOUT_KEY = 'dbi_grid_cols_v2';
+const DEFAULT_COLS = ['300px', '4px', '1fr', '4px', '400px'];
+const COPY_BTN_HTML = () => dbiIcon('copy') + ' Copy';
 
 let _panel = null;
 let _graphRoot = null;
@@ -22,16 +26,6 @@ export function createPanel() {
   _panel = wrapper.querySelector('#dbiPanel');
 
   window.__dbiSelectTable = (tableName) => selectTable(tableName);
-
-  const connCenter = wrapper.querySelector('.dbi-header-center');
-  if (connCenter) {
-    const gear = document.createElement('button');
-    gear.id = 'dbiManageConnBtn';
-    gear.className = 'dbi-btn-icon dbi-manage-btn';
-    gear.title = 'Manage Connections';
-    gear.textContent = '⚙️';
-    connCenter.appendChild(gear);
-  }
 
   setupEventListeners(wrapper);
   initQueryMode(wrapper);
@@ -85,8 +79,8 @@ function setupEventListeners(wrapper) {
     const row = e.target.closest('.dbi-table-row');
     if (row) {
       const tableName = row.dataset.table;
-      selectTable(tableName);
       switchTab('info');
+      selectTable(tableName);
     }
   });
 
@@ -166,7 +160,7 @@ function setupDragHandle(wrapper, handleId, colIndex, dir) {
     document.body.style.userSelect = 'none';
 
     const inline = layout.style.gridTemplateColumns;
-    baseCols = inline ? inline.split(/\s+/) : ['260px', '4px', '1fr', '4px', '340px'];
+    baseCols = inline ? inline.split(/\s+/) : [...DEFAULT_COLS];
 
     const computed = getComputedStyle(layout).gridTemplateColumns.split(/\s+/);
     startCol = parseFloat(computed[colIndex]);
@@ -178,7 +172,7 @@ function setupDragHandle(wrapper, handleId, colIndex, dir) {
 
   const onMouseMove = (e) => {
     const dx = e.clientX - startX;
-    const newSize = Math.max(120, startCol + dir * dx);
+    const newSize = Math.max(160, startCol + dir * dx);
     const cols = [...baseCols];
     cols[colIndex] = newSize + 'px';
     layout.style.gridTemplateColumns = cols.join(' ');
@@ -228,7 +222,7 @@ async function openScanDialog() {
 
   // Run scan
   const statusEl = document.querySelector('#dbiScanStatus');
-  if (statusEl) statusEl.textContent = 'Scanning…';
+  if (statusEl) statusEl.textContent = 'Scanning\u2026';
 
   try {
     const scanResult = await window.electronAPI.dbInspector.scan(result.connection);
@@ -258,13 +252,14 @@ async function openScanDialog() {
   }
 }
 
-export function refreshConnectionsWithData(conns) {
+function _applyConnections(conns) {
   const select = _panel?.querySelector('#dbiConnectionSelect');
-  if (!select) return;
-  setState({ connections: conns });
-  const currentId = state.currentConnectionId;
-  select.innerHTML = '<option value="">\u2014 No connection \u2014</option>' +
-    conns.map(c => `<option value="${c.id}" ${c.id === currentId ? 'selected' : ''}>${esc(c.name)} (${c.type})</option>`).join('');
+  if (select) {
+    const currentId = state.currentConnectionId;
+    select.innerHTML = '<option value="">\u2014 No connection \u2014</option>' +
+      conns.map(c => `<option value="${c.id}" ${c.id === currentId ? 'selected' : ''}>${esc(c.name)} (${esc(c.type)})</option>`).join('');
+  }
+
   const pastList = _panel?.querySelector('#dbiPastConnections');
   if (pastList) {
     if (conns.length === 0) {
@@ -273,7 +268,7 @@ export function refreshConnectionsWithData(conns) {
       pastList.innerHTML = '<div class="dbi-past-title">Recent Connections</div>' +
         conns.map(c => `
           <div class="dbi-past-item" data-conn-id="${c.id}">
-            <span class="dbi-past-item-icon">${c.type === 'postgres' ? '\uD83D\uDC18' : c.type === 'mysql' ? '\uD83D\uDC2C' : c.type === 'sqlite' ? '\uD83D\uDDC4\uFE0F' : '\uD83C\uDF43'}</span>
+            <span class="dbi-past-item-icon">${connIconHtml(c.type)}</span>
             <span class="dbi-past-item-name">${esc(c.name)}</span>
             <span class="dbi-past-item-type">${esc(c.type)}</span>
           </div>
@@ -282,32 +277,20 @@ export function refreshConnectionsWithData(conns) {
   }
 }
 
+export function refreshConnectionsWithData(conns) {
+  const select = _panel?.querySelector('#dbiConnectionSelect');
+  if (!select) return;
+  setState({ connections: conns });
+  _applyConnections(conns);
+}
+
 export async function refreshConnections() {
   const select = _panel?.querySelector('#dbiConnectionSelect');
   if (!select) return;
   try {
     const conns = await window.electronAPI.dbInspector.listConnections();
     setState({ connections: conns });
-    const currentId = state.currentConnectionId;
-    select.innerHTML = '<option value="">— No connection —</option>' +
-      conns.map(c => `<option value="${c.id}" ${c.id === currentId ? 'selected' : ''}>${esc(c.name)} (${c.type})</option>`).join('');
-
-    // Populate welcome screen past connections
-    const pastList = _panel?.querySelector('#dbiPastConnections');
-    if (pastList) {
-      if (conns.length === 0) {
-        pastList.innerHTML = '';
-      } else {
-        pastList.innerHTML = '<div class="dbi-past-title">Recent Connections</div>' +
-          conns.map(c => `
-            <div class="dbi-past-item" data-conn-id="${c.id}">
-              <span class="dbi-past-item-icon">${c.type === 'postgres' ? '🐘' : c.type === 'mysql' ? '🐬' : c.type === 'sqlite' ? '🗄️' : '🍃'}</span>
-              <span class="dbi-past-item-name">${esc(c.name)}</span>
-              <span class="dbi-past-item-type">${esc(c.type)}</span>
-            </div>
-          `).join('');
-      }
-    }
+    _applyConnections(conns);
   } catch (_) {}
 }
 
@@ -345,7 +328,7 @@ async function loadSnapshot(snapshotId) {
 async function refreshCurrent() {
   if (!state.currentSnapshotId) return;
   const btn = _panel?.querySelector('#dbiRefreshBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '⟳ Refreshing…'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = dbiIcon('refresh', 'dbi-spin') + ' Refreshing\u2026'; }
   try {
     const result = await window.electronAPI.dbInspector.refreshSnapshot(state.currentSnapshotId);
     if (result.success) {
@@ -366,15 +349,25 @@ async function refreshCurrent() {
       console.error('[DBI] Refresh failed:', result.error);
       const status = _panel?.querySelector('#dbiDiffBar');
       if (status) {
-        status.innerHTML = `<span style="color:var(--red,#f87171)">Refresh failed: ${esc(result.error)}</span> <span class="dbi-diff-dismiss">✕</span>`;
+        status.innerHTML = `<span style="color:var(--red,#f87171)">Refresh failed: ${esc(result.error)}</span> <span class="dbi-diff-dismiss">${dbiIcon('close')}</span>`;
         status.style.display = 'flex';
       }
     }
   } catch (err) {
     console.error('[DBI] Refresh failed:', err);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '⟳ Refresh'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = dbiIcon('refresh') + ' Refresh'; }
   }
+}
+
+function sanitizeGraphData(graphData) {
+  return {
+    ...graphData,
+    nodes: (graphData.nodes || []).map(n => ({
+      ...n,
+      data: { ...n.data, rowCount: n.data && n.data.rowCount > 0 ? n.data.rowCount : 0 },
+    })),
+  };
 }
 
 function updateGraphView(graphData) {
@@ -387,10 +380,12 @@ function updateGraphView(graphData) {
     return;
   }
 
+  const safeData = sanitizeGraphData(graphData);
+
   if (!_graphRoot) {
-    _graphRoot = initGraph(container, graphData);
+    _graphRoot = initGraph(container, safeData);
   } else {
-    updateGraph(_graphRoot, graphData);
+    updateGraph(_graphRoot, safeData);
   }
 }
 
@@ -401,7 +396,7 @@ function populateTableList(nodes) {
     list.innerHTML = '<div class="dbi-table-empty">No tables</div>';
     return;
   }
-  list.innerHTML = nodes
+  list.innerHTML = [...nodes]
     .sort((a, b) => a.data.label.localeCompare(b.data.label))
     .map(n => {
       const color = getTableColor(n.data.colorIndex || 0);
@@ -409,7 +404,7 @@ function populateTableList(nodes) {
       <div class="dbi-table-row" data-table="${esc(n.data.label)}">
         <span class="dbi-table-row-color" style="background:${color.bg}"></span>
         <span class="dbi-table-row-name">${esc(n.data.label)}</span>
-        <span class="dbi-table-row-count">${(n.data.rowCount || 0).toLocaleString()}</span>
+        <span class="dbi-table-row-count">${fmtCount(n.data.rowCount)}</span>
       </div>`;
     }).join('');
 }
@@ -432,6 +427,9 @@ async function selectTable(tableName) {
     setState({ selectedTableDetails: details });
     renderDetails(details);
 
+    const activeTab = _panel?.querySelector('.dbi-tab.active')?.dataset?.tab || 'info';
+    applyTabVisibility(activeTab);
+
     // Highlight in table list
     _panel?.querySelectorAll('.dbi-table-row').forEach(r => r.classList.toggle('active', r.dataset.table === tableName));
 
@@ -451,7 +449,7 @@ function showDiff(diff) {
   if (diff.added?.length) parts.push(`<span class="dbi-diff-added">+${diff.added.length} added</span>`);
   if (diff.removed?.length) parts.push(`<span class="dbi-diff-removed">-${diff.removed.length} removed</span>`);
   if (diff.changed?.length) parts.push(`<span class="dbi-diff-changed">~${diff.changed.length} changed</span>`);
-  bar.innerHTML = 'Schema changes: ' + parts.join(' ') + ' <span class="dbi-diff-dismiss">✕</span>';
+  bar.innerHTML = 'Schema changes: ' + parts.join(' ') + ` <span class="dbi-diff-dismiss">${dbiIcon('close')}</span>`;
   bar.style.display = 'flex';
 }
 
@@ -480,14 +478,21 @@ function closeScanDialog() {
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+function applyTabVisibility(tab) {
+  const panel = _panel;
+  if (!panel) return;
+  const hasDetails = !!state.selectedTableDetails;
+  panel.querySelectorAll('.dbi-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  panel.querySelector('#dbiDetailPlaceholder').style.display = (tab === 'info' && !hasDetails) ? '' : 'none';
+  panel.querySelector('#dbiDetailContent').style.display = (tab === 'info' && hasDetails) ? '' : 'none';
+  panel.querySelector('#dbiQueryPanel').style.display = tab === 'query' ? 'flex' : 'none';
+  panel.querySelector('#dbiSeedPanel').style.display = tab === 'seed' ? 'flex' : 'none';
+}
+
 function switchTab(tab) {
   const panel = _panel;
   if (!panel) return;
-  panel.querySelectorAll('.dbi-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  panel.querySelector('#dbiDetailPlaceholder').style.display = tab === 'info' ? '' : 'none';
-  panel.querySelector('#dbiDetailContent').style.display = tab === 'info' ? '' : 'none';
-  panel.querySelector('#dbiQueryPanel').style.display = tab === 'query' ? 'flex' : 'none';
-  panel.querySelector('#dbiSeedPanel').style.display = tab === 'seed' ? 'flex' : 'none';
+  applyTabVisibility(tab);
 
   if (tab === 'query') {
     const queryBuilderEl = panel.querySelector('#dbiQueryBuilder');
@@ -523,7 +528,7 @@ async function _runQueryWithString(query) {
   const resultsEl = _panel?.querySelector('#dbiQueryResults');
   if (!resultsEl) return;
 
-  setQueryStatus('Running…', false);
+  setQueryStatus('Running\u2026', false);
   resultsEl.innerHTML = '';
 
   try {
@@ -591,7 +596,7 @@ function copyTableDetails(btn) {
 
   const lines = [];
   lines.push(`Table: ${details.name}`);
-  lines.push(`Rows:  ${details.rowCount.toLocaleString()}`);
+  lines.push(`Rows:  ${fmtCount(details.rowCount)}`);
   lines.push('');
 
   if (details.columns.length > 0) {
@@ -616,7 +621,7 @@ function copyTableDetails(btn) {
   if (details.relationships.length > 0) {
     lines.push('Relationships (outgoing):');
     for (const r of details.relationships) {
-      lines.push(`  ${details.name}.${r.column} → ${r.targetTable}.${r.targetColumn}`);
+      lines.push(`  ${details.name}.${r.column} -> ${r.targetTable}.${r.targetColumn}`);
     }
     lines.push('');
   }
@@ -624,17 +629,17 @@ function copyTableDetails(btn) {
   if (details.referencedBy.length > 0) {
     lines.push('Relationships (incoming):');
     for (const r of details.referencedBy) {
-      lines.push(`  ${r.table}.${r.column} → ${details.name}`);
+      lines.push(`  ${r.table}.${r.column} -> ${details.name}`);
     }
     lines.push('');
   }
 
   navigator.clipboard.writeText(lines.join('\n')).then(() => {
     btn.classList.add('copied');
-    btn.textContent = '✓';
+    btn.innerHTML = dbiIcon('check');
     setTimeout(() => {
       btn.classList.remove('copied');
-      btn.textContent = '📋';
+      btn.innerHTML = dbiIcon('copy');
     }, 1500);
   }).catch(() => {});
 }
@@ -644,7 +649,7 @@ function copyTableDetails(btn) {
 async function loadSeeds() {
   if (!state.currentSnapshotId) {
     const select = _panel?.querySelector('#dbiSeedSelect');
-    if (select) { select.innerHTML = '<option value="">— Select seed —</option>'; }
+    if (select) { select.innerHTML = '<option value="">\u2014 Select seed \u2014</option>'; }
     return;
   }
   try {
@@ -654,7 +659,7 @@ async function loadSeeds() {
     const select = _panel?.querySelector('#dbiSeedSelect');
     if (!select) return;
     const currentId = state.selectedSeed?.id;
-    select.innerHTML = '<option value="">— Select seed —</option>' +
+    select.innerHTML = '<option value="">\u2014 Select seed \u2014</option>' +
       res.seeds.map(s => `<option value="${s.id}" ${s.id === currentId ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
     _panel.querySelector('#dbiSeedEditor').value = '';
     _panel.querySelector('#dbiSeedResults').innerHTML = '';
@@ -691,7 +696,7 @@ async function saveCurrentSeed() {
   if (!editor) return;
   const sqlContent = editor.value.trim();
   if (!sqlContent) {
-    setSeedStatus('Nothing to save — editor is empty', true);
+    setSeedStatus('Nothing to save - editor is empty', true);
     return;
   }
 
@@ -757,7 +762,7 @@ async function runSeed() {
   const ok = await confirmDialog('Are you sure you want to run this seed?');
   if (!ok) return;
 
-  setSeedStatus('Running…', false);
+  setSeedStatus('Running\u2026', false);
   resultsEl.innerHTML = '';
 
   try {
@@ -792,12 +797,18 @@ function setSeedStatus(msg, isError) {
   el.style.color = isError ? 'var(--red, #f87171)' : 'var(--text-muted, #94a3c4)';
 }
 
+function flashCopyBtn(btn, ok) {
+  if (!btn) return;
+  btn.innerHTML = dbiIcon(ok ? 'check' : 'warning') + (ok ? ' Copied' : ' Nothing to copy');
+  setTimeout(() => { btn.innerHTML = COPY_BTN_HTML(); }, ok ? 1500 : 1200);
+}
+
 function copyResults(source) {
   const columns = source === 'query' ? _lastQueryColumns : _lastSeedColumns;
   const rows = source === 'query' ? _lastQueryRows : _lastSeedRows;
+  const btn = _panel?.querySelector(source === 'query' ? '#dbiQueryCopyBtn' : '#dbiSeedCopyBtn');
   if (!columns || !rows || rows.length === 0) {
-    const btn = _panel?.querySelector(source === 'query' ? '#dbiQueryCopyBtn' : '#dbiSeedCopyBtn');
-    if (btn) { btn.textContent = '⚠'; setTimeout(() => { btn.textContent = '📋 Copy'; }, 1200); }
+    flashCopyBtn(btn, false);
     return;
   }
 
@@ -807,15 +818,14 @@ function copyResults(source) {
   }
 
   navigator.clipboard.writeText(lines.join('\n')).then(() => {
-    const btn = _panel?.querySelector(source === 'query' ? '#dbiQueryCopyBtn' : '#dbiSeedCopyBtn');
-    if (btn) { btn.textContent = '✓'; setTimeout(() => { btn.textContent = '📋 Copy'; }, 1500); }
+    flashCopyBtn(btn, true);
   }).catch(() => {});
 }
 
 // ── Persistence ──────────────────────────────────────────────
 
 function _saveLayout(gridCols) {
-  try { localStorage.setItem('dbi_grid_cols', gridCols); } catch (_) {}
+  try { localStorage.setItem(LAYOUT_KEY, gridCols); } catch (_) {}
 }
 
 function _savePanelState() {
@@ -901,7 +911,7 @@ async function openConnectionEdit(connId, body, closeManager) {
 
   body.querySelector('#dbiEditTestBtn').addEventListener('click', async () => {
     const statusEl = body.querySelector('#dbiManagerStatus');
-    statusEl.textContent = 'Testing…';
+    statusEl.textContent = 'Testing\u2026';
     const updated = collectEditForm(conn);
     try {
       const res = await window.electronAPI.dbInspector.testConnection(updated);
@@ -970,7 +980,7 @@ async function deleteConnection(connId, body) {
 export function restorePanelState() {
   try {
     // Restore grid layout
-    const savedCols = localStorage.getItem('dbi_grid_cols');
+    const savedCols = localStorage.getItem(LAYOUT_KEY);
     const layout = _panel?.querySelector('#dbiLayout');
     if (savedCols && layout) {
       layout.style.gridTemplateColumns = savedCols;
