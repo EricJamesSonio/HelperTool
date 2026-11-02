@@ -1,23 +1,24 @@
 import { state, setState } from './state.js';
+import { dbiIcon } from '../template.js';
 
 const SQL_TYPES = [
-  { id: 'GET_ALL',    label: 'GET ALL',     icon: '◉' },
-  { id: 'GET_WHERE',  label: 'GET WHERE',   icon: '◎' },
-  { id: 'GET_RANGE',  label: 'GET RANGE',   icon: '↕' },
-  { id: 'GET_COLUMNS', label: 'GET COLUMNS', icon: '☑' },
-  { id: 'COUNT',      label: 'COUNT',       icon: '#' },
-  { id: 'INSERT',     label: 'INSERT',      icon: '+' },
-  { id: 'UPDATE',     label: 'UPDATE',      icon: '✎' },
-  { id: 'DELETE',     label: 'DELETE',      icon: '✕' },
+  { id: 'GET_ALL',     label: 'GET ALL',     icon: 'list' },
+  { id: 'GET_WHERE',   label: 'GET WHERE',   icon: 'filter' },
+  { id: 'GET_RANGE',   label: 'GET RANGE',   icon: 'range' },
+  { id: 'GET_COLUMNS', label: 'GET COLUMNS', icon: 'columns' },
+  { id: 'COUNT',       label: 'COUNT',       icon: 'hash' },
+  { id: 'INSERT',      label: 'INSERT',      icon: 'plus' },
+  { id: 'UPDATE',      label: 'UPDATE',      icon: 'edit' },
+  { id: 'DELETE',      label: 'DELETE',      icon: 'trash' },
 ];
 
 const MONGO_TYPES = [
-  { id: 'FIND_ALL',     label: 'FIND ALL',     icon: '◉' },
-  { id: 'FIND_WHERE',   label: 'FIND WHERE',   icon: '◎' },
-  { id: 'COUNT',        label: 'COUNT',        icon: '#' },
-  { id: 'INSERT_ONE',   label: 'INSERT ONE',   icon: '+' },
-  { id: 'UPDATE_ONE',   label: 'UPDATE ONE',   icon: '✎' },
-  { id: 'DELETE_ONE',   label: 'DELETE ONE',   icon: '✕' },
+  { id: 'FIND_ALL',   label: 'FIND ALL',   icon: 'list' },
+  { id: 'FIND_WHERE', label: 'FIND WHERE', icon: 'filter' },
+  { id: 'COUNT',      label: 'COUNT',      icon: 'hash' },
+  { id: 'INSERT_ONE', label: 'INSERT ONE', icon: 'plus' },
+  { id: 'UPDATE_ONE', label: 'UPDATE ONE', icon: 'edit' },
+  { id: 'DELETE_ONE', label: 'DELETE ONE', icon: 'trash' },
 ];
 
 export function render(container) {
@@ -31,7 +32,7 @@ export function render(container) {
     <div class="qb-type-grid">
       ${types.map(t => `
         <button class="qb-type-btn${state.selectedType === t.id ? ' active' : ''}" data-type="${t.id}">
-          <span class="qb-type-icon">${t.icon}</span>
+          <span class="qb-type-icon">${dbiIcon(t.icon)}</span>
           <span class="qb-type-label">${t.label}</span>
         </button>
       `).join('')}
