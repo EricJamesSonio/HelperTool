@@ -44,20 +44,21 @@ export function getTemplate() {
     </div>
   </div>
   <div class="sh-tabs">
-    <button id="shTabSecrets" class="sh-tab sh-tab-active" type="button">${icon('key')} Secrets</button>
-    <button id="shTabNotes"   class="sh-tab"               type="button">${icon('note')} Notes</button>
+    <button id="shTabSecrets" class="sh-tab sh-tab-active" type="button">${icon('key')} Secrets <span class="sh-tab-count" id="shTabSecretsCount"></span></button>
+    <button id="shTabNotes"   class="sh-tab"               type="button">${icon('note')} Notes <span class="sh-tab-count" id="shTabNotesCount"></span></button>
   </div>
   <div id="shPanelSecrets" class="sh-tab-panel">
-    <div class="sh-add-bar">
-      <input id="shAddName"  class="sh-input sh-input-sm" placeholder="Name  (e.g. JWT_SECRET)" />
-      <input id="shAddValue" class="sh-input sh-input-sm sh-mono" placeholder="Value" />
-      <button id="shAddBtn"  class="sh-btn sh-btn-accent sh-btn-sm" type="button">${icon('plus')} Add</button>
-    </div>
-    <div class="sh-search-bar">
-      <div class="sh-search-wrap">
-        <span class="sh-search-icon">${icon('search')}</span>
-        <input id="shSearchSecrets" class="sh-input sh-input-sm sh-search-input"
-               placeholder="Search by name or value..." autocomplete="off" />
+    <div class="sh-zone">
+      <div class="sh-section-label">Secrets</div>
+      <p class="sh-hint">Press Add to store a new secret. Copy, edit or delete from each card.</p>
+      <div class="sh-search-bar">
+        <div class="sh-search-wrap">
+          <span class="sh-search-icon">${icon('search')}</span>
+          <input id="shSearchSecrets" class="sh-input sh-input-sm sh-search-input"
+                 placeholder="Search by name or value..." autocomplete="off" />
+        </div>
+        <span class="sh-match" id="shSecretsMatch"></span>
+        <button id="shAddBtn" class="sh-btn sh-btn-accent sh-btn-sm" type="button">${icon('plus')} Add</button>
       </div>
     </div>
     <div id="shSecretsList" class="sh-list"></div>
@@ -107,6 +108,20 @@ export function getTemplate() {
           <button id="shNoteSaveBtn"   class="sh-btn sh-btn-accent sh-btn-sm" type="button">${icon('save')} Save</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+<div id="shAddModal" class="sh-modal-back" style="display:none">
+  <div class="sh-modal">
+    <div class="sh-modal-title">${icon('plus')} Add secret</div>
+    <label class="sh-label">Name</label>
+    <input id="shAddName" class="sh-input" placeholder="e.g. JWT_SECRET" autocomplete="off" />
+    <label class="sh-label">Value</label>
+    <input id="shAddValue" class="sh-input sh-mono" placeholder="Value" autocomplete="off" />
+    <div id="shAddError" class="sh-msg sh-msg-error" style="display:none"></div>
+    <div class="sh-modal-foot">
+      <button id="shAddCancel" class="sh-btn sh-btn-ghost"   type="button">Cancel</button>
+      <button id="shAddSave"   class="sh-btn sh-btn-accent" type="button">${icon('plus')} Add secret</button>
     </div>
   </div>
 </div>

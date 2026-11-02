@@ -1,36 +1,78 @@
+const ICON_PATHS = {
+  database: '<ellipse cx="10" cy="4.5" rx="6.5" ry="2.5"/><path d="M3.5 4.5v5c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5v-5"/><path d="M3.5 9.5v5c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5v-5"/>',
+  plus: '<path d="M10 4v12"/><path d="M4 10h12"/>',
+  refresh: '<path d="M3 10a7 7 0 0 1 11.7-4.7"/><path d="M17 10a7 7 0 0 1-11.7 4.7"/><path d="M14.5 2v4h-4"/><path d="M5.5 18v-4h4"/>',
+  close: '<path d="M5 5l10 10"/><path d="M15 5L5 15"/>',
+  gear: '<circle cx="10" cy="10" r="3"/><path d="M10 1v2"/><path d="M10 17v2"/><path d="M1 10h2"/><path d="M17 10h2"/><path d="M3.93 3.93l1.41 1.41"/><path d="M14.66 14.66l1.41 1.41"/><path d="M3.93 16.07l1.41-1.41"/><path d="M14.66 5.34l1.41-1.41"/>',
+  copy: '<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M4 13V4.5A1.5 1.5 0 0 1 5.5 3H13"/>',
+  check: '<path d="M4 10l4 4 8-8"/>',
+  play: '<path d="M6 4l10 6-10 6V4z"/>',
+  trash: '<path d="M3 6h14"/><path d="M6 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v5"/><path d="M12 9v5"/><path d="M5 6l1 10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-10"/>',
+  save: '<path d="M5 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M6 10h8"/><path d="M6 14h8"/>',
+  edit: '<path d="M14 2l4 4-10 10H4v-4L14 2z"/>',
+  plug: '<path d="M7 2v4"/><path d="M13 2v4"/><path d="M5 6h10v3a5 5 0 0 1-10 0V6z"/><path d="M10 14v4"/>',
+  bolt: '<path d="M13 2L4 11h5l-2 7 9-9h-5l2-7z"/>',
+  code: '<path d="M7 6l-4 4 4 4"/><path d="M13 6l4 4-4 4"/><path d="M11.5 4l-3 12"/>',
+  clipboard: '<rect x="4" y="3.5" width="12" height="14" rx="1.5"/><path d="M7.5 3.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v.5"/><path d="M7 9h6"/><path d="M7 12.5h4"/>',
+  warning: '<path d="M10 3l8 14H2L10 3z"/><path d="M10 8v4"/><path d="M10 14.5v.5"/>',
+  table: '<rect x="3" y="4" width="14" height="12" rx="1.5"/><path d="M3 8.5h14"/><path d="M8 8.5V16"/>',
+  list: '<path d="M4 5h12"/><path d="M4 10h12"/><path d="M4 15h12"/>',
+  filter: '<path d="M3 4h14l-5.5 6.5V16l-3-1.5v-4L3 4z"/>',
+  range: '<path d="M10 3v14"/><path d="M6.5 6.5L10 3l3.5 3.5"/><path d="M6.5 13.5L10 17l3.5-3.5"/>',
+  columns: '<rect x="3" y="3.5" width="14" height="13" rx="1.5"/><path d="M8 3.5v13"/><path d="M12.5 3.5v13"/>',
+  hash: '<path d="M7.5 3L6 17"/><path d="M14 3l-1.5 14"/><path d="M4 7.5h13"/><path d="M3 12.5h13"/>',
+  arrowLeft: '<path d="M16 10H4"/><path d="M9 5l-5 5 5 5"/>',
+};
+
+export function dbiIcon(name, extraClass) {
+  const p = ICON_PATHS[name] || '';
+  const cls = 'dbi-ico' + (extraClass ? ' ' + extraClass : '');
+  return `<svg class="${cls}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+
+export function connIconHtml(type) {
+  const t = String(type || 'db').replace(/[^a-z0-9_-]/gi, '');
+  return `<span class="dbi-conn-ico dbi-conn-${t}">${dbiIcon('database')}</span>`;
+}
+
+export function fmtCount(n) {
+  return typeof n === 'number' && n >= 0 ? n.toLocaleString() : '\u2014';
+}
+
 export function getPanelTemplate() {
   return `
     <div class="dbi-panel" id="dbiPanel">
       <div class="dbi-header">
         <div class="dbi-header-left">
-          <span class="dbi-header-icon">🗃️</span>
+          <span class="dbi-header-icon">${dbiIcon('database')}</span>
           <span class="dbi-header-title">Database Inspector</span>
         </div>
         <div class="dbi-header-center">
           <select class="dbi-select" id="dbiConnectionSelect">
-            <option value="">— No connection —</option>
+            <option value="">\u2014 No connection \u2014</option>
           </select>
+          <button class="dbi-btn-icon dbi-manage-btn" id="dbiManageConnBtn" title="Manage Connections">${dbiIcon('gear')}</button>
         </div>
         <div class="dbi-header-right">
-          <button class="dbi-btn" id="dbiNewScanBtn">+ New Scan</button>
-          <button class="dbi-btn dbi-btn-secondary" id="dbiRefreshBtn">⟳ Refresh</button>
-          <button class="dbi-btn-icon" id="dbiCloseBtn">✕</button>
+          <button class="dbi-btn" id="dbiNewScanBtn">${dbiIcon('plus')} New Scan</button>
+          <button class="dbi-btn dbi-btn-secondary" id="dbiRefreshBtn">${dbiIcon('refresh')} Refresh</button>
+          <button class="dbi-btn-icon" id="dbiCloseBtn" title="Close">${dbiIcon('close')}</button>
         </div>
       </div>
 
       <div class="dbi-body" id="dbiBody">
         <div class="dbi-welcome" id="dbiWelcome">
-          <div class="dbi-welcome-icon">🗃️</div>
+          <div class="dbi-welcome-icon">${dbiIcon('database')}</div>
           <div class="dbi-welcome-title">Database Inspector</div>
           <div class="dbi-welcome-desc">Connect to a database to scan and visualize its schema.</div>
           <div class="dbi-past-connections" id="dbiPastConnections"></div>
-          <button class="dbi-btn dbi-btn-primary dbi-welcome-btn" id="dbiWelcomeScanBtn">+ New Scan</button>
+          <button class="dbi-btn dbi-btn-primary dbi-welcome-btn" id="dbiWelcomeScanBtn">${dbiIcon('plus')} New Scan</button>
         </div>
 
         <div class="dbi-layout" id="dbiLayout" style="display:none">
           <div class="dbi-panel-left" id="dbiPanelLeft">
             <div class="dbi-table-search">
-              <input type="text" class="dbi-input" id="dbiTableSearch" placeholder="Filter tables…" />
+              <input type="text" class="dbi-input" id="dbiTableSearch" placeholder="Filter tables\u2026" />
             </div>
             <div class="dbi-table-list" id="dbiTableList"></div>
           </div>
@@ -48,20 +90,20 @@ export function getPanelTemplate() {
               <button class="dbi-tab" data-tab="seed">Seed</button>
             </div>
             <div class="dbi-detail-placeholder" id="dbiDetailPlaceholder">
-              <div class="dbi-detail-icon">📋</div>
+              <div class="dbi-detail-icon">${dbiIcon('table')}</div>
               <div class="dbi-detail-text">Click a table to see details</div>
             </div>
             <div class="dbi-detail-content" id="dbiDetailContent" style="display:none"></div>
             <div class="dbi-query-panel" id="dbiQueryPanel" style="display:none">
               <div class="qb-mode-toggle" id="qbModeToggle">
-                <button class="qb-mode-btn active" data-mode="easy">⚡ Easy Mode</button>
-                <button class="qb-mode-btn" data-mode="sql">&lt;/&gt; SQL Mode</button>
+                <button class="qb-mode-btn active" data-mode="easy">${dbiIcon('bolt')} Easy Mode</button>
+                <button class="qb-mode-btn" data-mode="sql">${dbiIcon('code')} SQL Mode</button>
               </div>
               <div class="dbi-query-builder" id="dbiQueryBuilder" style="display:none"></div>
               <textarea class="dbi-query-editor" id="dbiQueryEditor" spellcheck="false" placeholder="SELECT * FROM table_name LIMIT 100"></textarea>
               <div class="dbi-query-toolbar">
-                <button class="dbi-btn dbi-btn-primary" id="dbiQueryRunBtn">▶ Run</button>
-                <button class="dbi-btn" id="dbiQueryCopyBtn">📋 Copy</button>
+                <button class="dbi-btn dbi-btn-primary" id="dbiQueryRunBtn">${dbiIcon('play')} Run</button>
+                <button class="dbi-btn" id="dbiQueryCopyBtn">${dbiIcon('copy')} Copy</button>
                 <span class="dbi-query-status" id="dbiQueryStatus"></span>
               </div>
               <div class="dbi-query-results" id="dbiQueryResults"></div>
@@ -69,16 +111,16 @@ export function getPanelTemplate() {
             <div class="dbi-seed-panel" id="dbiSeedPanel" style="display:none">
               <div class="dbi-seed-header">
                 <select class="dbi-select dbi-seed-select" id="dbiSeedSelect">
-                  <option value="">— Select seed —</option>
+                  <option value="">\u2014 Select seed \u2014</option>
                 </select>
-                <button class="dbi-btn" id="dbiSeedNewBtn">+ New</button>
-                <button class="dbi-btn dbi-btn-secondary" id="dbiSeedDeleteBtn" disabled>🗑</button>
+                <button class="dbi-btn" id="dbiSeedNewBtn">${dbiIcon('plus')} New</button>
+                <button class="dbi-btn dbi-btn-secondary" id="dbiSeedDeleteBtn" title="Delete seed" disabled>${dbiIcon('trash')}</button>
               </div>
               <textarea class="dbi-seed-editor" id="dbiSeedEditor" spellcheck="false" placeholder="INSERT INTO ..."></textarea>
               <div class="dbi-seed-toolbar">
-                <button class="dbi-btn" id="dbiSeedSaveBtn">💾 Save Seed</button>
-                <button class="dbi-btn dbi-btn-primary" id="dbiSeedRunBtn">▶ Run Seed</button>
-                <button class="dbi-btn" id="dbiSeedCopyBtn">📋 Copy</button>
+                <button class="dbi-btn" id="dbiSeedSaveBtn">${dbiIcon('save')} Save Seed</button>
+                <button class="dbi-btn dbi-btn-primary" id="dbiSeedRunBtn">${dbiIcon('play')} Run Seed</button>
+                <button class="dbi-btn" id="dbiSeedCopyBtn">${dbiIcon('copy')} Copy</button>
                 <span class="dbi-seed-status" id="dbiSeedStatus"></span>
               </div>
               <div class="dbi-seed-results" id="dbiSeedResults"></div>
@@ -98,7 +140,7 @@ export function getScanDialogHtml() {
       <div class="dbi-scan-modal">
         <div class="dbi-scan-modal-header">
           <span class="dbi-scan-modal-title">New Database Scan</span>
-          <button class="dbi-btn-icon dbi-scan-close" id="dbiScanClose">✕</button>
+          <button class="dbi-btn-icon dbi-scan-close" id="dbiScanClose" title="Close">${dbiIcon('close')}</button>
         </div>
         <div class="dbi-scan-modal-body">
           <div class="dbi-form-row">
@@ -112,7 +154,7 @@ export function getScanDialogHtml() {
           <div id="dbiSavedConnSection" style="display:none">
             <div class="dbi-form-row">
               <label class="dbi-form-label">Saved</label>
-              <select class="dbi-select" id="dbiSavedConnSelect"></select>
+              <select class="dbi-select dbi-select-block" id="dbiSavedConnSelect"></select>
             </div>
           </div>
 
@@ -123,7 +165,7 @@ export function getScanDialogHtml() {
             </div>
             <div class="dbi-form-row">
               <label class="dbi-form-label">Type</label>
-              <select class="dbi-select" id="dbiScanType">
+              <select class="dbi-select dbi-select-block" id="dbiScanType">
                 <option value="postgres">PostgreSQL</option>
                 <option value="mysql">MySQL</option>
                 <option value="sqlite">SQLite</option>
@@ -172,7 +214,7 @@ export function getScanDialogHtml() {
         </div>
         <div class="dbi-scan-modal-footer">
           <span class="dbi-scan-status" id="dbiScanStatus"></span>
-          <button class="dbi-btn dbi-btn-primary" id="dbiScanStartBtn">⟳ Scan</button>
+          <button class="dbi-btn dbi-btn-primary" id="dbiScanStartBtn">${dbiIcon('refresh')} Scan</button>
         </div>
       </div>
     </div>
@@ -204,7 +246,7 @@ export function getTableDetailHtml(details) {
   const relHtml = details.relationships.map(r => `
     <div class="dbi-detail-rel">
       <span class="dbi-detail-rel-src">${esc(details.name)}.${esc(r.column)}</span>
-      <span class="dbi-detail-rel-arrow">→</span>
+      <span class="dbi-detail-rel-arrow">\u2192</span>
       <span class="dbi-detail-rel-tgt">${esc(r.targetTable)}.${esc(r.targetColumn)}</span>
     </div>
   `).join('');
@@ -212,19 +254,23 @@ export function getTableDetailHtml(details) {
   const refHtml = details.referencedBy.map(r => `
     <div class="dbi-detail-rel">
       <span class="dbi-detail-rel-src">${esc(r.table)}.${esc(r.column)}</span>
-      <span class="dbi-detail-rel-arrow">→</span>
+      <span class="dbi-detail-rel-arrow">\u2192</span>
       <span class="dbi-detail-rel-tgt">${esc(details.name)}</span>
     </div>
   `).join('');
+
+  const rowsText = typeof details.rowCount === 'number' && details.rowCount >= 0
+    ? `${details.rowCount.toLocaleString()} rows`
+    : 'Row count not available';
 
   return `
     <div class="dbi-detail-section">
       <div class="dbi-detail-title-row">
         <div class="dbi-detail-title">${esc(details.name)}</div>
-        <button class="dbi-btn-icon dbi-detail-copy-btn" data-copy-table="${esc(details.name)}" title="Copy table details">📋</button>
+        <button class="dbi-btn-icon dbi-detail-copy-btn" data-copy-table="${esc(details.name)}" title="Copy table details">${dbiIcon('copy')}</button>
       </div>
       <div class="dbi-detail-meta">
-        <span class="dbi-detail-rows">${details.rowCount.toLocaleString()} rows</span>
+        <span class="dbi-detail-rows">${rowsText}</span>
       </div>
     </div>
     <div class="dbi-detail-section">
@@ -248,18 +294,13 @@ export function getTableDetailHtml(details) {
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-function getConnIcon(type) {
-  const icons = { postgres: '🐘', mysql: '🐬', sqlite: '🗄️', mongodb: '🍃' };
-  return icons[type] || '🗃️';
-}
-
 export function getConnectionManagerHtml() {
   return `
     <div class="dbi-manager-overlay" id="dbiManagerOverlay">
       <div class="dbi-manager-modal">
         <div class="dbi-manager-header">
           <span class="dbi-manager-title">Connection Manager</span>
-          <button class="dbi-btn-icon" id="dbiManagerClose">✕</button>
+          <button class="dbi-btn-icon" id="dbiManagerClose" title="Close">${dbiIcon('close')}</button>
         </div>
         <div class="dbi-manager-body" id="dbiManagerBody"></div>
       </div>
@@ -273,7 +314,7 @@ export function getConnectionListHtml(connections) {
   }
   return connections.map(c => `
     <div class="dbi-manager-card" data-conn-id="${c.id}">
-      <div class="dbi-manager-card-icon">${getConnIcon(c.type)}</div>
+      <div class="dbi-manager-card-icon">${connIconHtml(c.type)}</div>
       <div class="dbi-manager-card-info">
         <div class="dbi-manager-card-name">${esc(c.name)}</div>
         <div class="dbi-manager-card-meta">
@@ -283,8 +324,8 @@ export function getConnectionListHtml(connections) {
         <div class="dbi-manager-card-date">Created ${c.created_at || 'N/A'}</div>
       </div>
       <div class="dbi-manager-card-actions">
-        <button class="dbi-btn dbi-manager-edit-btn" data-conn-id="${c.id}">&#9998; Edit</button>
-        <button class="dbi-btn dbi-btn-secondary dbi-manager-delete-btn" data-conn-id="${c.id}">&#128465; Delete</button>
+        <button class="dbi-btn dbi-manager-edit-btn" data-conn-id="${c.id}">${dbiIcon('edit')} Edit</button>
+        <button class="dbi-btn dbi-btn-secondary dbi-manager-delete-btn" data-conn-id="${c.id}">${dbiIcon('trash')} Delete</button>
       </div>
     </div>
   `).join('');
@@ -334,9 +375,9 @@ export function getConnectionEditHtml(conn) {
         <input type="text" class="dbi-input" id="dbiEditConnStr" value="${esc(conn.connection_string || '')}" />
       </div>
       <div class="dbi-manager-edit-actions">
-        <button class="dbi-btn" id="dbiEditBackBtn">&larr; Back</button>
-        <button class="dbi-btn dbi-btn-secondary" id="dbiEditTestBtn">&#128268; Test</button>
-        <button class="dbi-btn dbi-btn-primary" id="dbiEditSaveBtn">&#128190; Save</button>
+        <button class="dbi-btn" id="dbiEditBackBtn">${dbiIcon('arrowLeft')} Back</button>
+        <button class="dbi-btn dbi-btn-secondary" id="dbiEditTestBtn">${dbiIcon('plug')} Test</button>
+        <button class="dbi-btn dbi-btn-primary" id="dbiEditSaveBtn">${dbiIcon('save')} Save</button>
       </div>
       <div class="dbi-manager-status" id="dbiManagerStatus"></div>
     </div>

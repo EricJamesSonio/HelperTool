@@ -1,4 +1,5 @@
-import { S, secretsList, addName, addValue, editModal, editName, editValue } from './state.js';
+import { S, secretsList, addName, addValue, addModal, addError,
+    editModal, editName, editValue } from './state.js';
 import { _makeBtn } from './utils.js';
 
 const ICONS = {
@@ -7,6 +8,16 @@ const ICONS = {
   trash: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h14"/><path d="M6 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v5"/><path d="M12 9v5"/><path d="M5 6l1 10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-10"/></svg>',
   check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>',
 };
+
+let _adding = false;
+
+function updateCounts(shown, filtering) {
+    const total = S.secrets.length;
+    const tab = document.getElementById('shTabSecretsCount');
+    if (tab) tab.textContent = String(total);
+    const match = document.getElementById('shSecretsMatch');
+    if (match) match.textContent = filtering ? `${shown} of ${total}` : `${total} total`;
+}
 
 export async function refreshSecrets() {
     try { S.secrets = await window.electronAPI.secretsGetAll(); }
@@ -25,26 +36,30 @@ export function renderSecrets() {
           )
         : S.secrets;
 
+    updateCounts(list.length, !!q);
+
     if (list.length === 0) {
-        secretsList.innerHTML = q
-            ? `<div class="sh-empty">No secrets match "<strong>${q}</strong>".</div>`
-            : '<div class="sh-empty">No secrets yet — add one above.</div>';
+        const empty = document.createElement('div');
+        empty.className = 'sh-empty';
+        empty.textContent = q
+            ? 'No secrets match "' + (S.searchSecrets || '').trim() + '".'
+            : 'No secrets yet - press Add to create one.';
+        secretsList.appendChild(empty);
         return;
     }
 
     list.forEach(s => {
-        const row  = document.createElement('div');
+        const row = document.createElement('div');
         row.className = 'sh-row';
-        const info = document.createElement('div');
-        info.className = 'sh-row-info';
+
+        const head = document.createElement('div');
+        head.className = 'sh-row-head';
+
         const nm = document.createElement('div');
         nm.className   = 'sh-row-name';
         nm.textContent = s.name;
-        const vl = document.createElement('div');
-        vl.className   = 'sh-row-val';
-        vl.textContent = s.value;
-        info.appendChild(nm);
-        info.appendChild(vl);
+        nm.title       = s.name;
+
         const acts = document.createElement('div');
         acts.className = 'sh-row-acts';
         const cpBtn = _makeBtn(ICONS.copy, 'sh-btn sh-btn-ghost sh-btn-xs', 'Copy', () => {
@@ -56,24 +71,73 @@ export function renderSecrets() {
         });
         const edBtn = _makeBtn(ICONS.edit, 'sh-btn sh-btn-ghost sh-btn-xs', 'Edit', () => openEditModal(s));
         const dlBtn = _makeBtn(ICONS.trash, 'sh-btn sh-btn-danger sh-btn-xs', 'Delete', () => handleDelete(s.id, row));
-        acts.appendChild(cpBtn); acts.appendChild(edBtn); acts.appendChild(dlBtn);
-        row.appendChild(info); row.appendChild(acts);
+        acts.appendChild(cpBtn);
+        acts.appendChild(edBtn);
+        acts.appendChild(dlBtn);
+
+        head.appendChild(nm);
+        head.appendChild(acts);
+
+        const vl = document.createElement('div');
+        vl.className   = 'sh-row-val';
+        vl.textContent = s.value;
+        vl.title       = s.value;
+
+        row.appendChild(head);
+        row.appendChild(vl);
         secretsList.appendChild(row);
     });
 }
 
+function showAddError(msg) {
+    if (!addError) return;
+    addError.textContent = msg;
+    addError.style.display = msg ? 'block' : 'none';
+}
+
+export function isAddModalOpen() {
+    return !!addModal && addModal.style.display !== 'none';
+}
+
+export function openAddModal() {
+    addName.value  = '';
+    addValue.value = '';
+    addName.classList.remove('sh-err-border');
+    addValue.classList.remove('sh-err-border');
+    showAddError('');
+    addModal.style.display = 'flex';
+    setTimeout(() => addName.focus(), 40);
+}
+
+export function closeAddModal() {
+    if (!addModal) return;
+    addModal.style.display = 'none';
+    addName.value  = '';
+    addValue.value = '';
+    showAddError('');
+}
+
 export async function handleAdd() {
+    if (_adding) return;
     const name  = addName.value.trim();
     const value = addValue.value.trim();
     if (!name || !value) {
         if (!name)  { addName.classList.add('sh-err-border');  setTimeout(() => addName.classList.remove('sh-err-border'),  1200); }
         if (!value) { addValue.classList.add('sh-err-border'); setTimeout(() => addValue.classList.remove('sh-err-border'), 1200); }
+        showAddError(!name && !value ? 'Enter a name and a value.' : (!name ? 'Enter a name.' : 'Enter a value.'));
+        (!name ? addName : addValue).focus();
         return;
     }
-    await window.electronAPI.secretsAdd(name, value);
-    addName.value = ''; addValue.value = '';
-    addName.focus();
-    await refreshSecrets();
+    _adding = true;
+    try {
+        await window.electronAPI.secretsAdd(name, value);
+        closeAddModal();
+        await refreshSecrets();
+    } catch (err) {
+        showAddError('Could not save the secret. Try again.');
+    } finally {
+        _adding = false;
+    }
 }
 
 export async function handleDelete(id, rowEl) {

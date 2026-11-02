@@ -15,10 +15,28 @@ function saveNotesToStorage() {
     try { localStorage.setItem(NOTES_KEY, JSON.stringify(S.notes)); } catch {}
 }
 
+function updateNotesCount() {
+    const tab = document.getElementById('shTabNotesCount');
+    if (tab) tab.textContent = String(S.notes.length);
+}
+
+function emptyMessage(lines) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sh-notes-sidebar-empty';
+    lines.forEach((text) => {
+        const d = document.createElement('div');
+        d.textContent = text;
+        wrap.appendChild(d);
+    });
+    return wrap;
+}
+
 export function renderSidebar() {
     notesList.innerHTML = '';
+    updateNotesCount();
 
-    const q = (S.searchNotes || '').toLowerCase().trim();
+    const rawQ = (S.searchNotes || '').trim();
+    const q = rawQ.toLowerCase();
     const sorted = [...S.notes].sort((a, b) =>
         (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
     );
@@ -30,9 +48,9 @@ export function renderSidebar() {
         : sorted;
 
     if (filtered.length === 0) {
-        notesList.innerHTML = q
-            ? `<div class="sh-notes-sidebar-empty"><div>No notes match</div><div>"${q}"</div></div>`
-            : `<div class="sh-notes-sidebar-empty"><div>No notes yet.</div><div>Hit ＋ New to start.</div></div>`;
+        notesList.appendChild(q
+            ? emptyMessage(['No notes match', '"' + rawQ + '"'])
+            : emptyMessage(['No notes yet.', 'Hit + New to start.']));
         return;
     }
 
@@ -49,7 +67,7 @@ export function renderSidebar() {
         m.textContent = _formatDisplayDate(note.date || note.createdAt?.slice(0,10));
         const p = document.createElement('div');
         p.className   = 'sh-notes-sidebar-item-preview';
-        p.textContent = (note.body || '').slice(0, 80);
+        p.textContent = (note.body || '').slice(0, 120);
         item.appendChild(t); item.appendChild(m); item.appendChild(p);
         item.addEventListener('click', () => openEditorForNote(note));
         notesList.appendChild(item);

@@ -2,10 +2,21 @@ import { state, setState, onChange } from './state.js';
 import { render as renderTableList } from './tableList.js';
 import { render as renderQueryTypes } from './queryTypes.js';
 import { render as renderForm } from './formBuilder.js';
+import { dbiIcon } from '../template.js';
 
 let _container = null;
 let _mounted = false;
 let _prevStep = 'table';
+let _observer = null;
+
+function decorate(root) {
+  if (!root) return;
+  root.querySelectorAll('.qb-btn').forEach((btn) => {
+    if (btn.innerHTML.indexOf('\u25B6') !== -1) {
+      btn.innerHTML = btn.innerHTML.replace('\u25B6', dbiIcon('play'));
+    }
+  });
+}
 
 export function setSchema(tables, snapshotId, dbType) {
   setState({
@@ -32,6 +43,13 @@ export function mount(containerEl, onRunQuery) {
     _container.appendChild(root);
   }
 
+  const stepEl = _container.querySelector('.qb-step');
+  if (_observer) _observer.disconnect();
+  if (stepEl) {
+    _observer = new MutationObserver(() => decorate(stepEl));
+    _observer.observe(stepEl, { childList: true, subtree: true });
+  }
+
   onChange((s) => {
     if (_mounted) {
       if (s.step !== _prevStep) {
@@ -50,6 +68,10 @@ export function mount(containerEl, onRunQuery) {
 export function unmount() {
   _mounted = false;
   _container = null;
+  if (_observer) {
+    _observer.disconnect();
+    _observer = null;
+  }
 }
 
 export function getMode() {
@@ -84,4 +106,5 @@ function render() {
       renderForm(stepEl);
       break;
   }
+  decorate(stepEl);
 }

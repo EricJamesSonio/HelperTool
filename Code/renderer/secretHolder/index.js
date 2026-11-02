@@ -1,11 +1,12 @@
 import { S, panel, lockBtn, closeBtn, closeLockBtn, togglePwBtn, pwInput,
-    pwSubmitBtn, addBtn, addValue, editSaveBtn, editCancelBtn, editModal,
+    pwSubmitBtn, addBtn, addName, addValue, addModal, addSaveBtn, addCancelBtn,
+    editSaveBtn, editCancelBtn, editModal,
     resetBtn, tabSecrets, tabNotes, noteNewBtn, noteSaveBtn, noteCancelBtn, noteDeleteBtn,
     searchSecretsInput, searchNotesInput,
     assignRefs } from './state.js';
 import { getTemplate } from './template.js';
 import { updateLockLabel, showLockScreen, handlePwSubmit, lockVault } from './lock.js';
-import { handleAdd, handleEditSave, closeEditModal } from './secrets.js';
+import { handleAdd, handleEditSave, closeEditModal, openAddModal, closeAddModal, isAddModalOpen } from './secrets.js';
 import { renderSecrets } from './secrets.js';
 import { openEditorForNew, handleNoteSave, closeEditor, handleNoteDeleteCurrent, renderSidebar } from './notes.js';
 import { handleResetPassword } from './reset.js';
@@ -43,11 +44,24 @@ function wireEvents() {
     closeLockBtn.addEventListener('click', closeSecretHolder);
     closeBtn.addEventListener('click', closeSecretHolder);
     lockBtn.addEventListener('click', lockVault);
-    addBtn.addEventListener('click', handleAdd);
-    addValue.addEventListener('keydown', e => { if (e.key === 'Enter') handleAdd(); });
+
+    // ── Add secret modal ────────────────────────────────────────
+    addBtn.addEventListener('click', openAddModal);
+    addSaveBtn.addEventListener('click', handleAdd);
+    addCancelBtn.addEventListener('click', closeAddModal);
+    addModal.addEventListener('click', e => { if (e.target === addModal) closeAddModal(); });
+    addName.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addValue.focus(); }
+    });
+    addValue.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+    });
+
+    // ── Edit secret modal ───────────────────────────────────────
     editSaveBtn.addEventListener('click', handleEditSave);
     editCancelBtn.addEventListener('click', closeEditModal);
     editModal.addEventListener('click', e => { if (e.target === editModal) closeEditModal(); });
+
     resetBtn.addEventListener('click', handleResetPassword);
     tabSecrets.addEventListener('click', () => switchTab('secrets'));
     tabNotes.addEventListener('click',   () => switchTab('notes'));
@@ -85,6 +99,7 @@ function wireEvents() {
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
+            if (isAddModalOpen()) { closeAddModal(); return; }
             if (editModal?.style.display !== 'none') { closeEditModal(); return; }
             if (isSecretHolderOpen()) closeSecretHolder();
         }
@@ -110,6 +125,7 @@ export async function openSecretHolder() {
 }
 
 export function closeSecretHolder() {
+    closeAddModal();
     panel?.classList.remove('sh-visible');
 }
 
