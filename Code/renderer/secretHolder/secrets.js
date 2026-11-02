@@ -46,20 +46,17 @@ export function renderSecrets() {
     }
 
     list.forEach(s => {
-        const row  = document.createElement('div');
+        const row = document.createElement('div');
         row.className = 'sh-row';
-        const info = document.createElement('div');
-        info.className = 'sh-row-info';
+
+        const head = document.createElement('div');
+        head.className = 'sh-row-head';
+
         const nm = document.createElement('div');
         nm.className   = 'sh-row-name';
         nm.textContent = s.name;
         nm.title       = s.name;
-        const vl = document.createElement('div');
-        vl.className   = 'sh-row-val';
-        vl.textContent = s.value;
-        vl.title       = s.value;
-        info.appendChild(nm);
-        info.appendChild(vl);
+
         const acts = document.createElement('div');
         acts.className = 'sh-row-acts';
         const cpBtn = _makeBtn(ICONS.copy, 'sh-btn sh-btn-ghost sh-btn-xs', 'Copy', () => {
@@ -71,8 +68,20 @@ export function renderSecrets() {
         });
         const edBtn = _makeBtn(ICONS.edit, 'sh-btn sh-btn-ghost sh-btn-xs', 'Edit', () => openEditModal(s));
         const dlBtn = _makeBtn(ICONS.trash, 'sh-btn sh-btn-danger sh-btn-xs', 'Delete', () => handleDelete(s.id, row));
-        acts.appendChild(cpBtn); acts.appendChild(edBtn); acts.appendChild(dlBtn);
-        row.appendChild(info); row.appendChild(acts);
+        acts.appendChild(cpBtn);
+        acts.appendChild(edBtn);
+        acts.appendChild(dlBtn);
+
+        head.appendChild(nm);
+        head.appendChild(acts);
+
+        const vl = document.createElement('div');
+        vl.className   = 'sh-row-val';
+        vl.textContent = s.value;
+        vl.title       = s.value;
+
+        row.appendChild(head);
+        row.appendChild(vl);
         secretsList.appendChild(row);
     });
 }

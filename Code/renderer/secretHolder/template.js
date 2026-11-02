@@ -48,23 +48,22 @@ export function getTemplate() {
     <button id="shTabNotes"   class="sh-tab"               type="button">${icon('note')} Notes <span class="sh-tab-count" id="shTabNotesCount"></span></button>
   </div>
   <div id="shPanelSecrets" class="sh-tab-panel">
-    <div class="sh-add-bar">
-      <input id="shAddName"  class="sh-input sh-input-sm" placeholder="Name  (e.g. JWT_SECRET)" />
-      <input id="shAddValue" class="sh-input sh-input-sm sh-mono" placeholder="Value" />
-      <button id="shAddBtn"  class="sh-btn sh-btn-accent sh-btn-sm" type="button">${icon('plus')} Add</button>
-    </div>
-    <div class="sh-search-bar">
-      <div class="sh-search-wrap">
-        <span class="sh-search-icon">${icon('search')}</span>
-        <input id="shSearchSecrets" class="sh-input sh-input-sm sh-search-input"
-               placeholder="Search by name or value..." autocomplete="off" />
+    <div class="sh-zone">
+      <div class="sh-section-label">Secrets</div>
+      <p class="sh-hint">Add a name and a value, then copy, edit or delete from each card.</p>
+      <div class="sh-add-bar">
+        <input id="shAddName"  class="sh-input sh-input-sm" placeholder="Name  (e.g. JWT_SECRET)" />
+        <input id="shAddValue" class="sh-input sh-input-sm sh-mono" placeholder="Value" />
+        <button id="shAddBtn"  class="sh-btn sh-btn-accent sh-btn-sm" type="button">${icon('plus')} Add</button>
       </div>
-      <span class="sh-match" id="shSecretsMatch"></span>
-    </div>
-    <div class="sh-list-head">
-      <span>Name</span>
-      <span>Value</span>
-      <span></span>
+      <div class="sh-search-bar">
+        <div class="sh-search-wrap">
+          <span class="sh-search-icon">${icon('search')}</span>
+          <input id="shSearchSecrets" class="sh-input sh-input-sm sh-search-input"
+                 placeholder="Search by name or value..." autocomplete="off" />
+        </div>
+        <span class="sh-match" id="shSecretsMatch"></span>
+      </div>
     </div>
     <div id="shSecretsList" class="sh-list"></div>
     <details class="sh-settings" id="shResetSection">
