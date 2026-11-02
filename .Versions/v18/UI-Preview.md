@@ -4,7 +4,7 @@
 
 - [Global base Seeder
 
-![Version 18 UI](../assets/v18/1.1.png)
+![Version 18 UI](../assets/v18/1.3.png)
 
 - [Feature Manager]
 
@@ -12,6 +12,6 @@
 
 - [Flow Tool]
 
-![Version 18 UI](../assets/v18/1.3.png)
+![Version 18 UI](../assets/v18/1.1.png)
 
 ---
