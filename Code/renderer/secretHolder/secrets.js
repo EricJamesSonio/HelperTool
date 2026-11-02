@@ -1,4 +1,5 @@
-import { S, secretsList, addName, addValue, editModal, editName, editValue } from './state.js';
+import { S, secretsList, addName, addValue, addModal, addError,
+    editModal, editName, editValue } from './state.js';
 import { _makeBtn } from './utils.js';
 
 const ICONS = {
@@ -7,6 +8,8 @@ const ICONS = {
   trash: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h14"/><path d="M6 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v5"/><path d="M12 9v5"/><path d="M5 6l1 10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-10"/></svg>',
   check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>',
 };
+
+let _adding = false;
 
 function updateCounts(shown, filtering) {
     const total = S.secrets.length;
@@ -40,7 +43,7 @@ export function renderSecrets() {
         empty.className = 'sh-empty';
         empty.textContent = q
             ? 'No secrets match "' + (S.searchSecrets || '').trim() + '".'
-            : 'No secrets yet - add one above.';
+            : 'No secrets yet - press Add to create one.';
         secretsList.appendChild(empty);
         return;
     }
@@ -86,18 +89,55 @@ export function renderSecrets() {
     });
 }
 
+function showAddError(msg) {
+    if (!addError) return;
+    addError.textContent = msg;
+    addError.style.display = msg ? 'block' : 'none';
+}
+
+export function isAddModalOpen() {
+    return !!addModal && addModal.style.display !== 'none';
+}
+
+export function openAddModal() {
+    addName.value  = '';
+    addValue.value = '';
+    addName.classList.remove('sh-err-border');
+    addValue.classList.remove('sh-err-border');
+    showAddError('');
+    addModal.style.display = 'flex';
+    setTimeout(() => addName.focus(), 40);
+}
+
+export function closeAddModal() {
+    if (!addModal) return;
+    addModal.style.display = 'none';
+    addName.value  = '';
+    addValue.value = '';
+    showAddError('');
+}
+
 export async function handleAdd() {
+    if (_adding) return;
     const name  = addName.value.trim();
     const value = addValue.value.trim();
     if (!name || !value) {
         if (!name)  { addName.classList.add('sh-err-border');  setTimeout(() => addName.classList.remove('sh-err-border'),  1200); }
         if (!value) { addValue.classList.add('sh-err-border'); setTimeout(() => addValue.classList.remove('sh-err-border'), 1200); }
+        showAddError(!name && !value ? 'Enter a name and a value.' : (!name ? 'Enter a name.' : 'Enter a value.'));
+        (!name ? addName : addValue).focus();
         return;
     }
-    await window.electronAPI.secretsAdd(name, value);
-    addName.value = ''; addValue.value = '';
-    addName.focus();
-    await refreshSecrets();
+    _adding = true;
+    try {
+        await window.electronAPI.secretsAdd(name, value);
+        closeAddModal();
+        await refreshSecrets();
+    } catch (err) {
+        showAddError('Could not save the secret. Try again.');
+    } finally {
+        _adding = false;
+    }
 }
 
 export async function handleDelete(id, rowEl) {

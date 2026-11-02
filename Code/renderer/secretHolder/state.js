@@ -13,6 +13,7 @@ export const S = {
 export let panel, lockScreen, mainScreen,
     pwInput, pwSubmitBtn, pwError, pwLabel, pwSubtitle,
     secretsList, addName, addValue, addBtn,
+    addModal, addSaveBtn, addCancelBtn, addError,
     editModal, editName, editValue, editSaveBtn, editCancelBtn,
     lockBtn, closeBtn, closeLockBtn,
     resetSection, resetOld, resetNew, resetBtn, resetErr, resetSuccess,
@@ -33,9 +34,13 @@ export function assignRefs() {
     pwLabel        = document.getElementById('shPwLabel');
     pwSubtitle     = document.getElementById('shPwSubtitle');
     secretsList    = document.getElementById('shSecretsList');
+    addBtn         = document.getElementById('shAddBtn');
+    addModal       = document.getElementById('shAddModal');
     addName        = document.getElementById('shAddName');
     addValue       = document.getElementById('shAddValue');
-    addBtn         = document.getElementById('shAddBtn');
+    addSaveBtn     = document.getElementById('shAddSave');
+    addCancelBtn   = document.getElementById('shAddCancel');
+    addError       = document.getElementById('shAddError');
     editModal      = document.getElementById('shEditModal');
     editName       = document.getElementById('shEditName');
     editValue      = document.getElementById('shEditValue');
