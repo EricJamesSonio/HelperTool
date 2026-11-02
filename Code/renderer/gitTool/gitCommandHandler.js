@@ -4,6 +4,8 @@
  * Also manages local git state and file watching
  */
 
+import { buildGroupMessage } from './commitMessageAnalyzer.js';
+
 class GitCommandHandler {
   constructor(gitManager) {
     this.gitManager = gitManager;
@@ -214,6 +216,44 @@ class GitCommandHandler {
   }
 
   /**
+   * Read a file's text from the repo (used for new/untracked files that have no diff yet)
+   */
+  async _readFileText(file) {
+    try {
+      const api = window.electronAPI;
+      if (!api?.readFile || !this.repoPath) return '';
+      const full = this.repoPath.replace(/[\\/]+$/, '') + '/' + file;
+      const r = await api.readFile(full);
+      const text = typeof r === 'string' ? r : (r && r.success !== false ? (r.content ?? r.data ?? '') : '');
+      return typeof text === 'string' ? text : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
+   * Build a commit message for a smart group by looking at what changed in each file.
+   * Falls back to the simple path-based message if anything goes wrong.
+   */
+  async _smartGroupMessage(group) {
+    const fallback = () => this.gitManager.generateGroupMessage(group);
+    try {
+      return await buildGroupMessage(group, {
+        fallback,
+        getDiff: async (file) => {
+          if (!this.ipc?.diff || !this.repoPath) return '';
+          const r = await this.ipc.diff(this.repoPath, file);
+          return r && r.success !== false ? (r.diff || '') : '';
+        },
+        readFile: (file) => this._readFileText(file),
+      });
+    } catch (err) {
+      console.warn('[GitCommandHandler] smart commit message failed, using fallback:', err);
+      return fallback();
+    }
+  }
+
+  /**
    * Iterate through all smart groups, auto-generate a commit message for each,
    * stage + commit each group to real git, and refresh state once at the end.
    */
@@ -227,7 +267,8 @@ class GitCommandHandler {
 
     for (const group of groups) {
       const filePaths = group.files.map(f => f.file);
-      const message = this.gitManager.generateGroupMessage(group);
+      // Message is built before staging so the diff against the index still shows the changes
+      const message = await this._smartGroupMessage(group);
 
       try {
         // Real git stage
