@@ -1090,3 +1090,34 @@ async function _lazyInitTools(feats) {
     console.log('[Tools] Lazy init complete');
   } catch (err) { console.error('[Tools] Lazy init error:', err); }
 }
+ICONS.repoConsole = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M6 8l3 2-3 2"/><path d="M11 13h4"/></svg>';
+
+RUN.repoConsole = async () => {
+  const mod = await import('../repoConsole.js');
+  if (mod.isOpen()) { mod.close(); return; }
+  _registry.closeAll();
+  await mod.open(state.selectedRepoPath);
+  _registry.register('repoConsole', mod.getPanel());
+};
+
+TOOLS.push({
+  id: 'repoConsole',
+  key: 'repoConsole',
+  flag: 'repoConsole',
+  icon: ICONS.repoConsole,
+  name: 'Repo Console',
+  desc: 'Seeds, migrations, scripts & tests for this repo',
+  shortcut: null,
+});
+
+document.addEventListener('repoConsole:need-open', async () => {
+  try {
+    const mod = await import('../repoConsole.js');
+    if (mod.isOpen()) return;
+    _registry.closeAll();
+    await mod.open(state.selectedRepoPath);
+    _registry.register('repoConsole', mod.getPanel());
+  } catch (err) {
+    console.error('[Tools] Repo Console:', err);
+  }
+});
