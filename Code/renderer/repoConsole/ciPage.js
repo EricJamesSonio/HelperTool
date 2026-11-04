@@ -1,4 +1,4 @@
-import { S, h, call } from './state.js';
+import { S, h, call, toast } from './state.js';
 
 const C = {
   repoPath: '',
@@ -24,7 +24,19 @@ const C = {
   envName: '',
   envValue: '',
   envSaving: false,
+  changes: null,
+  changesError: '',
+  changesLoading: false,
+  changesBase: '',
 };
+
+const R = {
+  running: false,
+  error: '',
+  planHash: '',
+};
+
+const MAX_CHANGE_ROWS = 200;
 
 const CATEGORY = {
   ci: { label: 'CI', cls: 'risk-readonly' },
@@ -63,6 +75,16 @@ const FEATURE_LABEL = {
   conditions: 'conditions',
 };
 
+const CHANGE_STATUS = {
+  M: { label: 'Modified', cls: 'skipped' },
+  A: { label: 'Added', cls: 'done' },
+  D: { label: 'Deleted', cls: 'failed' },
+  R: { label: 'Renamed', cls: 'skipped' },
+  C: { label: 'Copied', cls: 'skipped' },
+  U: { label: 'Conflict', cls: 'failed' },
+  '?': { label: 'Untracked', cls: 'done' },
+};
+
 function ensureStyles() {
   if (document.getElementById('repoConsoleCiSheet')) return;
   const link = document.createElement('link');
@@ -97,6 +119,13 @@ function sync() {
   C.envName = '';
   C.envValue = '';
   C.envSaving = false;
+  C.changes = null;
+  C.changesError = '';
+  C.changesLoading = false;
+  C.changesBase = '';
+  R.running = false;
+  R.error = '';
+  R.planHash = '';
 }
 
 async function load() {
@@ -141,6 +170,7 @@ async function openWorkflow(file) {
   C.preflight = null;
   C.preflightError = '';
   C.selectedJobIds = new Set();
+  R.error = '';
   S.hooks.renderPage();
   try {
     const res = await call('ciWorkflow', { repoPath, file });
@@ -163,6 +193,7 @@ function closeDetail() {
   C.preflight = null;
   C.preflightError = '';
   C.selectedJobIds = new Set();
+  R.error = '';
   S.hooks.renderPage();
 }
 
@@ -171,17 +202,23 @@ async function trustWorkflow() {
   const repoPath = S.repoPath;
   const file = C.detail.file;
   const hash = C.detail.hash;
+  let trusted = false;
 
   try {
     await call('ciTrust', { repoPath, file, hash });
     if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
     C.detail.trusted = true;
+    C.plan = null;
+    C.preflight = null;
+    C.preflightError = '';
     C.planError = '';
+    trusted = true;
   } catch (e) {
     if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
     C.planError = e.message;
   }
   S.hooks.renderPage();
+  if (trusted) await makePlan();
 }
 
 async function makePlan() {
@@ -244,6 +281,64 @@ async function runPreflight() {
       C.preflightLoading = false;
       S.hooks.renderPage();
     }
+  }
+}
+
+async function detectChanges() {
+  const repoPath = S.repoPath;
+  C.changesLoading = true;
+  C.changesError = '';
+  S.hooks.renderPage();
+
+  try {
+    const response = await call('ciChanges', { repoPath, base: C.changesBase.trim() });
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.changes = response.changes;
+  } catch (e) {
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.changes = null;
+    C.changesError = e.message;
+  } finally {
+    if (repoPath === S.repoPath && repoPath === C.repoPath) {
+      C.changesLoading = false;
+      S.hooks.renderPage();
+    }
+  }
+}
+
+async function runCi() {
+  if (!C.detail || !C.plan || R.running) return;
+  const repoPath = S.repoPath;
+  const file = C.detail.file;
+  const planHash = C.plan.hash;
+  const commandSteps = (C.plan.jobs || []).reduce(
+    (total, job) => total + (job.steps || []).filter((step) => step.kind === 'run').length,
+    0
+  );
+  const message = 'Run ' + commandSteps + ' command step(s) from ' + file + ' on this machine? They can change files and data in this repository.';
+  if (!window.confirm(message)) return;
+
+  R.running = true;
+  R.error = '';
+  R.planHash = planHash;
+  S.hooks.renderPage();
+
+  try {
+    await call('ciRun', {
+      repoPath,
+      file,
+      mode: C.planMode,
+      jobIds: [...C.selectedJobIds],
+      approvedSkips: [],
+      planHash,
+      ack: true,
+    });
+    toast('CI run started. Follow it in the Repo Console output.');
+  } catch (e) {
+    R.error = e.message;
+  } finally {
+    R.running = false;
+    S.hooks.renderPage();
   }
 }
 
@@ -415,16 +510,28 @@ function jobSelector(job) {
 function planReview() {
   if (!C.plan) return null;
 
+  const plan = C.plan;
+  const allReady = (plan.jobs || []).every((job) => job.state === 'ready');
+  const clean = !!plan.trusted && !(plan.blockers || []).length && allReady;
+  const preflightClean = !!C.preflight && !C.preflight.blockers.length;
+
+  let runHint = null;
+  if (!clean) {
+    runHint = 'Running stays disabled until the workflow is trusted, the plan has no blockers, and every job is ready.';
+  } else if (!preflightClean) {
+    runHint = 'Run the preflight checks first. Running needs a preflight with no blockers.';
+  }
+
   return h(
     'section',
     { class: 'ci-plan', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'CI plan review' },
-    h('h3', { text: 'Plan review - commands will not run' }),
-    h('p', { class: 'rc-where', text: 'Plan hash: ' + C.plan.hash }),
-    C.plan.trusted
+    h('h3', { text: 'Plan review' }),
+    h('p', { class: 'rc-where', text: 'Plan hash: ' + plan.hash }),
+    plan.trusted
       ? h('p', { class: 'rc-chip done', text: 'This workflow hash is trusted.' })
       : h('div', { class: 'rc-warn red', text: 'This workflow is not trusted yet. Review it before trusting this hash.' }),
-    (C.plan.blockers || []).map((blocker) => h('div', { class: 'rc-warn red', text: blocker })),
-    (C.plan.jobs || []).map((job) =>
+    (plan.blockers || []).map((blocker) => h('div', { class: 'rc-warn red', text: blocker })),
+    (plan.jobs || []).map((job) =>
       h(
         'article',
         { class: 'rc-card' },
@@ -442,7 +549,7 @@ function planReview() {
             step.shell ? h('div', { class: 'ci-meta' }, h('span', { text: 'Shell: ' + step.shell })) : null,
             step.reason ? h('p', { class: 'rc-where', text: step.reason }) : null,
             step.secretNames && step.secretNames.length
-              ? h('p', { class: 'rc-warn', text: 'Local secrets required later: ' + step.secretNames.join(', ') })
+              ? h('p', { class: 'rc-warn', text: 'Local secrets required: ' + step.secretNames.join(', ') })
               : null,
             step.referencedEnvNames && step.referencedEnvNames.length
               ? h('p', { class: 'rc-where', text: 'Environment values referenced: ' + step.referencedEnvNames.join(', ') })
@@ -459,9 +566,17 @@ function planReview() {
     }),
     preflightReview(),
     envSettings(),
-    !C.plan.trusted && C.detail && C.detail.hash
+    !plan.trusted && C.detail && C.detail.hash
       ? h('button', { class: 'rc-btn danger', text: 'I reviewed this workflow; trust this hash', onclick: trustWorkflow })
       : null,
+    runHint ? h('p', { class: 'rc-where', text: runHint }) : null,
+    R.error && R.planHash === plan.hash ? h('div', { class: 'rc-warn red', text: R.error }) : null,
+    h('button', {
+      class: 'rc-btn danger',
+      text: R.running ? 'Starting...' : 'Run workflow locally',
+      disabled: R.running || !clean || !preflightClean,
+      onclick: runCi,
+    }),
     h('button', {
       class: 'rc-btn secondary',
       text: 'Close plan',
@@ -532,7 +647,7 @@ function workflowCard(w) {
 
 function listView() {
   const out = [
-    h('p', { class: 'rc-lead', text: 'Workflows found in .github/workflows. This page only reads and explains them. Nothing is run from here yet.' }),
+    h('p', { class: 'rc-lead', text: 'Workflows found in .github/workflows. Review a workflow and its plan here, and run it locally once it is trusted.' }),
     h(
       'div',
       { class: 'rc-row' },
@@ -642,6 +757,79 @@ function filterLines(w) {
   return lines;
 }
 
+function changeRow(entry) {
+  const info = CHANGE_STATUS[entry.status] || { label: entry.status, cls: 'skipped' };
+  return h(
+    'div',
+    { class: 'rc-row' },
+    chip(info),
+    h('span', { class: 'rc-mono', text: entry.file }),
+    h('span', { class: 'rc-where', text: entry.sources.join(' + ') })
+  );
+}
+
+function changesResult() {
+  if (C.changesLoading) return h('div', { class: 'rc-empty', text: 'Reading Git state...' });
+  if (C.changesError) return h('div', { class: 'rc-warn red', text: C.changesError });
+  if (!C.changes) return null;
+
+  const changes = C.changes;
+  const where = changes.branch ? 'Branch ' + changes.branch : 'Detached HEAD';
+  const head = changes.head ? ' / HEAD ' + changes.head.slice(0, 7) : '';
+  const compared = changes.base
+    ? 'Compared with ' + changes.base.ref + ' (merge base ' + changes.base.mergeBase.slice(0, 7) + ')'
+    : 'No base branch used';
+  const shown = changes.files.slice(0, MAX_CHANGE_ROWS);
+
+  return h(
+    'div',
+    null,
+    h('p', { class: 'rc-where', text: where + head + ' / ' + compared }),
+    changes.note ? h('div', { class: 'rc-warn', text: changes.note }) : null,
+    h(
+      'div',
+      { class: 'rc-row' },
+      h('span', { class: 'rc-chip done', text: plural(changes.total, 'changed file') }),
+      h('span', { class: 'rc-chip skipped', text: 'Committed: ' + changes.committed }),
+      h('span', { class: 'rc-chip skipped', text: 'Working tree: ' + changes.working })
+    ),
+    changes.truncated ? h('div', { class: 'rc-warn', text: 'Git reported more files than the list keeps. Only the first ' + changes.files.length + ' are included.' }) : null,
+    shown.length ? h('div', { class: 'rc-test-list' }, shown.map(changeRow)) : h('p', { class: 'rc-where', text: 'No changed files were found.' }),
+    changes.files.length > shown.length ? h('p', { class: 'rc-where', text: 'And ' + (changes.files.length - shown.length) + ' more.' }) : null
+  );
+}
+
+function changesCard() {
+  const baseInput = document.createElement('input');
+  baseInput.type = 'text';
+  baseInput.autocomplete = 'off';
+  baseInput.spellcheck = false;
+  baseInput.placeholder = 'Base branch (optional, for example origin/main)';
+  baseInput.value = C.changesBase;
+  baseInput.addEventListener('input', () => {
+    C.changesBase = baseInput.value;
+  });
+
+  return h(
+    'section',
+    { class: 'rc-card' },
+    h('div', { class: 'rc-card-head' }, h('h3', { text: 'Changed files' })),
+    h('p', { class: 'rc-where', text: 'Reads fresh Git state: committed changes since the merge base plus uncommitted and untracked files. Nothing is run.' }),
+    h(
+      'div',
+      { class: 'rc-row' },
+      baseInput,
+      h('button', {
+        class: 'rc-btn secondary',
+        text: C.changesLoading ? 'Reading...' : 'Detect changed files',
+        disabled: C.changesLoading,
+        onclick: detectChanges,
+      })
+    ),
+    changesResult()
+  );
+}
+
 function detailView() {
   const back = h('button', { class: 'rc-btn secondary small', text: 'Back to workflows', onclick: closeDetail });
   if (C.detailLoading) {
@@ -697,6 +885,7 @@ function detailView() {
   return [
     h('div', { class: 'rc-row' }, back),
     head,
+    changesCard(),
     h(
       'div',
       { class: 'rc-row' },
