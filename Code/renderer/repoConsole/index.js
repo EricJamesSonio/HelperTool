@@ -1,12 +1,14 @@
 import { S, h, call, toast } from './state.js';
 import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLiveLog, schedulePanelRefresh, openLiveOutput } from './monitor.js';
 import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory } from './pages.js';
+import { ciPage } from './ciPage.js';
 
 const NAV = [
   ['seeds', 'Seeds'],
   ['database', 'Database'],
   ['scripts', 'Scripts'],
   ['tests', 'Tests'],
+  ['ci', 'CI'],
   ['history', 'History'],
 ];
 
@@ -49,7 +51,7 @@ function renderNav() {
   els.panel.classList.toggle('prod', prod);
   els.banner.hidden = !prod;
   els.banner.textContent = prod ? 'PRODUCTION MODE - everything you run here changes the real database.' : '';
-  const stats = info ? (info.historyCount || 0) + ' saved runs \u00b7 ' + (S.catalog.source === 'manifest' ? 'Manifest actions' : 'Detected scripts') : '';
+  const stats = info ? (info.historyCount || 0) + ' saved runs · ' + (S.catalog.source === 'manifest' ? 'Manifest actions' : 'Detected scripts') : '';
   const canPaste = typeof S.hooks.openImport === 'function';
   els.nav.replaceChildren(
     h('div', { class: 'rc-brand' }, h('div', { class: 'rc-brand-name', text: 'Repo Console' }), h('div', { class: 'rc-brand-sub', text: repoName() })),
@@ -93,7 +95,17 @@ function renderPage() {
     return;
   }
   const body =
-    S.page === 'seeds' ? seedsPage() : S.page === 'database' ? databasePage() : S.page === 'scripts' ? scriptsPage() : S.page === 'tests' ? testsPage() : historyPage();
+    S.page === 'seeds'
+      ? seedsPage()
+      : S.page === 'database'
+        ? databasePage()
+        : S.page === 'scripts'
+          ? scriptsPage()
+          : S.page === 'tests'
+            ? testsPage()
+            : S.page === 'ci'
+              ? ciPage()
+              : historyPage();
   els.page.replaceChildren(...[body].flat(Infinity).filter(Boolean));
 }
 
