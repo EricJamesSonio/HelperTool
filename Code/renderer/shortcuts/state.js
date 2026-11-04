@@ -40,6 +40,7 @@ const DEFAULT_SHORTCUTS = {
   researcherTool: null,
   harnessTool: null,
   flowTool: 'Space',
+  repoConsole: 'F1',
 };
 
 const S = { shortcuts: {} };
@@ -49,7 +50,7 @@ function loadShortcuts() {
     const raw = localStorage.getItem(STORAGE_KEY);
     let data = raw ? JSON.parse(raw) : {};
 
-    // Migrate old opencodeChat → codeswampChat
+    // Migrate old opencodeChat -> codeswampChat
     if (data.opencodeChat !== undefined) {
       if (data.codeswampChat === undefined || data.codeswampChat === null) {
         data.codeswampChat = data.opencodeChat;
@@ -65,9 +66,14 @@ function loadShortcuts() {
       data.shortcutMode = null;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
-    // Same for Global Seeder ('Shift+G') — don't steal a user binding.
+    // Same for Global Seeder ('Shift+G') - don't steal a user binding.
     if (data.globalSeeder === undefined && Object.values(data).includes(DEFAULT_SHORTCUTS.globalSeeder)) {
       data.globalSeeder = null;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+    // Same for Repo Console ('F1') - don't steal a user binding.
+    if (data.repoConsole === undefined && Object.values(data).includes(DEFAULT_SHORTCUTS.repoConsole)) {
+      data.repoConsole = null;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 

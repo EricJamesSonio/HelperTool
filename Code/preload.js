@@ -756,3 +756,25 @@ contextBridge.exposeInMainWorld('serviceTrackerAPI', {
   offUpdate: (cb) => ipcRenderer.removeListener('serviceTracker:update', cb),
 });
 
+const repoConsoleBridge = {
+  catalog:       (repoPath)                => ipcRenderer.invoke('repoConsole:catalog', { repoPath }),
+  run:           (payload)                 => ipcRenderer.invoke('repoConsole:run', payload),
+  tests:         (payload)                 => ipcRenderer.invoke('repoConsole:tests', payload),
+  stop:          (payload)                 => ipcRenderer.invoke('repoConsole:stop', payload),
+  input:         (payload)                 => ipcRenderer.invoke('repoConsole:input', payload),
+  job:           (payload)                 => ipcRenderer.invoke('repoConsole:job', payload),
+  history:       (payload)                 => ipcRenderer.invoke('repoConsole:history', payload),
+  historyRun:    (payload)                 => ipcRenderer.invoke('repoConsole:historyRun', payload),
+  historyClear:  (payload)                 => ipcRenderer.invoke('repoConsole:historyClear', payload),
+  trust:         (payload)                 => ipcRenderer.invoke('repoConsole:trust', payload),
+  onEvent: (callback) => {
+    ipcRenderer.removeAllListeners('repoConsole:event');
+    ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
+  },
+};
+
+contextBridge.exposeInMainWorld('repoConsoleAPI', repoConsoleBridge);
+contextBridge.exposeInMainWorld('perfAPI', {
+  sample: () => ipcRenderer.invoke('perf:sample'),
+  reset: () => ipcRenderer.invoke('perf:reset'),
+});

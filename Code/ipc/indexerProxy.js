@@ -6,6 +6,8 @@ const EventEmitter = require('events');
 
 function uuid() { return crypto.randomUUID(); }
 
+const STOP_GRACE_MS = 3000;
+
 let _child = null;
 let _pending = new Map();
 let _rl = null;
@@ -14,10 +16,19 @@ let _restartDelay = 1000;
 let _ready = false;
 let _queue = [];
 let _dbPath = null;
+let _disabled = false;
 const _events = new EventEmitter();
 
 function _getIndexerPath() {
   return path.join(__dirname, '..', 'indexer-service', 'indexer.js');
+}
+
+function _terminate(child) {
+  if (!child) return;
+  try { child.stdin.end(); } catch (_) {}
+  const timer = setTimeout(() => { try { child.kill(); } catch (_) {} }, STOP_GRACE_MS);
+  if (timer.unref) timer.unref();
+  child.once('exit', () => clearTimeout(timer));
 }
 
 function _spawn() {
@@ -26,10 +37,13 @@ function _spawn() {
   const indexPath = _getIndexerPath();
   const args = [indexPath];
   if (_dbPath) args.push(_dbPath);
-  _child = spawn(process.execPath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  const child = spawn(process.execPath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  _child = child;
   _ready = false;
 
-  _rl = readline.createInterface({ input: _child.stdout, terminal: false });
+  child.stdin.on('error', () => {});
+
+  _rl = readline.createInterface({ input: child.stdout, terminal: false });
   _rl.on('line', (line) => {
     line = line.trim();
     if (!line) return;
@@ -41,7 +55,7 @@ function _spawn() {
         _flushQueue();
         return;
       }
-      // Progress messages are unsolicited — emit as events
+      // Progress messages are unsolicited - emit as events
       if (msg.type === 'progress') {
         _events.emit('progress', msg.data || {});
         return;
@@ -54,26 +68,29 @@ function _spawn() {
     } catch (_) {}
   });
 
-  _child.stderr.on('data', (chunk) => {
+  child.stderr.on('data', (chunk) => {
     console.error(`[indexer] ${chunk.toString().trim()}`);
   });
 
-  _child.on('exit', (code) => {
+  child.on('exit', (code) => {
     console.warn(`[indexer] Exited with code ${code}`);
+    // Stopped on purpose or replaced by a newer process: do not touch state, do not restart
+    if (_child !== child) return;
     _ready = false; _child = null; _rl = null;
     for (const [, p] of _pending) p.reject(new Error('Indexer process exited'));
     _pending.clear();
     _scheduleRestart();
   });
 
-  _child.on('error', (err) => {
+  child.on('error', (err) => {
     console.error(`[indexer] Spawn error:`, err.message);
+    if (_child !== child) return;
     _scheduleRestart();
   });
 }
 
 function _scheduleRestart() {
-  if (_restartTimer) return;
+  if (_disabled || _restartTimer) return;
   _restartTimer = setTimeout(() => { _restartTimer = null; _spawn(); }, _restartDelay);
   _restartDelay = Math.min(_restartDelay * 2, 30000);
 }
@@ -95,18 +112,34 @@ function _send(msg, timeout = 30000) {
 }
 
 function _queueOrSend(msg, timeout) {
+  if (_disabled) return Promise.reject(new Error('Indexer is turned off'));
   if (_ready) return _send(msg, timeout);
   return new Promise((resolve, reject) => { _queue.push({ msg, timeout, resolve, reject }); });
 }
 
 // ── Public API ──
 
-function start(dbPath) { _dbPath = dbPath; if (!_child) _spawn(); }
+function start(dbPath) {
+  _disabled = false;
+  if (dbPath) _dbPath = dbPath;
+  if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
+  if (!_child) _spawn();
+}
 
 function stop() {
+  _disabled = true;
   if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
-  if (_child) { try { _child.kill(); } catch (_) {}; _child = null; }
-  _ready = false; _pending.clear(); _queue = [];
+  const child = _child;
+  _child = null;
+  _rl = null;
+  _ready = false;
+  const err = new Error('Indexer stopped');
+  for (const [, p] of _pending) p.reject(err);
+  _pending.clear();
+  const queued = _queue;
+  _queue = [];
+  for (const item of queued) item.reject(err);
+  _terminate(child);
 }
 
 function isReady() { return _ready; }

@@ -11,6 +11,7 @@ function registerAction(featureId, actionFn) {
 
 function handleKeyDown(e) {
   if (e.repeat) return;
+  if (e.defaultPrevented) return;
   const combo = eventToString(e);
   if (!combo) return;
 

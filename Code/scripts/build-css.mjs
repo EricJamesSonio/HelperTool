@@ -56,6 +56,7 @@ const files = [
   'styles/graphify.css',
   'styles/error-cop.css',
   'styles/mcp.css',
+  'styles/repo-console.css',
 ];
 
 let css = '';
