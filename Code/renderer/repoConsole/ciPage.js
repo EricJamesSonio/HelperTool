@@ -16,6 +16,14 @@ const C = {
   planLoading: false,
   planMode: 'full',
   selectedJobIds: new Set(),
+  preflight: null,
+  preflightError: '',
+  preflightLoading: false,
+  envNames: [],
+  envError: '',
+  envName: '',
+  envValue: '',
+  envSaving: false,
 };
 
 const CATEGORY = {
@@ -81,6 +89,14 @@ function sync() {
   C.planLoading = false;
   C.planMode = 'full';
   C.selectedJobIds = new Set();
+  C.preflight = null;
+  C.preflightError = '';
+  C.preflightLoading = false;
+  C.envNames = [];
+  C.envError = '';
+  C.envName = '';
+  C.envValue = '';
+  C.envSaving = false;
 }
 
 async function load() {
@@ -108,6 +124,8 @@ function refresh() {
   C.detail = null;
   C.plan = null;
   C.planError = '';
+  C.preflight = null;
+  C.preflightError = '';
   C.selectedJobIds = new Set();
   S.hooks.renderPage();
 }
@@ -120,6 +138,8 @@ async function openWorkflow(file) {
   C.detailError = '';
   C.plan = null;
   C.planError = '';
+  C.preflight = null;
+  C.preflightError = '';
   C.selectedJobIds = new Set();
   S.hooks.renderPage();
   try {
@@ -140,6 +160,8 @@ function closeDetail() {
   C.detailError = '';
   C.plan = null;
   C.planError = '';
+  C.preflight = null;
+  C.preflightError = '';
   C.selectedJobIds = new Set();
   S.hooks.renderPage();
 }
@@ -168,6 +190,8 @@ async function makePlan() {
   const file = C.detail.file;
   C.planLoading = true;
   C.planError = '';
+  C.preflight = null;
+  C.preflightError = '';
   S.hooks.renderPage();
 
   try {
@@ -192,6 +216,177 @@ async function makePlan() {
   }
 }
 
+async function runPreflight() {
+  if (!C.detail || !C.plan) return;
+  const repoPath = S.repoPath;
+  const file = C.detail.file;
+  C.preflightLoading = true;
+  C.preflightError = '';
+  S.hooks.renderPage();
+
+  try {
+    const response = await call('ciPreflight', {
+      repoPath,
+      file,
+      mode: C.planMode,
+      jobIds: [...C.selectedJobIds],
+      approvedSkips: [],
+      planHash: C.plan.hash,
+    });
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
+    C.preflight = response.preflight;
+  } catch (e) {
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
+    C.preflight = null;
+    C.preflightError = e.message;
+  } finally {
+    if (repoPath === S.repoPath && repoPath === C.repoPath && file === C.selected) {
+      C.preflightLoading = false;
+      S.hooks.renderPage();
+    }
+  }
+}
+
+async function loadEnvNames() {
+  const repoPath = S.repoPath;
+  try {
+    const response = await call('ciEnvGet', { repoPath });
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.envNames = response.names || [];
+    C.envError = '';
+  } catch (e) {
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.envError = e.message;
+  }
+  S.hooks.renderPage();
+}
+
+async function saveEnvValue(event) {
+  event.preventDefault();
+  const name = C.envName.trim();
+  if (!name || !C.envValue) {
+    C.envError = 'Enter a variable name and value.';
+    S.hooks.renderPage();
+    return;
+  }
+
+  C.envSaving = true;
+  C.envError = '';
+  const repoPath = S.repoPath;
+  try {
+    const response = await call('ciEnvSet', {
+      repoPath,
+      values: { [name]: C.envValue },
+    });
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.envNames = response.names || [];
+    C.envName = '';
+    C.envValue = '';
+  } catch (e) {
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.envError = e.message;
+  } finally {
+    if (repoPath === S.repoPath && repoPath === C.repoPath) {
+      C.envSaving = false;
+      S.hooks.renderPage();
+    }
+  }
+}
+
+async function deleteEnvValue(name) {
+  const repoPath = S.repoPath;
+  try {
+    const response = await call('ciEnvDelete', { repoPath, name });
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.envNames = response.names || [];
+    C.envError = '';
+  } catch (e) {
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
+    C.envError = e.message;
+  }
+  S.hooks.renderPage();
+}
+
+function envSettings() {
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.autocomplete = 'off';
+  nameInput.placeholder = 'VARIABLE_NAME';
+  nameInput.value = C.envName;
+  nameInput.addEventListener('input', () => {
+    C.envName = nameInput.value;
+  });
+
+  const valueInput = document.createElement('input');
+  valueInput.type = 'password';
+  valueInput.autocomplete = 'new-password';
+  valueInput.placeholder = 'Value (never displayed again)';
+  valueInput.value = C.envValue;
+  valueInput.addEventListener('input', () => {
+    C.envValue = valueInput.value;
+  });
+
+  const form = h(
+    'form',
+    { class: 'ci-env-form', onsubmit: saveEnvValue },
+    nameInput,
+    valueInput,
+    h('button', { class: 'rc-btn secondary', type: 'submit', disabled: C.envSaving, text: C.envSaving ? 'Saving...' : 'Save value' })
+  );
+
+  return h(
+    'section',
+    { class: 'ci-env' },
+    h('div', { class: 'rc-card-head' }, h('h3', { text: 'Local environment values' })),
+    h('p', { class: 'rc-where', text: 'Values are stored in the app user data folder for this repository. They are never returned by the environment-list API.' }),
+    form,
+    h('button', { class: 'rc-btn secondary small', text: 'Refresh names', onclick: loadEnvNames }),
+    C.envError ? h('div', { class: 'rc-warn red', text: C.envError }) : null,
+    C.envNames.length
+      ? h(
+          'ul',
+          { class: 'ci-env-list' },
+          C.envNames.map((name) =>
+            h(
+              'li',
+              null,
+              h('code', { text: name }),
+              h('button', { class: 'rc-btn secondary small', text: 'Delete', onclick: () => deleteEnvValue(name) })
+            )
+          )
+        )
+      : h('p', { class: 'rc-where', text: 'No local values are saved for this repository.' })
+  );
+}
+
+function preflightReview() {
+  if (C.preflightLoading) return h('div', { class: 'rc-empty', text: 'Checking local prerequisites...' });
+  if (C.preflightError) return h('div', { class: 'rc-warn red', text: C.preflightError });
+  if (!C.preflight) return null;
+
+  const result = C.preflight;
+  return h(
+    'section',
+    { class: 'ci-preflight' },
+    h('h3', { text: 'Preflight results' }),
+    result.blockers.length
+      ? h(
+          'div',
+          { class: 'rc-warn red' },
+          h('b', { text: 'Blockers' }),
+          h('ul', null, result.blockers.map((item) => h('li', { text: item })))
+        )
+      : h('p', { class: 'rc-chip done', text: 'No blockers found.' }),
+    result.warnings.length ? h('div', { class: 'rc-warn' }, h('b', { text: 'Warnings' }), h('ul', null, result.warnings.map((item) => h('li', { text: item })))) : null,
+    result.runtimes.length
+      ? h('div', null, h('h4', { text: 'Detected tools' }), h('ul', null, result.runtimes.map((runtime) => h('li', { text: runtime.name + ': ' + (runtime.available ? runtime.version || 'available' : 'missing') }))))
+      : null,
+    result.services.length
+      ? h('div', null, h('h4', { text: 'Service ports' }), h('ul', null, result.services.map((service) => h('li', { text: service.jobId + ' / ' + service.name + ' / localhost:' + service.port + ' / ' + (service.available ? 'reachable' : 'not reachable') }))))
+      : null
+  );
+}
+
 function jobSelector(job) {
   if (C.planMode === 'full') return null;
 
@@ -208,7 +403,9 @@ function jobSelector(job) {
       C.selectedJobIds.delete(job.id);
     }
     C.plan = null;
+    C.preflight = null;
     C.planError = '';
+    C.preflightError = '';
     S.hooks.renderPage();
   });
   label.append(input, document.createTextNode(' Include in plan'));
@@ -254,6 +451,14 @@ function planReview() {
         )
       )
     ),
+    h('button', {
+      class: 'rc-btn',
+      text: C.preflightLoading ? 'Checking...' : 'Run preflight checks',
+      disabled: C.preflightLoading,
+      onclick: runPreflight,
+    }),
+    preflightReview(),
+    envSettings(),
     !C.plan.trusted && C.detail && C.detail.hash
       ? h('button', { class: 'rc-btn danger', text: 'I reviewed this workflow; trust this hash', onclick: trustWorkflow })
       : null,
@@ -262,6 +467,7 @@ function planReview() {
       text: 'Close plan',
       onclick: () => {
         C.plan = null;
+        C.preflight = null;
         S.hooks.renderPage();
       },
     })
@@ -404,7 +610,7 @@ function jobCard(job) {
   if (job.environment) meta.push('Environment: ' + job.environment);
   if (job.if) meta.push('Condition: ' + job.if);
   if (job.services.length) meta.push('Services: ' + job.services.join(', '));
-  if (job.timeoutMinutes) meta.push('Timeout: ' + job.timeoutMinutes + ' min);
+  if (job.timeoutMinutes) meta.push('Timeout: ' + job.timeoutMinutes + ' min');
   return h(
     'div',
     { class: 'rc-card' },
@@ -445,24 +651,24 @@ function detailView() {
     return [h('div', { class: 'rc-row' }, back), h('div', { class: 'rc-warn red', text: C.detailError || 'The workflow could not be read.' })];
   }
 
-  const w = C.detail;
-  const cat = CATEGORY[w.category] || CATEGORY.unknown;
-  const sup = SUPPORT[w.support] || SUPPORT.unsupported;
-  const features = featureNames(w.features);
-  const filters = filterLines(w);
+  const workflow = C.detail;
+  const category = CATEGORY[workflow.category] || CATEGORY.unknown;
+  const support = SUPPORT[workflow.support] || SUPPORT.unsupported;
+  const features = featureNames(workflow.features);
+  const filters = filterLines(workflow);
   const head = h(
     'div',
     { class: 'rc-card' },
-    h('div', { class: 'rc-card-head' }, h('h3', { text: w.name }), h('div', { class: 'rc-row' }, chip(sup), badge(cat))),
-    h('div', null, h('code', { class: 'rc-cmd', text: w.file })),
-    h('p', { text: w.parseError ? 'This file could not be parsed.' : triggerText(w) }),
-    w.trusted ? h('p', { class: 'rc-chip done', text: 'Workflow hash trusted' }) : h('p', { class: 'rc-chip skipped', text: 'Workflow hash not trusted' }),
+    h('div', { class: 'rc-card-head' }, h('h3', { text: workflow.name }), h('div', { class: 'rc-row' }, chip(support), badge(category))),
+    h('div', null, h('code', { class: 'rc-cmd', text: workflow.file })),
+    h('p', { text: workflow.parseError ? 'This file could not be parsed.' : triggerText(workflow) }),
+    workflow.trusted ? h('p', { class: 'rc-chip done', text: 'Workflow hash trusted' }) : h('p', { class: 'rc-chip skipped', text: 'Workflow hash not trusted' }),
     filters.length ? h('ul', { class: 'ci-notes plain' }, filters.map((line) => h('li', { text: line }))) : null,
-    w.parseError ? h('div', { class: 'rc-warn red', text: parseErrorText(w) }) : null,
-    w.deployBlocked
-      ? h('div', { class: 'rc-warn red', text: 'Looks like a deployment or release workflow, so local runs stay disabled. ' + w.deployReasons.join('; ') + '.' })
+    workflow.parseError ? h('div', { class: 'rc-warn red', text: parseErrorText(workflow) }) : null,
+    workflow.deployBlocked
+      ? h('div', { class: 'rc-warn red', text: 'Looks like a deployment or release workflow, so local runs stay disabled. ' + workflow.deployReasons.join('; ') + '.' })
       : null,
-    (w.problems || []).map((problem) => h('div', { class: 'rc-warn', text: problem })),
+    (workflow.problems || []).map((problem) => h('div', { class: 'rc-warn', text: problem })),
     features.length ? h('div', { class: 'rc-where', text: 'Uses ' + features.join(', ') }) : null
   );
 
@@ -482,7 +688,9 @@ function detailView() {
     C.planMode = modeSelect.value;
     if (C.planMode === 'single' && C.selectedJobIds.size > 1) C.selectedJobIds = new Set();
     C.plan = null;
+    C.preflight = null;
     C.planError = '';
+    C.preflightError = '';
     S.hooks.renderPage();
   });
 
@@ -497,7 +705,7 @@ function detailView() {
       h('button', {
         class: 'rc-btn',
         text: C.planLoading ? 'Building plan...' : 'Review plan',
-        disabled: C.planLoading || !!w.parseError,
+        disabled: C.planLoading || !!workflow.parseError,
         onclick: makePlan,
       })
     ),
@@ -506,8 +714,8 @@ function detailView() {
       : null,
     C.planError ? h('div', { class: 'rc-warn red', text: C.planError }) : null,
     planReview(),
-    w.jobs.length ? h('div', { class: 'rc-section', text: plural(w.jobs.length, 'job') }) : null,
-    w.jobs.map(jobCard),
+    workflow.jobs.length ? h('div', { class: 'rc-section', text: plural(workflow.jobs.length, 'job') }) : null,
+    workflow.jobs.map(jobCard),
   ];
 }
 
