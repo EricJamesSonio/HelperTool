@@ -114,8 +114,17 @@ function itemCard(item) {
       )
     : h('span', { class: 'rc-where', text: 'Not run in this environment yet.' });
 
+  const liveJob = liveEntry(S.repoPath);
+  const isThisRunning = !!(liveJob && liveJob.job && liveJob.job.actionId === item.id && liveJob.job.status === 'running');
+  const statusBadge = isThisRunning ? statusChip('running') : last ? statusChip(last.status) : null;
+
   card.append(
-    h('div', { class: 'rc-card-head' }, h('h3', { text: item.title }), h('div', { class: 'rc-row' }, plan.remote && S.env === 'local' ? h('span', { class: 'rc-badge remote', text: 'Remote database' }) : null, badge(item.risk))),
+    h(
+      'div',
+      { class: 'rc-card-head' },
+      h('h3', { text: item.title }),
+      h('div', { class: 'rc-row' }, statusBadge, plan.remote && S.env === 'local' ? h('span', { class: 'rc-badge remote', text: 'Remote database' }) : null, badge(item.risk))
+    ),
     h('p', { text: item.summary }),
     item.warn ? h('div', { class: 'rc-warn', text: item.warn }) : null,
     prodWarn ? h('div', { class: 'rc-warn red', text: item.warnProd }) : null,

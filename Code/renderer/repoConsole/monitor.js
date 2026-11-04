@@ -10,8 +10,22 @@ export function mountPill() {
 }
 
 export function mountOutput(root) {
-  els.output = h('div', { class: 'rc-output', hidden: true });
+  if (els.output) return;
+  els.output = h('div', { class: 'rc-output' });
   root.append(els.output);
+  renderPlaceholder();
+}
+
+function renderPlaceholder() {
+  if (!els.output) return;
+  els.output.replaceChildren(
+    h(
+      'div',
+      { class: 'rc-output-empty' },
+      h('h3', { text: 'Output' }),
+      h('p', { text: 'Run an action, start the tests, or open a run from History. Its output, steps and test results show here.' })
+    )
+  );
 }
 
 export function stopJob(repoPath) {
@@ -139,10 +153,7 @@ export async function openHistoryRun(id) {
 export function closeOutput() {
   S.output.open = false;
   els.log = null;
-  if (els.output) {
-    els.output.hidden = true;
-    els.output.replaceChildren();
-  }
+  renderPlaceholder();
 }
 
 export function renderOutput() {
@@ -152,7 +163,6 @@ export function renderOutput() {
     return;
   }
   const model = outputModel();
-  els.output.hidden = false;
   els.log = null;
   const closeBtn = h('button', { class: 'rc-btn secondary small', text: 'Close', title: 'Close (Esc)', onclick: closeOutput });
 
