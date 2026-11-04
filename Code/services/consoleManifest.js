@@ -792,4 +792,31 @@ function trust(repoPath, hash) {
   return true;
 }
 
-module.exports = { init, describe, resolveAction, resolveSuites, getContext, trust, RESULT_FILE, WIPE_PHRASE };
+function isTrusted(key, hash) {
+  return typeof key === 'string' && !!hash && readTrust()[key] === hash;
+}
+
+function setTrusted(key, hash) {
+  if (typeof key !== 'string' || !key || typeof hash !== 'string' || !hash) {
+    throw new Error('A trust key and content hash are required.');
+  }
+
+  const map = readTrust();
+  map[key] = hash;
+  writeTrust(map);
+  return true;
+}
+
+module.exports = {
+  init,
+  describe,
+  resolveAction,
+  resolveSuites,
+  getContext,
+  trust,
+  isInside,
+  isTrusted,
+  setTrusted,
+  RESULT_FILE,
+  WIPE_PHRASE,
+};
