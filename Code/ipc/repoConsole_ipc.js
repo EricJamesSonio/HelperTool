@@ -6,6 +6,7 @@ const path = require('path');
 const consoleDb = require('../database/consoleDb');
 const manifest = require('../services/consoleManifest');
 const { createRunner } = require('../services/consoleRunner');
+const ciIpc = require('../services/ci/ciIpc');
 
 let _runner = null;
 
@@ -178,10 +179,10 @@ function register({ app, config, getMainWindow }) {
     return { sent: runner.sendInput(repoPath, text) };
   });
 
-  handle('repoConsole:job', ({ repoPath, withLog }) => {
-    knownRepo(repoPath);
-    return { job: runner.getJob(repoPath, !!withLog) };
-  });
+handle('repoConsole:job', ({ repoPath, withLog }) => {
+  knownRepo(repoPath);
+  return { job: runner.getJob(repoPath, !!withLog) };
+});
 
   handle('repoConsole:history', ({ repoPath, page, limit, action, status, env, q }) => {
     knownRepo(repoPath);
@@ -207,6 +208,8 @@ function register({ app, config, getMainWindow }) {
     manifest.trust(repoPath, hash);
     return { trusted: true };
   });
+
+  ciIpc.register({ handle, knownRepo, httpError });
 
   app.on('before-quit', () => runner.stopAll());
 }
