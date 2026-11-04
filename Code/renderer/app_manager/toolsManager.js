@@ -1121,3 +1121,15 @@ document.addEventListener('repoConsole:need-open', async () => {
     console.error('[Tools] Repo Console:', err);
   }
 });
+const _rcTool = TOOLS.find((t) => t.id === 'repoConsole');
+if (_rcTool) {
+  _rcTool.shortcut = 'repoConsole';
+  _rcTool.desc = 'Seeds, migrations, scripts & tests for this repo (F1)';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'F1' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+  if (!on('repoConsole')) return;
+  e.preventDefault();
+  _run('repoConsole');
+}, true);

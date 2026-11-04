@@ -1,5 +1,5 @@
-import { S, h, call } from './state.js';
-import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLiveLog, schedulePanelRefresh } from './monitor.js';
+import { S, h, call, toast } from './state.js';
+import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLiveLog, schedulePanelRefresh, openLiveOutput } from './monitor.js';
 import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory } from './pages.js';
 
 const NAV = [
@@ -18,63 +18,63 @@ function repoName() {
   return String(S.repoPath || '').split(/[\\/]/).filter(Boolean).pop() || 'No repo selected';
 }
 
-function renderSide() {
-  const info = S.catalog ? S.catalog.info : null;
-  els.side.replaceChildren(
-    h('div', { class: 'rc-brand' }, h('div', { class: 'rc-brand-name', text: 'Repo Console' }), h('div', { class: 'rc-brand-sub', text: repoName() })),
-    ...NAV.map(([id, label]) =>
-      h('button', {
-        class: 'rc-nav' + (S.page === id ? ' active' : ''),
-        text: label,
-        onclick: () => {
-          S.page = id;
-          if (id === 'history') {
-            S.history.loaded = false;
-            loadHistory();
-          }
-          renderAll();
-        },
-      })
-    ),
-    h('div', { class: 'rc-spacer' }),
-    info ? h('div', { class: 'rc-foot' }, (info.historyCount || 0) + ' saved runs', h('br'), S.catalog.source === 'manifest' ? 'Manifest actions' : 'Detected scripts') : null
+function envSwitch() {
+  return h(
+    'div',
+    { class: 'rc-seg' },
+    h('button', {
+      class: S.env === 'local' ? 'on' : '',
+      text: 'Local',
+      onclick: () => {
+        S.env = 'local';
+        renderAll();
+      },
+    }),
+    h('button', {
+      class: S.env === 'production' ? 'on prod' : '',
+      text: 'Production',
+      onclick: () => {
+        S.env = 'production';
+        renderAll();
+      },
+    })
   );
 }
 
-function renderTop() {
-  const titles = { seeds: 'Seeds', database: 'Database', scripts: 'Scripts', tests: 'Tests', history: 'History' };
+function renderNav() {
+  if (!els.nav) return;
+  const info = S.catalog ? S.catalog.info : null;
   const showEnv = S.page === 'seeds' || S.page === 'database' || S.page === 'scripts';
   const prod = showEnv && S.env === 'production';
   els.panel.classList.toggle('prod', prod);
   els.banner.hidden = !prod;
   els.banner.textContent = prod ? 'PRODUCTION MODE - everything you run here changes the real database.' : '';
-  els.top.replaceChildren(
-    h('h1', { text: titles[S.page] }),
+  const stats = info ? (info.historyCount || 0) + ' saved runs \u00b7 ' + (S.catalog.source === 'manifest' ? 'Manifest actions' : 'Detected scripts') : '';
+  els.nav.replaceChildren(
+    h('div', { class: 'rc-brand' }, h('div', { class: 'rc-brand-name', text: 'Repo Console' }), h('div', { class: 'rc-brand-sub', text: repoName() })),
+    h(
+      'nav',
+      { class: 'rc-nav-links' },
+      NAV.map(([id, label]) =>
+        h('button', {
+          class: 'rc-nav' + (S.page === id ? ' active' : ''),
+          text: label,
+          onclick: () => {
+            S.page = id;
+            if (id === 'history') {
+              S.history.loaded = false;
+              loadHistory();
+            }
+            renderAll();
+          },
+        })
+      )
+    ),
     h(
       'div',
-      { class: 'rc-row' },
-      showEnv
-        ? h(
-            'div',
-            { class: 'rc-seg' },
-            h('button', {
-              class: S.env === 'local' ? 'on' : '',
-              text: 'Local',
-              onclick: () => {
-                S.env = 'local';
-                renderAll();
-              },
-            }),
-            h('button', {
-              class: S.env === 'production' ? 'on prod' : '',
-              text: 'Production',
-              onclick: () => {
-                S.env = 'production';
-                renderAll();
-              },
-            })
-          )
-        : null,
+      { class: 'rc-nav-right' },
+      stats ? h('span', { class: 'rc-foot', text: stats }) : null,
+      showEnv ? envSwitch() : null,
       h('button', { class: 'rc-btn secondary small', text: 'Close', onclick: close })
     )
   );
@@ -97,8 +97,7 @@ function renderPage() {
 
 function renderAll() {
   if (!els.panel) return;
-  renderSide();
-  renderTop();
+  renderNav();
   renderPage();
   renderPill();
   if (S.output.open) renderOutput();
@@ -124,8 +123,7 @@ async function refreshCatalog() {
     S.catalog = null;
     S.error = e.message;
   }
-  renderSide();
-  renderTop();
+  renderNav();
   renderPage();
 }
 
@@ -159,6 +157,7 @@ function onEvent(msg) {
     S.pending.clear();
     if (S.output.open && S.output.live && S.output.repoPath === repoPath && (!data || S.output.runId !== data.id)) closeOutput();
     renderAll();
+    if (data && repoPath === S.repoPath && isOpen()) openLiveOutput(repoPath, 'output');
     return;
   }
   let entry = S.jobs.get(repoPath);
@@ -214,15 +213,34 @@ function ensureInit() {
   if (inited) return;
   inited = true;
 
+  if (!document.getElementById('repoConsoleSheet')) {
+    const link = document.createElement('link');
+    link.id = 'repoConsoleSheet';
+    link.rel = 'stylesheet';
+    link.href = 'styles/repo-console.css';
+    document.head.append(link);
+  }
+  if (!document.getElementById('repoConsoleCritical')) {
+    const critical = document.createElement('style');
+    critical.id = 'repoConsoleCritical';
+    critical.textContent =
+      '.rc-panel{position:fixed;top:var(--rc-top,40px);left:0;right:0;bottom:0;z-index:10000;display:none;}' +
+      '.rc-panel.open{display:flex;flex-direction:column;}' +
+      '.rc-overlay{z-index:10100;}' +
+      '.rc-pill{z-index:10200;}' +
+      '.rc-toast{z-index:10300;}';
+    document.head.append(critical);
+  }
+
   els.panel = h('div', { id: 'repoConsolePanel', class: 'rc-panel' });
-  els.side = h('aside', { class: 'rc-side' });
+  els.nav = h('header', { class: 'rc-navbar' });
   els.banner = h('div', { class: 'rc-banner', hidden: true });
-  els.top = h('div', { class: 'rc-top' });
-  els.page = h('div', { class: 'rc-page' });
-  els.panel.append(els.side, h('section', { class: 'rc-main' }, els.banner, els.top, els.page));
+  els.page = h('section', { class: 'rc-page' });
+  els.pane = h('aside', { class: 'rc-pane' });
+  els.panel.append(els.nav, els.banner, h('div', { class: 'rc-body' }, els.page, els.pane));
   document.body.append(els.panel);
 
-  mountOutput(els.panel);
+  mountOutput(els.pane);
   mountPill();
 
   S.hooks.renderAll = renderAll;
@@ -251,12 +269,18 @@ function switchRepo(repoPath) {
 }
 
 export async function open(repoPath) {
-  ensureInit();
-  if (repoPath && repoPath !== S.repoPath) switchRepo(repoPath);
-  els.panel.classList.add('open');
-  renderAll();
-  if (!S.catalog) await refreshCatalog();
-  await syncJob();
+  try {
+    ensureInit();
+    if (repoPath && repoPath !== S.repoPath) switchRepo(repoPath);
+    els.panel.classList.add('open');
+    renderAll();
+    if (!S.catalog) await refreshCatalog();
+    await syncJob();
+  } catch (err) {
+    console.error('[RepoConsole] open failed:', err);
+    toast('Repo Console could not open: ' + (err && err.message ? err.message : err), 'error');
+    throw err;
+  }
 }
 
 export function close() {
