@@ -21,8 +21,8 @@ function runningChip() {
 
 function targetText(plan) {
   const t = plan.target;
-  if (!t || !t.configured) return 'no DATABASE_URL found';
-  return t.host + ':' + t.port + ' / ' + t.database;
+  if (!t || !t.configured) return 'no database setting found';
+  return t.host + (t.port ? ':' + t.port : '') + ' / ' + t.database;
 }
 
 function listBlock(title, items) {
@@ -163,7 +163,7 @@ function emptyActions() {
     h('p', {
       text: canPaste
         ? 'Paste a list of actions and the console will check it against this repository.'
-        : 'Add npm scripts to package.json, or add actions in .helper/console.json.',
+        : 'Add scripts to package.json, composer.json or a Makefile, or add actions in .helper/console.json.',
     }),
     canPaste ? h('button', { class: 'rc-btn', text: 'Paste actions', onclick: () => S.hooks.openImport() }) : null
   );
@@ -193,7 +193,7 @@ export function databasePage() {
 }
 
 export function scriptsPage() {
-  return actionPage('scripts', 'Other npm scripts found in this repository, plus any actions from its console manifest.');
+  return actionPage('scripts', 'Scripts and commands found in this repository (npm, Composer, Laravel artisan, Python, .NET, Go, Rust, Make, CMake), plus any actions from its console manifest.');
 }
 
 /* ---------- confirmation modal ---------- */
