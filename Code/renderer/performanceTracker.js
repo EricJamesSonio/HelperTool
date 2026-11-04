@@ -87,6 +87,247 @@ function fmtAgo(ms) {
   return Math.round(s / 60) + 'm ago';
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function stampParts(ts) {
+  const d = new Date(ts);
+  const date = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  const time = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  const file = date.split('-').join('') + '-' + time.split(':').join('');
+  return { date: date, time: time, file: file };
+}
+
+function mdCell(v) {
+  const text = String(v == null ? '' : v);
+  return text.split('|').join('/').split('\r').join(' ').split('\n').join(' ');
+}
+
+function buildReport() {
+  if (!_snap) return '';
+  const snap = _snap;
+  const rows = buildRows(snap);
+  const features = rows.filter((r) => FEATURE_IDS.has(r.id));
+  const enabledFeatures = features.filter((r) => r.enabled);
+  const disabledFeatures = features.filter((r) => !r.enabled);
+  const t = snap.total;
+  const level = powerLevel(t.power || 0);
+  const stamp = stampParts(snap.ts);
+  const out = [];
+
+  out.push('# Helper Tool Performance Report');
+  out.push('');
+  out.push('- Generated: ' + stamp.date + ' ' + stamp.time);
+  out.push('- Platform: ' + snap.platform + (snap.electron ? ' (Electron ' + snap.electron + ')' : ''));
+  out.push('- CPU cores: ' + snap.cores);
+  if (snap.limited) {
+    out.push('- Note: child processes could not be read' + (snap.scanError ? ' (' + snap.scanError + ')' : '') + '. Only Electron processes are included.');
+  }
+  out.push('');
+
+  out.push('## Summary');
+  out.push('');
+  out.push('- Total memory: ' + fmtMem(t.memKB) + ' across ' + t.procs + ' processes');
+  out.push('- CPU: ' + fmtCpu(t.cpu) + ' (100% = one core of ' + snap.cores + ')');
+  out.push('- Power impact: ' + level.label);
+  out.push('- Enabled features: ' + enabledFeatures.length + ' of ' + features.length + ' (' + disabledFeatures.length + ' turned off)');
+  out.push('');
+
+  const counts = {};
+  STATUS_ORDER.forEach((s) => (counts[s] = 0));
+  enabledFeatures.forEach((r) => (counts[r.status] += 1));
+  out.push('## Health');
+  out.push('');
+  out.push(STATUS_ORDER.map((s) => STATUS_LABEL[s] + ': ' + counts[s]).join(' / '));
+  out.push('');
+
+  out.push('## What is slowing things down');
+  out.push('');
+  const insights = buildInsights(rows, snap);
+  if (insights.length) {
+    insights.forEach((i) => out.push('- ' + i.text));
+  } else {
+    out.push('- Nothing is slowing the app down.');
+  }
+  out.push('');
+
+  if (snap.slow && snap.slow.length) {
+    out.push('## Slow requests (recent)');
+    out.push('');
+    snap.slow.forEach((s) => out.push('- ' + s.channel + ': ' + s.ms + ' ms (' + s.ago + ' s ago)'));
+    out.push('');
+  }
+
+  out.push('## Memory over time');
+  out.push('');
+  if (_history.length) {
+    const vals = _history.map((h) => h.memKB);
+    const min = Math.min.apply(null, vals);
+    const max = Math.max.apply(null, vals);
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const spanMs = _history[_history.length - 1].ts - _history[0].ts;
+    const spanText = fmtAgo(spanMs).split(' ago').join('');
+    out.push('- Samples: ' + _history.length + ' over ' + spanText);
+    out.push('- Latest: ' + fmtMem(vals[vals.length - 1]));
+    out.push('- Minimum: ' + fmtMem(min));
+    out.push('- Average: ' + fmtMem(avg));
+    out.push('- Peak: ' + fmtMem(max));
+  } else {
+    out.push('- No samples collected yet.');
+  }
+  out.push('');
+
+  const heavy = rows
+    .filter((r) => r.enabled && r.mem > 0)
+    .sort((a, b) => b.mem - a.mem)
+    .slice(0, 6);
+  out.push('## Heaviest features');
+  out.push('');
+  if (heavy.length) {
+    heavy.forEach((r, i) => out.push((i + 1) + '. ' + r.label + ' - ' + fmtMem(r.mem) + ', ' + fmtCpu(r.cpu) + ' CPU (' + STATUS_LABEL[r.status] + ')'));
+  } else {
+    out.push('- No data.');
+  }
+  out.push('');
+
+  const groups = new Map();
+  for (const r of rows) {
+    if (!r.enabled) continue;
+    if (!groups.has(r.group)) groups.set(r.group, { mem: 0, cpu: 0, count: 0 });
+    const g = groups.get(r.group);
+    g.mem += r.mem;
+    g.cpu += r.cpu;
+    if (FEATURE_IDS.has(r.id)) g.count += 1;
+  }
+  out.push('## Groups');
+  out.push('');
+  Array.from(groups.entries())
+    .sort((a, b) => b[1].mem - a[1].mem)
+    .forEach((entry) => {
+      const name = entry[0];
+      const g = entry[1];
+      out.push('- ' + name + ': ' + (g.count ? g.count + ' enabled, ' : '') + fmtMem(g.mem) + ', ' + fmtCpu(g.cpu) + ' CPU');
+    });
+  out.push('');
+
+  const table = rows
+    .filter((r) => r.enabled && (FEATURE_IDS.has(r.id) || r.mem > 0))
+    .sort((a, b) => b.mem - a.mem || a.label.localeCompare(b.label));
+  out.push('## Enabled features');
+  out.push('');
+  out.push('| Feature | Group | Memory | CPU | Power | Processes | Activity | UI elements | Status |');
+  out.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  table.forEach((r) => {
+    const quiet = r.procs === 0 && r.busy < 0.5;
+    const cells = [
+      mdCell(r.label),
+      mdCell(r.group),
+      r.mem ? fmtMem(r.mem) : 'in core',
+      r.procs ? fmtCpu(r.cpu) : '-',
+      quiet ? '-' : powerLevel(r.power).label,
+      r.procs,
+      r.busy > 0 ? r.busy.toFixed(1) + '%' : '-',
+      r.nodes ? r.nodes.toLocaleString() : '-',
+      STATUS_LABEL[r.status],
+    ];
+    out.push('| ' + cells.join(' | ') + ' |');
+  });
+  out.push('');
+
+  out.push('## Turned off (' + disabledFeatures.length + ')');
+  out.push('');
+  if (disabledFeatures.length) {
+    disabledFeatures.forEach((r) => {
+      const extra = r.procs ? ' - still running ' + r.procs + ' process' + (r.procs > 1 ? 'es' : '') + ' (' + fmtMem(r.mem) + ')' : '';
+      out.push('- ' + r.label + extra);
+    });
+  } else {
+    out.push('- None.');
+  }
+  out.push('');
+
+  const labels = {};
+  FEATURES_META.forEach((f) => (labels[f.id] = f.label));
+  Object.keys(PSEUDO).forEach((id) => (labels[id] = PSEUDO[id].label));
+  out.push('## All processes (' + snap.processes.length + ')');
+  out.push('');
+  out.push('| PID | Process | Feature | Memory | CPU |');
+  out.push('| --- | --- | --- | --- | --- |');
+  snap.processes.forEach((p) => {
+    const cells = [p.pid, mdCell(p.name), mdCell(labels[p.feature] || p.feature), fmtMem(p.memKB), fmtCpu(p.cpu)];
+    out.push('| ' + cells.join(' | ') + ' |');
+  });
+  out.push('');
+
+  out.push('---');
+  out.push('Memory is the private memory of each process. CPU is percent of one core. Power is an estimate from CPU use and idle wake-ups. Features that run inside the app window have no process of their own, so their memory is part of Helper Tool core.');
+  out.push('');
+
+  return out.join('\n');
+}
+
+function flashButton(id, text) {
+  const b = $(id);
+  if (!b) return;
+  if (!b.dataset.label) b.dataset.label = b.textContent;
+  b.textContent = text;
+  clearTimeout(b._flashTimer);
+  b._flashTimer = setTimeout(() => {
+    b.textContent = b.dataset.label;
+  }, 1600);
+}
+
+async function copyReport() {
+  const text = buildReport();
+  if (!text) {
+    flashButton('ptCopy', 'No data yet');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    flashButton('ptCopy', 'Copied');
+  } catch (_) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      flashButton('ptCopy', ok ? 'Copied' : 'Copy failed');
+    } catch (err) {
+      console.error('[PerfTracker] copy failed:', err);
+      flashButton('ptCopy', 'Copy failed');
+    }
+  }
+}
+
+function downloadReport() {
+  const text = buildReport();
+  if (!text) {
+    flashButton('ptDownload', 'No data yet');
+    return;
+  }
+  try {
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'helper-tool-performance-' + stampParts(_snap.ts).file + '.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    flashButton('ptDownload', 'Saved');
+  } catch (err) {
+    console.error('[PerfTracker] download failed:', err);
+    flashButton('ptDownload', 'Download failed');
+  }
+}
+
 export function isOpen() {
   return _open;
 }
@@ -173,6 +414,8 @@ function _buildPanel() {
           '<label class="pt-ctl">Update every ' +
             '<select id="ptInterval" class="pt-select"><option value="3000">3 s</option><option value="5000" selected>5 s</option><option value="10000">10 s</option></select>' +
           '</label>' +
+          '<button class="pt-btn" id="ptCopy" type="button" title="Copy the full report as text">Copy report</button>' +
+          '<button class="pt-btn" id="ptDownload" type="button" title="Save the full report as a Markdown file">Download</button>' +
           '<button class="pt-btn" id="ptPause" type="button">Pause</button>' +
           '<button class="pt-btn" id="ptNow" type="button">Refresh</button>' +
           '<button class="pt-btn pt-btn-icon" id="ptClose" type="button" title="Close"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" width="16" height="16"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></button>' +
@@ -203,6 +446,8 @@ function _buildPanel() {
   document.body.appendChild(_panel);
 
   $('ptClose').addEventListener('click', close);
+  $('ptCopy').addEventListener('click', copyReport);
+  $('ptDownload').addEventListener('click', downloadReport);
   $('ptNow').addEventListener('click', () => {
     clearTimeout(_timer);
     run();
