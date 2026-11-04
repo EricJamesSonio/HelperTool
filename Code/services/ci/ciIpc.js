@@ -5,6 +5,8 @@ const ci = require('./ciWorkflows');
 const { buildPlan } = require('./ciPlan');
 const ciEnv = require('./ciEnv');
 const { preflight } = require('./ciPreflight');
+const { startCiRun } = require('./ciExecutor');
+const { getChanges } = require('./ciChanges');
 const manifest = require('../consoleManifest');
 
 function trustKey(repoPath, file) {
@@ -18,7 +20,7 @@ function currentWorkflow(repoPath, file, httpError) {
   return workflow;
 }
 
-function register({ handle, knownRepo, httpError }) {
+function register({ handle, knownRepo, httpError, runner }) {
   handle('repoConsole:ciDiscover', ({ repoPath }) => {
     knownRepo(repoPath);
     const found = ci.discover(repoPath);
@@ -90,6 +92,31 @@ function register({ handle, knownRepo, httpError }) {
     const values = ciEnv.getValues(manifest.getRepoConsoleDir(), repoPath);
     const result = await preflight({ repoPath, workflow, plan: rebuilt.plan, envValues: values });
     return { preflight: result };
+  });
+
+  handle('repoConsole:ciChanges', async ({ repoPath, base }) => {
+    knownRepo(repoPath);
+    const changes = await getChanges({ repoPath, base });
+    return { changes };
+  });
+
+  handle('repoConsole:ciRun', async ({ repoPath, file, mode, jobIds, approvedSkips, planHash, ack }) => {
+    knownRepo(repoPath);
+    if (!runner) throw httpError(500, 'The console runner is not available.');
+    if (!ci.isWorkflowFile(file)) throw httpError(400, 'That is not a workflow file name.');
+    const result = await startCiRun({
+      repoPath,
+      file,
+      mode,
+      jobIds,
+      approvedSkips,
+      planHash,
+      ack,
+      runner,
+      dataDir: manifest.getRepoConsoleDir(),
+      isTrusted: (hash) => manifest.isTrusted(trustKey(repoPath, file), hash),
+    });
+    return { job: result.job };
   });
 }
 

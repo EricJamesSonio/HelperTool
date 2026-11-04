@@ -399,6 +399,7 @@ function readWorkflowFile(dir, name) {
     if (stat.size > MAX_BYTES) return failedWorkflow(name, 'The file is larger than ' + MAX_BYTES / 1024 + ' KB and was not read.');
     text = fs.readFileSync(full, 'utf8');
   } catch (e) {
+    if (e && e.code === 'ENOENT') return null;
     return failedWorkflow(name, 'The file could not be read: ' + e.message);
   }
   return parseWorkflowText(name, text.replace(/^\uFEFF/, ''));
@@ -425,6 +426,37 @@ function getWorkflow(repoPath, file) {
   return readWorkflowFile(path.join(repoPath, WORKFLOW_DIR), file);
 }
 
+function readRunScripts(repoPath, file) {
+  if (!isWorkflowFile(file)) return null;
+  let text;
+  try {
+    const full = path.join(repoPath, WORKFLOW_DIR, file);
+    const stat = fs.lstatSync(full);
+    if (!stat.isFile() || stat.size > MAX_BYTES) return null;
+    text = fs.readFileSync(full, 'utf8').replace(/^\uFEFF/, '');
+  } catch (e) {
+    return null;
+  }
+
+  let data;
+  try {
+    data = YAML.parse(text);
+  } catch (e) {
+    return null;
+  }
+  if (!isObject(data) || !isObject(data.jobs)) return null;
+
+  const scripts = {};
+  for (const jobId of Object.keys(data.jobs)) {
+    const job = data.jobs[jobId];
+    if (!isObject(job) || !Array.isArray(job.steps)) continue;
+    job.steps.forEach((step, index) => {
+      if (isObject(step) && typeof step.run === 'string') scripts[jobId + ':' + index] = step.run;
+    });
+  }
+  return { hash: crypto.createHash('sha256').update(text).digest('hex'), scripts };
+}
+
 function summarize(workflow) {
   return {
     file: workflow.file,
@@ -442,4 +474,4 @@ function summarize(workflow) {
   };
 }
 
-module.exports = { WORKFLOW_DIR, discover, getWorkflow, summarize, parseWorkflowText, isWorkflowFile };
+module.exports = { WORKFLOW_DIR, discover, getWorkflow, readRunScripts, summarize, parseWorkflowText, isWorkflowFile };

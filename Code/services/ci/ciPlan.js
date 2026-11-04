@@ -115,9 +115,12 @@ function buildPlan({ repoPath, workflow, mode = 'full', jobIds = [], approvedSki
           kind = condition.result === 'runtime' ? 'review' : 'run';
           if (condition.result === 'runtime') reason = 'Condition depends on runtime job status.';
         }
-      } else if (step.kind === 'uses' && step.support === 'satisfied') {
+      } else if (step.kind === 'uses' && (step.support === 'satisfied' || step.support === 'validate')) {
         kind = 'satisfied';
-        reason = 'The repository is already checked out locally.';
+        reason =
+          step.support === 'validate'
+            ? 'Checked against the installed runtime during preflight. Nothing is installed.'
+            : 'The repository is already checked out locally.';
       } else if (step.kind === 'uses' && step.support === 'skipped') {
         kind = 'skipped';
         reason = 'This action is intentionally skipped locally.';
