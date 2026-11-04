@@ -623,6 +623,8 @@ function renderGauge(rows) {
 
 function buildInsights(rows, snap) {
   const items = [];
+  const SHARED_BY = { symbolIndex: ['codebbaseChat', 'codebaseMap', 'graphify'] };
+  const byId = new Map(rows.map((r) => [r.id, r]));
   if (snap.total.memKB >= 2 * 1024 * 1024) {
     items.push({ tone: 'warn', text: 'Helper Tool is using ' + fmtMem(snap.total.memKB) + ' in total.' });
   }
@@ -642,7 +644,12 @@ function buildInsights(rows, snap) {
   }
   for (const r of rows) {
     if (!r.enabled && r.procs > 0) {
-      items.push({ tone: 'warn', text: r.label + ' is turned off but still has ' + r.procs + ' running process' + (r.procs > 1 ? 'es' : '') + ' (' + fmtMem(r.mem) + ').' });
+      const sharers = (SHARED_BY[r.id] || []).map((id) => byId.get(id)).filter((x) => x && x.enabled);
+      if (sharers.length) {
+        items.push({ tone: 'info', text: r.label + ' is turned off, but its process stays on because ' + sharers.map((x) => x.label).join(', ') + (sharers.length > 1 ? ' share it.' : ' shares it.') });
+      } else {
+        items.push({ tone: 'warn', text: r.label + ' is turned off but still has ' + r.procs + ' running process' + (r.procs > 1 ? 'es' : '') + ' (' + fmtMem(r.mem) + ').' });
+      }
     }
   }
   const seen = new Set();
