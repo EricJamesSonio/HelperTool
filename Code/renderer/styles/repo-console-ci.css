@@ -112,6 +112,44 @@
   border-top: 1px solid var(--rc-border);
 }
 
+.rc-err {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  background: var(--rc-raised);
+}
+
+.rc-err-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rc-err-title {
+  color: var(--rc-text);
+  overflow-wrap: anywhere;
+}
+
+.rc-err-message {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--rc-bg);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text2);
+  font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 640px) {
   .ci-plan {
     inset: 3% 3%;
