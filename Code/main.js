@@ -46,6 +46,19 @@ const { initErrorCopDb } = require('./database/errorCopDb.js');
 const prefetchService = require('./ipc/prefetchService.js');
 const serviceTrackerIpc = require('./ipc/serviceTracker_ipc.js');
 
+// Features whose code talks to the indexer process (indexer-service/indexer.js).
+// The process only runs while at least one of them is enabled.
+const INDEXER_FLAGS = ['symbolIndex', 'codebbaseChat', 'codebaseMap', 'graphify'];
+
+function readFeatures() {
+    try { return config.readConfig()?.features ?? null; } catch (_) { return null; }
+}
+
+// null features (first launch) means everything is on
+function indexerWanted(feats) {
+    return !feats || INDEXER_FLAGS.some((id) => feats[id] !== false);
+}
+
 // ----------------------------
 // GPU / MEMORY REDUCTION FLAGS
 // Must be set BEFORE app.whenReady()
@@ -87,20 +100,40 @@ if (!gotTheLock) {
         performance.mark('app:ready');
         console.log('[Main] App is ready');
 
+        const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
+
+        // Start or stop the indexer process to match the enabled features
+        const syncIndexer = (feats) => {
+            const map = feats === undefined ? readFeatures() : feats;
+            if (indexerWanted(map)) {
+                indexerProxy.start(indexerDbPath);
+            } else {
+                indexerProxy.stop();
+                try { require('./indexer/watcher.js').destroyAllWatchers(); } catch (_) {}
+                console.log('[Main] Indexer stopped: no enabled feature needs it');
+            }
+        };
+
+        // Keep the indexer off from the start when no enabled feature needs it
+        if (!indexerWanted(readFeatures())) indexerProxy.stop();
+
         // Indexer + prefetch — deferred until first repo selection (or 15s fallback)
         let _indexerStarted = false;
         const startIndexerAndPrefetch = (repoPath) => {
             if (_indexerStarted) return;
             _indexerStarted = true;
-            const indexerDbPath = path.join(app.getPath('userData'), 'symbol-index', 'index.db');
-            indexerProxy.start(indexerDbPath);
+            if (indexerWanted(readFeatures())) {
+                indexerProxy.start(indexerDbPath);
+            } else {
+                console.log('[Main] Indexer not started: no enabled feature needs it');
+            }
             prefetchService.registerIpc();
             setTimeout(() => {
                 prefetchService.start(indexerDbPath, repoPath || '', getMainWindow);
             }, 800);
         };
 
-        registerAllIpc(startIndexerAndPrefetch);
+        registerAllIpc(startIndexerAndPrefetch, syncIndexer);
 
         try {
             createTray();
@@ -188,7 +221,7 @@ if (!gotTheLock) {
 // Register all IPC modules
 // Staggered to free event loop for first paint + renderer init
 // ----------------------------
-function registerAllIpc(onRepoSelected) {
+function registerAllIpc(onRepoSelected, syncIndexer) {
     const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow, onRepoSelected };
 
     ipcMain.handle('get-app-start-time', () => __appStartTime);
@@ -237,8 +270,12 @@ function registerAllIpc(onRepoSelected) {
       }
     };
 
-    // Called by features-set so newly enabled features work without an app restart
-    shared.onFeaturesChanged = () => registerFeatureIpc();
+    // Called by features-set so newly enabled features work without an app restart,
+    // and so the indexer process follows the enabled features
+    shared.onFeaturesChanged = (feats) => {
+      registerFeatureIpc();
+      if (typeof syncIndexer === 'function') syncIndexer(feats);
+    };
 
     // Tier 0: Eager - needed before first paint
     require('./ipc/harness_ipc.js').register(shared);
