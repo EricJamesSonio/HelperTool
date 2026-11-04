@@ -179,10 +179,10 @@ function register({ app, config, getMainWindow }) {
     return { sent: runner.sendInput(repoPath, text) };
   });
 
-handle('repoConsole:job', ({ repoPath, withLog }) => {
-  knownRepo(repoPath);
-  return { job: runner.getJob(repoPath, !!withLog) };
-});
+  handle('repoConsole:job', ({ repoPath, withLog }) => {
+    knownRepo(repoPath);
+    return { job: runner.getJob(repoPath, !!withLog) };
+  });
 
   handle('repoConsole:history', ({ repoPath, page, limit, action, status, env, q }) => {
     knownRepo(repoPath);
@@ -209,7 +209,7 @@ handle('repoConsole:job', ({ repoPath, withLog }) => {
     return { trusted: true };
   });
 
-  ciIpc.register({ handle, knownRepo, httpError });
+  ciIpc.register({ handle, knownRepo, httpError, runner });
 
   app.on('before-quit', () => runner.stopAll());
 }
