@@ -415,6 +415,58 @@ function listRuns(repoPath, opts) {
   return { items: rows.map(mapRun), total };
 }
 
+function slimError(e) {
+  return {
+    level: e.level,
+    title: e.title,
+    message: String(e.message || '').slice(0, 300),
+    file: e.file,
+    line: e.line,
+    col: e.col,
+    count: e.count,
+  };
+}
+
+function previousRunFor(row) {
+  return _db
+    .prepare(
+      "SELECT * FROM runs WHERE repo_path = ? AND action_id = ? AND kind = 'ci' AND status NOT IN ('running', 'interrupted') AND started_at < ? ORDER BY started_at DESC LIMIT 1"
+    )
+    .get(row.repo_path, row.action_id, row.started_at);
+}
+
+function compareRun(row, steps, errors) {
+  if (row.kind !== 'ci' || !row.action_id) return null;
+  const previous = previousRunFor(row);
+  if (!previous) return { previous: null };
+
+  const earlierErrors = listErrors(previous.id);
+  const earlierSteps = _db.prepare('SELECT step_id, title, status FROM run_steps WHERE run_id = ?').all(previous.id);
+  const before = new Set(earlierErrors.map((e) => e.fingerprint));
+  const after = new Set(errors.map((e) => e.fingerprint));
+
+  const newErrors = errors.filter((e) => !before.has(e.fingerprint)).map(slimError);
+  const fixedErrors = earlierErrors.filter((e) => !after.has(e.fingerprint)).map(slimError);
+  const persisting = errors.filter((e) => before.has(e.fingerprint)).length;
+
+  const earlierById = new Map(earlierSteps.map((s) => [s.step_id, s]));
+  const stepChanges = [];
+  for (const step of steps) {
+    const earlier = earlierById.get(step.id);
+    if (earlier && earlier.status !== step.status) {
+      stepChanges.push({ id: step.id, title: step.title, from: earlier.status, to: step.status });
+    }
+  }
+
+  return {
+    previous: { id: previous.id, status: previous.status, startedAt: previous.started_at },
+    newErrors,
+    fixedErrors,
+    persisting,
+    stepChanges,
+  };
+}
+
 function getRun(runId) {
   if (!_db) return null;
   const row = _db.prepare('SELECT * FROM runs WHERE id = ?').get(String(runId));
@@ -443,7 +495,8 @@ function getRun(runId) {
     .prepare('SELECT step_index, kind, text FROM run_logs WHERE run_id = ? ORDER BY seq LIMIT ?')
     .all(run.id, _logCap + 10)
     .map((l) => ({ s: l.step_index, k: l.kind, t: l.text }));
-  return { run, steps, logs, errors: listErrors(run.id) };
+  const errors = listErrors(run.id);
+  return { run, steps, logs, errors, compare: compareRun(row, steps, errors) };
 }
 
 function lastRun(repoPath, actionId, env) {
@@ -466,13 +519,19 @@ function deleteRunRows(runId) {
   _db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
 }
 
-function pruneRuns(repoPath, keep) {
+function pruneRuns(repoPath, keep, kind) {
   if (!_db) return 0;
   const limit = parseInt(keep, 10);
   if (!(limit >= 1)) return 0;
+  const where = ['repo_path = ?', "status != 'running'"];
+  const params = [repoPath];
+  if (kind) {
+    where.push('kind = ?');
+    params.push(String(kind));
+  }
   const ids = _db
-    .prepare("SELECT id FROM runs WHERE repo_path = ? AND status != 'running' ORDER BY started_at DESC LIMIT -1 OFFSET ?")
-    .all(repoPath, limit)
+    .prepare('SELECT id FROM runs WHERE ' + where.join(' AND ') + ' ORDER BY started_at DESC LIMIT -1 OFFSET ?')
+    .all(...params, limit)
     .map((r) => r.id);
   if (!ids.length) return 0;
   tx(() => {
