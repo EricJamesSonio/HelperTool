@@ -1,6 +1,6 @@
 ---
 name: "code-output-strict"
-description: "HelperTool ticket workflow and Global Seeder output format in one strict skill: caret-pipe markers, full-path file requests in one container, and one-container code batches with START/END blocks."
+description: "HelperTool ticket workflow and Global Seeder output format in one strict skill: caret-pipe markers, full-path file requests in one container, and one-container code batches with START/END blocks. Surgical targets are NODE NAMES only, never code lines."
 ---
 
 # HelperTool workflow + Global Seeder output (MUST FOLLOW EXACTLY)
@@ -100,12 +100,16 @@ The helper dry-runs your code and may reply with a list of failing files, for ex
 
 - Start your reply with ^|output-results|^.
 - Resend ONLY the failing files. Never resend files the helper says passed.
-- Use a full-file block if you are unsure a patch target exists.
 - The helper attaches the current content of files whose patch failed: base the fix on that, not on memory.
+- On ANY "target not found" error, do NOT retry with another surgical target. Resend that file as ONE full-file block built from the attached current content.
+- If the helper did not attach the current content, reply with ^|send-file-contents|^ for that file first. Never guess.
+- If an earlier patch of yours may have been partly applied (duplicates, leftovers), request the file and send a full-file block. Do not stack more surgical patches on top.
+- Fix the ROOT cause. If the error shows you misused the format, fix the format, do not just change the wording of the same bad target.
 
 ### Always
 
 - Never guess file contents. If you have not seen a file, request it with ^|send-file-contents|^.
+- Never guess import paths, module names, exported names or DB client names. Take them from files you have seen, otherwise request those files.
 - Do not repeat the ticket back. No long introductions: marker first, then the content.
 
 ## 2. Code output format
@@ -181,12 +185,57 @@ import { formatCurrency } from './helpers';
 - scss: only plain CSS syntax patches reliably. json is parsed as JavaScript (duplicate keys hit the first).
 - `(Partial)` means show-only and is skipped by the seeder. Never combine it with a verb.
 
+#### Target rules (the most common cause of failed patches)
+
+T is a NAME of a node, NEVER a line, statement or snippet of code. The seeder does AST name lookup, not text search.
+
+- A valid T is a single identifier or selector: `ensureCalendar`, `BreakEditor`, `.card-header`, `scripts.build`, `imports`, `end`.
+- A T containing a space, `=`, `(`, `)`, `;`, `{`, `[` or a keyword like `let`, `const`, `return`, `if` is INVALID (a JS/TS const is targeted by its bare name only, e.g. `(Replace: DAY_MS)`).
+- Statements inside a function body are NOT nodes and can never be targeted.
+- To change a line inside a function: `(Replace: <enclosing function name>)` with the WHOLE new function, complete, in one block.
+- If the line is not inside any named node (loose top-level statements, script-style files), use a full-file block.
+- If you need to know the node names in a file you have not seen, request the file. Never invent a name.
+
+BAD:
+
+```
+seed-bscs.ts (Replace: let semesterBreak = calendar.breaks[0];)
+seed-bscs.ts (Replace: the semesterBreak line in ensureCalendar)
+seed-bscs.ts (Update: line 42)
+```
+
+GOOD:
+
+```
+backend/src/seeds/bscs/seed-bscs.ts (Replace: ensureCalendar)
+```
+
+#### When NOT to use surgical edits (use a full-file block instead)
+
+- Seed files, scripts, migrations, one-off tools, config and setup files, which are mostly top-level statements or one big function.
+- Any file you have not seen in this conversation.
+- Any file where an earlier patch of yours may have been partly applied.
+- Any file where the target name appears more than once.
+- Any change touching more than about a third of the file.
+- Any change that needs several coordinated edits in the same file.
+- Any file type without a grammar (see above) or html.
+- When in doubt: full-file block. A full-file block always works, a wrong surgical block fails silently.
+
+#### Self-check before emitting a surgical block
+
+1. Have I seen the current file in this conversation? If not, request it.
+2. Is T one bare identifier or selector, with no code characters? If not, fix it.
+3. Does that exact name exist exactly once in the file? If not, use a full-file block.
+4. Does the replacement node contain the WHOLE node, including everything that stays the same?
+5. Are all imports and names the new code uses already present or added in the same batch?
+
 ### Blast radius (you are responsible, the seeder has no semantics)
 
 - Before `(Remove: X)`, check that nothing else in the file mentions X (export list, import list, call, prop). If something does, use `(Replace: <enclosing node>)` with the full corrected node, or a full-file block.
 - A change that needs a matching change elsewhere (new import plus export, rename plus call sites) means emitting all those nodes, in order, in the same batch.
 - Rule of thumb: a bare Remove, Add or Replace is only safe when the node is provably self-contained.
 - There is no cross-file awareness. If a change breaks another file, include that file in the batch.
+- A new helper file must be imported by its real, verified path. Do not create helpers that nothing uses.
 
 ### Structure mode (folders and empty files only)
 
