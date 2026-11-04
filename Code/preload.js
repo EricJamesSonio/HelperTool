@@ -767,6 +767,10 @@ const repoConsoleBridge = {
   historyRun:    (payload)                 => ipcRenderer.invoke('repoConsole:historyRun', payload),
   historyClear:  (payload)                 => ipcRenderer.invoke('repoConsole:historyClear', payload),
   trust:         (payload)                 => ipcRenderer.invoke('repoConsole:trust', payload),
+  ciDiscover:    (payload)                 => ipcRenderer.invoke('repoConsole:ciDiscover', payload),
+  ciWorkflow:    (payload)                 => ipcRenderer.invoke('repoConsole:ciWorkflow', payload),
+  ciPlan:        (payload)                 => ipcRenderer.invoke('repoConsole:ciPlan', payload),
+  ciTrust:       (payload)                 => ipcRenderer.invoke('repoConsole:ciTrust', payload),
   onEvent: (callback) => {
     ipcRenderer.removeAllListeners('repoConsole:event');
     ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
