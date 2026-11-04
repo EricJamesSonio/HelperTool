@@ -14,6 +14,93 @@ const SCRIPT_NAME_RE = /^[A-Za-z0-9:_.-]+$/;
 const NODE_FILE_RE = /^[\w./\\-]+$/;
 const RISKS = ['readonly', 'adds', 'changes', 'destructive'];
 const SKIP_SCRIPTS = new Set(['start', 'dev', 'serve', 'watch', 'install', 'postinstall', 'prepare', 'test']);
+const SAFE_NAME_RE = /^[A-Za-z0-9:_.-]+$/;
+const SAFE_PATH_RE = /^[A-Za-z0-9_./-]+$/;
+const IGNORE_DIRS = new Set(['node_modules', 'vendor', 'bin', 'obj', 'target', 'venv', 'env', '__pycache__', 'dist', 'build', 'storage']);
+const MAKE_SKIP = new Set(['all', 'default', 'help', 'install', 'uninstall', 'run', 'dev', 'serve', 'watch', 'start']);
+const COMPOSER_SKIP = new Set(['dev', 'start', 'serve', 'watch', 'install']);
+const LARAVEL_ACTIONS = [
+  {
+    name: 'migrate:status',
+    page: 'database',
+    risk: 'readonly',
+    db: true,
+    force: false,
+    summary: 'Lists every migration and whether it has run.',
+    does: ['Reads the migrations table and prints which migrations have run.'],
+  },
+  {
+    name: 'migrate',
+    page: 'database',
+    risk: 'changes',
+    db: true,
+    force: true,
+    summary: 'Runs every migration that has not run yet.',
+    does: ['Applies the pending migrations in order.'],
+    twice: 'Yes. Migrations that already ran are skipped.',
+  },
+  {
+    name: 'migrate:rollback',
+    page: 'database',
+    risk: 'destructive',
+    db: true,
+    force: true,
+    summary: 'Undoes the last batch of migrations.',
+    does: ['Runs the down() method of the last batch of migrations.'],
+    changes: ['Can drop tables and columns, and the data in them.'],
+  },
+  {
+    name: 'migrate:fresh',
+    page: 'database',
+    risk: 'destructive',
+    db: true,
+    force: true,
+    summary: 'Drops every table, then runs all migrations again.',
+    does: ['Drops all tables in the database.', 'Runs every migration from the start.'],
+    changes: ['Deletes all data in the database.'],
+  },
+  {
+    name: 'migrate:fresh --seed',
+    page: 'database',
+    risk: 'destructive',
+    db: true,
+    force: true,
+    summary: 'Drops every table, runs all migrations, then runs the seeders.',
+    does: ['Drops all tables in the database.', 'Runs every migration from the start.', 'Runs DatabaseSeeder.'],
+    changes: ['Deletes all data in the database and fills it with seed data.'],
+  },
+  {
+    name: 'db:seed',
+    page: 'seeds',
+    risk: 'adds',
+    db: true,
+    force: true,
+    summary: 'Runs DatabaseSeeder.',
+    does: ['Runs the seeders listed in database/seeders/DatabaseSeeder.php.'],
+    changes: ['Adds rows. Whether it is safe to run twice depends on the seeders.'],
+  },
+  {
+    name: 'route:list',
+    page: 'scripts',
+    risk: 'readonly',
+    db: false,
+    force: false,
+    summary: 'Lists every route of the application.',
+    does: ['Prints the registered routes.'],
+  },
+  {
+    name: 'optimize:clear',
+    page: 'scripts',
+    risk: 'changes',
+    db: false,
+    force: false,
+    summary: 'Clears the route, config, view and event caches.',
+    does: ['Deletes the cached framework files.'],
+    changes: ['Cached files only. No database data is touched.'],
+    twice: 'Yes.',
+  },
+];
+
 
 let _trustFile = null;
 
@@ -94,64 +181,412 @@ function bodyAppEnv(body) {
   return m ? m[1] : null;
 }
 
+function readText(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    return '';
+  }
+}
+
+function listDir(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true });
+  } catch (e) {
+    return [];
+  }
+}
+
+function toPosix(p) {
+  return String(p).split(path.sep).join('/');
+}
+
+function where(rel) {
+  return rel === '.' ? 'the repo root' : rel;
+}
+
+function findFiles(dir, re, depth) {
+  const out = [];
+  const walk = (current, level) => {
+    for (const e of listDir(current)) {
+      if (e.name.startsWith('.') || IGNORE_DIRS.has(e.name)) continue;
+      const full = path.join(current, e.name);
+      if (e.isDirectory()) {
+        if (level < depth) walk(full, level + 1);
+      } else if (re.test(e.name)) {
+        out.push(full);
+      }
+    }
+  };
+  walk(dir, 0);
+  return out;
+}
+
+function sectionFor(page, label, rel) {
+  if (page === 'seeds') return 'Seeds';
+  if (page === 'database') return 'Database';
+  return rel === '.' ? label : label + ' / ' + rel;
+}
+
+function classifyTool(name) {
+  const info = classify(name);
+  const readonlyRe = /(^|[:_.-])(test|tests|phpunit|pest|phpstan|psalm|analy[sz]e|stan|vet|clippy)($|[:_.-])/i;
+  if (info.risk !== 'destructive' && readonlyRe.test(name)) info.risk = 'readonly';
+  return info;
+}
+
+function makeAction(o) {
+  const targets = {};
+  if (o.local) targets.local = { command: o.local, appEnv: 'development' };
+  if (o.production) targets.production = { command: o.production, appEnv: 'production' };
+  const needsDb = !!o.needsDb;
+  const risk = o.risk || 'changes';
+  return {
+    id: o.id,
+    page: o.page || 'scripts',
+    section: o.section,
+    title: o.title,
+    summary: o.summary || '',
+    risk,
+    warn: o.warn || null,
+    warnProd: needsDb ? 'This targets the PRODUCTION database. Take a backup first.' : null,
+    does: o.does || [],
+    changes: o.changes || (risk === 'readonly' ? ['Nothing the console knows about.'] : ['Whatever the command does. Review it before running.']),
+    keeps: null,
+    twice: o.twice || null,
+    order: null,
+    needsDb,
+    cwd: o.cwd || '.',
+    targets,
+    autoAnswer: null,
+  };
+}
+
+function simpleAction(prefix, label, rel, name, cmd, risk) {
+  return makeAction({
+    id: prefix + ':' + rel + ':' + name,
+    page: 'scripts',
+    section: sectionFor('scripts', label, rel),
+    title: name,
+    summary: 'Runs "' + cmd + '" in ' + where(rel) + '.',
+    risk,
+    cwd: rel,
+    local: cmd,
+    does: ['Runs "' + cmd + '" from ' + where(rel) + '.'],
+  });
+}
+
+function detectNode(dir, rel, actions, suites) {
+  const { scripts, deps } = readPackage(dir);
+  const groups = new Map();
+  for (const name of Object.keys(scripts)) {
+    if (SKIP_SCRIPTS.has(name)) continue;
+    const hook = /^(pre|post)(.+)$/.exec(name);
+    if (hook && scripts[hook[2]]) continue;
+    const isProd = /:prod(uction)?$/.test(name);
+    const base = name.replace(/:prod(uction)?$/, '');
+    if (!groups.has(base)) groups.set(base, {});
+    groups.get(base)[isProd ? 'production' : 'local'] = name;
+  }
+  for (const [base, names] of groups) {
+    const info = classify(base);
+    const targets = {};
+    if (names.local) targets.local = { script: names.local, appEnv: bodyAppEnv(scripts[names.local]) || 'development' };
+    if (names.production) targets.production = { script: names.production, appEnv: bodyAppEnv(scripts[names.production]) || 'production' };
+    let section = 'Scripts';
+    if (info.page === 'seeds') section = 'Seeds';
+    else if (info.page === 'database') section = 'Database';
+    else if (rel !== '.') section = rel.charAt(0).toUpperCase() + rel.slice(1);
+    actions.push({
+      id: 'pkg:' + rel + ':' + base,
+      page: info.page,
+      section,
+      title: base,
+      summary: 'Runs "npm run ' + base + '" in ' + where(rel) + '. Read the script in package.json to see exactly what it does.',
+      risk: info.risk,
+      warn: null,
+      warnProd: info.needsDb ? 'This targets the PRODUCTION database. Take a backup first.' : null,
+      does: ['Runs the npm script "' + base + '" from ' + (rel === '.' ? 'the repo root' : rel + '/package.json') + '.'],
+      changes: info.risk === 'readonly' ? ['Nothing the console knows about.'] : ['Whatever the script does. Review it before running.'],
+      keeps: null,
+      twice: null,
+      order: null,
+      needsDb: info.needsDb,
+      cwd: rel,
+      targets,
+      autoAnswer: null,
+    });
+  }
+  const runner = deps.vitest ? 'vitest' : deps.jest ? 'jest' : null;
+  if (runner && scripts.test) {
+    const testDir = TEST_DIRS.find((d) => countFiles(path.join(dir, d), TEST_FILE_RE) > 0) || 'src';
+    const label = rel === '.' ? 'root' : rel;
+    suites.push({
+      id: label,
+      title: label + ' tests',
+      runner,
+      command: suiteCommand(runner),
+      cwd: rel,
+      dir: testDir,
+    });
+  }
+}
+
+function detectPhp(repoPath, dir, rel) {
+  const out = [];
+  const composerText = readText(path.join(dir, 'composer.json'));
+  if (composerText) {
+    let scripts = {};
+    try {
+      const parsed = JSON.parse(composerText).scripts;
+      scripts = parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+      scripts = {};
+    }
+    for (const name of Object.keys(scripts)) {
+      if (!SAFE_NAME_RE.test(name) || /^(pre|post)-/.test(name) || COMPOSER_SKIP.has(name)) continue;
+      const info = classifyTool(name);
+      const cmd = 'composer run-script ' + name;
+      out.push(
+        makeAction({
+          id: 'composer:' + rel + ':' + name,
+          page: info.page,
+          section: sectionFor(info.page, 'Composer', rel),
+          title: name,
+          summary: 'Runs "' + cmd + '" in ' + where(rel) + '. Read the script in composer.json to see exactly what it does.',
+          risk: info.risk,
+          needsDb: info.needsDb,
+          cwd: rel,
+          local: cmd,
+          production: info.needsDb ? cmd : null,
+          does: ['Runs the Composer script "' + name + '" from ' + where(rel) + '.'],
+        })
+      );
+    }
+  }
+  if (fs.existsSync(path.join(dir, 'artisan'))) {
+    for (const a of LARAVEL_ACTIONS) {
+      const cmd = 'php artisan ' + a.name;
+      out.push(
+        makeAction({
+          id: 'artisan:' + rel + ':' + a.name.replace(/\s+/g, '-'),
+          page: a.page,
+          section: sectionFor(a.page, 'Laravel', rel),
+          title: a.name,
+          summary: a.summary,
+          risk: a.risk,
+          needsDb: a.db,
+          cwd: rel,
+          local: cmd,
+          production: a.db ? cmd + ' --env=production' + (a.force ? ' --force' : '') : null,
+          does: a.does,
+          changes: a.changes,
+          twice: a.twice,
+        })
+      );
+    }
+    const seederFiles = findFiles(path.join(dir, 'database', 'seeders'), /Seeder\.php$/, 2).slice(0, 20);
+    for (const file of seederFiles) {
+      const cls = path.basename(file, '.php');
+      if (cls === 'DatabaseSeeder' || !/^[A-Za-z0-9_]+$/.test(cls)) continue;
+      const cmd = 'php artisan db:seed --class=' + cls;
+      out.push(
+        makeAction({
+          id: 'artisan:' + rel + ':seed:' + cls,
+          page: 'seeds',
+          section: 'Seeds',
+          title: cls,
+          summary: 'Runs only the ' + cls + ' seeder.',
+          risk: 'adds',
+          needsDb: true,
+          cwd: rel,
+          local: cmd,
+          production: cmd + ' --env=production --force',
+          does: ['Runs the seeder class ' + cls + ' from database/seeders.'],
+          changes: ['Adds rows. Whether it is safe to run twice depends on the seeder.'],
+        })
+      );
+    }
+  }
+  return out;
+}
+
+function detectPython(repoPath, dir, rel) {
+  const has = (name) => fs.existsSync(path.join(dir, name));
+  if (!has('pyproject.toml') && !has('requirements.txt') && !has('alembic.ini') && !has('manage.py')) return [];
+  const deps = (readText(path.join(dir, 'pyproject.toml')) + '\n' + readText(path.join(dir, 'requirements.txt'))).toLowerCase();
+  const label = has('manage.py') ? 'Django' : deps.includes('fastapi') ? 'FastAPI' : 'Python';
+  const prefix = has('poetry.lock') ? 'poetry run ' : has('uv.lock') ? 'uv run ' : '';
+  const py = prefix + (process.platform === 'win32' ? 'python' : 'python3');
+  const out = [];
+  const db = (id, title, cmd, risk, summary, does, twice) => {
+    out.push(
+      makeAction({
+        id: 'py:' + rel + ':' + id,
+        page: 'database',
+        section: 'Database',
+        title,
+        summary,
+        risk,
+        needsDb: true,
+        cwd: rel,
+        local: cmd,
+        production: cmd,
+        does,
+        twice,
+      })
+    );
+  };
+  if (has('alembic.ini')) {
+    db('alembic-current', 'alembic current', prefix + 'alembic current', 'readonly', 'Shows which Alembic revision the database is on.', ['Reads the alembic_version table.']);
+    db('alembic-upgrade', 'alembic upgrade head', prefix + 'alembic upgrade head', 'changes', 'Applies every Alembic migration that has not run yet.', ['Upgrades the database to the latest revision.'], 'Yes. Revisions that already ran are skipped.');
+    db('alembic-downgrade', 'alembic downgrade -1', prefix + 'alembic downgrade -1', 'destructive', 'Undoes the most recent Alembic migration.', ['Runs the downgrade of the current revision.']);
+    out.push(simpleAction('py', label, rel, 'alembic-history', prefix + 'alembic history', 'readonly'));
+  }
+  if (has('manage.py')) {
+    db('django-showmigrations', 'showmigrations', py + ' manage.py showmigrations', 'readonly', 'Lists every Django migration and whether it has run.', ['Reads the django_migrations table.']);
+    db('django-migrate', 'migrate', py + ' manage.py migrate', 'changes', 'Applies every Django migration that has not run yet.', ['Runs the pending migrations in order.'], 'Yes. Migrations that already ran are skipped.');
+    out.push(simpleAction('py', label, rel, 'django-check', py + ' manage.py check', 'readonly'));
+  }
+  if (deps.includes('ruff')) out.push(simpleAction('py', label, rel, 'ruff-check', prefix + 'ruff check .', 'readonly'));
+  if (deps.includes('mypy')) out.push(simpleAction('py', label, rel, 'mypy', prefix + 'mypy .', 'readonly'));
+  if (deps.includes('pytest')) out.push(simpleAction('py', label, rel, 'pytest', prefix + 'pytest', 'readonly'));
+  const seedFiles = findFiles(dir, /^seed.*\.py$/i, 3).slice(0, 8);
+  for (const file of seedFiles) {
+    const relFile = toPosix(path.relative(dir, file));
+    if (!SAFE_PATH_RE.test(relFile) || /(^|\/)tests?\//.test(relFile)) continue;
+    const cmd = py + ' ' + relFile;
+    out.push(
+      makeAction({
+        id: 'py:' + rel + ':seed:' + relFile,
+        page: 'seeds',
+        section: 'Seeds',
+        title: relFile,
+        summary: 'Runs the seed script ' + relFile + '. Read it to see exactly what it adds.',
+        risk: 'adds',
+        needsDb: true,
+        cwd: rel,
+        local: cmd,
+        production: cmd,
+        does: ['Runs ' + relFile + ' with Python.'],
+        changes: ['Adds rows. Whether it is safe to run twice depends on the script.'],
+      })
+    );
+  }
+  return out;
+}
+
+function detectDotnet(repoPath, dir, rel) {
+  const names = listDir(dir).filter((e) => e.isFile()).map((e) => e.name);
+  const hasRoot = names.some((n) => /\.(sln|slnx|csproj)$/i.test(n));
+  const projects = findFiles(dir, /\.csproj$/i, 3);
+  if (!hasRoot && !projects.length) return [];
+  const out = [];
+  if (hasRoot) {
+    out.push(simpleAction('dotnet', '.NET', rel, 'build', 'dotnet build', 'readonly'));
+    out.push(simpleAction('dotnet', '.NET', rel, 'test', 'dotnet test', 'readonly'));
+    out.push(simpleAction('dotnet', '.NET', rel, 'restore', 'dotnet restore', 'adds'));
+  }
+  const efProjects = projects.filter((p) => readText(p).includes('Microsoft.EntityFrameworkCore')).slice(0, 4);
+  for (const proj of efProjects) {
+    const projDir = path.dirname(proj);
+    const cwdRel = toPosix(path.relative(repoPath, projDir)) || '.';
+    if (!SAFE_PATH_RE.test(cwdRel)) continue;
+    const suffix = efProjects.length > 1 ? ' (' + path.basename(projDir) + ')' : '';
+    const defs = [
+      ['migrations-list', 'ef migrations list', 'dotnet ef migrations list', 'readonly', 'Lists the EF Core migrations and whether each one is applied.', ['Connects to the database and compares it with the migrations in the project.']],
+      ['database-update', 'ef database update', 'dotnet ef database update', 'changes', 'Applies every EF Core migration that has not run yet.', ['Updates the database to the latest migration.']],
+    ];
+    for (const [key, title, cmd, risk, summary, does] of defs) {
+      out.push(
+        makeAction({
+          id: 'dotnet-ef:' + cwdRel + ':' + key,
+          page: 'database',
+          section: 'Database',
+          title: title + suffix,
+          summary,
+          risk,
+          needsDb: true,
+          cwd: cwdRel,
+          local: cmd,
+          production: cmd + ' -- --environment Production',
+          does,
+          twice: key === 'database-update' ? 'Yes. Migrations that already ran are skipped.' : null,
+        })
+      );
+    }
+  }
+  return out;
+}
+
+function detectGo(repoPath, dir, rel) {
+  if (!fs.existsSync(path.join(dir, 'go.mod'))) return [];
+  return [
+    ['build', 'go build ./...', 'readonly'],
+    ['vet', 'go vet ./...', 'readonly'],
+    ['test', 'go test ./...', 'readonly'],
+  ].map(([name, cmd, risk]) => simpleAction('go', 'Go', rel, name, cmd, risk));
+}
+
+function detectRust(repoPath, dir, rel) {
+  if (!fs.existsSync(path.join(dir, 'Cargo.toml'))) return [];
+  return [
+    ['build', 'cargo build', 'readonly'],
+    ['check', 'cargo check', 'readonly'],
+    ['test', 'cargo test', 'readonly'],
+  ].map(([name, cmd, risk]) => simpleAction('cargo', 'Rust', rel, name, cmd, risk));
+}
+
+function detectMake(repoPath, dir, rel) {
+  const file = ['Makefile', 'makefile', 'GNUmakefile'].find((n) => fs.existsSync(path.join(dir, n)));
+  if (!file) return [];
+  const names = [];
+  for (const line of readText(path.join(dir, file)).split(/\r?\n/)) {
+    const m = /^([A-Za-z0-9][A-Za-z0-9_-]*)\s*:(?![=:])/.exec(line);
+    if (!m || MAKE_SKIP.has(m[1]) || names.includes(m[1])) continue;
+    names.push(m[1]);
+  }
+  return names.slice(0, 30).map((name) => {
+    const info = classifyTool(name);
+    const cmd = 'make ' + name;
+    return makeAction({
+      id: 'make:' + rel + ':' + name,
+      page: info.page,
+      section: sectionFor(info.page, 'Make', rel),
+      title: name,
+      summary: 'Runs "' + cmd + '" in ' + where(rel) + '. Read the target in the Makefile to see exactly what it does.',
+      risk: info.risk,
+      needsDb: info.needsDb,
+      cwd: rel,
+      local: cmd,
+      production: info.needsDb ? cmd : null,
+      does: ['Runs the Makefile target "' + name + '" from ' + where(rel) + '.'],
+    });
+  });
+}
+
+function detectCMake(repoPath, dir, rel) {
+  if (!fs.existsSync(path.join(dir, 'CMakeLists.txt'))) return [];
+  return [
+    ['configure', 'cmake -S . -B build', 'adds'],
+    ['build', 'cmake --build build', 'adds'],
+    ['ctest', 'ctest --test-dir build', 'readonly'],
+  ].map(([name, cmd, risk]) => simpleAction('cmake', 'CMake', rel, name, cmd, risk));
+}
 function detect(repoPath) {
   const actions = [];
   const suites = [];
+  const detectors = [detectPhp, detectPython, detectDotnet, detectGo, detectRust, detectMake, detectCMake];
   for (const rel of DETECT_DIRS) {
     const dir = path.resolve(repoPath, rel);
-    if (!fs.existsSync(path.join(dir, 'package.json'))) continue;
-    const { scripts, deps } = readPackage(dir);
-    const groups = new Map();
-    for (const name of Object.keys(scripts)) {
-      if (SKIP_SCRIPTS.has(name)) continue;
-      const hook = /^(pre|post)(.+)$/.exec(name);
-      if (hook && scripts[hook[2]]) continue;
-      const isProd = /:prod(uction)?$/.test(name);
-      const base = name.replace(/:prod(uction)?$/, '');
-      if (!groups.has(base)) groups.set(base, {});
-      groups.get(base)[isProd ? 'production' : 'local'] = name;
-    }
-    for (const [base, names] of groups) {
-      const info = classify(base);
-      const targets = {};
-      if (names.local) targets.local = { script: names.local, appEnv: bodyAppEnv(scripts[names.local]) || 'development' };
-      if (names.production) targets.production = { script: names.production, appEnv: bodyAppEnv(scripts[names.production]) || 'production' };
-      let section = 'Scripts';
-      if (info.page === 'seeds') section = 'Seeds';
-      else if (info.page === 'database') section = 'Database';
-      else if (rel !== '.') section = rel.charAt(0).toUpperCase() + rel.slice(1);
-      actions.push({
-        id: 'pkg:' + rel + ':' + base,
-        page: info.page,
-        section,
-        title: base,
-        summary: 'Runs "npm run ' + base + '" in ' + (rel === '.' ? 'the repo root' : rel) + '. Read the script in package.json to see exactly what it does.',
-        risk: info.risk,
-        warn: null,
-        warnProd: info.needsDb ? 'This targets the PRODUCTION database. Take a backup first.' : null,
-        does: ['Runs the npm script "' + base + '" from ' + (rel === '.' ? 'the repo root' : rel + '/package.json') + '.'],
-        changes: info.risk === 'readonly' ? ['Nothing the console knows about.'] : ['Whatever the script does. Review it before running.'],
-        keeps: null,
-        twice: null,
-        order: null,
-        needsDb: info.needsDb,
-        cwd: rel,
-        targets,
-        autoAnswer: null,
-      });
-    }
-    const runner = deps.vitest ? 'vitest' : deps.jest ? 'jest' : null;
-    if (runner && scripts.test) {
-      const testDir = TEST_DIRS.find((d) => countFiles(path.join(dir, d), TEST_FILE_RE) > 0) || 'src';
-      const label = rel === '.' ? 'root' : rel;
-      suites.push({
-        id: label,
-        title: label + ' tests',
-        runner,
-        command: suiteCommand(runner),
-        cwd: rel,
-        dir: testDir,
-      });
+    if (!fs.existsSync(dir)) continue;
+    if (fs.existsSync(path.join(dir, 'package.json'))) detectNode(dir, rel, actions, suites);
+    for (const run of detectors) {
+      try {
+        actions.push(...run(repoPath, dir, rel));
+      } catch (e) {
+        /* an unreadable project file must not hide the other actions */
+      }
     }
   }
   return { actions, suites };
