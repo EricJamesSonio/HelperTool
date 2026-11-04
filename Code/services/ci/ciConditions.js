@@ -1,7 +1,7 @@
 'use strict';
 
 const EXPRESSION_RE = /\$\{\{([\s\S]*?)\}\}/g;
-const KNOWN_EXPRESSION_RE = /^(?:env|secrets)\.([A-Za-z_][A-Za-z0-9_]*|github\.(?:workspace|sha))$/;
+const KNOWN_EXPRESSION_RE = /^(?:(?:env|secrets)\.[A-Za-z_][A-Za-z0-9_]*|github\.(?:workspace|sha))$/;
 const SIMPLE_CONDITION_RE = /^(?:success\(\)|always\(\)|failure\(\)|cancelled\(\)|true|false)$/;
 
 function analyzeCondition(value) {
@@ -28,15 +28,12 @@ function analyzeExpressions(value) {
 
   for (const match of String(value || '').matchAll(EXPRESSION_RE)) {
     const expression = match[1].trim();
-    const known = KNOWN_EXPRESSION_RE.exec(expression);
-
-    if (!known) {
+    if (!KNOWN_EXPRESSION_RE.test(expression)) {
       if (!unknown.includes(expression)) unknown.push(expression);
       continue;
     }
-
-    if (expression.startsWith('env.')) envNames.add(known[1]);
-    if (expression.startsWith('secrets.')) secretNames.add(known[1]);
+    if (expression.startsWith('env.')) envNames.add(expression.slice(4));
+    if (expression.startsWith('secrets.')) secretNames.add(expression.slice(8));
   }
 
   return {
