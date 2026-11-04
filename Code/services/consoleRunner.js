@@ -1,6 +1,6 @@
 'use strict';
 
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -11,13 +11,24 @@ const ANSI_RE = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 const MAX_LOG = 6000;
 const FLUSH_MS = 120;
 const PARTIAL_MS = 250;
+const MIN_MASK_LENGTH = 4;
 
 function stripAnsi(text) {
   return String(text).replace(ANSI_RE, '');
 }
 
-function clean(text, max) {
-  const out = history.redact(stripAnsi(text || '')).trim();
+function maskValues(text, values) {
+  let out = String(text === null || text === undefined ? '' : text);
+  if (!values || !values.length) return out;
+  for (const value of values) {
+    if (typeof value !== 'string' || value.length < MIN_MASK_LENGTH) continue;
+    if (out.includes(value)) out = out.split(value).join('***');
+  }
+  return out;
+}
+
+function clean(text, max, values) {
+  const out = history.redact(maskValues(stripAnsi(text || ''), values)).trim();
   return out.length > max ? out.slice(0, max) + '\n... (cut)' : out;
 }
 
@@ -68,20 +79,37 @@ function killTree(child) {
   }, 3000);
 }
 
-function summarizeJson(dir, file) {
+function killTreeSync(child) {
+  if (!child || !child.pid) return;
+  try {
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+    } else {
+      process.kill(-child.pid, 'SIGKILL');
+    }
+  } catch (e) {
+    try {
+      child.kill('SIGKILL');
+    } catch (err) {
+      /* process already gone */
+    }
+  }
+}
+
+function summarizeJson(dir, file, values) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   const files = (data.testResults || []).map((r) => {
     const assertions = r.assertionResults || [];
     const failures = assertions
       .filter((a) => a.status === 'failed')
       .map((a) => {
-        const message = clean((a.failureMessages || []).join('\n'), 5000);
+        const message = clean((a.failureMessages || []).join('\n'), 5000, values);
         return { name: a.fullName || a.title || '(unnamed test)', message, summary: firstLine(message) };
       });
     const passed = assertions.filter((a) => a.status === 'passed').length;
     const skipped = assertions.filter((a) => ['pending', 'skipped', 'todo', 'disabled'].includes(a.status)).length;
     const status = r.status === 'passed' ? 'passed' : r.status === 'failed' ? 'failed' : 'skipped';
-    const error = status === 'failed' && failures.length === 0 ? clean(r.message, 5000) : '';
+    const error = status === 'failed' && failures.length === 0 ? clean(r.message, 5000, values) : '';
     return {
       file: path.relative(dir, r.name).split(path.sep).join('/'),
       status,
@@ -122,7 +150,7 @@ function collectResult(step) {
       step.result = { kind: 'tests', error: 'The test run ended before it wrote a report. Open the Output tab to see why.' };
       return;
     }
-    step.result = Object.assign({ kind: 'tests' }, summarizeJson(step.cwd, file));
+    step.result = Object.assign({ kind: 'tests' }, summarizeJson(step.cwd, file, step.redactValues));
   } catch (e) {
     step.result = { kind: 'tests', error: 'The test report could not be read: ' + e.message };
   } finally {
@@ -134,7 +162,8 @@ function collectResult(step) {
   }
 }
 
-function initStep(spec) {
+function initStep(spec, redactValues) {
+  const timeout = Number(spec.timeoutMs);
   return {
     id: spec.id,
     title: spec.title,
@@ -144,6 +173,16 @@ function initStep(spec) {
     interactive: !!spec.interactive,
     test: spec.test || null,
     autoAnswer: spec.autoAnswer ? { when: spec.autoAnswer.when, send: spec.autoAnswer.send, done: false } : null,
+    argv: Array.isArray(spec.argv) && spec.argv.length ? spec.argv.map(String) : null,
+    timeoutMs: timeout > 0 ? timeout : 0,
+    dependsOn: Array.isArray(spec.dependsOn) ? spec.dependsOn.map(String) : [],
+    stopOnFail: !!spec.stopOnFail,
+    jobId: spec.jobId || null,
+    jobTitle: spec.jobTitle || null,
+    onEnd: typeof spec.onEnd === 'function' ? spec.onEnd : null,
+    redactValues: redactValues || [],
+    reason: null,
+    signal: null,
     status: 'pending',
     exitCode: null,
     startedAt: null,
@@ -164,6 +203,10 @@ function stepView(s, index) {
     exitCode: s.exitCode,
     startedAt: s.startedAt,
     endedAt: s.endedAt,
+    jobId: s.jobId,
+    jobTitle: s.jobTitle,
+    reason: s.reason,
+    signal: s.signal,
     progress: s.progress ? Object.assign({}, s.progress, { files: s.progress.files.slice(-20) }) : null,
     result: s.result,
   };
@@ -239,7 +282,7 @@ function createRunner(emit) {
   }
 
   function pushLog(ctx, kind, raw) {
-    const entry = { s: ctx.job.stepIndex, k: kind, t: history.redact(raw) };
+    const entry = { s: ctx.job.stepIndex, k: kind, t: history.redact(maskValues(raw, ctx.job.redactValues)) };
     ctx.job.log.push(entry);
     if (ctx.job.log.length > MAX_LOG) {
       ctx.job.log.shift();
@@ -307,23 +350,30 @@ function createRunner(emit) {
       }
 
       let settled = false;
+      let timer = null;
       const finish = (code) => {
         if (settled) return;
         settled = true;
+        if (timer) clearTimeout(timer);
         resolve({ code });
       };
 
       let child;
       try {
-        child = spawn(step.command, {
+        const options = {
           cwd: step.cwd,
-          shell: true,
           env: childEnv(step.env),
           stdio: [step.interactive ? 'pipe' : 'ignore', 'pipe', 'pipe'],
           windowsHide: true,
           detached: process.platform !== 'win32',
-        });
+        };
+        if (step.argv) {
+          child = spawn(step.argv[0], step.argv.slice(1), Object.assign({ shell: false }, options));
+        } else {
+          child = spawn(step.command, Object.assign({ shell: true }, options));
+        }
       } catch (e) {
+        step.reason = 'spawn-error';
         pushLog(ctx, 'sys', 'Could not start: ' + e.message);
         finish(-1);
         return;
@@ -333,6 +383,16 @@ function createRunner(emit) {
       if (child.stdin) child.stdin.on('error', () => {});
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
+
+      if (step.timeoutMs > 0) {
+        timer = setTimeout(() => {
+          if (settled) return;
+          step.reason = 'timeout';
+          pushLog(ctx, 'sys', 'Timed out after ' + Math.round(step.timeoutMs / 1000) + 's. Ending the process...');
+          scheduleFlush(ctx);
+          killTree(child);
+        }, step.timeoutMs);
+      }
 
       const buffers = { out: '', err: '' };
       const timers = { out: null, err: null };
@@ -361,16 +421,19 @@ function createRunner(emit) {
       child.stderr.on('data', (c) => onData('err', c));
 
       child.on('error', (err) => {
+        step.reason = 'spawn-error';
         pushLog(ctx, 'sys', 'Could not start: ' + err.message);
         finish(-1);
       });
 
-      child.on('close', (code) => {
+      child.on('close', (code, signal) => {
         clearTimeout(timers.out);
         clearTimeout(timers.err);
         flushPartial('out');
         flushPartial('err');
         step.exitCode = code;
+        step.signal = signal || null;
+        if (!step.reason) step.reason = job.stopRequested ? 'cancelled' : code === null ? 'signal' : 'exit';
         ctx.current = null;
         finish(code === null ? -1 : code);
       });
@@ -398,21 +461,52 @@ function createRunner(emit) {
 
   async function runAll(ctx) {
     const job = ctx.job;
+    const statusById = new Map();
     let failed = false;
+    let halted = false;
     for (let i = 0; i < job.steps.length; i += 1) {
       const step = job.steps[i];
       if (job.stopRequested) {
         step.status = 'skipped';
+        step.reason = 'cancelled';
+        statusById.set(step.id, step.status);
+        continue;
+      }
+      if (halted) {
+        step.status = 'skipped';
+        step.reason = 'earlier-failure';
+        statusById.set(step.id, step.status);
+        continue;
+      }
+      const unmet = step.dependsOn.filter((id) => statusById.get(id) !== 'done');
+      if (unmet.length) {
+        job.stepIndex = i;
+        step.status = 'blocked';
+        step.reason = 'dependency';
+        failed = true;
+        pushLog(ctx, 'sys', 'Blocked: ' + step.title + ' needs ' + unmet.join(', ') + ' to finish first.');
+        statusById.set(step.id, step.status);
+        scheduleFlush(ctx);
         continue;
       }
       const out = await runStep(ctx, step, i);
       step.endedAt = Date.now();
       if (step.test) collectResult(step);
+      const timedOut = step.reason === 'timeout';
       if (job.stopRequested) step.status = 'stopped';
-      else if (out.code === 0) step.status = 'done';
+      else if (out.code === 0 && !timedOut) step.status = 'done';
       else {
         step.status = 'failed';
         failed = true;
+        if (step.stopOnFail) halted = true;
+      }
+      statusById.set(step.id, step.status);
+      if (step.onEnd) {
+        try {
+          step.onEnd(stepView(step, i), job.log.filter((l) => l.s === i));
+        } catch (e) {
+          pushLog(ctx, 'sys', 'Step hook failed: ' + e.message);
+        }
       }
       scheduleFlush(ctx);
     }
@@ -425,6 +519,9 @@ function createRunner(emit) {
     if (ctx.job && ctx.job.status === 'running') {
       throw Object.assign(new Error('Another job is still running in this repository. Wait for it or press Stop.'), { status: 409 });
     }
+    const redactValues = Array.isArray(spec.redactValues)
+      ? spec.redactValues.filter((v) => typeof v === 'string' && v.length >= MIN_MASK_LENGTH)
+      : [];
     ctx.job = {
       id: crypto.randomBytes(6).toString('hex'),
       actionId: spec.actionId || null,
@@ -433,6 +530,7 @@ function createRunner(emit) {
       targetLabel: spec.targetLabel || '',
       danger: !!spec.danger,
       meta: spec.history || {},
+      redactValues,
       status: 'running',
       startedAt: Date.now(),
       endedAt: null,
@@ -442,7 +540,7 @@ function createRunner(emit) {
       awaiting: false,
       dropped: 0,
       stepIndex: 0,
-      steps: spec.steps.map(initStep),
+      steps: spec.steps.map((s) => initStep(s, redactValues)),
       log: [],
     };
     ctx.pending = [];
@@ -488,11 +586,26 @@ function createRunner(emit) {
     return !!(ctx && ctx.job && ctx.job.status === 'running');
   }
 
+  function anyRunning() {
+    for (const ctx of ctxs.values()) {
+      if (ctx.job && ctx.job.status === 'running') return true;
+    }
+    return false;
+  }
+
   function stopAll() {
     for (const repoPath of ctxs.keys()) stopJob(repoPath);
   }
 
-  return { startJob, stopJob, sendInput, getJob, isRunning, stopAll };
+  function killAllNow() {
+    for (const ctx of ctxs.values()) {
+      if (!ctx.job || ctx.job.status !== 'running') continue;
+      ctx.job.stopRequested = true;
+      if (ctx.current && ctx.current.child) killTreeSync(ctx.current.child);
+    }
+  }
+
+  return { startJob, stopJob, sendInput, getJob, isRunning, anyRunning, stopAll, killAllNow };
 }
 
 module.exports = { createRunner, killTree };

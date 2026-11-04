@@ -7,8 +7,20 @@ const consoleDb = require('../database/consoleDb');
 const manifest = require('../services/consoleManifest');
 const { createRunner } = require('../services/consoleRunner');
 
+let _runner = null;
+
 function httpError(status, message) {
   return Object.assign(new Error(message), { status });
+}
+
+function hasRunning() {
+  return !!_runner && _runner.anyRunning();
+}
+
+function stopAll(options) {
+  if (!_runner) return;
+  _runner.stopAll();
+  if (options && options.hard) _runner.killAllNow();
 }
 
 function register({ app, config, getMainWindow }) {
@@ -22,6 +34,7 @@ function register({ app, config, getMainWindow }) {
       win.webContents.send('repoConsole:event', { repoPath, event, data });
     }
   });
+  _runner = runner;
 
   function knownRepo(repoPath) {
     if (typeof repoPath !== 'string' || !repoPath) throw httpError(400, 'No repository selected.');
@@ -198,4 +211,4 @@ function register({ app, config, getMainWindow }) {
   app.on('before-quit', () => runner.stopAll());
 }
 
-module.exports = { register };
+module.exports = { register, hasRunning, stopAll };

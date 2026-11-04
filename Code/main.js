@@ -424,6 +424,24 @@ function createTray() {
         {
             label: 'Exit',
             click: () => {
+                try {
+                    const repoConsole = require('./ipc/repoConsole_ipc.js');
+                    if (repoConsole.hasRunning()) {
+                        const { dialog } = require('electron');
+                        const choice = dialog.showMessageBoxSync({
+                            type: 'warning',
+                            buttons: ['Stop jobs and exit', 'Cancel'],
+                            defaultId: 1,
+                            cancelId: 1,
+                            title: 'Repo Console job running',
+                            message: 'A Repo Console job is still running.',
+                            detail: 'Exiting now will stop it.'
+                        });
+                        if (choice !== 0) return;
+                    }
+                } catch (e) {
+                    console.error('[Tray] Running-job check failed:', e);
+                }
                 tray.destroy();
                 cleanupAndExit(true);
                 app.exit(0);
@@ -469,6 +487,7 @@ function getPreviousReposMenu() {
 }
 
 function cleanupAndExit(deleteIndex) {
+    try { require('./ipc/repoConsole_ipc.js').stopAll({ hard: true }); } catch (_) {}
     if (deleteIndex) {
         try {
             const dbModule = require('./database/db.js');
