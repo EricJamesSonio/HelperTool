@@ -50,6 +50,7 @@ function renderNav() {
   els.banner.hidden = !prod;
   els.banner.textContent = prod ? 'PRODUCTION MODE - everything you run here changes the real database.' : '';
   const stats = info ? (info.historyCount || 0) + ' saved runs \u00b7 ' + (S.catalog.source === 'manifest' ? 'Manifest actions' : 'Detected scripts') : '';
+  const canPaste = typeof S.hooks.openImport === 'function';
   els.nav.replaceChildren(
     h('div', { class: 'rc-brand' }, h('div', { class: 'rc-brand-name', text: 'Repo Console' }), h('div', { class: 'rc-brand-sub', text: repoName() })),
     h(
@@ -75,6 +76,7 @@ function renderNav() {
       { class: 'rc-nav-right' },
       stats ? h('span', { class: 'rc-foot', text: stats }) : null,
       showEnv ? envSwitch() : null,
+      showEnv && canPaste ? h('button', { class: 'rc-btn secondary small', text: 'Paste actions', onclick: () => S.hooks.openImport() }) : null,
       h('button', { class: 'rc-btn secondary small', text: 'Close', onclick: close })
     )
   );
@@ -157,7 +159,7 @@ function onEvent(msg) {
     S.pending.clear();
     if (S.output.open && S.output.live && S.output.repoPath === repoPath && (!data || S.output.runId !== data.id)) closeOutput();
     renderAll();
-    if (data && repoPath === S.repoPath && isOpen()) openLiveOutput(repoPath, 'output');
+    if (data && data.kind === 'action' && repoPath === S.repoPath && isOpen()) openLiveOutput(repoPath, 'output');
     return;
   }
   let entry = S.jobs.get(repoPath);
@@ -213,11 +215,15 @@ function ensureInit() {
   if (inited) return;
   inited = true;
 
-  if (!document.getElementById('repoConsoleSheet')) {
+  for (const [id, href] of [
+    ['repoConsoleSheet', 'styles/repo-console.css'],
+    ['repoConsoleLayoutSheet', 'styles/repo-console-layout.css'],
+  ]) {
+    if (document.getElementById(id)) continue;
     const link = document.createElement('link');
-    link.id = 'repoConsoleSheet';
+    link.id = id;
     link.rel = 'stylesheet';
-    link.href = 'styles/repo-console.css';
+    link.href = href;
     document.head.append(link);
   }
   if (!document.getElementById('repoConsoleCritical')) {
@@ -247,6 +253,15 @@ function ensureInit() {
   S.hooks.renderPage = renderPage;
   S.hooks.refreshCatalog = refreshCatalog;
   S.hooks.openPanel = openPanelRequest;
+
+  import('./importUI.js')
+    .then((mod) => {
+      S.hooks.openImport = () => mod.openImport();
+      renderAll();
+    })
+    .catch(() => {
+      /* paste import is optional */
+    });
 
   if (window.repoConsoleAPI && window.repoConsoleAPI.onEvent) window.repoConsoleAPI.onEvent(onEvent);
 

@@ -1,5 +1,5 @@
 import { S, h, call, liveEntry, isRunning, fmtMs, fmtDate, relativeTime, statusLabel, statusChip, toast } from './state.js';
-import { openHistoryRun, stopJob, testResultsBlock } from './monitor.js';
+import { openHistoryRun, stopJob, testResultsBlock, suiteSeg, getSuiteFilter } from './monitor.js';
 
 const RISK = {
   readonly: { label: 'Read-only', cls: 'risk-readonly' },
@@ -13,6 +13,10 @@ let historyTimer = null;
 function badge(risk) {
   const r = RISK[risk] || RISK.changes;
   return h('span', { class: 'rc-badge ' + r.cls, text: r.label });
+}
+
+function runningChip() {
+  return h('span', { class: 'rc-chip running' }, h('span', { class: 'rc-spin' }), 'Running');
 }
 
 function targetText(plan) {
@@ -59,14 +63,14 @@ async function trustManifest() {
 
 function itemCard(item) {
   const plan = item.targets[S.env];
-  const card = h('div', { class: 'rc-card' });
   if (!plan) {
-    card.append(
+    return h(
+      'div',
+      { class: 'rc-card' },
       h('div', { class: 'rc-card-head' }, h('h3', { text: item.title }), badge(item.risk)),
       h('p', { text: item.summary }),
       h('div', { class: 'rc-where', text: 'Not available for ' + S.env + '.' })
     );
-    return card;
   }
   const needsDb = item.needsDb !== false;
   const pending = S.pending.has(item.id);
@@ -116,9 +120,11 @@ function itemCard(item) {
 
   const liveJob = liveEntry(S.repoPath);
   const isThisRunning = !!(liveJob && liveJob.job && liveJob.job.actionId === item.id && liveJob.job.status === 'running');
-  const statusBadge = isThisRunning ? statusChip('running') : last ? statusChip(last.status) : null;
+  const statusBadge = isThisRunning ? runningChip() : last ? statusChip(last.status) : null;
 
-  card.append(
+  return h(
+    'div',
+    { class: 'rc-card' + (isThisRunning ? ' running' : '') },
     h(
       'div',
       { class: 'rc-card-head' },
@@ -146,7 +152,21 @@ function itemCard(item) {
       )
     )
   );
-  return card;
+}
+
+function emptyActions() {
+  const canPaste = typeof S.hooks.openImport === 'function';
+  return h(
+    'div',
+    { class: 'rc-empty rc-empty-actions' },
+    h('h3', { text: 'Nothing was found for this page' }),
+    h('p', {
+      text: canPaste
+        ? 'Paste a list of actions and the console will check it against this repository.'
+        : 'Add npm scripts to package.json, or add actions in .helper/console.json.',
+    }),
+    canPaste ? h('button', { class: 'rc-btn', text: 'Paste actions', onclick: () => S.hooks.openImport() }) : null
+  );
 }
 
 function actionPage(pageId, lead) {
@@ -155,11 +175,11 @@ function actionPage(pageId, lead) {
   for (const item of items) if (!sections.includes(item.section)) sections.push(item.section);
   const out = [trustBox(), h('p', { class: 'rc-lead', text: lead })];
   if (!items.length) {
-    out.push(h('div', { class: 'rc-empty', text: 'Nothing was found for this page. Add actions in .helper/console.json or add npm scripts to package.json.' }));
+    out.push(emptyActions());
     return out;
   }
   for (const section of sections) {
-    out.push(h('div', { class: 'rc-section', text: section }), items.filter((i) => i.section === section).map(itemCard));
+    out.push(h('div', { class: 'rc-section', text: section }), h('div', { class: 'rc-grid' }, items.filter((i) => i.section === section).map(itemCard)));
   }
   return out;
 }
@@ -331,9 +351,17 @@ export function testsPage() {
   if (running && entry.job.kind === 'tests') buttons.push(h('button', { class: 'rc-btn danger', text: 'Stop', onclick: () => stopJob(S.repoPath) }));
   out.push(h('div', { class: 'rc-row' }, buttons));
   if (entry && entry.job && entry.job.kind === 'tests') {
+    const steps = entry.job.steps;
+    const filter = steps.some((s) => s.id === getSuiteFilter()) ? getSuiteFilter() : 'all';
+    const shown = filter === 'all' ? steps : steps.filter((s) => s.id === filter);
     out.push(
-      h('div', { class: 'rc-where', text: entry.job.title + (entry.job.endedAt ? ' / finished in ' + fmtMs(entry.job.endedAt - entry.job.startedAt) : '') }),
-      entry.job.steps.map((s) => stepCard(s, entry))
+      h(
+        'div',
+        { class: 'rc-row' },
+        h('span', { class: 'rc-where', text: entry.job.title + (entry.job.endedAt ? ' / finished in ' + fmtMs(entry.job.endedAt - entry.job.startedAt) : '') }),
+        steps.length > 1 ? suiteSeg(steps, () => S.hooks.renderPage()) : null
+      ),
+      shown.map((s) => stepCard(s, entry))
     );
   } else {
     out.push(h('div', { class: 'rc-empty', text: 'No test run yet in this session. Past test runs are kept on the History page.' }));
@@ -367,37 +395,36 @@ async function startTests(which) {
 
 function stepCard(step, entry) {
   const isTest = !!(step.result && step.result.kind === 'tests');
-  const card = h('div', { class: 'rc-card' });
-  card.append(
+  const kids = [
     h(
       'div',
       { class: 'rc-card-head' },
       h('h3', { text: step.title }),
       h('div', { class: 'rc-row' }, statusChip(step.status, isTest), step.exitCode !== null && step.exitCode !== undefined ? h('span', { class: 'rc-where', text: 'exit ' + step.exitCode }) : null)
-    )
-  );
+    ),
+  ];
   if (step.status === 'running' && step.progress) {
     const p = step.progress;
     const pct = p.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : 0;
-    card.append(
+    kids.push(
       h('div', { class: 'rc-bar' + (p.total ? '' : ' indeterminate') }, h('div', { style: 'width:' + pct + '%' })),
       h('div', { class: 'rc-where', text: p.done + (p.total ? ' of ' + p.total : '') + ' files finished / ' + p.passed + ' passed / ' + p.failed + ' failed' })
     );
     const seen = (p.files || []).slice(-20);
     if (seen.length) {
-      card.append(h('div', { class: 'rc-live-files' }, ...seen.map((f) => h('div', { class: 'rc-line ' + (f.ok ? 'ok' : 'err'), text: (f.ok ? '\u2713 ' : '\u00d7 ') + f.file }))));
+      kids.push(h('div', { class: 'rc-live-files' }, ...seen.map((f) => h('div', { class: 'rc-line ' + (f.ok ? 'ok' : 'err'), text: (f.ok ? '\u2713 ' : '\u00d7 ') + f.file }))));
     }
   }
   if (step.result) {
-    card.append(testResultsBlock(step));
+    kids.push(testResultsBlock(step));
   } else if (step.status === 'failed' || step.status === 'stopped' || step.status === 'interrupted') {
     const tail = entry.log.filter((l) => l.s === step.idx).slice(-30);
-    card.append(
+    kids.push(
       h('div', { class: 'rc-where', text: 'No report was written. The output below is the end of this step.' }),
       tail.length ? h('pre', { class: 'rc-tail', text: tail.map((l) => l.t).join('\n') }) : null
     );
   }
-  return card;
+  return h('div', { class: 'rc-card' }, ...kids);
 }
 
 /* ---------- history page ---------- */

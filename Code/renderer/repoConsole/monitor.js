@@ -1,7 +1,9 @@
 import { S, h, call, liveEntry, repoLabel, fmtMs, fmtDate, statusLabel, statusChip, toast, copyText } from './state.js';
 
-const els = { pill: null, output: null, log: null };
+const els = { pill: null, output: null, log: null, elapsed: null, panel: null };
 let panelTimer = null;
+let ticker = null;
+let suiteFilter = 'all';
 
 export function mountPill() {
   if (els.pill) return;
@@ -12,25 +14,44 @@ export function mountPill() {
 export function mountOutput(root) {
   if (els.output) return;
   els.output = h('div', { class: 'rc-output' });
+  els.panel = root.closest('.rc-panel');
   root.append(els.output);
-  renderPlaceholder();
 }
 
-function renderPlaceholder() {
-  if (!els.output) return;
-  els.output.replaceChildren(
-    h(
-      'div',
-      { class: 'rc-output-empty' },
-      h('h3', { text: 'Output' }),
-      h('p', { text: 'Run an action, start the tests, or open a run from History. Its output, steps and test results show here.' })
-    )
-  );
+function setPaneOpen(open) {
+  if (els.panel) els.panel.classList.toggle('has-output', !!open);
 }
 
 export function stopJob(repoPath) {
   call('stop', { repoPath }).catch((e) => toast(e.message, 'error'));
 }
+
+/* ---------- shared test-suite filter (backend / frontend) ---------- */
+
+export function getSuiteFilter() {
+  return suiteFilter;
+}
+
+export function suiteSeg(steps, onChange) {
+  const current = steps.some((s) => s.id === suiteFilter) ? suiteFilter : 'all';
+  const options = [['all', 'All'], ...steps.map((s) => [s.id, s.id])];
+  return h(
+    'div',
+    { class: 'rc-seg' },
+    ...options.map(([id, label]) =>
+      h('button', {
+        class: current === id ? 'on' : '',
+        text: label,
+        onclick: () => {
+          suiteFilter = id;
+          onChange();
+        },
+      })
+    )
+  );
+}
+
+/* ---------- floating pill ---------- */
 
 function pickPill() {
   const own = S.jobs.get(S.repoPath);
@@ -82,10 +103,10 @@ export function renderPill() {
           },
         })
       : null;
-  els.pill.replaceChildren(main, stop, dismiss);
+  els.pill.replaceChildren(...[main, stop, dismiss].filter(Boolean));
 }
 
-/* ---------- output view ---------- */
+/* ---------- output pane ---------- */
 
 function outputModel() {
   if (S.output.live) {
@@ -150,10 +171,70 @@ export async function openHistoryRun(id) {
   }
 }
 
+function stopTicker() {
+  if (ticker) {
+    clearInterval(ticker);
+    ticker = null;
+  }
+}
+
+function startTicker() {
+  stopTicker();
+  ticker = setInterval(() => {
+    const model = outputModel();
+    if (!els.elapsed || !model || model.run.status !== 'running') {
+      stopTicker();
+      return;
+    }
+    els.elapsed.textContent = fmtMs(Date.now() - model.run.startedAt);
+  }, 1000);
+}
+
 export function closeOutput() {
   S.output.open = false;
   els.log = null;
-  renderPlaceholder();
+  els.elapsed = null;
+  stopTicker();
+  if (els.output) els.output.replaceChildren();
+  setPaneOpen(false);
+}
+
+function stageInfo(run, steps) {
+  const total = steps.length;
+  if (run.status === 'running') {
+    if (!steps.some((s) => s.status !== 'pending')) return { cls: 'running', label: 'Starting...', hint: 'Preparing the command' };
+    if (run.awaiting) return { cls: 'waiting', label: 'Waiting for your answer', hint: 'Open the Output tab and type a reply' };
+    const idx = typeof run.activeStep === 'number' ? run.activeStep : 0;
+    return { cls: 'running', label: total > 1 ? 'Running step ' + (idx + 1) + ' of ' + total : 'Running', hint: steps[idx] ? steps[idx].title : '' };
+  }
+  if (run.status === 'done') return { cls: 'done', label: 'Finished successfully', hint: '' };
+  if (run.status === 'failed') return { cls: 'failed', label: 'Failed', hint: run.exitCode !== null && run.exitCode !== undefined ? 'exit code ' + run.exitCode : '' };
+  return { cls: 'stopped', label: statusLabel(run.status), hint: '' };
+}
+
+function stageStrip(run, steps) {
+  const info = stageInfo(run, steps);
+  const running = run.status === 'running';
+  const active = steps.find((s) => s.status === 'running');
+  const p = active && active.progress;
+  const pct = running ? (p && p.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : null) : 100;
+  const icon = running
+    ? h('span', { class: 'rc-spin' })
+    : h('span', { class: 'rc-stage-icon', text: info.cls === 'done' ? '\u2713' : info.cls === 'failed' ? '!' : '\u25A0' });
+  els.elapsed = h('span', { class: 'rc-where rc-mono', text: fmtMs(run.durationMs !== null && run.durationMs !== undefined ? run.durationMs : (run.endedAt || Date.now()) - run.startedAt) });
+  return h(
+    'div',
+    { class: 'rc-stage ' + info.cls },
+    h(
+      'div',
+      { class: 'rc-stage-main' },
+      icon,
+      h('div', { class: 'rc-stage-text' }, h('b', { text: info.label }), info.hint ? h('span', { class: 'rc-where', text: info.hint }) : null),
+      els.elapsed
+    ),
+    h('div', { class: 'rc-bar' + (running && pct === null ? ' indeterminate' : '') }, h('div', { style: 'width:' + (pct === null ? 35 : pct) + '%' })),
+    steps.length > 1 ? h('div', { class: 'rc-trail' }, ...steps.map((s) => h('span', { class: 'rc-trail-step ' + s.status, text: s.title }))) : null
+  );
 }
 
 export function renderOutput() {
@@ -162,11 +243,14 @@ export function renderOutput() {
     closeOutput();
     return;
   }
+  setPaneOpen(true);
   const model = outputModel();
   els.log = null;
+  els.elapsed = null;
   const closeBtn = h('button', { class: 'rc-btn secondary small', text: 'Close', title: 'Close (Esc)', onclick: closeOutput });
 
   if (!model) {
+    stopTicker();
     els.output.replaceChildren(
       h(
         'div',
@@ -186,14 +270,7 @@ export function renderOutput() {
   const tabs = [['summary', 'Summary'], ['output', 'Output']];
   if (isTestRun) tabs.push(['tests', 'Tests']);
 
-  const headMeta = [
-    run.env ? (run.env === 'production' ? 'Production' : 'Local') : null,
-    run.database || null,
-    fmtDate(run.startedAt),
-    fmtMs((run.endedAt || Date.now()) - run.startedAt),
-  ]
-    .filter(Boolean)
-    .join(' \u00b7 ');
+  const headMeta = [run.env ? (run.env === 'production' ? 'Production' : 'Local') : null, run.database || null, fmtDate(run.startedAt)].filter(Boolean).join(' \u00b7 ');
 
   const live = S.output.live && run.status === 'running';
   const head = h(
@@ -230,7 +307,9 @@ export function renderOutput() {
   else if (S.output.tab === 'tests') body = testsTab(model);
   else body = summaryTab(model);
 
-  els.output.replaceChildren(h('div', { class: 'rc-output-inner' + (run.env === 'production' ? ' prod' : '') }, head, tabBar, body));
+  els.output.replaceChildren(h('div', { class: 'rc-output-inner' + (run.env === 'production' ? ' prod' : '') }, head, stageStrip(run, steps), tabBar, body));
+  if (live) startTicker();
+  else stopTicker();
 }
 
 export function schedulePanelRefresh() {
@@ -419,9 +498,16 @@ async function sendPrompt(input) {
 }
 
 function testsTab(model) {
-  const steps = (model.steps || []).filter((s) => s.result && s.result.kind === 'tests');
-  if (!steps.length) return h('div', { class: 'rc-output-body' }, h('div', { class: 'rc-empty', text: 'This run did not produce test results.' }));
-  return h('div', { class: 'rc-output-body' }, ...steps.map((step) => h('div', null, h('h4', { text: step.title }), testResultsBlock(step))));
+  const all = (model.steps || []).filter((s) => s.result && s.result.kind === 'tests');
+  if (!all.length) return h('div', { class: 'rc-output-body' }, h('div', { class: 'rc-empty', text: 'This run did not produce test results.' }));
+  const current = all.some((s) => s.id === suiteFilter) ? suiteFilter : 'all';
+  const shown = current === 'all' ? all : all.filter((s) => s.id === current);
+  return h(
+    'div',
+    { class: 'rc-output-body' },
+    all.length > 1 ? suiteSeg(all, renderOutput) : null,
+    ...shown.map((step) => h('div', null, h('h4', { text: step.title }), testResultsBlock(step)))
+  );
 }
 
 function downloadLog(model) {
