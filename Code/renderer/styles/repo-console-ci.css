@@ -1,0 +1,124 @@
+.ci-steps {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  background: var(--rc-raised);
+  overflow: hidden;
+}
+
+.ci-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--rc-border);
+}
+
+.ci-step:first-child {
+  border-top: 0;
+}
+
+.ci-step-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ci-step-no {
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--rc-card);
+  border: 1px solid var(--rc-border);
+  color: var(--rc-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ci-step-name {
+  color: var(--rc-text);
+  overflow-wrap: anywhere;
+}
+
+.ci-run {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--rc-bg);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text2);
+  font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ci-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--rc-muted);
+}
+
+.ci-step .ci-meta {
+  margin-top: 0;
+}
+
+.ci-notes {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--rc-yellow);
+}
+
+.ci-notes.plain {
+  color: var(--rc-text2);
+}
+
+.ci-job-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--rc-muted);
+  font-size: 12px;
+}
+
+.ci-plan {
+  position: fixed;
+  inset: 8% 6%;
+  z-index: 11000;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  background: var(--rc-bg);
+  box-shadow: 0 16px 48px #0008;
+}
+
+.ci-plan-step {
+  padding: 10px 0;
+  border-top: 1px solid var(--rc-border);
+}
+
+@media (max-width: 640px) {
+  .ci-plan {
+    inset: 3% 3%;
+    padding: 14px;
+  }
+
+  .ci-job-select {
+    max-width: 100%;
+  }
+}
