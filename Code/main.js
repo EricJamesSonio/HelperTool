@@ -458,3 +458,10 @@ function cleanupAndExit(deleteIndex) {
     try { graphifyIpc.shutdown(); } catch (_) {}
     try { require('./ipc/researcher_ipc.js').cleanup(); } catch (_) {}
 }
+app.whenReady().then(() => {
+  try {
+    require('./ipc/repoConsole_ipc.js').register({ app, config, getMainWindow });
+  } catch (e) {
+    console.error('[IPC] Failed to register repoConsole_ipc:', e);
+  }
+});
