@@ -465,3 +465,8 @@ app.whenReady().then(() => {
     console.error('[IPC] Failed to register repoConsole_ipc:', e);
   }
 });
+try {
+  require('./ipc/perfMonitor.js').install();
+} catch (e) {
+  console.error('[Perf] Performance monitor failed to install:', e.message);
+}

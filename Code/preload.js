@@ -774,3 +774,7 @@ const repoConsoleBridge = {
 };
 
 contextBridge.exposeInMainWorld('repoConsoleAPI', repoConsoleBridge);
+contextBridge.exposeInMainWorld('perfAPI', {
+  sample: () => ipcRenderer.invoke('perf:sample'),
+  reset: () => ipcRenderer.invoke('perf:reset'),
+});
