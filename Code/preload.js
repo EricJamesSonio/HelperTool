@@ -58,7 +58,7 @@ const generateBridge = {
 };
 
 const featuresBridge = {
-    featuresGet: ()  => ipcRenderer.invoke('features-get'),
+    featuresGet:  ()  => ipcRenderer.invoke('features-get'),
     featuresSet: (f) => ipcRenderer.invoke('features-set', f),
 };
 
@@ -552,7 +552,7 @@ const githubBridge = {
     deleteSaved: (repoUrl) => ipcRenderer.invoke('github:deleteSaved', repoUrl),
     listRepos: (payload) => ipcRenderer.invoke('github:listRepos', payload),
     getCommitCounts: (payload) => ipcRenderer.invoke('github:getCommitCounts', payload),
-    openUrl: (url) => ipcRenderer.invoke('github:openUrl', url),
+    openUrl: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
 };
 
@@ -771,6 +771,10 @@ const repoConsoleBridge = {
   ciWorkflow:    (payload)                 => ipcRenderer.invoke('repoConsole:ciWorkflow', payload),
   ciPlan:        (payload)                 => ipcRenderer.invoke('repoConsole:ciPlan', payload),
   ciTrust:       (payload)                 => ipcRenderer.invoke('repoConsole:ciTrust', payload),
+  ciEnvGet:      (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvGet', payload),
+  ciEnvSet:      (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvSet', payload),
+  ciEnvDelete:   (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvDelete', payload),
+  ciPreflight:   (payload)                 => ipcRenderer.invoke('repoConsole:ciPreflight', payload),
   onEvent: (callback) => {
     ipcRenderer.removeAllListeners('repoConsole:event');
     ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
