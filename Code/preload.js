@@ -775,6 +775,8 @@ const repoConsoleBridge = {
   ciEnvSet:      (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvSet', payload),
   ciEnvDelete:   (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvDelete', payload),
   ciPreflight:   (payload)                 => ipcRenderer.invoke('repoConsole:ciPreflight', payload),
+  ciChanges:     (payload)                 => ipcRenderer.invoke('repoConsole:ciChanges', payload),
+  ciRun:         (payload)                 => ipcRenderer.invoke('repoConsole:ciRun', payload),
   onEvent: (callback) => {
     ipcRenderer.removeAllListeners('repoConsole:event');
     ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
