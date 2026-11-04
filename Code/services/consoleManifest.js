@@ -108,6 +108,11 @@ function init(app) {
   _trustFile = path.join(app.getPath('userData'), 'repo-console', 'trust.json');
 }
 
+function getRepoConsoleDir() {
+  if (!_trustFile) throw new Error('Repo Console storage has not been initialized.');
+  return path.dirname(_trustFile);
+}
+
 function readTrust() {
   try {
     return JSON.parse(fs.readFileSync(_trustFile, 'utf8')) || {};
@@ -809,6 +814,7 @@ function setTrusted(key, hash) {
 
 module.exports = {
   init,
+  getRepoConsoleDir,
   describe,
   resolveAction,
   resolveSuites,
