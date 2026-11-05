@@ -17,14 +17,6 @@
   min-width: 0;
 }
 
-.git-topbar-title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-  white-space: nowrap;
-  color: var(--text-primary, #f0f6fc);
-}
-
 .git-topbar-left .git-stats-compact {
   overflow: hidden;
   text-overflow: ellipsis;

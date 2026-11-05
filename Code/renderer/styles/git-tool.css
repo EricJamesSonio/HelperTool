@@ -567,51 +567,81 @@
   flex-direction: column;
 }
 
-.git-tool-navbar {
+/* ══ PANEL NAVBAR (Back + title) ══ */
+.git-tool-panel-navbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
+  gap: 14px;
+  height: 46px;
+  padding: 0 16px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--border-default, rgba(255,255,255,0.12));
   background: var(--bg-surface, #0a0c10);
   flex-shrink: 0;
 }
 
-.git-tool-title {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--text-primary, #f0f6fc);
-  flex: 1;
-  letter-spacing: -0.4px;
-}
-
-.git-tool-navbar-right {
+.git-tool-panel-navbar-right {
+  order: -1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.git-tool-close-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: var(--bg-hover, rgba(255,255,255,0.07));
-  border-radius: var(--r-sm, 6px);
-  color: var(--text-secondary, #c6cfd8);
-  font-size: 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--ease, 0.15s ease);
   flex-shrink: 0;
 }
 
-.git-tool-close-btn:hover {
-  background: var(--red-dim, rgba(248,81,73,0.15));
-  color: var(--red, #f85149);
+.git-tool-panel-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.2px;
+  color: var(--text-primary, #f0f6fc);
+}
+
+.git-tool-panel-title-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
+  color: var(--accent, #22d3ee);
+}
+
+.git-tool-panel-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 9px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong, rgba(255,255,255,0.18));
+  border-radius: var(--r-sm, 6px);
+  background: var(--bg-raised, #15171d);
+  color: var(--text-primary, #f0f6fc);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--ease, 0.15s ease);
+}
+
+.git-tool-panel-close-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.git-tool-panel-close-btn:hover {
+  border-color: var(--accent, #22d3ee);
+  background: var(--accent-dim, rgba(34,211,238,0.12));
+  color: var(--accent, #22d3ee);
+}
+
+.git-tool-panel-close-btn:focus-visible {
+  outline: 2px solid var(--accent, #22d3ee);
+  outline-offset: 2px;
 }
 
 .git-tool-body {
