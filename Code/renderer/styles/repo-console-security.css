@@ -1,0 +1,41 @@
+/* ============================================================
+   REPO-CONSOLE-SECURITY.CSS
+   Stack profile card and target settings for the Security page.
+   Uses the rc- variables defined in repo-console.css.
+   ============================================================ */
+
+.rc-sec-profile h3 {
+  margin: 0 0 10px;
+}
+
+.rc-sec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.rc-sec-grid h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rc-accent);
+}
+
+.rc-kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--rc-border);
+}
+
+.rc-kv-row:last-child {
+  border-bottom: 0;
+}
+
+.rc-kv-row b {
+  text-align: right;
+  word-break: break-word;
+}
