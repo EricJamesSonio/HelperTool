@@ -158,9 +158,11 @@ async function preflight({ repoPath, workflow, plan, envValues = {}, runtimeProb
     for (const step of job.steps || []) {
       if (!isInside(repoPath, step.cwd)) {
         blockers.push('Job "' + job.id + '" has a working directory outside the repository.');
-      } else if (!fs.existsSync(step.cwd) || !fs.statSync(step.cwd).isDirectory()) {
+      } else if (step.kind === 'run' && (!fs.existsSync(step.cwd) || !fs.statSync(step.cwd).isDirectory())) {
         blockers.push('Job "' + job.id + '" working directory does not exist: ' + path.relative(repoPath, step.cwd) + '.');
       }
+
+      if (step.kind !== 'run') continue;
 
       for (const name of step.secretNames || []) {
         if (!Object.prototype.hasOwnProperty.call(envValues, name) && !process.env[name]) missingSecrets.add(name);
@@ -193,7 +195,9 @@ async function preflight({ repoPath, workflow, plan, envValues = {}, runtimeProb
     });
   }
 
+  const planned = new Set((plan.jobs || []).map((job) => job.id));
   for (const job of workflow.jobs || []) {
+    if (!planned.has(job.id)) continue;
     for (const serviceName of job.services || []) {
       const ports = SERVICE_PORTS[String(serviceName).toLowerCase()];
       if (!ports) {
@@ -204,7 +208,9 @@ async function preflight({ repoPath, workflow, plan, envValues = {}, runtimeProb
         const open = await portProbe(port);
         services.push({ jobId: job.id, name: serviceName, port, available: open });
         if (!open) {
-          blockers.push('Service "' + serviceName + '" for job "' + job.id + '" is not reachable on localhost:' + port + '. Start the local service before running CI.');
+          warnings.push(
+            'Service "' + serviceName + '" for job "' + job.id + '" is not running on localhost:' + port + '. Commands that need it may fail. Start it locally if they do.'
+          );
         }
       }
     }

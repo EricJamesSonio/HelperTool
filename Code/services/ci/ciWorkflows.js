@@ -115,25 +115,29 @@ function conditionNeedsReview(value) {
 function usesPolicy(uses, withObject) {
   const ref = String(uses).trim();
   if (ref.startsWith('./')) {
-    return { support: 'unsupported', note: 'Local action: its code is not run by the local runner.' };
+    return { support: 'skipped', remote: true, note: 'Local action. It is skipped locally, only the commands run.' };
   }
   if (ref.startsWith('docker://')) {
-    return { support: 'unsupported', note: 'Docker actions are not run by the local runner.' };
+    return { support: 'skipped', remote: true, note: 'Docker action. It is skipped locally, only the commands run.' };
   }
   const name = ref.split('@')[0].toLowerCase();
   if (name === 'actions/checkout') {
     if (isObject(withObject) && (withObject.repository || withObject.path)) {
-      return { support: 'unsupported', note: 'Checks out another repository or path, which the local runner cannot do.' };
+      return {
+        support: 'skipped',
+        remote: true,
+        note: 'Checks out another repository or path. It is skipped locally and the current repository is used.',
+      };
     }
-    return { support: 'satisfied', note: 'The repository is already available locally.' };
+    return { support: 'satisfied', remote: false, note: 'The repository is already available locally.' };
   }
   if (SETUP_ACTIONS.has(name)) {
-    return { support: 'validate', note: 'Checked against the installed runtime. Nothing is installed.' };
+    return { support: 'validate', remote: false, note: 'Checked against the installed runtime. Nothing is installed.' };
   }
   if (SKIPPED_ACTIONS.has(name)) {
-    return { support: 'skipped', note: 'Skipped locally.' };
+    return { support: 'skipped', remote: false, note: 'Skipped locally.' };
   }
-  return { support: 'unsupported', note: 'Third-party actions are not run by the local runner.' };
+  return { support: 'skipped', remote: true, note: 'Third-party action. It is skipped locally, only the commands run.' };
 }
 
 function normalizeStep(raw, index, line) {
@@ -151,6 +155,8 @@ function normalizeStep(raw, index, line) {
     env: [],
     line: line || null,
     support: 'unsupported',
+    remoteOnly: false,
+    unresolved: false,
     notes: [],
   };
   if (!isObject(raw)) {
@@ -163,15 +169,17 @@ function normalizeStep(raw, index, line) {
   step.workingDirectory = str(raw['working-directory']);
   step.shell = str(raw.shell);
   step.env = keys(raw.env);
-  if (step.review) step.notes.push('The condition cannot be evaluated locally yet and needs manual review.');
   if (typeof raw.run === 'string') {
     step.kind = 'run';
     step.run = redact(raw.run).slice(0, MAX_RUN_CHARS);
     step.support = 'supported';
     const open = unresolvedExpressions(raw.run);
     if (open.length) {
-      step.support = 'partial';
-      step.notes.push('Uses expressions that are not resolved locally yet: ' + open.slice(0, 5).join(', ') + '.');
+      step.unresolved = true;
+      step.support = 'skipped';
+      step.notes.push(
+        'Uses GitHub expressions that are not available locally (' + open.slice(0, 5).join(', ') + '), so this step is skipped locally.'
+      );
     }
   } else if (typeof raw.uses === 'string') {
     step.kind = 'uses';
@@ -179,9 +187,14 @@ function normalizeStep(raw, index, line) {
     step.with = keys(raw.with);
     const policy = usesPolicy(raw.uses, raw.with);
     step.support = policy.support;
+    step.remoteOnly = !!policy.remote;
     step.notes.push(policy.note);
   } else {
     step.notes.push('The step has neither run nor uses.');
+  }
+  if (step.review) {
+    step.notes.push('The condition depends on GitHub context, so this step is skipped locally.');
+    if (step.kind !== 'unknown') step.support = 'skipped';
   }
   return step;
 }
@@ -204,6 +217,8 @@ function normalizeJob(id, raw, stepLine) {
     workingDirectory: null,
     env: [],
     steps: [],
+    commandCount: 0,
+    skippedCount: 0,
     matrix: false,
     services: [],
     container: false,
@@ -236,6 +251,8 @@ function normalizeJob(id, raw, stepLine) {
   job.idTokenWrite = isObject(raw.permissions) && raw.permissions['id-token'] === 'write';
   const steps = Array.isArray(raw.steps) ? raw.steps : [];
   job.steps = steps.map((s, i) => normalizeStep(s, i, stepLine(id, i)));
+  job.commandCount = job.steps.filter((s) => s.kind === 'run' && s.support === 'supported').length;
+  job.skippedCount = job.steps.filter((s) => s.support === 'skipped').length;
 
   if (job.matrix) {
     job.features.push('matrix');
@@ -247,28 +264,23 @@ function normalizeJob(id, raw, stepLine) {
   }
   if (job.services.length) {
     job.features.push('services');
-    job.notes.push('Service containers are not started locally. The matching local services must already be running.');
+    job.notes.push('Service containers are not started locally. Commands that need them use whatever is already running on this machine.');
   }
   if (job.container) {
     job.features.push('container');
-    job.notes.push('The job runs in a container, which the local runner does not use.');
+    job.notes.push('The job runs in a container on GitHub. Locally its commands run directly on this machine.');
   }
-  if (job.steps.some((s) => s.kind === 'uses' && s.support === 'unsupported')) job.features.push('third-party-action');
-  if (job.steps.some((s) => s.kind === 'run' && s.support === 'partial')) job.features.push('expressions');
-  if (job.review || job.steps.some((s) => s.review)) job.features.push('conditions');
-  if (job.review) job.notes.push('The job condition cannot be evaluated locally yet and needs manual review.');
+  if (job.steps.some((s) => s.remoteOnly)) job.features.push('third-party-action');
+  if (job.steps.some((s) => s.unresolved)) job.features.push('expressions');
+  if (job.steps.some((s) => s.review)) job.features.push('conditions');
+  if (job.review) job.notes.push('The job condition is ignored locally. The job runs when it is selected.');
 
   if (!job.reusable && job.steps.length === 0) {
     job.notes.push('The job has no steps.');
     job.support = 'unsupported';
   } else if (job.reusable || job.matrix) {
     job.support = 'unsupported';
-  } else if (
-    job.services.length ||
-    job.container ||
-    job.review ||
-    job.steps.some((s) => s.review || s.support === 'unsupported' || s.support === 'partial')
-  ) {
+  } else if (job.steps.some((s) => s.support === 'unsupported')) {
     job.support = 'partial';
   }
   return job;

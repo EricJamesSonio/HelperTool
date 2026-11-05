@@ -101,19 +101,21 @@ function buildPlan({ repoPath, workflow, mode = 'full', jobIds = [], approvedSki
 
       if (!cwdValid) {
         reason = 'Working directory resolves outside this repository.';
-      } else if (condition.review) {
-        kind = 'unsupported';
-        reason = 'Condition requires manual review.';
       } else if (condition.result === 'skip') {
         kind = 'skipped';
         reason = 'Condition is always false.';
+      } else if (condition.review) {
+        kind = 'skipped';
+        reason = 'The condition depends on GitHub context, so this step is skipped locally.';
+      } else if (condition.result === 'runtime') {
+        kind = 'skipped';
+        reason = 'Runs only after a failure or cancellation on GitHub, so it is skipped locally.';
       } else if (step.kind === 'run') {
-        if (expressions.review || step.support === 'partial') {
-          kind = 'unsupported';
-          reason = 'Command contains expressions that are not supported yet.';
+        if (expressions.review || step.support !== 'supported') {
+          kind = 'skipped';
+          reason = 'Uses GitHub expressions that are not available locally, so this step is skipped.';
         } else {
-          kind = condition.result === 'runtime' ? 'review' : 'run';
-          if (condition.result === 'runtime') reason = 'Condition depends on runtime job status.';
+          kind = 'run';
         }
       } else if (step.kind === 'uses' && (step.support === 'satisfied' || step.support === 'validate')) {
         kind = 'satisfied';
@@ -123,10 +125,10 @@ function buildPlan({ repoPath, workflow, mode = 'full', jobIds = [], approvedSki
             : 'The repository is already checked out locally.';
       } else if (step.kind === 'uses' && step.support === 'skipped') {
         kind = 'skipped';
-        reason = 'This action is intentionally skipped locally.';
+        reason = step.notes && step.notes[0] ? step.notes[0] : 'This action is skipped locally.';
       } else if (approved.has(key)) {
         kind = 'skipped';
-        reason = 'Unsupported action skipped with user approval.';
+        reason = 'Unsupported step skipped with user approval.';
       } else {
         reason = step.notes && step.notes[0] ? step.notes[0] : 'This step is unsupported locally.';
       }
@@ -151,13 +153,21 @@ function buildPlan({ repoPath, workflow, mode = 'full', jobIds = [], approvedSki
       };
     });
 
-    const state = steps.some((step) => step.kind === 'unsupported')
+    let state = steps.some((step) => step.kind === 'unsupported')
       ? 'unsupported'
       : steps.some((step) => step.kind === 'review')
         ? 'review'
         : 'ready';
 
-    if (state !== 'ready') reasons.push(`Job contains ${state} steps.`);
+    if (job.matrix) {
+      state = 'unsupported';
+      reasons.push('Matrix jobs are not run locally. Select other jobs or run this one on GitHub.');
+    }
+    if (job.reusable) {
+      state = 'unsupported';
+      reasons.push('Reusable workflows are not run locally.');
+    }
+    if (state !== 'ready' && !reasons.length) reasons.push(`Job contains ${state} steps.`);
 
     return {
       id: job.id,
@@ -165,9 +175,16 @@ function buildPlan({ repoPath, workflow, mode = 'full', jobIds = [], approvedSki
       needs: job.needs,
       state,
       reasons,
+      runCount: steps.filter((step) => step.kind === 'run').length,
+      skipCount: steps.filter((step) => step.kind === 'skipped').length,
       steps,
     };
   });
+
+  const summary = {
+    runSteps: jobs.reduce((total, job) => total + job.runCount, 0),
+    skippedSteps: jobs.reduce((total, job) => total + job.skipCount, 0),
+  };
 
   const plan = {
     repoPath,
@@ -175,6 +192,7 @@ function buildPlan({ repoPath, workflow, mode = 'full', jobIds = [], approvedSki
     mode,
     selectedJobs: jobs.map((job) => job.id),
     trusted,
+    summary,
     jobs,
     blockers,
   };
