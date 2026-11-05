@@ -7,6 +7,9 @@ const ciEnv = require('./ciEnv');
 const { preflight } = require('./ciPreflight');
 const { startCiRun } = require('./ciExecutor');
 const { getChanges } = require('./ciChanges');
+const { selectJobs, scopeFiles } = require('./ciSmart');
+const { selectRerun, workflowFileOf } = require('./ciRerun');
+const history = require('../../database/consoleDb');
 const manifest = require('../consoleManifest');
 
 function trustKey(repoPath, file) {
@@ -98,6 +101,58 @@ function register({ handle, knownRepo, httpError, runner }) {
     knownRepo(repoPath);
     const changes = await getChanges({ repoPath, base });
     return { changes };
+  });
+
+  handle('repoConsole:ciSmart', async ({ repoPath, file, base }) => {
+    knownRepo(repoPath);
+    const workflow = currentWorkflow(repoPath, file, httpError);
+    if (workflow.parseError) {
+      throw httpError(400, 'The workflow has a YAML parse error, so Smart CI cannot choose jobs.');
+    }
+    const changes = await getChanges({ repoPath, base });
+    const files = scopeFiles(
+      changes.files.map((entry) => entry.file),
+      changes.topLevel,
+      repoPath
+    );
+    const smart = selectJobs({ workflow, files, truncated: changes.truncated });
+    return { changes, smart };
+  });
+
+  handle('repoConsole:ciRerunPlan', ({ repoPath, id, which }) => {
+    knownRepo(repoPath);
+    if (typeof id !== 'string' || !id) throw httpError(400, 'No run selected.');
+    if (runner && runner.isRunning(repoPath)) {
+      throw httpError(409, 'Another job is still running in this repository. Wait for it or press Stop.');
+    }
+    const detail = history.getRun(id);
+    if (!detail || detail.run.repoPath !== repoPath) throw httpError(404, 'That run was not found.');
+
+    const file = workflowFileOf(detail);
+    if (!file || !ci.isWorkflowFile(file)) throw httpError(400, 'That run is not a CI workflow run.');
+
+    const workflow = currentWorkflow(repoPath, file, httpError);
+    const picked = selectRerun({ detail, workflow, which });
+    const trusted = manifest.isTrusted(trustKey(repoPath, file), workflow.hash);
+    const rebuilt = buildPlan({
+      repoPath,
+      workflow,
+      mode: picked.mode,
+      jobIds: picked.jobIds,
+      approvedSkips: [],
+      trusted,
+    });
+
+    return {
+      file,
+      mode: picked.mode,
+      jobIds: picked.jobIds,
+      failedJobIds: picked.failedJobIds,
+      workflowChanged: picked.workflowChanged,
+      source: picked.source,
+      plan: rebuilt.plan,
+      planHash: rebuilt.planHash,
+    };
   });
 
   handle('repoConsole:ciRun', async ({ repoPath, file, mode, jobIds, approvedSkips, planHash, ack }) => {
