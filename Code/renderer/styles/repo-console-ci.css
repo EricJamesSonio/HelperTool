@@ -1,115 +1,149 @@
-.ci-steps {
+.ci-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ci-head h3 {
+  margin: 0 0 4px;
+}
+
+.ci-trust {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  background: var(--rc-raised);
+  color: var(--rc-text2);
+  font-size: 13px;
+}
+
+.ci-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.ci-smart {
   display: flex;
   flex-direction: column;
-  margin-top: 12px;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.ci-smart p {
+  margin: 0;
+}
+
+.ci-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ci-job {
   border: 1px solid var(--rc-border);
   border-radius: var(--rc-radius);
   background: var(--rc-raised);
   overflow: hidden;
 }
 
-.ci-step {
+.ci-job.off {
+  opacity: 0.55;
+}
+
+.ci-job-head {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
-  border-top: 1px solid var(--rc-border);
+  cursor: pointer;
 }
 
-.ci-step:first-child {
-  border-top: 0;
-}
-
-.ci-step-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.ci-step-no {
-  min-width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--rc-card);
-  border: 1px solid var(--rc-border);
-  color: var(--rc-muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.ci-step-name {
+.ci-job-name {
   color: var(--rc-text);
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.ci-run {
-  margin: 0;
-  max-height: 220px;
-  overflow: auto;
-  padding: 8px 10px;
-  background: var(--rc-bg);
-  border: 1px solid var(--rc-border);
-  border-radius: var(--rc-radius);
+.ci-cmds {
+  border-top: 1px solid var(--rc-border);
+}
+
+.ci-cmd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--rc-border);
+}
+
+.ci-cmd:first-child {
+  border-top: 0;
+}
+
+.ci-cmd-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--rc-text2);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
-.ci-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--rc-muted);
-}
-
-.ci-step .ci-meta {
-  margin-top: 0;
-}
-
-.ci-notes {
-  margin: 6px 0 0;
-  padding-left: 18px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--rc-yellow);
-}
-
-.ci-notes.plain {
-  color: var(--rc-text2);
-}
-
-.ci-job-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+.ci-dir {
+  flex: 0 0 auto;
   color: var(--rc-muted);
   font-size: 12px;
 }
 
-.ci-plan {
-  position: fixed;
-  inset: 8% 6%;
-  z-index: 11000;
-  overflow: auto;
-  padding: 20px;
+.ci-tag {
+  flex: 0 0 auto;
+  min-width: 72px;
+  padding: 2px 8px;
   border: 1px solid var(--rc-border);
-  border-radius: var(--rc-radius);
-  background: var(--rc-bg);
-  box-shadow: 0 16px 48px #0008;
+  border-radius: 999px;
+  background: var(--rc-card);
+  color: var(--rc-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
-.ci-plan-step {
-  padding: 10px 0;
-  border-top: 1px solid var(--rc-border);
+.ci-tag-install {
+  color: var(--rc-muted);
+}
+
+.ci-tag-lint {
+  color: #d29922;
+}
+
+.ci-tag-test {
+  color: #3fb950;
+}
+
+.ci-tag-build {
+  color: #58a6ff;
+}
+
+.ci-tag-database {
+  color: #bc8cff;
 }
 
 .rc-err {
@@ -151,12 +185,12 @@
 }
 
 @media (max-width: 640px) {
-  .ci-plan {
-    inset: 3% 3%;
-    padding: 14px;
+  .ci-cmd {
+    flex-wrap: wrap;
   }
 
-  .ci-job-select {
-    max-width: 100%;
+  .ci-cmd-text {
+    flex-basis: 100%;
+    order: 3;
   }
 }
