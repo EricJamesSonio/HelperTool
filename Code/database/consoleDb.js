@@ -82,6 +82,21 @@ const SCHEMA_V2_COLUMNS = [
   ['reason', 'TEXT'],
 ];
 
+const SCHEMA_V3_TABLES = `
+CREATE TABLE IF NOT EXISTS security_profiles (
+  repo_path TEXT PRIMARY KEY,
+  profile_json TEXT,
+  updated_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS security_settings (
+  repo_path TEXT PRIMARY KEY,
+  target_url TEXT,
+  safe_mode INTEGER DEFAULT 1,
+  confirmed_hosts_json TEXT,
+  updated_at INTEGER
+);
+`;
+
 function redact(text) {
   return String(text === null || text === undefined ? '' : text)
     .replace(/\/\/([^:@\/\s]+):([^@\/\s]+)@/g, '//$1:***@')
@@ -123,6 +138,10 @@ function init(app) {
     if (version < 2) {
       migrateV2();
       _db.exec('PRAGMA user_version = 2');
+    }
+    if (version < 3) {
+      _db.exec(SCHEMA_V3_TABLES);
+      _db.exec('PRAGMA user_version = 3');
     }
     _available = true;
   } catch (err) {
@@ -552,6 +571,40 @@ function clearRuns(repoPath) {
   return count;
 }
 
+function saveSecurityProfile(repoPath, profile) {
+  if (!_db) return;
+  _db
+    .prepare('INSERT OR REPLACE INTO security_profiles (repo_path, profile_json, updated_at) VALUES (?, ?, ?)')
+    .run(repoPath, JSON.stringify(profile), Date.now());
+}
+
+function getSecurityProfile(repoPath) {
+  if (!_db) return null;
+  const row = _db.prepare('SELECT profile_json, updated_at FROM security_profiles WHERE repo_path = ?').get(repoPath);
+  if (!row) return null;
+  const profile = parseJson(row.profile_json);
+  if (profile) profile.savedAt = row.updated_at;
+  return profile;
+}
+
+function saveSecuritySettings(repoPath, settings) {
+  if (!_db) return;
+  _db
+    .prepare('INSERT OR REPLACE INTO security_settings (repo_path, target_url, safe_mode, confirmed_hosts_json, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(repoPath, settings.targetUrl || '', settings.safeMode === false ? 0 : 1, JSON.stringify(settings.confirmedHosts || []), Date.now());
+}
+
+function getSecuritySettings(repoPath) {
+  if (!_db) return null;
+  const row = _db.prepare('SELECT target_url, safe_mode, confirmed_hosts_json FROM security_settings WHERE repo_path = ?').get(repoPath);
+  if (!row) return null;
+  return {
+    targetUrl: row.target_url || '',
+    safeMode: !!row.safe_mode,
+    confirmedHosts: parseJson(row.confirmed_hosts_json) || [],
+  };
+}
+
 module.exports = {
   init,
   close,
@@ -569,5 +622,9 @@ module.exports = {
   countRuns,
   pruneRuns,
   clearRuns,
+  saveSecurityProfile,
+  getSecurityProfile,
+  saveSecuritySettings,
+  getSecuritySettings,
   _setLogCap: setLogCap,
 };
