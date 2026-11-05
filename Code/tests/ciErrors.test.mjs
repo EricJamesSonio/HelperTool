@@ -100,3 +100,21 @@ describe('ciErrors - failureError', () => {
     assert.match(e.message, /code 2/);
   });
 });
+describe('ciErrors - npm errors', () => {
+  it('reads an npm EPERM failure as one error with a hint', () => {
+    const found = extractErrors(
+      lines(
+        'npm error code EPERM',
+        'npm error syscall unlink',
+        'npm error path C:\\repo\\backend\\node_modules\\.prisma\\client\\query_engine-windows.dll.node',
+        'npm error errno -4048',
+        'npm error The operation was rejected by your operating system.',
+        'npm error A complete log of this run can be found in: C:\\logs\\debug.log'
+      )
+    );
+    assert.equal(found.length, 1);
+    assert.equal(found[0].title, 'npm EPERM');
+    assert.match(found[0].message, /rejected by your operating system/);
+    assert.match(found[0].message, /Another program/);
+  });
+});
