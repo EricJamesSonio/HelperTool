@@ -182,8 +182,8 @@ describe('ciWorkflows - parsing', () => {
   });
 });
 
-describe('ciWorkflows - unsupported features', () => {
-  it('marks matrix jobs as unsupported and flags the expression', () => {
+describe('ciWorkflows - GitHub-only features', () => {
+  it('marks matrix jobs as unsupported and skips the expression step', () => {
     const w = parse([
       'on: push',
       'jobs:',
@@ -198,7 +198,8 @@ describe('ciWorkflows - unsupported features', () => {
     assert.equal(w.jobs[0].matrix, true);
     assert.equal(w.jobs[0].support, 'unsupported');
     assert.ok(w.features.includes('matrix'));
-    assert.equal(w.jobs[0].steps[0].support, 'partial');
+    assert.equal(w.jobs[0].steps[0].support, 'skipped');
+    assert.equal(w.jobs[0].steps[0].unresolved, true);
     assert.equal(w.support, 'unsupported');
   });
 
@@ -207,7 +208,7 @@ describe('ciWorkflows - unsupported features', () => {
     assert.equal(w.jobs[0].steps[0].support, 'supported');
   });
 
-  it('flags services, reusable workflows and third-party actions', () => {
+  it('skips services, third-party actions and reusable workflows without blocking the job', () => {
     const w = parse([
       'on: push',
       'jobs:',
@@ -218,19 +219,22 @@ describe('ciWorkflows - unsupported features', () => {
       '        image: postgres:16',
       '    steps:',
       '      - uses: some-org/some-action@v1',
+      '      - run: echo ok',
       '  call:',
       '    uses: ./.github/workflows/other.yml',
     ]);
-    assert.equal(w.jobs[0].support, 'partial');
+    assert.equal(w.jobs[0].support, 'full');
     assert.deepEqual(w.jobs[0].services, ['postgres']);
-    assert.equal(w.jobs[0].steps[0].support, 'unsupported');
+    assert.equal(w.jobs[0].steps[0].support, 'skipped');
+    assert.equal(w.jobs[0].commandCount, 1);
+    assert.equal(w.jobs[0].skippedCount, 1);
     assert.equal(w.jobs[1].support, 'unsupported');
     assert.ok(w.features.includes('services'));
     assert.ok(w.features.includes('reusable-workflow'));
     assert.ok(w.features.includes('third-party-action'));
   });
 
-  it('keeps simple conditions and flags complex ones for review', () => {
+  it('keeps simple conditions and skips complex ones', () => {
     const w = parse([
       'on: push',
       'jobs:',
@@ -244,11 +248,12 @@ describe('ciWorkflows - unsupported features', () => {
     ]);
     assert.equal(w.jobs[0].steps[0].review, false);
     assert.equal(w.jobs[0].steps[1].review, true);
-    assert.equal(w.jobs[0].support, 'partial');
+    assert.equal(w.jobs[0].steps[1].support, 'skipped');
+    assert.equal(w.jobs[0].support, 'full');
     assert.ok(w.features.includes('conditions'));
   });
 
-  it('flags checkout of another repository', () => {
+  it('skips checkout of another repository', () => {
     const w = parse([
       'on: push',
       'jobs:',
@@ -259,7 +264,7 @@ describe('ciWorkflows - unsupported features', () => {
       '        with:',
       '          repository: other/repo',
     ]);
-    assert.equal(w.jobs[0].steps[0].support, 'unsupported');
+    assert.equal(w.jobs[0].steps[0].support, 'skipped');
   });
 });
 
