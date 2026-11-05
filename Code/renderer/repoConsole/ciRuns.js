@@ -100,13 +100,13 @@ function runRow(run, file, locked, onPlan) {
     h('button', { class: 'rc-btn secondary small', text: 'Open', onclick: () => openHistoryRun(run.id) }),
     h('button', {
       class: 'rc-btn secondary small',
-      text: RUNS.busy === run.id + ':failed' ? 'Preparing...' : 'Rerun failed jobs',
+      text: RUNS.busy === run.id + ':failed' ? 'Starting...' : 'Rerun failed',
       disabled: blocked || !RERUNNABLE.has(run.status),
       onclick: () => prepare(run, 'failed', file, onPlan),
     }),
     h('button', {
       class: 'rc-btn secondary small',
-      text: RUNS.busy === run.id + ':same' ? 'Preparing...' : 'Rerun same jobs',
+      text: RUNS.busy === run.id + ':same' ? 'Starting...' : 'Rerun all',
       disabled: blocked || run.status === 'running',
       onclick: () => prepare(run, 'same', file, onPlan),
     })
@@ -139,17 +139,13 @@ export function runsSection(options) {
         },
       })
     ),
-    h('p', {
-      class: 'rc-where',
-      text: 'Rerunning prepares a new plan from the current workflow file. Nothing starts until you review the plan, run preflight and confirm. Rerunning failed jobs also includes the jobs they need. Only one job runs per repository at a time.',
-    }),
     isRunning() ? h('div', { class: 'rc-warn', text: 'Another job is running in this repository, so reruns are unavailable until it finishes.' }) : null,
     RUNS.error ? h('div', { class: 'rc-warn red', text: RUNS.error }) : null,
     RUNS.loading && !RUNS.loaded
       ? h('div', { class: 'rc-empty', text: 'Loading runs...' })
       : rows.length
         ? h('div', { class: 'rc-test-list' }, rows)
-        : h('p', { class: 'rc-where', text: 'This workflow has no saved runs yet.' }),
+        : h('p', { class: 'rc-where', text: 'No runs yet.' }),
     RUNS.total > rows.length ? h('p', { class: 'rc-where', text: 'Showing the latest ' + rows.length + ' of ' + RUNS.total + '. The rest are on the History page.' }) : null
   );
 }

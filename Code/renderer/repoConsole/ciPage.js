@@ -12,79 +12,30 @@ const C = {
   detail: null,
   detailLoading: false,
   detailError: '',
-  plan: null,
-  planError: '',
-  planLoading: false,
-  planMode: 'full',
   selectedJobIds: new Set(),
   preflight: null,
-  preflightError: '',
-  preflightLoading: false,
-  envNames: [],
-  envError: '',
-  envName: '',
-  envValue: '',
-  envSaving: false,
-  changes: null,
-  changesError: '',
-  changesLoading: false,
+  autoOpened: false,
   changesBase: '',
 };
 
 const R = {
-  running: false,
+  busy: '',
   error: '',
-  planHash: '',
 };
 
-const MAX_CHANGE_ROWS = 200;
-
-const CATEGORY = {
-  ci: { label: 'CI', cls: 'risk-readonly' },
-  test: { label: 'Tests', cls: 'risk-readonly' },
-  build: { label: 'Build', cls: 'risk-readonly' },
-  deploy: { label: 'Deploy', cls: 'risk-destructive' },
-  release: { label: 'Release', cls: 'risk-destructive' },
-  maintenance: { label: 'Maintenance', cls: 'risk-adds' },
-  unknown: { label: 'Unknown', cls: 'risk-changes' },
+const SM = {
+  loading: false,
+  error: '',
+  result: null,
 };
 
-const SUPPORT = {
-  full: { label: 'Supported', cls: 'done' },
-  partial: { label: 'Partly supported', cls: 'skipped' },
-  unsupported: { label: 'Not supported', cls: 'failed' },
-};
-
-const STEP_SUPPORT = {
-  supported: { label: 'Runs locally', cls: 'done' },
-  satisfied: { label: 'Already satisfied', cls: 'done' },
-  validate: { label: 'Runtime check', cls: 'done' },
-  skipped: { label: 'Skipped locally', cls: 'skipped' },
-  partial: { label: 'Partly supported', cls: 'skipped' },
-  unsupported: { label: 'Not supported', cls: 'failed' },
-};
-
-const REVIEW_CHIP = { label: 'Needs review', cls: 'skipped' };
-
-const FEATURE_LABEL = {
-  matrix: 'matrix builds',
-  services: 'service containers',
-  container: 'job containers',
-  'reusable-workflow': 'reusable workflows',
-  'third-party-action': 'third-party actions',
-  expressions: 'expressions',
-  conditions: 'conditions',
-};
-
-const CHANGE_STATUS = {
-  M: { label: 'Modified', cls: 'skipped' },
-  A: { label: 'Added', cls: 'done' },
-  D: { label: 'Deleted', cls: 'failed' },
-  R: { label: 'Renamed', cls: 'skipped' },
-  C: { label: 'Copied', cls: 'skipped' },
-  U: { label: 'Conflict', cls: 'failed' },
-  '?': { label: 'Untracked', cls: 'done' },
-};
+const KINDS = [
+  ['install', 'Install', /\b(?:npm|yarn|pnpm|bun)\s+(?:ci|install|i)\b|\bpip\s+install\b|\bcomposer\s+install\b/],
+  ['lint', 'Lint', /\b(?:eslint|prettier|ruff|flake8|mypy|phpstan|psalm|pint|tsc)\b|\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:lint|typecheck|format)/],
+  ['test', 'Test', /\b(?:jest|vitest|pytest|phpunit|mocha|rspec)\b|\b(?:npm|yarn|pnpm)\s+(?:run\s+)?test|\b(?:go|cargo|dotnet)\s+test\b|artisan\s+test/],
+  ['build', 'Build', /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?build|\b(?:docker|cargo|go|dotnet)\s+build\b|\bmake\b|\bvite\s+build\b|\bnext\s+build\b/],
+  ['database', 'Database', /\bprisma\b|\bmigrate\b/],
+];
 
 function ensureStyles() {
   if (document.getElementById('repoConsoleCiSheet')) return;
@@ -93,6 +44,37 @@ function ensureStyles() {
   link.rel = 'stylesheet';
   link.href = 'styles/repo-console-ci.css';
   document.head.append(link);
+}
+
+function plural(count, word) {
+  return count + ' ' + word + (count === 1 ? '' : 's');
+}
+
+function chip(label, cls) {
+  return h('span', { class: 'rc-chip ' + cls, text: label });
+}
+
+function commandKind(run) {
+  const text = String(run || '');
+  for (const [key, label, re] of KINDS) {
+    if (re.test(text)) return { key, label };
+  }
+  return { key: 'command', label: 'Command' };
+}
+
+function runsLocally(step) {
+  if (step.kind !== 'run' || step.support !== 'supported') return false;
+  if (!step.if) return true;
+  const text = String(step.if).replace(/^\s*\$\{\{\s*|\s*\}\}\s*$/g, '').trim();
+  return /^(?:success\(\)|always\(\)|true)$/.test(text);
+}
+
+function runnable(job) {
+  return (job.steps || []).filter(runsLocally);
+}
+
+function checkJobs(workflow) {
+  return (workflow.jobs || []).filter((job) => !job.matrix && !job.reusable && runnable(job).length > 0);
 }
 
 function sync() {
@@ -107,26 +89,15 @@ function sync() {
   C.detail = null;
   C.detailLoading = false;
   C.detailError = '';
-  C.plan = null;
-  C.planError = '';
-  C.planLoading = false;
-  C.planMode = 'full';
   C.selectedJobIds = new Set();
   C.preflight = null;
-  C.preflightError = '';
-  C.preflightLoading = false;
-  C.envNames = [];
-  C.envError = '';
-  C.envName = '';
-  C.envValue = '';
-  C.envSaving = false;
-  C.changes = null;
-  C.changesError = '';
-  C.changesLoading = false;
+  C.autoOpened = false;
   C.changesBase = '';
-  R.running = false;
+  R.busy = '';
   R.error = '';
-  R.planHash = '';
+  SM.loading = false;
+  SM.error = '';
+  SM.result = null;
 }
 
 async function load() {
@@ -152,11 +123,13 @@ function refresh() {
   C.loaded = false;
   C.selected = '';
   C.detail = null;
-  C.plan = null;
-  C.planError = '';
-  C.preflight = null;
-  C.preflightError = '';
+  C.detailError = '';
   C.selectedJobIds = new Set();
+  C.preflight = null;
+  C.autoOpened = false;
+  R.error = '';
+  SM.error = '';
+  SM.result = null;
   S.hooks.renderPage();
 }
 
@@ -166,17 +139,17 @@ async function openWorkflow(file) {
   C.detail = null;
   C.detailLoading = true;
   C.detailError = '';
-  C.plan = null;
-  C.planError = '';
-  C.preflight = null;
-  C.preflightError = '';
   C.selectedJobIds = new Set();
+  C.preflight = null;
   R.error = '';
+  SM.error = '';
+  SM.result = null;
   S.hooks.renderPage();
   try {
     const res = await call('ciWorkflow', { repoPath, file });
     if (repoPath !== C.repoPath || C.selected !== file) return;
     C.detail = res.workflow;
+    C.selectedJobIds = new Set(checkJobs(res.workflow).map((job) => job.id));
   } catch (e) {
     if (repoPath !== C.repoPath || C.selected !== file) return;
     C.detailError = e.message;
@@ -189,11 +162,8 @@ function closeDetail() {
   C.selected = '';
   C.detail = null;
   C.detailError = '';
-  C.plan = null;
-  C.planError = '';
-  C.preflight = null;
-  C.preflightError = '';
   C.selectedJobIds = new Set();
+  C.preflight = null;
   R.error = '';
   S.hooks.renderPage();
 }
@@ -203,456 +173,246 @@ async function trustWorkflow() {
   const repoPath = S.repoPath;
   const file = C.detail.file;
   const hash = C.detail.hash;
-  let trusted = false;
-
   try {
     await call('ciTrust', { repoPath, file, hash });
     if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
     C.detail.trusted = true;
-    C.plan = null;
-    C.preflight = null;
-    C.preflightError = '';
-    C.planError = '';
-    trusted = true;
+    R.error = '';
   } catch (e) {
     if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
-    C.planError = e.message;
-  }
-  S.hooks.renderPage();
-  if (trusted) await makePlan();
-}
-
-async function makePlan() {
-  if (!C.detail) return;
-  const repoPath = S.repoPath;
-  const file = C.detail.file;
-  C.planLoading = true;
-  C.planError = '';
-  C.preflight = null;
-  C.preflightError = '';
-  S.hooks.renderPage();
-
-  try {
-    const response = await call('ciPlan', {
-      repoPath,
-      file,
-      mode: C.planMode,
-      jobIds: [...C.selectedJobIds],
-      approvedSkips: [],
-    });
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
-    C.plan = response.plan;
-  } catch (e) {
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
-    C.plan = null;
-    C.planError = e.message;
-  } finally {
-    if (repoPath === S.repoPath && repoPath === C.repoPath && file === C.selected) {
-      C.planLoading = false;
-      S.hooks.renderPage();
-    }
-  }
-}
-
-async function runPreflight() {
-  if (!C.detail || !C.plan) return;
-  const repoPath = S.repoPath;
-  const file = C.detail.file;
-  C.preflightLoading = true;
-  C.preflightError = '';
-  S.hooks.renderPage();
-
-  try {
-    const response = await call('ciPreflight', {
-      repoPath,
-      file,
-      mode: C.planMode,
-      jobIds: [...C.selectedJobIds],
-      approvedSkips: [],
-      planHash: C.plan.hash,
-    });
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
-    C.preflight = response.preflight;
-  } catch (e) {
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
-    C.preflight = null;
-    C.preflightError = e.message;
-  } finally {
-    if (repoPath === S.repoPath && repoPath === C.repoPath && file === C.selected) {
-      C.preflightLoading = false;
-      S.hooks.renderPage();
-    }
-  }
-}
-
-async function detectChanges() {
-  const repoPath = S.repoPath;
-  C.changesLoading = true;
-  C.changesError = '';
-  S.hooks.renderPage();
-
-  try {
-    const response = await call('ciChanges', { repoPath, base: C.changesBase.trim() });
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.changes = response.changes;
-  } catch (e) {
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.changes = null;
-    C.changesError = e.message;
-  } finally {
-    if (repoPath === S.repoPath && repoPath === C.repoPath) {
-      C.changesLoading = false;
-      S.hooks.renderPage();
-    }
-  }
-}
-
-async function runCi() {
-  if (!C.detail || !C.plan || R.running) return;
-  const repoPath = S.repoPath;
-  const file = C.detail.file;
-  const planHash = C.plan.hash;
-  const commandSteps = (C.plan.jobs || []).reduce(
-    (total, job) => total + (job.steps || []).filter((step) => step.kind === 'run').length,
-    0
-  );
-  const message = 'Run ' + commandSteps + ' command step(s) from ' + file + ' on this machine? They can change files and data in this repository.';
-  if (!window.confirm(message)) return;
-
-  R.running = true;
-  R.error = '';
-  R.planHash = planHash;
-  S.hooks.renderPage();
-
-  try {
-    await call('ciRun', {
-      repoPath,
-      file,
-      mode: C.planMode,
-      jobIds: [...C.selectedJobIds],
-      approvedSkips: [],
-      planHash,
-      ack: true,
-    });
-    toast('CI run started. Follow it in the Repo Console output.');
-  } catch (e) {
     R.error = e.message;
-  } finally {
-    R.running = false;
-    S.hooks.renderPage();
-  }
-}
-
-async function loadEnvNames() {
-  const repoPath = S.repoPath;
-  try {
-    const response = await call('ciEnvGet', { repoPath });
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.envNames = response.names || [];
-    C.envError = '';
-  } catch (e) {
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.envError = e.message;
   }
   S.hooks.renderPage();
 }
 
-async function saveEnvValue(event) {
-  event.preventDefault();
-  const name = C.envName.trim();
-  if (!name || !C.envValue) {
-    C.envError = 'Enter a variable name and value.';
+function toggleJob(id, on) {
+  if (on) C.selectedJobIds.add(id);
+  else C.selectedJobIds.delete(id);
+  C.preflight = null;
+  R.error = '';
+  S.hooks.renderPage();
+}
+
+function selectAll(on) {
+  if (!C.detail) return;
+  C.selectedJobIds = on ? new Set(checkJobs(C.detail).map((job) => job.id)) : new Set();
+  C.preflight = null;
+  R.error = '';
+  S.hooks.renderPage();
+}
+
+async function runChecks() {
+  if (!C.detail || R.busy) return;
+  const repoPath = S.repoPath;
+  const file = C.detail.file;
+  const jobs = checkJobs(C.detail);
+  const picked = jobs.filter((job) => C.selectedJobIds.has(job.id)).map((job) => job.id);
+  const same = () => repoPath === S.repoPath && repoPath === C.repoPath && file === C.selected;
+
+  R.error = '';
+  C.preflight = null;
+
+  if (!picked.length) {
+    R.error = 'Select at least one check to run.';
     S.hooks.renderPage();
     return;
   }
 
-  C.envSaving = true;
-  C.envError = '';
-  const repoPath = S.repoPath;
+  R.busy = 'Checking...';
+  S.hooks.renderPage();
+
   try {
-    const response = await call('ciEnvSet', {
-      repoPath,
-      values: { [name]: C.envValue },
-    });
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.envNames = response.names || [];
-    C.envName = '';
-    C.envValue = '';
+    const request = { repoPath, file, mode: 'selected', jobIds: picked, approvedSkips: [] };
+
+    const planned = await call('ciPlan', request);
+    if (!same()) return;
+    const plan = planned.plan;
+    const problems = (plan.blockers || []).slice();
+    for (const job of plan.jobs || []) {
+      if (job.state !== 'ready') problems.push(job.name + ': ' + (job.reasons || []).join(' '));
+    }
+    if (problems.length) {
+      R.error = problems.join(' ');
+      return;
+    }
+
+    const checked = await call('ciPreflight', Object.assign({}, request, { planHash: plan.hash }));
+    if (!same()) return;
+    C.preflight = checked.preflight;
+    if (checked.preflight.blockers.length) return;
+
+    R.busy = 'Starting...';
+    S.hooks.renderPage();
+    await call('ciRun', Object.assign({}, request, { planHash: plan.hash, ack: true }));
+    toast('Checks started. Follow them in the Repo Console output.');
   } catch (e) {
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.envError = e.message;
+    if (same()) R.error = e.message;
   } finally {
-    if (repoPath === S.repoPath && repoPath === C.repoPath) {
-      C.envSaving = false;
+    R.busy = '';
+    S.hooks.renderPage();
+  }
+}
+
+async function applyRerun(res) {
+  const repoPath = S.repoPath;
+  const file = C.selected;
+  if (res.workflowChanged) {
+    const fresh = await call('ciWorkflow', { repoPath, file });
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
+    C.detail = fresh.workflow;
+  }
+  if (!C.detail) return;
+  const visible = checkJobs(C.detail).map((job) => job.id);
+  C.selectedJobIds = res.mode === 'full' ? new Set(visible) : new Set(res.jobIds);
+  C.preflight = null;
+  R.error = '';
+  await runChecks();
+}
+
+async function suggestJobs() {
+  if (!C.detail || SM.loading) return;
+  const repoPath = S.repoPath;
+  const file = C.detail.file;
+  const same = () => repoPath === S.repoPath && repoPath === C.repoPath && file === C.selected;
+
+  SM.loading = true;
+  SM.error = '';
+  S.hooks.renderPage();
+
+  try {
+    const response = await call('ciSmart', { repoPath, file, base: C.changesBase.trim() });
+    if (!same()) return;
+    SM.result = response.smart;
+    C.selectedJobIds = new Set(response.smart.selectedJobIds || []);
+    C.preflight = null;
+    R.error = '';
+  } catch (e) {
+    if (!same()) return;
+    SM.result = null;
+    SM.error = e.message;
+  } finally {
+    if (same()) {
+      SM.loading = false;
       S.hooks.renderPage();
     }
   }
 }
 
-async function deleteEnvValue(name) {
-  const repoPath = S.repoPath;
-  try {
-    const response = await call('ciEnvDelete', { repoPath, name });
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.envNames = response.names || [];
-    C.envError = '';
-  } catch (e) {
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath) return;
-    C.envError = e.message;
-  }
-  S.hooks.renderPage();
-}
-
-function envSettings() {
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.autocomplete = 'off';
-  nameInput.placeholder = 'VARIABLE_NAME';
-  nameInput.value = C.envName;
-  nameInput.addEventListener('input', () => {
-    C.envName = nameInput.value;
-  });
-
-  const valueInput = document.createElement('input');
-  valueInput.type = 'password';
-  valueInput.autocomplete = 'new-password';
-  valueInput.placeholder = 'Value (never displayed again)';
-  valueInput.value = C.envValue;
-  valueInput.addEventListener('input', () => {
-    C.envValue = valueInput.value;
-  });
-
-  const form = h(
-    'form',
-    { class: 'ci-env-form', onsubmit: saveEnvValue },
-    nameInput,
-    valueInput,
-    h('button', { class: 'rc-btn secondary', type: 'submit', disabled: C.envSaving, text: C.envSaving ? 'Saving...' : 'Save value' })
-  );
-
+function commandRow(step, job) {
+  const lines = String(step.run || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const first = lines[0] || '';
+  const extra = lines.length > 1 ? '  (+' + (lines.length - 1) + ' more lines)' : '';
+  const dir = step.workingDirectory || job.workingDirectory;
+  const kind = commandKind(step.run);
   return h(
-    'section',
-    { class: 'ci-env' },
-    h('div', { class: 'rc-card-head' }, h('h3', { text: 'Local environment values' })),
-    h('p', { class: 'rc-where', text: 'Values are stored in the app user data folder for this repository. They are never returned by the environment-list API.' }),
-    form,
-    h('button', { class: 'rc-btn secondary small', text: 'Refresh names', onclick: loadEnvNames }),
-    C.envError ? h('div', { class: 'rc-warn red', text: C.envError }) : null,
-    C.envNames.length
-      ? h(
-          'ul',
-          { class: 'ci-env-list' },
-          C.envNames.map((name) =>
-            h(
-              'li',
-              null,
-              h('code', { text: name }),
-              h('button', { class: 'rc-btn secondary small', text: 'Delete', onclick: () => deleteEnvValue(name) })
-            )
-          )
-        )
-      : h('p', { class: 'rc-where', text: 'No local values are saved for this repository.' })
+    'div',
+    { class: 'ci-cmd' },
+    h('span', { class: 'ci-tag ci-tag-' + kind.key, text: kind.label }),
+    h('code', { class: 'ci-cmd-text', text: first + extra }),
+    dir ? h('span', { class: 'ci-dir', text: dir }) : null
   );
 }
 
-function preflightReview() {
-  if (C.preflightLoading) return h('div', { class: 'rc-empty', text: 'Checking local prerequisites...' });
-  if (C.preflightError) return h('div', { class: 'rc-warn red', text: C.preflightError });
-  if (!C.preflight) return null;
-
-  const result = C.preflight;
+function jobCard(job) {
+  const checked = C.selectedJobIds.has(job.id);
+  const steps = runnable(job);
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  input.addEventListener('change', () => toggleJob(job.id, input.checked));
   return h(
     'section',
-    { class: 'ci-preflight' },
-    h('h3', { text: 'Preflight results' }),
-    result.blockers.length
+    { class: 'ci-job' + (checked ? '' : ' off') },
+    h(
+      'label',
+      { class: 'ci-job-head' },
+      input,
+      h('span', { class: 'ci-job-name', text: job.name }),
+      h('span', { class: 'rc-where', text: plural(steps.length, 'command') })
+    ),
+    h('div', { class: 'ci-cmds' }, steps.map((step) => commandRow(step, job)))
+  );
+}
+
+function preflightBox() {
+  const p = C.preflight;
+  if (!p) return null;
+  const blockers = p.blockers || [];
+  const warnings = p.warnings || [];
+  if (!blockers.length && !warnings.length) return null;
+  return h(
+    'div',
+    null,
+    blockers.length
       ? h(
           'div',
           { class: 'rc-warn red' },
-          h('b', { text: 'Blockers' }),
-          h('ul', null, result.blockers.map((item) => h('li', { text: item })))
+          h('b', { text: 'Cannot run yet' }),
+          h('ul', null, blockers.map((item) => h('li', { text: item })))
         )
-      : h('p', { class: 'rc-chip done', text: 'No blockers found.' }),
-    result.warnings.length ? h('div', { class: 'rc-warn' }, h('b', { text: 'Warnings' }), h('ul', null, result.warnings.map((item) => h('li', { text: item })))) : null,
-    result.runtimes.length
-      ? h('div', null, h('h4', { text: 'Detected tools' }), h('ul', null, result.runtimes.map((runtime) => h('li', { text: runtime.name + ': ' + (runtime.available ? runtime.version || 'available' : 'missing') }))))
       : null,
-    result.services.length
-      ? h('div', null, h('h4', { text: 'Service ports' }), h('ul', null, result.services.map((service) => h('li', { text: service.jobId + ' / ' + service.name + ' / localhost:' + service.port + ' / ' + (service.available ? 'reachable' : 'not reachable') }))))
-      : null
+    warnings.length ? h('div', { class: 'rc-warn' }, h('ul', null, warnings.map((item) => h('li', { text: item })))) : null
   );
 }
 
-function jobSelector(job) {
-  if (C.planMode === 'full') return null;
-
-  const label = h('label', { class: 'ci-job-select' });
-  const input = document.createElement('input');
-  input.type = 'checkbox';
-  input.checked = C.selectedJobIds.has(job.id);
-  input.addEventListener('change', () => {
-    if (C.planMode === 'single' && input.checked) {
-      C.selectedJobIds = new Set([job.id]);
-    } else if (input.checked) {
-      C.selectedJobIds.add(job.id);
-    } else {
-      C.selectedJobIds.delete(job.id);
-    }
-    C.plan = null;
-    C.preflight = null;
-    C.planError = '';
-    C.preflightError = '';
-    S.hooks.renderPage();
+function smartBox() {
+  const baseInput = document.createElement('input');
+  baseInput.type = 'text';
+  baseInput.autocomplete = 'off';
+  baseInput.spellcheck = false;
+  baseInput.placeholder = 'Compare with branch (optional)';
+  baseInput.value = C.changesBase;
+  baseInput.addEventListener('input', () => {
+    C.changesBase = baseInput.value;
   });
-  label.append(input, document.createTextNode(' Include in plan'));
-  return label;
-}
-
-function planReview() {
-  if (!C.plan) return null;
-
-  const plan = C.plan;
-  const allReady = (plan.jobs || []).every((job) => job.state === 'ready');
-  const clean = !!plan.trusted && !(plan.blockers || []).length && allReady;
-  const preflightClean = !!C.preflight && !C.preflight.blockers.length;
-
-  let runHint = null;
-  if (!clean) {
-    runHint = 'Running stays disabled until the workflow is trusted, the plan has no blockers, and every job is ready.';
-  } else if (!preflightClean) {
-    runHint = 'Run the preflight checks first. Running needs a preflight with no blockers.';
-  }
 
   return h(
-    'section',
-    { class: 'ci-plan', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'CI plan review' },
-    h('h3', { text: 'Plan review' }),
-    h('p', { class: 'rc-where', text: 'Plan hash: ' + plan.hash }),
-    plan.trusted
-      ? h('p', { class: 'rc-chip done', text: 'This workflow hash is trusted.' })
-      : h('div', { class: 'rc-warn red', text: 'This workflow is not trusted yet. Review it before trusting this hash.' }),
-    (plan.blockers || []).map((blocker) => h('div', { class: 'rc-warn red', text: blocker })),
-    (plan.jobs || []).map((job) =>
-      h(
-        'article',
-        { class: 'rc-card' },
-        h('h4', { text: job.name + ' (' + job.state + ')' }),
-        job.needs && job.needs.length ? h('p', { class: 'rc-where', text: 'Needs: ' + job.needs.join(', ') }) : null,
-        (job.reasons || []).map((reason) => h('p', { class: 'rc-warn', text: reason })),
-        (job.steps || []).map((step) =>
-          h(
-            'div',
-            { class: 'ci-plan-step' },
-            h('b', { text: step.index + 1 + '. ' + step.name + ' - ' + step.kind }),
-            step.command ? h('pre', { class: 'ci-run', text: step.command }) : null,
-            step.uses ? h('code', { class: 'rc-cmd', text: step.uses }) : null,
-            h('div', { class: 'ci-meta' }, h('span', { text: 'Directory: ' + step.cwd })),
-            step.shell ? h('div', { class: 'ci-meta' }, h('span', { text: 'Shell: ' + step.shell })) : null,
-            step.reason ? h('p', { class: 'rc-where', text: step.reason }) : null,
-            step.secretNames && step.secretNames.length
-              ? h('p', { class: 'rc-warn', text: 'Local secrets required: ' + step.secretNames.join(', ') })
-              : null,
-            step.referencedEnvNames && step.referencedEnvNames.length
-              ? h('p', { class: 'rc-where', text: 'Environment values referenced: ' + step.referencedEnvNames.join(', ') })
-              : null
-          )
-        )
-      )
+    'div',
+    { class: 'ci-smart' },
+    h(
+      'div',
+      { class: 'rc-row' },
+      baseInput,
+      h('button', {
+        class: 'rc-btn secondary small',
+        text: SM.loading ? 'Looking...' : 'Only what I changed',
+        disabled: SM.loading || !!R.busy,
+        onclick: suggestJobs,
+      })
     ),
-    h('button', {
-      class: 'rc-btn',
-      text: C.preflightLoading ? 'Checking...' : 'Run preflight checks',
-      disabled: C.preflightLoading,
-      onclick: runPreflight,
-    }),
-    preflightReview(),
-    envSettings(),
-    !plan.trusted && C.detail && C.detail.hash
-      ? h('button', { class: 'rc-btn danger', text: 'I reviewed this workflow; trust this hash', onclick: trustWorkflow })
-      : null,
-    runHint ? h('p', { class: 'rc-where', text: runHint }) : null,
-    R.error && R.planHash === plan.hash ? h('div', { class: 'rc-warn red', text: R.error }) : null,
-    h('button', {
-      class: 'rc-btn danger',
-      text: R.running ? 'Starting...' : 'Run workflow locally',
-      disabled: R.running || !clean || !preflightClean,
-      onclick: runCi,
-    }),
-    h('button', {
-      class: 'rc-btn secondary',
-      text: 'Close plan',
-      onclick: () => {
-        C.plan = null;
-        C.preflight = null;
-        S.hooks.renderPage();
-      },
-    })
+    SM.error ? h('div', { class: 'rc-warn red', text: SM.error }) : null,
+    SM.result ? h('p', { class: 'rc-where', text: SM.result.summary }) : null,
+    SM.result ? (SM.result.warnings || []).map((warning) => h('p', { class: 'rc-where', text: warning })) : null
   );
-}
-
-function chip(info) {
-  return h('span', { class: 'rc-chip ' + info.cls, text: info.label });
-}
-
-function badge(info) {
-  return h('span', { class: 'rc-badge ' + info.cls, text: info.label });
-}
-
-function plural(count, word) {
-  return count + ' ' + word + (count === 1 ? '' : 's');
-}
-
-function triggerText(w) {
-  return w.triggers && w.triggers.length ? 'Runs on: ' + w.triggers.join(', ') : 'No triggers defined.';
-}
-
-function parseErrorText(w) {
-  const e = w.parseError;
-  const where = e.line ? ':' + e.line + (e.col ? ':' + e.col : '') : '';
-  return w.file + where + ' ' + e.message;
-}
-
-function summaryText() {
-  if (C.loading && !C.loaded) return 'Looking for workflows...';
-  const blocked = C.workflows.filter((w) => w.deployBlocked).length;
-  return plural(C.workflows.length, 'workflow') + ' / ' + blocked + ' disabled for local runs';
-}
-
-function featureNames(list) {
-  return (list || []).map((feature) => FEATURE_LABEL[feature] || feature);
 }
 
 function workflowCard(w) {
-  const cat = CATEGORY[w.category] || CATEGORY.unknown;
-  const sup = SUPPORT[w.support] || SUPPORT.unsupported;
-  const features = featureNames(w.features);
+  const unavailable = w.deployBlocked || !!w.parseError;
   return h(
     'div',
     { class: 'rc-card' },
-    h('div', { class: 'rc-card-head' }, h('h3', { text: w.name }), h('div', { class: 'rc-row' }, chip(sup), badge(cat))),
-    h('p', { text: w.parseError ? 'This file could not be parsed.' : triggerText(w) }),
-    w.parseError ? h('div', { class: 'rc-warn red', text: parseErrorText(w) }) : null,
-    w.deployBlocked
-      ? h('div', { class: 'rc-warn red', text: 'Looks like a deployment or release workflow, so local runs stay disabled. ' + w.deployReasons.join('; ') + '.' })
-      : null,
-    (w.problems || []).map((problem) => h('div', { class: 'rc-warn', text: problem })),
-    features.length ? h('div', { class: 'rc-where', text: 'Uses ' + features.join(', ') }) : null,
+    h('div', { class: 'rc-card-head' }, h('h3', { text: w.name }), w.deployBlocked ? chip('Deploy, disabled', 'failed') : null),
+    w.parseError ? h('div', { class: 'rc-warn red', text: w.file + ' could not be read: ' + w.parseError.message }) : null,
+    w.deployBlocked ? h('div', { class: 'rc-warn red', text: 'This looks like a deploy or release workflow, so it cannot run locally.' }) : null,
     h(
       'div',
       { class: 'rc-card-foot' },
       h('div', null, h('code', { class: 'rc-cmd', text: w.file }), h('div', { class: 'rc-where', text: plural(w.jobCount, 'job') })),
-      h('div', { class: 'rc-row' }, h('button', { class: 'rc-btn', text: 'View details', onclick: () => openWorkflow(w.file) }))
+      unavailable ? null : h('button', { class: 'rc-btn', text: 'Open checks', onclick: () => openWorkflow(w.file) })
     )
   );
 }
 
 function listView() {
   const out = [
-    h('p', { class: 'rc-lead', text: 'Workflows found in .github/workflows. Review a workflow and its plan here, and run it locally once it is trusted.' }),
+    h('p', { class: 'rc-lead', text: 'Run the tests, lints and builds from your CI workflow on this machine.' }),
     h(
       'div',
       { class: 'rc-row' },
-      h('span', { class: 'rc-where', text: summaryText() }),
+      h('span', { class: 'rc-where', text: C.loading && !C.loaded ? 'Looking for workflows...' : plural(C.workflows.length, 'workflow') }),
       h('button', { class: 'rc-btn secondary small', text: 'Refresh', disabled: C.loading, onclick: refresh })
     ),
   ];
@@ -673,336 +433,14 @@ function listView() {
     );
     return out;
   }
-  out.push(h('div', { class: 'rc-section', text: 'Workflows' }), h('div', { class: 'rc-grid' }, C.workflows.map(workflowCard)));
+  out.push(h('div', { class: 'rc-grid' }, C.workflows.map(workflowCard)));
   return out;
 }
 
-function stepTitle(step) {
-  if (step.name) return step.name;
-  if (step.run) return step.run.split(/\r?\n/)[0].slice(0, 80);
-  if (step.uses) return step.uses;
-  return 'Unnamed step';
-}
-
-function stepMeta(step) {
-  const parts = [];
-  if (step.workingDirectory) parts.push('Directory: ' + step.workingDirectory);
-  if (step.shell) parts.push('Shell: ' + step.shell);
-  if (step.if) parts.push('Condition: ' + step.if);
-  if (step.env && step.env.length) parts.push('Env: ' + step.env.join(', '));
-  if (step.with && step.with.length) parts.push('Inputs: ' + step.with.join(', '));
-  return parts;
-}
-
-function stepRow(step) {
-  const meta = stepMeta(step);
-  const kindLabel = step.kind === 'run' ? 'Command' : step.kind === 'uses' ? 'Action' : 'Unknown';
-  return h(
-    'div',
-    { class: 'ci-step' },
-    h(
-      'div',
-      { class: 'ci-step-head' },
-      h('span', { class: 'ci-step-no', text: String(step.index + 1) }),
-      h('span', { class: 'rc-chip', text: kindLabel }),
-      h('b', { class: 'ci-step-name', text: stepTitle(step) }),
-      chip(STEP_SUPPORT[step.support] || STEP_SUPPORT.unsupported),
-      step.review ? chip(REVIEW_CHIP) : null,
-      step.line ? h('span', { class: 'rc-where', text: 'line ' + step.line }) : null
-    ),
-    step.run ? h('pre', { class: 'ci-run', text: step.run }) : null,
-    step.uses ? h('code', { class: 'rc-cmd', text: step.uses }) : null,
-    meta.length ? h('div', { class: 'ci-meta' }, meta.map((item) => h('span', { text: item }))) : null,
-    step.notes && step.notes.length ? h('ul', { class: 'ci-notes' }, step.notes.map((note) => h('li', { text: note }))) : null
-  );
-}
-
-function jobCard(job) {
-  const sup = SUPPORT[job.support] || SUPPORT.unsupported;
-  const meta = [];
-  if (job.runsOn) meta.push('Runs on: ' + job.runsOn);
-  if (job.needs.length) meta.push('Needs: ' + job.needs.join(', '));
-  if (job.workingDirectory) meta.push('Directory: ' + job.workingDirectory);
-  if (job.environment) meta.push('Environment: ' + job.environment);
-  if (job.if) meta.push('Condition: ' + job.if);
-  if (job.services.length) meta.push('Services: ' + job.services.join(', '));
-  if (job.timeoutMinutes) meta.push('Timeout: ' + job.timeoutMinutes + ' min');
-  return h(
-    'div',
-    { class: 'rc-card' },
-    h(
-      'div',
-      { class: 'rc-card-head' },
-      h('div', null, h('h3', { text: job.name }), job.name !== job.id ? h('div', { class: 'rc-where rc-mono', text: job.id }) : null),
-      h('div', { class: 'rc-row' }, chip(sup), h('span', { class: 'rc-where', text: plural(job.steps.length, 'step') }))
-    ),
-    jobSelector(job),
-    meta.length ? h('div', { class: 'ci-meta' }, meta.map((item) => h('span', { text: item }))) : null,
-    job.notes.length ? h('ul', { class: 'ci-notes' }, job.notes.map((note) => h('li', { text: note }))) : null,
-    job.steps.length ? h('div', { class: 'ci-steps' }, job.steps.map(stepRow)) : null
-  );
-}
-
-function filterLines(w) {
-  const lines = [];
-  const filters = w.triggerFilters || {};
-  for (const event of Object.keys(filters)) {
-    const filter = filters[event];
-    const parts = [];
-    if (filter.branches.length) parts.push('branches ' + filter.branches.join(', '));
-    if (filter.tags.length) parts.push('tags ' + filter.tags.join(', '));
-    if (filter.paths.length) parts.push('paths ' + filter.paths.join(', '));
-    if (filter.pathsIgnore.length) parts.push('ignores ' + filter.pathsIgnore.join(', '));
-    lines.push(event + ': ' + parts.join(' / '));
-  }
-  return lines;
-}
-
-function changeRow(entry) {
-  const info = CHANGE_STATUS[entry.status] || { label: entry.status, cls: 'skipped' };
-  return h(
-    'div',
-    { class: 'rc-row' },
-    chip(info),
-    h('span', { class: 'rc-mono', text: entry.file }),
-    h('span', { class: 'rc-where', text: entry.sources.join(' + ') })
-  );
-}
-
-function changesResult() {
-  if (C.changesLoading) return h('div', { class: 'rc-empty', text: 'Reading Git state...' });
-  if (C.changesError) return h('div', { class: 'rc-warn red', text: C.changesError });
-  if (!C.changes) return null;
-
-  const changes = C.changes;
-  const where = changes.branch ? 'Branch ' + changes.branch : 'Detached HEAD';
-  const head = changes.head ? ' / HEAD ' + changes.head.slice(0, 7) : '';
-  const compared = changes.base
-    ? 'Compared with ' + changes.base.ref + ' (merge base ' + changes.base.mergeBase.slice(0, 7) + ')'
-    : 'No base branch used';
-  const shown = changes.files.slice(0, MAX_CHANGE_ROWS);
-
-  return h(
-    'div',
-    null,
-    h('p', { class: 'rc-where', text: where + head + ' / ' + compared }),
-    changes.note ? h('div', { class: 'rc-warn', text: changes.note }) : null,
-    h(
-      'div',
-      { class: 'rc-row' },
-      h('span', { class: 'rc-chip done', text: plural(changes.total, 'changed file') }),
-      h('span', { class: 'rc-chip skipped', text: 'Committed: ' + changes.committed }),
-      h('span', { class: 'rc-chip skipped', text: 'Working tree: ' + changes.working })
-    ),
-    changes.truncated ? h('div', { class: 'rc-warn', text: 'Git reported more files than the list keeps. Only the first ' + changes.files.length + ' are included.' }) : null,
-    shown.length ? h('div', { class: 'rc-test-list' }, shown.map(changeRow)) : h('p', { class: 'rc-where', text: 'No changed files were found.' }),
-    changes.files.length > shown.length ? h('p', { class: 'rc-where', text: 'And ' + (changes.files.length - shown.length) + ' more.' }) : null
-  );
-}
-
-function changesCard() {
-  const baseInput = document.createElement('input');
-  baseInput.type = 'text';
-  baseInput.autocomplete = 'off';
-  baseInput.spellcheck = false;
-  baseInput.placeholder = 'Base branch (optional, for example origin/main)';
-  baseInput.value = C.changesBase;
-  baseInput.addEventListener('input', () => {
-    C.changesBase = baseInput.value;
-  });
-
-  return h(
-    'section',
-    { class: 'rc-card' },
-    h('div', { class: 'rc-card-head' }, h('h3', { text: 'Changed files' })),
-    h('p', { class: 'rc-where', text: 'Reads fresh Git state: committed changes since the merge base plus uncommitted and untracked files. Nothing is run.' }),
-    h(
-      'div',
-      { class: 'rc-row' },
-      baseInput,
-      h('button', {
-        class: 'rc-btn secondary',
-        text: C.changesLoading ? 'Reading...' : 'Detect changed files',
-        disabled: C.changesLoading,
-        onclick: detectChanges,
-      })
-    ),
-    changesResult(),
-    smartSection()
-  );
-}
-const SM = {
-  repoPath: '',
-  file: '',
-  loading: false,
-  error: '',
-  result: null,
-};
-
-function smartSync() {
-  if (SM.repoPath === S.repoPath && SM.file === C.selected) return;
-  SM.repoPath = S.repoPath;
-  SM.file = C.selected;
-  SM.loading = false;
-  SM.error = '';
-  SM.result = null;
-}
-
-function applySuggestion(smart) {
-  C.plan = null;
-  C.preflight = null;
-  C.planError = '';
-  C.preflightError = '';
-  if (smart && smart.selectedJobIds.length) {
-    C.planMode = 'selected';
-    C.selectedJobIds = new Set(smart.selectedJobIds);
-  }
-}
-
-async function suggestJobs() {
-  if (!C.detail || SM.loading) return;
-  smartSync();
-  const repoPath = S.repoPath;
-  const file = C.detail.file;
-  const same = () => repoPath === S.repoPath && repoPath === C.repoPath && file === C.selected;
-
-  SM.loading = true;
-  SM.error = '';
-  S.hooks.renderPage();
-
-  try {
-    const response = await call('ciSmart', { repoPath, file, base: C.changesBase.trim() });
-    if (!same()) return;
-    C.changes = response.changes;
-    C.changesError = '';
-    SM.result = response.smart;
-    applySuggestion(response.smart);
-  } catch (e) {
-    if (!same()) return;
-    SM.result = null;
-    SM.error = e.message;
-  } finally {
-    if (same()) {
-      SM.loading = false;
-      S.hooks.renderPage();
-    }
-  }
-}
-
-function reviewSuggestion() {
-  if (!SM.result || !SM.result.selectedJobIds.length) return Promise.resolve();
-  applySuggestion(SM.result);
-  return makePlan();
-}
-
-function useFullCi() {
-  C.planMode = 'full';
-  C.selectedJobIds = new Set();
-  C.plan = null;
-  C.preflight = null;
-  C.planError = '';
-  C.preflightError = '';
-  return makePlan();
-}
-
-function smartFilterLine(entry) {
-  if (entry.outcome === 'matched') return entry.event + ': path filters matched ' + plural(entry.matchedCount, 'changed file');
-  if (entry.outcome === 'ignored') return entry.event + ': path filters exclude every changed file';
-  if (entry.outcome === 'unknown') return entry.event + ': filters could not be evaluated, so all changes count';
-  return entry.event + ': no path filters';
-}
-
-function smartJobRow(job) {
-  let info = { label: 'Not affected', cls: 'skipped' };
-  if (job.selected) info = { label: 'Selected', cls: 'done' };
-  else if (job.dependency) info = { label: 'Dependency', cls: 'skipped' };
-
-  return h(
-    'div',
-    { class: 'ci-step' },
-    h(
-      'div',
-      { class: 'ci-step-head' },
-      chip(info),
-      h('b', { class: 'ci-step-name', text: job.name }),
-      job.name !== job.id ? h('span', { class: 'rc-where rc-mono', text: job.id }) : null
-    ),
-    h('p', { class: 'rc-where', text: job.reason })
-  );
-}
-
-function smartResult(result) {
-  const filterLines = (result.filters || []).map(smartFilterLine);
-  return h(
-    'div',
-    null,
-    h('p', { class: 'rc-chip done', text: result.summary }),
-    result.note ? h('p', { class: 'rc-where', text: result.note }) : null,
-    filterLines.length ? h('ul', { class: 'ci-notes plain' }, filterLines.map((line) => h('li', { text: line }))) : null,
-    (result.warnings || []).map((warning) => h('div', { class: 'rc-warn', text: warning })),
-    h('div', { class: 'ci-steps' }, (result.jobs || []).map(smartJobRow)),
-    h(
-      'div',
-      { class: 'rc-row' },
-      h('button', {
-        class: 'rc-btn',
-        text: C.planLoading ? 'Building plan...' : 'Review Smart CI plan',
-        disabled: C.planLoading || !result.selectedJobIds.length,
-        onclick: reviewSuggestion,
-      }),
-      h('button', {
-        class: 'rc-btn secondary',
-        text: 'Use Full CI instead',
-        disabled: C.planLoading,
-        onclick: useFullCi,
-      })
-    )
-  );
-}
-
-function smartSection() {
-  smartSync();
-  return h(
-    'div',
-    null,
-    h('div', { class: 'rc-section', text: 'Smart CI' }),
-    h('p', {
-      class: 'rc-where',
-      text: 'Reads fresh Git state and proposes jobs from this workflow\'s paths and paths-ignore filters and each job\'s working directories. You still review and confirm the normal plan, and Full CI stays available.',
-    }),
-    h(
-      'div',
-      { class: 'rc-row' },
-      h('button', {
-        class: 'rc-btn secondary',
-        text: SM.loading ? 'Choosing jobs...' : 'Suggest jobs from changes',
-        disabled: SM.loading || C.planLoading,
-        onclick: suggestJobs,
-      })
-    ),
-    SM.error ? h('div', { class: 'rc-warn red', text: SM.error }) : null,
-    SM.result ? smartResult(SM.result) : null
-  );
-}
-
-async function applyRerun(res) {
-  const repoPath = S.repoPath;
-  const file = C.selected;
-  if (res.workflowChanged) {
-    const fresh = await call('ciWorkflow', { repoPath, file });
-    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
-    C.detail = fresh.workflow;
-  }
-  C.planMode = res.mode;
-  C.selectedJobIds = new Set(res.jobIds);
-  C.plan = res.plan;
-  C.planError = '';
-  C.preflight = null;
-  C.preflightError = '';
-  R.error = '';
-}
 function detailView() {
-  const back = h('button', { class: 'rc-btn secondary small', text: 'Back to workflows', onclick: closeDetail });
+  const back =
+    C.workflows.length > 1 ? h('button', { class: 'rc-btn secondary small', text: 'All workflows', onclick: closeDetail }) : null;
+
   if (C.detailLoading) {
     return [h('div', { class: 'rc-row' }, back), h('div', { class: 'rc-empty', text: 'Reading the workflow...' })];
   }
@@ -1011,72 +449,66 @@ function detailView() {
   }
 
   const workflow = C.detail;
-  const category = CATEGORY[workflow.category] || CATEGORY.unknown;
-  const support = SUPPORT[workflow.support] || SUPPORT.unsupported;
-  const features = featureNames(workflow.features);
-  const filters = filterLines(workflow);
-  const head = h(
-    'div',
-    { class: 'rc-card' },
-    h('div', { class: 'rc-card-head' }, h('h3', { text: workflow.name }), h('div', { class: 'rc-row' }, chip(support), badge(category))),
-    h('div', null, h('code', { class: 'rc-cmd', text: workflow.file })),
-    h('p', { text: workflow.parseError ? 'This file could not be parsed.' : triggerText(workflow) }),
-    workflow.trusted ? h('p', { class: 'rc-chip done', text: 'Workflow hash trusted' }) : h('p', { class: 'rc-chip skipped', text: 'Workflow hash not trusted' }),
-    filters.length ? h('ul', { class: 'ci-notes plain' }, filters.map((line) => h('li', { text: line }))) : null,
-    workflow.parseError ? h('div', { class: 'rc-warn red', text: parseErrorText(workflow) }) : null,
-    workflow.deployBlocked
-      ? h('div', { class: 'rc-warn red', text: 'Looks like a deployment or release workflow, so local runs stay disabled. ' + workflow.deployReasons.join('; ') + '.' })
-      : null,
-    (workflow.problems || []).map((problem) => h('div', { class: 'rc-warn', text: problem })),
-    features.length ? h('div', { class: 'rc-where', text: 'Uses ' + features.join(', ') }) : null
-  );
-
-  const modeSelect = document.createElement('select');
-  for (const [value, label] of [
-    ['full', 'Full workflow'],
-    ['selected', 'Selected jobs + dependencies'],
-    ['single', 'One job + dependencies'],
-  ]) {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = label;
-    option.selected = C.planMode === value;
-    modeSelect.append(option);
+  const jobs = checkJobs(workflow);
+  const picked = jobs.filter((job) => C.selectedJobIds.has(job.id));
+  const unsupported = (workflow.jobs || []).filter((job) => job.matrix || job.reusable);
+  let skipped = 0;
+  for (const job of workflow.jobs || []) {
+    for (const step of job.steps || []) {
+      if (step.remoteOnly || (step.kind === 'run' && !runsLocally(step))) skipped += 1;
+    }
   }
-  modeSelect.addEventListener('change', () => {
-    C.planMode = modeSelect.value;
-    if (C.planMode === 'single' && C.selectedJobIds.size > 1) C.selectedJobIds = new Set();
-    C.plan = null;
-    C.preflight = null;
-    C.planError = '';
-    C.preflightError = '';
-    S.hooks.renderPage();
-  });
+
+  const blocked = workflow.deployBlocked || !!workflow.parseError;
+  const canRun = !R.busy && !blocked && !!workflow.trusted && picked.length > 0;
+  const runText = R.busy || (picked.length === jobs.length ? 'Run all checks' : 'Run ' + plural(picked.length, 'selected check'));
 
   return [
-    h('div', { class: 'rc-row' }, back),
-    head,
-    changesCard(),
-    runsSection({ file: workflow.file, locked: R.running || C.planLoading, onPlan: applyRerun }),
     h(
       'div',
-      { class: 'rc-row' },
-      h('label', null, 'Plan mode '),
-      modeSelect,
-      h('button', {
-        class: 'rc-btn',
-        text: C.planLoading ? 'Building plan...' : 'Review plan',
-        disabled: C.planLoading || !!workflow.parseError,
-        onclick: makePlan,
-      })
+      { class: 'ci-head' },
+      h('div', null, h('h3', { text: workflow.name }), h('div', { class: 'rc-where rc-mono', text: workflow.file })),
+      h('div', { class: 'rc-row' }, back, h('button', { class: 'rc-btn secondary small', text: 'Refresh', onclick: refresh }))
     ),
-    C.planMode !== 'full' && C.selectedJobIds.size === 0
-      ? h('p', { class: 'rc-where', text: 'Select one or more jobs below before reviewing this plan.' })
+    workflow.parseError ? h('div', { class: 'rc-warn red', text: workflow.file + ' could not be read: ' + workflow.parseError.message }) : null,
+    workflow.deployBlocked ? h('div', { class: 'rc-warn red', text: 'This looks like a deploy or release workflow, so it cannot run locally.' }) : null,
+    (workflow.problems || []).map((problem) => h('div', { class: 'rc-warn', text: problem })),
+    !workflow.trusted && !blocked
+      ? h(
+          'div',
+          { class: 'ci-trust' },
+          h('span', { text: 'These commands run on your machine. Trust this workflow file to enable running.' }),
+          h('button', { class: 'rc-btn', text: 'Trust workflow', onclick: trustWorkflow })
+        )
       : null,
-    C.planError ? h('div', { class: 'rc-warn red', text: C.planError }) : null,
-    planReview(),
-    workflow.jobs.length ? h('div', { class: 'rc-section', text: plural(workflow.jobs.length, 'job') }) : null,
-    workflow.jobs.map(jobCard),
+    jobs.length
+      ? h(
+          'div',
+          { class: 'ci-bar' },
+          h('button', {
+            class: 'rc-btn danger',
+            text: runText,
+            disabled: !canRun,
+            onclick: runChecks,
+          }),
+          h('button', { class: 'rc-btn secondary small', text: 'All', disabled: !!R.busy, onclick: () => selectAll(true) }),
+          h('button', { class: 'rc-btn secondary small', text: 'None', disabled: !!R.busy, onclick: () => selectAll(false) }),
+          h('span', { class: 'rc-where', text: picked.length + ' of ' + plural(jobs.length, 'check') + ' selected' })
+        )
+      : null,
+    R.error ? h('div', { class: 'rc-warn red', text: R.error }) : null,
+    preflightBox(),
+    jobs.length ? smartBox() : null,
+    jobs.length
+      ? h('div', { class: 'ci-jobs' }, jobs.map(jobCard))
+      : h('div', { class: 'rc-empty', text: 'This workflow has no commands that can run locally.' }),
+    skipped
+      ? h('p', { class: 'rc-where', text: plural(skipped, 'step') + ' that only work on GitHub are skipped (for example path filters and third-party actions).' })
+      : null,
+    unsupported.length
+      ? h('p', { class: 'rc-where', text: plural(unsupported.length, 'job') + ' cannot run locally (matrix or reusable): ' + unsupported.map((job) => job.name).join(', ') + '.' })
+      : null,
+    runsSection({ file: workflow.file, locked: !!R.busy, onPlan: applyRerun }),
   ];
 }
 
@@ -1084,5 +516,12 @@ export function ciPage() {
   ensureStyles();
   sync();
   if (!C.loaded && !C.loading) load();
-  return C.selected ? detailView() : listView();
+  if (C.selected) return detailView();
+  if (C.loaded && !C.error && C.workflows.length === 1 && !C.autoOpened) {
+    C.autoOpened = true;
+    const file = C.workflows[0].file;
+    queueMicrotask(() => openWorkflow(file));
+    return [h('div', { class: 'rc-empty', text: 'Reading the workflow...' })];
+  }
+  return listView();
 }

@@ -170,16 +170,25 @@ function emptyActions() {
 }
 
 function actionPage(pageId, lead) {
-  const items = S.catalog.items.filter((i) => i.page === pageId);
+  const onPage = S.catalog.items.filter((i) => i.page === pageId);
+  const items = onPage.filter((i) => !!(i.targets && i.targets[S.env]));
+  const hidden = onPage.length - items.length;
   const sections = [];
   for (const item of items) if (!sections.includes(item.section)) sections.push(item.section);
   const out = [trustBox(), h('p', { class: 'rc-lead', text: lead })];
-  if (!items.length) {
+  if (!onPage.length) {
     out.push(emptyActions());
+    return out;
+  }
+  if (!items.length) {
+    out.push(h('div', { class: 'rc-empty', text: 'Nothing on this page is available for ' + S.env + '.' }));
     return out;
   }
   for (const section of sections) {
     out.push(h('div', { class: 'rc-section', text: section }), h('div', { class: 'rc-grid' }, items.filter((i) => i.section === section).map(itemCard)));
+  }
+  if (hidden) {
+    out.push(h('p', { class: 'rc-where', text: hidden + ' action' + (hidden === 1 ? ' is' : 's are') + ' hidden because ' + (hidden === 1 ? 'it is' : 'they are') + ' not available for ' + S.env + '.' }));
   }
   return out;
 }
