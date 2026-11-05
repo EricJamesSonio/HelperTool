@@ -32,6 +32,13 @@ export const S = {
     loaded: false,
     loading: false,
   },
+  security: {
+    profile: null,
+    settings: null,
+    loaded: false,
+    loading: false,
+    detecting: false,
+  },
   hooks: {
     renderAll() {},
     renderPage() {},

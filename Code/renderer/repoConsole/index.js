@@ -1,6 +1,6 @@
 import { S, h, call, toast } from './state.js';
 import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLiveLog, schedulePanelRefresh, openLiveOutput } from './monitor.js';
-import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory } from './pages.js';
+import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory, securityPage } from './pages.js';
 import { ciPage } from './ciPage.js';
 
 const NAV = [
@@ -8,6 +8,7 @@ const NAV = [
   ['database', 'Database'],
   ['scripts', 'Scripts'],
   ['tests', 'Tests'],
+  ['security', 'Security'],
   ['ci', 'CI'],
   ['history', 'History'],
 ];
@@ -103,9 +104,11 @@ function renderPage() {
           ? scriptsPage()
           : S.page === 'tests'
             ? testsPage()
-            : S.page === 'ci'
-              ? ciPage()
-              : historyPage();
+            : S.page === 'security'
+              ? securityPage()
+              : S.page === 'ci'
+                ? ciPage()
+                : historyPage();
   els.page.replaceChildren(...[body].flat(Infinity).filter(Boolean));
 }
 
@@ -230,6 +233,7 @@ function ensureInit() {
   for (const [id, href] of [
     ['repoConsoleSheet', 'styles/repo-console.css'],
     ['repoConsoleLayoutSheet', 'styles/repo-console-layout.css'],
+    ['repoConsoleSecuritySheet', 'styles/repo-console-security.css'],
   ]) {
     if (document.getElementById(id)) continue;
     const link = document.createElement('link');
@@ -292,6 +296,9 @@ function switchRepo(repoPath) {
   S.history.page = 1;
   S.history.items = [];
   S.history.total = 0;
+  S.security.loaded = false;
+  S.security.profile = null;
+  S.security.settings = null;
   if (S.output.open && S.output.repoPath !== S.repoPath) closeOutput();
 }
 

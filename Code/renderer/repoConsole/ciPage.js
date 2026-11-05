@@ -1,4 +1,5 @@
 import { S, h, call, toast } from './state.js';
+import { runsSection } from './ciRuns.js';
 
 const C = {
   repoPath: '',
@@ -826,10 +827,180 @@ function changesCard() {
         onclick: detectChanges,
       })
     ),
-    changesResult()
+    changesResult(),
+    smartSection()
+  );
+}
+const SM = {
+  repoPath: '',
+  file: '',
+  loading: false,
+  error: '',
+  result: null,
+};
+
+function smartSync() {
+  if (SM.repoPath === S.repoPath && SM.file === C.selected) return;
+  SM.repoPath = S.repoPath;
+  SM.file = C.selected;
+  SM.loading = false;
+  SM.error = '';
+  SM.result = null;
+}
+
+function applySuggestion(smart) {
+  C.plan = null;
+  C.preflight = null;
+  C.planError = '';
+  C.preflightError = '';
+  if (smart && smart.selectedJobIds.length) {
+    C.planMode = 'selected';
+    C.selectedJobIds = new Set(smart.selectedJobIds);
+  }
+}
+
+async function suggestJobs() {
+  if (!C.detail || SM.loading) return;
+  smartSync();
+  const repoPath = S.repoPath;
+  const file = C.detail.file;
+  const same = () => repoPath === S.repoPath && repoPath === C.repoPath && file === C.selected;
+
+  SM.loading = true;
+  SM.error = '';
+  S.hooks.renderPage();
+
+  try {
+    const response = await call('ciSmart', { repoPath, file, base: C.changesBase.trim() });
+    if (!same()) return;
+    C.changes = response.changes;
+    C.changesError = '';
+    SM.result = response.smart;
+    applySuggestion(response.smart);
+  } catch (e) {
+    if (!same()) return;
+    SM.result = null;
+    SM.error = e.message;
+  } finally {
+    if (same()) {
+      SM.loading = false;
+      S.hooks.renderPage();
+    }
+  }
+}
+
+function reviewSuggestion() {
+  if (!SM.result || !SM.result.selectedJobIds.length) return Promise.resolve();
+  applySuggestion(SM.result);
+  return makePlan();
+}
+
+function useFullCi() {
+  C.planMode = 'full';
+  C.selectedJobIds = new Set();
+  C.plan = null;
+  C.preflight = null;
+  C.planError = '';
+  C.preflightError = '';
+  return makePlan();
+}
+
+function smartFilterLine(entry) {
+  if (entry.outcome === 'matched') return entry.event + ': path filters matched ' + plural(entry.matchedCount, 'changed file');
+  if (entry.outcome === 'ignored') return entry.event + ': path filters exclude every changed file';
+  if (entry.outcome === 'unknown') return entry.event + ': filters could not be evaluated, so all changes count';
+  return entry.event + ': no path filters';
+}
+
+function smartJobRow(job) {
+  let info = { label: 'Not affected', cls: 'skipped' };
+  if (job.selected) info = { label: 'Selected', cls: 'done' };
+  else if (job.dependency) info = { label: 'Dependency', cls: 'skipped' };
+
+  return h(
+    'div',
+    { class: 'ci-step' },
+    h(
+      'div',
+      { class: 'ci-step-head' },
+      chip(info),
+      h('b', { class: 'ci-step-name', text: job.name }),
+      job.name !== job.id ? h('span', { class: 'rc-where rc-mono', text: job.id }) : null
+    ),
+    h('p', { class: 'rc-where', text: job.reason })
   );
 }
 
+function smartResult(result) {
+  const filterLines = (result.filters || []).map(smartFilterLine);
+  return h(
+    'div',
+    null,
+    h('p', { class: 'rc-chip done', text: result.summary }),
+    result.note ? h('p', { class: 'rc-where', text: result.note }) : null,
+    filterLines.length ? h('ul', { class: 'ci-notes plain' }, filterLines.map((line) => h('li', { text: line }))) : null,
+    (result.warnings || []).map((warning) => h('div', { class: 'rc-warn', text: warning })),
+    h('div', { class: 'ci-steps' }, (result.jobs || []).map(smartJobRow)),
+    h(
+      'div',
+      { class: 'rc-row' },
+      h('button', {
+        class: 'rc-btn',
+        text: C.planLoading ? 'Building plan...' : 'Review Smart CI plan',
+        disabled: C.planLoading || !result.selectedJobIds.length,
+        onclick: reviewSuggestion,
+      }),
+      h('button', {
+        class: 'rc-btn secondary',
+        text: 'Use Full CI instead',
+        disabled: C.planLoading,
+        onclick: useFullCi,
+      })
+    )
+  );
+}
+
+function smartSection() {
+  smartSync();
+  return h(
+    'div',
+    null,
+    h('div', { class: 'rc-section', text: 'Smart CI' }),
+    h('p', {
+      class: 'rc-where',
+      text: 'Reads fresh Git state and proposes jobs from this workflow\'s paths and paths-ignore filters and each job\'s working directories. You still review and confirm the normal plan, and Full CI stays available.',
+    }),
+    h(
+      'div',
+      { class: 'rc-row' },
+      h('button', {
+        class: 'rc-btn secondary',
+        text: SM.loading ? 'Choosing jobs...' : 'Suggest jobs from changes',
+        disabled: SM.loading || C.planLoading,
+        onclick: suggestJobs,
+      })
+    ),
+    SM.error ? h('div', { class: 'rc-warn red', text: SM.error }) : null,
+    SM.result ? smartResult(SM.result) : null
+  );
+}
+
+async function applyRerun(res) {
+  const repoPath = S.repoPath;
+  const file = C.selected;
+  if (res.workflowChanged) {
+    const fresh = await call('ciWorkflow', { repoPath, file });
+    if (repoPath !== S.repoPath || repoPath !== C.repoPath || file !== C.selected) return;
+    C.detail = fresh.workflow;
+  }
+  C.planMode = res.mode;
+  C.selectedJobIds = new Set(res.jobIds);
+  C.plan = res.plan;
+  C.planError = '';
+  C.preflight = null;
+  C.preflightError = '';
+  R.error = '';
+}
 function detailView() {
   const back = h('button', { class: 'rc-btn secondary small', text: 'Back to workflows', onclick: closeDetail });
   if (C.detailLoading) {
@@ -886,6 +1057,7 @@ function detailView() {
     h('div', { class: 'rc-row' }, back),
     head,
     changesCard(),
+    runsSection({ file: workflow.file, locked: R.running || C.planLoading, onPlan: applyRerun }),
     h(
       'div',
       { class: 'rc-row' },
