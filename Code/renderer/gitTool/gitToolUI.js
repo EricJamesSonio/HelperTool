@@ -74,11 +74,9 @@ class GitToolUI {
   getTemplate() {
     return `
       <div class="git-tool-wrapper">
-        <!-- Header: title | navigation | session -->
+        <!-- Header: stats | navigation | session -->
         <div class="git-header git-topbar">
           <div class="git-topbar-left">
-            <span class="git-icon">${ICON_GIT}</span>
-            <span class="git-topbar-title">Git Tool</span>
             <span class="git-stats-compact" id="gitStatsCompact"></span>
           </div>
 
