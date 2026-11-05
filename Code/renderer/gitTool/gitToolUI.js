@@ -24,6 +24,14 @@ const ICON_INSPECT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
 
 const VIEW_ORDER = ['git', 'branches', 'inspect'];
 
+const HTML_ESCAPES = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#039;'
+};
+
 let activeUI = null;
 
 if (typeof document !== 'undefined') {
@@ -286,7 +294,8 @@ class GitToolUI {
       const step = e.key === 'ArrowRight' ? 1 : VIEW_ORDER.length - 1;
       const next = VIEW_ORDER[(index + step) % VIEW_ORDER.length];
       this.setView(next);
-      const target = this.container.querySelector('.git-nav-tab[data-view="' + next + '"]');
+      const selector = '.git-nav-tab[data-view=' + next + ']';
+      const target = this.container.querySelector(selector);
       if (target) target.focus();
     });
 
@@ -522,7 +531,7 @@ class GitToolUI {
 
     if (result.success) {
       this.refreshUI();
-      this.showSuccess(`Staged ${allPaths.length} file${allPaths.length !== 1 ? 's' : ''}`);
+      this.showSuccess('Staged ' + allPaths.length + ' file' + (allPaths.length !== 1 ? 's' : ''));
     } else {
       console.debug('[GitToolUI] Stage All failed:', result.error);
       this.showError(result.error || 'Failed to stage files');
@@ -550,9 +559,9 @@ class GitToolUI {
     this.refreshUI();
 
     if (result.failed > 0) {
-      this.showError(`Committed ${result.succeeded}/${result.total} groups (${result.failed} failed)`);
+      this.showError('Committed ' + result.succeeded + '/' + result.total + ' groups (' + result.failed + ' failed)');
     } else {
-      this.showSuccess(`Committed ${result.succeeded} group${result.succeeded !== 1 ? 's' : ''}`);
+      this.showSuccess('Committed ' + result.succeeded + ' group' + (result.succeeded !== 1 ? 's' : ''));
     }
   }
 
@@ -578,7 +587,7 @@ class GitToolUI {
 
     if (result.success) {
       this.refreshUI();
-      this.showSuccess(`Staged ${filePaths.length} file${filePaths.length !== 1 ? 's' : ''} from group`);
+      this.showSuccess('Staged ' + filePaths.length + ' file' + (filePaths.length !== 1 ? 's' : '') + ' from group');
     } else {
       this.showError(result.error || 'Failed to stage group');
     }
@@ -613,7 +622,7 @@ class GitToolUI {
 
     if (result.success) {
       this.refreshUI();
-      this.showSuccess(`Unstaged ${allPaths.length} file${allPaths.length !== 1 ? 's' : ''}`);
+      this.showSuccess('Unstaged ' + allPaths.length + ' file' + (allPaths.length !== 1 ? 's' : ''));
     } else {
       this.showError(result.error || 'Failed to unstage files');
     }
@@ -625,7 +634,8 @@ class GitToolUI {
       btn._origHTML = btn.innerHTML;
       btn.disabled = true;
       btn.classList.add('btn-loading');
-      btn.innerHTML = '<span class="spinner"></span> ' + btn._origHTML.replace(/<span[^>]*>.*?<\/span>\s*/, '').trim();
+      const label = btn._origHTML.replace(/<span[^>]*>.*?<\/span>\s*/, '').trim();
+      btn.innerHTML = '<span class="spinner"></span> ' + label;
     } else {
       btn.disabled = false;
       btn.classList.remove('btn-loading');
@@ -639,8 +649,6 @@ class GitToolUI {
   async handleCommit() {
     const commitBtn = this.container.querySelector('#commitBtn');
     const toggleBtn = this.container.querySelector('#useTemplateBtn');
-    const freeForm = this.container.querySelector('#commitFreeForm');
-    const templateForm = this.container.querySelector('#commitTemplateForm');
     const messageInput = this.container.querySelector('#commitMessageInput');
     const typeSelect = this.container.querySelector('#commitType');
     const moduleInput = this.container.querySelector('#commitModule');
@@ -665,12 +673,12 @@ class GitToolUI {
         return;
       }
 
-      message = `Type: ${type}\n`;
-      if (module) message += `Module: ${module}\n`;
-      message += `\nDescription:\n${description}\n\n`;
-      message += `Files Included:\n`;
+      message = 'Type: ' + type + '\n';
+      if (module) message += 'Module: ' + module + '\n';
+      message += '\nDescription:\n' + description + '\n\n';
+      message += 'Files Included:\n';
       stagedFiles.forEach(f => {
-        message += `- ${f.file}\n`;
+        message += '- ' + f.file + '\n';
       });
       message = message.trim();
     } else {
@@ -740,7 +748,7 @@ class GitToolUI {
 
     if (result.success) {
       this.refreshUI();
-      this.showSuccess(`Pushed ${result.count} commit${result.count !== 1 ? 's' : ''}!`);
+      this.showSuccess('Pushed ' + result.count + ' commit' + (result.count !== 1 ? 's' : '') + '!');
     } else {
       this.showError(result.error || 'Failed to push');
     }
@@ -758,7 +766,7 @@ class GitToolUI {
 
     if (result.success) {
       this.refreshUI();
-      this.showSuccess(`Upstream set for origin/${this.gitHandler.currentBranch} · pushed successfully!`);
+      this.showSuccess('Upstream set for origin/' + this.gitHandler.currentBranch + ' - pushed successfully!');
     } else {
       this.showError(result.error || 'Failed to set upstream');
     }
@@ -855,7 +863,7 @@ class GitToolUI {
     if (setUpstreamRow && this.gitHandler.currentBranch) {
       const setUpstreamBtn = this.container.querySelector('#setUpstreamBtn');
       if (setUpstreamBtn) {
-        setUpstreamBtn.innerHTML = `<span class="btn-icon">${ICON_ARROW_UP}</span> Set upstream origin/${this.gitHandler.currentBranch}`;
+        setUpstreamBtn.innerHTML = '<span class="btn-icon">' + ICON_ARROW_UP + '</span> Set upstream origin/' + this.escapeHtml(this.gitHandler.currentBranch);
       }
       this.gitHandler.checkUpstream().then(result => {
         setUpstreamRow.style.display = !result.hasUpstream ? '' : 'none';
@@ -874,11 +882,49 @@ class GitToolUI {
     const el = this.container.querySelector('#gitStatsCompact');
     if (!el) return;
     const parts = [];
-    if (stats.working) parts.push(`${stats.working} working`);
-    if (stats.staged) parts.push(`${stats.staged} staged`);
-    parts.push(`${stats.commits} commits`);
-    if (stats.unpushed) parts.push(`${stats.unpushed} unpushed`);
+    if (stats.working) parts.push(stats.working + ' working');
+    if (stats.staged) parts.push(stats.staged + ' staged');
+    parts.push(stats.commits + ' commits');
+    if (stats.unpushed) parts.push(stats.unpushed + ' unpushed');
     el.textContent = parts.join(' · ');
+  }
+
+  /**
+   * One file row of the working tree
+   */
+  _workingFileHtml(file) {
+    const status = this.getStatusClass(file.status);
+    const label = this.getStatusLabel(file.status);
+    return (
+      '<div class="file-item working-file-item" data-file="' + file.file + '">' +
+      '<input type="checkbox" class="file-checkbox" data-file="' + file.file + '" />' +
+      '<span class="file-status-badge status-' + status + '">' + label + '</span>' +
+      '<span class="file-path" title="' + file.file + '">' + this.escapeHtml(file.file) + '</span>' +
+      '<button class="stage-btn btn-icon-small" data-file="' + file.file + '" title="Stage file">' + ICON_ARROW_RIGHT + '</button>' +
+      '</div>'
+    );
+  }
+
+  /**
+   * One smart group of the working tree
+   */
+  _workingGroupHtml(group, idx) {
+    const count = group.files.length;
+    const countText = count + ' file' + (count !== 1 ? 's' : '');
+    const rows = group.files.map((file) => this._workingFileHtml(file)).join('');
+    return (
+      '<div class="smart-group">' +
+      '<div class="smart-group-header">' +
+      '<span class="smart-group-label">' + this.escapeHtml(group.label) + '</span>' +
+      '<div class="smart-group-actions">' +
+      '<span class="smart-group-count">' + countText + '</span>' +
+      '<button class="stage-group-btn" data-group-index="' + idx + '" title="Stage all files in this group">' +
+      ICON_PLUS + ' Stage All</button>' +
+      '</div>' +
+      '</div>' +
+      rows +
+      '</div>'
+    );
   }
 
   /**
@@ -898,36 +944,11 @@ class GitToolUI {
       return;
     }
 
-    count.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+    count.textContent = files.length + ' file' + (files.length !== 1 ? 's' : '');
     if (stageAllRow) stageAllRow.style.display = '';
 
     const groups = this.gitManager.getSmartGroups();
-
-    list.innerHTML = groups.map((group, idx) => `
-      <div class="smart-group">
-        <div class="smart-group-header">
-          <span class="smart-group-label">${this.escapeHtml(group.label)}</span>
-          <div class="smart-group-actions">
-            <span class="smart-group-count">${group.files.length} file${group.files.length !== 1 ? 's' : ''}</span>
-            <button class="stage-group-btn" data-group-index="${idx}" title="Stage all files in this group">
-              ${ICON_PLUS} Stage All
-            </button>
-          </div>
-        </div>
-        ${group.files.map(file => `
-          <div class="file-item working-file-item" data-file="${file.file}">
-            <input type="checkbox" class="file-checkbox" data-file="${file.file}" />
-            <span class="file-status-badge status-${this.getStatusClass(file.status)}">
-              ${this.getStatusLabel(file.status)}
-            </span>
-            <span class="file-path" title="${file.file}">${this.escapeHtml(file.file)}</span>
-            <button class="stage-btn btn-icon-small" data-file="${file.file}" title="Stage file">
-              ${ICON_ARROW_RIGHT}
-            </button>
-          </div>
-        `).join('')}
-      </div>
-    `).join('');
+    list.innerHTML = groups.map((group, idx) => this._workingGroupHtml(group, idx)).join('');
   }
 
   /**
@@ -950,30 +971,74 @@ class GitToolUI {
       return;
     }
 
-    count.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+    count.textContent = files.length + ' file' + (files.length !== 1 ? 's' : '');
     if (unstageAllRow) unstageAllRow.style.display = '';
 
-    list.innerHTML = files.map(file => `
-      <div class="file-item staged-file-item" data-file="${file.file}">
-        <span class="file-status-badge status-${this.getStatusClass(file.status)}">
-          ${this.getStatusLabel(file.status)}
-        </span>
-        <span class="file-path" title="${file.file}">${this.getFileName(file.file)}</span>
-        <button class="unstage-btn btn-icon-small" data-file="${file.file}" title="Unstage file">
-          ${ICON_ARROW_LEFT}
-        </button>
-      </div>
-    `).join('');
+    list.innerHTML = files.map((file) => {
+      return (
+        '<div class="file-item staged-file-item" data-file="' + file.file + '">' +
+        '<span class="file-status-badge status-' + this.getStatusClass(file.status) + '">' + this.getStatusLabel(file.status) + '</span>' +
+        '<span class="file-path" title="' + file.file + '">' + this.getFileName(file.file) + '</span>' +
+        '<button class="unstage-btn btn-icon-small" data-file="' + file.file + '" title="Unstage file">' + ICON_ARROW_LEFT + '</button>' +
+        '</div>'
+      );
+    }).join('');
 
     if (filesSection && filesList) {
       filesSection.style.display = '';
-      filesList.innerHTML = files.map(f => `
-        <div class="commit-file-entry" title="${this.escapeHtml(f.file)}">
-          <span class="file-status-badge status-${this.getStatusClass(f.status)}">${this.getStatusLabel(f.status)}</span>
-          <span class="file-path">${this.escapeHtml(f.file)}</span>
-        </div>
-      `).join('');
+      filesList.innerHTML = files.map((f) => {
+        return (
+          '<div class="commit-file-entry" title="' + this.escapeHtml(f.file) + '">' +
+          '<span class="file-status-badge status-' + this.getStatusClass(f.status) + '">' + this.getStatusLabel(f.status) + '</span>' +
+          '<span class="file-path">' + this.escapeHtml(f.file) + '</span>' +
+          '</div>'
+        );
+      }).join('');
     }
+  }
+
+  /**
+   * One file line inside a commit card
+   */
+  _commitFileHtml(f) {
+    return (
+      '<li class="commit-file-item">' +
+      '<span class="file-status-badge status-' + this.getStatusClass(f.status) + '">' + this.getStatusLabel(f.status) + '</span>' +
+      '<span class="file-path" title="' + f.file + '">' + this.getFileName(f.file) + '</span>' +
+      '</li>'
+    );
+  }
+
+  /**
+   * One commit card
+   */
+  _commitCardHtml(commit, isHistory) {
+    const fileCount = commit.files.length;
+    const fileCountText = fileCount + ' file' + (fileCount !== 1 ? 's' : '');
+    const showPush = !commit.pushed && !isHistory;
+    const pushButton = showPush
+      ? '<button class="push-btn btn btn-small" data-commit-id="' + commit.id + '" title="Push commit">' +
+        '<span class="btn-icon">' + ICON_ARROW_UP + '</span> Push</button>'
+      : '';
+    const fileRows = commit.files.map((f) => this._commitFileHtml(f)).join('');
+    return (
+      '<div class="commit-card" data-commit-id="' + commit.id + '">' +
+      '<div class="commit-header">' +
+      '<span class="commit-id">' + this.getShortCommitId(commit.id) + '</span>' +
+      '<span class="commit-time">' + this.formatTime(commit.timestamp) + '</span>' +
+      '</div>' +
+      '<div class="commit-message">' + this.escapeHtml(commit.message) + '</div>' +
+      '<div class="commit-actions">' +
+      '<button class="view-files-btn btn btn-small" data-commit-id="' + commit.id + '" title="View files">' +
+      '<span class="btn-icon">' + ICON_FOLDER + '</span> View Files</button>' +
+      pushButton +
+      '</div>' +
+      '<div class="commit-files" style="display:none">' +
+      '<div class="files-count">' + fileCountText + '</div>' +
+      '<ul class="commit-file-list">' + fileRows + '</ul>' +
+      '</div>' +
+      '</div>'
+    );
   }
 
   /**
@@ -999,45 +1064,17 @@ class GitToolUI {
       pushAllRow.style.display = (!isHistory && filtered.length > 0) ? '' : 'none';
     }
 
+    const kind = isHistory ? 'pushed' : 'unpushed';
+
     if (filtered.length === 0) {
       const msg = isHistory ? 'No pushed commits yet' : 'All commits are pushed';
-      list.innerHTML = `<div class="empty-state">${msg}</div>`;
-      count.textContent = `0 ${isHistory ? 'pushed' : 'unpushed'}`;
+      list.innerHTML = '<div class="empty-state">' + msg + '</div>';
+      count.textContent = '0 ' + kind;
       return;
     }
 
-    count.textContent = `${filtered.length} ${isHistory ? 'pushed' : 'unpushed'} commit${filtered.length !== 1 ? 's' : ''}`;
-
-    list.innerHTML = filtered.map(commit => `
-      <div class="commit-card" data-commit-id="${commit.id}">
-        <div class="commit-header">
-          <span class="commit-id">${this.getShortCommitId(commit.id)}</span>
-          <span class="commit-time">${this.formatTime(commit.timestamp)}</span>
-        </div>
-        <div class="commit-message">${this.escapeHtml(commit.message)}</div>
-        <div class="commit-actions">
-          <button class="view-files-btn btn btn-small" data-commit-id="${commit.id}" title="View files">
-            <span class="btn-icon">${ICON_FOLDER}</span> View Files
-          </button>
-          ${!commit.pushed && !isHistory ? `
-            <button class="push-btn btn btn-small" data-commit-id="${commit.id}" title="Push commit">
-              <span class="btn-icon">${ICON_ARROW_UP}</span> Push
-            </button>
-          ` : ''}
-        </div>
-        <div class="commit-files" style="display:none">
-          <div class="files-count">${commit.files.length} file${commit.files.length !== 1 ? 's' : ''}</div>
-          <ul class="commit-file-list">
-            ${commit.files.map(f => `
-              <li class="commit-file-item">
-                <span class="file-status-badge status-${this.getStatusClass(f.status)}">${this.getStatusLabel(f.status)}</span>
-                <span class="file-path" title="${f.file}">${this.getFileName(f.file)}</span>
-              </li>
-            `).join('')}
-          </ul>
-        </div>
-      </div>
-    `).join('');
+    count.textContent = filtered.length + ' ' + kind + ' commit' + (filtered.length !== 1 ? 's' : '');
+    list.innerHTML = filtered.map((commit) => this._commitCardHtml(commit, isHistory)).join('');
   }
 
   /**
@@ -1094,14 +1131,7 @@ class GitToolUI {
    * Helper: Escape HTML for safe rendering
    */
   escapeHtml(text) {
-    const map = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return String(text === null || text === undefined ? '' : text).replace(/[&<>"']/g, (m) => HTML_ESCAPES[m]);
   }
 
   restoreContent() {
@@ -1112,7 +1142,6 @@ class GitToolUI {
    * Show error notification
    */
   showError(message) {
-    // Create a simple toast notification
     const toast = document.createElement('div');
     toast.className = 'git-toast git-toast-error';
     toast.textContent = message;

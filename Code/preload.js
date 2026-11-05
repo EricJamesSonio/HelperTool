@@ -415,6 +415,16 @@ const branchBridge = {
       ipcRenderer.invoke('git:commitDetail', { repoPath, hash }),
     gitCommitFileDiff:     (repoPath, hash, filePath) =>
       ipcRenderer.invoke('git:commitFileDiff', { repoPath, hash, filePath }),
+    gitInspectBranches:    (repoPath) =>
+      ipcRenderer.invoke('git:inspectBranches', { repoPath }),
+    gitInspectCommits:     (repoPath, branch, page, pageSize) =>
+      ipcRenderer.invoke('git:inspectCommits', { repoPath, branch, page, pageSize }),
+    gitInspectFiles:       (repoPath, hash) =>
+      ipcRenderer.invoke('git:inspectFiles', { repoPath, hash }),
+    gitInspectFile:        (repoPath, hash, filePath) =>
+      ipcRenderer.invoke('git:inspectFile', { repoPath, hash, filePath }),
+    gitInspectDiff:        (repoPath, hash, filePath) =>
+      ipcRenderer.invoke('git:inspectDiff', { repoPath, hash, filePath }),
 };
 
 const shortcutBridge = {

@@ -585,6 +585,14 @@ function register(_deps) {
             return { success: false, error: err.message, edges: [] };
         }
     });
+
+    // ── Inspect view: read-only history, files and file versions ──
+
+    try {
+        require('./gitInspect_ipc').register();
+    } catch (err) {
+        console.error('[IPC] git inspect handlers failed to register:', err.message);
+    }
 }
 
 module.exports = { register };
