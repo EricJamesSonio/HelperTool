@@ -4,16 +4,21 @@
  * Each createXxxPanel() returns the panel element and appends it to body.
  */
 
-export function createPanel({ id, className, title, containerId, closeBtnId }) {
+const ICON_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
+const ICON_BACK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10H5"/><path d="m10 5-5 5 5 5"/></svg>';
+
+export function createPanel({ id, className, title, containerId, closeBtnId, closeIcon = ICON_CLOSE, closeLabel = '' }) {
   const panel = document.createElement('div');
   panel.id = id;
   panel.className = className;
+  const closeTitle = closeLabel || 'Close';
+  const closeText = closeLabel ? `<span class="${className}-close-label">${closeLabel}</span>` : '';
   panel.innerHTML =
     `<div class="${className}-content">` +
       `<div class="${className}-navbar">` +
         `<h1 class="${className}-title">${title}</h1>` +
         `<div class="${className}-navbar-right">` +
-          `<button class="${className}-close-btn" id="${closeBtnId}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></button>` +
+          `<button type="button" class="${className}-close-btn" id="${closeBtnId}" title="${closeTitle}" aria-label="${closeTitle}">${closeIcon}${closeText}</button>` +
         `</div>` +
       `</div>` +
       `<div class="${className}-body" id="${containerId}"></div>` +
@@ -47,9 +52,11 @@ export function createGitPanel() {
   return createPanel({
     id:          'gitToolPanel',
     className:   'git-tool-panel',
-    title:       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"><circle cx="5" cy="4" r="2"/><circle cx="15" cy="16" r="2"/><path d="M5 6v8a4 4 0 0 0 4 4h6"/></svg> Git Tool',
+    title:       '<svg class="git-tool-panel-title-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="4" r="2"/><circle cx="15" cy="16" r="2"/><path d="M5 6v8a4 4 0 0 0 4 4h6"/></svg><span>Git Tool</span>',
     containerId: 'gitToolContainer',
-    closeBtnId:  'closeGitToolBtn'
+    closeBtnId:  'closeGitToolBtn',
+    closeIcon:   ICON_BACK,
+    closeLabel:  'Back'
   });
 }
 
