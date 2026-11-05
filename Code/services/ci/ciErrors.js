@@ -24,6 +24,21 @@ const STACK_LINE_RE = /^\s+at\s/;
 const TEST_FAIL_RE = /^\s*[\u2716\u00d7]\s+(.+?)(?:\s+\([\d.]+\s*m?s\))?\s*$/;
 const JEST_FAIL_RE = /^\s*FAIL\s+(\S.*?)\s*$/;
 const LOCATION_RE = /^(.+):(\d+):(\d+)$/;
+const NPM_LINE_RE = /^\s*npm\s+(?:error|ERR!)\s?(.*)$/;
+const NPM_KEY_RE = /^(code|syscall|path|errno)\s+(.+)$/;
+const NPM_SKIP_RE = /^(?:[[{}]|A complete log|If you believe|It's possible)/;
+const LOCK_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+function npmError(info) {
+  const code = info.code || 'error';
+  const parts = [];
+  if (info.summary) parts.push(info.summary);
+  if (info.syscall && info.path) parts.push('Could not ' + info.syscall + ' ' + info.path + '.');
+  if (LOCK_CODES.has(code)) {
+    parts.push('Another program is probably using this file (a dev server, Prisma Studio, an editor or antivirus). Stop it and run the checks again.');
+  }
+  return { level: 'error', title: 'npm ' + code, message: parts.join(' ') || 'npm failed.' };
+}
 
 function relFile(file, root) {
   if (!file) return null;
@@ -105,11 +120,24 @@ function extractErrors(lines, options) {
   };
 
   let eslintFile = null;
+  const npm = {};
 
   for (let i = 0; i < texts.length; i += 1) {
     const text = texts[i];
     if (!text.trim()) {
       eslintFile = null;
+      continue;
+    }
+
+    const npmHit = NPM_LINE_RE.exec(text);
+    if (npmHit) {
+      const body = npmHit[1].trim();
+      const pair = NPM_KEY_RE.exec(body);
+      if (pair) {
+        if (!npm[pair[1]]) npm[pair[1]] = pair[2].trim();
+      } else if (body && !npm.summary && !NPM_SKIP_RE.test(body)) {
+        npm.summary = body.slice(0, 300);
+      }
       continue;
     }
 
@@ -226,6 +254,8 @@ function extractErrors(lines, options) {
 
     if (ESLINT_FILE_RE.test(text)) eslintFile = text.trim();
   }
+
+  if (npm.code || npm.summary) add(npmError(npm));
 
   return Array.from(found.values());
 }

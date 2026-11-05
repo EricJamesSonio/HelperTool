@@ -101,6 +101,81 @@ function checkPort(port, host = '127.0.0.1', timeoutMs = 500) {
     socket.once('error', () => finish(false));
   });
 }
+const INSTALL_RE = /\b(?:npm\s+(?:ci|install|i)|pnpm\s+(?:install|i)|yarn\s+install|bun\s+install)\b/;
+const MAX_NATIVE = 500;
+
+function isFileLocked(file) {
+  try {
+    const fd = fs.openSync(file, 'r+');
+    fs.closeSync(fd);
+    return false;
+  } catch (error) {
+    return error.code === 'EBUSY' || error.code === 'EPERM' || error.code === 'EACCES';
+  }
+}
+
+function listNodeFiles(dir, out) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith('.node')) out.push(path.join(dir, entry.name));
+  }
+}
+
+function nativeBinaries(nodeModules) {
+  const out = [];
+  listNodeFiles(path.join(nodeModules, '.prisma', 'client'), out);
+
+  let top;
+  try {
+    top = fs.readdirSync(nodeModules, { withFileTypes: true });
+  } catch (error) {
+    return out;
+  }
+
+  const packages = [];
+  for (const entry of top) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+    const full = path.join(nodeModules, entry.name);
+    if (entry.name.startsWith('@')) {
+      let kids = [];
+      try {
+        kids = fs.readdirSync(full, { withFileTypes: true });
+      } catch (error) {
+        kids = [];
+      }
+      for (const kid of kids) {
+        if (kid.isDirectory()) packages.push(path.join(full, kid.name));
+      }
+    } else {
+      packages.push(full);
+    }
+  }
+
+  for (const pkg of packages) {
+    listNodeFiles(pkg, out);
+    listNodeFiles(path.join(pkg, 'build', 'Release'), out);
+    if (out.length >= MAX_NATIVE) break;
+  }
+  return out.slice(0, MAX_NATIVE);
+}
+
+function lockedFiles(nodeModules, platform, probe) {
+  if (platform !== 'win32') return [];
+  if (!fs.existsSync(nodeModules)) return [];
+  const locked = [];
+  for (const file of nativeBinaries(nodeModules)) {
+    if (probe(file)) {
+      locked.push(file);
+      if (locked.length >= 5) break;
+    }
+  }
+  return locked;
+}
 
 function packageManager(repoPath, warnings, blockers) {
   const pkgFile = path.join(repoPath, 'package.json');
@@ -146,13 +221,23 @@ function runtimeNames(workflow) {
   return [...names];
 }
 
-async function preflight({ repoPath, workflow, plan, envValues = {}, runtimeProbe = probeExecutable, portProbe = checkPort }) {
+async function preflight({
+  repoPath,
+  workflow,
+  plan,
+  envValues = {},
+  runtimeProbe = probeExecutable,
+  portProbe = checkPort,
+  lockProbe = isFileLocked,
+  platform = process.platform,
+}) {
   const blockers = [];
   const warnings = [];
   const runtimes = [];
   const services = [];
   const missingSecrets = new Set();
   const missingEnvironment = new Set();
+  const installDirs = new Set();
 
   for (const job of plan.jobs || []) {
     for (const step of job.steps || []) {
@@ -164,6 +249,10 @@ async function preflight({ repoPath, workflow, plan, envValues = {}, runtimeProb
 
       if (step.kind !== 'run') continue;
 
+      if (INSTALL_RE.test(String(step.command || '')) && isInside(repoPath, step.cwd)) {
+        installDirs.add(step.cwd);
+      }
+
       for (const name of step.secretNames || []) {
         if (!Object.prototype.hasOwnProperty.call(envValues, name) && !process.env[name]) missingSecrets.add(name);
       }
@@ -171,6 +260,20 @@ async function preflight({ repoPath, workflow, plan, envValues = {}, runtimeProb
         if (!Object.prototype.hasOwnProperty.call(envValues, name) && !process.env[name]) missingEnvironment.add(name);
       }
     }
+  }
+
+  for (const dir of installDirs) {
+    const locked = lockedFiles(path.join(dir, 'node_modules'), platform, lockProbe);
+    if (!locked.length) continue;
+    const rel = path.relative(repoPath, dir).split(path.sep).join('/');
+    const label = rel ? rel + '/node_modules' : 'node_modules';
+    blockers.push(
+      'Files in ' +
+        label +
+        ' are in use by another program, so the install step cannot replace them: ' +
+        locked.slice(0, 3).map((file) => path.basename(file)).join(', ') +
+        '. Stop dev servers, Prisma Studio, editors or antivirus scans using that folder, then run again.'
+    );
   }
 
   if (missingSecrets.size) {
