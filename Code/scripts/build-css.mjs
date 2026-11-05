@@ -57,6 +57,7 @@ const files = [
   'styles/error-cop.css',
   'styles/mcp.css',
   'styles/repo-console.css',
+  'styles/repo-console-security.css',
 ];
 
 let css = '';
