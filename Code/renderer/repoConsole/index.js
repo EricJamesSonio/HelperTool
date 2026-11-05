@@ -270,15 +270,6 @@ function ensureInit() {
   S.hooks.refreshCatalog = refreshCatalog;
   S.hooks.openPanel = openPanelRequest;
 
-  import('./importUI.js')
-    .then((mod) => {
-      S.hooks.openImport = () => mod.openImport();
-      renderAll();
-    })
-    .catch(() => {
-      /* paste import is optional */
-    });
-
   if (window.repoConsoleAPI && window.repoConsoleAPI.onEvent) window.repoConsoleAPI.onEvent(onEvent);
 
   document.addEventListener('keydown', (e) => {
