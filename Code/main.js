@@ -526,3 +526,10 @@ try {
 } catch (e) {
   console.error('[Perf] Performance monitor failed to install:', e.message);
 }
+app.whenReady().then(() => {
+  try {
+    require('./ipc/security_ipc.js').register({ app, config, getMainWindow });
+  } catch (e) {
+    console.error('[IPC] Failed to register security_ipc:', e);
+  }
+});
