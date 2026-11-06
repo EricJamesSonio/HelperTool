@@ -164,6 +164,10 @@ async function syncJob() {
 function onEvent(msg) {
   const { repoPath, event, data } = msg || {};
   if (!repoPath) return;
+  if (event === 'security-progress') {
+    if (typeof S.hooks.securityEvent === 'function') S.hooks.securityEvent(repoPath, data);
+    return;
+  }
   if (event === 'reset') {
     if (data) {
       const log = (data.log || []).slice();
@@ -294,6 +298,7 @@ function switchRepo(repoPath) {
   S.security.report = null;
   S.security.history = [];
   S.security.runError = '';
+  if (typeof S.hooks.securityReset === 'function') S.hooks.securityReset();
   if (S.output.open && S.output.repoPath !== S.repoPath) closeOutput();
 }
 

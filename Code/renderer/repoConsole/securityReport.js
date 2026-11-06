@@ -1,7 +1,6 @@
 import { S, h, call, toast, copyText, fmtMs, fmtDate } from './state.js';
 
 const SEV = ['critical', 'high', 'medium', 'low', 'info'];
-const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 const TABS = [
   ['summary', 'Summary'],
   ['improve', 'What to improve'],
@@ -10,6 +9,92 @@ const TABS = [
   ['output', 'Output'],
 ];
 const STATUS_TEXT = { pass: 'Passed', fail: 'Failed', review: 'Review', skip: 'Not run' };
+const STEP_ICON = { pass: '\u2713', fail: '\u2715', review: '!', skip: '\u2013', wait: '\u25CB' };
+
+let ticker = null;
+let renderTimer = null;
+
+/* ---------- state ---------- */
+
+function stopTicker() {
+  if (ticker) {
+    clearInterval(ticker);
+    ticker = null;
+  }
+}
+
+function startTicker() {
+  stopTicker();
+  ticker = setInterval(() => {
+    const el = document.getElementById('rcSecElapsed');
+    const prog = S.security.progress;
+    if (!el || !prog) return;
+    el.textContent = fmtMs(Date.now() - prog.startedAt);
+  }, 500);
+}
+
+function newProgress() {
+  return { startedAt: Date.now(), stage: 'Starting', plan: [], total: 0, done: 0, current: null, results: {}, log: [] };
+}
+
+export function securityReset() {
+  const sec = S.security;
+  sec.screen = 'setup';
+  sec.running = false;
+  sec.runError = '';
+  sec.progress = null;
+  sec.report = null;
+  sec.history = [];
+  sec.tab = 'summary';
+  sec.sevFilter = 'all';
+  sec.target = { loading: false, loaded: false, data: null, error: '' };
+  sec.draft = { url: null, safe: null };
+  sec.confirm = null;
+  sec.saving = false;
+  stopTicker();
+}
+
+function scheduleRender() {
+  if (renderTimer) return;
+  renderTimer = setTimeout(() => {
+    renderTimer = null;
+    if (S.page === 'security') S.hooks.renderPage();
+  }, 150);
+}
+
+function pushLog(prog, text, kind, at) {
+  prog.log.push({ text: String(text), kind: kind || 'log', at: at || Date.now() });
+  if (prog.log.length > 400) prog.log.splice(0, prog.log.length - 400);
+}
+
+export function applySecurityEvent(repoPath, data) {
+  const sec = S.security;
+  if (repoPath !== S.repoPath || !sec.running || !sec.progress || !data) return;
+  const prog = sec.progress;
+  if (data.type === 'plan') {
+    prog.plan = Array.isArray(data.tests) ? data.tests : [];
+    prog.total = data.total || prog.plan.length;
+  } else if (data.type === 'stage') {
+    prog.stage = data.text;
+    pushLog(prog, data.text, 'stage', data.at);
+  } else if (data.type === 'log') {
+    pushLog(prog, data.text, 'log', data.at);
+  } else if (data.type === 'test-start') {
+    prog.current = { id: data.id, title: data.title, kind: data.kind };
+  } else if (data.type === 'test-done') {
+    prog.results[data.id] = {
+      status: data.status,
+      findingCount: data.findingCount || 0,
+      reason: data.reason || '',
+      durationMs: data.durationMs || 0,
+    };
+    prog.done += 1;
+    if (prog.current && prog.current.id === data.id) prog.current = null;
+  }
+  scheduleRender();
+}
+
+/* ---------- run ---------- */
 
 export async function runSecurity() {
   const sec = S.security;
@@ -17,6 +102,9 @@ export async function runSecurity() {
   const repoPath = S.repoPath;
   sec.running = true;
   sec.runError = '';
+  sec.screen = 'running';
+  sec.progress = newProgress();
+  startTicker();
   S.hooks.renderPage();
   try {
     const res = await call('securityRun', { repoPath });
@@ -26,48 +114,108 @@ export async function runSecurity() {
       sec.profile = res.profile || sec.profile;
       sec.tab = 'summary';
       sec.sevFilter = 'all';
-      toast('Security test finished');
+      sec.screen = 'report';
+      toast(res.report.savedFile ? 'Security test finished. Saved to ' + res.report.savedFile : 'Security test finished');
     }
   } catch (e) {
-    if (repoPath === S.repoPath) sec.runError = e.message;
+    if (repoPath === S.repoPath) {
+      sec.runError = e.message;
+      sec.screen = 'setup';
+    }
     toast(e.message, 'error');
   } finally {
-    sec.running = false;
+    if (repoPath === S.repoPath) {
+      sec.running = false;
+      sec.progress = null;
+      stopTicker();
+    }
     S.hooks.renderPage();
   }
 }
 
-export function securityRunBar() {
-  const sec = S.security;
-  const settings = sec.settings || {};
-  const hint = settings.targetUrl
-    ? 'Runs code checks plus live read-only checks against ' + settings.targetUrl + '. Start your app first.'
-    : 'Runs code checks only. Save a target URL below to add live checks (start your app first).';
+/* ---------- running screen ---------- */
+
+function stepNote(result, active) {
+  if (result) {
+    if (result.reason) return result.reason;
+    if (result.status === 'pass') return 'No issues found';
+    if (result.status === 'review') return result.findingCount + ' to review';
+    return result.findingCount + ' finding' + (result.findingCount === 1 ? '' : 's');
+  }
+  return active ? 'Checking now...' : '';
+}
+
+function stepRow(test, prog) {
+  const result = prog.results[test.id];
+  const active = !!(prog.current && prog.current.id === test.id);
+  let state = 'wait';
+  if (result) state = result.status;
+  else if (active) state = 'run';
+  const icon = state === 'run' ? h('span', { class: 'rc-spin' }) : STEP_ICON[state] || STEP_ICON.wait;
+  const note = stepNote(result, active);
   return h(
     'div',
-    { class: 'rc-card rc-sec-run' },
-    h(
-      'div',
-      { class: 'rc-row' },
-      h('button', {
-        class: 'rc-btn',
-        text: sec.running ? 'Running...' : sec.report ? 'Run again' : 'Run security test',
-        disabled: !!sec.running,
-        onclick: runSecurity,
-      }),
-      h('span', { class: 'rc-where', text: hint })
-    ),
-    sec.running
-      ? h(
-          'div',
-          null,
-          h('div', { class: 'rc-bar indeterminate' }, h('div', { style: 'width:35%' })),
-          h('div', { class: 'rc-where', text: 'Scanning code, auditing dependencies and probing the target. This can take up to a minute.' })
-        )
-      : null,
-    sec.runError ? h('div', { class: 'rc-warn red', text: sec.runError }) : null
+    { class: 'rc-sec-step st-' + state },
+    h('span', { class: 'rc-sec-step-icon' }, icon),
+    h('div', { class: 'rc-sec-step-main' }, h('b', { text: test.title }), note ? h('div', { class: 'rc-where', text: note }) : null),
+    h('span', { class: 'rc-where', text: test.kind === 'dynamic' ? 'live' : 'code' }),
+    h('span', { class: 'rc-where rc-sec-step-time', text: result ? fmtMs(result.durationMs) : '' })
   );
 }
+
+function logText(prog) {
+  return prog.log
+    .slice(-150)
+    .map((entry) => {
+      const offset = ((entry.at - prog.startedAt) / 1000).toFixed(1);
+      return '[+' + offset + 's] ' + (entry.kind === 'stage' ? '>> ' : '') + entry.text;
+    })
+    .join('\n');
+}
+
+export function runningView() {
+  const sec = S.security;
+  const prog = sec.progress || newProgress();
+  const total = prog.total || prog.plan.length;
+  const pct = total ? Math.min(100, Math.round((prog.done / total) * 100)) : 0;
+  const current = prog.current;
+
+  const head = h(
+    'div',
+    { class: 'rc-card rc-sec-live' },
+    h(
+      'div',
+      { class: 'rc-sec-live-top' },
+      h('span', { class: 'rc-spin' }),
+      h(
+        'div',
+        { class: 'rc-sec-live-title' },
+        h('h3', { text: 'Security test running' }),
+        h('div', { class: 'rc-where', text: current ? 'Now checking: ' + current.title : prog.stage })
+      ),
+      h('div', { class: 'rc-sec-live-time' }, h('span', { id: 'rcSecElapsed', text: fmtMs(Date.now() - prog.startedAt) }))
+    ),
+    h('div', { class: 'rc-bar' + (total ? '' : ' indeterminate') }, h('div', { style: 'width:' + (total ? pct : 35) + '%' })),
+    h('div', { class: 'rc-where', text: total ? prog.done + ' of ' + total + ' checks finished' : 'Preparing the check list...' })
+  );
+
+  const steps = h(
+    'div',
+    { class: 'rc-card rc-sec-steps' },
+    h('h4', { text: 'Checks' }),
+    prog.plan.length ? prog.plan.map((test) => stepRow(test, prog)) : h('div', { class: 'rc-where', text: 'Waiting for the check list...' })
+  );
+
+  const pre = h('pre', { class: 'rc-sec-pre rc-sec-livelog', text: logText(prog) || 'Waiting for output...' });
+  requestAnimationFrame(() => {
+    pre.scrollTop = pre.scrollHeight;
+  });
+  const log = h('div', { class: 'rc-card rc-sec-logcard' }, h('h4', { text: 'Live output' }), pre);
+
+  return [head, h('div', { class: 'rc-sec-live-grid' }, steps, log)];
+}
+
+/* ---------- report pieces ---------- */
 
 function sevChip(sev) {
   return h('span', { class: 'rc-sec-sev sev-' + sev, text: sev });
@@ -111,14 +259,34 @@ function tile(value, label, cls) {
   return h('div', { class: 'rc-sec-tile' + (cls ? ' ' + cls : '') }, h('b', { text: String(value) }), h('span', { text: label }));
 }
 
+function savedLine(report) {
+  if (report.savedFile) return h('div', { class: 'rc-sec-saved rc-mono', text: 'Saved automatically to ' + report.savedFile });
+  if (report.saveError) return h('div', { class: 'rc-warn', text: 'The report could not be saved to the repository: ' + report.saveError });
+  return null;
+}
+
+function copyReport(report) {
+  if (!report.markdown) {
+    toast('This older report has no saved text. Run the test again.', 'error');
+    return;
+  }
+  copyText(report.markdown, 'Report copied');
+}
+
 function actionRow(report) {
   return h(
     'div',
     { class: 'rc-row' },
-    h('button', { class: 'rc-btn secondary small', text: 'Copy report', onclick: () => copyText(reportMarkdown(report), 'Report copied') }),
-    h('button', { class: 'rc-btn secondary small', text: 'Copy fix prompt', onclick: () => copyText(fixPrompt(report), 'Fix prompt copied') }),
-    h('button', { class: 'rc-btn secondary small', text: 'Download .md', onclick: () => downloadReport(report) })
+    h('button', { class: 'rc-btn secondary small', text: 'Copy report', onclick: () => copyReport(report) }),
+    h('button', { class: 'rc-btn secondary small', text: 'Copy fix prompt', onclick: () => copyText(fixPrompt(report), 'Fix prompt copied') })
   );
+}
+
+function targetLine(report) {
+  const t = report.target;
+  const source = t.source === 'auto' ? ' (auto-detected)' : t.source === 'saved' ? ' (saved)' : '';
+  if (!t.url) return 'Target: none - ' + t.note;
+  return 'Target: ' + t.url + source + (t.reachable ? ' (reachable)' : ' - ' + t.note);
 }
 
 function scoreCard(report) {
@@ -163,7 +331,8 @@ function scoreCard(report) {
       { class: 'rc-where' },
       'Stack: ' + report.stack.frontend + ' frontend, ' + report.stack.backend + ' backend, ' + report.stack.database + ' database, ' + report.stack.auth + ' auth. Folders: ' + report.stack.folders.join(', ') + '.'
     ),
-    h('div', { class: 'rc-where', text: 'Target: ' + (report.target.url || 'none') + (report.target.reachable ? ' (reachable)' : ' - ' + report.target.note) }),
+    h('div', { class: 'rc-where', text: targetLine(report) }),
+    savedLine(report),
     actionRow(report)
   );
 }
@@ -172,7 +341,18 @@ function improvementCard(item) {
   return h(
     'div',
     { class: 'rc-card rc-sec-item' },
-    h('div', { class: 'rc-card-head' }, h('h3', { text: item.title }), h('div', { class: 'rc-row' }, sevChip(item.severity), h('span', { class: 'rc-where', text: item.count + ' finding' + (item.count === 1 ? '' : 's') }), item.status === 'review' ? h('span', { class: 'rc-where', text: 'needs review' }) : null)),
+    h(
+      'div',
+      { class: 'rc-card-head' },
+      h('h3', { text: item.title }),
+      h(
+        'div',
+        { class: 'rc-row' },
+        sevChip(item.severity),
+        h('span', { class: 'rc-where', text: item.count + ' finding' + (item.count === 1 ? '' : 's') }),
+        item.status === 'review' ? h('span', { class: 'rc-where', text: 'needs review' }) : null
+      )
+    ),
     h('p', { text: item.why }),
     item.fixes.length ? h('div', null, h('h4', { text: 'How to fix' }), h('ul', null, item.fixes.map((fix) => h('li', { text: fix })))) : null,
     item.files.length ? h('div', { class: 'rc-where rc-mono', text: 'Files: ' + item.files.join(', ') }) : null
@@ -277,13 +457,25 @@ function outputTab(report) {
   return h('pre', { class: 'rc-sec-pre rc-sec-log', text: report.output.join('\n') });
 }
 
-export function reportSection() {
+/* ---------- report screen ---------- */
+
+export function reportView() {
   const sec = S.security;
   const report = sec.report;
-  if (!report) {
-    return h('div', { class: 'rc-empty', text: sec.running ? 'Running the security test...' : 'No security report yet. Press "Run security test" to create one.' });
-  }
   const tab = TABS.some((t) => t[0] === sec.tab) ? sec.tab : 'summary';
+  const topBar = h(
+    'div',
+    { class: 'rc-row rc-sec-topbar' },
+    h('button', {
+      class: 'rc-btn secondary small',
+      text: '\u2190 Back to setup',
+      onclick: () => {
+        sec.screen = 'setup';
+        S.hooks.renderPage();
+      },
+    }),
+    h('button', { class: 'rc-btn small', text: 'Run again', onclick: runSecurity })
+  );
   const tabBar = h(
     'div',
     { class: 'rc-sec-tabs' },
@@ -304,37 +496,39 @@ export function reportSection() {
   else if (tab === 'tests') body = testsTab(report);
   else if (tab === 'output') body = outputTab(report);
   else body = summaryTab(report);
-  return h('div', null, scoreCard(report), tabBar, h('div', { class: 'rc-sec-body' }, body));
+  return h('div', null, topBar, scoreCard(report), tabBar, h('div', { class: 'rc-sec-body' }, body));
 }
 
-/* ---------- exports ---------- */
+/* ---------- last run card (setup screen) ---------- */
 
-function reportMarkdown(r) {
-  const lines = [];
-  lines.push('# Security test report - ' + r.repoName, '');
-  lines.push('Date: ' + fmtDate(r.finishedAt));
-  lines.push('Score: ' + (r.score.overall === null ? 'n/a' : r.score.overall + '% (grade ' + r.score.grade + ')'));
-  lines.push('Target: ' + (r.target.url || 'none') + (r.target.reachable ? ' (reachable)' : ' - live checks did not run: ' + r.target.note));
-  lines.push('Stack: ' + r.stack.frontend + ' frontend, ' + r.stack.backend + ' backend, ' + r.stack.database + ' database, ' + r.stack.auth + ' auth', '');
-  lines.push(r.headline, '');
-  lines.push('## Fix these first', '');
-  if (!r.improvements.length) lines.push('Nothing to fix in the checks that ran.', '');
-  r.improvements.forEach((item, index) => {
-    lines.push((index + 1) + '. [' + item.severity + '] ' + item.title + ' (' + item.count + ')');
-    lines.push('   Why: ' + item.why);
-    for (const fix of item.fixes) lines.push('   - ' + fix);
-    if (item.files.length) lines.push('   Files: ' + item.files.join(', '));
-  });
-  lines.push('', '## Findings', '');
-  for (const f of r.findings) {
-    lines.push('- [' + f.severity + '] ' + f.title + (location(f) ? ' (' + location(f) + ')' : ''));
-    if (f.evidence) lines.push('  Evidence: ' + f.evidence);
-    if (f.fix) lines.push('  Fix: ' + f.fix);
-  }
-  lines.push('', '## Not covered by this run', '');
-  for (const item of r.notCovered) lines.push('- ' + item.title + ': ' + item.reason);
-  return lines.join('\n');
+export function lastRunCard() {
+  const sec = S.security;
+  const report = sec.report;
+  if (!report) return null;
+  const grade = report.score.grade === '-' ? 'none' : report.score.grade;
+  return h(
+    'div',
+    { class: 'rc-card rc-sec-last' },
+    h('div', { class: 'rc-sec-grade small grade-' + grade, text: report.score.grade }),
+    h(
+      'div',
+      { class: 'rc-sec-last-main' },
+      h('b', { text: 'Last run: ' + (report.score.overall === null ? 'no score' : report.score.overall + '%') }),
+      h('div', { class: 'rc-where', text: report.headline }),
+      h('div', { class: 'rc-where', text: 'Ran ' + fmtDate(report.finishedAt) + (report.savedFile ? ' / saved to ' + report.savedFile : '') })
+    ),
+    h('button', {
+      class: 'rc-btn secondary',
+      text: 'View report',
+      onclick: () => {
+        sec.screen = 'report';
+        S.hooks.renderPage();
+      },
+    })
+  );
 }
+
+/* ---------- fix prompt ---------- */
 
 function fixPrompt(r) {
   const lines = [];
@@ -354,11 +548,8 @@ function fixPrompt(r) {
   return lines.join('\n');
 }
 
-function downloadReport(report) {
-  const url = URL.createObjectURL(new Blob([reportMarkdown(report)], { type: 'text/markdown' }));
-  const link = h('a', { href: url, download: 'security-report-' + report.id + '.md' });
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
+/* ---------- hooks used by index.js ---------- */
+
+securityReset();
+S.hooks.securityReset = securityReset;
+S.hooks.securityEvent = applySecurityEvent;
