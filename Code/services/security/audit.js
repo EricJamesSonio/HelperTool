@@ -1527,6 +1527,9 @@ const TESTS = [
     },
   },
 ];
+const auditExtra = require('./auditExtra');
+
+TESTS.push(...auditExtra.createTests({ finding, outcome, skip, na, headerFix, hasAny }));
 
 /* ---------- scoring ---------- */
 
