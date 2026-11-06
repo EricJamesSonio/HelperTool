@@ -28,6 +28,11 @@ jobs:
         working-directory: Code
         run: npm ci
 
+      # ── Security scanner regression tests ────────────────────────────────
+      - name: Security audit scanner tests
+        working-directory: Code
+        run: node --test tests/securityAudit.test.mjs
+
       # ── 1. Syntax check all JS files ─────────────────────────────────────
       - name: Syntax check — all JS files
         run: |
