@@ -3,8 +3,11 @@
 const { ipcMain } = require('electron');
 const fs = require('fs');
 const engine = require('../services/security/engine');
+const runner = require('../services/security/runner');
 const targetGuard = require('../services/security/targetGuard');
 const consoleDb = require('../database/consoleDb');
+
+const running = new Set();
 
 function httpError(status, message) {
   return Object.assign(new Error(message), { status });
@@ -77,6 +80,28 @@ function register({ app, config, getMainWindow }) {
     const saved = { targetUrl: url, safeMode: safeMode !== false, confirmedHosts };
     consoleDb.saveSecuritySettings(repoPath, saved);
     return { settings: saved };
+  });
+
+  handle('security:run', async ({ repoPath }) => {
+    knownRepo(repoPath);
+    if (running.has(repoPath)) throw httpError(409, 'A security test is already running for this repository.');
+    const settings = consoleDb.getSecuritySettings(repoPath) || { targetUrl: '', safeMode: true, confirmedHosts: [] };
+    if (settings.targetUrl) {
+      const guard = targetGuard.check(settings.targetUrl, settings.confirmedHosts);
+      if (!guard.allowed) throw httpError(400, guard.reason);
+    }
+    running.add(repoPath);
+    try {
+      const report = await runner.runScan({ repoPath, settings });
+      try {
+        consoleDb.saveSecurityProfile(repoPath, report.profile);
+      } catch (e) {
+        /* history db is optional */
+      }
+      return { report };
+    } finally {
+      running.delete(repoPath);
+    }
   });
 }
 
