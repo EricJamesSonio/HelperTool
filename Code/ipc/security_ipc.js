@@ -2,8 +2,10 @@
 
 const { ipcMain } = require('electron');
 const fs = require('fs');
+const path = require('path');
 const engine = require('../services/security/engine');
-const runner = require('../services/security/runner');
+const audit = require('../services/security/audit');
+const reportStore = require('../services/security/reportStore');
 const targetGuard = require('../services/security/targetGuard');
 const consoleDb = require('../database/consoleDb');
 
@@ -13,7 +15,13 @@ function httpError(status, message) {
   return Object.assign(new Error(message), { status });
 }
 
+function defaultSettings() {
+  return { targetUrl: '', safeMode: true, confirmedHosts: [] };
+}
+
 function register({ app, config, getMainWindow }) {
+  reportStore.init(path.join(app.getPath('userData'), 'repo-console'));
+
   function knownRepo(repoPath) {
     if (typeof repoPath !== 'string' || !repoPath) throw httpError(400, 'No repository selected.');
     let projects = {};
@@ -51,14 +59,23 @@ function register({ app, config, getMainWindow }) {
 
   handle('security:getSettings', ({ repoPath }) => {
     knownRepo(repoPath);
-    const settings = consoleDb.getSecuritySettings(repoPath) || { targetUrl: '', safeMode: true, confirmedHosts: [] };
+    const settings = consoleDb.getSecuritySettings(repoPath) || defaultSettings();
     const profile = consoleDb.getSecurityProfile(repoPath);
-    return { settings, profile };
+    let lastReport = null;
+    let history = [];
+    try {
+      lastReport = reportStore.getLast(repoPath);
+      history = reportStore.getHistory(repoPath);
+    } catch (e) {
+      lastReport = null;
+      history = [];
+    }
+    return { settings, profile, lastReport, history };
   });
 
   handle('security:setSettings', ({ repoPath, targetUrl, safeMode, confirmHost }) => {
     knownRepo(repoPath);
-    const current = consoleDb.getSecuritySettings(repoPath) || { targetUrl: '', safeMode: true, confirmedHosts: [] };
+    const current = consoleDb.getSecuritySettings(repoPath) || defaultSettings();
     const url = String(targetUrl || '').trim();
 
     if (!url) {
@@ -85,20 +102,28 @@ function register({ app, config, getMainWindow }) {
   handle('security:run', async ({ repoPath }) => {
     knownRepo(repoPath);
     if (running.has(repoPath)) throw httpError(409, 'A security test is already running for this repository.');
-    const settings = consoleDb.getSecuritySettings(repoPath) || { targetUrl: '', safeMode: true, confirmedHosts: [] };
-    if (settings.targetUrl) {
-      const guard = targetGuard.check(settings.targetUrl, settings.confirmedHosts);
-      if (!guard.allowed) throw httpError(400, guard.reason);
-    }
     running.add(repoPath);
     try {
-      const report = await runner.runScan({ repoPath, settings });
+      const settings = consoleDb.getSecuritySettings(repoPath) || defaultSettings();
+      const profile = engine.detectStack(repoPath);
       try {
-        consoleDb.saveSecurityProfile(repoPath, report.profile);
+        consoleDb.saveSecurityProfile(repoPath, profile);
       } catch (e) {
         /* history db is optional */
       }
-      return { report };
+      const report = await audit.runAudit({ repoPath, profile, settings });
+      try {
+        reportStore.save(repoPath, report);
+      } catch (e) {
+        console.error('[Security] Could not save the report:', e.message);
+      }
+      let history = [];
+      try {
+        history = reportStore.getHistory(repoPath);
+      } catch (e) {
+        history = [];
+      }
+      return { report, history, profile };
     } finally {
       running.delete(repoPath);
     }
