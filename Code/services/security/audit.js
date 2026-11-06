@@ -1527,6 +1527,14 @@ const TESTS = [
     },
   },
 ];
+const auditExtra3 = require('./auditExtra3');
+
+TESTS.push(...auditExtra3.createTests({ finding, outcome, skip, na, headerFix, hasAny }));
+
+const auditExtra2 = require('./auditExtra2');
+
+TESTS.push(...auditExtra2.createTests({ finding, outcome, skip, na, headerFix, hasAny }));
+
 const auditExtra = require('./auditExtra');
 
 TESTS.push(...auditExtra.createTests({ finding, outcome, skip, na, headerFix, hasAny }));
