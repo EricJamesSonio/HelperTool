@@ -1,7 +1,7 @@
 /* ============================================================
    REPO-CONSOLE-SECURITY.CSS
-   Stack profile card, target settings and the report view for
-   the Security page. Uses the rc- variables from repo-console.css.
+   Stack profile card, target settings and the security report.
+   Uses the rc- variables defined in repo-console.css.
    ============================================================ */
 
 .rc-sec-profile h3 {
@@ -40,197 +40,247 @@
   word-break: break-word;
 }
 
-/* ===== Score card ===== */
-.rc-sec-score {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* ---------- run bar and report ---------- */
+
+.rc-sec-run {
+  margin-bottom: 12px;
 }
 
-.rc-sec-score-top {
+.rc-sec-report {
+  margin-bottom: 12px;
+}
+
+.rc-sec-top {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 18px;
+  margin-bottom: 12px;
 }
 
 .rc-sec-grade {
+  flex: 0 0 auto;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 92px;
-  height: 92px;
-  border-radius: 50%;
-  border: 4px solid var(--rc-border);
-  flex-shrink: 0;
-}
-
-.rc-sec-grade-letter {
-  font-size: 34px;
+  font-size: 36px;
   font-weight: 800;
-  line-height: 1;
+  border: 4px solid #6b7280;
+  color: #d1d5db;
 }
 
-.rc-sec-grade-pct {
-  margin-top: 2px;
-  font-size: 12px;
-  opacity: 0.8;
+.rc-sec-grade.grade-A {
+  border-color: #22c55e;
+  color: #22c55e;
 }
 
-.rc-sec-grade.grade-a {
-  border-color: #2dd4b0;
-  color: #2dd4b0;
-}
-
-.rc-sec-grade.grade-b {
+.rc-sec-grade.grade-B {
   border-color: #84cc16;
   color: #84cc16;
 }
 
-.rc-sec-grade.grade-c {
+.rc-sec-grade.grade-C {
   border-color: #eab308;
   color: #eab308;
 }
 
-.rc-sec-grade.grade-d {
+.rc-sec-grade.grade-D {
   border-color: #f97316;
   color: #f97316;
 }
 
-.rc-sec-grade.grade-f {
-  border-color: #f85149;
-  color: #f85149;
+.rc-sec-grade.grade-F {
+  border-color: #ef4444;
+  color: #ef4444;
 }
 
-.rc-sec-counts {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex: 1;
-  min-width: 260px;
+.rc-sec-pct {
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.rc-sec-headline p {
+  margin: 4px 0;
 }
 
 .rc-sec-levels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .rc-sec-level {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--rc-border);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--rc-border, #2a2a2a);
   border-radius: 8px;
 }
 
-.rc-sec-level b {
-  font-size: 20px;
-}
-
-.rc-sec-level .rc-where:first-child {
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-}
-
-.rc-sec-cats {
+.rc-sec-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 4px 24px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
-/* ===== Severity pills ===== */
-.rc-sev {
-  display: inline-block;
-  padding: 1px 9px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 18px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.rc-sev.critical {
-  background: rgba(248, 81, 73, 0.18);
-  border-color: rgba(248, 81, 73, 0.5);
-  color: #f85149;
-}
-
-.rc-sev.high {
-  background: rgba(249, 115, 22, 0.16);
-  border-color: rgba(249, 115, 22, 0.5);
-  color: #f97316;
-}
-
-.rc-sev.medium {
-  background: rgba(234, 179, 8, 0.15);
-  border-color: rgba(234, 179, 8, 0.45);
-  color: #eab308;
-}
-
-.rc-sev.low {
-  background: rgba(88, 166, 255, 0.15);
-  border-color: rgba(88, 166, 255, 0.45);
-  color: #58a6ff;
-}
-
-.rc-sev.info {
-  background: rgba(139, 148, 158, 0.15);
-  border-color: rgba(139, 148, 158, 0.4);
-  color: #8b949e;
-}
-
-/* ===== Findings ===== */
-.rc-sec-tabs {
-  margin: 14px 0 10px;
-}
-
-.rc-sec-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.rc-sec-finding {
-  border-left: 3px solid var(--rc-border);
-}
-
-.rc-sec-finding.sev-critical {
-  border-left-color: #f85149;
-}
-
-.rc-sec-finding.sev-high {
-  border-left-color: #f97316;
-}
-
-.rc-sec-finding.sev-medium {
-  border-left-color: #eab308;
-}
-
-.rc-sec-finding.sev-low {
-  border-left-color: #58a6ff;
-}
-
-.rc-sec-fix {
-  margin: 6px 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px dashed var(--rc-border);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.rc-sec-row {
+.rc-sec-tile {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--rc-border, #2a2a2a);
+  border-radius: 8px;
+}
+
+.rc-sec-tile b {
+  font-size: 20px;
+}
+
+.rc-sec-tile span {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.rc-sec-tile.bad b {
+  color: #ef4444;
+}
+
+.rc-sec-tile.good b {
+  color: #22c55e;
+}
+
+/* ---------- chips ---------- */
+
+.rc-sec-sev,
+.rc-sec-st {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.rc-sec-sev.sev-critical {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.rc-sec-sev.sev-high {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+}
+
+.rc-sec-sev.sev-medium {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+}
+
+.rc-sec-sev.sev-low {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.rc-sec-sev.sev-info {
+  background: rgba(107, 114, 128, 0.25);
+  color: #9ca3af;
+}
+
+.rc-sec-st.st-pass {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.rc-sec-st.st-fail {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.rc-sec-st.st-review {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+}
+
+.rc-sec-st.st-skip {
+  background: rgba(107, 114, 128, 0.25);
+  color: #9ca3af;
+}
+
+/* ---------- tabs and lists ---------- */
+
+.rc-sec-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 10px;
+  border-bottom: 1px solid var(--rc-border, #2a2a2a);
+}
+
+.rc-sec-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: inherit;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--rc-border);
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.rc-sec-tabs button.on {
+  opacity: 1;
+  border-bottom-color: var(--rc-accent, #3b82f6);
+}
+
+.rc-sec-body h4 {
+  margin: 14px 0 6px;
+}
+
+.rc-sec-item {
+  margin-bottom: 8px;
+}
+
+.rc-sec-item summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.rc-sec-test {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--rc-border, #2a2a2a);
+}
+
+.rc-sec-test-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rc-sec-pre {
+  margin: 6px 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--rc-border, #2a2a2a);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.rc-sec-log {
+  max-height: 480px;
+  overflow: auto;
 }
