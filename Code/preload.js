@@ -789,10 +789,11 @@ const repoConsoleBridge = {
   ciSmart:       (payload)                 => ipcRenderer.invoke('repoConsole:ciSmart', payload),
   ciRerunPlan:   (payload)                 => ipcRenderer.invoke('repoConsole:ciRerunPlan', payload),
   ciRun:         (payload)                 => ipcRenderer.invoke('repoConsole:ciRun', payload),
-  securityDetect:      (payload)           => ipcRenderer.invoke('security:detect', payload),
-  securityGetSettings: (payload)           => ipcRenderer.invoke('security:getSettings', payload),
-  securitySetSettings: (payload)           => ipcRenderer.invoke('security:setSettings', payload),
-  securityRun:         (payload)           => ipcRenderer.invoke('security:run', payload),
+  securityDetect:       (payload)          => ipcRenderer.invoke('security:detect', payload),
+  securityDetectTarget: (payload)          => ipcRenderer.invoke('security:detectTarget', payload),
+  securityGetSettings:  (payload)          => ipcRenderer.invoke('security:getSettings', payload),
+  securitySetSettings:  (payload)          => ipcRenderer.invoke('security:setSettings', payload),
+  securityRun:          (payload)          => ipcRenderer.invoke('security:run', payload),
   onEvent: (callback) => {
     ipcRenderer.removeAllListeners('repoConsole:event');
     ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
