@@ -1,7 +1,7 @@
 /* ============================================================
    REPO-CONSOLE-SECURITY.CSS
-   Stack profile card and target settings for the Security page.
-   Uses the rc- variables defined in repo-console.css.
+   Stack profile card, target settings and the report view for
+   the Security page. Uses the rc- variables from repo-console.css.
    ============================================================ */
 
 .rc-sec-profile h3 {
@@ -38,4 +38,199 @@
 .rc-kv-row b {
   text-align: right;
   word-break: break-word;
+}
+
+/* ===== Score card ===== */
+.rc-sec-score {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rc-sec-score-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.rc-sec-grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 4px solid var(--rc-border);
+  flex-shrink: 0;
+}
+
+.rc-sec-grade-letter {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.rc-sec-grade-pct {
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.rc-sec-grade.grade-a {
+  border-color: #2dd4b0;
+  color: #2dd4b0;
+}
+
+.rc-sec-grade.grade-b {
+  border-color: #84cc16;
+  color: #84cc16;
+}
+
+.rc-sec-grade.grade-c {
+  border-color: #eab308;
+  color: #eab308;
+}
+
+.rc-sec-grade.grade-d {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+.rc-sec-grade.grade-f {
+  border-color: #f85149;
+  color: #f85149;
+}
+
+.rc-sec-counts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.rc-sec-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.rc-sec-level {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--rc-border);
+  border-radius: 8px;
+}
+
+.rc-sec-level b {
+  font-size: 20px;
+}
+
+.rc-sec-level .rc-where:first-child {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.rc-sec-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 4px 24px;
+}
+
+/* ===== Severity pills ===== */
+.rc-sev {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rc-sev.critical {
+  background: rgba(248, 81, 73, 0.18);
+  border-color: rgba(248, 81, 73, 0.5);
+  color: #f85149;
+}
+
+.rc-sev.high {
+  background: rgba(249, 115, 22, 0.16);
+  border-color: rgba(249, 115, 22, 0.5);
+  color: #f97316;
+}
+
+.rc-sev.medium {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.45);
+  color: #eab308;
+}
+
+.rc-sev.low {
+  background: rgba(88, 166, 255, 0.15);
+  border-color: rgba(88, 166, 255, 0.45);
+  color: #58a6ff;
+}
+
+.rc-sev.info {
+  background: rgba(139, 148, 158, 0.15);
+  border-color: rgba(139, 148, 158, 0.4);
+  color: #8b949e;
+}
+
+/* ===== Findings ===== */
+.rc-sec-tabs {
+  margin: 14px 0 10px;
+}
+
+.rc-sec-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.rc-sec-finding {
+  border-left: 3px solid var(--rc-border);
+}
+
+.rc-sec-finding.sev-critical {
+  border-left-color: #f85149;
+}
+
+.rc-sec-finding.sev-high {
+  border-left-color: #f97316;
+}
+
+.rc-sec-finding.sev-medium {
+  border-left-color: #eab308;
+}
+
+.rc-sec-finding.sev-low {
+  border-left-color: #58a6ff;
+}
+
+.rc-sec-fix {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px dashed var(--rc-border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.rc-sec-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rc-border);
 }
