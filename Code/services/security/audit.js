@@ -464,7 +464,7 @@ function makeClient(baseUrl, say) {
 async function setupNet(ctx, settings) {
   const url = settings && settings.targetUrl ? String(settings.targetUrl).trim() : '';
   if (!url) {
-    ctx.netReason = 'No target URL is saved. Save one in the Target box (for example http://localhost:3000) to run the live checks.';
+    ctx.netReason = 'No target URL was found. Add one in the Target box (for example http://localhost:3000) to run the live checks.';
     return;
   }
   const guard = targetGuard.check(url, settings.confirmedHosts);
@@ -880,7 +880,7 @@ const TESTS = [
       const res = ctx.net.root;
       const hd = res.headers;
       const csp = hd.get('content-security-policy') || '';
-      const note = ' Checked on the target you saved; a production host may differ, so check that too.';
+      const note = ' Checked on the target used for this run; a production host may differ, so check that too.';
       const out = [];
       const add = (severity, name, why) =>
         out.push(finding({ severity, title: 'Missing ' + name + ' header', detail: why + note, evidence: 'GET / -> ' + res.status + ', header absent', fix: headerFix(ctx.profile, name) }));
@@ -1217,10 +1217,29 @@ async function runAudit(options) {
   const o = options;
   const started = Date.now();
   const output = [];
-  const say = (text) => {
-    if (output.length < MAX_LOG_LINES) output.push(text);
+
+  const emit = (data) => {
+    if (typeof o.onProgress !== 'function') return;
+    try {
+      o.onProgress(data);
+    } catch (e) {
+      /* progress is only a display aid */
+    }
   };
 
+  const say = (text) => {
+    if (output.length < MAX_LOG_LINES) output.push(text);
+    emit({ type: 'log', text, at: Date.now() });
+  };
+
+  emit({
+    type: 'plan',
+    total: TESTS.length,
+    tests: TESTS.map((t) => ({ id: t.id, title: t.title, category: t.category, level: t.level, kind: t.kind, severity: t.severity })),
+    at: Date.now(),
+  });
+
+  emit({ type: 'stage', text: 'Scanning project files', at: Date.now() });
   const files = walk(o.repoPath);
   const corpus = buildCorpus(files);
   say('Scanned ' + files.length + ' files, read ' + corpus.length + ' source files (secret files are never read).');
@@ -1235,15 +1254,26 @@ async function runAudit(options) {
     netReason: '',
     say,
   };
+
+  const hasTarget = !!(o.settings && o.settings.targetUrl);
+  emit({
+    type: 'stage',
+    text: hasTarget ? 'Checking that the target answers' : 'No target URL: the live checks will be skipped',
+    at: Date.now(),
+  });
   await setupNet(ctx, o.settings);
   if (!ctx.net) say('Live checks will not run: ' + ctx.netReason);
   else say('All live checks are read-only GET requests (cap ' + MAX_REQUESTS + ').');
 
+  emit({ type: 'stage', text: 'Running checks', at: Date.now() });
   const tests = [];
   const findings = [];
 
-  for (const def of TESTS) {
+  for (let index = 0; index < TESTS.length; index += 1) {
+    const def = TESTS[index];
     const t0 = Date.now();
+    emit({ type: 'test-start', id: def.id, title: def.title, kind: def.kind, index: index + 1, total: TESTS.length, at: t0 });
+
     let res;
     if (t0 - started > TOTAL_TIME_MS) {
       res = skip('The time limit for this run was reached.');
@@ -1280,8 +1310,19 @@ async function runAudit(options) {
       findings.push(Object.assign({ id: 'F' + (findings.length + 1), testId: def.id, category: def.category, level: def.level }, item));
     }
     say('[' + res.status.toUpperCase() + '] ' + def.title + ' (' + all.length + ' finding' + (all.length === 1 ? '' : 's') + ', ' + (Date.now() - t0) + ' ms)' + (res.reason ? ' - ' + res.reason : ''));
+    emit({
+      type: 'test-done',
+      id: def.id,
+      title: def.title,
+      status: res.status,
+      findingCount: all.length,
+      reason: res.reason || '',
+      durationMs: Date.now() - t0,
+      at: Date.now(),
+    });
   }
 
+  emit({ type: 'stage', text: 'Building the report', at: Date.now() });
   findings.sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
 
   const bySeverity = {};
@@ -1304,6 +1345,9 @@ async function runAudit(options) {
       assumptions.push('Detection confidence for ' + key + ' is ' + Math.round(profile.confidence[key] * 100) + '%, so checks for it may be missing. Check the detected stack below.');
     }
   }
+  if (Array.isArray(o.extraAssumptions)) {
+    for (const note of o.extraAssumptions) assumptions.push(note);
+  }
 
   const finishedAt = Date.now();
   return {
@@ -1314,6 +1358,7 @@ async function runAudit(options) {
     durationMs: finishedAt - started,
     target: {
       url: o.settings && o.settings.targetUrl ? o.settings.targetUrl : '',
+      source: o.targetSource || 'saved',
       reachable: !!ctx.net,
       note: ctx.net ? 'Live checks ran as read-only GET requests.' : ctx.netReason,
     },
