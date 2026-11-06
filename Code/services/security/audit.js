@@ -1527,6 +1527,29 @@ const TESTS = [
     },
   },
 ];
+const auditExtra5 = require('./auditExtra5');
+
+TESTS.push(...auditExtra5.createTests({ finding, outcome, skip, na, headerFix, hasAny }));
+
+const auditExtra4 = require('./auditExtra4');
+
+TESTS.push(
+  ...auditExtra4.createTests({
+    finding,
+    outcome,
+    skip,
+    na,
+    git,
+    trackedFiles,
+    killTree,
+    npmEnv,
+    classifyNpmFailure,
+    sensitiveRe: SENSITIVE_RE,
+    testPathRe: TEST_PATH_RE,
+    skipFileRe: SKIP_FILE_RE,
+  })
+);
+
 const auditExtra3 = require('./auditExtra3');
 
 TESTS.push(...auditExtra3.createTests({ finding, outcome, skip, na, headerFix, hasAny }));
