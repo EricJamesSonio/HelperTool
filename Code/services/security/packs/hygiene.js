@@ -1,5 +1,8 @@
 'use strict';
 
+// Deprecated: the Repo Console security page runs ../../audit.js. This pack is
+// not wired up; keep fixes in audit.js.
+
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');

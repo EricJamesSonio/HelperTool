@@ -1,5 +1,8 @@
 'use strict';
 
+// Deprecated: the Repo Console security page runs ../../audit.js. This pack is
+// not wired up; keep fixes in audit.js.
+
 const { grep } = require('../fileScanner');
 const { pass, fail } = require('../result');
 const { lineCheck, windowCheck } = require('./builders');
