@@ -1,26 +1,76 @@
 /* ============================================================
    REPO-CONSOLE-SECURITY.CSS
-   Stack profile card, target settings and the security report.
+   Setup screen, live run screen and the security report.
    Uses the rc- variables defined in repo-console.css.
    ============================================================ */
 
-.rc-sec-profile h3 {
-  margin: 0 0 10px;
+/* ---------- setup screen ---------- */
+
+.rc-sec-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.rc-sec-hero h3 {
+  margin: 0 0 4px;
+}
+
+.rc-sec-hero .rc-warn {
+  flex: 1 1 100%;
+}
+
+.rc-sec-setup {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.rc-sec-profile h3,
+.rc-sec-target h3 {
+  margin: 0;
 }
 
 .rc-sec-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 10px 0;
 }
 
-.rc-sec-grid h4 {
+.rc-sec-group h4 {
   margin: 0 0 6px;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--rc-accent);
+  color: var(--rc-accent, #3b82f6);
+}
+
+.rc-sec-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rc-sec-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--rc-border, #2a2a2a);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.rc-sec-chip i {
+  font-style: normal;
+  opacity: 0.65;
 }
 
 .rc-kv-row {
@@ -40,7 +90,225 @@
   word-break: break-word;
 }
 
-/* ---------- run bar and report ---------- */
+/* ---------- target card ---------- */
+
+.rc-sec-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(107, 114, 128, 0.25);
+  color: #9ca3af;
+}
+
+.rc-sec-pill.auto {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.rc-sec-pill.saved {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.rc-sec-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  font-size: 12px;
+}
+
+.rc-sec-dot::before,
+.rc-sec-dot-only {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b7280;
+  flex: 0 0 auto;
+}
+
+.rc-sec-dot-only {
+  margin-right: 2px;
+}
+
+.rc-sec-dot.up::before,
+.rc-sec-dot-only.up {
+  background: #22c55e;
+}
+
+.rc-sec-dot.down::before,
+.rc-sec-dot-only.down {
+  background: #ef4444;
+}
+
+.rc-sec-suggests {
+  margin-top: 8px;
+}
+
+.rc-sec-suggests h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.rc-sec-suggest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 6px 10px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--rc-border, #2a2a2a);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.rc-sec-suggest:hover {
+  border-color: var(--rc-accent, #3b82f6);
+}
+
+.rc-sec-suggest .rc-where {
+  margin-left: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+
+/* ---------- last run card ---------- */
+
+.rc-sec-last {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.rc-sec-last-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---------- live run screen ---------- */
+
+.rc-sec-live {
+  margin-bottom: 12px;
+}
+
+.rc-sec-live-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.rc-sec-live-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rc-sec-live-title h3 {
+  margin: 0 0 2px;
+}
+
+.rc-sec-live-time {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-sec-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.rc-sec-steps h4,
+.rc-sec-logcard h4 {
+  margin: 0 0 8px;
+}
+
+.rc-sec-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--rc-border, #2a2a2a);
+}
+
+.rc-sec-step:last-child {
+  border-bottom: 0;
+}
+
+.rc-sec-step-icon {
+  flex: 0 0 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(107, 114, 128, 0.25);
+  color: #9ca3af;
+}
+
+.rc-sec-step-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rc-sec-step-time {
+  min-width: 56px;
+  text-align: right;
+}
+
+.rc-sec-step.st-wait {
+  opacity: 0.55;
+}
+
+.rc-sec-step.st-run {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.rc-sec-step.st-pass .rc-sec-step-icon {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.rc-sec-step.st-fail .rc-sec-step-icon {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.rc-sec-step.st-review .rc-sec-step-icon {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+}
+
+.rc-sec-livelog {
+  max-height: 520px;
+  min-height: 220px;
+  overflow: auto;
+  margin: 0;
+  font-size: 12px;
+}
+
+/* ---------- report ---------- */
+
+.rc-sec-topbar {
+  margin-bottom: 10px;
+}
 
 .rc-sec-run {
   margin-bottom: 12px;
@@ -48,6 +316,12 @@
 
 .rc-sec-report {
   margin-bottom: 12px;
+}
+
+.rc-sec-saved {
+  margin: 6px 0;
+  font-size: 12px;
+  color: #4ade80;
 }
 
 .rc-sec-top {
@@ -69,6 +343,13 @@
   font-weight: 800;
   border: 4px solid #6b7280;
   color: #d1d5db;
+}
+
+.rc-sec-grade.small {
+  width: 52px;
+  height: 52px;
+  font-size: 24px;
+  border-width: 3px;
 }
 
 .rc-sec-grade.grade-A {
