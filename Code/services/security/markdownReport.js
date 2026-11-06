@@ -46,7 +46,9 @@ function build(r) {
   out.push('## Fix these first', '');
   if (!r.improvements.length) out.push('Nothing to fix in the checks that ran.', '');
   r.improvements.forEach((item, index) => {
-    out.push((index + 1) + '. [' + item.severity + '] ' + item.title + ' (' + item.count + ')');
+    out.push(
+      (index + 1) + '. [' + item.severity + '] ' + item.title + ' (' + item.count + ')' + (item.review ? ' - needs review' : '')
+    );
     out.push('   Why: ' + item.why);
     for (const fix of item.fixes) out.push('   - ' + fix);
     if (item.files.length) out.push('   Files: ' + item.files.join(', '));
@@ -65,7 +67,7 @@ function build(r) {
 
   out.push('## Checks (' + r.tests.length + ')', '');
   for (const t of r.tests) {
-    const status = t.status === 'skip' ? 'NOT RUN' : t.status.toUpperCase();
+    const status = t.status === 'skip' ? 'NOT RUN' : t.status === 'na' ? 'N/A' : t.status.toUpperCase();
     const note = t.reason ? ': ' + t.reason : t.findingCount ? ': ' + t.findingCount + ' finding' + (t.findingCount === 1 ? '' : 's') : '';
     out.push('- [' + status + '] ' + t.title + ' (' + t.level + ' / ' + t.severity + ' / ' + (t.kind === 'dynamic' ? 'live' : 'code') + ')' + note);
   }

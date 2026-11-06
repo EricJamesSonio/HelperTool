@@ -1,5 +1,8 @@
 'use strict';
 
+// Deprecated: the Repo Console security page runs ./audit.js. This modular runner
+// and the ./packs/* checks are kept for reference and are not wired up.
+
 const path = require('path');
 const engine = require('./engine');
 const targetGuard = require('./targetGuard');

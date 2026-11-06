@@ -60,6 +60,10 @@ function skip(reason) {
   return { status: 'skip', reason, findings: [] };
 }
 
+function na(reason) {
+  return { status: 'na', reason, findings: [] };
+}
+
 function topSeverity(list) {
   let best = null;
   for (const item of list) {
@@ -159,6 +163,387 @@ function hitsToFindings(hits) {
       confidence: hit.rule.confidence || 'confirmed',
     })
   );
+}
+
+/* ---------- Prisma raw-query analysis (multi-line) ---------- */
+
+const PRISMA_RAW_RE = /\$(?:queryRawUnsafe|executeRawUnsafe)\s*\(/g;
+
+function readPrismaCall(lines, startLine, openCol) {
+  const args = [];
+  let current = '';
+  let depth = 0;
+  let started = false;
+  let mode = 'code';
+  let tplDepth = 0;
+
+  const pushArg = () => {
+    args.push(current.trim());
+    current = '';
+  };
+
+  for (let li = startLine; li < lines.length; li += 1) {
+    const line = lines[li];
+    for (let ci = li === startLine ? openCol : 0; ci < line.length; ci += 1) {
+      const ch = line[ci];
+      const next = line[ci + 1];
+
+      if (mode === 'lineComment') break;
+      if (mode === 'blockComment') {
+        if (ch === '*' && next === '/') {
+          mode = 'code';
+          ci += 1;
+        }
+        continue;
+      }
+      if (mode === 'sq' || mode === 'dq') {
+        current += ch;
+        if (ch === '\\') {
+          current += next || '';
+          ci += 1;
+          continue;
+        }
+        if ((mode === 'sq' && ch === "'") || (mode === 'dq' && ch === '"')) mode = 'code';
+        continue;
+      }
+      if (mode === 'tpl') {
+        current += ch;
+        if (ch === '\\') {
+          current += next || '';
+          ci += 1;
+          continue;
+        }
+        if (ch === '`') {
+          mode = 'code';
+          continue;
+        }
+        if (ch === '$' && next === '{') {
+          current += next;
+          ci += 1;
+          mode = 'tplExpr';
+          tplDepth = 1;
+        }
+        continue;
+      }
+      if (mode === 'tplExpr') {
+        current += ch;
+        if (ch === '\\') {
+          current += next || '';
+          ci += 1;
+          continue;
+        }
+        if (ch === '{') tplDepth += 1;
+        else if (ch === '}') {
+          tplDepth -= 1;
+          if (tplDepth === 0) mode = 'tpl';
+        } else if (ch === "'") mode = 'sq';
+        else if (ch === '"') mode = 'dq';
+        else if (ch === '`') mode = 'tpl';
+        continue;
+      }
+
+      if (!started) {
+        if (ch === '(') {
+          started = true;
+          depth = 1;
+        }
+        continue;
+      }
+
+      if (ch === '/' && next === '/') {
+        mode = 'lineComment';
+        ci += 1;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        mode = 'blockComment';
+        ci += 1;
+        continue;
+      }
+      if (ch === "'") {
+        current += ch;
+        mode = 'sq';
+        continue;
+      }
+      if (ch === '"') {
+        current += ch;
+        mode = 'dq';
+        continue;
+      }
+      if (ch === '`') {
+        current += ch;
+        mode = 'tpl';
+        continue;
+      }
+      if (ch === '(' || ch === '[' || ch === '{') {
+        depth += 1;
+        current += ch;
+        continue;
+      }
+      if (ch === ')' || ch === ']' || ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          pushArg();
+          return args;
+        }
+        current += ch;
+        continue;
+      }
+      if (ch === ',' && depth === 1) {
+        pushArg();
+        continue;
+      }
+      current += ch;
+    }
+    current += '\n';
+  }
+  return null;
+}
+
+function literalInfo(text) {
+  const s = String(text || '').trim();
+  if (!s) return { kind: 'empty' };
+  const quote = s[0];
+  if (quote === "'" || quote === '"') {
+    let i = 1;
+    let closed = false;
+    for (; i < s.length; i += 1) {
+      if (s[i] === '\\') {
+        i += 1;
+        continue;
+      }
+      if (s[i] === quote) {
+        closed = true;
+        break;
+      }
+    }
+    if (!closed) return { kind: 'expression' };
+    const rest = s.slice(i + 1).trim();
+    if (rest && rest[0] === '+') return { kind: 'concat' };
+    if (rest) return { kind: 'expression' };
+    return { kind: 'literal', quote, body: s.slice(1, i) };
+  }
+  if (quote === '`') {
+    for (let i = 1; i < s.length; i += 1) {
+      if (s[i] === '\\') {
+        i += 1;
+        continue;
+      }
+      if (s[i] === '$' && s[i + 1] === '{') return { kind: 'template-dynamic' };
+      if (s[i] === '`') {
+        const rest = s.slice(i + 1).trim();
+        if (rest && rest[0] === '+') return { kind: 'concat' };
+        if (rest) return { kind: 'expression' };
+        return { kind: 'literal', quote: '`', body: s.slice(1, i) };
+      }
+    }
+    return { kind: 'expression' };
+  }
+  if (s.includes('+')) return { kind: 'concat' };
+  return { kind: 'expression' };
+}
+
+function resolveSqlIdentifier(file, name) {
+  const safeName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('\\b(?:const|let|var)\\s+' + safeName + '\\s*=\\s*(.+?);?\\s*$');
+  for (let i = 0; i < file.lines.length; i += 1) {
+    const m = re.exec(file.lines[i]);
+    if (m) return { value: m[1], line: i + 1 };
+  }
+  return null;
+}
+
+function prismaVerdict(file, args) {
+  const first = (args[0] || '').trim();
+  if (!first) {
+    return {
+      severity: 'medium',
+      confidence: 'review',
+      detail: 'The first argument could not be read, so check whether the SQL text is a constant.',
+    };
+  }
+
+  const info = literalInfo(first);
+  if (info.kind === 'literal') return { safe: true };
+  if (info.kind === 'template-dynamic') {
+    return {
+      severity: 'high',
+      confidence: 'confirmed',
+      detail: 'The SQL text uses a template literal that interpolates a value into the query.',
+    };
+  }
+  if (info.kind === 'concat') {
+    return {
+      severity: 'high',
+      confidence: 'confirmed',
+      detail: 'The SQL text is joined with a value using +, which is injection-prone.',
+    };
+  }
+
+  if (/^[A-Za-z_$][\w$]*$/.test(first)) {
+    const decl = resolveSqlIdentifier(file, first);
+    if (decl) {
+      const resolved = literalInfo(decl.value);
+      if (resolved.kind === 'literal') return { safe: true };
+      if (resolved.kind === 'template-dynamic' || resolved.kind === 'concat') {
+        return {
+          severity: 'high',
+          confidence: 'confirmed',
+          detail: 'The SQL text variable "' + first + '" (line ' + decl.line + ') is built with a value, which is injection-prone.',
+        };
+      }
+    }
+    return {
+      severity: 'high',
+      confidence: 'review',
+      detail: 'The SQL text comes from "' + first + '". If that variable is a constant, this is safe; otherwise it is injection-prone.',
+    };
+  }
+
+  return {
+    severity: 'high',
+    confidence: 'review',
+    detail: 'The first argument is an expression, so check whether it can contain user input.',
+  };
+}
+
+function scanPrismaRawCalls(ctx) {
+  const out = [];
+  for (const file of ctx.corpus) {
+    if (file.isTest) continue;
+    for (let i = 0; i < file.lines.length; i += 1) {
+      const line = file.lines[i];
+      if (line.length > 2000) continue;
+      const trimmed = line.trim();
+      if (!trimmed || COMMENT_START_RE.test(trimmed)) continue;
+      PRISMA_RAW_RE.lastIndex = 0;
+      let m = PRISMA_RAW_RE.exec(line);
+      while (m) {
+        const openCol = m.index + m[0].lastIndexOf('(');
+        const args = readPrismaCall(file.lines, i, openCol);
+        const verdict = args
+          ? prismaVerdict(file, args)
+          : {
+              severity: 'high',
+              confidence: 'review',
+              detail: 'The call could not be read across lines, so check it manually.',
+            };
+        if (!verdict.safe) {
+          out.push(
+            finding({
+              severity: verdict.severity,
+              confidence: verdict.confidence,
+              title: 'Uses an unsafe Prisma raw query',
+              detail: verdict.detail,
+              file: file.rel,
+              line: i + 1,
+              evidence: line.trim().slice(0, 180),
+              fix: 'Pass values as bound parameters (for example $1 with a values array). Use prisma.$queryRaw with a tagged template literal so values are parameterized. If every part is a constant, this is safe and can be ignored.',
+            })
+          );
+        }
+        if (m[0].length === 0) PRISMA_RAW_RE.lastIndex += 1;
+        m = PRISMA_RAW_RE.exec(line);
+      }
+    }
+  }
+  return out;
+}
+
+/* ---------- CORS analysis (multi-line, HTTP vs WebSocket) ---------- */
+
+const CORS_ORIGIN_RE = /\borigin\s*:\s*(?:['"]([^'"]+)['"]|(true)\b)/i;
+const CORS_HEADER_RE = /Access-Control-Allow-Origin['"]\s*,\s*['"]\*['"]/i;
+const CORS_DEFAULT_RE = /\bcors\s*\(\s*\)/;
+const CORS_CREDS_RE = /\bcredentials\s*:\s*true\b/i;
+const CORS_CONTEXT_RE = /(?:@WebSocketGateway|\bcors\b|enableCors|Access-Control-Allow-Origin)/i;
+const GATEWAY_COOKIE_RE = /\b(?:handshake[.]headers[.]cookie|req[.]cookies|withCredentials|express-session|cookie-session)\b/i;
+
+function scanCors(ctx) {
+  const out = [];
+  for (const file of ctx.corpus) {
+    if (file.isTest) continue;
+    const text = file.lines.join('\n');
+    const isGateway = /@WebSocketGateway/.test(text) || /(?:^|\/)[^/]*gateway\.[cm]?[jt]sx?$/i.test(file.rel);
+    const gatewayCookieAuth = GATEWAY_COOKIE_RE.test(text);
+
+    for (let i = 0; i < file.lines.length; i += 1) {
+      const line = file.lines[i];
+      if (line.length > 2000) continue;
+      const trimmed = line.trim();
+      if (COMMENT_START_RE.test(trimmed)) continue;
+
+      const origin = CORS_ORIGIN_RE.exec(line);
+      const header = CORS_HEADER_RE.test(line);
+      const bare = CORS_DEFAULT_RE.test(line);
+      if (!origin && !header && !bare) continue;
+
+      const windowText = file.lines.slice(Math.max(0, i - 4), i + 5).join('\n');
+      if (!CORS_CONTEXT_RE.test(windowText)) continue;
+      const creds = CORS_CREDS_RE.test(windowText);
+
+      let severity;
+      let confidence;
+      let title;
+      let detail;
+      let fix;
+
+      if (bare) {
+        severity = 'low';
+        confidence = 'review';
+        title = 'cors() is used with its default settings';
+        detail = 'The default cors() allows every origin.';
+        fix = 'Pass an options object with an explicit origin allowlist.';
+      } else if (origin && origin[1] === 'null') {
+        severity = 'medium';
+        confidence = 'confirmed';
+        title = 'CORS trusts the null origin';
+        detail = 'Sandboxed pages and local files send Origin: null.';
+        fix = 'Remove null from the allowlist.';
+      } else if (origin && origin[2]) {
+        severity = creds ? 'high' : 'medium';
+        confidence = 'confirmed';
+        title = creds ? 'CORS reflects any origin with credentials' : 'CORS reflects any origin';
+        detail = 'origin: true echoes whatever origin asks, which is the same as allowing all.';
+        fix = 'Compare the Origin to a fixed allowlist and answer only for entries on it.';
+      } else {
+        const wildcard = origin ? origin[1] === '*' : true;
+        if (!wildcard) continue;
+        if (isGateway) {
+          const risky = gatewayCookieAuth && creds;
+          severity = risky ? 'medium' : 'low';
+          confidence = risky ? 'confirmed' : 'review';
+          title = 'WebSocket gateway CORS allows every origin';
+          detail = risky
+            ? 'The gateway allows every origin with credentials and reads a session cookie. Validate the Origin and use an allowlist.'
+            : 'The gateway allows every origin. Browsers do not enforce CORS on WebSocket frames, and this gateway does not read a session cookie here, so this is hardening, not a cross-site hijack. Validate Origin in handleConnection if cookies are used elsewhere.';
+          fix = 'Set origin to an explicit list of front-end origins, and validate the Origin header in handleConnection if cookies are ever used.';
+        } else {
+          severity = creds ? 'high' : 'medium';
+          confidence = 'confirmed';
+          title = creds ? 'CORS allows every origin with credentials' : 'CORS allows every origin';
+          detail = creds
+            ? 'Any website can read credentialed responses from this API from a visitor browser.'
+            : 'Any website can read responses from this API from a visitor browser.';
+          fix = 'Set origin to an explicit list of your own front-end origins, and never combine a wildcard with credentials.';
+        }
+      }
+
+      out.push(
+        finding({
+          severity,
+          confidence,
+          title,
+          detail,
+          file: file.rel,
+          line: i + 1,
+          evidence: line.trim().slice(0, 180),
+          fix,
+        })
+      );
+    }
+  }
+  return out;
 }
 
 function readDeps(repoPath) {
@@ -342,13 +727,6 @@ const SQL_RULES = [
     detail: 'Joining strings into SQL is injection-prone when any part can come from a user.',
     fix: 'Use placeholders for values. If the joined part is built only from constants (for example a fixed column list), it is safe.',
   },
-  {
-    re: /\$(?:queryRawUnsafe|executeRawUnsafe)\s*\(/,
-    severity: 'high',
-    title: 'Uses an unsafe Prisma raw query',
-    detail: 'The Unsafe raw methods do not parameterize their input.',
-    fix: 'Use prisma.$queryRaw with a tagged template literal so values are parameterized.',
-  },
 ];
 
 const ELECTRON_RULES = [
@@ -357,12 +735,6 @@ const ELECTRON_RULES = [
   { re: /webSecurity\s*:\s*false/, severity: 'high', title: 'Electron webSecurity is disabled', detail: 'The same-origin policy is turned off for this window.', fix: 'Remove webSecurity: false and fix the underlying cross-origin need with proper CORS or a main-process request.' },
   { re: /allowRunningInsecureContent\s*:\s*true/, severity: 'medium', title: 'Electron allows insecure content', detail: 'HTTP content can load inside an HTTPS page.', fix: 'Remove allowRunningInsecureContent and serve every resource over HTTPS.' },
   { re: /enableRemoteModule\s*:\s*true/, severity: 'medium', title: 'Electron remote module is enabled', detail: 'The remote module lets the renderer call main-process APIs directly.', fix: 'Remove enableRemoteModule and use explicit ipcMain.handle channels.' },
-];
-
-const CORS_RULES = [
-  { re: new RegExp('\\borigin\\s*:\\s*([' + QUOTES + '])\\*\\1'), severity: 'medium', title: 'CORS allows every origin', detail: 'Any website can read responses from this API from a visitor browser.', fix: 'Set origin to an explicit list of your own front-end origins.' },
-  { re: /\borigin\s*:\s*true\b/, severity: 'medium', title: 'CORS reflects any origin', detail: 'origin: true echoes whatever origin asks, which is the same as allowing all.', fix: 'Set origin to an explicit list of your own front-end origins.' },
-  { re: new RegExp('\\bcors\\s*\\(\\s*\\)'), severity: 'low', confidence: 'review', title: 'cors() is used with default settings', detail: 'The default allows every origin.', fix: 'Pass an options object with an explicit origin list.' },
 ];
 
 const WEAK_HASH_RULES = [
@@ -377,9 +749,44 @@ const WEAK_HASH_RULES = [
 
 /* ---------- npm audit ---------- */
 
+function npmEnv() {
+  const env = Object.assign({}, process.env);
+  for (const key of [
+    'npm_config_allow_scripts',
+    'NPM_CONFIG_ALLOW_SCRIPTS',
+    'npm_config_ignore_scripts',
+    'NPM_CONFIG_IGNORE_SCRIPTS',
+  ]) {
+    delete env[key];
+  }
+  return env;
+}
+
+function classifyNpmFailure(raw) {
+  const text = String(raw || '').replace(/\s+/g, ' ').trim();
+  if (/allow-scripts|allowScripts|project-scoped/i.test(text)) {
+    return {
+      code: 'config',
+      message:
+        'npm config rejected the audit (' +
+        text.slice(0, 160) +
+        '). This is a tooling issue, not a dependency result. Remove --allow-scripts from project config, or move the entries to package.json "allowScripts" and re-run.',
+    };
+  }
+  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|offline|network/i.test(text)) {
+    return { code: 'offline', message: 'The npm registry could not be reached (' + text.slice(0, 160) + ').' };
+  }
+  if (/timed out/i.test(text)) return { code: 'timeout', message: text };
+  if (/E401|E403|E404/i.test(text)) {
+    return { code: 'registry', message: 'The npm registry rejected the request (' + text.slice(0, 160) + ').' };
+  }
+  return { code: 'tooling', message: text || 'npm audit failed without a readable reason.' };
+}
+
 function runNpmAudit(cwd) {
   return new Promise((resolve) => {
     let out = '';
+    let errOut = '';
     let settled = false;
     let timer = null;
     let child = null;
@@ -392,36 +799,56 @@ function runNpmAudit(cwd) {
     };
 
     try {
-      child = spawn('npm', ['audit', '--json'], { cwd, shell: process.platform === 'win32', windowsHide: true });
+      child = spawn('npm', ['audit', '--json', '--no-color', '--ignore-scripts'], {
+        cwd,
+        shell: process.platform === 'win32',
+        windowsHide: true,
+        env: npmEnv(),
+      });
     } catch (e) {
-      finish({ error: 'npm could not be started: ' + e.message });
+      const failure = classifyNpmFailure(e.message);
+      finish({ error: 'npm could not be started: ' + failure.message, reasonCode: failure.code });
       return;
     }
 
     timer = setTimeout(() => {
       killTree(child);
-      finish({ error: 'npm audit timed out after ' + Math.round(NPM_AUDIT_TIMEOUT_MS / 1000) + 's.' });
+      finish({
+        error: 'npm audit timed out after ' + Math.round(NPM_AUDIT_TIMEOUT_MS / 1000) + 's.',
+        reasonCode: 'timeout',
+      });
     }, NPM_AUDIT_TIMEOUT_MS);
 
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
       if (out.length < 8 * 1024 * 1024) out += chunk;
     });
-    child.on('error', (err) => finish({ error: 'npm could not be started: ' + err.message }));
-    child.on('close', () => {
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
+      if (errOut.length < 64 * 1024) errOut += chunk;
+    });
+    child.on('error', (err) => {
+      const failure = classifyNpmFailure(err.message);
+      finish({ error: 'npm could not be started: ' + failure.message, reasonCode: failure.code });
+    });
+    child.on('close', (code) => {
+      const stderr = errOut.trim();
       if (!out.trim()) {
-        finish({ error: 'npm audit returned nothing (the computer may be offline).' });
+        const failure = classifyNpmFailure(stderr || (code ? 'npm audit exited with code ' + code : ''));
+        finish({ error: failure.message, reasonCode: failure.code });
         return;
       }
       let json;
       try {
         json = JSON.parse(out);
       } catch (e) {
-        finish({ error: 'npm audit did not return a readable report.' });
+        const failure = classifyNpmFailure(stderr || 'npm audit did not return a readable report.');
+        finish({ error: failure.message, reasonCode: failure.code });
         return;
       }
       if (json && json.error) {
-        finish({ error: String(json.error.summary || json.error.code || 'npm audit failed.').slice(0, 200) });
+        const failure = classifyNpmFailure(json.error.summary || json.error.code || stderr);
+        finish({ error: failure.message, reasonCode: failure.code });
         return;
       }
       finish({ json });
@@ -610,6 +1037,7 @@ const TESTS = [
       if (!targets.length) return skip('No package-lock.json was found, so npm audit cannot run.');
       const findings = [];
       const problems = [];
+      const errorCodes = [];
       let audited = 0;
       for (const target of targets) {
         const label = target.rel || 'root';
@@ -617,6 +1045,7 @@ const TESTS = [
         const res = await runNpmAudit(target.root);
         if (res.error) {
           problems.push(label + ': ' + res.error);
+          if (res.reasonCode) errorCodes.push(res.reasonCode);
           continue;
         }
         audited += 1;
@@ -638,7 +1067,10 @@ const TESTS = [
           );
         }
       }
-      if (!audited) return skip(problems.join(' ') || 'npm audit could not run.');
+      if (!audited) {
+        const reason = problems.join(' ') || 'npm audit could not run.';
+        return Object.assign(skip(reason), { reasonCode: errorCodes[0] || 'tooling' });
+      }
       const result = outcome(findings);
       if (problems.length) result.reason = 'Some folders could not be audited: ' + problems.join(' ');
       return result;
@@ -656,7 +1088,7 @@ const TESTS = [
     why: 'In Electron, one XSS bug becomes remote code execution when Node access is enabled in the page.',
     fixTitle: 'Harden Electron window settings',
     run: async (ctx) => {
-      if (!ctx.deps.names.has('electron')) return skip('Not applicable: electron is not a dependency of this project.');
+      if (!ctx.deps.names.has('electron')) return na('Not applicable: electron is not a dependency of this project.');
       return outcome(hitsToFindings(scanCorpus(ctx, ELECTRON_RULES)));
     },
   },
@@ -697,7 +1129,8 @@ const TESTS = [
     cwe: 'CWE-89',
     why: 'SQL assembled from text lets an attacker change what the query does.',
     fixTitle: 'Use parameterized queries',
-    run: async (ctx) => outcome(hitsToFindings(scanCorpus(ctx, SQL_RULES))),
+    run: async (ctx) =>
+      outcome(hitsToFindings(scanCorpus(ctx, SQL_RULES)).concat(scanPrismaRawCalls(ctx))),
   },
   {
     id: 'password-hashing',
@@ -850,7 +1283,7 @@ const TESTS = [
     cwe: 'CWE-942',
     why: 'Open CORS lets any website read API responses with a visitor browser.',
     fixTitle: 'Restrict CORS to your own origins',
-    run: async (ctx) => outcome(hitsToFindings(scanCorpus(ctx, CORS_RULES))),
+    run: async (ctx) => outcome(scanCors(ctx)),
   },
   {
     id: 'dom-sinks',
@@ -1098,11 +1531,13 @@ const TESTS = [
 /* ---------- scoring ---------- */
 
 function addToBucket(bucket, test) {
-  if (test.status === 'skip') {
-    bucket.skipped += 1;
+  if (test.status === 'skip' || test.status === 'na') {
+    if (test.status === 'na') bucket.na += 1;
+    else bucket.skipped += 1;
     return;
   }
-  const weight = WEIGHTS[test.severity] || 0;
+  const effectiveSeverity = test.effectiveSeverity || test.severity;
+  const weight = WEIGHTS[effectiveSeverity] || 0;
   bucket.total += weight;
   if (test.status === 'pass') {
     bucket.earned += weight;
@@ -1116,7 +1551,7 @@ function addToBucket(bucket, test) {
 }
 
 function newBucket() {
-  return { earned: 0, total: 0, passed: 0, failed: 0, review: 0, skipped: 0 };
+  return { earned: 0, total: 0, passed: 0, failed: 0, review: 0, skipped: 0, na: 0 };
 }
 
 function percent(bucket) {
@@ -1146,9 +1581,14 @@ function computeScore(tests) {
   const levelOut = (name, previousOk) => {
     const bucket = levels[name];
     const pct = percent(bucket);
-    const blocking = tests.some((t) => t.level === name && t.status === 'fail' && (t.severity === 'critical' || t.severity === 'high'));
+    const blocking = tests.some(
+      (t) =>
+        t.level === name &&
+        t.status === 'fail' &&
+        ((t.effectiveSeverity || t.severity) === 'critical' || (t.effectiveSeverity || t.severity) === 'high')
+    );
     const achieved = pct === null ? null : previousOk && pct >= 80 && !blocking;
-    return { pct, achieved, passed: bucket.passed, failed: bucket.failed, review: bucket.review, skipped: bucket.skipped };
+    return { pct, achieved, passed: bucket.passed, failed: bucket.failed, review: bucket.review, skipped: bucket.skipped, na: bucket.na };
   };
 
   const basic = levelOut('basic', true);
@@ -1158,7 +1598,7 @@ function computeScore(tests) {
   const byCategory = {};
   for (const name of Object.keys(categories)) {
     const b = categories[name];
-    byCategory[name] = { pct: percent(b), passed: b.passed, failed: b.failed, review: b.review, skipped: b.skipped };
+    byCategory[name] = { pct: percent(b), passed: b.passed, failed: b.failed, review: b.review, skipped: b.skipped, na: b.na };
   }
 
   return {
@@ -1181,6 +1621,7 @@ function buildImprovements(tests, findings) {
       title: test.fixTitle,
       severity: topSeverity(mine) || test.severity,
       status: test.status,
+      review: mine.length > 0 && mine.every((f) => f.confidence === 'review'),
       count: test.findingCount,
       why: test.why,
       fixes: Array.from(new Set(mine.map((f) => f.fix).filter(Boolean))).slice(0, 4),
@@ -1198,17 +1639,23 @@ function buildNotCovered(ctx) {
   list.push({ title: 'Login rate limits, JWT tampering, session handling and IDOR', reason: 'Planned for the auth pack. It also needs test accounts, which are not configured yet.' });
   list.push({ title: 'Stored XSS and data-flow tracing from inputs to HTML sinks', reason: 'The sink check lists risky places but does not prove that user input reaches them.' });
   list.push({ title: 'Advanced level (bypasses, timing and race attacks)', reason: 'Planned for a later phase.' });
-  list.push({ title: 'SQL built across several lines', reason: 'The SQL code check reads one line at a time.' });
   return list;
 }
 
-function buildHeadline(score, totals) {
+function buildHeadline(score, totals, findings) {
   if (score.overall === null) return 'No check could be scored in this run.';
-  const urgent = (totals.bySeverity.critical || 0) + (totals.bySeverity.high || 0);
+  const all = findings || [];
+  const confirmedUrgent = all.filter((f) => (f.severity === 'critical' || f.severity === 'high') && f.confidence !== 'review').length;
+  const reviewUrgent = all.filter((f) => (f.severity === 'critical' || f.severity === 'high') && f.confidence === 'review').length;
   const first = 'Score ' + score.overall + '% (grade ' + score.grade + '). ';
-  const second = urgent
-    ? urgent + ' critical or high finding' + (urgent === 1 ? '' : 's') + ' should be fixed first. '
-    : 'No critical or high findings came from the checks that ran. ';
+  let second;
+  if (confirmedUrgent) {
+    second = confirmedUrgent + ' confirmed critical or high finding' + (confirmedUrgent === 1 ? '' : 's') + ' should be fixed first. ';
+  } else if (reviewUrgent) {
+    second = reviewUrgent + ' high-priority item' + (reviewUrgent === 1 ? '' : 's') + ' need review before they are treated as confirmed. ';
+  } else {
+    second = 'No confirmed critical or high findings came from the checks that ran. ';
+  }
   const third = totals.skipped ? totals.skipped + ' check' + (totals.skipped === 1 ? '' : 's') + ' did not run (see Tests).' : 'Every check ran.';
   return first + second + third;
 }
@@ -1295,6 +1742,7 @@ async function runAudit(options) {
       category: def.category,
       level: def.level,
       severity: def.severity,
+      effectiveSeverity: topSeverity(all) || def.severity,
       kind: def.kind,
       owasp: def.owasp,
       cwe: def.cwe,
@@ -1302,6 +1750,7 @@ async function runAudit(options) {
       fixTitle: def.fixTitle,
       status: res.status,
       reason: res.reason || '',
+      reasonCode: res.reasonCode || '',
       findingCount: all.length,
       truncated: all.length - kept.length,
       durationMs: Date.now() - t0,
@@ -1333,6 +1782,7 @@ async function runAudit(options) {
     failed: tests.filter((t) => t.status === 'fail').length,
     review: tests.filter((t) => t.status === 'review').length,
     skipped: tests.filter((t) => t.status === 'skip').length,
+    na: tests.filter((t) => t.status === 'na').length,
     findings: findings.length,
     bySeverity,
   };
@@ -1371,7 +1821,7 @@ async function runAudit(options) {
     },
     score,
     totals,
-    headline: buildHeadline(score, totals),
+    headline: buildHeadline(score, totals, findings),
     tests,
     findings,
     improvements: buildImprovements(tests, findings),
@@ -1381,4 +1831,14 @@ async function runAudit(options) {
   };
 }
 
-module.exports = { runAudit, computeScore };
+module.exports = {
+  runAudit,
+  computeScore,
+  _internals: {
+    scanPrismaRawCalls,
+    scanCors,
+    readPrismaCall,
+    literalInfo,
+    classifyNpmFailure,
+  },
+};
