@@ -544,6 +544,7 @@ function settingsCard() {
         warnBox.replaceChildren();
         S.security.settings = res.settings;
         toast('Target saved');
+        S.hooks.renderPage();
       }
     } catch (e) {
       toast(e.message, 'error');
@@ -585,25 +586,194 @@ function settingsCard() {
   );
 }
 
+const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
+function downloadText(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h('a', { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function runSecurityScan() {
+  if (S.security.running) return;
+  S.security.running = true;
+  S.security.runError = '';
+  S.hooks.renderPage();
+  try {
+    const res = await call('securityRun', { repoPath: S.repoPath });
+    S.security.report = res.report;
+    S.security.profile = res.report.profile;
+    S.security.view = res.report.score.counts.fail ? 'fail' : 'pass';
+  } catch (e) {
+    S.security.runError = e.message;
+    toast(e.message, 'error');
+  }
+  S.security.running = false;
+  S.hooks.renderPage();
+}
+
+function scoreCard(report) {
+  const s = report.score;
+  const levelBox = (id) => {
+    const l = s.levels[id];
+    return h(
+      'div',
+      { class: 'rc-sec-level' },
+      h('span', { class: 'rc-where', text: id }),
+      h('b', { text: l.score === null ? 'no checks' : l.score + '%' }),
+      h('span', { class: 'rc-where', text: l.failed + ' failed' }),
+      l.achieved ? h('span', { class: 'rc-chip done', text: 'Achieved' }) : null
+    );
+  };
+  const grade = s.grade === 'n/a' ? 'na' : String(s.grade).toLowerCase();
+  const where = report.targetTested ? 'live target ' + report.target : 'code only: ' + report.dynamicNote;
+  return h(
+    'div',
+    { class: 'rc-card rc-sec-score' },
+    h(
+      'div',
+      { class: 'rc-sec-score-top' },
+      h('div', { class: 'rc-sec-grade grade-' + grade }, h('span', { class: 'rc-sec-grade-letter', text: s.grade }), h('span', { class: 'rc-sec-grade-pct', text: s.overall === null ? '' : s.overall + '%' })),
+      h(
+        'div',
+        { class: 'rc-sec-counts' },
+        h('span', { class: 'rc-sev critical', text: s.counts.critical + ' critical' }),
+        h('span', { class: 'rc-sev high', text: s.counts.high + ' high' }),
+        h('span', { class: 'rc-sev medium', text: s.counts.medium + ' medium' }),
+        h('span', { class: 'rc-sev low', text: s.counts.low + ' low' }),
+        h('span', { class: 'rc-where', text: s.counts.pass + ' passed / ' + s.counts.skip + ' could not run / ' + s.counts.na + ' not applicable' })
+      ),
+      h(
+        'div',
+        { class: 'rc-row' },
+        h('button', { class: 'rc-btn secondary small', text: 'Copy report', onclick: () => navigator.clipboard.writeText(report.markdown).then(() => toast('Report copied'), () => toast('Could not copy', 'error')) }),
+        h('button', { class: 'rc-btn secondary small', text: 'Download .md', onclick: () => downloadText('security-report-' + report.repoName + '.md', report.markdown, 'text/markdown') }),
+        h('button', {
+          class: 'rc-btn secondary small',
+          text: 'Download .json',
+          onclick: () => {
+            const copy = Object.assign({}, report);
+            delete copy.markdown;
+            downloadText('security-report-' + report.repoName + '.json', JSON.stringify(copy, null, 2), 'application/json');
+          },
+        })
+      )
+    ),
+    h('div', { class: 'rc-sec-levels' }, levelBox('basic'), levelBox('medium'), levelBox('advanced')),
+    h(
+      'div',
+      { class: 'rc-sec-cats' },
+      s.categories.map((c) => h('div', { class: 'rc-kv-row' }, h('span', { class: 'rc-where', text: c.name }), h('b', { text: (c.score === null ? 'n/a' : c.score + '%') + ' (' + c.failed + ' failed)' })))
+    ),
+    h('div', { class: 'rc-where', text: 'Ran ' + fmtDate(report.startedAt) + ' in ' + Math.round(report.durationMs / 1000) + 's / ' + report.scanInfo.files + ' files scanned / ' + report.scanInfo.requests + ' requests / ' + where })
+  );
+}
+
+function findingCard(f) {
+  const ev = f.evidence || [];
+  const evBlock = ev.length
+    ? h(
+        'details',
+        { class: 'rc-more' },
+        h('summary', { text: ev.length + ' location' + (ev.length === 1 ? '' : 's') }),
+        h('div', { class: 'rc-more-body' }, h('pre', { class: 'rc-tail', text: ev.map((e) => e.file + (e.line ? ':' + e.line : '') + '   ' + e.text).join('\n') }))
+      )
+    : null;
+  return h(
+    'div',
+    { class: 'rc-card rc-sec-finding sev-' + f.severity },
+    h(
+      'div',
+      { class: 'rc-card-head' },
+      h('h3', { text: f.title }),
+      h('div', { class: 'rc-row' }, h('span', { class: 'rc-sev ' + f.severity, text: f.severity }), h('span', { class: 'rc-badge', text: f.level }), h('span', { class: 'rc-where', text: f.kind }))
+    ),
+    h('p', { text: f.detail }),
+    f.fix ? h('div', { class: 'rc-sec-fix' }, h('b', { text: 'How to fix: ' }), f.fix) : null,
+    evBlock
+  );
+}
+
+function compactRow(f) {
+  return h('div', { class: 'rc-sec-row' }, h('b', { text: f.title }), h('span', { class: 'rc-where', text: f.detail }));
+}
+
+function reportView(report) {
+  const by = (st) => report.findings.filter((f) => f.status === st);
+  const failed = by('fail').sort((a, b) => (SEV_RANK[a.severity] === undefined ? 9 : SEV_RANK[a.severity]) - (SEV_RANK[b.severity] === undefined ? 9 : SEV_RANK[b.severity]));
+  const tabs = [
+    ['fail', 'Failed', failed.length],
+    ['skip', 'Could not run', by('skip').length],
+    ['pass', 'Passed', by('pass').length],
+    ['na', 'Not applicable', by('na').length],
+    ['missing', 'Not covered yet', report.notCovered.length],
+  ];
+  const view = S.security.view || 'fail';
+  let body;
+  if (view === 'missing') {
+    body = report.notCovered.map((n) =>
+      h('div', { class: 'rc-card' }, h('div', { class: 'rc-card-head' }, h('h3', { text: n.title }), h('span', { class: 'rc-badge', text: n.level })), h('p', { text: n.why }))
+    );
+  } else if (view === 'fail') {
+    body = failed.length ? failed.map(findingCard) : [h('div', { class: 'rc-empty', text: 'No failed checks.' })];
+  } else {
+    const list = by(view);
+    body = list.length ? list.map(compactRow) : [h('div', { class: 'rc-empty', text: 'Nothing here.' })];
+  }
+  return [
+    scoreCard(report),
+    h(
+      'div',
+      { class: 'rc-row rc-sec-tabs' },
+      tabs.map(([id, label, n]) =>
+        h('button', {
+          class: 'rc-btn small' + (view === id ? '' : ' secondary'),
+          text: label + ' (' + n + ')',
+          onclick: () => {
+            S.security.view = id;
+            S.hooks.renderPage();
+          },
+        })
+      )
+    ),
+    h('div', { class: 'rc-sec-list' }, body),
+  ];
+}
+
 export function securityPage() {
   if (!S.security.loaded && !S.security.loading) loadSecurity();
   const profile = S.security.profile;
+  const report = S.security.report && S.security.report.repoPath === S.repoPath ? S.security.report : null;
+  const hasTarget = !!(S.security.settings && S.security.settings.targetUrl);
+  const busy = !!(S.security.running || S.security.detecting);
   return [
     h('p', {
       class: 'rc-lead',
-      text:
-        'Detects this repository\'s stack (frontend, database, auth) so only the relevant security checks run later. Phase 1 is detection and target setup only; attack packs come in a later phase.',
+      text: 'Detects the stack of this repository, then runs the security checks that apply: live probes against the saved target URL plus a scan of the source code. The result is a score and a report you can copy or download.',
     }),
     h(
       'div',
       { class: 'rc-row' },
       h('button', {
         class: 'rc-btn',
+        text: S.security.running ? 'Running checks...' : 'Run security test',
+        disabled: busy,
+        onclick: runSecurityScan,
+      }),
+      h('button', {
+        class: 'rc-btn secondary',
         text: S.security.detecting ? 'Detecting...' : 'Detect stack',
-        disabled: !!S.security.detecting,
+        disabled: busy,
         onclick: detectStack,
       })
     ),
+    S.security.running ? h('div', { class: 'rc-where', text: 'Scanning the code and probing the target. This can take up to a minute because of the dependency audit.' }) : null,
+    !hasTarget && !S.security.running ? h('div', { class: 'rc-warn', text: 'No target URL is saved, so only the code checks will run. Save a target below to include the live checks.' }) : null,
+    S.security.runError ? h('div', { class: 'rc-warn red', text: S.security.runError }) : null,
+    report ? reportView(report) : null,
     S.security.loading && !profile ? h('div', { class: 'rc-empty', text: 'Loading...' }) : profileCard(profile),
     settingsCard(),
   ];
