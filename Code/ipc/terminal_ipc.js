@@ -4,9 +4,35 @@ const fs = require('fs');
 const os = require('os');
 
 let _pty = null;
+function nodeCapMB() {
+  try {
+    const cfg = require('../config/config.js').readConfig();
+    const mb = Number(cfg && cfg.perf && cfg.perf.nodeMemMB) || 0;
+    return mb >= 256 ? Math.floor(mb) : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function withNodeCap(opts) {
+  const mb = nodeCapMB();
+  if (!mb) return opts;
+  const env = Object.assign({}, (opts && opts.env) || process.env);
+  const cur = String(env.NODE_OPTIONS || '');
+  if (/--max-old-space-size/.test(cur)) return opts;
+  env.NODE_OPTIONS = (cur + ' --max-old-space-size=' + mb).trim();
+  return Object.assign({}, opts, { env });
+}
 function getPty() {
   if (!_pty) {
-    try { _pty = require('node-pty'); } catch (e) { console.error('[Terminal] node-pty not available:', e.message); }
+    try {
+      const real = require('node-pty');
+      _pty = Object.assign({}, real, {
+        spawn: (shell, args, opts) => real.spawn(shell, args, withNodeCap(opts)),
+      });
+    } catch (e) {
+      console.error('[Terminal] node-pty not available:', e.message);
+    }
   }
   return _pty;
 }
