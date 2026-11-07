@@ -220,6 +220,13 @@ function setupShortcutButton(type, btn) {
 // ── Title bar controls ─────────────────────────────────────────────────────────
 
 function initTitlebar() {
+  const titlebar = document.getElementById('appTitlebar');
+  const repoEl = document.getElementById('activeRepoName');
+  if (titlebar && repoEl && repoEl.parentElement !== titlebar) {
+    repoEl.classList.add('titlebar-repo');
+    titlebar.appendChild(repoEl);
+  }
+
   const wc = window.electronAPI.windowControls;
   if (!wc) return;
   document.querySelector('.titlebar-minimize')?.addEventListener('click', () => wc.minimize());
