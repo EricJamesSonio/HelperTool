@@ -206,11 +206,14 @@ function runQueue() {
   if (cliBusy || !cliQueue.length) return;
   const job = cliQueue.shift();
   cliBusy = true;
-  execFile(job.bin, job.args, { windowsHide: true, timeout: 20000 }, (err, _out, stderr) => {
+  const child = execFile(job.bin, job.args, { windowsHide: true, timeout: 20000 }, (err, _out, stderr) => {
     if (err) console.warn('[WakaTime] heartbeat failed:', String(stderr || err.message).slice(0, 300));
     cliBusy = false;
     runQueue();
   });
+  try {
+    if (child && child.pid) os.setPriority(child.pid, os.constants.priority.PRIORITY_LOW);
+  } catch (_) {}
 }
 
 function enqueueBeat(bin, args, key) {
