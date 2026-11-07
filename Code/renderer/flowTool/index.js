@@ -1,15 +1,18 @@
 import { FLOW_CSS } from './styles.js';
+import { HISTORY_CSS } from './historyStyles.js';
 import { getTemplate } from './template.js';
 import { state } from './state.js';
 import { wire, isOpen as uiIsOpen, startPolling, stopPolling, seedLastSeen, refreshHeader } from './ui.js';
+import { mountHistory } from './history.js';
 
 const STYLE_ID = 'ftStyles';
+let historyApi = null;
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
-  style.textContent = FLOW_CSS;
+  style.textContent = FLOW_CSS + HISTORY_CSS;
   document.head.appendChild(style);
 }
 
@@ -22,6 +25,7 @@ function ensurePanel() {
   panel = holder.firstElementChild;
   document.body.appendChild(panel);
   wire(panel, close);
+  historyApi = mountHistory(panel);
   state.wired = true;
   return panel;
 }
@@ -38,6 +42,7 @@ export async function open() {
   const panel = ensurePanel();
   panel.classList.add('open');
   refreshHeader();
+  if (historyApi) historyApi.refresh();
   await seedLastSeen();
   startPolling();
   const box = panel.querySelector('#ftBox');

@@ -46,6 +46,7 @@ function api() {
     previewContent: (b, e) => fs.previewContent(b, e),
     getPatchedPreview: (b, r, e) => fs.getPatchedPreview(b, r, e),
     seedContent: (b, p) => fs.seedContent(b, p),
+    applyContent: (b, p, m) => (fs.flowApply ? fs.flowApply(b, p, m) : fs.seedContent(b, p)),
   };
 }
 
@@ -89,6 +90,7 @@ function setBusy(busy) {
   state.busy = busy;
   els.processBtn.disabled = busy;
   show(els.cancelBtn, busy);
+  if (busy && els.right) els.right.dataset.mode = 'review';
 }
 
 function makeEl(tag, cls, text) {

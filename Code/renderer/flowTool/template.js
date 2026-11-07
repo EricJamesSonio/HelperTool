@@ -9,6 +9,7 @@ export function getTemplate() {
     <label class="ft-check" title="Watch the clipboard and process Claude's reply as soon as you copy it">
       <input type="checkbox" id="ftAuto"> Auto-process clipboard
     </label>
+    <button class="ft-btn" id="ftHistoryBtn" title="See what was applied and revert it">History</button>
     <button class="ft-btn" id="ftProtocolBtn" title="Append the marker protocol to the box">Protocol</button>
     <button class="ft-btn" id="ftNewBtn" title="Start a new ticket (clears round, sent-files memory and the review)">New ticket</button>
     <button class="ft-close" id="ftCloseBtn" title="Close (Esc)">&times;</button>
@@ -29,7 +30,7 @@ export function getTemplate() {
         <div class="ft-lines" id="ftLines"></div>
       </div>
     </section>
-    <section class="ft-col ft-right" id="ftRight" data-reply="none">
+    <section class="ft-col ft-right" id="ftRight" data-reply="none" data-mode="review">
       <div class="ft-review-head">
         <div class="ft-col-title">Review</div>
         <div class="ft-chips" id="ftChips"></div>
@@ -52,6 +53,19 @@ export function getTemplate() {
       <div class="ft-review-body" id="ftReviewBody" data-empty="true">
         <div class="ft-files" id="ftFiles"></div>
         <div class="ft-detail" id="ftDetail"></div>
+      </div>
+      <div class="ft-history" id="ftHistory">
+        <div class="ft-history-head">
+          <div class="ft-col-title">Applied history</div>
+          <span class="ft-note" id="ftHistoryNote"></span>
+          <div class="ft-spacer"></div>
+          <button class="ft-btn ft-danger" id="ftHistoryClear">Clear history</button>
+          <button class="ft-btn ft-primary" id="ftHistoryBack">Back to review</button>
+        </div>
+        <div class="ft-history-body">
+          <div class="ft-history-list" id="ftHistoryList"></div>
+          <div class="ft-history-detail" id="ftHistoryDetail"></div>
+        </div>
       </div>
     </section>
   </div>
