@@ -289,6 +289,9 @@ function init() {
       reloadIde();
     });
   }
+  import('./wakatime.js')
+    .then((m) => m.init())
+    .catch((err) => console.error('[IDE] wakatime failed to load:', err));
   if (readLS(LS_ON, '0') === '1') setActive(true);
 }
 
