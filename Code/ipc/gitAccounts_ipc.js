@@ -406,3 +406,110 @@ function register() {
 }
 
 module.exports = { register, authedGit, configFor };
+function ghRequest(method, pathname, token) {
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: pathname,
+      method,
+      headers: {
+        'User-Agent': 'HelperTool/1.0',
+        'Accept': 'application/vnd.github+json',
+        'Authorization': 'Bearer ' + token,
+        'Content-Length': 0,
+      },
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        let body = null;
+        try { body = JSON.parse(data); } catch (_) { body = null; }
+        resolve({ status: res.statusCode, body });
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(20000, () => { req.destroy(new Error('Request timed out')); });
+    req.end();
+  });
+}
+
+function activeAccountFor(repoPath) {
+  const st = load();
+  const id = st.repos[repoKey(repoPath)];
+  if (!id) return null;
+  return st.accounts.find((a) => a.id === id) || null;
+}
+
+async function originRepo(repoPath) {
+  try {
+    const url = String(await simpleGit(repoPath).raw(['remote', 'get-url', 'origin'])).trim();
+    const m = /github\.com[:/]+([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(url);
+    return m ? m[1] + '/' + m[2] : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function explainPushError(repoPath, original) {
+  const text = String(original || '');
+  if (!/denied to|error: 403|\b403\b/i.test(text)) return null;
+  const who = (/denied to ([A-Za-z0-9-]+)/i.exec(text) || [])[1] || '';
+  const full = await originRepo(repoPath);
+  const target = full || 'this repository';
+  const acc = activeAccountFor(repoPath);
+  if (!acc) {
+    return {
+      message: text + '\n\nThis repo is using your system git login' + (who ? ' (@' + who + ')' : '') +
+        ', and it has no write access to ' + target + '. Open GitHub accounts, sign in with the account that has access, and select it for this repo.',
+    };
+  }
+  const token = openToken(acc);
+  if (!token) {
+    return { message: text + '\n\nThe saved token for @' + acc.username + ' could not be read. Remove the account and sign in again.' };
+  }
+  const note = who && who.toLowerCase() !== acc.username.toLowerCase()
+    ? '\n\nNote: GitHub saw @' + who + ', not the selected account @' + acc.username + '. Another saved login may be overriding it.'
+    : '';
+  if (!full) return { message: text + note };
+  let info = null;
+  try {
+    info = await ghRequest('GET', '/repos/' + full, token);
+  } catch (err) {
+    return { message: text + '\n\nCould not check access: ' + err.message };
+  }
+  if (info.status === 200 && info.body && info.body.permissions && info.body.permissions.push) {
+    return {
+      message: text + '\n\n@' + acc.username + ' has write access to ' + full +
+        ', so something else is blocking the push (for example a protected branch or an organization rule).' + note,
+    };
+  }
+  let inv = null;
+  try {
+    inv = await ghRequest('GET', '/user/repository_invitations?per_page=100', token);
+  } catch (_) {
+    inv = null;
+  }
+  if (inv && inv.status === 200 && Array.isArray(inv.body)) {
+    const hit = inv.body.find((i) => i && i.repository && String(i.repository.full_name).toLowerCase() === full.toLowerCase());
+    if (hit) {
+      let res = null;
+      try {
+        res = await ghRequest('PATCH', '/user/repository_invitations/' + hit.id, token);
+      } catch (_) {
+        res = null;
+      }
+      if (res && res.status === 204) {
+        return { accepted: true, message: 'Accepted the pending invitation to ' + full + ' for @' + acc.username + '.' };
+      }
+      return {
+        message: text + '\n\nThere is a pending invitation to ' + full + ' but it could not be accepted automatically. Open github.com/' + full + '/invitations and accept it.',
+      };
+    }
+  }
+  return {
+    message: text + '\n\n@' + acc.username + ' is not a collaborator with write access to ' + full +
+      '. Ask the owner to add it with Write access (repo Settings > Collaborators), accept the invitation, then push again.' + note,
+  };
+}
+
+module.exports.explainPushError = explainPushError;
