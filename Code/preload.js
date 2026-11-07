@@ -580,6 +580,24 @@ const githubBridge = {
     openUrl: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
 };
+contextBridge.exposeInMainWorld('wakaAPI', {
+  status:    ()        => ipcRenderer.invoke('wakatime:status'),
+  install:   ()        => ipcRenderer.invoke('wakatime:install'),
+  setKey:    (key)     => ipcRenderer.invoke('wakatime:setKey', { key }),
+  heartbeat: (payload) => ipcRenderer.invoke('wakatime:heartbeat', payload),
+  today:     ()        => ipcRenderer.invoke('wakatime:today'),
+});
+
+contextBridge.exposeInMainWorld('gitAuthAPI', {
+  loginStart:  ()         => ipcRenderer.invoke('gitAccounts:loginStart'),
+  loginCancel: ()         => ipcRenderer.invoke('gitAccounts:loginCancel'),
+  setClientId: (clientId) => ipcRenderer.invoke('gitAccounts:setClientId', { clientId }),
+  onLoginResult: (callback) => {
+    ipcRenderer.removeAllListeners('gitAccounts:loginResult');
+    ipcRenderer.on('gitAccounts:loginResult', (_, data) => callback(data));
+  },
+});
+
 contextBridge.exposeInMainWorld('gitAccountsAPI', {
   list:   (repoPath)     => ipcRenderer.invoke('gitAccounts:list', { repoPath }),
   add:    (payload)      => ipcRenderer.invoke('gitAccounts:add', payload),
