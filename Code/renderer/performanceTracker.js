@@ -818,12 +818,30 @@ function injectOptStyles() {
   document.head.appendChild(st);
 }
 
-function renderOptimizer(snap) {
-  const waka = snap.processes.filter((p) => /^wakatime-cli/i.test(String(p.name || '')));
-  const dev = snap.processes
+function devList(snap) {
+  return snap.processes
     .filter((p) => (p.feature === 'terminalTool' || p.feature === 'commands' || p.feature === 'other') && !OPT_SHELL.test(String(p.name || '')) && p.memKB >= 40 * 1024)
     .sort((a, b) => b.memKB - a.memKB)
     .slice(0, 8);
+}
+
+function devTips(dev) {
+  const tips = [];
+  const next = dev.find((p) => /^node \(Next\.js\)/i.test(String(p.name || '')) && p.memKB >= 800 * 1024);
+  if (next) {
+    tips.push('Next.js keeps every page it has compiled in memory, so a dev server grows as you open pages (' + fmtMem(next.memKB) + ' now). Stopping it and starting it again frees that memory.');
+    tips.push('In next.config, try experimental: { webpackMemoryOptimizations: true } (Next.js 15 or newer). It lowers peak memory for a small cost in compile time.');
+    tips.push('Removing unused packages helps too. The Next.js bundle analyzer shows which dependencies are largest.');
+  }
+  const cap = Number(_optSettings.nodeMemMB) || 0;
+  if (!cap && dev.some((p) => /^node/i.test(String(p.name || '')) && p.memKB >= 400 * 1024)) {
+    tips.push('Set the Node memory limit below, then restart the server. If a server later stops with "heap out of memory", raise the limit.');
+  }
+  return tips;
+}
+function renderOptimizer(snap) {
+  const waka = snap.processes.filter((p) => /^wakatime-cli/i.test(String(p.name || '')));
+  const dev = devList(snap);
   let body = '';
   if (waka.length > 2) {
     const mem = waka.reduce((a, p) => a + p.memKB, 0);
@@ -832,16 +850,22 @@ function renderOptimizer(snap) {
   }
   if (dev.length) {
     const total = dev.reduce((a, p) => a + p.memKB, 0);
-    body += '<div class="pt-hint" style="margin-top:12px">Programs you started in terminals (' + esc(fmtMem(total)) + ')</div>';
+    body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Programs you started in terminals</strong> <span class="pt-cell-muted">' + esc(fmtMem(total)) + ' in total</span></div>' +
+      (dev.length > 1 ? '<button type="button" class="pt-btn" data-opt="killall">Stop all</button>' : '') + '</div>';
     for (const p of dev) {
       body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(p.name) + '</strong> <span class="pt-cell-muted">PID ' + p.pid + '</span></div>' +
         '<span class="pt-opt-mem">' + esc(fmtMem(p.memKB)) + '</span>' +
         '<button type="button" class="pt-btn" data-opt="kill" data-pid="' + p.pid + '">Stop</button></div>';
     }
+    const tips = devTips(dev);
+    if (tips.length) {
+      body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Ways to use less memory</strong><br>' +
+        tips.map((t) => '&bull; ' + esc(t)).join('<br>') + '</div></div>';
+    }
   } else if (waka.length <= 2) {
     body += '<div class="pt-empty">Nothing heavy is running in terminals right now.</div>';
   }
-  let current = Number(_optSettings.nodeMemMB) || 0;
+  const current = Number(_optSettings.nodeMemMB) || 0;
   let options = OPT_CAPS.map((c) => '<option value="' + c[0] + '"' + (c[0] === current ? ' selected' : '') + '>' + c[1] + '</option>').join('');
   if (current && !OPT_CAPS.some((c) => c[0] === current)) {
     options += '<option value="' + current + '" selected>' + current + ' MB</option>';
@@ -873,10 +897,17 @@ async function onOptClick(e) {
     return;
   }
   const kind = btn.dataset.opt;
-  if (kind === 'kill' && !window.confirm('Stop this program? Whatever it serves goes offline until you start it again.')) return;
+  let pids = [];
+  if (kind === 'kill') {
+    if (!window.confirm('Stop this program? Whatever it serves goes offline until you start it again.')) return;
+    pids = [Number(btn.dataset.pid)];
+  } else if (kind === 'killall') {
+    pids = _snap ? devList(_snap).map((p) => p.pid) : [];
+    if (!pids.length || !window.confirm('Stop all ' + pids.length + ' programs listed? Anything they serve goes offline until you start them again.')) return;
+  }
   _optBusy = true;
   try {
-    const res = kind === 'waka' ? await api.killWaka() : await api.kill([Number(btn.dataset.pid)]);
+    const res = kind === 'waka' ? await api.killWaka() : await api.kill(pids);
     if (res && res.killed) _optMsg = 'Stopped ' + res.killed + ' process' + (res.killed === 1 ? '' : 'es') + '.';
     else _optMsg = (res && res.error) || 'Nothing was stopped.';
   } catch (err) {
