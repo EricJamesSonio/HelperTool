@@ -6,6 +6,7 @@
 
 import * as fileSeederTool from '../../fileSeederTool.js';
 import * as locDetector from '../../locDetector.js';
+import * as codebaseMap from '../../codebaseMap.js';
 import { close as closeServiceTracker } from '../../serviceTracker.js';
 import { closeConfig as closeCliConfig } from '../../shortcuts/ui.js';
 import { state as csState } from '../../codeswampUI/state.js';
@@ -98,6 +99,9 @@ export default class PanelRegistry {
 
     // LOC Detector
     if (locDetector.isOpen()) locDetector.close();
+
+    // Codebase Map
+    if (codebaseMap.isOpen()) codebaseMap.closeCodebaseMap();
 
     if (this._diffViewer?.isOpen?.()) this._diffViewer.close();
     if (this._fileViewer?.isOpen?.()) this._fileViewer.close();
