@@ -2,6 +2,7 @@ import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=repo,read:user&description=Helper%20Tool';
+const DEV_URL = 'https://github.com/settings/developers';
 
 const SVG = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ';
 const I_USER = SVG + 'width="18" height="18"><circle cx="10" cy="7" r="3.2"/><path d="M3.5 17c.6-3.3 3.2-5 6.5-5s5.9 1.7 6.5 5"/></svg>';
@@ -9,6 +10,7 @@ const I_TRASH = SVG + 'width="15" height="15"><path d="M4 6h12"/><path d="M8 6V4
 const I_CHECK = SVG + 'width="14" height="14"><path d="M4 10.5l4 4 8-9"/></svg>';
 const I_PLUS = SVG + 'width="14" height="14"><path d="M10 4v12M4 10h12"/></svg>';
 const I_SYS = SVG + 'width="16" height="16"><rect x="2.5" y="4" width="15" height="10" rx="1.5"/><path d="M7 17h6M10 14v3"/></svg>';
+const I_GH = '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
 
 let btn = null;
 let panel = null;
@@ -18,11 +20,13 @@ let secure = true;
 let loading = false;
 let busy = null;
 let formOpen = false;
-let focusToken = false;
+let setupOpen = false;
+let login = null;
+let focusSel = '';
 let msg = null;
 let msgTimer = 0;
 let seq = 0;
-const formVals = { token: '', label: '' };
+const formVals = { token: '', label: '', clientId: '' };
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -34,6 +38,14 @@ function esc(s) {
 
 function api() {
   return window.gitAccountsAPI || null;
+}
+
+function authApi() {
+  return window.gitAuthAPI || null;
+}
+
+function openUrl(url) {
+  if (window.electronAPI && window.electronAPI.openExternal) window.electronAPI.openExternal(url);
 }
 
 function injectCss() {
@@ -119,6 +131,41 @@ function rowHtml(acc) {
   '</div>';
 }
 
+function addHtml() {
+  return '<button type="button" class="ga-signin" data-act="signin"' + (busy ? ' disabled' : '') + '>' + I_GH + '<span>Sign in with GitHub</span></button>' +
+    '<div class="ga-alt"><a class="ga-link" data-act="open-form">Use a token instead</a></div>';
+}
+
+function loginHtml() {
+  let body = '';
+  if (login.phase === 'starting') {
+    body = '<div class="ga-wait"><span class="ga-spin"></span><span>Contacting GitHub...</span></div>';
+  } else {
+    body = '<div class="ga-lbl">Enter this code on GitHub</div>' +
+      '<div class="ga-code"><span class="ga-code-val">' + esc(login.userCode) + '</span>' +
+      '<button type="button" class="ga-btn" data-act="copy-code">Copy</button></div>' +
+      '<div class="ga-hint">Your browser opened GitHub and the code is already copied. Log in, paste it and approve. This finishes by itself.</div>' +
+      '<div class="ga-wait"><span class="ga-spin"></span><span>Waiting for approval...</span></div>';
+  }
+  const again = login.phase === 'waiting' ? '<button type="button" class="ga-btn" data-act="open-verify">Open GitHub again</button>' : '';
+  return '<div class="ga-login">' + body +
+    '<div class="ga-form-actions">' + again + '<button type="button" class="ga-btn" data-act="cancel-login">Cancel</button></div>' +
+  '</div>';
+}
+
+function setupHtml() {
+  return '<div class="ga-form">' +
+    '<div class="ga-lbl">One-time setup</div>' +
+    '<div class="ga-hint">Create an OAuth App on GitHub (<a class="ga-link" data-act="dev-page">open developer settings</a>), tick Enable Device Flow, then paste its Client ID here.</div>' +
+    '<label class="ga-lbl" for="gaClient">Client ID</label>' +
+    '<input id="gaClient" class="ga-in" type="text" autocomplete="off" spellcheck="false" placeholder="Ov23li..." value="' + esc(formVals.clientId) + '">' +
+    '<div class="ga-form-actions">' +
+      '<button type="button" class="ga-btn" data-act="cancel-setup">Cancel</button>' +
+      '<button type="button" class="ga-btn primary" data-act="save-client">Save and sign in</button>' +
+    '</div>' +
+  '</div>';
+}
+
 function formHtml() {
   const adding = busy && busy.kind === 'add';
   return '<div class="ga-form">' +
@@ -150,7 +197,10 @@ function panelHtml() {
     if (!accounts.length) h += '<div class="ga-empty">No saved accounts yet. Add one to get started.</div>';
   }
   h += '</div>';
-  h += formOpen ? formHtml() : '<button type="button" class="ga-add" data-act="open-form"' + (busy ? ' disabled' : '') + '>' + I_PLUS + '<span>Add account</span></button>';
+  if (login) h += loginHtml();
+  else if (setupOpen) h += setupHtml();
+  else if (formOpen) h += formHtml();
+  else h += addHtml();
   if (msg) h += '<div class="ga-msg' + (msg.warn ? ' warn' : '') + '">' + esc(msg.text) + '</div>';
   if (!secure && !loading) h += '<div class="ga-note">Secure storage is unavailable here, so tokens are saved without encryption.</div>';
   return h;
@@ -169,10 +219,11 @@ function render() {
   panel.innerHTML = panelHtml();
   panel.classList.toggle('ga-busy', !!busy);
   position();
-  if (focusToken) {
-    focusToken = false;
-    const t = panel.querySelector('#gaToken');
-    if (t) t.focus();
+  if (focusSel) {
+    const sel = focusSel;
+    focusSel = '';
+    const el = panel.querySelector(sel);
+    if (el) el.focus();
   }
 }
 
@@ -239,6 +290,92 @@ async function switchTo(id) {
   render();
 }
 
+async function startLogin() {
+  const auth = authApi();
+  if (!auth) {
+    setMsg('Fully restart the app to enable browser sign in.', true);
+    render();
+    return;
+  }
+  if (busy || login) return;
+  setMsg(null);
+  formOpen = false;
+  setupOpen = false;
+  login = { phase: 'starting', userCode: '', uri: '' };
+  render();
+  try {
+    const res = await auth.loginStart();
+    if (res && res.success) {
+      login = { phase: 'waiting', userCode: res.userCode, uri: res.verificationUri };
+    } else if (res && res.needsSetup) {
+      login = null;
+      setupOpen = true;
+      focusSel = '#gaClient';
+      if (res.error) setMsg(res.error, true);
+    } else {
+      login = null;
+      setMsg((res && res.error) || 'Could not start sign in.', true);
+    }
+  } catch (err) {
+    login = null;
+    setMsg(err && err.message ? err.message : 'Could not start sign in.', true);
+  }
+  render();
+}
+
+async function cancelLogin() {
+  const auth = authApi();
+  login = null;
+  render();
+  if (auth) {
+    try {
+      await auth.loginCancel();
+    } catch (_) {}
+  }
+}
+
+async function saveClientId() {
+  const auth = authApi();
+  if (!auth) return;
+  const value = formVals.clientId.trim();
+  if (!value) {
+    setMsg('Paste the Client ID first.', true);
+    render();
+    return;
+  }
+  try {
+    const res = await auth.setClientId(value);
+    if (res && res.success) {
+      setupOpen = false;
+      setMsg(null);
+      startLogin();
+    } else {
+      setMsg((res && res.error) || 'Could not save the Client ID.', true);
+      render();
+    }
+  } catch (err) {
+    setMsg(err && err.message ? err.message : 'Could not save the Client ID.', true);
+    render();
+  }
+}
+
+async function onLoginResult(res) {
+  login = null;
+  if (res && res.success) {
+    accounts = res.accounts || accounts;
+    updateButton();
+    const who = res.account ? '@' + res.account.username : 'Account';
+    if (res.account && state.selectedRepoPath) {
+      await switchTo(res.account.id);
+      return;
+    }
+    setMsg(who + ' signed in. Select a repo to use it.');
+  } else if (res && !res.cancelled) {
+    setMsg((res && res.error) || 'Sign in failed.', true);
+  }
+  render();
+}
+
 async function addAccount() {
   const a = api();
   if (!a || busy) return;
@@ -300,20 +437,40 @@ async function removeAccount(id) {
   render();
 }
 
+function copyCode() {
+  if (!login || !login.userCode) return;
+  try {
+    navigator.clipboard.writeText(login.userCode);
+    setMsg('Code copied.');
+  } catch (_) {
+    setMsg('Could not copy the code.', true);
+  }
+  render();
+}
+
 function onPanelClick(e) {
   const actEl = e.target.closest('[data-act]');
   if (actEl) {
     const act = actEl.dataset.act;
     if (act === 'del') removeAccount(actEl.dataset.id);
+    else if (act === 'signin') startLogin();
+    else if (act === 'cancel-login') cancelLogin();
+    else if (act === 'copy-code') copyCode();
+    else if (act === 'open-verify' && login) openUrl(login.uri);
+    else if (act === 'save-client') saveClientId();
+    else if (act === 'cancel-setup') {
+      setupOpen = false;
+      render();
+    } else if (act === 'dev-page') openUrl(DEV_URL);
     else if (act === 'open-form') {
       formOpen = true;
-      focusToken = true;
+      focusSel = '#gaToken';
       render();
     } else if (act === 'cancel-form') {
       formOpen = false;
       render();
     } else if (act === 'submit-form') addAccount();
-    else if (act === 'token-page' && window.electronAPI && window.electronAPI.openExternal) window.electronAPI.openExternal(TOKEN_URL);
+    else if (act === 'token-page') openUrl(TOKEN_URL);
     return;
   }
   const row = e.target.closest('.ga-row');
@@ -324,12 +481,17 @@ function onPanelInput(e) {
   const t = e.target;
   if (t.id === 'gaToken') formVals.token = t.value;
   else if (t.id === 'gaLabel') formVals.label = t.value;
+  else if (t.id === 'gaClient') formVals.clientId = t.value;
 }
 
 function onPanelKey(e) {
-  if (e.key === 'Enter' && (e.target.id === 'gaToken' || e.target.id === 'gaLabel')) {
+  if (e.key !== 'Enter') return;
+  if (e.target.id === 'gaToken' || e.target.id === 'gaLabel') {
     e.preventDefault();
     addAccount();
+  } else if (e.target.id === 'gaClient') {
+    e.preventDefault();
+    saveClientId();
   }
 }
 
@@ -401,6 +563,8 @@ function init() {
   window.addEventListener('resize', () => {
     if (isOpen()) position();
   });
+  const auth = authApi();
+  if (auth && auth.onLoginResult) auth.onLoginResult(onLoginResult);
   refresh();
 }
 
