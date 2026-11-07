@@ -1,0 +1,335 @@
+.git-account-btn {
+  position: relative;
+}
+.git-account-btn.has-account::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green, #2dd4b0);
+  border: 2px solid var(--bg-surface, #0c1427);
+}
+.git-account-btn .ga-btn-av {
+  display: flex;
+}
+
+.ga-av {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--bg-active, #1f2a44);
+  color: var(--text-primary, #eef2ff);
+  font: 700 14px var(--font-ui, sans-serif);
+  text-transform: uppercase;
+}
+.ga-av img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ga-av.sm {
+  flex-basis: 22px;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+}
+.ga-av-sys {
+  background: var(--bg-elevated, #141d33);
+  color: var(--text-secondary, #94a3c4);
+}
+
+.ga-panel {
+  position: fixed;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  max-width: calc(100vw - 16px);
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--bg-surface, #0c1427);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-ui, sans-serif);
+  color: var(--text-secondary, #94a3c4);
+}
+.ga-panel[hidden] {
+  display: none;
+}
+.ga-panel.ga-busy {
+  cursor: progress;
+}
+.ga-panel.ga-busy .ga-row,
+.ga-panel.ga-busy .ga-del {
+  pointer-events: none;
+}
+
+.ga-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ga-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #eef2ff);
+}
+.ga-repo {
+  max-width: 150px;
+  margin-left: auto;
+  padding: 1px 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 99px;
+  background: var(--bg-active, #1f2a44);
+  font-size: 11px;
+  color: var(--text-secondary, #94a3c4);
+}
+.ga-intro {
+  margin: 6px 0 10px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7a99);
+}
+
+.ga-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ga-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ga-row:hover {
+  background: var(--bg-hover, #18223a);
+}
+.ga-row.active {
+  background: rgba(47, 129, 247, 0.18);
+  border-color: var(--ide-blue, #2f81f7);
+}
+.ga-row.busy {
+  opacity: 0.85;
+}
+.ga-info {
+  flex: 1;
+  min-width: 0;
+}
+.ga-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #eef2ff);
+}
+.ga-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-muted, #6b7a99);
+}
+.ga-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #58a6ff;
+}
+.ga-del {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #6b7a99);
+  cursor: pointer;
+}
+.ga-row:hover .ga-del {
+  display: inline-flex;
+}
+.ga-del:hover {
+  background: var(--red-dim, rgba(248, 81, 73, 0.15));
+  color: var(--red, #f87171);
+}
+.ga-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7a99);
+}
+
+.ga-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7a99);
+}
+.ga-skel {
+  height: 50px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--bg-elevated, #141d33) 25%, var(--bg-hover, #18223a) 50%, var(--bg-elevated, #141d33) 75%);
+  background-size: 200% 100%;
+  animation: ga-shimmer 1.2s linear infinite;
+}
+@keyframes ga-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.ga-spin {
+  display: inline-block;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-default, rgba(255, 255, 255, 0.2));
+  border-top-color: #58a6ff;
+  border-radius: 50%;
+  animation: ga-rot 0.7s linear infinite;
+}
+@keyframes ga-rot {
+  to { transform: rotate(360deg); }
+}
+
+.ga-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px dashed var(--border-default, rgba(255, 255, 255, 0.2));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary, #94a3c4);
+  font: 600 12px var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+.ga-add:hover:not(:disabled) {
+  border-color: var(--ide-blue, #2f81f7);
+  color: #58a6ff;
+}
+.ga-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ga-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 8px;
+  background: var(--bg-elevated, #141d33);
+}
+.ga-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3c4);
+}
+.ga-in {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  outline: 0;
+  background: var(--bg-base, #070d1c);
+  color: var(--text-primary, #eef2ff);
+  font: 13px var(--font-mono, monospace);
+}
+.ga-in:focus {
+  border-color: var(--ide-blue, #2f81f7);
+}
+.ga-in:disabled {
+  opacity: 0.6;
+}
+.ga-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted, #6b7a99);
+}
+.ga-link {
+  color: #58a6ff;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ga-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.ga-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  background: var(--bg-surface, #0c1427);
+  color: var(--text-primary, #eef2ff);
+  font: 600 12px var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+.ga-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ga-btn.primary {
+  border-color: var(--ide-blue, #2f81f7);
+  background: var(--ide-blue, #2f81f7);
+  color: #fff;
+}
+.ga-btn.primary .ga-spin {
+  border-color: rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+}
+
+.ga-msg {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(47, 129, 247, 0.14);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary, #eef2ff);
+}
+.ga-msg.warn {
+  background: var(--red-dim, rgba(248, 81, 73, 0.14));
+  color: var(--red, #f87171);
+}
+.ga-note {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted, #6b7a99);
+}

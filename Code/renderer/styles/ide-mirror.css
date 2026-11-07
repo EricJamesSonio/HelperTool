@@ -1,0 +1,54 @@
+body.ide-sb-right .ide-sidebar .ide-section-head,
+body.ide-sb-right .ide-sidebar .ide-tree,
+body.ide-sb-right .ide-sidebar .ide-oe-body {
+  direction: rtl;
+}
+
+body.ide-sb-right .ide-sidebar .ide-name,
+body.ide-sb-right .ide-sidebar .ide-sec-name,
+body.ide-sb-right .ide-sidebar .ide-sec-count {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+body.ide-sb-right .ide-sidebar .ide-section-head {
+  padding: 0 2px 0 8px;
+}
+
+body.ide-sb-right .ide-sidebar .ide-row {
+  padding-left: 8px;
+  padding-right: calc(var(--d, 0) * 12px + 4px);
+}
+
+body.ide-sb-right .ide-sidebar .ide-row.active {
+  box-shadow: inset -3px 0 0 var(--ide-blue, var(--accent));
+}
+
+body.ide-sb-right .ide-sidebar .ide-oe-item {
+  padding: 0 4px 0 8px;
+}
+
+body.ide-sb-right .ide-sidebar .ide-oe-item.active {
+  box-shadow: inset -3px 0 0 var(--ide-blue, var(--accent));
+}
+
+body.ide-sb-right .ide-sidebar .ide-note {
+  padding: 2px calc(var(--d, 0) * 12px + 24px) 2px 8px;
+}
+
+body.ide-sb-right .ide-sidebar .ide-empty {
+  direction: ltr;
+  text-align: right;
+}
+
+body.ide-sb-right .ide-sidebar .ide-row.folder:not(.open) .ide-chev::before {
+  transform: scaleX(-1);
+}
+
+body.ide-sb-right .ide-sidebar .ide-row.folder.open .ide-chev::before {
+  transform: rotate(90deg);
+}
+
+body.ide-sb-right .ide-sidebar .ide-section.collapsed > .ide-section-head .ide-sec-chev::before {
+  transform: scaleX(-1);
+}
