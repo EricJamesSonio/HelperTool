@@ -1,0 +1,120 @@
+:root {
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+}
+
+.navbar-row--primary button,
+.navbar-row--primary .search-input,
+.navbar-row--primary .generate-mode-menu {
+  border-radius: var(--r-md);
+}
+.generate-split-btn .generate-btn {
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+.generate-split-btn .generate-mode-toggle {
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+.repo-name {
+  border-radius: var(--r-sm);
+}
+.tools-sidebar-item {
+  border-radius: var(--r-md);
+}
+.zoom-btn {
+  border-radius: var(--r-sm);
+}
+.gen-viewer {
+  border-radius: var(--r-lg);
+}
+.gen-viewer-btn {
+  border-radius: var(--r-sm);
+}
+.col-count {
+  border-radius: var(--r-sm);
+}
+.toggle-badge {
+  border-radius: var(--r-sm);
+}
+
+.ide-wk {
+  border-radius: var(--r-md);
+}
+.ide-wk-keys kbd {
+  border-radius: var(--r-sm);
+}
+.ide-notice {
+  border-radius: var(--r-md);
+}
+.ide-sec-count {
+  border-radius: var(--r-sm);
+}
+.ide-find {
+  border-radius: var(--r-md);
+}
+.ide-sm {
+  border-radius: var(--r-lg);
+}
+.ide-sm-tag {
+  border-radius: var(--r-xs);
+}
+.ide-sm-gcount {
+  border-radius: var(--r-xs);
+}
+.ide-sm-rbtn,
+.ide-sm-rep-in,
+.ide-sm-rep-target {
+  border-radius: var(--r-sm);
+}
+
+body.ide-mode {
+  --navbar-h: 48px;
+}
+
+body.ide-mode .navbar-row--primary {
+  gap: 12px;
+  padding: 0 14px;
+  box-shadow: none;
+}
+
+body.ide-mode #treeSearchInput,
+body.ide-mode #shortcutModeBtn,
+body.ide-mode #clearSelectionBtn,
+body.ide-mode #searchSuggestions,
+body.ide-mode .navbar-row--primary .navbar-section.center {
+  display: none !important;
+}
+
+body.ide-mode .navbar-row--primary .search-container {
+  gap: 0;
+}
+
+body.ide-mode .navbar-row--primary .primary-btn,
+body.ide-mode .navbar-row--primary .action-btn,
+body.ide-mode .navbar-row--primary .nav-btn,
+body.ide-mode .navbar-row--primary .view-mode-btn,
+body.ide-mode .navbar-row--primary .global-seeder-navbar-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+body.ide-mode .navbar-row--primary .tool-btn,
+body.ide-mode .navbar-row--primary .eg-nav-btn {
+  width: 30px;
+  height: 30px;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section {
+  gap: 8px;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section + .navbar-section::before {
+  height: 20px;
+}
+
+body.ide-mode .navbar-row--primary .repo-name {
+  padding: 2px 10px;
+  font-size: 11px;
+}
