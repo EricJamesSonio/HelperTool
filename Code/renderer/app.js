@@ -82,6 +82,8 @@ import { init as initServiceTracker } from './serviceTracker.js';
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 import * as essentialsGlossary from './essentialsGlossary.js';
 import { openShortcutSetup, onShortcutSave, showConfirmDialog } from './shortcut-setup.js';
+import './ideMode/index.js';
+
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
