@@ -7,11 +7,13 @@ const KEY_URL = 'https://wakatime.com/api-key';
 const DASH_URL = 'https://wakatime.com/dashboard';
 const MIN_GAP = 10000;
 const TODAY_EVERY = 60000;
+const CTX_EVERY = 5000;
 
 let st = { installed: false, hasKey: false };
 let item = null;
 let panel = null;
-let today = '';
+let todayText = '';
+let projects = [];
 let busy = '';
 let msg = null;
 let keyForm = false;
@@ -21,6 +23,10 @@ let started = false;
 
 function api() {
   return window.wakaAPI || null;
+}
+
+function ctxApi() {
+  return window.wakaCtxAPI || null;
 }
 
 function isOff() {
@@ -67,26 +73,43 @@ function fileOk(p) {
   return true;
 }
 
-function beat(write) {
-  const a = api();
-  if (!a || isOff() || !st.installed || !st.hasKey) return;
+function gatherContext() {
+  const c = { repo: state.selectedRepoPath || '', file: '', line: 0, col: 0, lines: 0, paused: isOff() };
+  if (!document.body.classList.contains('ide-mode')) return c;
   const file = getActivePath();
-  if (!fileOk(file)) return;
-  const now = Date.now();
-  if (!write && file === last.file && now - last.at < MIN_GAP) return;
-  last = { file, at: now };
-  const payload = { file, write: !!write, repo: state.selectedRepoPath || '' };
   const wrap = document.querySelector('.ide-codewrap');
+  if (!fileOk(file) || !wrap || wrap.hidden) return c;
+  c.file = file;
   const ta = document.querySelector('.ide-ta');
-  if (ta && wrap && !wrap.hidden) {
+  if (ta) {
     const v = ta.value;
     const pos = ta.selectionStart;
     const ls = pos === 0 ? 0 : v.lastIndexOf('\n', pos - 1) + 1;
-    payload.line = countLines(v.slice(0, pos));
-    payload.col = pos - ls + 1;
-    payload.lines = countLines(v);
+    c.line = countLines(v.slice(0, pos));
+    c.col = pos - ls + 1;
+    c.lines = countLines(v);
   }
-  a.heartbeat(payload).catch(() => {});
+  return c;
+}
+
+function pushContext() {
+  const a = ctxApi();
+  if (!a) return;
+  try {
+    const r = a.context(gatherContext());
+    if (r && typeof r.catch === 'function') r.catch(() => {});
+  } catch (_) {}
+}
+
+function beat(write) {
+  const a = api();
+  if (!a || isOff() || !st.installed || !st.hasKey) return;
+  const c = gatherContext();
+  if (!c.file) return;
+  const now = Date.now();
+  if (!write && c.file === last.file && now - last.at < MIN_GAP) return;
+  last = { file: c.file, at: now };
+  a.heartbeat({ file: c.file, write: !!write, repo: c.repo, line: c.line, col: c.col, lines: c.lines }).catch(() => {});
 }
 
 function onActivity(e) {
@@ -100,7 +123,12 @@ function onActivity(e) {
     beat(false);
     return;
   }
-  if (t.closest('.ide-tab, .ide-row.file, .ide-oe-item')) setTimeout(() => beat(false), 250);
+  if (t.closest('.ide-tab, .ide-row.file, .ide-oe-item')) {
+    setTimeout(() => {
+      pushContext();
+      beat(false);
+    }, 250);
+  }
 }
 
 async function refreshStatus() {
@@ -115,15 +143,23 @@ async function refreshStatus() {
 async function refreshToday() {
   const a = api();
   if (!a || !st.installed || !st.hasKey) {
-    today = '';
+    todayText = '';
+    projects = [];
     renderItem();
     return;
   }
   try {
     const res = await a.today();
-    today = res && res.success ? String(res.text || '').trim() : '';
+    if (res && res.success) {
+      todayText = String(res.total || '').trim();
+      projects = Array.isArray(res.projects) ? res.projects : [];
+    } else {
+      todayText = '';
+      projects = [];
+    }
   } catch (_) {
-    today = '';
+    todayText = '';
+    projects = [];
   }
   renderItem();
   renderPanel();
@@ -133,7 +169,7 @@ function itemLabel() {
   if (!st.installed) return { text: 'WakaTime: set up', warn: true };
   if (!st.hasKey) return { text: 'WakaTime: add key', warn: true };
   if (isOff()) return { text: 'WakaTime: paused', warn: true };
-  return { text: 'WakaTime ' + (today || '...'), warn: false };
+  return { text: 'WakaTime ' + (todayText || '...'), warn: false };
 }
 
 function renderItem() {
@@ -147,10 +183,16 @@ function setMsg(text, warn) {
   msg = text ? { text, warn: !!warn } : null;
 }
 
+function projectsHtml() {
+  return projects.slice(0, 4).map((p) =>
+    '<div class="waka-proj"><span class="waka-proj-name">' + esc(p.name) + '</span><span class="waka-proj-val">' + esc(p.text) + '</span></div>'
+  ).join('');
+}
+
 function panelHtml() {
   let h = '<div class="waka-title">WakaTime</div>';
   if (!st.installed) {
-    h += '<div class="waka-text">Tracks the time you spend coding in this IDE. The official WakaTime program is downloaded once to your user folder.</div>';
+    h += '<div class="waka-text">Tracks the time you spend in Helper Tool. The official WakaTime program is downloaded once to your user folder.</div>';
     h += '<button type="button" class="waka-btn primary" data-act="install"' + (busy ? ' disabled' : '') + '>' +
       (busy === 'install' ? '<span class="waka-spin"></span>Downloading...' : 'Install WakaTime') + '</button>';
   } else if (!st.hasKey || keyForm) {
@@ -160,7 +202,9 @@ function panelHtml() {
       (st.hasKey ? '<button type="button" class="waka-btn" data-act="cancel-key">Cancel</button>' : '') +
       '<button type="button" class="waka-btn primary" data-act="save-key"' + (busy ? ' disabled' : '') + '>Save key</button></div>';
   } else {
-    h += '<div class="waka-text">Today: <b>' + esc(today || 'no data yet') + '</b></div>';
+    h += '<div class="waka-text">Today: <b>' + esc(todayText || 'no data yet') + '</b></div>';
+    h += projectsHtml();
+    h += '<div class="waka-note">Counted while Helper Tool is open and you are active, including Flow Tool and Global Seeder file changes. WakaTime can take a few minutes to update its totals.</div>';
     h += '<div class="waka-row">' +
       '<button type="button" class="waka-btn" data-act="toggle">' + (isOff() ? 'Resume tracking' : 'Pause tracking') + '</button>' +
       '<button type="button" class="waka-btn" data-act="dash">Dashboard</button></div>';
@@ -256,9 +300,12 @@ function onPanelClick(e) {
     renderPanel();
   } else if (act === 'toggle') {
     setOff(!isOff());
+    pushContext();
     renderItem();
     renderPanel();
-  } else if (act === 'refresh') refreshToday();
+  } else if (act === 'refresh') {
+    refreshToday();
+  }
 }
 
 function onPanelInput(e) {
@@ -337,7 +384,10 @@ export async function init() {
   });
   document.addEventListener('mousedown', onDocDown, true);
   document.addEventListener('keydown', onDocKey, true);
+  document.addEventListener('repo:switched', () => setTimeout(pushContext, 200));
   window.addEventListener('resize', position);
+  pushContext();
+  setInterval(pushContext, CTX_EVERY);
   refreshToday();
   setInterval(refreshToday, TODAY_EVERY);
 }
