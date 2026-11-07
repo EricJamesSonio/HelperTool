@@ -40,6 +40,7 @@ function injectCss() {
     ['ideDiffCss', './styles/ide-diff.css'],
     ['chromeFlatCss', './styles/chrome-flat.css'],
     ['ideAccentCss', './styles/ide-accent.css'],
+    ['ideMirrorCss', './styles/ide-mirror.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;

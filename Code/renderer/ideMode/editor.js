@@ -134,6 +134,7 @@ function makeTab(path, name, media) {
     scrollLeft: 0,
     selStart: 0,
     selEnd: 0,
+    hist: null,
   };
 }
 
@@ -485,6 +486,8 @@ function showTab(tab) {
   lang = langFor(tab.name);
   els.hlInner.dataset.lang = lang;
   els.ta.value = tab.content;
+  if (!tab.hist) tab.hist = histNew(tab);
+  wireHist();
   textChanged = true;
   tabSwitched = true;
   rendered.from = -1;
@@ -708,6 +711,7 @@ export async function reloadFromDisk(path) {
   tab.content = content;
   tab.saved = content;
   tab.dirty = false;
+  tab.hist = null;
   if (isActive) showTab(tab);
   renderTabs();
   notify();
@@ -1061,6 +1065,84 @@ function indent(outdent) {
   ta.setSelectionRange(bs, bs + out.length);
 }
 
+const HIST_MAX = 400;
+const HIST_GAP = 700;
+let histWired = false;
+
+function histNew(tab) {
+  return { stack: [{ v: tab.content, s: tab.selStart || 0, e: tab.selEnd || 0 }], idx: 0, t: 0, pre: null };
+}
+
+function wireHist() {
+  if (histWired || !els) return;
+  histWired = true;
+  els.ta.addEventListener('beforeinput', () => {
+    const tab = activeTab();
+    if (!isText(tab) || !tab.hist) return;
+    tab.hist.pre = { s: els.ta.selectionStart, e: els.ta.selectionEnd };
+  });
+}
+
+function histRecord() {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  if (!tab.hist) tab.hist = histNew(tab);
+  const h = tab.hist;
+  const ta = els.ta;
+  const v = ta.value;
+  const cur = h.stack[h.idx];
+  if (cur && cur.v === v) return;
+  const now = Date.now();
+  h.stack.length = h.idx + 1;
+  const snap = { v, s: ta.selectionStart, e: ta.selectionEnd };
+  if (h.idx > 0 && now - h.t < HIST_GAP) {
+    h.stack[h.idx] = snap;
+  } else {
+    if (h.pre && cur) {
+      cur.s = h.pre.s;
+      cur.e = h.pre.e;
+    }
+    h.stack.push(snap);
+    if (h.stack.length > HIST_MAX) h.stack.shift();
+    h.idx = h.stack.length - 1;
+  }
+  h.t = now;
+  h.pre = null;
+}
+
+function histApply(snap) {
+  const ta = els.ta;
+  const st = ta.scrollTop;
+  const sl = ta.scrollLeft;
+  ta.value = snap.v;
+  try { ta.setSelectionRange(snap.s, snap.e); } catch (_) {}
+  ta.scrollTop = st;
+  ta.scrollLeft = sl;
+  textChanged = true;
+  schedule();
+  scheduleCursor();
+  const before = snap.v.slice(0, snap.s);
+  const line = before.split('\n').length - 1;
+  const col = snap.s - (before.lastIndexOf('\n') + 1);
+  revealMatch(line, col, 0, false);
+}
+
+function histStep(dir) {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  if (!tab.hist) tab.hist = histNew(tab);
+  histRecord();
+  const h = tab.hist;
+  const next = h.idx + dir;
+  if (next < 0 || next >= h.stack.length) {
+    flash(dir < 0 ? 'Nothing to undo' : 'Nothing to redo');
+    return;
+  }
+  h.idx = next;
+  h.t = 0;
+  h.pre = null;
+  histApply(h.stack[next]);
+}
 function onKeyDown(e) {
   if (e.isComposing) return;
   const mod = e.ctrlKey || e.metaKey;
@@ -1075,6 +1157,18 @@ function onKeyDown(e) {
     e.preventDefault();
     e.stopPropagation();
     if (activePath) closeTab(activePath);
+    return;
+  }
+  if (mod && !e.altKey && key === 'z') {
+    e.preventDefault();
+    e.stopPropagation();
+    histStep(e.shiftKey ? 1 : -1);
+    return;
+  }
+  if (mod && !e.altKey && !e.shiftKey && key === 'y') {
+    e.preventDefault();
+    e.stopPropagation();
+    histStep(1);
     return;
   }
   if (e.key === 'Escape' && find.open) {
@@ -1134,6 +1228,7 @@ function onMainKeyDown(e) {
 }
 
 function onInput() {
+  histRecord();
   textChanged = true;
   schedule();
   scheduleCursor();
