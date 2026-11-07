@@ -1,4 +1,7 @@
 import { escHtml, timeAgo, parseDiff } from './branchManager/utils.js';
+import { createCodeViewer } from '../shared/codeViewer.js';
+
+let viewer = null;
 
 const PAGE_SIZE = 40;
 const MAX_CODE_LINES = 3000;
@@ -124,7 +127,8 @@ function template() {
         </section>
         <section class="ins-col ins-col-preview" aria-label="Preview">
           <div class="ins-preview-head" id="insPreviewHead"></div>
-          <div class="ins-col-body" id="insPreviewBody"></div>
+          <div class="ins-note" id="insPreviewNote" hidden></div>
+          <div class="ins-col-body" id="insPreviewBody" style="display:flex;flex-direction:column;overflow:hidden"></div>
         </section>
       </div>
     </div>
@@ -456,109 +460,103 @@ function renderPreviewHead() {
     '</div>';
 }
 
-function renderCode(text) {
-  const lines = text.split(/\r\n|\r|\n/);
-  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
-  const total = lines.length;
-  const shown = lines.slice(0, MAX_CODE_LINES).map((line) => (line.length > MAX_LINE_CHARS ? line.slice(0, MAX_LINE_CHARS) + ' ...[line cut]' : line));
-  const gutter = shown.map((_, i) => i + 1).join('\n');
-  const more = total > shown.length ? '<div class="ins-note">Showing the first ' + shown.length + ' of ' + total + ' lines. Copy still copies the whole file.</div>' : '';
-  return (
-    '<div class="ins-code"><pre class="ins-gutter" aria-hidden="true">' + gutter + '</pre><pre class="ins-text">' + escHtml(shown.join('\n')) + '</pre></div>' + more
-  );
+function ensureViewer(body) {
+  if (viewer && body.contains(viewer.el)) return viewer;
+  if (viewer) viewer.destroy();
+  body.innerHTML = '';
+  const host = document.createElement('div');
+  body.appendChild(host);
+  viewer = createCodeViewer(host);
+  return viewer;
 }
 
-function renderDiff(text) {
-  const noChanges = '<div class="ins-note">No text changes to show. The file may be binary, or only its mode changed.</div>';
+function showDiffText(text, file) {
+  const rows = [];
   const at = text.startsWith('@@') ? 0 : text.indexOf('\n@@');
-  if (at < 0) return noChanges;
-  const rows = parseDiff(at === 0 ? text : text.slice(at + 1));
-  while (rows.length && rows[rows.length - 1].type === 'context' && rows[rows.length - 1].content === '') rows.pop();
-  if (!rows.length) return noChanges;
-
-  const shown = rows.slice(0, MAX_DIFF_ROWS);
-  const html = shown
-    .map((row) => {
-      const oldNo = row.oldLine === null || row.oldLine === undefined ? '' : row.oldLine;
-      const newNo = row.newLine === null || row.newLine === undefined ? '' : row.newLine;
-      const sign = row.type === 'add' ? '+' : row.type === 'del' ? '-' : '';
-      const content = row.type === 'context' ? row.content.replace(/^ /, '') : row.content;
-      return (
-        '<div class="ins-diff-line type-' + row.type + '">' +
-        '<span class="ins-ln">' + oldNo + '</span>' +
-        '<span class="ins-ln">' + newNo + '</span>' +
-        '<span class="ins-diff-sign">' + sign + '</span>' +
-        '<span class="ins-diff-text">' + escHtml(content) + '</span>' +
-        '</div>'
-      );
-    })
-    .join('');
-  const more = rows.length > shown.length ? '<div class="ins-note">Showing the first ' + shown.length + ' of ' + rows.length + ' lines. Copy still copies the whole change.</div>' : '';
-  return '<div class="ins-diff">' + html + '</div>' + more;
+  if (at >= 0) {
+    const parsed = parseDiff(at === 0 ? text : text.slice(at + 1));
+    while (parsed.length && parsed[parsed.length - 1].type === 'context' && parsed[parsed.length - 1].content === '') parsed.pop();
+    for (const row of parsed) {
+      const a = row.oldLine === null || row.oldLine === undefined ? undefined : row.oldLine;
+      const b = row.newLine === null || row.newLine === undefined ? undefined : row.newLine;
+      if (row.type === 'add') rows.push({ t: '+', text: row.content, b });
+      else if (row.type === 'del') rows.push({ t: '-', text: row.content, a });
+      else if (row.type === 'context') rows.push({ t: ' ', text: row.content.replace(/^ /, ''), a, b });
+      else if (row.type === 'header') rows.push({ t: '@', text: row.content });
+    }
+  }
+  viewer.showDiff(rows, {
+    name: file.file,
+    empty: 'No text changes to show. The file may be binary, or only its mode changed.',
+  });
 }
 
-function errorBlock(message) {
-  return '<div class="ins-empty ins-error">' + escHtml(message || 'Something went wrong.') + '</div>';
+function setPreviewNote(text) {
+  const el = $('#insPreviewNote');
+  if (!el) return;
+  el.textContent = text || '';
+  el.hidden = !text;
 }
 
 function renderPreviewBody() {
   const body = $('#insPreviewBody');
   if (!body) return;
+  const v = ensureViewer(body);
+  setPreviewNote('');
 
   if (!S.selectedHash) {
-    body.innerHTML = empty('Pick a commit, then a file, to see it as it was at that commit.');
+    v.showMessage('Pick a commit, then a file, to see it as it was at that commit.', 'muted');
     return;
   }
   const file = findFile(S.selectedFile);
   if (!file) {
-    body.innerHTML = empty('Select a file to preview it.');
+    v.showMessage('Select a file to preview it.', 'muted');
     return;
   }
   if (S.previewLoading) {
-    body.innerHTML = empty('Loading...');
+    v.showMessage('Loading...', 'muted');
     return;
   }
 
   if (S.mode === 'changes') {
-    const r = S.diffs.get(S.selectedHash + '|' + file.file);
-    if (!r) {
-      body.innerHTML = '';
-    } else if (!r.success) {
-      body.innerHTML = errorBlock(r.error);
-    } else {
-      body.innerHTML = renderDiff(r.diff || '');
+    const d = S.diffs.get(S.selectedHash + '|' + file.file);
+    if (!d) {
+      v.showMessage('', 'muted');
+      return;
     }
+    if (!d.success) {
+      v.showMessage(d.error || 'Something went wrong.', 'error');
+      return;
+    }
+    showDiffText(d.diff || '', file);
     return;
   }
 
   const r = S.contents.get(versionRev(file) + '|' + file.file);
   if (!r) {
-    body.innerHTML = '';
+    v.showMessage('', 'muted');
     return;
   }
   if (!r.success) {
-    body.innerHTML = errorBlock(r.error);
+    v.showMessage(r.error || 'Something went wrong.', 'error');
     return;
   }
-  const deletedNote =
-    file.status === 'D' ? '<div class="ins-note">This file was deleted in this commit. Showing its last version, from the parent commit.</div>' : '';
+  if (file.status === 'D') {
+    setPreviewNote('This file was deleted in this commit. Showing its last version, from the parent commit.');
+  }
   if (r.binary) {
-    body.innerHTML = deletedNote + '<div class="ins-note">This is a binary file (' + escHtml(String(r.size)) + ' bytes). It cannot be shown or copied as text.</div>';
+    v.showMessage('This is a binary file (' + r.size + ' bytes). It cannot be shown or copied as text.', 'muted');
     return;
   }
   if (r.tooLarge) {
-    body.innerHTML = deletedNote + '<div class="ins-note">This file is larger than 2 MB, so it is not loaded here.</div>';
+    v.showMessage('This file is larger than 2 MB, so it is not loaded here.', 'muted');
     return;
   }
-  body.innerHTML = deletedNote + renderCode(r.content || '');
+  v.showCode(r.content || '', { name: file.file, empty: 'This file is empty at this commit.' });
 }
 
 function resetPreviewScroll() {
-  const body = $('#insPreviewBody');
-  if (body) {
-    body.scrollTop = 0;
-    body.scrollLeft = 0;
-  }
+  if (viewer) viewer.resetScroll();
 }
 
 /* ---------- loading ---------- */
