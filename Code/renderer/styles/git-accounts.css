@@ -333,3 +333,61 @@
   font-size: 11px;
   color: var(--text-muted, #6b7a99);
 }
+.ga-signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--ide-blue, #2f81f7);
+  border-radius: 8px;
+  background: var(--ide-blue, #2f81f7);
+  color: #fff;
+  font: 600 13px var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+.ga-signin:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.ga-signin:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ga-alt {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 11px;
+}
+.ga-login {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 8px;
+  background: var(--bg-elevated, #141d33);
+}
+.ga-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-base, #070d1c);
+}
+.ga-code-val {
+  font: 700 22px var(--font-mono, monospace);
+  letter-spacing: 3px;
+  color: var(--text-primary, #eef2ff);
+}
+.ga-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7a99);
+}

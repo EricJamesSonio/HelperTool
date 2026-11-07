@@ -1,0 +1,114 @@
+.ide-waka-item {
+  cursor: pointer;
+}
+.ide-waka-item:hover {
+  color: var(--text-primary, #eef2ff);
+}
+.ide-waka-item.warn {
+  color: var(--yellow, #fbbf24);
+}
+
+.waka-panel {
+  position: fixed;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  padding: 12px;
+  background: var(--bg-surface, #0c1427);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-ui, sans-serif);
+  color: var(--text-secondary, #94a3c4);
+}
+.waka-panel[hidden] {
+  display: none;
+}
+.waka-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #eef2ff);
+}
+.waka-text {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.waka-text b {
+  color: var(--text-primary, #eef2ff);
+}
+.waka-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.waka-in {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  outline: 0;
+  background: var(--bg-base, #070d1c);
+  color: var(--text-primary, #eef2ff);
+  font: 13px var(--font-mono, monospace);
+}
+.waka-in:focus {
+  border-color: var(--ide-blue, #2f81f7);
+}
+.waka-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  background: var(--bg-elevated, #141d33);
+  color: var(--text-primary, #eef2ff);
+  font: 600 12px var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+.waka-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.waka-btn.primary {
+  border-color: var(--ide-blue, #2f81f7);
+  background: var(--ide-blue, #2f81f7);
+  color: #fff;
+}
+.waka-link {
+  font-size: 11px;
+  color: #58a6ff;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.waka-msg {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(47, 129, 247, 0.14);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary, #eef2ff);
+}
+.waka-msg.warn {
+  background: var(--red-dim, rgba(248, 81, 73, 0.14));
+  color: var(--red, #f87171);
+}
+.waka-spin {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: waka-rot 0.7s linear infinite;
+}
+@keyframes waka-rot {
+  to { transform: rotate(360deg); }
+}
