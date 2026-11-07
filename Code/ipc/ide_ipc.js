@@ -1,0 +1,508 @@
+const { ipcMain } = require('electron');
+const fs = require('fs');
+const path = require('path');
+
+const MAX_ENTRIES = 5000;
+
+const SKIP_DIRS = new Set([
+  'node_modules', '.git', '.next', 'dist', 'build', 'coverage', '.cache', '__pycache__', '.swc',
+  'playwright-report', 'test-results', '.turbo', '.parcel-cache', '.nuxt', '.svelte-kit',
+  'vendor', '.venv', 'venv', 'target', '.gradle', '.idea',
+]);
+const SKIP_EXT = new Set('png jpg jpeg gif webp bmp ico icns pdf zip gz tgz rar 7z exe dll so dylib node wasm mp3 mp4 mov avi mkv webm woff woff2 ttf otf eot db sqlite bin class jar map'.split(' '));
+const SKIP_NAMES = new Set(['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
+
+const MAX_FILES = 20000;
+const MAX_FILE_BYTES = 1000000;
+const CORPUS_CHARS = 60000000;
+const FRESH_MS = 15000;
+const LIST_TTL = 60000;
+const WARM_GAP = 10000;
+const BATCH = 40;
+const PER_FILE = 25;
+const PER_FILE_NEAR = 10;
+const HARD_CAP = 1500;
+const NEAR_THRESHOLD = 40;
+const NEAR_CAP = 800;
+const FLUSH_MS = 70;
+
+const WORD = /[A-Za-z0-9_$]/;
+const WORD_RE = /[A-Za-z0-9_$]+/g;
+
+const sessions = new Map();
+let listCache = { root: null, at: 0, files: null };
+let corpus = { root: null, map: new Map(), chars: 0 };
+let warming = null;
+let lastWarm = { root: null, at: 0 };
+
+function tick() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+function byName(a, b) {
+  if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+}
+
+async function entryType(dirent, fullPath) {
+  if (dirent.isDirectory()) return 'folder';
+  if (dirent.isSymbolicLink()) {
+    try {
+      const st = await fs.promises.stat(fullPath);
+      return st.isDirectory() ? 'folder' : 'file';
+    } catch (_) {
+      return 'file';
+    }
+  }
+  return 'file';
+}
+
+async function readDir(dirPath) {
+  const dirents = await fs.promises.readdir(dirPath, { withFileTypes: true });
+  const entries = await Promise.all(dirents.map(async (d) => {
+    const full = path.join(dirPath, d.name);
+    return { name: d.name, path: full, type: await entryType(d, full) };
+  }));
+  entries.sort(byName);
+  const truncated = entries.length > MAX_ENTRIES;
+  return { entries: truncated ? entries.slice(0, MAX_ENTRIES) : entries, truncated };
+}
+
+function relOf(root, file) {
+  return path.relative(root, file).split(path.sep).join('/');
+}
+
+function editDistance(a, b, max) {
+  const al = a.length;
+  const bl = b.length;
+  if (Math.abs(al - bl) > max) return max + 1;
+  let prev = new Array(bl + 1);
+  for (let j = 0; j <= bl; j++) prev[j] = j;
+  for (let i = 1; i <= al; i++) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= bl; j++) {
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      cur[j] = v;
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    prev = cur;
+  }
+  return prev[bl];
+}
+
+function isSubsequence(q, w) {
+  let qi = 0;
+  for (let i = 0; i < w.length && qi < q.length; i++) {
+    if (w[i] === q[qi]) qi++;
+  }
+  return qi === q.length;
+}
+
+function snippetOf(line, col, len) {
+  const start = Math.max(0, col - 50);
+  const raw = line.slice(start, start + 200);
+  const trimmed = raw.replace(/^\s+/, '');
+  const lead = raw.length - trimmed.length;
+  const text = trimmed.replace(/\s+$/, '');
+  return { text, hs: Math.max(0, col - start - lead), hl: len, more: start > 0 };
+}
+
+function mk(root, file, lineNo, line, col, len, score, kind) {
+  const sn = snippetOf(line, col, len);
+  return {
+    file,
+    rel: relOf(root, file),
+    line: lineNo,
+    col,
+    len,
+    text: sn.text,
+    hs: sn.hs,
+    hl: sn.hl,
+    more: sn.more,
+    score,
+    kind,
+  };
+}
+
+function exactScore(ll, idx, len, total) {
+  let s = 100;
+  const before = idx === 0 ? '' : ll[idx - 1];
+  const after = ll[idx + len] || '';
+  const bOk = !before || !WORD.test(before);
+  const aOk = !after || !WORD.test(after);
+  if (bOk && aOk) s += 15;
+  else if (bOk) s += 6;
+  s -= Math.min(20, idx / 8);
+  if (total > 220) s -= 5;
+  return s;
+}
+
+function useRoot(root) {
+  if (corpus.root !== root) corpus = { root, map: new Map(), chars: 0 };
+}
+
+async function listFiles(root, isCancelled) {
+  const now = Date.now();
+  if (listCache.root === root && listCache.files && now - listCache.at < LIST_TTL) return listCache.files;
+  const files = [];
+  const stack = [root];
+  while (stack.length) {
+    if (isCancelled()) return null;
+    const dir = stack.pop();
+    let dirents;
+    try {
+      dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const d of dirents) {
+      if (d.isDirectory()) {
+        if (!SKIP_DIRS.has(d.name.toLowerCase())) stack.push(path.join(dir, d.name));
+        continue;
+      }
+      if (!d.isFile()) continue;
+      const lower = d.name.toLowerCase();
+      if (SKIP_NAMES.has(lower)) continue;
+      const dot = lower.lastIndexOf('.');
+      const ext = dot < 0 ? '' : lower.slice(dot + 1);
+      if (SKIP_EXT.has(ext)) continue;
+      files.push(path.join(dir, d.name));
+      if (files.length >= MAX_FILES) {
+        stack.length = 0;
+        break;
+      }
+    }
+  }
+  files.sort();
+  listCache = { root, at: Date.now(), files };
+  return files;
+}
+
+async function getEntry(file) {
+  const now = Date.now();
+  const e = corpus.map.get(file);
+  if (e && now - e.at < FRESH_MS) return e.skip ? null : e;
+  let st;
+  try {
+    st = await fs.promises.stat(file);
+  } catch (_) {
+    if (e) {
+      corpus.chars -= e.cost || 0;
+      corpus.map.delete(file);
+    }
+    return null;
+  }
+  if (e && e.mtime === st.mtimeMs && e.size === st.size) {
+    e.at = now;
+    return e.skip ? null : e;
+  }
+  if (e) {
+    corpus.chars -= e.cost || 0;
+    corpus.map.delete(file);
+  }
+  if (st.size === 0 || st.size > MAX_FILE_BYTES) {
+    corpus.map.set(file, { skip: true, mtime: st.mtimeMs, size: st.size, at: now, cost: 0 });
+    return null;
+  }
+  let buf;
+  try {
+    buf = await fs.promises.readFile(file);
+  } catch (_) {
+    return null;
+  }
+  const probe = Math.min(buf.length, 4000);
+  for (let i = 0; i < probe; i++) {
+    if (buf[i] === 0) {
+      corpus.map.set(file, { skip: true, mtime: st.mtimeMs, size: st.size, at: now, cost: 0 });
+      return null;
+    }
+  }
+  const text = buf.toString('utf8');
+  const entry = { file, text, lower: text.toLowerCase(), mtime: st.mtimeMs, size: st.size, at: now, cost: text.length * 2 };
+  if (corpus.chars + entry.cost <= CORPUS_CHARS) {
+    corpus.map.set(file, entry);
+    corpus.chars += entry.cost;
+  }
+  return entry;
+}
+
+function scanExact(root, file, text, lower, ctx, out) {
+  const lines = text.split(/\r?\n/);
+  const lcl = lower.split(/\r?\n/);
+  let count = 0;
+  for (let i = 0; i < lines.length && count < PER_FILE; i++) {
+    const ll = lcl[i];
+    if (!ll) continue;
+    const src = lines[i] || '';
+    const idx = ll.indexOf(ctx.q);
+    if (idx !== -1) {
+      out.push(mk(root, file, i + 1, src, idx, ctx.q.length, exactScore(ll, idx, ctx.q.length, src.length), 'exact'));
+      count++;
+      continue;
+    }
+    if (ctx.tokens.length > 1) {
+      let first = -1;
+      let firstLen = 0;
+      let ok = true;
+      for (const t of ctx.tokens) {
+        const p = ll.indexOf(t);
+        if (p === -1) {
+          ok = false;
+          break;
+        }
+        if (first === -1 || p < first) {
+          first = p;
+          firstLen = t.length;
+        }
+      }
+      if (ok) {
+        out.push(mk(root, file, i + 1, src, first, firstLen, 70, 'all'));
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+function scanNear(root, file, text, ctx, out) {
+  const lines = text.split(/\r?\n/);
+  const q = ctx.q;
+  const tol = q.length >= 8 ? 2 : 1;
+  let count = 0;
+  for (let i = 0; i < lines.length && count < PER_FILE_NEAR; i++) {
+    const line = lines[i];
+    if (!line || line.length > 400) continue;
+    if (line.toLowerCase().indexOf(q) !== -1) continue;
+    WORD_RE.lastIndex = 0;
+    let best = null;
+    let m;
+    while ((m = WORD_RE.exec(line)) !== null) {
+      const w = m[0];
+      if (w.length < 3 || w.length > 48) continue;
+      const lw = w.toLowerCase();
+      if (q.length >= 4 && Math.abs(lw.length - q.length) <= tol) {
+        const d = editDistance(lw, q, tol);
+        if (d <= tol) {
+          const sc = 62 - d * 8;
+          if (!best || sc > best.score) best = { score: sc, col: m.index, len: w.length, kind: 'near' };
+          continue;
+        }
+      }
+      if (q.length >= 3 && lw.length > q.length && lw[0] === q[0] && isSubsequence(q, lw)) {
+        const sc = 38 - Math.min(15, lw.length - q.length);
+        if (!best || sc > best.score) best = { score: sc, col: m.index, len: w.length, kind: 'fuzzy' };
+      }
+    }
+    if (best) {
+      out.push(mk(root, file, i + 1, line, best.col, best.len, best.score, best.kind));
+      count++;
+    }
+  }
+  return count;
+}
+
+function fileMatches(root, files, ctx) {
+  const out = [];
+  for (const f of files) {
+    if (out.length >= 60) break;
+    const rel = relOf(root, f);
+    const rl = rel.toLowerCase();
+    const slash = rl.lastIndexOf('/');
+    const base = rl.slice(slash + 1);
+    const baseOrig = rel.slice(slash + 1);
+    const idx = base.indexOf(ctx.q);
+    if (idx !== -1) {
+      out.push({
+        file: f,
+        rel,
+        line: 1,
+        col: 0,
+        len: 0,
+        text: baseOrig,
+        hs: idx,
+        hl: ctx.q.length,
+        more: false,
+        score: 92 + (idx === 0 ? 5 : 0),
+        kind: 'file',
+      });
+    } else if (rl.indexOf(ctx.q) !== -1) {
+      out.push({
+        file: f,
+        rel,
+        line: 1,
+        col: 0,
+        len: 0,
+        text: baseOrig,
+        hs: 0,
+        hl: 0,
+        more: false,
+        score: 60,
+        kind: 'file',
+      });
+    }
+  }
+  return out;
+}
+
+async function runSearch(sender, id, root, query, session) {
+  const t0 = Date.now();
+  const cancelled = () => session.cancelled || sender.isDestroyed();
+  let buf = [];
+  let lastSend = 0;
+  let phase = 'files';
+  let scanned = 0;
+  let progress = 0;
+  let total = 0;
+  let strong = 0;
+
+  const flush = (force, extra) => {
+    if (cancelled()) return;
+    if (!force && (!buf.length || Date.now() - lastSend < FLUSH_MS)) return;
+    const payload = Object.assign({ id, results: buf, phase, scanned, progress }, extra || {});
+    buf = [];
+    lastSend = Date.now();
+    sender.send('ide:searchBatch', payload);
+  };
+
+  try {
+    useRoot(root);
+    const q = query.toLowerCase();
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const ctx = { q, tokens };
+    const files = await listFiles(root, cancelled);
+    if (!files || cancelled()) return;
+
+    const fm = fileMatches(root, files, ctx);
+    for (const r of fm) buf.push(r);
+    flush(true);
+
+    phase = 'content';
+    let truncated = false;
+    for (let i = 0; i < files.length; i += BATCH) {
+      if (cancelled()) return;
+      const batch = files.slice(i, i + BATCH);
+      const entries = await Promise.all(batch.map(getEntry));
+      for (const e of entries) {
+        if (!e) continue;
+        scanned++;
+        let cand;
+        if (tokens.length === 1) cand = e.lower.indexOf(q) !== -1;
+        else cand = tokens.every((t) => e.lower.indexOf(t) !== -1);
+        if (!cand) continue;
+        const n = scanExact(root, e.file, e.text, e.lower, ctx, buf);
+        total += n;
+        strong += n;
+      }
+      progress = Math.min(1, (i + BATCH) / files.length);
+      flush(false);
+      if (total >= HARD_CAP) {
+        truncated = true;
+        break;
+      }
+      await tick();
+    }
+
+    if (!truncated && tokens.length === 1 && strong < NEAR_THRESHOLD) {
+      phase = 'similar';
+      progress = 0;
+      const entries = [];
+      for (const e of corpus.map.values()) {
+        if (!e.skip && e.text) entries.push(e);
+      }
+      let nearTotal = 0;
+      for (let i = 0; i < entries.length && nearTotal < NEAR_CAP; i++) {
+        nearTotal += scanNear(root, entries[i].file, entries[i].text, ctx, buf);
+        if (i % 25 === 24) {
+          progress = (i + 1) / entries.length;
+          flush(false);
+          if (cancelled()) return;
+          await tick();
+        }
+      }
+    }
+
+    progress = 1;
+    flush(true, { done: true, truncated, ms: Date.now() - t0 });
+  } catch (err) {
+    if (!cancelled()) {
+      sender.send('ide:searchBatch', { id, results: [], done: true, error: err && err.message ? err.message : 'Search failed' });
+    }
+  }
+}
+
+async function warmCorpus(root) {
+  if (warming && warming.root === root) return;
+  if (lastWarm.root === root && Date.now() - lastWarm.at < WARM_GAP) return;
+  const token = { root, stop: false };
+  warming = token;
+  try {
+    useRoot(root);
+    const files = await listFiles(root, () => token.stop);
+    if (!files) return;
+    for (let i = 0; i < files.length; i += BATCH) {
+      if (token.stop || warming !== token) return;
+      await Promise.all(files.slice(i, i + BATCH).map(getEntry));
+      await tick();
+    }
+    lastWarm = { root, at: Date.now() };
+  } catch (_) {
+    return;
+  } finally {
+    if (warming === token) warming = null;
+  }
+}
+
+function register() {
+  ipcMain.handle('ide:readDir', async (_event, dirPath) => {
+    try {
+      if (typeof dirPath !== 'string' || !dirPath) {
+        return { success: false, error: 'Invalid path' };
+      }
+      const result = await readDir(dirPath);
+      return { success: true, entries: result.entries, truncated: result.truncated };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('ide:searchStart', async (event, args) => {
+    const sender = event.sender;
+    const prev = sessions.get(sender.id);
+    if (prev) prev.cancelled = true;
+    const session = { cancelled: false };
+    sessions.set(sender.id, session);
+    const id = args && args.id;
+    const root = args && args.root;
+    const query = args && typeof args.query === 'string' ? args.query.trim() : '';
+    if (typeof root !== 'string' || !root) return { success: false, error: 'No folder opened' };
+    if (query.length < 2 || query.length > 200) {
+      sender.send('ide:searchBatch', { id, results: [], done: true, ms: 0 });
+      return { success: true };
+    }
+    try {
+      const st = await fs.promises.stat(root);
+      if (!st.isDirectory()) return { success: false, error: 'Not a folder' };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+    runSearch(sender, id, root, query, session);
+    return { success: true };
+  });
+
+  ipcMain.handle('ide:searchCancel', async (event) => {
+    const s = sessions.get(event.sender.id);
+    if (s) s.cancelled = true;
+    return { success: true };
+  });
+
+  ipcMain.handle('ide:searchWarm', async (_event, root) => {
+    if (typeof root !== 'string' || !root) return { success: false };
+    warmCorpus(root);
+    return { success: true };
+  });
+}
+
+module.exports = { register };
