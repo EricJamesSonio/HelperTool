@@ -144,6 +144,18 @@ function useRoot(root) {
   if (corpus.root !== root) corpus = { root, map: new Map(), chars: 0 };
 }
 
+function dropFromCorpus(files) {
+  if (!Array.isArray(files)) return;
+  for (const f of files) {
+    if (typeof f !== 'string') continue;
+    const e = corpus.map.get(f);
+    if (e) {
+      corpus.chars -= e.cost || 0;
+      corpus.map.delete(f);
+    }
+  }
+}
+
 async function listFiles(root, isCancelled) {
   const now = Date.now();
   if (listCache.root === root && listCache.files && now - listCache.at < LIST_TTL) return listCache.files;
@@ -488,6 +500,8 @@ function register() {
     } catch (err) {
       return { success: false, error: err.message };
     }
+    useRoot(root);
+    dropFromCorpus(args && args.invalidate);
     runSearch(sender, id, root, query, session);
     return { success: true };
   });
