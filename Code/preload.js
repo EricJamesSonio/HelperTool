@@ -580,6 +580,10 @@ const githubBridge = {
     openUrl: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
 };
+contextBridge.exposeInMainWorld('wakaCtxAPI', {
+  context: (payload) => ipcRenderer.invoke('wakatime:context', payload),
+});
+
 contextBridge.exposeInMainWorld('wakaAPI', {
   status:    ()        => ipcRenderer.invoke('wakatime:status'),
   install:   ()        => ipcRenderer.invoke('wakatime:install'),
