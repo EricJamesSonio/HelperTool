@@ -1,0 +1,162 @@
+.cv {
+  --cv-bg: var(--bg-elevated, #0d1117);
+  --cv-add: var(--green-dim, rgba(52, 211, 153, 0.14));
+  --cv-del: var(--red-dim, rgba(248, 113, 113, 0.14));
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--cv-bg);
+  color: var(--text-primary, #eef2ff);
+}
+.cv.cv-boxed {
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+}
+.cv [hidden] { display: none !important; }
+
+.cv-body {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.cv-scroll {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: auto;
+  outline: 0;
+  font: 13px/20px var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-ligatures: none;
+}
+.cv-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+.cv-scroll::-webkit-scrollbar-track { background: transparent; }
+.cv-scroll::-webkit-scrollbar-thumb { background: rgba(121, 121, 121, 0.4); }
+.cv-scroll::-webkit-scrollbar-thumb:hover { background: rgba(130, 130, 130, 0.7); }
+
+.cv-sizer {
+  --cv-nw: calc(var(--cv-digits, 3) * 1ch + 22px);
+  position: relative;
+}
+.cv-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  min-width: 100%;
+}
+
+.cv-r {
+  display: flex;
+  box-sizing: border-box;
+  height: 20px;
+  min-width: 100%;
+}
+.cv-n,
+.cv-s {
+  position: sticky;
+  z-index: 1;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  height: 20px;
+  background-color: var(--cv-bg);
+  color: var(--text-muted, #7d8590);
+  font-size: 12px;
+  text-align: right;
+  user-select: none;
+}
+.cv-n {
+  left: 0;
+  width: var(--cv-nw);
+  padding-right: 12px;
+}
+.cv-n + .cv-n { left: var(--cv-nw); }
+.cv-s {
+  left: calc(var(--cv-nw) * 2);
+  width: 18px;
+  padding: 0;
+  font-weight: 700;
+  text-align: center;
+}
+.cv-inner[data-mode="code"] .cv-n { box-shadow: inset -1px 0 0 var(--border-subtle, rgba(255, 255, 255, 0.06)); }
+.cv-inner[data-mode="diff"] .cv-s { box-shadow: inset -1px 0 0 var(--border-subtle, rgba(255, 255, 255, 0.06)); }
+.cv-t {
+  flex: 1 0 auto;
+  padding: 0 16px 0 10px;
+  white-space: pre;
+}
+
+.cv-add { background: var(--cv-add); }
+.cv-del { background: var(--cv-del); }
+.cv-add .cv-n,
+.cv-add .cv-s { background-image: linear-gradient(var(--cv-add), var(--cv-add)); }
+.cv-del .cv-n,
+.cv-del .cv-s { background-image: linear-gradient(var(--cv-del), var(--cv-del)); }
+.cv-add .cv-s,
+.cv-add .cv-n { color: var(--green, #34d399); }
+.cv-del .cv-s,
+.cv-del .cv-n { color: var(--red, #f87171); }
+
+.cv-fold,
+.cv-hunk { background: rgba(255, 255, 255, 0.03); }
+.cv-hunk { background: var(--accent-dim, rgba(34, 211, 238, 0.1)); }
+.cv-fold .cv-t,
+.cv-hunk .cv-t {
+  font-style: italic;
+  color: var(--text-muted, #7d8590);
+}
+
+.cv-mm {
+  position: relative;
+  flex: 0 0 120px;
+  width: 120px;
+  overflow: hidden;
+  background: var(--bg-base, #010409);
+  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  user-select: none;
+}
+.cv-mm .ide-mm-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cv-mm .ide-mm-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  background: var(--text-muted, #7d8590);
+  opacity: 0.2;
+  pointer-events: none;
+  will-change: transform;
+}
+.cv-mm:hover .ide-mm-slider { opacity: 0.3; }
+.cv-mm .ide-mm-slider.drag { opacity: 0.4; }
+
+.cv-msg {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+  font: 13px/1.5 var(--font-ui, sans-serif);
+  color: var(--text-muted, #7d8590);
+}
+.cv-msg[data-tone="error"] { color: var(--red, #f87171); }
+
+.cv .t-c { color: var(--text-muted, #7d8590); }
+.cv .t-s { color: var(--green, #34d399); }
+.cv .t-n { color: var(--yellow, #f0b429); }
+.cv .t-k { color: var(--purple, #a78bfa); }
+.cv .t-f { color: var(--blue, #60a5fa); }
+.cv .t-t { color: var(--accent, #22d3ee); }
+.cv .t-p { color: var(--blue, #60a5fa); }
+.cv .t-a { color: var(--yellow, #f0b429); }
+.cv[data-lang="html"] .t-t { color: var(--red, #f87171); }
+.cv[data-lang="md"] .t-k { color: var(--accent, #22d3ee); }
