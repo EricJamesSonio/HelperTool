@@ -1,6 +1,15 @@
 const { ipcMain } = require('electron');
-const GitOperations = require('../utils/gitOps');
-const simpleGit = require('simple-git');
+const GitOperationsBase = require('../utils/gitOps');
+const gitAccountsAuth = require('./gitAccounts_ipc.js');
+
+class GitOperations extends GitOperationsBase {
+    constructor(repoPath) {
+        super(repoPath);
+        this.git = simpleGit(repoPath);
+    }
+}
+const simpleGitFactory = require('simple-git');
+const simpleGit = (repoPath, ...rest) => gitAccountsAuth.authedGit(simpleGitFactory, repoPath, ...rest);
 const path = require('path');
 const gitService = require('./gitService.js');
 const { mergeBranch } = require('./gitMerge.js');
