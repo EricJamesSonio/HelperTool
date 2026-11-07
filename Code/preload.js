@@ -820,3 +820,18 @@ contextBridge.exposeInMainWorld('perfAPI', {
   sample: () => ipcRenderer.invoke('perf:sample'),
   reset: () => ipcRenderer.invoke('perf:reset'),
 });
+contextBridge.exposeInMainWorld('ideAPI', {
+    readDir: (dirPath) => ipcRenderer.invoke('ide:readDir', dirPath),
+});
+contextBridge.exposeInMainWorld('ideSearchAPI', {
+    search: (opts) => ipcRenderer.invoke('ide:search', opts),
+});
+contextBridge.exposeInMainWorld('ideSearchStream', {
+    start: (opts) => ipcRenderer.invoke('ide:searchStart', opts),
+    cancel: (id) => ipcRenderer.invoke('ide:searchCancel', id),
+    warm: (root) => ipcRenderer.invoke('ide:searchWarm', root),
+    onBatch: (callback) => {
+        ipcRenderer.removeAllListeners('ide:searchBatch');
+        ipcRenderer.on('ide:searchBatch', (_event, data) => callback(data));
+    },
+});
