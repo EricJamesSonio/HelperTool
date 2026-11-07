@@ -83,6 +83,8 @@ import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } f
 import * as essentialsGlossary from './essentialsGlossary.js';
 import { openShortcutSetup, onShortcutSave, showConfirmDialog } from './shortcut-setup.js';
 import './ideMode/index.js';
+import './gitAccounts/index.js';
+
 
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
