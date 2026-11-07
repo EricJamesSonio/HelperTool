@@ -1,3 +1,6 @@
+import { S } from '../shortcuts/state.js';
+import { eventToString } from '../shortcuts/parser.js';
+
 const ICON_MAP = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="10" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="16" cy="16" r="2"/><path d="M6 10h4l4-5"/><path d="M10 10l4 5"/></svg>';
 const ICON_COPY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="12" height="14" rx="1.5"/><path d="M3 15V3a1 1 0 0 1 1-1h10"/></svg>';
 
@@ -5,6 +8,7 @@ let _overlay = null;
 let _graphHandle = null;
 let _fullData = null;
 let _repoPath = null;
+let _sidebarPrevZ = null;
 
 export async function openCodebaseMap() {
   closeCodebaseMap();
@@ -34,12 +38,29 @@ export async function openCodebaseMap() {
   _overlay.querySelector('#cmapCopyMap').addEventListener('click', copyMap);
   _overlay.querySelector('#cmapCopyStructure').addEventListener('click', copyStructure);
   document.addEventListener('keydown', _escHandler);
+  document.addEventListener('keydown', _toggleKeyHandler, true);
 
   await loadGraph();
 }
 
 function _escHandler(e) {
   if (e.key === 'Escape') closeCodebaseMap();
+}
+
+function _toggleKeyHandler(e) {
+  if (e.repeat || !isOpen()) return;
+  const bound = S.shortcuts && S.shortcuts.codebaseMap;
+  if (!bound) return;
+  const combo = eventToString(e);
+  if (!combo || combo !== bound) return;
+  const t = e.target;
+  const tag = t && t.tagName ? t.tagName : '';
+  const textTypes = ['text', 'search', 'email', 'url', 'password', 'number'];
+  const typing = tag === 'TEXTAREA' || (tag === 'INPUT' && textTypes.includes(t.type || 'text'));
+  if (typing && combo.indexOf('+') === -1) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  closeCodebaseMap();
 }
 
 export function closeCodebaseMap() {
@@ -58,6 +79,7 @@ export function closeCodebaseMap() {
     _overlay = null;
   }
   document.removeEventListener('keydown', _escHandler);
+  document.removeEventListener('keydown', _toggleKeyHandler, true);
 }
 
 export function isOpen() {

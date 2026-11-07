@@ -1,16 +1,19 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const STYLE_ID = 'cmf-styles';
 const AUTO_EXPAND_LIMIT = 40;
-const MAX_PER_COL = 9;
-const COL_GAP = 110;
-const ROW_GAP = 20;
-const FRAME_PAD = 24;
+const MAX_PER_ROW = 4;
+const COL_GAP = 60;
+const ROW_GAP = 96;
+const FRAME_PAD = 28;
 const FRAME_HEAD = 38;
 const FIT_TOP = 78;
 const FIT_SIDE = 40;
 const FIT_BOTTOM = 30;
-const ICON_FOLDER = 'M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z';
-const ICON_FILE = 'M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z';
+const MIN_FIT_K = 0.8;
+
+const MEMBER_MAX = 8;
+const MEMBER_STEP = 17;
+const CARD_HEAD = 52;
 
 const CSS = `
 .cmf-root {
@@ -304,6 +307,7 @@ const CSS = `
   fill: var(--c);
   font-family: var(--font-ui);
   font-size: 13px;
+  font-style: italic;
   font-weight: 700;
   pointer-events: none;
 }
@@ -317,7 +321,7 @@ const CSS = `
   opacity: 0.6;
 }
 .cmf-node-rect {
-  fill: var(--bg-elevated);
+  fill: color-mix(in srgb, var(--c) 8%, var(--bg-elevated));
   stroke: var(--c);
   stroke-width: 1.6;
 }
@@ -326,25 +330,18 @@ const CSS = `
 }
 .cmf-node.ext .cmf-node-rect { stroke-dasharray: 5 4; }
 .cmf-node.ext { opacity: 0.85; }
-.cmf-node:hover .cmf-node-rect { fill: color-mix(in srgb, var(--c) 18%, var(--bg-elevated)); }
+.cmf-node:hover .cmf-node-rect { fill: color-mix(in srgb, var(--c) 20%, var(--bg-elevated)); }
 .cmf-node.sel .cmf-node-rect {
   stroke-width: 3;
   filter: drop-shadow(0 0 8px var(--c));
 }
 .cmf-node.dim { opacity: 0.25; }
-.cmf-node-icon {
-  fill: none;
-  stroke: var(--c);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  pointer-events: none;
-}
 .cmf-node-name {
   fill: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  text-anchor: middle;
   pointer-events: none;
 }
 .cmf-node-sub {
@@ -352,13 +349,32 @@ const CSS = `
   font-family: var(--font-ui);
   font-size: 10.5px;
   font-weight: 500;
+  text-anchor: middle;
   pointer-events: none;
+}
+.cmf-node-divider {
+  stroke: var(--c);
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+  pointer-events: none;
+}
+.cmf-member {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.cmf-member.more {
+  fill: var(--text-faint);
+  font-style: italic;
 }
 .cmf-edge {
   fill: none;
-  stroke: var(--text-faint);
-  stroke-width: 1.4;
-  opacity: 0.75;
+  stroke: var(--text-muted);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  opacity: 0.65;
 }
 .cmf-edge-g.out .cmf-edge {
   stroke: var(--accent);
@@ -369,6 +385,9 @@ const CSS = `
   opacity: 1;
 }
 .cmf-edge-g.dim { opacity: 0.07; }
+.cmf-root.arrows-collapsed .cmf-edge-g { display: none; }
+.cmf-root.arrows-collapsed .cmf-edge-g.out,
+.cmf-root.arrows-collapsed .cmf-edge-g.in { display: inline; }
 .cmf-port {
   fill: var(--bg-surface);
   stroke: var(--text-muted);
@@ -434,8 +453,12 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+function clip(s, max) {
+  return s.length > max ? s.slice(0, max - 1) + '\u2026' : s;
+}
+
 function buildFolderTree(files) {
-  const root = { path: '', name: 'root', fileCount: 0, children: new Map() };
+  const root = { path: '', name: 'root', fileCount: 0, children: new Map(), fileNames: [] };
   const meta = new Map();
   meta.set('', root);
   for (const f of files) {
@@ -447,13 +470,14 @@ function buildFolderTree(files) {
       acc = acc ? acc + '/' + segs[i] : segs[i];
       let next = cur.children.get(segs[i]);
       if (!next) {
-        next = { path: acc, name: segs[i], fileCount: 0, children: new Map() };
+        next = { path: acc, name: segs[i], fileCount: 0, children: new Map(), fileNames: [] };
         cur.children.set(segs[i], next);
         meta.set(acc, next);
       }
       next.fileCount += 1;
       cur = next;
     }
+    cur.fileNames.push(segs[segs.length - 1]);
   }
   return { root: root, meta: meta };
 }
@@ -489,6 +513,7 @@ export function mountFlowGraph(container, graph) {
     expanded: new Set(),
     showExternal: true,
     onlyConnected: false,
+    collapseArrows: false,
     selected: null,
   };
   const view = { x: 0, y: 0, k: 1 };
@@ -501,7 +526,6 @@ export function mountFlowGraph(container, graph) {
   let drag = null;
   let suppressClick = false;
 
-  // ---------- DOM ----------
   const svg = svgEl('svg', { class: 'cmf-svg' });
   container.appendChild(svg);
   const defs = svgEl('defs', {}, svg);
@@ -521,6 +545,9 @@ export function mountFlowGraph(container, graph) {
   toolbar.appendChild(chips);
   toolbar.appendChild(makeOption('External links', 'showExternal'));
   toolbar.appendChild(makeOption('Only connected', 'onlyConnected'));
+  toolbar.appendChild(makeOption('Collapse arrows', 'collapseArrows', () => {
+    container.classList.toggle('arrows-collapsed', state.collapseArrows);
+  }));
   toolbar.appendChild(stats);
   container.appendChild(toolbar);
 
@@ -550,7 +577,7 @@ export function mountFlowGraph(container, graph) {
     rebuild({ fit: true });
   });
 
-  const hint = htmlEl('div', 'cmf-hint cmf-panel', 'Scroll to zoom \u00B7 drag canvas to pan \u00B7 drag nodes or folders to move \u00B7 double-click a folder to expand \u00B7 click a node to trace links');
+  const hint = htmlEl('div', 'cmf-hint cmf-panel', 'Scroll to pan \u00B7 Shift+scroll sideways \u00B7 Ctrl+scroll to zoom \u00B7 drag cards or folders to move \u00B7 double-click a folder to open it \u00B7 click a card to trace links');
   container.appendChild(hint);
 
   function addMarker(id, cls) {
@@ -574,21 +601,21 @@ export function mountFlowGraph(container, graph) {
     controls.appendChild(b);
   }
 
-  function makeOption(label, key) {
+  function makeOption(label, key, onChange) {
     const l = htmlEl('label', 'cmf-opt');
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = state[key];
     input.addEventListener('change', () => {
       state[key] = input.checked;
-      rebuild({ fit: true });
+      if (onChange) onChange();
+      else rebuild({ fit: true });
     });
     l.appendChild(input);
     l.appendChild(document.createTextNode(' ' + label));
     return l;
   }
 
-  // ---------- scope ----------
   function isInScope(p) {
     return state.scope.some((r) => r === '' || p === r || p.startsWith(r + '/'));
   }
@@ -716,7 +743,6 @@ export function mountFlowGraph(container, graph) {
   const onDocClick = () => scopePanel.classList.remove('open');
   document.addEventListener('click', onDocClick);
 
-  // ---------- model ----------
   function computeModel() {
     const forced = forcedExpanded();
     const isExp = (folder) => forced.has(folder) || state.expanded.has(folder);
@@ -737,7 +763,7 @@ export function mountFlowGraph(container, graph) {
       let n = nodes.get(id);
       if (n) return n;
       const label = baseName(path);
-      const shown = label.length > 34 ? label.slice(0, 33) + '\u2026' : label;
+      const shown = clip(label, 30);
       const top = path.includes('/') || kind === 'folder' ? path.split('/')[0] : null;
       n = {
         kind: kind,
@@ -753,22 +779,36 @@ export function mountFlowGraph(container, graph) {
         symbols: 0,
         language: '',
         files: 0,
+        members: [],
+        more: 0,
       };
-      let subLen = 26;
+      let names = [];
+      let total = 0;
       if (kind === 'file') {
         const f = fileMap.get(path);
         n.symbols = f ? f.symbols : 0;
         n.language = f ? f.language : '';
-        const o = outAdj.get(path) ? outAdj.get(path).size : 0;
-        const i = inAdj.get(path) ? inAdj.get(path).size : 0;
-        subLen = (n.symbols + ' syms \u00B7 ' + o + ' out \u00B7 ' + i + ' in').length;
+        names = f && Array.isArray(f.symbolNames) ? f.symbolNames : [];
+        total = Math.max(n.symbols, names.length);
       } else {
         const m = folderMeta.get(path);
         n.files = m ? m.fileCount : 0;
+        if (m) {
+          const kids = Array.from(m.children.values()).sort((a, b) => a.name.localeCompare(b.name));
+          for (const c of kids) names.push(c.name + '/');
+          for (const fn of m.fileNames.slice().sort()) names.push(fn);
+        }
+        total = names.length;
       }
+      n.members = names.slice(0, MEMBER_MAX).map((s) => clip(s, 34));
+      n.more = Math.max(0, total - n.members.length);
+
+      let longest = 0;
+      for (const s of n.members) longest = Math.max(longest, s.length);
       const nameLen = shown.length + (kind === 'folder' ? 1 : 0);
-      n.w = Math.max(170, Math.round(nameLen * 7.8) + 58, Math.round(subLen * 5.9) + 54);
-      n.h = kind === 'folder' ? 54 : 48;
+      n.w = clamp(Math.round(Math.max(nameLen * 8.4, longest * 7, 30 * 5.9)) + 44, 190, 320);
+      const rows = n.members.length + (n.more ? 1 : 0);
+      n.h = CARD_HEAD + (rows ? rows * MEMBER_STEP + 14 : 8);
       nodes.set(id, n);
       return n;
     };
@@ -958,49 +998,49 @@ export function mountFlowGraph(container, graph) {
       for (const p of ps) sum += ord.get(p);
       return sum / ps.length;
     };
-    const columns = [];
+    const rows = [];
     for (let li = 0; li < layersArr.length; li++) {
       const arr = layersArr[li];
       if (!arr) continue;
       if (li > 0) arr.sort((a, b) => bary(a) - bary(b));
       arr.forEach((it, idx) => ord.set(it, idx));
-      for (let i = 0; i < arr.length; i += MAX_PER_COL) {
-        columns.push(arr.slice(i, i + MAX_PER_COL));
+      for (let i = 0; i < arr.length; i += MAX_PER_ROW) {
+        rows.push(arr.slice(i, i + MAX_PER_ROW));
       }
     }
-    for (let i = 0; i < isolated.length; i += MAX_PER_COL) {
-      columns.push(isolated.slice(i, i + MAX_PER_COL));
+    for (let i = 0; i < isolated.length; i += MAX_PER_ROW) {
+      rows.push(isolated.slice(i, i + MAX_PER_ROW));
     }
 
-    let cursorX = 0;
-    let maxH = 0;
-    const colInfo = [];
-    for (const col of columns) {
+    let cursorY = 0;
+    let maxW = 0;
+    const rowInfo = [];
+    for (const row of rows) {
       let w = 0;
       let h = 0;
-      for (const it of col) {
-        w = Math.max(w, it.w);
-        h += it.h;
+      for (const it of row) {
+        w += it.w;
+        h = Math.max(h, it.h);
       }
-      h += ROW_GAP * Math.max(0, col.length - 1);
-      colInfo.push({ col: col, w: w, h: h, x: cursorX });
-      cursorX += w + COL_GAP;
-      maxH = Math.max(maxH, h);
+      w += COL_GAP * Math.max(0, row.length - 1);
+      rowInfo.push({ row: row, w: w, h: h, y: cursorY });
+      cursorY += h + ROW_GAP;
+      maxW = Math.max(maxW, w);
     }
-    const contentW = columns.length ? cursorX - COL_GAP : 0;
+    const contentH = rows.length ? cursorY - ROW_GAP : 0;
 
-    for (const info of colInfo) {
-      let y = (maxH - info.h) / 2;
-      for (const it of info.col) {
-        it.rx = info.x + (info.w - it.w) / 2 + pad;
-        it.ry = y + head;
-        y += it.h + ROW_GAP;
+    for (const info of rowInfo) {
+      let x = (maxW - info.w) / 2;
+      for (const it of info.row) {
+        it.rx = x + pad;
+        it.ry = info.y + head;
+        x += it.w + COL_GAP;
       }
     }
 
     fr.minHeader = isRoot ? 0 : baseName(fr.path).length * 8.5 + 110;
-    fr.w = Math.max(contentW + pad * 2, fr.minHeader);
-    fr.h = maxH + head + pad;
+    fr.w = Math.max(maxW + pad * 2, fr.minHeader);
+    fr.h = contentH + head + pad;
     if (isRoot && !items.length) {
       fr.w = 0;
       fr.h = 0;
@@ -1031,10 +1071,10 @@ export function mountFlowGraph(container, graph) {
       const a = agg.a;
       const b = agg.b;
       let sides;
-      if (b.x >= a.x + a.w + 24) sides = ['r', 'l'];
-      else if (b.x + b.w <= a.x - 24) sides = ['l', 'r'];
-      else if (b.y + b.h / 2 >= a.y + a.h / 2) sides = ['b', 't'];
-      else sides = ['t', 'b'];
+      if (b.y >= a.y + a.h + 12) sides = ['b', 't'];
+      else if (b.y + b.h <= a.y - 12) sides = ['t', 'b'];
+      else if (b.x >= a.x) sides = ['r', 'l'];
+      else sides = ['l', 'r'];
       agg.sa = sides[0];
       agg.sb = sides[1];
       agg.offa = 0;
@@ -1052,7 +1092,7 @@ export function mountFlowGraph(container, graph) {
         const qo = q.end === 'a' ? q.agg.b : q.agg.a;
         return horizontal ? (po.y + po.h / 2) - (qo.y + qo.h / 2) : (po.x + po.w / 2) - (qo.x + qo.w / 2);
       });
-      const step = n > 1 ? Math.min(10, (len - 16) / (n - 1)) : 0;
+      const step = n > 1 ? Math.min(12, (len - 24) / (n - 1)) : 0;
       list.forEach((s, i) => {
         const off = (i - (n - 1) / 2) * step;
         if (s.end === 'a') s.agg.offa = off;
@@ -1062,7 +1102,7 @@ export function mountFlowGraph(container, graph) {
     for (const agg of aggList) {
       agg.p = anchor(agg.a, agg.sa, agg.offa);
       agg.q = anchor(agg.b, agg.sb, agg.offb);
-      const dist = Math.max(40, Math.hypot(agg.q.x - agg.p.x, agg.q.y - agg.p.y) * 0.4);
+      const dist = clamp(Math.hypot(agg.q.x - agg.p.x, agg.q.y - agg.p.y) * 0.4, 40, 160);
       const dirs = { r: [1, 0], l: [-1, 0], b: [0, 1], t: [0, -1] };
       const dp = dirs[agg.sa];
       const dq = dirs[agg.sb];
@@ -1083,7 +1123,6 @@ export function mountFlowGraph(container, graph) {
     return { x: n.x + n.w / 2 + off, y: n.y };
   }
 
-  // ---------- draw ----------
   function isHiddenFrame(path) {
     if (!model.forced.has(path)) return false;
     return !(state.scope.length > 1 && state.scope.includes(path));
@@ -1160,14 +1199,8 @@ export function mountFlowGraph(container, graph) {
       svgEl('rect', { class: 'cmf-node-back', x: 6, y: -6, width: n.w, height: n.h, rx: 10 }, g);
     }
     svgEl('rect', { class: 'cmf-node-rect', x: 0, y: 0, width: n.w, height: n.h, rx: 10 }, g);
-    svgEl('path', {
-      class: 'cmf-node-icon',
-      d: n.kind === 'folder' ? ICON_FOLDER : ICON_FILE,
-      transform: 'translate(12 ' + (n.h / 2 - 8) + ') scale(0.8)',
-    }, g);
-    const nameY = n.kind === 'folder' ? 23 : 20;
-    const subY = n.kind === 'folder' ? 40 : 36;
-    svgEl('text', { class: 'cmf-node-name', x: 36, y: nameY }, g).textContent = n.shown + (n.kind === 'folder' ? '/' : '');
+    svgEl('text', { class: 'cmf-node-name', x: n.w / 2, y: 22 }, g).textContent = n.shown + (n.kind === 'folder' ? '/' : '');
+
     let sub;
     if (n.kind === 'folder') {
       sub = n.files + ' files \u00B7 ' + n.out + ' out \u00B7 ' + n.inn + ' in';
@@ -1176,7 +1209,17 @@ export function mountFlowGraph(container, graph) {
       const i = inAdj.get(n.path) ? inAdj.get(n.path).size : 0;
       sub = n.symbols + ' syms \u00B7 ' + o + ' out \u00B7 ' + i + ' in';
     }
-    svgEl('text', { class: 'cmf-node-sub', x: 36, y: subY }, g).textContent = sub;
+    svgEl('text', { class: 'cmf-node-sub', x: n.w / 2, y: 38 }, g).textContent = sub;
+
+    if (n.members.length || n.more) {
+      svgEl('line', { class: 'cmf-node-divider', x1: 14, y1: CARD_HEAD - 4, x2: n.w - 14, y2: CARD_HEAD - 4 }, g);
+    }
+    n.members.forEach((m, idx) => {
+      svgEl('text', { class: 'cmf-member', x: n.w / 2, y: CARD_HEAD + 14 + idx * MEMBER_STEP }, g).textContent = m;
+    });
+    if (n.more) {
+      svgEl('text', { class: 'cmf-member more', x: n.w / 2, y: CARD_HEAD + 14 + n.members.length * MEMBER_STEP }, g).textContent = '+ ' + n.more + ' more';
+    }
     svgEl('title', {}, g).textContent = n.path + (n.kind === 'folder' ? '/' : '');
 
     g.addEventListener('pointerdown', (ev) => startDrag(ev, 'node', n));
@@ -1194,7 +1237,6 @@ export function mountFlowGraph(container, graph) {
     nodeEls.set(n.id, g);
   }
 
-  // ---------- dragging ----------
   function startDrag(ev, kind, target) {
     if (ev.button !== 0) return;
     ev.stopPropagation();
@@ -1323,7 +1365,6 @@ export function mountFlowGraph(container, graph) {
     }
   }
 
-  // ---------- selection ----------
   function selectNode(id) {
     state.selected = id;
     applyHighlight();
@@ -1496,7 +1537,6 @@ export function mountFlowGraph(container, graph) {
     if (n) centerOn(n);
   }
 
-  // ---------- view ----------
   function applyView() {
     viewport.setAttribute('transform', 'translate(' + view.x + ' ' + view.y + ') scale(' + view.k + ')');
   }
@@ -1530,10 +1570,12 @@ export function mountFlowGraph(container, graph) {
     const availH = r.height - FIT_TOP - FIT_BOTTOM;
     const w = Math.max(1, box.w);
     const h = Math.max(1, box.h);
-    const k = clamp(Math.min(availW / w, availH / h), 0.03, 1.4);
+    const k = clamp(Math.min(availW / w, availH / h), MIN_FIT_K, 1.4);
     view.k = k;
     view.x = FIT_SIDE + (availW - w * k) / 2 - box.x * k;
-    view.y = FIT_TOP + (availH - h * k) / 2 - box.y * k;
+    view.y = k * h <= availH
+      ? FIT_TOP + (availH - h * k) / 2 - box.y * k
+      : FIT_TOP - box.y * k;
     applyView();
   }
 
@@ -1544,7 +1586,13 @@ export function mountFlowGraph(container, graph) {
       applyView();
       return;
     }
-    focusBox(b);
+    const r = svg.getBoundingClientRect();
+    const availW = r.width - FIT_SIDE * 2;
+    const k = clamp(availW / Math.max(1, b.w), MIN_FIT_K, 1);
+    view.k = k;
+    view.x = FIT_SIDE + (availW - b.w * k) / 2 - b.x * k;
+    view.y = FIT_TOP - b.y * k;
+    applyView();
   }
 
   function centerOn(n) {
@@ -1569,8 +1617,18 @@ export function mountFlowGraph(container, graph) {
 
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const r = svg.getBoundingClientRect();
-    zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+    if (e.ctrlKey || e.metaKey) {
+      const r = svg.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+      return;
+    }
+    if (e.shiftKey) {
+      view.x -= e.deltaY || e.deltaX;
+    } else {
+      view.x -= e.deltaX;
+      view.y -= e.deltaY;
+    }
+    applyView();
   }, { passive: false });
 
   svg.addEventListener('pointerdown', (e) => {
@@ -1596,7 +1654,6 @@ export function mountFlowGraph(container, graph) {
     svg.classList.remove('panning');
   });
 
-  // ---------- build ----------
   function rebuild(opts) {
     model = computeModel();
     if (state.selected && !model.nodes.has(state.selected)) state.selected = null;
