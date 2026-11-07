@@ -354,25 +354,22 @@ function _flush() {
   if (!_db || !_dirty) return;
   _dirty = false;
   const data = _db.export();
-  const buffer = Buffer.from(data);
   const dbPath = getDbPath();
-
-  const worker = _getWriteWorker();
   if (_writeWorkerBusy) {
-    _pendingWrite = { buffer, path: dbPath };
+    _pendingWrite = { buffer: data, path: dbPath };
     return;
   }
+  const worker = _getWriteWorker();
+  const owns = data.buffer instanceof ArrayBuffer && data.byteOffset === 0 && data.byteLength === data.buffer.byteLength;
   _writeWorkerBusy = true;
-  worker.postMessage({ buffer, path: dbPath });
+  worker.postMessage({ buffer: data, path: dbPath }, owns ? [data.buffer] : []);
 }
 
 function _flushSync() {
   if (!_db) return;
   if (!_dirty) return;
   try {
-    const data = _db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(getDbPath(), buffer);
+    fs.writeFileSync(getDbPath(), _db.export());
   } catch (err) {
     console.error('[DB] flushSync error:', err.message);
   }

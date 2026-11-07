@@ -71,6 +71,9 @@ async function initErrorCopDb(app) {
   migrateSchema();
   _flush();
 
+  const timer = setTimeout(runMaintenance, 30000);
+  if (timer.unref) timer.unref();
+
   return _db;
 }
 
@@ -162,6 +165,42 @@ function migrateSchema() {
   try { _db.run("ALTER TABLE sessions ADD COLUMN ended_reason TEXT DEFAULT ''"); } catch (e) {}
 }
 
+const KEEP_DAYS = 30;
+const VACUUM_LIMIT_BYTES = 200 * 1024 * 1024;
+
+function countRows() {
+  const r = _db.exec('SELECT (SELECT COUNT(*) FROM errors) + (SELECT COUNT(*) FROM error_occurrences) + (SELECT COUNT(*) FROM sessions) + (SELECT COUNT(*) FROM browser_servers)');
+  return r.length ? Number(r[0].values[0][0]) || 0 : 0;
+}
+
+function dbBytes() {
+  const pc = _db.exec('PRAGMA page_count');
+  const ps = _db.exec('PRAGMA page_size');
+  const count = pc.length ? Number(pc[0].values[0][0]) || 0 : 0;
+  const size = ps.length ? Number(ps[0].values[0][0]) || 0 : 0;
+  return count * size;
+}
+
+function runMaintenance() {
+  if (!_db) return;
+  try {
+    const before = countRows();
+    const old = "SELECT id FROM sessions WHERE status != 'running' AND started_at < datetime('now','localtime','-' || ? || ' days')";
+    _db.run('DELETE FROM error_occurrences WHERE session_id IN (' + old + ')', [KEEP_DAYS]);
+    _db.run('DELETE FROM errors WHERE session_id IN (' + old + ')', [KEEP_DAYS]);
+    _db.run('DELETE FROM browser_servers WHERE session_id IN (' + old + ')', [KEEP_DAYS]);
+    _db.run("DELETE FROM sessions WHERE status != 'running' AND started_at < datetime('now','localtime','-' || ? || ' days')", [KEEP_DAYS]);
+    _db.run('DELETE FROM error_occurrences WHERE session_id NOT IN (SELECT id FROM sessions)');
+    _db.run('DELETE FROM errors WHERE session_id NOT IN (SELECT id FROM sessions)');
+    const removed = before - countRows();
+    if (removed > 500 && dbBytes() < VACUUM_LIMIT_BYTES) {
+      _db.run('VACUUM');
+    }
+    if (removed > 0) save();
+  } catch (err) {
+    console.error('[ErrorCopDB] maintenance failed:', err.message);
+  }
+}
 function getErrorCopDb() {
   if (!_db) throw new Error('Error Cop database not initialized');
   return _db;
@@ -196,22 +235,20 @@ function _flush() {
   if (!_db || !_dirty) return;
   _dirty = false;
   const data = _db.export();
-  const buffer = Buffer.from(data);
   const dbPath = getDbPath();
-  const worker = _getWriteWorker();
   if (_writeWorkerBusy) {
-    _pendingWrite = { buffer, path: dbPath };
+    _pendingWrite = { buffer: data, path: dbPath };
     return;
   }
+  const worker = _getWriteWorker();
+  const owns = data.buffer instanceof ArrayBuffer && data.byteOffset === 0 && data.byteLength === data.buffer.byteLength;
   _writeWorkerBusy = true;
-  worker.postMessage({ buffer, path: dbPath });
+  worker.postMessage({ buffer: data, path: dbPath }, owns ? [data.buffer] : []);
 }
 
 function _flushSync() {
   if (!_db || !_dirty) return;
-  const data = _db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(getDbPath(), buffer);
+  fs.writeFileSync(getDbPath(), _db.export());
 }
 
 function save() {
