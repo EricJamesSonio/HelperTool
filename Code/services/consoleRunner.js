@@ -7,14 +7,55 @@ const crypto = require('crypto');
 const { RESULT_FILE, childEnv } = require('./consoleEnv');
 const history = require('../database/consoleDb');
 
-const ANSI_RE = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
+const ANSI_RE = /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b[()][A-Za-z0-9]|\u001b[=>]/g;
+const CTL_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
+const PROMPT_RE = /(?:[:?]|\[(?:y|yes|n|no)\/(?:y|yes|n|no)\]|\((?:y|yes|n|no)\/(?:y|yes|n|no)\))\s*$/i;
 const MAX_LOG = 6000;
 const FLUSH_MS = 120;
 const PARTIAL_MS = 250;
+const PROMPT_IDLE_MS = 700;
+const PROMPT_POLL_MS = 250;
+const PTY_EXIT_DELAY_MS = 60;
 const MIN_MASK_LENGTH = 4;
+
+let ptyModule;
+
+function loadPty() {
+  if (process.env.HELPER_CONSOLE_NO_PTY === '1') return null;
+  if (ptyModule === undefined) {
+    try {
+      ptyModule = require('node-pty');
+    } catch (e) {
+      ptyModule = null;
+    }
+  }
+  return ptyModule;
+}
+
+function ptyLaunch(step) {
+  if (step.argv) return { file: step.argv[0], args: step.argv.slice(1) };
+  if (process.platform === 'win32') {
+    return { file: process.env.ComSpec || 'cmd.exe', args: '/d /s /c "' + step.command + '"' };
+  }
+  return { file: process.env.SHELL || '/bin/sh', args: ['-c', step.command] };
+}
 
 function stripAnsi(text) {
   return String(text).replace(ANSI_RE, '');
+}
+
+function lastVisibleLine(text) {
+  const lines = stripAnsi(text || '')
+    .replace(CTL_RE, '')
+    .split(/\r\n|\n|\r/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length ? lines[lines.length - 1] : '';
+}
+
+function looksLikePrompt(text) {
+  const tail = lastVisibleLine(text);
+  return !!tail && PROMPT_RE.test(tail);
 }
 
 function maskValues(text, values) {
@@ -190,6 +231,9 @@ function initStep(spec, redactValues) {
     progress: spec.test ? { total: spec.test.total || 0, done: 0, passed: 0, failed: 0, files: [] } : null,
     result: null,
     seen: new Set(),
+    pty: false,
+    skipEcho: null,
+    lastLine: '',
   };
 }
 
@@ -200,6 +244,7 @@ function stepView(s, index) {
     title: s.title,
     command: s.command,
     status: s.status,
+    interactive: !!s.interactive,
     exitCode: s.exitCode,
     startedAt: s.startedAt,
     endedAt: s.endedAt,
@@ -308,12 +353,14 @@ function createRunner(emit) {
 
   function answer(ctx, text, auto) {
     const cur = ctx.current;
-    if (!cur || !cur.child || !cur.child.stdin || cur.child.stdin.destroyed) return false;
+    if (!cur || typeof cur.write !== 'function') return false;
     try {
-      cur.child.stdin.write(text + '\n');
+      if (!cur.write(text)) return false;
     } catch (e) {
       return false;
     }
+    if (cur.pty && cur.step) cur.step.skipEcho = text;
+    if (cur.step) cur.step.lastLine = '';
     ctx.job.awaiting = false;
     pushLog(ctx, 'in', auto ? text + '   (answered automatically from your confirmation)' : text);
     scheduleFlush(ctx);
@@ -322,7 +369,16 @@ function createRunner(emit) {
 
   function handleLine(ctx, step, kind, raw) {
     const text = stripAnsi(raw).replace(/\s+$/, '');
+    if (step.pty) {
+      if (text.trim() === '' && raw !== '') return;
+      if (step.skipEcho !== null && step.skipEcho !== undefined && text.trim() !== '') {
+        const echoed = text.trim() === String(step.skipEcho).trim();
+        step.skipEcho = null;
+        if (echoed) return;
+      }
+    }
     pushLog(ctx, kind, text);
+    if (text.trim() !== '') step.lastLine = text.trim();
     if (step.test) parseProgress(step, text);
     const auto = step.autoAnswer;
     if (auto && !auto.done && auto.when.test(text)) {
@@ -351,38 +407,153 @@ function createRunner(emit) {
 
       let settled = false;
       let timer = null;
+      let promptTimer = null;
       const finish = (code) => {
         if (settled) return;
         settled = true;
         if (timer) clearTimeout(timer);
+        if (promptTimer) clearInterval(promptTimer);
         resolve({ code });
       };
 
-      let child;
-      try {
-        const options = {
-          cwd: step.cwd,
-          env: childEnv(step.env),
-          stdio: [step.interactive ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-          windowsHide: true,
-          detached: process.platform !== 'win32',
-        };
-        if (step.argv) {
-          child = spawn(step.argv[0], step.argv.slice(1), Object.assign({ shell: false }, options));
-        } else {
-          child = spawn(step.command, Object.assign({ shell: true }, options));
-        }
-      } catch (e) {
-        step.reason = 'spawn-error';
-        pushLog(ctx, 'sys', 'Could not start: ' + e.message);
-        finish(-1);
-        return;
+      const buffers = { out: '', err: '' };
+      const timers = { out: null, err: null };
+      let lastVisible = Date.now();
+
+      function markAwaiting() {
+        job.awaiting = true;
+        scheduleFlush(ctx);
       }
 
-      ctx.current = { child };
-      if (child.stdin) child.stdin.on('error', () => {});
-      child.stdout.setEncoding('utf8');
-      child.stderr.setEncoding('utf8');
+      function checkPrompt() {
+        if (settled || !step.interactive || job.awaiting) return;
+        if (Date.now() - lastVisible < PROMPT_IDLE_MS) return;
+        const tail = lastVisibleLine(buffers.out) || step.lastLine;
+        if (looksLikePrompt(tail)) markAwaiting();
+      }
+
+      function flushPartial(kind) {
+        const rest = buffers[kind];
+        if (!rest) return;
+        buffers[kind] = '';
+        handleLine(ctx, step, kind, rest);
+        if (step.interactive && looksLikePrompt(rest)) markAwaiting();
+      }
+
+      function onData(kind, chunk) {
+        if (stripAnsi(chunk).replace(CTL_RE, '').trim()) lastVisible = Date.now();
+        buffers[kind] += chunk;
+        const parts = buffers[kind].split(/\r\n|\n|\r/);
+        buffers[kind] = parts.pop();
+        for (const line of parts) handleLine(ctx, step, kind, line);
+        clearTimeout(timers[kind]);
+        if (buffers[kind]) timers[kind] = setTimeout(() => flushPartial(kind), PARTIAL_MS);
+      }
+
+      function onClosed(code, signal) {
+        clearTimeout(timers.out);
+        clearTimeout(timers.err);
+        flushPartial('out');
+        flushPartial('err');
+        step.exitCode = code;
+        step.signal = signal || null;
+        if (!step.reason) step.reason = job.stopRequested ? 'cancelled' : code === null ? 'signal' : 'exit';
+        ctx.current = null;
+        finish(code === null ? -1 : code);
+      }
+
+      let child = null;
+      let started = false;
+
+      const pty = step.interactive ? loadPty() : null;
+      if (pty) {
+        try {
+          const launch = ptyLaunch(step);
+          const proc = pty.spawn(launch.file, launch.args, {
+            name: 'xterm-256color',
+            cols: 200,
+            rows: 30,
+            cwd: step.cwd,
+            env: childEnv(step.env),
+          });
+          child = proc;
+          step.pty = true;
+          ctx.current = {
+            child: proc,
+            step,
+            pty: true,
+            write: (t) => {
+              proc.write(t + '\r');
+              return true;
+            },
+          };
+          proc.onData((chunk) => onData('out', chunk));
+          proc.onExit((ev) => {
+            const signal = ev && ev.signal ? String(ev.signal) : null;
+            const code = ev && typeof ev.exitCode === 'number' ? ev.exitCode : 0;
+            setTimeout(() => onClosed(signal ? null : code, signal), PTY_EXIT_DELAY_MS);
+          });
+          started = true;
+        } catch (e) {
+          step.pty = false;
+          child = null;
+          ctx.current = null;
+          pushLog(ctx, 'sys', 'Terminal mode is not available (' + e.message + '). Using plain pipes instead.');
+        }
+      }
+
+      if (!started) {
+        try {
+          const options = {
+            cwd: step.cwd,
+            env: childEnv(step.env),
+            stdio: [step.interactive ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+            detached: process.platform !== 'win32',
+          };
+          if (step.argv) {
+            child = spawn(step.argv[0], step.argv.slice(1), Object.assign({ shell: false }, options));
+          } else {
+            child = spawn(step.command, Object.assign({ shell: true }, options));
+          }
+        } catch (e) {
+          step.reason = 'spawn-error';
+          pushLog(ctx, 'sys', 'Could not start: ' + e.message);
+          finish(-1);
+          return;
+        }
+
+        const pipeChild = child;
+        ctx.current = {
+          child: pipeChild,
+          step,
+          pty: false,
+          write: (t) => {
+            if (!pipeChild.stdin || pipeChild.stdin.destroyed) return false;
+            pipeChild.stdin.write(t + '\n');
+            return true;
+          },
+        };
+        if (pipeChild.stdin) pipeChild.stdin.on('error', () => {});
+        pipeChild.stdout.setEncoding('utf8');
+        pipeChild.stderr.setEncoding('utf8');
+        pipeChild.stdout.on('data', (c) => onData('out', c));
+        pipeChild.stderr.on('data', (c) => onData('err', c));
+
+        pipeChild.on('error', (err) => {
+          step.reason = 'spawn-error';
+          pushLog(ctx, 'sys', 'Could not start: ' + err.message);
+          finish(-1);
+        });
+
+        pipeChild.on('close', (code, signal) => {
+          onClosed(code, signal);
+        });
+      }
+
+      if (step.interactive && !settled) {
+        promptTimer = setInterval(checkPrompt, PROMPT_POLL_MS);
+      }
 
       if (step.timeoutMs > 0) {
         timer = setTimeout(() => {
@@ -393,50 +564,6 @@ function createRunner(emit) {
           killTree(child);
         }, step.timeoutMs);
       }
-
-      const buffers = { out: '', err: '' };
-      const timers = { out: null, err: null };
-
-      function flushPartial(kind) {
-        const rest = buffers[kind];
-        if (!rest) return;
-        buffers[kind] = '';
-        handleLine(ctx, step, kind, rest);
-        if (step.interactive && /[:?]\s*$/.test(rest)) {
-          job.awaiting = true;
-          scheduleFlush(ctx);
-        }
-      }
-
-      function onData(kind, chunk) {
-        buffers[kind] += chunk;
-        const parts = buffers[kind].split(/\r\n|\n|\r/);
-        buffers[kind] = parts.pop();
-        for (const line of parts) handleLine(ctx, step, kind, line);
-        clearTimeout(timers[kind]);
-        if (buffers[kind]) timers[kind] = setTimeout(() => flushPartial(kind), PARTIAL_MS);
-      }
-
-      child.stdout.on('data', (c) => onData('out', c));
-      child.stderr.on('data', (c) => onData('err', c));
-
-      child.on('error', (err) => {
-        step.reason = 'spawn-error';
-        pushLog(ctx, 'sys', 'Could not start: ' + err.message);
-        finish(-1);
-      });
-
-      child.on('close', (code, signal) => {
-        clearTimeout(timers.out);
-        clearTimeout(timers.err);
-        flushPartial('out');
-        flushPartial('err');
-        step.exitCode = code;
-        step.signal = signal || null;
-        if (!step.reason) step.reason = job.stopRequested ? 'cancelled' : code === null ? 'signal' : 'exit';
-        ctx.current = null;
-        finish(code === null ? -1 : code);
-      });
     });
   }
 
