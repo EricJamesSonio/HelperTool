@@ -39,6 +39,7 @@ function injectCss() {
     ['ideSearchV2Css', './styles/ide-search-v2.css'],
     ['ideDiffCss', './styles/ide-diff.css'],
     ['chromeFlatCss', './styles/chrome-flat.css'],
+    ['ideAccentCss', './styles/ide-accent.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
@@ -53,6 +54,7 @@ function injectCss() {
 function applyWidth() {
   const w = parseInt(readLS(LS_W, ''), 10);
   if (w >= 180 && w <= 600) document.documentElement.style.setProperty('--ide-sb-w', w + 'px');
+  document.body.classList.toggle('ide-sb-right', readLS('helpertool-ide-sidebar-side', 'left') === 'right');
 }
 
 function makeDiv(id, cls) {
@@ -72,19 +74,38 @@ function openRelative(p) {
   mods.editor.openFile(full);
 }
 
+function isSideRight() {
+  return document.body.classList.contains('ide-sb-right');
+}
+
+function setSideRight(right) {
+  document.body.classList.toggle('ide-sb-right', right);
+  writeLS('helpertool-ide-sidebar-side', right ? 'right' : 'left');
+}
 function initResizer(sidebar, resizer) {
   let dragging = false;
   let raf = 0;
   let nextW = 0;
+  let startW = 0;
+  let wantSwap = false;
   resizer.addEventListener('pointerdown', (e) => {
     dragging = true;
+    wantSwap = false;
+    nextW = 0;
+    startW = sidebar.getBoundingClientRect().width;
     resizer.setPointerCapture(e.pointerId);
     resizer.classList.add('dragging');
     document.body.style.userSelect = 'none';
   });
   resizer.addEventListener('pointermove', (e) => {
     if (!dragging) return;
-    nextW = Math.min(600, Math.max(180, e.clientX - sidebar.getBoundingClientRect().left));
+    const rect = sidebar.getBoundingClientRect();
+    const right = isSideRight();
+    const raw = right ? rect.right - e.clientX : e.clientX - rect.left;
+    nextW = Math.min(600, Math.max(180, raw));
+    const ratio = e.clientX / Math.max(1, window.innerWidth);
+    wantSwap = right ? ratio < 0.35 : ratio > 0.65;
+    document.body.classList.toggle('ide-swap-hint', wantSwap);
     if (!raf) {
       raf = requestAnimationFrame(() => {
         raf = 0;
@@ -96,8 +117,15 @@ function initResizer(sidebar, resizer) {
     if (!dragging) return;
     dragging = false;
     resizer.classList.remove('dragging');
+    document.body.classList.remove('ide-swap-hint');
     document.body.style.userSelect = '';
     try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (wantSwap) {
+      wantSwap = false;
+      if (startW) document.documentElement.style.setProperty('--ide-sb-w', Math.round(startW) + 'px');
+      setSideRight(!isSideRight());
+      return;
+    }
     if (nextW) writeLS(LS_W, String(Math.round(nextW)));
   };
   resizer.addEventListener('pointerup', end);
@@ -127,9 +155,10 @@ function ensureBuilt() {
       const resizer = makeDiv('ideResizer', 'ide-resizer');
       const main = makeDiv('ideMain', 'ide-root ide-main');
       body.append(sidebar, resizer, main);
-      mods = { explorer, editor, sidePanels, search };
+      mods = { explorer, editor, sidePanels, search, tabs: [] };
       editor.mount(main, {
         onTabsChange: (list, act) => {
+          mods.tabs = Array.isArray(list) ? list : [];
           explorer.setOpenEditors(list, act);
           sidePanels.setActiveFile(act);
         },
@@ -186,9 +215,25 @@ async function setActive(on) {
   }
 }
 
+const NAV_SEARCH_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
+
+function createNavSearch() {
+  const center = document.querySelector('.navbar-row--primary .navbar-section.center');
+  if (!center || document.getElementById('ideNavSearch')) return;
+  const el = document.createElement('button');
+  el.id = 'ideNavSearch';
+  el.type = 'button';
+  el.className = 'ide-nav-search';
+  el.title = 'Search words in the codebase (F2)';
+  el.innerHTML = NAV_SEARCH_ICON + '<span class="ide-nav-search-text">Search in codebase</span><kbd class="ide-nav-search-key">F2</kbd>';
+  el.addEventListener('click', () => openSearch(false));
+  center.insertBefore(el, center.firstChild);
+}
 function createButton() {
+  const right = document.querySelector('.navbar-row--primary .navbar-section.right');
   const anchor = document.getElementById('viewModeBtn');
-  if (!anchor || !anchor.parentElement) return;
+  const host = right || (anchor && anchor.parentElement);
+  if (!host) return;
   btn = document.createElement('button');
   btn.id = 'ideModeBtn';
   btn.type = 'button';
@@ -196,7 +241,8 @@ function createButton() {
   btn.title = 'Toggle IDE mode (VS Code style explorer and editor)';
   btn.innerHTML = BTN_ICON + 'IDE Mode';
   btn.addEventListener('click', () => setActive(!active));
-  anchor.parentElement.insertBefore(btn, anchor);
+  host.insertBefore(btn, host.firstChild);
+  createNavSearch();
 }
 
 function onRepoSwitched(e) {
@@ -217,6 +263,18 @@ function onGlobalKey(e) {
   openSearch(true);
 }
 
+function reloadIde() {
+  if (!active || !mods) return;
+  mods.explorer.refresh();
+  const tabs = mods.tabs || [];
+  for (const t of tabs) {
+    if (!t || t.dirty || !t.path) continue;
+    try {
+      const r = mods.editor.reloadFromDisk(t.path);
+      if (r && typeof r.catch === 'function') r.catch(() => {});
+    } catch (_) {}
+  }
+}
 function init() {
   injectCss();
   applyWidth();
@@ -227,7 +285,7 @@ function init() {
   const refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      if (active && mods) mods.explorer.refresh();
+      reloadIde();
     });
   }
   if (readLS(LS_ON, '0') === '1') setActive(true);

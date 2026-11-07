@@ -10,7 +10,6 @@ const I_FILE_ADD = SVG_OPEN + '<path d="M9 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h
 const I_FOLDER_ADD = SVG_OPEN + '<path d="M1.5 4v8.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V5.5a1 1 0 0 0-1-1H7.5L6 3H2.5a1 1 0 0 0-1 1z"/><path d="M8 7.5v4M6 9.5h4"/></svg>';
 const I_REFRESH = SVG_OPEN + '<path d="M13 8a5 5 0 1 1-1.5-3.5"/><path d="M13 2.5v3h-3"/></svg>';
 const I_COLLAPSE = SVG_OPEN + '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M5.5 8h5"/></svg>';
-const I_SEARCH = SVG_OPEN + '<circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L14 14"/></svg>';
 const I_CLEAR = SVG_OPEN + '<path d="M2.5 4h7M2.5 8h4M2.5 12h7"/><path d="M10.5 7.5l4 4M14.5 7.5l-4 4"/></svg>';
 
 const FOLDER_CLOSED = '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg>';
@@ -21,7 +20,6 @@ const TEMPLATE =
   '<div class="ide-section-head">' +
     '<span class="ide-sec-chev"></span><span class="ide-sec-name">File Express</span><span class="ide-sec-count"></span>' +
     '<span class="ide-sec-actions">' +
-      '<button type="button" class="ide-sec-btn" data-act="search" title="Search in codebase (F2)">' + I_SEARCH + '</button>' +
       '<button type="button" class="ide-sec-btn" data-act="clearall" title="Clear all open files">' + I_CLEAR + '</button>' +
     '</span>' +
   '</div>' +
@@ -322,17 +320,17 @@ export function setOpenEditors(list, act) {
   activeKey = act ? pathKey(act) : null;
   oeEmptyEl.hidden = list.length > 0;
   oeListEl.innerHTML = list.map((t) =>
-    '<div class="ide-oe-item' + (pathKey(t.path) === activeKey ? ' active' : '') + '" data-path="' + attr(t.path) + '" title="' + attr(t.path) + '">' +
+    '<div class="ide-oe-item' + (pathKey(t.path) === activeKey ? ' active' : '') + (t.dirty ? ' dirty' : '') + '" data-path="' + attr(t.path) + '" title="' + attr(t.path) + '">' +
       '<span class="ide-oe-x' + (t.dirty ? ' dirty' : '') + '"></span>' +
       fileIcon(t.name) +
       '<span class="ide-name">' + esc(t.name) + '</span>' +
     '</div>'
   ).join('');
   const unsaved = list.filter((t) => t.dirty).length;
-  const parts = [];
-  if (list.length) parts.push(list.length + ' open');
-  if (unsaved) parts.push(unsaved + ' unsaved');
-  oeCountEl.textContent = parts.join(' - ');
+  let html = '';
+  if (list.length) html += '<span class="ide-open-n">' + list.length + ' open</span>';
+  if (unsaved) html += '<span class="ide-unsaved">' + unsaved + ' unsaved</span>';
+  oeCountEl.innerHTML = html;
   if (activeKey && activeKey !== prevKey) revealPath(act);
   else markActive();
 }
