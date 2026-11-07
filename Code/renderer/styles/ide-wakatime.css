@@ -112,3 +112,25 @@
 @keyframes waka-rot {
   to { transform: rotate(360deg); }
 }
+.waka-proj {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.waka-proj-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.waka-proj-val {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--text-primary, #eef2ff);
+}
+.waka-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted, #6b7a99);
+}
