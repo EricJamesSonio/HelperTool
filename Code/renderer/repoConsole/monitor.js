@@ -1,7 +1,7 @@
 import { S, h, call, liveEntry, repoLabel, fmtMs, fmtDate, statusLabel, statusChip, toast, copyText } from './state.js';
 import { compareBlock } from './ciCompare.js';
 
-const els = { pill: null, output: null, log: null, elapsed: null, panel: null };
+const els = { pill: null, output: null, log: null, elapsed: null, panel: null, stage: null, stageKey: '' };
 let panelTimer = null;
 let ticker = null;
 let suiteFilter = 'all';
@@ -195,6 +195,8 @@ export function closeOutput() {
   S.output.open = false;
   els.log = null;
   els.elapsed = null;
+  els.stage = null;
+  els.stageKey = '';
   stopTicker();
   if (els.output) els.output.replaceChildren();
   setPaneOpen(false);
@@ -248,6 +250,7 @@ export function renderOutput() {
   const model = outputModel();
   els.log = null;
   els.elapsed = null;
+  els.stage = null;
   const closeBtn = h('button', { class: 'rc-btn secondary small', text: 'Close', title: 'Close (Esc)', onclick: closeOutput });
 
   if (!model) {
@@ -312,7 +315,10 @@ export function renderOutput() {
   else if (S.output.tab === 'errors') body = errorsTab(model);
   else body = summaryTab(model);
 
-  els.output.replaceChildren(h('div', { class: 'rc-output-inner' + (run.env === 'production' ? ' prod' : '') }, head, stageStrip(run, steps), tabBar, body));
+  const stage = stageStrip(run, steps);
+  els.stage = stage;
+  els.stageKey = stageKey(run, steps);
+  els.output.replaceChildren(h('div', { class: 'rc-output-inner' + (run.env === 'production' ? ' prod' : '') }, head, stage, tabBar, body));
   if (live) startTicker();
   else stopTicker();
 }
@@ -323,6 +329,24 @@ export function schedulePanelRefresh() {
     panelTimer = null;
     if (S.output.open && S.output.tab !== 'output') renderOutput();
   }, 300);
+}
+function stageKey(run, steps) {
+  const active = steps.find((s) => s.status === 'running');
+  const p = active && active.progress ? active.progress.done + '/' + active.progress.total : '';
+  return [run.status, run.awaiting ? 'w' : '', run.activeStep, steps.map((s) => s.status).join(','), p].join('|');
+}
+
+export function refreshStage() {
+  if (!S.output.open || !els.stage) return;
+  const model = outputModel();
+  if (!model) return;
+  const steps = model.steps || [];
+  const key = stageKey(model.run, steps);
+  if (key === els.stageKey) return;
+  const next = stageStrip(model.run, steps);
+  els.stage.replaceWith(next);
+  els.stage = next;
+  els.stageKey = key;
 }
 
 function summaryTab(model) {
@@ -458,14 +482,16 @@ function outputTab(model) {
   const parts = [h('div', { class: 'rc-log-tools' }, search, errorsOnly, h('span', { class: 'rc-where', text: logs.length + ' lines' }))];
   const entry = S.output.live ? liveEntry(S.output.repoPath) : null;
   const running = entry && entry.job && entry.job.status === 'running';
-  if (running && entry.job.awaiting) parts.push(promptBox(entry));
-  else if (running) parts.push(h('div', { class: 'rc-noinput', text: 'No input needed. The script is not waiting for an answer.' }));
+  const interactive = !!(running && entry.job.steps.some((s) => s.status === 'running' && s.interactive));
+  if (running && entry.job.awaiting) parts.push(promptBox(entry, true));
+  else if (interactive) parts.push(promptBox(entry, false));
+  else if (running) parts.push(h('div', { class: 'rc-noinput', text: 'This step does not take input.' }));
   parts.push(box);
   fillLog(box, logs);
   return h('div', { class: 'rc-output-body fill' }, ...parts);
 }
 
-function promptBox(entry) {
+function promptBox(entry, waiting) {
   const last = [...entry.log].reverse().find((l) => String(l.t || '').trim());
   const input = h('input', {
     type: 'text',
@@ -482,10 +508,15 @@ function promptBox(entry) {
     S.output.focusPrompt = false;
     requestAnimationFrame(() => input.focus());
   }
+  const text = waiting
+    ? last
+      ? last.t
+      : 'The script is waiting for an answer.'
+    : 'Optional: if the output below shows a question, type the answer here.';
   return h(
     'div',
-    { class: 'rc-prompt' },
-    h('div', { class: 'rc-prompt-text', text: last ? last.t : 'The script is waiting for an answer.' }),
+    { class: 'rc-prompt' + (waiting ? '' : ' idle') },
+    h('div', { class: 'rc-prompt-text', text }),
     h('div', { class: 'rc-row' }, input, h('button', { class: 'rc-btn small', text: 'Send', onclick: () => sendPrompt(input) }))
   );
 }

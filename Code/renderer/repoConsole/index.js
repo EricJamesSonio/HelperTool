@@ -3,6 +3,7 @@ import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLi
 import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory } from './pages.js';
 import { securityPage } from './securityPage.js';
 import { ciPage } from './ciPage.js';
+import { refreshStage } from './monitor.js';
 
 const NAV = [
   ['seeds', 'Seeds'],
@@ -207,8 +208,13 @@ function onEvent(msg) {
       else if (changed) renderPage();
     }
     if (S.output.open && S.output.live && S.output.repoPath === repoPath && S.output.runId === data.id) {
-      if (changed || awaitingChanged) renderOutput();
-      else schedulePanelRefresh();
+      if (changed || awaitingChanged) {
+        if (awaitingChanged && data.awaiting) S.output.focusPrompt = true;
+        renderOutput();
+      } else {
+        schedulePanelRefresh();
+        refreshStage();
+      }
     }
     return;
   }
