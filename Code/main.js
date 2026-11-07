@@ -540,3 +540,10 @@ app.whenReady().then(() => {
     console.error('[IPC] Failed to register ide_ipc:', e);
   }
 });
+app.whenReady().then(() => {
+  try {
+    require('./ipc/gitAccounts_ipc.js').register();
+  } catch (e) {
+    console.error('[IPC] Failed to register gitAccounts_ipc:', e);
+  }
+});

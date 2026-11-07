@@ -580,6 +580,12 @@ const githubBridge = {
     openUrl: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
 };
+contextBridge.exposeInMainWorld('gitAccountsAPI', {
+  list:   (repoPath)     => ipcRenderer.invoke('gitAccounts:list', { repoPath }),
+  add:    (payload)      => ipcRenderer.invoke('gitAccounts:add', payload),
+  remove: (id)           => ipcRenderer.invoke('gitAccounts:remove', { id }),
+  switch: (repoPath, id) => ipcRenderer.invoke('gitAccounts:switch', { repoPath, id }),
+});
 
 const automationBridge = {
   automation: {
