@@ -1,4 +1,5 @@
 const FALLBACK_MAX_NAMES = 8;
+const MAX_SYMBOL_NAMES = 16;
 const TRY_EXTS = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.vue', '.py', '.php', '.css', '.scss', '.html'];
 const INDEX_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue', '.py', '.php'];
 const JS_SWAP = {
@@ -124,9 +125,18 @@ function buildFlowGraph({ files, symbols, imports, repoPath }) {
   };
 
   const symbolCounts = new Map();
+  const symbolNameMap = new Map();
   for (const s of safeSymbols) {
     const key = strip(s.file_path);
     symbolCounts.set(key, (symbolCounts.get(key) || 0) + 1);
+    const nm = typeof s.name === 'string' ? s.name : '';
+    if (!nm) continue;
+    let arr = symbolNameMap.get(key);
+    if (!arr) {
+      arr = [];
+      symbolNameMap.set(key, arr);
+    }
+    if (arr.length < MAX_SYMBOL_NAMES && !arr.includes(nm)) arr.push(nm);
   }
 
   const fileSet = new Set();
@@ -139,6 +149,7 @@ function buildFlowGraph({ files, symbols, imports, repoPath }) {
       path: p,
       language: f.language || '',
       symbols: symbolCounts.get(p) || 0,
+      symbolNames: symbolNameMap.get(p) || [],
     });
   }
 
