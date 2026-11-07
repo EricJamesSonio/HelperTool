@@ -1,8 +1,11 @@
 import { state as appState } from '../app_manager/appState.js';
 import { diffLines, collapseDiff, diffStats } from './review.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+import { createCodeViewer } from '../shared/codeViewer.js';
 
 const KIND_LABEL = { new: 'new', modified: 'modified', deleted: 'deleted' };
+
+let liveViewer = null;
 
 function bridge() {
   return window.electronAPI && window.electronAPI.fileSeeder;
@@ -42,18 +45,19 @@ function getOps(f) {
   return f._ops;
 }
 
-function renderCode(rows) {
-  const pre = makeEl('div', 'ft-code');
-  for (const l of rows) {
-    const line = makeEl('div', 'ft-code-line');
-    line.dataset.t = l.t;
-    line.appendChild(makeEl('span', 'ft-code-no', l.t === '...' ? '' : String(l.b || l.a || '')));
-    line.appendChild(makeEl('span', 'ft-code-sign', l.t === ' ' || l.t === '...' ? '' : l.t));
-    line.appendChild(makeEl('span', 'ft-code-text', l.text));
-    pre.appendChild(line);
+function disposeViewer() {
+  if (liveViewer) {
+    liveViewer.destroy();
+    liveViewer = null;
   }
-  if (!rows.length) pre.appendChild(makeEl('div', 'ft-note', 'No changes.'));
-  return pre;
+}
+
+function renderCode(rows, name) {
+  disposeViewer();
+  const host = makeEl('div', 'cv-boxed');
+  liveViewer = createCodeViewer(host);
+  liveViewer.showDiff(rows, { name, empty: 'No changes.' });
+  return host;
 }
 
 export function mountHistory(root) {
@@ -124,6 +128,7 @@ export function mountHistory(root) {
   }
 
   function renderDetail() {
+    disposeViewer();
     detailEl.textContent = '';
     if (!st.id) {
       detailEl.appendChild(makeEl('div', 'ft-empty', 'Select an entry on the left to see the files it changed.'));
@@ -187,7 +192,7 @@ export function mountHistory(root) {
       detailEl.appendChild(makeEl('div', 'ft-note', 'This file is too large to keep a copy of, so it cannot be shown or reverted.'));
       return;
     }
-    detailEl.appendChild(renderCode(collapseDiff(getOps(f))));
+    detailEl.appendChild(renderCode(collapseDiff(getOps(f)), f.path));
   }
 
   async function select(id) {

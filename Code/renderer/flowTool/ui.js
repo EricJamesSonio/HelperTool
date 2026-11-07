@@ -15,6 +15,10 @@ import {
   collapseDiff,
 } from './review.js';
 import { isMulti, candidateLabel, currentCandidate } from './review.js';
+import { createCodeViewer } from '../shared/codeViewer.js';
+
+let viewer = null;
+
 
 let lastReply = '';
 const BADGE_TEXT = {
@@ -154,6 +158,7 @@ function setBanner(tone, text) {
 }
 
 function clearReview() {
+  disposeViewer();
   state.review = null;
   state.selected = -1;
   els.reviewBody.dataset.empty = 'true';
@@ -230,24 +235,15 @@ function addNote(wrap, tone, text) {
   wrap.appendChild(n);
 }
 
-function renderCode(lines, rows) {
-  const pre = makeEl('div', 'ft-code');
-  for (const l of rows) {
-    const line = makeEl('div', 'ft-code-line');
-    line.dataset.t = l.t;
-    const no = makeEl('span', 'ft-code-no', l.t === '...' ? '' : String(l.b || l.a || ''));
-    const sign = makeEl('span', 'ft-code-sign', l.t === ' ' || l.t === '...' ? '' : l.t);
-    const text = makeEl('span', 'ft-code-text', l.text);
-    line.appendChild(no);
-    line.appendChild(sign);
-    line.appendChild(text);
-    pre.appendChild(line);
+function disposeViewer() {
+  if (viewer) {
+    viewer.destroy();
+    viewer = null;
   }
-  if (!rows.length) pre.appendChild(makeEl('div', 'ft-note', 'No content.'));
-  return pre;
 }
 
 function renderDetail() {
+  disposeViewer();
   els.detail.textContent = '';
   const r = state.review;
   const e = r && r.entries[state.selected];
@@ -315,13 +311,14 @@ function renderDetail() {
     els.detail.appendChild(makeEl('div', 'ft-note', 'Loading preview...'));
     return;
   }
+
+  const host = makeEl('div', 'cv-boxed');
+  els.detail.appendChild(host);
+  viewer = createCodeViewer(host);
   if (state.view === 'full') {
-    const rows = String(e.final == null ? e.content : e.final)
-      .split('\n')
-      .map((text, i) => ({ t: ' ', text, b: i + 1 }));
-    els.detail.appendChild(renderCode([], rows));
-  } else if (e.diff.length) {
-    els.detail.appendChild(renderCode([], collapseDiff(e.diff)));
+    viewer.showCode(e.final == null ? e.content : e.final, { name: e.resolved });
+  } else {
+    viewer.showDiff(collapseDiff(e.diff), { name: e.resolved, empty: 'No changes. The file already matches.' });
   }
 }
 
