@@ -11,12 +11,16 @@ const PAD = 8;
 const BUF = 25;
 const MAX_CHARS = 2000000;
 const MAX_MATCHES = 10000;
+const PULSE_MS = 2000;
+const SESS_KEY = 'helpertool-ide-session:';
+const SAVE_GAP = 600;
 const BINARY_EXT = new Set('png jpg jpeg gif webp bmp ico icns pdf zip gz tgz rar 7z exe dll so dylib node wasm mp3 mp4 mov avi mkv webm woff woff2 ttf otf eot db sqlite bin class jar'.split(' '));
 
 const FS = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
 const I_UP = FS + '<path d="M3.5 10L8 5.5 12.5 10"/></svg>';
 const I_DOWN = FS + '<path d="M3.5 6L8 10.5 12.5 6"/></svg>';
 const I_X = FS + '<path d="M4 4l8 8M12 4l-8 8"/></svg>';
+const I_CHEV = FS + '<path d="M6 3.5L10.5 8 6 12.5"/></svg>';
 
 const TEMPLATE =
 '<div class="ide-tabs"></div>' +
@@ -30,6 +34,7 @@ const TEMPLATE =
       '<div class="ide-welcome-grid">' +
         '<div class="ide-wk"><span>Save file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>S</kbd></span></div>' +
         '<div class="ide-wk"><span>Find in file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>F</kbd></span></div>' +
+        '<div class="ide-wk"><span>Replace in file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>' +
         '<div class="ide-wk"><span>Search codebase</span><span class="ide-wk-keys"><kbd>F2</kbd></span></div>' +
         '<div class="ide-wk"><span>Close tab</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>W</kbd></span></div>' +
       '</div>' +
@@ -38,12 +43,22 @@ const TEMPLATE =
     '<div class="ide-notice" hidden></div>' +
   '</div>' +
   '<div class="ide-find" hidden>' +
-    '<input class="ide-find-in" type="text" placeholder="Find" spellcheck="false" autocomplete="off" />' +
-    '<button type="button" class="ide-find-btn ide-find-cs" data-f="case" title="Match Case (Alt+C)">Aa</button>' +
-    '<span class="ide-find-count"></span>' +
-    '<button type="button" class="ide-find-btn" data-f="prev" title="Previous Match (Shift+Enter)">' + I_UP + '</button>' +
-    '<button type="button" class="ide-find-btn" data-f="next" title="Next Match (Enter)">' + I_DOWN + '</button>' +
-    '<button type="button" class="ide-find-btn" data-f="close" title="Close (Escape)">' + I_X + '</button>' +
+    '<button type="button" class="ide-find-btn ide-find-tog" data-f="toggle" title="Toggle Replace (Ctrl+H)">' + I_CHEV + '</button>' +
+    '<div class="ide-find-rows">' +
+      '<div class="ide-find-row">' +
+        '<input class="ide-find-in" type="text" placeholder="Find" spellcheck="false" autocomplete="off" />' +
+        '<button type="button" class="ide-find-btn ide-find-cs" data-f="case" title="Match Case (Alt+C)">Aa</button>' +
+        '<span class="ide-find-count"></span>' +
+        '<button type="button" class="ide-find-btn" data-f="prev" title="Previous Match (Shift+Enter)">' + I_UP + '</button>' +
+        '<button type="button" class="ide-find-btn" data-f="next" title="Next Match (Enter)">' + I_DOWN + '</button>' +
+        '<button type="button" class="ide-find-btn" data-f="close" title="Close (Escape)">' + I_X + '</button>' +
+      '</div>' +
+      '<div class="ide-find-row ide-find-rrow" hidden>' +
+        '<input class="ide-find-in ide-rep-in" type="text" placeholder="Replace" spellcheck="false" autocomplete="off" />' +
+        '<button type="button" class="ide-find-btn ide-find-txt" data-f="replace" title="Replace (Enter)">Replace</button>' +
+        '<button type="button" class="ide-find-btn ide-find-txt" data-f="replaceall" title="Replace All (Ctrl+Alt+Enter)">All</button>' +
+      '</div>' +
+    '</div>' +
   '</div>' +
   '<div class="ide-dv" hidden></div>' +
   '<div class="ide-media" hidden></div>' +
@@ -80,10 +95,19 @@ let rafId = 0;
 let cursorRaf = 0;
 let flashTimer = 0;
 let charW = 0;
-let find = { open: false, q: '', cs: false, matches: [], idx: -1, byLine: new Map() };
+let pulse = null;
+let pulseTimer = 0;
+let sessRepo = null;
+let suspendSave = false;
+let saveTimer = 0;
+let find = { open: false, repOpen: false, q: '', cs: false, matches: [], idx: -1, byLine: new Map() };
 
 function attr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function normRepo(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
 function activeTab() {
@@ -94,7 +118,27 @@ function isText(tab) {
   return !!tab && !tab.kind && !tab.media && !tab.loading && !tab.notice;
 }
 
+function makeTab(path, name, media) {
+  return {
+    path,
+    key: pathKey(path),
+    name,
+    media,
+    content: '',
+    saved: '',
+    eol: '\n',
+    dirty: false,
+    loading: !media,
+    notice: null,
+    scrollTop: 0,
+    scrollLeft: 0,
+    selStart: 0,
+    selEnd: 0,
+  };
+}
+
 function notify() {
+  if (!suspendSave) scheduleSave();
   if (!onChange) return;
   const list = tabs.filter((t) => !t.kind).map((t) => ({ path: t.path, name: t.name, dirty: !!t.dirty }));
   const act = activeTab();
@@ -120,6 +164,31 @@ function flash(msg) {
   els.msg.textContent = msg;
   clearTimeout(flashTimer);
   flashTimer = setTimeout(() => { els.msg.textContent = ''; }, 2000);
+}
+
+function scheduleSave() {
+  if (suspendSave || !sessRepo) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persistNow, SAVE_GAP);
+}
+
+function persistNow() {
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  if (suspendSave || !els || !sessRepo) return;
+  saveViewState();
+  const list = tabs.filter((t) => !t.kind).map((t) => ({
+    path: t.path,
+    scrollTop: t.scrollTop || 0,
+    scrollLeft: t.scrollLeft || 0,
+    selStart: t.selStart || 0,
+    selEnd: t.selEnd || 0,
+  }));
+  const act = activeTab();
+  const payload = { v: 1, active: act ? (act.kind ? act.filePath : act.path) : null, tabs: list };
+  try {
+    localStorage.setItem(SESS_KEY + sessRepo, JSON.stringify(payload));
+  } catch (_) {}
 }
 
 function relParts(p) {
@@ -196,6 +265,24 @@ function syncTransform() {
   els.gutterInner.style.transform = 'translateY(' + y + 'px)';
 }
 
+function clearPulse() {
+  clearTimeout(pulseTimer);
+  pulseTimer = 0;
+  pulse = null;
+}
+
+function startPulse(line, col, len) {
+  clearPulse();
+  if (!len) return;
+  pulse = { line, col, len, t0: Date.now() };
+  pulseTimer = setTimeout(() => {
+    pulseTimer = 0;
+    pulse = null;
+    invalidate();
+  }, PULSE_MS);
+  invalidate();
+}
+
 function computeMatches(src) {
   const m = [];
   const byLine = new Map();
@@ -225,23 +312,40 @@ function computeMatches(src) {
   updateFindCount();
 }
 
-function findHtml(from, to) {
-  const len = find.q.length;
+function overlayHtml(from, to) {
+  const flen = find.open ? find.q.length : 0;
   const cur = find.matches[find.idx];
   const parts = [];
   for (let i = from; i <= to; i++) {
     const line = lines[i];
-    const hits = find.byLine.get(i);
-    if (!hits) {
+    const ranges = [];
+    if (pulse && pulse.line === i && pulse.col < line.length) {
+      const elapsed = Math.min(PULSE_MS, Date.now() - pulse.t0);
+      ranges.push({
+        s: pulse.col,
+        e: Math.min(line.length, pulse.col + pulse.len),
+        cls: 'ide-pulse',
+        st: ' style="animation-delay:-' + elapsed + 'ms"',
+      });
+    }
+    const hits = flen ? find.byLine.get(i) : null;
+    if (hits) {
+      for (const h of hits) {
+        ranges.push({ s: h.col, e: h.col + flen, cls: 'ide-fm' + (h === cur ? ' cur' : ''), st: '' });
+      }
+    }
+    if (!ranges.length) {
       parts.push(esc(line));
       continue;
     }
+    ranges.sort((a, b) => a.s - b.s);
     let out = '';
     let pos = 0;
-    for (const h of hits) {
-      out += esc(line.slice(pos, h.col));
-      out += '<span class="ide-fm' + (h === cur ? ' cur' : '') + '">' + esc(line.slice(h.col, h.col + len)) + '</span>';
-      pos = h.col + len;
+    for (const r of ranges) {
+      if (r.s < pos) continue;
+      out += esc(line.slice(pos, r.s));
+      out += '<span class="' + r.cls + '"' + r.st + '>' + esc(line.slice(r.s, r.e)) + '</span>';
+      pos = r.e;
     }
     out += esc(line.slice(pos));
     parts.push(out);
@@ -289,7 +393,8 @@ function render() {
     const from = Math.max(0, vFrom - BUF);
     const to = Math.min(last, vTo + BUF);
     els.hlInner.innerHTML = highlightRange(lines, from, to, lang);
-    els.findInner.innerHTML = find.open && find.q ? findHtml(from, to) : '';
+    const wantOverlay = (find.open && !!find.q) || !!pulse;
+    els.findInner.innerHTML = wantOverlay ? overlayHtml(from, to) : '';
     let nums = '';
     for (let i = from; i <= to; i++) nums += (i + 1) + (i < to ? '\n' : '');
     els.gutterInner.textContent = nums;
@@ -301,6 +406,7 @@ function render() {
 
 function updateCursor() {
   cursorRaf = 0;
+  scheduleSave();
   const tab = activeTab();
   if (!tab || tab.kind || tab.media || tab.loading || tab.notice) {
     if (!tab || !tab.media) els.pos.textContent = '';
@@ -345,6 +451,7 @@ function saveViewState() {
 }
 
 function showTab(tab) {
+  clearPulse();
   const isPane = !!tab && !!tab.kind;
   const isMedia = !!tab && !isPane && !!tab.media;
   const showCode = !!tab && !isPane && !isMedia && !tab.loading && !tab.notice;
@@ -441,7 +548,7 @@ export async function openFile(path) {
   }
   const name = path.split(/[\\/]/).pop();
   const media = mediaViewer.mediaKind(name);
-  tab = { path, key, name, media, content: '', saved: '', eol: '\n', dirty: false, loading: !media, notice: null, scrollTop: 0, scrollLeft: 0, selStart: 0, selEnd: 0 };
+  tab = makeTab(path, name, media);
   tabs.push(tab);
   activate(tab.path);
   if (!media) await loadTab(tab);
@@ -499,8 +606,9 @@ export async function openAt(path, line, col, len) {
   const c = Math.max(0, col || 0);
   const l = Math.max(0, len || 0);
   const off = starts[ln] + c;
-  try { ta.setSelectionRange(off, off + l); } catch (_) {}
+  try { ta.setSelectionRange(off, off); } catch (_) {}
   revealMatch(ln, c, l, true);
+  startPulse(ln, c, l);
   ta.focus({ preventScroll: true });
   invalidate();
   scheduleCursor();
@@ -538,6 +646,7 @@ export async function closeTab(path) {
 export function resetTabs() {
   if (!els) return;
   closeFind(true);
+  clearPulse();
   tabs = [];
   activePath = null;
   els.ta.value = '';
@@ -566,6 +675,117 @@ export function getSelectedText() {
   const ta = els.ta;
   const s = ta.value.slice(ta.selectionStart, ta.selectionEnd);
   return s && s.indexOf('\n') === -1 && s.length <= 120 ? s.trim() : '';
+}
+
+export function isDirty(path) {
+  const key = pathKey(path);
+  const tab = tabs.find((t) => t.key === key);
+  if (!tab || tab.kind) return false;
+  if (tab.path === activePath && isText(tab)) return els.ta.value !== tab.saved;
+  return !!tab.dirty;
+}
+
+export async function reloadFromDisk(path) {
+  if (!els || !path) return;
+  const key = pathKey(path);
+  const tab = tabs.find((t) => t.key === key);
+  if (!isText(tab)) return;
+  if (isDirty(path)) return;
+  let res = null;
+  try {
+    res = await window.electronAPI.readFile(tab.path);
+  } catch (_) {
+    res = null;
+  }
+  if (!res || !res.success || typeof res.content !== 'string') return;
+  if (isDirty(path)) return;
+  const eol = res.content.indexOf('\r\n') !== -1 ? '\r\n' : '\n';
+  const content = eol === '\r\n' ? res.content.replace(/\r\n/g, '\n') : res.content;
+  if (content === tab.saved) return;
+  const isActive = tab.path === activePath;
+  if (isActive) saveViewState();
+  tab.eol = eol;
+  tab.content = content;
+  tab.saved = content;
+  tab.dirty = false;
+  if (isActive) showTab(tab);
+  renderTabs();
+  notify();
+}
+
+async function restoreTabs(data) {
+  const created = [];
+  for (const st of data.tabs.slice(0, 40)) {
+    if (!st || typeof st.path !== 'string') continue;
+    const key = pathKey(st.path);
+    if (tabs.some((t) => t.key === key)) continue;
+    const name = st.path.split(/[\\/]/).pop();
+    const tab = makeTab(st.path, name, mediaViewer.mediaKind(name));
+    tab.scrollTop = Number(st.scrollTop) || 0;
+    tab.scrollLeft = Number(st.scrollLeft) || 0;
+    tab.selStart = Number(st.selStart) || 0;
+    tab.selEnd = Number(st.selEnd) || 0;
+    tabs.push(tab);
+    created.push(tab);
+  }
+  if (!created.length) return;
+  const want = data.active ? pathKey(data.active) : '';
+  const first = tabs.find((t) => t.key === want) || created[created.length - 1];
+  activate(first.path);
+  await Promise.all(created.filter((t) => !t.media).map(loadTab));
+  const dead = created.filter((t) => t.notice && t.notice.indexOf('Cannot open file') === 0);
+  if (!dead.length) return;
+  for (const t of dead) {
+    const i = tabs.indexOf(t);
+    if (i >= 0) tabs.splice(i, 1);
+  }
+  if (!tabs.some((t) => t.path === activePath)) {
+    activePath = null;
+    const next = tabs[tabs.length - 1];
+    if (next) {
+      activate(next.path);
+    } else {
+      showTab(null);
+      renderTabs();
+      notify();
+    }
+  } else {
+    renderTabs();
+    notify();
+  }
+}
+
+export async function restoreSession() {
+  if (!els) return;
+  const repo = state.selectedRepoPath;
+  sessRepo = repo ? normRepo(repo) : null;
+  if (!sessRepo || tabs.length) return;
+  let data = null;
+  try {
+    data = JSON.parse(localStorage.getItem(SESS_KEY + sessRepo) || 'null');
+  } catch (_) {
+    data = null;
+  }
+  if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return;
+  suspendSave = true;
+  try {
+    await restoreTabs(data);
+  } finally {
+    suspendSave = false;
+    scheduleSave();
+  }
+}
+
+export async function switchRepo() {
+  if (!els) return;
+  persistNow();
+  suspendSave = true;
+  try {
+    resetTabs();
+  } finally {
+    suspendSave = false;
+  }
+  await restoreSession();
 }
 
 async function save() {
@@ -658,7 +878,13 @@ function runFind(fromCursor) {
   jumpToCurrent();
 }
 
-function openFind() {
+function setRepOpen(on) {
+  find.repOpen = !!on;
+  els.repRow.hidden = !on;
+  els.findTog.classList.toggle('open', !!on);
+}
+
+function openFind(withReplace) {
   const tab = activeTab();
   if (!isText(tab) || els.codewrap.hidden) return;
   const ta = els.ta;
@@ -666,6 +892,7 @@ function openFind() {
   if (sel && sel.indexOf('\n') === -1 && sel.length <= 200) els.findIn.value = sel;
   find.open = true;
   els.find.hidden = false;
+  if (withReplace) setRepOpen(true);
   els.findIn.focus();
   els.findIn.select();
   runFind(true);
@@ -689,12 +916,81 @@ function toggleCase() {
   runFind(true);
 }
 
+function escRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function replaceOne() {
+  const tab = activeTab();
+  if (!isText(tab) || !find.q) return;
+  if (!find.matches.length) {
+    runFind(true);
+    return;
+  }
+  const hit = find.matches[find.idx];
+  if (!hit) return;
+  const text = els.ta.value;
+  const starts = lineStartsOf(text);
+  const off = starts[hit.line] + hit.col;
+  const seg = text.slice(off, off + find.q.length);
+  const same = find.cs ? seg === find.q : seg.toLowerCase() === find.q.toLowerCase();
+  if (!same) {
+    runFind(true);
+    return;
+  }
+  const keep = document.activeElement;
+  try { els.ta.setSelectionRange(off, off + find.q.length); } catch (_) {}
+  exec(els.repIn.value);
+  if (keep && keep !== els.ta && typeof keep.focus === 'function') keep.focus();
+  runFind(true);
+}
+
+function replaceAll() {
+  const tab = activeTab();
+  if (!isText(tab) || !find.q) return;
+  const ta = els.ta;
+  const text = ta.value;
+  const rep = els.repIn.value;
+  const re = new RegExp(escRe(find.q), find.cs ? 'g' : 'gi');
+  let n = 0;
+  const out = text.replace(re, () => {
+    n++;
+    return rep;
+  });
+  if (!n) {
+    flash('No results to replace');
+    return;
+  }
+  const keep = document.activeElement;
+  const st = ta.scrollTop;
+  const sl = ta.scrollLeft;
+  const caret = ta.selectionStart;
+  try { ta.setSelectionRange(0, text.length); } catch (_) {}
+  exec(out);
+  ta.scrollTop = st;
+  ta.scrollLeft = sl;
+  try { ta.setSelectionRange(Math.min(caret, out.length), Math.min(caret, out.length)); } catch (_) {}
+  if (keep && keep !== ta && typeof keep.focus === 'function') keep.focus();
+  runFind(true);
+  flash('Replaced ' + n + ' occurrence' + (n === 1 ? '' : 's'));
+}
+
 function onFindKey(e) {
   e.stopPropagation();
   const key = e.key;
   const mod = e.ctrlKey || e.metaKey;
+  const inRep = e.target === els.repIn;
+  if (mod && e.altKey && key === 'Enter') {
+    e.preventDefault();
+    replaceAll();
+    return;
+  }
   if (key === 'Enter' || key === 'F3') {
     e.preventDefault();
+    if (inRep && key === 'Enter') {
+      replaceOne();
+      return;
+    }
     stepMatch(e.shiftKey ? -1 : 1);
     return;
   }
@@ -710,7 +1006,15 @@ function onFindKey(e) {
   }
   if (mod && key.toLowerCase() === 'f') {
     e.preventDefault();
+    els.findIn.focus();
     els.findIn.select();
+    return;
+  }
+  if (mod && !e.shiftKey && key.toLowerCase() === 'h') {
+    e.preventDefault();
+    setRepOpen(true);
+    els.repIn.focus();
+    els.repIn.select();
     return;
   }
   if (mod && !e.shiftKey && key.toLowerCase() === 's') {
@@ -727,6 +1031,9 @@ function onFindClick(e) {
   else if (f === 'prev') stepMatch(-1);
   else if (f === 'close') closeFind(false);
   else if (f === 'case') toggleCase();
+  else if (f === 'toggle') setRepOpen(!find.repOpen);
+  else if (f === 'replace') replaceOne();
+  else if (f === 'replaceall') replaceAll();
 }
 
 function exec(text) {
@@ -810,7 +1117,13 @@ function onMainKeyDown(e) {
   if (key === 'f') {
     e.preventDefault();
     e.stopPropagation();
-    openFind();
+    openFind(false);
+    return;
+  }
+  if (key === 'h') {
+    e.preventDefault();
+    e.stopPropagation();
+    openFind(true);
     return;
   }
   if (key === 'w') {
@@ -830,6 +1143,7 @@ function onScroll() {
   syncTransform();
   schedule();
   minimap.sync();
+  scheduleSave();
 }
 
 function onTabClick(e) {
@@ -885,6 +1199,9 @@ export function mount(mainEl, handlers) {
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
     findCount: mainEl.querySelector('.ide-find-count'),
+    findTog: mainEl.querySelector('.ide-find-tog'),
+    repRow: mainEl.querySelector('.ide-find-rrow'),
+    repIn: mainEl.querySelector('.ide-rep-in'),
     ta: mainEl.querySelector('.ide-ta'),
     msg: mainEl.querySelector('.ide-st-msg'),
     pos: mainEl.querySelector('.ide-st-pos'),
@@ -910,8 +1227,10 @@ export function mount(mainEl, handlers) {
   els.tabs.addEventListener('wheel', onTabsWheel, { passive: false });
   els.findIn.addEventListener('input', () => runFind(true));
   els.findIn.addEventListener('keydown', onFindKey);
+  els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
   mainEl.addEventListener('keydown', onMainKeyDown);
+  window.addEventListener('beforeunload', persistNow);
   if (typeof ResizeObserver === 'function') {
     new ResizeObserver(() => {
       rendered.to = -1;

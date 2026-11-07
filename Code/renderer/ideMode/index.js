@@ -38,6 +38,7 @@ function injectCss() {
     ['ideSearchCss', './styles/ide-search.css'],
     ['ideSearchV2Css', './styles/ide-search-v2.css'],
     ['ideDiffCss', './styles/ide-diff.css'],
+    ['chromeFlatCss', './styles/chrome-flat.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
@@ -135,6 +136,8 @@ function ensureBuilt() {
       });
       search.init({
         onOpen: (p, line, col, len) => editor.openAt(p, line, col, len),
+        isDirty: (p) => editor.isDirty(p),
+        onFileChanged: (p) => editor.reloadFromDisk(p),
       });
       explorer.mount(sidebar, {
         onOpenFile: (p) => editor.openFile(p),
@@ -149,6 +152,7 @@ function ensureBuilt() {
         onViewVersion: (spec) => editor.openView(spec),
       });
       initResizer(sidebar, resizer);
+      editor.restoreSession().catch((err) => console.error('[IDE] restore failed:', err));
       return mods;
     })
     .catch((err) => {
@@ -200,8 +204,8 @@ function onRepoSwitched(e) {
   const changed = next !== lastRepo;
   lastRepo = next;
   if (changed && mods) {
-    mods.editor.resetTabs();
     mods.search.reset();
+    mods.editor.switchRepo().catch((err) => console.error('[IDE] repo switch failed:', err));
   }
 }
 
