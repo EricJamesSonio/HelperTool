@@ -580,6 +580,13 @@ const githubBridge = {
     openUrl: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
 };
+contextBridge.exposeInMainWorld('perfOptAPI', {
+  kill:        (pids)     => ipcRenderer.invoke('perf:kill', { pids }),
+  killWaka:    ()         => ipcRenderer.invoke('perf:killWaka'),
+  getSettings: ()         => ipcRenderer.invoke('perf:getSettings'),
+  setSettings: (settings) => ipcRenderer.invoke('perf:setSettings', settings),
+});
+
 contextBridge.exposeInMainWorld('wakaCtxAPI', {
   context: (payload) => ipcRenderer.invoke('wakatime:context', payload),
 });

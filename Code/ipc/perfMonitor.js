@@ -13,7 +13,7 @@ const SLOW_IPC_MS = 250;
 const SLOW_KEEP = 30;
 const SLOW_WINDOW_MS = 120000;
 
-const LONG_RUNNING = /^(select-repo|select-folder|save-file-dialog|opencode:(run|selectFile)|harness:run|(image|video):(pick|compress|gif|render|preview|convert)|gmail:(addAccount|reAuthAccount)|github:generateBundle|generate)$/;
+const LONG_RUNNING = /^(select-repo|select-folder|save-file-dialog|opencode:(run|selectFile)|harness:run|(image|video):(pick|compress|gif|render|preview|convert)|gmail:(addAccount|reAuthAccount)|github:generateBundle|generate|wakatime:(today|install)|gitAccounts:(switch|loginStart))$/;
 
 const CHANNEL_FEATURES = [
   ['git:', 'gitTool'],
@@ -240,6 +240,8 @@ function classifyTop(top, subtree, ctx) {
   if (cmd.includes('--type=renderer')) return ctx.wc.get(top.pid) === 'browserView' ? 'researcherTool' : 'core';
   if (cmd.includes('--type=')) return 'electron';
 
+  if (/^wakatime-cli/.test(name)) return 'ideMode';
+
   if (cmd.includes('worker-service/worker.js')) return 'workerService';
   if (cmd.includes('indexer-service/indexer.js')) return 'symbolIndex';
   if (cmd.includes('graphify-service/server.js')) return 'graphify';
@@ -438,9 +440,14 @@ async function doSample() {
 
 function sample() {
   if (_inflight) return _inflight;
-  _inflight = doSample().finally(() => {
-    _inflight = null;
-  });
+  _inflight = doSample()
+    .then((snap) => {
+      if (snap && Array.isArray(snap.processes)) _lastProcs = snap.processes;
+      return snap;
+    })
+    .finally(() => {
+      _inflight = null;
+    });
   return _inflight;
 }
 
@@ -449,6 +456,66 @@ function reset() {
   _ipcPrev.clear();
   _lastAt = null;
 }
+const KILLABLE = new Set(['terminalTool', 'commands', 'other', 'ideMode']);
+let _lastProcs = [];
+
+function killTree(pid) {
+  return new Promise((resolve) => {
+    if (IS_WIN) {
+      execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 10000 }, (err) => resolve(!err));
+      return;
+    }
+    try {
+      process.kill(pid, 'SIGTERM');
+      resolve(true);
+    } catch (_) {
+      resolve(false);
+    }
+  });
+}
+
+async function killPids(pids) {
+  const known = new Map(_lastProcs.map((p) => [p.pid, p]));
+  let killed = 0;
+  let skipped = 0;
+  for (const pid of pids) {
+    const p = known.get(pid);
+    const lower = p ? String(p.name || '').toLowerCase().replace(/\.exe$/, '') : '';
+    const blocked = !p || pid === process.pid || !KILLABLE.has(p.feature) || SHELL_NAMES.test(lower) || PTY_HOSTS.test(lower);
+    if (blocked) {
+      skipped++;
+      continue;
+    }
+    if (await killTree(pid)) killed++;
+  }
+  return { ok: true, killed, skipped };
+}
+
+function readNodeCap() {
+  try {
+    const cfg = require('../config/config.js').readConfig();
+    return Number(cfg && cfg.perf && cfg.perf.nodeMemMB) || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function writeNodeCap(value) {
+  try {
+    const mb = Math.floor(Number(value) || 0);
+    if (mb !== 0 && (mb < 256 || mb > 16384)) {
+      return { ok: false, error: 'Pick a value between 256 and 16384 MB, or 0 for off.' };
+    }
+    const config = require('../config/config.js');
+    const cfg = config.readConfig();
+    cfg.perf = Object.assign({}, cfg.perf, { nodeMemMB: mb });
+    config.writeConfig(cfg);
+    return { ok: true, nodeMemMB: mb };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 
 function install() {
   if (_installed) return;
@@ -465,6 +532,16 @@ function install() {
     reset();
     return { ok: true };
   });
+  ipcMain.handle('perf:kill', async (_e, payload) => {
+    const pids = Array.isArray(payload && payload.pids) ? payload.pids.map(Number).filter((n) => Number.isInteger(n)) : [];
+    return killPids(pids);
+  });
+  ipcMain.handle('perf:killWaka', async () => {
+    const pids = _lastProcs.filter((p) => /^wakatime-cli/i.test(String(p.name || ''))).map((p) => p.pid);
+    return killPids(pids);
+  });
+  ipcMain.handle('perf:getSettings', () => ({ nodeMemMB: readNodeCap() }));
+  ipcMain.handle('perf:setSettings', (_e, payload) => writeNodeCap(payload && payload.nodeMemMB));
 }
 
 module.exports = { install };

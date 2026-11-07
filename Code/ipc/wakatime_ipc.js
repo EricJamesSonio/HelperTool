@@ -14,8 +14,11 @@ const SAME_GAP = 100000;
 const WRITE_GAP = 5000;
 const TICK_MS = 30000;
 const IDLE_LIMIT = 120;
-const FLUSH_MS = 3000;
-const FLUSH_MAX = 8;
+const FLUSH_MS = 5000;
+const FLUSH_MAX = 3;
+const WATCH_GAP = 60000;
+const BURST_LIMIT = 300;
+const MAX_QUEUE = 12;
 const KEY_RE = /^(waka_)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const SKIP_DIRS = new Set([
@@ -34,6 +37,10 @@ const pending = new Set();
 let watcher = null;
 let watchedRoot = '';
 let flushTimer = 0;
+let eventCount = 0;
+let cliBusy = false;
+const cliQueue = [];
+
 
 function platformName() {
   if (process.platform === 'win32') return 'windows';
@@ -195,6 +202,24 @@ function userActive() {
   }
 }
 
+function runQueue() {
+  if (cliBusy || !cliQueue.length) return;
+  const job = cliQueue.shift();
+  cliBusy = true;
+  execFile(job.bin, job.args, { windowsHide: true, timeout: 20000 }, (err, _out, stderr) => {
+    if (err) console.warn('[WakaTime] heartbeat failed:', String(stderr || err.message).slice(0, 300));
+    cliBusy = false;
+    runQueue();
+  });
+}
+
+function enqueueBeat(bin, args, key) {
+  if (cliQueue.some((j) => j.key === key)) return false;
+  if (cliQueue.length >= MAX_QUEUE) cliQueue.shift();
+  cliQueue.push({ bin, args, key });
+  runQueue();
+  return true;
+}
 function sendBeat(p) {
   const bin = cliPath();
   if (!bin || ctx.paused || !hasKey()) return false;
@@ -203,7 +228,7 @@ function sendBeat(p) {
   const entity = isApp ? APP_NAME : p.file;
   const key = (isApp ? 'app:' : 'file:') + entity;
   const now = Date.now();
-  const gap = p.write ? WRITE_GAP : SAME_GAP;
+  const gap = Number(p.gap) || (p.write ? WRITE_GAP : SAME_GAP);
   if (now - (beats.get(key) || 0) < gap) return false;
   beats.set(key, now);
   if (beats.size > 400) {
@@ -224,10 +249,7 @@ function sendBeat(p) {
   }
   if (repo) args.push('--project-folder', repo);
   else if (isApp) args.push('--project', APP_NAME);
-  execFile(bin, args, { windowsHide: true, timeout: 30000 }, (err, _out, stderr) => {
-    if (err) console.warn('[WakaTime] heartbeat failed:', String(stderr || err.message).slice(0, 300));
-  });
-  return true;
+  return enqueueBeat(bin, args, key + (p.write ? ':w' : ''));
 }
 
 function tick() {
@@ -241,25 +263,27 @@ function tick() {
 
 async function flushPending() {
   flushTimer = 0;
+  const burst = eventCount;
+  eventCount = 0;
   const files = Array.from(pending);
   pending.clear();
-  if (!files.length || ctx.paused || !windowOpen() || !userActive()) return;
+  if (!files.length || burst > BURST_LIMIT || ctx.paused || !windowOpen() || !userActive()) return;
   let sent = 0;
-  for (const f of files) {
-    if (sent >= FLUSH_MAX) break;
+  for (let i = files.length - 1; i >= 0 && sent < FLUSH_MAX; i--) {
     let info;
     try {
-      info = await fs.promises.stat(f);
+      info = await fs.promises.stat(files[i]);
     } catch (_) {
       continue;
     }
     if (!info.isFile()) continue;
-    if (sendBeat({ file: f, write: true, repo: ctx.repo })) sent++;
+    if (sendBeat({ file: files[i], write: true, repo: ctx.repo, gap: WATCH_GAP })) sent++;
   }
 }
 
 function onFsEvent(root, filename) {
   if (!filename || ctx.paused) return;
+  eventCount++;
   const rel = String(filename);
   const parts = rel.split(/[\\/]/).filter(Boolean);
   if (!parts.length) return;

@@ -544,7 +544,8 @@ function buildRows(snap) {
   }
   for (const m of EXTRA_FEATURES) {
     seen.add(m.id);
-    rows.push(make(m.id, m, document.body.classList.contains('ide-mode')));
+    const f = snap.features[m.id] || {};
+    rows.push(make(m.id, m, document.body.classList.contains('ide-mode') || (f.procs || 0) > 0));
   }
   for (const id of Object.keys(PSEUDO)) {
     seen.add(id);
@@ -571,6 +572,7 @@ function render() {
   $('ptGauge').innerHTML = renderGauge(rows);
   $('ptInsights').innerHTML = renderInsights(rows, snap);
   $('ptHeavy').innerHTML = renderHeavy(rows);
+  renderOpt();
   $('ptGroups').innerHTML = renderGroups(rows);
   $('ptTable').innerHTML = renderTable(rows);
   $('ptDisabled').innerHTML = renderDisabled(rows);
@@ -795,6 +797,149 @@ function renderDisabled(rows) {
     '<div class="pt-chips">' + body + '</div></details>'
   );
 }
+let _optSettings = { nodeMemMB: 0 };
+let _optLoaded = false;
+let _optMsg = '';
+let _optBusy = false;
+
+const OPT_SHELL = /^(powershell|pwsh|cmd|conhost|openconsole|bash|zsh|sh|fish|wsl)/i;
+const OPT_CAPS = [[0, 'Off'], [1024, '1 GB'], [1536, '1.5 GB'], [2048, '2 GB'], [3072, '3 GB']];
+
+function injectOptStyles() {
+  if (document.getElementById('ptOptCss')) return;
+  const st = document.createElement('style');
+  st.id = 'ptOptCss';
+  st.textContent =
+    '.pt-opt-row{display:flex;align-items:center;gap:12px;margin-top:8px;padding:10px 12px;border:1px solid var(--border-subtle,rgba(255,255,255,0.08));border-radius:8px}' +
+    '.pt-opt-text{flex:1;min-width:0;font-size:13px;line-height:1.5;color:var(--text-secondary,#94a3c4)}' +
+    '.pt-opt-text strong{color:var(--text-primary,#eef2ff)}' +
+    '.pt-opt-mem{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--text-primary,#eef2ff)}' +
+    '.pt-opt-msg{margin-top:10px;font-size:12px;color:var(--text-primary,#eef2ff)}';
+  document.head.appendChild(st);
+}
+
+function renderOptimizer(snap) {
+  const waka = snap.processes.filter((p) => /^wakatime-cli/i.test(String(p.name || '')));
+  const dev = snap.processes
+    .filter((p) => (p.feature === 'terminalTool' || p.feature === 'commands' || p.feature === 'other') && !OPT_SHELL.test(String(p.name || '')) && p.memKB >= 40 * 1024)
+    .sort((a, b) => b.memKB - a.memKB)
+    .slice(0, 8);
+  let body = '';
+  if (waka.length > 2) {
+    const mem = waka.reduce((a, p) => a + p.memKB, 0);
+    body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + waka.length + ' WakaTime helper programs are running</strong> using ' + esc(fmtMem(mem)) +
+      '. One at a time is normal.</div><button type="button" class="pt-btn" data-opt="waka">Clean up</button></div>';
+  }
+  if (dev.length) {
+    const total = dev.reduce((a, p) => a + p.memKB, 0);
+    body += '<div class="pt-hint" style="margin-top:12px">Programs you started in terminals (' + esc(fmtMem(total)) + ')</div>';
+    for (const p of dev) {
+      body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(p.name) + '</strong> <span class="pt-cell-muted">PID ' + p.pid + '</span></div>' +
+        '<span class="pt-opt-mem">' + esc(fmtMem(p.memKB)) + '</span>' +
+        '<button type="button" class="pt-btn" data-opt="kill" data-pid="' + p.pid + '">Stop</button></div>';
+    }
+  } else if (waka.length <= 2) {
+    body += '<div class="pt-empty">Nothing heavy is running in terminals right now.</div>';
+  }
+  let current = Number(_optSettings.nodeMemMB) || 0;
+  let options = OPT_CAPS.map((c) => '<option value="' + c[0] + '"' + (c[0] === current ? ' selected' : '') + '>' + c[1] + '</option>').join('');
+  if (current && !OPT_CAPS.some((c) => c[0] === current)) {
+    options += '<option value="' + current + '" selected>' + current + ' MB</option>';
+  }
+  body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Memory limit for Node programs</strong><br>' +
+    '<span class="pt-cell-muted">Caps Next.js, NestJS and other Node programs in terminals you open from now on. Programs already running keep their memory until you restart them.</span></div>' +
+    '<select class="pt-select" data-opt="cap">' + options + '</select></div>';
+  if (_optMsg) body += '<div class="pt-opt-msg">' + esc(_optMsg) + '</div>';
+  return '<h2 class="pt-h2">Optimizer</h2><p class="pt-hint">Safe clean-ups for the programs running inside Helper Tool terminals</p>' + body;
+}
+
+async function loadOptSettings() {
+  const api = window.perfOptAPI;
+  if (!api) return;
+  try {
+    const s = await api.getSettings();
+    if (s) _optSettings = s;
+  } catch (_) {}
+  renderOpt();
+}
+
+async function onOptClick(e) {
+  const btn = e.target.closest('button[data-opt]');
+  if (!btn || _optBusy) return;
+  const api = window.perfOptAPI;
+  if (!api) {
+    _optMsg = 'Restart Helper Tool once to enable the optimizer.';
+    renderOpt();
+    return;
+  }
+  const kind = btn.dataset.opt;
+  if (kind === 'kill' && !window.confirm('Stop this program? Whatever it serves goes offline until you start it again.')) return;
+  _optBusy = true;
+  try {
+    const res = kind === 'waka' ? await api.killWaka() : await api.kill([Number(btn.dataset.pid)]);
+    if (res && res.killed) _optMsg = 'Stopped ' + res.killed + ' process' + (res.killed === 1 ? '' : 'es') + '.';
+    else _optMsg = (res && res.error) || 'Nothing was stopped.';
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not stop it.';
+  }
+  _optBusy = false;
+  renderOpt();
+  clearTimeout(_timer);
+  setTimeout(run, 700);
+}
+
+async function onOptChange(e) {
+  const sel = e.target.closest('select[data-opt="cap"]');
+  const api = window.perfOptAPI;
+  if (!sel) return;
+  if (!api) {
+    _optMsg = 'Restart Helper Tool once to enable the optimizer.';
+    renderOpt();
+    return;
+  }
+  const mb = Number(sel.value) || 0;
+  try {
+    const res = await api.setSettings({ nodeMemMB: mb });
+    if (res && res.ok) {
+      _optSettings = { nodeMemMB: res.nodeMemMB };
+      _optMsg = mb ? 'New terminals will limit Node programs to ' + sel.options[sel.selectedIndex].text + '.' : 'Memory limit is off for new terminals.';
+    } else {
+      _optMsg = (res && res.error) || 'Could not save the limit.';
+    }
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not save the limit.';
+  }
+  sel.blur();
+  renderOpt();
+}
+
+function ensureOptSection() {
+  let el = $('ptOpt');
+  if (el) return el;
+  const anchor = $('ptGroups');
+  if (!anchor || !anchor.parentNode) return null;
+  injectOptStyles();
+  el = document.createElement('section');
+  el.className = 'pt-card';
+  el.id = 'ptOpt';
+  anchor.parentNode.insertBefore(el, anchor);
+  el.addEventListener('click', onOptClick);
+  el.addEventListener('change', onOptChange);
+  if (!_optLoaded) {
+    _optLoaded = true;
+    loadOptSettings();
+  }
+  return el;
+}
+
+function renderOpt() {
+  const el = ensureOptSection();
+  if (!el || !_snap) return;
+  const active = document.activeElement;
+  if (active && el.contains(active) && active.tagName === 'SELECT') return;
+  el.innerHTML = renderOptimizer(_snap);
+}
+
 
 function renderProcs(snap) {
   const labels = {};
