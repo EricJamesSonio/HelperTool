@@ -32,6 +32,13 @@ export const S = {
     loaded: false,
     loading: false,
   },
+  security: {
+    profile: null,
+    settings: null,
+    loaded: false,
+    loading: false,
+    detecting: false,
+  },
   hooks: {
     renderAll() {},
     renderPage() {},
@@ -113,6 +120,7 @@ export function statusLabel(status, isTest) {
     interrupted: 'Interrupted',
     pending: 'Waiting',
     skipped: 'Skipped',
+    blocked: 'Blocked',
   };
   return labels[status] || status || 'Unknown';
 }

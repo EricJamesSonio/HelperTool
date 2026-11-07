@@ -1,6 +1,37 @@
 const { ipcMain } = require('electron');
-const GitOperations = require('../utils/gitOps');
-const simpleGit = require('simple-git');
+const GitOperationsBase = require('../utils/gitOps');
+const gitAccountsAuth = require('./gitAccounts_ipc.js');
+
+class GitOperations extends GitOperationsBase {
+    constructor(repoPath) {
+        super(repoPath);
+        this.git = simpleGit(repoPath);
+    }
+
+    async push() {
+        const res = await super.push();
+        if (!res || res.success !== false) return res;
+        let info = null;
+        try {
+            info = await gitAccountsAuth.explainPushError(this.repoPath, res.error);
+        } catch (_) {
+            info = null;
+        }
+        if (!info) return res;
+        if (info.accepted) {
+            const again = await super.push();
+            if (again && again.success !== false) {
+                return Object.assign({}, again, { message: info.message + ' Pushed successfully.' });
+            }
+            return Object.assign({}, again, {
+                error: info.message + ' The push still failed: ' + (again && again.error ? again.error : 'unknown error'),
+            });
+        }
+        return Object.assign({}, res, { error: info.message });
+    }
+}
+const simpleGitFactory = require('simple-git');
+const simpleGit = (repoPath, ...rest) => gitAccountsAuth.authedGit(simpleGitFactory, repoPath, ...rest);
 const path = require('path');
 const gitService = require('./gitService.js');
 const { mergeBranch } = require('./gitMerge.js');
@@ -585,6 +616,14 @@ function register(_deps) {
             return { success: false, error: err.message, edges: [] };
         }
     });
+
+    // ── Inspect view: read-only history, files and file versions ──
+
+    try {
+        require('./gitInspect_ipc').register();
+    } catch (err) {
+        console.error('[IPC] git inspect handlers failed to register:', err.message);
+    }
 }
 
 module.exports = { register };

@@ -424,6 +424,24 @@ function createTray() {
         {
             label: 'Exit',
             click: () => {
+                try {
+                    const repoConsole = require('./ipc/repoConsole_ipc.js');
+                    if (repoConsole.hasRunning()) {
+                        const { dialog } = require('electron');
+                        const choice = dialog.showMessageBoxSync({
+                            type: 'warning',
+                            buttons: ['Stop jobs and exit', 'Cancel'],
+                            defaultId: 1,
+                            cancelId: 1,
+                            title: 'Repo Console job running',
+                            message: 'A Repo Console job is still running.',
+                            detail: 'Exiting now will stop it.'
+                        });
+                        if (choice !== 0) return;
+                    }
+                } catch (e) {
+                    console.error('[Tray] Running-job check failed:', e);
+                }
                 tray.destroy();
                 cleanupAndExit(true);
                 app.exit(0);
@@ -469,6 +487,7 @@ function getPreviousReposMenu() {
 }
 
 function cleanupAndExit(deleteIndex) {
+    try { require('./ipc/repoConsole_ipc.js').stopAll({ hard: true }); } catch (_) {}
     if (deleteIndex) {
         try {
             const dbModule = require('./database/db.js');
@@ -507,3 +526,24 @@ try {
 } catch (e) {
   console.error('[Perf] Performance monitor failed to install:', e.message);
 }
+app.whenReady().then(() => {
+  try {
+    require('./ipc/security_ipc.js').register({ app, config, getMainWindow });
+  } catch (e) {
+    console.error('[IPC] Failed to register security_ipc:', e);
+  }
+});
+app.whenReady().then(() => {
+  try {
+    require('./ipc/ide_ipc.js').register();
+  } catch (e) {
+    console.error('[IPC] Failed to register ide_ipc:', e);
+  }
+});
+app.whenReady().then(() => {
+  try {
+    require('./ipc/gitAccounts_ipc.js').register();
+  } catch (e) {
+    console.error('[IPC] Failed to register gitAccounts_ipc:', e);
+  }
+});

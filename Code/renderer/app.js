@@ -82,6 +82,10 @@ import { init as initServiceTracker } from './serviceTracker.js';
 import { openDocignoreManager, isDocignoreManagerOpen, closeDocignoreManager } from './docignoreManagerUI.js';
 import * as essentialsGlossary from './essentialsGlossary.js';
 import { openShortcutSetup, onShortcutSave, showConfirmDialog } from './shortcut-setup.js';
+import './ideMode/index.js';
+import './gitAccounts/index.js';
+
+
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
@@ -218,6 +222,13 @@ function setupShortcutButton(type, btn) {
 // ── Title bar controls ─────────────────────────────────────────────────────────
 
 function initTitlebar() {
+  const titlebar = document.getElementById('appTitlebar');
+  const repoEl = document.getElementById('activeRepoName');
+  if (titlebar && repoEl && repoEl.parentElement !== titlebar) {
+    repoEl.classList.add('titlebar-repo');
+    titlebar.appendChild(repoEl);
+  }
+
   const wc = window.electronAPI.windowControls;
   if (!wc) return;
   document.querySelector('.titlebar-minimize')?.addEventListener('click', () => wc.minimize());

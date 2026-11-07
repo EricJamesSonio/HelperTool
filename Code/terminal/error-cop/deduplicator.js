@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 
+const MAX_ACTIVE = 5000;
+
 class Deduplicator {
   constructor() {
     this._active = new Map();
@@ -17,6 +19,10 @@ class Deduplicator {
       existing.occurrences++;
       existing.lastSeen = new Date().toISOString();
       return { isNew: false, fingerprint: fp, occurrences: existing.occurrences };
+    }
+    if (this._active.size >= MAX_ACTIVE) {
+      const oldest = this._active.keys().next().value;
+      this._active.delete(oldest);
     }
     const now = new Date().toISOString();
     this._active.set(fp, { occurrences: 1, firstSeen: now, lastSeen: now });

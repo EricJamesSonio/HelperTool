@@ -1,0 +1,208 @@
+:root {
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+}
+
+.navbar-row--primary button,
+.navbar-row--primary .search-input,
+.navbar-row--primary .generate-mode-menu {
+  border-radius: var(--r-md);
+}
+.generate-split-btn .generate-btn {
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+.generate-split-btn .generate-mode-toggle {
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+.repo-name {
+  border-radius: var(--r-sm);
+}
+.tools-sidebar-item {
+  border-radius: var(--r-md);
+}
+.zoom-btn {
+  border-radius: var(--r-sm);
+}
+.gen-viewer {
+  border-radius: var(--r-lg);
+}
+.gen-viewer-btn {
+  border-radius: var(--r-sm);
+}
+.col-count {
+  border-radius: var(--r-sm);
+}
+.toggle-badge {
+  border-radius: var(--r-sm);
+}
+
+.ide-wk {
+  border-radius: var(--r-md);
+}
+.ide-wk-keys kbd {
+  border-radius: var(--r-sm);
+}
+.ide-notice {
+  border-radius: var(--r-md);
+}
+.ide-sec-count {
+  border-radius: var(--r-sm);
+}
+.ide-find {
+  border-radius: var(--r-md);
+}
+.ide-sm {
+  border-radius: var(--r-lg);
+}
+.ide-sm-tag {
+  border-radius: var(--r-xs);
+}
+.ide-sm-gcount {
+  border-radius: var(--r-xs);
+}
+.ide-sm-rbtn,
+.ide-sm-rep-in,
+.ide-sm-rep-target {
+  border-radius: var(--r-sm);
+}
+
+.app-titlebar .titlebar-repo {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: block;
+  height: var(--titlebar-h, 35px);
+  max-width: 36vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: var(--titlebar-h, 35px);
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ide-nav-search {
+  display: none;
+}
+
+body.ide-mode {
+  --navbar-h: 48px;
+}
+
+body.ide-mode .navbar-row--primary {
+  gap: 12px;
+  padding: 0 14px;
+  box-shadow: none;
+}
+
+body.ide-mode #treeSearchInput,
+body.ide-mode #shortcutModeBtn,
+body.ide-mode #clearSelectionBtn,
+body.ide-mode #searchSuggestions {
+  display: none !important;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section.center {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section.center > :not(.ide-nav-search) {
+  display: none !important;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section:has(> #viewModeBtn) {
+  display: none;
+}
+
+body.ide-mode .navbar-row--primary .ide-nav-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: clamp(220px, 32vw, 520px);
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+body.ide-mode .navbar-row--primary .ide-nav-search:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+body.ide-mode .navbar-row--primary .ide-nav-search svg {
+  flex: 0 0 auto;
+}
+body.ide-mode .navbar-row--primary .ide-nav-search-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.ide-mode .navbar-row--primary .ide-nav-search-key {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: var(--bg-base);
+  font: 10px var(--font-mono);
+  color: var(--text-secondary);
+}
+
+body.ide-mode .navbar-row--primary .search-container {
+  gap: 0;
+}
+
+body.ide-mode .navbar-row--primary .primary-btn,
+body.ide-mode .navbar-row--primary .action-btn,
+body.ide-mode .navbar-row--primary .nav-btn,
+body.ide-mode .navbar-row--primary .view-mode-btn,
+body.ide-mode .navbar-row--primary .global-seeder-navbar-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+body.ide-mode .navbar-row--primary .tool-btn,
+body.ide-mode .navbar-row--primary .eg-nav-btn {
+  width: 30px;
+  height: 30px;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section {
+  gap: 8px;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section + .navbar-section::before {
+  height: 20px;
+}
+
+body.ide-mode .navbar-row--primary .repo-name {
+  padding: 2px 10px;
+  font-size: 11px;
+}

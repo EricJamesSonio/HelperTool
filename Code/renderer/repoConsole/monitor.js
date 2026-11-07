@@ -1,6 +1,7 @@
 import { S, h, call, liveEntry, repoLabel, fmtMs, fmtDate, statusLabel, statusChip, toast, copyText } from './state.js';
+import { compareBlock } from './ciCompare.js';
 
-const els = { pill: null, output: null, log: null, elapsed: null, panel: null };
+const els = { pill: null, output: null, log: null, elapsed: null, panel: null, stage: null, stageKey: '' };
 let panelTimer = null;
 let ticker = null;
 let suiteFilter = 'all';
@@ -112,11 +113,11 @@ function outputModel() {
   if (S.output.live) {
     const entry = liveEntry(S.output.repoPath);
     if (!entry || !entry.job || entry.job.id !== S.output.runId) return null;
-    return { run: entry.job, steps: entry.job.steps, logs: entry.log };
+    return { run: entry.job, steps: entry.job.steps, logs: entry.log, errors: [], compare: null };
   }
   const detail = S.output.detail;
   if (!detail) return null;
-  return { run: detail.run, steps: detail.steps, logs: detail.logs || [] };
+  return { run: detail.run, steps: detail.steps, logs: detail.logs || [], errors: detail.errors || [], compare: detail.compare || null };
 }
 
 function hasTestResults(steps) {
@@ -194,6 +195,8 @@ export function closeOutput() {
   S.output.open = false;
   els.log = null;
   els.elapsed = null;
+  els.stage = null;
+  els.stageKey = '';
   stopTicker();
   if (els.output) els.output.replaceChildren();
   setPaneOpen(false);
@@ -247,6 +250,7 @@ export function renderOutput() {
   const model = outputModel();
   els.log = null;
   els.elapsed = null;
+  els.stage = null;
   const closeBtn = h('button', { class: 'rc-btn secondary small', text: 'Close', title: 'Close (Esc)', onclick: closeOutput });
 
   if (!model) {
@@ -265,10 +269,13 @@ export function renderOutput() {
   const run = model.run;
   const steps = model.steps || [];
   const logs = model.logs || [];
+  const errors = model.errors || [];
   const isTestRun = hasTestResults(steps);
   if (S.output.tab === 'tests' && !isTestRun) S.output.tab = 'summary';
+  if (S.output.tab === 'errors' && !errors.length) S.output.tab = 'summary';
   const tabs = [['summary', 'Summary'], ['output', 'Output']];
   if (isTestRun) tabs.push(['tests', 'Tests']);
+  if (errors.length) tabs.push(['errors', 'Errors (' + errors.length + ')']);
 
   const headMeta = [run.env ? (run.env === 'production' ? 'Production' : 'Local') : null, run.database || null, fmtDate(run.startedAt)].filter(Boolean).join(' \u00b7 ');
 
@@ -305,9 +312,13 @@ export function renderOutput() {
   let body;
   if (S.output.tab === 'output') body = outputTab(model);
   else if (S.output.tab === 'tests') body = testsTab(model);
+  else if (S.output.tab === 'errors') body = errorsTab(model);
   else body = summaryTab(model);
 
-  els.output.replaceChildren(h('div', { class: 'rc-output-inner' + (run.env === 'production' ? ' prod' : '') }, head, stageStrip(run, steps), tabBar, body));
+  const stage = stageStrip(run, steps);
+  els.stage = stage;
+  els.stageKey = stageKey(run, steps);
+  els.output.replaceChildren(h('div', { class: 'rc-output-inner' + (run.env === 'production' ? ' prod' : '') }, head, stage, tabBar, body));
   if (live) startTicker();
   else stopTicker();
 }
@@ -318,6 +329,24 @@ export function schedulePanelRefresh() {
     panelTimer = null;
     if (S.output.open && S.output.tab !== 'output') renderOutput();
   }, 300);
+}
+function stageKey(run, steps) {
+  const active = steps.find((s) => s.status === 'running');
+  const p = active && active.progress ? active.progress.done + '/' + active.progress.total : '';
+  return [run.status, run.awaiting ? 'w' : '', run.activeStep, steps.map((s) => s.status).join(','), p].join('|');
+}
+
+export function refreshStage() {
+  if (!S.output.open || !els.stage) return;
+  const model = outputModel();
+  if (!model) return;
+  const steps = model.steps || [];
+  const key = stageKey(model.run, steps);
+  if (key === els.stageKey) return;
+  const next = stageStrip(model.run, steps);
+  els.stage.replaceWith(next);
+  els.stage = next;
+  els.stageKey = key;
 }
 
 function summaryTab(model) {
@@ -351,6 +380,7 @@ function summaryTab(model) {
     h('h4', { text: 'Steps' }),
     steps.length ? h('div', { class: 'rc-steps' }, ...steps.map(stepRow)) : h('div', { class: 'rc-empty', text: 'No steps reported.' }),
     run.error ? h('div', { class: 'rc-warn red', text: run.error }) : null,
+    compareBlock(model.compare),
     highlights.length ? h('h4', { text: 'Key output' }) : null,
     highlights.length ? h('div', { class: 'rc-highlights' }, ...highlights.map((line) => h('div', { class: 'rc-line ' + line.k, text: line.t }))) : null
   );
@@ -452,14 +482,16 @@ function outputTab(model) {
   const parts = [h('div', { class: 'rc-log-tools' }, search, errorsOnly, h('span', { class: 'rc-where', text: logs.length + ' lines' }))];
   const entry = S.output.live ? liveEntry(S.output.repoPath) : null;
   const running = entry && entry.job && entry.job.status === 'running';
-  if (running && entry.job.awaiting) parts.push(promptBox(entry));
-  else if (running) parts.push(h('div', { class: 'rc-noinput', text: 'No input needed. The script is not waiting for an answer.' }));
+  const interactive = !!(running && entry.job.steps.some((s) => s.status === 'running' && s.interactive));
+  if (running && entry.job.awaiting) parts.push(promptBox(entry, true));
+  else if (interactive) parts.push(promptBox(entry, false));
+  else if (running) parts.push(h('div', { class: 'rc-noinput', text: 'This step does not take input.' }));
   parts.push(box);
   fillLog(box, logs);
   return h('div', { class: 'rc-output-body fill' }, ...parts);
 }
 
-function promptBox(entry) {
+function promptBox(entry, waiting) {
   const last = [...entry.log].reverse().find((l) => String(l.t || '').trim());
   const input = h('input', {
     type: 'text',
@@ -476,10 +508,15 @@ function promptBox(entry) {
     S.output.focusPrompt = false;
     requestAnimationFrame(() => input.focus());
   }
+  const text = waiting
+    ? last
+      ? last.t
+      : 'The script is waiting for an answer.'
+    : 'Optional: if the output below shows a question, type the answer here.';
   return h(
     'div',
-    { class: 'rc-prompt' },
-    h('div', { class: 'rc-prompt-text', text: last ? last.t : 'The script is waiting for an answer.' }),
+    { class: 'rc-prompt' + (waiting ? '' : ' idle') },
+    h('div', { class: 'rc-prompt-text', text }),
     h('div', { class: 'rc-row' }, input, h('button', { class: 'rc-btn small', text: 'Send', onclick: () => sendPrompt(input) }))
   );
 }
@@ -507,6 +544,63 @@ function testsTab(model) {
     { class: 'rc-output-body' },
     all.length > 1 ? suiteSeg(all, renderOutput) : null,
     ...shown.map((step) => h('div', null, h('h4', { text: step.title }), testResultsBlock(step)))
+  );
+}
+
+function errorLocation(e) {
+  if (!e.file) return '';
+  return e.file + (e.line ? ':' + e.line + (e.col ? ':' + e.col : '') : '');
+}
+
+function errorsText(errors) {
+  return errors
+    .map((e) => {
+      const where = errorLocation(e);
+      return '[' + e.level + '] ' + (where ? where + ' ' : '') + e.title + ': ' + (e.message || '') + (e.count > 1 ? ' (x' + e.count + ')' : '');
+    })
+    .join('\n');
+}
+
+function errorItem(e) {
+  const where = errorLocation(e);
+  const head = h(
+    'div',
+    { class: 'rc-err-head' },
+    h('span', { class: 'rc-chip ' + (e.level === 'warning' ? 'skipped' : 'failed'), text: e.level }),
+    h('b', { class: 'rc-err-title', text: e.title }),
+    e.count > 1 ? h('span', { class: 'rc-where', text: 'x' + e.count }) : null,
+    where ? h('span', { class: 'rc-where rc-mono', text: where }) : null
+  );
+  const message = e.message ? h('pre', { class: 'rc-err-message', text: e.message }) : null;
+  if (!e.stack) return h('div', { class: 'rc-err' }, head, message);
+  return h('div', { class: 'rc-err' }, head, message, h('details', { class: 'rc-more' }, h('summary', { text: 'Stack' }), h('pre', { class: 'rc-err-message', text: e.stack })));
+}
+
+function errorsTab(model) {
+  const errors = model.errors || [];
+  const steps = model.steps || [];
+  const groups = new Map();
+  for (const e of errors) {
+    const key = e.stepIdx === null || e.stepIdx === undefined ? -1 : e.stepIdx;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  }
+  const nodes = [];
+  for (const [idx, list] of groups) {
+    const step = steps.find((s) => s.idx === idx);
+    nodes.push(h('div', { class: 'rc-group-title', text: step ? step.title : 'Run' }));
+    for (const e of list) nodes.push(errorItem(e));
+  }
+  return h(
+    'div',
+    { class: 'rc-output-body' },
+    h(
+      'div',
+      { class: 'rc-row' },
+      h('span', { class: 'rc-where', text: errors.length + ' error entries' }),
+      h('button', { class: 'rc-btn secondary small', text: 'Copy errors', onclick: () => copyText(errorsText(errors), 'Errors copied') })
+    ),
+    ...nodes
   );
 }
 

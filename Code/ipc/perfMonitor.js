@@ -56,6 +56,8 @@ const CHANNEL_FEATURES = [
   ['shortcut:', 'shortcutMode'],
   ['repoConsole:', 'commands'],
 ];
+CHANNEL_FEATURES.push(['ide:', 'ideMode'], ['wakatime:', 'ideMode'], ['gitAccounts:', 'gitTool']);
+
 
 const SHELL_NAMES = /^(powershell|pwsh|cmd|bash|zsh|sh|fish|wsl|ubuntu)$/;
 const PTY_HOSTS = /^(conhost|openconsole|winpty-agent|conpty)/;
@@ -270,7 +272,30 @@ function friendlyName(row, feature, ctx) {
   if (c.includes('worker-service/worker.js')) return 'Worker service';
   if (c.includes('indexer-service/indexer.js')) return 'Symbol indexer';
   if (c.includes('graphify-service/server.js')) return 'Graphify server';
-  return String(row.name || 'process').replace(/\.exe$/i, '');
+  const raw = String(row.name || 'process').replace(/\.exe$/i, '');
+  if (/^node$/i.test(raw)) {
+    const hints = [
+      [/next\/dist|\/next\/|\bnext (dev|build|start)/, 'Next.js'],
+      [/vite/, 'Vite'],
+      [/webpack/, 'Webpack'],
+      [/@nestjs|nest (start|build)|\/nest\//, 'NestJS'],
+      [/nodemon/, 'Nodemon'],
+      [/ts-node|\btsx\b/, 'ts-node'],
+      [/tsserver/, 'TypeScript server'],
+      [/typescript\/lib\/tsc|\btsc\b/, 'tsc'],
+      [/esbuild/, 'esbuild'],
+      [/vitest|jest/, 'tests'],
+      [/prisma/, 'Prisma'],
+      [/react-scripts/, 'React Scripts'],
+      [/@angular|ng (serve|build)/, 'Angular'],
+      [/metro|expo/, 'Expo'],
+      [/npm|pnpm|yarn/, 'package manager'],
+    ];
+    for (const h of hints) {
+      if (h[0].test(c)) return raw + ' (' + h[1] + ')';
+    }
+  }
+  return raw;
 }
 
 function bucket(map, id) {

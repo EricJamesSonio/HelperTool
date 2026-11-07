@@ -1,0 +1,113 @@
+:root {
+  --ide-blue: #2f81f7;
+  --ide-blue-soft: rgba(47, 129, 247, 0.2);
+  --ide-blue-mid: rgba(47, 129, 247, 0.38);
+  --ide-blue-glow: rgba(47, 129, 247, 0.8);
+}
+
+.ide-ta::selection {
+  background: rgba(47, 129, 247, 0.55);
+  color: transparent;
+}
+
+.ide-row.selected {
+  background: var(--ide-blue-soft);
+  color: var(--text-primary);
+}
+.ide-row.active {
+  background: var(--ide-blue-mid);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--ide-blue);
+}
+.ide-oe-item.active {
+  background: var(--ide-blue-mid);
+  color: #fff;
+  box-shadow: inset 3px 0 0 var(--ide-blue);
+}
+.ide-tab.active::before {
+  height: 3px;
+  background: var(--ide-blue);
+  box-shadow: 0 1px 12px var(--ide-blue-glow);
+}
+
+.ide-sm-row.sel {
+  background: var(--ide-blue-mid);
+  border-left-color: var(--ide-blue);
+}
+.ide-sm-grp.has-sel {
+  border-left-color: var(--ide-blue);
+}
+.ide-sm-pl.hit {
+  background: var(--ide-blue-soft);
+}
+
+.ide-sec-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+}
+.ide-open-n {
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: var(--bg-active);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ide-unsaved {
+  padding: 1px 9px;
+  border-radius: 99px;
+  background: var(--ide-blue);
+  box-shadow: 0 0 10px var(--ide-blue-glow);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  animation: ide-unsaved-pulse 2.2s ease-in-out infinite;
+}
+@keyframes ide-unsaved-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(47, 129, 247, 0.55); }
+  50% { box-shadow: 0 0 14px rgba(47, 129, 247, 1); }
+}
+
+.ide-oe-item.dirty .ide-name {
+  color: #58a6ff;
+  font-weight: 600;
+}
+.ide-oe-x.dirty::before,
+.ide-tab-x.dirty::before {
+  font-size: 13px;
+  color: var(--ide-blue);
+  text-shadow: 0 0 8px var(--ide-blue-glow);
+}
+.ide-tab:has(.ide-tab-x.dirty) {
+  box-shadow: inset 0 -2px 0 var(--ide-blue);
+}
+.ide-tab:has(.ide-tab-x.dirty) .ide-tab-name {
+  color: #58a6ff;
+}
+
+body.ide-sb-right .ide-main {
+  order: 1;
+}
+body.ide-sb-right .ide-resizer {
+  order: 2;
+}
+body.ide-sb-right .ide-sidebar {
+  order: 3;
+  border-right: 0;
+  border-left: 1px solid var(--border-default);
+}
+
+body.ide-swap-hint .ide-resizer {
+  background: var(--ide-blue);
+  box-shadow: 0 0 16px var(--ide-blue-glow);
+}
+body.ide-swap-hint .ide-sidebar {
+  opacity: 0.55;
+  outline: 2px dashed var(--ide-blue);
+  outline-offset: -2px;
+}

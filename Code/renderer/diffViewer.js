@@ -20,9 +20,11 @@ export function isOpen() {
   return _open;
 }
 
+let _initialHash = null;
 export function open(filePath, repoPath, opts) {
   _viewMode = opts?.viewMode === true;
   _showContent = opts?.showContent === true;
+  _initialHash = opts?.commitHash || null;
   _editMode = false;
   _rawContent = '';
   _filePath = filePath;
@@ -768,15 +770,17 @@ async function _load() {
   const result = await window.electronAPI.git.fileLog(_repoPath, _filePath, 100);
   if (result.success && result.commits.length) {
     _commits = result.commits;
+    let start = _initialHash ? _commits.findIndex(c => c.hash === _initialHash) : 0;
+    if (start < 0) start = 0;
     if (_viewMode) {
-      _leftHash = _commits[0].hash;
-      _rightHash = _commits[0].hash;
-    } else if (_commits.length >= 2) {
-      _rightHash = _commits[0].hash;
-      _leftHash = _commits[1].hash;
-    } else if (_commits.length === 1) {
-      _rightHash = _commits[0].hash;
-      _leftHash = _commits[0].hash;
+      _leftHash = _commits[start].hash;
+      _rightHash = _commits[start].hash;
+    } else if (_commits.length - start >= 2) {
+      _rightHash = _commits[start].hash;
+      _leftHash = _commits[start + 1].hash;
+    } else {
+      _rightHash = _commits[start].hash;
+      _leftHash = _commits[start].hash;
     }
     _updateSelects();
   }

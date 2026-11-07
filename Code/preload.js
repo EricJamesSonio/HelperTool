@@ -58,7 +58,7 @@ const generateBridge = {
 };
 
 const featuresBridge = {
-    featuresGet: ()  => ipcRenderer.invoke('features-get'),
+    featuresGet:  ()  => ipcRenderer.invoke('features-get'),
     featuresSet: (f) => ipcRenderer.invoke('features-set', f),
 };
 
@@ -183,6 +183,21 @@ const fileseederBridge = {
 
         getAiRule: () =>
             ipcRenderer.invoke('fileseeder:getAiRule'),
+
+        flowApply: (basePath, entries, meta) =>
+            ipcRenderer.invoke('fileseeder:applyContent', basePath, entries, meta),
+
+        flowHistoryList: (basePath) =>
+            ipcRenderer.invoke('flow:historyList', basePath),
+
+        flowHistoryGet: (basePath, id) =>
+            ipcRenderer.invoke('flow:historyGet', basePath, id),
+
+        flowHistoryRevert: (basePath, id, opts) =>
+            ipcRenderer.invoke('flow:historyRevert', basePath, id, opts),
+
+        flowHistoryClear: (basePath) =>
+            ipcRenderer.invoke('flow:historyClear', basePath),
     },
 };
 
@@ -415,6 +430,16 @@ const branchBridge = {
       ipcRenderer.invoke('git:commitDetail', { repoPath, hash }),
     gitCommitFileDiff:     (repoPath, hash, filePath) =>
       ipcRenderer.invoke('git:commitFileDiff', { repoPath, hash, filePath }),
+    gitInspectBranches:    (repoPath) =>
+      ipcRenderer.invoke('git:inspectBranches', { repoPath }),
+    gitInspectCommits:     (repoPath, branch, page, pageSize) =>
+      ipcRenderer.invoke('git:inspectCommits', { repoPath, branch, page, pageSize }),
+    gitInspectFiles:       (repoPath, hash) =>
+      ipcRenderer.invoke('git:inspectFiles', { repoPath, hash }),
+    gitInspectFile:        (repoPath, hash, filePath) =>
+      ipcRenderer.invoke('git:inspectFile', { repoPath, hash, filePath }),
+    gitInspectDiff:        (repoPath, hash, filePath) =>
+      ipcRenderer.invoke('git:inspectDiff', { repoPath, hash, filePath }),
 };
 
 const shortcutBridge = {
@@ -552,9 +577,37 @@ const githubBridge = {
     deleteSaved: (repoUrl) => ipcRenderer.invoke('github:deleteSaved', repoUrl),
     listRepos: (payload) => ipcRenderer.invoke('github:listRepos', payload),
     getCommitCounts: (payload) => ipcRenderer.invoke('github:getCommitCounts', payload),
-    openUrl: (url) => ipcRenderer.invoke('github:openUrl', url),
+    openUrl: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
 };
+contextBridge.exposeInMainWorld('wakaCtxAPI', {
+  context: (payload) => ipcRenderer.invoke('wakatime:context', payload),
+});
+
+contextBridge.exposeInMainWorld('wakaAPI', {
+  status:    ()        => ipcRenderer.invoke('wakatime:status'),
+  install:   ()        => ipcRenderer.invoke('wakatime:install'),
+  setKey:    (key)     => ipcRenderer.invoke('wakatime:setKey', { key }),
+  heartbeat: (payload) => ipcRenderer.invoke('wakatime:heartbeat', payload),
+  today:     ()        => ipcRenderer.invoke('wakatime:today'),
+});
+
+contextBridge.exposeInMainWorld('gitAuthAPI', {
+  loginStart:  ()         => ipcRenderer.invoke('gitAccounts:loginStart'),
+  loginCancel: ()         => ipcRenderer.invoke('gitAccounts:loginCancel'),
+  setClientId: (clientId) => ipcRenderer.invoke('gitAccounts:setClientId', { clientId }),
+  onLoginResult: (callback) => {
+    ipcRenderer.removeAllListeners('gitAccounts:loginResult');
+    ipcRenderer.on('gitAccounts:loginResult', (_, data) => callback(data));
+  },
+});
+
+contextBridge.exposeInMainWorld('gitAccountsAPI', {
+  list:   (repoPath)     => ipcRenderer.invoke('gitAccounts:list', { repoPath }),
+  add:    (payload)      => ipcRenderer.invoke('gitAccounts:add', payload),
+  remove: (id)           => ipcRenderer.invoke('gitAccounts:remove', { id }),
+  switch: (repoPath, id) => ipcRenderer.invoke('gitAccounts:switch', { repoPath, id }),
+});
 
 const automationBridge = {
   automation: {
@@ -767,6 +820,23 @@ const repoConsoleBridge = {
   historyRun:    (payload)                 => ipcRenderer.invoke('repoConsole:historyRun', payload),
   historyClear:  (payload)                 => ipcRenderer.invoke('repoConsole:historyClear', payload),
   trust:         (payload)                 => ipcRenderer.invoke('repoConsole:trust', payload),
+  ciDiscover:    (payload)                 => ipcRenderer.invoke('repoConsole:ciDiscover', payload),
+  ciWorkflow:    (payload)                 => ipcRenderer.invoke('repoConsole:ciWorkflow', payload),
+  ciPlan:        (payload)                 => ipcRenderer.invoke('repoConsole:ciPlan', payload),
+  ciTrust:       (payload)                 => ipcRenderer.invoke('repoConsole:ciTrust', payload),
+  ciEnvGet:      (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvGet', payload),
+  ciEnvSet:      (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvSet', payload),
+  ciEnvDelete:   (payload)                 => ipcRenderer.invoke('repoConsole:ciEnvDelete', payload),
+  ciPreflight:   (payload)                 => ipcRenderer.invoke('repoConsole:ciPreflight', payload),
+  ciChanges:     (payload)                 => ipcRenderer.invoke('repoConsole:ciChanges', payload),
+  ciSmart:       (payload)                 => ipcRenderer.invoke('repoConsole:ciSmart', payload),
+  ciRerunPlan:   (payload)                 => ipcRenderer.invoke('repoConsole:ciRerunPlan', payload),
+  ciRun:         (payload)                 => ipcRenderer.invoke('repoConsole:ciRun', payload),
+  securityDetect:       (payload)          => ipcRenderer.invoke('security:detect', payload),
+  securityDetectTarget: (payload)          => ipcRenderer.invoke('security:detectTarget', payload),
+  securityGetSettings:  (payload)          => ipcRenderer.invoke('security:getSettings', payload),
+  securitySetSettings:  (payload)          => ipcRenderer.invoke('security:setSettings', payload),
+  securityRun:          (payload)          => ipcRenderer.invoke('security:run', payload),
   onEvent: (callback) => {
     ipcRenderer.removeAllListeners('repoConsole:event');
     ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
@@ -777,4 +847,19 @@ contextBridge.exposeInMainWorld('repoConsoleAPI', repoConsoleBridge);
 contextBridge.exposeInMainWorld('perfAPI', {
   sample: () => ipcRenderer.invoke('perf:sample'),
   reset: () => ipcRenderer.invoke('perf:reset'),
+});
+contextBridge.exposeInMainWorld('ideAPI', {
+    readDir: (dirPath) => ipcRenderer.invoke('ide:readDir', dirPath),
+});
+contextBridge.exposeInMainWorld('ideSearchAPI', {
+    search: (opts) => ipcRenderer.invoke('ide:search', opts),
+});
+contextBridge.exposeInMainWorld('ideSearchStream', {
+    start: (opts) => ipcRenderer.invoke('ide:searchStart', opts),
+    cancel: (id) => ipcRenderer.invoke('ide:searchCancel', id),
+    warm: (root) => ipcRenderer.invoke('ide:searchWarm', root),
+    onBatch: (callback) => {
+        ipcRenderer.removeAllListeners('ide:searchBatch');
+        ipcRenderer.on('ide:searchBatch', (_event, data) => callback(data));
+    },
 });

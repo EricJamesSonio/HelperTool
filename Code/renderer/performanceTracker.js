@@ -17,6 +17,10 @@ const PSEUDO = {
   commands: { label: 'Commands and scripts', group: 'Core', desc: 'Shell commands started by the console, ecosystem and error tools.' },
   other: { label: 'Other processes', group: 'Core', desc: 'Processes that could not be matched to a feature.' },
 };
+const EXTRA_FEATURES = [
+  { id: 'ideMode', label: 'IDE Mode', group: 'Code and Git', desc: 'Built-in explorer, editor, search and WakaTime. Runs inside the app window, so its memory is part of Helper Tool core.' },
+];
+
 
 const UI_ROOTS = {
   gitTool: ['#gitToolPanel'],
@@ -38,9 +42,10 @@ const UI_ROOTS = {
   uiLayoutHelper: ['#ulhPanel'],
   envManager: ['#envOverlay'],
   promptTool: ['#promptToolModal'],
+  ideMode: ['#ideSidebar', '#ideMain'],
 };
 
-const FEATURE_IDS = new Set(FEATURES_META.map((f) => f.id));
+const FEATURE_IDS = new Set(FEATURES_META.map((f) => f.id).concat(EXTRA_FEATURES.map((f) => f.id)));
 
 let _panel = null;
 let _open = false;
@@ -537,6 +542,10 @@ function buildRows(snap) {
     seen.add(m.id);
     rows.push(make(m.id, m, feats[m.id] !== false));
   }
+  for (const m of EXTRA_FEATURES) {
+    seen.add(m.id);
+    rows.push(make(m.id, m, document.body.classList.contains('ide-mode')));
+  }
   for (const id of Object.keys(PSEUDO)) {
     seen.add(id);
     rows.push(make(id, PSEUDO[id], true));
@@ -624,6 +633,7 @@ function renderGauge(rows) {
 function buildInsights(rows, snap) {
   const items = [];
   const SHARED_BY = { symbolIndex: ['codebbaseChat', 'codebaseMap', 'graphify'] };
+  const SHELLISH = /^(powershell|pwsh|cmd|conhost|openconsole|bash|zsh|sh|wsl)/i;
   const byId = new Map(rows.map((r) => [r.id, r]));
   if (snap.total.memKB >= 2 * 1024 * 1024) {
     items.push({ tone: 'warn', text: 'Helper Tool is using ' + fmtMem(snap.total.memKB) + ' in total.' });
@@ -633,6 +643,21 @@ function buildInsights(rows, snap) {
     .sort((a, b) => b.mem - a.mem)
     .slice(0, 4);
   for (const r of heavy) {
+    if ((r.id === 'terminalTool' || r.id === 'commands') && r.mem >= MEM_WARN_KB) {
+      const top = snap.processes
+        .filter((p) => p.feature === r.id)
+        .sort((a, b) => b.memKB - a.memKB)
+        .slice(0, 3);
+      if (top.length) {
+        const own = !SHELLISH.test(top[0].name);
+        items.push({
+          tone: r.status === 'critical' ? 'bad' : 'warn',
+          text: r.label + ' is using ' + fmtMem(r.mem) + '. Biggest: ' + top.map((p) => p.name + ' ' + fmtMem(p.memKB)).join(', ') + '.' +
+            (own ? ' These are programs you run inside it, not Helper Tool itself.' : ''),
+        });
+        continue;
+      }
+    }
     const parts = [];
     if (r.mem >= MEM_WARN_KB) parts.push(fmtMem(r.mem) + ' of memory');
     if (r.cpu >= CPU_WARN) parts.push(Math.round(r.cpu) + '% CPU');

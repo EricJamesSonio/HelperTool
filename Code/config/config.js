@@ -130,6 +130,8 @@ function ensureStorageFolder(storagePath) {
     return storagePath;
 }
 
+
+
 module.exports = {
     readConfig,
     writeConfig,

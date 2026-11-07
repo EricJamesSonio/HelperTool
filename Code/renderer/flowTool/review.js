@@ -272,21 +272,29 @@ export function summarize(review) {
   return counts;
 }
 
-export async function applyReview(review, api) {
+export async function applyReview(review, api, meta) {
   const active = review.entries.filter(isActive);
   if (!active.length) return { error: 'Nothing selected to apply.' };
-  const res = await api.seedContent(review.basePath, active.map(toPayload));
+  const payload = active.map(toPayload);
+  const info = Object.assign({ title: 'Applied ' + active.length + ' file(s)' }, meta || {});
+  const res = api.applyContent
+    ? await api.applyContent(review.basePath, payload, info)
+    : await api.seedContent(review.basePath, payload);
   if (!res || res.error) return { error: (res && res.error) || 'Seed failed.' };
   const failed = new Set((res.errors || []).map((x) => (x && (x.path || x.relPath || x.file)) || ''));
   for (const e of active) {
     const bad = failed.has(e.resolved) || failed.has(e.relPath);
     if (!bad) e.applied = true;
   }
+  try {
+    document.dispatchEvent(new CustomEvent('ft:history-changed'));
+  } catch (_) { /* no document */ }
   return {
     created: res.created || [],
     overwritten: res.overwritten || [],
     patched: res.patched || [],
     errors: res.errors || [],
     count: active.length,
+    historyId: res.historyId || null,
   };
 }

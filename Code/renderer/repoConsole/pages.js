@@ -21,8 +21,8 @@ function runningChip() {
 
 function targetText(plan) {
   const t = plan.target;
-  if (!t || !t.configured) return 'no DATABASE_URL found';
-  return t.host + ':' + t.port + ' / ' + t.database;
+  if (!t || !t.configured) return 'no database setting found';
+  return t.host + (t.port ? ':' + t.port : '') + ' / ' + t.database;
 }
 
 function listBlock(title, items) {
@@ -163,23 +163,32 @@ function emptyActions() {
     h('p', {
       text: canPaste
         ? 'Paste a list of actions and the console will check it against this repository.'
-        : 'Add npm scripts to package.json, or add actions in .helper/console.json.',
+        : 'Add scripts to package.json, composer.json or a Makefile, or add actions in .helper/console.json.',
     }),
     canPaste ? h('button', { class: 'rc-btn', text: 'Paste actions', onclick: () => S.hooks.openImport() }) : null
   );
 }
 
 function actionPage(pageId, lead) {
-  const items = S.catalog.items.filter((i) => i.page === pageId);
+  const onPage = S.catalog.items.filter((i) => i.page === pageId);
+  const items = onPage.filter((i) => !!(i.targets && i.targets[S.env]));
+  const hidden = onPage.length - items.length;
   const sections = [];
   for (const item of items) if (!sections.includes(item.section)) sections.push(item.section);
   const out = [trustBox(), h('p', { class: 'rc-lead', text: lead })];
-  if (!items.length) {
+  if (!onPage.length) {
     out.push(emptyActions());
+    return out;
+  }
+  if (!items.length) {
+    out.push(h('div', { class: 'rc-empty', text: 'Nothing on this page is available for ' + S.env + '.' }));
     return out;
   }
   for (const section of sections) {
     out.push(h('div', { class: 'rc-section', text: section }), h('div', { class: 'rc-grid' }, items.filter((i) => i.section === section).map(itemCard)));
+  }
+  if (hidden) {
+    out.push(h('p', { class: 'rc-where', text: hidden + ' action' + (hidden === 1 ? ' is' : 's are') + ' hidden because ' + (hidden === 1 ? 'it is' : 'they are') + ' not available for ' + S.env + '.' }));
   }
   return out;
 }
@@ -193,7 +202,7 @@ export function databasePage() {
 }
 
 export function scriptsPage() {
-  return actionPage('scripts', 'Other npm scripts found in this repository, plus any actions from its console manifest.');
+  return actionPage('scripts', 'Scripts and commands found in this repository (npm, Composer, Laravel artisan, Python, .NET, Go, Rust, Make, CMake), plus any actions from its console manifest.');
 }
 
 /* ---------- confirmation modal ---------- */
@@ -425,6 +434,349 @@ function stepCard(step, entry) {
     );
   }
   return h('div', { class: 'rc-card' }, ...kids);
+}
+
+/* ---------- security page ---------- */
+
+export async function loadSecurity() {
+  if (S.security.loading) return;
+  S.security.loading = true;
+  if (S.page === 'security') S.hooks.renderPage();
+  try {
+    const res = await call('securityGetSettings', { repoPath: S.repoPath });
+    S.security.settings = res.settings;
+    S.security.profile = res.profile;
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  S.security.loaded = true;
+  S.security.loading = false;
+  if (S.page === 'security') S.hooks.renderPage();
+}
+
+async function detectStack() {
+  if (S.security.detecting) return;
+  S.security.detecting = true;
+  S.hooks.renderPage();
+  try {
+    const res = await call('securityDetect', { repoPath: S.repoPath });
+    S.security.profile = res.profile;
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  S.security.detecting = false;
+  S.hooks.renderPage();
+}
+
+function confRow(label, value) {
+  return h('div', { class: 'rc-kv-row' }, h('span', { class: 'rc-where', text: label }), h('b', { text: value || 'unknown' }));
+}
+
+function profileCard(profile) {
+  if (!profile) {
+    return h('div', { class: 'rc-empty', text: 'No stack profile yet. Click "Detect stack" to scan this repository.' });
+  }
+  return h(
+    'div',
+    { class: 'rc-card rc-sec-profile' },
+    h('h3', { text: 'Detected stack' }),
+    h(
+      'div',
+      { class: 'rc-sec-grid' },
+      h(
+        'div',
+        null,
+        h('h4', { text: 'Frontend' }),
+        confRow('Framework', profile.frontend.framework),
+        confRow('Language', profile.frontend.language),
+        confRow('Rendering', profile.frontend.rendering),
+        confRow('Bundler', profile.frontend.bundler)
+      ),
+      h('div', null, h('h4', { text: 'Backend' }), confRow('Framework', profile.backend.framework)),
+      h('div', null, h('h4', { text: 'Database' }), confRow('Dialect', profile.database.dialect), confRow('Access layer', profile.database.layer)),
+      h('div', null, h('h4', { text: 'Auth' }), confRow('Mechanism', profile.auth.mechanism), confRow('Library', profile.auth.library), confRow('Password hashing', profile.auth.hashing))
+    ),
+    h('div', { class: 'rc-row', style: 'margin-top:10px' }, h('span', {
+      class: 'rc-where',
+      text:
+        'Confidence: frontend ' +
+        Math.round(profile.confidence.frontend * 100) +
+        '%, database ' +
+        Math.round(profile.confidence.database * 100) +
+        '%, auth ' +
+        Math.round(profile.confidence.auth * 100) +
+        '%',
+    })),
+    profile.surface && profile.surface.endpoints.length
+      ? h('div', { class: 'rc-where', text: profile.surface.endpoints.length + ' API route file(s) found' })
+      : h('div', { class: 'rc-where', text: 'No API route files were found automatically.' })
+  );
+}
+
+function settingsCard() {
+  const settings = S.security.settings || { targetUrl: '', safeMode: true, confirmedHosts: [] };
+  const state = { targetUrl: settings.targetUrl, safeMode: settings.safeMode, saving: false };
+  const warnBox = h('div', { hidden: true });
+  const saveBtn = h('button', { class: 'rc-btn small', text: 'Save target', onclick: () => save(false) });
+
+  async function save(confirmHost) {
+    state.saving = true;
+    saveBtn.disabled = true;
+    try {
+      const res = await call('securitySetSettings', {
+        repoPath: S.repoPath,
+        targetUrl: state.targetUrl,
+        safeMode: state.safeMode,
+        confirmHost: !!confirmHost,
+      });
+      if (res.needsConfirm) {
+        warnBox.hidden = false;
+        warnBox.replaceChildren(
+          h('div', { class: 'rc-warn red', text: res.reason || 'This is not a local address.' }),
+          h(
+            'div',
+            { class: 'rc-row', style: 'margin-top:6px' },
+            h('button', { class: 'rc-btn danger small', text: 'I own this target, proceed', onclick: () => save(true) })
+          )
+        );
+      } else {
+        warnBox.hidden = true;
+        warnBox.replaceChildren();
+        S.security.settings = res.settings;
+        toast('Target saved');
+        S.hooks.renderPage();
+      }
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+    state.saving = false;
+    saveBtn.disabled = false;
+  }
+
+  const urlInput = h('input', {
+    type: 'text',
+    placeholder: 'http://localhost:3000',
+    value: state.targetUrl,
+    oninput: (e) => {
+      state.targetUrl = e.target.value;
+    },
+  });
+  const safeCheck = h(
+    'label',
+    { class: 'rc-check' },
+    h('input', {
+      type: 'checkbox',
+      checked: state.safeMode,
+      onchange: (e) => {
+        state.safeMode = e.target.checked;
+      },
+    }),
+    h('span', { text: 'Safe mode (only allow write and race tests on a dev/test target)' })
+  );
+
+  return h(
+    'div',
+    { class: 'rc-card' },
+    h('h3', { text: 'Target' }),
+    h('p', { text: 'Non-local targets need explicit confirmation before any test can run against them.' }),
+    h('div', { class: 'rc-field' }, h('label', { text: 'Target URL' }), urlInput),
+    safeCheck,
+    h('div', { class: 'rc-row', style: 'margin-top:10px' }, saveBtn),
+    warnBox
+  );
+}
+
+const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
+function downloadText(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h('a', { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function runSecurityScan() {
+  if (S.security.running) return;
+  S.security.running = true;
+  S.security.runError = '';
+  S.hooks.renderPage();
+  try {
+    const res = await call('securityRun', { repoPath: S.repoPath });
+    S.security.report = res.report;
+    S.security.profile = res.report.profile;
+    S.security.view = res.report.score.counts.fail ? 'fail' : 'pass';
+  } catch (e) {
+    S.security.runError = e.message;
+    toast(e.message, 'error');
+  }
+  S.security.running = false;
+  S.hooks.renderPage();
+}
+
+function scoreCard(report) {
+  const s = report.score;
+  const levelBox = (id) => {
+    const l = s.levels[id];
+    return h(
+      'div',
+      { class: 'rc-sec-level' },
+      h('span', { class: 'rc-where', text: id }),
+      h('b', { text: l.score === null ? 'no checks' : l.score + '%' }),
+      h('span', { class: 'rc-where', text: l.failed + ' failed' }),
+      l.achieved ? h('span', { class: 'rc-chip done', text: 'Achieved' }) : null
+    );
+  };
+  const grade = s.grade === 'n/a' ? 'na' : String(s.grade).toLowerCase();
+  const where = report.targetTested ? 'live target ' + report.target : 'code only: ' + report.dynamicNote;
+  return h(
+    'div',
+    { class: 'rc-card rc-sec-score' },
+    h(
+      'div',
+      { class: 'rc-sec-score-top' },
+      h('div', { class: 'rc-sec-grade grade-' + grade }, h('span', { class: 'rc-sec-grade-letter', text: s.grade }), h('span', { class: 'rc-sec-grade-pct', text: s.overall === null ? '' : s.overall + '%' })),
+      h(
+        'div',
+        { class: 'rc-sec-counts' },
+        h('span', { class: 'rc-sev critical', text: s.counts.critical + ' critical' }),
+        h('span', { class: 'rc-sev high', text: s.counts.high + ' high' }),
+        h('span', { class: 'rc-sev medium', text: s.counts.medium + ' medium' }),
+        h('span', { class: 'rc-sev low', text: s.counts.low + ' low' }),
+        h('span', { class: 'rc-where', text: s.counts.pass + ' passed / ' + s.counts.skip + ' could not run / ' + s.counts.na + ' not applicable' })
+      ),
+      h(
+        'div',
+        { class: 'rc-row' },
+        h('button', { class: 'rc-btn secondary small', text: 'Copy report', onclick: () => navigator.clipboard.writeText(report.markdown).then(() => toast('Report copied'), () => toast('Could not copy', 'error')) }),
+        h('button', { class: 'rc-btn secondary small', text: 'Download .md', onclick: () => downloadText('security-report-' + report.repoName + '.md', report.markdown, 'text/markdown') }),
+        h('button', {
+          class: 'rc-btn secondary small',
+          text: 'Download .json',
+          onclick: () => {
+            const copy = Object.assign({}, report);
+            delete copy.markdown;
+            downloadText('security-report-' + report.repoName + '.json', JSON.stringify(copy, null, 2), 'application/json');
+          },
+        })
+      )
+    ),
+    h('div', { class: 'rc-sec-levels' }, levelBox('basic'), levelBox('medium'), levelBox('advanced')),
+    h(
+      'div',
+      { class: 'rc-sec-cats' },
+      s.categories.map((c) => h('div', { class: 'rc-kv-row' }, h('span', { class: 'rc-where', text: c.name }), h('b', { text: (c.score === null ? 'n/a' : c.score + '%') + ' (' + c.failed + ' failed)' })))
+    ),
+    h('div', { class: 'rc-where', text: 'Ran ' + fmtDate(report.startedAt) + ' in ' + Math.round(report.durationMs / 1000) + 's / ' + report.scanInfo.files + ' files scanned / ' + report.scanInfo.requests + ' requests / ' + where })
+  );
+}
+
+function findingCard(f) {
+  const ev = f.evidence || [];
+  const evBlock = ev.length
+    ? h(
+        'details',
+        { class: 'rc-more' },
+        h('summary', { text: ev.length + ' location' + (ev.length === 1 ? '' : 's') }),
+        h('div', { class: 'rc-more-body' }, h('pre', { class: 'rc-tail', text: ev.map((e) => e.file + (e.line ? ':' + e.line : '') + '   ' + e.text).join('\n') }))
+      )
+    : null;
+  return h(
+    'div',
+    { class: 'rc-card rc-sec-finding sev-' + f.severity },
+    h(
+      'div',
+      { class: 'rc-card-head' },
+      h('h3', { text: f.title }),
+      h('div', { class: 'rc-row' }, h('span', { class: 'rc-sev ' + f.severity, text: f.severity }), h('span', { class: 'rc-badge', text: f.level }), h('span', { class: 'rc-where', text: f.kind }))
+    ),
+    h('p', { text: f.detail }),
+    f.fix ? h('div', { class: 'rc-sec-fix' }, h('b', { text: 'How to fix: ' }), f.fix) : null,
+    evBlock
+  );
+}
+
+function compactRow(f) {
+  return h('div', { class: 'rc-sec-row' }, h('b', { text: f.title }), h('span', { class: 'rc-where', text: f.detail }));
+}
+
+function reportView(report) {
+  const by = (st) => report.findings.filter((f) => f.status === st);
+  const failed = by('fail').sort((a, b) => (SEV_RANK[a.severity] === undefined ? 9 : SEV_RANK[a.severity]) - (SEV_RANK[b.severity] === undefined ? 9 : SEV_RANK[b.severity]));
+  const tabs = [
+    ['fail', 'Failed', failed.length],
+    ['skip', 'Could not run', by('skip').length],
+    ['pass', 'Passed', by('pass').length],
+    ['na', 'Not applicable', by('na').length],
+    ['missing', 'Not covered yet', report.notCovered.length],
+  ];
+  const view = S.security.view || 'fail';
+  let body;
+  if (view === 'missing') {
+    body = report.notCovered.map((n) =>
+      h('div', { class: 'rc-card' }, h('div', { class: 'rc-card-head' }, h('h3', { text: n.title }), h('span', { class: 'rc-badge', text: n.level })), h('p', { text: n.why }))
+    );
+  } else if (view === 'fail') {
+    body = failed.length ? failed.map(findingCard) : [h('div', { class: 'rc-empty', text: 'No failed checks.' })];
+  } else {
+    const list = by(view);
+    body = list.length ? list.map(compactRow) : [h('div', { class: 'rc-empty', text: 'Nothing here.' })];
+  }
+  return [
+    scoreCard(report),
+    h(
+      'div',
+      { class: 'rc-row rc-sec-tabs' },
+      tabs.map(([id, label, n]) =>
+        h('button', {
+          class: 'rc-btn small' + (view === id ? '' : ' secondary'),
+          text: label + ' (' + n + ')',
+          onclick: () => {
+            S.security.view = id;
+            S.hooks.renderPage();
+          },
+        })
+      )
+    ),
+    h('div', { class: 'rc-sec-list' }, body),
+  ];
+}
+
+export function securityPage() {
+  if (!S.security.loaded && !S.security.loading) loadSecurity();
+  const profile = S.security.profile;
+  const report = S.security.report && S.security.report.repoPath === S.repoPath ? S.security.report : null;
+  const hasTarget = !!(S.security.settings && S.security.settings.targetUrl);
+  const busy = !!(S.security.running || S.security.detecting);
+  return [
+    h('p', {
+      class: 'rc-lead',
+      text: 'Detects the stack of this repository, then runs the security checks that apply: live probes against the saved target URL plus a scan of the source code. The result is a score and a report you can copy or download.',
+    }),
+    h(
+      'div',
+      { class: 'rc-row' },
+      h('button', {
+        class: 'rc-btn',
+        text: S.security.running ? 'Running checks...' : 'Run security test',
+        disabled: busy,
+        onclick: runSecurityScan,
+      }),
+      h('button', {
+        class: 'rc-btn secondary',
+        text: S.security.detecting ? 'Detecting...' : 'Detect stack',
+        disabled: busy,
+        onclick: detectStack,
+      })
+    ),
+    S.security.running ? h('div', { class: 'rc-where', text: 'Scanning the code and probing the target. This can take up to a minute because of the dependency audit.' }) : null,
+    !hasTarget && !S.security.running ? h('div', { class: 'rc-warn', text: 'No target URL is saved, so only the code checks will run. Save a target below to include the live checks.' }) : null,
+    S.security.runError ? h('div', { class: 'rc-warn red', text: S.security.runError }) : null,
+    report ? reportView(report) : null,
+    S.security.loading && !profile ? h('div', { class: 'rc-empty', text: 'Loading...' }) : profileCard(profile),
+    settingsCard(),
+  ];
 }
 
 /* ---------- history page ---------- */

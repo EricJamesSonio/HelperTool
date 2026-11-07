@@ -8,13 +8,20 @@ const { ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const fileSeeder  = require('../utils/fileSeeder');
+const flowHistory = require('../utils/flowHistory');
 
 /**
- * @param {{}} _deps
+ * @param {{ app?: object }} _deps
  */
 function register(_deps) {
+    try { flowHistory.init(_deps && _deps.app); } catch (_) {}
+
     // Make handlers idempotent — Electron throws if we register twice (hot-reload)
-    for (const ch of ['fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent', 'fileseeder:getPatchedPreview', 'fileseeder:getAiRule']) {
+    for (const ch of [
+        'fileseeder:preview', 'fileseeder:seed', 'fileseeder:previewContent', 'fileseeder:seedContent',
+        'fileseeder:getPatchedPreview', 'fileseeder:getAiRule',
+        'fileseeder:applyContent', 'flow:historyList', 'flow:historyGet', 'flow:historyRevert', 'flow:historyClear',
+    ]) {
         try { ipcMain.removeHandler(ch); } catch (_) {}
     }
 
@@ -84,6 +91,62 @@ function register(_deps) {
         } catch (err) {
             console.error('[IPC] fileseeder:getPatchedPreview error:', err);
             return { error: err.message, left: '', right: '' };
+        }
+    });
+
+    /**
+     * Flow Tool apply: same as seedContent, but first saves the original
+     * content of every file it touches so the apply can be reverted later.
+     */
+    ipcMain.handle('fileseeder:applyContent', async (event, basePath, entries, meta) => {
+        try {
+            if (!basePath || !Array.isArray(entries) || !entries.length) {
+                return { error: 'Invalid arguments', created: [], overwritten: [], patched: [], errors: [] };
+            }
+            return await flowHistory.applyWithHistory(basePath, entries, meta || {});
+        } catch (err) {
+            console.error('[IPC] fileseeder:applyContent error:', err);
+            return { error: err.message, created: [], overwritten: [], patched: [], errors: [] };
+        }
+    });
+
+    ipcMain.handle('flow:historyList', (event, basePath) => {
+        try {
+            if (!basePath) return { items: [] };
+            return flowHistory.list(basePath);
+        } catch (err) {
+            console.error('[IPC] flow:historyList error:', err);
+            return { error: err.message, items: [] };
+        }
+    });
+
+    ipcMain.handle('flow:historyGet', (event, basePath, id) => {
+        try {
+            if (!basePath || !id) return { error: 'Invalid arguments' };
+            return flowHistory.get(basePath, id);
+        } catch (err) {
+            console.error('[IPC] flow:historyGet error:', err);
+            return { error: err.message };
+        }
+    });
+
+    ipcMain.handle('flow:historyRevert', (event, basePath, id, opts) => {
+        try {
+            if (!basePath || !id) return { error: 'Invalid arguments' };
+            return flowHistory.revert(basePath, id, opts || {});
+        } catch (err) {
+            console.error('[IPC] flow:historyRevert error:', err);
+            return { error: err.message };
+        }
+    });
+
+    ipcMain.handle('flow:historyClear', (event, basePath) => {
+        try {
+            if (!basePath) return { error: 'Invalid arguments' };
+            return flowHistory.clear(basePath);
+        } catch (err) {
+            console.error('[IPC] flow:historyClear error:', err);
+            return { error: err.message };
         }
     });
 

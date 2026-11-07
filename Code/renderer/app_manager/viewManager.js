@@ -193,6 +193,10 @@ function _showRootFolderDropdown(event, rootPath, rootName) {
 }
 
 export function displayTree(resetScroll = true) {
+    if (document.body.classList.contains('ide-mode')) {
+        document.dispatchEvent(new CustomEvent('ide:tree-changed'));
+        return;
+    }
     if (!state.cachedTree) {
         treeContainer.textContent = 'No data available';
         return;

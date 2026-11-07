@@ -1,12 +1,17 @@
 import { S, h, call, toast } from './state.js';
 import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLiveLog, schedulePanelRefresh, openLiveOutput } from './monitor.js';
 import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory } from './pages.js';
+import { securityPage } from './securityPage.js';
+import { ciPage } from './ciPage.js';
+import { refreshStage } from './monitor.js';
 
 const NAV = [
   ['seeds', 'Seeds'],
   ['database', 'Database'],
   ['scripts', 'Scripts'],
   ['tests', 'Tests'],
+  ['security', 'Security'],
+  ['ci', 'CI'],
   ['history', 'History'],
 ];
 
@@ -93,7 +98,19 @@ function renderPage() {
     return;
   }
   const body =
-    S.page === 'seeds' ? seedsPage() : S.page === 'database' ? databasePage() : S.page === 'scripts' ? scriptsPage() : S.page === 'tests' ? testsPage() : historyPage();
+    S.page === 'seeds'
+      ? seedsPage()
+      : S.page === 'database'
+        ? databasePage()
+        : S.page === 'scripts'
+          ? scriptsPage()
+          : S.page === 'tests'
+            ? testsPage()
+            : S.page === 'security'
+              ? securityPage()
+              : S.page === 'ci'
+                ? ciPage()
+                : historyPage();
   els.page.replaceChildren(...[body].flat(Infinity).filter(Boolean));
 }
 
@@ -148,6 +165,10 @@ async function syncJob() {
 function onEvent(msg) {
   const { repoPath, event, data } = msg || {};
   if (!repoPath) return;
+  if (event === 'security-progress') {
+    if (typeof S.hooks.securityEvent === 'function') S.hooks.securityEvent(repoPath, data);
+    return;
+  }
   if (event === 'reset') {
     if (data) {
       const log = (data.log || []).slice();
@@ -187,8 +208,13 @@ function onEvent(msg) {
       else if (changed) renderPage();
     }
     if (S.output.open && S.output.live && S.output.repoPath === repoPath && S.output.runId === data.id) {
-      if (changed || awaitingChanged) renderOutput();
-      else schedulePanelRefresh();
+      if (changed || awaitingChanged) {
+        if (awaitingChanged && data.awaiting) S.output.focusPrompt = true;
+        renderOutput();
+      } else {
+        schedulePanelRefresh();
+        refreshStage();
+      }
     }
     return;
   }
@@ -218,6 +244,7 @@ function ensureInit() {
   for (const [id, href] of [
     ['repoConsoleSheet', 'styles/repo-console.css'],
     ['repoConsoleLayoutSheet', 'styles/repo-console-layout.css'],
+    ['repoConsoleSecuritySheet', 'styles/repo-console-security.css'],
   ]) {
     if (document.getElementById(id)) continue;
     const link = document.createElement('link');
@@ -254,15 +281,6 @@ function ensureInit() {
   S.hooks.refreshCatalog = refreshCatalog;
   S.hooks.openPanel = openPanelRequest;
 
-  import('./importUI.js')
-    .then((mod) => {
-      S.hooks.openImport = () => mod.openImport();
-      renderAll();
-    })
-    .catch(() => {
-      /* paste import is optional */
-    });
-
   if (window.repoConsoleAPI && window.repoConsoleAPI.onEvent) window.repoConsoleAPI.onEvent(onEvent);
 
   document.addEventListener('keydown', (e) => {
@@ -280,6 +298,13 @@ function switchRepo(repoPath) {
   S.history.page = 1;
   S.history.items = [];
   S.history.total = 0;
+  S.security.loaded = false;
+  S.security.profile = null;
+  S.security.settings = null;
+  S.security.report = null;
+  S.security.history = [];
+  S.security.runError = '';
+  if (typeof S.hooks.securityReset === 'function') S.hooks.securityReset();
   if (S.output.open && S.output.repoPath !== S.repoPath) closeOutput();
 }
 

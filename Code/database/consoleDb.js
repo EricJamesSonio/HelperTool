@@ -5,7 +5,10 @@ const path = require('path');
 
 let _db = null;
 let _available = false;
+let _logCap = 200000;
 const _seq = new Map();
+const _capped = new Set();
+const MAX_SNAPSHOT = 200000;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS runs (
@@ -54,11 +57,67 @@ CREATE INDEX IF NOT EXISTS idx_runs_action ON runs (action_id);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs (status);
 `;
 
+const SCHEMA_V2_TABLES = `
+CREATE TABLE IF NOT EXISTS run_errors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,
+  step_idx INTEGER,
+  fingerprint TEXT,
+  level TEXT,
+  title TEXT,
+  message TEXT,
+  file TEXT,
+  line INTEGER,
+  col INTEGER,
+  stack TEXT,
+  count INTEGER DEFAULT 1,
+  log_seq INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_run_errors_run ON run_errors (run_id);
+`;
+
+const SCHEMA_V2_COLUMNS = [
+  ['job_id', 'TEXT'],
+  ['job_name', 'TEXT'],
+  ['reason', 'TEXT'],
+];
+
+const SCHEMA_V3_TABLES = `
+CREATE TABLE IF NOT EXISTS security_profiles (
+  repo_path TEXT PRIMARY KEY,
+  profile_json TEXT,
+  updated_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS security_settings (
+  repo_path TEXT PRIMARY KEY,
+  target_url TEXT,
+  safe_mode INTEGER DEFAULT 1,
+  confirmed_hosts_json TEXT,
+  updated_at INTEGER
+);
+`;
+
 function redact(text) {
   return String(text === null || text === undefined ? '' : text)
     .replace(/\/\/([^:@\/\s]+):([^@\/\s]+)@/g, '//$1:***@')
     .replace(/(password|passwd|pwd|secret|token|api[_-]?key)(\s*[=:]\s*)(["']?)[^\s"',;&]+/gi, '$1$2$3***')
     .replace(/Bearer\s+[A-Za-z0-9._~+\/=-]+/g, 'Bearer ***');
+}
+
+function columnExists(table, column) {
+  const rows = _db.prepare('PRAGMA table_info(' + table + ')').all();
+  return rows.some((r) => r.name === column);
+}
+
+function migrateV2() {
+  tx(() => {
+    for (const [column, type] of SCHEMA_V2_COLUMNS) {
+      if (!columnExists('run_steps', column)) {
+        _db.exec('ALTER TABLE run_steps ADD COLUMN ' + column + ' ' + type);
+      }
+    }
+    _db.exec(SCHEMA_V2_TABLES);
+  });
 }
 
 function init(app) {
@@ -76,17 +135,48 @@ function init(app) {
       _db.exec(SCHEMA_V1);
       _db.exec('PRAGMA user_version = 1');
     }
+    if (version < 2) {
+      migrateV2();
+      _db.exec('PRAGMA user_version = 2');
+    }
+    if (version < 3) {
+      _db.exec(SCHEMA_V3_TABLES);
+      _db.exec('PRAGMA user_version = 3');
+    }
     _available = true;
   } catch (err) {
     console.error('[RepoConsole] History database is not available:', err.message);
+    try {
+      if (_db) _db.close();
+    } catch (closeError) {
+      /* nothing to close */
+    }
     _db = null;
     _available = false;
   }
   return _available;
 }
 
+function close() {
+  if (_db) {
+    try {
+      _db.close();
+    } catch (err) {
+      /* already closed */
+    }
+  }
+  _db = null;
+  _available = false;
+  _seq.clear();
+  _capped.clear();
+}
+
 function available() {
   return _available;
+}
+
+function setLogCap(count) {
+  _logCap = Number(count) > 0 ? Number(count) : 200000;
 }
 
 function tx(fn) {
@@ -117,9 +207,28 @@ function parseJson(text) {
   }
 }
 
+function num(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function snapshotJson(snapshot) {
+  if (snapshot === null || snapshot === undefined) return null;
+  let text;
+  try {
+    text = JSON.stringify(snapshot);
+  } catch (err) {
+    return null;
+  }
+  if (!text) return null;
+  if (text.length > MAX_SNAPSHOT) {
+    text = JSON.stringify({ truncated: true, note: 'The run snapshot was larger than ' + MAX_SNAPSHOT + ' characters and was not stored.' });
+  }
+  return redact(text);
+}
+
 function insertSteps(view) {
   const stmt = _db.prepare(
-    'INSERT OR REPLACE INTO run_steps (run_id, idx, step_id, title, command, status, exit_code, started_at, ended_at, progress_json, result_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT OR REPLACE INTO run_steps (run_id, idx, step_id, title, command, status, exit_code, started_at, ended_at, progress_json, result_json, job_id, job_name, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
   for (const s of view.steps || []) {
     stmt.run(
@@ -133,7 +242,10 @@ function insertSteps(view) {
       s.startedAt || null,
       s.endedAt || null,
       json(s.progress),
-      json(s.result)
+      json(s.result),
+      s.jobId || null,
+      s.jobTitle ? redact(s.jobTitle) : null,
+      s.reason || null
     );
   }
 }
@@ -144,7 +256,7 @@ function startRun(view, meta) {
   tx(() => {
     _db
       .prepare(
-        'INSERT OR REPLACE INTO runs (id, repo_path, action_id, title, kind, env, app_env, host, db_name, command, status, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT OR REPLACE INTO runs (id, repo_path, action_id, title, kind, env, app_env, host, db_name, command, status, started_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
       .run(
         view.id,
@@ -158,7 +270,8 @@ function startRun(view, meta) {
         m.database || null,
         redact(m.command || ''),
         'running',
-        view.startedAt
+        view.startedAt,
+        snapshotJson(m.snapshot)
       );
     insertSteps(view);
   });
@@ -174,7 +287,16 @@ function appendLogs(runId, entries) {
   const stmt = _db.prepare('INSERT OR REPLACE INTO run_logs (run_id, seq, step_index, kind, text) VALUES (?, ?, ?, ?, ?)');
   tx(() => {
     for (const e of entries) {
-      stmt.run(runId, seq, e.s === undefined ? 0 : e.s, e.k || 'out', redact(e.t));
+      const stepIndex = e.s === undefined ? 0 : e.s;
+      if (seq >= _logCap) {
+        if (!_capped.has(runId)) {
+          _capped.add(runId);
+          stmt.run(runId, seq, stepIndex, 'sys', '[output truncated: history keeps the first ' + _logCap + ' lines of a run]');
+          seq += 1;
+        }
+        continue;
+      }
+      stmt.run(runId, seq, stepIndex, e.k || 'out', redact(e.t));
       seq += 1;
     }
   });
@@ -197,6 +319,7 @@ function finishRun(view) {
     insertSteps(view);
   });
   _seq.delete(view.id);
+  _capped.delete(view.id);
 }
 
 function markInterrupted() {
@@ -209,6 +332,52 @@ function markInterrupted() {
   } catch (err) {
     console.error('[RepoConsole] markInterrupted failed:', err.message);
   }
+}
+
+function insertErrors(runId, errors) {
+  if (!_db || !errors || !errors.length) return;
+  const stmt = _db.prepare(
+    'INSERT INTO run_errors (run_id, step_idx, fingerprint, level, title, message, file, line, col, stack, count, log_seq) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  );
+  tx(() => {
+    for (const e of errors) {
+      stmt.run(
+        String(runId),
+        num(e.stepIdx),
+        e.fingerprint || null,
+        e.level || 'error',
+        redact(e.title),
+        redact(e.message),
+        e.file || null,
+        num(e.line),
+        num(e.col),
+        e.stack ? redact(e.stack) : null,
+        e.count > 0 ? e.count : 1,
+        num(e.logSeq)
+      );
+    }
+  });
+}
+
+function listErrors(runId) {
+  if (!_db) return [];
+  return _db
+    .prepare('SELECT * FROM run_errors WHERE run_id = ? ORDER BY id')
+    .all(String(runId))
+    .map((r) => ({
+      id: r.id,
+      stepIdx: r.step_idx,
+      fingerprint: r.fingerprint,
+      level: r.level,
+      title: r.title,
+      message: r.message,
+      file: r.file,
+      line: r.line,
+      col: r.col,
+      stack: r.stack,
+      count: r.count,
+      logSeq: r.log_seq,
+    }));
 }
 
 function mapRun(row) {
@@ -265,10 +434,64 @@ function listRuns(repoPath, opts) {
   return { items: rows.map(mapRun), total };
 }
 
+function slimError(e) {
+  return {
+    level: e.level,
+    title: e.title,
+    message: String(e.message || '').slice(0, 300),
+    file: e.file,
+    line: e.line,
+    col: e.col,
+    count: e.count,
+  };
+}
+
+function previousRunFor(row) {
+  return _db
+    .prepare(
+      "SELECT * FROM runs WHERE repo_path = ? AND action_id = ? AND kind = 'ci' AND status NOT IN ('running', 'interrupted') AND started_at < ? ORDER BY started_at DESC LIMIT 1"
+    )
+    .get(row.repo_path, row.action_id, row.started_at);
+}
+
+function compareRun(row, steps, errors) {
+  if (row.kind !== 'ci' || !row.action_id) return null;
+  const previous = previousRunFor(row);
+  if (!previous) return { previous: null };
+
+  const earlierErrors = listErrors(previous.id);
+  const earlierSteps = _db.prepare('SELECT step_id, title, status FROM run_steps WHERE run_id = ?').all(previous.id);
+  const before = new Set(earlierErrors.map((e) => e.fingerprint));
+  const after = new Set(errors.map((e) => e.fingerprint));
+
+  const newErrors = errors.filter((e) => !before.has(e.fingerprint)).map(slimError);
+  const fixedErrors = earlierErrors.filter((e) => !after.has(e.fingerprint)).map(slimError);
+  const persisting = errors.filter((e) => before.has(e.fingerprint)).length;
+
+  const earlierById = new Map(earlierSteps.map((s) => [s.step_id, s]));
+  const stepChanges = [];
+  for (const step of steps) {
+    const earlier = earlierById.get(step.id);
+    if (earlier && earlier.status !== step.status) {
+      stepChanges.push({ id: step.id, title: step.title, from: earlier.status, to: step.status });
+    }
+  }
+
+  return {
+    previous: { id: previous.id, status: previous.status, startedAt: previous.started_at },
+    newErrors,
+    fixedErrors,
+    persisting,
+    stepChanges,
+  };
+}
+
 function getRun(runId) {
   if (!_db) return null;
-  const run = mapRun(_db.prepare('SELECT * FROM runs WHERE id = ?').get(String(runId)));
+  const row = _db.prepare('SELECT * FROM runs WHERE id = ?').get(String(runId));
+  const run = mapRun(row);
   if (!run) return null;
+  run.meta = parseJson(row.meta_json);
   const steps = _db
     .prepare('SELECT * FROM run_steps WHERE run_id = ? ORDER BY idx')
     .all(run.id)
@@ -281,14 +504,18 @@ function getRun(runId) {
       exitCode: s.exit_code,
       startedAt: s.started_at,
       endedAt: s.ended_at,
+      jobId: s.job_id,
+      jobTitle: s.job_name,
+      reason: s.reason,
       progress: parseJson(s.progress_json),
       result: parseJson(s.result_json),
     }));
   const logs = _db
-    .prepare('SELECT step_index, kind, text FROM run_logs WHERE run_id = ? ORDER BY seq LIMIT 200000')
-    .all(run.id)
+    .prepare('SELECT step_index, kind, text FROM run_logs WHERE run_id = ? ORDER BY seq LIMIT ?')
+    .all(run.id, _logCap + 10)
     .map((l) => ({ s: l.step_index, k: l.kind, t: l.text }));
-  return { run, steps, logs };
+  const errors = listErrors(run.id);
+  return { run, steps, logs, errors, compare: compareRun(row, steps, errors) };
 }
 
 function lastRun(repoPath, actionId, env) {
@@ -304,28 +531,100 @@ function countRuns(repoPath) {
   return _db.prepare('SELECT COUNT(*) AS n FROM runs WHERE repo_path = ?').get(repoPath).n;
 }
 
+function deleteRunRows(runId) {
+  _db.prepare('DELETE FROM run_logs WHERE run_id = ?').run(runId);
+  _db.prepare('DELETE FROM run_steps WHERE run_id = ?').run(runId);
+  _db.prepare('DELETE FROM run_errors WHERE run_id = ?').run(runId);
+  _db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+}
+
+function pruneRuns(repoPath, keep, kind) {
+  if (!_db) return 0;
+  const limit = parseInt(keep, 10);
+  if (!(limit >= 1)) return 0;
+  const where = ['repo_path = ?', "status != 'running'"];
+  const params = [repoPath];
+  if (kind) {
+    where.push('kind = ?');
+    params.push(String(kind));
+  }
+  const ids = _db
+    .prepare('SELECT id FROM runs WHERE ' + where.join(' AND ') + ' ORDER BY started_at DESC LIMIT -1 OFFSET ?')
+    .all(...params, limit)
+    .map((r) => r.id);
+  if (!ids.length) return 0;
+  tx(() => {
+    for (const id of ids) deleteRunRows(id);
+  });
+  return ids.length;
+}
+
 function clearRuns(repoPath) {
   if (!_db) return 0;
   const count = countRuns(repoPath);
   tx(() => {
     _db.prepare('DELETE FROM run_logs WHERE run_id IN (SELECT id FROM runs WHERE repo_path = ?)').run(repoPath);
     _db.prepare('DELETE FROM run_steps WHERE run_id IN (SELECT id FROM runs WHERE repo_path = ?)').run(repoPath);
+    _db.prepare('DELETE FROM run_errors WHERE run_id IN (SELECT id FROM runs WHERE repo_path = ?)').run(repoPath);
     _db.prepare('DELETE FROM runs WHERE repo_path = ?').run(repoPath);
   });
   return count;
 }
 
+function saveSecurityProfile(repoPath, profile) {
+  if (!_db) return;
+  _db
+    .prepare('INSERT OR REPLACE INTO security_profiles (repo_path, profile_json, updated_at) VALUES (?, ?, ?)')
+    .run(repoPath, JSON.stringify(profile), Date.now());
+}
+
+function getSecurityProfile(repoPath) {
+  if (!_db) return null;
+  const row = _db.prepare('SELECT profile_json, updated_at FROM security_profiles WHERE repo_path = ?').get(repoPath);
+  if (!row) return null;
+  const profile = parseJson(row.profile_json);
+  if (profile) profile.savedAt = row.updated_at;
+  return profile;
+}
+
+function saveSecuritySettings(repoPath, settings) {
+  if (!_db) return;
+  _db
+    .prepare('INSERT OR REPLACE INTO security_settings (repo_path, target_url, safe_mode, confirmed_hosts_json, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(repoPath, settings.targetUrl || '', settings.safeMode === false ? 0 : 1, JSON.stringify(settings.confirmedHosts || []), Date.now());
+}
+
+function getSecuritySettings(repoPath) {
+  if (!_db) return null;
+  const row = _db.prepare('SELECT target_url, safe_mode, confirmed_hosts_json FROM security_settings WHERE repo_path = ?').get(repoPath);
+  if (!row) return null;
+  return {
+    targetUrl: row.target_url || '',
+    safeMode: !!row.safe_mode,
+    confirmedHosts: parseJson(row.confirmed_hosts_json) || [],
+  };
+}
+
 module.exports = {
   init,
+  close,
   available,
   redact,
   startRun,
   appendLogs,
   finishRun,
   markInterrupted,
+  insertErrors,
+  listErrors,
   listRuns,
   getRun,
   lastRun,
   countRuns,
+  pruneRuns,
   clearRuns,
+  saveSecurityProfile,
+  getSecurityProfile,
+  saveSecuritySettings,
+  getSecuritySettings,
+  _setLogCap: setLogCap,
 };
