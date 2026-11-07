@@ -11,8 +11,13 @@ function getPty() {
   return _pty;
 }
 
+const FLUSH_MS = 12;
+const FLUSH_BYTES = 65536;
+const BACKFILL_BYTES = 262144;
+
 const terminals = new Map();
 const _outputBuffers = new Map();
+const _pending = new Map();
 let nextId = 1;
 
 let _errorEngine = null;
@@ -112,23 +117,73 @@ function removeExitListener(id, cb) {
   if (s) { s.delete(cb); if (s.size === 0) _exitListeners.delete(id); }
 }
 
+function pushBackfill(id, text) {
+  const b = _outputBuffers.get(id);
+  if (!b) return;
+  b.chunks.push(text);
+  b.size += text.length;
+  while (b.size > BACKFILL_BYTES && b.chunks.length > 1) {
+    b.size -= b.chunks.shift().length;
+  }
+}
+
+function flushPending(id, win) {
+  const p = _pending.get(id);
+  if (!p) return;
+  if (p.timer) {
+    clearTimeout(p.timer);
+    p.timer = 0;
+  }
+  _pending.delete(id);
+  if (!p.data) return;
+  pushBackfill(id, p.data);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('terminal:data', { id, data: p.data });
+  }
+}
+
+function queueData(id, win, data) {
+  let p = _pending.get(id);
+  if (!p) {
+    p = { data: '', timer: 0 };
+    _pending.set(id, p);
+  }
+  p.data += data;
+  if (p.data.length >= FLUSH_BYTES) {
+    flushPending(id, win);
+    return;
+  }
+  if (!p.timer) {
+    p.timer = setTimeout(() => flushPending(id, win), FLUSH_MS);
+  }
+}
+
+function dropPending(id) {
+  const p = _pending.get(id);
+  if (!p) return;
+  if (p.timer) clearTimeout(p.timer);
+  _pending.delete(id);
+}
+
 function killTerminal(id) {
   const t = terminals.get(id);
   if (t) {
     try { t.term.kill(); } catch (e) { /* ignore */ }
     terminals.delete(id);
     _outputBuffers.delete(id);
+    dropPending(id);
   }
 }
 
 function getTerminalBuffer(id) {
-  var buf = _outputBuffers.get(id);
-  return buf ? buf.join('') : '';
+  const b = _outputBuffers.get(id);
+  const p = _pending.get(id);
+  return (b ? b.chunks.join('') : '') + (p ? p.data : '');
 }
 
 function register({ getMainWindow }) {
   if (!getPty()) {
-    console.error('[Terminal] node-pty not available — terminal feature disabled');
+    console.error('[Terminal] node-pty not available - terminal feature disabled');
     return;
   }
 
@@ -149,7 +204,6 @@ function register({ getMainWindow }) {
       env,
     });
 
-    // ── Error Cop: Create session ──
     let sessionId = null;
     if (_errorEngine) {
       try {
@@ -160,37 +214,30 @@ function register({ getMainWindow }) {
       }
     }
 
+    _outputBuffers.set(id, { chunks: [], size: 0 });
+
     term.onData((data) => {
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('terminal:data', { id, data });
+      if (!win || win.isDestroyed()) return;
 
-        // ── Buffer output for backfill ──
-        var buf = _outputBuffers.get(id);
-        if (buf) {
-          buf.push(data);
-          if (buf.length > 200) buf.shift();
+      queueData(id, win, data);
+
+      if (_errorEngine && sessionId) {
+        try {
+          _errorEngine.processOutput(sessionId, data);
+        } catch (e) {
+          console.error('[ErrorCop] processOutput failed:', e);
         }
-
-        // ── Error Cop: Process output ──
-        if (_errorEngine && sessionId) {
-          try {
-            _errorEngine.processOutput(sessionId, data);
-          } catch (e) {
-            console.error('[ErrorCop] processOutput failed:', e);
-          }
-        }
-
-        // ── Ecosystem Tool: data listeners ──
-        const dls = _dataListeners.get(id);
-        if (dls) dls.forEach(function (cb) { try { cb(data); } catch (e) { /* ignore */ } });
       }
+
+      const dls = _dataListeners.get(id);
+      if (dls) dls.forEach(function (cb) { try { cb(data); } catch (e) { /* ignore */ } });
     });
 
     term.onExit(({ exitCode, signal }) => {
+      flushPending(id, win);
       if (win && !win.isDestroyed()) {
         win.webContents.send('terminal:exit', { id, exitCode, signal });
       }
-      // ── Error Cop: End session ──
       if (_errorEngine && sessionId) {
         try {
           _errorEngine.endSession(sessionId, exitCode);
@@ -199,17 +246,16 @@ function register({ getMainWindow }) {
         }
       }
 
-      // ── Ecosystem Tool: exit listeners ──
       const els = _exitListeners.get(id);
       if (els) els.forEach(function (cb) { try { cb(exitCode, signal); } catch (e) { /* ignore */ } });
       _exitListeners.delete(id);
       _dataListeners.delete(id);
       _outputBuffers.delete(id);
+      dropPending(id);
       terminals.delete(id);
     });
 
     terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId });
-    _outputBuffers.set(id, []);
     if (win && !win.isDestroyed()) {
       win.webContents.send('terminal:ready', { id });
     }
@@ -218,7 +264,7 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('terminal:write', (event, { id, data }) => {
     const t = terminals.get(id);
-    if (t) t.term.write(data);
+    if (t && typeof data === 'string') t.term.write(data);
   });
 
   ipcMain.handle('terminal:resize', (event, { id, cols, rows }) => {
@@ -231,6 +277,7 @@ function register({ getMainWindow }) {
     if (t) {
       try { t.term.kill(); } catch (e) { console.error('[Terminal] kill error:', e); }
       terminals.delete(id);
+      dropPending(id);
     }
   });
 
