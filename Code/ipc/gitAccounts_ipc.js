@@ -1,10 +1,11 @@
-const { ipcMain, app, safeStorage } = require('electron');
+const { ipcMain, app, safeStorage, shell, clipboard } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const simpleGit = require('simple-git');
 
 let _state = null;
+let _login = null;
 
 function stateFile() {
   return path.join(app.getPath('userData'), 'git-accounts.json');
@@ -21,6 +22,7 @@ function load() {
   _state = {
     accounts: data && Array.isArray(data.accounts) ? data.accounts : [],
     repos: data && data.repos && typeof data.repos === 'object' ? data.repos : {},
+    clientId: data && typeof data.clientId === 'string' ? data.clientId : '',
   };
   return _state;
 }
@@ -35,6 +37,10 @@ function save() {
 
 function repoKey(p) {
   return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function getClientId() {
+  return String(process.env.HELPERTOOL_GITHUB_CLIENT_ID || load().clientId || '').trim();
 }
 
 function sealToken(token) {
@@ -91,6 +97,39 @@ function ghGet(pathname, token) {
   });
 }
 
+function postJson(hostname, pathname, body) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = https.request({
+      hostname,
+      path: pathname,
+      method: 'POST',
+      headers: {
+        'User-Agent': 'HelperTool/1.0',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        let parsed = null;
+        try { parsed = JSON.parse(data); } catch (_) { parsed = null; }
+        resolve({ status: res.statusCode, body: parsed });
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(20000, () => { req.destroy(new Error('Request timed out')); });
+    req.write(payload);
+    req.end();
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function configFor(repoPath) {
   if (!repoPath) return null;
   const st = load();
@@ -122,6 +161,96 @@ function newId() {
   return 'acc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+async function saveAccountFromToken(token, label) {
+  let res;
+  try {
+    res = await ghGet('/user', token);
+  } catch (err) {
+    return { success: false, error: 'Could not reach GitHub: ' + err.message };
+  }
+  if (res.status === 401) {
+    return { success: false, error: 'GitHub rejected this token. Check that it was copied fully and has not expired.' };
+  }
+  if (res.status !== 200 || !res.body || !res.body.login) {
+    return { success: false, error: 'GitHub gave an unexpected answer (' + res.status + ').' };
+  }
+  const u = res.body;
+  const st = load();
+  const sealed = sealToken(token);
+  const info = {
+    label,
+    username: u.login,
+    name: u.name || u.login,
+    email: u.email || (u.id + '+' + u.login + '@users.noreply.github.com'),
+    avatarUrl: u.avatar_url || '',
+    token: sealed.token,
+    enc: sealed.enc,
+  };
+  const existing = st.accounts.find((a) => a.username.toLowerCase() === u.login.toLowerCase());
+  let account;
+  let updated = false;
+  if (existing) {
+    Object.assign(existing, info);
+    if (!label) existing.label = existing.label || '';
+    account = existing;
+    updated = true;
+  } else {
+    account = Object.assign({ id: newId(), createdAt: Date.now() }, info);
+    st.accounts.push(account);
+  }
+  save();
+  return { success: true, updated, account: publicAcc(account), accounts: st.accounts.map(publicAcc) };
+}
+
+async function pollLogin(session, cid, device, sender) {
+  let interval = Math.max(5, Number(device.interval) || 5);
+  const deadline = Date.now() + (Number(device.expires_in) || 900) * 1000;
+  let result = null;
+  while (!session.cancelled) {
+    await sleep(interval * 1000);
+    if (session.cancelled) break;
+    if (Date.now() > deadline) {
+      result = { success: false, error: 'The code expired. Start the sign in again.' };
+      break;
+    }
+    let res = null;
+    try {
+      res = await postJson('github.com', '/login/oauth/access_token', {
+        client_id: cid,
+        device_code: device.device_code,
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      });
+    } catch (_) {
+      continue;
+    }
+    const b = (res && res.body) || {};
+    if (b.access_token) {
+      result = await saveAccountFromToken(b.access_token, '');
+      break;
+    }
+    if (b.error === 'authorization_pending') continue;
+    if (b.error === 'slow_down') {
+      interval = Number(b.interval) || interval + 5;
+      continue;
+    }
+    if (b.error === 'access_denied') {
+      result = { success: false, error: 'Sign in was denied on GitHub.' };
+      break;
+    }
+    if (b.error === 'expired_token') {
+      result = { success: false, error: 'The code expired. Start the sign in again.' };
+      break;
+    }
+    result = { success: false, error: b.error_description || b.error || 'Sign in failed.' };
+    break;
+  }
+  if (_login === session) _login = null;
+  if (session.cancelled || !result) return;
+  try {
+    if (!sender.isDestroyed()) sender.send('gitAccounts:loginResult', result);
+  } catch (_) {}
+}
+
 function register() {
   ipcMain.handle('gitAccounts:list', async (_e, payload) => {
     try {
@@ -147,47 +276,66 @@ function register() {
       const token = String((payload && payload.token) || '').trim();
       const label = String((payload && payload.label) || '').trim().slice(0, 40);
       if (!token) return { success: false, error: 'Paste a personal access token first.' };
-      let res;
-      try {
-        res = await ghGet('/user', token);
-      } catch (err) {
-        return { success: false, error: 'Could not reach GitHub: ' + err.message };
-      }
-      if (res.status === 401) {
-        return { success: false, error: 'GitHub rejected this token. Check that it was copied fully and has not expired.' };
-      }
-      if (res.status !== 200 || !res.body || !res.body.login) {
-        return { success: false, error: 'GitHub gave an unexpected answer (' + res.status + ').' };
-      }
-      const u = res.body;
-      const st = load();
-      const sealed = sealToken(token);
-      const info = {
-        label,
-        username: u.login,
-        name: u.name || u.login,
-        email: u.email || (u.id + '+' + u.login + '@users.noreply.github.com'),
-        avatarUrl: u.avatar_url || '',
-        token: sealed.token,
-        enc: sealed.enc,
-      };
-      const existing = st.accounts.find((a) => a.username.toLowerCase() === u.login.toLowerCase());
-      let account;
-      let updated = false;
-      if (existing) {
-        Object.assign(existing, info);
-        if (!label) existing.label = existing.label || '';
-        account = existing;
-        updated = true;
-      } else {
-        account = Object.assign({ id: newId(), createdAt: Date.now() }, info);
-        st.accounts.push(account);
-      }
-      save();
-      return { success: true, updated, account: publicAcc(account), accounts: st.accounts.map(publicAcc) };
+      return await saveAccountFromToken(token, label);
     } catch (err) {
       return { success: false, error: err.message };
     }
+  });
+
+  ipcMain.handle('gitAccounts:setClientId', async (_e, payload) => {
+    try {
+      const value = String((payload && payload.clientId) || '').trim();
+      if (!/^[A-Za-z0-9._-]{8,60}$/.test(value)) {
+        return { success: false, error: 'That does not look like a GitHub Client ID.' };
+      }
+      load().clientId = value;
+      save();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('gitAccounts:loginStart', async (e) => {
+    try {
+      const cid = getClientId();
+      if (!cid) return { success: false, needsSetup: true };
+      if (_login) _login.cancelled = true;
+      _login = null;
+      let res;
+      try {
+        res = await postJson('github.com', '/login/device/code', { client_id: cid, scope: 'repo read:user' });
+      } catch (err) {
+        return { success: false, error: 'Could not reach GitHub: ' + err.message };
+      }
+      const b = (res && res.body) || {};
+      if (!b.device_code || !b.user_code) {
+        return {
+          success: false,
+          needsSetup: true,
+          error: 'GitHub rejected the Client ID. Check it, and that Device Flow is enabled for the app.',
+        };
+      }
+      const session = { cancelled: false };
+      _login = session;
+      try { clipboard.writeText(b.user_code); } catch (_) {}
+      try { shell.openExternal(b.verification_uri || 'https://github.com/login/device'); } catch (_) {}
+      pollLogin(session, cid, b, e.sender);
+      return {
+        success: true,
+        userCode: b.user_code,
+        verificationUri: b.verification_uri || 'https://github.com/login/device',
+        expiresIn: b.expires_in || 900,
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('gitAccounts:loginCancel', async () => {
+    if (_login) _login.cancelled = true;
+    _login = null;
+    return { success: true };
   });
 
   ipcMain.handle('gitAccounts:remove', async (_e, payload) => {
@@ -227,7 +375,7 @@ function register() {
       try {
         const check = await ghGet('/user', token);
         if (check.status === 401) {
-          return { success: false, error: 'The token for @' + acc.username + ' was rejected (revoked or expired). Remove it and add a new token.' };
+          return { success: false, error: 'The token for @' + acc.username + ' was rejected (revoked or expired). Remove it and sign in again.' };
         }
       } catch (_) {
         warning = 'GitHub could not be reached, so the token was not verified.';

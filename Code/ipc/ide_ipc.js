@@ -517,6 +517,12 @@ function register() {
     warmCorpus(root);
     return { success: true };
   });
+
+  try {
+    require('./wakatime_ipc.js').register();
+  } catch (err) {
+    console.error('[IPC] wakatime handlers failed to register:', err.message);
+  }
 }
 
 module.exports = { register };
