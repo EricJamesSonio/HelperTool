@@ -24,7 +24,7 @@ const TERMINAL_THEME = {
 };
 
 const FORCED_OPTIONS = {
-  scrollback: 10000,
+  scrollback: 4000,
   rightClickSelectsWord: false,
   drawBoldTextInBrightColors: true,
 };
