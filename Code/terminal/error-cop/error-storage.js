@@ -1,5 +1,39 @@
 const { getErrorCopDb, save } = require('../../database/errorCopDb');
 
+const OCC_CAP = 50;
+const OCC_MAP_LIMIT = 5000;
+const MAX_LINE_TEXT = 4000;
+const MAX_MESSAGE = 4000;
+const MAX_STACK = 8000;
+const SAVE_DELAY_MS = 3000;
+
+let _saveTimer = null;
+
+function saveNow() {
+  if (_saveTimer) {
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+  }
+  save();
+}
+
+function saveSoon() {
+  if (_saveTimer) return;
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    try {
+      save();
+    } catch (e) {
+      console.error('[ErrorCop] delayed save failed:', e.message);
+    }
+  }, SAVE_DELAY_MS);
+}
+
+function clip(text, max) {
+  const s = text == null ? '' : String(text);
+  return s.length > max ? s.slice(0, max) : s;
+}
+
 function _applyDateRange(sql, params, startDate, endDate) {
   if (startDate) { sql += ' AND timestamp >= ?'; params.push(startDate); }
   if (endDate)   { sql += ' AND timestamp <= ?'; params.push(endDate); }
@@ -14,6 +48,10 @@ function _todayRange() {
 }
 
 class ErrorStorage {
+  constructor() {
+    this._occCounts = new Map();
+  }
+
   // ── Sessions ──
 
   createSession({ project, cwd, shell, command, label }) {
@@ -23,7 +61,7 @@ class ErrorStorage {
        VALUES (?, ?, ?, ?, ?, 'running', datetime('now','localtime'))`,
       [project || '', cwd || '', shell || '', command || '', label || '']
     );
-    save();
+    saveNow();
     const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
     return id;
   }
@@ -40,7 +78,7 @@ class ErrorStorage {
       `UPDATE sessions SET status = ?, ended_at = datetime('now','localtime'), exit_code = ?, ended_reason = ? WHERE id = ? AND status IN ('running','ended')`,
       [status, exitCode, endedReason || '', id]
     );
-    save();
+    saveNow();
   }
 
   incrementSessionLines(id) {
@@ -85,7 +123,7 @@ class ErrorStorage {
     db.run(
       `INSERT INTO errors (session_id, project, timestamp, level, source, title, message, stack, fingerprint, occurrences, first_seen, last_seen)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-      [sessionId, project || '', now, level, source || 'terminal', title, message || '', stack || null, fingerprint || null, firstSeen || now, lastSeen || now]
+      [sessionId, project || '', now, level, source || 'terminal', title, clip(message, MAX_MESSAGE), stack ? clip(stack, MAX_STACK) : null, fingerprint || null, firstSeen || now, lastSeen || now]
     );
     const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
 
@@ -97,7 +135,7 @@ class ErrorStorage {
       `UPDATE sessions SET total_warnings = total_warnings + 1 WHERE id = ? AND ? = 'warning'`,
       [sessionId, level]
     );
-    save();
+    saveSoon();
     return id;
   }
 
@@ -246,12 +284,18 @@ class ErrorStorage {
   // ── Occurrences ──
 
   insertOccurrence({ sessionId, fingerprint, level, title, message, lineText, timestamp }) {
+    const key = sessionId + '|' + (fingerprint || title || '');
+    const seen = this._occCounts.get(key) || 0;
+    if (seen >= OCC_CAP) return false;
+    if (this._occCounts.size >= OCC_MAP_LIMIT) this._occCounts.clear();
+    this._occCounts.set(key, seen + 1);
     const db = getErrorCopDb();
     db.run(
       `INSERT INTO error_occurrences (session_id, fingerprint, level, title, message, line_text, timestamp)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, fingerprint || '', level, title, message || '', lineText || '', timestamp]
+      [sessionId, fingerprint || '', level, title, clip(message, MAX_MESSAGE), clip(lineText, MAX_LINE_TEXT), timestamp]
     );
+    return true;
   }
 
   getOccurrencesBySession(sessionId, limit = 500) {
@@ -298,9 +342,15 @@ class ErrorStorage {
 
   deleteSession(id) {
     const db = getErrorCopDb();
+    db.run('DELETE FROM error_occurrences WHERE session_id = ?', [id]);
+    db.run('DELETE FROM errors WHERE session_id = ?', [id]);
     db.run('DELETE FROM browser_servers WHERE session_id = ?', [id]);
     db.run('DELETE FROM sessions WHERE id = ?', [id]);
-    save();
+    const prefix = id + '|';
+    for (const key of Array.from(this._occCounts.keys())) {
+      if (key.startsWith(prefix)) this._occCounts.delete(key);
+    }
+    saveNow();
   }
 
   cleanupStaleSessions() {
@@ -309,16 +359,17 @@ class ErrorStorage {
       `UPDATE sessions SET status = 'ended', ended_at = datetime('now','localtime'), exit_code = -1
        WHERE status = 'running'`
     );
-    save();
+    saveNow();
   }
 
   purgeOldSessions(days = 30) {
     const db = getErrorCopDb();
-    db.run(
-      `DELETE FROM sessions WHERE started_at < datetime('now','localtime',?-||' days')`,
-      [days]
-    );
-    save();
+    const old = "SELECT id FROM sessions WHERE started_at < datetime('now','localtime','-' || ? || ' days')";
+    db.run('DELETE FROM error_occurrences WHERE session_id IN (' + old + ')', [days]);
+    db.run('DELETE FROM errors WHERE session_id IN (' + old + ')', [days]);
+    db.run('DELETE FROM browser_servers WHERE session_id IN (' + old + ')', [days]);
+    db.run("DELETE FROM sessions WHERE started_at < datetime('now','localtime','-' || ? || ' days')", [days]);
+    saveNow();
   }
 }
 
