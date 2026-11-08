@@ -4,15 +4,72 @@ const { getSqlJs } = require('../workerSqlJs');
 
 let _db = null;
 let _dbPath = null;
-async function _openDb(filePath) {
-  if (_db && _dbPath === filePath) return _db;
-  if (_db) { try { _db.close(); } catch (_) {} }
+const IDLE_MS = 60000;
+const RECHECK_MS = 20000;
+let _mtime = 0;
+let _lastCheck = 0;
+let _idleTimer = null;
+let _opening = null;
+
+function _closeDb() {
+  if (_idleTimer) {
+    clearTimeout(_idleTimer);
+    _idleTimer = null;
+  }
+  if (_db) {
+    try { _db.close(); } catch (_) {}
+  }
+  _db = null;
+  _dbPath = null;
+  _mtime = 0;
+  _lastCheck = 0;
+}
+
+function _touch() {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(_closeDb, IDLE_MS);
+  if (_idleTimer.unref) _idleTimer.unref();
+}
+
+async function _doOpen(filePath) {
+  const now = Date.now();
+  if (_db && _dbPath === filePath && now - _lastCheck < RECHECK_MS) {
+    _touch();
+    return _db;
+  }
+  let info;
+  try {
+    info = fs.statSync(filePath);
+  } catch (_) {
+    throw new Error('DB not found: ' + filePath);
+  }
+  _lastCheck = now;
+  if (_db && _dbPath === filePath && _mtime === info.mtimeMs) {
+    _touch();
+    return _db;
+  }
+  _closeDb();
   const SQL = await getSqlJs();
-  if (!fs.existsSync(filePath)) throw new Error('DB not found: ' + filePath);
-  const buffer = fs.readFileSync(filePath);
+  let buffer = fs.readFileSync(filePath);
+  const after = fs.statSync(filePath);
+  if (after.mtimeMs !== info.mtimeMs || after.size !== buffer.length) {
+    await new Promise((r) => setTimeout(r, 400));
+    info = fs.statSync(filePath);
+    buffer = fs.readFileSync(filePath);
+  }
   _db = new SQL.Database(buffer);
   _dbPath = filePath;
+  _mtime = info.mtimeMs;
+  _lastCheck = Date.now();
+  _touch();
   return _db;
+}
+async function _openDb(filePath) {
+  if (_opening) return _opening;
+  _opening = _doOpen(filePath).finally(() => {
+    _opening = null;
+  });
+  return _opening;
 }
 
 function _queryAll(sql, params) {
