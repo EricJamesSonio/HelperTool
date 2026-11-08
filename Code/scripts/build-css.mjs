@@ -60,6 +60,7 @@ const files = [
   'styles/mcp.css',
   'styles/repo-console.css',
   'styles/repo-console-security.css',
+  'styles/ui-global.css',
 ];
 
 let css = '';
