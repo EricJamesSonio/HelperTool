@@ -5,8 +5,8 @@
 - Use tsx for dev server: `tsx watch src/index.ts`
 - Keep ES module syntax (type: "module" in package.json)
 
-##
-Test Changes testst
+##a
+Test Changes teststasdasd
 ## Folder Structure
 src/
   routes/          # Route definitions (thin, delegate only)
