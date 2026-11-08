@@ -1,4 +1,7 @@
-const simpleGit = require('simple-git');
+const simpleGitFactory = require('simple-git');
+const gitAccountsAuth = require('./gitAccounts_ipc.js');
+
+const simpleGit = (repoPath, ...rest) => gitAccountsAuth.authedGit(simpleGitFactory, repoPath, ...rest);
 
 async function getUpstream(git, branch) {
   try {

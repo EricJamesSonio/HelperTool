@@ -4,8 +4,12 @@ const path = require('path');
 const https = require('https');
 const simpleGit = require('simple-git');
 
+const TOKEN_FORMAT = /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|[0-9a-f]{40})$/;
+const BLOCKING = new Set(['revoked', 'expired', 'invalid', 'mismatch']);
+
 let _state = null;
 let _login = null;
+const _warned = new Set();
 
 function stateFile() {
   return path.join(app.getPath('userData'), 'git-accounts.json');
@@ -61,6 +65,11 @@ function openToken(acc) {
   }
 }
 
+function tokenTypeOf(token) {
+  const m = /^(gho|ghu|ghp|ghs|ghr|github_pat)_/.exec(String(token || ''));
+  return m ? m[1] : '';
+}
+
 function publicAcc(acc) {
   return {
     id: acc.id,
@@ -70,7 +79,16 @@ function publicAcc(acc) {
     email: acc.email || '',
     avatarUrl: acc.avatarUrl || '',
     createdAt: acc.createdAt || 0,
+    tokenType: acc.tokenType || '',
+    scopes: Array.isArray(acc.scopes) ? acc.scopes : [],
+    health: acc.health || null,
   };
+}
+
+function parseScopes(headers) {
+  const raw = headers ? headers['x-oauth-scopes'] : undefined;
+  if (typeof raw !== 'string') return null;
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 function ghGet(pathname, token) {
@@ -89,7 +107,7 @@ function ghGet(pathname, token) {
       res.on('end', () => {
         let body = null;
         try { body = JSON.parse(data); } catch (_) { body = null; }
-        resolve({ status: res.statusCode, body });
+        resolve({ status: res.statusCode, body, headers: res.headers || {} });
       });
     });
     req.on('error', reject);
@@ -130,6 +148,105 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function checkToken(token, expectUser, expiresAt) {
+  const type = tokenTypeOf(token);
+  const who = expectUser ? '@' + expectUser : 'this account';
+  let res;
+  try {
+    res = await ghGet('/user', token);
+  } catch (err) {
+    return {
+      state: 'unknown',
+      status: 0,
+      scopes: null,
+      login: '',
+      ghMessage: '',
+      message: 'GitHub could not be reached (' + err.message + '), so the token for ' + who + ' was not verified.',
+    };
+  }
+  const h = res.headers || {};
+  const ghMsg = res.body && res.body.message ? String(res.body.message) : '';
+  const scopes = parseScopes(h);
+  const base = { status: res.status, scopes, login: '', ghMessage: ghMsg };
+
+  if (res.status === 200 && res.body && res.body.login) {
+    const login = String(res.body.login);
+    if (expectUser && login.toLowerCase() !== expectUser.toLowerCase()) {
+      return Object.assign(base, {
+        login,
+        state: 'mismatch',
+        message: 'The stored token for ' + who + ' belongs to @' + login + ' on GitHub, so it was not used. Nothing was changed. Sign in again as ' + who + ' to replace it.',
+      });
+    }
+    if (scopes && scopes.indexOf('repo') === -1) {
+      return Object.assign(base, {
+        login,
+        state: 'insufficient_scope',
+        message: 'The token for ' + who + ' is valid but has no "repo" scope (it has: ' + (scopes.join(', ') || 'none') + '), so pushing to private repositories will fail. Sign in again to grant the repo scope.',
+      });
+    }
+    return Object.assign(base, { login, state: 'valid', message: '' });
+  }
+
+  if (res.status === 401) {
+    let state = 'revoked';
+    let why = '';
+    if (expiresAt && Date.now() > expiresAt) {
+      state = 'expired';
+      why = 'It passed its expiry time.';
+    } else if (!TOKEN_FORMAT.test(token)) {
+      state = 'invalid';
+      why = 'The stored value does not look like a GitHub token, so it may be damaged or incomplete.';
+    } else if (type === 'ghu') {
+      why = 'GitHub App user tokens expire after about 8 hours, so it has probably expired or was revoked.';
+    } else {
+      why = 'OAuth App tokens do not expire, so it was revoked: removed under GitHub Settings > Applications, revoked from the app page, replaced after more than 10 sign-ins for the same app, or auto-revoked after being published.';
+    }
+    return Object.assign(base, {
+      state,
+      message: 'GitHub no longer accepts the token for ' + who + ' (HTTP 401' + (ghMsg ? ', "' + ghMsg + '"' : '') + '). ' + why + ' The account was kept. Sign in again as ' + who + ' to replace the token.',
+    });
+  }
+
+  if (res.status === 403 || res.status === 429) {
+    if (h['x-github-sso']) {
+      return Object.assign(base, {
+        state: 'sso',
+        message: 'The token for ' + who + ' needs SAML SSO authorization for an organization. Authorize it on GitHub (Settings > Applications). The token itself is not revoked.',
+      });
+    }
+    if (res.status === 429 || String(h['x-ratelimit-remaining']) === '0' || /rate limit/i.test(ghMsg)) {
+      return Object.assign(base, {
+        state: 'rate_limited',
+        message: 'GitHub is rate limiting the token for ' + who + ' right now. It is not revoked. Try again in a few minutes.',
+      });
+    }
+    return Object.assign(base, {
+      state: 'blocked',
+      message: 'GitHub refused the check for ' + who + ' (HTTP 403' + (ghMsg ? ', "' + ghMsg + '"' : '') + '). The token is not known to be revoked.',
+    });
+  }
+
+  return Object.assign(base, {
+    state: 'unknown',
+    message: 'GitHub answered with an unexpected status (' + res.status + ') while checking ' + who + '. The token was not treated as revoked.',
+  });
+}
+
+function recordHealth(acc, check) {
+  if (!acc || !check || check.state === 'unknown') return;
+  acc.health = { state: check.state, at: Date.now() };
+  try {
+    save();
+  } catch (_) {}
+}
+
+function warnOnce(key, text) {
+  if (_warned.has(key)) return;
+  _warned.add(key);
+  console.warn('[GitAccounts] ' + text);
+}
+
 function configFor(repoPath) {
   if (!repoPath) return null;
   const st = load();
@@ -138,7 +255,10 @@ function configFor(repoPath) {
   const acc = st.accounts.find((a) => a.id === id);
   if (!acc) return null;
   const token = openToken(acc);
-  if (!token) return null;
+  if (!token) {
+    warnOnce('unreadable:' + acc.id, 'The saved token for @' + acc.username + ' could not be read, so git is using your system login for this repo.');
+    return null;
+  }
   const basic = Buffer.from(acc.username + ':' + token).toString('base64');
   const cfg = ['http.https://github.com/.extraheader=AUTHORIZATION: basic ' + basic];
   cfg.push('user.name=' + (acc.name || acc.username));
@@ -161,7 +281,7 @@ function newId() {
   return 'acc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-async function saveAccountFromToken(token, label) {
+async function saveAccountFromToken(token, label, extra) {
   let res;
   try {
     res = await ghGet('/user', token);
@@ -169,7 +289,7 @@ async function saveAccountFromToken(token, label) {
     return { success: false, error: 'Could not reach GitHub: ' + err.message };
   }
   if (res.status === 401) {
-    return { success: false, error: 'GitHub rejected this token. Check that it was copied fully and has not expired.' };
+    return { success: false, error: 'GitHub rejected this token (HTTP 401, "Bad credentials"). Check that it was copied fully and has not been revoked or expired.' };
   }
   if (res.status !== 200 || !res.body || !res.body.login) {
     return { success: false, error: 'GitHub gave an unexpected answer (' + res.status + ').' };
@@ -177,29 +297,37 @@ async function saveAccountFromToken(token, label) {
   const u = res.body;
   const st = load();
   const sealed = sealToken(token);
+  const scopesList = parseScopes(res.headers);
   const info = {
-    label,
     username: u.login,
     name: u.name || u.login,
     email: u.email || (u.id + '+' + u.login + '@users.noreply.github.com'),
     avatarUrl: u.avatar_url || '',
     token: sealed.token,
     enc: sealed.enc,
+    tokenType: tokenTypeOf(token),
+    scopes: scopesList || [],
+    expiresAt: extra && extra.expiresAt ? extra.expiresAt : 0,
+    health: { state: 'valid', at: Date.now() },
   };
   const existing = st.accounts.find((a) => a.username.toLowerCase() === u.login.toLowerCase());
   let account;
   let updated = false;
   if (existing) {
     Object.assign(existing, info);
-    if (!label) existing.label = existing.label || '';
+    if (label) existing.label = label;
     account = existing;
     updated = true;
   } else {
-    account = Object.assign({ id: newId(), createdAt: Date.now() }, info);
+    account = Object.assign({ id: newId(), createdAt: Date.now(), label }, info);
     st.accounts.push(account);
   }
   save();
-  return { success: true, updated, account: publicAcc(account), accounts: st.accounts.map(publicAcc) };
+  const result = { success: true, updated, account: publicAcc(account), accounts: st.accounts.map(publicAcc) };
+  if (scopesList && scopesList.indexOf('repo') === -1) {
+    result.warning = 'This token has no "repo" scope (it has: ' + (scopesList.join(', ') || 'none') + '), so pushing to private repositories will fail.';
+  }
+  return result;
 }
 
 async function pollLogin(session, cid, device, sender) {
@@ -225,7 +353,8 @@ async function pollLogin(session, cid, device, sender) {
     }
     const b = (res && res.body) || {};
     if (b.access_token) {
-      result = await saveAccountFromToken(b.access_token, '');
+      const exp = Number(b.expires_in) > 0 ? Date.now() + Number(b.expires_in) * 1000 : 0;
+      result = await saveAccountFromToken(b.access_token, '', { expiresAt: exp });
       break;
     }
     if (b.error === 'authorization_pending') continue;
@@ -276,7 +405,7 @@ function register() {
       const token = String((payload && payload.token) || '').trim();
       const label = String((payload && payload.label) || '').trim().slice(0, 40);
       if (!token) return { success: false, error: 'Paste a personal access token first.' };
-      return await saveAccountFromToken(token, label);
+      return await saveAccountFromToken(token, label, null);
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -371,15 +500,14 @@ function register() {
       if (!token) {
         return { success: false, error: 'The saved token could not be read. Remove the account and add it again.' };
       }
-      let warning = null;
-      try {
-        const check = await ghGet('/user', token);
-        if (check.status === 401) {
-          return { success: false, error: 'The token for @' + acc.username + ' was rejected (revoked or expired). Remove it and sign in again.' };
-        }
-      } catch (_) {
-        warning = 'GitHub could not be reached, so the token was not verified.';
+      const warnings = [];
+      const check = await checkToken(token, acc.username, acc.expiresAt);
+      console.log('[GitAccounts] switch check @' + acc.username + ': ' + check.state + (check.status ? ' (HTTP ' + check.status + ')' : ''));
+      recordHealth(acc, check);
+      if (BLOCKING.has(check.state)) {
+        return { success: false, error: check.message, reason: check.state, kept: true };
       }
+      if (check.state !== 'valid' && check.message) warnings.push(check.message);
       st.repos[key] = acc.id;
       save();
       try {
@@ -393,19 +521,18 @@ function register() {
           url = '';
         }
         if (/^(git@|ssh:\/\/)/i.test(url)) {
-          warning = 'This repo uses an SSH remote: commits use this account, but pushes still use your SSH key.';
+          warnings.push('This repo uses an SSH remote: commits use this account, but pushes still use your SSH key.');
         }
       } catch (_) {
-        warning = warning || 'Account saved for this folder, but it is not a git repository yet.';
+        warnings.push('Account saved for this folder, but it is not a git repository yet.');
       }
-      return { success: true, activeId: acc.id, warning };
+      return { success: true, activeId: acc.id, warning: warnings.length ? warnings.join(' ') : null };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
 }
 
-module.exports = { register, authedGit, configFor };
 function ghRequest(method, pathname, token) {
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -450,8 +577,33 @@ async function originRepo(repoPath) {
   }
 }
 
+async function explainAuthFailure(repoPath, text) {
+  const acc = activeAccountFor(repoPath);
+  if (!acc) {
+    return {
+      message: text + '\n\nThis repo is using your system git login, and GitHub rejected it. Open GitHub accounts, sign in, and select an account for this repo.',
+    };
+  }
+  const token = openToken(acc);
+  if (!token) {
+    return { message: text + '\n\nThe saved token for @' + acc.username + ' could not be read. Remove the account and sign in again.' };
+  }
+  const check = await checkToken(token, acc.username, acc.expiresAt);
+  recordHealth(acc, check);
+  if (check.state === 'valid') {
+    return {
+      message: text + '\n\nGitHub reported an authentication failure, but the saved token for @' + acc.username +
+        ' is still valid. Another credential (for example one stored by your system git) may be overriding it.',
+    };
+  }
+  return { message: text + '\n\n' + check.message };
+}
+
 async function explainPushError(repoPath, original) {
   const text = String(original || '');
+  if (/Authentication failed|Invalid username or token|Bad credentials|could not read Username|\b401\b/i.test(text)) {
+    return explainAuthFailure(repoPath, text);
+  }
   if (!/denied to|error: 403|\b403\b/i.test(text)) return null;
   const who = (/denied to ([A-Za-z0-9-]+)/i.exec(text) || [])[1] || '';
   const full = await originRepo(repoPath);
@@ -512,4 +664,4 @@ async function explainPushError(repoPath, original) {
   };
 }
 
-module.exports.explainPushError = explainPushError;
+module.exports = { register, authedGit, configFor, explainPushError };
