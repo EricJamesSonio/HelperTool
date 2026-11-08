@@ -43,6 +43,7 @@ function injectCss() {
     ['chromeFlatCss', './styles/chrome-flat.css'],
     ['ideAccentCss', './styles/ide-accent.css'],
     ['ideMirrorCss', './styles/ide-mirror.css'],
+    ['ideCodeswampCss', './styles/ide-codeswamp.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
@@ -379,6 +380,9 @@ function init() {
   import('./wakatime.js')
     .then((m) => m.init())
     .catch((err) => console.error('[IDE] wakatime failed to load:', err));
+  import('./codeswampDock.js')
+    .then((m) => m.init())
+    .catch((err) => console.error('[IDE] code swamp dock failed to load:', err));
   if (readLS(LS_ON, '0') === '1') setActive(true);
 }
 
