@@ -5,6 +5,257 @@ import * as minimap from './minimap.js';
 import * as mediaViewer from './mediaViewer.js';
 import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+import * as ext from './extensions/index.js';
+
+const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
+const SEV_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' };
+const SEV_ICON = { error: '\u2297', warning: '\u26A0', info: '\u24D8' };
+const SEV_RANK = { error: 3, warning: 2, info: 1 };
+const INLINE_MAX = 140;
+const OPEN_JS = ['(', '[', String.fromCharCode(123)];
+const OPEN_PY = OPEN_JS.concat([':']);
+
+function worstDiag(arr) {
+  let best = arr[0];
+  for (const d of arr) {
+    if (SEV_RANK[d.sev] > SEV_RANK[best.sev]) best = d;
+  }
+  return best;
+}
+
+let diag = { list: [], byLine: new Map(), lineCount: 0 };
+let tipDiag = null;
+let tipRaf = 0;
+let tipX = 0;
+let tipY = 0;
+let problemsOpen = false;
+
+function buildDiagIndex(list) {
+  const byLine = new Map();
+  for (const d of list) {
+    let a = byLine.get(d.line);
+    if (!a) {
+      a = [];
+      byLine.set(d.line, a);
+    }
+    a.push(d);
+  }
+  for (const a of byLine.values()) a.sort((x, y) => x.col - y.col);
+  return byLine;
+}
+
+function diagHtml(from, to) {
+  if (!diag.list.length) return '';
+  const parts = [];
+  for (let i = from; i <= to; i++) {
+    const arr = diag.byLine.get(i + 1);
+    if (!arr) {
+      parts.push('<span class="ide-dl"></span>');
+      continue;
+    }
+    const line = lines[i] || '';
+    let out = '';
+    if (line.length) {
+      let pos = 0;
+      for (const d of arr) {
+        const s = Math.min(d.col, line.length - 1);
+        if (s < pos) continue;
+        let e = Math.min(line.length, s + Math.max(1, d.len));
+        if (e <= s) e = Math.min(line.length, s + 1);
+        out += esc(line.slice(pos, s)) + '<span class="ide-dg ide-dg-' + SEV_CLS[d.sev] + '">' + esc(line.slice(s, e)) + '</span>';
+        pos = e;
+      }
+      out += esc(line.slice(pos));
+    }
+    const top = worstDiag(arr);
+    let msg = top.msg.length > INLINE_MAX ? top.msg.slice(0, INLINE_MAX - 1) + '\u2026' : top.msg;
+    if (arr.length > 1) msg += '  (+' + (arr.length - 1) + ' more)';
+    out += '<span class="ide-dm ide-dm-' + SEV_CLS[top.sev] + '">' + SEV_ICON[top.sev] + ' ' + esc(msg) + '</span>';
+    parts.push('<span class="ide-dl ide-dl-' + SEV_CLS[top.sev] + '">' + out + '</span>');
+  }
+  return parts.join('');
+}
+
+function renderProblemsList() {
+  if (!els) return;
+  const total = diag.list.length;
+  els.pbList.innerHTML = total
+    ? diag.list.slice(0, 200).map((d, i) =>
+      '<div class="ide-pb-row" data-i="' + i + '">' +
+        '<span class="ide-pb-sev ' + SEV_CLS[d.sev] + '"></span>' +
+        '<span class="ide-pb-msg">' + esc(d.msg) + '</span>' +
+        '<span class="ide-pb-src">' + esc(d.src || '') + '</span>' +
+        '<span class="ide-pb-loc">[' + d.line + ':' + (d.col + 1) + ']</span>' +
+      '</div>'
+    ).join('')
+    : '<div class="ide-pb-empty">No problems detected in this file.</div>';
+  els.pbTitle.textContent = 'Problems' + (total ? ' (' + total + ')' : '');
+}
+
+function setProblemsOpen(on) {
+  problemsOpen = !!on;
+  els.problems.hidden = !problemsOpen;
+  els.stProb.classList.toggle('open', problemsOpen);
+  if (problemsOpen) renderProblemsList();
+}
+
+function updateProblemsUi() {
+  if (!els) return;
+  const tab = activeTab();
+  const show = isText(tab) && ext.handles(tab.name);
+  els.stProb.hidden = !show;
+  if (!show) {
+    if (problemsOpen) setProblemsOpen(false);
+    return;
+  }
+  let e = 0;
+  let w = 0;
+  let n = 0;
+  for (const d of diag.list) {
+    if (d.sev === 'error') e++;
+    else if (d.sev === 'warning') w++;
+    else n++;
+  }
+  els.stProb.innerHTML =
+    '<span class="ide-pc e' + (e ? ' has' : '') + '">\u2297 ' + e + '</span>' +
+    '<span class="ide-pc w' + (w ? ' has' : '') + '">\u26A0 ' + w + '</span>' +
+    (n ? '<span class="ide-pc i has">\u24D8 ' + n + '</span>' : '');
+  els.stProb.title = e + ' error(s), ' + w + ' warning(s), ' + n + ' info. Click to toggle the Problems list (F8: next problem)';
+  if (problemsOpen) renderProblemsList();
+}
+
+function setDiags(list, quiet) {
+  const arr = Array.isArray(list) ? list.slice() : [];
+  arr.sort((a, b) => (a.line - b.line) || (a.col - b.col));
+  const had = diag.list.length > 0;
+  diag = { list: arr, byLine: buildDiagIndex(arr), lineCount: lines.length };
+  updateProblemsUi();
+  hideTip();
+  if (!quiet && (had || arr.length)) invalidate();
+}
+
+function queueDiag(delay) {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  const path = tab.path;
+  ext.analyze(path, tab.name, () => els.ta.value, delay, (list) => {
+    if (activePath !== path) return;
+    if (!isText(activeTab())) return;
+    setDiags(list || []);
+  });
+}
+
+function gotoDiag(d) {
+  const tab = activeTab();
+  if (!isText(tab) || !d) return;
+  const starts = lineStartsOf(els.ta.value);
+  const ln = Math.min(Math.max(1, d.line), starts.length) - 1;
+  const col = Math.max(0, d.col);
+  const off = starts[ln] + col;
+  try { els.ta.setSelectionRange(off, off); } catch (_) {}
+  revealMatch(ln, col, d.len, true);
+  startPulse(ln, col, d.len);
+  els.ta.focus({ preventScroll: true });
+  scheduleCursor();
+}
+
+function stepDiag(dir) {
+  if (!diag.list.length) return;
+  const starts = lineStartsOf(els.ta.value);
+  const caret = els.ta.selectionStart;
+  const offs = diag.list.map((d) => (starts[Math.min(d.line, starts.length) - 1] || 0) + d.col);
+  let pick = -1;
+  if (dir > 0) {
+    for (let i = 0; i < offs.length; i++) {
+      if (offs[i] > caret) {
+        pick = i;
+        break;
+      }
+    }
+    if (pick < 0) pick = 0;
+  } else {
+    for (let i = offs.length - 1; i >= 0; i--) {
+      if (offs[i] < caret) {
+        pick = i;
+        break;
+      }
+    }
+    if (pick < 0) pick = offs.length - 1;
+  }
+  gotoDiag(diag.list[pick]);
+}
+
+function onDiagKey(e) {
+  if (e.key !== 'F8' || e.ctrlKey || e.altKey || e.metaKey) return;
+  e.preventDefault();
+  stepDiag(e.shiftKey ? -1 : 1);
+}
+
+function diagAt(x, y) {
+  if (!diag.list.length) return null;
+  const ta = els.ta;
+  const r = ta.getBoundingClientRect();
+  const px = x - r.left + ta.scrollLeft - 12;
+  const py = y - r.top + ta.scrollTop - PAD;
+  if (px < 0 || py < 0) return null;
+  const line = Math.floor(py / LH) + 1;
+  const col = Math.floor(px / charWidth());
+  const arr = diag.byLine.get(line);
+  if (!arr) return null;
+  for (const d of arr) {
+    if (col >= d.col && col < d.col + Math.max(1, d.len)) return d;
+  }
+  return null;
+}
+
+function hideTip() {
+  tipDiag = null;
+  if (els && els.tip) els.tip.hidden = true;
+}
+
+function onTaMove(e) {
+  if (!diag.list.length) {
+    if (tipDiag) hideTip();
+    return;
+  }
+  tipX = e.clientX;
+  tipY = e.clientY;
+  if (tipRaf) return;
+  tipRaf = requestAnimationFrame(() => {
+    tipRaf = 0;
+    const d = diagAt(tipX, tipY);
+    if (!d) {
+      hideTip();
+      return;
+    }
+    if (d !== tipDiag) {
+      tipDiag = d;
+      els.tip.className = 'ide-diag-tip ide-tip-' + SEV_CLS[d.sev];
+      els.tip.innerHTML =
+        '<div class="ide-tip-head">' +
+          '<span class="ide-tip-sev ' + SEV_CLS[d.sev] + '">' + SEV_ICON[d.sev] + ' ' + SEV_LABEL[d.sev] + '</span>' +
+          (d.src ? '<span class="ide-tip-src">' + esc(d.src) + '</span>' : '') +
+          '<span class="ide-tip-loc">Ln ' + d.line + ', Col ' + (d.col + 1) + '</span>' +
+        '</div>' +
+        '<div class="ide-tip-msg">' + esc(d.msg) + '</div>';
+    }
+    els.tip.hidden = false;
+    const er = els.editor.getBoundingClientRect();
+    const x = Math.max(4, Math.min(tipX - er.left + 14, er.width - 450));
+    els.tip.style.left = x + 'px';
+    els.tip.style.top = (tipY - er.top + 20) + 'px';
+  });
+}
+
+function onProblemsClick(e) {
+  if (e.target.closest('.ide-pb-x')) {
+    setProblemsOpen(false);
+    return;
+  }
+  const row = e.target.closest('.ide-pb-row');
+  if (!row) return;
+  gotoDiag(diag.list[Number(row.dataset.i)]);
+}
 
 const LH = 20;
 const PAD = 8;
@@ -36,6 +287,7 @@ const TEMPLATE =
         '<div class="ide-wk"><span>Find in file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>F</kbd></span></div>' +
         '<div class="ide-wk"><span>Replace in file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>' +
         '<div class="ide-wk"><span>Search codebase</span><span class="ide-wk-keys"><kbd>F2</kbd></span></div>' +
+        '<div class="ide-wk"><span>Next problem</span><span class="ide-wk-keys"><kbd>F8</kbd></span></div>' +
         '<div class="ide-wk"><span>Close tab</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>W</kbd></span></div>' +
       '</div>' +
       '<div class="ide-welcome-foot">Images, video, audio and PDF files open right here too.</div>' +
@@ -65,16 +317,27 @@ const TEMPLATE =
   '<div class="ide-codewrap" hidden>' +
     '<div class="ide-gutter"><pre class="ide-gutter-inner"></pre></div>' +
     '<div class="ide-code">' +
+      '<div class="ide-diag-layer"><pre class="ide-diag-inner"></pre></div>' +
       '<div class="ide-find-layer"><pre class="ide-find-inner"></pre></div>' +
       '<div class="ide-hl"><pre class="ide-hl-inner"></pre></div>' +
       '<textarea class="ide-ta" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>' +
     '</div>' +
     '<div class="ide-minimap"></div>' +
   '</div>' +
+  '<div class="ide-diag-tip" hidden></div>' +
+'</div>' +
+'<div class="ide-problems" hidden>' +
+  '<div class="ide-pb-head">' +
+    '<span class="ide-pb-title">Problems</span>' +
+    '<span class="ide-pb-hint">F8 next problem, Shift+F8 previous</span>' +
+    '<button type="button" class="ide-pb-x" title="Close">' + I_X + '</button>' +
+  '</div>' +
+  '<div class="ide-pb-list"></div>' +
 '</div>' +
 '<div class="ide-status">' +
   '<span class="ide-st-msg"></span>' +
   '<span class="ide-st-spacer"></span>' +
+  '<span class="ide-st-item ide-st-problems" hidden></span>' +
   '<span class="ide-st-item ide-st-pos"></span>' +
   '<span class="ide-st-item">Spaces: 2</span>' +
   '<span class="ide-st-item">UTF-8</span>' +
@@ -263,6 +526,7 @@ function syncTransform() {
   const tr = 'translate(' + (-ta.scrollLeft) + 'px,' + y + 'px)';
   els.hlInner.style.transform = tr;
   els.findInner.style.transform = tr;
+  els.diagInner.style.transform = tr;
   els.gutterInner.style.transform = 'translateY(' + y + 'px)';
 }
 
@@ -371,6 +635,7 @@ function render() {
   if (textChanged) {
     textChanged = false;
     forced = true;
+    const fresh = tabSwitched;
     const text = ta.value;
     tab.content = text;
     const d = text !== tab.saved;
@@ -384,6 +649,11 @@ function render() {
     tabSwitched = false;
     els.codewrap.style.setProperty('--digits', String(Math.max(3, String(lines.length).length)));
     if (find.open) computeMatches(lines);
+    if (diag.list.length && diag.lineCount !== lines.length) {
+      diag = { list: [], byLine: new Map(), lineCount: lines.length };
+      updateProblemsUi();
+    }
+    queueDiag(fresh ? 40 : 650);
   }
   const top = ta.scrollTop;
   const h = ta.clientHeight || 600;
@@ -396,9 +666,15 @@ function render() {
     els.hlInner.innerHTML = highlightRange(lines, from, to, lang);
     const wantOverlay = (find.open && !!find.q) || !!pulse;
     els.findInner.innerHTML = wantOverlay ? overlayHtml(from, to) : '';
+    els.diagInner.innerHTML = diagHtml(from, to);
     let nums = '';
-    for (let i = from; i <= to; i++) nums += (i + 1) + (i < to ? '\n' : '');
-    els.gutterInner.textContent = nums;
+    for (let i = from; i <= to; i++) {
+      const arr = diag.list.length ? diag.byLine.get(i + 1) : null;
+      if (arr) nums += '<span class="ide-gn ide-gn-' + SEV_CLS[worstDiag(arr).sev] + '">' + (i + 1) + '</span>';
+      else nums += String(i + 1);
+      if (i < to) nums += '\n';
+    }
+    els.gutterInner.innerHTML = nums;
     rendered.from = from;
     rendered.to = to;
   }
@@ -453,6 +729,7 @@ function saveViewState() {
 
 function showTab(tab) {
   clearPulse();
+  setDiags([], true);
   const isPane = !!tab && !!tab.kind;
   const isMedia = !!tab && !isPane && !!tab.media;
   const showCode = !!tab && !isPane && !isMedia && !tab.loading && !tab.notice;
@@ -516,8 +793,8 @@ function activate(path) {
 }
 
 async function loadTab(tab) {
-  const ext = tab.name.split('.').pop().toLowerCase();
-  if (BINARY_EXT.has(ext)) {
+  const fileExt = tab.name.split('.').pop().toLowerCase();
+  if (BINARY_EXT.has(fileExt)) {
     tab.notice = 'Binary file - preview is not available.';
   } else {
     try {
@@ -920,8 +1197,22 @@ function toggleCase() {
   runFind(true);
 }
 
-function escRe(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function replaceAllText(text, q, rep, cs) {
+  if (!q) return { out: text, n: 0 };
+  const hay = cs ? text : text.toLowerCase();
+  const needle = cs ? q : q.toLowerCase();
+  let out = '';
+  let pos = 0;
+  let n = 0;
+  for (;;) {
+    const i = hay.indexOf(needle, pos);
+    if (i === -1) break;
+    out += text.slice(pos, i) + rep;
+    pos = i + needle.length;
+    n++;
+  }
+  out += text.slice(pos);
+  return { out, n };
 }
 
 function replaceOne() {
@@ -954,17 +1245,12 @@ function replaceAll() {
   if (!isText(tab) || !find.q) return;
   const ta = els.ta;
   const text = ta.value;
-  const rep = els.repIn.value;
-  const re = new RegExp(escRe(find.q), find.cs ? 'g' : 'gi');
-  let n = 0;
-  const out = text.replace(re, () => {
-    n++;
-    return rep;
-  });
-  if (!n) {
+  const res = replaceAllText(text, find.q, els.repIn.value, find.cs);
+  if (!res.n) {
     flash('No results to replace');
     return;
   }
+  const out = res.out;
   const keep = document.activeElement;
   const st = ta.scrollTop;
   const sl = ta.scrollLeft;
@@ -976,7 +1262,7 @@ function replaceAll() {
   try { ta.setSelectionRange(Math.min(caret, out.length), Math.min(caret, out.length)); } catch (_) {}
   if (keep && keep !== ta && typeof keep.focus === 'function') keep.focus();
   runFind(true);
-  flash('Replaced ' + n + ' occurrence' + (n === 1 ? '' : 's'));
+  flash('Replaced ' + res.n + ' occurrence' + (res.n === 1 ? '' : 's'));
 }
 
 function onFindKey(e) {
@@ -1143,6 +1429,7 @@ function histStep(dir) {
   h.pre = null;
   histApply(h.stack[next]);
 }
+
 function onKeyDown(e) {
   if (e.isComposing) return;
   const mod = e.ctrlKey || e.metaKey;
@@ -1197,8 +1484,10 @@ function onKeyDown(e) {
     const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
     const before = v.slice(ls, s);
     const lead = /^[ \t]*/.exec(before)[0];
-    const opener = lang === 'py' ? /[{(\[:]\s*$/ : /[{(\[]\s*$/;
-    const extra = opener.test(before) ? '  ' : '';
+    const trimmed = before.replace(/\s+$/, '');
+    const lastCh = trimmed.charAt(trimmed.length - 1);
+    const openers = lang === 'py' ? OPEN_PY : OPEN_JS;
+    const extra = lastCh && openers.indexOf(lastCh) !== -1 ? '  ' : '';
     e.preventDefault();
     exec('\n' + lead + extra);
   }
@@ -1285,11 +1574,18 @@ export function mount(mainEl, handlers) {
     notice: mainEl.querySelector('.ide-notice'),
     dv: mainEl.querySelector('.ide-dv'),
     media: mainEl.querySelector('.ide-media'),
+    editor: mainEl.querySelector('.ide-editor'),
     codewrap: mainEl.querySelector('.ide-codewrap'),
     minimap: mainEl.querySelector('.ide-minimap'),
     gutterInner: mainEl.querySelector('.ide-gutter-inner'),
     hlInner: mainEl.querySelector('.ide-hl-inner'),
     findInner: mainEl.querySelector('.ide-find-inner'),
+    diagInner: mainEl.querySelector('.ide-diag-inner'),
+    tip: mainEl.querySelector('.ide-diag-tip'),
+    problems: mainEl.querySelector('.ide-problems'),
+    pbList: mainEl.querySelector('.ide-pb-list'),
+    pbTitle: mainEl.querySelector('.ide-pb-title'),
+    stProb: mainEl.querySelector('.ide-st-problems'),
     find: mainEl.querySelector('.ide-find'),
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
@@ -1313,9 +1609,13 @@ export function mount(mainEl, handlers) {
   });
   els.ta.addEventListener('input', onInput);
   els.ta.addEventListener('scroll', onScroll, { passive: true });
+  els.ta.addEventListener('scroll', hideTip, { passive: true });
   els.ta.addEventListener('keydown', onKeyDown);
+  els.ta.addEventListener('keydown', onDiagKey);
   els.ta.addEventListener('keyup', scheduleCursor);
   els.ta.addEventListener('mouseup', scheduleCursor);
+  els.ta.addEventListener('mousemove', onTaMove);
+  els.ta.addEventListener('mouseleave', hideTip);
   els.ta.addEventListener('focus', scheduleCursor);
   els.tabs.addEventListener('click', onTabClick);
   els.tabs.addEventListener('auxclick', onTabAux);
@@ -1324,6 +1624,8 @@ export function mount(mainEl, handlers) {
   els.findIn.addEventListener('keydown', onFindKey);
   els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
+  els.stProb.addEventListener('click', () => setProblemsOpen(!problemsOpen));
+  els.problems.addEventListener('click', onProblemsClick);
   mainEl.addEventListener('keydown', onMainKeyDown);
   window.addEventListener('beforeunload', persistNow);
   if (typeof ResizeObserver === 'function') {
@@ -1332,5 +1634,6 @@ export function mount(mainEl, handlers) {
       schedule();
     }).observe(els.codewrap);
   }
+  ext.mount({ onChange: () => queueDiag(60) });
   showTab(null);
 }

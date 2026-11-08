@@ -254,8 +254,19 @@ function createButton() {
   createNavSearch();
 }
 
+async function syncTerminalRepo(repoPath) {
+  if (!active || !termAutoOpened || !repoPath) return;
+  try {
+    const tm = await import('../app_manager/toolsManager.js');
+    const ui = tm.getTerminalUI();
+    if (ui && ui.isDocked()) await ui.syncRepo(repoPath);
+  } catch (err) {
+    console.error('[IDE] terminal repo sync failed:', err);
+  }
+}
 function onRepoSwitched(e) {
-  const next = normRepo((e && e.detail && e.detail.repoPath) || state.selectedRepoPath);
+  const repoPath = (e && e.detail && e.detail.repoPath) || state.selectedRepoPath;
+  const next = normRepo(repoPath);
   const changed = next !== lastRepo;
   lastRepo = next;
   if (changed && mods) {
@@ -264,6 +275,8 @@ function onRepoSwitched(e) {
   }
   if (active && !termAutoOpened && state.selectedRepoPath) {
     dockTerminal(true).catch((err) => console.error('[IDE] terminal dock failed:', err));
+  } else if (active && changed) {
+    syncTerminalRepo(repoPath);
   }
 }
 
