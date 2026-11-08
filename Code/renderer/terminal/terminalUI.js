@@ -3,7 +3,8 @@ let FitAddonClass = null;
 let themeFn = null;
 let xtermLoaded = false;
 
-const DOCK_H_KEY = 'helpertool-ide-terminal-h';
+const DOCK_H_KEY = 'helpertool-ide-terminal-h2';
+const DOCK_H_DEFAULT = 200;
 
 async function ensureXterm() {
   if (xtermLoaded) return;
@@ -28,6 +29,14 @@ function monoFont() {
     if (v) return v;
   } catch (_) {}
   return "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace";
+}
+
+function normRepoKey(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function repoBaseName(p) {
+  return String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
 }
 
 const ICON_SHELL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M6 8l3 2-3 2M11 12h3"/></svg>';
@@ -65,6 +74,7 @@ export default class TerminalUI {
     this._firstDataDeferred = new Map();
     this._docked = false;
     this._resizeObs = null;
+    this._repoPending = new Map();
   }
 
   async init() {
@@ -249,7 +259,7 @@ export default class TerminalUI {
     }
     let h = 0;
     try { h = parseInt(localStorage.getItem(DOCK_H_KEY) || '', 10); } catch (_) {}
-    if (!(h >= 120)) h = 280;
+    if (!(h >= 120)) h = DOCK_H_DEFAULT;
     h = Math.min(h, Math.max(160, window.innerHeight - 220));
     this.panel.style.height = h + 'px';
   }
@@ -292,11 +302,37 @@ export default class TerminalUI {
     this._docked = false;
   }
 
+  async _ensureRepoTerminal(repoPath) {
+    if (!repoPath || !this.panel) return;
+    const key = normRepoKey(repoPath);
+    for (const [id, inst] of this.instances) {
+      if (inst.repo && normRepoKey(inst.repo) === key) {
+        this._activateTerminal(id);
+        return;
+      }
+    }
+    if (this._repoPending.has(key)) return this._repoPending.get(key);
+    const p = this._addTerminal(repoPath, null, repoPath).finally(() => {
+      this._repoPending.delete(key);
+    });
+    this._repoPending.set(key, p);
+    return p;
+  }
+
+  async syncRepo(repoPath) {
+    if (!repoPath || !this.panel) return;
+    this._lastCwd = repoPath;
+    if (!this.isOpen()) return;
+    await this._ensureRepoTerminal(repoPath);
+  }
+
   open(cwd) {
     if (this.panel.classList.contains('open')) return;
     this._lastCwd = cwd || this._lastCwd;
     this._showPanel();
-    if (this.instances.size === 0) {
+    if (cwd) {
+      this._ensureRepoTerminal(cwd);
+    } else if (this.instances.size === 0) {
       this._addTerminal(this._lastCwd);
     }
     requestAnimationFrame(() => this._fitActive());
@@ -368,13 +404,14 @@ export default class TerminalUI {
     this._lastCwd = cwd || this._lastCwd;
   }
 
-  async _addTerminal(cwd, shell) {
+  async _addTerminal(cwd, shell, repo) {
     const id = this.nextId++;
     const useShell = shell || this._selectedShell || this.shells[0];
-    await this._addTerminalInstance(id, cwd, useShell);
+    const label = repo ? `${useShell.name} · ${repoBaseName(repo)}` : undefined;
+    await this._addTerminalInstance(id, cwd, useShell, label, repo || null);
   }
 
-  async _addTerminalInstance(id, cwd, useShell, label) {
+  async _addTerminalInstance(id, cwd, useShell, label, repo) {
     label = label || `${useShell.name} ${id}`;
 
     const inst = document.createElement('div');
@@ -409,6 +446,7 @@ export default class TerminalUI {
     const tab = document.createElement('button');
     tab.className = 'terminal-tab';
     tab.dataset.terminalId = id;
+    if (cwd) tab.title = cwd;
     tab.innerHTML = `
       <span class="terminal-tab-shell">
         <span class="terminal-tab-icon">${ICON_SHELL}</span>
@@ -452,7 +490,7 @@ export default class TerminalUI {
       }
     }
 
-    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, sessionId, discoveredUrls: new Set() });
+    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, repo: repo || null, sessionId, discoveredUrls: new Set() });
 
     terminal.onData((data) => {
       window.electronAPI.terminalWrite({ id, data });
