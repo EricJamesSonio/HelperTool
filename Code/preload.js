@@ -876,3 +876,7 @@ contextBridge.exposeInMainWorld('ideWindowAPI', {
         ipcRenderer.on('ide:windowHidden', () => callback());
     },
 });
+contextBridge.exposeInMainWorld('ideExtAPI', {
+    detect: (root) => ipcRenderer.invoke('ideExt:detect', root),
+    diagnose: (payload) => ipcRenderer.invoke('ideExt:diagnose', payload),
+});

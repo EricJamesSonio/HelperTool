@@ -556,3 +556,10 @@ app.on('browser-window-created', (_event, win) => {
     } catch (_) {}
   });
 });
+app.whenReady().then(() => {
+  try {
+    require('./ipc/ideExt_ipc.js').register();
+  } catch (e) {
+    console.error('[IPC] Failed to register ideExt_ipc:', e);
+  }
+});
