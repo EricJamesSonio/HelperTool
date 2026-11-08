@@ -6,10 +6,16 @@ const simpleGit = require('simple-git');
 
 const TOKEN_FORMAT = /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|[0-9a-f]{40})$/;
 const BLOCKING = new Set(['revoked', 'expired', 'invalid', 'mismatch']);
+const REFRESH_AHEAD_MS = 30 * 60 * 1000;
+const HEALTH_TTL_MS = 6 * 60 * 60 * 1000;
+const MAINTAIN_EVERY_MS = 15 * 60 * 1000;
 
 let _state = null;
 let _login = null;
+let _maintTimer = null;
+let _maintaining = false;
 const _warned = new Set();
+const _refreshing = new Map();
 
 function stateFile() {
   return path.join(app.getPath('userData'), 'git-accounts.json');
@@ -23,11 +29,37 @@ function load() {
   } catch (_) {
     data = null;
   }
+  const accounts = data && Array.isArray(data.accounts) ? data.accounts : [];
+  const legacy = data && data.repos && typeof data.repos === 'object' ? data.repos : {};
+  let defaultId = data && typeof data.defaultId === 'string' ? data.defaultId : null;
+  if (defaultId && !accounts.some((a) => a.id === defaultId)) defaultId = null;
+  let needsSave = false;
+  if (!defaultId) {
+    const counts = {};
+    for (const key of Object.keys(legacy)) {
+      const id = legacy[key];
+      if (accounts.some((a) => a.id === id)) counts[id] = (counts[id] || 0) + 1;
+    }
+    let best = null;
+    for (const id of Object.keys(counts)) {
+      if (!best || counts[id] > counts[best]) best = id;
+    }
+    if (best) {
+      defaultId = best;
+      needsSave = true;
+    }
+  }
+  if (Object.keys(legacy).length) needsSave = true;
   _state = {
-    accounts: data && Array.isArray(data.accounts) ? data.accounts : [],
-    repos: data && data.repos && typeof data.repos === 'object' ? data.repos : {},
+    accounts,
+    defaultId,
     clientId: data && typeof data.clientId === 'string' ? data.clientId : '',
   };
+  if (needsSave) {
+    try {
+      save();
+    } catch (_) {}
+  }
   return _state;
 }
 
@@ -39,12 +71,16 @@ function save() {
   fs.renameSync(tmp, file);
 }
 
-function repoKey(p) {
-  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-}
-
 function getClientId() {
   return String(process.env.HELPERTOOL_GITHUB_CLIENT_ID || load().clientId || '').trim();
+}
+
+function canSeal() {
+  try {
+    return safeStorage.isEncryptionAvailable();
+  } catch (_) {
+    return false;
+  }
 }
 
 function sealToken(token) {
@@ -56,13 +92,18 @@ function sealToken(token) {
   return { token, enc: false };
 }
 
-function openToken(acc) {
-  if (!acc.enc) return acc.token || '';
+function openSealed(value, enc) {
+  if (!value) return '';
+  if (!enc) return value;
   try {
-    return safeStorage.decryptString(Buffer.from(acc.token, 'base64'));
+    return safeStorage.decryptString(Buffer.from(value, 'base64'));
   } catch (_) {
     return '';
   }
+}
+
+function openToken(acc) {
+  return openSealed(acc.token, acc.enc);
 }
 
 function tokenTypeOf(token) {
@@ -82,6 +123,8 @@ function publicAcc(acc) {
     tokenType: acc.tokenType || '',
     scopes: Array.isArray(acc.scopes) ? acc.scopes : [],
     health: acc.health || null,
+    expiresAt: acc.expiresAt || 0,
+    canRefresh: !!acc.refreshToken,
   };
 }
 
@@ -247,18 +290,73 @@ function warnOnce(key, text) {
   console.warn('[GitAccounts] ' + text);
 }
 
+function dueForRefresh(acc) {
+  if (!acc || !acc.refreshToken || !acc.expiresAt) return false;
+  return Date.now() > acc.expiresAt - REFRESH_AHEAD_MS;
+}
+
+async function doRefresh(acc) {
+  const cid = getClientId();
+  const rt = openSealed(acc.refreshToken, acc.refreshEnc);
+  if (!cid || !rt) return { ok: false, reason: 'no_refresh' };
+  if (acc.refreshExpiresAt && Date.now() > acc.refreshExpiresAt) {
+    return { ok: false, reason: 'refresh_expired' };
+  }
+  let res;
+  try {
+    res = await postJson('github.com', '/login/oauth/access_token', {
+      client_id: cid,
+      grant_type: 'refresh_token',
+      refresh_token: rt,
+    });
+  } catch (_) {
+    return { ok: false, reason: 'network' };
+  }
+  const b = (res && res.body) || {};
+  if (!b.access_token) return { ok: false, reason: b.error || 'rejected' };
+  const sealed = sealToken(b.access_token);
+  acc.token = sealed.token;
+  acc.enc = sealed.enc;
+  acc.tokenType = tokenTypeOf(b.access_token) || acc.tokenType;
+  acc.expiresAt = Number(b.expires_in) > 0 ? Date.now() + Number(b.expires_in) * 1000 : 0;
+  if (b.refresh_token) {
+    const r = sealToken(b.refresh_token);
+    acc.refreshToken = r.token;
+    acc.refreshEnc = r.enc;
+    acc.refreshExpiresAt = Number(b.refresh_token_expires_in) > 0
+      ? Date.now() + Number(b.refresh_token_expires_in) * 1000
+      : 0;
+  }
+  acc.health = { state: 'valid', at: Date.now() };
+  try {
+    save();
+  } catch (_) {}
+  return { ok: true };
+}
+
+function refreshAccount(acc) {
+  if (_refreshing.has(acc.id)) return _refreshing.get(acc.id);
+  const p = doRefresh(acc).finally(() => { _refreshing.delete(acc.id); });
+  _refreshing.set(acc.id, p);
+  return p;
+}
+
+function activeAccount() {
+  const st = load();
+  if (!st.defaultId) return null;
+  return st.accounts.find((a) => a.id === st.defaultId) || null;
+}
+
 function configFor(repoPath) {
   if (!repoPath) return null;
-  const st = load();
-  const id = st.repos[repoKey(repoPath)];
-  if (!id) return null;
-  const acc = st.accounts.find((a) => a.id === id);
+  const acc = activeAccount();
   if (!acc) return null;
   const token = openToken(acc);
   if (!token) {
-    warnOnce('unreadable:' + acc.id, 'The saved token for @' + acc.username + ' could not be read, so git is using your system login for this repo.');
+    warnOnce('unreadable:' + acc.id, 'The saved token for @' + acc.username + ' could not be read, so git is using your system login.');
     return null;
   }
+  if (dueForRefresh(acc)) refreshAccount(acc).catch(() => {});
   const basic = Buffer.from(acc.username + ':' + token).toString('base64');
   const cfg = ['http.https://github.com/.extraheader=AUTHORIZATION: basic ' + basic];
   cfg.push('user.name=' + (acc.name || acc.username));
@@ -308,8 +406,17 @@ async function saveAccountFromToken(token, label, extra) {
     tokenType: tokenTypeOf(token),
     scopes: scopesList || [],
     expiresAt: extra && extra.expiresAt ? extra.expiresAt : 0,
+    refreshToken: '',
+    refreshEnc: false,
+    refreshExpiresAt: 0,
     health: { state: 'valid', at: Date.now() },
   };
+  if (extra && extra.refreshToken) {
+    const r = sealToken(extra.refreshToken);
+    info.refreshToken = r.token;
+    info.refreshEnc = r.enc;
+    info.refreshExpiresAt = extra.refreshExpiresAt || 0;
+  }
   const existing = st.accounts.find((a) => a.username.toLowerCase() === u.login.toLowerCase());
   let account;
   let updated = false;
@@ -322,8 +429,15 @@ async function saveAccountFromToken(token, label, extra) {
     account = Object.assign({ id: newId(), createdAt: Date.now(), label }, info);
     st.accounts.push(account);
   }
+  if (!st.defaultId) st.defaultId = account.id;
   save();
-  const result = { success: true, updated, account: publicAcc(account), accounts: st.accounts.map(publicAcc) };
+  const result = {
+    success: true,
+    updated,
+    account: publicAcc(account),
+    accounts: st.accounts.map(publicAcc),
+    activeId: st.defaultId,
+  };
   if (scopesList && scopesList.indexOf('repo') === -1) {
     result.warning = 'This token has no "repo" scope (it has: ' + (scopesList.join(', ') || 'none') + '), so pushing to private repositories will fail.';
   }
@@ -354,7 +468,12 @@ async function pollLogin(session, cid, device, sender) {
     const b = (res && res.body) || {};
     if (b.access_token) {
       const exp = Number(b.expires_in) > 0 ? Date.now() + Number(b.expires_in) * 1000 : 0;
-      result = await saveAccountFromToken(b.access_token, '', { expiresAt: exp });
+      const rexp = Number(b.refresh_token_expires_in) > 0 ? Date.now() + Number(b.refresh_token_expires_in) * 1000 : 0;
+      result = await saveAccountFromToken(b.access_token, '', {
+        expiresAt: exp,
+        refreshToken: b.refresh_token || '',
+        refreshExpiresAt: rexp,
+      });
       break;
     }
     if (b.error === 'authorization_pending') continue;
@@ -380,20 +499,74 @@ async function pollLogin(session, cid, device, sender) {
   } catch (_) {}
 }
 
+async function maintain() {
+  if (_maintaining) return;
+  _maintaining = true;
+  try {
+    const st = load();
+    let dirty = false;
+    const sealable = canSeal();
+    for (const acc of st.accounts.slice()) {
+      if (sealable) {
+        if (!acc.enc && acc.token) {
+          const s = sealToken(acc.token);
+          if (s.enc) {
+            acc.token = s.token;
+            acc.enc = true;
+            dirty = true;
+          }
+        }
+        if (acc.refreshToken && !acc.refreshEnc) {
+          const s = sealToken(acc.refreshToken);
+          if (s.enc) {
+            acc.refreshToken = s.token;
+            acc.refreshEnc = true;
+            dirty = true;
+          }
+        }
+      }
+      let failedRefresh = false;
+      if (dueForRefresh(acc)) {
+        const r = await refreshAccount(acc);
+        failedRefresh = !r.ok;
+      }
+      const stale = !acc.health || Date.now() - (acc.health.at || 0) > HEALTH_TTL_MS;
+      if (failedRefresh || stale) {
+        const token = openToken(acc);
+        if (token) {
+          const check = await checkToken(token, acc.username, acc.expiresAt);
+          if (check.state !== 'unknown') {
+            acc.health = { state: check.state, at: Date.now() };
+            dirty = true;
+          }
+        }
+      }
+    }
+    if (dirty) save();
+  } catch (err) {
+    console.warn('[GitAccounts] maintenance failed: ' + err.message);
+  } finally {
+    _maintaining = false;
+  }
+}
+
+function startMaintenance() {
+  if (_maintTimer) return;
+  const first = setTimeout(() => { maintain(); }, 5000);
+  if (first.unref) first.unref();
+  _maintTimer = setInterval(() => { maintain(); }, MAINTAIN_EVERY_MS);
+  if (_maintTimer.unref) _maintTimer.unref();
+}
+
 function register() {
-  ipcMain.handle('gitAccounts:list', async (_e, payload) => {
+  ipcMain.handle('gitAccounts:list', async () => {
     try {
       const st = load();
-      const repoPath = payload && payload.repoPath;
-      const id = repoPath ? st.repos[repoKey(repoPath)] || null : null;
-      const exists = id && st.accounts.some((a) => a.id === id);
-      let secure = false;
-      try { secure = safeStorage.isEncryptionAvailable(); } catch (_) { secure = false; }
       return {
         success: true,
         accounts: st.accounts.map(publicAcc),
-        activeId: exists ? id : null,
-        secure,
+        activeId: st.defaultId || null,
+        secure: canSeal(),
       };
     } catch (err) {
       return { success: false, error: err.message, accounts: [], activeId: null };
@@ -472,11 +645,9 @@ function register() {
       const id = payload && payload.id;
       const st = load();
       st.accounts = st.accounts.filter((a) => a.id !== id);
-      for (const key of Object.keys(st.repos)) {
-        if (st.repos[key] === id) delete st.repos[key];
-      }
+      if (st.defaultId === id) st.defaultId = null;
       save();
-      return { success: true, accounts: st.accounts.map(publicAcc) };
+      return { success: true, accounts: st.accounts.map(publicAcc), activeId: st.defaultId || null };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -486,16 +657,15 @@ function register() {
     try {
       const repoPath = payload && payload.repoPath;
       const id = payload && payload.id;
-      if (!repoPath) return { success: false, error: 'No repository selected.' };
       const st = load();
-      const key = repoKey(repoPath);
       if (!id) {
-        delete st.repos[key];
+        st.defaultId = null;
         save();
         return { success: true, activeId: null };
       }
       const acc = st.accounts.find((a) => a.id === id);
       if (!acc) return { success: false, error: 'Account not found.' };
+      if (dueForRefresh(acc)) await refreshAccount(acc);
       const token = openToken(acc);
       if (!token) {
         return { success: false, error: 'The saved token could not be read. Remove the account and add it again.' };
@@ -508,29 +678,33 @@ function register() {
         return { success: false, error: check.message, reason: check.state, kept: true };
       }
       if (check.state !== 'valid' && check.message) warnings.push(check.message);
-      st.repos[key] = acc.id;
+      st.defaultId = acc.id;
       save();
-      try {
-        const git = simpleGit(repoPath);
-        await git.addConfig('user.name', acc.name || acc.username, false, 'local');
-        if (acc.email) await git.addConfig('user.email', acc.email, false, 'local');
-        let url = '';
+      if (repoPath) {
         try {
-          url = String(await git.raw(['remote', 'get-url', 'origin'])).trim();
+          const git = simpleGit(repoPath);
+          await git.addConfig('user.name', acc.name || acc.username, false, 'local');
+          if (acc.email) await git.addConfig('user.email', acc.email, false, 'local');
+          let url = '';
+          try {
+            url = String(await git.raw(['remote', 'get-url', 'origin'])).trim();
+          } catch (_) {
+            url = '';
+          }
+          if (/^(git@|ssh:\/\/)/i.test(url)) {
+            warnings.push('This repo uses an SSH remote: commits use this account, but pushes still use your SSH key.');
+          }
         } catch (_) {
-          url = '';
+          warnings.push('This folder is not a git repository yet, so its local commit identity was not set.');
         }
-        if (/^(git@|ssh:\/\/)/i.test(url)) {
-          warnings.push('This repo uses an SSH remote: commits use this account, but pushes still use your SSH key.');
-        }
-      } catch (_) {
-        warnings.push('Account saved for this folder, but it is not a git repository yet.');
       }
       return { success: true, activeId: acc.id, warning: warnings.length ? warnings.join(' ') : null };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
+
+  startMaintenance();
 }
 
 function ghRequest(method, pathname, token) {
@@ -560,11 +734,8 @@ function ghRequest(method, pathname, token) {
   });
 }
 
-function activeAccountFor(repoPath) {
-  const st = load();
-  const id = st.repos[repoKey(repoPath)];
-  if (!id) return null;
-  return st.accounts.find((a) => a.id === id) || null;
+function activeAccountFor() {
+  return activeAccount();
 }
 
 async function originRepo(repoPath) {
@@ -581,8 +752,16 @@ async function explainAuthFailure(repoPath, text) {
   const acc = activeAccountFor(repoPath);
   if (!acc) {
     return {
-      message: text + '\n\nThis repo is using your system git login, and GitHub rejected it. Open GitHub accounts, sign in, and select an account for this repo.',
+      message: text + '\n\nGit is using your system login, and GitHub rejected it. Open GitHub accounts, sign in, and select an account.',
     };
+  }
+  if (acc.refreshToken) {
+    const r = await refreshAccount(acc);
+    if (r.ok) {
+      return {
+        message: text + '\n\nThe saved token for @' + acc.username + ' had expired and was refreshed automatically. Try again.',
+      };
+    }
   }
   const token = openToken(acc);
   if (!token) {
@@ -611,8 +790,8 @@ async function explainPushError(repoPath, original) {
   const acc = activeAccountFor(repoPath);
   if (!acc) {
     return {
-      message: text + '\n\nThis repo is using your system git login' + (who ? ' (@' + who + ')' : '') +
-        ', and it has no write access to ' + target + '. Open GitHub accounts, sign in with the account that has access, and select it for this repo.',
+      message: text + '\n\nGit is using your system login' + (who ? ' (@' + who + ')' : '') +
+        ', and it has no write access to ' + target + '. Open GitHub accounts, sign in with the account that has access, and select it.',
     };
   }
   const token = openToken(acc);

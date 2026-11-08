@@ -187,7 +187,7 @@ function panelHtml() {
   let h = '<div class="ga-head"><span class="ga-title">GitHub accounts</span>' +
     (repoName ? '<span class="ga-repo" title="' + esc(repo) + '">' + esc(repoName) + '</span>' : '') +
   '</div>';
-  h += '<div class="ga-intro">' + (repo ? 'Pick the account this repo commits and pushes as.' : 'Select a repo to switch its account.') + '</div>';
+  h += '<div class="ga-intro">The selected account is used for commits and pushes in all repos.</div>';
   h += '<div class="ga-list">';
   if (loading) {
     h += skeletonHtml();
@@ -202,7 +202,7 @@ function panelHtml() {
   else if (formOpen) h += formHtml();
   else h += addHtml();
   if (msg) h += '<div class="ga-msg' + (msg.warn ? ' warn' : '') + '">' + esc(msg.text) + '</div>';
-  if (!secure && !loading) h += '<div class="ga-note">Secure storage is unavailable here, so tokens are saved without encryption.</div>';
+  if (!secure && !loading) h += '<div class="ga-note">Secure storage is unavailable here, so tokens are saved without encryption. They are encrypted automatically once it becomes available.</div>';
   return h;
 }
 
@@ -260,13 +260,8 @@ async function refresh() {
 
 async function switchTo(id) {
   const a = api();
-  const repo = state.selectedRepoPath;
+  const repo = state.selectedRepoPath || null;
   if (!a || busy) return;
-  if (!repo) {
-    setMsg('Select a repo first.', true);
-    render();
-    return;
-  }
   const target = id || null;
   if (target === (activeId || null)) return;
   busy = { kind: 'switch', id: id || '' };
@@ -277,7 +272,7 @@ async function switchTo(id) {
     if (res && res.success) {
       activeId = res.activeId || null;
       const acc = activeAccount();
-      const base = acc ? 'Now using @' + acc.username + ' in this repo.' : 'This repo now uses the system default login.';
+      const base = acc ? 'Now using @' + acc.username + ' in all repos.' : 'All repos now use the system default login.';
       setMsg(res.warning ? base + ' ' + res.warning : base, !!res.warning);
     } else {
       setMsg((res && res.error) || 'Could not switch account.', true);
@@ -364,12 +359,15 @@ async function onLoginResult(res) {
   if (res && res.success) {
     accounts = res.accounts || accounts;
     updateButton();
-    const who = res.account ? '@' + res.account.username : 'Account';
-    if (res.account && state.selectedRepoPath) {
+    if (res.account) {
+      if (res.account.id === activeId) {
+        setMsg('@' + res.account.username + ' signed in again and its token was replaced.');
+        render();
+        return;
+      }
       await switchTo(res.account.id);
       return;
     }
-    setMsg(who + ' signed in. Select a repo to use it.');
   } else if (res && !res.cancelled) {
     setMsg((res && res.error) || 'Sign in failed.', true);
   }
@@ -562,6 +560,9 @@ function init() {
   }, true);
   window.addEventListener('resize', () => {
     if (isOpen()) position();
+  });
+  window.addEventListener('focus', () => {
+    if (isOpen() && !busy && !login) refresh();
   });
   const auth = authApi();
   if (auth && auth.onLoginResult) auth.onLoginResult(onLoginResult);
