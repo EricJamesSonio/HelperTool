@@ -510,7 +510,8 @@ function countNodes(id) {
 
 function statusOf(row) {
   if (row.procs === 0 && row.busy < 0.5 && !row.mem) return 'idle';
-  if (row.mem >= MEM_CRIT_KB || row.cpu >= CPU_CRIT) return 'critical';
+  const settled = _history.length >= 3;
+  if (row.mem >= MEM_CRIT_KB || (settled && row.cpu >= CPU_CRIT)) return 'critical';
   if (row.mem >= MEM_WARN_KB || row.cpu >= CPU_WARN) return 'warning';
   return 'good';
 }

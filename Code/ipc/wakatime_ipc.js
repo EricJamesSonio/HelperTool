@@ -40,6 +40,10 @@ let flushTimer = 0;
 let eventCount = 0;
 let cliBusy = false;
 const cliQueue = [];
+const GLOBAL_GAP = 15000;
+const BIG_FILE = 2000000;
+let lastLaunch = 0;
+
 
 
 function platformName() {
@@ -188,7 +192,7 @@ function install() {
 
 function windowOpen() {
   try {
-    return BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isVisible() && !w.isMinimized());
+    return BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isVisible() && !w.isMinimized() && w.isFocused());
   } catch (_) {
     return false;
   }
@@ -206,8 +210,11 @@ function runQueue() {
   if (cliBusy || !cliQueue.length) return;
   const job = cliQueue.shift();
   cliBusy = true;
-  const child = execFile(job.bin, job.args, { windowsHide: true, timeout: 20000 }, (err, _out, stderr) => {
-    if (err) console.warn('[WakaTime] heartbeat failed:', String(stderr || err.message).slice(0, 300));
+  const t0 = Date.now();
+  const child = execFile(job.bin, job.args, { windowsHide: true, timeout: 15000 }, (err, _out, stderr) => {
+    const ms = Date.now() - t0;
+    if (err) console.warn('[WakaTime] heartbeat failed after ' + ms + ' ms:', String(stderr || err.message).slice(0, 300));
+    else if (ms > 4000) console.warn('[WakaTime] slow heartbeat: ' + ms + ' ms');
     cliBusy = false;
     runQueue();
   });
@@ -231,6 +238,7 @@ function sendBeat(p) {
   const entity = isApp ? APP_NAME : p.file;
   const key = (isApp ? 'app:' : 'file:') + entity;
   const now = Date.now();
+  if (p.bg && now - lastLaunch < GLOBAL_GAP) return false;
   const gap = Number(p.gap) || (p.write ? WRITE_GAP : SAME_GAP);
   if (now - (beats.get(key) || 0) < gap) return false;
   beats.set(key, now);
@@ -243,7 +251,7 @@ function sendBeat(p) {
     }
   }
   const repo = typeof p.repo === 'string' ? p.repo : '';
-  const args = ['--entity', entity, '--entity-type', isApp ? 'app' : 'file', '--plugin', PLUGIN, '--category', 'coding'];
+  const args = ['--entity', entity, '--entity-type', isApp ? 'app' : 'file', '--plugin', PLUGIN, '--category', 'coding', '--sync-offline-activity', '25'];
   if (!isApp) {
     if (p.write) args.push('--write');
     if (Number.isFinite(p.line) && p.line > 0) args.push('--lineno', String(Math.floor(p.line)));
@@ -252,15 +260,17 @@ function sendBeat(p) {
   }
   if (repo) args.push('--project-folder', repo);
   else if (isApp) args.push('--project', APP_NAME);
-  return enqueueBeat(bin, args, key + (p.write ? ':w' : ''));
+  const queued = enqueueBeat(bin, args, key + (p.write ? ':w' : ''));
+  if (queued) lastLaunch = now;
+  return queued;
 }
 
 function tick() {
   if (ctx.paused || !windowOpen() || !userActive()) return;
   if (ctx.file) {
-    sendBeat({ file: ctx.file, repo: ctx.repo, line: ctx.line, col: ctx.col, lines: ctx.lines });
+    sendBeat({ file: ctx.file, repo: ctx.repo, line: ctx.line, col: ctx.col, lines: ctx.lines, bg: true });
   } else {
-    sendBeat({ app: true, repo: ctx.repo });
+    sendBeat({ app: true, repo: ctx.repo, bg: true });
   }
 }
 
@@ -279,8 +289,8 @@ async function flushPending() {
     } catch (_) {
       continue;
     }
-    if (!info.isFile()) continue;
-    if (sendBeat({ file: files[i], write: true, repo: ctx.repo, gap: WATCH_GAP })) sent++;
+    if (!info.isFile() || info.size > BIG_FILE) continue;
+    if (sendBeat({ file: files[i], write: true, repo: ctx.repo, gap: WATCH_GAP, bg: true })) sent++;
   }
 }
 
