@@ -5,7 +5,6 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { _internals } = require('../services/security/audit.js');
 const { scanPrismaRawCalls, scanCors, classifyNpmFailure } = _internals;
-
 function ctxOf(files, mechanism = 'jwt') {
   return {
     profile: { auth: { mechanism } },
