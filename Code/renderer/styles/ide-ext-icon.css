@@ -1,0 +1,27 @@
+.ide-ext-btn {
+  position: relative;
+}
+.ide-ext-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  margin: 0;
+}
+.ide-ext-btn .ide-ext-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border: 1px solid var(--bg-surface);
+  border-radius: 99px;
+  font-size: 9px;
+  line-height: 13px;
+  pointer-events: none;
+}
+.ide-ext-btn .ide-ext-count[hidden] {
+  display: none;
+}
