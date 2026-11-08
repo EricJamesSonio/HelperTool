@@ -20,7 +20,7 @@ function sigOf(text, ids) {
 const LS_PREFIX = 'helpertool-ide-ext:';
 const MAX_TEXT = 600000;
 
-const PUZZLE = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M3 3h4v1.5a1.5 1.5 0 1 0 3 0V3h3v4h-1.5a1.5 1.5 0 1 0 0 3H13v3H3z"/></svg>';
+const PUZZLE = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h4v1.5a1.5 1.5 0 1 0 3 0V3h3v4h-1.5a1.5 1.5 0 1 0 0 3H13v3H3z"/></svg>';
 
 let handlers = {};
 let mounted = false;
@@ -307,6 +307,7 @@ export function close() {
 function injectCss() {
   const sheets = [
     ['ideExtCss', './styles/ide-ext.css'],
+    ['ideExtIconCss', './styles/ide-ext-icon.css'],
     ['idePrettierCss', './styles/ide-prettier.css'],
   ];
   for (const [id, href] of sheets) {
@@ -320,26 +321,32 @@ function injectCss() {
 }
 
 function createButton() {
-  if (document.getElementById('ideExtBtn')) {
-    btn = document.getElementById('ideExtBtn');
+  const existing = document.getElementById('ideExtBtn');
+  if (existing) {
+    btn = existing;
     countEl = btn.querySelector('.ide-ext-count');
     return;
   }
-  const anchor = document.getElementById('ideModeBtn');
-  const host = anchor ? anchor.parentElement : document.querySelector('.navbar-row--primary .navbar-section.right');
+  const chat = document.getElementById('ideCsBtn');
+  const search = document.getElementById('ideNavSearch');
+  const center = document.querySelector('.navbar-row--primary .navbar-section.center');
+  const anchor = chat || search;
+  const host = (anchor && anchor.parentElement) || center || document.querySelector('.navbar-row--primary .navbar-section.right');
   if (!host) return;
   btn = document.createElement('button');
   btn.id = 'ideExtBtn';
   btn.type = 'button';
-  btn.className = 'view-mode-btn ide-ext-btn';
-  btn.innerHTML = PUZZLE + 'Extensions<span class="ide-ext-count" hidden></span>';
+  btn.className = 'tool-btn ide-ext-btn';
+  btn.title = 'Extensions';
+  btn.setAttribute('aria-label', 'Extensions');
+  btn.innerHTML = PUZZLE + '<span class="ide-ext-count" hidden></span>';
   countEl = btn.querySelector('.ide-ext-count');
   btn.addEventListener('click', () => {
     if (overlay && !overlay.hidden) close();
     else open();
   });
   if (anchor) anchor.after(btn);
-  else host.insertBefore(btn, host.firstChild);
+  else host.appendChild(btn);
 }
 
 function onRepoSwitched() {
