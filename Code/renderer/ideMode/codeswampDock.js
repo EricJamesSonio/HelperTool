@@ -309,6 +309,14 @@ export function init() {
   createButton();
   document.addEventListener('ide:codeswamp-toggle', toggle);
   document.addEventListener('keydown', onKey);
+  document.addEventListener('ide:close-search', () => {
+    if (visible && currentMode() === 'modal') hide();
+  });
+  document.addEventListener('click', (e) => {
+    if (!visible || currentMode() !== 'modal' || !e.target || !e.target.closest) return;
+    if (e.target.closest('#ideCsBtn')) return;
+    if (e.target.closest('.navbar-row--primary button')) hide();
+  }, true);
   watchMode();
   setInterval(refreshButton, 1500);
 }

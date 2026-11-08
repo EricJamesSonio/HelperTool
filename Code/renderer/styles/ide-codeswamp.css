@@ -429,3 +429,17 @@ body.ide-mode .navbar-row--primary .navbar-section.center > .ide-cs-btn.tool-btn
   display: inline-flex !important;
   flex: 0 0 auto;
 }
+body.ide-mode .navbar-row--primary .navbar-section.center {
+  position: relative;
+}
+
+body.ide-mode .navbar-row--primary .navbar-section.center > .ide-cs-btn.tool-btn {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + clamp(220px, 32vw, 520px) / 2 + 8px);
+  transform: translateY(-50%);
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+}
