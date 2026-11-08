@@ -14,6 +14,8 @@ function _detectLanguage(filePath) {
   return map[ext] || null;
 }
 
+
+
 function _camelToWords(str) {
   return str.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
 }
