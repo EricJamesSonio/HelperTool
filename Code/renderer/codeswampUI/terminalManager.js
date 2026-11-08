@@ -898,6 +898,10 @@ export function waitForShellPrompt(repoPath, slotIndex, timeout = 8000) {
 export function getSlotForRepo(repoPath) {
   return _findSlotByRepoPath(repoPath);
 }
+export function getTerminalInstances() {
+  return instances;
+}
+
 
 export function getConvSlotMap(repoPath) {
   const map = {};
