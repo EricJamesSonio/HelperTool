@@ -755,6 +755,10 @@ const TOOLS = [
 ];
 
 async function _run(key, item) {
+  if (key === 'codeswamp' && document.body.classList.contains('ide-mode')) {
+    document.dispatchEvent(new CustomEvent('ide:codeswamp-toggle'));
+    return;
+  }
   try {
     await RUN[key]?.(item);
   } catch (err) {
