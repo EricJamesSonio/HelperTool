@@ -3,7 +3,10 @@ const fs = require('fs');
 const stack = require('../services/ideStack.js');
 const diagnostics = require('../services/ideDiagnostics.js');
 
-const KNOWN = new Set(['js', 'python', 'nestjs', 'nextjs', 'php', 'laravel', 'cpp', 'vue', 'angular']);
+const KNOWN = new Set([
+  'js', 'react', 'express', 'astro', 'python', 'flask', 'django',
+  'nestjs', 'nextjs', 'php', 'laravel', 'cpp', 'vue', 'angular', 'dotnet',
+]);
 const DETECT_TTL = 30000;
 const DETECT_MAX = 8;
 const detectCache = new Map();
