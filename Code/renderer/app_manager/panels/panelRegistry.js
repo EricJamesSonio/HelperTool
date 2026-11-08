@@ -170,3 +170,8 @@ export default class PanelRegistry {
     closeServiceTracker();
   }
 }
+const _origCloseAll = PanelRegistry.prototype.closeAll;
+PanelRegistry.prototype.closeAll = function closeAllWithIdeSearch() {
+  document.dispatchEvent(new CustomEvent('ide:close-search'));
+  return _origCloseAll.apply(this, arguments);
+};
