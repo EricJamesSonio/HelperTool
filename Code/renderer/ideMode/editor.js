@@ -1430,9 +1430,319 @@ function histStep(dir) {
   histApply(h.stack[next]);
 }
 
+const PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
+const CLOSERS = ')]}';
+
+function lineBlock(v, s, e) {
+  const bs = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  const eEff = e > s && v[e - 1] === '\n' ? e - 1 : e;
+  let be = v.indexOf('\n', eEff);
+  if (be === -1) be = v.length;
+  return { bs, be };
+}
+
+function commentSyntax() {
+  if (lang === 'js' || lang === 'clike') return { a: '//', b: '' };
+  if (lang === 'py' || lang === 'conf') return { a: '#', b: '' };
+  if (lang === 'css') return { a: '/*', b: '*/' };
+  if (lang === 'html' || lang === 'md') return { a: '<!--', b: '-->' };
+  return null;
+}
+
+function toggleComment() {
+  const syn = commentSyntax();
+  if (!syn) {
+    flash('No comment syntax for this file type');
+    return;
+  }
+  const ta = els.ta;
+  const v = ta.value;
+  const s0 = ta.selectionStart;
+  const e0 = ta.selectionEnd;
+  const blk = lineBlock(v, s0, e0);
+  const rows = v.slice(blk.bs, blk.be).split('\n');
+  const used = rows.filter((r) => r.trim());
+  if (!used.length) return;
+  const isOff = (r) => {
+    const t = r.trim();
+    return t.indexOf(syn.a) === 0 && (!syn.b || t.slice(-syn.b.length) === syn.b);
+  };
+  let out;
+  if (used.every(isOff)) {
+    out = rows.map((r) => {
+      if (!r.trim()) return r;
+      const i = r.indexOf(syn.a);
+      const head = r.slice(0, i);
+      let tail = r.slice(i + syn.a.length);
+      if (tail[0] === ' ') tail = tail.slice(1);
+      if (syn.b) {
+        const tr = tail.replace(/\s+$/, '');
+        tail = (tr.slice(-syn.b.length) === syn.b ? tr.slice(0, -syn.b.length) : tr).replace(/\s$/, '');
+      }
+      return head + tail;
+    });
+  } else {
+    let min = Infinity;
+    for (const r of used) min = Math.min(min, /^[ \t]*/.exec(r)[0].length);
+    out = rows.map((r) => {
+      if (!r.trim()) return r;
+      return r.slice(0, min) + syn.a + ' ' + r.slice(min) + (syn.b ? ' ' + syn.b : '');
+    });
+  }
+  const text = out.join('\n');
+  const delta = text.length - (blk.be - blk.bs);
+  ta.setSelectionRange(blk.bs, blk.be);
+  exec(text);
+  if (s0 === e0) {
+    const p = Math.max(blk.bs, s0 + delta);
+    ta.setSelectionRange(p, p);
+  } else {
+    ta.setSelectionRange(blk.bs, blk.bs + text.length);
+  }
+  scheduleCursor();
+}
+
+function moveLines(dir) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const e = ta.selectionEnd;
+  const blk = lineBlock(v, s, e);
+  const block = v.slice(blk.bs, blk.be);
+  let from;
+  let to;
+  let text;
+  let delta;
+  if (dir > 0) {
+    if (blk.be >= v.length) return;
+    let ne = v.indexOf('\n', blk.be + 1);
+    if (ne === -1) ne = v.length;
+    const next = v.slice(blk.be + 1, ne);
+    from = blk.bs;
+    to = ne;
+    text = next + '\n' + block;
+    delta = next.length + 1;
+  } else {
+    if (blk.bs === 0) return;
+    const ps = blk.bs - 1 === 0 ? 0 : v.lastIndexOf('\n', blk.bs - 2) + 1;
+    const prev = v.slice(ps, blk.bs - 1);
+    from = ps;
+    to = blk.be;
+    text = block + '\n' + prev;
+    delta = -(prev.length + 1);
+  }
+  ta.setSelectionRange(from, to);
+  exec(text);
+  ta.setSelectionRange(s + delta, e + delta);
+  scheduleCursor();
+}
+
+function dupLines(dir) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const e = ta.selectionEnd;
+  const blk = lineBlock(v, s, e);
+  const block = v.slice(blk.bs, blk.be);
+  if (dir > 0) {
+    ta.setSelectionRange(blk.be, blk.be);
+    exec('\n' + block);
+    ta.setSelectionRange(s + block.length + 1, e + block.length + 1);
+  } else {
+    ta.setSelectionRange(blk.bs, blk.bs);
+    exec(block + '\n');
+    ta.setSelectionRange(s, e);
+  }
+  scheduleCursor();
+}
+
+function deleteLines() {
+  const ta = els.ta;
+  const v = ta.value;
+  const blk = lineBlock(v, ta.selectionStart, ta.selectionEnd);
+  let a = blk.bs;
+  let b = blk.be;
+  if (blk.be < v.length) b = blk.be + 1;
+  else if (blk.bs > 0) a = blk.bs - 1;
+  ta.focus();
+  ta.setSelectionRange(a, b);
+  document.execCommand('delete');
+}
+
+function indentExtra(before) {
+  if (lang === 'md' || lang === 'plain') return '';
+  if (lang === 'html') {
+    return /<(?!\/|!|(?:br|hr|img|input|meta|link)\b)[A-Za-z][^<>]*(?<!\/)>\s*$/.test(before) ? '  ' : '';
+  }
+  const re = lang === 'py' ? /[{(\[:]\s*$/ : /[{(\[]\s*$/;
+  return re.test(before) ? '  ' : '';
+}
+
+function insertLine(above) {
+  const ta = els.ta;
+  const v = ta.value;
+  const blk = lineBlock(v, ta.selectionStart, ta.selectionStart);
+  const row = v.slice(blk.bs, blk.be);
+  const lead = /^[ \t]*/.exec(row)[0];
+  if (above) {
+    ta.setSelectionRange(blk.bs, blk.bs);
+    exec(lead + '\n');
+    const p = blk.bs + lead.length;
+    ta.setSelectionRange(p, p);
+  } else {
+    ta.setSelectionRange(blk.be, blk.be);
+    exec('\n' + lead + indentExtra(row));
+  }
+  scheduleCursor();
+}
+
+function editShortcut(e, mod, alt, key) {
+  if (mod && !alt && !e.shiftKey && (e.key === '/' || e.code === 'Slash')) {
+    toggleComment();
+    return true;
+  }
+  if (mod && !alt && e.shiftKey && key === 'k') {
+    deleteLines();
+    return true;
+  }
+  if (mod && !alt && key === 'enter') {
+    insertLine(e.shiftKey);
+    return true;
+  }
+  if (!mod && alt && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    const dir = e.key === 'ArrowDown' ? 1 : -1;
+    if (e.shiftKey) dupLines(dir);
+    else moveLines(dir);
+    return true;
+  }
+  return false;
+}
+
+function smartEnter(e) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const en = ta.selectionEnd;
+  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  const before = v.slice(ls, s);
+  const lead = /^[ \t]*/.exec(before)[0];
+  const prev = s > 0 ? v[s - 1] : '';
+  const next = v[en] || '';
+  e.preventDefault();
+  const pairBetween = s === en && !!prev && CLOSERS.indexOf(next) !== -1 && PAIRS[prev] === next && prev !== next;
+  const tagBetween = lang === 'html' && s === en && prev === '>' && v.slice(s, s + 2) === '</';
+  if (pairBetween || tagBetween) {
+    exec('\n' + lead + '  \n' + lead);
+    const pos = s + 1 + lead.length + 2;
+    ta.setSelectionRange(pos, pos);
+    scheduleCursor();
+    return;
+  }
+  exec('\n' + lead + indentExtra(before));
+}
+
+function smartBackspace(e) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  if (s !== ta.selectionEnd || s === 0) return false;
+  const prev = v[s - 1];
+  const next = v[s];
+  if (PAIRS[prev] && PAIRS[prev] === next) {
+    e.preventDefault();
+    ta.setSelectionRange(s - 1, s + 1);
+    document.execCommand('delete');
+    return true;
+  }
+  const ls = v.lastIndexOf('\n', s - 1) + 1;
+  const before = v.slice(ls, s);
+  if (before.length >= 2 && /^ +$/.test(before)) {
+    const n = before.length % 2 === 0 ? 2 : 1;
+    e.preventDefault();
+    ta.setSelectionRange(s - n, s);
+    document.execCommand('delete');
+    return true;
+  }
+  return false;
+}
+
+function smartHome(e) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  if (s !== ta.selectionEnd) return;
+  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  let fe = v.indexOf('\n', ls);
+  if (fe === -1) fe = v.length;
+  const lead = /^[ \t]*/.exec(v.slice(ls, fe))[0].length;
+  const first = ls + lead;
+  if (s === first || lead === 0) return;
+  e.preventDefault();
+  ta.setSelectionRange(first, first);
+  scheduleCursor();
+}
+
+function autoCloseOk(next) {
+  return !next || /[\s)\]}>,;:.]/.test(next);
+}
+
+function typedChar(e) {
+  const ch = e.key;
+  if (ch.length !== 1 || lang === 'plain' || lang === 'md') return false;
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const en = ta.selectionEnd;
+  const sel = s !== en;
+  const next = v[en] || '';
+  const prev = s > 0 ? v[s - 1] : '';
+  const isCloser = CLOSERS.indexOf(ch) !== -1;
+  const isQuote = ch === '"' || ch === "'" || ch === '`';
+  if ((isCloser || isQuote) && !sel && next === ch) {
+    e.preventDefault();
+    ta.setSelectionRange(s + 1, s + 1);
+    scheduleCursor();
+    return true;
+  }
+  if (isCloser) {
+    if (sel) return false;
+    const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+    const before = v.slice(ls, s);
+    if (before.length >= 2 && /^ +$/.test(before)) {
+      e.preventDefault();
+      ta.setSelectionRange(s - 2, s);
+      exec(ch);
+      return true;
+    }
+    return false;
+  }
+  const isOpen = ch === '(' || ch === '[' || ch === '{';
+  if (!isOpen && !isQuote) return false;
+  if (sel) {
+    const inner = v.slice(s, en);
+    e.preventDefault();
+    exec(ch + inner + PAIRS[ch]);
+    ta.setSelectionRange(s + 1, s + 1 + inner.length);
+    scheduleCursor();
+    return true;
+  }
+  if (isQuote) {
+    let wordBefore = /[\w$]/.test(prev);
+    if (wordBefore && lang === 'py' && /[rRbBfFuU]/.test(prev) && !/[\w$]/.test(v[s - 2] || '')) wordBefore = false;
+    if (wordBefore || prev === ch) return false;
+  }
+  if (!autoCloseOk(next)) return false;
+  e.preventDefault();
+  exec(ch + PAIRS[ch]);
+  ta.setSelectionRange(s + 1, s + 1);
+  scheduleCursor();
+  return true;
+}
 function onKeyDown(e) {
   if (e.isComposing) return;
-  const mod = e.ctrlKey || e.metaKey;
+  const gr = !!(e.getModifierState && e.getModifierState('AltGraph'));
+  const alt = e.altKey && !gr;
+  const mod = (e.ctrlKey || e.metaKey) && !gr;
   const key = e.key.toLowerCase();
   if (mod && !e.shiftKey && key === 's') {
     e.preventDefault();
@@ -1446,13 +1756,13 @@ function onKeyDown(e) {
     if (activePath) closeTab(activePath);
     return;
   }
-  if (mod && !e.altKey && key === 'z') {
+  if (mod && !alt && key === 'z') {
     e.preventDefault();
     e.stopPropagation();
     histStep(e.shiftKey ? 1 : -1);
     return;
   }
-  if (mod && !e.altKey && !e.shiftKey && key === 'y') {
+  if (mod && !alt && !e.shiftKey && key === 'y') {
     e.preventDefault();
     e.stopPropagation();
     histStep(1);
@@ -1470,27 +1780,32 @@ function onKeyDown(e) {
     stepMatch(e.shiftKey ? -1 : 1);
     return;
   }
-  if (!mod && !e.altKey) e.stopPropagation();
-  if (mod || e.altKey) return;
+  if (!mod && !alt) e.stopPropagation();
+  if (mod || alt) {
+    if (editShortcut(e, mod, alt, key)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    return;
+  }
   if (e.key === 'Tab') {
     e.preventDefault();
     indent(e.shiftKey);
     return;
   }
   if (e.key === 'Enter') {
-    const ta = els.ta;
-    const v = ta.value;
-    const s = ta.selectionStart;
-    const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
-    const before = v.slice(ls, s);
-    const lead = /^[ \t]*/.exec(before)[0];
-    const trimmed = before.replace(/\s+$/, '');
-    const lastCh = trimmed.charAt(trimmed.length - 1);
-    const openers = lang === 'py' ? OPEN_PY : OPEN_JS;
-    const extra = lastCh && openers.indexOf(lastCh) !== -1 ? '  ' : '';
-    e.preventDefault();
-    exec('\n' + lead + extra);
+    smartEnter(e);
+    return;
   }
+  if (e.key === 'Backspace') {
+    smartBackspace(e);
+    return;
+  }
+  if (e.key === 'Home' && !e.shiftKey) {
+    smartHome(e);
+    return;
+  }
+  if (e.key.length === 1) typedChar(e);
 }
 
 function onMainKeyDown(e) {
@@ -1516,11 +1831,49 @@ function onMainKeyDown(e) {
   }
 }
 
+const CENTER_MIN_H = 120;
+let centerRaf = 0;
+
+function centerCaret() {
+  if (!els || els.codewrap.hidden) return;
+  const ta = els.ta;
+  if (document.activeElement !== ta || ta.selectionStart !== ta.selectionEnd) return;
+  const h = ta.clientHeight;
+  if (h < CENTER_MIN_H) return;
+  const pb = PAD + Math.round(h * 0.5) + 'px';
+  if (ta.style.paddingBottom !== pb) ta.style.paddingBottom = pb;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  let row = 0;
+  let i = -1;
+  for (;;) {
+    i = v.indexOf('\n', i + 1);
+    if (i === -1 || i >= s) break;
+    row++;
+  }
+  const y = row * LH + PAD;
+  const rel = y - ta.scrollTop;
+  const mid = (h - LH) / 2;
+  if (rel > mid + LH / 2) ta.scrollTop = Math.max(0, y - mid);
+  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  const x = (s - ls) * charWidth() + 12;
+  const w = ta.clientWidth || 800;
+  if (x - ta.scrollLeft > w - 100) ta.scrollLeft = Math.max(0, x - Math.round(w * 0.5));
+}
+
+function scheduleCenter() {
+  if (centerRaf) return;
+  centerRaf = requestAnimationFrame(() => {
+    centerRaf = 0;
+    centerCaret();
+  });
+}
 function onInput() {
   histRecord();
   textChanged = true;
   schedule();
   scheduleCursor();
+  scheduleCenter();
 }
 
 function onScroll() {
