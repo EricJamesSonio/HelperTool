@@ -963,12 +963,23 @@ function ensureOptSection() {
   return el;
 }
 
+function renderDataFiles(snap) {
+  const files = Array.isArray(snap.dataFiles) ? snap.dataFiles : [];
+  if (!files.length) return '';
+  const total = files.reduce((a, f) => a + f.bytes, 0);
+  const rows = files.map((f) =>
+    '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(f.label) + '</strong></div>' +
+    '<span class="pt-opt-mem">' + esc(fmtMem(f.bytes / 1024)) + '</span></div>'
+  ).join('');
+  return '<div class="pt-hint" style="margin-top:14px">Data files kept in memory (' + esc(fmtMem(total / 1024)) + ' on disk)</div>' + rows +
+    '<div class="pt-opt-msg pt-cell-muted">Each file is loaded fully into memory by the app, so its size on disk is a floor for its memory use. The main database is also loaded by the background worker.</div>';
+}
 function renderOpt() {
   const el = ensureOptSection();
   if (!el || !_snap) return;
   const active = document.activeElement;
   if (active && el.contains(active) && active.tagName === 'SELECT') return;
-  el.innerHTML = renderOptimizer(_snap);
+  el.innerHTML = renderOptimizer(_snap) + renderDataFiles(_snap);
 }
 
 
