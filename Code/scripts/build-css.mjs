@@ -10,6 +10,7 @@ const R = (...p) => resolve(root, 'renderer', ...p);
 const files = [
   'styles/base.css',
   'styles/shared-components.css',
+  'styles/ui-kit.css',
   'styles/layout-chrome.css',
   'styles/layout-tree.css',
   'styles/ignore-panel.css',
@@ -22,6 +23,7 @@ const files = [
   'styles/prompt-tool.css',
   'styles/root-jumper.css',
   'styles/workspaceTool.css',
+  'styles/workspace-neat.css',
   'styles/git-tool.css',
   'styles/branch-manager.css',
   'styles/env-manager.css',
