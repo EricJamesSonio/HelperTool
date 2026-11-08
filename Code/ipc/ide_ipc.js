@@ -359,7 +359,24 @@ function fileMatches(root, files, ctx) {
   return out;
 }
 
-async function runSearch(sender, id, root, query, session) {
+function extOf(file) {
+  const name = path.basename(file).toLowerCase();
+  const dot = name.lastIndexOf('.');
+  if (dot < 0) return '';
+  return name.slice(dot + 1);
+}
+
+function countExts(files) {
+  const map = new Map();
+  for (const f of files) {
+    const e = extOf(f);
+    map.set(e, (map.get(e) || 0) + 1);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .slice(0, 80);
+}
+async function runSearch(sender, id, root, query, session, extSet) {
   const t0 = Date.now();
   const cancelled = () => session.cancelled || sender.isDestroyed();
   let buf = [];
@@ -384,8 +401,9 @@ async function runSearch(sender, id, root, query, session) {
     const q = query.toLowerCase();
     const tokens = q.split(/\s+/).filter(Boolean);
     const ctx = { q, tokens };
-    const files = await listFiles(root, cancelled);
-    if (!files || cancelled()) return;
+    const allFiles = await listFiles(root, cancelled);
+    if (!allFiles || cancelled()) return;
+    const files = extSet ? allFiles.filter((f) => extSet.has(extOf(f))) : allFiles;
 
     const fm = fileMatches(root, files, ctx);
     for (const r of fm) buf.push(r);
@@ -422,7 +440,9 @@ async function runSearch(sender, id, root, query, session) {
       progress = 0;
       const entries = [];
       for (const e of corpus.map.values()) {
-        if (!e.skip && e.text) entries.push(e);
+        if (e.skip || !e.text) continue;
+        if (extSet && !extSet.has(extOf(e.file))) continue;
+        entries.push(e);
       }
       let nearTotal = 0;
       for (let i = 0; i < entries.length && nearTotal < NEAR_CAP; i++) {
@@ -502,7 +522,13 @@ function register() {
     }
     useRoot(root);
     dropFromCorpus(args && args.invalidate);
-    runSearch(sender, id, root, query, session);
+    const rawExts = args && Array.isArray(args.exts) ? args.exts : [];
+    const extList = rawExts
+      .filter((x) => typeof x === 'string')
+      .slice(0, 200)
+      .map((x) => x.toLowerCase());
+    const extSet = extList.length ? new Set(extList) : null;
+    runSearch(sender, id, root, query, session, extSet);
     return { success: true };
   });
 
@@ -514,8 +540,13 @@ function register() {
 
   ipcMain.handle('ide:searchWarm', async (_event, root) => {
     if (typeof root !== 'string' || !root) return { success: false };
-    warmCorpus(root);
-    return { success: true };
+    try {
+      const files = await listFiles(root, () => false);
+      warmCorpus(root);
+      return { success: true, exts: files ? countExts(files) : [] };
+    } catch (_) {
+      return { success: false };
+    }
   });
 
   try {
