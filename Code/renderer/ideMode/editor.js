@@ -6,6 +6,7 @@ import * as mediaViewer from './mediaViewer.js';
 import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
 import * as ext from './extensions/index.js';
+import * as fmt from './extensions/formatter.js';
 
 const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
 const SEV_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' };
@@ -1072,6 +1073,7 @@ export async function switchRepo() {
 async function save() {
   const tab = activeTab();
   if (!isText(tab)) return;
+  if (ext.formatOnSave() && fmt.canFormat(tab.name)) formatBuffer(tab);
   const text = els.ta.value;
   const out = tab.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
   let res;
@@ -1597,6 +1599,10 @@ function insertLine(above) {
 }
 
 function editShortcut(e, mod, alt, key) {
+  if (!mod && alt && e.shiftKey && key === 'f') {
+    formatActive();
+    return true;
+  }
   if (mod && !alt && !e.shiftKey && (e.key === '/' || e.code === 'Slash')) {
     toggleComment();
     return true;
@@ -1990,3 +1996,72 @@ export function mount(mainEl, handlers) {
   ext.mount({ onChange: () => queueDiag(60) });
   showTab(null);
 }
+function formatBuffer(tab) {
+  if (!els || !isText(tab)) return false;
+  const ta = els.ta;
+  const text = ta.value;
+  const out = fmt.formatText(text, tab.name);
+  if (out === null || out === text) return false;
+  const st = ta.scrollTop;
+  const sl = ta.scrollLeft;
+  const caret = ta.selectionStart;
+  const before = text.slice(0, caret);
+  const line = before.split('\n').length - 1;
+  const col = caret - (before.lastIndexOf('\n') + 1);
+  try { ta.setSelectionRange(0, text.length); } catch (_) {}
+  exec(out);
+  const starts = lineStartsOf(out);
+  const ln = Math.min(line, starts.length - 1);
+  const lineEnd = ln + 1 < starts.length ? starts[ln + 1] - 1 : out.length;
+  const off = starts[ln] + Math.min(col, Math.max(0, lineEnd - starts[ln]));
+  try { ta.setSelectionRange(off, off); } catch (_) {}
+  ta.scrollTop = st;
+  ta.scrollLeft = sl;
+  scheduleCursor();
+  return true;
+}
+
+function formatActive() {
+  if (!els) return;
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  if (!ext.formatterOn()) {
+    flash('Turn on the Prettier extension first (Extensions button)');
+    return;
+  }
+  if (!fmt.canFormat(tab.name)) {
+    flash('Prettier does not format this file type');
+    return;
+  }
+  flash(formatBuffer(tab) ? 'Formatted ' + tab.name : 'Already formatted');
+}
+
+function formatOpenTabs() {
+  if (!els) return;
+  if (!ext.formatterOn()) {
+    flash('Turn on the Prettier extension first (Extensions button)');
+    return;
+  }
+  let n = 0;
+  const act = activeTab();
+  if (isText(act) && fmt.canFormat(act.name) && formatBuffer(act)) n++;
+  for (const t of tabs) {
+    if (t === act || !isText(t) || !fmt.canFormat(t.name)) continue;
+    const out = fmt.formatText(t.content, t.name);
+    if (out === null || out === t.content) continue;
+    t.content = out;
+    t.dirty = out !== t.saved;
+    t.hist = null;
+    n++;
+  }
+  renderTabs();
+  notify();
+  flash(n ? 'Formatted ' + n + ' file(s). Press Ctrl+S to save.' : 'All open files are already formatted');
+}
+
+document.addEventListener('ide:format-document', () => {
+  formatActive();
+});
+document.addEventListener('ide:format-open', () => {
+  formatOpenTabs();
+});
