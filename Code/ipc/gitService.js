@@ -3,6 +3,10 @@ const simpleGit = require('simple-git');
 class GitService {
   constructor() {
     this._cache = new Map();
+    this._chars = 0;
+    this._maxEntries = 150;
+    this._maxChars = 16 * 1024 * 1024;
+    this._maxEntryChars = 2 * 1024 * 1024;
     this._gitInstances = new Map();
     this._stats = { hits: 0, misses: 0 };
   }
@@ -20,6 +24,33 @@ class GitService {
     return repoPath + '\0' + args.join('\0');
   }
 
+  _drop(key) {
+    const e = this._cache.get(key);
+    if (!e) return;
+    this._chars -= e.size;
+    this._cache.delete(key);
+  }
+
+  _trim(now) {
+    for (const [k, e] of this._cache) {
+      if (now - e.fetchedAt >= e.ttl) this._drop(k);
+    }
+    while (this._cache.size > this._maxEntries || this._chars > this._maxChars) {
+      const first = this._cache.keys().next().value;
+      if (first === undefined) break;
+      this._drop(first);
+    }
+  }
+
+  _store(key, data, ttl, now) {
+    this._drop(key);
+    const size = typeof data === 'string' ? data.length : 0;
+    if (size > this._maxEntryChars) return;
+    this._cache.set(key, { data, fetchedAt: now, ttl, size });
+    this._chars += size;
+    this._trim(now);
+  }
+
   async raw(repoPath, args, ttlMs) {
     const key = this._key(repoPath, args);
     const now = Date.now();
@@ -30,7 +61,7 @@ class GitService {
     }
     this._stats.misses++;
     const data = await this._git(repoPath).raw(args);
-    this._cache.set(key, { data, fetchedAt: now, ttl: ttlMs || 30000 });
+    this._store(key, data, ttlMs || 30000, Date.now());
     return data;
   }
 
@@ -78,16 +109,17 @@ class GitService {
   clearCache(repoPath) {
     if (repoPath) {
       const prefix = repoPath + '\0';
-      for (const key of this._cache.keys()) {
-        if (key.startsWith(prefix)) this._cache.delete(key);
+      for (const key of Array.from(this._cache.keys())) {
+        if (key.startsWith(prefix)) this._drop(key);
       }
     } else {
       this._cache.clear();
+      this._chars = 0;
     }
   }
 
   getStats() {
-    return { ...this._stats, entries: this._cache.size, instances: this._gitInstances.size };
+    return { ...this._stats, entries: this._cache.size, chars: this._chars, instances: this._gitInstances.size };
   }
 }
 
