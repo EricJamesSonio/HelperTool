@@ -18,6 +18,24 @@ export const EXTENSIONS = [
     fileExts: ['py', 'pyw'],
   },
   {
+    id: 'vue',
+    name: 'Vue.js',
+    badge: 'VUE',
+    color: '--green',
+    desc: 'Syntax errors in the script block of .vue files, plus v-for without :key, v-if with v-for, v-html, data that is not a function, this in script setup and mutated props.',
+    langs: ['.vue'],
+    fileExts: ['vue'],
+  },
+  {
+    id: 'angular',
+    name: 'Angular',
+    badge: 'NG',
+    color: '--red',
+    desc: 'Decorators without imports, @Component without a template, lifecycle hooks without implements, uncleaned subscriptions, and template checks for *ngFor, *ngIf and @for.',
+    langs: ['.ts', '.component.html'],
+    fileExts: ['ts', 'html'],
+  },
+  {
     id: 'nestjs',
     name: 'NestJS',
     badge: 'NS',
@@ -61,6 +79,17 @@ export const EXTENSIONS = [
     desc: 'Unmatched brackets, unterminated strings, bad #include lines, #if without #endif, missing semicolon after a class, unsafe calls such as gets and strcpy.',
     langs: ['.c', '.cpp', '.cc', '.h', '.hpp'],
     fileExts: ['c', 'cc', 'cpp', 'cxx', 'h', 'hh', 'hpp', 'hxx'],
+  },
+  {
+    id: 'prettier',
+    name: 'Prettier',
+    badge: 'PR',
+    color: '--purple',
+    kind: 'formatter',
+    hasView: true,
+    desc: 'Formats files on save: even indentation, trailing spaces and blank lines between functions and classes. Language aware. Click View to pick the style.',
+    langs: ['.js', '.ts', '.py', '.json', '.css', '.html', '.vue', '.php'],
+    fileExts: ['js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'py', 'json', 'css', 'scss', 'less', 'html', 'vue', 'php'],
   },
 ];
 

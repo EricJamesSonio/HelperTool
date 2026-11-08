@@ -1,6 +1,8 @@
 import { state } from '../../app_manager/appState.js';
 import { esc } from '../highlight.js';
 import { EXTENSIONS } from './registry.js';
+import * as fmt from './formatter.js';
+import * as pm from './prettierModal.js';
 const MEMO_MAX = 24;
 const memo = new Map();
 let idsMemo = null;
@@ -65,9 +67,13 @@ function isOn(id) {
   return !!stacks[id];
 }
 
+function enabledCount() {
+  return EXTENSIONS.filter((e) => isOn(e.id)).length;
+}
+
 function activeIds() {
   if (idsMemo) return idsMemo;
-  const list = EXTENSIONS.filter((e) => isOn(e.id));
+  const list = EXTENSIONS.filter((e) => e.kind !== 'formatter' && isOn(e.id));
   idsMemo = list.map((e) => e.id);
   extsMemo = new Set();
   for (const x of list) {
@@ -89,6 +95,14 @@ export function handles(name) {
 
 export function hasActive() {
   return activeIds().length > 0;
+}
+
+export function formatterOn() {
+  return isOn('prettier');
+}
+
+export function formatOnSave() {
+  return isOn('prettier') && !!fmt.getOptions().formatOnSave;
 }
 
 export function analyze(path, name, getText, delay, done) {
@@ -133,7 +147,7 @@ export function analyze(path, name, getText, delay, done) {
 
 function updateBadge() {
   if (!countEl || !btn) return;
-  const n = activeIds().length;
+  const n = enabledCount();
   countEl.textContent = n ? String(n) : '';
   countEl.hidden = !n;
   btn.title = n ? n + ' extension(s) active for this repo' : 'Extensions: no stack detected for this repo';
@@ -173,12 +187,21 @@ function cardHtml(e) {
   const auto = !!stacks[e.id];
   const ov = overrides[e.id];
   const on = isOn(e.id);
-  let tag = '<span class="ide-ext-tag none">Not detected</span>';
+  const isFmt = e.kind === 'formatter';
+  let tag = '<span class="ide-ext-tag none">' + (isFmt ? 'Optional' : 'Not detected') + '</span>';
   if (ov === 'on') tag = '<span class="ide-ext-tag manual">Manual</span>';
   else if (ov === 'off') tag = '<span class="ide-ext-tag off">Off</span>';
   else if (auto) tag = '<span class="ide-ext-tag auto">Auto</span>';
-  const meta = auto ? 'Detected: ' + stacks[e.id] : 'Not detected in this repo';
+  let meta;
+  if (isFmt) {
+    meta = on
+      ? 'Active. Format on save is ' + (fmt.getOptions().formatOnSave ? 'on' : 'off') + '. Shift+Alt+F formats the current file.'
+      : (auto ? 'Prettier config found: ' + stacks[e.id] : 'Off. Turn it on to format files.');
+  } else {
+    meta = auto ? 'Detected: ' + stacks[e.id] : 'Not detected in this repo';
+  }
   const langs = e.langs.map((l) => '<span class="ide-ext-lang">' + esc(l) + '</span>').join('');
+  const view = e.hasView ? '<button type="button" class="ide-ext-view" data-act="view-fmt">View</button>' : '';
   return '<div class="ide-ext-card' + (on ? ' on' : '') + '" data-id="' + e.id + '">' +
     '<span class="ide-ext-badge" style="color:var(' + e.color + ')">' + esc(e.badge) + '</span>' +
     '<div class="ide-ext-info">' +
@@ -186,6 +209,7 @@ function cardHtml(e) {
       '<div class="ide-ext-desc">' + esc(e.desc) + '</div>' +
       '<div class="ide-ext-langs">' + langs + '</div>' +
       '<div class="ide-ext-meta">' + esc(meta) + '</div>' +
+      view +
     '</div>' +
     '<button type="button" class="ide-ext-sw' + (on ? ' on' : '') + '" data-act="toggle" data-id="' + e.id + '" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" title="' + (on ? 'Turn off' : 'Turn on') + '"></button>' +
   '</div>';
@@ -201,7 +225,7 @@ function renderModal() {
     '<div class="ide-ext-stack"><span class="ide-ext-stack-lbl">Detected stack</span>' + chips + '</div>' +
     '<div class="ide-ext-grid">' + EXTENSIONS.map(cardHtml).join('') + '</div>';
   const repo = state.selectedRepoPath ? String(state.selectedRepoPath).split(/[\\/]/).filter(Boolean).pop() : '';
-  footEl.textContent = activeIds().length + ' of ' + EXTENSIONS.length + ' extensions active' + (repo ? ' for ' + repo : '');
+  footEl.textContent = enabledCount() + ' of ' + EXTENSIONS.length + ' extensions active' + (repo ? ' for ' + repo : '');
 }
 
 function toggle(id) {
@@ -211,6 +235,13 @@ function toggle(id) {
   else overrides[id] = next ? 'on' : 'off';
   saveOverrides();
   refresh(true);
+}
+
+function openPrettier() {
+  pm.open({
+    isOn: () => isOn('prettier'),
+    toggle: () => toggle('prettier'),
+  });
 }
 
 function onKey(e) {
@@ -231,6 +262,7 @@ function onOverlayClick(e) {
   if (act === 'close') close();
   else if (act === 'redetect') detect(true);
   else if (act === 'toggle') toggle(b.dataset.id);
+  else if (act === 'view-fmt') openPrettier();
 }
 
 function build() {
@@ -273,12 +305,18 @@ export function close() {
 }
 
 function injectCss() {
-  if (document.getElementById('ideExtCss')) return;
-  const link = document.createElement('link');
-  link.id = 'ideExtCss';
-  link.rel = 'stylesheet';
-  link.href = './styles/ide-ext.css';
-  document.head.appendChild(link);
+  const sheets = [
+    ['ideExtCss', './styles/ide-ext.css'],
+    ['idePrettierCss', './styles/ide-prettier.css'],
+  ];
+  for (const [id, href] of sheets) {
+    if (document.getElementById(id)) continue;
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+  }
 }
 
 function createButton() {
