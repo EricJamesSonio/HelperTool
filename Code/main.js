@@ -547,3 +547,12 @@ app.whenReady().then(() => {
     console.error('[IPC] Failed to register gitAccounts_ipc:', e);
   }
 });
+app.on('browser-window-created', (_event, win) => {
+  win.on('hide', () => {
+    try {
+      if (win !== getMainWindow()) return;
+      if (win.isDestroyed() || win.webContents.isDestroyed()) return;
+      win.webContents.send('ide:windowHidden');
+    } catch (_) {}
+  });
+});

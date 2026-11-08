@@ -870,3 +870,9 @@ contextBridge.exposeInMainWorld('ideSearchStream', {
         ipcRenderer.on('ide:searchBatch', (_event, data) => callback(data));
     },
 });
+contextBridge.exposeInMainWorld('ideWindowAPI', {
+    onHidden: (callback) => {
+        ipcRenderer.removeAllListeners('ide:windowHidden');
+        ipcRenderer.on('ide:windowHidden', () => callback());
+    },
+});
