@@ -95,6 +95,15 @@ function lenOf(x) {
   const mm = /^[\w$]+/.exec(x[0]);
   return mm ? mm[0].length : x[0].length;
 }
+let extraMod = null;
+
+function getExtra() {
+  if (!extraMod) {
+    extraMod = require('./ideDiagnosticsExtra.js');
+    extraMod.useCore({ mask, rx, lintJs, syntaxErrors, blankOut, sliceKeep, lenOf });
+  }
+  return extraMod;
+}
 
 function extName(file) {
   const lower = file.toLowerCase();
@@ -711,7 +720,7 @@ function checkJson(c, text, file) {
 }
 
 async function checkJsFamily(c, text, file, ext, has) {
-  if (!has('js', 'nextjs', 'nestjs', 'angular')) return;
+  if (!has('js', 'nextjs', 'nestjs', 'angular', 'react', 'express')) return;
   const label = ext === 'ts' || ext === 'tsx' ? 'TypeScript' : 'JavaScript';
   const scoped = has('js') && (ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') && text.length <= 150000;
   const onClean = scoped ? (root) => require('./ideScope.js').findUndefined(root, text, c) : null;
@@ -721,6 +730,8 @@ async function checkJsFamily(c, text, file, ext, has) {
   if (has('nextjs')) lintNext(c, text, m, file);
   if (has('nestjs') && (ext === 'ts' || ext === 'js')) lintNest(c, text, m);
   if (has('angular') && ext === 'ts') lintAngular(c, text, m);
+  if (has('react')) getExtra().lintReact(c, text, m);
+  if (has('express') && (ext === 'js' || ext === 'ts' || ext === 'mjs' || ext === 'cjs')) getExtra().lintExpress(c, text, m);
 }
 
 async function checkPhp(c, text, file, has) {
@@ -917,17 +928,24 @@ async function diagnose(args) {
       await checkJsFamily(c, text, file, ext, has);
     } else if (ext === 'vue') {
       if (has('vue')) await checkVue(c, text);
+    } else if (ext === 'astro') {
+      if (has('astro')) await getExtra().checkAstro(c, text, file);
     } else if (ext === 'html' || ext === 'htm') {
       if (has('angular')) checkAngularHtml(c, text, file);
     } else if (ext === 'py' || ext === 'pyw') {
-      if (has('python')) {
+      if (has('python', 'flask', 'django')) {
         if (text.length <= MAX_PARSE) await syntaxErrors(c, 'python', text, 'Python');
-        lintPython(c, mask(text, 'py').masked);
+        const m = mask(text, 'py').masked;
+        if (has('python')) lintPython(c, m);
+        if (has('flask')) getExtra().lintFlask(c, text, m);
+        if (has('django')) getExtra().lintDjango(c, text, m, file);
       }
     } else if (ext === 'blade') {
       if (has('laravel')) checkBlade(c, text);
     } else if (ext === 'php') {
       if (has('php', 'laravel')) await checkPhp(c, text, file, has);
+    } else if (ext === 'cs') {
+      if (has('dotnet')) getExtra().checkCs(c, text);
     } else if (CPP_EXT.has(ext)) {
       if (has('cpp')) checkCpp(c, text, ext);
     }

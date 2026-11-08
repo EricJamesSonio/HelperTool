@@ -25,6 +25,30 @@ async function readJson(file) {
     return null;
   }
 }
+async function readText(file) {
+  try {
+    const buf = await fs.promises.readFile(file);
+    return buf.length > 200000 ? buf.slice(0, 200000).toString('utf8') : buf.toString('utf8');
+  } catch (_) {
+    return '';
+  }
+}
+
+async function scanPyDeps(dir, files, label, found) {
+  const names = files
+    .filter((n) => /^requirements.*\.txt$/i.test(n) || n === 'pyproject.toml' || n === 'Pipfile' || n === 'setup.py' || n === 'setup.cfg' || n === 'manage.py')
+    .slice(0, 6);
+  for (const n of names) {
+    const text = await readText(path.join(dir, n));
+    if (!text) continue;
+    if (!found.flask && /(^|[^a-z0-9_-])flask([^a-z0-9_-]|$)/i.test(text)) {
+      mark(found, 'flask', 'flask in ' + n + ' (' + label + ')');
+    }
+    if (!found.django && /(^|[^a-z0-9_-])django([^a-z0-9_-]|$)/i.test(text)) {
+      mark(found, 'django', 'django in ' + n + ' (' + label + ')');
+    }
+  }
+}
 
 function mark(found, id, reason) {
   if (!found[id]) found[id] = reason;
@@ -40,17 +64,23 @@ function scanFileNames(names, label, found) {
   let php = 0;
   let py = 0;
   let vue = 0;
+  let cs = 0;
+  let astro = 0;
   for (const n of names) {
     const e = extOf(n);
     if (CPP_EXTS.has(e)) cpp++;
     else if (e === 'php') php++;
     else if (e === 'py') py++;
     else if (e === 'vue') vue++;
+    else if (e === 'cs') cs++;
+    else if (e === 'astro') astro++;
   }
   if (cpp) mark(found, 'cpp', cpp + ' C/C++ source file(s) in ' + label);
   if (php) mark(found, 'php', php + ' PHP file(s) in ' + label);
   if (py) mark(found, 'python', py + ' Python file(s) in ' + label);
   if (vue) mark(found, 'vue', vue + ' Vue file(s) in ' + label);
+  if (cs) mark(found, 'dotnet', cs + ' C# file(s) in ' + label);
+  if (astro) mark(found, 'astro', astro + ' Astro file(s) in ' + label);
 }
 
 async function scanDir(dir, label, found) {
@@ -69,11 +99,18 @@ async function scanDir(dir, label, found) {
       if (deps.vue || deps.nuxt || deps['@vue/cli-service']) mark(found, 'vue', '"vue" dependency in ' + label);
       if (deps['@angular/core']) mark(found, 'angular', '@angular/core in ' + label);
       if (deps.prettier) mark(found, 'prettier', '"prettier" dependency in ' + label);
+      if (deps.react || deps['react-dom']) mark(found, 'react', '"react" dependency in ' + label);
+      if (deps.express) mark(found, 'express', '"express" dependency in ' + label);
+      if (deps.astro) mark(found, 'astro', '"astro" dependency in ' + label);
     }
   }
   if (files.some((n) => /^next\.config\.(js|mjs|cjs|ts)$/.test(n))) {
     mark(found, 'js', 'next.config in ' + label);
     mark(found, 'nextjs', 'next.config in ' + label);
+  }
+  if (files.some((n) => /^astro\.config\.(js|mjs|cjs|ts)$/.test(n))) {
+    mark(found, 'js', 'astro.config in ' + label);
+    mark(found, 'astro', 'astro.config in ' + label);
   }
   if (files.some((n) => /^(vue|nuxt)\.config\.(js|mjs|cjs|ts)$/.test(n))) {
     mark(found, 'js', 'vue or nuxt config in ' + label);
@@ -106,11 +143,17 @@ async function scanDir(dir, label, found) {
   }
 
   const py = PY_MARKERS.find((n) => set.has(n));
-  if (py) mark(found, 'python', py + ' in ' + label);
+  if (py) {
+    mark(found, 'python', py + ' in ' + label);
+    await scanPyDeps(dir, files, label, found);
+  }
 
   if (set.has('CMakeLists.txt') || set.has('meson.build')) {
     mark(found, 'cpp', (set.has('CMakeLists.txt') ? 'CMakeLists.txt' : 'meson.build') + ' in ' + label);
   }
+
+  const dn = files.find((n) => /\.(csproj|sln|slnx)$/i.test(n));
+  if (dn) mark(found, 'dotnet', dn + ' in ' + label);
 
   scanFileNames(files, label, found);
 
@@ -119,6 +162,18 @@ async function scanDir(dir, label, found) {
     const subEntries = await listDir(path.join(dir, sub));
     const names = subEntries.filter((e) => e.isFile()).map((e) => e.name);
     scanFileNames(names, label + '/' + sub, found);
+  }
+
+  if (!found.dotnet && dirs.has('src')) {
+    const kids = (await listDir(path.join(dir, 'src'))).filter((e) => e.isDirectory()).slice(0, MAX_GROUP_CHILDREN);
+    for (const k of kids) {
+      const inner = await listDir(path.join(dir, 'src', k.name));
+      const proj = inner.find((e) => e.isFile() && /\.(csproj|fsproj)$/i.test(e.name));
+      if (proj) {
+        mark(found, 'dotnet', proj.name + ' in ' + label + '/src/' + k.name);
+        break;
+      }
+    }
   }
 }
 
