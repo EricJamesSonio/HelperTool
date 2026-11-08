@@ -646,6 +646,16 @@ function selIndex() {
   return i < 0 ? 0 : i;
 }
 
+function centerInList(el) {
+  if (!el || !listEl) return;
+  const lr = listEl.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  const delta = er.top - lr.top - (lr.height / 2 - er.height / 2);
+  if (Math.abs(delta) < 2) return;
+  const max = Math.max(0, listEl.scrollHeight - listEl.clientHeight);
+  const top = Math.max(0, Math.min(max, listEl.scrollTop + delta));
+  listEl.scrollTo({ top, behavior: 'smooth' });
+}
 function setSelIndex(i) {
   const n = nav.length;
   if (!n) return;
@@ -661,11 +671,9 @@ function setSelIndex(i) {
   const el = listEl.querySelector('.ide-sm-row[data-i="' + next + '"]');
   if (el) {
     el.classList.add('sel');
-    const prevEl = el.previousElementSibling;
-    const target = prevEl && prevEl.classList.contains('ide-sm-grp') ? prevEl : el;
-    target.scrollIntoView({ block: 'nearest' });
+    centerInList(el);
   } else if (gEl) {
-    gEl.scrollIntoView({ block: 'nearest' });
+    centerInList(gEl);
   }
   if (sel !== previewFor) {
     previewFor = sel;
