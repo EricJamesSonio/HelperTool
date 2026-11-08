@@ -166,7 +166,10 @@ export async function ensureTerminalUI() {
     _terminalInit = (async () => {
       const { default: TerminalUI } = await import('../terminal/terminalUI.js');
       const ui = new TerminalUI();
-      _registry.setTerminalUI(ui);
+      _registry.setTerminalUI({
+        isOpen: () => ui.isOpen() && !ui.isDocked(),
+        close: () => ui.close(),
+      });
       await ui.init();
       _terminalUI = ui;
       return ui;
