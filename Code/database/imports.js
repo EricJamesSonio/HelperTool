@@ -17,6 +17,7 @@ function insertBatch(imports) {
   stmt.free();
 }
 
+
 function getByFile(fileId) {
   const db = getDb();
   const results = [];
