@@ -192,8 +192,8 @@ body.ide-mode .ide-ext-btn { display: inline-flex; }
 .ide-ext-overlay[hidden] { display: none !important; }
 body:not(.ide-mode) .ide-ext-overlay { display: none !important; }
 .ide-ext-modal {
-  width: min(900px, 94vw);
-  max-height: 84vh;
+  width: min(1480px, 96vw);
+  max-height: 86vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -289,8 +289,8 @@ body:not(.ide-mode) .ide-ext-overlay { display: none !important; }
 }
 .ide-ext-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 .ide-ext-card {
   display: flex;
@@ -531,3 +531,9 @@ body:not(.ide-mode) .ide-ext-overlay { display: none !important; }
 .ide-pc.has.e { background: color-mix(in srgb, var(--red) 20%, transparent); }
 .ide-pc.has.w { background: color-mix(in srgb, var(--yellow) 18%, transparent); }
 .ide-pc.has.i { background: color-mix(in srgb, var(--blue) 16%, transparent); }
+@media (max-width: 1180px) {
+  .ide-ext-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .ide-ext-grid { grid-template-columns: minmax(0, 1fr); }
+}
