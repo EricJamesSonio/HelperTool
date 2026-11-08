@@ -1,0 +1,240 @@
+/* ============================================================
+   UI-KIT.CSS
+   Reusable flat "IDE style" building blocks. Prefix: ui-
+   Use these on any feature instead of writing new button,
+   field, toolbar, tab or modal styles.
+   ============================================================ */
+
+@keyframes uiModalIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ══ Buttons ══ */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm, 6px);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: 600 12.5px/1 var(--font-ui, sans-serif);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, filter 0.12s;
+}
+.ui-btn svg { width: 14px; height: 14px; display: block; }
+.ui-btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+.ui-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ui-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ui-btn--primary { background: var(--accent); border-color: var(--accent); color: #000; }
+.ui-btn--primary:hover { background: var(--accent); filter: brightness(1.12); }
+.ui-btn--ghost { background: transparent; color: var(--text-secondary); }
+.ui-btn--ghost:hover { color: var(--text-primary); }
+.ui-btn--danger:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: var(--red-dim, rgba(248, 81, 73, 0.12));
+}
+.ui-btn--sm { height: 24px; padding: 0 9px; font-size: 12px; }
+
+.ui-icon-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs, 4px);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.ui-icon-btn svg { width: 14px; height: 14px; display: block; }
+.ui-icon-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+
+/* ══ Fields ══ */
+.ui-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.ui-row { display: flex; gap: 12px; }
+.ui-label {
+  font: 600 11px/1.2 var(--font-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ui-input,
+.ui-select,
+.ui-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm, 6px);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font: 13px/1.4 var(--font-ui, sans-serif);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.ui-input:focus,
+.ui-select:focus,
+.ui-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+.ui-textarea { resize: vertical; min-height: 96px; line-height: 1.55; }
+.ui-select { cursor: pointer; }
+.ui-select option { background: var(--bg-surface); color: var(--text-primary); }
+
+/* ══ Toolbar ══ */
+.ui-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+.ui-toolbar-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.ui-count {
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: var(--bg-active);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ui-spacer { flex: 1; }
+.ui-hint { font-size: 11.5px; color: var(--text-muted); }
+
+/* ══ Panel / badge / empty ══ */
+.ui-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ui-empty {
+  padding: 36px 16px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ══ Tabs (IDE style underline) ══ */
+.ui-tabs {
+  display: flex;
+  gap: 0;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.ui-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 12.5px/1 var(--font-ui, sans-serif);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, background 0.12s;
+}
+.ui-tab svg { width: 14px; height: 14px; display: block; }
+.ui-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.ui-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+/* ══ Modal ══ */
+.ui-modal-overlay {
+  position: fixed;
+  inset: var(--titlebar-h, 0px) 0 0 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  animation: overlayFadeIn 0.12s ease;
+}
+.ui-modal {
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  box-shadow: var(--shadow-xl, 0 20px 60px rgba(0, 0, 0, 0.6));
+  animation: uiModalIn 0.16s ease;
+}
+.ui-modal--wide { width: min(900px, 94vw); }
+.ui-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ui-modal-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.ui-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.ui-modal-error {
+  display: none;
+  margin: 0 16px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--red, #f87171);
+  border-radius: var(--r-sm, 6px);
+  background: var(--red-dim, rgba(248, 81, 73, 0.12));
+  color: var(--red, #f87171);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.ui-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 640px) {
+  .ui-row { flex-direction: column; }
+}

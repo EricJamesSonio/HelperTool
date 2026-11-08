@@ -1,0 +1,371 @@
+/* ============================================================
+   WORKSPACE-NEAT.CSS
+   Flat IDE-style overrides for the existing workspace classes.
+   Loaded after workspaceTool.css and ui-kit.css.
+   ============================================================ */
+
+/* ══ Navbar ══ */
+.workspace-navbar {
+  padding: 8px 16px;
+  gap: 10px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+.workspace-title { font-size: 14px; font-weight: 700; letter-spacing: 0; }
+.workspace-title svg { width: 16px; height: 16px; margin-right: 8px; }
+
+.workspace-nav-chip,
+.workspace-back-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm, 6px);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+.workspace-nav-chip:hover,
+.workspace-back-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+.workspace-nav-chip svg { width: 14px; height: 14px; }
+.workspace-back-btn svg { width: 13px; height: 13px; }
+
+.workspace-close-btn,
+.workspace-logs-btn { width: 28px; height: 28px; background: transparent; }
+.workspace-close-btn svg { width: 14px; height: 14px; display: block; }
+.workspace-close-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+
+/* ══ Body ══ */
+.workspace-body { padding: 16px 20px; gap: 14px; }
+.workspace-body::-webkit-scrollbar { width: 4px; }
+.workspace-body::-webkit-scrollbar-thumb { background: var(--border-strong, rgba(255,255,255,0.15)); }
+
+/* ══ Tabs ══ */
+.ws-tab-bar {
+  gap: 0;
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ws-tab-btn {
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  gap: 6px;
+}
+.ws-tab-btn svg { width: 14px; height: 14px; }
+.ws-tab-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ws-tab-btn.active {
+  background: transparent;
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+.ws-tab-content { gap: 14px; }
+
+/* ══ Forms ══ */
+.workspace-form-section {
+  padding: 14px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.workspace-form-label {
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+.workspace-form-group { gap: 5px; }
+.workspace-form-group label,
+.ws-overview-field label,
+.ws-edit-ticket-right label {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.workspace-input,
+.workspace-select,
+.workspace-textarea {
+  padding: 7px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm, 6px);
+  background: var(--bg-base);
+  font-size: 13px;
+}
+.workspace-input:focus,
+.workspace-select:focus,
+.workspace-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+.ws-fullheight-section,
+.ws-folder-panel {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  padding: 14px 16px;
+}
+.ws-folder-panel { padding: 0; }
+.ws-fullheight-textarea {
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm, 6px);
+  background: var(--bg-base);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+.ws-fullheight-textarea:focus { box-shadow: 0 0 0 2px var(--accent-dim); }
+.ws-folder-panel-header { padding: 10px 14px; }
+.ws-folder-panel[data-panel="main"] .ws-folder-panel-header {
+  background: color-mix(in srgb, var(--accent, #22d3ee) 12%, transparent);
+  border-bottom-color: var(--border-subtle);
+}
+.ws-folder-panel[data-panel="frontend"] .ws-folder-panel-header {
+  background: color-mix(in srgb, var(--purple-accent, #8b5cf6) 12%, transparent);
+  border-bottom-color: var(--border-subtle);
+}
+.ws-folder-panel[data-panel="backend"] .ws-folder-panel-header {
+  background: color-mix(in srgb, var(--green, #2dd4b0) 12%, transparent);
+  border-bottom-color: var(--border-subtle);
+}
+.ws-folder-panel .ws-fullheight-textarea { border: 0; border-radius: 0; }
+.ws-folder-panel-icon svg { width: 18px; height: 18px; }
+.ws-folder-panel-title { font-size: 13px; }
+
+/* ══ Buttons ══ */
+.workspace-btn-add {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm, 6px);
+  background: var(--accent);
+  color: #000;
+  font-size: 12.5px;
+  font-weight: 700;
+  box-shadow: none;
+}
+.workspace-btn-add:hover {
+  background: var(--accent);
+  filter: brightness(1.12);
+  box-shadow: none;
+  transform: none;
+}
+.workspace-btn-add:active { transform: none; box-shadow: none; }
+.workspace-btn-add svg { width: 14px; height: 14px; }
+.workspace-btn-add:disabled { background: var(--bg-active); border-color: var(--border-default); color: var(--text-muted); }
+.workspace-btn-cancel {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm, 6px);
+  background: transparent;
+  font-size: 12.5px;
+}
+.workspace-btn-icon,
+.workspace-btn-clear {
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm, 6px);
+  background: var(--bg-elevated);
+}
+.workspace-btn-icon:hover,
+.workspace-btn-clear:hover { border-color: var(--accent); background: var(--bg-hover); }
+
+/* ══ Home ══ */
+.ws-home-layout { grid-template-columns: 1fr 320px; gap: 18px; }
+.ws-home-left { gap: 14px; }
+.ws-home-stats-grid { gap: 10px; }
+.ws-home-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+.ws-stat-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.ws-stat-card:hover { border-color: var(--accent); }
+.ws-stat-accent { border-left: 2px solid var(--accent); }
+.ws-stat-num { font-size: 1.8rem; }
+.ws-stat-lbl { font-size: 11px; }
+.ws-stat-sub { font-size: 11.5px; }
+.ws-home-card {
+  padding: 10px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.ws-home-card:hover { transform: none; border-color: var(--accent); background: var(--bg-hover); }
+.ws-home-card-icon svg { width: 18px; height: 18px; }
+.ws-home-card-label { font-size: 13px; }
+.ws-home-card-sub { font-size: 11.5px; }
+.ws-home-activity {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.ws-home-activity-item { padding: 9px 12px; border-bottom: 1px solid var(--border-subtle); }
+.ws-home-activity-msg { font-size: 12.5px; }
+.ws-home-activity-time { font-size: 11px; }
+
+/* ══ Cards (projects, workers) ══ */
+.workspace-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.workspace-project-card,
+.workspace-worker-card {
+  padding: 14px 16px;
+  gap: 10px;
+  border: 1px solid var(--border-default);
+  border-left: 2px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.workspace-project-card:hover,
+.workspace-worker-card:hover {
+  transform: none;
+  border-color: var(--accent);
+  box-shadow: none;
+  background: var(--bg-hover);
+}
+.workspace-card-title { font-size: 13.5px; }
+.workspace-card-edit,
+.workspace-card-delete { width: 26px; height: 26px; }
+.ws-project-desc { font-size: 12.5px; min-height: 2.4em; max-height: 2.4em; }
+.ws-project-status-badge { padding: 2px 10px; font-size: 10.5px; }
+.ws-project-meta { font-size: 12px; gap: 14px; }
+.ws-project-meta svg { width: 14px; height: 14px; }
+.ws-progress-bar-wrap { height: 4px; }
+.ws-progress-label { font-size: 11px; }
+.workspace-card-role { padding: 2px 10px; font-size: 11.5px; border-radius: 99px; }
+.workspace-card-stats { padding-top: 10px; gap: 14px; border-top: 1px solid var(--border-subtle); }
+.workspace-stat-value { font-size: 1.3rem; }
+.workspace-stat-label { font-size: 10.5px; }
+.ws-worker-avatar { width: 34px; height: 34px; font-size: 0.95rem; }
+.ws-assigned-worker-row {
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.ws-assigned-worker-row:hover { border-color: var(--accent); }
+.ws-assigned-name { font-size: 13px; }
+.ws-assigned-role,
+.ws-assigned-tickets { font-size: 12px; }
+
+/* ══ Kanban ══ */
+.ws-kanban-board { grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 12px; }
+.ws-kanban-col {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.ws-kanban-col-header { padding: 8px 12px; background: transparent; }
+.ws-kanban-col-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.ws-kanban-col-count {
+  padding: 1px 8px;
+  background: var(--bg-active);
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+.ws-kanban-col-body { padding: 10px; gap: 8px; }
+.ws-kanban-card {
+  padding: 10px 12px;
+  gap: 6px;
+  border: 1px solid var(--border-default);
+  border-left: 2px solid var(--border-strong, var(--border-default));
+  border-radius: 6px;
+  background: var(--bg-base);
+}
+.ws-kanban-card:hover {
+  transform: none;
+  border-color: var(--accent);
+  box-shadow: none;
+}
+.ws-kanban-priority { padding: 2px 8px; font-size: 10px; border-radius: 99px; }
+.ws-kanban-card-title { font-size: 13px; }
+.ws-kanban-card-desc { font-size: 12px; }
+.ws-kanban-desc-toggle { font-size: 11.5px; }
+.ws-kanban-assignee,
+.ws-kanban-unassigned { width: 22px; height: 22px; font-size: 0.7rem; }
+.ws-kanban-assignee-name { font-size: 12px; }
+.ws-kanban-status-select {
+  padding: 3px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--bg-surface);
+  font-size: 11.5px;
+}
+.workspace-status-select { border: 1px solid var(--border-default); background: var(--bg-surface); }
+
+/* ══ Logs ══ */
+.workspace-logs-container { gap: 6px; }
+.workspace-log-item {
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+.workspace-log-item:hover { border-color: var(--accent); }
+.workspace-log-message { font-size: 12.5px; }
+.workspace-log-time { font-size: 11px; }
+
+/* ══ Stones and build kits (light touch) ══ */
+.ws-stones-grid { gap: 12px; }
+.ws-stone-card { padding: 16px 16px 14px; border-radius: 8px; background: var(--bg-surface); }
+.ws-stone-card:hover { transform: none; box-shadow: none; background: var(--bg-hover); }
+.ws-stone-label { font-size: 13px; }
+.ws-stone-preview { font-size: 12.5px; }
+.ws-bk-flow-parent,
+.ws-bk-flow-card {
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+}
+.ws-bk-flow-card:hover { border-color: var(--accent); }
+.ws-bk-flow-empty { border-color: var(--border-default); }
+
+/* ══ Legacy workspace modals (stone, build kit detail) ══ */
+.workspace-modal {
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-xl, 0 20px 60px rgba(0, 0, 0, 0.6));
+}
+.workspace-modal-header { padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); }
+.workspace-modal-header h2 { font-size: 13px; }
+.workspace-modal-form { padding: 16px; }
+.workspace-modal-footer { padding: 10px 14px; border-top: 1px solid var(--border-subtle); }
+.workspace-modal-close { width: 24px; height: 24px; background: transparent; }
+.workspace-modal-close svg { width: 14px; height: 14px; display: block; }
+.workspace-modal-close:hover { background: var(--bg-active); color: var(--text-primary); }
+.workspace-form-error { margin: 0 16px 12px; padding: 8px 12px; font-size: 12.5px; }
+
+/* ══ Edit ticket modal ══ */
+.ui-modal:has(.ws-edit-ticket-grid) { width: min(900px, 94vw); }
+.ws-edit-ticket-grid { grid-template-columns: 280px 1fr; gap: 18px; }
+.ws-edit-ticket-left { gap: 12px; }
+.ws-edit-ticket-right textarea { min-height: 320px; }
+
+@media (max-width: 1100px) {
+  .ws-kanban-board { grid-template-columns: repeat(3, minmax(220px, 1fr)); }
+  .ws-home-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .ws-kanban-board { grid-template-columns: repeat(2, minmax(155px, 1fr)); }
+  .ws-edit-ticket-grid { grid-template-columns: 1fr; }
+  .workspace-body { padding: 12px 14px; }
+}
