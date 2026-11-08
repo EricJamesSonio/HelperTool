@@ -1,6 +1,19 @@
 import { state } from '../../app_manager/appState.js';
 import { esc } from '../highlight.js';
 import { EXTENSIONS } from './registry.js';
+const MEMO_MAX = 24;
+const memo = new Map();
+let idsMemo = null;
+let extsMemo = null;
+
+function sigOf(text, ids) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ids.join(',') + '|' + text.length + '|' + (h >>> 0);
+}
 
 const LS_PREFIX = 'helpertool-ide-ext:';
 const MAX_TEXT = 600000;
@@ -53,7 +66,14 @@ function isOn(id) {
 }
 
 function activeIds() {
-  return EXTENSIONS.filter((e) => isOn(e.id)).map((e) => e.id);
+  if (idsMemo) return idsMemo;
+  const list = EXTENSIONS.filter((e) => isOn(e.id));
+  idsMemo = list.map((e) => e.id);
+  extsMemo = new Set();
+  for (const x of list) {
+    for (const f of x.fileExts) extsMemo.add(f);
+  }
+  return idsMemo;
 }
 
 function fileExt(name) {
@@ -63,9 +83,8 @@ function fileExt(name) {
 }
 
 export function handles(name) {
-  const e = fileExt(name);
-  const ids = activeIds();
-  return EXTENSIONS.some((x) => ids.indexOf(x.id) !== -1 && x.fileExts.indexOf(e) !== -1);
+  activeIds();
+  return !!extsMemo && extsMemo.has(fileExt(name));
 }
 
 export function hasActive() {
@@ -86,6 +105,14 @@ export function analyze(path, name, getText, delay, done) {
       if (my === seq) done([]);
       return;
     }
+    const sig = sigOf(text, ids);
+    const hit = memo.get(path);
+    if (hit && hit.sig === sig) {
+      memo.delete(path);
+      memo.set(path, hit);
+      done(hit.diags);
+      return;
+    }
     let res = null;
     try {
       res = await window.ideExtAPI.diagnose({ file: path, text, exts: ids });
@@ -93,7 +120,14 @@ export function analyze(path, name, getText, delay, done) {
       res = null;
     }
     if (my !== seq) return;
-    done(res && res.success && Array.isArray(res.diags) ? res.diags : []);
+    const ok = !!(res && res.success && Array.isArray(res.diags));
+    const diags = ok ? res.diags : [];
+    if (ok) {
+      memo.delete(path);
+      memo.set(path, { sig, diags });
+      if (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value);
+    }
+    done(diags);
   }, Math.max(0, delay || 0));
 }
 
@@ -106,12 +140,14 @@ function updateBadge() {
 }
 
 function refresh(notify) {
+  idsMemo = null;
+  extsMemo = null;
   updateBadge();
   if (overlay && !overlay.hidden) renderModal();
   if (notify && handlers.onChange) handlers.onChange();
 }
 
-async function detect() {
+async function detect(force) {
   const root = state.selectedRepoPath;
   const my = ++detecting;
   if (!root || !window.ideExtAPI) {
@@ -121,12 +157,15 @@ async function detect() {
   }
   let res = null;
   try {
-    res = await window.ideExtAPI.detect(root);
+    res = await window.ideExtAPI.detect(force ? { root, force: true } : root);
   } catch (_) {
     res = null;
   }
   if (my !== detecting || root !== state.selectedRepoPath) return;
-  stacks = res && res.success && res.stacks ? res.stacks : {};
+  const next = res && res.success && res.stacks ? res.stacks : {};
+  const same = JSON.stringify(next) === JSON.stringify(stacks);
+  stacks = next;
+  if (same) return;
   refresh(true);
 }
 
@@ -190,7 +229,7 @@ function onOverlayClick(e) {
   if (!b) return;
   const act = b.dataset.act;
   if (act === 'close') close();
-  else if (act === 'redetect') detect();
+  else if (act === 'redetect') detect(true);
   else if (act === 'toggle') toggle(b.dataset.id);
 }
 
