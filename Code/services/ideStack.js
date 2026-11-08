@@ -106,7 +106,6 @@ async function scanDir(dir, label, found) {
 }
 
 async function detectStack(root) {
-  const found = {};
   const targets = [{ dir: root, label: 'repo root' }];
   const rootEntries = await listDir(root);
   const rootDirs = new Set(rootEntries.filter((e) => e.isDirectory()).map((e) => e.name));
@@ -125,8 +124,16 @@ async function detectStack(root) {
     }
   }
 
-  for (let i = 0; i < targets.length && i < MAX_DIRS; i++) {
-    await scanDir(targets[i].dir, targets[i].label, found);
+  const parts = await Promise.all(targets.slice(0, MAX_DIRS).map(async (t) => {
+    const f = {};
+    await scanDir(t.dir, t.label, f);
+    return f;
+  }));
+  const found = {};
+  for (const part of parts) {
+    for (const id of Object.keys(part)) {
+      if (!found[id]) found[id] = part[id];
+    }
   }
   return found;
 }
