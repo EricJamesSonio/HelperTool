@@ -1,27 +1,18 @@
-const TERMINAL_THEME = {
-  background: '#050a08',
-  foreground: '#ffffff',
-  cursor: '#ffffff',
-  cursorAccent: '#050a08',
-  selectionBackground: '#2f6fd0',
-  selectionInactiveBackground: '#3a4a5a',
-  black: '#1a1a1a',
-  red: '#ff6b69',
-  green: '#3fb950',
-  yellow: '#e3b341',
-  blue: '#58a6ff',
-  magenta: '#d2a8ff',
-  cyan: '#39c5cf',
-  white: '#e6edf3',
-  brightBlack: '#8b949e',
-  brightRed: '#ff8e8c',
-  brightGreen: '#56d364',
-  brightYellow: '#f2cc60',
-  brightBlue: '#79c0ff',
-  brightMagenta: '#e2c5ff',
-  brightCyan: '#56d4dd',
-  brightWhite: '#ffffff',
-};
+function cssVar(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function withAlpha(color, alpha) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(color).trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+}
 
 const FORCED_OPTIONS = {
   scrollback: 4000,
@@ -30,7 +21,46 @@ const FORCED_OPTIONS = {
 };
 
 export function getTerminalTheme() {
-  return { ...TERMINAL_THEME };
+  const bg = cssVar('--bg-base', '#000000');
+  const fg = cssVar('--text-primary', '#ffffff');
+  const accent = cssVar('--accent', '#2f81f7');
+  const green = cssVar('--green', '#3fb950');
+  const red = cssVar('--red', '#ff6b69');
+  const yellow = cssVar('--yellow', '#d29922');
+  const blue = cssVar('--blue', '#2f81f7');
+  const purple = cssVar('--purple', '#bc8cff');
+  const raised = cssVar('--bg-raised', '#181818');
+  const secondary = cssVar('--text-secondary', '#e0e4e8');
+  const faint = cssVar('--text-faint', '#707880');
+  const muted = cssVar('--text-muted', '#a0a8b0');
+  const selection = withAlpha(accent, 0.45) || '#2f6fd0';
+  const inactive = withAlpha(accent, 0.25) || '#3a4a5a';
+  return {
+    background: bg,
+    foreground: fg,
+    cursor: accent,
+    cursorAccent: bg,
+    selectionBackground: selection,
+    selectionInactiveBackground: inactive,
+    black: raised,
+    red: red,
+    green: green,
+    yellow: yellow,
+    blue: blue,
+    magenta: purple,
+    cyan: '#39c5cf',
+    white: secondary,
+    brightBlack: faint,
+    brightRed: red,
+    brightGreen: green,
+    brightYellow: yellow,
+    brightBlue: cssVar('--accent-hover', '#58a6ff'),
+    brightMagenta: purple,
+    brightCyan: '#56d4dd',
+    brightWhite: fg,
+    extendedAnsi: undefined,
+    muted: muted,
+  };
 }
 
 function flash(parent, text) {
@@ -39,7 +69,7 @@ function flash(parent, text) {
   el.textContent = text;
   el.style.cssText =
     'position:absolute;right:12px;bottom:10px;z-index:20;padding:3px 10px;border-radius:5px;' +
-    'font-size:11px;font-weight:600;color:#fff;background:rgba(47,129,247,0.92);' +
+    'font-size:11px;font-weight:600;color:#fff;background:var(--accent, #2f81f7);' +
     'pointer-events:none;opacity:1;transition:opacity 0.25s';
   parent.appendChild(el);
   setTimeout(() => {
