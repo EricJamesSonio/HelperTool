@@ -1,4 +1,4 @@
-/* ── Terminal Bottom Panel — Green/Theme ──────────────────── */
+/* ── Terminal Panel — follows the global theme tokens ─────── */
 
 .terminal-panel {
   position: fixed;
@@ -7,11 +7,13 @@
   right: 0;
   height: 260px;
   z-index: 900;
-  background: #050a08;
-  border-top: 1px solid rgba(35, 209, 139, 0.2);
   display: none;
   flex-direction: column;
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.4), 0 0 40px rgba(35, 209, 139, 0.04);
+  background: var(--bg-base);
+  border-top: 1px solid var(--border-default);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+  font-family: var(--font-ui);
+  color: var(--text-secondary);
   animation: terminalSlideUp 0.18s ease-out;
 }
 
@@ -24,35 +26,51 @@
   display: flex;
 }
 
-/* ── Resize Handle (always visible accent line) ── */
+/* ── Docked inside the IDE editor column ── */
+.terminal-panel.terminal-panel--docked {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 120px;
+  box-shadow: none;
+  animation: none;
+  border-top: 1px solid var(--border-default);
+}
+
+/* ── Resize handle ── */
 .terminal-resize-handle {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   cursor: ns-resize;
   z-index: 10;
-  flex-shrink: 0;
-  background: rgba(35, 209, 139, 0.15);
-  transition: background 0.15s;
+  background: transparent;
+  transition: background 0.12s;
 }
 .terminal-resize-handle:hover,
 .terminal-resize-handle:active {
-  background: #23d18b;
-  height: 4px;
-  box-shadow: 0 0 12px rgba(35, 209, 139, 0.3);
+  background: var(--accent);
+}
+.terminal-panel--docked .terminal-resize-handle {
+  top: -2px;
+  height: 5px;
 }
 
-/* ── Tab Bar ── */
+/* ── Tab bar ── */
 .terminal-tabs {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0;
   min-height: 36px;
-  padding: 0 4px;
-  background: #0a120e;
-  border-bottom: 1px solid rgba(35, 209, 139, 0.12);
+  padding: 0 6px 0 4px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -60,62 +78,76 @@
 }
 .terminal-tabs::-webkit-scrollbar { display: none; }
 
+.terminal-tabs-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.terminal-tabs-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .terminal-tab {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  margin: 3px 0 0 2px;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
-  background: transparent;
-  color: #6a8a7a;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-  transition: all 0.12s;
   flex-shrink: 0;
-  position: relative;
+  padding: 0 8px 0 12px;
+  border: 0;
+  border-right: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
 .terminal-tab:hover {
-  background: rgba(35, 209, 139, 0.06);
-  color: #9acdb0;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 .terminal-tab.active {
-  background: #050a08;
-  color: #e0f2e8;
-  border-color: rgba(35, 209, 139, 0.2);
-  border-bottom-color: #050a08;
+  background: var(--bg-base);
+  color: var(--text-primary);
 }
 .terminal-tab.active::before {
   content: '';
   position: absolute;
-  top: -1px;
-  left: -1px;
-  right: -1px;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 2px;
-  background: #23d18b;
-  border-radius: 2px 2px 0 0;
-  box-shadow: 0 0 8px rgba(35, 209, 139, 0.4);
+  background: var(--accent);
 }
 
+.terminal-tab-shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .terminal-tab-icon {
   display: inline-flex;
   align-items: center;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 .terminal-tab-icon svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   display: block;
 }
-
 .terminal-tab-name {
-  max-width: 120px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -126,23 +158,21 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  border: none;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   background: transparent;
-  color: #4a6a5a;
-  cursor: pointer;
-  opacity: 0.4;
-  transition: all 0.1s;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
   flex-shrink: 0;
 }
 .terminal-tab:hover .terminal-tab-close,
 .terminal-tab.active .terminal-tab-close {
-  opacity: 0.7;
+  opacity: 0.8;
 }
 .terminal-tab-close:hover {
   opacity: 1 !important;
-  background: rgba(241, 76, 76, 0.2);
-  color: #f14c4c;
+  background: var(--red-dim);
+  color: var(--red);
 }
 .terminal-tab-close svg {
   width: 12px;
@@ -150,48 +180,51 @@
   display: block;
 }
 
-/* ── Add Terminal Button (+ Shell Name) ── */
+/* ── New terminal button ── */
 .terminal-tab-add {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 28px;
+  height: 26px;
+  margin: 0 6px 0 2px;
   padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: #6a8a7a;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.12s;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-  font-size: 11px;
-  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .terminal-tab-add:hover {
-  background: rgba(35, 209, 139, 0.08);
-  color: #c0e6d0;
-  border-color: rgba(35, 209, 139, 0.25);
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
-.terminal-tab-add-icon {
+.terminal-tab-add-icon,
+.terminal-tab-add-chevron {
   display: inline-flex;
   align-items: center;
-  width: 16px;
-  height: 16px;
+}
+.terminal-tab-add-icon {
+  width: 14px;
+  height: 14px;
 }
 .terminal-tab-add-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: block;
 }
 .terminal-tab-add-label {
-  max-width: 90px;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .terminal-tab-add-chevron {
-  display: inline-flex;
-  align-items: center;
   width: 12px;
   height: 12px;
 }
@@ -201,87 +234,17 @@
   display: block;
 }
 
-/* ── Tab left spacer ── */
-.terminal-tabs-left {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-/* ── Tab right spacer ── */
-.terminal-tabs-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-/* ── Shell Selector Button ── */
-.terminal-shell-select-wrapper {
-  position: relative;
-  display: inline-flex;
-}
-.terminal-shell-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: #6a8a7a;
-  font-size: 11px;
-  cursor: pointer;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-  transition: all 0.1s;
-  white-space: nowrap;
-}
-.terminal-shell-btn:hover {
-  background: rgba(35, 209, 139, 0.08);
-  color: #c0e6d0;
-  border-color: rgba(35, 209, 139, 0.25);
-}
-.terminal-shell-btn-icon {
-  display: inline-flex;
-  width: 14px;
-  height: 14px;
-}
-.terminal-shell-btn-icon svg {
-  width: 14px;
-  height: 14px;
-  display: block;
-}
-.terminal-shell-btn-label {
-  max-width: 90px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.terminal-shell-btn-chevron {
-  display: inline-flex;
-  width: 12px;
-  height: 12px;
-  align-items: center;
-}
-.terminal-shell-btn-chevron svg {
-  width: 12px;
-  height: 12px;
-  display: block;
-}
-
-/* ── Shell Dropdown (fixed position, placed by JS) ── */
+/* ── Shell dropdown (placed by JS) ── */
 .terminal-shell-dropdown {
   position: fixed;
   z-index: 9999;
-  min-width: 180px;
-  background: linear-gradient(135deg, #0a120e, #050a08);
-  border: 1px solid rgba(35, 209, 139, 0.2);
-  border-radius: 8px;
-  box-shadow: 0 -4px 16px rgba(0,0,0,0.5), 0 0 20px rgba(35, 209, 139, 0.04);
-  padding: 4px;
   display: none;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
 }
 .terminal-shell-dropdown.open {
   display: block;
@@ -290,20 +253,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: #9ab8a8;
-  font-size: 13px;
-  cursor: pointer;
   width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
   text-align: left;
-  transition: background 0.1s;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
 }
 .terminal-shell-option:hover {
-  background: rgba(35, 209, 139, 0.1);
-  color: #e0f2e8;
+  background: var(--accent-dim);
+  color: var(--text-primary);
 }
 .terminal-shell-option-icon {
   display: inline-flex;
@@ -316,30 +280,27 @@
   display: block;
 }
 
-/* ── Terminal Body ── */
+/* ── Terminal body ── */
 .terminal-body {
   flex: 1;
   position: relative;
   overflow: hidden;
   min-height: 0;
+  background: var(--bg-base);
 }
 
 .terminal-instance {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   display: none;
 }
 .terminal-instance.active {
   display: block;
 }
 
-/* ── xterm overrides ── */
 .terminal-instance .xterm {
   height: 100%;
-  padding: 4px 0 4px 4px;
+  padding: 4px 0 4px 8px;
 }
 .terminal-instance .xterm-viewport {
   scrollbar-width: thin;
@@ -352,42 +313,41 @@
   background: transparent;
 }
 .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(35, 209, 139, 0.15);
+  background: var(--border-strong);
   border-radius: 99px;
 }
 .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(35, 209, 139, 0.3);
+  background: var(--text-faint);
 }
 
-/* ── Terminal instance floating output button ── */
+/* ── Floating output button ── */
 .terminal-instance-output-btn {
   position: absolute;
   top: 4px;
-  right: 4px;
+  right: 14px;
   z-index: 10;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 5px;
-  border: 1px solid rgba(35, 209, 139, 0.1);
-  background: rgba(5, 10, 8, 0.85);
-  color: #4a8a6a;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
-  backdrop-filter: blur(4px);
+  transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s;
 }
 .terminal-instance:hover .terminal-instance-output-btn {
   opacity: 1;
   pointer-events: auto;
 }
 .terminal-instance-output-btn:hover {
-  background: rgba(35, 209, 139, 0.15);
-  color: #23d18b;
-  border-color: rgba(35, 209, 139, 0.3);
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-border);
 }
 .terminal-instance-output-btn svg {
   width: 14px;
@@ -395,7 +355,7 @@
   display: block;
 }
 
-/* ── Close Terminal Panel button ── */
+/* ── Close panel button ── */
 .terminal-panel-close {
   display: inline-flex;
   align-items: center;
@@ -403,16 +363,16 @@
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: transparent;
-  color: #6a8a7a;
+  color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.1s;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
 .terminal-panel-close:hover {
-  background: rgba(241, 76, 76, 0.15);
-  color: #f87171;
-  border-color: rgba(241, 76, 76, 0.25);
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: var(--red);
 }
 .terminal-panel-close svg {
   width: 16px;
@@ -420,7 +380,7 @@
   display: block;
 }
 
-/* ── View Output button ── */
+/* ── View output button ── */
 .terminal-view-output {
   display: inline-flex;
   align-items: center;
@@ -428,20 +388,20 @@
   height: 28px;
   padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: transparent;
-  color: #6a8a7a;
-  cursor: pointer;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
   font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  transition: all 0.12s;
+  font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .terminal-view-output:hover {
-  background: rgba(35, 209, 139, 0.08);
-  color: #23d18b;
-  border-color: rgba(35, 209, 139, 0.25);
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-border);
 }
 .terminal-view-output svg {
   width: 14px;
@@ -450,16 +410,16 @@
   flex-shrink: 0;
 }
 
-/* ── Output Viewer Modal ────────────────────────────────── */
+/* ── Output Viewer Modal ───────────────────────────────── */
 
 .ov-overlay {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: rgba(0,0,0,0.6);
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -472,10 +432,10 @@
   flex-direction: column;
   width: min(92vw, 1200px);
   height: min(85vh, 800px);
-  background: var(--bg-elevated, #0f172a);
-  border: 1px solid var(--border-default, rgba(255,255,255,0.10));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   transform: scale(0.96);
   transition: transform 0.15s ease;
@@ -488,25 +448,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
-  flex-shrink: 0;
   gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 .ov-title {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--text-primary, #eef2ff);
-  min-width: 0;
+  color: var(--text-primary);
 }
 .ov-title-icon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: var(--accent, #22d3ee);
+  color: var(--accent);
 }
 
 .ov-actions {
@@ -521,39 +481,39 @@
   gap: 5px;
   height: 30px;
   padding: 0 10px;
-  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  font-family: inherit;
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.1s;
-  font-family: inherit;
-  border: 1px solid var(--border-default, rgba(255,255,255,0.08));
 }
 .ov-btn-copy {
-  background: var(--bg-raised, #1a2540);
-  color: var(--text-primary, #eef2ff);
+  background: var(--bg-raised);
+  color: var(--text-primary);
 }
 .ov-btn-copy:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.08));
-  border-color: var(--accent, #22d3ee);
+  background: var(--bg-hover);
+  border-color: var(--accent);
 }
 .ov-btn--copied {
-  background: rgba(35, 209, 139, 0.15) !important;
-  color: #23d18b !important;
-  border-color: rgba(35, 209, 139, 0.3) !important;
+  background: var(--green-dim) !important;
+  color: var(--green) !important;
+  border-color: var(--green) !important;
 }
 .ov-btn-close {
+  width: 30px;
+  padding: 0 4px;
+  justify-content: center;
   background: transparent;
   border: 1px solid transparent;
-  color: var(--text-muted, #556080);
-  padding: 0 4px;
-  width: 30px;
-  justify-content: center;
+  color: var(--text-muted);
 }
 .ov-btn-close:hover {
-  background: rgba(241, 76, 76, 0.15);
-  color: #f14c4c;
-  border-color: rgba(241, 76, 76, 0.3);
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: var(--red);
 }
 
 .ov-body {
@@ -561,15 +521,15 @@
   min-height: 0;
   overflow: auto;
   padding: 0;
-  background: var(--bg-canvas, #080e1a);
+  background: var(--bg-base);
 }
 .ov-content {
   margin: 0;
   padding: 14px 16px;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.45;
-  color: var(--text-primary, #eef2ff);
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: break-word;
@@ -581,10 +541,10 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 14px;
-  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.04));
+  border-top: 1px solid var(--border-subtle);
   flex-shrink: 0;
   font-size: 0.65rem;
-  color: var(--text-faint, #364060);
+  color: var(--text-faint);
 }
 .ov-footer-info {
   display: flex;
@@ -597,39 +557,37 @@
   font-weight: 600;
 }
 
-/* ── Command label ── */
 .ov-command {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
   margin: 0 0 1px 0;
-  background: rgba(35, 209, 139, 0.06);
-  border-bottom: 1px solid rgba(35, 209, 139, 0.12);
+  padding: 8px 14px;
+  background: var(--green-dim);
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
 .ov-command-label {
+  flex-shrink: 0;
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #23d18b;
-  flex-shrink: 0;
+  color: var(--green);
 }
 .ov-command-text {
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-  font-size: 0.78rem;
-  color: var(--text-primary, #eef2ff);
-  background: rgba(0,0,0,0.3);
   padding: 3px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--r-sm);
+  background: var(--bg-base);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-primary);
   user-select: all;
 }
 
-/* ── Output viewer entry boxes ── */
 .ov-body-entries {
   display: flex;
   flex-direction: column;
@@ -637,44 +595,44 @@
   padding: 12px;
 }
 .ov-entry {
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.025);
   flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
 }
 .ov-entry-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 10px;
-  background: rgba(35, 209, 139, 0.07);
-  border-bottom: 1px solid rgba(35, 209, 139, 0.15);
   gap: 8px;
+  padding: 5px 10px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .ov-entry-command {
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  color: #23d18b;
-  white-space: nowrap;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
   user-select: all;
-  min-width: 0;
 }
 .ov-entry-output {
+  position: relative;
   padding: 8px 10px;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  overflow: hidden;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
-  color: var(--text-primary, #eef2ff);
+  color: var(--text-primary);
   cursor: pointer;
-  position: relative;
   transition: max-height 0.25s ease, background 0.1s;
-  overflow: hidden;
 }
 .ov-entry-output.collapsed {
   max-height: 120px;
@@ -686,7 +644,7 @@
   left: 0;
   right: 0;
   height: 40px;
-  background: linear-gradient(transparent, rgba(8,14,26,0.95));
+  background: linear-gradient(transparent, var(--bg-surface));
   pointer-events: none;
 }
 .ov-entry-output.expanded {
@@ -694,7 +652,7 @@
   overflow-y: auto;
 }
 .ov-entry-output:hover {
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-hover);
 }
 .ov-entry-copy {
   display: inline-flex;
@@ -702,24 +660,22 @@
   gap: 4px;
   height: 24px;
   padding: 0 10px;
-  border: 1px solid rgba(96, 165, 250, 0.15);
-  border-radius: 4px;
-  background: rgba(96, 165, 250, 0.06);
-  color: #60a5fa;
-  cursor: pointer;
+  flex-shrink: 0;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: inherit;
   font-size: 11px;
   font-weight: 600;
-  font-family: inherit;
-  flex-shrink: 0;
+  cursor: pointer;
   transition: all 0.12s;
 }
 .ov-entry-copy:hover {
-  background: rgba(96, 165, 250, 0.15);
-  color: #93c5fd;
-  border-color: rgba(96, 165, 250, 0.35);
+  background: var(--accent-glow);
+  border-color: var(--accent);
 }
 
-/* Scrollbar styling */
 .ov-body::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -728,22 +684,21 @@
   background: transparent;
 }
 .ov-body::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.08);
+  background: var(--border-strong);
   border-radius: 99px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 .ov-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.15);
+  background: var(--text-faint);
   background-clip: content-box;
 }
 
-/* ── Terminal URL bar (per-instance) ── */
-
+/* ── Terminal URL bar (per instance) ── */
 .terminal-url-bar {
   position: absolute;
   bottom: 4px;
-  left: 4px;
+  left: 8px;
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
@@ -754,19 +709,17 @@
 .terminal-url-btn {
   pointer-events: auto;
   padding: 2px 8px;
-  border: 1px solid rgba(35, 209, 139, 0.25);
-  border-radius: 4px;
-  background: rgba(12, 12, 12, 0.85);
-  color: #23d18b;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s;
-  white-space: nowrap;
-  backdrop-filter: blur(4px);
 }
-
 .terminal-url-btn:hover {
-  background: rgba(35, 209, 139, 0.15);
-  border-color: #23d18b;
+  background: var(--accent-dim);
+  border-color: var(--accent);
 }
