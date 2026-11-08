@@ -39,15 +39,18 @@ function scanFileNames(names, label, found) {
   let cpp = 0;
   let php = 0;
   let py = 0;
+  let vue = 0;
   for (const n of names) {
     const e = extOf(n);
     if (CPP_EXTS.has(e)) cpp++;
     else if (e === 'php') php++;
     else if (e === 'py') py++;
+    else if (e === 'vue') vue++;
   }
   if (cpp) mark(found, 'cpp', cpp + ' C/C++ source file(s) in ' + label);
   if (php) mark(found, 'php', php + ' PHP file(s) in ' + label);
   if (py) mark(found, 'python', py + ' Python file(s) in ' + label);
+  if (vue) mark(found, 'vue', vue + ' Vue file(s) in ' + label);
 }
 
 async function scanDir(dir, label, found) {
@@ -63,11 +66,25 @@ async function scanDir(dir, label, found) {
       const deps = Object.assign({}, pkg.dependencies, pkg.devDependencies);
       if (deps.next) mark(found, 'nextjs', '"next" dependency in ' + label);
       if (deps['@nestjs/core'] || deps['@nestjs/common']) mark(found, 'nestjs', '@nestjs packages in ' + label);
+      if (deps.vue || deps.nuxt || deps['@vue/cli-service']) mark(found, 'vue', '"vue" dependency in ' + label);
+      if (deps['@angular/core']) mark(found, 'angular', '@angular/core in ' + label);
+      if (deps.prettier) mark(found, 'prettier', '"prettier" dependency in ' + label);
     }
   }
   if (files.some((n) => /^next\.config\.(js|mjs|cjs|ts)$/.test(n))) {
     mark(found, 'js', 'next.config in ' + label);
     mark(found, 'nextjs', 'next.config in ' + label);
+  }
+  if (files.some((n) => /^(vue|nuxt)\.config\.(js|mjs|cjs|ts)$/.test(n))) {
+    mark(found, 'js', 'vue or nuxt config in ' + label);
+    mark(found, 'vue', 'vue or nuxt config in ' + label);
+  }
+  if (set.has('angular.json')) {
+    mark(found, 'js', 'angular.json in ' + label);
+    mark(found, 'angular', 'angular.json in ' + label);
+  }
+  if (files.some((n) => /^\.prettierrc(\..+)?$/.test(n) || /^prettier\.config\.(js|cjs|mjs|ts)$/.test(n))) {
+    mark(found, 'prettier', 'Prettier config in ' + label);
   }
   if (set.has('nest-cli.json')) {
     mark(found, 'js', 'nest-cli.json in ' + label);

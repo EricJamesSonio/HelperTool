@@ -711,7 +711,7 @@ function checkJson(c, text, file) {
 }
 
 async function checkJsFamily(c, text, file, ext, has) {
-  if (!has('js', 'nextjs', 'nestjs')) return;
+  if (!has('js', 'nextjs', 'nestjs', 'angular')) return;
   const label = ext === 'ts' || ext === 'tsx' ? 'TypeScript' : 'JavaScript';
   const scoped = has('js') && (ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') && text.length <= 150000;
   const onClean = scoped ? (root) => require('./ideScope.js').findUndefined(root, text, c) : null;
@@ -720,6 +720,7 @@ async function checkJsFamily(c, text, file, ext, has) {
   if (has('js')) lintJs(c, text, m, ext, label);
   if (has('nextjs')) lintNext(c, text, m, file);
   if (has('nestjs') && (ext === 'ts' || ext === 'js')) lintNest(c, text, m);
+  if (has('angular') && ext === 'ts') lintAngular(c, text, m);
 }
 
 async function checkPhp(c, text, file, has) {
@@ -727,6 +728,178 @@ async function checkPhp(c, text, file, has) {
   const m = mask(text, 'php').masked;
   if (has('php')) lintPhp(c, m);
   if (has('laravel')) lintLaravel(c, text, m, file);
+}
+const TAG_RE = /<([A-Za-z][\w:-]*)((?:\s+[^\s=<>"'\/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>=`]+))?)*)\s*\/?>/g;
+
+function blankOut(s) {
+  return s.replace(/[^\n]/g, ' ');
+}
+
+function sliceKeep(text, ranges) {
+  let out = '';
+  let pos = 0;
+  for (const r of ranges) {
+    out += blankOut(text.slice(pos, r.start)) + text.slice(r.start, r.end);
+    pos = r.end;
+  }
+  return out + blankOut(text.slice(pos));
+}
+
+function lintVueScript(c, m, hasSetup, onlyPlain) {
+  rx(/\bdata\s*:\s*\{/g, m, (x) => c.add(x.index, 4, 'error', "'data' must be a function returning an object: data() { return {...} }", 'Vue'));
+  if (hasSetup) {
+    rx(/\bthis\s*\./g, m, (x) => c.add(x.index, 4, 'warning', "'this' is not available in <script setup>", 'Vue'));
+  }
+  rx(/\bprops\.\w+\s*=(?![=>])/g, m, (x) => c.add(x.index, x[0].replace(/\s*=$/, '').length, 'warning', 'Props are read-only; emit an event or copy the value instead', 'Vue'));
+  if (onlyPlain && !/\bexport\s+default\b/.test(m)) {
+    c.addAt(1, 0, 1, 'warning', '<script> has no default export, so the component will be empty', 'Vue');
+  }
+}
+
+function lintVueTemplate(c, t) {
+  rx(TAG_RE, t, (x) => {
+    const tag = x[1];
+    const attrs = x[2] || '';
+    if (/(?:^|\s)v-for\s*=/.test(attrs)) {
+      const hasKey = /(?:^|\s)(?::|v-bind:)key\s*=/.test(attrs);
+      if (!hasKey && tag !== 'template') c.add(x.index + 1, tag.length, 'warning', 'Elements with v-for need a unique :key', 'Vue');
+      if (/(?:^|\s)v-if\s*=/.test(attrs)) c.add(x.index + 1, tag.length, 'warning', 'v-if and v-for on one element behave differently in Vue 2 and 3; wrap one in <template>', 'Vue');
+      const idx = /v-for\s*=\s*["']\(\s*[\w$]+\s*,\s*([\w$]+)\s*\)\s+in\b/.exec(attrs);
+      const key = /(?::|v-bind:)key\s*=\s*["']([\w$]+)["']/.exec(attrs);
+      if (idx && key && idx[1] === key[1]) c.add(x.index + 1, tag.length, 'info', 'Using the array index as :key breaks reordering; use a stable id', 'Vue');
+    }
+    if (/(?:^|\s)v-html\s*=/.test(attrs)) {
+      c.add(x.index + x[0].indexOf('v-html'), 6, 'warning', 'v-html renders raw HTML (XSS risk); only use it with trusted content', 'Vue');
+    }
+  });
+  let n = 0;
+  rx(/\{\{/g, t, (x) => {
+    if (n++ > 200) return;
+    if (t.indexOf('}}', x.index + 2) === -1) c.add(x.index, 2, 'error', "Unclosed '{{' (missing '}}')", 'Vue');
+  });
+}
+
+async function checkVue(c, text) {
+  const clean = text.replace(/<!--[\s\S]*?-->/g, blankOut);
+  const scripts = [];
+  rx(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, clean, (x) => {
+    const start = x.index + x[0].length - x[2].length - 9;
+    scripts.push({ attrs: x[1], start, end: start + x[2].length });
+  });
+  if (/<script\b/i.test(clean) && !scripts.length) {
+    c.add(clean.search(/<script\b/i), 7, 'error', 'Unclosed <script> tag (missing </script>)', 'Vue');
+  }
+  const hasSetup = scripts.some((s) => /\bsetup\b/.test(s.attrs));
+  const onlyPlain = scripts.length > 0 && scripts.every((s) => !/\bsetup\b/.test(s.attrs));
+  const isTs = scripts.some((s) => /lang\s*=\s*["']?tsx?\b/.test(s.attrs));
+  const open = /^<template\b[^>]*>/m.exec(clean);
+  let tplEnd = -1;
+  rx(/^<\/template>/gm, clean, (x) => {
+    tplEnd = x.index;
+  });
+  if (open && tplEnd < 0) c.add(open.index, 9, 'error', 'Unclosed <template> block (missing </template>)', 'Vue');
+  if (scripts.length) {
+    const code = sliceKeep(clean, scripts.map((s) => ({ start: s.start, end: s.end })));
+    if (code.length <= MAX_PARSE) await syntaxErrors(c, isTs ? 'typescript' : 'javascript', code, 'Vue');
+    const m = mask(code, 'js').masked;
+    lintJs(c, code, m, isTs ? 'ts' : 'js', 'Vue');
+    lintVueScript(c, m, hasSetup, onlyPlain);
+  }
+  if (open && tplEnd > open.index) {
+    lintVueTemplate(c, sliceKeep(clean, [{ start: open.index + open[0].length, end: tplEnd }]));
+  }
+}
+
+function balancedEnd(m, open) {
+  let depth = 0;
+  for (let i = open; i < m.length; i++) {
+    const ch = m[i];
+    if (ch === '(') {
+      depth++;
+    } else if (ch === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function lintAngular(c, text, m) {
+  const imported = new Set();
+  rx(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"][^'"]+['"]/g, text, (x) => {
+    x[1].split(',').forEach((s) => {
+      const name = s.trim().split(/\s+as\s+/).pop().trim();
+      if (name) imported.add(name);
+    });
+  });
+  const hasStar = /import\s*\*\s*as\s+\w+\s+from/.test(text);
+  const DECOS = ['Component', 'Directive', 'Injectable', 'NgModule', 'Pipe', 'Input', 'Output', 'ViewChild', 'ViewChildren', 'ContentChild', 'ContentChildren', 'HostListener', 'HostBinding'];
+  const seen = new Set();
+  if (!hasStar) {
+    rx(/@(\w+)\s*\(/g, m, (x) => {
+      const name = x[1];
+      if (DECOS.indexOf(name) === -1 || imported.has(name) || seen.has(name)) return;
+      seen.add(name);
+      c.add(x.index + 1, name.length, 'error', "'" + name + "' is not imported (expected from '@angular/core')", 'Angular');
+    });
+  }
+  rx(/@Component\s*\(/g, m, (x) => {
+    const open = x.index + x[0].length - 1;
+    const end = balancedEnd(m, open);
+    if (end < 0) return;
+    const body = m.slice(open, end);
+    if (!/\btemplate(?:Url)?\s*:/.test(body)) c.add(x.index + 1, 9, 'error', "@Component needs a 'template' or 'templateUrl'", 'Angular');
+  });
+  const HOOKS = [['ngOnInit', 'OnInit'], ['ngOnDestroy', 'OnDestroy'], ['ngOnChanges', 'OnChanges'], ['ngAfterViewInit', 'AfterViewInit']];
+  for (const h of HOOKS) {
+    const hit = new RegExp('\\b' + h[0] + '\\s*\\(').exec(m);
+    if (hit && !new RegExp('implements[^{]*\\b' + h[1] + '\\b').test(m)) {
+      c.add(hit.index, h[0].length, 'info', 'Class defines ' + h[0] + '() but does not implement ' + h[1], 'Angular');
+    }
+  }
+  if (/@(?:Component|Directive)\s*\(/.test(m) && !/\b(?:unsubscribe|takeUntil|takeUntilDestroyed|DestroyRef|toSignal)\b/.test(m)) {
+    let n = 0;
+    rx(/\.subscribe\s*\(/g, m, (x) => {
+      if (n++ < 3) c.add(x.index + 1, 9, 'info', 'Subscription is never cleaned up; use takeUntilDestroyed(), the async pipe or unsubscribe()', 'Angular');
+    });
+  }
+  const svc = /\bclass\s+(\w+Service)\b/.exec(m);
+  if (svc && /\bconstructor\s*\(\s*(?:private|public|protected|readonly)/.test(m) && !/@Injectable\s*\(/.test(m)) {
+    c.add(svc.index + 6, svc[1].length, 'warning', "Class '" + svc[1] + "' injects dependencies but has no @Injectable()", 'Angular');
+  }
+}
+
+function checkAngularHtml(c, text, file) {
+  const f = file.replace(/\\/g, '/');
+  const looksNg = /\*ng(?:If|For|Switch)|\[\(?ng|<ng-|\(click\)|@(?:if|for|switch)\s*\(/.test(text);
+  if (!/\.component\.html$/.test(f) && !looksNg) return;
+  const t = text.replace(/<!--[\s\S]*?-->/g, blankOut);
+  rx(TAG_RE, t, (x) => {
+    const attrs = x[2] || '';
+    const hasFor = /(?:^|\s)\*ngFor\s*=/.test(attrs);
+    const hasIf = /(?:^|\s)\*ngIf\s*=/.test(attrs);
+    if (hasFor && hasIf) {
+      c.add(x.index + x[0].indexOf('*ngFor'), 6, 'error', "Cannot use *ngFor and *ngIf on one element; wrap one in <ng-container>", 'Angular');
+    }
+    if (hasFor) {
+      const v = /\*ngFor\s*=\s*"([^"]*)"|\*ngFor\s*=\s*'([^']*)'/.exec(attrs);
+      const val = v ? (v[1] !== undefined ? v[1] : v[2]) : '';
+      const at = x.index + x[0].indexOf('*ngFor');
+      if (!/\blet\s+[\w$]+\s+of\b/.test(val)) c.add(at, 6, 'error', "*ngFor expects 'let item of items'", 'Angular');
+      else if (!/trackBy/.test(val)) c.add(at, 6, 'info', 'Add trackBy to *ngFor so Angular can reuse DOM nodes', 'Angular');
+    }
+    if (/(?:^|\s)\[innerHTML\]\s*=/.test(attrs)) {
+      c.add(x.index + x[0].indexOf('[innerHTML]'), 11, 'info', '[innerHTML] renders raw HTML; make sure the value is trusted', 'Angular');
+    }
+  });
+  rx(/@for\s*\(([^)]*)\)/g, t, (x) => {
+    if (!/;\s*track\b/.test(x[1])) c.add(x.index, 4, 'error', "@for requires a 'track' expression", 'Angular');
+  });
+  let n = 0;
+  rx(/\{\{/g, t, (x) => {
+    if (n++ > 200) return;
+    if (t.indexOf('}}', x.index + 2) === -1) c.add(x.index, 2, 'error', "Unclosed '{{' (missing '}}')", 'Angular');
+  });
 }
 
 async function diagnose(args) {
@@ -742,6 +915,10 @@ async function diagnose(args) {
       if (has('js')) checkJson(c, text, file);
     } else if (JS_LANG[ext]) {
       await checkJsFamily(c, text, file, ext, has);
+    } else if (ext === 'vue') {
+      if (has('vue')) await checkVue(c, text);
+    } else if (ext === 'html' || ext === 'htm') {
+      if (has('angular')) checkAngularHtml(c, text, file);
     } else if (ext === 'py' || ext === 'pyw') {
       if (has('python')) {
         if (text.length <= MAX_PARSE) await syntaxErrors(c, 'python', text, 'Python');
