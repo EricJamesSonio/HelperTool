@@ -1,5 +1,7 @@
 import { state } from '../app_manager/appState.js';
 import { displayTree } from '../app_manager/viewManager.js';
+import { getFeatures } from '../featureManager.js';
+
 
 const LS_ON = 'helpertool-ide-mode';
 const LS_W = 'helpertool-ide-sidebar-w';
@@ -201,7 +203,11 @@ async function setActive(on) {
     document.body.classList.add('ide-mode');
     try {
       const m = await ensureBuilt();
-      if (my === seq && active) m.explorer.renderTree();
+      if (my === seq && active) {
+        m.explorer.renderTree();
+        termAutoOpened = false;
+        dockTerminal(true).catch((err) => console.error('[IDE] terminal dock failed:', err));
+      }
     } catch (err) {
       console.error('[IDE] failed to load:', err);
       active = false;
@@ -210,7 +216,9 @@ async function setActive(on) {
       if (state.cachedTree) displayTree(false);
     }
   } else {
+    termAutoOpened = false;
     document.body.classList.remove('ide-mode');
+    undockTerminal();
     if (mods) mods.search.close(true);
     if (state.cachedTree) displayTree(false);
   }
@@ -254,14 +262,24 @@ function onRepoSwitched(e) {
     mods.search.reset();
     mods.editor.switchRepo().catch((err) => console.error('[IDE] repo switch failed:', err));
   }
+  if (active && !termAutoOpened && state.selectedRepoPath) {
+    dockTerminal(true).catch((err) => console.error('[IDE] terminal dock failed:', err));
+  }
 }
 
 function onGlobalKey(e) {
-  if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
   if (!active || !mods) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openSearch(true);
+  if (e.key === 'F2' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    openSearch(true);
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === '`' || e.code === 'Backquote')) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleTerminal();
+  }
 }
 
 function reloadIde() {
@@ -276,6 +294,57 @@ function reloadIde() {
     } catch (_) {}
   }
 }
+let termAutoOpened = false;
+
+function terminalEnabled() {
+  try {
+    return getFeatures().terminalTool !== false;
+  } catch (_) {
+    return true;
+  }
+}
+
+async function dockTerminal(autoOpen) {
+  if (!active || !terminalEnabled()) return null;
+  let ui = null;
+  try {
+    const tm = await import('../app_manager/toolsManager.js');
+    ui = await tm.ensureTerminalUI();
+    await ensureBuilt();
+  } catch (err) {
+    console.error('[IDE] terminal failed to load:', err);
+    return null;
+  }
+  if (!active) return null;
+  const main = document.getElementById('ideMain');
+  if (!main) return null;
+  if (!ui.isDocked()) ui.dockInto(main, main.querySelector('.ide-status'));
+  if (autoOpen && !termAutoOpened && state.selectedRepoPath) {
+    termAutoOpened = true;
+    ui.open(state.selectedRepoPath);
+  }
+  return ui;
+}
+
+async function toggleTerminal() {
+  if (!active) return;
+  const ui = await dockTerminal(false);
+  if (!ui) return;
+  if (ui.isOpen()) {
+    ui.close();
+    return;
+  }
+  termAutoOpened = true;
+  ui.open(state.selectedRepoPath || '');
+}
+
+async function undockTerminal() {
+  try {
+    const tm = await import('../app_manager/toolsManager.js');
+    const ui = tm.getTerminalUI();
+    if (ui && ui.isDocked()) ui.undock();
+  } catch (_) {}
+}
 function init() {
   injectCss();
   applyWidth();
@@ -287,6 +356,11 @@ function init() {
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
       reloadIde();
+    });
+  }
+  if (window.ideWindowAPI && typeof window.ideWindowAPI.onHidden === 'function') {
+    window.ideWindowAPI.onHidden(() => {
+      if (mods) mods.search.reset();
     });
   }
   import('./wakatime.js')

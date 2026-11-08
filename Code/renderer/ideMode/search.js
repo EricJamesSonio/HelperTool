@@ -14,41 +14,103 @@ const LS_STATE = 'helpertool-ide-search-state';
 const PHASE_LABEL = { files: 'file names', content: 'contents', similar: 'similar words' };
 
 const SVG_SEARCH = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
+const fx = { bar: null, chips: null, clear: null, list: [], sel: new Set(), req: 0 };
+
+function extLabel(e) {
+  return e ? '.' + e : 'no ext';
+}
+
+function renderExts() {
+  if (!fx.bar) return;
+  if (!fx.list.length) {
+    fx.bar.hidden = true;
+    return;
+  }
+  fx.bar.hidden = false;
+  let html = '<button type="button" class="ide-sm-ext-chip all' + (fx.sel.size ? '' : ' on') + '" data-ext="*">All types</button>';
+  for (const item of fx.list) {
+    const e = item[0];
+    html += '<button type="button" class="ide-sm-ext-chip' + (fx.sel.has(e) ? ' on' : '') + '" data-ext="' + attr(e) + '" title="' + item[1] + ' files">' +
+      esc(extLabel(e)) + '<span class="ide-sm-ext-n">' + item[1] + '</span></button>';
+  }
+  fx.chips.innerHTML = html;
+  fx.clear.hidden = !fx.sel.size;
+}
+
+function setExts(list) {
+  fx.list = list;
+  const have = new Set(list.map((x) => x[0]));
+  for (const e of Array.from(fx.sel)) {
+    if (!have.has(e)) fx.sel.delete(e);
+  }
+  renderExts();
+}
+
+function loadExts(root) {
+  const api = streamApi();
+  if (!api) return;
+  const my = ++fx.req;
+  api.warm(root).then((res) => {
+    if (my !== fx.req || root !== state.selectedRepoPath) return;
+    if (res && Array.isArray(res.exts)) setExts(res.exts);
+  }).catch(() => {});
+}
+
+function onExtClick(e) {
+  const b = e.target.closest('.ide-sm-ext-chip, .ide-sm-ext-clear');
+  if (!b) return;
+  if (b.classList.contains('ide-sm-ext-clear') || b.dataset.ext === '*') {
+    fx.sel.clear();
+  } else if (fx.sel.has(b.dataset.ext)) {
+    fx.sel.delete(b.dataset.ext);
+  } else {
+    fx.sel.add(b.dataset.ext);
+  }
+  renderExts();
+  disarm();
+  schedule();
+}
+
 
 const TEMPLATE =
-  '<div class="ide-sm ide-root">' +
-    '<div class="ide-sm-head">' +
-      '<span class="ide-sm-icon">' + SVG_SEARCH + '</span>' +
-      '<input class="ide-sm-input" type="text" spellcheck="false" autocomplete="off" placeholder="Search words in the codebase..." />' +
-      '<span class="ide-sm-status"></span>' +
+'<div class="ide-sm ide-root">' +
+  '<div class="ide-sm-head">' +
+    '<span class="ide-sm-icon">' + SVG_SEARCH + '</span>' +
+    '<input class="ide-sm-input" type="text" spellcheck="false" autocomplete="off" placeholder="Search words in the codebase..." />' +
+    '<span class="ide-sm-status"></span>' +
+  '</div>' +
+  '<div class="ide-sm-ext" hidden>' +
+    '<span class="ide-sm-ext-lbl">File types</span>' +
+    '<div class="ide-sm-ext-chips"></div>' +
+    '<button type="button" class="ide-sm-ext-clear" hidden title="Search all file types">Clear</button>' +
+  '</div>' +
+  '<div class="ide-sm-bar"><span></span></div>' +
+  '<div class="ide-sm-body">' +
+    '<div class="ide-sm-list"></div>' +
+    '<div class="ide-sm-preview">' +
+      '<div class="ide-sm-pv-title"></div>' +
+      '<div class="ide-sm-pv-code"></div>' +
     '</div>' +
-    '<div class="ide-sm-bar"><span></span></div>' +
-    '<div class="ide-sm-body">' +
-      '<div class="ide-sm-list"></div>' +
-      '<div class="ide-sm-preview">' +
-        '<div class="ide-sm-pv-title"></div>' +
-        '<div class="ide-sm-pv-code"></div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="ide-sm-rep">' +
-      '<span class="ide-sm-rep-lbl">Replace</span>' +
-      '<span class="ide-sm-rep-target" title="Searched text"></span>' +
-      '<span class="ide-sm-rep-arrow">&rarr;</span>' +
-      '<input class="ide-sm-rep-in" type="text" spellcheck="false" autocomplete="off" placeholder="Replace with..." />' +
-      '<button type="button" class="ide-sm-rbtn" data-r="case" title="Match case when replacing">Aa</button>' +
-      '<button type="button" class="ide-sm-rbtn" data-r="one" title="Replace on the selected line (Enter)">Replace selected</button>' +
-      '<button type="button" class="ide-sm-rbtn primary" data-r="all" title="Replace in every listed file (Ctrl+Alt+Enter)">Replace all</button>' +
-      '<button type="button" class="ide-sm-rbtn" data-r="revert" title="Undo the last replace">Revert</button>' +
-      '<span class="ide-sm-rep-msg"></span>' +
-    '</div>' +
-    '<div class="ide-sm-foot">' +
-      '<span><kbd>Up</kbd><kbd>Down</kbd> navigate</span>' +
-      '<span><kbd>Click</kbd> preview / expand</span>' +
-      '<span><kbd>Double-click</kbd> or <kbd>Enter</kbd> open</span>' +
-      '<span><kbd>Esc</kbd> close</span>' +
-      '<span class="ide-sm-foot-note">Preview lines are editable. Results stream in: exact matches first, then similar words</span>' +
-    '</div>' +
-  '</div>';
+  '</div>' +
+  '<div class="ide-sm-rep">' +
+    '<span class="ide-sm-rep-lbl">Replace</span>' +
+    '<span class="ide-sm-rep-target" title="Searched text"></span>' +
+    '<span class="ide-sm-rep-arrow">&rarr;</span>' +
+    '<input class="ide-sm-rep-in" type="text" spellcheck="false" autocomplete="off" placeholder="Replace with..." />' +
+    '<button type="button" class="ide-sm-rbtn" data-r="case" title="Match case when replacing">Aa</button>' +
+    '<button type="button" class="ide-sm-rbtn" data-r="one" title="Replace on the selected line (Enter)">Replace selected</button>' +
+    '<button type="button" class="ide-sm-rbtn primary" data-r="all" title="Replace in every listed file (Ctrl+Alt+Enter)">Replace all</button>' +
+    '<button type="button" class="ide-sm-rbtn" data-r="revert" title="Undo the last replace">Revert</button>' +
+    '<span class="ide-sm-rep-msg"></span>' +
+  '</div>' +
+  '<div class="ide-sm-foot">' +
+    '<span><kbd>Up</kbd><kbd>Down</kbd> navigate</span>' +
+    '<span><kbd>Click</kbd> preview / expand</span>' +
+    '<span><kbd>Double-click</kbd> or <kbd>Enter</kbd> open</span>' +
+    '<span><kbd>Esc</kbd> close</span>' +
+    '<span class="ide-sm-foot-note">Preview lines are editable. Results stream in: exact matches first, then similar words</span>' +
+  '</div>' +
+'</div>';
 
 let overlay = null;
 let input = null;
@@ -136,7 +198,7 @@ function loadState() {
 function saveState() {
   if (!input || !repIn) return;
   try {
-    localStorage.setItem(LS_STATE, JSON.stringify({ q: input.value, rep: repIn.value, cs: repCase }));
+    localStorage.setItem(LS_STATE, JSON.stringify({ cs: repCase }));
   } catch (_) {}
 }
 
@@ -170,9 +232,12 @@ function build() {
   btnAll = overlay.querySelector('[data-r="all"]');
   btnRevert = overlay.querySelector('[data-r="revert"]');
   btnCase = overlay.querySelector('[data-r="case"]');
+  fx.bar = overlay.querySelector('.ide-sm-ext');
+  fx.chips = overlay.querySelector('.ide-sm-ext-chips');
+  fx.clear = overlay.querySelector('.ide-sm-ext-clear');
   const st = loadState();
-  input.value = typeof st.q === 'string' ? st.q : '';
-  repIn.value = typeof st.rep === 'string' ? st.rep : '';
+  input.value = '';
+  repIn.value = '';
   repCase = !!st.cs;
   btnCase.classList.toggle('on', repCase);
   overlay.addEventListener('mousedown', (e) => {
@@ -191,6 +256,13 @@ function build() {
   });
   repIn.addEventListener('keydown', onRepKey);
   overlay.querySelector('.ide-sm-rep').addEventListener('click', onRepClick);
+  fx.bar.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+  });
+  fx.bar.addEventListener('click', onExtClick);
+  document.addEventListener('ide:close-search', () => {
+    close(true);
+  });
   listEl.addEventListener('mousedown', (e) => e.preventDefault());
   listEl.addEventListener('click', (e) => {
     const grp = e.target.closest('.ide-sm-grp');
@@ -216,6 +288,7 @@ function build() {
   if (api) api.onBatch(onBatch);
   showEmpty('Type at least ' + MIN_CHARS + ' characters to search the codebase.');
   updateRepUi();
+  renderExts();
 }
 
 function setStatus(text) {
@@ -359,8 +432,9 @@ function updateStatus() {
   const count = results.length;
   const files = new Set();
   for (const r of results) files.add(r.rel);
+  const filt = fx.sel.size ? ' (' + fx.sel.size + ' file type' + (fx.sel.size === 1 ? '' : 's') + ')' : '';
   if (!finished) {
-    setStatus('Searching ' + (PHASE_LABEL[phase] || '') + '... ' + count + ' found');
+    setStatus('Searching ' + (PHASE_LABEL[phase] || '') + '... ' + count + ' found' + filt);
     barEl.classList.add('on');
     barFill.style.width = Math.max(4, Math.round(progress * 100)) + '%';
     return;
@@ -369,7 +443,7 @@ function updateStatus() {
   barFill.style.width = '0%';
   const extra = doneInfo && typeof doneInfo.ms === 'number' ? ' in ' + (doneInfo.ms / 1000).toFixed(2) + 's' : '';
   const part = doneInfo && doneInfo.truncated ? ' (partial)' : '';
-  setStatus(count + ' results in ' + files.size + ' files' + extra + part);
+  setStatus(count + ' results in ' + files.size + ' files' + extra + part + filt);
 }
 
 function isReady() {
@@ -503,7 +577,7 @@ function run() {
   updateRepUi();
   const inv = Array.from(pendingInvalidate);
   pendingInvalidate.clear();
-  api.start({ id: my, root, query: q, max: REQ_MAX, invalidate: inv }).then((res) => {
+  api.start({ id: my, root, query: q, max: REQ_MAX, invalidate: inv, exts: Array.from(fx.sel) }).then((res) => {
     if (my !== curId) return;
     if (res && res.success === false) {
       finished = true;
@@ -1185,8 +1259,7 @@ export function open(prefill) {
   build();
   prevFocus = document.activeElement;
   overlay.hidden = false;
-  const api = streamApi();
-  if (api && state.selectedRepoPath) api.warm(state.selectedRepoPath).catch(() => {});
+  if (state.selectedRepoPath) loadExts(state.selectedRepoPath);
   const text = prefill ? String(prefill) : '';
   const changed = !!text && text !== input.value;
   if (text) input.value = text;
@@ -1238,14 +1311,19 @@ export function reset() {
   pendingOpen = false;
   doneInfo = null;
   fileCache = new Map();
+  fx.sel = new Set();
+  fx.list = [];
+  fx.req++;
   if (!overlay) return;
   close(true);
   input.value = '';
+  repIn.value = '';
   listEl.classList.remove('stale');
   showEmpty('Type at least ' + MIN_CHARS + ' characters to search the codebase.');
   setStatus('');
   setRepMsg('');
   barEl.classList.remove('on');
   saveState();
+  renderExts();
   updateRepUi();
 }
