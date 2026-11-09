@@ -572,6 +572,53 @@ async function clipCopyName(dir, name, isDir) {
   }
   return null;
 }
+const { shell } = require('electron');
+
+async function opMove(from, to) {
+  if (!(await clipExists(from))) return { success: false, error: 'The original is gone' };
+  if (await clipExists(to)) return { success: false, error: path.basename(to) + ' already exists there' };
+  await fs.promises.mkdir(path.dirname(to), { recursive: true });
+  try {
+    await fs.promises.rename(from, to);
+  } catch (err) {
+    if (!err || err.code !== 'EXDEV') throw err;
+    await fs.promises.cp(from, to, { recursive: true, errorOnExist: true, force: false });
+    await fs.promises.rm(from, { recursive: true, force: true });
+  }
+  return { success: true };
+}
+
+async function opCopy(from, to) {
+  if (!(await clipExists(from))) return { success: false, error: 'The original is gone' };
+  if (await clipExists(to)) return { success: false, error: path.basename(to) + ' already exists there' };
+  await fs.promises.mkdir(path.dirname(to), { recursive: true });
+  await fs.promises.cp(from, to, { recursive: true, errorOnExist: true, force: false });
+  return { success: true };
+}
+
+ipcMain.handle('ide:fsOp', async (_event, args) => {
+  const op = args && args.op;
+  const isAbs = (v) => typeof v === 'string' && !!v && path.isAbsolute(v);
+  try {
+    if (op === 'remove') {
+      if (!isAbs(args.path)) return { success: false, error: 'Invalid path' };
+      if (!(await clipExists(args.path))) return { success: false, error: 'It is already gone' };
+      await shell.trashItem(args.path);
+      return { success: true };
+    }
+    if (op === 'move') {
+      if (!isAbs(args.from) || !isAbs(args.to)) return { success: false, error: 'Invalid path' };
+      return await opMove(args.from, args.to);
+    }
+    if (op === 'copy') {
+      if (!isAbs(args.from) || !isAbs(args.to)) return { success: false, error: 'Invalid path' };
+      return await opCopy(args.from, args.to);
+    }
+    return { success: false, error: 'Unknown operation' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 
 ipcMain.handle('ide:fsPaste', async (_event, args) => {
   const source = args && args.source;
