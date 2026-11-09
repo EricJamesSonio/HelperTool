@@ -558,6 +558,196 @@ function startMaintenance() {
   if (_maintTimer.unref) _maintTimer.unref();
 }
 
+function authConfigFor(acc, token) {
+  const basic = Buffer.from(acc.username + ':' + token).toString('base64');
+  return ['http.https://github.com/.extraheader=AUTHORIZATION: basic ' + basic];
+}
+
+async function activeCtx() {
+  const acc = activeAccount();
+  if (!acc) {
+    return { error: 'Select a GitHub account first. System default cannot list or create repositories.' };
+  }
+  if (dueForRefresh(acc)) await refreshAccount(acc);
+  const token = openToken(acc);
+  if (!token) {
+    return { error: 'The saved token for @' + acc.username + ' could not be read. Remove the account and sign in again.' };
+  }
+  return { acc, token };
+}
+
+function ghSend(method, pathname, token, body) {
+  return new Promise((resolve, reject) => {
+    const payload = body ? JSON.stringify(body) : '';
+    const headers = {
+      'User-Agent': 'HelperTool/1.0',
+      'Accept': 'application/vnd.github+json',
+      'Authorization': 'Bearer ' + token,
+      'Content-Length': Buffer.byteLength(payload),
+    };
+    if (payload) headers['Content-Type'] = 'application/json';
+    const req = https.request({ hostname: 'api.github.com', path: pathname, method, headers }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        let parsed = null;
+        try { parsed = JSON.parse(data); } catch (_) { parsed = null; }
+        resolve({ status: res.statusCode, body: parsed });
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(30000, () => { req.destroy(new Error('Request timed out')); });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+async function fetchUserRepos(token) {
+  const all = [];
+  for (let page = 1; page <= 10; page++) {
+    const res = await ghGet('/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member&page=' + page, token);
+    if (res.status === 401) throw new Error('GitHub rejected the saved token. Sign in again.');
+    if (res.status !== 200 || !Array.isArray(res.body)) throw new Error('GitHub answered with status ' + res.status + '.');
+    for (const r of res.body) all.push(r);
+    if (res.body.length < 100) break;
+  }
+  return all;
+}
+
+function createErrorText(res) {
+  const b = res.body || {};
+  const detail = Array.isArray(b.errors) && b.errors.length
+    ? b.errors.map((e) => e.message || e.code || '').filter(Boolean).join('; ')
+    : '';
+  if (res.status === 401) return 'GitHub rejected the saved token. Sign in again.';
+  if (res.status === 403 || res.status === 404) {
+    return 'This account is not allowed to create repositories (the token needs the repo scope). ' + (b.message || '');
+  }
+  if (res.status === 422) return detail || b.message || 'GitHub could not create the repository (name may already exist).';
+  return b.message || 'GitHub answered with status ' + res.status + '.';
+}
+
+function registerProject(repoPath) {
+  const config = require('../config/config.js');
+  const cfg = config.readConfig();
+  cfg.projects = cfg.projects || {};
+  const storageName = path.basename(repoPath).replace(/[^a-zA-Z0-9-_]/g, '_');
+  const storagePath = path.join(app.getPath('userData'), storageName);
+  fs.mkdirSync(storagePath, { recursive: true });
+  for (const sub of ['Codes', 'Structures']) {
+    fs.mkdirSync(path.join(storagePath, sub), { recursive: true });
+  }
+  cfg.projects[repoPath] = {
+    storageName,
+    storagePath,
+    lastUsed: new Date().toISOString(),
+  };
+  config.writeConfig(cfg);
+}
+
+function registerRepoTools() {
+  ipcMain.handle('gitAccounts:listRepos', async () => {
+    try {
+      const ctx = await activeCtx();
+      if (ctx.error) return { success: false, error: ctx.error };
+      const raw = await fetchUserRepos(ctx.token);
+      return {
+        success: true,
+        repos: raw.map((r) => ({
+          name: r.name,
+          fullName: r.full_name,
+          description: r.description || '',
+          private: !!r.private,
+          fork: !!r.fork,
+          language: r.language || '',
+          pushedAt: r.pushed_at || '',
+          defaultBranch: r.default_branch || '',
+        })),
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('gitAccounts:createRepo', async (_e, payload) => {
+    try {
+      const ctx = await activeCtx();
+      if (ctx.error) return { success: false, error: ctx.error };
+      const name = String((payload && payload.name) || '').trim();
+      if (!/^[A-Za-z0-9._-]{1,100}$/.test(name)) {
+        return { success: false, error: 'Use a name of letters, numbers, dots, dashes or underscores.' };
+      }
+      const gitignore = String((payload && payload.gitignore) || '').trim();
+      const license = String((payload && payload.license) || '').trim();
+      const body = {
+        name,
+        description: String((payload && payload.description) || '').trim().slice(0, 350),
+        private: !(payload && payload.isPrivate === false),
+        auto_init: !!(payload && payload.readme) || !!gitignore || !!license,
+      };
+      if (gitignore) body.gitignore_template = gitignore;
+      if (license) body.license_template = license;
+      const res = await ghSend('POST', '/user/repos', ctx.token, body);
+      if (res.status !== 201 || !res.body) return { success: false, error: createErrorText(res) };
+      const r = res.body;
+      return {
+        success: true,
+        repo: {
+          name: r.name,
+          fullName: r.full_name,
+          htmlUrl: r.html_url,
+          private: !!r.private,
+        },
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('gitAccounts:clone', async (_e, payload) => {
+    let token = '';
+    try {
+      const fullName = String((payload && payload.fullName) || '').trim();
+      const parentDir = String((payload && payload.parentDir) || '').trim();
+      const folderName = String((payload && payload.folderName) || '').trim();
+      if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(fullName)) {
+        return { success: false, error: 'Invalid repository name.' };
+      }
+      if (!folderName || folderName === '.' || folderName === '..' || /[\\/:*?"<>|]/.test(folderName)) {
+        return { success: false, error: 'Invalid folder name.' };
+      }
+      let parentStat = null;
+      try { parentStat = fs.statSync(parentDir); } catch (_) { parentStat = null; }
+      if (!parentStat || !parentStat.isDirectory()) {
+        return { success: false, error: 'The selected folder does not exist.' };
+      }
+      const target = path.join(parentDir, folderName);
+      if (fs.existsSync(target)) {
+        let entries = [];
+        try { entries = fs.readdirSync(target); } catch (_) { entries = ['?']; }
+        if (entries.length) {
+          return { success: false, error: 'The folder ' + target + ' already exists and is not empty. Pick another folder or name.' };
+        }
+      }
+      const ctx = await activeCtx();
+      if (ctx.error) return { success: false, error: ctx.error };
+      token = ctx.token;
+      const git = simpleGit({ baseDir: parentDir, config: authConfigFor(ctx.acc, ctx.token) });
+      await git.clone('https://github.com/' + fullName + '.git', target);
+      try {
+        const local = simpleGit(target);
+        await local.addConfig('user.name', ctx.acc.name || ctx.acc.username, false, 'local');
+        if (ctx.acc.email) await local.addConfig('user.email', ctx.acc.email, false, 'local');
+      } catch (_) {}
+      if (payload && payload.open) registerProject(target);
+      return { success: true, path: target };
+    } catch (err) {
+      let text = String(err && err.message ? err.message : err);
+      if (token) text = text.split(token).join('***');
+      return { success: false, error: text };
+    }
+  });
+}
 function register() {
   ipcMain.handle('gitAccounts:list', async () => {
     try {
@@ -704,6 +894,7 @@ function register() {
     }
   });
 
+  registerRepoTools();
   startMaintenance();
 }
 
