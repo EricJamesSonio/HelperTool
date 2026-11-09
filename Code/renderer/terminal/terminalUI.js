@@ -51,6 +51,7 @@ const ICON_CHEVRON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
 
 import { showOutputViewer } from '../utils/outputViewer.js';
 import ErrorCopUI from './error-cop-ui.js';
+import { createColorizer } from './outputColors.js';
 
 function _stripAnsiForDetection(text) {
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
@@ -100,7 +101,7 @@ export default class TerminalUI {
     window.electronAPI.onTerminalData(({ id, data }) => {
       const inst = this.instances.get(id);
       if (inst && inst.terminal) {
-        inst.terminal.write(data);
+        inst.terminal.write(inst.colorizer ? inst.colorizer.process(data) : data);
         this._detectUrls(inst, data);
       }
       if (this._firstDataDeferred.has(id)) {
@@ -152,7 +153,6 @@ export default class TerminalUI {
     this.panel.querySelector('#terminalPanelClose').addEventListener('click', () => this.close());
     this.panel.querySelector('#terminalViewOutput').addEventListener('click', () => this._viewTerminalOutput());
 
-    // ── Error Cop button ──
     const ecpContainer = this.panel.querySelector('#ecpTerminalBtnContainer');
     const ecpBtn = this._errorCop.createTerminalButton();
     ecpBtn.appendChild(this._errorCop.getBadgeEl());
@@ -514,7 +514,7 @@ export default class TerminalUI {
       }
     }
 
-    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, repo: repo || null, sessionId, discoveredUrls: new Set() });
+    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, repo: repo || null, sessionId, discoveredUrls: new Set(), colorizer: createColorizer() });
 
     terminal.onData((data) => {
       window.electronAPI.terminalWrite({ id, data });
