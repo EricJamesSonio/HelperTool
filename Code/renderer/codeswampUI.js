@@ -1,6 +1,9 @@
 import { initCodeSwampUI, openCodeSwampUI, closeCodeSwampUI, isOpen } from './codeswampUI/index.js';
 import { addRepo } from './codeswampUI/repoTabs.js';
 import { refreshSidebar } from './codeswampUI/sidebar.js';
+import { prewarmSession } from './codeswampUI/terminalManager.js';
+import { state as csState } from './codeswampUI/state.js';
+
 
 let _initialized = false;
 
@@ -40,5 +43,8 @@ export async function handleRepoChange(repoPath) {
     await init();
   }
   await addRepo(repoPath);
+  setTimeout(() => {
+    if (csState.activeTab === repoPath) prewarmSession(repoPath).catch(() => {});
+  }, 1200);
   await refreshSidebar();
 }
