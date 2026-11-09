@@ -23,6 +23,7 @@ const FORCED_OPTIONS = {
 export function getTerminalTheme() {
   const bg = cssVar('--bg-base', '#000000');
   const fg = cssVar('--text-primary', '#ffffff');
+  const out = cssVar('--term-output', cssVar('--accent-hover', '#58a6ff'));
   const accent = cssVar('--accent', '#2f81f7');
   const green = cssVar('--green', '#3fb950');
   const red = cssVar('--red', '#ff6b69');
@@ -37,7 +38,7 @@ export function getTerminalTheme() {
   const inactive = withAlpha(accent, 0.25) || '#3a4a5a';
   return {
     background: bg,
-    foreground: fg,
+    foreground: out,
     cursor: accent,
     cursorAccent: bg,
     selectionBackground: selection,

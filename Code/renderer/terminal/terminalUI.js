@@ -705,3 +705,50 @@ export default class TerminalUI {
     }
   }
 }
+const _exitedIds = new Set();
+try {
+  if (window.electronAPI && window.electronAPI.onTerminalExit) {
+    window.electronAPI.onTerminalExit((p) => {
+      if (p && p.id != null) _exitedIds.add(p.id);
+    });
+  }
+} catch (_) {}
+
+function shellKindOf(shell) {
+  const s = String((shell && (shell.cmd || shell.name)) || '').toLowerCase();
+  if (s.indexOf('powershell') !== -1 || s.indexOf('pwsh') !== -1) return 'ps';
+  if (/(^|[\\/])cmd(\.exe)?$/.test(s) || s === 'command prompt') return 'cmd';
+  return 'sh';
+}
+
+TerminalUI.prototype.runCommand = async function runCommand(repoPath, build) {
+  if (!this.panel || typeof build !== 'function') return false;
+  if (repoPath) this._lastCwd = repoPath;
+  this._showPanel();
+  for (const eid of Array.from(this.instances.keys())) {
+    if (_exitedIds.has(eid)) this._killTerminal(eid, true);
+  }
+  let id = this.activeId;
+  let inst = this.instances.get(id);
+  let created = false;
+  if (!inst) {
+    if (repoPath) await this._ensureRepoTerminal(repoPath);
+    else await this._addTerminal(this._lastCwd);
+    id = this.activeId;
+    inst = this.instances.get(id);
+    created = true;
+  }
+  if (!inst) return false;
+  if (created) {
+    const d = this._firstDataDeferred.get(id);
+    if (d) {
+      try { await d.promise; } catch (_) {}
+    }
+  }
+  const cmd = build(shellKindOf(inst.shell));
+  if (!cmd) return false;
+  this._activateTerminal(id);
+  await window.electronAPI.terminalWrite({ id, data: cmd + '\r' });
+  try { inst.terminal.focus(); } catch (_) {}
+  return true;
+};
