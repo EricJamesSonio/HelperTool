@@ -100,8 +100,86 @@ function setProblemsOpen(on) {
   if (problemsOpen) renderProblemsList();
 }
 
+const WL_KEY = 'helpertool-ide-wl-collapsed';
+let wl = null;
+let wlCollapsed = false;
+try {
+  wlCollapsed = localStorage.getItem(WL_KEY) === '1';
+} catch (_) {
+  wlCollapsed = false;
+}
+
+function onWlClick(e) {
+  if (e.target.closest('[data-wl="toggle"]')) {
+    wlCollapsed = !wlCollapsed;
+    try { localStorage.setItem(WL_KEY, wlCollapsed ? '1' : '0'); } catch (_) {}
+    renderWarnList();
+    return;
+  }
+  const row = e.target.closest('.ide-wl-row');
+  if (!row) return;
+  gotoDiag(diag.list[Number(row.dataset.i)]);
+}
+
+function ensureWl() {
+  if (wl || !els) return wl;
+  wl = document.createElement('div');
+  wl.className = 'ide-wl';
+  wl.hidden = true;
+  wl.addEventListener('click', onWlClick);
+  els.codewrap.appendChild(wl);
+  return wl;
+}
+
+function renderWarnList() {
+  const box = ensureWl();
+  if (!box) return;
+  const tab = activeTab();
+  const total = diag.list.length;
+  if (!isText(tab) || !total) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  let e = 0;
+  let w = 0;
+  let n = 0;
+  for (const d of diag.list) {
+    if (d.sev === 'error') e++;
+    else if (d.sev === 'warning') w++;
+    else n++;
+  }
+  const counts =
+    (e ? '<span class="ide-wl-c e">\u2297 ' + e + '</span>' : '') +
+    (w ? '<span class="ide-wl-c w">\u26A0 ' + w + '</span>' : '') +
+    (n ? '<span class="ide-wl-c i">\u24D8 ' + n + '</span>' : '');
+  const head =
+    '<div class="ide-wl-head" data-wl="toggle" title="Click to ' + (wlCollapsed ? 'expand' : 'collapse') + '">' +
+      '<span class="ide-wl-chev">' + (wlCollapsed ? '\u25B8' : '\u25BE') + '</span>' +
+      '<span class="ide-wl-title">Problems</span>' +
+      counts +
+    '</div>';
+  box.classList.toggle('collapsed', wlCollapsed);
+  if (wlCollapsed) {
+    box.innerHTML = head;
+    return;
+  }
+  const prev = box.querySelector('.ide-wl-list');
+  const keep = prev ? prev.scrollTop : 0;
+  const rows = diag.list.slice(0, 200).map((d, i) =>
+    '<div class="ide-wl-row" data-i="' + i + '" title="' + attr(d.msg) + '">' +
+      '<span class="ide-wl-ln">' + d.line + '</span>' +
+      '<span class="ide-wl-sev ' + SEV_CLS[d.sev] + '">' + SEV_ICON[d.sev] + '</span>' +
+      '<span class="ide-wl-msg">' + esc(d.msg) + '</span>' +
+    '</div>'
+  ).join('');
+  box.innerHTML = head + '<div class="ide-wl-list">' + rows + '</div>';
+  const list = box.querySelector('.ide-wl-list');
+  if (list) list.scrollTop = keep;
+}
 function updateProblemsUi() {
   if (!els) return;
+  renderWarnList();
   const tab = activeTab();
   const show = isText(tab) && ext.handles(tab.name);
   els.stProb.hidden = !show;
