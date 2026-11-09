@@ -487,6 +487,60 @@ async function warmCorpus(root) {
   }
 }
 
+const { execFile } = require('child_process');
+
+function runGit(cwd, args) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, timeout: 8000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+      resolve({ ok: !err, out: stdout || '' });
+    });
+  });
+}
+
+function parseHunks(text) {
+  const hunks = [];
+  const re = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+  for (const line of text.split('\n')) {
+    if (line.charCodeAt(0) !== 64) continue;
+    const m = re.exec(line);
+    if (!m) continue;
+    hunks.push({
+      os: Number(m[1]),
+      oc: m[2] === undefined ? 1 : Number(m[2]),
+      ns: Number(m[3]),
+      nc: m[4] === undefined ? 1 : Number(m[4]),
+    });
+  }
+  return hunks;
+}
+
+async function gitLineDiff(root, file) {
+  const none = { success: true, kind: 'none', hunks: [] };
+  const inside = await runGit(root, ['rev-parse', '--is-inside-work-tree']);
+  if (!inside.ok || inside.out.trim() !== 'true') return none;
+  const tracked = await runGit(root, ['ls-files', '--error-unmatch', '--', file]);
+  if (tracked.ok) {
+    const d = await runGit(root, ['diff', 'HEAD', '--unified=0', '--no-color', '--no-ext-diff', '--', file]);
+    if (!d.ok) return none;
+    return { success: true, kind: 'tracked', hunks: parseHunks(d.out).slice(0, 5000) };
+  }
+  const ignored = await runGit(root, ['check-ignore', '-q', '--', file]);
+  if (ignored.ok) return none;
+  return { success: true, kind: 'new', hunks: [] };
+}
+
+ipcMain.handle('ide:gitLines', async (_event, args) => {
+  const root = args && args.root;
+  const file = args && args.file;
+  if (typeof root !== 'string' || typeof file !== 'string' || !root || !file) {
+    return { success: false, error: 'Invalid arguments' };
+  }
+  try {
+    return await gitLineDiff(root, file);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 function register() {
   ipcMain.handle('ide:readDir', async (_event, dirPath) => {
     try {
