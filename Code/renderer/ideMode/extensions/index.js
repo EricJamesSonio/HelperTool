@@ -390,10 +390,12 @@ function openDoc(id) {
   dm.open(ext, { detected: stacks[id] || '', override: overrides[id] || '', on: isOn(id) });
 }
 function debugContext() {
-  const ids = activeIds().slice();
   const root = state.selectedRepoPath || '';
   const repo = root ? String(root).split(/[\\/]/).filter(Boolean).pop() : '';
-  return { root, ids, fileExts: extsMemo ? Array.from(extsMemo) : [], repoName: repo };
+  const extensions = EXTENSIONS
+    .filter((e) => e.kind !== 'formatter' && isOn(e.id))
+    .map((e) => ({ id: e.id, name: e.name, badge: e.badge, color: e.color, langs: e.langs, fileExts: e.fileExts }));
+  return { root, repoName: repo, extensions };
 }
 
 function openDebug() {
@@ -459,6 +461,7 @@ function build() {
   });
   overlay.addEventListener('click', onOverlayClick);
   document.addEventListener('ide:close-search', () => close());
+  document.addEventListener('ide:ext-close', () => close());
 }
 
 export function open() {
@@ -482,6 +485,7 @@ function injectCss() {
     ['ideExtDocCss', './styles/ide-ext-doc.css'],
     ['ideWarnListCss', './styles/ide-warnlist.css'],
     ['ideDebugCss', './styles/ide-debug.css'],
+    ['ideDebugPickCss', './styles/ide-debug-pick.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;

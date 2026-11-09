@@ -1,4 +1,5 @@
 import { esc } from '../highlight.js';
+import { pickerHtml, loadPicked, savePicked } from './debugPicker.js';
 
 const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
 const SEV_ICON = { error: '\u2297', warning: '\u26A0', info: '\u24D8' };
@@ -8,6 +9,8 @@ let overlay = null;
 let els = null;
 let getCtx = null;
 let run = null;
+let mode = 'pick';
+let picked = new Set();
 let filter = 'errors';
 let query = '';
 let sel = '';
@@ -33,7 +36,7 @@ function dirName(rel) {
 }
 
 function keyOf(ctx) {
-  return (ctx.root || '') + '|' + (ctx.ids || []).join(',');
+  return (ctx.root || '') + '|' + (ctx.extensions || []).map((e) => e.id).join(',');
 }
 
 function stats() {
@@ -190,7 +193,7 @@ function renderDetail(cur) {
 
 function render() {
   renderRaf = 0;
-  if (!overlay || !run) return;
+  if (!overlay || !run || mode !== 'run') return;
   let st = stats();
   if (run.done && !autoSwitched) {
     autoSwitched = true;
@@ -246,15 +249,70 @@ function cancelRun() {
   }
 }
 
+function applyMode() {
+  els.modal.classList.toggle('picking', mode === 'pick');
+  if (mode === 'pick') {
+    els.sub.textContent = 'Pick the extensions to run on this repo';
+  } else if (run) {
+    els.sub.textContent = 'Checking: ' + run.names.join(', ');
+  }
+}
+
+function renderPick() {
+  const ctx = getCtx ? getCtx() : {};
+  const exts = ctx.extensions || [];
+  const grid = els.pick.querySelector('.ide-dbg-pgrid');
+  const keep = grid ? grid.scrollTop : 0;
+  const canBack = !!run && run.key === keyOf(ctx);
+  els.pick.innerHTML = pickerHtml(exts, picked, canBack);
+  const next = els.pick.querySelector('.ide-dbg-pgrid');
+  if (next) next.scrollTop = keep;
+}
+
+function showPicker(reset) {
+  const ctx = getCtx ? getCtx() : {};
+  const exts = ctx.extensions || [];
+  if (reset) {
+    const saved = loadPicked(ctx.root);
+    picked = new Set(exts.filter((e) => !saved || saved.has(e.id)).map((e) => e.id));
+    if (!picked.size) picked = new Set(exts.map((e) => e.id));
+  }
+  mode = 'pick';
+  applyMode();
+  renderPick();
+}
+
+function togglePick(id) {
+  if (picked.has(id)) picked.delete(id);
+  else picked.add(id);
+  renderPick();
+}
+
+function pickAll(on) {
+  const ctx = getCtx ? getCtx() : {};
+  picked = on ? new Set((ctx.extensions || []).map((e) => e.id)) : new Set();
+  renderPick();
+}
+
 async function startScan() {
   cancelRun();
   const ctx = getCtx ? getCtx() : {};
+  const chosen = (ctx.extensions || []).filter((e) => picked.has(e.id));
+  const ids = chosen.map((e) => e.id);
+  const fileExts = [];
+  for (const e of chosen) {
+    for (const x of e.fileExts || []) {
+      if (fileExts.indexOf(x) === -1) fileExts.push(x);
+    }
+  }
+  savePicked(ctx.root, picked);
   const id = 'dbg' + (++seq) + '-' + Date.now();
   run = {
     id,
     key: keyOf(ctx),
     root: ctx.root || '',
     repoName: ctx.repoName || '',
+    names: chosen.map((e) => e.name),
     files: new Map(),
     total: 0,
     scanned: 0,
@@ -270,13 +328,14 @@ async function startScan() {
   sel = '';
   detailFile = '';
   autoSwitched = false;
-  const ids = ctx.ids || [];
+  mode = 'run';
+  applyMode();
   if (!window.ideDebugAPI) {
     run.error = 'The debug service is not loaded yet. Fully restart the app.';
   } else if (!run.root) {
     run.error = 'No folder opened.';
   } else if (!ids.length) {
-    run.error = 'No extension is enabled for this repo. Turn one on in Extensions first.';
+    run.error = 'Select at least one extension to run.';
   }
   if (run.error) {
     run.done = true;
@@ -286,7 +345,7 @@ async function startScan() {
   run.running = true;
   render();
   try {
-    const res = await window.ideDebugAPI.start({ id, root: run.root, ids, exts: ctx.fileExts || [] });
+    const res = await window.ideDebugAPI.start({ id, root: run.root, ids, exts: fileExts });
     if (run && run.id === id && res && !res.success) {
       run.running = false;
       run.done = true;
@@ -304,10 +363,11 @@ async function startScan() {
 }
 
 function openAt(file, d) {
+  close();
+  document.dispatchEvent(new CustomEvent('ide:ext-close'));
   document.dispatchEvent(new CustomEvent('ide:open-at', {
     detail: { path: file, line: d.line, col: d.col, len: d.len },
   }));
-  close();
 }
 
 function fallbackCopy(text) {
@@ -332,6 +392,7 @@ function reportText() {
   const st = stats();
   const lines = [];
   lines.push('Debug report' + (run.repoName ? ' for ' + run.repoName : ''));
+  lines.push('Extensions: ' + run.names.join(', '));
   lines.push(st.fe + ' file(s) with errors, ' + st.te + ' error(s), ' + st.tw + ' warning(s), ' + st.ti + ' info. Filter: ' + filter + '.');
   for (const f of list) {
     lines.push('');
@@ -374,7 +435,18 @@ function onClick(e) {
       schedule();
     } else if (act === 'rerun') startScan();
     else if (act === 'copy') copyReport(b);
-    else if (act === 'filter') {
+    else if (act === 'repick') {
+      cancelRun();
+      showPicker(false);
+    } else if (act === 'pick-toggle') togglePick(b.dataset.id);
+    else if (act === 'pick-all') pickAll(true);
+    else if (act === 'pick-none') pickAll(false);
+    else if (act === 'pick-run') startScan();
+    else if (act === 'pick-back') {
+      mode = 'run';
+      applyMode();
+      render();
+    } else if (act === 'filter') {
       filter = b.dataset.f || 'errors';
       render();
     } else if (act === 'openfile') {
@@ -412,15 +484,17 @@ function build() {
   overlay.className = 'ide-dbg-overlay ide-root';
   overlay.hidden = true;
   overlay.innerHTML =
-    '<div class="ide-dbg-modal">' +
+    '<div class="ide-dbg-modal picking">' +
       '<div class="ide-dbg-head">' +
         '<span class="ide-dbg-title">Debug</span>' +
-        '<span class="ide-dbg-sub">Checks every file this repo\'s enabled extensions can handle</span>' +
+        '<span class="ide-dbg-sub"></span>' +
         '<button type="button" class="ide-dbg-btn" data-act="stop" hidden>Stop</button>' +
+        '<button type="button" class="ide-dbg-btn" data-act="repick">Change extensions</button>' +
         '<button type="button" class="ide-dbg-btn" data-act="rerun">Run again</button>' +
         '<button type="button" class="ide-dbg-btn" data-act="copy">Copy report</button>' +
         '<button type="button" class="ide-dbg-x" data-act="close" title="Close">&times;</button>' +
       '</div>' +
+      '<div class="ide-dbg-pick"></div>' +
       '<div class="ide-dbg-sum"></div>' +
       '<div class="ide-dbg-bar">' +
         '<div class="ide-dbg-chips"></div>' +
@@ -434,6 +508,9 @@ function build() {
     '</div>';
   document.body.appendChild(overlay);
   els = {
+    modal: overlay.querySelector('.ide-dbg-modal'),
+    sub: overlay.querySelector('.ide-dbg-sub'),
+    pick: overlay.querySelector('.ide-dbg-pick'),
     sum: overlay.querySelector('.ide-dbg-sum'),
     chips: overlay.querySelector('.ide-dbg-chips'),
     q: overlay.querySelector('.ide-dbg-q'),
@@ -466,8 +543,15 @@ export function open(ctxFn) {
   overlay.hidden = false;
   document.addEventListener('keydown', onKey, true);
   const ctx = getCtx ? getCtx() : {};
-  if (!run || run.key !== keyOf(ctx)) startScan();
-  else render();
+  if (!run || run.key !== keyOf(ctx)) {
+    cancelRun();
+    showPicker(true);
+  } else if (mode === 'pick') {
+    showPicker(false);
+  } else {
+    applyMode();
+    render();
+  }
 }
 
 export function close() {
