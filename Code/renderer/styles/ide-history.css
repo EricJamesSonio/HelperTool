@@ -1,0 +1,245 @@
+.ide-hx-btn {
+  position: relative;
+}
+
+.ide-hx-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: #000000;
+  font: 700 10px/16px var(--font-ui);
+  text-align: center;
+  pointer-events: none;
+}
+
+.ide-hx-count[hidden] {
+  display: none;
+}
+
+.ide-hx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.ide-hx-box {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 94vw);
+  height: min(600px, 86vh);
+  overflow: hidden;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+  font: 13px var(--font-ui);
+  color: var(--text-secondary);
+}
+
+.ide-hx-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.ide-hx-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ide-hx-sum {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ide-hx-spacer {
+  flex: 1;
+}
+
+.ide-hx-x {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ide-hx-x:hover {
+  background: var(--bg-active);
+}
+
+.ide-hx-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.ide-hx-btn2 {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 99px;
+  background: var(--bg-elevated);
+  font: 600 12px var(--font-ui);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.ide-hx-btn2:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.ide-hx-btn2:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ide-hx-btn2.danger {
+  color: var(--red);
+}
+
+.ide-hx-btn2.danger:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.ide-hx-btn2.danger.armed {
+  background: var(--red);
+  border-color: var(--red);
+  color: #000000;
+}
+
+.ide-hx-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-base);
+}
+
+.ide-hx-empty {
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ide-hx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ide-hx-row:hover {
+  background: var(--bg-hover);
+}
+
+.ide-hx-row.undone .ide-hx-main {
+  opacity: 0.55;
+}
+
+.ide-hx-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ide-hx-rtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ide-hx-tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--accent-dim);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.ide-hx-rsub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px var(--font-mono);
+  color: var(--text-muted);
+}
+
+.ide-hx-time {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ide-hx-act {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+  font: 600 12px var(--font-ui);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ide-hx-act:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ide-hx-act:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ide-hx-foot {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ide-hx-hint.err {
+  color: var(--red);
+}
+body .navbar-row--primary .navbar-section .ide-hx-btn,
+body.ide-mode .navbar-row--primary .navbar-section.center .ide-hx-btn,
+body.ide-mode .navbar-row--primary .navbar-section.right .ide-hx-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative;
+  flex: 0 0 auto;
+}
