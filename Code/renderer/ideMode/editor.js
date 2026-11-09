@@ -8,6 +8,7 @@ import { confirmDialog } from '../utils/confirmDialog.js';
 import * as ext from './extensions/index.js';
 import * as fmt from './extensions/formatter.js';
 import * as runners from './extensions/runners.js';
+import * as lineMarks from './lineMarks.js';
 
 const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
 const SEV_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' };
@@ -743,6 +744,10 @@ function syncTransform() {
   els.findInner.style.transform = tr;
   els.diagInner.style.transform = tr;
   els.gutterInner.style.transform = 'translateY(' + y + 'px)';
+  lineMarks.sync(ta, () => {
+    const t = activeTab();
+    return isText(t) ? { path: t.path, saved: t.saved } : null;
+  }, Math.max(0, rendered.from), rendered.to, y);
 }
 
 function clearPulse() {
@@ -2152,6 +2157,7 @@ function onInput() {
   schedule();
   scheduleCursor();
   scheduleCenter();
+  lineMarks.touch();
 }
 
 function onScroll() {

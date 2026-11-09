@@ -268,6 +268,7 @@ async function pollOnce() {
         buildDecor();
         renderChanges();
         if (!dirsChanged) applyDecor();
+        document.dispatchEvent(new CustomEvent('ide:git-changed'));
       }
     }
     if (dirsChanged) renderTree();
