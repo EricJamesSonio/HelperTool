@@ -21,6 +21,29 @@ const LS_PREFIX = 'helpertool-ide-ext:';
 const MAX_TEXT = 600000;
 
 const PUZZLE = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h4v1.5a1.5 1.5 0 1 0 3 0V3h3v4h-1.5a1.5 1.5 0 1 0 0 3H13v3H3z"/></svg>';
+const LS_FILTER = 'helpertool-ide-ext-filter';
+const GROUPS = [
+  { id: 'js', name: 'JS / TS', ids: ['js', 'react', 'express', 'astro', 'vue', 'angular', 'nestjs', 'nextjs'] },
+  { id: 'python', name: 'Python', ids: ['python', 'flask', 'django'] },
+  { id: 'php', name: 'PHP', ids: ['php', 'laravel'] },
+  { id: 'dotnet', name: 'C#', ids: ['dotnet'] },
+  { id: 'cpp', name: 'C / C++', ids: ['cpp'] },
+  { id: 'tools', name: 'Tools', ids: ['prettier'] },
+];
+const GROUP_OF = {};
+for (const g of GROUPS) {
+  for (const id of g.ids) GROUP_OF[id] = g.id;
+}
+
+function loadFilter() {
+  try {
+    const v = localStorage.getItem(LS_FILTER) || 'all';
+    if (v === 'all' || v === 'enabled' || GROUPS.some((g) => g.id === v)) return v;
+  } catch (_) {}
+  return 'all';
+}
+
+let filter = loadFilter();
 
 let handlers = {};
 let mounted = false;
@@ -150,7 +173,7 @@ function updateBadge() {
   const n = enabledCount();
   countEl.textContent = n ? String(n) : '';
   countEl.hidden = !n;
-  btn.title = n ? n + ' extension(s) active for this repo' : 'Extensions: no stack detected for this repo';
+  btn.title = (n ? n + ' extension(s) active for this repo' : 'Extensions: no stack detected for this repo') + ' (F3)';
 }
 
 function refresh(notify) {
@@ -215,7 +238,50 @@ function cardHtml(e) {
   '</div>';
 }
 
+function matchesFilter(e) {
+  if (filter === 'all') return true;
+  if (filter === 'enabled') return isOn(e.id);
+  return GROUP_OF[e.id] === filter;
+}
+
+function filterCount(f) {
+  if (f === 'all') return EXTENSIONS.length;
+  if (f === 'enabled') return enabledCount();
+  return EXTENSIONS.filter((e) => GROUP_OF[e.id] === f).length;
+}
+
+function filtersHtml() {
+  const items = [{ id: 'all', name: 'All' }, { id: 'enabled', name: 'Enabled' }].concat(GROUPS);
+  const chips = items.map((it) => {
+    const n = filterCount(it.id);
+    return '<button type="button" class="ide-ext-fchip' + (filter === it.id ? ' on' : '') + (n ? '' : ' zero') + '" data-act="filter" data-f="' + it.id + '">' +
+      esc(it.name) + '<span class="ide-ext-fn">' + n + '</span></button>';
+  }).join('');
+  return '<div class="ide-ext-filters"><span class="ide-ext-stack-lbl">Language</span>' + chips + '</div>';
+}
+
+function gridHtml() {
+  const on = [];
+  const off = [];
+  for (const e of EXTENSIONS) {
+    if (!matchesFilter(e)) continue;
+    if (isOn(e.id)) on.push(e);
+    else off.push(e);
+  }
+  if (!on.length && !off.length) {
+    return '<div class="ide-ext-empty">No extensions match this filter.</div>';
+  }
+  let out = '<div class="ide-ext-grid">';
+  if (on.length) out += '<div class="ide-ext-sec on">Enabled<span>' + on.length + '</span></div>' + on.map(cardHtml).join('');
+  if (off.length) {
+    if (on.length) out += '<div class="ide-ext-sec">Available<span>' + off.length + '</span></div>';
+    out += off.map(cardHtml).join('');
+  }
+  return out + '</div>';
+}
+
 function renderModal() {
+  const keep = bodyEl.scrollTop;
   const detected = EXTENSIONS.filter((e) => stacks[e.id]);
   const chips = detected.length
     ? detected.map((e) => '<span class="ide-ext-chip" title="' + attr(stacks[e.id]) + '">' + esc(e.name) + '</span>').join('')
@@ -223,7 +289,9 @@ function renderModal() {
   const api = window.ideExtAPI ? '' : '<div class="ide-ext-warn">The extension service is not loaded yet. Fully restart the app.</div>';
   bodyEl.innerHTML = api +
     '<div class="ide-ext-stack"><span class="ide-ext-stack-lbl">Detected stack</span>' + chips + '</div>' +
-    '<div class="ide-ext-grid">' + EXTENSIONS.map(cardHtml).join('') + '</div>';
+    filtersHtml() +
+    gridHtml();
+  bodyEl.scrollTop = keep;
   const repo = state.selectedRepoPath ? String(state.selectedRepoPath).split(/[\\/]/).filter(Boolean).pop() : '';
   footEl.textContent = enabledCount() + ' of ' + EXTENSIONS.length + ' extensions active' + (repo ? ' for ' + repo : '');
 }
@@ -263,6 +331,11 @@ function onOverlayClick(e) {
   else if (act === 'redetect') detect(true);
   else if (act === 'toggle') toggle(b.dataset.id);
   else if (act === 'view-fmt') openPrettier();
+  else if (act === 'filter') {
+    filter = b.dataset.f || 'all';
+    try { localStorage.setItem(LS_FILTER, filter); } catch (_) {}
+    renderModal();
+  }
 }
 
 function build() {
@@ -309,6 +382,7 @@ function injectCss() {
     ['ideExtCss', './styles/ide-ext.css'],
     ['ideExtIconCss', './styles/ide-ext-icon.css'],
     ['idePrettierCss', './styles/ide-prettier.css'],
+    ['ideWarnListCss', './styles/ide-warnlist.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
@@ -356,6 +430,20 @@ function onRepoSwitched() {
   refresh(false);
   detect();
 }
+function findBarOpen() {
+  const f = document.querySelector('.ide-find');
+  return !!f && !f.hidden;
+}
+
+function onGlobalKey(e) {
+  if (e.key !== 'F3' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+  if (!document.body.classList.contains('ide-mode')) return;
+  if (findBarOpen()) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (overlay && !overlay.hidden) close();
+  else open();
+}
 
 export function mount(opts) {
   handlers = opts || {};
@@ -366,6 +454,7 @@ export function mount(opts) {
   repoKey = normRepo(state.selectedRepoPath);
   overrides = loadOverrides();
   document.addEventListener('repo:switched', onRepoSwitched);
+  document.addEventListener('keydown', onGlobalKey, true);
   updateBadge();
   detect();
 }
