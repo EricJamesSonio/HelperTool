@@ -1,5 +1,6 @@
 import { esc } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+import { state } from '../app_manager/appState.js';
 
 const FOLDER = '<span class="ide-ficon"><svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg></span>';
 
@@ -85,6 +86,31 @@ async function refresh() {
   render();
 }
 
+async function firstChangedLine(filePath) {
+  const root = state.selectedRepoPath;
+  if (!root || !window.ideLineAPI) return null;
+  try {
+    const res = await window.ideLineAPI.diff(root, filePath);
+    if (!res || !res.success) return null;
+    if (res.kind === 'new') return 1;
+    const hunks = res.hunks || [];
+    if (!hunks.length) return null;
+    const h = hunks[0];
+    return Math.max(1, h.nc > 0 ? h.ns : h.ns + 1);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function openAtChange(filePath, c) {
+  const line = await firstChangedLine(filePath);
+  if (!line) {
+    c.onOpenFile(filePath);
+    return;
+  }
+  document.dispatchEvent(new CustomEvent('ide:open-at', { detail: { path: filePath, line, col: 0, len: 0 } }));
+}
+
 function onClick(e) {
   if (e.target === overlay) {
     close();
@@ -110,7 +136,7 @@ function onClick(e) {
   close();
   if (!c) return;
   if (t === 'dir') c.onRevealDir(p);
-  else c.onOpenFile(p);
+  else openAtChange(p, c);
 }
 
 const SHELL =
@@ -124,7 +150,7 @@ const SHELL =
     '<div class="ide-cmd-tabs"></div>' +
     '<div class="ide-um-body"></div>' +
     '<div class="ide-um-foot">' +
-      '<span class="ide-um-hint">Click a file to open it in the editor.</span>' +
+      '<span class="ide-um-hint">Click a file to open it at its first change.</span>' +
       '<span class="ide-um-spacer"></span>' +
       '<button type="button" class="ide-um-btn" data-cm="refresh">Refresh</button>' +
       '<button type="button" class="ide-um-btn primary" data-cm="close">Close</button>' +
