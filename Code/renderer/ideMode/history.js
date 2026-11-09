@@ -45,6 +45,7 @@ let clearArmed = false;
 let inited = false;
 let collapsed = new Set();
 let diffCache = new Map();
+let watchObs = null;
 
 function normRepo(p) {
   return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -577,8 +578,60 @@ function onKey(e) {
   close();
 }
 
+function isOtherModal(node) {
+  if (!node || node.nodeType !== 1 || node === overlay) return false;
+  const c = typeof node.className === 'string' ? node.className : '';
+  if (c.indexOf('ide-hx-') !== -1) return false;
+  if (node.getAttribute && node.getAttribute('role') === 'dialog') return true;
+  return /overlay|modal|dialog|popup/i.test(c);
+}
+
+function onOtherKey(e) {
+  if (!overlay) return;
+  const plain = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+  const hitF = plain && (e.key === 'F2' || e.key === 'F3');
+  const hitTerm = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === '`' || e.code === 'Backquote');
+  if (hitF || hitTerm) close();
+}
+
+function onOtherClose() {
+  close();
+}
+
+function unwatchOthers() {
+  if (watchObs) {
+    watchObs.disconnect();
+    watchObs = null;
+  }
+  document.removeEventListener('keydown', onOtherKey, true);
+  document.removeEventListener('ide:close-search', onOtherClose);
+}
+
+function watchOthers() {
+  unwatchOthers();
+  watchObs = new MutationObserver((muts) => {
+    if (!overlay) return;
+    if (!document.body.classList.contains('ide-mode')) {
+      close();
+      return;
+    }
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (isOtherModal(n)) {
+          close();
+          return;
+        }
+      }
+    }
+  });
+  watchObs.observe(document.body, { childList: true, attributes: true, attributeFilter: ['class'] });
+  document.addEventListener('keydown', onOtherKey, true);
+  document.addEventListener('ide:close-search', onOtherClose);
+}
+
 function close() {
   if (!overlay) return;
+  unwatchOthers();
   document.removeEventListener('keydown', onKey, true);
   overlay.remove();
   overlay = null;
@@ -588,6 +641,7 @@ function close() {
 
 function open() {
   if (overlay) return;
+  document.dispatchEvent(new CustomEvent('ide:close-search'));
   sweepAll();
   listKey = '';
   sync();
@@ -598,6 +652,7 @@ function open() {
   overlay.addEventListener('click', onClick);
   document.body.appendChild(overlay);
   document.addEventListener('keydown', onKey, true);
+  watchOthers();
   render();
 }
 
