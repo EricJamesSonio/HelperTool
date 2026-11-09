@@ -118,6 +118,15 @@ function onWlClick(e) {
   }
   const row = e.target.closest('.ide-wl-row');
   if (!row) return;
+  const list = row.closest('.ide-wl-list');
+  if (list) {
+    const lr = list.getBoundingClientRect();
+    const rr = row.getBoundingClientRect();
+    const delta = rr.top - lr.top - (lr.height / 2 - rr.height / 2);
+    const max = Math.max(0, list.scrollHeight - list.clientHeight);
+    const top = Math.max(0, Math.min(max, list.scrollTop + delta));
+    if (Math.abs(top - list.scrollTop) > 1) list.scrollTo({ top, behavior: 'smooth' });
+  }
   gotoDiag(diag.list[Number(row.dataset.i)]);
 }
 
@@ -127,7 +136,10 @@ function ensureWl() {
   wl.className = 'ide-wl';
   wl.hidden = true;
   wl.addEventListener('click', onWlClick);
-  els.codewrap.appendChild(wl);
+  wl.addEventListener('mousedown', (e) => e.stopPropagation());
+  wl.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+  const host = els.ta.parentElement || els.codewrap;
+  host.appendChild(wl);
   return wl;
 }
 

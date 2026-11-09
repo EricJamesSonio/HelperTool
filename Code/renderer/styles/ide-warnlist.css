@@ -1,17 +1,18 @@
 .ide-wl {
-  flex: 0 0 232px;
-  align-self: flex-start;
-  width: 232px;
+  position: absolute;
+  top: 8px;
+  right: 24px;
+  z-index: 7;
+  width: 260px;
   max-height: 220px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  margin: 8px 8px 0 6px;
   overflow: hidden;
-  background: var(--bg-surface);
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
   border: 1px solid var(--border-default);
   border-radius: var(--r-md);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
   font-family: var(--font-ui);
   font-size: 12px;
 }
