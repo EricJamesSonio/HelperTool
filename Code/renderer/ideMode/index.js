@@ -50,6 +50,7 @@ function injectCss() {
     ['ideRunCss', './styles/ide-run.css'],
     ['ideGitCss', './styles/ide-git.css'],
     ['ideChangesModalCss', './styles/ide-changes-modal.css'],
+    ['ideClipboardCss', './styles/ide-clipboard.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;

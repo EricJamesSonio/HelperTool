@@ -1,6 +1,11 @@
 import { state } from '../app_manager/appState.js';
 import { esc, pathKey } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+let clip = null;
+let explorerActive = false;
+let toastEl = null;
+let toastTimer = 0;
+
 const POLL_MS = 10000;
 const POLL_DIRS_MAX = 80;
 const CH_MAX = 200;
@@ -458,6 +463,7 @@ function markDirty() {
 
 function markSelected() {
   setMark('selected', selected ? pathKey(selected.path) : null);
+  markClip();
 }
 
 function scrollReveal() {
@@ -555,7 +561,11 @@ async function toggleFolder(row) {
 
 function onTreeClick(e) {
   const row = e.target.closest('.ide-row');
-  if (!row) return;
+  if (!row) {
+    selected = null;
+    markSelected();
+    return;
+  }
   const isFolder = row.classList.contains('folder');
   selected = { path: row.dataset.path, type: isFolder ? 'folder' : 'file' };
   markSelected();
@@ -725,6 +735,131 @@ function onRootClick(e) {
   const head = e.target.closest('.ide-section-head');
   if (head) head.parentElement.classList.toggle('collapsed');
 }
+function markClip() {
+  if (!treeEl) return;
+  treeEl.querySelectorAll('.ide-row.clip-copy, .ide-row.clip-cut').forEach((r) => {
+    r.classList.remove('clip-copy');
+    r.classList.remove('clip-cut');
+  });
+  if (!clip) return;
+  const el = rowByKey(pathKey(clip.path));
+  if (el) el.classList.add(clip.mode === 'cut' ? 'clip-cut' : 'clip-copy');
+}
+
+function toast(msg) {
+  if (!toastEl) {
+    toastEl = document.createElement('div');
+    toastEl.className = 'ide-clip-toast';
+    document.body.appendChild(toastEl);
+  }
+  toastEl.textContent = msg;
+  const r = treeEl ? treeEl.getBoundingClientRect() : null;
+  if (r) {
+    toastEl.style.left = (r.left + 8) + 'px';
+    toastEl.style.top = Math.max(r.top, r.bottom - 44) + 'px';
+    toastEl.style.maxWidth = Math.max(160, r.width - 16) + 'px';
+  }
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    if (toastEl) toastEl.classList.remove('show');
+  }, 2600);
+}
+
+function setClip(mode) {
+  if (!selected) return;
+  clip = { path: selected.path, type: selected.type, mode };
+  markClip();
+  toast((mode === 'cut' ? 'Cut ' : 'Copied ') + baseName(selected.path));
+}
+
+function dropUnder(p) {
+  const base = pathKey(p);
+  for (const k of Array.from(cache.keys())) {
+    const kk = pathKey(k);
+    if (kk === base || kk.indexOf(base + '/') === 0) cache.delete(k);
+  }
+  for (const k of Array.from(expanded)) {
+    const kk = pathKey(k);
+    if (kk === base || kk.indexOf(base + '/') === 0) expanded.delete(k);
+  }
+}
+
+async function pasteClip() {
+  const api = window.ideClipAPI;
+  if (!clip || !api || !state.selectedRepoPath) return;
+  const src = clip;
+  const dest = targetFolder();
+  let res;
+  try {
+    res = await api.paste({ source: src.path, targetDir: dest, mode: src.mode });
+  } catch (err) {
+    res = { success: false, error: err && err.message ? err.message : String(err) };
+  }
+  if (!res || !res.success) {
+    toast('Paste failed: ' + ((res && res.error) || 'unknown error'));
+    return;
+  }
+  if (res.noop) {
+    toast('Already in this folder');
+    return;
+  }
+  cache.delete(dest);
+  expanded.add(dest);
+  if (src.mode === 'cut') {
+    cache.delete(dirName(src.path));
+    dropUnder(src.path);
+    clip = null;
+    document.dispatchEvent(new CustomEvent('ide:path-moved', { detail: { from: src.path, to: res.to } }));
+  }
+  saveExpanded();
+  revealKey = pathKey(res.to);
+  selected = { path: res.to, type: src.type };
+  renderTree();
+  toast((src.mode === 'cut' ? 'Moved ' : 'Pasted ') + baseName(res.to));
+  setTimeout(pollOnce, 500);
+}
+
+function onClipPointer(e) {
+  explorerActive = !!(treeEl && treeEl.contains(e.target));
+}
+
+function onClipKey(e) {
+  if (!document.body.classList.contains('ide-mode')) return;
+  const k = e.key;
+  if (k === 'Control' || k === 'Shift' || k === 'Alt' || k === 'Meta') return;
+  if (!explorerActive) return;
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'INPUT') {
+    explorerActive = false;
+    return;
+  }
+  if (k === 'Escape' && clip) {
+    e.preventDefault();
+    e.stopPropagation();
+    clip = null;
+    markClip();
+    return;
+  }
+  const mod = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
+  const low = k.length === 1 ? k.toLowerCase() : k;
+  if (!mod || (low !== 'c' && low !== 'x' && low !== 'v')) {
+    explorerActive = false;
+    return;
+  }
+  if (low === 'v') {
+    if (!clip) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pasteClip();
+    return;
+  }
+  if (!selected) return;
+  e.preventDefault();
+  e.stopPropagation();
+  setClip(low === 'x' ? 'cut' : 'copy');
+}
+
 
 export function mount(rootEl, h) {
   handlers = h || {};
@@ -742,6 +877,8 @@ export function mount(rootEl, h) {
   oeListEl.addEventListener('click', onOeClick);
   changesBody.addEventListener('click', onChangesClick);
   rootEl.addEventListener('click', onRootClick);
+  document.addEventListener('mousedown', onClipPointer, true);
+  document.addEventListener('keydown', onClipKey, true);
   document.addEventListener('repo:switched', renderTree);
   document.addEventListener('ide:tree-changed', renderTree);
   document.addEventListener('ide:files-created', () => setTimeout(pollOnce, 400));

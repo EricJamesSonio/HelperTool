@@ -2360,3 +2360,34 @@ document.addEventListener('ide:open-at', (e) => {
   if (!d || !d.path) return;
   openAt(d.path, d.line, d.col, d.len);
 });
+function retargetTabs(from, to) {
+  if (!els || !from || !to) return;
+  const nf = String(from).replace(/\\/g, '/');
+  const nfl = nf.toLowerCase();
+  const toSep = String(to).indexOf('\\') !== -1 ? '\\' : '/';
+  let changed = false;
+  for (const t of tabs) {
+    if (t.kind) continue;
+    const np = t.path.replace(/\\/g, '/');
+    const npl = np.toLowerCase();
+    let tail = null;
+    if (npl === nfl) tail = '';
+    else if (npl.indexOf(nfl + '/') === 0) tail = np.slice(nf.length);
+    if (tail === null) continue;
+    const wasActive = t.path === activePath;
+    t.path = to + (toSep === '\\' ? tail.replace(/\//g, '\\') : tail);
+    t.key = pathKey(t.path);
+    t.name = t.path.split(/[\\/]/).pop();
+    if (wasActive) activePath = t.path;
+    changed = true;
+  }
+  if (!changed) return;
+  renderTabs();
+  renderCrumbs(activeTab());
+  notify();
+}
+
+document.addEventListener('ide:path-moved', (e) => {
+  const d = e && e.detail;
+  if (d) retargetTabs(d.from, d.to);
+});
