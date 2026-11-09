@@ -4,6 +4,12 @@ import { EXTENSIONS } from './registry.js';
 import * as fmt from './formatter.js';
 import * as pm from './prettierModal.js';
 import * as dm from './docModal.js';
+import { stacksForFile } from './filemap.js';
+
+const LS_NOTED = 'helpertool-ide-ext-noted:';
+let serverStacks = {};
+let noted = {};
+let createTimer = 0;
 
 const MEMO_MAX = 24;
 const memo = new Map();
@@ -190,7 +196,8 @@ async function detect(force) {
   const root = state.selectedRepoPath;
   const my = ++detecting;
   if (!root || !window.ideExtAPI) {
-    stacks = {};
+    serverStacks = {};
+    stacks = mergeStacks();
     refresh(true);
     return;
   }
@@ -201,11 +208,73 @@ async function detect(force) {
     res = null;
   }
   if (my !== detecting || root !== state.selectedRepoPath) return;
-  const next = res && res.success && res.stacks ? res.stacks : {};
+  serverStacks = res && res.success && res.stacks ? res.stacks : {};
+  const next = mergeStacks();
   const same = JSON.stringify(next) === JSON.stringify(stacks);
   stacks = next;
   if (same) return;
   refresh(true);
+}
+function loadNoted() {
+  try {
+    const raw = localStorage.getItem(LS_NOTED + repoKey);
+    const data = raw ? JSON.parse(raw) : {};
+    return data && typeof data === 'object' ? data : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveNoted() {
+  try {
+    if (repoKey) localStorage.setItem(LS_NOTED + repoKey, JSON.stringify(noted));
+  } catch (_) {}
+}
+
+function mergeStacks() {
+  return Object.assign({}, noted, serverStacks);
+}
+
+export function noteFile(name) {
+  if (!state.selectedRepoPath) return false;
+  const ids = stacksForFile(name);
+  let changed = false;
+  for (const id of ids) {
+    if (overrides[id] === 'off' || overrides[id] === 'on') continue;
+    if (stacks[id]) continue;
+    noted[id] = 'file ' + name + ' (auto-detected)';
+    stacks[id] = noted[id];
+    changed = true;
+  }
+  if (changed) {
+    saveNoted();
+    refresh(true);
+  }
+  return changed;
+}
+
+export function noteFiles(names) {
+  let changed = false;
+  for (const n of names || []) {
+    if (noteFile(n)) changed = true;
+  }
+  return changed;
+}
+
+export function supports(name) {
+  return stacksForFile(name).length > 0 || handles(name);
+}
+
+export function redetect() {
+  detect(true);
+}
+
+function onFilesCreated(e) {
+  if (!document.body.classList.contains('ide-mode')) return;
+  const names = e && e.detail && Array.isArray(e.detail.names) ? e.detail.names : [];
+  noteFiles(names);
+  clearTimeout(createTimer);
+  createTimer = setTimeout(() => detect(true), 350);
 }
 
 function cardHtml(e) {
@@ -337,7 +406,12 @@ function onOverlayClick(e) {
   if (!b) return;
   const act = b.dataset.act;
   if (act === 'close') close();
-  else if (act === 'redetect') detect(true);
+  else if (act === 'redetect') {
+    noted = {};
+    saveNoted();
+    stacks = mergeStacks();
+    detect(true);
+  }
   else if (act === 'toggle') toggle(b.dataset.id);
   else if (act === 'view-fmt') openPrettier();
   else if (act === 'view-doc') openDoc(b.dataset.id);
@@ -437,7 +511,9 @@ function createButton() {
 function onRepoSwitched() {
   repoKey = normRepo(state.selectedRepoPath);
   overrides = loadOverrides();
-  stacks = {};
+  noted = loadNoted();
+  serverStacks = {};
+  stacks = mergeStacks();
   refresh(false);
   detect();
 }
@@ -464,8 +540,11 @@ export function mount(opts) {
   createButton();
   repoKey = normRepo(state.selectedRepoPath);
   overrides = loadOverrides();
+  noted = loadNoted();
+  stacks = mergeStacks();
   document.addEventListener('repo:switched', onRepoSwitched);
   document.addEventListener('keydown', onGlobalKey, true);
+  document.addEventListener('ide:files-created', onFilesCreated);
   updateBadge();
   detect();
 }
