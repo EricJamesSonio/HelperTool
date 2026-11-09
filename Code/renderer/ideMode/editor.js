@@ -2329,3 +2329,8 @@ document.addEventListener('ide:format-document', () => {
 document.addEventListener('ide:format-open', () => {
   formatOpenTabs();
 });
+document.addEventListener('ide:open-at', (e) => {
+  const d = e && e.detail;
+  if (!d || !d.path) return;
+  openAt(d.path, d.line, d.col, d.len);
+});
