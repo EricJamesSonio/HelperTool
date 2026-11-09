@@ -34,8 +34,8 @@
 .ide-hx-box {
   display: flex;
   flex-direction: column;
-  width: min(760px, 94vw);
-  height: min(600px, 86vh);
+  width: min(1240px, 96vw);
+  height: min(880px, 92vh);
   overflow: hidden;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
@@ -242,4 +242,135 @@ body.ide-mode .navbar-row--primary .navbar-section.right .ide-hx-btn {
   opacity: 1 !important;
   position: relative;
   flex: 0 0 auto;
+}
+.ide-hx-item {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ide-hx-item .ide-hx-row {
+  border-bottom: 0;
+}
+
+.ide-hx-chev::before {
+  content: '\203A';
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.ide-hx-item.open .ide-hx-chev::before {
+  transform: rotate(90deg);
+}
+
+.ide-hx-main {
+  cursor: pointer;
+}
+
+.ide-hx-item.undone .ide-hx-main {
+  opacity: 0.55;
+}
+
+.ide-hx-detail {
+  padding: 0 16px 12px 40px;
+}
+
+.ide-hx-dhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ide-hx-dleg {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.ide-hx-pa {
+  font-family: var(--font-mono);
+  color: var(--green);
+}
+
+.ide-hx-pd {
+  font-family: var(--font-mono);
+  color: var(--red);
+}
+
+.ide-hx-note {
+  padding: 4px 0 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ide-hx-note b {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ide-hx-diff {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-base);
+  font: 12px/18px var(--font-mono);
+}
+
+.ide-hx-dr {
+  display: flex;
+  min-width: max-content;
+}
+
+.ide-hx-dr.add {
+  background: rgba(63, 185, 80, 0.16);
+}
+
+.ide-hx-dr.del {
+  background: rgba(248, 81, 73, 0.16);
+}
+
+.ide-hx-dn {
+  flex: 0 0 44px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.ide-hx-ds {
+  flex: 0 0 18px;
+  text-align: center;
+  font-weight: 700;
+  user-select: none;
+}
+
+.ide-hx-dr.add .ide-hx-ds {
+  color: var(--green);
+}
+
+.ide-hx-dr.del .ide-hx-ds {
+  color: var(--red);
+}
+
+.ide-hx-dt {
+  flex: 1;
+  padding-right: 12px;
+  white-space: pre;
+  color: var(--text-primary);
+}
+
+.ide-hx-gap {
+  padding: 2px 12px;
+  background: var(--bg-surface);
+  font: 11px var(--font-ui);
+  color: var(--text-muted);
 }
