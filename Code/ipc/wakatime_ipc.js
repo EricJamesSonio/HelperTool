@@ -292,15 +292,20 @@ function runQueue() {
   const job = cliQueue.shift();
   cliBusy = true;
   const t0 = Date.now();
-  const child = execFile(job.bin, job.args, { windowsHide: true, timeout: 15000 }, (err, _out, stderr) => {
+  const child = execFile(job.bin, job.args, { windowsHide: true, timeout: 45000, maxBuffer: 1024 * 1024 }, (err, _out, stderr) => {
     const ms = Date.now() - t0;
     const text = String(stderr || (err && err.message) || '');
     if (err && job.human && /human-line-changes/i.test(text) && /unknown|unrecognized|flag|usage/i.test(text)) {
       handleOldCli(job);
       return;
     }
-    if (err) console.warn('[WakaTime] heartbeat failed after ' + ms + ' ms:', text.slice(0, 300));
-    else if (ms > 4000) console.warn('[WakaTime] slow heartbeat: ' + ms + ' ms');
+    if (err) {
+      const why = err.killed ? 'timed out and was killed' : 'exit code ' + err.code;
+      const tail = String(stderr || '').trim().slice(-400);
+      console.warn('[WakaTime] heartbeat failed after ' + ms + ' ms (' + why + ')' + (tail ? ': ' + tail : ''));
+    } else if (ms > 4000) {
+      console.warn('[WakaTime] slow heartbeat: ' + ms + ' ms');
+    }
     cliBusy = false;
     runQueue();
   });
@@ -342,7 +347,7 @@ function sendBeat(p) {
     }
   }
   const repo = typeof p.repo === 'string' ? p.repo : '';
-  const args = ['--entity', entity, '--entity-type', isApp ? 'app' : 'file', '--plugin', PLUGIN, '--category', 'coding', '--sync-offline-activity', '25'];
+  const args = ['--entity', entity, '--entity-type', isApp ? 'app' : 'file', '--plugin', PLUGIN, '--category', 'coding', '--sync-offline-activity', '10'];
   let human = false;
   if (!isApp) {
     if (p.write) args.push('--write');
