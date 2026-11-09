@@ -880,3 +880,8 @@ contextBridge.exposeInMainWorld('ideExtAPI', {
     detect: (root) => ipcRenderer.invoke('ideExt:detect', root),
     diagnose: (payload) => ipcRenderer.invoke('ideExt:diagnose', payload),
 });
+contextBridge.exposeInMainWorld('gitReposAPI', {
+  listRepos:  ()        => ipcRenderer.invoke('gitAccounts:listRepos'),
+  createRepo: (payload) => ipcRenderer.invoke('gitAccounts:createRepo', payload),
+  clone:      (payload) => ipcRenderer.invoke('gitAccounts:clone', payload),
+});
