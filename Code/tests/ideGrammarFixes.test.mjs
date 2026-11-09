@@ -70,3 +70,21 @@ test('bare ampersand after a JSX expression is accepted', async () => {
   ].join('\n');
   assert.deepEqual(await syntaxDiags('src/Q.tsx', text), []);
 });
+test('ampersand and logical and mix in JSX without false errors', async () => {
+  const text = [
+    'export default function R({ ok, ok2 }) {',
+    '  return (',
+    '    <p>',
+    '      {ok && <b>x</b>} & {ok2 && <i>y</i>}',
+    '    </p>',
+    '  )',
+    '}',
+    '',
+  ].join('\n');
+  assert.deepEqual(await syntaxDiags('src/R.tsx', text), []);
+});
+
+test('a dangling ampersand outside JSX is still an error', async () => {
+  const diags = await syntaxDiags('src/S.tsx', 'const x = a &;\n');
+  assert.ok(diags.length > 0);
+});
