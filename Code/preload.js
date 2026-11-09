@@ -885,3 +885,11 @@ contextBridge.exposeInMainWorld('gitReposAPI', {
   createRepo: (payload) => ipcRenderer.invoke('gitAccounts:createRepo', payload),
   clone:      (payload) => ipcRenderer.invoke('gitAccounts:clone', payload),
 });
+contextBridge.exposeInMainWorld('ideDebugAPI', {
+    start: (payload) => ipcRenderer.invoke('ideDebug:start', payload),
+    cancel: (id) => ipcRenderer.invoke('ideDebug:cancel', id),
+    onBatch: (callback) => {
+        ipcRenderer.removeAllListeners('ideDebug:batch');
+        ipcRenderer.on('ideDebug:batch', (_event, data) => callback(data));
+    },
+});
