@@ -49,7 +49,7 @@ test('bare ampersand in JSX text is accepted', async () => {
   assert.deepEqual(await syntaxDiags('src/P.tsx', text), []);
 });
 
-test('real syntax errors are still reported', async () => {
+test('real syntax errors are still reported', async () => { 
   const unclosed = await syntaxDiags('src/b.tsx', 'const a = (\n');
   assert.ok(unclosed.length > 0);
   const badJsx = await syntaxDiags('src/c.tsx', 'const f = () => {\n  return <div>a & b</div\n}\n');
