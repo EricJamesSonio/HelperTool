@@ -71,6 +71,84 @@ function refreshButton() {
 function setSidebarCollapsed(want) {
   if (csState.sidebarCollapsed === want) return;
   const toggle = document.getElementById('ocSidebarToggle');
+let menuEl = null;
+
+  const AGENTS = [
+    { id: 'opencode', label: 'OpenCode' },
+    { id: 'cline', label: 'Cline' },
+  ];
+
+  function onMenuOutside(e) {
+    if (!menuEl) return;
+    if (menuEl.contains(e.target)) return;
+    if (btn && btn.contains(e.target)) return;
+    closeMenu();
+  }
+
+  function closeMenu() {
+    if (menuEl) {
+      menuEl.remove();
+      menuEl = null;
+    }
+    document.removeEventListener('mousedown', onMenuOutside, true);
+  }
+
+  async function pickAgent(id) {
+    closeMenu();
+    await show();
+    const sel = document.getElementById('ocAIProviderSelect');
+    if (sel && sel.value !== id) {
+      sel.value = id;
+      sel.dispatchEvent(new Event('change'));
+    } else if (!sel && csState.selectedProvider !== id) {
+      csState.selectedProvider = id;
+      try { localStorage.setItem('helpertool-cs-provider', id); } catch (_) {}
+    }
+  }
+
+  function openMenu() {
+    closeMenu();
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const current = csState.selectedProvider;
+    menuEl = document.createElement('div');
+    menuEl.id = 'ideCsMenu';
+    menuEl.style.cssText = 'position:fixed;z-index:100000;min-width:170px;padding:4px;border-radius:8px;'
+      + 'background:var(--bg-secondary,#1e1e1e);color:var(--text-primary,#e6e6e6);'
+      + 'border:1px solid var(--border-color,#3a3a3a);box-shadow:0 8px 24px rgba(0,0,0,0.45);'
+      + 'font-size:13px;top:' + Math.round(rect.bottom + 6) + 'px;left:' + Math.round(rect.left) + 'px;';
+    AGENTS.forEach((a) => {
+      const item = document.createElement('div');
+      item.dataset.agent = a.id;
+      item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;'
+        + 'padding:7px 10px;border-radius:6px;cursor:pointer;';
+      const mark = a.id === current ? '\u2713' : '';
+      item.innerHTML = '<span>' + a.label + '</span><span style="opacity:0.7">' + mark + '</span>';
+      item.addEventListener('mouseenter', () => { item.style.background = 'rgba(255,255,255,0.08)'; });
+      item.addEventListener('mouseleave', () => { item.style.background = ''; });
+      item.addEventListener('click', () => { pickAgent(a.id); });
+      menuEl.appendChild(item);
+    });
+    document.body.appendChild(menuEl);
+    const mw = menuEl.offsetWidth;
+    if (rect.left + mw > window.innerWidth - 8) {
+      menuEl.style.left = Math.max(8, window.innerWidth - mw - 8) + 'px';
+    }
+    document.addEventListener('mousedown', onMenuOutside, true);
+  }
+
+  function onBtnClick() {
+    if (menuEl) {
+      closeMenu();
+      return;
+    }
+    if (visible) {
+      hide();
+      return;
+    }
+    openMenu();
+  }
+
   if (toggle) toggle.click();
 }
 
@@ -299,7 +377,7 @@ function createButton() {
   btn.className = 'tool-btn ide-cs-btn';
   btn.title = 'Open Code Swamp chat';
   btn.innerHTML = ICON + '<span class="ide-cs-dot"></span>';
-  btn.addEventListener('click', toggle);
+  btn.addEventListener('click', onBtnClick);
   const search = document.getElementById('ideNavSearch');
   if (search && search.parentElement === host) search.after(btn);
   else host.appendChild(btn);

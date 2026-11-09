@@ -48,6 +48,8 @@ function injectCss() {
     ['ideMirrorCss', './styles/ide-mirror.css'],
     ['ideCodeswampCss', './styles/ide-codeswamp.css'],
     ['ideRunCss', './styles/ide-run.css'],
+    ['ideGitCss', './styles/ide-git.css'],
+    ['ideChangesModalCss', './styles/ide-changes-modal.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;

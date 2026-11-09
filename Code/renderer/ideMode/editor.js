@@ -1192,6 +1192,26 @@ export function getUnsavedFiles() {
     .filter((t) => !t.kind && !t.media && !t.loading && !t.notice && t.dirty)
     .map((t) => ({ path: t.path, name: t.name, saved: t.saved, content: t.content }));
 }
+export function discardTab(path) {
+  if (!els || !path) return false;
+  const key = pathKey(path);
+  const tab = tabs.find((t) => t.key === key);
+  if (!tab || tab.kind || tab.media || tab.loading || tab.notice) return false;
+  const isActive = tab.path === activePath;
+  if (isActive) {
+    tab.scrollTop = els.ta.scrollTop;
+    tab.scrollLeft = els.ta.scrollLeft;
+  }
+  tab.content = tab.saved;
+  tab.dirty = false;
+  tab.hist = null;
+  tab.selStart = Math.min(tab.selStart || 0, tab.saved.length);
+  tab.selEnd = Math.min(tab.selEnd || 0, tab.saved.length);
+  if (isActive) showTab(tab, false);
+  renderTabs();
+  notify();
+  return true;
+}
 
 export async function saveTab(path) {
   if (!els || !path) return false;

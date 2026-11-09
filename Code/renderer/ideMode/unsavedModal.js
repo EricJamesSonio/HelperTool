@@ -9,26 +9,28 @@ const MAX_LINES = 60000;
 const CLS = { c: 'ctx', a: 'add', d: 'del' };
 
 const SHELL =
-  '<div class="ide-um-box" role="dialog" aria-modal="true">' +
-    '<div class="ide-um-head">' +
-      '<span class="ide-um-title">Unsaved changes</span>' +
-      '<span class="ide-um-sum"></span>' +
-      '<span class="ide-um-spacer"></span>' +
-      '<button type="button" class="ide-um-x" data-um="close" title="Close (Esc)">&times;</button>' +
-    '</div>' +
-    '<div class="ide-um-body"></div>' +
-    '<div class="ide-um-foot">' +
-      '<span class="ide-um-hint"></span>' +
-      '<span class="ide-um-spacer"></span>' +
-      '<button type="button" class="ide-um-btn" data-um="close">Close</button>' +
-      '<button type="button" class="ide-um-btn primary" data-um="saveall">Save all</button>' +
-    '</div>' +
-  '</div>';
+'<div class="ide-um-box" role="dialog" aria-modal="true">' +
+  '<div class="ide-um-head">' +
+    '<span class="ide-um-title">Unsaved changes</span>' +
+    '<span class="ide-um-sum"></span>' +
+    '<span class="ide-um-spacer"></span>' +
+    '<button type="button" class="ide-um-x" data-um="close" title="Close (Esc)">&times;</button>' +
+  '</div>' +
+  '<div class="ide-um-body"></div>' +
+  '<div class="ide-um-foot">' +
+    '<span class="ide-um-hint"></span>' +
+    '<span class="ide-um-spacer"></span>' +
+    '<button type="button" class="ide-um-btn danger" data-um="discardall">Discard all</button>' +
+    '<button type="button" class="ide-um-btn" data-um="close">Close</button>' +
+    '<button type="button" class="ide-um-btn primary" data-um="saveall">Save all</button>' +
+  '</div>' +
+'</div>';
 
 let overlay = null;
 let collapsed = new Set();
 let notice = null;
 let busy = false;
+let armed = new Set();
 
 function attr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -225,6 +227,7 @@ function buildFile(f) {
 
 function fileHtml(f, model) {
   const isCollapsed = collapsed.has(f.path);
+  const sure = armed.has(f.path);
   return '<div class="ide-um-file' + (isCollapsed ? ' collapsed' : '') + '" data-path="' + attr(f.path) + '">' +
     '<div class="ide-um-fh">' +
       '<span class="ide-um-chev"></span>' +
@@ -232,6 +235,7 @@ function fileHtml(f, model) {
       '<span class="ide-um-fname">' + esc(f.name) + '</span>' +
       '<span class="ide-um-fpath">' + esc(relPath(f.path)) + '</span>' +
       '<span class="ide-um-stat"><span class="ide-um-pa">+' + model.add + '</span><span class="ide-um-pd">-' + model.del + '</span></span>' +
+      '<button type="button" class="ide-um-btn sm danger' + (sure ? ' armed' : '') + '" data-um="discard" data-path="' + attr(f.path) + '" title="Remove your unsaved changes in this file">' + (sure ? 'Sure?' : 'Discard') + '</button>' +
       '<button type="button" class="ide-um-btn sm" data-um="open" data-path="' + attr(f.path) + '">Open</button>' +
       '<button type="button" class="ide-um-btn sm primary" data-um="save" data-path="' + attr(f.path) + '">Save</button>' +
     '</div>' +
@@ -262,6 +266,10 @@ function render() {
   overlay.querySelector('.ide-um-sum').innerHTML =
     files.length + ' file' + (files.length === 1 ? '' : 's') +
     ' <span class="ide-um-pa">+' + totalAdd + '</span> <span class="ide-um-pd">-' + totalDel + '</span>';
+  const allBtn = overlay.querySelector('[data-um="discardall"]');
+  const allSure = armed.has('*');
+  allBtn.textContent = allSure ? 'Sure? Discard all' : 'Discard all';
+  allBtn.classList.toggle('armed', allSure);
   const hint = overlay.querySelector('.ide-um-hint');
   hint.textContent = notice ? notice.text : 'Click a changed line to jump to it in the editor.';
   hint.classList.toggle('err', !!(notice && notice.err));
@@ -273,6 +281,7 @@ function close() {
   overlay.remove();
   overlay = null;
   notice = null;
+  armed = new Set();
 }
 
 function onKey(e) {
@@ -311,6 +320,34 @@ async function saveAll() {
   notice = failed ? { text: failed + ' file(s) could not be saved.', err: true } : null;
   render();
 }
+function discardOne(path) {
+  if (busy) return;
+  if (!armed.has(path)) {
+    armed = new Set([path]);
+    render();
+    return;
+  }
+  armed = new Set();
+  const ok = editor.discardTab(path);
+  notice = ok ? null : { text: 'Could not discard that file.', err: true };
+  render();
+}
+
+function discardAll() {
+  if (busy) return;
+  if (!armed.has('*')) {
+    armed = new Set(['*']);
+    render();
+    return;
+  }
+  armed = new Set();
+  let failed = 0;
+  for (const f of editor.getUnsavedFiles()) {
+    if (!editor.discardTab(f.path)) failed++;
+  }
+  notice = failed ? { text: failed + ' file(s) could not be discarded.', err: true } : null;
+  render();
+}
 
 async function onClick(e) {
   if (e.target === overlay) {
@@ -320,6 +357,18 @@ async function onClick(e) {
   const um = e.target.closest('[data-um]');
   if (um) {
     const act = um.dataset.um;
+    if (act === 'discard') {
+      discardOne(um.dataset.path);
+      return;
+    }
+    if (act === 'discardall') {
+      discardAll();
+      return;
+    }
+    if (armed.size) {
+      armed = new Set();
+      render();
+    }
     if (act === 'close') close();
     else if (act === 'saveall') await saveAll();
     else if (act === 'save') await saveOne(um.dataset.path);
@@ -329,6 +378,10 @@ async function onClick(e) {
       editor.openFile(path);
     }
     return;
+  }
+  if (armed.size) {
+    armed = new Set();
+    render();
   }
   const row = e.target.closest('.ide-um-r');
   if (row) {
@@ -359,6 +412,7 @@ export function openUnsavedModal() {
   const files = editor.getUnsavedFiles();
   if (!files.length) return;
   collapsed = new Set();
+  armed = new Set();
   notice = null;
   overlay = document.createElement('div');
   overlay.className = 'ide-um-overlay';
