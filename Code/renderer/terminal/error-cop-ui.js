@@ -1619,3 +1619,21 @@ export default class ErrorCopUI {
     return div.innerHTML;
   }
 }
+const _ecpOrigOpen = ErrorCopUI.prototype.open;
+
+ErrorCopUI.prototype.isOpen = function isOpen() {
+  return !!(this._wrapper && this._wrapper.classList.contains('open'));
+};
+
+ErrorCopUI.prototype.open = async function openSynced(opts) {
+  if (this._isOpen && !this.isOpen()) {
+    this._isOpen = false;
+    this._stopRefresh();
+  }
+  return _ecpOrigOpen.call(this, opts);
+};
+
+ErrorCopUI.prototype.toggle = function toggleSynced() {
+  if (this.isOpen()) this.close();
+  else this.open();
+};
