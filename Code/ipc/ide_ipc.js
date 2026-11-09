@@ -541,6 +541,85 @@ ipcMain.handle('ide:gitLines', async (_event, args) => {
     return { success: false, error: err.message };
   }
 });
+async function clipExists(p) {
+  try {
+    await fs.promises.lstat(p);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function clipSame(a, b) {
+  const x = path.resolve(a);
+  const y = path.resolve(b);
+  return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+}
+
+function clipInside(child, parent) {
+  const rel = path.relative(path.resolve(parent), path.resolve(child));
+  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+async function clipCopyName(dir, name, isDir) {
+  const dot = name.lastIndexOf('.');
+  const hasExt = !isDir && dot > 0;
+  const stem = hasExt ? name.slice(0, dot) : name;
+  const ext = hasExt ? name.slice(dot) : '';
+  for (let n = 1; n < 1000; n++) {
+    const cand = stem + (n === 1 ? ' copy' : ' copy ' + n) + ext;
+    if (!(await clipExists(path.join(dir, cand)))) return cand;
+  }
+  return null;
+}
+
+ipcMain.handle('ide:fsPaste', async (_event, args) => {
+  const source = args && args.source;
+  const targetDir = args && args.targetDir;
+  const mode = args && args.mode === 'cut' ? 'cut' : 'copy';
+  if (typeof source !== 'string' || typeof targetDir !== 'string' || !source || !targetDir) {
+    return { success: false, error: 'Invalid arguments' };
+  }
+  if (!path.isAbsolute(source) || !path.isAbsolute(targetDir)) {
+    return { success: false, error: 'Invalid path' };
+  }
+  try {
+    const srcSt = await fs.promises.lstat(source);
+    const dirSt = await fs.promises.stat(targetDir);
+    if (!dirSt.isDirectory()) return { success: false, error: 'Target is not a folder' };
+    const isDir = srcSt.isDirectory();
+    const name = path.basename(source);
+    if (isDir && (clipSame(source, targetDir) || clipInside(targetDir, source))) {
+      return { success: false, error: 'Cannot paste a folder into itself' };
+    }
+    const sameParent = clipSame(path.dirname(source), targetDir);
+    if (mode === 'cut') {
+      if (sameParent) return { success: true, noop: true, to: source };
+      const dest = path.join(targetDir, name);
+      if (await clipExists(dest)) {
+        return { success: false, error: name + ' already exists in that folder' };
+      }
+      try {
+        await fs.promises.rename(source, dest);
+      } catch (err) {
+        if (!err || err.code !== 'EXDEV') throw err;
+        await fs.promises.cp(source, dest, { recursive: true, errorOnExist: true, force: false });
+        await fs.promises.rm(source, { recursive: true, force: true });
+      }
+      return { success: true, to: dest };
+    }
+    let finalName = name;
+    if (await clipExists(path.join(targetDir, name))) {
+      finalName = await clipCopyName(targetDir, name, isDir);
+      if (!finalName) return { success: false, error: 'Could not find a free name' };
+    }
+    const to = path.join(targetDir, finalName);
+    await fs.promises.cp(source, to, { recursive: true, errorOnExist: true, force: false });
+    return { success: true, to };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 function register() {
   ipcMain.handle('ide:readDir', async (_event, dirPath) => {
     try {
