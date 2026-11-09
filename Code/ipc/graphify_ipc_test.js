@@ -559,7 +559,6 @@ ${fileEntries}
 Generate the output now.`;
 }
 
-
 // register function placeholder
 function register(app) {}
 function shutdown() {}

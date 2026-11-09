@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const fs = require('fs');
 const stack = require('../services/ideStack.js');
 const diagnostics = require('../services/ideDiagnostics.js');
+const debugScan = require('../services/ideDebugScan.js');
 
 const KNOWN = new Set([
   'js', 'react', 'express', 'astro', 'python', 'flask', 'django',
@@ -58,6 +59,31 @@ function register() {
     } catch (err) {
       return { success: false, error: err.message };
     }
+  });
+
+  ipcMain.handle('ideDebug:start', async (event, args) => {
+    try {
+      if (!args || typeof args !== 'object') return { success: false, error: 'Invalid arguments' };
+      const root = args.root;
+      if (typeof root !== 'string' || !root) return { success: false, error: 'No folder opened' };
+      const ids = Array.isArray(args.ids) ? args.ids.filter((x) => KNOWN.has(x)) : [];
+      if (!ids.length) return { success: false, error: 'No extension is enabled for this repo' };
+      const exts = Array.isArray(args.exts)
+        ? args.exts.filter((x) => typeof x === 'string' && /^[a-z0-9]{1,8}$/.test(x)).slice(0, 60)
+        : [];
+      if (!exts.length) return { success: false, error: 'No file types to check' };
+      const st = await fs.promises.stat(root);
+      if (!st.isDirectory()) return { success: false, error: 'Not a folder' };
+      debugScan.start(event.sender, { id: String(args.id || ''), root, ids, exts });
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('ideDebug:cancel', async (event, id) => {
+    debugScan.cancel(event.sender, typeof id === 'string' ? id : '');
+    return { success: true };
   });
 }
 
