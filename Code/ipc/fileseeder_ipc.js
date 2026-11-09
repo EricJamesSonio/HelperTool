@@ -10,6 +10,59 @@ const path = require('path');
 const fileSeeder  = require('../utils/fileSeeder');
 const flowHistory = require('../utils/flowHistory');
 
+const MAX_SNAP = 2 * 1024 * 1024;
+
+function snapAbs(basePath, rel) {
+    try {
+        const root = path.resolve(basePath);
+        const abs = path.resolve(root, String(rel || ''));
+        if (abs !== root && !abs.startsWith(root + path.sep)) return null;
+        return abs;
+    } catch (_) {
+        return null;
+    }
+}
+
+function snapRead(abs) {
+    if (!abs) return null;
+    try {
+        const st = fs.statSync(abs);
+        if (!st.isFile() || st.size > MAX_SNAP) return null;
+        return fs.readFileSync(abs, 'utf-8');
+    } catch (_) {
+        return '';
+    }
+}
+
+function snapBefore(basePath, entries) {
+    const map = new Map();
+    try {
+        for (const e of entries) {
+            const rel = e && (e.resolved || e.relPath);
+            if (!rel || map.has(rel)) continue;
+            const abs = snapAbs(basePath, rel);
+            map.set(rel, { abs: abs, text: snapRead(abs) });
+        }
+    } catch (_) {}
+    return map;
+}
+
+function reportSeeded(basePath, before) {
+    try {
+        const wk = require('./wakatime_ipc.js');
+        if (!wk || typeof wk.reportHumanChanges !== 'function') return;
+        const files = [];
+        for (const entry of before) {
+            const b = entry[1];
+            if (!b || !b.abs || b.text === null) continue;
+            const after = snapRead(b.abs);
+            if (after === null) continue;
+            files.push({ abs: b.abs, before: b.text, after: after });
+        }
+        if (files.length) wk.reportHumanChanges(basePath, files);
+    } catch (_) {}
+}
+
 /**
  * @param {{ app?: object }} _deps
  */
@@ -74,7 +127,10 @@ function register(_deps) {
             if (!basePath || !Array.isArray(entries) || !entries.length) {
                 return { error: 'Invalid arguments', created: [], overwritten: [], patched: [], errors: [] };
             }
-            return await fileSeeder.seedContent(basePath, entries);
+            const before = snapBefore(basePath, entries);
+            const result = await fileSeeder.seedContent(basePath, entries);
+            if (result && !result.error) reportSeeded(basePath, before);
+            return result;
         } catch (err) {
             console.error('[IPC] fileseeder:seedContent error:', err);
             return { error: err.message, created: [], overwritten: [], patched: [], errors: [] };

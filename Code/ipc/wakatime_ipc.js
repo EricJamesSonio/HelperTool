@@ -43,8 +43,8 @@ const cliQueue = [];
 const GLOBAL_GAP = 15000;
 const BIG_FILE = 2000000;
 let lastLaunch = 0;
-
-
+let humanFlag = true;
+let updTried = false;
 
 function platformName() {
   if (process.platform === 'win32') return 'windows';
@@ -206,6 +206,87 @@ function userActive() {
   }
 }
 
+function splitLines(t) {
+  if (!t) return [];
+  const a = String(t).split(/\r?\n/);
+  if (a.length && a[a.length - 1] === '') a.pop();
+  return a;
+}
+
+function countLineChanges(before, after) {
+  const a = splitLines(before);
+  const b = splitLines(after);
+  let s = 0;
+  const max = Math.min(a.length, b.length);
+  while (s < max && a[s] === b[s]) s++;
+  let ea = a.length;
+  let eb = b.length;
+  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) {
+    ea--;
+    eb--;
+  }
+  const n = ea - s;
+  const m = eb - s;
+  if (!n) return m;
+  if (!m) return n;
+  if (n * m > 4000000) return n + m;
+  let prev = new Uint32Array(m + 1);
+  let cur = new Uint32Array(m + 1);
+  for (let i = 1; i <= n; i++) {
+    cur[0] = 0;
+    const ai = a[s + i - 1];
+    for (let j = 1; j <= m; j++) {
+      if (ai === b[s + j - 1]) cur[j] = prev[j - 1] + 1;
+      else cur[j] = prev[j] > cur[j - 1] ? prev[j] : cur[j - 1];
+    }
+    const t = prev;
+    prev = cur;
+    cur = t;
+  }
+  const lcs = prev[m];
+  return (n - lcs) + (m - lcs);
+}
+
+function stripHuman(args) {
+  const i = args.indexOf('--human-line-changes');
+  if (i < 0) return args;
+  const c = args.slice();
+  c.splice(i, 2);
+  return c;
+}
+
+function handleOldCli(job) {
+  console.warn('[WakaTime] this wakatime-cli does not support --human-line-changes');
+  const requeue = (extra) => {
+    cliQueue.unshift(Object.assign({}, job, extra));
+  };
+  if (updTried) {
+    humanFlag = false;
+    requeue({ args: stripHuman(job.args), human: false });
+    cliBusy = false;
+    runQueue();
+    return;
+  }
+  updTried = true;
+  install()
+    .then((res) => {
+      if (res && res.success) {
+        requeue({ bin: cliPath() || job.bin, human: true });
+      } else {
+        humanFlag = false;
+        requeue({ args: stripHuman(job.args), human: false });
+      }
+    })
+    .catch(() => {
+      humanFlag = false;
+      requeue({ args: stripHuman(job.args), human: false });
+    })
+    .finally(() => {
+      cliBusy = false;
+      runQueue();
+    });
+}
+
 function runQueue() {
   if (cliBusy || !cliQueue.length) return;
   const job = cliQueue.shift();
@@ -213,7 +294,12 @@ function runQueue() {
   const t0 = Date.now();
   const child = execFile(job.bin, job.args, { windowsHide: true, timeout: 15000 }, (err, _out, stderr) => {
     const ms = Date.now() - t0;
-    if (err) console.warn('[WakaTime] heartbeat failed after ' + ms + ' ms:', String(stderr || err.message).slice(0, 300));
+    const text = String(stderr || (err && err.message) || '');
+    if (err && job.human && /human-line-changes/i.test(text) && /unknown|unrecognized|flag|usage/i.test(text)) {
+      handleOldCli(job);
+      return;
+    }
+    if (err) console.warn('[WakaTime] heartbeat failed after ' + ms + ' ms:', text.slice(0, 300));
     else if (ms > 4000) console.warn('[WakaTime] slow heartbeat: ' + ms + ' ms');
     cliBusy = false;
     runQueue();
@@ -223,13 +309,18 @@ function runQueue() {
   } catch (_) {}
 }
 
-function enqueueBeat(bin, args, key) {
-  if (cliQueue.some((j) => j.key === key)) return false;
-  if (cliQueue.length >= MAX_QUEUE) cliQueue.shift();
-  cliQueue.push({ bin, args, key });
+function enqueueBeat(bin, args, key, human) {
+  if (!human && cliQueue.some((j) => j.key === key)) return false;
+  if (cliQueue.length >= MAX_QUEUE) {
+    const i = cliQueue.findIndex((j) => !j.human);
+    if (i >= 0) cliQueue.splice(i, 1);
+    else if (cliQueue.length >= 80) return false;
+  }
+  cliQueue.push({ bin, args, key, human: !!human });
   runQueue();
   return true;
 }
+
 function sendBeat(p) {
   const bin = cliPath();
   if (!bin || ctx.paused || !hasKey()) return false;
@@ -252,17 +343,43 @@ function sendBeat(p) {
   }
   const repo = typeof p.repo === 'string' ? p.repo : '';
   const args = ['--entity', entity, '--entity-type', isApp ? 'app' : 'file', '--plugin', PLUGIN, '--category', 'coding', '--sync-offline-activity', '25'];
+  let human = false;
   if (!isApp) {
     if (p.write) args.push('--write');
     if (Number.isFinite(p.line) && p.line > 0) args.push('--lineno', String(Math.floor(p.line)));
     if (Number.isFinite(p.col) && p.col > 0) args.push('--cursorpos', String(Math.floor(p.col)));
     if (Number.isFinite(p.lines) && p.lines > 0) args.push('--lines-in-file', String(Math.floor(p.lines)));
+    if (humanFlag && Number.isFinite(p.humanLines) && p.humanLines > 0) {
+      args.push('--human-line-changes', String(Math.floor(p.humanLines)));
+      human = true;
+    }
   }
   if (repo) args.push('--project-folder', repo);
   else if (isApp) args.push('--project', APP_NAME);
-  const queued = enqueueBeat(bin, args, key + (p.write ? ':w' : ''));
-  if (queued) lastLaunch = now;
+  const qkey = human ? key + ':h' + now + ':' + Math.random().toString(36).slice(2, 6) : key + (p.write ? ':w' : '');
+  const queued = enqueueBeat(bin, args, qkey, human);
+  if (queued && !human) lastLaunch = now;
   return queued;
+}
+
+function reportHumanChanges(basePath, files) {
+  try {
+    if (ctx.paused || !Array.isArray(files)) return 0;
+    const jobs = [];
+    for (const f of files) {
+      if (!f || typeof f.abs !== 'string' || !path.isAbsolute(f.abs) || f.after == null) continue;
+      const n = countLineChanges(f.before, f.after);
+      if (n > 0) jobs.push({ abs: f.abs, n, lines: splitLines(f.after).length });
+    }
+    jobs.sort((x, y) => y.n - x.n);
+    let sent = 0;
+    for (const j of jobs.slice(0, 60)) {
+      if (sendBeat({ file: j.abs, write: true, repo: basePath, gap: 1000, humanLines: j.n, lines: j.lines })) sent++;
+    }
+    return sent;
+  } catch (_) {
+    return 0;
+  }
 }
 
 function tick() {
@@ -460,4 +577,4 @@ function register() {
   startTicker();
 }
 
-module.exports = { register };
+module.exports = { register, reportHumanChanges };
