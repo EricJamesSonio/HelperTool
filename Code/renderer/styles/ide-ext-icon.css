@@ -27,13 +27,16 @@
 }
 
 body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-ext-btn {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + clamp(220px, 32vw, 520px) / 2 + 46px);
+  transform: translateY(-50%);
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  order: 99;
   width: 30px;
   height: 30px;
-  margin-left: 8px;
+  margin: 0;
   padding: 0;
 }
