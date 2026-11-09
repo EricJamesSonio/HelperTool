@@ -83,14 +83,24 @@ export function renderAIProviderSelect() {
 
   select.value = state.selectedProvider;
   select.addEventListener('change', () => {
+    const prev = state.selectedProvider;
     state.selectedProvider = select.value;
     try { localStorage.setItem('helpertool-cs-provider', select.value); } catch (_) {}
-    refreshSidebar(true);
+    const repo = state.activeTab;
     import('./terminalManager.js').then((m) => {
-      m.discardPrewarmed();
-      if (state.activeTab) m.prewarmSession(state.activeTab).catch(() => {});
+      if (repo && !state.parallelMode) {
+        m.switchProviderView(repo, prev);
+        m.prewarmSession(repo).catch(() => {});
+      } else {
+        m.discardPrewarmed();
+        if (repo) m.prewarmSession(repo).catch(() => {});
+      }
+      renderConvList();
+      return refreshSidebar(true);
     }).catch(() => {});
   });
+
+  import('./providerTabs.js').then((m) => m.renderProviderTabs()).catch(() => {});
 }
 
 export function renderSidebarToggle() {

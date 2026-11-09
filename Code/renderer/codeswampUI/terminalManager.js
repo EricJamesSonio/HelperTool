@@ -65,8 +65,11 @@ function getDarkTheme() {
 }
 
 function _findSlotByRepoPath(repoPath) {
+  const want = state.parallelMode ? null : getProvider(state.selectedProvider).id;
   for (const [slot, inst] of Object.entries(instances)) {
-    if (inst && inst.repoPath === repoPath) return Number(slot);
+    if (!inst || inst.repoPath !== repoPath) continue;
+    if (want && inst.provider && inst.provider !== want) continue;
+    return Number(slot);
   }
   return -1;
 }
@@ -118,7 +121,8 @@ function stageTerminal(on) {
 
 function _findInst(repoPath, slotIndex) {
   if (slotIndex !== undefined && instances[slotIndex]) return instances[slotIndex];
-  return Object.values(instances).find((i) => i && i.repoPath === repoPath) || null;
+  const slot = _findSlotByRepoPath(repoPath);
+  return slot >= 0 ? instances[slot] : null;
 }
 
 function buildBootOverlay(label) {
@@ -252,9 +256,15 @@ export async function initXterm() {
 export function createTerminalSession(repoPath, slotIndex = 0, opts = {}) {
   if (instances[slotIndex]) return Promise.resolve(instances[slotIndex]);
   if (_creating.has(slotIndex)) return _creating.get(slotIndex);
-  const p = _createSession(repoPath, slotIndex, opts).finally(() => {
-    _creating.delete(slotIndex);
-  });
+  const pid = getProvider(state.selectedProvider).id;
+  const p = _createSession(repoPath, slotIndex, opts)
+    .then((inst) => {
+      if (inst && !inst.provider) inst.provider = pid;
+      return inst;
+    })
+    .finally(() => {
+      _creating.delete(slotIndex);
+    });
   _creating.set(slotIndex, p);
   return p;
 }
@@ -1119,6 +1129,36 @@ export function syncStage(repoPath) {
   const slot = _findSlotByRepoPath(repoPath);
   const inst = slot >= 0 ? instances[slot] : null;
   stageTerminal(!!inst && inst.revealed === false);
+}
+const _convStash = {};
+
+export function switchProviderView(repoPath, prevProvider) {
+  if (!repoPath) return false;
+  const now = getProvider(state.selectedProvider).id;
+  if (prevProvider && prevProvider !== now) {
+    _convStash[repoPath + '|' + prevProvider] = state.activeConvId[repoPath] || null;
+    state.activeConvId[repoPath] = _convStash[repoPath + '|' + now] || null;
+  }
+  const slot = _findSlotByRepoPath(repoPath);
+  const inst = slot >= 0 ? instances[slot] : null;
+  if (inst && inst.revealed !== false) {
+    stageTerminal(false);
+    state.activeSlotIndex = slot;
+    showSlot(slot);
+    return true;
+  }
+  const welcome = document.getElementById('ocWelcome');
+  const wrapper = document.getElementById('ocTerminal');
+  if (welcome) welcome.style.display = '';
+  if (wrapper) wrapper.style.display = 'none';
+  if (inst) {
+    state.activeSlotIndex = slot;
+  } else {
+    const free = getNextFreeSlot();
+    if (free >= 0) state.activeSlotIndex = free;
+  }
+  syncStage(repoPath);
+  return false;
 }
 
 export function pickSlotForRepo(repoPath) {
