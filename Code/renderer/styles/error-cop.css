@@ -1269,3 +1269,123 @@
 .ecp-pv-content::-webkit-scrollbar { width: 4px; }
 .ecp-pv-content::-webkit-scrollbar-track { background: transparent; }
 .ecp-pv-content::-webkit-scrollbar-thumb { background: rgba(255,34,34,0.3); border-radius: 4px; }
+/* ─── Icons (replace emoji) ─── */
+
+.ecp-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.ecp-ico svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+.ecp-ico-net { color: #3b8eea; }
+.ecp-ico-term { color: #8a9aaa; }
+
+.ecp-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff4444;
+}
+.ecp-empty-icon svg {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+.ecp-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ecp-stat-label .ecp-event-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.ecp-btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ecp-btn-with-icon svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+.ecp-copy-btn svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.ecp-time-chevron {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.7;
+}
+.ecp-time-chevron svg {
+  width: 10px;
+  height: 10px;
+  display: block;
+}
+
+.ecp-mp-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ecp-mp-nav svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+.ecp-sa-close svg,
+.ecp-pv-close svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+/* ─── Copy Report button ─── */
+
+.ecp-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 34, 34, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 34, 34, 0.12);
+  color: #ff7d7d;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+.ecp-action-btn:hover {
+  background: rgba(255, 34, 34, 0.24);
+  border-color: rgba(255, 68, 68, 0.5);
+  color: #ffa0a0;
+}
+.ecp-action-btn svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+.ecp-action-btn.ecp-action-done {
+  background: rgba(35, 209, 139, 0.15);
+  border-color: #23d18b;
+  color: #23d18b;
+}
