@@ -341,17 +341,29 @@ async function syntaxErrors(c, lang, text, label, onClean) {
   if (!tree) return;
   try {
     if (flag(tree.rootNode, 'hasError')) {
-      for (const st of require('./ideGrammarFixes.js').stagesFor(lang, text)) {
+      const fixes = require('./ideGrammarFixes.js');
+      let cur = text;
+      for (const st of fixes.stagesFor(lang, text)) {
         const t2 = parse(st.src);
         if (!t2) continue;
         const clean = !flag(t2.rootNode, 'hasError');
         if (clean || st.always) {
           drop(tree);
           tree = t2;
+          cur = st.src;
         } else {
           drop(t2);
         }
         if (clean) break;
+      }
+      for (let k = 0; k < 12 && flag(tree.rootNode, 'hasError') && fixes.usesJsx(lang); k++) {
+        const hits = fixes.ampErrorIndexes(tree.rootNode, cur);
+        if (!hits.length) break;
+        cur = fixes.blankAt(cur, hits);
+        const t3 = parse(cur);
+        if (!t3) break;
+        drop(tree);
+        tree = t3;
       }
     }
     const root = tree.rootNode;
