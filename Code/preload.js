@@ -903,3 +903,6 @@ contextBridge.exposeInMainWorld('ideLineAPI', {
 contextBridge.exposeInMainWorld('ideClipAPI', {
     paste: (payload) => ipcRenderer.invoke('ide:fsPaste', payload),
 });
+contextBridge.exposeInMainWorld('ideHistoryAPI', {
+    op: (payload) => ipcRenderer.invoke('ide:fsOp', payload),
+});
