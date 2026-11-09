@@ -900,3 +900,6 @@ contextBridge.exposeInMainWorld('ideWatchAPI', {
 contextBridge.exposeInMainWorld('ideLineAPI', {
     diff: (root, file) => ipcRenderer.invoke('ide:gitLines', { root, file }),
 });
+contextBridge.exposeInMainWorld('ideClipAPI', {
+    paste: (payload) => ipcRenderer.invoke('ide:fsPaste', payload),
+});
