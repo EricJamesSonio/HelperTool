@@ -3,6 +3,7 @@ import { displayTree } from '../app_manager/viewManager.js';
 import { getFeatures } from '../featureManager.js';
 import { buildCommand } from './extensions/runners.js';
 import * as ideExt from './extensions/index.js';
+import * as ideHistory from './history.js';
 
 
 
@@ -394,6 +395,16 @@ function init() {
   injectCss();
   applyWidth();
   createButton();
+  ideHistory.init({
+    refreshTree: () => {
+      if (mods) mods.explorer.refresh();
+    },
+    reloadFile: (p) => {
+      if (!mods) return;
+      const r = mods.editor.reloadFromDisk(p);
+      if (r && typeof r.catch === 'function') r.catch(() => {});
+    },
+  });
   lastRepo = state.selectedRepoPath ? normRepo(state.selectedRepoPath) : null;
   document.addEventListener('repo:switched', onRepoSwitched);
   document.addEventListener('keydown', onGlobalKey, true);

@@ -809,9 +809,13 @@ async function pasteClip() {
   if (src.mode === 'cut') {
     cache.delete(dirName(src.path));
     dropUnder(src.path);
-    clip = null;
     document.dispatchEvent(new CustomEvent('ide:path-moved', { detail: { from: src.path, to: res.to } }));
   }
+  clip = null;
+  markClip();
+  document.dispatchEvent(new CustomEvent('ide:history-add', {
+    detail: { type: 'paste', mode: src.mode, from: src.path, to: res.to, kind: src.type },
+  }));
   saveExpanded();
   revealKey = pathKey(res.to);
   selected = { path: res.to, type: src.type };

@@ -1236,6 +1236,11 @@ export async function saveTab(path) {
     res = { success: false };
   }
   if (!res || !res.success) return false;
+  if (tab.saved !== text) {
+    document.dispatchEvent(new CustomEvent('ide:history-add', {
+      detail: { type: 'edit', path: tab.path, before: tab.saved, after: text, eol: tab.eol },
+    }));
+  }
   tab.saved = text;
   tab.dirty = false;
   renderTabs();
@@ -1352,6 +1357,7 @@ async function save() {
   if (!isText(tab)) return;
   if (ext.formatOnSave() && fmt.canFormat(tab.name)) formatBuffer(tab);
   const text = els.ta.value;
+  const before = tab.saved;
   const out = tab.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
   let res;
   try {
@@ -1360,6 +1366,11 @@ async function save() {
     res = { success: false, error: err && err.message ? err.message : String(err) };
   }
   if (res && res.success) {
+    if (before !== text) {
+      document.dispatchEvent(new CustomEvent('ide:history-add', {
+        detail: { type: 'edit', path: tab.path, before, after: text, eol: tab.eol },
+      }));
+    }
     tab.content = text;
     tab.saved = text;
     tab.dirty = false;
