@@ -453,3 +453,33 @@ body.ide-mode .navbar-row--primary .navbar-section.center > .ide-cs-btn.tool-btn
   width: 30px;
   height: 30px;
 }
+.ide-cs-host .oc-provider-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+}
+.ide-cs-host .oc-provider-tab {
+  height: 24px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.ide-cs-host .oc-provider-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.ide-cs-host .oc-provider-tab.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.ide-cs-dock .oc-provider-tab {
+  padding: 0 10px;
+}
