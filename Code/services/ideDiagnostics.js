@@ -325,14 +325,35 @@ function reportMissing(c, n, lines, label) {
 async function syntaxErrors(c, lang, text, label, onClean) {
   const parser = await getParser(lang);
   if (!parser) return;
-  let tree = null;
-  try {
-    tree = parser.parse(text);
-  } catch (_) {
-    return;
-  }
+  const parse = (src) => {
+    try {
+      return parser.parse(src);
+    } catch (_) {
+      return null;
+    }
+  };
+  const drop = (t) => {
+    try {
+      t.delete();
+    } catch (_) {}
+  };
+  let tree = parse(text);
   if (!tree) return;
   try {
+    if (flag(tree.rootNode, 'hasError')) {
+      for (const st of require('./ideGrammarFixes.js').stagesFor(lang, text)) {
+        const t2 = parse(st.src);
+        if (!t2) continue;
+        const clean = !flag(t2.rootNode, 'hasError');
+        if (clean || st.always) {
+          drop(tree);
+          tree = t2;
+        } else {
+          drop(t2);
+        }
+        if (clean) break;
+      }
+    }
     const root = tree.rootNode;
     if (!flag(root, 'hasError')) {
       if (onClean) {
@@ -362,9 +383,7 @@ async function syntaxErrors(c, lang, text, label, onClean) {
       for (let k = kids.length - 1; k >= 0; k--) stack.push(kids[k]);
     }
   } finally {
-    try {
-      tree.delete();
-    } catch (_) {}
+    drop(tree);
   }
 }
 
@@ -728,6 +747,18 @@ function checkCpp(c, text, ext) {
   }
 }
 
+function isJsonLines(text) {
+  const rows = text.split('\n').filter((l) => l.trim());
+  if (rows.length < 2) return false;
+  return rows.every((l) => {
+    try {
+      JSON.parse(l);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  });
+}
 function checkJson(c, text, file) {
   const base = path.basename(file).toLowerCase();
   const f = file.replace(/\\/g, '/');
@@ -738,6 +769,7 @@ function checkJson(c, text, file) {
     JSON.parse(text);
     ok = true;
   } catch (e) {
+    if (isJsonLines(text)) return;
     const raw = String((e && e.message) || 'Invalid JSON');
     let line = 1;
     let col = 0;
@@ -763,7 +795,8 @@ async function checkJsFamily(c, text, file, ext, has) {
   if (!has('js', 'nextjs', 'nestjs', 'angular', 'react', 'express')) return;
   const label = ext === 'ts' || ext === 'tsx' ? 'TypeScript' : 'JavaScript';
   const scoped = has('js') && (ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') && text.length <= 150000;
-  const onClean = scoped ? (root) => require('./ideScope.js').findUndefined(root, text, c) : null;
+  const testGlobals = scoped ? require('./ideTestGlobals.js').testGlobalsFor(file) : null;
+  const onClean = scoped ? (root) => require('./ideScope.js').findUndefined(root, text, c, testGlobals) : null;
   if (text.length <= MAX_PARSE) await syntaxErrors(c, JS_LANG[ext], text, label, onClean);
   const m = mask(text, 'js').masked;
   if (has('js')) lintJs(c, text, m, ext, label);
@@ -1109,7 +1142,8 @@ function lintCppStrict(c, text, ext) {
   }
 }
 async function diagnose(args) {
-  const text = args && typeof args.text === 'string' ? args.text : '';
+  let text = args && typeof args.text === 'string' ? args.text : '';
+  if (text.charCodeAt(0) === 0xFEFF) text = ' ' + text.slice(1);
   if (!text || text.length > MAX_TEXT) return [];
   const exts = Array.isArray(args.exts) ? args.exts : [];
   const has = (...ids) => ids.some((id) => exts.indexOf(id) !== -1);

@@ -273,9 +273,12 @@ function walk(n, scope, ctx) {
   walkKids(n, scope, ctx);
 }
 
-function findUndefined(root, text, c) {
+function findUndefined(root, text, c, extraGlobals) {
   if (/\/\*\s*eslint-disable\s*(?:\*\/|[^*]*\bno-undef\b)/.test(text)) return;
   const extra = new Set();
+  if (extraGlobals) {
+    for (const g of extraGlobals) extra.add(g);
+  }
   const re = /\/\*\s*globals?\s+([^*]*)\*\//g;
   let m = re.exec(text);
   while (m !== null) {
