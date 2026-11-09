@@ -3,6 +3,8 @@ import { esc } from '../highlight.js';
 import { EXTENSIONS } from './registry.js';
 import * as fmt from './formatter.js';
 import * as pm from './prettierModal.js';
+import * as dm from './docModal.js';
+
 const MEMO_MAX = 24;
 const memo = new Map();
 let idsMemo = null;
@@ -224,7 +226,8 @@ function cardHtml(e) {
     meta = auto ? 'Detected: ' + stacks[e.id] : 'Not detected in this repo';
   }
   const langs = e.langs.map((l) => '<span class="ide-ext-lang">' + esc(l) + '</span>').join('');
-  const view = e.hasView ? '<button type="button" class="ide-ext-view" data-act="view-fmt">View</button>' : '';
+  const viewAct = e.hasView ? 'view-fmt' : 'view-doc';
+  const view = '<button type="button" class="ide-ext-view" data-act="' + viewAct + '" data-id="' + e.id + '">View</button>';
   return '<div class="ide-ext-card' + (on ? ' on' : '') + '" data-id="' + e.id + '">' +
     '<span class="ide-ext-badge" style="color:var(' + e.color + ')">' + esc(e.badge) + '</span>' +
     '<div class="ide-ext-info">' +
@@ -311,9 +314,15 @@ function openPrettier() {
     toggle: () => toggle('prettier'),
   });
 }
+function openDoc(id) {
+  const ext = EXTENSIONS.find((x) => x.id === id);
+  if (!ext) return;
+  dm.open(ext, { detected: stacks[id] || '', override: overrides[id] || '', on: isOn(id) });
+}
 
 function onKey(e) {
   if (e.key !== 'Escape' || !overlay || overlay.hidden) return;
+  if (dm.isOpen()) return;
   e.preventDefault();
   e.stopPropagation();
   close();
@@ -331,6 +340,7 @@ function onOverlayClick(e) {
   else if (act === 'redetect') detect(true);
   else if (act === 'toggle') toggle(b.dataset.id);
   else if (act === 'view-fmt') openPrettier();
+  else if (act === 'view-doc') openDoc(b.dataset.id);
   else if (act === 'filter') {
     filter = b.dataset.f || 'all';
     try { localStorage.setItem(LS_FILTER, filter); } catch (_) {}
@@ -382,6 +392,7 @@ function injectCss() {
     ['ideExtCss', './styles/ide-ext.css'],
     ['ideExtIconCss', './styles/ide-ext-icon.css'],
     ['idePrettierCss', './styles/ide-prettier.css'],
+    ['ideExtDocCss', './styles/ide-ext-doc.css'],
     ['ideWarnListCss', './styles/ide-warnlist.css'],
   ];
   for (const [id, href] of sheets) {
