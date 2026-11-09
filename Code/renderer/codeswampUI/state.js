@@ -1,3 +1,13 @@
+import { PROVIDERS } from './providers.js';
+
+function loadProvider() {
+  try {
+    const saved = localStorage.getItem('helpertool-cs-provider');
+    if (saved && PROVIDERS[saved]) return saved;
+  } catch (_) {}
+  return 'opencode';
+}
+
 export const state = {
   open: false,
 
@@ -25,7 +35,7 @@ export const state = {
   selectedShell: null,
 
   // AI provider
-  selectedProvider: 'opencode',
+  selectedProvider: loadProvider(),
 
   // Sidebar
   sidebarCollapsed: false,
@@ -42,5 +52,3 @@ export const state = {
   activeSlotIndex: 0,
   slotData: {},
 };
-
-

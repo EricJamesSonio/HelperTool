@@ -11,6 +11,14 @@ export const PROVIDERS = {
     newChatCmd: (binaryPath) => `${q(binaryPath) || 'opencode'}\r`,
     resumeCmd: (sessionId, binaryPath) => `${q(binaryPath) || 'opencode'} -s ${sessionId}\r`,
   },
+  cline: {
+    id: 'cline',
+    label: 'Cline',
+    bin: 'cline',
+    shortLabel: 'CL',
+    newChatCmd: () => 'cline\r',
+    resumeCmd: () => 'cline\r',
+  },
   gemini: {
     id: 'gemini',
     label: 'Gemini CLI',

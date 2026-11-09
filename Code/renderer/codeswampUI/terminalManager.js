@@ -547,10 +547,9 @@ export async function restartOpencode(repoPath, slotIndex) {
     inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
   }
   if (!inst || !inst.terminal) return;
-  const { getProvider } = await import('./providers.js');
   const provider = getProvider(state.selectedProvider);
-  const binaryPath = state.opencodePath || provider.bin;
-  inst.terminal.write(`\r\n${binaryPath || 'opencode'}\r`);
+  const binaryPath = provider.id === 'opencode' ? (state.opencodePath || provider.bin) : provider.bin;
+  await window.electronAPI.opencode.termWrite({ id: inst.id, data: provider.newChatCmd(binaryPath) }).catch(() => {});
   const maxWait = 15000;
   const start = Date.now();
   while (Date.now() - start < maxWait) {
@@ -1058,6 +1057,9 @@ function killUnusedPrewarmed(keepRepo) {
     const inst = instances[key];
     if (inst && inst.prewarmed && !inst.used && inst.repoPath !== keepRepo) killSlot(Number(key));
   });
+}
+export function discardPrewarmed() {
+  killUnusedPrewarmed(null);
 }
 
 export function awaitPrewarm(repoPath) {

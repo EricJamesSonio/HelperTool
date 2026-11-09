@@ -84,7 +84,12 @@ export function renderAIProviderSelect() {
   select.value = state.selectedProvider;
   select.addEventListener('change', () => {
     state.selectedProvider = select.value;
+    try { localStorage.setItem('helpertool-cs-provider', select.value); } catch (_) {}
     refreshSidebar(true);
+    import('./terminalManager.js').then((m) => {
+      m.discardPrewarmed();
+      if (state.activeTab) m.prewarmSession(state.activeTab).catch(() => {});
+    }).catch(() => {});
   });
 }
 
