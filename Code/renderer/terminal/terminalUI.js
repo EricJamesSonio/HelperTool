@@ -302,6 +302,25 @@ export default class TerminalUI {
     this._docked = false;
   }
 
+  _disposeForeign(repoPath) {
+    if (!repoPath) return;
+    const key = normRepoKey(repoPath);
+    const doomed = [];
+    for (const [id, inst] of this.instances) {
+      const base = inst.repo || inst.cwd;
+      if (!base) continue;
+      const k = normRepoKey(base);
+      const same = inst.repo ? k === key : (k === key || k.indexOf(key + '/') === 0);
+      if (!same) doomed.push(id);
+    }
+    for (const id of doomed) this._killTerminal(id, true);
+    if (doomed.length && !this.instances.has(this.activeId)) {
+      const next = this.instances.keys().next();
+      this.activeId = next.done ? null : next.value;
+      if (this.activeId !== null) this._activateTerminal(this.activeId);
+    }
+  }
+
   async _ensureRepoTerminal(repoPath) {
     if (!repoPath || !this.panel) return;
     const key = normRepoKey(repoPath);
@@ -322,13 +341,18 @@ export default class TerminalUI {
   async syncRepo(repoPath) {
     if (!repoPath || !this.panel) return;
     this._lastCwd = repoPath;
-    if (!this.isOpen()) return;
+    const wasOpen = this.isOpen();
+    this._disposeForeign(repoPath);
+    if (!wasOpen) return;
+    this._showPanel();
     await this._ensureRepoTerminal(repoPath);
+    requestAnimationFrame(() => this._fitActive());
   }
 
   open(cwd) {
     if (this.panel.classList.contains('open')) return;
     this._lastCwd = cwd || this._lastCwd;
+    if (cwd) this._disposeForeign(cwd);
     this._showPanel();
     if (cwd) {
       this._ensureRepoTerminal(cwd);
@@ -627,7 +651,7 @@ export default class TerminalUI {
     this._viewTerminalOutputById(this.activeId);
   }
 
-  _killTerminal(id) {
+  _killTerminal(id, quiet) {
     const inst = this.instances.get(id);
     if (!inst) return;
 
@@ -637,6 +661,8 @@ export default class TerminalUI {
     inst.inst.remove();
     inst.tab.remove();
     this.instances.delete(id);
+
+    if (quiet) return;
 
     if (this.instances.size === 0) {
       this.close();
