@@ -10,6 +10,8 @@ import { openStonePanel } from './stonePanel.js';
 import { openPlanningPanel } from './planningPanel.js';
 import { openBuildKitPanel } from './buildKitPanel.js';
 import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
+import { getSlotForRepo, pickSlotForRepo, revealTerminalForRepo, awaitPrewarm, waitForTerminalBoot } from './terminalManager.js';
+
 
 function extractFilePathsFromText(text) {
   const knownPaths = getCachedFiles().map(f => f.path);
@@ -173,8 +175,6 @@ async function sendMessage() {
     const repoPath = state.activeTab;
     if (!repoPath) return;
 
-    const slotIndex = state.activeSlotIndex;
-
     // Reset stale streaming flag — it gets stuck if a previous run crashed
     if (state.streaming) {
       console.warn('[CS] sendMessage: stale streaming=true, forcing reset');
@@ -190,9 +190,21 @@ async function sendMessage() {
       sendBtn.textContent = 'Sending...';
     }
 
+    await awaitPrewarm(repoPath);
+
+    let slotIndex = state.parallelMode ? state.activeSlotIndex : pickSlotForRepo(repoPath);
     if (!hasTerminalSession(repoPath)) {
       await openTerminalForRepo(repoPath, slotIndex);
+    } else if (!state.parallelMode) {
+      slotIndex = getSlotForRepo(repoPath);
     }
+    if (!state.parallelMode) {
+      state.activeSlotIndex = slotIndex;
+      revealTerminalForRepo(repoPath);
+    }
+
+    // Wait until opencode has finished loading behind the loading cover
+    await waitForTerminalBoot(repoPath, slotIndex);
 
     // If shell prompt is visible (opencode exited), restart it first
     if (isShellPrompt(repoPath, slotIndex)) {
@@ -259,3 +271,30 @@ async function sendMessage() {
 }
 
 
+let _primeBusy = false;
+
+function primeFromTyping(el) {
+  const repoPath = state.activeTab;
+  const welcome = document.getElementById('ocWelcome');
+  if (!repoPath || !welcome || welcome.style.display === 'none') return;
+  if (!el || !String(el.value || '').trim()) return;
+  if (_primeBusy) return;
+  _primeBusy = true;
+  (async () => {
+    try {
+      await awaitPrewarm(repoPath);
+      if (revealTerminalForRepo(repoPath)) return;
+      const slot = pickSlotForRepo(repoPath);
+      state.activeSlotIndex = slot;
+      await openTerminalForRepo(repoPath, slot);
+    } catch (err) {
+      console.warn('[CS] could not open the terminal on typing:', err && err.message ? err.message : err);
+    } finally {
+      _primeBusy = false;
+    }
+  })();
+}
+
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'ocInput') primeFromTyping(e.target);
+}, true);

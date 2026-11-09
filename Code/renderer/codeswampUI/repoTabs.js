@@ -5,6 +5,8 @@ import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
 import { convStore } from './conversationStore.js';
 import { promptDialog } from '../utils/confirmDialog.js';
+import { isTerminalRevealed, syncStage } from './terminalManager.js';
+
 
 export async function addRepo(repoPath) {
   console.log('[CS] addRepo:', repoPath);
@@ -42,7 +44,7 @@ export function switchTab(repoPath) {
   state.activeTab = repoPath;
   for (const tab of state.tabs) tab.active = tab.repoPath === repoPath;
 
-  if (hasTerminalSession(repoPath)) {
+  if (hasTerminalSession(repoPath) && isTerminalRevealed(repoPath)) {
     const slot = getSlotForRepo(repoPath);
     if (slot >= 0) state.activeSlotIndex = slot;
     showTerminalSession(repoPath);
@@ -57,6 +59,7 @@ export function switchTab(repoPath) {
     if (terminal) terminal.style.display = 'none';
   }
 
+  syncStage(repoPath);
   updateRepoPath(repoPath);
   renderRepoTabs();
   renderConvList();
