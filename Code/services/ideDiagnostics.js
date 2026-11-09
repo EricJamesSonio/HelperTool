@@ -385,7 +385,44 @@ function lintJs(c, text, m, ext, label) {
   rx(/\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}/g, m, (x) => c.add(x.index, 5, 'info', 'Empty catch block hides errors', label));
   if (ext === 'ts' || ext === 'tsx') {
     rx(/(?::\s*any\b|\bas\s+any\b)/g, m, (x) => c.add(x.index, x[0].length, 'info', "Avoid 'any'; use a specific type or 'unknown'", label));
+    rx(/@ts-nocheck/g, text, (x) => c.add(x.index, 11, 'info', 'This turns off type checking for the whole file', label));
   }
+
+  const typeofOk = new Set(['undefined', 'object', 'boolean', 'number', 'string', 'function', 'symbol', 'bigint']);
+  rx(/\btypeof\b\s*\(?\s*[\w$.]+\s*\)?\s*[!=]==?\s*(['"`])([^'"`\n]*)\1/g, text, (x) => {
+    if (m[x.index] !== 't' || x[1] === '`' || typeofOk.has(x[2])) return;
+    const len = x[2].length + 2;
+    c.add(x.index + x[0].length - len, len, 'error', "Invalid typeof comparison: '" + x[2] + "' is not a type name (expected undefined, object, boolean, number, string, function, symbol or bigint)", label);
+  });
+  rx(/[!=]==?\s*NaN\b|\bNaN\s*[!=]==?/g, m, (x) => {
+    c.add(x.index, x[0].length, 'error', 'Comparing with NaN never works; use Number.isNaN()', label);
+  });
+  rx(/(?<![\w$.=!<>+\-*\/%&|^])([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*=(?!=)\s*\1\s*(?:;|\n|$)/g, m, (x) => {
+    c.add(x.index, x[1].length, 'warning', "Self-assignment: '" + x[1] + "' is assigned to itself", label);
+  });
+  rx(/\bif\s*\(\s*(?:true|false|null|undefined|0|1)\s*\)/g, m, (x) => c.add(x.index, x[0].length, 'info', 'Constant condition: this if always takes the same branch', label));
+  rx(/\bnew\s+Promise\s*\(\s*async\b/g, m, (x) => c.add(x.index, x[0].length, 'warning', 'Promise executor should not be async; errors thrown inside are lost', label));
+  rx(/\.forEach\s*\(\s*async\b/g, m, (x) => c.add(x.index + 1, 7, 'warning', 'forEach does not wait for async callbacks; use for...of or Promise.all(map())', label));
+  rx(/(?<![\w$.])eval\s*\(/g, m, (x) => c.add(x.index, 4, 'warning', 'eval() is dangerous and slows the engine', label));
+  rx(/\bnew\s+Function\s*\(/g, m, (x) => c.add(x.index, x[0].replace(/\s*\($/, '').length, 'info', 'new Function() runs code from a string', label));
+
+  const seenMods = new Map();
+  rx(/^[ \t]*import\s+(?!type\b)([^'";]*?)\bfrom\s*(['"])([^'"\n]+)\2/gm, text, (x) => {
+    const at = x.index + x[0].indexOf('import');
+    if (m[at] !== 'i' || x[1].indexOf('*') !== -1) return;
+    const mod = x[3];
+    if (!seenMods.has(mod)) {
+      seenMods.set(mod, at);
+      return;
+    }
+    let line = 1;
+    const first = seenMods.get(mod);
+    for (let k = 0; k < first; k++) {
+      if (text.charCodeAt(k) === 10) line++;
+    }
+    const q = x.index + x[0].lastIndexOf(x[2] + mod);
+    c.add(q, mod.length + 2, 'warning', "Duplicate import from '" + mod + "'; merge it with the import on line " + line, label);
+  });
 }
 
 function lintNext(c, text, m, file) {
@@ -696,8 +733,10 @@ function checkJson(c, text, file) {
   const f = file.replace(/\\/g, '/');
   if (/^(tsconfig|jsconfig)/.test(base) || /\.jsonc$/.test(base) || /(^|\/)\.vscode\//.test(f)) return;
   if (/^\s*\/\/|\/\*/m.test(text)) return;
+  let ok = false;
   try {
     JSON.parse(text);
+    ok = true;
   } catch (e) {
     const raw = String((e && e.message) || 'Invalid JSON');
     let line = 1;
@@ -717,6 +756,7 @@ function checkJson(c, text, file) {
     const msg = raw.replace(/\s*\(line \d+ column \d+\)/, '').replace(/ in JSON at position \d+/, '').slice(0, 120);
     c.addAt(line, col, 1, 'error', msg, 'JSON');
   }
+  if (ok) jsonDupKeys(c, text);
 }
 
 async function checkJsFamily(c, text, file, ext, has) {
@@ -730,14 +770,21 @@ async function checkJsFamily(c, text, file, ext, has) {
   if (has('nextjs')) lintNext(c, text, m, file);
   if (has('nestjs') && (ext === 'ts' || ext === 'js')) lintNest(c, text, m);
   if (has('angular') && ext === 'ts') lintAngular(c, text, m);
-  if (has('react')) getExtra().lintReact(c, text, m);
+  if (has('react')) {
+    const ex = getExtra();
+    ex.lintReact(c, text, m);
+    if (ex.lintReactMore) ex.lintReactMore(c, text, m);
+  }
   if (has('express') && (ext === 'js' || ext === 'ts' || ext === 'mjs' || ext === 'cjs')) getExtra().lintExpress(c, text, m);
 }
 
 async function checkPhp(c, text, file, has) {
   if (text.length <= MAX_PARSE) await syntaxErrors(c, 'php', text, 'PHP');
   const m = mask(text, 'php').masked;
-  if (has('php')) lintPhp(c, m);
+  if (has('php')) {
+    lintPhp(c, m);
+    lintPhpStrict(c, text, m);
+  }
   if (has('laravel')) lintLaravel(c, text, m, file);
 }
 const TAG_RE = /<([A-Za-z][\w:-]*)((?:\s+[^\s=<>"'\/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>=`]+))?)*)\s*\/?>/g;
@@ -913,6 +960,154 @@ function checkAngularHtml(c, text, file) {
   });
 }
 
+function jsonDupKeys(c, text) {
+  const stack = [];
+  let expectKey = false;
+  const n = text.length;
+  let i = 0;
+  while (i < n) {
+    const ch = text[i];
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < n && text[j] !== '"') {
+        if (text[j] === '\\') j++;
+        j++;
+      }
+      const top = stack.length ? stack[stack.length - 1] : null;
+      if (expectKey && top) {
+        const key = text.slice(i + 1, j);
+        if (top.has(key)) c.add(i, j + 1 - i, 'warning', "Duplicate key '" + key + "'; only the last value is used", 'JSON');
+        top.add(key);
+        expectKey = false;
+      }
+      i = j + 1;
+      continue;
+    }
+    if (ch === '{') {
+      stack.push(new Set());
+      expectKey = true;
+    } else if (ch === '[') {
+      stack.push(null);
+      expectKey = false;
+    } else if (ch === '}' || ch === ']') {
+      stack.pop();
+      expectKey = false;
+    } else if (ch === ',') {
+      expectKey = stack.length > 0 && stack[stack.length - 1] !== null;
+    } else if (ch === ':') {
+      expectKey = false;
+    }
+    i++;
+  }
+}
+
+function lintPythonStrict(c, text, m, file) {
+  const L = 'Python';
+  rx(/(?:==|!=)\s*(?:True|False)\b/g, m, (x) => c.add(x.index, x[0].length, 'info', 'Avoid comparing with True or False using ==; test the value directly', L));
+  rx(/\bassert\s*\([^()\n]*,[^()\n]*\)\s*$/gm, m, (x) => c.add(x.index, 6, 'warning', 'Assertion on a tuple is always true; remove the parentheses', L));
+  rx(/(?<![\w.])is\s+(?:not\s+)?(?:-?\d|['"]|[bBrRfFuU]{1,2}['"])/g, text, (x) => {
+    if (m[x.index] !== 'i') return;
+    c.add(x.index, 2, 'warning', "Use '==' to compare with a literal; 'is' compares identity", L);
+  });
+  rx(/^[ \t]*except\b[^\n]*:[ \t]*\n[ \t]*pass[ \t]*$/gm, m, (x) => {
+    c.add(x.index + x[0].indexOf('except'), 6, 'info', 'Exception is silently swallowed; handle or log it', L);
+  });
+  rx(/(?<![\w.])([rR]?[fF][rR]?)(['"])((?:(?!\2)[^\\\n{}]|\\.)*)\2/g, text, (x) => {
+    if (m[x.index] === ' ' || x[3] === '') return;
+    if (text[x.index + x[0].length] === x[2]) return;
+    c.add(x.index, x[1].length, 'info', "f-string has no placeholders; remove the 'f' prefix", L);
+  });
+
+  const lineOf = (idx) => {
+    let line = 1;
+    for (let k = 0; k < idx; k++) {
+      if (text.charCodeAt(k) === 10) line++;
+    }
+    return line;
+  };
+
+  const defs = new Map();
+  rx(/^((?:@[^\n]*\n)*)(?:async\s+)?(def|class)\s+(\w+)/gm, m, (x) => {
+    if (x[1]) return;
+    const name = x[3];
+    const at = x.index + x[0].lastIndexOf(name);
+    if (defs.has(name)) {
+      c.add(at, name.length, 'warning', "'" + name + "' is already defined on line " + lineOf(defs.get(name)), L);
+    } else {
+      defs.set(name, at);
+    }
+  });
+
+  if (/__all__/.test(text) || /(^|\/)__init__\.py$/.test(file)) return;
+  const imps = [];
+  rx(/^(?:import\s+([^\n]+)|from\s+([\w.]+)\s+import\s+(\([^)]*\)|[^\n]+))/gm, m, (x) => {
+    if (/\\\s*$/.test(x[0])) return;
+    if (x[1] !== undefined) {
+      for (const part of x[1].split(',')) {
+        const mm = /^\s*([\w.]+)(?:\s+as\s+(\w+))?\s*$/.exec(part);
+        if (!mm) continue;
+        const name = mm[2] || mm[1].split('.')[0];
+        imps.push({ name, idx: x.index + Math.max(0, x[0].indexOf(mm[2] || mm[1])) });
+      }
+      return;
+    }
+    if (x[2] === '__future__') return;
+    const body = x[3].replace(/[()\\]/g, ' ');
+    for (const part of body.split(',')) {
+      const mm = /^\s*(\w+)(?:\s+as\s+(\w+))?\s*$/.exec(part);
+      if (!mm) continue;
+      const name = mm[2] || mm[1];
+      imps.push({ name, idx: x.index + Math.max(0, x[0].lastIndexOf(name)) });
+    }
+  });
+  if (!imps.length) return;
+  const stripped = text.replace(/^(?:import\s+[^\n]+|from\s+[\w.]+\s+import\s+(?:\([^)]*\)|[^\n]+))/gm, (s) => s.replace(/[^\n]/g, ' '));
+  let shown = 0;
+  for (const imp of imps) {
+    if (shown >= 15) break;
+    if (new RegExp('(?<![\\w.])' + imp.name + '(?![\\w])').test(stripped)) continue;
+    shown++;
+    c.add(imp.idx, imp.name.length, 'info', "'" + imp.name + "' is imported but never used", L);
+  }
+}
+
+function lintPhpStrict(c, text, m) {
+  const L = 'PHP';
+  rx(/(?<![\w$>:])(?:exec|shell_exec|system|passthru|popen|proc_open)\s*\([^;\n]*\$/g, text, (x) => {
+    if (m[x.index] === ' ') return;
+    c.add(x.index, lenOf(x), 'warning', 'Shell command built from a variable (command injection risk); use escapeshellarg()', L);
+  });
+  rx(/\b(?:include|include_once|require|require_once)\b\s*\(?\s*\$_(?:GET|POST|REQUEST|COOKIE)/g, m, (x) => {
+    c.add(x.index, x[0].indexOf('$_') > 0 ? x[0].indexOf('$_') : 7, 'warning', 'Including a file chosen by user input allows file inclusion attacks', L);
+  });
+  rx(/\bunserialize\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE)/g, m, (x) => {
+    c.add(x.index, 11, 'warning', 'unserialize() on request data can run attacker-controlled code', L);
+  });
+  rx(/@\s*(?:\$|[A-Za-z_]\w*\s*\()/g, m, (x) => {
+    c.add(x.index, 1, 'info', 'The @ operator hides errors; check the result instead', L);
+  });
+  rx(/(?<![\w$>:])extract\s*\(/g, m, (x) => c.add(x.index, 7, 'info', 'extract() creates variables from array keys and is easy to abuse', L));
+  rx(/\$\$[A-Za-z_{]/g, m, (x) => c.add(x.index, 2, 'info', 'Variable variables make code hard to follow', L));
+}
+
+function lintCppStrict(c, text, ext) {
+  const m = mask(text, 'cpp').masked;
+  const L = 'C++';
+  rx(/(?<![\w:.>])printf\s*\(\s*[A-Za-z_]\w*\s*\)/g, m, (x) => {
+    c.add(x.index, 6, 'warning', 'printf with a non-literal format string is a format-string vulnerability; use printf("%s", value)', L);
+  });
+  rx(/(?<![\w:.>])scanf\s*\(\s*"[^"\n]*%s/g, text, (x) => {
+    if (m[x.index] !== 's') return;
+    c.add(x.index, 5, 'warning', 'scanf with %s has no length limit (buffer overflow); use a width like %31s or fgets()', L);
+  });
+  rx(/(?<![\w:.>])system\s*\(/g, m, (x) => c.add(x.index, 6, 'info', 'system() runs a shell; avoid it with untrusted input', L));
+  rx(/\bif\s*\(\s*[A-Za-z_]\w*\s*=(?!=)/g, m, (x) => {
+    c.add(x.index + x[0].length - 1, 1, 'warning', "Assignment in a condition; did you mean '=='?", L);
+  });
+  if (/^(cc|cpp|cxx|hpp|hh|hxx)$/.test(ext)) {
+    rx(/\bNULL\b/g, m, (x) => c.add(x.index, 4, 'info', 'Prefer nullptr over NULL in C++', L));
+  }
+}
 async function diagnose(args) {
   const text = args && typeof args.text === 'string' ? args.text : '';
   if (!text || text.length > MAX_TEXT) return [];
@@ -936,7 +1131,10 @@ async function diagnose(args) {
       if (has('python', 'flask', 'django')) {
         if (text.length <= MAX_PARSE) await syntaxErrors(c, 'python', text, 'Python');
         const m = mask(text, 'py').masked;
-        if (has('python')) lintPython(c, m);
+        if (has('python')) {
+          lintPython(c, m);
+          lintPythonStrict(c, text, m, file);
+        }
         if (has('flask')) getExtra().lintFlask(c, text, m);
         if (has('django')) getExtra().lintDjango(c, text, m, file);
       }
@@ -947,7 +1145,10 @@ async function diagnose(args) {
     } else if (ext === 'cs') {
       if (has('dotnet')) getExtra().checkCs(c, text);
     } else if (CPP_EXT.has(ext)) {
-      if (has('cpp')) checkCpp(c, text, ext);
+      if (has('cpp')) {
+        checkCpp(c, text, ext);
+        lintCppStrict(c, text, ext);
+      }
     }
   } catch (_) {}
   return c.diags.sort((a, b) => (a.line - b.line) || (a.col - b.col));

@@ -711,3 +711,38 @@ module.exports = {
   lintDjango,
   checkCs,
 };
+function lintReactMore(c, text, m) {
+  const L = 'React';
+  const inJsxTag = (idx) => {
+    const p = m.lastIndexOf('<', idx);
+    if (p < 0 || idx - p > 400) return false;
+    return /^<[A-Za-z][\w.]*(?:\s[^<>;]*)?$/.test(m.slice(p, idx));
+  };
+
+  core.rx(/\bReactDOM\.render\s*\(/g, m, (x) => {
+    c.add(x.index, 15, 'warning', 'ReactDOM.render is deprecated in React 18 and removed in React 19; use createRoot()', L);
+  });
+  core.rx(/\bcomponentWill(?:Mount|ReceiveProps|Update)\b/g, m, (x) => {
+    c.add(x.index, x[0].length, 'warning', x[0] + ' is deprecated; use componentDidMount, componentDidUpdate or hooks', L);
+  });
+  core.rx(/\bfindDOMNode\s*\(/g, m, (x) => {
+    c.add(x.index, 11, 'warning', 'findDOMNode is deprecated; use a ref instead', L);
+  });
+  core.rx(/(?<![\w$.])style\s*=\s*(["'])/g, text, (x) => {
+    if (m[x.index] !== 's' || !inJsxTag(x.index)) return;
+    c.add(x.index, 5, 'error', 'The style prop expects an object, e.g. style={{ color: "red" }}', L);
+  });
+  core.rx(/(?<![\w$.])ref\s*=\s*(["'])/g, text, (x) => {
+    if (m[x.index] !== 'r' || !inJsxTag(x.index)) return;
+    c.add(x.index, 3, 'warning', 'String refs are deprecated; use useRef or createRef', L);
+  });
+  core.rx(/(?<![\w$.])target\s*=\s*(["'])_blank\1/g, text, (x) => {
+    if (m[x.index] !== 't' || !inJsxTag(x.index)) return;
+    const p = m.lastIndexOf('<', x.index);
+    const tag = text.slice(p, x.index + 300);
+    if (/\brel\s*=/.test(tag)) return;
+    c.add(x.index, 6, 'info', 'Add rel="noopener noreferrer" to links that open a new tab', L);
+  });
+}
+
+module.exports.lintReactMore = lintReactMore;

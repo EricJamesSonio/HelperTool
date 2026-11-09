@@ -32,18 +32,19 @@ const JUMPS = new Set(['return_statement', 'throw_statement', 'break_statement',
 const SKIP_UNREACHABLE = new Set(['{', '}', ';', 'comment', 'empty_statement', 'function_declaration', 'generator_function_declaration']);
 const MAX_REFS = 20000;
 const MAX_REPORTS = 40;
+const MAX_UNUSED = 30;
 
 function newScope(parent, isFn) {
-  const s = { parent, names: new Set(), fn: null };
+  const s = { parent, names: new Set(), used: new Set(), fn: null };
   s.fn = isFn || !parent ? s : parent.fn;
   return s;
 }
 
-function lookup(scope, name) {
+function resolve(scope, name) {
   for (let s = scope; s; s = s.parent) {
-    if (s.names.has(name)) return true;
+    if (s.names.has(name)) return s;
   }
-  return false;
+  return null;
 }
 
 function withinOne(a, b) {
@@ -71,32 +72,37 @@ function suggest(scope, name) {
   return null;
 }
 
-function declare(scope, node, ctx, lexical) {
+function isExported(n) {
+  return !!n.parent && n.parent.type === 'export_statement';
+}
+
+function declare(scope, node, ctx, lexical, kind) {
   const name = node.text;
   ctx.bound.add(node.startIndex);
   if (lexical && scope.names.has(name)) ctx.dups.push(node);
   scope.names.add(name);
+  if (kind) ctx.decls.push({ node, scope, kind });
 }
 
-function declarePattern(n, scope, ctx, lexical) {
+function declarePattern(n, scope, ctx, lexical, kind) {
   if (!n) return;
   switch (n.type) {
     case 'identifier':
     case 'shorthand_property_identifier_pattern':
-      declare(scope, n, ctx, lexical);
+      declare(scope, n, ctx, lexical, kind);
       return;
     case 'assignment_pattern':
     case 'object_assignment_pattern':
-      declarePattern(n.childForFieldName('left'), scope, ctx, lexical);
+      declarePattern(n.childForFieldName('left'), scope, ctx, lexical, kind);
       return;
     case 'pair_pattern':
-      declarePattern(n.childForFieldName('value'), scope, ctx, lexical);
+      declarePattern(n.childForFieldName('value'), scope, ctx, lexical, kind);
       return;
     case 'formal_parameters':
     case 'array_pattern':
     case 'object_pattern':
     case 'rest_pattern':
-      for (const ch of n.children) declarePattern(ch, scope, ctx, lexical);
+      for (const ch of n.children) declarePattern(ch, scope, ctx, lexical, kind);
       return;
     default:
       return;
@@ -108,10 +114,10 @@ function declareImports(n, scope, ctx) {
     if (clause.type !== 'import_clause') continue;
     for (const part of clause.children) {
       if (part.type === 'identifier') {
-        declare(scope, part, ctx, true);
+        declare(scope, part, ctx, true, 'import');
       } else if (part.type === 'namespace_import') {
         for (const id of part.children) {
-          if (id.type === 'identifier') declare(scope, id, ctx, true);
+          if (id.type === 'identifier') declare(scope, id, ctx, true, 'import');
         }
       } else if (part.type === 'named_imports') {
         for (const spec of part.children) {
@@ -119,8 +125,8 @@ function declareImports(n, scope, ctx) {
           const nm = spec.childForFieldName('name');
           const al = spec.childForFieldName('alias');
           if (nm) ctx.bound.add(nm.startIndex);
-          if (al) declare(scope, al, ctx, true);
-          else if (nm) declare(scope, nm, ctx, true);
+          if (al) declare(scope, al, ctx, true, 'import');
+          else if (nm) declare(scope, nm, ctx, true, 'import');
         }
       }
     }
@@ -142,8 +148,8 @@ function checkUnreachable(block, ctx) {
 function addRef(n, scope, ctx) {
   if (ctx.bound.has(n.startIndex)) return;
   const p = n.parent;
-  if (p && p.type === 'unary_expression' && p.children[0] && p.children[0].type === 'typeof') return;
-  if (ctx.refs.length < MAX_REFS) ctx.refs.push({ node: n, scope });
+  const quiet = !!p && p.type === 'unary_expression' && !!p.children[0] && p.children[0].type === 'typeof';
+  if (ctx.refs.length < MAX_REFS) ctx.refs.push({ node: n, scope, quiet });
 }
 
 function walkKids(n, scope, ctx) {
@@ -153,8 +159,8 @@ function walkKids(n, scope, ctx) {
 function enterFn(n, scope, ctx, ownName) {
   const fs = newScope(scope, true);
   if (ownName) fs.names.add(ownName);
-  declarePattern(n.childForFieldName('parameters'), fs, ctx, false);
-  declarePattern(n.childForFieldName('parameter'), fs, ctx, false);
+  declarePattern(n.childForFieldName('parameters'), fs, ctx, false, null);
+  declarePattern(n.childForFieldName('parameter'), fs, ctx, false, null);
   walkKids(n, fs, ctx);
 }
 
@@ -172,7 +178,7 @@ function walk(n, scope, ctx) {
     case 'function_declaration':
     case 'generator_function_declaration': {
       const nm = n.childForFieldName('name');
-      if (nm) declare(scope.fn, nm, ctx, false);
+      if (nm) declare(scope.fn, nm, ctx, false, isExported(n) ? null : 'function');
       enterFn(n, scope, ctx, null);
       return;
     }
@@ -190,7 +196,7 @@ function walk(n, scope, ctx) {
       return;
     case 'class_declaration': {
       const nm = n.childForFieldName('name');
-      if (nm) declare(scope, nm, ctx, true);
+      if (nm) declare(scope, nm, ctx, true, isExported(n) ? null : 'class');
       break;
     }
     case 'class': {
@@ -207,12 +213,13 @@ function walk(n, scope, ctx) {
     case 'variable_declarator': {
       const p = n.parent;
       const isVar = !!p && p.type === 'variable_declaration';
-      declarePattern(n.childForFieldName('name'), isVar ? scope.fn : scope, ctx, !isVar);
+      const exported = !!p && !!p.parent && p.parent.type === 'export_statement';
+      declarePattern(n.childForFieldName('name'), isVar ? scope.fn : scope, ctx, !isVar, exported ? null : 'variable');
       break;
     }
     case 'catch_clause': {
       const cs = newScope(scope, false);
-      declarePattern(n.childForFieldName('parameter'), cs, ctx, false);
+      declarePattern(n.childForFieldName('parameter'), cs, ctx, false, null);
       walkKids(n, cs, ctx);
       return;
     }
@@ -229,7 +236,7 @@ function walk(n, scope, ctx) {
       const kind = n.childForFieldName('kind');
       if (kind) {
         const isVar = kind.type === 'var';
-        declarePattern(n.childForFieldName('left'), isVar ? scope.fn : bs, ctx, !isVar);
+        declarePattern(n.childForFieldName('left'), isVar ? scope.fn : bs, ctx, !isVar, null);
       }
       walkKids(n, bs, ctx);
       return;
@@ -280,16 +287,22 @@ function findUndefined(root, text, c) {
   }
   const isModule = /^\s*(?:import|export)\s/m.test(text) || /\brequire\s*\(/.test(text) || /\bmodule\.exports\b|\bexports\./.test(text);
   const sev = isModule ? 'error' : 'warning';
-  const ctx = { bound: new Set(), refs: [], dups: [], unreach: [] };
+  const ctx = { bound: new Set(), refs: [], dups: [], unreach: [], decls: [] };
   const top = newScope(null, true);
   walk(root, top, ctx);
   const lines = text.split('\n');
+  const capped = ctx.refs.length >= MAX_REFS;
 
   let reported = 0;
   for (const r of ctx.refs) {
     const name = r.node.text;
-    if (GLOBALS.has(name) || extra.has(name) || lookup(r.scope, name)) continue;
-    if (reported++ >= MAX_REPORTS) break;
+    const owner = resolve(r.scope, name);
+    if (owner) {
+      owner.used.add(name);
+      continue;
+    }
+    if (r.quiet || GLOBALS.has(name) || extra.has(name)) continue;
+    if (reported++ >= MAX_REPORTS) continue;
     const hint = suggest(r.scope, name);
     const sp = r.node.startPosition;
     const msg = "'" + name + "' is not defined" + (hint ? ". Did you mean '" + hint + "'?" : '');
@@ -306,6 +319,20 @@ function findUndefined(root, text, c) {
     const ep = k.endPosition;
     const len = ep.row === sp.row ? Math.max(1, ep.column - sp.column) : Math.max(1, (lines[sp.row] || '').length - sp.column);
     c.addAt(sp.row + 1, sp.column, len, 'warning', 'Unreachable code', 'JavaScript');
+  }
+
+  if (capped) return;
+  let unused = 0;
+  for (const d of ctx.decls) {
+    if (unused >= MAX_UNUSED) break;
+    const name = d.node.text;
+    if (name.charAt(0) === '_' || name === 'React') continue;
+    if (!isModule && d.scope === top) continue;
+    if (d.scope.used.has(name)) continue;
+    unused++;
+    const sp = d.node.startPosition;
+    const what = d.kind === 'import' ? 'imported' : 'declared';
+    c.addAt(sp.row + 1, sp.column, name.length, 'info', "'" + name + "' is " + what + ' but never used', 'JavaScript');
   }
 }
 
