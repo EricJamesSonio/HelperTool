@@ -46,6 +46,8 @@ let inited = false;
 let collapsed = new Set();
 let diffCache = new Map();
 let watchObs = null;
+let statusMap = new Map();
+let statusSeq = 0;
 
 function normRepo(p) {
   return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -113,6 +115,12 @@ function nameOf(p) {
   return String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
 }
 
+function dirOf(p) {
+  const s = String(p || '');
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return i > 0 ? s.slice(0, i) : s;
+}
+
 function relOf(p) {
   const root = (state.selectedRepoPath || '').replace(/\\/g, '/').replace(/\/+$/, '');
   const n = String(p || '').replace(/\\/g, '/');
@@ -134,6 +142,92 @@ function normText(s) {
 function splitLines(text) {
   const t = String(text || '');
   return t === '' ? [] : t.split('\n');
+}
+
+async function existsIn(p, cache) {
+  if (!window.ideAPI || typeof window.ideAPI.readDir !== 'function') return true;
+  const dir = dirOf(p);
+  const name = nameOf(p).toLowerCase();
+  let ent = cache.get(dir);
+  if (ent === undefined) {
+    ent = null;
+    try {
+      const res = await window.ideAPI.readDir(dir);
+      if (res && res.success) {
+        ent = {
+          names: new Set((res.entries || []).map((x) => String(x.name).toLowerCase())),
+          truncated: !!res.truncated,
+        };
+      }
+    } catch (_) {
+      ent = null;
+    }
+    cache.set(dir, ent);
+  }
+  if (!ent) return false;
+  if (ent.names.has(name)) return true;
+  return ent.truncated;
+}
+
+async function reasonFor(e, cache) {
+  const undo = !e.undone;
+  const verb = undo ? 'undone' : 'redone';
+  if (e.type === 'edit') {
+    if (e.big) return '';
+    if (!(await existsIn(e.path, cache))) {
+      return nameOf(e.path) + ' was deleted or moved, so this cannot be ' + verb + '.';
+    }
+    return '';
+  }
+  if (e.mode === 'copy') {
+    if (undo) {
+      if (!(await existsIn(e.to, cache))) {
+        return 'The pasted copy ' + nameOf(e.to) + ' was deleted or moved, so this cannot be undone.';
+      }
+      return '';
+    }
+    if (!(await existsIn(e.from, cache))) {
+      return 'The original ' + nameOf(e.from) + ' no longer exists, so this cannot be redone.';
+    }
+    if (await existsIn(e.to, cache)) {
+      return nameOf(e.to) + ' already exists at the destination, so this cannot be redone.';
+    }
+    return '';
+  }
+  if (undo) {
+    if (!(await existsIn(e.to, cache))) {
+      return nameOf(e.to) + ' was deleted or moved, so this cannot be undone.';
+    }
+    if (await existsIn(e.from, cache)) {
+      return 'Something already exists at the original location, so this cannot be undone.';
+    }
+    return '';
+  }
+  if (!(await existsIn(e.from, cache))) {
+    return nameOf(e.from) + ' is no longer at its original location, so this cannot be redone.';
+  }
+  if (await existsIn(e.to, cache)) {
+    return nameOf(e.to) + ' already exists at the destination, so this cannot be redone.';
+  }
+  return '';
+}
+
+async function checkStatus() {
+  const my = ++statusSeq;
+  const cache = new Map();
+  const next = new Map();
+  for (const e of sync()) {
+    let r = '';
+    try {
+      r = (await reasonFor(e, cache)) || '';
+    } catch (_) {
+      r = '';
+    }
+    next.set(e.id, r);
+  }
+  if (my !== statusSeq) return;
+  statusMap = next;
+  if (overlay) render();
 }
 
 function lcsOps(a, b) {
@@ -351,7 +445,10 @@ function onAdd(e) {
   if (list.length > MAX_ENTRIES) list.splice(0, list.length - MAX_ENTRIES);
   write();
   updateBadge();
-  if (overlay) render();
+  if (overlay) {
+    render();
+    checkStatus();
+  }
 }
 
 async function fsOp(args) {
@@ -412,6 +509,19 @@ async function run(id, undo) {
   busy = true;
   notice = null;
   render();
+  let why = '';
+  try {
+    why = (await reasonFor(entry, new Map())) || '';
+  } catch (_) {
+    why = '';
+  }
+  if (why) {
+    busy = false;
+    statusMap.set(entry.id, why);
+    notice = { text: why, err: true };
+    render();
+    return;
+  }
   let res;
   try {
     res = entry.type === 'edit' ? await applyEdit(entry, undo) : await applyPaste(entry, undo);
@@ -439,6 +549,7 @@ async function run(id, undo) {
   }
   updateBadge();
   render();
+  checkStatus();
 }
 
 function titleOf(e) {
@@ -456,19 +567,27 @@ function rowHtml(e) {
   const name = e.type === 'edit' ? nameOf(e.path) : nameOf(e.to);
   const icon = e.type === 'paste' && e.kind === 'folder' ? FOLDER : fileIcon(name);
   const act = e.undone ? 'redo' : 'undo';
-  const open = !collapsed.has(e.id);
-  return '<div class="ide-hx-item' + (e.undone ? ' undone' : '') + (open ? ' open' : '') + '" data-id="' + e.id + '">' +
+  const isOpen = !collapsed.has(e.id);
+  const why = statusMap.get(e.id) || '';
+  const label = e.undone ? 'Redo' : 'Undo';
+  const button = why
+    ? '<button type="button" class="ide-hx-act blocked" data-hx="blocked" data-id="' + e.id + '" title="' + esc(why) + '">' + label + '</button>'
+    : '<button type="button" class="ide-hx-act' + (e.undone ? ' redo' : '') + '" data-hx="' + act + '" data-id="' + e.id + '"' + (busy ? ' disabled' : '') + '>' + label + '</button>';
+  return '<div class="ide-hx-item' + (e.undone ? ' undone' : '') + (why ? ' gone' : '') + (isOpen ? ' open' : '') + '" data-id="' + e.id + '">' +
     '<div class="ide-hx-row">' +
       '<span class="ide-hx-chev"></span>' +
       icon +
       '<div class="ide-hx-main" data-hx="tog" data-id="' + e.id + '" title="Click to show or hide the changes">' +
-        '<div class="ide-hx-rtitle">' + esc(titleOf(e)) + (e.undone ? '<span class="ide-hx-tag">undone</span>' : '') + '</div>' +
+        '<div class="ide-hx-rtitle">' + esc(titleOf(e)) +
+          (e.undone ? '<span class="ide-hx-tag">undone</span>' : '') +
+          (why ? '<span class="ide-hx-tag gone">missing</span>' : '') +
+        '</div>' +
         '<div class="ide-hx-rsub" title="' + esc(subOf(e)) + '">' + esc(subOf(e)) + '</div>' +
       '</div>' +
       '<span class="ide-hx-time">' + esc(ago(e.t)) + '</span>' +
-      '<button type="button" class="ide-hx-act' + (e.undone ? ' redo' : '') + '" data-hx="' + act + '" data-id="' + e.id + '"' + (busy ? ' disabled' : '') + '>' + (e.undone ? 'Redo' : 'Undo') + '</button>' +
+      button +
     '</div>' +
-    (open ? '<div class="ide-hx-detail">' + detailFor(e) + '</div>' : '') +
+    (isOpen ? '<div class="ide-hx-detail">' + (why ? '<div class="ide-hx-note warn">' + esc(why) + '</div>' : '') + detailFor(e) + '</div>' : '') +
   '</div>';
 }
 
@@ -544,6 +663,10 @@ function onClick(e) {
   if (act === 'close') close();
   else if (act === 'undo') run(b.dataset.id, true);
   else if (act === 'redo') run(b.dataset.id, false);
+  else if (act === 'blocked') {
+    notice = { text: statusMap.get(b.dataset.id) || 'This change is no longer available.', err: true };
+    render();
+  }
   else if (act === 'undolast') undoLatest();
   else if (act === 'redolast') redoLatest();
   else if (act === 'toggleall') toggleAll();
@@ -565,6 +688,7 @@ function onClick(e) {
     notice = null;
     collapsed = new Set();
     diffCache = new Map();
+    statusMap = new Map();
     updateBadge();
     render();
   }
@@ -646,6 +770,7 @@ function open() {
   listKey = '';
   sync();
   updateBadge();
+  statusMap = new Map();
   overlay = document.createElement('div');
   overlay.className = 'ide-hx-overlay';
   overlay.innerHTML = SHELL;
@@ -654,6 +779,7 @@ function open() {
   document.addEventListener('keydown', onKey, true);
   watchOthers();
   render();
+  checkStatus();
 }
 
 function toggleModal() {
@@ -714,7 +840,14 @@ function sweep() {
   listKey = '';
   sync();
   updateBadge();
-  if (overlay) render();
+  if (overlay) {
+    render();
+    checkStatus();
+  }
+}
+
+function onTreeSignal() {
+  if (overlay && !busy) checkStatus();
 }
 
 export function init(h) {
@@ -725,10 +858,16 @@ export function init(h) {
   sweepAll();
   document.addEventListener('ide:history-add', onAdd);
   document.addEventListener('keydown', onGlobalKey, true);
+  document.addEventListener('ide:git-changed', onTreeSignal);
+  document.addEventListener('ide:tree-changed', onTreeSignal);
   document.addEventListener('repo:switched', () => {
     listKey = '';
+    statusMap = new Map();
     updateBadge();
-    if (overlay) render();
+    if (overlay) {
+      render();
+      checkStatus();
+    }
   });
   setInterval(sweep, SWEEP_MS);
   startPlacing();

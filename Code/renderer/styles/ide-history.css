@@ -374,3 +374,40 @@ body.ide-mode .navbar-row--primary .navbar-section.right .ide-hx-btn {
   font: 11px var(--font-ui);
   color: var(--text-muted);
 }
+.ide-hx-item.gone .ide-hx-main,
+.ide-hx-item.gone .ide-ficon,
+.ide-hx-item.gone .ide-fi {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.ide-hx-item.gone .ide-hx-rtitle {
+  text-decoration: line-through;
+  text-decoration-color: var(--text-muted);
+}
+
+.ide-hx-tag.gone {
+  background: rgba(248, 81, 73, 0.16);
+  color: var(--red);
+}
+
+.ide-hx-act.blocked {
+  border-color: var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.ide-hx-act.blocked:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.ide-hx-note.warn {
+  margin-bottom: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  background: rgba(248, 81, 73, 0.1);
+  color: var(--red);
+}
