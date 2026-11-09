@@ -768,6 +768,12 @@ function toast(msg) {
 
 function setClip(mode) {
   if (!selected) return;
+  if (clip && clip.path === selected.path && clip.mode === mode) {
+    clip = null;
+    markClip();
+    toast((mode === 'cut' ? 'Cut cleared: ' : 'Copy cleared: ') + baseName(selected.path));
+    return;
+  }
   clip = { path: selected.path, type: selected.type, mode };
   markClip();
   toast((mode === 'cut' ? 'Cut ' : 'Copied ') + baseName(selected.path));

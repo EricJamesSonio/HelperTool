@@ -7,6 +7,9 @@ const TTL = 24 * 60 * 60 * 1000;
 const MAX_ENTRIES = 150;
 const MAX_TEXT = 120000;
 const SWEEP_MS = 10 * 60 * 1000;
+const CTX = 2;
+const MAX_CELLS = 1000000;
+const MAX_ROWS = 300;
 
 const ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M3 10a7 7 0 1 0 2-4.9"/><path d="M3 3v4h4"/><path d="M10 6v4l3 2"/></svg>';
 const FOLDER = '<span class="ide-ficon"><svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg></span>';
@@ -17,12 +20,13 @@ const SHELL =
     '<span class="ide-hx-title">History</span>' +
     '<span class="ide-hx-sum"></span>' +
     '<span class="ide-hx-spacer"></span>' +
-    '<button type="button" class="ide-hx-x" data-hx="close" title="Close (Esc)">&times;</button>' +
+    '<button type="button" class="ide-hx-x" data-hx="close" title="Close (Esc or F4)">&times;</button>' +
   '</div>' +
   '<div class="ide-hx-bar">' +
     '<button type="button" class="ide-hx-btn2" data-hx="undolast">Undo latest</button>' +
     '<button type="button" class="ide-hx-btn2" data-hx="redolast">Redo</button>' +
     '<span class="ide-hx-spacer"></span>' +
+    '<button type="button" class="ide-hx-btn2" data-hx="toggleall">Collapse all</button>' +
     '<button type="button" class="ide-hx-btn2 danger" data-hx="clear">Clear history</button>' +
   '</div>' +
   '<div class="ide-hx-body"></div>' +
@@ -39,6 +43,8 @@ let busy = false;
 let notice = null;
 let clearArmed = false;
 let inited = false;
+let collapsed = new Set();
+let diffCache = new Map();
 
 function normRepo(p) {
   return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -122,6 +128,176 @@ function ago(t) {
 
 function normText(s) {
   return String(s).replace(/\r\n/g, '\n');
+}
+
+function splitLines(text) {
+  const t = String(text || '');
+  return t === '' ? [] : t.split('\n');
+}
+
+function lcsOps(a, b) {
+  const n = a.length;
+  const m = b.length;
+  const out = [];
+  if (!n || !m || n * m > MAX_CELLS) {
+    for (let i = 0; i < n; i++) out.push({ k: 'd', text: a[i] });
+    for (let j = 0; j < m; j++) out.push({ k: 'a', text: b[j] });
+    return out;
+  }
+  const w = m + 1;
+  const t = new Uint32Array((n + 1) * w);
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      if (a[i] === b[j]) t[i * w + j] = t[(i + 1) * w + j + 1] + 1;
+      else t[i * w + j] = Math.max(t[(i + 1) * w + j], t[i * w + j + 1]);
+    }
+  }
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      out.push({ k: 'c', text: a[i] });
+      i++;
+      j++;
+    } else if (t[(i + 1) * w + j] >= t[i * w + j + 1]) {
+      out.push({ k: 'd', text: a[i] });
+      i++;
+    } else {
+      out.push({ k: 'a', text: b[j] });
+      j++;
+    }
+  }
+  while (i < n) {
+    out.push({ k: 'd', text: a[i] });
+    i++;
+  }
+  while (j < m) {
+    out.push({ k: 'a', text: b[j] });
+    j++;
+  }
+  return out;
+}
+
+function diffLines(a, b) {
+  let s = 0;
+  const lim = Math.min(a.length, b.length);
+  while (s < lim && a[s] === b[s]) s++;
+  let ea = a.length;
+  let eb = b.length;
+  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) {
+    ea--;
+    eb--;
+  }
+  const ops = [];
+  for (let i = 0; i < s; i++) ops.push({ k: 'c', text: a[i] });
+  const mid = lcsOps(a.slice(s, ea), b.slice(s, eb));
+  for (const op of mid) ops.push(op);
+  for (let i = ea; i < a.length; i++) ops.push({ k: 'c', text: a[i] });
+  let o = 1;
+  let n = 1;
+  for (const op of ops) {
+    if (op.k === 'c') {
+      op.o = o++;
+      op.n = n++;
+    } else if (op.k === 'd') {
+      op.o = o++;
+    } else {
+      op.n = n++;
+    }
+  }
+  return ops;
+}
+
+function diffRow(op) {
+  const cls = op.k === 'a' ? 'add' : op.k === 'd' ? 'del' : 'ctx';
+  const sign = op.k === 'a' ? '+' : op.k === 'd' ? '-' : '';
+  return '<div class="ide-hx-dr ' + cls + '">' +
+    '<span class="ide-hx-dn">' + (op.k === 'a' ? '' : op.o) + '</span>' +
+    '<span class="ide-hx-dn">' + (op.k === 'd' ? '' : op.n) + '</span>' +
+    '<span class="ide-hx-ds">' + sign + '</span>' +
+    '<span class="ide-hx-dt">' + (op.text ? esc(op.text) : '&nbsp;') + '</span>' +
+  '</div>';
+}
+
+function diffBody(ops) {
+  const n = ops.length;
+  const show = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (ops[i].k === 'c') continue;
+    const from = Math.max(0, i - CTX);
+    const to = Math.min(n - 1, i + CTX);
+    for (let j = from; j <= to; j++) show[j] = 1;
+  }
+  let out = '';
+  let hidden = 0;
+  let rows = 0;
+  for (let i = 0; i < n; i++) {
+    if (!show[i]) {
+      hidden++;
+      continue;
+    }
+    if (hidden) {
+      out += '<div class="ide-hx-gap">' + hidden + ' unchanged line' + (hidden === 1 ? '' : 's') + '</div>';
+      hidden = 0;
+    }
+    if (rows >= MAX_ROWS) {
+      out += '<div class="ide-hx-gap">More changes not shown here.</div>';
+      return out;
+    }
+    out += diffRow(ops[i]);
+    rows++;
+  }
+  if (hidden) out += '<div class="ide-hx-gap">' + hidden + ' unchanged line' + (hidden === 1 ? '' : 's') + '</div>';
+  return out;
+}
+
+function editDetail(e) {
+  if (e.big) {
+    return '<div class="ide-hx-note">This file was too large to keep in history, so it cannot be undone.</div>';
+  }
+  const from = e.undone ? e.before : e.after;
+  const to = e.undone ? e.after : e.before;
+  const ops = diffLines(splitLines(from), splitLines(to));
+  let add = 0;
+  let del = 0;
+  for (const op of ops) {
+    if (op.k === 'a') add++;
+    else if (op.k === 'd') del++;
+  }
+  const head = '<div class="ide-hx-dhead">' + (e.undone ? 'Redo will apply' : 'Undo will change') +
+    ' <span class="ide-hx-pa">+' + add + '</span> <span class="ide-hx-pd">-' + del + '</span>' +
+    '<span class="ide-hx-dleg">red lines are removed, green lines are restored</span></div>';
+  if (!add && !del) {
+    return head + '<div class="ide-hx-note">Only line endings or spaces at the end of the file change.</div>';
+  }
+  return head + '<div class="ide-hx-diff">' + diffBody(ops) + '</div>';
+}
+
+function pasteDetail(e) {
+  const from = relOf(e.from);
+  const to = relOf(e.to);
+  let text;
+  if (e.mode === 'copy') {
+    text = e.undone
+      ? 'Redo will copy <b>' + esc(from) + '</b> to <b>' + esc(to) + '</b> again.'
+      : 'Undo will move the copy <b>' + esc(to) + '</b> to the Recycle Bin. The original <b>' + esc(from) + '</b> stays.';
+  } else {
+    text = e.undone
+      ? 'Redo will move <b>' + esc(from) + '</b> to <b>' + esc(to) + '</b> again.'
+      : 'Undo will move <b>' + esc(to) + '</b> back to <b>' + esc(from) + '</b>.';
+  }
+  return '<div class="ide-hx-note">' + text + '</div>';
+}
+
+function detailFor(e) {
+  const ck = e.id + '|' + (e.undone ? 1 : 0);
+  let html = diffCache.get(ck);
+  if (html === undefined) {
+    html = e.type === 'edit' ? editDetail(e) : pasteDetail(e);
+    diffCache.set(ck, html);
+    if (diffCache.size > 200) diffCache.delete(diffCache.keys().next().value);
+  }
+  return html;
 }
 
 function undoableCount() {
@@ -279,14 +455,19 @@ function rowHtml(e) {
   const name = e.type === 'edit' ? nameOf(e.path) : nameOf(e.to);
   const icon = e.type === 'paste' && e.kind === 'folder' ? FOLDER : fileIcon(name);
   const act = e.undone ? 'redo' : 'undo';
-  return '<div class="ide-hx-row' + (e.undone ? ' undone' : '') + '" data-id="' + e.id + '">' +
-    icon +
-    '<div class="ide-hx-main">' +
-      '<div class="ide-hx-rtitle">' + esc(titleOf(e)) + (e.undone ? '<span class="ide-hx-tag">undone</span>' : '') + '</div>' +
-      '<div class="ide-hx-rsub" title="' + esc(subOf(e)) + '">' + esc(subOf(e)) + '</div>' +
+  const open = !collapsed.has(e.id);
+  return '<div class="ide-hx-item' + (e.undone ? ' undone' : '') + (open ? ' open' : '') + '" data-id="' + e.id + '">' +
+    '<div class="ide-hx-row">' +
+      '<span class="ide-hx-chev"></span>' +
+      icon +
+      '<div class="ide-hx-main" data-hx="tog" data-id="' + e.id + '" title="Click to show or hide the changes">' +
+        '<div class="ide-hx-rtitle">' + esc(titleOf(e)) + (e.undone ? '<span class="ide-hx-tag">undone</span>' : '') + '</div>' +
+        '<div class="ide-hx-rsub" title="' + esc(subOf(e)) + '">' + esc(subOf(e)) + '</div>' +
+      '</div>' +
+      '<span class="ide-hx-time">' + esc(ago(e.t)) + '</span>' +
+      '<button type="button" class="ide-hx-act' + (e.undone ? ' redo' : '') + '" data-hx="' + act + '" data-id="' + e.id + '"' + (busy ? ' disabled' : '') + '>' + (e.undone ? 'Redo' : 'Undo') + '</button>' +
     '</div>' +
-    '<span class="ide-hx-time">' + esc(ago(e.t)) + '</span>' +
-    '<button type="button" class="ide-hx-act' + (e.undone ? ' redo' : '') + '" data-hx="' + act + '" data-id="' + e.id + '"' + (busy ? ' disabled' : '') + '>' + (e.undone ? 'Redo' : 'Undo') + '</button>' +
+    (open ? '<div class="ide-hx-detail">' + detailFor(e) + '</div>' : '') +
   '</div>';
 }
 
@@ -305,12 +486,16 @@ function render() {
   const hasRedo = items.some((e) => e.undone);
   overlay.querySelector('[data-hx="undolast"]').disabled = busy || !hasUndo;
   overlay.querySelector('[data-hx="redolast"]').disabled = busy || !hasRedo;
+  const allBtn = overlay.querySelector('[data-hx="toggleall"]');
+  allBtn.disabled = !items.length;
+  const anyOpen = items.some((e) => !collapsed.has(e.id));
+  allBtn.textContent = anyOpen ? 'Collapse all' : 'Expand all';
   const clearBtn = overlay.querySelector('[data-hx="clear"]');
   clearBtn.disabled = busy || !items.length;
   clearBtn.textContent = clearArmed ? 'Sure? Clear all' : 'Clear history';
   clearBtn.classList.toggle('armed', clearArmed);
   const hint = overlay.querySelector('.ide-hx-hint');
-  hint.textContent = notice ? notice.text : 'History is kept for 24 hours, then deleted automatically.';
+  hint.textContent = notice ? notice.text : 'History is kept for 24 hours, then deleted automatically. Press F4 to open or close.';
   hint.classList.toggle('err', !!(notice && notice.err));
 }
 
@@ -332,6 +517,17 @@ function redoLatest() {
   if (pick) run(pick.id, false);
 }
 
+function toggleAll() {
+  const items = sync();
+  const anyOpen = items.some((e) => !collapsed.has(e.id));
+  if (anyOpen) {
+    for (const e of items) collapsed.add(e.id);
+  } else {
+    collapsed = new Set();
+  }
+  render();
+}
+
 function onClick(e) {
   if (e.target === overlay) {
     close();
@@ -349,7 +545,13 @@ function onClick(e) {
   else if (act === 'redo') run(b.dataset.id, false);
   else if (act === 'undolast') undoLatest();
   else if (act === 'redolast') redoLatest();
-  else if (act === 'clear') {
+  else if (act === 'toggleall') toggleAll();
+  else if (act === 'tog') {
+    const id = b.dataset.id;
+    if (collapsed.has(id)) collapsed.delete(id);
+    else collapsed.add(id);
+    render();
+  } else if (act === 'clear') {
     if (!clearArmed) {
       clearArmed = true;
       render();
@@ -360,6 +562,8 @@ function onClick(e) {
     list = [];
     write();
     notice = null;
+    collapsed = new Set();
+    diffCache = new Map();
     updateBadge();
     render();
   }
@@ -397,19 +601,29 @@ function open() {
   render();
 }
 
+function toggleModal() {
+  if (overlay) close();
+  else open();
+}
+
+function onGlobalKey(e) {
+  if (e.key !== 'F4' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+  if (!document.body.classList.contains('ide-mode')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  toggleModal();
+}
+
 function makeBtn() {
   btn = document.createElement('button');
   btn.id = 'ideHistoryBtn';
   btn.type = 'button';
   btn.className = 'tool-btn ide-hx-btn';
-  btn.title = 'History: undo or redo recent pastes and file edits (last 24 hours)';
+  btn.title = 'History: undo or redo recent pastes and file edits (last 24 hours) (F4)';
   btn.setAttribute('aria-label', 'History');
   btn.innerHTML = ICON + '<span class="ide-hx-count" hidden></span>';
   badge = btn.querySelector('.ide-hx-count');
-  btn.addEventListener('click', () => {
-    if (overlay) close();
-    else open();
-  });
+  btn.addEventListener('click', toggleModal);
   updateBadge();
 }
 
@@ -455,6 +669,7 @@ export function init(h) {
   injectCss();
   sweepAll();
   document.addEventListener('ide:history-add', onAdd);
+  document.addEventListener('keydown', onGlobalKey, true);
   document.addEventListener('repo:switched', () => {
     listKey = '';
     updateBadge();
