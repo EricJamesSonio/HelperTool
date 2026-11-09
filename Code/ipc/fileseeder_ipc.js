@@ -34,11 +34,24 @@ function snapRead(abs) {
     }
 }
 
+function snapRel(basePath, entry, cache) {
+    if (entry && entry.resolved) return entry.resolved;
+    const rel = entry && entry.relPath;
+    if (!rel) return null;
+    try {
+        const r = fileSeeder.resolveRelPath(basePath, rel, cache);
+        return (r && r.resolved) || rel;
+    } catch (_) {
+        return rel;
+    }
+}
+
 function snapBefore(basePath, entries) {
     const map = new Map();
+    const cache = new Map();
     try {
         for (const e of entries) {
-            const rel = e && (e.resolved || e.relPath);
+            const rel = snapRel(basePath, e, cache);
             if (!rel || map.has(rel)) continue;
             const abs = snapAbs(basePath, rel);
             map.set(rel, { abs: abs, text: snapRead(abs) });
@@ -159,7 +172,10 @@ function register(_deps) {
             if (!basePath || !Array.isArray(entries) || !entries.length) {
                 return { error: 'Invalid arguments', created: [], overwritten: [], patched: [], errors: [] };
             }
-            return await flowHistory.applyWithHistory(basePath, entries, meta || {});
+            const before = snapBefore(basePath, entries);
+            const result = await flowHistory.applyWithHistory(basePath, entries, meta || {});
+            if (result && !result.error) reportSeeded(basePath, before);
+            return result;
         } catch (err) {
             console.error('[IPC] fileseeder:applyContent error:', err);
             return { error: err.message, created: [], overwritten: [], patched: [], errors: [] };
