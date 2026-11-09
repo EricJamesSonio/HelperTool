@@ -281,7 +281,7 @@ function register({ getMainWindow }) {
       terminals.delete(id);
     });
 
-    terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId });
+    terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId, hasInput: false });
     if (win && !win.isDestroyed()) {
       win.webContents.send('terminal:ready', { id });
     }
@@ -290,7 +290,10 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('terminal:write', (event, { id, data }) => {
     const t = terminals.get(id);
-    if (t && typeof data === 'string') t.term.write(data);
+    if (t && typeof data === 'string') {
+      t.term.write(data);
+      if (!t.hasInput && /[\r\n]/.test(data)) t.hasInput = true;
+    }
   });
 
   ipcMain.handle('terminal:resize', (event, { id, cols, rows }) => {
@@ -309,7 +312,13 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('terminal:hasRunningInRepo', async (event, repoPath) => {
     if (!repoPath) return { running: false, count: 0 };
-    const count = [...terminals.values()].filter(t => t.cwd && t.cwd.startsWith(repoPath)).length;
+    const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const root = norm(repoPath);
+    const count = [...terminals.values()].filter((t) => {
+      if (!t.hasInput || !t.cwd) return false;
+      const c = norm(t.cwd);
+      return c === root || c.indexOf(root + '/') === 0;
+    }).length;
     return { running: count > 0, count };
   });
 }
