@@ -1,0 +1,55 @@
+.ide-crumbs {
+  height: 30px;
+  flex: 0 0 30px;
+}
+.ide-crumb-path {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ide-runbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: 12px;
+}
+.ide-rb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ide-rb-btn svg {
+  display: block;
+  flex: 0 0 14px;
+}
+.ide-rb-btn.dbg svg { color: var(--yellow); }
+.ide-rb-btn.dbg:hover {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+.ide-rb-btn.run {
+  border-color: var(--green);
+  background: var(--green-dim);
+  color: var(--green);
+}
+.ide-rb-btn.run:hover {
+  background: var(--green);
+  color: var(--bg-base);
+}
+.ide-rb-btn.busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
