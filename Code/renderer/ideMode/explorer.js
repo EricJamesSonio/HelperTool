@@ -147,7 +147,29 @@ function setMark(cls, key) {
 
 function markActive() {
   setMark('active', activeKey);
+  markDirty();
 }
+let dirtyKeys = new Set();
+let dirtyPaths = [];
+
+function markDirty() {
+  if (!treeEl) return;
+  treeEl.querySelectorAll('.ide-row.dirty, .ide-row.has-dirty').forEach((r) => {
+    r.classList.remove('dirty');
+    r.classList.remove('has-dirty');
+  });
+  for (const k of dirtyKeys) {
+    const el = rowByKey(k);
+    if (el) el.classList.add('dirty');
+  }
+  for (const p of dirtyPaths) {
+    for (const a of ancestorsOf(p)) {
+      const el = rowByKey(pathKey(a));
+      if (el) el.classList.add('has-dirty');
+    }
+  }
+}
+
 
 function markSelected() {
   setMark('selected', selected ? pathKey(selected.path) : null);
@@ -318,6 +340,9 @@ function revealPath(filePath) {
 export function setOpenEditors(list, act) {
   const prevKey = activeKey;
   activeKey = act ? pathKey(act) : null;
+  const dirtyList = list.filter((t) => t.dirty);
+  dirtyKeys = new Set(dirtyList.map((t) => pathKey(t.path)));
+  dirtyPaths = dirtyList.map((t) => t.path);
   oeEmptyEl.hidden = list.length > 0;
   oeListEl.innerHTML = list.map((t) =>
     '<div class="ide-oe-item' + (pathKey(t.path) === activeKey ? ' active' : '') + (t.dirty ? ' dirty' : '') + '" data-path="' + attr(t.path) + '" title="' + attr(t.path) + '">' +
@@ -326,11 +351,12 @@ export function setOpenEditors(list, act) {
       '<span class="ide-name">' + esc(t.name) + '</span>' +
     '</div>'
   ).join('');
-  const unsaved = list.filter((t) => t.dirty).length;
+  const unsaved = dirtyList.length;
   let html = '';
   if (list.length) html += '<span class="ide-open-n">' + list.length + ' open</span>';
-  if (unsaved) html += '<span class="ide-unsaved">' + unsaved + ' unsaved</span>';
+  if (unsaved) html += '<span class="ide-unsaved" role="button" title="Review the unsaved changes">' + unsaved + ' unsaved</span>';
   oeCountEl.innerHTML = html;
+  markDirty();
   if (activeKey && activeKey !== prevKey) revealPath(act);
   else markActive();
 }
@@ -362,17 +388,33 @@ async function runAction(act) {
   if (!state.selectedRepoPath) return;
   const mod = await import('../codebaseManager.js');
   const target = targetFolder();
+  const before = cache.get(target);
+  const known = new Set(before ? before.entries.map((x) => x.name) : []);
+  const isFile = act === 'newfile';
   const done = () => {
     expanded.add(target);
     saveExpanded();
     cache.delete(target);
     renderTree();
+    if (!before || !isFile) return;
+    loadDir(target).then((dir) => {
+      const names = dir.entries.filter((x) => x.type === 'file' && !known.has(x.name)).map((x) => x.name);
+      document.dispatchEvent(new CustomEvent('ide:files-created', { detail: { names } }));
+    });
   };
   if (act === 'newfile') mod.openCreateFilesModal(target, done);
   else if (act === 'newfolder') mod.openCreateFolderModal(target, done);
 }
 
 function onRootClick(e) {
+  const um = e.target.closest('.ide-unsaved');
+  if (um) {
+    e.stopPropagation();
+    import('./unsavedModal.js')
+      .then((m) => m.openUnsavedModal())
+      .catch((err) => console.error('[IDE] unsaved modal failed:', err));
+    return;
+  }
   const btn = e.target.closest('.ide-sec-btn');
   if (btn) {
     e.stopPropagation();

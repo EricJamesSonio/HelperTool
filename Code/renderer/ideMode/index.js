@@ -1,6 +1,9 @@
 import { state } from '../app_manager/appState.js';
 import { displayTree } from '../app_manager/viewManager.js';
 import { getFeatures } from '../featureManager.js';
+import { buildCommand } from './extensions/runners.js';
+import * as ideExt from './extensions/index.js';
+
 
 
 const LS_ON = 'helpertool-ide-mode';
@@ -44,6 +47,7 @@ function injectCss() {
     ['ideAccentCss', './styles/ide-accent.css'],
     ['ideMirrorCss', './styles/ide-mirror.css'],
     ['ideCodeswampCss', './styles/ide-codeswamp.css'],
+    ['ideRunCss', './styles/ide-run.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
@@ -299,6 +303,7 @@ function onGlobalKey(e) {
 function reloadIde() {
   if (!active || !mods) return;
   mods.explorer.refresh();
+  ideExt.redetect();
   const tabs = mods.tabs || [];
   for (const t of tabs) {
     if (!t || t.dirty || !t.path) continue;
@@ -351,6 +356,29 @@ async function toggleTerminal() {
   termAutoOpened = true;
   ui.open(state.selectedRepoPath || '');
 }
+function dirOf(p) {
+  const s = String(p || '');
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return i > 0 ? s.slice(0, i) : s;
+}
+
+async function onRunFile(e) {
+  if (!active) return;
+  const d = e && e.detail;
+  if (!d || !d.path) return;
+  const ui = await dockTerminal(false);
+  if (!ui) {
+    console.warn('[IDE] Run needs the Terminal feature to be enabled');
+    return;
+  }
+  termAutoOpened = true;
+  const repo = state.selectedRepoPath || dirOf(d.path);
+  try {
+    await ui.runCommand(repo, (kind) => buildCommand(d.name, d.path, kind));
+  } catch (err) {
+    console.error('[IDE] run failed:', err);
+  }
+}
 
 async function undockTerminal() {
   try {
@@ -366,6 +394,7 @@ function init() {
   lastRepo = state.selectedRepoPath ? normRepo(state.selectedRepoPath) : null;
   document.addEventListener('repo:switched', onRepoSwitched);
   document.addEventListener('keydown', onGlobalKey, true);
+  document.addEventListener('ide:run-file', onRunFile);
   const refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {

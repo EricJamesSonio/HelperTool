@@ -7,6 +7,7 @@ import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
 import * as ext from './extensions/index.js';
 import * as fmt from './extensions/formatter.js';
+import * as runners from './extensions/runners.js';
 
 const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
 const SEV_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' };
@@ -557,10 +558,10 @@ function invalidate() {
   schedule();
 }
 
-function flash(msg) {
+function flash(msg, ms) {
   els.msg.textContent = msg;
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => { els.msg.textContent = ''; }, 2000);
+  flashTimer = setTimeout(() => { els.msg.textContent = ''; }, ms || 2000);
 }
 
 function scheduleSave() {
@@ -616,12 +617,93 @@ function charWidth() {
 
 function renderCrumbs(tab) {
   if (!tab) {
-    els.crumbs.innerHTML = '';
+    els.crumbPath.innerHTML = '';
+    updateRunbar(null);
     return;
   }
-  els.crumbs.innerHTML = relParts(tab.filePath || tab.path)
+  els.crumbPath.innerHTML = relParts(tab.filePath || tab.path)
     .map((part, i, arr) => '<span class="ide-crumb' + (i === arr.length - 1 ? ' last' : '') + '">' + esc(part) + '</span>')
     .join('<span class="ide-crumb-sep"></span>');
+  updateRunbar(tab);
+}
+const RB_BUG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h6V10a3 3 0 0 1-6 0z"/><path d="M6 4l2-2 2 2"/><path d="M5 8H2.5M11 8h2.5M5.5 11.5L3.5 13M10.5 11.5l2 1.5"/></svg>';
+const RB_PLAY = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M4.5 2.8v10.4a.6.6 0 0 0 .92.5l8-5.2a.6.6 0 0 0 0-1l-8-5.2a.6.6 0 0 0-.92.5z"/></svg>';
+const RUNBAR_HTML =
+  '<div class="ide-runbar" hidden>' +
+    '<button type="button" class="ide-rb-btn dbg" data-rb="debug" title="Check this file strictly with the active extensions">' + RB_BUG + 'Debug</button>' +
+    '<button type="button" class="ide-rb-btn run" data-rb="run" title="Save and run this file in the terminal">' + RB_PLAY + 'Run</button>' +
+  '</div>';
+
+function updateRunbar(tab) {
+  if (!els || !els.runbar) return;
+  const ok = isText(tab);
+  const runner = ok ? runners.runnerFor(tab.name) : null;
+  const canDbg = ok && ext.supports(tab.name);
+  els.runbar.hidden = !(runner || canDbg);
+  els.dbgBtn.hidden = !canDbg;
+  els.runBtn.hidden = !runner;
+  if (runner) els.runBtn.title = 'Save and run ' + tab.name + ' in the terminal (' + runner.label + ')';
+}
+
+function debugActive() {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  ext.noteFile(tab.name);
+  if (!ext.handles(tab.name)) {
+    flash(ext.supports(tab.name)
+      ? 'The extension for this file type is turned off. Open Extensions (F3) to enable it.'
+      : 'No extension supports this file type', 4000);
+    return;
+  }
+  const path = tab.path;
+  els.dbgBtn.classList.add('busy');
+  flash('Debug: checking ' + tab.name + '...', 4000);
+  ext.analyze(path, tab.name, () => els.ta.value, 0, (list) => {
+    els.dbgBtn.classList.remove('busy');
+    if (activePath !== path || !isText(activeTab())) return;
+    const arr = Array.isArray(list) ? list : [];
+    setDiags(arr);
+    if (!arr.length) {
+      flash('Debug: no problems found in ' + tab.name, 3500);
+      return;
+    }
+    let e = 0;
+    let w = 0;
+    let n = 0;
+    for (const d of arr) {
+      if (d.sev === 'error') e++;
+      else if (d.sev === 'warning') w++;
+      else n++;
+    }
+    setProblemsOpen(true);
+    gotoDiag(diag.list.find((d) => d.sev === 'error') || diag.list[0]);
+    flash('Debug: ' + e + ' error(s), ' + w + ' warning(s), ' + n + ' info', 5000);
+  });
+}
+
+async function runActive() {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  const runner = runners.runnerFor(tab.name);
+  if (!runner) {
+    flash('This file type cannot be run', 3000);
+    return;
+  }
+  if (tab.dirty || els.ta.value !== tab.saved) await save();
+  if (activeTab() !== tab) return;
+  if (els.ta.value !== tab.saved) {
+    flash('Save failed, not running', 3000);
+    return;
+  }
+  document.dispatchEvent(new CustomEvent('ide:run-file', { detail: { path: tab.path, name: tab.name } }));
+  flash('Running ' + tab.name + ' in the terminal', 2500);
+}
+
+function onRunbarClick(e) {
+  const b = e.target.closest('[data-rb]');
+  if (!b) return;
+  if (b.dataset.rb === 'debug') debugActive();
+  else if (b.dataset.rb === 'run') runActive();
 }
 
 function tabIcon(t) {
@@ -965,6 +1047,7 @@ export async function openFile(path) {
   }
   const name = path.split(/[\\/]/).pop();
   const media = mediaViewer.mediaKind(name);
+  if (!media) ext.noteFile(name);
   tab = makeTab(path, name, media);
   tab.wantFocus = true;
   tabs.push(tab);
@@ -1101,6 +1184,38 @@ export function isDirty(path) {
   if (!tab || tab.kind) return false;
   if (tab.path === activePath && isText(tab)) return els.ta.value !== tab.saved;
   return !!tab.dirty;
+}
+export function getUnsavedFiles() {
+  if (!els) return [];
+  saveViewState();
+  return tabs
+    .filter((t) => !t.kind && !t.media && !t.loading && !t.notice && t.dirty)
+    .map((t) => ({ path: t.path, name: t.name, saved: t.saved, content: t.content }));
+}
+
+export async function saveTab(path) {
+  if (!els || !path) return false;
+  const key = pathKey(path);
+  const tab = tabs.find((t) => t.key === key);
+  if (!tab || tab.kind || tab.media) return false;
+  if (tab.path === activePath) {
+    await save();
+    return !tab.dirty;
+  }
+  const text = tab.content;
+  const out = tab.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
+  let res;
+  try {
+    res = await window.electronAPI.writeFile(tab.path, out);
+  } catch (err) {
+    res = { success: false };
+  }
+  if (!res || !res.success) return false;
+  tab.saved = text;
+  tab.dirty = false;
+  renderTabs();
+  notify();
+  return true;
 }
 
 export async function reloadFromDisk(path) {
@@ -2062,9 +2177,15 @@ export function getActivePath() {
 export function mount(mainEl, handlers) {
   onChange = (handlers && handlers.onTabsChange) || null;
   mainEl.innerHTML = TEMPLATE;
+  const crumbsEl = mainEl.querySelector('.ide-crumbs');
+  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML;
   els = {
     tabs: mainEl.querySelector('.ide-tabs'),
-    crumbs: mainEl.querySelector('.ide-crumbs'),
+    crumbs: crumbsEl,
+    crumbPath: crumbsEl.querySelector('.ide-crumb-path'),
+    runbar: crumbsEl.querySelector('.ide-runbar'),
+    dbgBtn: crumbsEl.querySelector('[data-rb="debug"]'),
+    runBtn: crumbsEl.querySelector('[data-rb="run"]'),
     welcome: mainEl.querySelector('.ide-welcome'),
     home: mainEl.querySelector('.ide-welcome-home'),
     notice: mainEl.querySelector('.ide-notice'),
@@ -2120,6 +2241,7 @@ export function mount(mainEl, handlers) {
   els.findIn.addEventListener('keydown', onFindKey);
   els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
+  els.runbar.addEventListener('click', onRunbarClick);
   els.stProb.addEventListener('click', () => setProblemsOpen(!problemsOpen));
   els.problems.addEventListener('click', onProblemsClick);
   mainEl.addEventListener('keydown', onMainKeyDown);
@@ -2130,7 +2252,12 @@ export function mount(mainEl, handlers) {
       schedule();
     }).observe(els.codewrap);
   }
-  ext.mount({ onChange: () => queueDiag(60) });
+  ext.mount({
+    onChange: () => {
+      queueDiag(60);
+      updateRunbar(activeTab());
+    },
+  });
   showTab(null);
 }
 function formatBuffer(tab) {
