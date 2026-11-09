@@ -443,3 +443,13 @@ body.ide-mode .navbar-row--primary .navbar-section.center > .ide-cs-btn.tool-btn
   width: 30px;
   height: 30px;
 }
+body.ide-mode .navbar-row--primary .navbar-section.center > .ide-cs-btn.tool-btn {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  margin-left: 8px;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+}
