@@ -1140,3 +1140,13 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   _run('repoConsole');
 }, true);
+RUN.errorCop = async () => {
+  const ui = await ensureTerminalUI();
+  const ecp = ui._errorCop;
+  if (ecp.isOpen()) {
+    ecp.close();
+    return;
+  }
+  _registry.closeAll();
+  ecp.open();
+};
