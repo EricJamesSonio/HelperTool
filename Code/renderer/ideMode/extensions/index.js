@@ -5,6 +5,7 @@ import * as fmt from './formatter.js';
 import * as pm from './prettierModal.js';
 import * as dm from './docModal.js';
 import { stacksForFile } from './filemap.js';
+import * as dbg from './debugModal.js';
 
 const LS_NOTED = 'helpertool-ide-ext-noted:';
 let serverStacks = {};
@@ -388,10 +389,20 @@ function openDoc(id) {
   if (!ext) return;
   dm.open(ext, { detected: stacks[id] || '', override: overrides[id] || '', on: isOn(id) });
 }
+function debugContext() {
+  const ids = activeIds().slice();
+  const root = state.selectedRepoPath || '';
+  const repo = root ? String(root).split(/[\\/]/).filter(Boolean).pop() : '';
+  return { root, ids, fileExts: extsMemo ? Array.from(extsMemo) : [], repoName: repo };
+}
+
+function openDebug() {
+  dbg.open(debugContext);
+}
 
 function onKey(e) {
   if (e.key !== 'Escape' || !overlay || overlay.hidden) return;
-  if (dm.isOpen()) return;
+  if (dm.isOpen() || dbg.isOpen()) return;
   e.preventDefault();
   e.stopPropagation();
   close();
@@ -412,6 +423,7 @@ function onOverlayClick(e) {
     stacks = mergeStacks();
     detect(true);
   }
+  else if (act === 'debug') openDebug();
   else if (act === 'toggle') toggle(b.dataset.id);
   else if (act === 'view-fmt') openPrettier();
   else if (act === 'view-doc') openDoc(b.dataset.id);
@@ -432,6 +444,7 @@ function build() {
       '<div class="ide-ext-head">' +
         '<span class="ide-ext-title">Extensions</span>' +
         '<span class="ide-ext-sub">Debugging helpers, enabled automatically from this repo\'s stack</span>' +
+        '<button type="button" class="ide-ext-debug" data-act="debug" title="Check every file in this repo with the enabled extensions">Debug</button>' +
         '<button type="button" class="ide-ext-redetect" data-act="redetect" title="Scan the repo again">Re-detect</button>' +
         '<button type="button" class="ide-ext-close" data-act="close" title="Close">&times;</button>' +
       '</div>' +
@@ -468,6 +481,7 @@ function injectCss() {
     ['idePrettierCss', './styles/ide-prettier.css'],
     ['ideExtDocCss', './styles/ide-ext-doc.css'],
     ['ideWarnListCss', './styles/ide-warnlist.css'],
+    ['ideDebugCss', './styles/ide-debug.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
