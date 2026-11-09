@@ -897,3 +897,6 @@ contextBridge.exposeInMainWorld('ideWatchAPI', {
     status: (root) => ipcRenderer.invoke('ideWatch:status', root),
     dirs: (list) => ipcRenderer.invoke('ideWatch:dirs', list),
 });
+contextBridge.exposeInMainWorld('ideLineAPI', {
+    diff: (root, file) => ipcRenderer.invoke('ide:gitLines', { root, file }),
+});
