@@ -764,6 +764,7 @@ function syncTransform() {
   els.hlInner.style.transform = tr;
   els.findInner.style.transform = tr;
   els.diagInner.style.transform = tr;
+  if (guideInner) guideInner.style.transform = tr;
   els.gutterInner.style.transform = 'translateY(' + y + 'px)';
   lineMarks.sync(ta, () => {
     const t = activeTab();
@@ -867,6 +868,74 @@ function updateFindCount() {
   els.find.classList.toggle('empty', !!find.q && !n);
 }
 
+let guideInner = null;
+let guideUnitFor = null;
+let guideUnit = 2;
+
+function ensureGuides() {
+  if (guideInner || !els) return;
+  const code = els.ta.parentElement;
+  const layer = document.createElement('div');
+  layer.className = 'ide-guide-layer';
+  const pre = document.createElement('pre');
+  pre.className = 'ide-guide-inner';
+  layer.appendChild(pre);
+  code.insertBefore(layer, code.firstChild);
+  guideInner = pre;
+}
+
+function indentCols(line) {
+  let c = 0;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line.charCodeAt(i);
+    if (ch === 32) c++;
+    else if (ch === 9) c += 4 - (c % 4);
+    else return c;
+  }
+  return -1;
+}
+
+function detectGuideUnit() {
+  if (guideUnitFor === lines) return guideUnit;
+  guideUnitFor = lines;
+  let four = true;
+  let any = false;
+  const n = Math.min(lines.length, 500);
+  for (let i = 0; i < n; i++) {
+    const c = indentCols(lines[i]);
+    if (c > 0) {
+      any = true;
+      if (c % 4 !== 0) {
+        four = false;
+        break;
+      }
+    }
+  }
+  guideUnit = any && four ? 4 : 2;
+  return guideUnit;
+}
+
+function neighborIndent(i, step) {
+  let j = i + step;
+  for (let k = 0; k < 60 && j >= 0 && j < lines.length; k++) {
+    const c = indentCols(lines[j]);
+    if (c >= 0) return c;
+    j += step;
+  }
+  return 0;
+}
+
+function guidesHtml(from, to) {
+  const u = detectGuideUnit();
+  const parts = [];
+  for (let i = from; i <= to; i++) {
+    let c = indentCols(lines[i] || '');
+    if (c < 0) c = Math.min(neighborIndent(i, -1), neighborIndent(i, 1));
+    parts.push(c > 0 ? '<span class="ide-ig" style="width:' + c + 'ch"></span>' : '');
+  }
+  guideInner.style.setProperty('--u', String(u));
+  return parts.join('\n');
+}
 function render() {
   rafId = 0;
   const tab = activeTab();
@@ -908,6 +977,8 @@ function render() {
     const wantOverlay = (find.open && !!find.q) || !!pulse;
     els.findInner.innerHTML = wantOverlay ? overlayHtml(from, to) : '';
     els.diagInner.innerHTML = diagHtml(from, to);
+    ensureGuides();
+    guideInner.innerHTML = guidesHtml(from, to);
     let nums = '';
     for (let i = from; i <= to; i++) {
       const arr = diag.list.length ? diag.byLine.get(i + 1) : null;

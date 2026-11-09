@@ -52,6 +52,7 @@ function injectCss() {
     ['ideGitCss', './styles/ide-git.css'],
     ['ideChangesModalCss', './styles/ide-changes-modal.css'],
     ['ideClipboardCss', './styles/ide-clipboard.css'],
+    ['ideGuidesCss', './styles/ide-guides.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
