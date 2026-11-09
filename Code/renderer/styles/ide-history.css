@@ -411,3 +411,25 @@ body.ide-mode .navbar-row--primary .navbar-section.right .ide-hx-btn {
   background: rgba(248, 81, 73, 0.1);
   color: var(--red);
 }
+.ide-wl-copy,
+.ide-pb-copy {
+  height: 20px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 99px;
+  background: var(--bg-elevated);
+  font: 600 11px var(--font-ui);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.ide-pb-copy {
+  margin-right: 8px;
+}
+
+.ide-wl-copy:hover,
+.ide-pb-copy:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

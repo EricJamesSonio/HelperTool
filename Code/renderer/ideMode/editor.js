@@ -93,6 +93,17 @@ function renderProblemsList() {
     ).join('')
     : '<div class="ide-pb-empty">No problems detected in this file.</div>';
   els.pbTitle.textContent = 'Problems' + (total ? ' (' + total + ')' : '');
+  const head = els.problems.querySelector('.ide-pb-head');
+  if (head && !head.querySelector('.ide-pb-copy')) {
+    const cb = document.createElement('button');
+    cb.type = 'button';
+    cb.className = 'ide-pb-copy';
+    cb.textContent = 'Copy all';
+    cb.title = 'Copy all problems to the clipboard';
+    const closeBtn = head.querySelector('.ide-pb-x');
+    if (closeBtn) head.insertBefore(cb, closeBtn);
+    else head.appendChild(cb);
+  }
 }
 
 function setProblemsOpen(on) {
@@ -158,6 +169,11 @@ try {
 }
 
 function onWlClick(e) {
+  if (e.target.closest('[data-wl="copy"]')) {
+    e.stopPropagation();
+    copyProblemsText();
+    return;
+  }
   if (e.target.closest('[data-wl="toggle"]')) {
     wlCollapsed = !wlCollapsed;
     try { localStorage.setItem(WL_KEY, wlCollapsed ? '1' : '0'); } catch (_) {}
@@ -214,6 +230,7 @@ function renderWarnList() {
       '<span class="ide-wl-chev">' + (wlCollapsed ? '\u25B8' : '\u25BE') + '</span>' +
       '<span class="ide-wl-title">Problems</span>' +
       counts +
+      '<button type="button" class="ide-wl-copy" data-wl="copy" title="Copy all problems to the clipboard">Copy all</button>' +
     '</div>';
   box.classList.toggle('collapsed', wlCollapsed);
   if (wlCollapsed) {
@@ -383,6 +400,10 @@ function onTaMove(e) {
 }
 
 function onProblemsClick(e) {
+  if (e.target.closest('.ide-pb-copy')) {
+    copyProblemsText();
+    return;
+  }
   if (e.target.closest('.ide-pb-x')) {
     setProblemsOpen(false);
     return;
@@ -2210,6 +2231,314 @@ function onTabsWheel(e) {
 export function getActivePath() {
   return activePath;
 }
+function problemsAsText() {
+  const tab = activeTab();
+  const file = tab ? relParts(tab.filePath || tab.path).join('/') : '';
+  return diag.list.map((d) =>
+    file + ':' + d.line + ':' + (d.col + 1) + ' ' + String(SEV_LABEL[d.sev]).toLowerCase() + ' ' + d.msg + (d.src ? ' (' + d.src + ')' : '')
+  ).join('\n');
+}
+
+async function copyProblemsText() {
+  if (!els) return;
+  if (!diag.list.length) {
+    flash('No problems to copy');
+    return;
+  }
+  const text = problemsAsText();
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (_) {
+    ok = false;
+  }
+  if (!ok) {
+    const tmp = document.createElement('textarea');
+    tmp.value = text;
+    tmp.style.position = 'fixed';
+    tmp.style.opacity = '0';
+    document.body.appendChild(tmp);
+    tmp.select();
+    try {
+      ok = document.execCommand('copy');
+    } catch (_) {
+      ok = false;
+    }
+    tmp.remove();
+  }
+  flash(ok ? 'Copied ' + diag.list.length + ' problem(s)' : 'Could not copy the problems', 2500);
+}
+
+const LINK_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.vue', '.css', '.scss', '.py', '.php'];
+const LINK_JS = /\.(js|jsx|mjs|cjs)$/i;
+let linkCfg = new Map();
+
+function linkSep(p) {
+  return String(p).indexOf('\\') !== -1 ? '\\' : '/';
+}
+
+function linkDirOf(p) {
+  const s = String(p);
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return i > 0 ? s.slice(0, i) : '';
+}
+
+function linkNameOf(p) {
+  const s = String(p);
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return s.slice(i + 1);
+}
+
+function linkJoin(base, rel) {
+  const sep = linkSep(base);
+  const out = [];
+  const parts = String(base).split(/[\\/]/).concat(String(rel).split(/[\\/]/));
+  for (const p of parts) {
+    if (p === '..') {
+      if (out.length > 1) out.pop();
+    } else if (p === '.' || (p === '' && out.length)) {
+      continue;
+    } else {
+      out.push(p);
+    }
+  }
+  return out.join(sep);
+}
+
+function linkStripJsonc(text) {
+  let out = '';
+  let inStr = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const nx = text[i + 1];
+    if (inStr) {
+      out += c;
+      if (c === '\\') {
+        out += nx || '';
+        i++;
+      } else if (c === '"') {
+        inStr = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      out += c;
+      continue;
+    }
+    if (c === '/' && nx === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+      out += '\n';
+      continue;
+    }
+    if (c === '/' && nx === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i++;
+      continue;
+    }
+    out += c;
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1');
+}
+
+async function linkReadConfig(dir) {
+  if (linkCfg.has(dir)) return linkCfg.get(dir);
+  let cfg = null;
+  for (const name of ['tsconfig.json', 'jsconfig.json']) {
+    let res = null;
+    try {
+      res = await window.electronAPI.readFile(linkJoin(dir, name));
+    } catch (_) {
+      res = null;
+    }
+    if (!res || !res.success || typeof res.content !== 'string') continue;
+    try {
+      const j = JSON.parse(linkStripJsonc(res.content));
+      const co = (j && j.compilerOptions) || {};
+      cfg = {
+        baseUrl: typeof co.baseUrl === 'string' ? co.baseUrl : '',
+        paths: co.paths && typeof co.paths === 'object' ? co.paths : {},
+      };
+      break;
+    } catch (_) {
+      continue;
+    }
+  }
+  linkCfg.set(dir, cfg);
+  return cfg;
+}
+
+async function linkAliasBases(fromDir, spec, root) {
+  const out = [];
+  const rootN = String(root || '').replace(/[\\/]+$/, '').toLowerCase();
+  let dir = fromDir;
+  for (let n = 0; n < 14 && dir; n++) {
+    const cfg = await linkReadConfig(dir);
+    if (cfg) {
+      const base = linkJoin(dir, cfg.baseUrl || '.');
+      for (const key of Object.keys(cfg.paths)) {
+        const star = key.indexOf('*');
+        let rest = null;
+        if (star === -1) {
+          if (spec === key) rest = '';
+        } else {
+          const pre = key.slice(0, star);
+          const post = key.slice(star + 1);
+          const okLen = spec.length >= pre.length + post.length;
+          if (okLen && spec.indexOf(pre) === 0 && spec.slice(spec.length - post.length) === post) {
+            rest = spec.slice(pre.length, spec.length - post.length);
+          }
+        }
+        if (rest === null) continue;
+        const targets = Array.isArray(cfg.paths[key]) ? cfg.paths[key] : [];
+        for (const t of targets) out.push(linkJoin(base, String(t).replace('*', rest)));
+      }
+      if (cfg.baseUrl) out.push(linkJoin(base, spec));
+    }
+    if (/^[@~]\//.test(spec)) out.push(linkJoin(dir, 'src/' + spec.slice(2)));
+    if (rootN && dir.replace(/[\\/]+$/, '').toLowerCase() === rootN) break;
+    const up = linkDirOf(dir);
+    if (!up || up === dir) break;
+    dir = up;
+  }
+  return out;
+}
+
+async function linkListDir(dir, cache) {
+  let ent = cache.get(dir);
+  if (ent !== undefined) return ent;
+  ent = null;
+  try {
+    const res = await window.ideAPI.readDir(dir);
+    if (res && res.success) {
+      ent = new Map((res.entries || []).map((x) => [String(x.name).toLowerCase(), x]));
+    }
+  } catch (_) {
+    ent = null;
+  }
+  cache.set(dir, ent);
+  return ent;
+}
+
+async function linkProbe(base, cache) {
+  const tries = [base];
+  for (const x of LINK_EXTS) tries.push(base + x);
+  if (LINK_JS.test(base)) {
+    const bare = base.replace(LINK_JS, '');
+    for (const x of LINK_EXTS) tries.push(bare + x);
+  }
+  for (const t of tries) {
+    const ent = await linkListDir(linkDirOf(t), cache);
+    const hit = ent ? ent.get(linkNameOf(t).toLowerCase()) : null;
+    if (hit && hit.type === 'file') return hit.path || t;
+  }
+  const parent = await linkListDir(linkDirOf(base), cache);
+  const folder = parent ? parent.get(linkNameOf(base).toLowerCase()) : null;
+  if (folder && folder.type === 'folder') {
+    const inner = await linkListDir(folder.path || base, cache);
+    if (inner) {
+      for (const x of LINK_EXTS) {
+        const h = inner.get('index' + x);
+        if (h && h.type === 'file') return h.path || linkJoin(base, 'index' + x);
+      }
+    }
+  }
+  return null;
+}
+
+async function linkResolve(from, spec) {
+  linkCfg = new Map();
+  const cache = new Map();
+  const fromDir = linkDirOf(from);
+  const root = state.selectedRepoPath || '';
+  let bases = [];
+  if (spec.charAt(0) === '.') bases.push(linkJoin(fromDir, spec));
+  else if (spec.charAt(0) === '/') bases.push(linkJoin(root || fromDir, spec));
+  else bases = await linkAliasBases(fromDir, spec, root);
+  for (const b of bases) {
+    const hit = await linkProbe(b, cache);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function linkSpecAt(text, col) {
+  if (!text || !/\b(?:import|export|from|require)\b|@import|\burl\(|\b(?:src|href)\s*=/.test(text)) return null;
+  const re = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const s = m.index;
+    const en = s + m[0].length;
+    if (col > s && col < en) {
+      const spec = m[2];
+      if (!spec || spec.indexOf('${') !== -1 || /\s/.test(spec) || /^(?:https?:|data:|mailto:|#)/.test(spec)) return null;
+      return { spec, s: s + 1, e: en - 1 };
+    }
+  }
+  return null;
+}
+
+function linkPoint(e) {
+  const ta = els.ta;
+  const r = ta.getBoundingClientRect();
+  const px = e.clientX - r.left + ta.scrollLeft - 12;
+  const py = e.clientY - r.top + ta.scrollTop - PAD;
+  if (px < 0 || py < 0) return null;
+  const line = Math.floor(py / LH);
+  if (line >= lines.length) return null;
+  return { line, col: Math.floor(px / charWidth()) };
+}
+
+async function linkJump(tab, spec) {
+  flash('Looking for ' + spec + '...', 1500);
+  let hit = null;
+  try {
+    hit = await linkResolve(tab.path, spec);
+  } catch (_) {
+    hit = null;
+  }
+  if (!hit) {
+    flash('Cannot find a file for ' + spec, 3500);
+    return;
+  }
+  openFile(hit);
+}
+
+function linkClick(e) {
+  if (!els || e.target !== els.ta || e.button !== 0) return;
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  const pt = linkPoint(e);
+  if (!pt) return;
+  const hit = linkSpecAt(lines[pt.line], pt.col);
+  if (!hit) return;
+  e.preventDefault();
+  e.stopPropagation();
+  linkJump(tab, hit.spec);
+}
+
+function linkHover(e) {
+  if (!els || e.target !== els.ta) return;
+  let hot = false;
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+    const pt = linkPoint(e);
+    hot = !!pt && !!linkSpecAt(lines[pt.line], pt.col);
+  }
+  const want = hot ? 'pointer' : '';
+  if (els.ta.style.cursor !== want) els.ta.style.cursor = want;
+}
+
+function linkKeyUp(e) {
+  if (!els) return;
+  if ((e.key === 'Control' || e.key === 'Meta') && els.ta.style.cursor) els.ta.style.cursor = '';
+}
+
+document.addEventListener('click', linkClick, true);
+document.addEventListener('mousemove', linkHover, true);
+document.addEventListener('keyup', linkKeyUp, true);
 
 export function mount(mainEl, handlers) {
   onChange = (handlers && handlers.onTabsChange) || null;
