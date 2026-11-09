@@ -154,7 +154,10 @@ export default class TerminalUI {
     this.panel.querySelector('#terminalViewOutput').addEventListener('click', () => this._viewTerminalOutput());
 
     const ecpContainer = this.panel.querySelector('#ecpTerminalBtnContainer');
-    const ecpBtn = this._errorCop.createTerminalButton();
+    const ecpBtn = this._errorCop.createTerminalButton(() => {
+      const cur = this.instances.get(this.activeId);
+      return cur ? cur.sessionId : null;
+    });
     ecpBtn.appendChild(this._errorCop.getBadgeEl());
     ecpContainer.appendChild(ecpBtn);
 
