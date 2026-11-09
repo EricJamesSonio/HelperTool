@@ -101,6 +101,52 @@ function setProblemsOpen(on) {
 }
 
 const WL_KEY = 'helpertool-ide-wl-collapsed';
+let wlSelKey = '';
+
+function wlKey(d) {
+  return d.line + ':' + d.col + ':' + d.msg;
+}
+
+function centerWlRow(row) {
+  const list = row ? row.closest('.ide-wl-list') : null;
+  if (!list) return;
+  const lr = list.getBoundingClientRect();
+  const rr = row.getBoundingClientRect();
+  const delta = rr.top - lr.top - (lr.height / 2 - rr.height / 2);
+  const max = Math.max(0, list.scrollHeight - list.clientHeight);
+  const top = Math.max(0, Math.min(max, list.scrollTop + delta));
+  if (Math.abs(top - list.scrollTop) > 1) list.scrollTo({ top, behavior: 'smooth' });
+}
+
+function markWlSel(center) {
+  if (!wl || wl.hidden || wlCollapsed) return;
+  let found = null;
+  wl.querySelectorAll('.ide-wl-row').forEach((r) => {
+    const d = diag.list[Number(r.dataset.i)];
+    const on = !!d && wlKey(d) === wlSelKey;
+    r.classList.toggle('sel', on);
+    if (on) found = r;
+  });
+  if (center && found) centerWlRow(found);
+}
+
+function syncWlToCaret(line) {
+  if (!diag.list.length) {
+    if (wlSelKey) {
+      wlSelKey = '';
+      markWlSel(false);
+    }
+    return;
+  }
+  const cur = diag.list.find((d) => wlKey(d) === wlSelKey);
+  if (cur && cur.line === line) return;
+  const hit = diag.list.find((d) => d.line === line);
+  const key = hit ? wlKey(hit) : '';
+  if (key === wlSelKey) return;
+  wlSelKey = key;
+  markWlSel(true);
+}
+
 let wl = null;
 let wlCollapsed = false;
 try {
@@ -118,16 +164,11 @@ function onWlClick(e) {
   }
   const row = e.target.closest('.ide-wl-row');
   if (!row) return;
-  const list = row.closest('.ide-wl-list');
-  if (list) {
-    const lr = list.getBoundingClientRect();
-    const rr = row.getBoundingClientRect();
-    const delta = rr.top - lr.top - (lr.height / 2 - rr.height / 2);
-    const max = Math.max(0, list.scrollHeight - list.clientHeight);
-    const top = Math.max(0, Math.min(max, list.scrollTop + delta));
-    if (Math.abs(top - list.scrollTop) > 1) list.scrollTo({ top, behavior: 'smooth' });
-  }
-  gotoDiag(diag.list[Number(row.dataset.i)]);
+  const d = diag.list[Number(row.dataset.i)];
+  if (!d) return;
+  wlSelKey = wlKey(d);
+  markWlSel(true);
+  gotoDiag(d);
 }
 
 function ensureWl() {
@@ -149,6 +190,7 @@ function renderWarnList() {
   const tab = activeTab();
   const total = diag.list.length;
   if (!isText(tab) || !total) {
+    wlSelKey = '';
     box.hidden = true;
     return;
   }
@@ -179,7 +221,7 @@ function renderWarnList() {
   const prev = box.querySelector('.ide-wl-list');
   const keep = prev ? prev.scrollTop : 0;
   const rows = diag.list.slice(0, 200).map((d, i) =>
-    '<div class="ide-wl-row" data-i="' + i + '" title="' + attr(d.msg) + '">' +
+    '<div class="ide-wl-row' + (wlKey(d) === wlSelKey ? ' sel' : '') + '" data-i="' + i + '" title="' + attr(d.msg) + '">' +
       '<span class="ide-wl-ln">' + d.line + '</span>' +
       '<span class="ide-wl-sev ' + SEV_CLS[d.sev] + '">' + SEV_ICON[d.sev] + '</span>' +
       '<span class="ide-wl-msg">' + esc(d.msg) + '</span>' +
@@ -793,6 +835,7 @@ function updateCursor() {
   const ls = pos === 0 ? 0 : v.lastIndexOf('\n', pos - 1) + 1;
   const sel = ta.selectionEnd - pos;
   els.pos.textContent = 'Ln ' + line + ', Col ' + (pos - ls + 1) + (sel > 0 ? ' (' + sel + ' selected)' : '');
+  syncWlToCaret(line);
 }
 
 function updateStatus(tab) {

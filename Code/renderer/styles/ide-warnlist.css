@@ -1,6 +1,6 @@
 .ide-wl {
   position: absolute;
-  top: 8px;
+  bottom: 22px;
   right: 24px;
   z-index: 7;
   width: 260px;
@@ -89,6 +89,19 @@
 .ide-wl-row:has(.ide-wl-sev.e) { border-left-color: var(--red); }
 .ide-wl-row:has(.ide-wl-sev.w) { border-left-color: var(--yellow); }
 .ide-wl-row:has(.ide-wl-sev.i) { border-left-color: var(--blue); }
+
+.ide-wl-row.sel {
+  background: rgba(47, 129, 247, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(47, 129, 247, 0.55);
+}
+.ide-wl-row.sel .ide-wl-ln {
+  color: #58a6ff;
+  font-weight: 800;
+}
+.ide-wl-row.sel .ide-wl-msg {
+  font-weight: 600;
+  color: #fff;
+}
 
 .ide-wl-ln {
   flex: 0 0 30px;
