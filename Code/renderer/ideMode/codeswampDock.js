@@ -23,6 +23,8 @@ let tm = null;
 let scroll = null;
 let resizeBound = false;
 let menuEl = null;
+let warmKey = '';
+let warmTimer = 0;
 
 function readLS(key, fallback) {
   try {
@@ -58,7 +60,7 @@ function currentMode() {
 function isLive() {
   if (!tm) return false;
   try {
-    return Object.keys(tm.getTerminalInstances()).length > 0;
+    return tm.hasChattedSessions();
   } catch (_) {
     return false;
   }
@@ -232,6 +234,37 @@ function place() {
   });
 }
 
+function prewarm() {
+  const repo = csState.activeTab;
+  if (!repo || !tm || typeof tm.prewarmSession !== 'function') return;
+  const key = repo + '|' + csState.selectedProvider;
+  if (key === warmKey) return;
+  warmKey = key;
+  const p = tm.prewarmSession(repo);
+  if (p && typeof p.catch === 'function') {
+    p.catch(() => {
+      warmKey = '';
+    });
+  }
+}
+
+async function warm() {
+  if (!isIde() || !enabled()) return;
+  buildHosts();
+  if (!dock) return;
+  const panel = await ensurePanel();
+  if (!panel || !isIde()) return;
+  if (!tm) tm = await import('../codeswampUI/terminalManager.js');
+  prewarm();
+}
+
+function scheduleWarm() {
+  clearTimeout(warmTimer);
+  warmTimer = setTimeout(() => {
+    warm().catch((err) => console.error('[IDE] Code Swamp warm-up failed:', err));
+  }, 1200);
+}
+
 async function show() {
   if (!isIde() || !enabled()) return;
   buildHosts();
@@ -244,6 +277,7 @@ async function show() {
   place();
   const input = document.getElementById('ocInput');
   if (input) input.focus();
+  prewarm();
 }
 
 function hide() {
@@ -349,8 +383,10 @@ function watchMode() {
   new MutationObserver(() => {
     const now = isIde();
     if (was && !now) leaveIde();
+    if (!was && now) scheduleWarm();
     was = now;
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  if (was) scheduleWarm();
 }
 
 function onKey(e) {
@@ -391,6 +427,10 @@ export function init() {
   createButton();
   document.addEventListener('ide:codeswamp-toggle', toggle);
   document.addEventListener('keydown', onKey);
+  document.addEventListener('repo:switched', () => {
+    warmKey = '';
+    if (isIde()) scheduleWarm();
+  });
   document.addEventListener('ide:close-search', () => {
     if (visible && currentMode() === 'modal') hide();
   });

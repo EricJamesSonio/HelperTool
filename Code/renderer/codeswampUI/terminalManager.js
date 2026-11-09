@@ -260,6 +260,12 @@ export function createTerminalSession(repoPath, slotIndex = 0, opts = {}) {
   const p = _createSession(repoPath, slotIndex, opts)
     .then((inst) => {
       if (inst && !inst.provider) inst.provider = pid;
+      if (inst && inst.terminal && !inst.chatWatch) {
+        inst.chatWatch = true;
+        inst.terminal.onData((d) => {
+          if (d && d.indexOf('\r') !== -1) inst.chatted = true;
+        });
+      }
       return inst;
     })
     .finally(() => {
@@ -496,6 +502,7 @@ export function writeToTerminal(repoPath, text) {
 export function writeToSlot(slotIndex, text) {
   const inst = instances[slotIndex];
   if (!inst) return Promise.resolve();
+  if (text && String(text).indexOf('\r') !== -1) inst.chatted = true;
   return window.electronAPI.opencode.termWrite({ id: inst.id, data: text }).catch(() => {});
 }
 
@@ -1072,6 +1079,17 @@ export function discardPrewarmed() {
   killUnusedPrewarmed(null);
 }
 
+export function hasChattedSessions() {
+  return Object.values(instances).some((i) => i && i.chatted);
+}
+
+export function discardUnchatted() {
+  Object.keys(instances).forEach((key) => {
+    const inst = instances[key];
+    if (inst && !inst.chatted) killSlot(Number(key));
+  });
+}
+
 export function awaitPrewarm(repoPath) {
   const p = _prewarming.get(repoPath);
   return p ? p.then(() => undefined, () => undefined) : Promise.resolve();
@@ -1130,6 +1148,7 @@ export function syncStage(repoPath) {
   const inst = slot >= 0 ? instances[slot] : null;
   stageTerminal(!!inst && inst.revealed === false);
 }
+
 const _convStash = {};
 
 export function switchProviderView(repoPath, prevProvider) {

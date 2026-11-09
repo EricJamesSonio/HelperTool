@@ -101,11 +101,27 @@ async function _guardActiveServices() {
         } catch (_) {}
     };
 
+    const csUsed = async () => {
+        try {
+            const tm = await import('../codeswampUI/terminalManager.js');
+            return { running: tm.hasChattedSessions() };
+        } catch (_) {
+            return idle;
+        }
+    };
+
+    const dropIdleChat = async () => {
+        try {
+            const tm = await import('../codeswampUI/terminalManager.js');
+            tm.discardUnchatted();
+        } catch (_) {}
+    };
+
     const [gStatus, csStatus, termStatus, ecStatus, ecosStatus] = await Promise.all([
         feats.graphify !== false
             ? safeCall(() => api.graphifyIsRunning?.(), idle)
             : idle,
-        safeCall(() => api.opencode?.isRunning?.(), idle),
+        csUsed(),
         safeCall(() => api.terminalHasRunningInRepo?.(repoPath), { running: false, count: 0 }),
         safeCall(() => api.getServerStatus?.(), idle),
         feats.ecosystemWatcher !== false
@@ -119,7 +135,11 @@ async function _guardActiveServices() {
     if (termStatus.running) items.push({ name: 'Terminal', count: termStatus.count, stop: null });
     if (ecStatus.running) items.push({ name: 'Error Cop', stop: () => safeStop(() => api.stopServer?.()) });
     if (ecosStatus.running) items.push({ name: 'Ecosystem Tool', stop: () => safeStop(() => api.eco?.stop()) });
-    if (items.length === 0) return true;
+
+    if (items.length === 0) {
+        await dropIdleChat();
+        return true;
+    }
 
     const listHtml = items.map((s) => {
         const suffix = s.count ? ` (${s.count} session${s.count > 1 ? 's' : ''})` : '';
@@ -141,6 +161,7 @@ async function _guardActiveServices() {
     for (const s of items) {
         if (s.stop) await s.stop();
     }
+    await dropIdleChat();
     return true;
 }
 
