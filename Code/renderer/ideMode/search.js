@@ -7,11 +7,15 @@ const MIN_CHARS = 2;
 const REQ_MAX = 1500;
 const CACHE_MAX = 24;
 const DEBOUNCE = 110;
+const DELAYS = [60, 60, 380, 280, 200, 200];
+const DEBOUNCE_LONG = 140;
+const DEBOUNCE_CHIP = 70;
 const WIN_BEFORE = 40;
 const WIN_AFTER = 80;
 const EDIT_MAX_LEN = 2000;
 const LS_STATE = 'helpertool-ide-search-state';
 const PHASE_LABEL = { files: 'file names', content: 'contents', similar: 'similar words' };
+const RE_SPECIAL = '.*+?^$' + String.fromCharCode(123, 125) + '()|[]' + String.fromCharCode(92);
 
 const SVG_SEARCH = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
 const fx = { bar: null, chips: null, clear: null, list: [], sel: new Set(), req: 0 };
@@ -68,9 +72,8 @@ function onExtClick(e) {
   }
   renderExts();
   disarm();
-  schedule();
+  schedule(DEBOUNCE_CHIP);
 }
-
 
 const TEMPLATE =
 '<div class="ide-sm ide-root">' +
@@ -323,12 +326,19 @@ function clearPreview() {
   pvCode.innerHTML = '';
 }
 
-function schedule() {
+function schedule(delay) {
   clearTimeout(timer);
+  const len = input ? input.value.trim().length : 0;
+  let wait = DEBOUNCE;
+  if (typeof delay === 'number') wait = delay;
+  else if (len >= DELAYS.length) wait = DEBOUNCE_LONG;
+  else wait = DELAYS[len];
+  if (finished && len >= MIN_CHARS) setStatus('Waiting for you to stop typing...');
   timer = setTimeout(() => {
     timer = 0;
     run();
-  }, DEBOUNCE);
+  }, wait);
+  updateRepUi();
 }
 
 function cancelRemote() {
@@ -656,6 +666,7 @@ function centerInList(el) {
   const top = Math.max(0, Math.min(max, listEl.scrollTop + delta));
   listEl.scrollTo({ top, behavior: 'smooth' });
 }
+
 function setSelIndex(i) {
   const n = nav.length;
   if (!n) return;
@@ -945,8 +956,17 @@ function arm() {
   updateRepUi();
 }
 
+function escapeRegex(s) {
+  let out = '';
+  const bs = String.fromCharCode(92);
+  for (const ch of String(s)) {
+    out += RE_SPECIAL.indexOf(ch) !== -1 ? bs + ch : ch;
+  }
+  return out;
+}
+
 function regexFor(q) {
-  return new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), repCase ? 'g' : 'gi');
+  return new RegExp(escapeRegex(q), repCase ? 'g' : 'gi');
 }
 
 function replaceInText(text, re, rep, onlyLine) {
@@ -1183,8 +1203,9 @@ function onRepKey(e) {
     e.preventDefault();
     if (e.ctrlKey && e.altKey) {
       if (!btnAll.disabled) {
-        if (!armed) arm();
-        else {
+        if (!armed) {
+          arm();
+        } else {
           disarm();
           replaceAll();
         }
