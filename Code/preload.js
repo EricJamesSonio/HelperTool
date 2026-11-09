@@ -893,3 +893,7 @@ contextBridge.exposeInMainWorld('ideDebugAPI', {
         ipcRenderer.on('ideDebug:batch', (_event, data) => callback(data));
     },
 });
+contextBridge.exposeInMainWorld('ideWatchAPI', {
+    status: (root) => ipcRenderer.invoke('ideWatch:status', root),
+    dirs: (list) => ipcRenderer.invoke('ideWatch:dirs', list),
+});

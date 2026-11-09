@@ -563,3 +563,10 @@ app.whenReady().then(() => {
     console.error('[IPC] Failed to register ideExt_ipc:', e);
   }
 });
+app.whenReady().then(() => {
+  try {
+    require('./ipc/ideWatch_ipc.js').register();
+  } catch (e) {
+    console.error('[IPC] Failed to register ideWatch_ipc:', e);
+  }
+});
