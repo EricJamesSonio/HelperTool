@@ -1,5 +1,9 @@
 import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+import { openCloneModal, openCreateModal } from './repoTools.js';
+
+const I_CLONE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M4 16h12"/></svg>';
+
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=repo,read:user&description=Helper%20Tool';
 const DEV_URL = 'https://github.com/settings/developers';
@@ -49,12 +53,18 @@ function openUrl(url) {
 }
 
 function injectCss() {
-  if (document.getElementById('gitAccountsCss')) return;
-  const link = document.createElement('link');
-  link.id = 'gitAccountsCss';
-  link.rel = 'stylesheet';
-  link.href = './styles/git-accounts.css';
-  document.head.appendChild(link);
+  const sheets = [
+    ['gitAccountsCss', './styles/git-accounts.css'],
+    ['gitRepoToolsCss', './styles/git-repo-tools.css'],
+  ];
+  for (const sheet of sheets) {
+    if (document.getElementById(sheet[0])) continue;
+    const link = document.createElement('link');
+    link.id = sheet[0];
+    link.rel = 'stylesheet';
+    link.href = sheet[1];
+    document.head.appendChild(link);
+  }
 }
 
 function activeAccount() {
@@ -132,7 +142,12 @@ function rowHtml(acc) {
 }
 
 function addHtml() {
-  return '<button type="button" class="ga-signin" data-act="signin"' + (busy ? ' disabled' : '') + '>' + I_GH + '<span>Sign in with GitHub</span></button>' +
+  const off = busy ? ' disabled' : '';
+  return '<div class="ga-tools">' +
+      '<button type="button" class="ga-tool" data-act="clone-repo"' + off + '>' + I_CLONE + '<span>Clone</span></button>' +
+      '<button type="button" class="ga-tool" data-act="create-repo"' + off + '>' + I_PLUS + '<span>Create</span></button>' +
+    '</div>' +
+    '<button type="button" class="ga-signin" data-act="signin"' + off + '>' + I_GH + '<span>Sign in with GitHub</span></button>' +
     '<div class="ga-alt"><a class="ga-link" data-act="open-form">Use a token instead</a></div>';
 }
 
@@ -446,11 +461,23 @@ function copyCode() {
   render();
 }
 
+function openRepoTool(kind) {
+  if (!activeAccount()) {
+    setMsg('Select a GitHub account first. System default cannot list or create repositories.', true);
+    render();
+    return;
+  }
+  closePanel();
+  if (kind === 'clone') openCloneModal();
+  else openCreateModal();
+}
 function onPanelClick(e) {
   const actEl = e.target.closest('[data-act]');
   if (actEl) {
     const act = actEl.dataset.act;
     if (act === 'del') removeAccount(actEl.dataset.id);
+    else if (act === 'clone-repo') openRepoTool('clone');
+    else if (act === 'create-repo') openRepoTool('create');
     else if (act === 'signin') startLogin();
     else if (act === 'cancel-login') cancelLogin();
     else if (act === 'copy-code') copyCode();
