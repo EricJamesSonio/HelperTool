@@ -25,3 +25,15 @@
 .ide-ext-btn .ide-ext-count[hidden] {
   display: none;
 }
+
+body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-ext-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  order: 99;
+  width: 30px;
+  height: 30px;
+  margin-left: 8px;
+  padding: 0;
+}

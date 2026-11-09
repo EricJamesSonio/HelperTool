@@ -728,7 +728,7 @@ function saveViewState() {
   cur.selEnd = els.ta.selectionEnd;
 }
 
-function showTab(tab) {
+function showTab(tab, focus) {
   clearPulse();
   setDiags([], true);
   const isPane = !!tab && !!tab.kind;
@@ -774,21 +774,22 @@ function showTab(tab) {
   els.ta.scrollLeft = tab.scrollLeft;
   try { els.ta.setSelectionRange(tab.selStart, tab.selEnd); } catch (_) {}
   render();
-  els.ta.focus({ preventScroll: true });
+  if (focus) els.ta.focus({ preventScroll: true });
   updateStatus(tab);
   scheduleCursor();
 }
 
-function activate(path) {
+function activate(path, focus) {
+  const want = focus !== false;
   const tab = tabs.find((t) => t.path === path);
   if (!tab) return;
   if (path === activePath) {
-    if (isText(tab)) els.ta.focus({ preventScroll: true });
+    if (want && isText(tab)) els.ta.focus({ preventScroll: true });
     return;
   }
   saveViewState();
   activePath = path;
-  showTab(tab);
+  showTab(tab, want);
   renderTabs();
   notify();
 }
@@ -816,7 +817,9 @@ async function loadTab(tab) {
     }
   }
   tab.loading = false;
-  if (tabs.includes(tab) && activePath === tab.path) showTab(tab);
+  const want = tab.wantFocus === true;
+  tab.wantFocus = false;
+  if (tabs.includes(tab) && activePath === tab.path) showTab(tab, want);
 }
 
 export async function openFile(path) {
@@ -830,6 +833,7 @@ export async function openFile(path) {
   const name = path.split(/[\\/]/).pop();
   const media = mediaViewer.mediaKind(name);
   tab = makeTab(path, name, media);
+  tab.wantFocus = true;
   tabs.push(tab);
   activate(tab.path);
   if (!media) await loadTab(tab);
@@ -990,7 +994,7 @@ export async function reloadFromDisk(path) {
   tab.saved = content;
   tab.dirty = false;
   tab.hist = null;
-  if (isActive) showTab(tab);
+  if (isActive) showTab(tab, false);
   renderTabs();
   notify();
 }
@@ -1013,7 +1017,7 @@ async function restoreTabs(data) {
   if (!created.length) return;
   const want = data.active ? pathKey(data.active) : '';
   const first = tabs.find((t) => t.key === want) || created[created.length - 1];
-  activate(first.path);
+  activate(first.path, false);
   await Promise.all(created.filter((t) => !t.media).map(loadTab));
   const dead = created.filter((t) => t.notice && t.notice.indexOf('Cannot open file') === 0);
   if (!dead.length) return;
@@ -1025,7 +1029,7 @@ async function restoreTabs(data) {
     activePath = null;
     const next = tabs[tabs.length - 1];
     if (next) {
-      activate(next.path);
+      activate(next.path, false);
     } else {
       showTab(null);
       renderTabs();
