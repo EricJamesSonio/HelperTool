@@ -1,0 +1,52 @@
+:root {
+  --ide-clip: #ff9f1a;
+  --ide-clip-soft: rgba(255, 159, 26, 0.08);
+  --ide-clip-mid: rgba(255, 159, 26, 0.42);
+}
+
+@keyframes ide-clip-blink {
+  0%, 100% { background: var(--ide-clip-mid); }
+  50% { background: var(--ide-clip-soft); }
+}
+
+.ide-row.clip-copy,
+.ide-row.clip-cut {
+  animation: ide-clip-blink 1s ease-in-out infinite;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--ide-clip) !important;
+}
+
+.ide-row.clip-cut {
+  outline: 1px dashed var(--ide-clip);
+  outline-offset: -1px;
+}
+
+.ide-row.clip-cut .ide-name {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.ide-clip-toast {
+  position: fixed;
+  z-index: 100001;
+  padding: 6px 12px;
+  border: 1px solid var(--ide-clip);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  font: 600 12px var(--font-ui);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.ide-clip-toast.show {
+  opacity: 1;
+  transform: none;
+}
