@@ -123,3 +123,39 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+
+.ide-mark-layer {
+  position: absolute;
+  inset: 0 14px 14px 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ide-mark-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  will-change: transform;
+}
+.ide-mk {
+  height: 20px;
+}
+.ide-mk-a {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--green);
+}
+.ide-mk-m {
+  background: color-mix(in srgb, var(--yellow) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--yellow);
+}
+.ide-mk-u {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.ide-mk-dt {
+  box-shadow: inset 0 2px 0 var(--red);
+}
+.ide-mk-db {
+  box-shadow: inset 0 -2px 0 var(--red);
+}
