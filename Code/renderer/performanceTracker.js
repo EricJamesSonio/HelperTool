@@ -64,7 +64,7 @@ let _resizeBound = false;
 const $ = (id) => document.getElementById(id);
 
 function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return String(s == null ? '' : s).replace(/[&<>\x22]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\x22': '&quot;' }[c]));
 }
 
 function fmtMem(kb) {
@@ -576,6 +576,7 @@ function render() {
   renderOpt();
   $('ptGroups').innerHTML = renderGroups(rows);
   $('ptTable').innerHTML = renderTable(rows);
+  bindActions();
   $('ptDisabled').innerHTML = renderDisabled(rows);
   $('ptProcs').innerHTML = renderProcs(snap);
   $('ptFoot').textContent =
@@ -766,11 +767,14 @@ function renderTable(rows) {
   ];
   const head = cols
     .map(([k, label]) => '<th data-sort="' + k + '" class="pt-th' + (_sort.key === k ? ' pt-th-active' : '') + '">' + label + (_sort.key === k ? (_sort.dir > 0 ? ' &#9650;' : ' &#9660;') : '') + '</th>')
-    .join('');
+    .join('') + '<th class="pt-th">Action</th>';
   const body = list
     .map((r) => {
       const quiet = r.procs === 0 && r.busy < 0.5;
       const level = powerLevel(r.power);
+      const acts = actionsFor(r)
+        .map((a) => '<button type="button" class="pt-btn pt-btn-sm pt-btn-' + a[0] + '" data-act="' + a[0] + '" data-feature="' + esc(r.id) + '" title="' + esc(a[2]) + '">' + esc(a[1]) + '</button>')
+        .join('');
       return (
         '<tr><td class="pt-cell-name" title="' + esc(r.desc) + '">' + esc(r.label) + '</td>' +
         '<td class="pt-cell-muted">' + esc(r.group) + '</td>' +
@@ -780,11 +784,12 @@ function renderTable(rows) {
         '<td class="pt-num">' + (r.procs || '<span class="pt-cell-muted">0</span>') + '</td>' +
         '<td class="pt-num" title="' + r.calls + ' requests in the last interval">' + (r.busy > 0 ? r.busy.toFixed(1) + '%' : '<span class="pt-cell-muted">-</span>') + '</td>' +
         '<td class="pt-num">' + (r.nodes ? r.nodes.toLocaleString() : '<span class="pt-cell-muted">-</span>') + '</td>' +
-        '<td><span class="pt-status pt-status-' + r.status + '"><span class="pt-dot"></span>' + STATUS_LABEL[r.status] + '</span></td></tr>'
+        '<td><span class="pt-status pt-status-' + r.status + '"><span class="pt-dot"></span>' + STATUS_LABEL[r.status] + '</span></td>' +
+        '<td>' + (acts ? '<div class="pt-act">' + acts + '</div>' : '<span class="pt-cell-muted">-</span>') + '</td></tr>'
       );
     })
     .join('');
-  return '<h2 class="pt-h2">Enabled features</h2><p class="pt-hint">Click a column to sort</p><div class="pt-table-wrap"><table class="pt-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  return '<h2 class="pt-h2">Enabled features</h2><p class="pt-hint">Click a column to sort. Sleep frees memory now and wakes when you use the feature again. Stop closes it and forgets its chats.</p><div class="pt-table-wrap"><table class="pt-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
 }
 
 function renderDisabled(rows) {
@@ -802,6 +807,7 @@ let _optSettings = { nodeMemMB: 0 };
 let _optLoaded = false;
 let _optMsg = '';
 let _optBusy = false;
+let _actBusy = false;
 
 const OPT_SHELL = /^(powershell|pwsh|cmd|conhost|openconsole|bash|zsh|sh|fish|wsl)/i;
 const OPT_CAPS = [[0, 'Off'], [1024, '1 GB'], [1536, '1.5 GB'], [2048, '2 GB'], [3072, '3 GB']];
@@ -815,7 +821,11 @@ function injectOptStyles() {
     '.pt-opt-text{flex:1;min-width:0;font-size:13px;line-height:1.5;color:var(--text-secondary,#94a3c4)}' +
     '.pt-opt-text strong{color:var(--text-primary,#eef2ff)}' +
     '.pt-opt-mem{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--text-primary,#eef2ff)}' +
-    '.pt-opt-msg{margin-top:10px;font-size:12px;color:var(--text-primary,#eef2ff)}';
+    '.pt-opt-msg{margin-top:10px;font-size:12px;color:var(--text-primary,#eef2ff)}' +
+    '.pt-act{display:flex;gap:6px}' +
+    '.pt-btn-sm{height:26px;padding:0 10px;font-size:0.74rem}' +
+    '.pt-btn-stop:hover{color:var(--red,#ff6b69);border-color:var(--red,#ff6b69)}' +
+    '.pt-btn-sleep:hover{color:var(--yellow,#d29922);border-color:var(--yellow,#d29922)}';
   document.head.appendChild(st);
 }
 
@@ -828,7 +838,7 @@ function devList(snap) {
 
 function devTips(dev) {
   const tips = [];
-  const next = dev.find((p) => /^node \(Next\.js\)/i.test(String(p.name || '')) && p.memKB >= 800 * 1024);
+  const next = dev.find((p) => String(p.name || '').toLowerCase().indexOf('node (next.js)') === 0 && p.memKB >= 800 * 1024);
   if (next) {
     tips.push('Next.js keeps every page it has compiled in memory, so a dev server grows as you open pages (' + fmtMem(next.memKB) + ' now). Stopping it and starting it again frees that memory.');
     tips.push('In next.config, try experimental: { webpackMemoryOptimizations: true } (Next.js 15 or newer). It lowers peak memory for a small cost in compile time.');
@@ -981,6 +991,94 @@ function renderOpt() {
   const active = document.activeElement;
   if (active && el.contains(active) && active.tagName === 'SELECT') return;
   el.innerHTML = renderOptimizer(_snap) + renderDataFiles(_snap);
+}
+
+function actionsFor(r) {
+  if (r.id === 'codeswampChat' && r.procs > 0) {
+    return [
+      ['sleep', 'Sleep', 'Close the terminals now to free memory. They open again when you use Code Swamp.'],
+      ['stop', 'Stop', 'Close every Code Swamp terminal and forget the saved conversation ids.'],
+    ];
+  }
+  if (r.id === 'graphify' && r.procs > 0) {
+    return [['stop', 'Stop', 'Stop the Graphify server.']];
+  }
+  return [];
+}
+
+async function closeCodeSwamp(forget) {
+  const tm = await import('./codeswampUI/terminalManager.js');
+  const list = tm.getTerminalInstances();
+  const keys = Object.keys(list);
+  keys.forEach((key) => tm.killSlot(Number(key)));
+  const wrapper = document.getElementById('ocTerminal');
+  if (wrapper) {
+    wrapper.classList.remove('oc-terminal--stage');
+    wrapper.style.display = 'none';
+  }
+  const welcome = document.getElementById('ocWelcome');
+  if (welcome) welcome.style.display = '';
+  const mod = await import('./codeswampUI/state.js');
+  const st = mod.state;
+  if (forget) {
+    Object.keys(st.activeConvId).forEach((k) => {
+      st.activeConvId[k] = null;
+    });
+    st.streaming = false;
+    st.streamBuffer = '';
+    try {
+      await window.electronAPI.opencode.stop();
+    } catch (_) {}
+  }
+  try {
+    document.dispatchEvent(new CustomEvent('cs:slept', { detail: { repoPath: st.activeTab } }));
+  } catch (_) {}
+  return keys.length;
+}
+
+async function codeswampHasChats() {
+  const tm = await import('./codeswampUI/terminalManager.js');
+  return tm.hasChattedSessions();
+}
+
+async function onFeatureAction(e) {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn || _actBusy) return;
+  const id = btn.dataset.feature;
+  const act = btn.dataset.act;
+  _actBusy = true;
+  try {
+    if (id === 'codeswampChat') {
+      if (act === 'stop') {
+        if (!window.confirm('Stop Code Swamp? Every terminal closes, running chats end and saved conversation ids are forgotten.')) return;
+      } else if (await codeswampHasChats()) {
+        if (!window.confirm('Put Code Swamp to sleep? Running chats are closed. OpenCode and Gemini resume when you come back, Cline starts a new chat.')) return;
+      }
+      const count = await closeCodeSwamp(act === 'stop');
+      const word = count + ' terminal' + (count === 1 ? '' : 's');
+      _optMsg = act === 'stop'
+        ? 'Code Swamp stopped (' + word + ' closed).'
+        : 'Code Swamp is asleep (' + word + ' closed). It wakes when you use it.';
+    } else if (id === 'graphify') {
+      if (!window.confirm('Stop the Graphify server?')) return;
+      await window.electronAPI.graphifyStop();
+      _optMsg = 'Graphify stopped.';
+    }
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not complete that action.';
+  } finally {
+    _actBusy = false;
+  }
+  renderOpt();
+  clearTimeout(_timer);
+  setTimeout(run, 800);
+}
+
+function bindActions() {
+  const el = $('ptTable');
+  if (!el || el.dataset.actBound) return;
+  el.dataset.actBound = '1';
+  el.addEventListener('click', onFeatureAction);
 }
 
 
