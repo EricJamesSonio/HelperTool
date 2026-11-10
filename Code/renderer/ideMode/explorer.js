@@ -315,7 +315,6 @@ async function pollOnce() {
   }
 }
 
-
 const EXP_KEY = 'helpertool-ide-expanded:';
 const DIM_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', '.cache', '__pycache__', '.swc']);
 
@@ -496,7 +495,6 @@ function markDirty() {
     }
   }
 }
-
 
 function markSelected() {
   setMark('selected', selected ? pathKey(selected.path) : null);
@@ -809,6 +807,7 @@ function onRootClick(e) {
   const head = e.target.closest('.ide-section-head');
   if (head) head.parentElement.classList.toggle('collapsed');
 }
+
 function markClip() {
   if (!treeEl) return;
   treeEl.querySelectorAll('.ide-row.clip-copy, .ide-row.clip-cut').forEach((r) => {
@@ -943,7 +942,6 @@ function onClipKey(e) {
   e.stopPropagation();
   setClip(low === 'x' ? 'cut' : 'copy');
 }
-
 
 export function mount(rootEl, h) {
   handlers = h || {};
