@@ -300,3 +300,9 @@ function primeFromTyping(el) {
 document.addEventListener('input', (e) => {
   if (e.target && e.target.id === 'ocInput') primeFromTyping(e.target);
 }, true);
+document.addEventListener('focusin', (e) => {
+  if (!e.target || e.target.id !== 'ocInput') return;
+  const repoPath = state.activeTab;
+  if (!repoPath) return;
+  import('./terminalManager.js').then((m) => m.prewarmSession(repoPath)).catch(() => {});
+}, true);

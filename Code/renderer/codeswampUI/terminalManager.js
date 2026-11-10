@@ -20,6 +20,79 @@ const BOOT_TIMEOUT = 25000;
 const BOOT_SETTLE = 350;
 const BOOT_QUIET = 1000;
 const BOOT_MIN_QUIET = 3000;
+const SLEEP_PREWARM_KEY = 'helpertool-cs-sleep-prewarm';
+const SLEEP_CHAT_KEY = 'helpertool-cs-sleep-chat';
+const SLEEP_SWEEP_MS = 30000;
+const SLEEP_QUIET_MS = 30000;
+let _sleepTimer = 0;
+
+function sleepMinutes(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function isTermReply(d) {
+  if (!d) return true;
+  return /^\x1b\[[?>0-9;]*[cRnIO]$/.test(d);
+}
+
+function sleepCandidate(inst, now) {
+  if (!inst || !inst.terminal) return false;
+  const idle = now - (inst.lastUserAt || inst.bootStart || now);
+  const shown = inst.revealed !== false && state.open;
+  if (!inst.chatted) {
+    const mins = shown ? sleepMinutes(SLEEP_CHAT_KEY, 10) : sleepMinutes(SLEEP_PREWARM_KEY, 2);
+    return mins > 0 && idle > mins * 60000;
+  }
+  if (state.parallelMode || state.open || state.streaming) return false;
+  if (now - (inst.lastDataAt || 0) < SLEEP_QUIET_MS) return false;
+  const chatMins = sleepMinutes(SLEEP_CHAT_KEY, 10);
+  return chatMins > 0 && idle > chatMins * 60000;
+}
+
+function stopSleepWatch() {
+  if (_sleepTimer) {
+    clearInterval(_sleepTimer);
+    _sleepTimer = 0;
+  }
+}
+
+function sleepSweep() {
+  const now = Date.now();
+  let left = 0;
+  for (const key of Object.keys(instances)) {
+    const inst = instances[key];
+    if (!inst) continue;
+    left++;
+    if (!sleepCandidate(inst, now)) continue;
+    const repoPath = inst.repoPath;
+    console.log('[CS] sleeping idle terminal slot=' + key + ' repo=' + repoPath);
+    killSlot(Number(key));
+    left--;
+    stageTerminal(false);
+    if (state.activeTab === repoPath) {
+      const w = document.getElementById('ocWelcome');
+      const t = document.getElementById('ocTerminal');
+      if (w) w.style.display = '';
+      if (t) t.style.display = 'none';
+    }
+    try {
+      document.dispatchEvent(new CustomEvent('cs:slept', { detail: { repoPath } }));
+    } catch (_) {}
+  }
+  if (left <= 0) stopSleepWatch();
+}
+
+function ensureSleepWatch() {
+  if (_sleepTimer) return;
+  _sleepTimer = setInterval(sleepSweep, SLEEP_SWEEP_MS);
+}
 
 
 async function loadXterm() {
@@ -263,9 +336,11 @@ export function createTerminalSession(repoPath, slotIndex = 0, opts = {}) {
       if (inst && inst.terminal && !inst.chatWatch) {
         inst.chatWatch = true;
         inst.terminal.onData((d) => {
+          if (!isTermReply(d)) inst.lastUserAt = Date.now();
           if (d && d.indexOf('\r') !== -1) inst.chatted = true;
         });
       }
+      if (inst) ensureSleepWatch();
       return inst;
     })
     .finally(() => {
@@ -502,6 +577,7 @@ export function writeToTerminal(repoPath, text) {
 export function writeToSlot(slotIndex, text) {
   const inst = instances[slotIndex];
   if (!inst) return Promise.resolve();
+  inst.lastUserAt = Date.now();
   if (text && String(text).indexOf('\r') !== -1) inst.chatted = true;
   return window.electronAPI.opencode.termWrite({ id: inst.id, data: text }).catch(() => {});
 }
@@ -1127,6 +1203,7 @@ export function revealTerminalForRepo(repoPath) {
   const inst = instances[slot];
   inst.revealed = true;
   inst.used = true;
+  inst.lastUserAt = Date.now();
   if (inst.div) {
     inst.div.style.visibility = '';
     inst.div.style.pointerEvents = '';
