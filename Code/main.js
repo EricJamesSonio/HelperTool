@@ -570,3 +570,10 @@ app.whenReady().then(() => {
   console.error('[IPC] Failed to register ideWatch_ipc:', e);
   }
 });
+app.whenReady().then(() => {
+  try {
+  require('./ipc/versions_ipc.js').register();
+  } catch (e) {
+  console.error('[IPC] Failed to register versions_ipc:', e);
+  }
+});

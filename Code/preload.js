@@ -911,3 +911,11 @@ contextBridge.exposeInMainWorld('ideHistoryAPI', {
 contextBridge.exposeInMainWorld('gitReposPageAPI', {
   page: (payload) => ipcRenderer.invoke('gitAccounts:listReposPage', payload),
 });
+contextBridge.exposeInMainWorld('versionsAPI', {
+  list:  ()           => ipcRenderer.invoke('versions:list'),
+  read:  (id, file)   => ipcRenderer.invoke('versions:read', id, file),
+  asset: (relPath)    => ipcRenderer.invoke('versions:asset', relPath),
+});
+contextBridge.exposeInMainWorld('versionsEditAPI', {
+  create: (payload) => ipcRenderer.invoke('versions:create', payload),
+});
