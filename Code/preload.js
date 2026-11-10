@@ -489,6 +489,8 @@ const codebaseManagerBridge = {
     moveFile:   (sourcePath, targetDir) => ipcRenderer.invoke('cm:moveFile', { sourcePath, targetDir }),
     createFiles: (parentPath, fileNames) => ipcRenderer.invoke('cm:createFiles', { parentPath, fileNames }),
     createFolder: (parentPath, folderName) => ipcRenderer.invoke('cm:createFolder', { parentPath, folderName }),
+    pickFiles: () => ipcRenderer.invoke('cm:pickFiles'),
+    importFiles: (targetDir, sources) => ipcRenderer.invoke('cm:importFiles', { targetDir, sources }),
 };
 
 const imageBridge = {
