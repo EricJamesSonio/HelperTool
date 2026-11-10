@@ -438,11 +438,25 @@ async function doSample() {
   };
 }
 
+function readDataFiles() {
+  const out = [];
+  const add = (label, getPath) => {
+    try {
+      const st = require('fs').statSync(getPath());
+      out.push({ label, bytes: st.size });
+    } catch (_) {}
+  };
+  add('Main database (index.db)', () => require('../database/db.js').getDbPath());
+  add('Error Cop database', () => require('../database/errorCopDb.js').getDbPath());
+  add('HelperChat database', () => require('../database/chatDb.js').getDbPath());
+  return out;
+}
 function sample() {
   if (_inflight) return _inflight;
   _inflight = doSample()
     .then((snap) => {
       if (snap && Array.isArray(snap.processes)) _lastProcs = snap.processes;
+      if (snap) snap.dataFiles = readDataFiles();
       return snap;
     })
     .finally(() => {

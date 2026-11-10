@@ -47,6 +47,20 @@ function _todayRange() {
   return { startDate: start, endDate: end };
 }
 
+function _normRepo(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+// Builds a condition on sessions.cwd that matches the repo root or any subfolder.
+// Pushes its params in the same order as the placeholders appear.
+function _repoSessionCond(repoPath, params) {
+  const root = _normRepo(repoPath);
+  if (!root) return '';
+  const n = "rtrim(replace(lower(cwd),'\\','/'),'/')";
+  params.push(root, root.length + 1, root + '/');
+  return '(' + n + ' = ? OR substr(' + n + ', 1, ?) = ?)';
+}
+
 class ErrorStorage {
   constructor() {
     this._occCounts = new Map();
@@ -93,7 +107,7 @@ class ErrorStorage {
     return _rowToObj(res[0], res[0].values[0]);
   }
 
-  getSessions({ startDate, endDate, limit = 50, offset = 0 } = {}) {
+  getSessions({ startDate, endDate, limit = 50, offset = 0, repoPath } = {}) {
     const db = getErrorCopDb();
     if (!startDate && !endDate) {
       const range = _todayRange();
@@ -102,6 +116,8 @@ class ErrorStorage {
     }
     let sql = 'SELECT * FROM sessions WHERE 1=1';
     const params = [];
+    const repoCond = _repoSessionCond(repoPath, params);
+    if (repoCond) sql += ' AND ' + repoCond;
     if (startDate) { sql += ' AND started_at >= ?'; params.push(startDate); }
     if (endDate)   { sql += ' AND started_at <= ?'; params.push(endDate); }
     sql += ' ORDER BY started_at DESC LIMIT ? OFFSET ?';
@@ -164,12 +180,14 @@ class ErrorStorage {
     return _rowToObj(res[0], res[0].values[0]);
   }
 
-  getErrors({ project, level, limit = 50, offset = 0, startDate, endDate } = {}) {
+  getErrors({ project, level, limit = 50, offset = 0, startDate, endDate, repoPath } = {}) {
     const db = getErrorCopDb();
     let sql = 'SELECT * FROM errors WHERE 1=1';
     const params = [];
     if (project) { sql += ' AND project = ?'; params.push(project); }
     if (level) { sql += ' AND level = ?'; params.push(level); }
+    const repoCond = _repoSessionCond(repoPath, params);
+    if (repoCond) sql += ' AND session_id IN (SELECT id FROM sessions WHERE ' + repoCond + ')';
     const dateFilter = _applyDateRange(sql, params, startDate, endDate);
     sql = dateFilter.sql;
     sql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
@@ -231,7 +249,7 @@ class ErrorStorage {
     return { mostFrequent, byType };
   }
 
-  getTimeline({ project, limit = 100, offset = 0, startDate, endDate } = {}) {
+  getTimeline({ project, limit = 100, offset = 0, startDate, endDate, repoPath } = {}) {
     const db = getErrorCopDb();
     let sql = `SELECT e.id, e.timestamp, e.level, e.title, e.message, e.occurrences,
                        e.session_id, COALESCE(e.project, s.project) as project, s.command, s.label,
@@ -241,6 +259,8 @@ class ErrorStorage {
                WHERE 1=1`;
     const params = [];
     if (project) { sql += ' AND (e.project = ? OR s.project = ?)'; params.push(project, project); }
+    const repoCond = _repoSessionCond(repoPath, params);
+    if (repoCond) sql += ' AND e.session_id IN (SELECT id FROM sessions WHERE ' + repoCond + ')';
     const dateFilter = _applyDateRange(sql, params, startDate, endDate);
     sql = dateFilter.sql;
     sql += ' ORDER BY e.timestamp DESC LIMIT ? OFFSET ?';
@@ -370,6 +390,36 @@ class ErrorStorage {
     db.run('DELETE FROM browser_servers WHERE session_id IN (' + old + ')', [days]);
     db.run("DELETE FROM sessions WHERE started_at < datetime('now','localtime','-' || ? || ' days')", [days]);
     saveNow();
+  }
+
+  purgeOlderThan(days = 7) {
+    const n = Math.max(1, Number(days) || 7);
+    const db = getErrorCopDb();
+    const cutoffIso = new Date(Date.now() - n * 86400000).toISOString();
+    const oldIds = "SELECT id FROM sessions WHERE status != 'running' AND started_at < datetime('now','localtime','-' || ? || ' days')";
+
+    const deletedIds = [];
+    const found = db.exec(oldIds, [n]);
+    if (found.length) {
+      found[0].values.forEach((r) => deletedIds.push(r[0]));
+    }
+
+    db.run('DELETE FROM error_occurrences WHERE session_id IN (' + oldIds + ')', [n]);
+    db.run('DELETE FROM errors WHERE session_id IN (' + oldIds + ')', [n]);
+    db.run('DELETE FROM browser_servers WHERE session_id IN (' + oldIds + ')', [n]);
+    db.run("DELETE FROM sessions WHERE status != 'running' AND started_at < datetime('now','localtime','-' || ? || ' days')", [n]);
+
+    db.run('DELETE FROM errors WHERE timestamp < ?', [cutoffIso]);
+    db.run('DELETE FROM error_occurrences WHERE timestamp < ?', [cutoffIso]);
+
+    for (const id of deletedIds) {
+      const prefix = id + '|';
+      for (const key of Array.from(this._occCounts.keys())) {
+        if (key.startsWith(prefix)) this._occCounts.delete(key);
+      }
+    }
+    saveNow();
+    return deletedIds.length;
   }
 }
 

@@ -1,0 +1,38 @@
+:root {
+  --ide-guide: color-mix(in srgb, var(--text-muted) 26%, transparent);
+}
+
+.ide-guide-layer {
+  position: absolute;
+  inset: 0 14px 14px 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ide-guide-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0 0 0 12px;
+  font: 13px/20px var(--font-mono);
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+  tab-size: 4;
+  white-space: pre;
+  color: transparent;
+  will-change: transform;
+}
+
+.ide-ig {
+  display: inline-block;
+  height: 20px;
+  vertical-align: top;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--ide-guide) 0,
+    var(--ide-guide) 1px,
+    transparent 1px,
+    transparent calc(var(--u, 2) * 1ch)
+  );
+}

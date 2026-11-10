@@ -61,12 +61,11 @@
   padding: 1px 9px;
   border-radius: 99px;
   background: var(--ide-blue);
-  box-shadow: 0 0 10px var(--ide-blue-glow);
+  box-shadow: 0 0 8px var(--ide-blue-glow);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #fff;
-  animation: ide-unsaved-pulse 2.2s ease-in-out infinite;
 }
 @keyframes ide-unsaved-pulse {
   0%, 100% { box-shadow: 0 0 6px rgba(47, 129, 247, 0.55); }

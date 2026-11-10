@@ -1,13 +1,18 @@
 let TerminalClass = null;
 let FitAddonClass = null;
+let themeFn = null;
 let xtermLoaded = false;
+
+const DOCK_H_KEY = 'helpertool-ide-terminal-h2';
+const DOCK_H_DEFAULT = 200;
 
 async function ensureXterm() {
   if (xtermLoaded) return;
   const xtermMod = await import('../../node_modules/@xterm/xterm/lib/xterm.mjs');
   const fitMod   = await import('../../node_modules/@xterm/addon-fit/lib/addon-fit.mjs');
-  const { createEnhancedTerminal } = await import('./terminalEnhancements.js');
-  TerminalClass = createEnhancedTerminal(xtermMod.Terminal);
+  const enh = await import('./terminalEnhancements.js');
+  TerminalClass = enh.createEnhancedTerminal(xtermMod.Terminal);
+  themeFn = enh.getTerminalTheme;
   FitAddonClass = fitMod.FitAddon;
 
   const link = document.createElement('link');
@@ -18,56 +23,28 @@ async function ensureXterm() {
   xtermLoaded = true;
 }
 
-function getDarkTheme() {
-  return {
-    background: '#0c0c0c',
-    foreground: '#f2f2f2',
-    cursor: '#f2f2f2',
-    cursorAccent: '#0c0c0c',
-    selectionBackground: '#264f78',
-    black: '#1a1a1a',
-    red: '#f14c4c',
-    green: '#23d18b',
-    yellow: '#f5f543',
-    blue: '#3b8eea',
-    magenta: '#d670d6',
-    cyan: '#29b8db',
-    white: '#e0e0e0',
-    brightBlack: '#5a5a5a',
-    brightRed: '#f14c4c',
-    brightGreen: '#23d18b',
-    brightYellow: '#f5f543',
-    brightBlue: '#3b8eea',
-    brightMagenta: '#d670d6',
-    brightCyan: '#29b8db',
-    brightWhite: '#ffffff',
-  };
+function injectRepoTabCss() {
+  if (document.getElementById('termRepoTabCss')) return;
+  const el = document.createElement('style');
+  el.id = 'termRepoTabCss';
+  el.textContent = '.terminal-tab.terminal-tab--other-repo{opacity:0.55;}.terminal-tab.terminal-tab--other-repo.active{opacity:1;}';
+  document.head.appendChild(el);
 }
 
-function getLightTheme() {
-  return {
-    background: '#f4f4f4',
-    foreground: '#1a1a2e',
-    cursor: '#1a1a2e',
-    cursorAccent: '#f4f4f4',
-    selectionBackground: '#d0d0d8',
-    black: '#1d202f',
-    red: '#d73a49',
-    green: '#28a745',
-    yellow: '#d29922',
-    blue: '#0366d6',
-    magenta: '#8b5cf6',
-    cyan: '#0891b2',
-    white: '#6a737d',
-    brightBlack: '#959da5',
-    brightRed: '#d73a49',
-    brightGreen: '#28a745',
-    brightYellow: '#d29922',
-    brightBlue: '#0366d6',
-    brightMagenta: '#8b5cf6',
-    brightCyan: '#0891b2',
-    brightWhite: '#f4f4f4',
-  };
+function monoFont() {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim();
+    if (v) return v;
+  } catch (_) {}
+  return "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace";
+}
+
+function normRepoKey(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function repoBaseName(p) {
+  return String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
 }
 
 const ICON_SHELL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M6 8l3 2-3 2M11 12h3"/></svg>';
@@ -82,6 +59,7 @@ const ICON_CHEVRON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
 
 import { showOutputViewer } from '../utils/outputViewer.js';
 import ErrorCopUI from './error-cop-ui.js';
+import { createColorizer } from './outputColors.js';
 
 function _stripAnsiForDetection(text) {
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
@@ -103,10 +81,14 @@ export default class TerminalUI {
     this._shellDropdown = null;
     this._errorCop = new ErrorCopUI();
     this._firstDataDeferred = new Map();
+    this._docked = false;
+    this._resizeObs = null;
+    this._repoPending = new Map();
   }
 
   async init() {
     await ensureXterm();
+    injectRepoTabCss();
 
     this.shells = await window.electronAPI.terminalListShells();
     if (!this.shells || this.shells.length === 0) {
@@ -128,7 +110,7 @@ export default class TerminalUI {
     window.electronAPI.onTerminalData(({ id, data }) => {
       const inst = this.instances.get(id);
       if (inst && inst.terminal) {
-        inst.terminal.write(data);
+        inst.terminal.write(inst.colorizer ? inst.colorizer.process(data) : data);
         this._detectUrls(inst, data);
       }
       if (this._firstDataDeferred.has(id)) {
@@ -156,7 +138,7 @@ export default class TerminalUI {
       <div class="terminal-resize-handle"></div>
       <div class="terminal-tabs" id="terminalTabs">
         <div class="terminal-tabs-left">
-          <button class="terminal-tab-add" id="terminalTabAdd" title="Left-click: new terminal · Right-click: select shell">
+          <button class="terminal-tab-add" id="terminalTabAdd" title="Left-click: new terminal \u00b7 Right-click: select shell">
             <span class="terminal-tab-add-icon">${ICON_PLUS}</span>
             <span class="terminal-tab-add-label">${this._selectedShell.name}</span>
             <span class="terminal-tab-add-chevron">${ICON_CHEVRON}</span>
@@ -180,9 +162,11 @@ export default class TerminalUI {
     this.panel.querySelector('#terminalPanelClose').addEventListener('click', () => this.close());
     this.panel.querySelector('#terminalViewOutput').addEventListener('click', () => this._viewTerminalOutput());
 
-    // ── Error Cop button ──
     const ecpContainer = this.panel.querySelector('#ecpTerminalBtnContainer');
-    const ecpBtn = this._errorCop.createTerminalButton();
+    const ecpBtn = this._errorCop.createTerminalButton(() => {
+      const cur = this.instances.get(this.activeId);
+      return cur ? cur.sessionId : null;
+    });
     ecpBtn.appendChild(this._errorCop.getBadgeEl());
     ecpContainer.appendChild(ecpBtn);
 
@@ -205,6 +189,18 @@ export default class TerminalUI {
     });
 
     this._initResize();
+
+    if (typeof ResizeObserver === 'function') {
+      let raf = 0;
+      this._resizeObs = new ResizeObserver(() => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          if (this.isOpen()) this._fitActive();
+        });
+      });
+      this._resizeObs.observe(this.body);
+    }
   }
 
   _openDropdown() {
@@ -237,31 +233,142 @@ export default class TerminalUI {
 
   _initResize() {
     let startY, startHeight;
+    const maxHeight = () => {
+      if (this._docked && this.panel.parentElement) {
+        return Math.max(160, this.panel.parentElement.clientHeight - 140);
+      }
+      return window.innerHeight - 100;
+    };
     const onMove = (e) => {
       const dy = startY - e.clientY;
-      const newH = Math.max(100, Math.min(window.innerHeight - 100, startHeight + dy));
+      const newH = Math.max(100, Math.min(maxHeight(), startHeight + dy));
       this.panel.style.height = newH + 'px';
       this._fitActive();
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.body.style.userSelect = '';
+      if (this._docked) {
+        try { localStorage.setItem(DOCK_H_KEY, String(Math.round(this.panel.offsetHeight))); } catch (_) {}
+      }
     };
     this._resizeHandle.addEventListener('mousedown', (e) => {
       startY = e.clientY;
       startHeight = this.panel.offsetHeight;
+      document.body.style.userSelect = 'none';
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
       e.preventDefault();
     });
   }
 
+  _applyHeight() {
+    if (!this.panel) return;
+    if (!this._docked) {
+      this.panel.style.height = '';
+      return;
+    }
+    let h = 0;
+    try { h = parseInt(localStorage.getItem(DOCK_H_KEY) || '', 10); } catch (_) {}
+    if (!(h >= 120)) h = DOCK_H_DEFAULT;
+    h = Math.min(h, Math.max(160, window.innerHeight - 220));
+    this.panel.style.height = h + 'px';
+  }
+
+  _refreshTheme() {
+    if (!themeFn) return;
+    const theme = themeFn();
+    this.instances.forEach((inst) => {
+      try { inst.terminal.options.theme = theme; } catch (_) {}
+    });
+  }
+
+  _showPanel() {
+    if (this.panel.classList.contains('open')) return;
+    this._applyHeight();
+    this.panel.classList.add('open');
+    this._refreshTheme();
+  }
+
+  isDocked() {
+    return !!this._docked;
+  }
+
+  dockInto(host, before) {
+    if (!this.panel || !host) return;
+    if (before && before.parentNode === host) host.insertBefore(this.panel, before);
+    else host.appendChild(this.panel);
+    this.panel.classList.add('terminal-panel--docked');
+    this._docked = true;
+    this._applyHeight();
+    requestAnimationFrame(() => this._fitActive());
+  }
+
+  undock() {
+    if (!this.panel) return;
+    this.panel.classList.remove('open');
+    this.panel.classList.remove('terminal-panel--docked');
+    this.panel.style.height = '';
+    document.body.appendChild(this.panel);
+    this._docked = false;
+  }
+
+  _markRepoTabs() {
+    const current = normRepoKey(this._lastCwd);
+    for (const inst of this.instances.values()) {
+      const base = inst.repo || inst.cwd;
+      if (!base || !inst.tab) continue;
+      const k = normRepoKey(base);
+      const mine = !current || k === current || k.indexOf(current + '/') === 0;
+      inst.tab.classList.toggle('terminal-tab--other-repo', !mine);
+      const name = repoBaseName(base);
+      inst.tab.title = (name ? name + ' - ' : '') + String(base);
+    }
+  }
+
+  _disposeForeign(repoPath) {
+    if (!repoPath) return;
+    this._lastCwd = repoPath;
+    this._markRepoTabs();
+  }
+
+  async _ensureRepoTerminal(repoPath) {
+    if (!repoPath || !this.panel) return;
+    const key = normRepoKey(repoPath);
+    for (const [id, inst] of this.instances) {
+      if (inst.repo && normRepoKey(inst.repo) === key) {
+        this._activateTerminal(id);
+        return;
+      }
+    }
+    if (this._repoPending.has(key)) return this._repoPending.get(key);
+    const p = this._addTerminal(repoPath, null, repoPath).finally(() => {
+      this._repoPending.delete(key);
+    });
+    this._repoPending.set(key, p);
+    return p;
+  }
+
+  async syncRepo(repoPath) {
+    if (!repoPath || !this.panel) return;
+    this._lastCwd = repoPath;
+    const wasOpen = this.isOpen();
+    this._disposeForeign(repoPath);
+    if (!wasOpen) return;
+    this._showPanel();
+    await this._ensureRepoTerminal(repoPath);
+    requestAnimationFrame(() => this._fitActive());
+  }
+
   open(cwd) {
     if (this.panel.classList.contains('open')) return;
     this._lastCwd = cwd || this._lastCwd;
-    this.panel.classList.add('open');
-    this.panel.style.height = '';
-    if (this.instances.size === 0) {
+    if (cwd) this._disposeForeign(cwd);
+    this._showPanel();
+    if (cwd) {
+      this._ensureRepoTerminal(cwd);
+    } else if (this.instances.size === 0) {
       this._addTerminal(this._lastCwd);
     }
     requestAnimationFrame(() => this._fitActive());
@@ -300,10 +407,7 @@ export default class TerminalUI {
 
   async openTerminal(cwd, label, command) {
     this._lastCwd = cwd;
-    if (!this.panel.classList.contains('open')) {
-      this.panel.classList.add('open');
-      this.panel.style.height = '';
-    }
+    this._showPanel();
     const id = this.nextId++;
     const useShell = this._selectedShell || this.shells[0];
     await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
@@ -318,10 +422,7 @@ export default class TerminalUI {
   }
 
   async openShortcutTerminal(cwd, label, command) {
-    if (!this.panel.classList.contains('open')) {
-      this.panel.classList.add('open');
-      this.panel.style.height = '';
-    }
+    this._showPanel();
     const id = this.nextId++;
     const useShell = this._selectedShell || this.shells[0];
     await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
@@ -339,13 +440,19 @@ export default class TerminalUI {
     this._lastCwd = cwd || this._lastCwd;
   }
 
-  async _addTerminal(cwd, shell) {
+  async _addTerminal(cwd, shell, repo) {
     const id = this.nextId++;
     const useShell = shell || this._selectedShell || this.shells[0];
-    await this._addTerminalInstance(id, cwd, useShell);
+    let owner = repo || null;
+    if (!owner && cwd && this._lastCwd && normRepoKey(cwd) === normRepoKey(this._lastCwd)) {
+      owner = cwd;
+    }
+    const label = owner ? `${useShell.name} \u00b7 ${repoBaseName(owner)}` : undefined;
+    await this._addTerminalInstance(id, cwd, useShell, label, owner);
+    this._markRepoTabs();
   }
 
-  async _addTerminalInstance(id, cwd, useShell, label) {
+  async _addTerminalInstance(id, cwd, useShell, label, repo) {
     label = label || `${useShell.name} ${id}`;
 
     const inst = document.createElement('div');
@@ -363,9 +470,8 @@ export default class TerminalUI {
     this.body.appendChild(inst);
 
     const terminal = new TerminalClass({
-      theme: document.documentElement.getAttribute('data-theme') === 'light' ? getLightTheme() : getDarkTheme(),
       fontSize: 13,
-      fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+      fontFamily: monoFont(),
       cursorBlink: true,
       cursorStyle: 'bar',
       allowTransparency: false,
@@ -381,6 +487,7 @@ export default class TerminalUI {
     const tab = document.createElement('button');
     tab.className = 'terminal-tab';
     tab.dataset.terminalId = id;
+    if (cwd) tab.title = cwd;
     tab.innerHTML = `
       <span class="terminal-tab-shell">
         <span class="terminal-tab-icon">${ICON_SHELL}</span>
@@ -424,7 +531,7 @@ export default class TerminalUI {
       }
     }
 
-    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, sessionId, discoveredUrls: new Set() });
+    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, repo: repo || null, sessionId, discoveredUrls: new Set(), colorizer: createColorizer() });
 
     terminal.onData((data) => {
       window.electronAPI.terminalWrite({ id, data });
@@ -543,13 +650,13 @@ export default class TerminalUI {
     const entries = this._parseBufferToEntries(content);
     if (entries.length > 0) {
       showOutputViewer({
-        title: `${shellName} — Output`,
+        title: `${shellName} \u2014 Output`,
         entries,
         language: 'terminal'
       });
     } else {
       showOutputViewer({
-        title: `${shellName} — Output`,
+        title: `${shellName} \u2014 Output`,
         content,
         command: command || undefined,
         language: 'terminal'
@@ -561,7 +668,7 @@ export default class TerminalUI {
     this._viewTerminalOutputById(this.activeId);
   }
 
-  _killTerminal(id) {
+  _killTerminal(id, quiet) {
     const inst = this.instances.get(id);
     if (!inst) return;
 
@@ -571,6 +678,8 @@ export default class TerminalUI {
     inst.inst.remove();
     inst.tab.remove();
     this.instances.delete(id);
+
+    if (quiet) return;
 
     if (this.instances.size === 0) {
       this.close();
@@ -613,3 +722,51 @@ export default class TerminalUI {
     }
   }
 }
+
+const _exitedIds = new Set();
+try {
+  if (window.electronAPI && window.electronAPI.onTerminalExit) {
+    window.electronAPI.onTerminalExit((p) => {
+      if (p && p.id != null) _exitedIds.add(p.id);
+    });
+  }
+} catch (_) {}
+
+function shellKindOf(shell) {
+  const s = String((shell && (shell.cmd || shell.name)) || '').toLowerCase();
+  if (s.indexOf('powershell') !== -1 || s.indexOf('pwsh') !== -1) return 'ps';
+  if (/(^|[\\/])cmd(\.exe)?$/.test(s) || s === 'command prompt') return 'cmd';
+  return 'sh';
+}
+
+TerminalUI.prototype.runCommand = async function runCommand(repoPath, build) {
+  if (!this.panel || typeof build !== 'function') return false;
+  if (repoPath) this._lastCwd = repoPath;
+  this._showPanel();
+  for (const eid of Array.from(this.instances.keys())) {
+    if (_exitedIds.has(eid)) this._killTerminal(eid, true);
+  }
+  let id = this.activeId;
+  let inst = this.instances.get(id);
+  let created = false;
+  if (!inst) {
+    if (repoPath) await this._ensureRepoTerminal(repoPath);
+    else await this._addTerminal(this._lastCwd);
+    id = this.activeId;
+    inst = this.instances.get(id);
+    created = true;
+  }
+  if (!inst) return false;
+  if (created) {
+    const d = this._firstDataDeferred.get(id);
+    if (d) {
+      try { await d.promise; } catch (_) {}
+    }
+  }
+  const cmd = build(shellKindOf(inst.shell));
+  if (!cmd) return false;
+  this._activateTerminal(id);
+  await window.electronAPI.terminalWrite({ id, data: cmd + '\r' });
+  try { inst.terminal.focus(); } catch (_) {}
+  return true;
+};

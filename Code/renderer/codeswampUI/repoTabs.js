@@ -5,10 +5,15 @@ import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
 import { convStore } from './conversationStore.js';
 import { promptDialog } from '../utils/confirmDialog.js';
+import { isTerminalRevealed, syncStage } from './terminalManager.js';
+import { ensureRepoBadges } from './repoBadges.js';
 
 export async function addRepo(repoPath) {
   console.log('[CS] addRepo:', repoPath);
-  if (!repoPath) { console.log('[CS] addRepo: no path, return'); return; }
+  if (!repoPath) {
+    console.log('[CS] addRepo: no path, return');
+    return;
+  }
   const existing = state.tabs.find(t => t.repoPath === repoPath);
   if (existing) {
     console.log('[CS] addRepo: already exists, switching tab');
@@ -27,22 +32,24 @@ export async function addRepo(repoPath) {
 
 export function updateRepoPath(repoPath) {
   const el = document.getElementById('ocRepoPath');
-  if (!el) return;
-  if (repoPath) {
-    const parts = repoPath.replace(/\\/g, '/').split('/').filter(Boolean);
-    const short = parts.length > 2 ? '…/' + parts.slice(-2).join('/') : repoPath;
-    el.textContent = short;
-    el.title = repoPath;
-  } else {
-    el.textContent = '';
+  if (el) {
+    if (repoPath) {
+      const parts = repoPath.replace(/\\/g, '/').split('/').filter(Boolean);
+      const short = parts.length > 2 ? '\u2026/' + parts.slice(-2).join('/') : repoPath;
+      el.textContent = short;
+      el.title = repoPath;
+    } else {
+      el.textContent = '';
+    }
   }
+  ensureRepoBadges();
 }
 
 export function switchTab(repoPath) {
   state.activeTab = repoPath;
   for (const tab of state.tabs) tab.active = tab.repoPath === repoPath;
 
-  if (hasTerminalSession(repoPath)) {
+  if (hasTerminalSession(repoPath) && isTerminalRevealed(repoPath)) {
     const slot = getSlotForRepo(repoPath);
     if (slot >= 0) state.activeSlotIndex = slot;
     showTerminalSession(repoPath);
@@ -57,14 +64,13 @@ export function switchTab(repoPath) {
     if (terminal) terminal.style.display = 'none';
   }
 
+  syncStage(repoPath);
   updateRepoPath(repoPath);
   renderRepoTabs();
   renderConvList();
 }
 
 export function renderRepoTabs() {
-  // Tab row is hidden — we use the repo path bar instead.
-  // Keep the element check safe so nothing crashes if it's missing.
   const container = document.getElementById('ocRepoTabs');
   if (container) container.style.display = 'none';
 }
@@ -88,7 +94,7 @@ export function renderConvList(loading) {
     list.innerHTML = `
       <div class="oc-conv-empty">No ${prov.label} conversations yet</div>
       <div style="padding:4px 10px">
-        <button class="oc-btn oc-btn-refresh" id="ocRefreshConvsBtn" style="width:100%;height:28px;font-size:11px">⟳ Refresh</button>
+        <button class="oc-btn oc-btn-refresh" id="ocRefreshConvsBtn" style="width:100%;height:28px;font-size:11px">\u27f3 Refresh</button>
       </div>`;
     const refreshBtn = document.getElementById('ocRefreshConvsBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', () => refreshSidebar(true));
@@ -156,8 +162,6 @@ export function renderConvList(loading) {
   }
 }
 
-// ── Conversation context menu ──
-
 function _showConvContextMenu(x, y, conv) {
   const existing = document.querySelector('.oc-ctx-menu');
   if (existing) existing.remove();
@@ -197,17 +201,12 @@ function _showConvContextMenu(x, y, conv) {
 }
 
 async function _renameConversation(conv) {
-  console.log('[CS] _renameConversation called with conv:', { id: conv.id, title: conv.title, customTitle: conv.customTitle });
   const name = await promptDialog('Rename conversation:', conv.title || conv.id);
-  console.log('[CS] _renameConversation prompt result:', { name, original: conv.title || conv.id });
   if (!name || name.trim() === (conv.title || conv.id)) {
-    console.log('[CS] _renameConversation: no change, skipping');
     return;
   }
   convStore.renameConversation(state.activeTab, conv.id, name.trim());
   const afterStore = convStore.getConversations(state.activeTab);
-  const renamedConv = afterStore.find(c => c.id === conv.id);
-  console.log('[CS] _renameConversation: after rename, store conv:', { id: renamedConv?.id, title: renamedConv?.title, customTitle: renamedConv?.customTitle });
   state.conversations[state.activeTab] = afterStore;
   renderConvList();
 }

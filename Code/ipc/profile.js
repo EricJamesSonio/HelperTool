@@ -53,6 +53,23 @@ function _getActiveRepo(config) {
   return null;
 }
 
+const IGNORE_DIRS = new Set([
+  'node_modules', '.git', '.next', '.nuxt', '.turbo', '.cache', '.swc', 'dist', 'build',
+  'target', 'coverage', 'vendor', '.svelte-kit', '.parcel-cache',
+]);
+const IGNORE_FILE = /\.(png|jpe?g|gif|ico|exe|dll|wasm|zip|tar|gz|mp[34]|avi|mov|wav|ttf|woff2?|eot|pdf|lock|tsbuildinfo|log|map|tmp|swp|eslintcache)$|[\/\\](next-env\.d\.ts|\.DS_Store|Thumbs\.db)$/i;
+
+function _ignoredFor(repoPath) {
+  return (p) => {
+    const rel = path.relative(repoPath, p);
+    if (!rel || rel.startsWith('..')) return false;
+    const parts = rel.split(/[\\/]/);
+    for (let i = 0; i < parts.length; i++) {
+      if (IGNORE_DIRS.has(parts[i].toLowerCase())) return true;
+    }
+    return IGNORE_FILE.test(p);
+  };
+}
 function _startWatcher(repoPath, repoName) {
   if (_watchedPaths.has(repoPath)) {
     updateService('profileWatcher', 'done');
@@ -60,20 +77,7 @@ function _startWatcher(repoPath, repoName) {
   }
   _watchedPaths.add(repoPath);
   const watcher = chokidar.watch(repoPath, {
-    ignored: [
-      '**/node_modules/**',
-      '**/.git/**',
-      '**/dist/**',
-      '**/build/**',
-      '**/target/**',
-      '**/.next/**',
-      '**/.nuxt/**',
-      '**/coverage/**',
-      '**/vendor/**',
-      /node_modules/,
-      /[\/\\]\.git[\/\\]/,
-      /\.(png|jpe?g|gif|ico|exe|dll|wasm|zip|tar|gz|mp[34]|avi|mov|wav|ttf|woff2?|eot|pdf|lock)$/i,
-    ],
+    ignored: _ignoredFor(repoPath),
     ignoreInitial: true,
     persistent: true,
     usePolling: false,

@@ -215,6 +215,34 @@ body.ide-mode .ide-main { display: flex; }
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .ide-row.dim { opacity: 0.6; }
+.ide-row { position: relative; }
+.ide-row-acts {
+  position: absolute;
+  top: 0;
+  right: 22px;
+  height: 24px;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding-left: 8px;
+  background: var(--bg-hover);
+}
+.ide-row.folder:hover .ide-row-acts { display: flex; }
+.ide-row-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.ide-row-btn:hover { background: var(--bg-active); color: var(--accent); }
+
 
 .ide-chev {
   width: 16px;

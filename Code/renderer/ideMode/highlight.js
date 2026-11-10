@@ -3,6 +3,7 @@ const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
 export function esc(s) {
   return s.replace(/[&<>]/g, (c) => ESC[c]);
 }
+
 export function pathKey(p) {
   const n = String(p || '').replace(/\\/g, '/');
   return /^[a-zA-Z]:\//.test(n) ? n.toLowerCase() : n;

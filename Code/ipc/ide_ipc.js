@@ -359,7 +359,24 @@ function fileMatches(root, files, ctx) {
   return out;
 }
 
-async function runSearch(sender, id, root, query, session) {
+function extOf(file) {
+  const name = path.basename(file).toLowerCase();
+  const dot = name.lastIndexOf('.');
+  if (dot < 0) return '';
+  return name.slice(dot + 1);
+}
+
+function countExts(files) {
+  const map = new Map();
+  for (const f of files) {
+    const e = extOf(f);
+    map.set(e, (map.get(e) || 0) + 1);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .slice(0, 80);
+}
+async function runSearch(sender, id, root, query, session, extSet) {
   const t0 = Date.now();
   const cancelled = () => session.cancelled || sender.isDestroyed();
   let buf = [];
@@ -384,8 +401,9 @@ async function runSearch(sender, id, root, query, session) {
     const q = query.toLowerCase();
     const tokens = q.split(/\s+/).filter(Boolean);
     const ctx = { q, tokens };
-    const files = await listFiles(root, cancelled);
-    if (!files || cancelled()) return;
+    const allFiles = await listFiles(root, cancelled);
+    if (!allFiles || cancelled()) return;
+    const files = extSet ? allFiles.filter((f) => extSet.has(extOf(f))) : allFiles;
 
     const fm = fileMatches(root, files, ctx);
     for (const r of fm) buf.push(r);
@@ -422,7 +440,9 @@ async function runSearch(sender, id, root, query, session) {
       progress = 0;
       const entries = [];
       for (const e of corpus.map.values()) {
-        if (!e.skip && e.text) entries.push(e);
+        if (e.skip || !e.text) continue;
+        if (extSet && !extSet.has(extOf(e.file))) continue;
+        entries.push(e);
       }
       let nearTotal = 0;
       for (let i = 0; i < entries.length && nearTotal < NEAR_CAP; i++) {
@@ -444,6 +464,94 @@ async function runSearch(sender, id, root, query, session) {
     }
   }
 }
+function scoreFile(rel, tokens) {
+  const rl = rel.toLowerCase();
+  const slash = rl.lastIndexOf('/');
+  const base = rl.slice(slash + 1);
+  let total = 0;
+  let hs = 0;
+  let hl = 0;
+  let marked = false;
+  for (const t of tokens) {
+    let s = 0;
+    const bi = base.indexOf(t);
+    if (bi !== -1) {
+      s = base === t ? 130 : (bi === 0 ? 115 : 100);
+      if (!marked) {
+        hs = bi;
+        hl = t.length;
+        marked = true;
+      }
+    } else if (rl.indexOf(t) !== -1) {
+      s = 80;
+    } else if (t.length >= 2 && isSubsequence(t, base)) {
+      s = 60;
+    } else if (t.length >= 2 && isSubsequence(t, rl)) {
+      s = 45;
+    } else {
+      return null;
+    }
+    total += s;
+  }
+  total = total / tokens.length - Math.min(20, rel.length / 40);
+  return { score: total, hs, hl };
+}
+
+async function runFileSearch(sender, id, root, query, session, extSet) {
+  const t0 = Date.now();
+  const cap = 300;
+  const cancelled = () => session.cancelled || sender.isDestroyed();
+  try {
+    useRoot(root);
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const allFiles = await listFiles(root, cancelled);
+    if (!allFiles || cancelled()) return;
+    const files = extSet ? allFiles.filter((f) => extSet.has(extOf(f))) : allFiles;
+    const hits = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const rel = relOf(root, f);
+      const sc = scoreFile(rel, tokens);
+      if (sc) {
+        hits.push({
+          file: f,
+          rel,
+          line: 1,
+          col: 0,
+          len: 0,
+          text: rel.slice(rel.lastIndexOf('/') + 1),
+          hs: sc.hs,
+          hl: sc.hl,
+          more: false,
+          score: sc.score,
+          kind: 'file',
+        });
+      }
+      if (i % 4000 === 3999) {
+        await tick();
+        if (cancelled()) return;
+      }
+    }
+    if (cancelled()) return;
+    hits.sort((a, b) => (b.score - a.score) || a.rel.localeCompare(b.rel));
+    const out = hits.slice(0, cap);
+    sender.send('ide:searchBatch', {
+      id,
+      results: out,
+      phase: 'files',
+      scanned: files.length,
+      progress: 1,
+      done: true,
+      truncated: hits.length > cap,
+      ms: Date.now() - t0,
+    });
+  } catch (err) {
+    if (!cancelled()) {
+      sender.send('ide:searchBatch', { id, results: [], done: true, error: err && err.message ? err.message : 'Search failed' });
+    }
+  }
+}
+
 
 async function warmCorpus(root) {
   if (warming && warming.root === root) return;
@@ -467,6 +575,186 @@ async function warmCorpus(root) {
   }
 }
 
+const { execFile } = require('child_process');
+
+function runGit(cwd, args) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, timeout: 8000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+      resolve({ ok: !err, out: stdout || '' });
+    });
+  });
+}
+
+function parseHunks(text) {
+  const hunks = [];
+  const re = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+  for (const line of text.split('\n')) {
+    if (line.charCodeAt(0) !== 64) continue;
+    const m = re.exec(line);
+    if (!m) continue;
+    hunks.push({
+      os: Number(m[1]),
+      oc: m[2] === undefined ? 1 : Number(m[2]),
+      ns: Number(m[3]),
+      nc: m[4] === undefined ? 1 : Number(m[4]),
+    });
+  }
+  return hunks;
+}
+
+async function gitLineDiff(root, file) {
+  const none = { success: true, kind: 'none', hunks: [] };
+  const inside = await runGit(root, ['rev-parse', '--is-inside-work-tree']);
+  if (!inside.ok || inside.out.trim() !== 'true') return none;
+  const tracked = await runGit(root, ['ls-files', '--error-unmatch', '--', file]);
+  if (tracked.ok) {
+    const d = await runGit(root, ['diff', 'HEAD', '--unified=0', '--no-color', '--no-ext-diff', '--', file]);
+    if (!d.ok) return none;
+    return { success: true, kind: 'tracked', hunks: parseHunks(d.out).slice(0, 5000) };
+  }
+  const ignored = await runGit(root, ['check-ignore', '-q', '--', file]);
+  if (ignored.ok) return none;
+  return { success: true, kind: 'new', hunks: [] };
+}
+
+ipcMain.handle('ide:gitLines', async (_event, args) => {
+  const root = args && args.root;
+  const file = args && args.file;
+  if (typeof root !== 'string' || typeof file !== 'string' || !root || !file) {
+    return { success: false, error: 'Invalid arguments' };
+  }
+  try {
+    return await gitLineDiff(root, file);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+async function clipExists(p) {
+  try {
+    await fs.promises.lstat(p);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function clipSame(a, b) {
+  const x = path.resolve(a);
+  const y = path.resolve(b);
+  return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+}
+
+function clipInside(child, parent) {
+  const rel = path.relative(path.resolve(parent), path.resolve(child));
+  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+async function clipCopyName(dir, name, isDir) {
+  const dot = name.lastIndexOf('.');
+  const hasExt = !isDir && dot > 0;
+  const stem = hasExt ? name.slice(0, dot) : name;
+  const ext = hasExt ? name.slice(dot) : '';
+  for (let n = 1; n < 1000; n++) {
+    const cand = stem + (n === 1 ? ' copy' : ' copy ' + n) + ext;
+    if (!(await clipExists(path.join(dir, cand)))) return cand;
+  }
+  return null;
+}
+const { shell } = require('electron');
+
+async function opMove(from, to) {
+  if (!(await clipExists(from))) return { success: false, error: 'The original is gone' };
+  if (await clipExists(to)) return { success: false, error: path.basename(to) + ' already exists there' };
+  await fs.promises.mkdir(path.dirname(to), { recursive: true });
+  try {
+    await fs.promises.rename(from, to);
+  } catch (err) {
+    if (!err || err.code !== 'EXDEV') throw err;
+    await fs.promises.cp(from, to, { recursive: true, errorOnExist: true, force: false });
+    await fs.promises.rm(from, { recursive: true, force: true });
+  }
+  return { success: true };
+}
+
+async function opCopy(from, to) {
+  if (!(await clipExists(from))) return { success: false, error: 'The original is gone' };
+  if (await clipExists(to)) return { success: false, error: path.basename(to) + ' already exists there' };
+  await fs.promises.mkdir(path.dirname(to), { recursive: true });
+  await fs.promises.cp(from, to, { recursive: true, errorOnExist: true, force: false });
+  return { success: true };
+}
+
+ipcMain.handle('ide:fsOp', async (_event, args) => {
+  const op = args && args.op;
+  const isAbs = (v) => typeof v === 'string' && !!v && path.isAbsolute(v);
+  try {
+    if (op === 'remove') {
+      if (!isAbs(args.path)) return { success: false, error: 'Invalid path' };
+      if (!(await clipExists(args.path))) return { success: false, error: 'It is already gone' };
+      await shell.trashItem(args.path);
+      return { success: true };
+    }
+    if (op === 'move') {
+      if (!isAbs(args.from) || !isAbs(args.to)) return { success: false, error: 'Invalid path' };
+      return await opMove(args.from, args.to);
+    }
+    if (op === 'copy') {
+      if (!isAbs(args.from) || !isAbs(args.to)) return { success: false, error: 'Invalid path' };
+      return await opCopy(args.from, args.to);
+    }
+    return { success: false, error: 'Unknown operation' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('ide:fsPaste', async (_event, args) => {
+  const source = args && args.source;
+  const targetDir = args && args.targetDir;
+  const mode = args && args.mode === 'cut' ? 'cut' : 'copy';
+  if (typeof source !== 'string' || typeof targetDir !== 'string' || !source || !targetDir) {
+    return { success: false, error: 'Invalid arguments' };
+  }
+  if (!path.isAbsolute(source) || !path.isAbsolute(targetDir)) {
+    return { success: false, error: 'Invalid path' };
+  }
+  try {
+    const srcSt = await fs.promises.lstat(source);
+    const dirSt = await fs.promises.stat(targetDir);
+    if (!dirSt.isDirectory()) return { success: false, error: 'Target is not a folder' };
+    const isDir = srcSt.isDirectory();
+    const name = path.basename(source);
+    if (isDir && (clipSame(source, targetDir) || clipInside(targetDir, source))) {
+      return { success: false, error: 'Cannot paste a folder into itself' };
+    }
+    const sameParent = clipSame(path.dirname(source), targetDir);
+    if (mode === 'cut') {
+      if (sameParent) return { success: true, noop: true, to: source };
+      const dest = path.join(targetDir, name);
+      if (await clipExists(dest)) {
+        return { success: false, error: name + ' already exists in that folder' };
+      }
+      try {
+        await fs.promises.rename(source, dest);
+      } catch (err) {
+        if (!err || err.code !== 'EXDEV') throw err;
+        await fs.promises.cp(source, dest, { recursive: true, errorOnExist: true, force: false });
+        await fs.promises.rm(source, { recursive: true, force: true });
+      }
+      return { success: true, to: dest };
+    }
+    let finalName = name;
+    if (await clipExists(path.join(targetDir, name))) {
+      finalName = await clipCopyName(targetDir, name, isDir);
+      if (!finalName) return { success: false, error: 'Could not find a free name' };
+    }
+    const to = path.join(targetDir, finalName);
+    await fs.promises.cp(source, to, { recursive: true, errorOnExist: true, force: false });
+    return { success: true, to };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 function register() {
   ipcMain.handle('ide:readDir', async (_event, dirPath) => {
     try {
@@ -489,6 +777,7 @@ function register() {
     const id = args && args.id;
     const root = args && args.root;
     const query = args && typeof args.query === 'string' ? args.query.trim() : '';
+    const mode = args && args.mode === 'files' ? 'files' : 'words';
     if (typeof root !== 'string' || !root) return { success: false, error: 'No folder opened' };
     if (query.length < 2 || query.length > 200) {
       sender.send('ide:searchBatch', { id, results: [], done: true, ms: 0 });
@@ -502,7 +791,14 @@ function register() {
     }
     useRoot(root);
     dropFromCorpus(args && args.invalidate);
-    runSearch(sender, id, root, query, session);
+    const rawExts = args && Array.isArray(args.exts) ? args.exts : [];
+    const extList = rawExts
+      .filter((x) => typeof x === 'string')
+      .slice(0, 200)
+      .map((x) => x.toLowerCase());
+    const extSet = extList.length ? new Set(extList) : null;
+    if (mode === 'files') runFileSearch(sender, id, root, query, session, extSet);
+    else runSearch(sender, id, root, query, session, extSet);
     return { success: true };
   });
 
@@ -514,8 +810,13 @@ function register() {
 
   ipcMain.handle('ide:searchWarm', async (_event, root) => {
     if (typeof root !== 'string' || !root) return { success: false };
-    warmCorpus(root);
-    return { success: true };
+    try {
+      const files = await listFiles(root, () => false);
+      warmCorpus(root);
+      return { success: true, exts: files ? countExts(files) : [] };
+    } catch (_) {
+      return { success: false };
+    }
   });
 
   try {

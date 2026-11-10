@@ -1,5 +1,9 @@
 import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+import { openCloneModal, openCreateModal } from './repoTools.js';
+
+const I_CLONE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M4 16h12"/></svg>';
+
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=repo,read:user&description=Helper%20Tool';
 const DEV_URL = 'https://github.com/settings/developers';
@@ -11,6 +15,8 @@ const I_CHECK = SVG + 'width="14" height="14"><path d="M4 10.5l4 4 8-9"/></svg>'
 const I_PLUS = SVG + 'width="14" height="14"><path d="M10 4v12M4 10h12"/></svg>';
 const I_SYS = SVG + 'width="16" height="16"><rect x="2.5" y="4" width="15" height="10" rx="1.5"/><path d="M7 17h6M10 14v3"/></svg>';
 const I_GH = '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+const I_EXT = SVG + 'width="14" height="14"><path d="M8 4H5.5A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16h9a1.5 1.5 0 001.5-1.5V12"/><path d="M11 4h5v5M16 4l-6 6"/></svg>';
+
 
 let btn = null;
 let panel = null;
@@ -49,12 +55,18 @@ function openUrl(url) {
 }
 
 function injectCss() {
-  if (document.getElementById('gitAccountsCss')) return;
-  const link = document.createElement('link');
-  link.id = 'gitAccountsCss';
-  link.rel = 'stylesheet';
-  link.href = './styles/git-accounts.css';
-  document.head.appendChild(link);
+  const sheets = [
+    ['gitAccountsCss', './styles/git-accounts.css'],
+    ['gitRepoToolsCss', './styles/git-repo-tools.css'],
+  ];
+  for (const sheet of sheets) {
+    if (document.getElementById(sheet[0])) continue;
+    const link = document.createElement('link');
+    link.id = sheet[0];
+    link.rel = 'stylesheet';
+    link.href = sheet[1];
+    document.head.appendChild(link);
+  }
 }
 
 function activeAccount() {
@@ -127,12 +139,18 @@ function rowHtml(acc) {
       '<div class="ga-sub">@' + esc(acc.username) + (acc.email ? ' - ' + esc(acc.email) : '') + '</div>' +
     '</div>' +
     '<span class="ga-state">' + stateHtml + '</span>' +
+    '<button type="button" class="ga-open" data-act="open-gh" data-user="' + esc(acc.username) + '" title="Open @' + esc(acc.username) + ' on GitHub">' + I_EXT + '</button>' +
     '<button type="button" class="ga-del" data-act="del" data-id="' + esc(acc.id) + '" title="Remove account">' + I_TRASH + '</button>' +
   '</div>';
 }
 
 function addHtml() {
-  return '<button type="button" class="ga-signin" data-act="signin"' + (busy ? ' disabled' : '') + '>' + I_GH + '<span>Sign in with GitHub</span></button>' +
+  const off = busy ? ' disabled' : '';
+  return '<div class="ga-tools">' +
+      '<button type="button" class="ga-tool" data-act="clone-repo"' + off + '>' + I_CLONE + '<span>Clone</span></button>' +
+      '<button type="button" class="ga-tool" data-act="create-repo"' + off + '>' + I_PLUS + '<span>Create</span></button>' +
+    '</div>' +
+    '<button type="button" class="ga-signin" data-act="signin"' + off + '>' + I_GH + '<span>Sign in with GitHub</span></button>' +
     '<div class="ga-alt"><a class="ga-link" data-act="open-form">Use a token instead</a></div>';
 }
 
@@ -187,7 +205,7 @@ function panelHtml() {
   let h = '<div class="ga-head"><span class="ga-title">GitHub accounts</span>' +
     (repoName ? '<span class="ga-repo" title="' + esc(repo) + '">' + esc(repoName) + '</span>' : '') +
   '</div>';
-  h += '<div class="ga-intro">' + (repo ? 'Pick the account this repo commits and pushes as.' : 'Select a repo to switch its account.') + '</div>';
+  h += '<div class="ga-intro">The selected account is used for commits and pushes in all repos.</div>';
   h += '<div class="ga-list">';
   if (loading) {
     h += skeletonHtml();
@@ -202,7 +220,7 @@ function panelHtml() {
   else if (formOpen) h += formHtml();
   else h += addHtml();
   if (msg) h += '<div class="ga-msg' + (msg.warn ? ' warn' : '') + '">' + esc(msg.text) + '</div>';
-  if (!secure && !loading) h += '<div class="ga-note">Secure storage is unavailable here, so tokens are saved without encryption.</div>';
+  if (!secure && !loading) h += '<div class="ga-note">Secure storage is unavailable here, so tokens are saved without encryption. They are encrypted automatically once it becomes available.</div>';
   return h;
 }
 
@@ -260,13 +278,8 @@ async function refresh() {
 
 async function switchTo(id) {
   const a = api();
-  const repo = state.selectedRepoPath;
+  const repo = state.selectedRepoPath || null;
   if (!a || busy) return;
-  if (!repo) {
-    setMsg('Select a repo first.', true);
-    render();
-    return;
-  }
   const target = id || null;
   if (target === (activeId || null)) return;
   busy = { kind: 'switch', id: id || '' };
@@ -277,7 +290,7 @@ async function switchTo(id) {
     if (res && res.success) {
       activeId = res.activeId || null;
       const acc = activeAccount();
-      const base = acc ? 'Now using @' + acc.username + ' in this repo.' : 'This repo now uses the system default login.';
+      const base = acc ? 'Now using @' + acc.username + ' in all repos.' : 'All repos now use the system default login.';
       setMsg(res.warning ? base + ' ' + res.warning : base, !!res.warning);
     } else {
       setMsg((res && res.error) || 'Could not switch account.', true);
@@ -364,12 +377,15 @@ async function onLoginResult(res) {
   if (res && res.success) {
     accounts = res.accounts || accounts;
     updateButton();
-    const who = res.account ? '@' + res.account.username : 'Account';
-    if (res.account && state.selectedRepoPath) {
+    if (res.account) {
+      if (res.account.id === activeId) {
+        setMsg('@' + res.account.username + ' signed in again and its token was replaced.');
+        render();
+        return;
+      }
       await switchTo(res.account.id);
       return;
     }
-    setMsg(who + ' signed in. Select a repo to use it.');
   } else if (res && !res.cancelled) {
     setMsg((res && res.error) || 'Sign in failed.', true);
   }
@@ -448,11 +464,23 @@ function copyCode() {
   render();
 }
 
+function openRepoTool(kind) {
+  if (!activeAccount()) {
+    setMsg('Select a GitHub account first. System default cannot list or create repositories.', true);
+    render();
+    return;
+  }
+  closePanel();
+  if (kind === 'clone') openCloneModal();
+  else openCreateModal();
+}
 function onPanelClick(e) {
   const actEl = e.target.closest('[data-act]');
   if (actEl) {
     const act = actEl.dataset.act;
     if (act === 'del') removeAccount(actEl.dataset.id);
+    else if (act === 'clone-repo') openRepoTool('clone');
+    else if (act === 'create-repo') openRepoTool('create');
     else if (act === 'signin') startLogin();
     else if (act === 'cancel-login') cancelLogin();
     else if (act === 'copy-code') copyCode();
@@ -471,6 +499,7 @@ function onPanelClick(e) {
       render();
     } else if (act === 'submit-form') addAccount();
     else if (act === 'token-page') openUrl(TOKEN_URL);
+    else if (act === 'open-gh' && actEl.dataset.user) openUrl('https://github.com/' + encodeURIComponent(actEl.dataset.user));
     return;
   }
   const row = e.target.closest('.ga-row');
@@ -562,6 +591,9 @@ function init() {
   }, true);
   window.addEventListener('resize', () => {
     if (isOpen()) position();
+  });
+  window.addEventListener('focus', () => {
+    if (isOpen() && !busy && !login) refresh();
   });
   const auth = authApi();
   if (auth && auth.onLoginResult) auth.onLoginResult(onLoginResult);

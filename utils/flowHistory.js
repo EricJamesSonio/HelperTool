@@ -70,6 +70,21 @@ function fileKind(f) {
     return 'modified';
 }
 
+function reportToWakaTime(basePath, files) {
+    try {
+        const wk = require('../ipc/wakatime_ipc.js');
+        if (!wk || typeof wk.reportHumanChanges !== 'function') return;
+        const changes = [];
+        for (const f of files) {
+            if (f.big || !f.afterExisted) continue;
+            const abs = safeAbs(basePath, f.path);
+            if (!abs) continue;
+            changes.push({ abs: abs, before: f.beforeExisted ? f.before : '', after: f.after });
+        }
+        if (changes.length) wk.reportHumanChanges(basePath, changes);
+    } catch (_) {}
+}
+
 async function applyWithHistory(basePath, entries, meta) {
     const rels = [];
     const seen = new Set();
@@ -107,6 +122,8 @@ async function applyWithHistory(basePath, entries, meta) {
             reverted: false,
         });
     }
+
+    reportToWakaTime(basePath, files);
 
     let historyId = null;
     if (files.length) {

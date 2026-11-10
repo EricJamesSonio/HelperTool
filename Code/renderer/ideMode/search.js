@@ -1,54 +1,194 @@
 import { state } from '../app_manager/appState.js';
 import { esc } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+let mode = 'words';
+let modeWired = false;
+
+function emptyMsg() {
+  if (mode === 'files') return 'Type at least ' + MIN_CHARS + ' characters to find a file by name or path.';
+  return 'Type at least ' + MIN_CHARS + ' characters to search the codebase.';
+}
+
+function applyMode() {
+  if (!overlay) return;
+  const files = mode === 'files';
+  const root = overlay.querySelector('.ide-sm');
+  if (root) root.classList.toggle('files-mode', files);
+  overlay.querySelectorAll('.ide-sm-mode-btn').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mode === mode);
+  });
+  input.placeholder = files ? 'Search files by name or path...' : 'Search words in the codebase...';
+}
+
+function setMode(next) {
+  if (next !== 'words' && next !== 'files') return;
+  if (next === mode) {
+    input.focus();
+    return;
+  }
+  commitEdit();
+  mode = next;
+  saveState();
+  applyMode();
+  disarm();
+  cancelRemote();
+  curId++;
+  results = [];
+  sel = null;
+  previewFor = null;
+  collapsed = new Set();
+  curQuery = '';
+  finished = true;
+  pendingReset = false;
+  pendingOpen = false;
+  clearTimeout(timer);
+  timer = 0;
+  listEl.classList.remove('stale');
+  if (input.value.trim().length >= MIN_CHARS) {
+    run();
+  } else {
+    showEmpty(emptyMsg());
+    setStatus('');
+    barEl.classList.remove('on');
+  }
+  updateRepUi();
+  input.focus();
+}
+
+function wireMode() {
+  if (modeWired || !overlay) return;
+  modeWired = true;
+  const st = loadState();
+  if (st.mode === 'files') mode = 'files';
+  const box = overlay.querySelector('.ide-sm-mode');
+  box.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+  });
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('.ide-sm-mode-btn');
+    if (b) setMode(b.dataset.mode);
+  });
+  applyMode();
+  showEmpty(emptyMsg());
+}
 
 const SHOW = 300;
 const MIN_CHARS = 2;
 const REQ_MAX = 1500;
 const CACHE_MAX = 24;
 const DEBOUNCE = 110;
+const DELAYS = [60, 60, 380, 280, 200, 200];
+const DEBOUNCE_LONG = 140;
+const DEBOUNCE_CHIP = 70;
 const WIN_BEFORE = 40;
 const WIN_AFTER = 80;
 const EDIT_MAX_LEN = 2000;
 const LS_STATE = 'helpertool-ide-search-state';
 const PHASE_LABEL = { files: 'file names', content: 'contents', similar: 'similar words' };
+const RE_SPECIAL = '.*+?^$' + String.fromCharCode(123, 125) + '()|[]' + String.fromCharCode(92);
 
 const SVG_SEARCH = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
+const fx = { bar: null, chips: null, clear: null, list: [], sel: new Set(), req: 0 };
+
+function extLabel(e) {
+  return e ? '.' + e : 'no ext';
+}
+
+function renderExts() {
+  if (!fx.bar) return;
+  if (!fx.list.length) {
+    fx.bar.hidden = true;
+    return;
+  }
+  fx.bar.hidden = false;
+  let html = '<button type="button" class="ide-sm-ext-chip all' + (fx.sel.size ? '' : ' on') + '" data-ext="*">All types</button>';
+  for (const item of fx.list) {
+    const e = item[0];
+    html += '<button type="button" class="ide-sm-ext-chip' + (fx.sel.has(e) ? ' on' : '') + '" data-ext="' + attr(e) + '" title="' + item[1] + ' files">' +
+      esc(extLabel(e)) + '<span class="ide-sm-ext-n">' + item[1] + '</span></button>';
+  }
+  fx.chips.innerHTML = html;
+  fx.clear.hidden = !fx.sel.size;
+}
+
+function setExts(list) {
+  fx.list = list;
+  const have = new Set(list.map((x) => x[0]));
+  for (const e of Array.from(fx.sel)) {
+    if (!have.has(e)) fx.sel.delete(e);
+  }
+  renderExts();
+}
+
+function loadExts(root) {
+  const api = streamApi();
+  if (!api) return;
+  const my = ++fx.req;
+  api.warm(root).then((res) => {
+    if (my !== fx.req || root !== state.selectedRepoPath) return;
+    if (res && Array.isArray(res.exts)) setExts(res.exts);
+  }).catch(() => {});
+}
+
+function onExtClick(e) {
+  const b = e.target.closest('.ide-sm-ext-chip, .ide-sm-ext-clear');
+  if (!b) return;
+  if (b.classList.contains('ide-sm-ext-clear') || b.dataset.ext === '*') {
+    fx.sel.clear();
+  } else if (fx.sel.has(b.dataset.ext)) {
+    fx.sel.delete(b.dataset.ext);
+  } else {
+    fx.sel.add(b.dataset.ext);
+  }
+  renderExts();
+  disarm();
+  schedule(DEBOUNCE_CHIP);
+}
 
 const TEMPLATE =
-  '<div class="ide-sm ide-root">' +
-    '<div class="ide-sm-head">' +
-      '<span class="ide-sm-icon">' + SVG_SEARCH + '</span>' +
-      '<input class="ide-sm-input" type="text" spellcheck="false" autocomplete="off" placeholder="Search words in the codebase..." />' +
-      '<span class="ide-sm-status"></span>' +
+'<div class="ide-sm ide-root">' +
+  '<div class="ide-sm-head">' +
+    '<span class="ide-sm-icon">' + SVG_SEARCH + '</span>' +
+    '<div class="ide-sm-mode">' +
+      '<button type="button" class="ide-sm-mode-btn on" data-mode="words" title="Search words inside files">Words</button>' +
+      '<button type="button" class="ide-sm-mode-btn" data-mode="files" title="Search file names and paths">Files</button>' +
     '</div>' +
-    '<div class="ide-sm-bar"><span></span></div>' +
-    '<div class="ide-sm-body">' +
-      '<div class="ide-sm-list"></div>' +
-      '<div class="ide-sm-preview">' +
-        '<div class="ide-sm-pv-title"></div>' +
-        '<div class="ide-sm-pv-code"></div>' +
-      '</div>' +
+    '<input class="ide-sm-input" type="text" spellcheck="false" autocomplete="off" placeholder="Search words in the codebase..." />' +
+    '<span class="ide-sm-status"></span>' +
+  '</div>' +
+  '<div class="ide-sm-ext" hidden>' +
+    '<span class="ide-sm-ext-lbl">File types</span>' +
+    '<div class="ide-sm-ext-chips"></div>' +
+    '<button type="button" class="ide-sm-ext-clear" hidden title="Search all file types">Clear</button>' +
+  '</div>' +
+  '<div class="ide-sm-bar"><span></span></div>' +
+  '<div class="ide-sm-body">' +
+    '<div class="ide-sm-list"></div>' +
+    '<div class="ide-sm-preview">' +
+      '<div class="ide-sm-pv-title"></div>' +
+      '<div class="ide-sm-pv-code"></div>' +
     '</div>' +
-    '<div class="ide-sm-rep">' +
-      '<span class="ide-sm-rep-lbl">Replace</span>' +
-      '<span class="ide-sm-rep-target" title="Searched text"></span>' +
-      '<span class="ide-sm-rep-arrow">&rarr;</span>' +
-      '<input class="ide-sm-rep-in" type="text" spellcheck="false" autocomplete="off" placeholder="Replace with..." />' +
-      '<button type="button" class="ide-sm-rbtn" data-r="case" title="Match case when replacing">Aa</button>' +
-      '<button type="button" class="ide-sm-rbtn" data-r="one" title="Replace on the selected line (Enter)">Replace selected</button>' +
-      '<button type="button" class="ide-sm-rbtn primary" data-r="all" title="Replace in every listed file (Ctrl+Alt+Enter)">Replace all</button>' +
-      '<button type="button" class="ide-sm-rbtn" data-r="revert" title="Undo the last replace">Revert</button>' +
-      '<span class="ide-sm-rep-msg"></span>' +
-    '</div>' +
-    '<div class="ide-sm-foot">' +
-      '<span><kbd>Up</kbd><kbd>Down</kbd> navigate</span>' +
-      '<span><kbd>Click</kbd> preview / expand</span>' +
-      '<span><kbd>Double-click</kbd> or <kbd>Enter</kbd> open</span>' +
-      '<span><kbd>Esc</kbd> close</span>' +
-      '<span class="ide-sm-foot-note">Preview lines are editable. Results stream in: exact matches first, then similar words</span>' +
-    '</div>' +
-  '</div>';
+  '</div>' +
+  '<div class="ide-sm-rep">' +
+    '<span class="ide-sm-rep-lbl">Replace</span>' +
+    '<span class="ide-sm-rep-target" title="Searched text"></span>' +
+    '<span class="ide-sm-rep-arrow">&rarr;</span>' +
+    '<input class="ide-sm-rep-in" type="text" spellcheck="false" autocomplete="off" placeholder="Replace with..." />' +
+    '<button type="button" class="ide-sm-rbtn" data-r="case" title="Match case when replacing">Aa</button>' +
+    '<button type="button" class="ide-sm-rbtn" data-r="one" title="Replace on the selected line (Enter)">Replace selected</button>' +
+    '<button type="button" class="ide-sm-rbtn primary" data-r="all" title="Replace in every listed file (Ctrl+Alt+Enter)">Replace all</button>' +
+    '<button type="button" class="ide-sm-rbtn" data-r="revert" title="Undo the last replace">Revert</button>' +
+    '<span class="ide-sm-rep-msg"></span>' +
+  '</div>' +
+  '<div class="ide-sm-foot">' +
+    '<span><kbd>Tab</kbd> words / files</span>' +
+    '<span><kbd>Up</kbd><kbd>Down</kbd> navigate</span>' +
+    '<span><kbd>Click</kbd> preview / expand</span>' +
+    '<span><kbd>Double-click</kbd> or <kbd>Enter</kbd> open</span>' +
+    '<span><kbd>Esc</kbd> close</span>' +
+    '<span class="ide-sm-foot-note">Preview lines are editable. Results stream in: exact matches first, then similar words</span>' +
+  '</div>' +
+'</div>';
 
 let overlay = null;
 let input = null;
@@ -136,7 +276,7 @@ function loadState() {
 function saveState() {
   if (!input || !repIn) return;
   try {
-    localStorage.setItem(LS_STATE, JSON.stringify({ q: input.value, rep: repIn.value, cs: repCase }));
+    localStorage.setItem(LS_STATE, JSON.stringify({ cs: repCase, mode }));
   } catch (_) {}
 }
 
@@ -170,9 +310,12 @@ function build() {
   btnAll = overlay.querySelector('[data-r="all"]');
   btnRevert = overlay.querySelector('[data-r="revert"]');
   btnCase = overlay.querySelector('[data-r="case"]');
+  fx.bar = overlay.querySelector('.ide-sm-ext');
+  fx.chips = overlay.querySelector('.ide-sm-ext-chips');
+  fx.clear = overlay.querySelector('.ide-sm-ext-clear');
   const st = loadState();
-  input.value = typeof st.q === 'string' ? st.q : '';
-  repIn.value = typeof st.rep === 'string' ? st.rep : '';
+  input.value = '';
+  repIn.value = '';
   repCase = !!st.cs;
   btnCase.classList.toggle('on', repCase);
   overlay.addEventListener('mousedown', (e) => {
@@ -191,6 +334,13 @@ function build() {
   });
   repIn.addEventListener('keydown', onRepKey);
   overlay.querySelector('.ide-sm-rep').addEventListener('click', onRepClick);
+  fx.bar.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+  });
+  fx.bar.addEventListener('click', onExtClick);
+  document.addEventListener('ide:close-search', () => {
+    close(true);
+  });
   listEl.addEventListener('mousedown', (e) => e.preventDefault());
   listEl.addEventListener('click', (e) => {
     const grp = e.target.closest('.ide-sm-grp');
@@ -216,6 +366,7 @@ function build() {
   if (api) api.onBatch(onBatch);
   showEmpty('Type at least ' + MIN_CHARS + ' characters to search the codebase.');
   updateRepUi();
+  renderExts();
 }
 
 function setStatus(text) {
@@ -250,12 +401,19 @@ function clearPreview() {
   pvCode.innerHTML = '';
 }
 
-function schedule() {
+function schedule(delay) {
   clearTimeout(timer);
+  const len = input ? input.value.trim().length : 0;
+  let wait = DEBOUNCE;
+  if (typeof delay === 'number') wait = delay;
+  else if (len >= DELAYS.length) wait = DEBOUNCE_LONG;
+  else wait = DELAYS[len];
+  if (finished && len >= MIN_CHARS) setStatus('Waiting for you to stop typing...');
   timer = setTimeout(() => {
     timer = 0;
     run();
-  }, DEBOUNCE);
+  }, wait);
+  updateRepUi();
 }
 
 function cancelRemote() {
@@ -289,6 +447,15 @@ function rowHtml(r, i, isSel, nested) {
       '<span class="ide-sm-nl">' + esc(label) + '</span>' +
       '<div class="ide-sm-code">' + codeHtml(r) + '</div>' +
       (r.kind === 'file' ? '' : tagFor(r.kind)) +
+    '</div>';
+  }
+  if (r.kind === 'file') {
+    return '<div class="' + cls + '" data-i="' + i + '">' +
+      '<div class="ide-sm-code">' + codeHtml(r) + '</div>' +
+      '<div class="ide-sm-meta">' + fileIcon(baseName(r.rel)) +
+        '<span class="ide-sm-path">' + esc(r.rel) + '</span>' +
+        (mode === 'files' ? '' : tagFor(r.kind)) +
+      '</div>' +
     '</div>';
   }
   return '<div class="' + cls + '" data-i="' + i + '">' +
@@ -359,8 +526,9 @@ function updateStatus() {
   const count = results.length;
   const files = new Set();
   for (const r of results) files.add(r.rel);
+  const filt = fx.sel.size ? ' (' + fx.sel.size + ' file type' + (fx.sel.size === 1 ? '' : 's') + ')' : '';
   if (!finished) {
-    setStatus('Searching ' + (PHASE_LABEL[phase] || '') + '... ' + count + ' found');
+    setStatus('Searching ' + (PHASE_LABEL[phase] || '') + '... ' + count + ' found' + filt);
     barEl.classList.add('on');
     barFill.style.width = Math.max(4, Math.round(progress * 100)) + '%';
     return;
@@ -369,7 +537,7 @@ function updateStatus() {
   barFill.style.width = '0%';
   const extra = doneInfo && typeof doneInfo.ms === 'number' ? ' in ' + (doneInfo.ms / 1000).toFixed(2) + 's' : '';
   const part = doneInfo && doneInfo.truncated ? ' (partial)' : '';
-  setStatus(count + ' results in ' + files.size + ' files' + extra + part);
+  setStatus(count + ' results in ' + files.size + ' files' + extra + part + filt);
 }
 
 function isReady() {
@@ -477,7 +645,7 @@ function run() {
     finished = true;
     pendingReset = false;
     listEl.classList.remove('stale');
-    showEmpty('Type at least ' + MIN_CHARS + ' characters to search the codebase.');
+    showEmpty(emptyMsg());
     setStatus('');
     barEl.classList.remove('on');
     updateRepUi();
@@ -503,7 +671,7 @@ function run() {
   updateRepUi();
   const inv = Array.from(pendingInvalidate);
   pendingInvalidate.clear();
-  api.start({ id: my, root, query: q, max: REQ_MAX, invalidate: inv }).then((res) => {
+  api.start({ id: my, root, query: q, max: REQ_MAX, invalidate: inv, exts: Array.from(fx.sel), mode }).then((res) => {
     if (my !== curId) return;
     if (res && res.success === false) {
       finished = true;
@@ -572,6 +740,17 @@ function selIndex() {
   return i < 0 ? 0 : i;
 }
 
+function centerInList(el) {
+  if (!el || !listEl) return;
+  const lr = listEl.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  const delta = er.top - lr.top - (lr.height / 2 - er.height / 2);
+  if (Math.abs(delta) < 2) return;
+  const max = Math.max(0, listEl.scrollHeight - listEl.clientHeight);
+  const top = Math.max(0, Math.min(max, listEl.scrollTop + delta));
+  listEl.scrollTo({ top, behavior: 'smooth' });
+}
+
 function setSelIndex(i) {
   const n = nav.length;
   if (!n) return;
@@ -587,11 +766,9 @@ function setSelIndex(i) {
   const el = listEl.querySelector('.ide-sm-row[data-i="' + next + '"]');
   if (el) {
     el.classList.add('sel');
-    const prevEl = el.previousElementSibling;
-    const target = prevEl && prevEl.classList.contains('ide-sm-grp') ? prevEl : el;
-    target.scrollIntoView({ block: 'nearest' });
+    centerInList(el);
   } else if (gEl) {
-    gEl.scrollIntoView({ block: 'nearest' });
+    centerInList(gEl);
   }
   if (sel !== previewFor) {
     previewFor = sel;
@@ -863,8 +1040,17 @@ function arm() {
   updateRepUi();
 }
 
+function escapeRegex(s) {
+  let out = '';
+  const bs = String.fromCharCode(92);
+  for (const ch of String(s)) {
+    out += RE_SPECIAL.indexOf(ch) !== -1 ? bs + ch : ch;
+  }
+  return out;
+}
+
 function regexFor(q) {
-  return new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), repCase ? 'g' : 'gi');
+  return new RegExp(escapeRegex(q), repCase ? 'g' : 'gi');
 }
 
 function replaceInText(text, re, rep, onlyLine) {
@@ -1101,8 +1287,9 @@ function onRepKey(e) {
     e.preventDefault();
     if (e.ctrlKey && e.altKey) {
       if (!btnAll.disabled) {
-        if (!armed) arm();
-        else {
+        if (!armed) {
+          arm();
+        } else {
           disarm();
           replaceAll();
         }
@@ -1132,6 +1319,11 @@ function onKey(e) {
   if (k === 'Escape') {
     e.preventDefault();
     close();
+    return;
+  }
+  if (k === 'Tab') {
+    e.preventDefault();
+    setMode(mode === 'words' ? 'files' : 'words');
     return;
   }
   if (k === 'ArrowDown' || (ctrl && (k === 'n' || k === 'j'))) {
@@ -1183,10 +1375,10 @@ export function isOpen() {
 
 export function open(prefill) {
   build();
+  wireMode();
   prevFocus = document.activeElement;
   overlay.hidden = false;
-  const api = streamApi();
-  if (api && state.selectedRepoPath) api.warm(state.selectedRepoPath).catch(() => {});
+  if (state.selectedRepoPath) loadExts(state.selectedRepoPath);
   const text = prefill ? String(prefill) : '';
   const changed = !!text && text !== input.value;
   if (text) input.value = text;
@@ -1238,14 +1430,19 @@ export function reset() {
   pendingOpen = false;
   doneInfo = null;
   fileCache = new Map();
+  fx.sel = new Set();
+  fx.list = [];
+  fx.req++;
   if (!overlay) return;
   close(true);
   input.value = '';
+  repIn.value = '';
   listEl.classList.remove('stale');
   showEmpty('Type at least ' + MIN_CHARS + ' characters to search the codebase.');
   setStatus('');
   setRepMsg('');
   barEl.classList.remove('on');
   saveState();
+  renderExts();
   updateRepUi();
 }

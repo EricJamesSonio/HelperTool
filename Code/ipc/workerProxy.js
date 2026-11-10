@@ -10,6 +10,8 @@ let _restartTimer = null;
 let _restartDelay = 1000;
 let _ready = false;
 let _queue = [];
+let _idle = false;
+let _stopped = false;
 
 const _events = new EventEmitter();
 
@@ -17,18 +19,43 @@ function _getWorkerPath() {
   return path.join(__dirname, '..', 'worker-service', 'worker.js');
 }
 
+function _rejectAll(err) {
+  for (const [, p] of _pending) p.reject(err);
+  _pending.clear();
+  const items = _queue;
+  _queue = [];
+  for (const item of items) item.reject(err);
+}
+
+function _killWorker(reason) {
+  if (_restartTimer) {
+    clearTimeout(_restartTimer);
+    _restartTimer = null;
+  }
+  const child = _worker;
+  _worker = null;
+  _ready = false;
+  _rejectAll(new Error(reason));
+  if (child) {
+    try { child.kill(); } catch (_) {}
+  }
+}
+
 function _spawn() {
   if (_worker) {
-    try { _worker.kill(); } catch (_) {}
+    const old = _worker;
     _worker = null;
+    try { old.kill(); } catch (_) {}
   }
+  _idle = false;
+  _stopped = false;
   _ready = false;
   updateService('worker', 'running', 'Starting worker process...');
 
-  const workerPath = _getWorkerPath();
-  _worker = fork(workerPath, [], { silent: false });
+  const child = fork(_getWorkerPath(), [], { silent: false });
+  _worker = child;
 
-  _worker.on('message', (msg) => {
+  child.on('message', (msg) => {
     if (msg.id === 'bootstrap' && msg.type === 'ready') {
       _ready = true;
       _restartDelay = 1000;
@@ -37,7 +64,6 @@ function _spawn() {
       return;
     }
 
-    // Progress is an unsolicited event
     if (msg.type === 'progress') {
       _events.emit('progress', msg.data || {});
       return;
@@ -54,20 +80,19 @@ function _spawn() {
     }
   });
 
-  _worker.on('exit', (code) => {
-    console.warn(`[Worker] Exited with code ${code}`);
+  child.on('exit', (code) => {
+    console.warn('[Worker] Exited with code ' + code);
+    if (_worker !== child) return;
     _ready = false;
-    updateService('worker', 'failed', `Exited with code ${code}`);
     _worker = null;
-    for (const [, p] of _pending) p.reject(new Error('Worker process exited'));
-    _pending.clear();
-    for (const item of _queue) item.reject(new Error('Worker process exited'));
-    _queue = [];
+    updateService('worker', 'failed', 'Exited with code ' + code);
+    _rejectAll(new Error('Worker process exited'));
     _scheduleRestart();
   });
 
-  _worker.on('error', (err) => {
+  child.on('error', (err) => {
     console.error('[Worker] Spawn error:', err.message);
+    if (_worker !== child) return;
     updateService('worker', 'failed', err.message);
     _scheduleRestart();
   });
@@ -88,7 +113,7 @@ function _sendRaw(msg, timeout) {
 
     const timer = setTimeout(() => {
       _pending.delete(id);
-      reject(new Error(`Worker request timed out: ${msg.type}`));
+      reject(new Error('Worker request timed out: ' + msg.type));
     }, resolvedTimeout);
 
     _pending.set(id, {
@@ -108,7 +133,7 @@ function _queueOrSend(msg, timeout) {
 }
 
 function _scheduleRestart() {
-  if (_restartTimer) return;
+  if (_restartTimer || _idle || _stopped) return;
   _restartTimer = setTimeout(() => {
     _restartTimer = null;
     _spawn();
@@ -117,21 +142,41 @@ function _scheduleRestart() {
 }
 
 function start() {
+  _stopped = false;
+  _idle = false;
   if (!_worker) _spawn();
 }
 
 function stop() {
-  if (_restartTimer) {
-    clearTimeout(_restartTimer);
-    _restartTimer = null;
+  _stopped = true;
+  _killWorker('Worker stopped');
+}
+
+function isBusy() {
+  return _pending.size > 0 || _queue.length > 0;
+}
+
+function sleep(force) {
+  if (!_worker && !_restartTimer) {
+    _idle = true;
+    return { ok: true, already: true };
   }
-  if (_worker) {
-    try { _worker.kill(); } catch (_) {}
-    _worker = null;
-  }
-  _ready = false;
-  _pending.clear();
-  _queue = [];
+  if (isBusy() && !force) return { ok: false, busy: true };
+  _idle = true;
+  _killWorker('Worker went to sleep');
+  updateService('worker', 'done', 'Asleep');
+  return { ok: true };
+}
+
+function wake() {
+  if (!_idle) return false;
+  _idle = false;
+  if (!_worker && !_stopped) _spawn();
+  return true;
+}
+
+function isAsleep() {
+  return _idle;
 }
 
 function isReady() {
@@ -139,6 +184,7 @@ function isReady() {
 }
 
 async function send(type, payload, timeout) {
+  if (!_worker && !_restartTimer && !_stopped) _spawn();
   const res = await _queueOrSend({ type, payload }, timeout);
   return res;
 }
@@ -151,4 +197,4 @@ function offProgress(cb) {
   _events.off('progress', cb);
 }
 
-module.exports = { start, stop, isReady, send, onProgress, offProgress };
+module.exports = { start, stop, sleep, wake, isAsleep, isBusy, isReady, send, onProgress, offProgress };

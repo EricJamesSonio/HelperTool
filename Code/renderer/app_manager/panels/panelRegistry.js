@@ -170,3 +170,13 @@ export default class PanelRegistry {
     closeServiceTracker();
   }
 }
+const _origCloseAll = PanelRegistry.prototype.closeAll;
+PanelRegistry.prototype.closeAll = function closeAllWithIdeSearch() {
+  document.dispatchEvent(new CustomEvent('ide:close-search'));
+  return _origCloseAll.apply(this, arguments);
+};
+const _closeAllBase = PanelRegistry.prototype.closeAll;
+PanelRegistry.prototype.closeAll = function closeAllWithHelpDocs() {
+  document.getElementById('hdPanel')?.classList.remove('open');
+  return _closeAllBase.apply(this, arguments);
+};

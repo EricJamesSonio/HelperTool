@@ -5,6 +5,413 @@ import * as minimap from './minimap.js';
 import * as mediaViewer from './mediaViewer.js';
 import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+import * as ext from './extensions/index.js';
+import * as fmt from './extensions/formatter.js';
+import * as runners from './extensions/runners.js';
+import * as lineMarks from './lineMarks.js';
+
+const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
+const SEV_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' };
+const SEV_ICON = { error: '\u2297', warning: '\u26A0', info: '\u24D8' };
+const SEV_RANK = { error: 3, warning: 2, info: 1 };
+const INLINE_MAX = 140;
+const OPEN_JS = ['(', '[', String.fromCharCode(123)];
+const OPEN_PY = OPEN_JS.concat([':']);
+
+function worstDiag(arr) {
+  let best = arr[0];
+  for (const d of arr) {
+    if (SEV_RANK[d.sev] > SEV_RANK[best.sev]) best = d;
+  }
+  return best;
+}
+
+let diag = { list: [], byLine: new Map(), lineCount: 0 };
+let tipDiag = null;
+let tipRaf = 0;
+let tipX = 0;
+let tipY = 0;
+let problemsOpen = false;
+
+function buildDiagIndex(list) {
+  const byLine = new Map();
+  for (const d of list) {
+    let a = byLine.get(d.line);
+    if (!a) {
+      a = [];
+      byLine.set(d.line, a);
+    }
+    a.push(d);
+  }
+  for (const a of byLine.values()) a.sort((x, y) => x.col - y.col);
+  return byLine;
+}
+
+function diagHtml(from, to) {
+  if (!diag.list.length) return '';
+  const parts = [];
+  for (let i = from; i <= to; i++) {
+    const arr = diag.byLine.get(i + 1);
+    if (!arr) {
+      parts.push('<span class="ide-dl"></span>');
+      continue;
+    }
+    const line = lines[i] || '';
+    let out = '';
+    if (line.length) {
+      let pos = 0;
+      for (const d of arr) {
+        const s = Math.min(d.col, line.length - 1);
+        if (s < pos) continue;
+        let e = Math.min(line.length, s + Math.max(1, d.len));
+        if (e <= s) e = Math.min(line.length, s + 1);
+        out += esc(line.slice(pos, s)) + '<span class="ide-dg ide-dg-' + SEV_CLS[d.sev] + '">' + esc(line.slice(s, e)) + '</span>';
+        pos = e;
+      }
+      out += esc(line.slice(pos));
+    }
+    const top = worstDiag(arr);
+    let msg = top.msg.length > INLINE_MAX ? top.msg.slice(0, INLINE_MAX - 1) + '\u2026' : top.msg;
+    if (arr.length > 1) msg += '  (+' + (arr.length - 1) + ' more)';
+    out += '<span class="ide-dm ide-dm-' + SEV_CLS[top.sev] + '">' + SEV_ICON[top.sev] + ' ' + esc(msg) + '</span>';
+    parts.push('<span class="ide-dl ide-dl-' + SEV_CLS[top.sev] + '">' + out + '</span>');
+  }
+  return parts.join('');
+}
+
+function renderProblemsList() {
+  if (!els) return;
+  const total = diag.list.length;
+  els.pbList.innerHTML = total
+    ? diag.list.slice(0, 200).map((d, i) =>
+      '<div class="ide-pb-row" data-i="' + i + '">' +
+        '<span class="ide-pb-sev ' + SEV_CLS[d.sev] + '"></span>' +
+        '<span class="ide-pb-msg">' + esc(d.msg) + '</span>' +
+        '<span class="ide-pb-src">' + esc(d.src || '') + '</span>' +
+        '<span class="ide-pb-loc">[' + d.line + ':' + (d.col + 1) + ']</span>' +
+      '</div>'
+    ).join('')
+    : '<div class="ide-pb-empty">No problems detected in this file.</div>';
+  els.pbTitle.textContent = 'Problems' + (total ? ' (' + total + ')' : '');
+  const head = els.problems.querySelector('.ide-pb-head');
+  if (head && !head.querySelector('.ide-pb-copy')) {
+    const cb = document.createElement('button');
+    cb.type = 'button';
+    cb.className = 'ide-pb-copy';
+    cb.textContent = 'Copy all';
+    cb.title = 'Copy all problems to the clipboard';
+    const closeBtn = head.querySelector('.ide-pb-x');
+    if (closeBtn) head.insertBefore(cb, closeBtn);
+    else head.appendChild(cb);
+  }
+}
+
+function setProblemsOpen(on) {
+  problemsOpen = !!on;
+  els.problems.hidden = !problemsOpen;
+  els.stProb.classList.toggle('open', problemsOpen);
+  if (problemsOpen) renderProblemsList();
+}
+
+const WL_KEY = 'helpertool-ide-wl-collapsed';
+let wlSelKey = '';
+
+function wlKey(d) {
+  return d.line + ':' + d.col + ':' + d.msg;
+}
+
+function centerWlRow(row) {
+  const list = row ? row.closest('.ide-wl-list') : null;
+  if (!list) return;
+  const lr = list.getBoundingClientRect();
+  const rr = row.getBoundingClientRect();
+  const delta = rr.top - lr.top - (lr.height / 2 - rr.height / 2);
+  const max = Math.max(0, list.scrollHeight - list.clientHeight);
+  const top = Math.max(0, Math.min(max, list.scrollTop + delta));
+  if (Math.abs(top - list.scrollTop) > 1) list.scrollTo({ top, behavior: 'smooth' });
+}
+
+function markWlSel(center) {
+  if (!wl || wl.hidden || wlCollapsed) return;
+  let found = null;
+  wl.querySelectorAll('.ide-wl-row').forEach((r) => {
+    const d = diag.list[Number(r.dataset.i)];
+    const on = !!d && wlKey(d) === wlSelKey;
+    r.classList.toggle('sel', on);
+    if (on) found = r;
+  });
+  if (center && found) centerWlRow(found);
+}
+
+function syncWlToCaret(line) {
+  if (!diag.list.length) {
+    if (wlSelKey) {
+      wlSelKey = '';
+      markWlSel(false);
+    }
+    return;
+  }
+  const cur = diag.list.find((d) => wlKey(d) === wlSelKey);
+  if (cur && cur.line === line) return;
+  const hit = diag.list.find((d) => d.line === line);
+  const key = hit ? wlKey(hit) : '';
+  if (key === wlSelKey) return;
+  wlSelKey = key;
+  markWlSel(true);
+}
+
+let wl = null;
+let wlCollapsed = false;
+try {
+  wlCollapsed = localStorage.getItem(WL_KEY) === '1';
+} catch (_) {
+  wlCollapsed = false;
+}
+
+function onWlClick(e) {
+  if (e.target.closest('[data-wl="copy"]')) {
+    e.stopPropagation();
+    copyProblemsText();
+    return;
+  }
+  if (e.target.closest('[data-wl="toggle"]')) {
+    wlCollapsed = !wlCollapsed;
+    try { localStorage.setItem(WL_KEY, wlCollapsed ? '1' : '0'); } catch (_) {}
+    renderWarnList();
+    return;
+  }
+  const row = e.target.closest('.ide-wl-row');
+  if (!row) return;
+  const d = diag.list[Number(row.dataset.i)];
+  if (!d) return;
+  wlSelKey = wlKey(d);
+  markWlSel(true);
+  gotoDiag(d);
+}
+
+function ensureWl() {
+  if (wl || !els) return wl;
+  wl = document.createElement('div');
+  wl.className = 'ide-wl';
+  wl.hidden = true;
+  wl.addEventListener('click', onWlClick);
+  wl.addEventListener('mousedown', (e) => e.stopPropagation());
+  wl.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+  const host = els.ta.parentElement || els.codewrap;
+  host.appendChild(wl);
+  return wl;
+}
+
+function renderWarnList() {
+  const box = ensureWl();
+  if (!box) return;
+  const tab = activeTab();
+  const total = diag.list.length;
+  if (!isText(tab) || !total) {
+    wlSelKey = '';
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  let e = 0;
+  let w = 0;
+  let n = 0;
+  for (const d of diag.list) {
+    if (d.sev === 'error') e++;
+    else if (d.sev === 'warning') w++;
+    else n++;
+  }
+  const counts =
+    (e ? '<span class="ide-wl-c e">\u2297 ' + e + '</span>' : '') +
+    (w ? '<span class="ide-wl-c w">\u26A0 ' + w + '</span>' : '') +
+    (n ? '<span class="ide-wl-c i">\u24D8 ' + n + '</span>' : '');
+  const head =
+    '<div class="ide-wl-head" data-wl="toggle" title="Click to ' + (wlCollapsed ? 'expand' : 'collapse') + '">' +
+      '<span class="ide-wl-chev">' + (wlCollapsed ? '\u25B8' : '\u25BE') + '</span>' +
+      '<span class="ide-wl-title">Problems</span>' +
+      counts +
+      '<button type="button" class="ide-wl-copy" data-wl="copy" title="Copy all problems to the clipboard">Copy all</button>' +
+    '</div>';
+  box.classList.toggle('collapsed', wlCollapsed);
+  if (wlCollapsed) {
+    box.innerHTML = head;
+    return;
+  }
+  const prev = box.querySelector('.ide-wl-list');
+  const keep = prev ? prev.scrollTop : 0;
+  const rows = diag.list.slice(0, 200).map((d, i) =>
+    '<div class="ide-wl-row' + (wlKey(d) === wlSelKey ? ' sel' : '') + '" data-i="' + i + '" title="' + attr(d.msg) + '">' +
+      '<span class="ide-wl-ln">' + d.line + '</span>' +
+      '<span class="ide-wl-sev ' + SEV_CLS[d.sev] + '">' + SEV_ICON[d.sev] + '</span>' +
+      '<span class="ide-wl-msg">' + esc(d.msg) + '</span>' +
+    '</div>'
+  ).join('');
+  box.innerHTML = head + '<div class="ide-wl-list">' + rows + '</div>';
+  const list = box.querySelector('.ide-wl-list');
+  if (list) list.scrollTop = keep;
+}
+function updateProblemsUi() {
+  if (!els) return;
+  renderWarnList();
+  const tab = activeTab();
+  const show = isText(tab) && ext.handles(tab.name);
+  els.stProb.hidden = !show;
+  if (!show) {
+    if (problemsOpen) setProblemsOpen(false);
+    return;
+  }
+  let e = 0;
+  let w = 0;
+  let n = 0;
+  for (const d of diag.list) {
+    if (d.sev === 'error') e++;
+    else if (d.sev === 'warning') w++;
+    else n++;
+  }
+  els.stProb.innerHTML =
+    '<span class="ide-pc e' + (e ? ' has' : '') + '">\u2297 ' + e + '</span>' +
+    '<span class="ide-pc w' + (w ? ' has' : '') + '">\u26A0 ' + w + '</span>' +
+    (n ? '<span class="ide-pc i has">\u24D8 ' + n + '</span>' : '');
+  els.stProb.title = e + ' error(s), ' + w + ' warning(s), ' + n + ' info. Click to toggle the Problems list (F8: next problem)';
+  if (problemsOpen) renderProblemsList();
+}
+
+function setDiags(list, quiet) {
+  const arr = Array.isArray(list) ? list.slice() : [];
+  arr.sort((a, b) => (a.line - b.line) || (a.col - b.col));
+  const had = diag.list.length > 0;
+  diag = { list: arr, byLine: buildDiagIndex(arr), lineCount: lines.length };
+  updateProblemsUi();
+  hideTip();
+  if (!quiet && (had || arr.length)) invalidate();
+}
+
+function queueDiag(delay) {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  const path = tab.path;
+  ext.analyze(path, tab.name, () => els.ta.value, delay, (list) => {
+    if (activePath !== path) return;
+    if (!isText(activeTab())) return;
+    setDiags(list || []);
+  });
+}
+
+function gotoDiag(d) {
+  const tab = activeTab();
+  if (!isText(tab) || !d) return;
+  const starts = lineStartsOf(els.ta.value);
+  const ln = Math.min(Math.max(1, d.line), starts.length) - 1;
+  const col = Math.max(0, d.col);
+  const off = starts[ln] + col;
+  try { els.ta.setSelectionRange(off, off); } catch (_) {}
+  revealMatch(ln, col, d.len, true);
+  startPulse(ln, col, d.len);
+  els.ta.focus({ preventScroll: true });
+  scheduleCursor();
+}
+
+function stepDiag(dir) {
+  if (!diag.list.length) return;
+  const starts = lineStartsOf(els.ta.value);
+  const caret = els.ta.selectionStart;
+  const offs = diag.list.map((d) => (starts[Math.min(d.line, starts.length) - 1] || 0) + d.col);
+  let pick = -1;
+  if (dir > 0) {
+    for (let i = 0; i < offs.length; i++) {
+      if (offs[i] > caret) {
+        pick = i;
+        break;
+      }
+    }
+    if (pick < 0) pick = 0;
+  } else {
+    for (let i = offs.length - 1; i >= 0; i--) {
+      if (offs[i] < caret) {
+        pick = i;
+        break;
+      }
+    }
+    if (pick < 0) pick = offs.length - 1;
+  }
+  gotoDiag(diag.list[pick]);
+}
+
+function onDiagKey(e) {
+  if (e.key !== 'F8' || e.ctrlKey || e.altKey || e.metaKey) return;
+  e.preventDefault();
+  stepDiag(e.shiftKey ? -1 : 1);
+}
+
+function diagAt(x, y) {
+  if (!diag.list.length) return null;
+  const ta = els.ta;
+  const r = ta.getBoundingClientRect();
+  const px = x - r.left + ta.scrollLeft - 12;
+  const py = y - r.top + ta.scrollTop - PAD;
+  if (px < 0 || py < 0) return null;
+  const line = Math.floor(py / LH) + 1;
+  const col = Math.floor(px / charWidth());
+  const arr = diag.byLine.get(line);
+  if (!arr) return null;
+  for (const d of arr) {
+    if (col >= d.col && col < d.col + Math.max(1, d.len)) return d;
+  }
+  return null;
+}
+
+function hideTip() {
+  tipDiag = null;
+  if (els && els.tip) els.tip.hidden = true;
+}
+
+function onTaMove(e) {
+  if (!diag.list.length) {
+    if (tipDiag) hideTip();
+    return;
+  }
+  tipX = e.clientX;
+  tipY = e.clientY;
+  if (tipRaf) return;
+  tipRaf = requestAnimationFrame(() => {
+    tipRaf = 0;
+    const d = diagAt(tipX, tipY);
+    if (!d) {
+      hideTip();
+      return;
+    }
+    if (d !== tipDiag) {
+      tipDiag = d;
+      els.tip.className = 'ide-diag-tip ide-tip-' + SEV_CLS[d.sev];
+      els.tip.innerHTML =
+        '<div class="ide-tip-head">' +
+          '<span class="ide-tip-sev ' + SEV_CLS[d.sev] + '">' + SEV_ICON[d.sev] + ' ' + SEV_LABEL[d.sev] + '</span>' +
+          (d.src ? '<span class="ide-tip-src">' + esc(d.src) + '</span>' : '') +
+          '<span class="ide-tip-loc">Ln ' + d.line + ', Col ' + (d.col + 1) + '</span>' +
+        '</div>' +
+        '<div class="ide-tip-msg">' + esc(d.msg) + '</div>';
+    }
+    els.tip.hidden = false;
+    const er = els.editor.getBoundingClientRect();
+    const x = Math.max(4, Math.min(tipX - er.left + 14, er.width - 450));
+    els.tip.style.left = x + 'px';
+    els.tip.style.top = (tipY - er.top + 20) + 'px';
+  });
+}
+
+function onProblemsClick(e) {
+  if (e.target.closest('.ide-pb-copy')) {
+    copyProblemsText();
+    return;
+  }
+  if (e.target.closest('.ide-pb-x')) {
+    setProblemsOpen(false);
+    return;
+  }
+  const row = e.target.closest('.ide-pb-row');
+  if (!row) return;
+  gotoDiag(diag.list[Number(row.dataset.i)]);
+}
 
 const LH = 20;
 const PAD = 8;
@@ -36,6 +443,7 @@ const TEMPLATE =
         '<div class="ide-wk"><span>Find in file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>F</kbd></span></div>' +
         '<div class="ide-wk"><span>Replace in file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>' +
         '<div class="ide-wk"><span>Search codebase</span><span class="ide-wk-keys"><kbd>F2</kbd></span></div>' +
+        '<div class="ide-wk"><span>Next problem</span><span class="ide-wk-keys"><kbd>F8</kbd></span></div>' +
         '<div class="ide-wk"><span>Close tab</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>W</kbd></span></div>' +
       '</div>' +
       '<div class="ide-welcome-foot">Images, video, audio and PDF files open right here too.</div>' +
@@ -65,16 +473,27 @@ const TEMPLATE =
   '<div class="ide-codewrap" hidden>' +
     '<div class="ide-gutter"><pre class="ide-gutter-inner"></pre></div>' +
     '<div class="ide-code">' +
+      '<div class="ide-diag-layer"><pre class="ide-diag-inner"></pre></div>' +
       '<div class="ide-find-layer"><pre class="ide-find-inner"></pre></div>' +
       '<div class="ide-hl"><pre class="ide-hl-inner"></pre></div>' +
       '<textarea class="ide-ta" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>' +
     '</div>' +
     '<div class="ide-minimap"></div>' +
   '</div>' +
+  '<div class="ide-diag-tip" hidden></div>' +
+'</div>' +
+'<div class="ide-problems" hidden>' +
+  '<div class="ide-pb-head">' +
+    '<span class="ide-pb-title">Problems</span>' +
+    '<span class="ide-pb-hint">F8 next problem, Shift+F8 previous</span>' +
+    '<button type="button" class="ide-pb-x" title="Close">' + I_X + '</button>' +
+  '</div>' +
+  '<div class="ide-pb-list"></div>' +
 '</div>' +
 '<div class="ide-status">' +
   '<span class="ide-st-msg"></span>' +
   '<span class="ide-st-spacer"></span>' +
+  '<span class="ide-st-item ide-st-problems" hidden></span>' +
   '<span class="ide-st-item ide-st-pos"></span>' +
   '<span class="ide-st-item">Spaces: 2</span>' +
   '<span class="ide-st-item">UTF-8</span>' +
@@ -161,10 +580,10 @@ function invalidate() {
   schedule();
 }
 
-function flash(msg) {
+function flash(msg, ms) {
   els.msg.textContent = msg;
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => { els.msg.textContent = ''; }, 2000);
+  flashTimer = setTimeout(() => { els.msg.textContent = ''; }, ms || 2000);
 }
 
 function scheduleSave() {
@@ -220,12 +639,93 @@ function charWidth() {
 
 function renderCrumbs(tab) {
   if (!tab) {
-    els.crumbs.innerHTML = '';
+    els.crumbPath.innerHTML = '';
+    updateRunbar(null);
     return;
   }
-  els.crumbs.innerHTML = relParts(tab.filePath || tab.path)
+  els.crumbPath.innerHTML = relParts(tab.filePath || tab.path)
     .map((part, i, arr) => '<span class="ide-crumb' + (i === arr.length - 1 ? ' last' : '') + '">' + esc(part) + '</span>')
     .join('<span class="ide-crumb-sep"></span>');
+  updateRunbar(tab);
+}
+const RB_BUG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h6V10a3 3 0 0 1-6 0z"/><path d="M6 4l2-2 2 2"/><path d="M5 8H2.5M11 8h2.5M5.5 11.5L3.5 13M10.5 11.5l2 1.5"/></svg>';
+const RB_PLAY = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M4.5 2.8v10.4a.6.6 0 0 0 .92.5l8-5.2a.6.6 0 0 0 0-1l-8-5.2a.6.6 0 0 0-.92.5z"/></svg>';
+const RUNBAR_HTML =
+  '<div class="ide-runbar" hidden>' +
+    '<button type="button" class="ide-rb-btn dbg" data-rb="debug" title="Check this file strictly with the active extensions">' + RB_BUG + 'Debug</button>' +
+    '<button type="button" class="ide-rb-btn run" data-rb="run" title="Save and run this file in the terminal">' + RB_PLAY + 'Run</button>' +
+  '</div>';
+
+function updateRunbar(tab) {
+  if (!els || !els.runbar) return;
+  const ok = isText(tab);
+  const runner = ok ? runners.runnerFor(tab.name) : null;
+  const canDbg = ok && ext.supports(tab.name);
+  els.runbar.hidden = !(runner || canDbg);
+  els.dbgBtn.hidden = !canDbg;
+  els.runBtn.hidden = !runner;
+  if (runner) els.runBtn.title = 'Save and run ' + tab.name + ' in the terminal (' + runner.label + ')';
+}
+
+function debugActive() {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  ext.noteFile(tab.name);
+  if (!ext.handles(tab.name)) {
+    flash(ext.supports(tab.name)
+      ? 'The extension for this file type is turned off. Open Extensions (F3) to enable it.'
+      : 'No extension supports this file type', 4000);
+    return;
+  }
+  const path = tab.path;
+  els.dbgBtn.classList.add('busy');
+  flash('Debug: checking ' + tab.name + '...', 4000);
+  ext.analyze(path, tab.name, () => els.ta.value, 0, (list) => {
+    els.dbgBtn.classList.remove('busy');
+    if (activePath !== path || !isText(activeTab())) return;
+    const arr = Array.isArray(list) ? list : [];
+    setDiags(arr);
+    if (!arr.length) {
+      flash('Debug: no problems found in ' + tab.name, 3500);
+      return;
+    }
+    let e = 0;
+    let w = 0;
+    let n = 0;
+    for (const d of arr) {
+      if (d.sev === 'error') e++;
+      else if (d.sev === 'warning') w++;
+      else n++;
+    }
+    setProblemsOpen(true);
+    gotoDiag(diag.list.find((d) => d.sev === 'error') || diag.list[0]);
+    flash('Debug: ' + e + ' error(s), ' + w + ' warning(s), ' + n + ' info', 5000);
+  });
+}
+
+async function runActive() {
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  const runner = runners.runnerFor(tab.name);
+  if (!runner) {
+    flash('This file type cannot be run', 3000);
+    return;
+  }
+  if (tab.dirty || els.ta.value !== tab.saved) await save();
+  if (activeTab() !== tab) return;
+  if (els.ta.value !== tab.saved) {
+    flash('Save failed, not running', 3000);
+    return;
+  }
+  document.dispatchEvent(new CustomEvent('ide:run-file', { detail: { path: tab.path, name: tab.name } }));
+  flash('Running ' + tab.name + ' in the terminal', 2500);
+}
+
+function onRunbarClick(e) {
+  const b = e.target.closest('[data-rb]');
+  if (!b) return;
+  if (b.dataset.rb === 'debug') debugActive();
+  else if (b.dataset.rb === 'run') runActive();
 }
 
 function tabIcon(t) {
@@ -263,7 +763,13 @@ function syncTransform() {
   const tr = 'translate(' + (-ta.scrollLeft) + 'px,' + y + 'px)';
   els.hlInner.style.transform = tr;
   els.findInner.style.transform = tr;
+  els.diagInner.style.transform = tr;
+  if (guideInner) guideInner.style.transform = tr;
   els.gutterInner.style.transform = 'translateY(' + y + 'px)';
+  lineMarks.sync(ta, () => {
+    const t = activeTab();
+    return isText(t) ? { path: t.path, saved: t.saved } : null;
+  }, Math.max(0, rendered.from), rendered.to, y);
 }
 
 function clearPulse() {
@@ -362,6 +868,74 @@ function updateFindCount() {
   els.find.classList.toggle('empty', !!find.q && !n);
 }
 
+let guideInner = null;
+let guideUnitFor = null;
+let guideUnit = 2;
+
+function ensureGuides() {
+  if (guideInner || !els) return;
+  const code = els.ta.parentElement;
+  const layer = document.createElement('div');
+  layer.className = 'ide-guide-layer';
+  const pre = document.createElement('pre');
+  pre.className = 'ide-guide-inner';
+  layer.appendChild(pre);
+  code.insertBefore(layer, code.firstChild);
+  guideInner = pre;
+}
+
+function indentCols(line) {
+  let c = 0;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line.charCodeAt(i);
+    if (ch === 32) c++;
+    else if (ch === 9) c += 4 - (c % 4);
+    else return c;
+  }
+  return -1;
+}
+
+function detectGuideUnit() {
+  if (guideUnitFor === lines) return guideUnit;
+  guideUnitFor = lines;
+  let four = true;
+  let any = false;
+  const n = Math.min(lines.length, 500);
+  for (let i = 0; i < n; i++) {
+    const c = indentCols(lines[i]);
+    if (c > 0) {
+      any = true;
+      if (c % 4 !== 0) {
+        four = false;
+        break;
+      }
+    }
+  }
+  guideUnit = any && four ? 4 : 2;
+  return guideUnit;
+}
+
+function neighborIndent(i, step) {
+  let j = i + step;
+  for (let k = 0; k < 60 && j >= 0 && j < lines.length; k++) {
+    const c = indentCols(lines[j]);
+    if (c >= 0) return c;
+    j += step;
+  }
+  return 0;
+}
+
+function guidesHtml(from, to) {
+  const u = detectGuideUnit();
+  const parts = [];
+  for (let i = from; i <= to; i++) {
+    let c = indentCols(lines[i] || '');
+    if (c < 0) c = Math.min(neighborIndent(i, -1), neighborIndent(i, 1));
+    parts.push(c > 0 ? '<span class="ide-ig" style="width:' + c + 'ch"></span>' : '');
+  }
+  guideInner.style.setProperty('--u', String(u));
+  return parts.join('\n');
+}
 function render() {
   rafId = 0;
   const tab = activeTab();
@@ -371,6 +945,7 @@ function render() {
   if (textChanged) {
     textChanged = false;
     forced = true;
+    const fresh = tabSwitched;
     const text = ta.value;
     tab.content = text;
     const d = text !== tab.saved;
@@ -384,6 +959,11 @@ function render() {
     tabSwitched = false;
     els.codewrap.style.setProperty('--digits', String(Math.max(3, String(lines.length).length)));
     if (find.open) computeMatches(lines);
+    if (diag.list.length && diag.lineCount !== lines.length) {
+      diag = { list: [], byLine: new Map(), lineCount: lines.length };
+      updateProblemsUi();
+    }
+    queueDiag(fresh ? 40 : 650);
   }
   const top = ta.scrollTop;
   const h = ta.clientHeight || 600;
@@ -396,9 +976,17 @@ function render() {
     els.hlInner.innerHTML = highlightRange(lines, from, to, lang);
     const wantOverlay = (find.open && !!find.q) || !!pulse;
     els.findInner.innerHTML = wantOverlay ? overlayHtml(from, to) : '';
+    els.diagInner.innerHTML = diagHtml(from, to);
+    ensureGuides();
+    guideInner.innerHTML = guidesHtml(from, to);
     let nums = '';
-    for (let i = from; i <= to; i++) nums += (i + 1) + (i < to ? '\n' : '');
-    els.gutterInner.textContent = nums;
+    for (let i = from; i <= to; i++) {
+      const arr = diag.list.length ? diag.byLine.get(i + 1) : null;
+      if (arr) nums += '<span class="ide-gn ide-gn-' + SEV_CLS[worstDiag(arr).sev] + '">' + (i + 1) + '</span>';
+      else nums += String(i + 1);
+      if (i < to) nums += '\n';
+    }
+    els.gutterInner.innerHTML = nums;
     rendered.from = from;
     rendered.to = to;
   }
@@ -426,6 +1014,7 @@ function updateCursor() {
   const ls = pos === 0 ? 0 : v.lastIndexOf('\n', pos - 1) + 1;
   const sel = ta.selectionEnd - pos;
   els.pos.textContent = 'Ln ' + line + ', Col ' + (pos - ls + 1) + (sel > 0 ? ' (' + sel + ' selected)' : '');
+  syncWlToCaret(line);
 }
 
 function updateStatus(tab) {
@@ -451,8 +1040,9 @@ function saveViewState() {
   cur.selEnd = els.ta.selectionEnd;
 }
 
-function showTab(tab) {
+function showTab(tab, focus) {
   clearPulse();
+  setDiags([], true);
   const isPane = !!tab && !!tab.kind;
   const isMedia = !!tab && !isPane && !!tab.media;
   const showCode = !!tab && !isPane && !isMedia && !tab.loading && !tab.notice;
@@ -496,28 +1086,29 @@ function showTab(tab) {
   els.ta.scrollLeft = tab.scrollLeft;
   try { els.ta.setSelectionRange(tab.selStart, tab.selEnd); } catch (_) {}
   render();
-  els.ta.focus({ preventScroll: true });
+  if (focus) els.ta.focus({ preventScroll: true });
   updateStatus(tab);
   scheduleCursor();
 }
 
-function activate(path) {
+function activate(path, focus) {
+  const want = focus !== false;
   const tab = tabs.find((t) => t.path === path);
   if (!tab) return;
   if (path === activePath) {
-    if (isText(tab)) els.ta.focus({ preventScroll: true });
+    if (want && isText(tab)) els.ta.focus({ preventScroll: true });
     return;
   }
   saveViewState();
   activePath = path;
-  showTab(tab);
+  showTab(tab, want);
   renderTabs();
   notify();
 }
 
 async function loadTab(tab) {
-  const ext = tab.name.split('.').pop().toLowerCase();
-  if (BINARY_EXT.has(ext)) {
+  const fileExt = tab.name.split('.').pop().toLowerCase();
+  if (BINARY_EXT.has(fileExt)) {
     tab.notice = 'Binary file - preview is not available.';
   } else {
     try {
@@ -538,7 +1129,9 @@ async function loadTab(tab) {
     }
   }
   tab.loading = false;
-  if (tabs.includes(tab) && activePath === tab.path) showTab(tab);
+  const want = tab.wantFocus === true;
+  tab.wantFocus = false;
+  if (tabs.includes(tab) && activePath === tab.path) showTab(tab, want);
 }
 
 export async function openFile(path) {
@@ -551,7 +1144,9 @@ export async function openFile(path) {
   }
   const name = path.split(/[\\/]/).pop();
   const media = mediaViewer.mediaKind(name);
+  if (!media) ext.noteFile(name);
   tab = makeTab(path, name, media);
+  tab.wantFocus = true;
   tabs.push(tab);
   activate(tab.path);
   if (!media) await loadTab(tab);
@@ -687,6 +1282,63 @@ export function isDirty(path) {
   if (tab.path === activePath && isText(tab)) return els.ta.value !== tab.saved;
   return !!tab.dirty;
 }
+export function getUnsavedFiles() {
+  if (!els) return [];
+  saveViewState();
+  return tabs
+    .filter((t) => !t.kind && !t.media && !t.loading && !t.notice && t.dirty)
+    .map((t) => ({ path: t.path, name: t.name, saved: t.saved, content: t.content }));
+}
+export function discardTab(path) {
+  if (!els || !path) return false;
+  const key = pathKey(path);
+  const tab = tabs.find((t) => t.key === key);
+  if (!tab || tab.kind || tab.media || tab.loading || tab.notice) return false;
+  const isActive = tab.path === activePath;
+  if (isActive) {
+    tab.scrollTop = els.ta.scrollTop;
+    tab.scrollLeft = els.ta.scrollLeft;
+  }
+  tab.content = tab.saved;
+  tab.dirty = false;
+  tab.hist = null;
+  tab.selStart = Math.min(tab.selStart || 0, tab.saved.length);
+  tab.selEnd = Math.min(tab.selEnd || 0, tab.saved.length);
+  if (isActive) showTab(tab, false);
+  renderTabs();
+  notify();
+  return true;
+}
+
+export async function saveTab(path) {
+  if (!els || !path) return false;
+  const key = pathKey(path);
+  const tab = tabs.find((t) => t.key === key);
+  if (!tab || tab.kind || tab.media) return false;
+  if (tab.path === activePath) {
+    await save();
+    return !tab.dirty;
+  }
+  const text = tab.content;
+  const out = tab.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
+  let res;
+  try {
+    res = await window.electronAPI.writeFile(tab.path, out);
+  } catch (err) {
+    res = { success: false };
+  }
+  if (!res || !res.success) return false;
+  if (tab.saved !== text) {
+    document.dispatchEvent(new CustomEvent('ide:history-add', {
+      detail: { type: 'edit', path: tab.path, before: tab.saved, after: text, eol: tab.eol },
+    }));
+  }
+  tab.saved = text;
+  tab.dirty = false;
+  renderTabs();
+  notify();
+  return true;
+}
 
 export async function reloadFromDisk(path) {
   if (!els || !path) return;
@@ -712,7 +1364,7 @@ export async function reloadFromDisk(path) {
   tab.saved = content;
   tab.dirty = false;
   tab.hist = null;
-  if (isActive) showTab(tab);
+  if (isActive) showTab(tab, false);
   renderTabs();
   notify();
 }
@@ -735,7 +1387,7 @@ async function restoreTabs(data) {
   if (!created.length) return;
   const want = data.active ? pathKey(data.active) : '';
   const first = tabs.find((t) => t.key === want) || created[created.length - 1];
-  activate(first.path);
+  activate(first.path, false);
   await Promise.all(created.filter((t) => !t.media).map(loadTab));
   const dead = created.filter((t) => t.notice && t.notice.indexOf('Cannot open file') === 0);
   if (!dead.length) return;
@@ -747,7 +1399,7 @@ async function restoreTabs(data) {
     activePath = null;
     const next = tabs[tabs.length - 1];
     if (next) {
-      activate(next.path);
+      activate(next.path, false);
     } else {
       showTab(null);
       renderTabs();
@@ -795,7 +1447,9 @@ export async function switchRepo() {
 async function save() {
   const tab = activeTab();
   if (!isText(tab)) return;
+  if (ext.formatOnSave() && fmt.canFormat(tab.name)) formatBuffer(tab);
   const text = els.ta.value;
+  const before = tab.saved;
   const out = tab.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
   let res;
   try {
@@ -804,6 +1458,11 @@ async function save() {
     res = { success: false, error: err && err.message ? err.message : String(err) };
   }
   if (res && res.success) {
+    if (before !== text) {
+      document.dispatchEvent(new CustomEvent('ide:history-add', {
+        detail: { type: 'edit', path: tab.path, before, after: text, eol: tab.eol },
+      }));
+    }
     tab.content = text;
     tab.saved = text;
     tab.dirty = false;
@@ -920,8 +1579,22 @@ function toggleCase() {
   runFind(true);
 }
 
-function escRe(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function replaceAllText(text, q, rep, cs) {
+  if (!q) return { out: text, n: 0 };
+  const hay = cs ? text : text.toLowerCase();
+  const needle = cs ? q : q.toLowerCase();
+  let out = '';
+  let pos = 0;
+  let n = 0;
+  for (;;) {
+    const i = hay.indexOf(needle, pos);
+    if (i === -1) break;
+    out += text.slice(pos, i) + rep;
+    pos = i + needle.length;
+    n++;
+  }
+  out += text.slice(pos);
+  return { out, n };
 }
 
 function replaceOne() {
@@ -954,17 +1627,12 @@ function replaceAll() {
   if (!isText(tab) || !find.q) return;
   const ta = els.ta;
   const text = ta.value;
-  const rep = els.repIn.value;
-  const re = new RegExp(escRe(find.q), find.cs ? 'g' : 'gi');
-  let n = 0;
-  const out = text.replace(re, () => {
-    n++;
-    return rep;
-  });
-  if (!n) {
+  const res = replaceAllText(text, find.q, els.repIn.value, find.cs);
+  if (!res.n) {
     flash('No results to replace');
     return;
   }
+  const out = res.out;
   const keep = document.activeElement;
   const st = ta.scrollTop;
   const sl = ta.scrollLeft;
@@ -976,7 +1644,7 @@ function replaceAll() {
   try { ta.setSelectionRange(Math.min(caret, out.length), Math.min(caret, out.length)); } catch (_) {}
   if (keep && keep !== ta && typeof keep.focus === 'function') keep.focus();
   runFind(true);
-  flash('Replaced ' + n + ' occurrence' + (n === 1 ? '' : 's'));
+  flash('Replaced ' + res.n + ' occurrence' + (res.n === 1 ? '' : 's'));
 }
 
 function onFindKey(e) {
@@ -1143,9 +1811,324 @@ function histStep(dir) {
   h.pre = null;
   histApply(h.stack[next]);
 }
+
+const PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
+const CLOSERS = ')]}';
+
+function lineBlock(v, s, e) {
+  const bs = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  const eEff = e > s && v[e - 1] === '\n' ? e - 1 : e;
+  let be = v.indexOf('\n', eEff);
+  if (be === -1) be = v.length;
+  return { bs, be };
+}
+
+function commentSyntax() {
+  if (lang === 'js' || lang === 'clike') return { a: '//', b: '' };
+  if (lang === 'py' || lang === 'conf') return { a: '#', b: '' };
+  if (lang === 'css') return { a: '/*', b: '*/' };
+  if (lang === 'html' || lang === 'md') return { a: '<!--', b: '-->' };
+  return null;
+}
+
+function toggleComment() {
+  const syn = commentSyntax();
+  if (!syn) {
+    flash('No comment syntax for this file type');
+    return;
+  }
+  const ta = els.ta;
+  const v = ta.value;
+  const s0 = ta.selectionStart;
+  const e0 = ta.selectionEnd;
+  const blk = lineBlock(v, s0, e0);
+  const rows = v.slice(blk.bs, blk.be).split('\n');
+  const used = rows.filter((r) => r.trim());
+  if (!used.length) return;
+  const isOff = (r) => {
+    const t = r.trim();
+    return t.indexOf(syn.a) === 0 && (!syn.b || t.slice(-syn.b.length) === syn.b);
+  };
+  let out;
+  if (used.every(isOff)) {
+    out = rows.map((r) => {
+      if (!r.trim()) return r;
+      const i = r.indexOf(syn.a);
+      const head = r.slice(0, i);
+      let tail = r.slice(i + syn.a.length);
+      if (tail[0] === ' ') tail = tail.slice(1);
+      if (syn.b) {
+        const tr = tail.replace(/\s+$/, '');
+        tail = (tr.slice(-syn.b.length) === syn.b ? tr.slice(0, -syn.b.length) : tr).replace(/\s$/, '');
+      }
+      return head + tail;
+    });
+  } else {
+    let min = Infinity;
+    for (const r of used) min = Math.min(min, /^[ \t]*/.exec(r)[0].length);
+    out = rows.map((r) => {
+      if (!r.trim()) return r;
+      return r.slice(0, min) + syn.a + ' ' + r.slice(min) + (syn.b ? ' ' + syn.b : '');
+    });
+  }
+  const text = out.join('\n');
+  const delta = text.length - (blk.be - blk.bs);
+  ta.setSelectionRange(blk.bs, blk.be);
+  exec(text);
+  if (s0 === e0) {
+    const p = Math.max(blk.bs, s0 + delta);
+    ta.setSelectionRange(p, p);
+  } else {
+    ta.setSelectionRange(blk.bs, blk.bs + text.length);
+  }
+  scheduleCursor();
+}
+
+function moveLines(dir) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const e = ta.selectionEnd;
+  const blk = lineBlock(v, s, e);
+  const block = v.slice(blk.bs, blk.be);
+  let from;
+  let to;
+  let text;
+  let delta;
+  if (dir > 0) {
+    if (blk.be >= v.length) return;
+    let ne = v.indexOf('\n', blk.be + 1);
+    if (ne === -1) ne = v.length;
+    const next = v.slice(blk.be + 1, ne);
+    from = blk.bs;
+    to = ne;
+    text = next + '\n' + block;
+    delta = next.length + 1;
+  } else {
+    if (blk.bs === 0) return;
+    const ps = blk.bs - 1 === 0 ? 0 : v.lastIndexOf('\n', blk.bs - 2) + 1;
+    const prev = v.slice(ps, blk.bs - 1);
+    from = ps;
+    to = blk.be;
+    text = block + '\n' + prev;
+    delta = -(prev.length + 1);
+  }
+  ta.setSelectionRange(from, to);
+  exec(text);
+  ta.setSelectionRange(s + delta, e + delta);
+  scheduleCursor();
+}
+
+function dupLines(dir) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const e = ta.selectionEnd;
+  const blk = lineBlock(v, s, e);
+  const block = v.slice(blk.bs, blk.be);
+  if (dir > 0) {
+    ta.setSelectionRange(blk.be, blk.be);
+    exec('\n' + block);
+    ta.setSelectionRange(s + block.length + 1, e + block.length + 1);
+  } else {
+    ta.setSelectionRange(blk.bs, blk.bs);
+    exec(block + '\n');
+    ta.setSelectionRange(s, e);
+  }
+  scheduleCursor();
+}
+
+function deleteLines() {
+  const ta = els.ta;
+  const v = ta.value;
+  const blk = lineBlock(v, ta.selectionStart, ta.selectionEnd);
+  let a = blk.bs;
+  let b = blk.be;
+  if (blk.be < v.length) b = blk.be + 1;
+  else if (blk.bs > 0) a = blk.bs - 1;
+  ta.focus();
+  ta.setSelectionRange(a, b);
+  document.execCommand('delete');
+}
+
+function indentExtra(before) {
+  if (lang === 'md' || lang === 'plain') return '';
+  if (lang === 'html') {
+    return /<(?!\/|!|(?:br|hr|img|input|meta|link)\b)[A-Za-z][^<>]*(?<!\/)>\s*$/.test(before) ? '  ' : '';
+  }
+  const re = lang === 'py' ? /[{(\[:]\s*$/ : /[{(\[]\s*$/;
+  return re.test(before) ? '  ' : '';
+}
+
+function insertLine(above) {
+  const ta = els.ta;
+  const v = ta.value;
+  const blk = lineBlock(v, ta.selectionStart, ta.selectionStart);
+  const row = v.slice(blk.bs, blk.be);
+  const lead = /^[ \t]*/.exec(row)[0];
+  if (above) {
+    ta.setSelectionRange(blk.bs, blk.bs);
+    exec(lead + '\n');
+    const p = blk.bs + lead.length;
+    ta.setSelectionRange(p, p);
+  } else {
+    ta.setSelectionRange(blk.be, blk.be);
+    exec('\n' + lead + indentExtra(row));
+  }
+  scheduleCursor();
+}
+
+function editShortcut(e, mod, alt, key) {
+  if (!mod && alt && e.shiftKey && key === 'f') {
+    formatActive();
+    return true;
+  }
+  if (mod && !alt && !e.shiftKey && (e.key === '/' || e.code === 'Slash')) {
+    toggleComment();
+    return true;
+  }
+  if (mod && !alt && e.shiftKey && key === 'k') {
+    deleteLines();
+    return true;
+  }
+  if (mod && !alt && key === 'enter') {
+    insertLine(e.shiftKey);
+    return true;
+  }
+  if (!mod && alt && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    const dir = e.key === 'ArrowDown' ? 1 : -1;
+    if (e.shiftKey) dupLines(dir);
+    else moveLines(dir);
+    return true;
+  }
+  return false;
+}
+
+function smartEnter(e) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const en = ta.selectionEnd;
+  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  const before = v.slice(ls, s);
+  const lead = /^[ \t]*/.exec(before)[0];
+  const prev = s > 0 ? v[s - 1] : '';
+  const next = v[en] || '';
+  e.preventDefault();
+  const pairBetween = s === en && !!prev && CLOSERS.indexOf(next) !== -1 && PAIRS[prev] === next && prev !== next;
+  const tagBetween = lang === 'html' && s === en && prev === '>' && v.slice(s, s + 2) === '</';
+  if (pairBetween || tagBetween) {
+    exec('\n' + lead + '  \n' + lead);
+    const pos = s + 1 + lead.length + 2;
+    ta.setSelectionRange(pos, pos);
+    scheduleCursor();
+    return;
+  }
+  exec('\n' + lead + indentExtra(before));
+}
+
+function smartBackspace(e) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  if (s !== ta.selectionEnd || s === 0) return false;
+  const prev = v[s - 1];
+  const next = v[s];
+  if (PAIRS[prev] && PAIRS[prev] === next) {
+    e.preventDefault();
+    ta.setSelectionRange(s - 1, s + 1);
+    document.execCommand('delete');
+    return true;
+  }
+  const ls = v.lastIndexOf('\n', s - 1) + 1;
+  const before = v.slice(ls, s);
+  if (before.length >= 2 && /^ +$/.test(before)) {
+    const n = before.length % 2 === 0 ? 2 : 1;
+    e.preventDefault();
+    ta.setSelectionRange(s - n, s);
+    document.execCommand('delete');
+    return true;
+  }
+  return false;
+}
+
+function smartHome(e) {
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  if (s !== ta.selectionEnd) return;
+  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  let fe = v.indexOf('\n', ls);
+  if (fe === -1) fe = v.length;
+  const lead = /^[ \t]*/.exec(v.slice(ls, fe))[0].length;
+  const first = ls + lead;
+  if (s === first || lead === 0) return;
+  e.preventDefault();
+  ta.setSelectionRange(first, first);
+  scheduleCursor();
+}
+
+function autoCloseOk(next) {
+  return !next || /[\s)\]}>,;:.]/.test(next);
+}
+
+function typedChar(e) {
+  const ch = e.key;
+  if (ch.length !== 1 || lang === 'plain' || lang === 'md') return false;
+  const ta = els.ta;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const en = ta.selectionEnd;
+  const sel = s !== en;
+  const next = v[en] || '';
+  const prev = s > 0 ? v[s - 1] : '';
+  const isCloser = CLOSERS.indexOf(ch) !== -1;
+  const isQuote = ch === '"' || ch === "'" || ch === '`';
+  if ((isCloser || isQuote) && !sel && next === ch) {
+    e.preventDefault();
+    ta.setSelectionRange(s + 1, s + 1);
+    scheduleCursor();
+    return true;
+  }
+  if (isCloser) {
+    if (sel) return false;
+    const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+    const before = v.slice(ls, s);
+    if (before.length >= 2 && /^ +$/.test(before)) {
+      e.preventDefault();
+      ta.setSelectionRange(s - 2, s);
+      exec(ch);
+      return true;
+    }
+    return false;
+  }
+  const isOpen = ch === '(' || ch === '[' || ch === '{';
+  if (!isOpen && !isQuote) return false;
+  if (sel) {
+    const inner = v.slice(s, en);
+    e.preventDefault();
+    exec(ch + inner + PAIRS[ch]);
+    ta.setSelectionRange(s + 1, s + 1 + inner.length);
+    scheduleCursor();
+    return true;
+  }
+  if (isQuote) {
+    let wordBefore = /[\w$]/.test(prev);
+    if (wordBefore && lang === 'py' && /[rRbBfFuU]/.test(prev) && !/[\w$]/.test(v[s - 2] || '')) wordBefore = false;
+    if (wordBefore || prev === ch) return false;
+  }
+  if (!autoCloseOk(next)) return false;
+  e.preventDefault();
+  exec(ch + PAIRS[ch]);
+  ta.setSelectionRange(s + 1, s + 1);
+  scheduleCursor();
+  return true;
+}
 function onKeyDown(e) {
   if (e.isComposing) return;
-  const mod = e.ctrlKey || e.metaKey;
+  const gr = !!(e.getModifierState && e.getModifierState('AltGraph'));
+  const alt = e.altKey && !gr;
+  const mod = (e.ctrlKey || e.metaKey) && !gr;
   const key = e.key.toLowerCase();
   if (mod && !e.shiftKey && key === 's') {
     e.preventDefault();
@@ -1159,13 +2142,13 @@ function onKeyDown(e) {
     if (activePath) closeTab(activePath);
     return;
   }
-  if (mod && !e.altKey && key === 'z') {
+  if (mod && !alt && key === 'z') {
     e.preventDefault();
     e.stopPropagation();
     histStep(e.shiftKey ? 1 : -1);
     return;
   }
-  if (mod && !e.altKey && !e.shiftKey && key === 'y') {
+  if (mod && !alt && !e.shiftKey && key === 'y') {
     e.preventDefault();
     e.stopPropagation();
     histStep(1);
@@ -1183,25 +2166,32 @@ function onKeyDown(e) {
     stepMatch(e.shiftKey ? -1 : 1);
     return;
   }
-  if (!mod && !e.altKey) e.stopPropagation();
-  if (mod || e.altKey) return;
+  if (!mod && !alt) e.stopPropagation();
+  if (mod || alt) {
+    if (editShortcut(e, mod, alt, key)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    return;
+  }
   if (e.key === 'Tab') {
     e.preventDefault();
     indent(e.shiftKey);
     return;
   }
   if (e.key === 'Enter') {
-    const ta = els.ta;
-    const v = ta.value;
-    const s = ta.selectionStart;
-    const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
-    const before = v.slice(ls, s);
-    const lead = /^[ \t]*/.exec(before)[0];
-    const opener = lang === 'py' ? /[{(\[:]\s*$/ : /[{(\[]\s*$/;
-    const extra = opener.test(before) ? '  ' : '';
-    e.preventDefault();
-    exec('\n' + lead + extra);
+    smartEnter(e);
+    return;
   }
+  if (e.key === 'Backspace') {
+    smartBackspace(e);
+    return;
+  }
+  if (e.key === 'Home' && !e.shiftKey) {
+    smartHome(e);
+    return;
+  }
+  if (e.key.length === 1) typedChar(e);
 }
 
 function onMainKeyDown(e) {
@@ -1227,11 +2217,50 @@ function onMainKeyDown(e) {
   }
 }
 
+const CENTER_MIN_H = 120;
+let centerRaf = 0;
+
+function centerCaret() {
+  if (!els || els.codewrap.hidden) return;
+  const ta = els.ta;
+  if (document.activeElement !== ta || ta.selectionStart !== ta.selectionEnd) return;
+  const h = ta.clientHeight;
+  if (h < CENTER_MIN_H) return;
+  const pb = PAD + Math.round(h * 0.5) + 'px';
+  if (ta.style.paddingBottom !== pb) ta.style.paddingBottom = pb;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  let row = 0;
+  let i = -1;
+  for (;;) {
+    i = v.indexOf('\n', i + 1);
+    if (i === -1 || i >= s) break;
+    row++;
+  }
+  const y = row * LH + PAD;
+  const rel = y - ta.scrollTop;
+  const mid = (h - LH) / 2;
+  if (rel > mid + LH / 2) ta.scrollTop = Math.max(0, y - mid);
+  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
+  const x = (s - ls) * charWidth() + 12;
+  const w = ta.clientWidth || 800;
+  if (x - ta.scrollLeft > w - 100) ta.scrollLeft = Math.max(0, x - Math.round(w * 0.5));
+}
+
+function scheduleCenter() {
+  if (centerRaf) return;
+  centerRaf = requestAnimationFrame(() => {
+    centerRaf = 0;
+    centerCaret();
+  });
+}
 function onInput() {
   histRecord();
   textChanged = true;
   schedule();
   scheduleCursor();
+  scheduleCenter();
+  lineMarks.touch();
 }
 
 function onScroll() {
@@ -1273,23 +2302,344 @@ function onTabsWheel(e) {
 export function getActivePath() {
   return activePath;
 }
+function problemsAsText() {
+  const tab = activeTab();
+  const file = tab ? relParts(tab.filePath || tab.path).join('/') : '';
+  return diag.list.map((d) =>
+    file + ':' + d.line + ':' + (d.col + 1) + ' ' + String(SEV_LABEL[d.sev]).toLowerCase() + ' ' + d.msg + (d.src ? ' (' + d.src + ')' : '')
+  ).join('\n');
+}
+
+async function copyProblemsText() {
+  if (!els) return;
+  if (!diag.list.length) {
+    flash('No problems to copy');
+    return;
+  }
+  const text = problemsAsText();
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (_) {
+    ok = false;
+  }
+  if (!ok) {
+    const tmp = document.createElement('textarea');
+    tmp.value = text;
+    tmp.style.position = 'fixed';
+    tmp.style.opacity = '0';
+    document.body.appendChild(tmp);
+    tmp.select();
+    try {
+      ok = document.execCommand('copy');
+    } catch (_) {
+      ok = false;
+    }
+    tmp.remove();
+  }
+  flash(ok ? 'Copied ' + diag.list.length + ' problem(s)' : 'Could not copy the problems', 2500);
+}
+
+const LINK_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.vue', '.css', '.scss', '.py', '.php'];
+const LINK_JS = /\.(js|jsx|mjs|cjs)$/i;
+let linkCfg = new Map();
+
+function linkSep(p) {
+  return String(p).indexOf('\\') !== -1 ? '\\' : '/';
+}
+
+function linkDirOf(p) {
+  const s = String(p);
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return i > 0 ? s.slice(0, i) : '';
+}
+
+function linkNameOf(p) {
+  const s = String(p);
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return s.slice(i + 1);
+}
+
+function linkJoin(base, rel) {
+  const sep = linkSep(base);
+  const out = [];
+  const parts = String(base).split(/[\\/]/).concat(String(rel).split(/[\\/]/));
+  for (const p of parts) {
+    if (p === '..') {
+      if (out.length > 1) out.pop();
+    } else if (p === '.' || (p === '' && out.length)) {
+      continue;
+    } else {
+      out.push(p);
+    }
+  }
+  return out.join(sep);
+}
+
+function linkStripJsonc(text) {
+  let out = '';
+  let inStr = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const nx = text[i + 1];
+    if (inStr) {
+      out += c;
+      if (c === '\\') {
+        out += nx || '';
+        i++;
+      } else if (c === '"') {
+        inStr = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      out += c;
+      continue;
+    }
+    if (c === '/' && nx === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+      out += '\n';
+      continue;
+    }
+    if (c === '/' && nx === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i++;
+      continue;
+    }
+    out += c;
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1');
+}
+
+async function linkReadConfig(dir) {
+  if (linkCfg.has(dir)) return linkCfg.get(dir);
+  let cfg = null;
+  for (const name of ['tsconfig.json', 'jsconfig.json']) {
+    let res = null;
+    try {
+      res = await window.electronAPI.readFile(linkJoin(dir, name));
+    } catch (_) {
+      res = null;
+    }
+    if (!res || !res.success || typeof res.content !== 'string') continue;
+    try {
+      const j = JSON.parse(linkStripJsonc(res.content));
+      const co = (j && j.compilerOptions) || {};
+      cfg = {
+        baseUrl: typeof co.baseUrl === 'string' ? co.baseUrl : '',
+        paths: co.paths && typeof co.paths === 'object' ? co.paths : {},
+      };
+      break;
+    } catch (_) {
+      continue;
+    }
+  }
+  linkCfg.set(dir, cfg);
+  return cfg;
+}
+
+async function linkAliasBases(fromDir, spec, root) {
+  const out = [];
+  const rootN = String(root || '').replace(/[\\/]+$/, '').toLowerCase();
+  let dir = fromDir;
+  for (let n = 0; n < 14 && dir; n++) {
+    const cfg = await linkReadConfig(dir);
+    if (cfg) {
+      const base = linkJoin(dir, cfg.baseUrl || '.');
+      for (const key of Object.keys(cfg.paths)) {
+        const star = key.indexOf('*');
+        let rest = null;
+        if (star === -1) {
+          if (spec === key) rest = '';
+        } else {
+          const pre = key.slice(0, star);
+          const post = key.slice(star + 1);
+          const okLen = spec.length >= pre.length + post.length;
+          if (okLen && spec.indexOf(pre) === 0 && spec.slice(spec.length - post.length) === post) {
+            rest = spec.slice(pre.length, spec.length - post.length);
+          }
+        }
+        if (rest === null) continue;
+        const targets = Array.isArray(cfg.paths[key]) ? cfg.paths[key] : [];
+        for (const t of targets) out.push(linkJoin(base, String(t).replace('*', rest)));
+      }
+      if (cfg.baseUrl) out.push(linkJoin(base, spec));
+    }
+    if (/^[@~]\//.test(spec)) out.push(linkJoin(dir, 'src/' + spec.slice(2)));
+    if (rootN && dir.replace(/[\\/]+$/, '').toLowerCase() === rootN) break;
+    const up = linkDirOf(dir);
+    if (!up || up === dir) break;
+    dir = up;
+  }
+  return out;
+}
+
+async function linkListDir(dir, cache) {
+  let ent = cache.get(dir);
+  if (ent !== undefined) return ent;
+  ent = null;
+  try {
+    const res = await window.ideAPI.readDir(dir);
+    if (res && res.success) {
+      ent = new Map((res.entries || []).map((x) => [String(x.name).toLowerCase(), x]));
+    }
+  } catch (_) {
+    ent = null;
+  }
+  cache.set(dir, ent);
+  return ent;
+}
+
+async function linkProbe(base, cache) {
+  const tries = [base];
+  for (const x of LINK_EXTS) tries.push(base + x);
+  if (LINK_JS.test(base)) {
+    const bare = base.replace(LINK_JS, '');
+    for (const x of LINK_EXTS) tries.push(bare + x);
+  }
+  for (const t of tries) {
+    const ent = await linkListDir(linkDirOf(t), cache);
+    const hit = ent ? ent.get(linkNameOf(t).toLowerCase()) : null;
+    if (hit && hit.type === 'file') return hit.path || t;
+  }
+  const parent = await linkListDir(linkDirOf(base), cache);
+  const folder = parent ? parent.get(linkNameOf(base).toLowerCase()) : null;
+  if (folder && folder.type === 'folder') {
+    const inner = await linkListDir(folder.path || base, cache);
+    if (inner) {
+      for (const x of LINK_EXTS) {
+        const h = inner.get('index' + x);
+        if (h && h.type === 'file') return h.path || linkJoin(base, 'index' + x);
+      }
+    }
+  }
+  return null;
+}
+
+async function linkResolve(from, spec) {
+  linkCfg = new Map();
+  const cache = new Map();
+  const fromDir = linkDirOf(from);
+  const root = state.selectedRepoPath || '';
+  let bases = [];
+  if (spec.charAt(0) === '.') bases.push(linkJoin(fromDir, spec));
+  else if (spec.charAt(0) === '/') bases.push(linkJoin(root || fromDir, spec));
+  else bases = await linkAliasBases(fromDir, spec, root);
+  for (const b of bases) {
+    const hit = await linkProbe(b, cache);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function linkSpecAt(text, col) {
+  if (!text || !/\b(?:import|export|from|require)\b|@import|\burl\(|\b(?:src|href)\s*=/.test(text)) return null;
+  const re = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const s = m.index;
+    const en = s + m[0].length;
+    if (col > s && col < en) {
+      const spec = m[2];
+      if (!spec || spec.indexOf('${') !== -1 || /\s/.test(spec) || /^(?:https?:|data:|mailto:|#)/.test(spec)) return null;
+      return { spec, s: s + 1, e: en - 1 };
+    }
+  }
+  return null;
+}
+
+function linkPoint(e) {
+  const ta = els.ta;
+  const r = ta.getBoundingClientRect();
+  const px = e.clientX - r.left + ta.scrollLeft - 12;
+  const py = e.clientY - r.top + ta.scrollTop - PAD;
+  if (px < 0 || py < 0) return null;
+  const line = Math.floor(py / LH);
+  if (line >= lines.length) return null;
+  return { line, col: Math.floor(px / charWidth()) };
+}
+
+async function linkJump(tab, spec) {
+  flash('Looking for ' + spec + '...', 1500);
+  let hit = null;
+  try {
+    hit = await linkResolve(tab.path, spec);
+  } catch (_) {
+    hit = null;
+  }
+  if (!hit) {
+    flash('Cannot find a file for ' + spec, 3500);
+    return;
+  }
+  openFile(hit);
+}
+
+function linkClick(e) {
+  if (!els || e.target !== els.ta || e.button !== 0) return;
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  const pt = linkPoint(e);
+  if (!pt) return;
+  const hit = linkSpecAt(lines[pt.line], pt.col);
+  if (!hit) return;
+  e.preventDefault();
+  e.stopPropagation();
+  linkJump(tab, hit.spec);
+}
+
+function linkHover(e) {
+  if (!els || e.target !== els.ta) return;
+  let hot = false;
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+    const pt = linkPoint(e);
+    hot = !!pt && !!linkSpecAt(lines[pt.line], pt.col);
+  }
+  const want = hot ? 'pointer' : '';
+  if (els.ta.style.cursor !== want) els.ta.style.cursor = want;
+}
+
+function linkKeyUp(e) {
+  if (!els) return;
+  if ((e.key === 'Control' || e.key === 'Meta') && els.ta.style.cursor) els.ta.style.cursor = '';
+}
+
+document.addEventListener('click', linkClick, true);
+document.addEventListener('mousemove', linkHover, true);
+document.addEventListener('keyup', linkKeyUp, true);
 
 export function mount(mainEl, handlers) {
   onChange = (handlers && handlers.onTabsChange) || null;
   mainEl.innerHTML = TEMPLATE;
+  const crumbsEl = mainEl.querySelector('.ide-crumbs');
+  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML;
   els = {
     tabs: mainEl.querySelector('.ide-tabs'),
-    crumbs: mainEl.querySelector('.ide-crumbs'),
+    crumbs: crumbsEl,
+    crumbPath: crumbsEl.querySelector('.ide-crumb-path'),
+    runbar: crumbsEl.querySelector('.ide-runbar'),
+    dbgBtn: crumbsEl.querySelector('[data-rb="debug"]'),
+    runBtn: crumbsEl.querySelector('[data-rb="run"]'),
     welcome: mainEl.querySelector('.ide-welcome'),
     home: mainEl.querySelector('.ide-welcome-home'),
     notice: mainEl.querySelector('.ide-notice'),
     dv: mainEl.querySelector('.ide-dv'),
     media: mainEl.querySelector('.ide-media'),
+    editor: mainEl.querySelector('.ide-editor'),
     codewrap: mainEl.querySelector('.ide-codewrap'),
     minimap: mainEl.querySelector('.ide-minimap'),
     gutterInner: mainEl.querySelector('.ide-gutter-inner'),
     hlInner: mainEl.querySelector('.ide-hl-inner'),
     findInner: mainEl.querySelector('.ide-find-inner'),
+    diagInner: mainEl.querySelector('.ide-diag-inner'),
+    tip: mainEl.querySelector('.ide-diag-tip'),
+    problems: mainEl.querySelector('.ide-problems'),
+    pbList: mainEl.querySelector('.ide-pb-list'),
+    pbTitle: mainEl.querySelector('.ide-pb-title'),
+    stProb: mainEl.querySelector('.ide-st-problems'),
     find: mainEl.querySelector('.ide-find'),
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
@@ -1313,9 +2663,13 @@ export function mount(mainEl, handlers) {
   });
   els.ta.addEventListener('input', onInput);
   els.ta.addEventListener('scroll', onScroll, { passive: true });
+  els.ta.addEventListener('scroll', hideTip, { passive: true });
   els.ta.addEventListener('keydown', onKeyDown);
+  els.ta.addEventListener('keydown', onDiagKey);
   els.ta.addEventListener('keyup', scheduleCursor);
   els.ta.addEventListener('mouseup', scheduleCursor);
+  els.ta.addEventListener('mousemove', onTaMove);
+  els.ta.addEventListener('mouseleave', hideTip);
   els.ta.addEventListener('focus', scheduleCursor);
   els.tabs.addEventListener('click', onTabClick);
   els.tabs.addEventListener('auxclick', onTabAux);
@@ -1324,6 +2678,9 @@ export function mount(mainEl, handlers) {
   els.findIn.addEventListener('keydown', onFindKey);
   els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
+  els.runbar.addEventListener('click', onRunbarClick);
+  els.stProb.addEventListener('click', () => setProblemsOpen(!problemsOpen));
+  els.problems.addEventListener('click', onProblemsClick);
   mainEl.addEventListener('keydown', onMainKeyDown);
   window.addEventListener('beforeunload', persistNow);
   if (typeof ResizeObserver === 'function') {
@@ -1332,5 +2689,116 @@ export function mount(mainEl, handlers) {
       schedule();
     }).observe(els.codewrap);
   }
+  ext.mount({
+    onChange: () => {
+      queueDiag(60);
+      updateRunbar(activeTab());
+    },
+  });
   showTab(null);
 }
+function formatBuffer(tab) {
+  if (!els || !isText(tab)) return false;
+  const ta = els.ta;
+  const text = ta.value;
+  const out = fmt.formatText(text, tab.name);
+  if (out === null || out === text) return false;
+  const st = ta.scrollTop;
+  const sl = ta.scrollLeft;
+  const caret = ta.selectionStart;
+  const before = text.slice(0, caret);
+  const line = before.split('\n').length - 1;
+  const col = caret - (before.lastIndexOf('\n') + 1);
+  try { ta.setSelectionRange(0, text.length); } catch (_) {}
+  exec(out);
+  const starts = lineStartsOf(out);
+  const ln = Math.min(line, starts.length - 1);
+  const lineEnd = ln + 1 < starts.length ? starts[ln + 1] - 1 : out.length;
+  const off = starts[ln] + Math.min(col, Math.max(0, lineEnd - starts[ln]));
+  try { ta.setSelectionRange(off, off); } catch (_) {}
+  ta.scrollTop = st;
+  ta.scrollLeft = sl;
+  scheduleCursor();
+  return true;
+}
+
+function formatActive() {
+  if (!els) return;
+  const tab = activeTab();
+  if (!isText(tab)) return;
+  if (!ext.formatterOn()) {
+    flash('Turn on the Prettier extension first (Extensions button)');
+    return;
+  }
+  if (!fmt.canFormat(tab.name)) {
+    flash('Prettier does not format this file type');
+    return;
+  }
+  flash(formatBuffer(tab) ? 'Formatted ' + tab.name : 'Already formatted');
+}
+
+function formatOpenTabs() {
+  if (!els) return;
+  if (!ext.formatterOn()) {
+    flash('Turn on the Prettier extension first (Extensions button)');
+    return;
+  }
+  let n = 0;
+  const act = activeTab();
+  if (isText(act) && fmt.canFormat(act.name) && formatBuffer(act)) n++;
+  for (const t of tabs) {
+    if (t === act || !isText(t) || !fmt.canFormat(t.name)) continue;
+    const out = fmt.formatText(t.content, t.name);
+    if (out === null || out === t.content) continue;
+    t.content = out;
+    t.dirty = out !== t.saved;
+    t.hist = null;
+    n++;
+  }
+  renderTabs();
+  notify();
+  flash(n ? 'Formatted ' + n + ' file(s). Press Ctrl+S to save.' : 'All open files are already formatted');
+}
+
+document.addEventListener('ide:format-document', () => {
+  formatActive();
+});
+document.addEventListener('ide:format-open', () => {
+  formatOpenTabs();
+});
+document.addEventListener('ide:open-at', (e) => {
+  const d = e && e.detail;
+  if (!d || !d.path) return;
+  openAt(d.path, d.line, d.col, d.len);
+});
+function retargetTabs(from, to) {
+  if (!els || !from || !to) return;
+  const nf = String(from).replace(/\\/g, '/');
+  const nfl = nf.toLowerCase();
+  const toSep = String(to).indexOf('\\') !== -1 ? '\\' : '/';
+  let changed = false;
+  for (const t of tabs) {
+    if (t.kind) continue;
+    const np = t.path.replace(/\\/g, '/');
+    const npl = np.toLowerCase();
+    let tail = null;
+    if (npl === nfl) tail = '';
+    else if (npl.indexOf(nfl + '/') === 0) tail = np.slice(nf.length);
+    if (tail === null) continue;
+    const wasActive = t.path === activePath;
+    t.path = to + (toSep === '\\' ? tail.replace(/\//g, '\\') : tail);
+    t.key = pathKey(t.path);
+    t.name = t.path.split(/[\\/]/).pop();
+    if (wasActive) activePath = t.path;
+    changed = true;
+  }
+  if (!changed) return;
+  renderTabs();
+  renderCrumbs(activeTab());
+  notify();
+}
+
+document.addEventListener('ide:path-moved', (e) => {
+  const d = e && e.detail;
+  if (d) retargetTabs(d.from, d.to);
+});

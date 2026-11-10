@@ -229,6 +229,28 @@ function initTitlebar() {
     titlebar.appendChild(repoEl);
   }
 
+  const controls = document.querySelector('.titlebar-controls');
+  if (controls && !document.getElementById('titlebarHelpBtn')) {
+    const helpBtn = document.createElement('button');
+    helpBtn.id = 'titlebarHelpBtn';
+    helpBtn.className = 'titlebar-btn titlebar-help';
+    helpBtn.title = 'Documentation';
+    helpBtn.setAttribute('aria-label', 'Documentation');
+    helpBtn.style.webkitAppRegion = 'no-drag';
+    helpBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5"/><circle cx="12" cy="17.5" r="0.6" fill="currentColor"/></svg>';
+    controls.insertBefore(helpBtn, controls.firstChild);
+    helpBtn.addEventListener('click', async () => {
+      try {
+        const mod = await import('./helpDocs.js');
+        if (mod.isOpen()) { mod.close(); return; }
+        closeAllPanels();
+        await mod.open();
+      } catch (err) {
+        console.error('[UI] Help Docs:', err);
+      }
+    });
+  }
+
   const wc = window.electronAPI.windowControls;
   if (!wc) return;
   document.querySelector('.titlebar-minimize')?.addEventListener('click', () => wc.minimize());
@@ -239,7 +261,7 @@ function initTitlebar() {
     const bar = document.getElementById('appTitlebar');
     if (bar) bar.classList.toggle('maximized', maximized);
     const btn = document.getElementById('titlebarMaxBtn');
-    if (btn) btn.textContent = maximized ? '❐' : '□';
+    if (btn) btn.textContent = maximized ? '\u2750' : '\u25A1';
   });
 }
 

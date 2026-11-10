@@ -1,5 +1,11 @@
 import { state } from '../app_manager/appState.js';
 import { displayTree } from '../app_manager/viewManager.js';
+import { getFeatures } from '../featureManager.js';
+import { buildCommand } from './extensions/runners.js';
+import * as ideExt from './extensions/index.js';
+import * as ideHistory from './history.js';
+
+
 
 const LS_ON = 'helpertool-ide-mode';
 const LS_W = 'helpertool-ide-sidebar-w';
@@ -41,6 +47,12 @@ function injectCss() {
     ['chromeFlatCss', './styles/chrome-flat.css'],
     ['ideAccentCss', './styles/ide-accent.css'],
     ['ideMirrorCss', './styles/ide-mirror.css'],
+    ['ideCodeswampCss', './styles/ide-codeswamp.css'],
+    ['ideRunCss', './styles/ide-run.css'],
+    ['ideGitCss', './styles/ide-git.css'],
+    ['ideChangesModalCss', './styles/ide-changes-modal.css'],
+    ['ideClipboardCss', './styles/ide-clipboard.css'],
+    ['ideGuidesCss', './styles/ide-guides.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
@@ -201,7 +213,11 @@ async function setActive(on) {
     document.body.classList.add('ide-mode');
     try {
       const m = await ensureBuilt();
-      if (my === seq && active) m.explorer.renderTree();
+      if (my === seq && active) {
+        m.explorer.renderTree();
+        termAutoOpened = false;
+        dockTerminal(true).catch((err) => console.error('[IDE] terminal dock failed:', err));
+      }
     } catch (err) {
       console.error('[IDE] failed to load:', err);
       active = false;
@@ -210,7 +226,9 @@ async function setActive(on) {
       if (state.cachedTree) displayTree(false);
     }
   } else {
+    termAutoOpened = false;
     document.body.classList.remove('ide-mode');
+    undockTerminal();
     if (mods) mods.search.close(true);
     if (state.cachedTree) displayTree(false);
   }
@@ -246,27 +264,51 @@ function createButton() {
   createNavSearch();
 }
 
+async function syncTerminalRepo(repoPath) {
+  if (!active || !termAutoOpened || !repoPath) return;
+  try {
+    const tm = await import('../app_manager/toolsManager.js');
+    const ui = tm.getTerminalUI();
+    if (ui && ui.isDocked()) await ui.syncRepo(repoPath);
+  } catch (err) {
+    console.error('[IDE] terminal repo sync failed:', err);
+  }
+}
 function onRepoSwitched(e) {
-  const next = normRepo((e && e.detail && e.detail.repoPath) || state.selectedRepoPath);
+  const repoPath = (e && e.detail && e.detail.repoPath) || state.selectedRepoPath;
+  const next = normRepo(repoPath);
   const changed = next !== lastRepo;
   lastRepo = next;
   if (changed && mods) {
     mods.search.reset();
     mods.editor.switchRepo().catch((err) => console.error('[IDE] repo switch failed:', err));
   }
+  if (active && !termAutoOpened && state.selectedRepoPath) {
+    dockTerminal(true).catch((err) => console.error('[IDE] terminal dock failed:', err));
+  } else if (active && changed) {
+    syncTerminalRepo(repoPath);
+  }
 }
 
 function onGlobalKey(e) {
-  if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
   if (!active || !mods) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openSearch(true);
+  if (e.key === 'F2' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    openSearch(true);
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === '`' || e.code === 'Backquote')) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleTerminal();
+  }
 }
 
 function reloadIde() {
   if (!active || !mods) return;
   mods.explorer.refresh();
+  ideExt.redetect();
   const tabs = mods.tabs || [];
   for (const t of tabs) {
     if (!t || t.dirty || !t.path) continue;
@@ -276,22 +318,118 @@ function reloadIde() {
     } catch (_) {}
   }
 }
+let termAutoOpened = false;
+
+function terminalEnabled() {
+  try {
+    return getFeatures().terminalTool !== false;
+  } catch (_) {
+    return true;
+  }
+}
+
+async function dockTerminal(autoOpen) {
+  if (!active || !terminalEnabled()) return null;
+  let ui = null;
+  try {
+    const tm = await import('../app_manager/toolsManager.js');
+    ui = await tm.ensureTerminalUI();
+    await ensureBuilt();
+  } catch (err) {
+    console.error('[IDE] terminal failed to load:', err);
+    return null;
+  }
+  if (!active) return null;
+  const main = document.getElementById('ideMain');
+  if (!main) return null;
+  if (!ui.isDocked()) ui.dockInto(main, main.querySelector('.ide-status'));
+  if (autoOpen && !termAutoOpened && state.selectedRepoPath) {
+    termAutoOpened = true;
+    ui.open(state.selectedRepoPath);
+  }
+  return ui;
+}
+
+async function toggleTerminal() {
+  if (!active) return;
+  const ui = await dockTerminal(false);
+  if (!ui) return;
+  if (ui.isOpen()) {
+    ui.close();
+    return;
+  }
+  termAutoOpened = true;
+  ui.open(state.selectedRepoPath || '');
+}
+function dirOf(p) {
+  const s = String(p || '');
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return i > 0 ? s.slice(0, i) : s;
+}
+
+async function onRunFile(e) {
+  if (!active) return;
+  const d = e && e.detail;
+  if (!d || !d.path) return;
+  const ui = await dockTerminal(false);
+  if (!ui) {
+    console.warn('[IDE] Run needs the Terminal feature to be enabled');
+    return;
+  }
+  termAutoOpened = true;
+  const repo = state.selectedRepoPath || dirOf(d.path);
+  try {
+    await ui.runCommand(repo, (kind) => buildCommand(d.name, d.path, kind));
+  } catch (err) {
+    console.error('[IDE] run failed:', err);
+  }
+}
+
+async function undockTerminal() {
+  try {
+    const tm = await import('../app_manager/toolsManager.js');
+    const ui = tm.getTerminalUI();
+    if (ui && ui.isDocked()) ui.undock();
+  } catch (_) {}
+}
 function init() {
   injectCss();
   applyWidth();
   createButton();
+  ideHistory.init({
+    refreshTree: () => {
+      if (mods) mods.explorer.refresh();
+    },
+    reloadFile: (p) => {
+      if (!mods) return;
+      const r = mods.editor.reloadFromDisk(p);
+      if (r && typeof r.catch === 'function') r.catch(() => {});
+    },
+  });
   lastRepo = state.selectedRepoPath ? normRepo(state.selectedRepoPath) : null;
   document.addEventListener('repo:switched', onRepoSwitched);
   document.addEventListener('keydown', onGlobalKey, true);
+  document.addEventListener('ide:run-file', onRunFile);
   const refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
       reloadIde();
     });
   }
+  if (window.ideWindowAPI && typeof window.ideWindowAPI.onHidden === 'function') {
+    window.ideWindowAPI.onHidden(() => {
+      if (mods) mods.search.reset();
+    });
+  }
   import('./wakatime.js')
     .then((m) => m.init())
     .catch((err) => console.error('[IDE] wakatime failed to load:', err));
+  import('./codeswampDock.js')
+    .then((m) => m.init())
+    .catch((err) => console.error('[IDE] code swamp dock failed to load:', err));
+  import('./missingTabs.js')
+    .then((m) => m.init())
+    .catch((err) => console.error('[IDE] missing tabs watcher failed to load:', err));
   if (readLS(LS_ON, '0') === '1') setActive(true);
 }
 

@@ -1,0 +1,77 @@
+button.ide-ch-n {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter 0.12s, transform 0.12s, box-shadow 0.12s;
+}
+button.ide-ch-n:hover {
+  filter: brightness(1.3);
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px currentColor;
+}
+.ide-ch-n.d { color: var(--red); }
+button.ide-unsaved {
+  border: 0;
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.ide-cmd-box {
+  width: min(720px, 94vw);
+  height: min(560px, 84vh);
+}
+.ide-cmd-tabs {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+.ide-cmd-tab {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 99px;
+  background: var(--bg-elevated);
+  font: 600 12px var(--font-ui);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.ide-cmd-tab:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+.ide-cmd-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ide-cmd-n {
+  margin-left: 4px;
+  font-family: var(--font-mono);
+  opacity: 0.85;
+}
+.ide-cmd-item {
+  height: 28px;
+  padding-left: 16px;
+}
+.ide-um-btn.danger {
+  color: var(--red);
+  border-color: var(--border-default);
+}
+.ide-um-btn.danger:hover {
+  color: var(--red);
+  border-color: var(--red);
+  background: var(--red-dim, rgba(248, 81, 73, 0.14));
+}
+.ide-um-btn.danger.armed {
+  background: var(--red);
+  border-color: var(--red);
+  color: #000000;
+}
+.ide-um-btn.danger.armed:hover {
+  color: #000000;
+  filter: brightness(1.1);
+}

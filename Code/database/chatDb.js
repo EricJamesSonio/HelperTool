@@ -143,22 +143,20 @@ function _flush() {
   _pendingSave = false;
   _dirty = false;
   const data = _db.export();
-  const buffer = Buffer.from(data);
   const dbPath = getDbPath();
-  const worker = _getWriteWorker();
   if (_writeWorkerBusy) {
-    _pendingWrite = { buffer, path: dbPath };
+    _pendingWrite = { buffer: data, path: dbPath };
     return;
   }
+  const worker = _getWriteWorker();
+  const owns = data.buffer instanceof ArrayBuffer && data.byteOffset === 0 && data.byteLength === data.buffer.byteLength;
   _writeWorkerBusy = true;
-  worker.postMessage({ buffer, path: dbPath });
+  worker.postMessage({ buffer: data, path: dbPath }, owns ? [data.buffer] : []);
 }
 
 function _flushSync() {
   if (!_db || !_dirty) return;
-  const data = _db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(getDbPath(), buffer);
+  fs.writeFileSync(getDbPath(), _db.export());
 }
 
 function save() {

@@ -71,7 +71,7 @@ function hideRepoLoading() {
     setTimeout(() => el.remove(), 400);
 }
 
-// Injected by app.js — called after every repo load so toolsManager
+// Injected by app.js - called after every repo load so toolsManager
 // can reinitialise the git tool without a circular import.
 let _onRepoChange = null;
 export function setRepoChangeHandler(fn) { _onRepoChange = fn; }
@@ -81,7 +81,6 @@ export function updateActiveRepo(name) {
 }
 
 async function _guardActiveServices() {
-    const repoPath = state.selectedRepoPath;
     const feats = getFeatures();
     const api = window.electronAPI;
     const idle = { running: false };
@@ -101,12 +100,12 @@ async function _guardActiveServices() {
         } catch (_) {}
     };
 
-    const [gStatus, csStatus, termStatus, ecStatus, ecosStatus] = await Promise.all([
+    // CodeSwamp chats and terminals are intentionally not guarded here:
+    // they keep running across repo switches.
+    const [gStatus, ecStatus, ecosStatus] = await Promise.all([
         feats.graphify !== false
             ? safeCall(() => api.graphifyIsRunning?.(), idle)
             : idle,
-        safeCall(() => api.opencode?.isRunning?.(), idle),
-        safeCall(() => api.terminalHasRunningInRepo?.(repoPath), { running: false, count: 0 }),
         safeCall(() => api.getServerStatus?.(), idle),
         feats.ecosystemWatcher !== false
             ? safeCall(() => api.eco?.status(), idle)
@@ -115,10 +114,9 @@ async function _guardActiveServices() {
 
     const items = [];
     if (gStatus.running) items.push({ name: 'Graphify', stop: () => safeStop(() => api.graphifyStop?.()) });
-    if (csStatus.running) items.push({ name: 'CodeSwamp', stop: () => safeStop(() => api.opencode?.stop?.()) });
-    if (termStatus.running) items.push({ name: 'Terminal', count: termStatus.count, stop: null });
     if (ecStatus.running) items.push({ name: 'Error Cop', stop: () => safeStop(() => api.stopServer?.()) });
     if (ecosStatus.running) items.push({ name: 'Ecosystem Tool', stop: () => safeStop(() => api.eco?.stop()) });
+
     if (items.length === 0) return true;
 
     const listHtml = items.map((s) => {
@@ -153,7 +151,7 @@ export async function loadRepo(repoPath, resetSel = true, skipGuard = false) {
     window.__activeRepoPath = repoPath;
     // Notify tools BEFORE updating activeProject so they save to the old repo
     await _onRepoChange?.(repoPath);
-    // Fire-and-forget — config writes that don't affect visible UI
+    // Fire-and-forget - config writes that don't affect visible UI
     window.electronAPI.setActiveProject(repoPath);
 
     if (resetSel) {

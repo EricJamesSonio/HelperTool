@@ -166,7 +166,10 @@ export async function ensureTerminalUI() {
     _terminalInit = (async () => {
       const { default: TerminalUI } = await import('../terminal/terminalUI.js');
       const ui = new TerminalUI();
-      _registry.setTerminalUI(ui);
+      _registry.setTerminalUI({
+        isOpen: () => ui.isOpen() && !ui.isDocked(),
+        close: () => ui.close(),
+      });
       await ui.init();
       _terminalUI = ui;
       return ui;
@@ -752,6 +755,10 @@ const TOOLS = [
 ];
 
 async function _run(key, item) {
+  if (key === 'codeswamp' && document.body.classList.contains('ide-mode')) {
+    document.dispatchEvent(new CustomEvent('ide:codeswamp-toggle'));
+    return;
+  }
   try {
     await RUN[key]?.(item);
   } catch (err) {
@@ -1133,3 +1140,13 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   _run('repoConsole');
 }, true);
+RUN.errorCop = async () => {
+  const ui = await ensureTerminalUI();
+  const ecp = ui._errorCop;
+  if (ecp.isOpen()) {
+    ecp.close();
+    return;
+  }
+  _registry.closeAll();
+  ecp.open();
+};

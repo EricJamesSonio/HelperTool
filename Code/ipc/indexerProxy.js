@@ -17,6 +17,7 @@ let _ready = false;
 let _queue = [];
 let _dbPath = null;
 let _disabled = false;
+let _asleep = false;
 const _events = new EventEmitter();
 
 function _getIndexerPath() {
@@ -34,6 +35,7 @@ function _terminate(child) {
 function _spawn() {
   if (_child) { try { _child.kill(); } catch (_) {}; _child = null; }
 
+  _asleep = false;
   const indexPath = _getIndexerPath();
   const args = [indexPath];
   if (_dbPath) args.push(_dbPath);
@@ -55,7 +57,6 @@ function _spawn() {
         _flushQueue();
         return;
       }
-      // Progress messages are unsolicited - emit as events
       if (msg.type === 'progress') {
         _events.emit('progress', msg.data || {});
         return;
@@ -69,12 +70,11 @@ function _spawn() {
   });
 
   child.stderr.on('data', (chunk) => {
-    console.error(`[indexer] ${chunk.toString().trim()}`);
+    console.error('[indexer] ' + chunk.toString().trim());
   });
 
   child.on('exit', (code) => {
-    console.warn(`[indexer] Exited with code ${code}`);
-    // Stopped on purpose or replaced by a newer process: do not touch state, do not restart
+    console.warn('[indexer] Exited with code ' + code);
     if (_child !== child) return;
     _ready = false; _child = null; _rl = null;
     for (const [, p] of _pending) p.reject(new Error('Indexer process exited'));
@@ -83,14 +83,14 @@ function _spawn() {
   });
 
   child.on('error', (err) => {
-    console.error(`[indexer] Spawn error:`, err.message);
+    console.error('[indexer] Spawn error:', err.message);
     if (_child !== child) return;
     _scheduleRestart();
   });
 }
 
 function _scheduleRestart() {
-  if (_disabled || _restartTimer) return;
+  if (_disabled || _asleep || _restartTimer) return;
   _restartTimer = setTimeout(() => { _restartTimer = null; _spawn(); }, _restartDelay);
   _restartDelay = Math.min(_restartDelay * 2, 30000);
 }
@@ -105,7 +105,7 @@ function _send(msg, timeout = 30000) {
     if (!_child) { reject(new Error('Indexer not running')); return; }
     const id = msg.id || uuid();
     msg.id = id;
-    const timer = setTimeout(() => { _pending.delete(id); reject(new Error(`Indexer request timed out: ${msg.type}`)); }, timeout);
+    const timer = setTimeout(() => { _pending.delete(id); reject(new Error('Indexer request timed out: ' + msg.type)); }, timeout);
     _pending.set(id, { resolve: (res) => { clearTimeout(timer); resolve(res); }, reject: (err) => { clearTimeout(timer); reject(err); } });
     _child.stdin.write(JSON.stringify(msg) + '\n');
   });
@@ -113,14 +113,14 @@ function _send(msg, timeout = 30000) {
 
 function _queueOrSend(msg, timeout) {
   if (_disabled) return Promise.reject(new Error('Indexer is turned off'));
+  if (_asleep) wake();
   if (_ready) return _send(msg, timeout);
   return new Promise((resolve, reject) => { _queue.push({ msg, timeout, resolve, reject }); });
 }
 
-// ── Public API ──
-
 function start(dbPath) {
   _disabled = false;
+  _asleep = false;
   if (dbPath) _dbPath = dbPath;
   if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
   if (!_child) _spawn();
@@ -128,6 +128,7 @@ function start(dbPath) {
 
 function stop() {
   _disabled = true;
+  _asleep = false;
   if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
   const child = _child;
   _child = null;
@@ -142,6 +143,39 @@ function stop() {
   _terminate(child);
 }
 
+function isBusy() {
+  return _pending.size > 0 || _queue.length > 0;
+}
+
+function sleep(force) {
+  if (_disabled) return { ok: true, already: true };
+  if (!_child && !_restartTimer) return { ok: true, already: true };
+  if (isBusy() && !force) return { ok: false, busy: true };
+  _asleep = true;
+  if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
+  const child = _child;
+  _child = null;
+  _rl = null;
+  _ready = false;
+  const err = new Error('Indexer went to sleep');
+  for (const [, p] of _pending) p.reject(err);
+  _pending.clear();
+  const queued = _queue;
+  _queue = [];
+  for (const item of queued) item.reject(err);
+  _terminate(child);
+  return { ok: true };
+}
+
+function wake() {
+  if (!_asleep) return false;
+  _asleep = false;
+  if (!_disabled && !_child) _spawn();
+  return true;
+}
+
+function isAsleep() { return _asleep; }
+
 function isReady() { return _ready; }
 
 async function send(type, payload, timeout) {
@@ -153,4 +187,4 @@ async function send(type, payload, timeout) {
 function onProgress(cb) { _events.on('progress', cb); }
 function offProgress(cb) { _events.off('progress', cb); }
 
-module.exports = { start, stop, isReady, send, onProgress, offProgress };
+module.exports = { start, stop, sleep, wake, isAsleep, isBusy, isReady, send, onProgress, offProgress };

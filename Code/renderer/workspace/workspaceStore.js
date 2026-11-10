@@ -14,6 +14,34 @@ export const state = {
   globalLogs: [],
 };
 
+// ─── Log retention ────────────────────────────────────────────────────────────
+
+export const LOG_RETENTION_DAYS = 7;
+const LOG_RETENTION_MS = LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+export function pruneOldLogs(now = Date.now()) {
+  const cutoff = now - LOG_RETENTION_MS;
+  const keep = (log) => {
+    const t = Date.parse(log && log.timestamp);
+    return Number.isNaN(t) || t >= cutoff;
+  };
+
+  let removed = 0;
+
+  const globalBefore = state.globalLogs.length;
+  state.globalLogs = state.globalLogs.filter(keep);
+  removed += globalBefore - state.globalLogs.length;
+
+  for (const project of state.projects) {
+    if (!Array.isArray(project.projectLogs)) continue;
+    const before = project.projectLogs.length;
+    project.projectLogs = project.projectLogs.filter(keep);
+    removed += before - project.projectLogs.length;
+  }
+
+  return removed > 0;
+}
+
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
 export async function loadAll() {
@@ -23,14 +51,17 @@ export async function loadAll() {
     state.workers    = Array.isArray(data?.workers)     ? data.workers    : [];
     state.tickets    = Array.isArray(data?.tickets)     ? data.tickets    : [];
     state.globalLogs = Array.isArray(data?.globalLogs)  ? data.globalLogs : [];
-    console.log('[WorkspaceStore] ✅ Loaded', {
+
+    if (pruneOldLogs()) markDirty();
+
+    console.log('[WorkspaceStore] Loaded', {
       projects: state.projects.length,
       workers:  state.workers.length,
       tickets:  state.tickets.length,
       logs:     state.globalLogs.length,
     });
   } catch (err) {
-    console.error('[WorkspaceStore] ❌ Load failed:', err);
+    console.error('[WorkspaceStore] Load failed:', err);
     state.projects   = [];
     state.workers    = [];
     state.tickets    = [];
@@ -48,10 +79,10 @@ export async function saveAll() {
       tickets:    state.tickets,
       globalLogs: state.globalLogs,
     });
-    if (!result) console.error('[WorkspaceStore] ❌ Save returned false');
+    if (!result) console.error('[WorkspaceStore] Save returned false');
     _dirty = false;
   } catch (err) {
-    console.error('[WorkspaceStore] ❌ Save failed:', err);
+    console.error('[WorkspaceStore] Save failed:', err);
   }
 }
 

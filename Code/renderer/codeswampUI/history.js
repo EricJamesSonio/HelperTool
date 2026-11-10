@@ -8,6 +8,9 @@ export async function discoverOpencode() {
 
 export async function listConversations(repoPath, provider = 'opencode') {
   try {
+    if (provider === 'cline') {
+      return { conversations: [], error: null };
+    }
     let convs;
     if (provider === 'gemini') {
       convs = await window.electronAPI.gemini.listConversations(repoPath);

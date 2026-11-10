@@ -489,6 +489,8 @@ const codebaseManagerBridge = {
     moveFile:   (sourcePath, targetDir) => ipcRenderer.invoke('cm:moveFile', { sourcePath, targetDir }),
     createFiles: (parentPath, fileNames) => ipcRenderer.invoke('cm:createFiles', { parentPath, fileNames }),
     createFolder: (parentPath, folderName) => ipcRenderer.invoke('cm:createFolder', { parentPath, folderName }),
+    pickFiles: () => ipcRenderer.invoke('cm:pickFiles'),
+    importFiles: (targetDir, sources) => ipcRenderer.invoke('cm:importFiles', { targetDir, sources }),
 };
 
 const imageBridge = {
@@ -869,4 +871,61 @@ contextBridge.exposeInMainWorld('ideSearchStream', {
         ipcRenderer.removeAllListeners('ide:searchBatch');
         ipcRenderer.on('ide:searchBatch', (_event, data) => callback(data));
     },
+});
+contextBridge.exposeInMainWorld('ideWindowAPI', {
+    onHidden: (callback) => {
+        ipcRenderer.removeAllListeners('ide:windowHidden');
+        ipcRenderer.on('ide:windowHidden', () => callback());
+    },
+});
+contextBridge.exposeInMainWorld('ideExtAPI', {
+    detect: (root) => ipcRenderer.invoke('ideExt:detect', root),
+    diagnose: (payload) => ipcRenderer.invoke('ideExt:diagnose', payload),
+});
+contextBridge.exposeInMainWorld('gitReposAPI', {
+  listRepos:  ()        => ipcRenderer.invoke('gitAccounts:listRepos'),
+  createRepo: (payload) => ipcRenderer.invoke('gitAccounts:createRepo', payload),
+  clone:      (payload) => ipcRenderer.invoke('gitAccounts:clone', payload),
+});
+contextBridge.exposeInMainWorld('ideDebugAPI', {
+    start: (payload) => ipcRenderer.invoke('ideDebug:start', payload),
+    cancel: (id) => ipcRenderer.invoke('ideDebug:cancel', id),
+    onBatch: (callback) => {
+        ipcRenderer.removeAllListeners('ideDebug:batch');
+        ipcRenderer.on('ideDebug:batch', (_event, data) => callback(data));
+    },
+});
+contextBridge.exposeInMainWorld('ideWatchAPI', {
+    status: (root) => ipcRenderer.invoke('ideWatch:status', root),
+    dirs: (list) => ipcRenderer.invoke('ideWatch:dirs', list),
+});
+contextBridge.exposeInMainWorld('ideLineAPI', {
+    diff: (root, file) => ipcRenderer.invoke('ide:gitLines', { root, file }),
+});
+contextBridge.exposeInMainWorld('ideClipAPI', {
+    paste: (payload) => ipcRenderer.invoke('ide:fsPaste', payload),
+});
+contextBridge.exposeInMainWorld('ideHistoryAPI', {
+    op: (payload) => ipcRenderer.invoke('ide:fsOp', payload),
+});
+contextBridge.exposeInMainWorld('gitReposPageAPI', {
+  page: (payload) => ipcRenderer.invoke('gitAccounts:listReposPage', payload),
+});
+contextBridge.exposeInMainWorld('versionsAPI', {
+  list:  ()           => ipcRenderer.invoke('versions:list'),
+  read:  (id, file)   => ipcRenderer.invoke('versions:read', id, file),
+  asset: (relPath)    => ipcRenderer.invoke('versions:asset', relPath),
+});
+contextBridge.exposeInMainWorld('versionsEditAPI', {
+  create: (payload) => ipcRenderer.invoke('versions:create', payload),
+});
+contextBridge.exposeInMainWorld('hibernateAPI', {
+  getState: () => ipcRenderer.invoke('hibernate:getState'),
+  setAfter: (sec) => ipcRenderer.invoke('hibernate:setAfter', sec),
+  wake: () => ipcRenderer.invoke('hibernate:wake'),
+  feature: (id, action) => ipcRenderer.invoke('hibernate:feature', { id, action }),
+  onState: (callback) => {
+    ipcRenderer.removeAllListeners('hibernate:state');
+    ipcRenderer.on('hibernate:state', (_event, data) => callback(data));
+  },
 });

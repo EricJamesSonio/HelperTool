@@ -2,6 +2,10 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const { getErrorEngine } = require('./terminal_ipc');
 
+const RETENTION_DAYS = 7;
+const PURGE_INTERVAL_MS = 60 * 60 * 1000;
+const PURGE_FIRST_RUN_MS = 15000;
+
 let _errorEngine = null;
 let _serverStarted = false;
 
@@ -18,6 +22,18 @@ function register({ getMainWindow }) {
     try { _errorEngine.getStorage().cleanupStaleSessions(); } catch {}
   }, 60000).unref();
 
+  // Auto-delete sessions, errors and timeline entries older than the retention window
+  const runPurge = () => {
+    try {
+      const removed = _errorEngine.getStorage().purgeOlderThan(RETENTION_DAYS);
+      if (removed) console.log('[ErrorCop] Purged ' + removed + ' session(s) older than ' + RETENTION_DAYS + ' days');
+    } catch (e) {
+      console.error('[ErrorCop] Purge failed:', e.message);
+    }
+  };
+  setTimeout(runPurge, PURGE_FIRST_RUN_MS).unref();
+  setInterval(runPurge, PURGE_INTERVAL_MS).unref();
+
   const storage = () => _errorEngine.getStorage();
   const notify = () => _errorEngine.getNotify();
 
@@ -28,16 +44,16 @@ function register({ getMainWindow }) {
     };
   };
 
-  ipcMain.handle('error-cop:getErrors', safe((event, { project, level, limit, offset, startDate, endDate } = {}) => {
-    return storage().getErrors({ project, level, limit, offset, startDate, endDate });
+  ipcMain.handle('error-cop:getErrors', safe((event, { project, level, limit, offset, startDate, endDate, repoPath } = {}) => {
+    return storage().getErrors({ project, level, limit, offset, startDate, endDate, repoPath });
   }));
 
   ipcMain.handle('error-cop:getSessionErrors', safe((event, sessionId) => {
     return storage().getErrorsBySession(sessionId);
   }));
 
-  ipcMain.handle('error-cop:getTimeline', safe((event, { project, limit, offset, startDate, endDate } = {}) => {
-    return storage().getTimeline({ project, limit, offset, startDate, endDate });
+  ipcMain.handle('error-cop:getTimeline', safe((event, { project, limit, offset, startDate, endDate, repoPath } = {}) => {
+    return storage().getTimeline({ project, limit, offset, startDate, endDate, repoPath });
   }));
 
   ipcMain.handle('error-cop:getSessions', safe((event, opts) => {

@@ -64,7 +64,7 @@ let _resizeBound = false;
 const $ = (id) => document.getElementById(id);
 
 function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return String(s == null ? '' : s).replace(/[&<>\x22]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\x22': '&quot;' }[c]));
 }
 
 function fmtMem(kb) {
@@ -510,7 +510,8 @@ function countNodes(id) {
 
 function statusOf(row) {
   if (row.procs === 0 && row.busy < 0.5 && !row.mem) return 'idle';
-  if (row.mem >= MEM_CRIT_KB || row.cpu >= CPU_CRIT) return 'critical';
+  const settled = _history.length >= 3;
+  if (row.mem >= MEM_CRIT_KB || (settled && row.cpu >= CPU_CRIT)) return 'critical';
   if (row.mem >= MEM_WARN_KB || row.cpu >= CPU_WARN) return 'warning';
   return 'good';
 }
@@ -575,6 +576,7 @@ function render() {
   renderOpt();
   $('ptGroups').innerHTML = renderGroups(rows);
   $('ptTable').innerHTML = renderTable(rows);
+  bindActions();
   $('ptDisabled').innerHTML = renderDisabled(rows);
   $('ptProcs').innerHTML = renderProcs(snap);
   $('ptFoot').textContent =
@@ -765,11 +767,14 @@ function renderTable(rows) {
   ];
   const head = cols
     .map(([k, label]) => '<th data-sort="' + k + '" class="pt-th' + (_sort.key === k ? ' pt-th-active' : '') + '">' + label + (_sort.key === k ? (_sort.dir > 0 ? ' &#9650;' : ' &#9660;') : '') + '</th>')
-    .join('');
+    .join('') + '<th class="pt-th">Action</th>';
   const body = list
     .map((r) => {
       const quiet = r.procs === 0 && r.busy < 0.5;
       const level = powerLevel(r.power);
+      const acts = actionsFor(r)
+        .map((a) => '<button type="button" class="pt-btn pt-btn-sm pt-btn-' + a[0] + '" data-act="' + a[0] + '" data-feature="' + esc(r.id) + '" title="' + esc(a[2]) + '">' + esc(a[1]) + '</button>')
+        .join('');
       return (
         '<tr><td class="pt-cell-name" title="' + esc(r.desc) + '">' + esc(r.label) + '</td>' +
         '<td class="pt-cell-muted">' + esc(r.group) + '</td>' +
@@ -779,11 +784,12 @@ function renderTable(rows) {
         '<td class="pt-num">' + (r.procs || '<span class="pt-cell-muted">0</span>') + '</td>' +
         '<td class="pt-num" title="' + r.calls + ' requests in the last interval">' + (r.busy > 0 ? r.busy.toFixed(1) + '%' : '<span class="pt-cell-muted">-</span>') + '</td>' +
         '<td class="pt-num">' + (r.nodes ? r.nodes.toLocaleString() : '<span class="pt-cell-muted">-</span>') + '</td>' +
-        '<td><span class="pt-status pt-status-' + r.status + '"><span class="pt-dot"></span>' + STATUS_LABEL[r.status] + '</span></td></tr>'
+        '<td><span class="pt-status pt-status-' + r.status + '"><span class="pt-dot"></span>' + STATUS_LABEL[r.status] + '</span></td>' +
+        '<td>' + (acts ? '<div class="pt-act">' + acts + '</div>' : '<span class="pt-cell-muted">-</span>') + '</td></tr>'
       );
     })
     .join('');
-  return '<h2 class="pt-h2">Enabled features</h2><p class="pt-hint">Click a column to sort</p><div class="pt-table-wrap"><table class="pt-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  return '<h2 class="pt-h2">Enabled features</h2><p class="pt-hint">Click a column to sort. Sleep frees memory now and wakes when the feature is needed again. Stop closes it fully.</p><div class="pt-table-wrap"><table class="pt-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
 }
 
 function renderDisabled(rows) {
@@ -801,9 +807,12 @@ let _optSettings = { nodeMemMB: 0 };
 let _optLoaded = false;
 let _optMsg = '';
 let _optBusy = false;
+let _actBusy = false;
+let _hib = { asleep: false, sleeping: [], afterSec: 60 };
 
 const OPT_SHELL = /^(powershell|pwsh|cmd|conhost|openconsole|bash|zsh|sh|fish|wsl)/i;
 const OPT_CAPS = [[0, 'Off'], [1024, '1 GB'], [1536, '1.5 GB'], [2048, '2 GB'], [3072, '3 GB']];
+const HIB_OPTIONS = [[0, 'Off'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes'], [900, '15 minutes']];
 
 function injectOptStyles() {
   if (document.getElementById('ptOptCss')) return;
@@ -814,16 +823,40 @@ function injectOptStyles() {
     '.pt-opt-text{flex:1;min-width:0;font-size:13px;line-height:1.5;color:var(--text-secondary,#94a3c4)}' +
     '.pt-opt-text strong{color:var(--text-primary,#eef2ff)}' +
     '.pt-opt-mem{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--text-primary,#eef2ff)}' +
-    '.pt-opt-msg{margin-top:10px;font-size:12px;color:var(--text-primary,#eef2ff)}';
+    '.pt-opt-msg{margin-top:10px;font-size:12px;color:var(--text-primary,#eef2ff)}' +
+    'select.pt-select{color-scheme:dark;min-width:120px}' +
+    '.pt-select option{background:var(--bg-elevated,#1b1d24);color:var(--text-primary,#eef2ff)}' +
+    '.pt-act{display:flex;gap:6px}' +
+    '.pt-btn-sm{height:26px;padding:0 10px;font-size:0.74rem}' +
+    '.pt-btn-stop:hover{color:var(--red,#ff6b69);border-color:var(--red,#ff6b69)}' +
+    '.pt-btn-sleep:hover{color:var(--yellow,#d29922);border-color:var(--yellow,#d29922)}';
   document.head.appendChild(st);
 }
 
-function renderOptimizer(snap) {
-  const waka = snap.processes.filter((p) => /^wakatime-cli/i.test(String(p.name || '')));
-  const dev = snap.processes
+function devList(snap) {
+  return snap.processes
     .filter((p) => (p.feature === 'terminalTool' || p.feature === 'commands' || p.feature === 'other') && !OPT_SHELL.test(String(p.name || '')) && p.memKB >= 40 * 1024)
     .sort((a, b) => b.memKB - a.memKB)
     .slice(0, 8);
+}
+
+function devTips(dev) {
+  const tips = [];
+  const next = dev.find((p) => String(p.name || '').toLowerCase().indexOf('node (next.js)') === 0 && p.memKB >= 800 * 1024);
+  if (next) {
+    tips.push('Next.js keeps every page it has compiled in memory, so a dev server grows as you open pages (' + fmtMem(next.memKB) + ' now). Stopping it and starting it again frees that memory.');
+    tips.push('In next.config, try experimental: { webpackMemoryOptimizations: true } (Next.js 15 or newer). It lowers peak memory for a small cost in compile time.');
+    tips.push('Removing unused packages helps too. The Next.js bundle analyzer shows which dependencies are largest.');
+  }
+  const cap = Number(_optSettings.nodeMemMB) || 0;
+  if (!cap && dev.some((p) => /^node/i.test(String(p.name || '')) && p.memKB >= 400 * 1024)) {
+    tips.push('Set the Node memory limit below, then restart the server. If a server later stops with a heap out of memory error, raise the limit.');
+  }
+  return tips;
+}
+function renderOptimizer(snap) {
+  const waka = snap.processes.filter((p) => /^wakatime-cli/i.test(String(p.name || '')));
+  const dev = devList(snap);
   let body = '';
   if (waka.length > 2) {
     const mem = waka.reduce((a, p) => a + p.memKB, 0);
@@ -832,16 +865,22 @@ function renderOptimizer(snap) {
   }
   if (dev.length) {
     const total = dev.reduce((a, p) => a + p.memKB, 0);
-    body += '<div class="pt-hint" style="margin-top:12px">Programs you started in terminals (' + esc(fmtMem(total)) + ')</div>';
+    body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Programs you started in terminals</strong> <span class="pt-cell-muted">' + esc(fmtMem(total)) + ' in total</span></div>' +
+      (dev.length > 1 ? '<button type="button" class="pt-btn" data-opt="killall">Stop all</button>' : '') + '</div>';
     for (const p of dev) {
       body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(p.name) + '</strong> <span class="pt-cell-muted">PID ' + p.pid + '</span></div>' +
         '<span class="pt-opt-mem">' + esc(fmtMem(p.memKB)) + '</span>' +
         '<button type="button" class="pt-btn" data-opt="kill" data-pid="' + p.pid + '">Stop</button></div>';
     }
+    const tips = devTips(dev);
+    if (tips.length) {
+      body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Ways to use less memory</strong><br>' +
+        tips.map((t) => '&bull; ' + esc(t)).join('<br>') + '</div></div>';
+    }
   } else if (waka.length <= 2) {
     body += '<div class="pt-empty">Nothing heavy is running in terminals right now.</div>';
   }
-  let current = Number(_optSettings.nodeMemMB) || 0;
+  const current = Number(_optSettings.nodeMemMB) || 0;
   let options = OPT_CAPS.map((c) => '<option value="' + c[0] + '"' + (c[0] === current ? ' selected' : '') + '>' + c[1] + '</option>').join('');
   if (current && !OPT_CAPS.some((c) => c[0] === current)) {
     options += '<option value="' + current + '" selected>' + current + ' MB</option>';
@@ -851,16 +890,6 @@ function renderOptimizer(snap) {
     '<select class="pt-select" data-opt="cap">' + options + '</select></div>';
   if (_optMsg) body += '<div class="pt-opt-msg">' + esc(_optMsg) + '</div>';
   return '<h2 class="pt-h2">Optimizer</h2><p class="pt-hint">Safe clean-ups for the programs running inside Helper Tool terminals</p>' + body;
-}
-
-async function loadOptSettings() {
-  const api = window.perfOptAPI;
-  if (!api) return;
-  try {
-    const s = await api.getSettings();
-    if (s) _optSettings = s;
-  } catch (_) {}
-  renderOpt();
 }
 
 async function onOptClick(e) {
@@ -873,10 +902,17 @@ async function onOptClick(e) {
     return;
   }
   const kind = btn.dataset.opt;
-  if (kind === 'kill' && !window.confirm('Stop this program? Whatever it serves goes offline until you start it again.')) return;
+  let pids = [];
+  if (kind === 'kill') {
+    if (!window.confirm('Stop this program? Whatever it serves goes offline until you start it again.')) return;
+    pids = [Number(btn.dataset.pid)];
+  } else if (kind === 'killall') {
+    pids = _snap ? devList(_snap).map((p) => p.pid) : [];
+    if (!pids.length || !window.confirm('Stop all ' + pids.length + ' programs listed? Anything they serve goes offline until you start them again.')) return;
+  }
   _optBusy = true;
   try {
-    const res = kind === 'waka' ? await api.killWaka() : await api.kill([Number(btn.dataset.pid)]);
+    const res = kind === 'waka' ? await api.killWaka() : await api.kill(pids);
     if (res && res.killed) _optMsg = 'Stopped ' + res.killed + ' process' + (res.killed === 1 ? '' : 'es') + '.';
     else _optMsg = (res && res.error) || 'Nothing was stopped.';
   } catch (err) {
@@ -932,12 +968,248 @@ function ensureOptSection() {
   return el;
 }
 
+function renderDataFiles(snap) {
+  const files = Array.isArray(snap.dataFiles) ? snap.dataFiles : [];
+  if (!files.length) return '';
+  const total = files.reduce((a, f) => a + f.bytes, 0);
+  const rows = files.map((f) =>
+    '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(f.label) + '</strong></div>' +
+    '<span class="pt-opt-mem">' + esc(fmtMem(f.bytes / 1024)) + '</span></div>'
+  ).join('');
+  return '<div class="pt-hint" style="margin-top:14px">Data files kept in memory (' + esc(fmtMem(total / 1024)) + ' on disk)</div>' + rows +
+    '<div class="pt-opt-msg pt-cell-muted">Each file is loaded fully into memory by the app, so its size on disk is a floor for its memory use. The main database is also loaded by the background worker.</div>';
+}
+
+function hibLabelFor(id) {
+  if (id === 'workerService') return 'Background worker';
+  if (id === 'symbolIndex') return 'Symbol Index';
+  return id;
+}
+
+function renderHibernate() {
+  const api = window.hibernateAPI;
+  const cur = Number(_hib.afterSec) || 0;
+  let options = HIB_OPTIONS.map((o) => '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>').join('');
+  if (cur && !HIB_OPTIONS.some((o) => o[0] === cur)) {
+    options += '<option value="' + cur + '" selected>' + cur + ' seconds</option>';
+  }
+  const sleeping = (_hib.sleeping || []).map(hibLabelFor);
+  let status = 'Everything is awake.';
+  if (_hib.asleep) status = 'Helper Tool is hibernating now.';
+  else if (sleeping.length) status = 'Sleeping: ' + sleeping.join(', ') + '.';
+  const canWake = !!_hib.asleep || sleeping.length > 0;
+  let body = '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Hibernate when minimized or hidden</strong><br>' +
+    '<span class="pt-cell-muted">After this long in the taskbar or tray, Helper Tool stops its background worker and symbol indexer, pauses Gmail checks, closes idle Code Swamp terminals and pauses repeating timers. Everything wakes when you open the window. Terminals you opened, servers you started and running jobs are left alone.</span></div>' +
+    '<select class="pt-select" data-hib="after"' + (api ? '' : ' disabled') + '>' + options + '</select></div>';
+  body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(status) + '</strong>' +
+    (api ? '' : '<br><span class="pt-cell-muted">Restart Helper Tool once so hibernate can load.</span>') + '</div>' +
+    (canWake ? '<button type="button" class="pt-btn" data-hib="wake">Wake all</button>' : '') + '</div>';
+  return '<div style="margin-bottom:20px"><h2 class="pt-h2">Hibernate</h2><p class="pt-hint">Let the app rest while you are not using it</p>' + body + '</div>';
+}
+
+async function refreshHib() {
+  const api = window.hibernateAPI;
+  if (!api) return;
+  try {
+    const s = await api.getState();
+    if (s) _hib = s;
+  } catch (_) {}
+}
+
+async function onHibClick(e) {
+  const btn = e.target.closest('button[data-hib="wake"]');
+  if (!btn) return;
+  const api = window.hibernateAPI;
+  if (!api) {
+    _optMsg = 'Restart Helper Tool once so hibernate can load.';
+    renderOpt();
+    return;
+  }
+  try {
+    const s = await api.wake();
+    if (s) _hib = s;
+    _optMsg = 'Everything is awake.';
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not wake everything.';
+  }
+  renderOpt();
+  clearTimeout(_timer);
+  setTimeout(run, 800);
+}
+
+async function onHibChange(e) {
+  const sel = e.target.closest('select[data-hib="after"]');
+  if (!sel) return;
+  const api = window.hibernateAPI;
+  if (!api) {
+    _optMsg = 'Restart Helper Tool once so hibernate can load.';
+    renderOpt();
+    return;
+  }
+  const sec = Number(sel.value) || 0;
+  try {
+    const res = await api.setAfter(sec);
+    if (res && res.ok) {
+      _hib = Object.assign({}, _hib, { afterSec: res.afterSec });
+      _optMsg = res.afterSec
+        ? 'Helper Tool will hibernate after ' + sel.options[sel.selectedIndex].text + ' minimized or hidden.'
+        : 'Auto-hibernate is off.';
+    } else {
+      _optMsg = (res && res.error) || 'Could not save the setting.';
+    }
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not save the setting.';
+  }
+  sel.blur();
+  renderOpt();
+}
+
+function bindHib() {
+  const el = $('ptOpt');
+  if (!el || el.dataset.hibBound) return;
+  el.dataset.hibBound = '1';
+  el.addEventListener('click', onHibClick);
+  el.addEventListener('change', onHibChange);
+  document.addEventListener('app:hibernate-state', (e) => {
+    if (e && e.detail) {
+      _hib = e.detail;
+      if (_open) renderOpt();
+    }
+  });
+}
+
+async function loadOptSettings() {
+  bindHib();
+  const api = window.perfOptAPI;
+  if (api) {
+    try {
+      const s = await api.getSettings();
+      if (s) _optSettings = s;
+    } catch (_) {}
+  }
+  await refreshHib();
+  renderOpt();
+}
+
 function renderOpt() {
   const el = ensureOptSection();
   if (!el || !_snap) return;
   const active = document.activeElement;
   if (active && el.contains(active) && active.tagName === 'SELECT') return;
-  el.innerHTML = renderOptimizer(_snap);
+  el.innerHTML = renderHibernate() + renderOptimizer(_snap) + renderDataFiles(_snap);
+}
+
+function actionsFor(r) {
+  if (r.procs <= 0) return [];
+  if (r.id === 'codeswampChat') {
+    return [
+      ['sleep', 'Sleep', 'Close the terminals now to free memory. They open again when you use Code Swamp.'],
+      ['stop', 'Stop', 'Close every Code Swamp terminal and forget the saved conversation ids.'],
+    ];
+  }
+  if (r.id === 'graphify') {
+    return [['stop', 'Stop', 'Stop the Graphify server process.']];
+  }
+  if (r.id === 'symbolIndex') {
+    return [['sleep', 'Sleep', 'Stop the symbol indexer process. It wakes when you restore the window or press Wake all.']];
+  }
+  if (r.id === 'workerService') {
+    return [['sleep', 'Sleep', 'Stop the background worker. It starts again by itself when something needs it.']];
+  }
+  return [];
+}
+
+async function closeCodeSwamp(forget) {
+  const tm = await import('./codeswampUI/terminalManager.js');
+  const list = tm.getTerminalInstances();
+  const keys = Object.keys(list);
+  keys.forEach((key) => tm.killSlot(Number(key)));
+  const wrapper = document.getElementById('ocTerminal');
+  if (wrapper) {
+    wrapper.classList.remove('oc-terminal--stage');
+    wrapper.style.display = 'none';
+  }
+  const welcome = document.getElementById('ocWelcome');
+  if (welcome) welcome.style.display = '';
+  const mod = await import('./codeswampUI/state.js');
+  const st = mod.state;
+  if (forget) {
+    Object.keys(st.activeConvId).forEach((k) => {
+      st.activeConvId[k] = null;
+    });
+    st.streaming = false;
+    st.streamBuffer = '';
+    try {
+      await window.electronAPI.opencode.stop();
+    } catch (_) {}
+  }
+  try {
+    document.dispatchEvent(new CustomEvent('cs:slept', { detail: { repoPath: st.activeTab } }));
+  } catch (_) {}
+  return keys.length;
+}
+
+async function codeswampHasChats() {
+  const tm = await import('./codeswampUI/terminalManager.js');
+  return tm.hasChattedSessions();
+}
+
+async function callFeature(id, action) {
+  const api = window.hibernateAPI;
+  if (!api) throw new Error('Restart Helper Tool once so the sleep controls can load.');
+  const res = await api.feature(id, action);
+  if (res && res.state) _hib = res.state;
+  return res || { ok: false, error: 'No answer from the app.' };
+}
+
+function featureMsg(id, res) {
+  if (!res || !res.ok) {
+    if (res && res.busy) return 'It is busy right now. Try again in a moment.';
+    return (res && res.error) || 'Nothing changed.';
+  }
+  if (id === 'graphify') return 'Graphify stopped. Start it again from the Graphify panel.';
+  if (id === 'workerService') return 'Background worker is asleep. It starts again by itself when something needs it.';
+  return 'Symbol Index is asleep. It wakes when you restore the window or press Wake all.';
+}
+
+async function onFeatureAction(e) {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn || _actBusy) return;
+  const id = btn.dataset.feature;
+  const act = btn.dataset.act;
+  _actBusy = true;
+  try {
+    if (id === 'codeswampChat') {
+      if (act === 'stop') {
+        if (!window.confirm('Stop Code Swamp? Every terminal closes, running chats end and saved conversation ids are forgotten.')) return;
+      } else if (await codeswampHasChats()) {
+        if (!window.confirm('Put Code Swamp to sleep? Running chats are closed. OpenCode and Gemini resume when you come back, Cline starts a new chat.')) return;
+      }
+      const count = await closeCodeSwamp(act === 'stop');
+      const word = count + ' terminal' + (count === 1 ? '' : 's');
+      _optMsg = act === 'stop'
+        ? 'Code Swamp stopped (' + word + ' closed).'
+        : 'Code Swamp is asleep (' + word + ' closed). It wakes when you use it.';
+    } else if (id === 'graphify' || id === 'symbolIndex' || id === 'workerService') {
+      if (id === 'graphify' && !window.confirm('Stop the Graphify server?')) return;
+      const res = await callFeature(id, act);
+      _optMsg = featureMsg(id, res);
+    }
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not complete that action.';
+  } finally {
+    _actBusy = false;
+  }
+  renderOpt();
+  clearTimeout(_timer);
+  setTimeout(run, 800);
+}
+
+function bindActions() {
+  const el = $('ptTable');
+  if (!el || el.dataset.actBound) return;
+  el.dataset.actBound = '1';
+  el.addEventListener('click', onFeatureAction);
 }
 
 

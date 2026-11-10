@@ -1,0 +1,161 @@
+.ide-gs {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 10px 0 6px;
+  font: 700 11px/24px var(--font-mono);
+  letter-spacing: 0;
+}
+.ide-row.folder .ide-gs {
+  font-size: 9px;
+}
+.ide-oe-item .ide-gs {
+  line-height: 24px;
+}
+
+.ide-row[data-gs="M"] .ide-name,
+.ide-oe-item[data-gs="M"] .ide-name { color: var(--yellow); }
+.ide-row[data-gs="M"] .ide-gs,
+.ide-oe-item[data-gs="M"] .ide-gs { color: var(--yellow); }
+
+.ide-row[data-gs="U"] .ide-name,
+.ide-row[data-gs="A"] .ide-name,
+.ide-oe-item[data-gs="U"] .ide-name,
+.ide-oe-item[data-gs="A"] .ide-name { color: var(--green); }
+.ide-row[data-gs="U"] .ide-gs,
+.ide-row[data-gs="A"] .ide-gs,
+.ide-oe-item[data-gs="U"] .ide-gs,
+.ide-oe-item[data-gs="A"] .ide-gs { color: var(--green); }
+
+.ide-row[data-gs="R"] .ide-name,
+.ide-oe-item[data-gs="R"] .ide-name { color: var(--blue); }
+.ide-row[data-gs="R"] .ide-gs,
+.ide-oe-item[data-gs="R"] .ide-gs { color: var(--blue); }
+
+.ide-row[data-gs="C"] .ide-name,
+.ide-row[data-gs="D"] .ide-name,
+.ide-oe-item[data-gs="C"] .ide-name,
+.ide-oe-item[data-gs="D"] .ide-name { color: var(--red); }
+.ide-row[data-gs="C"] .ide-gs,
+.ide-row[data-gs="D"] .ide-gs,
+.ide-oe-item[data-gs="C"] .ide-gs,
+.ide-oe-item[data-gs="D"] .ide-gs { color: var(--red); }
+.ide-oe-item[data-gs="D"] .ide-name { text-decoration: line-through; }
+
+.ide-changes {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border-default);
+}
+.ide-changes:not(.collapsed) {
+  flex: 0 1 auto;
+  max-height: 36%;
+  min-height: 70px;
+}
+.ide-ch-n {
+  padding: 1px 8px;
+  border-radius: var(--r-sm);
+  background: var(--bg-active);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.ide-ch-n.m { color: var(--yellow); }
+.ide-ch-n.u { color: var(--green); }
+.ide-ch-sub {
+  padding: 6px 12px 2px 20px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ide-ch-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  padding: 0 10px 0 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  color: var(--text-secondary);
+}
+.ide-ch-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ide-ch-item.del { cursor: default; }
+.ide-ch-item.del .ide-ch-name { text-decoration: line-through; }
+.ide-ch-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.ide-ch-dir {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ide-ch-gs {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  font: 700 11px var(--font-mono);
+}
+.ide-ch-item[data-gs="M"] .ide-ch-name,
+.ide-ch-item[data-gs="M"] .ide-ch-gs { color: var(--yellow); }
+.ide-ch-item[data-gs="U"] .ide-ch-name,
+.ide-ch-item[data-gs="U"] .ide-ch-gs,
+.ide-ch-item[data-gs="A"] .ide-ch-name,
+.ide-ch-item[data-gs="A"] .ide-ch-gs { color: var(--green); }
+.ide-ch-item[data-gs="R"] .ide-ch-name,
+.ide-ch-item[data-gs="R"] .ide-ch-gs { color: var(--blue); }
+.ide-ch-item[data-gs="C"] .ide-ch-name,
+.ide-ch-item[data-gs="C"] .ide-ch-gs,
+.ide-ch-item[data-gs="D"] .ide-ch-name,
+.ide-ch-item[data-gs="D"] .ide-ch-gs { color: var(--red); }
+.ide-ch-more {
+  padding: 4px 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ide-mark-layer {
+  position: absolute;
+  inset: 0 14px 14px 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ide-mark-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  will-change: transform;
+}
+.ide-mk {
+  height: 20px;
+}
+.ide-mk-a {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--green);
+}
+.ide-mk-m {
+  background: color-mix(in srgb, var(--yellow) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--yellow);
+}
+.ide-mk-u {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.ide-mk-dt {
+  box-shadow: inset 0 2px 0 var(--red);
+}
+.ide-mk-db {
+  box-shadow: inset 0 -2px 0 var(--red);
+}

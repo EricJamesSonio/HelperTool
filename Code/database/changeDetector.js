@@ -11,6 +11,7 @@ const GRAPH_VERSION = 2;
 
 function loadSymbols(repoPath) {
   return symbolsJsonLoader.load(repoPath);
+  
 }
 
 function groupByFile(symbols, imports) {

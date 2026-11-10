@@ -9,6 +9,6 @@ async function getSqlJs() {
     });
   }
   return await _initPromise;
-}
+  }
 
 module.exports = { getSqlJs };

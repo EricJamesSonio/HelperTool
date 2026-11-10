@@ -71,7 +71,6 @@ FEATURES.push({
   name: 'Flow Tool',
 });
 
-
 let _modal = null;
 let _capturingId = null;
 let _docListener = null;

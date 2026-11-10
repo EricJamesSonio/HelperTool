@@ -1,6 +1,287 @@
 import { state } from '../app_manager/appState.js';
 import { esc, pathKey } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+let clip = null;
+let explorerActive = false;
+let toastEl = null;
+let toastTimer = 0;
+
+const POLL_MS = 10000;
+const POLL_DIRS_MAX = 80;
+const CH_MAX = 200;
+const GS_RANK = { C: 5, D: 4, M: 3, R: 3, A: 2, U: 1 };
+const GS_TIP = { C: 'Conflict', D: 'Deleted', M: 'Modified', R: 'Renamed', A: 'Added (new)', U: 'Untracked (new)' };
+
+let changesEl = null;
+let changesBody = null;
+let changesCount = null;
+let gitSig = '';
+let gitInfo = { isRepo: false, files: [], dirs: [] };
+let decor = new Map();
+let untracked = new Set();
+let pollTimer = 0;
+let polling = false;
+let lastPollRepo = null;
+
+function resetGit() {
+  gitSig = '';
+  gitInfo = { isRepo: false, files: [], dirs: [] };
+  decor = new Map();
+  untracked = new Set();
+  renderChanges();
+}
+
+function buildDecor() {
+  decor = new Map();
+  untracked = new Set();
+  const root = state.selectedRepoPath ? pathKey(state.selectedRepoPath) : '';
+  const bump = (start, letter) => {
+    const up = letter === 'D' || letter === 'R' ? 'M' : letter;
+    let cur = start;
+    for (let n = 0; n < 60; n++) {
+      const i = cur.lastIndexOf('/');
+      if (i <= 0) break;
+      cur = cur.slice(0, i);
+      if (root && cur.length < root.length) break;
+      const prev = decor.get(cur);
+      if (!prev || GS_RANK[up] > prev.rank) decor.set(cur, { s: up, rank: GS_RANK[up] });
+    }
+  };
+  for (const f of gitInfo.files) {
+    const k = pathKey(f.p);
+    decor.set(k, { s: f.s, rank: GS_RANK[f.s] || 1 });
+    bump(k, f.s);
+  }
+  for (const d of gitInfo.dirs) {
+    const k = pathKey(d);
+    untracked.add(k);
+    decor.set(k, { s: 'U', rank: 1 });
+    bump(k, 'U');
+  }
+}
+
+function statusOf(key) {
+  const d = decor.get(key);
+  if (d) return d;
+  if (!untracked.size) return null;
+  let cur = key;
+  for (let n = 0; n < 60; n++) {
+    const i = cur.lastIndexOf('/');
+    if (i <= 0) return null;
+    cur = cur.slice(0, i);
+    if (untracked.has(cur)) return { s: 'U', rank: 1 };
+  }
+  return null;
+}
+
+function decorateEl(el, key, isFolder) {
+  const st = key ? statusOf(key) : null;
+  const s = st ? st.s : '';
+  if ((el.dataset.gs || '') !== s) {
+    if (s) el.dataset.gs = s;
+    else delete el.dataset.gs;
+  }
+  const b = el.querySelector('.ide-gs');
+  if (!b) return;
+  const t = s ? (isFolder ? '\u25CF' : s) : '';
+  if (b.textContent !== t) b.textContent = t;
+  b.title = s ? GS_TIP[s] : '';
+}
+
+function applyDecor() {
+  if (treeEl) {
+    treeEl.querySelectorAll('.ide-row').forEach((r) => decorateEl(r, r.dataset.k, r.classList.contains('folder')));
+  }
+  if (oeListEl) {
+    oeListEl.querySelectorAll('.ide-oe-item').forEach((r) => decorateEl(r, pathKey(r.dataset.path), false));
+  }
+}
+
+function nativePath(p) {
+  const repo = state.selectedRepoPath || '';
+  return repo.indexOf('\\') !== -1 ? String(p).replace(/\//g, '\\') : String(p);
+}
+
+function relOf(p) {
+  const root = (state.selectedRepoPath || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  const n = String(p).replace(/\\/g, '/');
+  return root && n.toLowerCase().indexOf(root.toLowerCase() + '/') === 0 ? n.slice(root.length + 1) : n;
+}
+
+function chRow(p, s, kind) {
+  const rel = relOf(p);
+  const i = rel.lastIndexOf('/');
+  const name = i < 0 ? rel : rel.slice(i + 1);
+  const dir = i < 0 ? '' : rel.slice(0, i);
+  const icon = kind === 'dir' ? '<span class="ide-ficon">' + FOLDER_CLOSED + '</span>' : fileIcon(name);
+  return '<div class="ide-ch-item' + (kind === 'del' ? ' del' : '') + '" data-p="' + attr(nativePath(p)) + '" data-t="' + kind + '" data-gs="' + s + '" title="' + attr(rel + ' - ' + GS_TIP[s]) + '">' +
+    icon +
+    '<span class="ide-ch-name">' + esc(name) + (kind === 'dir' ? '/' : '') + '</span>' +
+    (dir ? '<span class="ide-ch-dir">' + esc(dir) + '</span>' : '') +
+    '<span class="ide-ch-gs">' + (kind === 'dir' ? 'U' : s) + '</span>' +
+  '</div>';
+}
+
+function chGroup(title, rows) {
+  if (!rows.length) return '';
+  const shown = rows.slice(0, CH_MAX).join('');
+  const more = rows.length > CH_MAX ? '<div class="ide-ch-more">+' + (rows.length - CH_MAX) + ' more</div>' : '';
+  return '<div class="ide-ch-sub">' + esc(title) + ' (' + rows.length + ')</div>' + shown + more;
+}
+
+function renderChanges() {
+  if (!changesEl) return;
+  const files = gitInfo.files.slice().sort((a, b) => a.p.localeCompare(b.p));
+  const dirs = gitInfo.dirs.slice().sort();
+  const total = files.length + dirs.length;
+  changesEl.hidden = !gitInfo.isRepo || !total;
+  if (changesEl.hidden) return;
+  const conflicts = [];
+  const modified = [];
+  const added = [];
+  const deleted = [];
+  let nMod = 0;
+  let nNew = dirs.length;
+  for (const f of files) {
+    if (f.s === 'C') {
+      conflicts.push(chRow(f.p, 'C', 'file'));
+      nMod++;
+    } else if (f.s === 'D') {
+      deleted.push(chRow(f.p, 'D', 'del'));
+    } else if (f.s === 'U' || f.s === 'A') {
+      added.push(chRow(f.p, f.s, 'file'));
+      nNew++;
+    } else {
+      modified.push(chRow(f.p, f.s, 'file'));
+      nMod++;
+    }
+  }
+  for (const d of dirs) added.push(chRow(d, 'U', 'dir'));
+  changesCount.innerHTML =
+    (nMod ? '<button type="button" class="ide-ch-n m" data-ch="mod" title="Show only modified files">' + nMod + ' modified</button>' : '') +
+    (nNew ? '<button type="button" class="ide-ch-n u" data-ch="new" title="Show only new files">' + nNew + ' new</button>' : '') +
+    (deleted.length ? '<button type="button" class="ide-ch-n d" data-ch="del" title="Show only deleted files">' + deleted.length + ' deleted</button>' : '');
+  changesBody.innerHTML =
+    chGroup('Conflicts', conflicts) +
+    chGroup('Modified', modified) +
+    chGroup('New', added) +
+    chGroup('Deleted', deleted);
+}
+
+function getChanges() {
+  const out = { modified: [], added: [], deleted: [] };
+  const files = gitInfo.files.slice().sort((a, b) => a.p.localeCompare(b.p));
+  const dirs = gitInfo.dirs.slice().sort();
+  for (const f of files) {
+    const row = { path: nativePath(f.p), rel: relOf(f.p), s: f.s, kind: 'file' };
+    if (f.s === 'D') {
+      row.kind = 'del';
+      out.deleted.push(row);
+    } else if (f.s === 'U' || f.s === 'A') {
+      out.added.push(row);
+    } else {
+      out.modified.push(row);
+    }
+  }
+  for (const d of dirs) out.added.push({ path: nativePath(d), rel: relOf(d), s: 'U', kind: 'dir' });
+  return out;
+}
+
+async function openChangesFilter(kind) {
+  try {
+    const mod = await import('./changesModal.js');
+    mod.openChangesModal(kind, {
+      getChanges,
+      onOpenFile: (p) => {
+        if (handlers.onOpenFile) handlers.onOpenFile(p);
+      },
+      onRevealDir: revealDir,
+      refresh: pollOnce,
+    });
+  } catch (err) {
+    console.error('[IDE] changes modal failed to open:', err);
+  }
+}
+
+function revealDir(dirPath) {
+  const repo = state.selectedRepoPath || '';
+  const sep = repo.indexOf('\\') !== -1 ? '\\' : '/';
+  const anc = ancestorsOf(dirPath + sep + '_');
+  for (const a of anc) expanded.add(a);
+  saveExpanded();
+  revealKey = pathKey(dirPath);
+  renderTree();
+}
+
+function onChangesClick(e) {
+  const it = e.target.closest('.ide-ch-item');
+  if (!it) return;
+  const t = it.dataset.t;
+  const p = it.dataset.p;
+  if (t === 'file' && handlers.onOpenFile) handlers.onOpenFile(p);
+  else if (t === 'dir') revealDir(p);
+}
+
+function dirSig(entries) {
+  return entries.map((x) => (x.type === 'folder' ? 'd' : 'f') + x.name).join('|');
+}
+
+async function pollOnce() {
+  if (polling || !treeEl) return;
+  if (!document.body.classList.contains('ide-mode') || document.hidden) return;
+  const api = window.ideWatchAPI;
+  const repo = state.selectedRepoPath;
+  if (!api || !repo || repo !== loadedRepo) return;
+  polling = true;
+  try {
+    const list = [];
+    if (cache.has(repo)) list.push(repo);
+    for (const d of expanded) {
+      if (list.length >= POLL_DIRS_MAX) break;
+      if (d !== repo && cache.has(d)) list.push(d);
+    }
+    const [gs, ds] = await Promise.all([
+      api.status(repo).catch(() => null),
+      list.length ? api.dirs(list).catch(() => null) : Promise.resolve(null),
+    ]);
+    if (repo !== state.selectedRepoPath || repo !== loadedRepo) return;
+    let dirsChanged = false;
+    if (ds && ds.success && ds.dirs) {
+      for (const d of list) {
+        const r = ds.dirs[d];
+        if (!r) continue;
+        if (r.error) {
+          cache.delete(d);
+          continue;
+        }
+        const old = cache.get(d);
+        if (!old) continue;
+        if (dirSig(old.entries) !== dirSig(r.entries || [])) {
+          cache.set(d, { entries: r.entries || [], truncated: !!r.truncated, error: null });
+          dirsChanged = true;
+        }
+      }
+    }
+    if (gs && gs.success) {
+      const info = gs.isRepo
+        ? { isRepo: true, files: gs.files || [], dirs: gs.dirs || [] }
+        : { isRepo: false, files: [], dirs: [] };
+      const sig = info.isRepo + '|' + info.files.map((f) => f.s + f.p).join('\n') + '|' + info.dirs.join('\n');
+      if (sig !== gitSig) {
+        gitSig = sig;
+        gitInfo = info;
+        buildDecor();
+        renderChanges();
+        if (!dirsChanged) applyDecor();
+        document.dispatchEvent(new CustomEvent('ide:git-changed'));
+      }
+    }
+    if (dirsChanged) renderTree();
+  } finally {
+    polling = false;
+  }
+}
+
 
 const EXP_KEY = 'helpertool-ide-expanded:';
 const DIM_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', '.cache', '__pycache__', '.swc']);
@@ -27,6 +308,15 @@ const TEMPLATE =
     '<div class="ide-empty ide-oe-empty">No open files</div>' +
     '<div class="ide-oe-list"></div>' +
   '</div>' +
+'</div>' +
+'<div class="ide-section ide-changes collapsed" hidden>' +
+  '<div class="ide-section-head">' +
+    '<span class="ide-sec-chev"></span><span class="ide-sec-name">Changes</span><span class="ide-sec-count"></span>' +
+    '<span class="ide-sec-actions">' +
+      '<button type="button" class="ide-sec-btn" data-act="gitrefresh" title="Refresh changes">' + I_REFRESH + '</button>' +
+    '</span>' +
+  '</div>' +
+  '<div class="ide-sec-body ide-ch-body"></div>' +
 '</div>' +
 '<div class="ide-section ide-files">' +
   '<div class="ide-section-head">' +
@@ -122,12 +412,16 @@ function rowsHtml(dirPath, depth, out) {
     const k = attr(pathKey(e.path));
     if (e.type === 'folder') {
       const open = expanded.has(e.path);
-      out.push('<div class="ide-row folder' + (open ? ' open' : '') + (DIM_DIRS.has(e.name) ? ' dim' : '') + '" data-path="' + p + '" data-k="' + k + '" data-d="' + depth + '" style="--d:' + depth + '"><span class="ide-chev"></span><span class="ide-ficon">' + (open ? FOLDER_OPEN : FOLDER_CLOSED) + '</span><span class="ide-name">' + esc(e.name) + '</span></div>');
+      const acts = '<span class="ide-row-acts">' +
+        '<button type="button" class="ide-row-btn" data-ract="newfile" title="New File">' + I_FILE_ADD + '</button>' +
+        '<button type="button" class="ide-row-btn" data-ract="newfolder" title="New Folder">' + I_FOLDER_ADD + '</button>' +
+      '</span>';
+      out.push('<div class="ide-row folder' + (open ? ' open' : '') + (DIM_DIRS.has(e.name) ? ' dim' : '') + '" data-path="' + p + '" data-k="' + k + '" data-d="' + depth + '" style="--d:' + depth + '"><span class="ide-chev"></span><span class="ide-ficon">' + (open ? FOLDER_OPEN : FOLDER_CLOSED) + '</span><span class="ide-name">' + esc(e.name) + '</span><span class="ide-gs"></span>' + acts + '</div>');
       out.push('<div class="ide-children"' + (open ? '' : ' hidden') + '>');
       if (open) rowsHtml(e.path, depth + 1, out);
       out.push('</div>');
     } else {
-      out.push('<div class="ide-row file" data-path="' + p + '" data-k="' + k + '" data-d="' + depth + '" style="--d:' + depth + '"><span class="ide-chev"></span>' + fileIcon(e.name) + '<span class="ide-name">' + esc(e.name) + '</span></div>');
+      out.push('<div class="ide-row file" data-path="' + p + '" data-k="' + k + '" data-d="' + depth + '" style="--d:' + depth + '"><span class="ide-chev"></span>' + fileIcon(e.name) + '<span class="ide-name">' + esc(e.name) + '</span><span class="ide-gs"></span></div>');
     }
   }
   if (dir.truncated) out.push('<div class="ide-note" style="--d:' + depth + '">Showing the first 5000 entries only.</div>');
@@ -147,10 +441,33 @@ function setMark(cls, key) {
 
 function markActive() {
   setMark('active', activeKey);
+  markDirty();
 }
+let dirtyKeys = new Set();
+let dirtyPaths = [];
+
+function markDirty() {
+  if (!treeEl) return;
+  treeEl.querySelectorAll('.ide-row.dirty, .ide-row.has-dirty').forEach((r) => {
+    r.classList.remove('dirty');
+    r.classList.remove('has-dirty');
+  });
+  for (const k of dirtyKeys) {
+    const el = rowByKey(k);
+    if (el) el.classList.add('dirty');
+  }
+  for (const p of dirtyPaths) {
+    for (const a of ancestorsOf(p)) {
+      const el = rowByKey(pathKey(a));
+      if (el) el.classList.add('has-dirty');
+    }
+  }
+}
+
 
 function markSelected() {
   setMark('selected', selected ? pathKey(selected.path) : null);
+  markClip();
 }
 
 function scrollReveal() {
@@ -177,6 +494,7 @@ async function doRender() {
     pending = new Map();
     expanded = repo ? loadExpanded(repo) : new Set();
     selected = null;
+    resetGit();
   }
   repoEl.textContent = repo ? baseName(repo) : 'No folder opened';
   if (!repo) {
@@ -194,7 +512,12 @@ async function doRender() {
   treeEl.scrollTop = scroll;
   markActive();
   markSelected();
+  applyDecor();
   if (revealKey) scrollReveal();
+  if (lastPollRepo !== repo) {
+    lastPollRepo = repo;
+    pollOnce();
+  }
 }
 
 export function renderTree() {
@@ -206,6 +529,7 @@ export function refresh() {
   cache = new Map();
   pending = new Map();
   renderTree();
+  setTimeout(pollOnce, 600);
 }
 
 async function toggleFolder(row) {
@@ -235,12 +559,28 @@ async function toggleFolder(row) {
   box.innerHTML = out.join('');
   markActive();
   markSelected();
+  applyDecor();
   saveExpanded();
 }
 
 function onTreeClick(e) {
+  const rb = e.target.closest('.ide-row-btn');
+  if (rb) {
+    e.stopPropagation();
+    const frow = rb.closest('.ide-row');
+    if (frow) {
+      selected = { path: frow.dataset.path, type: 'folder' };
+      markSelected();
+      runAction(rb.dataset.ract, frow.dataset.path);
+    }
+    return;
+  }
   const row = e.target.closest('.ide-row');
-  if (!row) return;
+  if (!row) {
+    selected = null;
+    markSelected();
+    return;
+  }
   const isFolder = row.classList.contains('folder');
   selected = { path: row.dataset.path, type: isFolder ? 'folder' : 'file' };
   markSelected();
@@ -324,13 +664,15 @@ export function setOpenEditors(list, act) {
       '<span class="ide-oe-x' + (t.dirty ? ' dirty' : '') + '"></span>' +
       fileIcon(t.name) +
       '<span class="ide-name">' + esc(t.name) + '</span>' +
+      '<span class="ide-gs"></span>' +
     '</div>'
   ).join('');
   const unsaved = list.filter((t) => t.dirty).length;
   let html = '';
   if (list.length) html += '<span class="ide-open-n">' + list.length + ' open</span>';
-  if (unsaved) html += '<span class="ide-unsaved">' + unsaved + ' unsaved</span>';
+  if (unsaved) html += '<button type="button" class="ide-unsaved" title="Review unsaved changes">' + unsaved + ' unsaved</button>';
   oeCountEl.innerHTML = html;
+  applyDecor();
   if (activeKey && activeKey !== prevKey) revealPath(act);
   else markActive();
 }
@@ -340,7 +682,7 @@ function targetFolder() {
   return state.selectedRepoPath;
 }
 
-async function runAction(act) {
+async function runAction(act, forcedTarget) {
   if (act === 'search') {
     if (handlers.onSearch) handlers.onSearch();
     return;
@@ -361,27 +703,188 @@ async function runAction(act) {
   }
   if (!state.selectedRepoPath) return;
   const mod = await import('../codebaseManager.js');
-  const target = targetFolder();
+  const target = forcedTarget || targetFolder();
+  const before = cache.get(target);
+  const known = new Set(before ? before.entries.map((x) => x.name) : []);
+  const isFile = act === 'newfile';
   const done = () => {
     expanded.add(target);
     saveExpanded();
     cache.delete(target);
     renderTree();
+    if (!before || !isFile) return;
+    loadDir(target).then((dir) => {
+      const names = dir.entries.filter((x) => x.type === 'file' && !known.has(x.name)).map((x) => x.name);
+      document.dispatchEvent(new CustomEvent('ide:files-created', { detail: { names } }));
+    });
   };
   if (act === 'newfile') mod.openCreateFilesModal(target, done);
   else if (act === 'newfolder') mod.openCreateFolderModal(target, done);
 }
 
 function onRootClick(e) {
+  const unsaved = e.target.closest('.ide-unsaved');
+  if (unsaved) {
+    e.stopPropagation();
+    import('./unsavedModal.js')
+      .then((m) => m.openUnsavedModal())
+      .catch((err) => console.error('[IDE] unsaved modal failed to open:', err));
+    return;
+  }
+  const chip = e.target.closest('.ide-ch-n');
+  if (chip) {
+    e.stopPropagation();
+    openChangesFilter(chip.dataset.ch || 'mod');
+    return;
+  }
   const btn = e.target.closest('.ide-sec-btn');
   if (btn) {
     e.stopPropagation();
+    if (btn.dataset.act === 'gitrefresh') {
+      pollOnce();
+      return;
+    }
     runAction(btn.dataset.act);
     return;
   }
   const head = e.target.closest('.ide-section-head');
   if (head) head.parentElement.classList.toggle('collapsed');
 }
+function markClip() {
+  if (!treeEl) return;
+  treeEl.querySelectorAll('.ide-row.clip-copy, .ide-row.clip-cut').forEach((r) => {
+    r.classList.remove('clip-copy');
+    r.classList.remove('clip-cut');
+  });
+  if (!clip) return;
+  const el = rowByKey(pathKey(clip.path));
+  if (el) el.classList.add(clip.mode === 'cut' ? 'clip-cut' : 'clip-copy');
+}
+
+function toast(msg) {
+  if (!toastEl) {
+    toastEl = document.createElement('div');
+    toastEl.className = 'ide-clip-toast';
+    document.body.appendChild(toastEl);
+  }
+  toastEl.textContent = msg;
+  const r = treeEl ? treeEl.getBoundingClientRect() : null;
+  if (r) {
+    toastEl.style.left = (r.left + 8) + 'px';
+    toastEl.style.top = Math.max(r.top, r.bottom - 44) + 'px';
+    toastEl.style.maxWidth = Math.max(160, r.width - 16) + 'px';
+  }
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    if (toastEl) toastEl.classList.remove('show');
+  }, 2600);
+}
+
+function setClip(mode) {
+  if (!selected) return;
+  if (clip && clip.path === selected.path && clip.mode === mode) {
+    clip = null;
+    markClip();
+    toast((mode === 'cut' ? 'Cut cleared: ' : 'Copy cleared: ') + baseName(selected.path));
+    return;
+  }
+  clip = { path: selected.path, type: selected.type, mode };
+  markClip();
+  toast((mode === 'cut' ? 'Cut ' : 'Copied ') + baseName(selected.path));
+}
+
+function dropUnder(p) {
+  const base = pathKey(p);
+  for (const k of Array.from(cache.keys())) {
+    const kk = pathKey(k);
+    if (kk === base || kk.indexOf(base + '/') === 0) cache.delete(k);
+  }
+  for (const k of Array.from(expanded)) {
+    const kk = pathKey(k);
+    if (kk === base || kk.indexOf(base + '/') === 0) expanded.delete(k);
+  }
+}
+
+async function pasteClip() {
+  const api = window.ideClipAPI;
+  if (!clip || !api || !state.selectedRepoPath) return;
+  const src = clip;
+  const dest = targetFolder();
+  let res;
+  try {
+    res = await api.paste({ source: src.path, targetDir: dest, mode: src.mode });
+  } catch (err) {
+    res = { success: false, error: err && err.message ? err.message : String(err) };
+  }
+  if (!res || !res.success) {
+    toast('Paste failed: ' + ((res && res.error) || 'unknown error'));
+    return;
+  }
+  if (res.noop) {
+    toast('Already in this folder');
+    return;
+  }
+  cache.delete(dest);
+  expanded.add(dest);
+  if (src.mode === 'cut') {
+    cache.delete(dirName(src.path));
+    dropUnder(src.path);
+    document.dispatchEvent(new CustomEvent('ide:path-moved', { detail: { from: src.path, to: res.to } }));
+  }
+  clip = null;
+  markClip();
+  document.dispatchEvent(new CustomEvent('ide:history-add', {
+    detail: { type: 'paste', mode: src.mode, from: src.path, to: res.to, kind: src.type },
+  }));
+  saveExpanded();
+  revealKey = pathKey(res.to);
+  selected = { path: res.to, type: src.type };
+  renderTree();
+  toast((src.mode === 'cut' ? 'Moved ' : 'Pasted ') + baseName(res.to));
+  setTimeout(pollOnce, 500);
+}
+
+function onClipPointer(e) {
+  explorerActive = !!(treeEl && treeEl.contains(e.target));
+}
+
+function onClipKey(e) {
+  if (!document.body.classList.contains('ide-mode')) return;
+  const k = e.key;
+  if (k === 'Control' || k === 'Shift' || k === 'Alt' || k === 'Meta') return;
+  if (!explorerActive) return;
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'INPUT') {
+    explorerActive = false;
+    return;
+  }
+  if (k === 'Escape' && clip) {
+    e.preventDefault();
+    e.stopPropagation();
+    clip = null;
+    markClip();
+    return;
+  }
+  const mod = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
+  const low = k.length === 1 ? k.toLowerCase() : k;
+  if (!mod || (low !== 'c' && low !== 'x' && low !== 'v')) {
+    explorerActive = false;
+    return;
+  }
+  if (low === 'v') {
+    if (!clip) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pasteClip();
+    return;
+  }
+  if (!selected) return;
+  e.preventDefault();
+  e.stopPropagation();
+  setClip(low === 'x' ? 'cut' : 'copy');
+}
+
 
 export function mount(rootEl, h) {
   handlers = h || {};
@@ -391,10 +894,22 @@ export function mount(rootEl, h) {
   oeListEl = rootEl.querySelector('.ide-oe-list');
   oeCountEl = rootEl.querySelector('.ide-sec-count');
   repoEl = rootEl.querySelector('.ide-repo-name');
+  changesEl = rootEl.querySelector('.ide-changes');
+  changesBody = rootEl.querySelector('.ide-ch-body');
+  changesCount = changesEl.querySelector('.ide-sec-count');
   treeEl.addEventListener('click', onTreeClick);
   treeEl.addEventListener('contextmenu', onTreeContext);
   oeListEl.addEventListener('click', onOeClick);
+  changesBody.addEventListener('click', onChangesClick);
   rootEl.addEventListener('click', onRootClick);
+  document.addEventListener('mousedown', onClipPointer, true);
+  document.addEventListener('keydown', onClipKey, true);
   document.addEventListener('repo:switched', renderTree);
   document.addEventListener('ide:tree-changed', renderTree);
+  document.addEventListener('ide:files-created', () => setTimeout(pollOnce, 400));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) pollOnce();
+  });
+  window.addEventListener('focus', () => pollOnce());
+  if (!pollTimer) pollTimer = setInterval(pollOnce, POLL_MS);
 }

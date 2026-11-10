@@ -1,6 +1,14 @@
 const ICON_SHIELD = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l8 4v5c0 4-3.5 7.5-8 9-4.5-1.5-8-5-8-9V6l8-4z"/><path d="M7 10l2 2 4-4"/></svg>';
 const ICON_CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
 const ICON_ERROR = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M6 6l8 8"/></svg>';
+const ICON_COPY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>';
+const ICON_CHEVRON_DOWN = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>';
+const ICON_CHEVRON_LEFT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l-5 5 5 5"/></svg>';
+const ICON_CHEVRON_RIGHT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l5 5-5 5"/></svg>';
+const ICON_ARROW_LEFT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H4"/><path d="M9 5l-5 5 5 5"/></svg>';
+const ICON_GLOBE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15"/><path d="M10 2.5c2.2 2.2 3.3 4.7 3.3 7.5S12.2 15.3 10 17.5C7.8 15.3 6.7 12.8 6.7 10S7.8 4.7 10 2.5z"/></svg>';
+const ICON_TERMINAL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><path d="M6 8l3 2-3 2M11 12h3"/></svg>';
 
 function _fmtTime(isoStr) {
   if (!isoStr) return '';
@@ -14,6 +22,14 @@ function _fmtDate(isoStr) {
   const d = new Date(isoStr);
   if (isNaN(d.getTime())) return isoStr;
   return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function _normPath(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function _baseName(p) {
+  return String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
 }
 
 const TIME_PRESETS = [
@@ -65,8 +81,9 @@ export default class ErrorCopUI {
     this._panel = null;
     this._wrapper = null;
     this._badgeEl = null;
+    this._subtitleEl = null;
     this._lastUnread = 0;
-    this._activeTab = 'tools';
+    this._activeTab = 'timeline';
     this._timeline = [];
     this._errors = [];
     this._sessions = [];
@@ -82,6 +99,9 @@ export default class ErrorCopUI {
     this._timePreset = 'today';
     this._pickMonthEl = null;
     this._timeDropdownEl = null;
+    this._copyTimer = null;
+    this._repoSessionCache = new Map();
+    this._liveReloadTimer = null;
     this._loadedTimelineCount = 0;
     this._loadedErrorCount = 0;
     this._loadedSessionCount = 0;
@@ -98,13 +118,22 @@ export default class ErrorCopUI {
     this._listenIPC();
   }
 
-  createTerminalButton() {
+  createTerminalButton(getSessionId) {
     const btn = document.createElement('button');
     btn.className = 'ecp-terminal-btn';
     btn.id = 'ecpTerminalBtn';
-    btn.title = 'Error Cop - View errors and timeline';
+    btn.title = 'Error Cop - open this terminal session';
     btn.innerHTML = `${ICON_SHIELD} <span>Errors</span>`;
-    btn.addEventListener('click', () => this.open());
+    btn.addEventListener('click', () => {
+      let sid = null;
+      try {
+        sid = typeof getSessionId === 'function' ? getSessionId() : null;
+      } catch (_) {
+        sid = null;
+      }
+      if (sid != null) this.open({ sessionId: sid });
+      else this.open({ tab: 'sessions' });
+    });
     return btn;
   }
 
@@ -127,14 +156,15 @@ export default class ErrorCopUI {
         <div class="ecp-header">
           <div class="ecp-header-left">
             <span class="ecp-title">Error Cop</span>
-            <span class="ecp-subtitle">Session Monitor</span>
+            <span class="ecp-subtitle" id="ecpSubtitle">Session Monitor</span>
             <span class="ecp-header-badge" id="ecpHeaderBadge">ACTIVE</span>
           </div>
           <div class="ecp-header-actions" style="display:flex;align-items:center;gap:8px">
+            <button class="ecp-action-btn" id="ecpCopyReportBtn" title="Copy everything in the current view as a text report">${ICON_COPY}<span>Copy Report</span></button>
             <div class="ecp-time-dropdown-wrapper" style="position:relative">
               <button class="ecp-time-dropdown-btn" id="ecpTimeDropdownBtn" title="Select time range">
                 <span id="ecpTimeLabel">Today</span>
-                <span class="ecp-time-chevron">&#9662;</span>
+                <span class="ecp-time-chevron">${ICON_CHEVRON_DOWN}</span>
               </button>
               <div class="ecp-time-dropdown" id="ecpTimeDropdown" style="display:none"></div>
             </div>
@@ -146,8 +176,7 @@ export default class ErrorCopUI {
           </div>
         </div>
         <div class="ecp-tab-bar">
-          <button class="ecp-tab ecp-tab-active" data-tab="tools">Tools</button>
-          <button class="ecp-tab" data-tab="timeline">Timeline</button>
+          <button class="ecp-tab ecp-tab-active" data-tab="timeline">Timeline</button>
           <button class="ecp-tab" data-tab="errors">Errors</button>
           <button class="ecp-tab" data-tab="sessions">Sessions</button>
         </div>
@@ -165,20 +194,43 @@ export default class ErrorCopUI {
     this._closeBtn = this._wrapper.querySelector('#ecpCloseBtn');
     this._unreadEl = this._wrapper.querySelector('#ecpUnreadValue');
     this._headerBadge = this._wrapper.querySelector('#ecpHeaderBadge');
+    this._subtitleEl = this._wrapper.querySelector('#ecpSubtitle');
+    this._copyReportBtn = this._wrapper.querySelector('#ecpCopyReportBtn');
 
     this._closeBtn.addEventListener('click', () => this.close());
+    this._copyReportBtn.addEventListener('click', () => this._copyReport());
 
     this._wrapper.querySelectorAll('.ecp-tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        this._wrapper.querySelectorAll('.ecp-tab').forEach(t => t.classList.remove('ecp-tab-active'));
-        tab.classList.add('ecp-tab-active');
-        this._activeTab = tab.dataset.tab;
+        this._setActiveTab(tab.dataset.tab);
         this._render();
       });
     });
 
     this._initTimeDropdown();
     this._createToast();
+  }
+
+  _setActiveTab(tab) {
+    this._activeTab = tab;
+    if (!this._wrapper) return;
+    this._wrapper.querySelectorAll('.ecp-tab').forEach(t => {
+      t.classList.toggle('ecp-tab-active', t.dataset.tab === tab);
+    });
+  }
+
+  _updateScopeLabel() {
+    if (!this._subtitleEl) return;
+    const name = _baseName(window.__activeRepoPath);
+    this._subtitleEl.textContent = name || 'Session Monitor';
+  }
+
+  _queryOpts() {
+    const range = (this._timePreset === 'custom' && this._customRange)
+      ? this._customRange
+      : _getDateRange(this._timePreset);
+    const repoPath = window.__activeRepoPath || '';
+    return repoPath ? { ...range, repoPath } : { ...range };
   }
 
   _createToast() {
@@ -249,9 +301,9 @@ export default class ErrorCopUI {
     overlay.innerHTML = `
       <div class="ecp-month-picker-inner">
         <div class="ecp-month-picker-header">
-          <button class="ecp-mp-nav" id="ecpMpPrev">&#9664;</button>
+          <button class="ecp-mp-nav" id="ecpMpPrev">${ICON_CHEVRON_LEFT}</button>
           <span class="ecp-mp-title" id="ecpMpTitle">${new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
-          <button class="ecp-mp-nav" id="ecpMpNext">&#9654;</button>
+          <button class="ecp-mp-nav" id="ecpMpNext">${ICON_CHEVRON_RIGHT}</button>
         </div>
         <div class="ecp-month-picker-grid" id="ecpMpGrid"></div>
         <button class="ecp-filter-btn" id="ecpMpApply" style="margin-top:8px;width:100%">Apply</button>
@@ -299,25 +351,78 @@ export default class ErrorCopUI {
     this._render();
   }
 
+  // ── Live events (scoped to the active repo) ──
+
+  // Returns true when the session belongs to the active repo, false when it does not,
+  // and null when the session id is unknown so the caller can fall back to a reload.
+  async _isInRepo(sessionId) {
+    const root = _normPath(window.__activeRepoPath);
+    if (!root) return true;
+    if (sessionId == null) return null;
+    const key = root + '|' + sessionId;
+    if (this._repoSessionCache.has(key)) return this._repoSessionCache.get(key);
+    let s = null;
+    try {
+      s = await window.electronAPI.getSession(sessionId);
+    } catch (e) {
+      s = null;
+    }
+    if (!s || !s.cwd) return false;
+    const c = _normPath(s.cwd);
+    const ok = c === root || c.indexOf(root + '/') === 0;
+    if (this._repoSessionCache.size > 500) this._repoSessionCache.clear();
+    this._repoSessionCache.set(key, ok);
+    return ok;
+  }
+
+  _scheduleLiveReload() {
+    if (!this._isOpen || this._liveReloadTimer) return;
+    this._liveReloadTimer = setTimeout(async () => {
+      this._liveReloadTimer = null;
+      if (!this._isOpen) return;
+      if (this._activeTab === 'sessions' && this._showOccurrenceView) return;
+      await this._loadData();
+      this._render();
+    }, 500);
+  }
+
   _listenIPC() {
-    window.electronAPI.onNewError(({ error }) => {
+    window.electronAPI.onNewError(async (payload) => {
       try {
-        if (error && error.title) {
-          this._showToast(`🔴 ${error.title}`);
-          if (error.timestamp) {
-            this._errors.unshift(error);
-            if (this._errors.length > 2000) this._errors.length = 2000;
-            if (this._isOpen && this._activeTab === 'errors') this._renderErrors();
-          }
+        const error = payload && payload.error;
+        if (!error || !error.title) return;
+        let sid = null;
+        if (error.sessionId != null) sid = error.sessionId;
+        else if (error.session_id != null) sid = error.session_id;
+        else if (payload.sessionId != null) sid = payload.sessionId;
+
+        const inRepo = await this._isInRepo(sid);
+        if (inRepo === false) return;
+
+        this._showToast(error.title);
+        if (inRepo === null) {
+          this._scheduleLiveReload();
+          return;
+        }
+        if (error.timestamp) {
+          this._errors.unshift(error);
+          if (this._errors.length > 2000) this._errors.length = 2000;
+          if (this._isOpen && this._activeTab === 'errors') this._renderErrors();
         }
       } catch (e) {
         console.error('[ErrorCop] onNewError handler failed:', e);
       }
     });
 
-    window.electronAPI.onTimelineEvent((event) => {
+    window.electronAPI.onTimelineEvent(async (event) => {
       try {
         if (!event) return;
+        const inRepo = await this._isInRepo(event.sessionId != null ? event.sessionId : null);
+        if (inRepo === false) return;
+        if (inRepo === null) {
+          this._scheduleLiveReload();
+          return;
+        }
         this._timeline.unshift(event);
         if (this._timeline.length > 200) this._timeline.length = 200;
         if (this._isOpen && this._activeTab === 'timeline') this._renderTimeline();
@@ -340,8 +445,15 @@ export default class ErrorCopUI {
     });
   }
 
-  async open() {
-    if (this._isOpen) return;
+  // ── Open / close ──
+
+  async open(opts) {
+    const options = opts || {};
+
+    if (this._isOpen) {
+      if (options.sessionId != null) await this._goToSession(options.sessionId);
+      return;
+    }
     this._isOpen = true;
 
     // Close other open tool panels BEFORE we show ours
@@ -352,6 +464,7 @@ export default class ErrorCopUI {
     } catch {}
 
     this._wrapper.classList.add('open');
+    this._updateScopeLabel();
 
     // Mark read when opening
     try {
@@ -366,8 +479,43 @@ export default class ErrorCopUI {
 
     // Load data
     await this._loadData();
-    this._render();
+
+    if (options.sessionId != null) {
+      await this._goToSession(options.sessionId);
+    } else {
+      if (options.tab) {
+        this._showOccurrenceView = false;
+        this._currentSession = null;
+        this._setActiveTab(options.tab);
+      }
+      this._render();
+    }
     this._startRefresh();
+  }
+
+  async _goToSession(sessionId) {
+    this._setActiveTab('sessions');
+    this._selectMode = false;
+    this._selectedSessionIds.clear();
+    try {
+      const s = await window.electronAPI.getSession(sessionId);
+      if (!s || s.id == null) {
+        this._showOccurrenceView = false;
+        this._currentSession = null;
+        this._render();
+        return;
+      }
+      const occurrences = await window.electronAPI.getSessionOccurrences(sessionId);
+      this._currentSession = s;
+      this._sessionOccurrences = Array.isArray(occurrences) ? occurrences : [];
+      this._showOccurrenceView = true;
+      await this._renderSessionOccurrences();
+    } catch (e) {
+      console.error('[ErrorCop] goToSession failed:', e);
+      this._showOccurrenceView = false;
+      this._currentSession = null;
+      this._render();
+    }
   }
 
   close() {
@@ -409,12 +557,7 @@ export default class ErrorCopUI {
 
   async _loadData() {
     try {
-      let dateOpts = {};
-      if (this._timePreset === 'custom' && this._customRange) {
-        dateOpts = this._customRange;
-      } else {
-        dateOpts = _getDateRange(this._timePreset);
-      }
+      const dateOpts = this._queryOpts();
       const [timeline, errors, sessions, allBrowserServers] = await Promise.all([
         window.electronAPI.getTimeline({ limit: 200, ...dateOpts }),
         window.electronAPI.getErrors({ limit: 200, ...dateOpts }),
@@ -440,12 +583,7 @@ export default class ErrorCopUI {
     if (this._loadingMoreTimeline || !this._hasMoreTimeline) return;
     this._loadingMoreTimeline = true;
     try {
-      let dateOpts = {};
-      if (this._timePreset === 'custom' && this._customRange) {
-        dateOpts = this._customRange;
-      } else {
-        dateOpts = _getDateRange(this._timePreset);
-      }
+      const dateOpts = this._queryOpts();
       const more = await window.electronAPI.getTimeline({ limit: 200, offset: this._loadedTimelineCount, ...dateOpts });
       if (more && more.length) {
         this._timeline = this._timeline.concat(more);
@@ -466,12 +604,7 @@ export default class ErrorCopUI {
     if (this._loadingMoreErrors || !this._hasMoreErrors) return;
     this._loadingMoreErrors = true;
     try {
-      let dateOpts = {};
-      if (this._timePreset === 'custom' && this._customRange) {
-        dateOpts = this._customRange;
-      } else {
-        dateOpts = _getDateRange(this._timePreset);
-      }
+      const dateOpts = this._queryOpts();
       const more = await window.electronAPI.getErrors({ limit: 200, offset: this._loadedErrorCount, ...dateOpts });
       if (more && more.length) {
         this._errors = this._errors.concat(more);
@@ -492,12 +625,7 @@ export default class ErrorCopUI {
     if (this._loadingMoreSessions || !this._hasMoreSessions) return;
     this._loadingMoreSessions = true;
     try {
-      let dateOpts = {};
-      if (this._timePreset === 'custom' && this._customRange) {
-        dateOpts = this._customRange;
-      } else {
-        dateOpts = _getDateRange(this._timePreset);
-      }
+      const dateOpts = this._queryOpts();
       const more = await window.electronAPI.getSessions({ limit: 100, offset: this._loadedSessionCount, ...dateOpts });
       if (more && more.length) {
         this._sessions = this._sessions.concat(more);
@@ -526,6 +654,127 @@ export default class ErrorCopUI {
       case 'tools': this._renderTools(); break;
     }
   }
+
+  // ── Copy Report ──
+
+  _reportHeader(scopeLabel) {
+    const rangeEl = this._wrapper ? this._wrapper.querySelector('#ecpTimeLabel') : null;
+    const repoName = _baseName(window.__activeRepoPath);
+    const lines = [
+      'ERROR COP REPORT',
+      'Scope: ' + scopeLabel,
+    ];
+    if (repoName) lines.push('Repo: ' + repoName);
+    lines.push('Range: ' + (rangeEl ? rangeEl.textContent : ''));
+    lines.push('Generated: ' + new Date().toLocaleString());
+    lines.push('');
+    return lines;
+  }
+
+  _occSource(occ) {
+    return (occ.line_text || '').startsWith('[Browser]') ? 'Browser' : 'Terminal';
+  }
+
+  _buildReport() {
+    if (this._activeTab === 'sessions' && this._showOccurrenceView && this._currentSession) {
+      return this._buildSessionReport();
+    }
+    if (this._activeTab === 'errors') return this._buildErrorsReport();
+    if (this._activeTab === 'sessions') return this._buildSessionsReport();
+    return this._buildTimelineReport();
+  }
+
+  _buildTimelineReport() {
+    const items = this._timeline || [];
+    if (!items.length) return '';
+    const lines = this._reportHeader('Timeline (' + items.length + ' events)');
+    for (const ev of items) {
+      lines.push(_fmtDate(ev.timestamp) + ' [' + String(ev.type || 'info').toUpperCase() + '] ' + (ev.title || ''));
+      if (ev.message) lines.push('  ' + ev.message);
+    }
+    return lines.join('\n');
+  }
+
+  _buildErrorsReport() {
+    let items = this._errors || [];
+    if (this._filter !== 'all') items = items.filter(e => e.level === this._filter);
+    if (!items.length) return '';
+    const lines = this._reportHeader('Errors - filter: ' + this._filter + ' (' + items.length + ' entries)');
+    items.forEach((err, i) => {
+      const occ = err.occurrences > 1 ? ' | x' + err.occurrences : '';
+      lines.push('#' + (i + 1) + ' [' + String(err.level || 'error').toUpperCase() + '] ' + _fmtDate(err.timestamp) + ' | ' + (err.title || '') + occ);
+      if (err.message) lines.push(err.message);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  _buildSessionsReport() {
+    const sessions = this._sessions || [];
+    if (!sessions.length) return '';
+    const lines = this._reportHeader('Sessions (' + sessions.length + ')');
+    for (const s of sessions) {
+      const status = s.ended_reason === 'killed' ? 'killed' : (s.status || 'ended');
+      lines.push('#' + s.id + ' ' + (s.label || s.project || 'Terminal') + ' | ' + status + ' | started ' + _fmtDate(s.started_at));
+      if (s.command) lines.push('  command: ' + s.command);
+      lines.push('  errors: ' + (s.total_errors || 0) + ' | warnings: ' + (s.total_warnings || 0) + ' | lines: ' + (s.total_lines || 0));
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
+
+  _buildSessionReport() {
+    const s = this._currentSession;
+    const items = this._sessionOccurrences || [];
+    const lines = this._reportHeader('Session #' + s.id + ' (' + items.length + ' occurrences)');
+    const status = s.ended_reason === 'killed' ? 'killed' : (s.status || 'ended');
+    lines.push('Label: ' + (s.label || s.project || 'Terminal'));
+    if (s.command) lines.push('Command: ' + s.command);
+    lines.push('Status: ' + status);
+    lines.push('Started: ' + _fmtDate(s.started_at));
+    const terminal = items.filter(i => this._occSource(i) === 'Terminal');
+    const browser = items.filter(i => this._occSource(i) === 'Browser');
+    lines.push('Terminal: ' + terminal.filter(e => e.level === 'error').length + ' err, ' + terminal.filter(e => e.level === 'warning').length + ' warn');
+    lines.push('Browser: ' + browser.filter(e => e.level === 'error').length + ' err, ' + browser.filter(e => e.level === 'warning').length + ' warn');
+    lines.push('');
+    items.forEach((occ, i) => {
+      const text = occ.line_text || occ.message || occ.title || '';
+      lines.push('#' + (i + 1) + ' [' + String(occ.level || 'error').toUpperCase() + '] ' + this._occSource(occ) + ' ' + _fmtDate(occ.timestamp) + ' | ' + (occ.title || ''));
+      lines.push(text);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  async _copyReport() {
+    const btn = this._copyReportBtn;
+    if (!btn) return;
+    let text = '';
+    try {
+      text = this._buildReport();
+    } catch (e) {
+      console.error('[ErrorCop] buildReport failed:', e);
+    }
+    if (!text) {
+      this._showToast('Nothing to copy');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.classList.add('ecp-action-done');
+      btn.innerHTML = `${ICON_CHECK}<span>Copied</span>`;
+      if (this._copyTimer) clearTimeout(this._copyTimer);
+      this._copyTimer = setTimeout(() => {
+        btn.classList.remove('ecp-action-done');
+        btn.innerHTML = `${ICON_COPY}<span>Copy Report</span>`;
+      }, 1800);
+    } catch (e) {
+      console.error('[ErrorCop] copy failed:', e);
+      this._showToast('Copy failed');
+    }
+  }
+
+  // ── Renderers ──
 
   _renderTimeline() {
     this._leftCol.innerHTML = '';
@@ -576,15 +825,15 @@ export default class ErrorCopUI {
     const infoCount = items.filter(e => e.type === 'info' || e.type === 'server').length;
     this._rightCol.innerHTML = `
       <div class="ecp-info-line">
-        <span>Errors</span>
+        <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-error"></span>Errors</span>
         <span class="ecp-info-value" style="color:#ff4444">${errorCount}</span>
       </div>
       <div class="ecp-info-line">
-        <span>Warnings</span>
+        <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-warning"></span>Warnings</span>
         <span class="ecp-info-value" style="color:#eab308">${warnCount}</span>
       </div>
       <div class="ecp-info-line">
-        <span>Info / Server</span>
+        <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-info"></span>Info / Server</span>
         <span class="ecp-info-value" style="color:#3b8eea">${infoCount}</span>
       </div>
       <div class="ecp-info-line">
@@ -637,7 +886,7 @@ export default class ErrorCopUI {
         <span class="ecp-event-dot ${dotClass}"></span>
         <div class="ecp-event-body">
           <span class="ecp-event-title">${this._escapeHtml(err.title || '')}</span>
-          <span class="ecp-event-message">${this._escapeHtml(msgFirstLine)}${isMultiline ? ' <span class="ecp-msg-more">…</span>' : ''}</span>
+          <span class="ecp-event-message">${this._escapeHtml(msgFirstLine)}${isMultiline ? ' <span class="ecp-msg-more">&hellip;</span>' : ''}</span>
         </div>
         <div class="ecp-event-meta">
           <span class="ecp-event-time">${_fmtTime(err.timestamp)}</span>
@@ -663,11 +912,11 @@ export default class ErrorCopUI {
     const warnCount = items.filter(e => e.level === 'warning').length;
     this._rightCol.innerHTML = `
       <div class="ecp-info-line">
-        <span>🔴 Errors</span>
+        <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-error"></span>Errors</span>
         <span class="ecp-info-value" style="color:#ff4444">${errCount}</span>
       </div>
       <div class="ecp-info-line">
-        <span>🟡 Warnings</span>
+        <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-warning"></span>Warnings</span>
         <span class="ecp-info-value" style="color:#eab308">${warnCount}</span>
       </div>
       <div class="ecp-info-line">
@@ -689,7 +938,10 @@ export default class ErrorCopUI {
     const sessions = this._sessions;
 
     if (sessions.length === 0) {
-      this._leftCol.innerHTML = `<div class="ecp-empty"><div class="ecp-empty-icon">${ICON_SHIELD}</div><div>No terminal sessions yet.</div></div>`;
+      const emptyMsg = window.__activeRepoPath
+        ? 'No sessions for this repo in this time range.'
+        : 'No terminal sessions yet.';
+      this._leftCol.innerHTML = `<div class="ecp-empty"><div class="ecp-empty-icon">${ICON_SHIELD}</div><div>${emptyMsg}</div></div>`;
       return;
     }
 
@@ -769,7 +1021,7 @@ export default class ErrorCopUI {
       let browserHtml = '';
       if (browserInfo.length) {
         browserHtml = browserInfo.map(b =>
-          `<span style="color:#3b8eea;font-size:11px">\ud83c\udf10 ${this._escapeHtml(b.framework || 'Dev Server')} (${this._escapeHtml(b.url || '')})</span>`
+          `<span style="color:#3b8eea;font-size:11px;display:inline-flex;align-items:center;gap:5px"><span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>${this._escapeHtml(b.framework || 'Dev Server')} (${this._escapeHtml(b.url || '')})</span>`
         ).join('');
       }
 
@@ -787,7 +1039,7 @@ export default class ErrorCopUI {
           <span class="ecp-session-status ${statusClass}">${statusText}</span>
         </div>
         ${browserHtml ? `<div class="ecp-session-row" style="gap:4px;padding-left:${this._selectMode ? '26px' : '0'}">${browserHtml}</div>` : ''}
-        <div class="ecp-session-row" style="${browserHtml ? 'margin-top:4px' : ''}${this._selectMode ? 'padding-left:26px' : ''}">
+        <div class="ecp-session-row" style="${browserHtml ? 'margin-top:4px;' : ''}${this._selectMode ? 'padding-left:26px' : ''}">
           <div class="ecp-session-stats">
             <span>Errors: <strong style="color:#ff4444">${s.total_errors || 0}</strong></span>
             <span>Warnings: <strong style="color:#eab308">${s.total_warnings || 0}</strong></span>
@@ -912,8 +1164,8 @@ export default class ErrorCopUI {
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0';
     const backBtn = document.createElement('button');
-    backBtn.className = 'ecp-filter-btn';
-    backBtn.innerHTML = '\u2190 Back to Sessions';
+    backBtn.className = 'ecp-filter-btn ecp-btn-with-icon';
+    backBtn.innerHTML = `${ICON_ARROW_LEFT}<span>Back to Sessions</span>`;
     backBtn.addEventListener('click', () => {
       this._showOccurrenceView = false;
       this._currentSession = null;
@@ -924,11 +1176,11 @@ export default class ErrorCopUI {
     const title = document.createElement('span');
     title.style.cssText = 'font-size:12px;font-weight:600;color:#f0dfdf';
     const occLabel = s.label || s.project || 'Terminal';
-    title.textContent = `${this._escapeHtml(occLabel)} \u2014 ${this._escapeHtml(s.command || '')}`;
+    title.textContent = s.command ? `${occLabel} \u2014 ${s.command}` : occLabel;
     header.appendChild(title);
     this._leftCol.appendChild(header);
 
-    // ── Browser Server Section ──
+    // Browser Server Section
     const browserServers = await window.electronAPI.getBrowserServers(s.id).catch(() => []);
     if (!this._showOccurrenceView) return;
 
@@ -944,7 +1196,7 @@ export default class ErrorCopUI {
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px';
         row.innerHTML = `
-          <span style="color:#3b8eea">\ud83c\udf10</span>
+          <span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>
           <span style="flex:1;color:#c0d0e0">${this._escapeHtml(bs.framework || 'Dev Server')}</span>
           <span style="color:#7a8a9a">${this._escapeHtml(bs.url || '')}</span>
         `;
@@ -996,8 +1248,8 @@ export default class ErrorCopUI {
       const isBrowser = (occ.line_text || '').startsWith('[Browser]');
       const dotClass = occ.level === 'error' ? 'ecp-dot-error' : occ.level === 'warning' ? 'ecp-dot-warning' : 'ecp-dot-info';
       const sourceBadge = isBrowser
-        ? '<span style="font-size:10px;color:#3b8eea;margin-right:4px">\ud83c\udf10</span>'
-        : '<span style="font-size:10px;color:#8a9aaa;margin-right:4px">\ud83d\udda5\ufe0f</span>';
+        ? `<span class="ecp-ico ecp-ico-net" style="margin-right:5px">${ICON_GLOBE}</span>`
+        : `<span class="ecp-ico ecp-ico-term" style="margin-right:5px">${ICON_TERMINAL}</span>`;
       const fullText = occ.line_text || occ.message || occ.title || '';
       const lineCount = fullText.split('\n').length;
       const row = document.createElement('div');
@@ -1008,7 +1260,7 @@ export default class ErrorCopUI {
           <div style="display:flex;align-items:center;gap:6px">
             <span class="ecp-event-title">${sourceBadge}${this._escapeHtml(occ.title || '')}</span>
             ${lineCount > 1 ? `<span class="ecp-line-count">${lineCount} lines</span>` : ''}
-            <button class="ecp-copy-btn" title="Copy error text">\ud83d\udccb</button>
+            <button class="ecp-copy-btn" title="Copy error text">${ICON_COPY}</button>
           </div>
           <pre class="ecp-event-text">${this._escapeHtml(fullText)}</pre>
         </div>
@@ -1020,8 +1272,8 @@ export default class ErrorCopUI {
       copyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(fullText).then(() => {
-          copyBtn.textContent = '\u2713';
-          setTimeout(() => { copyBtn.textContent = '\ud83d\udccb'; }, 1500);
+          copyBtn.innerHTML = ICON_CHECK;
+          setTimeout(() => { copyBtn.innerHTML = ICON_COPY; }, 1500);
         }).catch(() => {});
       });
       list.appendChild(row);
@@ -1044,7 +1296,7 @@ export default class ErrorCopUI {
     if (browserServers && browserServers.length > 0) {
       browserSourcesHtml = browserServers.map(bs =>
         `<div class="ecp-info-line" style="font-size:11px;color:#7a8a9a;padding-left:4px">
-          <span>\ud83c\udf10 ${this._escapeHtml(bs.framework || 'Dev Server')} — ${this._escapeHtml(bs.url || '')}</span>
+          <span class="ecp-stat-label"><span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>${this._escapeHtml(bs.framework || 'Dev Server')} \u2014 ${this._escapeHtml(bs.url || '')}</span>
         </div>`
       ).join('');
     }
@@ -1074,13 +1326,13 @@ export default class ErrorCopUI {
         <span></span>
       </div>
       <div class="ecp-info-line">
-        <span style="padding-left:4px">\ud83d\udda5\ufe0f Terminal</span>
-        <span class="ecp-info-value">${termErrors} err · ${termWarns} warn</span>
+        <span class="ecp-stat-label" style="padding-left:4px"><span class="ecp-ico ecp-ico-term">${ICON_TERMINAL}</span>Terminal</span>
+        <span class="ecp-info-value">${termErrors} err \u00b7 ${termWarns} warn</span>
       </div>
       ${browserServers && browserServers.length > 0 ? `
       <div class="ecp-info-line">
-        <span style="padding-left:4px">\ud83c\udf10 Browser</span>
-        <span class="ecp-info-value">${brwErrors} err · ${brwWarns} warn</span>
+        <span class="ecp-stat-label" style="padding-left:4px"><span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>Browser</span>
+        <span class="ecp-info-value">${brwErrors} err \u00b7 ${brwWarns} warn</span>
       </div>
       ${browserSourcesHtml}` : ''}
       <div class="ecp-info-line" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:6px">
@@ -1089,6 +1341,8 @@ export default class ErrorCopUI {
       </div>
     `;
   }
+
+  // ── Tools tab (kept in code, hidden from the UI) ──
 
   async _renderTools() {
     try {
@@ -1243,7 +1497,7 @@ export default class ErrorCopUI {
       <div class="ecp-sa-dialog">
         <div class="ecp-sa-header">
           <span class="ecp-sa-title">Send to AI</span>
-          <button class="ecp-sa-close" id="ecpSaClose">&times;</button>
+          <button class="ecp-sa-close" id="ecpSaClose">${ICON_CLOSE}</button>
         </div>
         <div class="ecp-sa-body">
           <div class="ecp-sa-card" id="ecpSaOpenFile">
@@ -1302,7 +1556,7 @@ export default class ErrorCopUI {
         <span class="ecp-pv-title">errorcop-cheatsheet.md</span>
         <div class="ecp-pv-actions">
           <button class="ecp-pv-copy-btn" id="ecpPvCopy">Copy</button>
-          <button class="ecp-pv-close" id="ecpPvClose">&times;</button>
+          <button class="ecp-pv-close" id="ecpPvClose">${ICON_CLOSE}</button>
         </div>
       </div>
       <pre class="ecp-pv-content" id="ecpPvContent">${this._escapeHtml(promptText)}</pre>
@@ -1365,3 +1619,21 @@ export default class ErrorCopUI {
     return div.innerHTML;
   }
 }
+const _ecpOrigOpen = ErrorCopUI.prototype.open;
+
+ErrorCopUI.prototype.isOpen = function isOpen() {
+  return !!(this._wrapper && this._wrapper.classList.contains('open'));
+};
+
+ErrorCopUI.prototype.open = async function openSynced(opts) {
+  if (this._isOpen && !this.isOpen()) {
+    this._isOpen = false;
+    this._stopRefresh();
+  }
+  return _ecpOrigOpen.call(this, opts);
+};
+
+ErrorCopUI.prototype.toggle = function toggleSynced() {
+  if (this.isOpen()) this.close();
+  else this.open();
+};

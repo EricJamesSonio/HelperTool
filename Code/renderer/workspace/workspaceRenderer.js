@@ -19,6 +19,9 @@ import { toggleItem, addKit, addItemToKit, removeKit,
          removeItem, updateItemDetails, getKitProgress,
          isItemChecked, getItemPrompt, getStageMeta,
          ensureDefaultKits }                                    from './buildKitManager.js';
+import { openModal, buildModal } from '../utils/uiModal.js';
+import { LOG_RETENTION_DAYS }    from './workspaceStore.js';
+
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 
@@ -427,19 +430,6 @@ function _showEditProjectModal(project) {
       </div>
     </div>
   `, errEl => {
-    // Browse + Clear buttons wired after modal mount
-    const browseBtn = modal.querySelector('#editProjBrowseBtn');
-    const clearBtn = modal.querySelector('#editProjClearBtn');
-    const repoInput = modal.querySelector('#editProjRepoPath');
-    if (browseBtn) {
-      browseBtn.addEventListener('click', async () => {
-        const p = await window.electronAPI.selectFolder();
-        if (p) { repoInput.value = p; repoInput.title = p; }
-      });
-    }
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => { repoInput.value = ''; repoInput.title = ''; });
-    }
     try {
       updateProject(project.id, {
         title:       document.getElementById('editProjTitle').value,
@@ -455,6 +445,16 @@ function _showEditProjectModal(project) {
     }
   });
   document.body.appendChild(modal);
+
+  const repoInput = modal.querySelector('#editProjRepoPath');
+  modal.querySelector('#editProjBrowseBtn').addEventListener('click', async () => {
+    const p = await window.electronAPI.selectFolder();
+    if (p) { repoInput.value = p; repoInput.title = p; }
+  });
+  modal.querySelector('#editProjClearBtn').addEventListener('click', () => {
+    repoInput.value = '';
+    repoInput.title = '';
+  });
 }
 
 // ─── WORKERS LIST ─────────────────────────────────────────────────────────────
@@ -582,10 +582,25 @@ function _showEditWorkerModal(worker) {
 
 function _renderGlobalLogs(body) {
   const logs = state.globalLogs;
+
+  const bar = document.createElement('div');
+  bar.className = 'ui-toolbar';
+  bar.innerHTML = `
+    <span class="ui-toolbar-title">Activity</span>
+    <span class="ui-count">${logs.length}</span>
+    <span class="ui-spacer"></span>
+    <span class="ui-hint">Entries older than ${LOG_RETENTION_DAYS} days are removed automatically</span>
+  `;
+  body.appendChild(bar);
+
   if (logs.length === 0) {
-    body.innerHTML = '<p class="workspace-empty">No global activity yet.</p>';
+    const empty = document.createElement('p');
+    empty.className = 'ui-empty';
+    empty.textContent = 'No global activity yet.';
+    body.appendChild(empty);
     return;
   }
+
   const list = document.createElement('div');
   list.className = 'workspace-logs-container';
   logs.forEach(log => list.appendChild(_buildLogItem(log)));
@@ -755,53 +770,72 @@ function _renderTabTickets(el) {
   const workers = getAllWorkers().filter(w => p.assignedWorkerIds.includes(w.id));
   const tickets = getTicketsByProject(p.id);
 
-  // Add ticket form
-  const form = document.createElement('div');
-  form.className = 'workspace-form-section';
-  form.innerHTML = `
-    <div class="workspace-form-label">New Ticket</div>
-    <div class="ws-ticket-form-grid">
-      <input type="text" id="newTicketTitle" placeholder="Ticket title..." class="workspace-input" />
-      <select id="newTicketWorker" class="workspace-select">
-        <option value="">Unassigned</option>
-        ${workers.map(w => `<option value="${w.id}">${w.name}</option>`).join('')}
-      </select>
-      <select id="newTicketPriority" class="workspace-select">
-        <option value="medium">Medium</option>
-        <option value="low">Low</option>
-        <option value="high">High</option>
-        <option value="critical">Critical</option>
-      </select>
-      <button class="workspace-btn-add" id="addTicketBtn">${ICON_PLUS} Add</button>
-    </div>
-    <textarea id="newTicketDesc" placeholder="Description (optional)..." class="workspace-textarea" rows="4" style="margin-top:10px;width:100%;box-sizing:border-box"></textarea>
-    <div class="workspace-form-error" id="addTicketError"></div>
+  const bar = document.createElement('div');
+  bar.className = 'ui-toolbar';
+  bar.innerHTML = `
+    <span class="ui-toolbar-title">Tickets</span>
+    <span class="ui-count">${tickets.length}</span>
+    <span class="ui-spacer"></span>
+    <button class="ui-btn ui-btn--primary" id="addTicketBtn">${ICON_PLUS} Add</button>
   `;
-  el.appendChild(form);
+  el.appendChild(bar);
 
-  form.querySelector('#addTicketBtn').addEventListener('click', () => {
-    const errEl = document.getElementById('addTicketError');
-    try {
-      createTicket(
-        p.id,
-        document.getElementById('newTicketTitle').value,
-        document.getElementById('newTicketDesc').value,
-        document.getElementById('newTicketWorker').value || null,
-        document.getElementById('newTicketPriority').value,
-      );
-      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-      document.getElementById('newTicketTitle').value   = '';
-      document.getElementById('newTicketDesc').value    = '';
-      document.getElementById('newTicketWorker').value  = '';
-      render();
-    } catch (err) {
-      if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
-    }
+  bar.querySelector('#addTicketBtn').addEventListener('click', () => {
+    openModal({
+      title: 'New Ticket',
+      submitText: 'Create Ticket',
+      bodyHtml: `
+        <div class="ui-field">
+          <label class="ui-label">Title</label>
+          <input type="text" id="ntTitle" class="ui-input" placeholder="Ticket title..." />
+        </div>
+        <div class="ui-row">
+          <div class="ui-field">
+            <label class="ui-label">Assignee</label>
+            <select id="ntWorker" class="ui-select">
+              <option value="">Unassigned</option>
+              ${workers.map(w => `<option value="${w.id}">${_esc(w.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="ui-field">
+            <label class="ui-label">Priority</label>
+            <select id="ntPriority" class="ui-select">
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+        </div>
+        <div class="ui-field">
+          <label class="ui-label">Description</label>
+          <textarea id="ntDesc" class="ui-textarea" rows="6" placeholder="Description (optional). Type @ to reference files."></textarea>
+        </div>
+      `,
+      onSubmit: ({ el: m }) => {
+        const q = sel => m.querySelector(sel);
+        createTicket(
+          p.id,
+          q('#ntTitle').value,
+          q('#ntDesc').value,
+          q('#ntWorker').value || null,
+          q('#ntPriority').value,
+        );
+        render();
+      },
+      onMount: ({ el: m }) => {
+        _wireFilePicker(m.querySelector('#ntDesc'), p.repoPath);
+      },
+    });
   });
 
-  _wireFilePicker(document.getElementById('newTicketDesc'), p.repoPath);
+  if (tickets.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'ui-empty';
+    empty.textContent = 'No tickets yet. Click Add to create one.';
+    el.appendChild(empty);
+  }
 
-  // Kanban board
   const board = document.createElement('div');
   board.className = 'ws-kanban-board';
 
@@ -1587,10 +1621,25 @@ function _findBkItem(kit, itemId) {
 
 function _renderTabProjectLogs(el) {
   const logs = (_selectedProject.projectLogs || []);
+
+  const bar = document.createElement('div');
+  bar.className = 'ui-toolbar';
+  bar.innerHTML = `
+    <span class="ui-toolbar-title">Project Logs</span>
+    <span class="ui-count">${logs.length}</span>
+    <span class="ui-spacer"></span>
+    <span class="ui-hint">Entries older than ${LOG_RETENTION_DAYS} days are removed automatically</span>
+  `;
+  el.appendChild(bar);
+
   if (logs.length === 0) {
-    el.innerHTML = '<p class="workspace-empty">No project activity yet.</p>';
+    const empty = document.createElement('p');
+    empty.className = 'ui-empty';
+    empty.textContent = 'No project activity yet.';
+    el.appendChild(empty);
     return;
   }
+
   const list = document.createElement('div');
   list.className = 'workspace-logs-container';
   logs.forEach(log => list.appendChild(_buildLogItem(log)));
@@ -1660,31 +1709,16 @@ function _esc(str) {
 }
 
 function _createModal(title, bodyHtml, onSave) {
-  const modal = document.createElement('div');
-  modal.className = 'workspace-modal-overlay';
-  const errId = `wsModalErr_${Date.now()}`;
-  modal.innerHTML = `
-    <div class="workspace-modal">
-      <div class="workspace-modal-header">
-        <h2>${title}</h2>
-        <button class="workspace-modal-close">${ICON_REMOVE}</button>
-      </div>
-      <div class="workspace-modal-form">${bodyHtml}</div>
-      <div class="workspace-form-error" id="${errId}"></div>
-      <div class="workspace-modal-footer">
-        <button class="workspace-btn-cancel ws-modal-cancel-btn">Cancel</button>
-        <button class="workspace-btn-add ws-modal-save-btn">Save</button>
-      </div>
-    </div>
-  `;
-  const errEl = modal.querySelector('.workspace-form-error');
-  modal.querySelector('.workspace-modal-close').addEventListener('click',   () => modal.remove());
-  modal.querySelector('.ws-modal-cancel-btn').addEventListener('click',     () => modal.remove());
-  modal.querySelector('.ws-modal-save-btn').addEventListener('click', () => {
-    errEl.textContent = '';
-    errEl.style.display = 'none';
-    onSave(errEl);
+  const m = buildModal({
+    title,
+    bodyHtml,
+    submitText: 'Save',
+    onSubmit: ({ errEl }) => {
+      errEl.textContent = '';
+      errEl.style.display = 'none';
+      onSave(errEl);
+      return false;
+    },
   });
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-  return modal;
+  return m.el;
 }
