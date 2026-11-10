@@ -1,6 +1,39 @@
 import { state } from '../app_manager/appState.js';
 import { esc, pathKey } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+const repoCaches = new Map();
+
+document.addEventListener('repo:closed', (e) => {
+  const p = e && e.detail && e.detail.repoPath;
+  if (p) repoCaches.delete(p);
+});
+
+export async function primeRepo(repoPath) {
+  if (!repoPath || repoPath === loadedRepo || !window.ideAPI) return;
+  let store = repoCaches.get(repoPath);
+  if (!store) {
+    store = new Map();
+    repoCaches.set(repoPath, store);
+  }
+  const open = loadExpanded(repoPath);
+  let budget = 60;
+  const walk = async (dirPath) => {
+    if (budget <= 0 || store.has(dirPath)) return;
+    budget--;
+    let val = null;
+    try {
+      const res = await window.ideAPI.readDir(dirPath);
+      if (res && res.success) val = { entries: res.entries || [], truncated: !!res.truncated, error: null };
+    } catch (_) {
+      val = null;
+    }
+    if (!val) return;
+    store.set(dirPath, val);
+    const subs = val.entries.filter((x) => x.type === 'folder' && open.has(x.path));
+    await Promise.all(subs.map((x) => walk(x.path)));
+  };
+  await walk(repoPath);
+}
 let clip = null;
 let explorerActive = false;
 let toastEl = null;
@@ -522,6 +555,17 @@ async function doRender() {
 
 export function renderTree() {
   if (!treeEl || !document.body.classList.contains('ide-mode')) return;
+  const repo = state.selectedRepoPath;
+  if (loadedRepo && repo !== loadedRepo) {
+    repoCaches.set(loadedRepo, cache);
+    const kept = repo ? repoCaches.get(repo) : null;
+    loadedRepo = repo;
+    cache = kept || new Map();
+    pending = new Map();
+    expanded = repo ? loadExpanded(repo) : new Set();
+    selected = null;
+    resetGit();
+  }
   if (!renderRaf) renderRaf = requestAnimationFrame(doRender);
 }
 

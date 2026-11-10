@@ -9,6 +9,61 @@ import * as ext from './extensions/index.js';
 import * as fmt from './extensions/formatter.js';
 import * as runners from './extensions/runners.js';
 import * as lineMarks from './lineMarks.js';
+const repoStash = new Map();
+
+document.addEventListener('repo:closed', (e) => {
+  const p = e && e.detail && e.detail.repoPath;
+  if (p) repoStash.delete(normRepo(p));
+});
+
+function swapInTabs(entry) {
+  closeFind(true);
+  clearPulse();
+  tabs = entry.tabs;
+  activePath = null;
+  els.ta.value = '';
+  lines = [''];
+  textChanged = true;
+  rendered.from = -1;
+  rendered.to = -1;
+  showTab(null);
+  const keep = entry.active && tabs.some((t) => t.path === entry.active) ? entry.active : null;
+  const want = keep || (tabs.length ? tabs[tabs.length - 1].path : null);
+  if (want) {
+    activate(want, false);
+  } else {
+    renderTabs();
+    notify();
+  }
+}
+
+export function switchRepoCached() {
+  if (!els) return Promise.resolve();
+  persistNow();
+  const prevKey = sessRepo;
+  if (prevKey && tabs.length) repoStash.set(prevKey, { tabs: tabs, active: activePath });
+  else if (prevKey) repoStash.delete(prevKey);
+  const nextKey = state.selectedRepoPath ? normRepo(state.selectedRepoPath) : null;
+  const entry = nextKey ? repoStash.get(nextKey) : null;
+  const reuse = !!(entry && entry.tabs.length);
+  suspendSave = true;
+  try {
+    if (reuse) {
+      repoStash.delete(nextKey);
+      sessRepo = nextKey;
+      swapInTabs(entry);
+    } else {
+      resetTabs();
+    }
+  } finally {
+    suspendSave = false;
+  }
+  if (reuse) {
+    scheduleSave();
+    return Promise.resolve();
+  }
+  return restoreSession();
+}
 
 const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
 const SEV_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' };
