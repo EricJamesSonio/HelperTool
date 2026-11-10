@@ -1,4 +1,25 @@
 import { confirmDialog, alertDialog } from './utils/confirmDialog.js';
+const ICON_ADD_FILES = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/><path d="M10 9.5v5"/><path d="M7.5 12h5"/></svg>';
+const ICON_REMOVE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg>';
+
+function _fmtSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function _pickFiles() {
+  try {
+    const res = await window.electronAPI.pickFiles();
+    if (res && res.success) return res.canceled ? [] : (res.files || []);
+    if (res && res.error) await alertDialog(res.error);
+  } catch (err) {
+    await alertDialog(err && err.message ? err.message : 'Could not open the file explorer');
+  }
+  return [];
+}
+
 
 export function openRenameModal(filePath, fileName, onComplete, isFolder) {
   if (!filePath) return;
@@ -15,6 +36,15 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
     : '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M4 3h8l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="12,3 12,7 16,7"/></svg>';
   const trashSvg = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M3 5h14"/><path d="M8 5V3h4v2"/><path d="M5 5l1 12h8l1-12"/><path d="M8.5 9v5M11.5 9v5"/></svg>';
   const warnSvg = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M10 2.5L1.8 16.5h16.4L10 2.5z"/><path d="M10 8v4"/><path d="M10 14.3v.1"/></svg>';
+
+  const addSection = isFolder
+    ? `<div class="cm-add-section">
+          <label class="cm-field-label">Add files</label>
+          <p class="cm-add-desc">Copy images or other files into this folder from your computer.</p>
+          <button type="button" class="modal-btn cm-add-explorer-btn">${ICON_ADD_FILES}<span>Add from file explorer</span></button>
+          <div class="cm-modal-error cm-add-error" hidden></div>
+        </div>`
+    : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay cm-modal-overlay';
@@ -34,6 +64,7 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
           <label class="cm-field-label">Rename to</label>
           <input type="text" class="cm-rename-input" value="${_esc(name)}" autocomplete="off" spellcheck="false">
           <div class="cm-modal-error cm-rename-error" hidden></div>
+          ${addSection}
         </div>
         <div class="modal-actions cm-modal-actions">
           <button class="modal-btn cm-delete-btn">${trashSvg}<span>Delete</span></button>
@@ -68,6 +99,8 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
   const confirmView = overlay.querySelector('.cm-view-confirm');
   const renameErr = overlay.querySelector('.cm-rename-error');
   const deleteErr = overlay.querySelector('.cm-delete-error');
+  const addBtn = overlay.querySelector('.cm-add-explorer-btn');
+  const addErr = overlay.querySelector('.cm-add-error');
 
   let view = 'manage';
   let busy = false;
@@ -142,6 +175,40 @@ export function openRenameModal(filePath, fileName, onComplete, isFolder) {
     renameBtn.disabled = false;
     renameBtn.textContent = 'Rename';
   });
+
+  if (addBtn) {
+    addBtn.addEventListener('click', async () => {
+      if (busy) return;
+      addErr.hidden = true;
+      busy = true;
+      addBtn.disabled = true;
+      const files = await _pickFiles();
+      if (!files.length) {
+        busy = false;
+        addBtn.disabled = false;
+        return;
+      }
+      addBtn.querySelector('span').textContent = 'Adding...';
+      let res;
+      try {
+        res = await window.electronAPI.importFiles(filePath, files.map((f) => f.path));
+      } catch (err) {
+        res = { success: false, error: err && err.message ? err.message : String(err) };
+      }
+      busy = false;
+      if (res && res.success) {
+        const n = (res.copied || []).length;
+        const bad = (res.errors || []).length;
+        close();
+        onComplete?.();
+        showToast('Added ' + n + ' file' + (n !== 1 ? 's' : '') + (bad ? ' (' + bad + ' failed)' : ''), bad ? 'error' : 'success');
+        return;
+      }
+      showError(addErr, (res && res.error) || 'Failed to add files');
+      addBtn.disabled = false;
+      addBtn.querySelector('span').textContent = 'Add from file explorer';
+    });
+  }
 
   deleteBtn.addEventListener('click', () => {
     if (busy) return;
@@ -348,6 +415,11 @@ export function openCreateFilesModal(parentPath, onComplete) {
         <label class="cm-field-label">File names (space-separated):</label>
         <textarea class="cm-create-input" placeholder="index.ts button.tsx utils/helpers.ts types.ts&#10;// comment line ignored&#10;# also ignored" rows="3"></textarea>
         <div class="cm-create-hint">Separate names with spaces. Names without extensions are skipped.</div>
+        <div class="cm-pick-row">
+          <button type="button" class="modal-btn cm-pick-btn">${ICON_ADD_FILES}<span>Select from file explorer</span></button>
+          <span class="cm-pick-hint">Copies the chosen files into this folder when you click Create.</span>
+        </div>
+        <div class="cm-picked-list" hidden></div>
         <div class="cm-create-error" style="display:none"></div>
       </div>
       <div class="modal-actions cm-modal-actions">
@@ -362,6 +434,11 @@ export function openCreateFilesModal(parentPath, onComplete) {
   const createBtn = overlay.querySelector('.cm-create-btn');
   const closeBtn = overlay.querySelector('.cm-modal-close');
   const errorEl = overlay.querySelector('.cm-create-error');
+  const pickBtn = overlay.querySelector('.cm-pick-btn');
+  const pickedEl = overlay.querySelector('.cm-picked-list');
+
+  let picked = [];
+  let working = false;
 
   const keyHandler = (e) => {
     if (e.key === 'Escape') close();
@@ -376,32 +453,114 @@ export function openCreateFilesModal(parentPath, onComplete) {
     setTimeout(() => { if (overlay.isConnected) overlay.remove(); }, 250);
   }
 
+  function renderPicked() {
+    if (!picked.length) {
+      pickedEl.hidden = true;
+      pickedEl.innerHTML = '';
+      return;
+    }
+    pickedEl.hidden = false;
+    pickedEl.innerHTML = picked.map((f, i) =>
+      '<div class="cm-picked-item">' +
+        '<span class="cm-picked-name" title="' + _esc(f.path) + '">' + _esc(f.name) + '</span>' +
+        '<span class="cm-picked-size">' + _fmtSize(f.size) + '</span>' +
+        '<button type="button" class="cm-picked-remove" data-i="' + i + '" title="Remove">' + ICON_REMOVE + '</button>' +
+      '</div>'
+    ).join('');
+  }
+
+  pickedEl.addEventListener('click', (e) => {
+    const b = e.target.closest('.cm-picked-remove');
+    if (!b) return;
+    picked.splice(Number(b.dataset.i), 1);
+    renderPicked();
+  });
+
+  pickBtn.addEventListener('click', async () => {
+    if (working) return;
+    const files = await _pickFiles();
+    if (!files.length) return;
+    const have = new Set(picked.map((f) => f.path));
+    for (const f of files) {
+      if (!have.has(f.path)) picked.push(f);
+    }
+    errorEl.style.display = 'none';
+    renderPicked();
+  });
+
   createBtn.addEventListener('click', async () => {
-    const raw = textarea.value;
-    const names = parseFileNames(raw, '[CreateFiles] ');
-    if (!names.length) {
-      errorEl.textContent = 'No valid file names found. Add names with extensions (e.g. "index.ts").';
+    if (working) return;
+    const names = parseFileNames(textarea.value, '[CreateFiles] ');
+    if (!names.length && !picked.length) {
+      errorEl.textContent = 'Add file names with extensions (e.g. "index.ts") or select files from the file explorer.';
       errorEl.style.display = 'block';
       return;
     }
     errorEl.style.display = 'none';
+    working = true;
     createBtn.disabled = true;
+    pickBtn.disabled = true;
     createBtn.textContent = '...';
-    const res = await window.electronAPI.createFiles(parentPath, names);
-    if (res.success) {
-      const count = res.created?.length || names.length;
+
+    let made = 0;
+    let added = 0;
+    const problems = [];
+
+    if (names.length) {
+      let res;
+      try {
+        res = await window.electronAPI.createFiles(parentPath, names);
+      } catch (err) {
+        res = { success: false, error: err && err.message ? err.message : String(err) };
+      }
+      if (res && res.success) {
+        made = (res.created && res.created.length) || 0;
+        if (res.errors && res.errors.length) {
+          problems.push(...res.errors.map((e) => e.fileName + ': ' + e.error));
+        }
+      } else {
+        problems.push((res && res.error) || 'Failed to create files');
+      }
+    }
+
+    if (picked.length) {
+      let res;
+      try {
+        res = await window.electronAPI.importFiles(parentPath, picked.map((f) => f.path));
+      } catch (err) {
+        res = { success: false, error: err && err.message ? err.message : String(err) };
+      }
+      if (res && res.success) {
+        added = (res.copied && res.copied.length) || 0;
+        if (res.errors && res.errors.length) {
+          problems.push(...res.errors.map((e) => e.fileName + ': ' + e.error));
+        }
+      } else {
+        problems.push((res && res.error) || 'Failed to add selected files');
+      }
+    }
+
+    working = false;
+    if (made + added > 0 && !problems.length) {
       close();
       onComplete?.();
-      showToast(`Created ${count} file${count !== 1 ? 's' : ''}`);
-    } else {
-      let msg = res.error || 'Failed to create files';
-      if (res.errors?.length) {
-        msg += '\n' + res.errors.map(e => `  ${e.fileName}: ${e.error}`).join('\n');
-      }
-      errorEl.textContent = msg;
-      errorEl.style.display = 'block';
-      createBtn.disabled = false;
-      createBtn.textContent = 'Create';
+      const parts = [];
+      if (made) parts.push('created ' + made);
+      if (added) parts.push('added ' + added);
+      const msg = parts.join(' and ');
+      showToast(msg.charAt(0).toUpperCase() + msg.slice(1) + ' file' + (made + added !== 1 ? 's' : ''));
+      return;
+    }
+    if (made + added > 0) onComplete?.();
+    errorEl.textContent = problems.join('\n') || 'Nothing was created';
+    errorEl.style.display = 'block';
+    createBtn.disabled = false;
+    pickBtn.disabled = false;
+    createBtn.textContent = 'Create';
+    if (made + added > 0) {
+      textarea.value = '';
+      picked = [];
+      renderPicked();
     }
   });
 
