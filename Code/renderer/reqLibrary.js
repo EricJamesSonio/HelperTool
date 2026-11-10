@@ -1,8 +1,10 @@
 /**
  * reqLibrary.js
- * AI Development Requirements Library: browse, configure, generate and copy
- * reusable technical specifications.
+ * Requirements Library page: one library per repository, with a project profile,
+ * preset specifications, a configurable generator and copy actions.
  */
+
+import { state } from './app_manager/appState.js';
 
 const CSS_ID = 'rlStyles';
 const LEVELS = ['must-have', 'standard', 'medium', 'strict'];
@@ -47,13 +49,13 @@ let _open = false;
 let _data = null;
 let _draft = null;
 let _searchTimer = null;
-let _escBound = false;
+let _bound = false;
 
 const _ui = {
   view: 'list',
   quick: 'all',
   category: '',
-  appType: '',
+  appType: null,
   level: '',
   tag: '',
   sort: 'name',
@@ -72,6 +74,14 @@ const _cfg = {
 
 function api() {
   return window.reqLibraryAPI;
+}
+
+function repoPath() {
+  return state.selectedRepoPath || '';
+}
+
+function payload(extra) {
+  return Object.assign({ repoPath: repoPath() }, extra || {});
 }
 
 function esc(s) {
@@ -93,6 +103,11 @@ function newReqId() {
 function typeName(id) {
   const t = _data && _data.appTypes.find((x) => x.id === id);
   return t ? t.name : id;
+}
+
+function effectiveAppType() {
+  if (_ui.appType !== null) return _ui.appType;
+  return (_data && _data.profile && _data.profile.appType) || '';
 }
 
 function ensureStyles() {
@@ -147,6 +162,30 @@ function optionsHtml(list, selected) {
   return list
     .map((o) => '<option value="' + esc(o.value) + '"' + (o.value === selected ? ' selected' : '') + '>' + esc(o.label) + '</option>')
     .join('');
+}
+
+function layoutBox() {
+  if (!_panel) return;
+  let top = 0;
+  const body = document.querySelector('.app-body');
+  if (body && body.getBoundingClientRect().height > 0) {
+    top = body.getBoundingClientRect().top;
+  } else {
+    ['#appTitlebar', '.navbar-row--primary'].forEach((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.height > 0 && rect.bottom > top && rect.bottom < window.innerHeight * 0.4) top = rect.bottom;
+    });
+  }
+  let left = 0;
+  const side = document.getElementById('toolsSidebar');
+  if (side) {
+    const rect = side.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0 && rect.right < window.innerWidth * 0.5) left = rect.right;
+  }
+  _panel.style.setProperty('--rl-top', Math.round(top) + 'px');
+  _panel.style.setProperty('--rl-left', Math.round(left) + 'px');
 }
 
 // ---- generator -------------------------------------------------------------
@@ -213,6 +252,9 @@ function toMarkdown(spec, cfg, groupsSet, full) {
   lines.push('- Application type: ' + typeName(cfg.appType));
   lines.push('- Strictness: ' + LEVEL_LABEL[cfg.level] + ' (cumulative: ' + LEVELS.slice(0, idx + 1).map((l) => LEVEL_LABEL[l]).join(' + ') + ')');
   if (full) {
+    const profile = _data && _data.profile;
+    if (profile && profile.stack) lines.push('- Project stack: ' + profile.stack);
+    if (profile && profile.notes) lines.push('- Project notes: ' + profile.notes.replace(/\s*\n\s*/g, ' '));
     for (const n of CONTEXT_NOTES) lines.push('- ' + n);
   }
   lines.push(...groupsMarkdown(pickRequirements(spec, cfg), groupsSet, '##'));
@@ -253,7 +295,11 @@ function specToMarkdownFull(spec) {
 // ---- data ------------------------------------------------------------------
 
 async function reload() {
-  _data = await api().load();
+  if (!repoPath()) {
+    _data = null;
+    return;
+  }
+  _data = await api().load(payload());
   if (Array.isArray(_data.groups) && _data.groups.length) GROUPS = _data.groups;
 }
 
@@ -270,12 +316,13 @@ async function call(fn, okMsg) {
 
 function getFiltered() {
   const words = _ui.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const appType = effectiveAppType();
   let list = _data.specs.slice();
 
   if (_ui.quick === 'favorites') list = list.filter((s) => s.favorite);
   if (_ui.quick === 'viewed') list = list.filter((s) => s.lastAccessedAt);
   if (_ui.category) list = list.filter((s) => s.category === _ui.category);
-  if (_ui.appType) list = list.filter((s) => !s.appTypes.length || s.appTypes.includes(_ui.appType));
+  if (appType) list = list.filter((s) => !s.appTypes.length || s.appTypes.includes(appType));
   if (_ui.level) list = list.filter((s) => s.requirements.some((r) => r.level === _ui.level));
   if (_ui.tag) list = list.filter((s) => s.tags.includes(_ui.tag));
 
@@ -304,28 +351,52 @@ function getFiltered() {
 }
 
 function hasActiveFilters() {
-  return !!(_ui.quick !== 'all' || _ui.category || _ui.appType || _ui.level || _ui.tag || _ui.search.trim());
+  return !!(_ui.quick !== 'all' || _ui.category || _ui.appType !== null || _ui.level || _ui.tag || _ui.search.trim());
 }
 
-// ---- panel lifecycle -------------------------------------------------------
+function resetUi() {
+  _ui.view = 'list';
+  _ui.quick = 'all';
+  _ui.category = '';
+  _ui.appType = null;
+  _ui.level = '';
+  _ui.tag = '';
+  _ui.search = '';
+  _ui.selectedId = null;
+  _draft = null;
+  if (_panel) {
+    const input = _panel.querySelector('#rlSearch');
+    if (input) input.value = '';
+    const modal = _panel.querySelector('#rlModal');
+    if (modal) modal.style.display = 'none';
+  }
+}
+
+// ---- page lifecycle --------------------------------------------------------
 
 export function isOpen() {
   return _open;
+}
+
+async function refresh() {
+  try {
+    await reload();
+  } catch (err) {
+    console.error('[ReqLibrary] load failed:', err);
+    _data = null;
+    toast('Could not load the library');
+  }
+  renderAll();
 }
 
 export async function open() {
   if (_open) return;
   ensureStyles();
   if (!_panel) buildPanel();
+  layoutBox();
   _panel.classList.add('open');
   _open = true;
-  try {
-    await reload();
-    renderAll();
-  } catch (err) {
-    console.error('[ReqLibrary] load failed:', err);
-    toast('Could not load the library');
-  }
+  await refresh();
 }
 
 export function close() {
@@ -336,6 +407,12 @@ export function close() {
   if (modal) modal.style.display = 'none';
 }
 
+function onRepoSwitched() {
+  resetUi();
+  _data = null;
+  if (_open) refresh();
+}
+
 function buildPanel() {
   _panel = document.createElement('div');
   _panel.id = 'rlPanel';
@@ -344,6 +421,7 @@ function buildPanel() {
     '<div class="rl-container">' +
       '<div class="rl-header">' +
         '<h2 class="rl-title">' + BOOK_ICON + ' Requirements Library</h2>' +
+        '<span class="rl-repo" id="rlRepo"></span>' +
         '<div class="rl-search-wrap">' +
           '<input id="rlSearch" class="rl-search" type="text" placeholder="Search specifications, requirements, tags..." autocomplete="off">' +
           '<button class="rl-btn" data-act="clear-search" title="Clear search">Clear</button>' +
@@ -374,15 +452,17 @@ function buildPanel() {
     const value = e.target.value;
     _searchTimer = setTimeout(() => {
       _ui.search = value;
-      if (_ui.view !== 'list') _ui.view = 'list';
+      _ui.view = 'list';
       renderAll();
     }, 200);
   });
 
   _panel.querySelector('#rlFile').addEventListener('change', onImportFile);
 
-  if (!_escBound) {
-    _escBound = true;
+  if (!_bound) {
+    _bound = true;
+    window.addEventListener('resize', layoutBox);
+    document.addEventListener('repo:switched', onRepoSwitched);
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || !_open) return;
       const modal = _panel.querySelector('#rlModal');
@@ -392,13 +472,34 @@ function buildPanel() {
       }
       close();
     });
+    const side = document.getElementById('toolsSidebar');
+    if (side && typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => layoutBox()).observe(side);
+    }
   }
 }
 
 // ---- rendering -------------------------------------------------------------
 
+function updateHeader() {
+  const el = _panel && _panel.querySelector('#rlRepo');
+  if (!el) return;
+  el.textContent = _data ? _data.repoName + ' / ' + typeName(_data.profile.appType) : 'No repository';
+}
+
+function renderNoRepo() {
+  _panel.querySelector('#rlSidebar').innerHTML = '';
+  _panel.querySelector('#rlMain').innerHTML =
+    '<div class="rl-empty">Select a repository first. Each repository has its own requirements library and project profile.</div>';
+  updateHeader();
+}
+
 function renderAll() {
-  if (!_data) return;
+  if (!_data) {
+    renderNoRepo();
+    return;
+  }
+  updateHeader();
   renderSidebar();
   renderMain();
 }
@@ -427,7 +528,7 @@ function renderSidebar() {
 
   const appOpts = optionsHtml(
     [{ value: '', label: 'Any application type' }].concat(_data.appTypes.map((t) => ({ value: t.id, label: t.name }))),
-    _ui.appType
+    effectiveAppType()
   );
   const levelOpts = optionsHtml(
     [{ value: '', label: 'Any strictness' }].concat(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] }))),
@@ -458,6 +559,56 @@ function levelChips(spec) {
     .map((l) => '<span class="rl-badge rl-lv-' + l + '">' + LEVEL_LABEL[l] + '</span>').join('');
 }
 
+function cardHtml(s) {
+  const types = s.appTypes.length ? s.appTypes.map((id) => '<span class="rl-badge">' + esc(typeName(id)) + '</span>').join('') : '<span class="rl-badge">All types</span>';
+  const tags = s.tags.map((t) => '<span class="rl-tag">#' + esc(t) + '</span>').join('');
+  return '<div class="rl-card" data-act="open-spec" data-id="' + esc(s.id) + '">' +
+    '<div class="rl-card-top"><span class="rl-card-name">' + esc(s.name) + '</span>' +
+    '<button class="rl-star' + (s.favorite ? ' on' : '') + '" data-act="fav" data-id="' + esc(s.id) + '" title="Favorite">' + (s.favorite ? '&#9733;' : '&#9734;') + '</button></div>' +
+    '<div class="rl-card-desc">' + esc(s.description) + '</div>' +
+    '<div class="rl-card-meta">' + esc(s.category) + (s.subcategory ? ' / ' + esc(s.subcategory) : '') + '</div>' +
+    '<div class="rl-badges">' + types + '</div>' +
+    '<div class="rl-badges">' + levelChips(s) + '</div>' +
+    '<div class="rl-tags">' + tags + '</div>' +
+  '</div>';
+}
+
+function cardsHtml(list) {
+  if (!list.length) {
+    return '<div class="rl-empty">' + (hasActiveFilters() ? 'No specifications match your search or filters.' : 'No specifications yet. Create one with the New button.') + '</div>';
+  }
+  const grouped = !_ui.category && _ui.quick === 'all' && _ui.sort === 'name';
+  if (!grouped) return '<div class="rl-grid">' + list.map(cardHtml).join('') + '</div>';
+
+  const map = new Map();
+  for (const s of list) {
+    if (!map.has(s.category)) map.set(s.category, []);
+    map.get(s.category).push(s);
+  }
+  const names = _data.categories.filter((c) => map.has(c)).concat(Array.from(map.keys()).filter((c) => !_data.categories.includes(c)));
+  return names.map((c) =>
+    '<div class="rl-cat-head">' + esc(c) + '<span class="rl-count">' + map.get(c).length + '</span></div>' +
+    '<div class="rl-grid">' + map.get(c).map(cardHtml).join('') + '</div>'
+  ).join('');
+}
+
+function profileHtml() {
+  const p = _data.profile;
+  const types = optionsHtml(_data.appTypes.map((t) => ({ value: t.id, label: t.name })), p.appType);
+  const levels = optionsHtml(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] })), p.strictness);
+  return '<details class="rl-profile">' +
+    '<summary>Project profile for <b>' + esc(_data.repoName) + '</b>: ' + esc(typeName(p.appType)) + ', default strictness ' + esc(LEVEL_LABEL[p.strictness]) + '</summary>' +
+    '<div class="rl-form-grid">' +
+      '<label>Application type<select id="rlPApp" class="rl-input">' + types + '</select></label>' +
+      '<label>Default strictness<select id="rlPLevel" class="rl-input">' + levels + '</select></label>' +
+      '<label>Stack and conventions (optional)<input id="rlPStack" class="rl-input" placeholder="For example: framework, database, UI library" value="' + esc(p.stack) + '"></label>' +
+      '<label>Project notes (optional)<textarea id="rlPNotes" class="rl-input" rows="2" placeholder="Anything the AI should know about this project">' + esc(p.notes) + '</textarea></label>' +
+    '</div>' +
+    '<button class="rl-btn rl-btn-primary" data-act="save-profile">Save profile</button>' +
+    '<span class="rl-muted"> The type sets the default filter and generator settings. Stack and notes are added to copied output.</span>' +
+  '</details>';
+}
+
 function renderList() {
   const main = _panel.querySelector('#rlMain');
   const list = getFiltered();
@@ -471,25 +622,7 @@ function renderList() {
       '<div class="rl-stat"><b>' + favCount + '</b><span>Favorites</span></div>' +
     '</div>';
 
-  let cards;
-  if (!list.length) {
-    cards = '<div class="rl-empty">' + (hasActiveFilters() ? 'No specifications match your search or filters.' : 'No specifications yet. Create one with the New button.') + '</div>';
-  } else {
-    cards = '<div class="rl-grid">' + list.map((s) => {
-      const types = s.appTypes.length ? s.appTypes.map((id) => '<span class="rl-badge">' + esc(typeName(id)) + '</span>').join('') : '<span class="rl-badge">All types</span>';
-      const tags = s.tags.map((t) => '<span class="rl-tag">#' + esc(t) + '</span>').join('');
-      return '<div class="rl-card" data-act="open-spec" data-id="' + esc(s.id) + '">' +
-        '<div class="rl-card-top"><span class="rl-card-name">' + esc(s.name) + '</span>' +
-        '<button class="rl-star' + (s.favorite ? ' on' : '') + '" data-act="fav" data-id="' + esc(s.id) + '" title="Favorite">' + (s.favorite ? '&#9733;' : '&#9734;') + '</button></div>' +
-        '<div class="rl-card-desc">' + esc(s.description) + '</div>' +
-        '<div class="rl-card-meta">' + esc(s.category) + (s.subcategory ? ' / ' + esc(s.subcategory) : '') + '</div>' +
-        '<div class="rl-badges">' + types + '</div>' +
-        '<div class="rl-badges">' + levelChips(s) + '</div>' +
-        '<div class="rl-tags">' + tags + '</div>' +
-      '</div>';
-    }).join('') + '</div>';
-  }
-  main.innerHTML = stats + cards;
+  main.innerHTML = '<div class="rl-content">' + profileHtml() + stats + cardsHtml(list) + '</div>';
 }
 
 function supportedTypeIds(spec) {
@@ -502,11 +635,13 @@ function openSpec(id) {
   _ui.selectedId = id;
   _ui.view = 'detail';
   const supported = supportedTypeIds(spec);
-  if (!supported.includes(_cfg.appType)) _cfg.appType = supported[0];
+  const preferred = _data.profile.appType;
+  _cfg.appType = supported.includes(preferred) ? preferred : supported[0];
+  _cfg.level = _data.profile.strictness;
   _cfg.groups = new Set(GROUPS);
   _cfg.includeRelated = false;
   spec.lastAccessedAt = new Date().toISOString();
-  api().markViewed({ id }).catch(() => {});
+  api().markViewed(payload({ id })).catch(() => {});
   renderMain();
   const main = _panel.querySelector('#rlMain');
   if (main) main.scrollTop = 0;
@@ -547,8 +682,9 @@ function renderDetail() {
   }).join('');
 
   main.innerHTML =
+    '<div class="rl-content">' +
     '<div class="rl-toolbar">' +
-      '<button class="rl-btn" data-act="back">Back</button>' +
+      '<button class="rl-btn" data-act="back">Back to library</button>' +
       '<div class="rl-spacer"></div>' +
       '<button class="rl-btn" data-act="fav" data-id="' + esc(spec.id) + '">' + (spec.favorite ? 'Unfavorite' : 'Favorite') + '</button>' +
       '<button class="rl-btn" data-act="edit" data-id="' + esc(spec.id) + '">Edit</button>' +
@@ -578,7 +714,8 @@ function renderDetail() {
     '</div>' +
     '<div class="rl-label">Generated requirements (' + picked.length + ' included)</div>' +
     '<pre class="rl-preview">' + esc(md) + '</pre>' +
-    '<div class="rl-label">All requirements by strictness</div>' + byLevel;
+    '<div class="rl-label">All requirements by strictness</div>' + byLevel +
+    '</div>';
 }
 
 // ---- editor ----------------------------------------------------------------
@@ -644,6 +781,7 @@ function renderEdit() {
   ).join('');
 
   main.innerHTML =
+    '<div class="rl-content">' +
     '<div class="rl-toolbar">' +
       '<button class="rl-btn" data-act="cancel">Cancel</button>' +
       '<div class="rl-spacer"></div>' +
@@ -660,7 +798,8 @@ function renderEdit() {
     '<div class="rl-block"><div class="rl-label">Supported application types (none checked = all)</div><div class="rl-checks">' + appBoxes + '</div></div>' +
     '<div class="rl-block"><div class="rl-label">Related specifications</div><div class="rl-checks">' + (relBoxes || '<span class="rl-muted">No other specifications</span>') + '</div></div>' +
     '<div class="rl-label rl-row-between">Requirements and acceptance criteria <button class="rl-btn" data-act="add-req">+ Add requirement</button></div>' +
-    '<div id="rlReqRows">' + (d.requirements.length ? d.requirements.map(reqRowHtml).join('') : '<div class="rl-empty">No requirements yet.</div>') + '</div>';
+    '<div id="rlReqRows">' + (d.requirements.length ? d.requirements.map(reqRowHtml).join('') : '<div class="rl-empty">No requirements yet.</div>') + '</div>' +
+    '</div>';
 }
 
 function collectDraft() {
@@ -696,7 +835,7 @@ async function saveDraft() {
   }
   _draft.requirements = _draft.requirements.filter((r) => r.title || r.description);
   try {
-    const saved = await api().upsertSpec(_draft);
+    const saved = await api().upsertSpec(payload({ spec: _draft }));
     await reload();
     _draft = null;
     renderSidebar();
@@ -728,10 +867,20 @@ function renderManage() {
   const tags = _data.tags.map((t) => row('tag', t, t, true)).join('');
   const types = _data.appTypes.map((t) => row('appType', t.id, t.name, !t.builtin)).join('');
 
+  const presets =
+    '<div class="rl-mgr-section"><div class="rl-label">Presets</div>' +
+    '<div class="rl-mgr-row"><span class="rl-muted">' + (_data.presetTotal - _data.presetMissing - _data.presetRemoved) + ' of ' + _data.presetTotal + ' presets are in this repository. ' +
+    _data.presetMissing + ' available to add, ' + _data.presetRemoved + ' deleted.</span></div>' +
+    '<div class="rl-mgr-row">' +
+      '<button class="rl-btn" data-act="presets-add">Add missing presets</button>' +
+      '<button class="rl-btn" data-act="presets-restore">Restore deleted presets</button>' +
+    '</div></div>';
+
   modal.innerHTML =
     '<div class="rl-modal-box">' +
-      '<div class="rl-toolbar"><h3 class="rl-detail-title">Manage categories, tags and application types</h3><div class="rl-spacer"></div>' +
+      '<div class="rl-toolbar"><h3 class="rl-detail-title">Manage ' + esc(_data.repoName) + '</h3><div class="rl-spacer"></div>' +
       '<button class="rl-btn" data-act="modal-close">Close</button></div>' +
+      presets +
       section('Categories', 'category', cats) +
       section('Tags', 'tag', tags) +
       section('Application types', 'appType', types) +
@@ -763,10 +912,7 @@ function onChange(e) {
 
 function onClick(e) {
   const t = e.target.closest('[data-act]');
-  if (!t) {
-    if (e.target === _panel) close();
-    return;
-  }
+  if (!t) return;
   e.stopPropagation();
   handleAction(t.dataset.act, t);
 }
@@ -776,16 +922,16 @@ async function handleAction(act, t) {
   switch (act) {
     case 'close': close(); break;
     case 'clear-search': {
-      const input = _panel.querySelector('#rlSearch');
-      input.value = '';
+      _panel.querySelector('#rlSearch').value = '';
       _ui.search = '';
       renderAll();
       break;
     }
-    case 'new': startEdit(null); break;
-    case 'import': _panel.querySelector('#rlFile').click(); break;
+    case 'new': if (_data) startEdit(null); break;
+    case 'import': if (_data) _panel.querySelector('#rlFile').click(); break;
     case 'export':
-      download('requirements-library.json', JSON.stringify({
+      if (!_data) break;
+      download(_data.repoName + '-requirements-library.json', JSON.stringify({
         exportType: 'library',
         version: _data.version,
         categories: _data.categories,
@@ -795,24 +941,35 @@ async function handleAction(act, t) {
       }, null, 2), 'application/json');
       toast('Library exported');
       break;
-    case 'manage': renderManage(); break;
+    case 'manage': if (_data) renderManage(); break;
     case 'modal-close': _panel.querySelector('#rlModal').style.display = 'none'; break;
     case 'quick': _ui.quick = t.dataset.v; _ui.view = 'list'; renderAll(); break;
     case 'category': _ui.category = t.dataset.v; _ui.view = 'list'; renderAll(); break;
     case 'tag': _ui.tag = _ui.tag === t.dataset.v ? '' : t.dataset.v; _ui.view = 'list'; renderAll(); break;
     case 'clear-filters': {
-      _ui.quick = 'all'; _ui.category = ''; _ui.appType = ''; _ui.level = ''; _ui.tag = ''; _ui.search = '';
+      _ui.quick = 'all'; _ui.category = ''; _ui.appType = null; _ui.level = ''; _ui.tag = ''; _ui.search = '';
       _panel.querySelector('#rlSearch').value = '';
       _ui.view = 'list';
       renderAll();
       break;
     }
+    case 'save-profile': {
+      const profile = {
+        appType: _panel.querySelector('#rlPApp').value,
+        strictness: _panel.querySelector('#rlPLevel').value,
+        stack: _panel.querySelector('#rlPStack').value,
+        notes: _panel.querySelector('#rlPNotes').value,
+      };
+      _ui.appType = null;
+      await call(() => api().updateProfile(payload({ profile })), 'Profile saved');
+      break;
+    }
     case 'open-spec': openSpec(id); break;
     case 'back': _ui.view = 'list'; renderMain(); break;
-    case 'fav': await call(() => api().toggleFavorite({ id })); break;
+    case 'fav': await call(() => api().toggleFavorite(payload({ id }))); break;
     case 'dup': {
       try {
-        const copy = await api().duplicateSpec({ id });
+        const copy = await api().duplicateSpec(payload({ id }));
         await reload();
         renderSidebar();
         openSpec(copy.id);
@@ -827,7 +984,7 @@ async function handleAction(act, t) {
       if (!spec) break;
       if (!confirm('Delete "' + spec.name + '"? This cannot be undone.')) break;
       _ui.view = 'list';
-      await call(() => api().deleteSpec({ id }), 'Deleted');
+      await call(() => api().deleteSpec(payload({ id })), 'Deleted');
       break;
     }
     case 'edit': startEdit(id); break;
@@ -868,23 +1025,36 @@ async function handleAction(act, t) {
       break;
     }
     case 'copy': await doCopy(t); break;
+    case 'presets-add':
+    case 'presets-restore': {
+      try {
+        const result = await api().syncPresets(payload({ includeRemoved: act === 'presets-restore' }));
+        await reload();
+        renderAll();
+        renderManage();
+        toast('Added ' + result.added + ' presets');
+      } catch (_) {
+        toast('Could not add presets');
+      }
+      break;
+    }
     case 'mgr-add': {
       const input = _panel.querySelector('#rlMgrAdd_' + t.dataset.kind);
       const value = input ? input.value.trim() : '';
       if (!value) break;
-      await call(() => api().addItem({ kind: t.dataset.kind, value }));
+      await call(() => api().addItem(payload({ kind: t.dataset.kind, value })));
       renderManage();
       break;
     }
     case 'mgr-rename': {
       const input = t.closest('.rl-mgr-row').querySelector('input');
-      await call(() => api().renameItem({ kind: t.dataset.kind, value: t.dataset.v, newValue: input.value }), 'Renamed');
+      await call(() => api().renameItem(payload({ kind: t.dataset.kind, value: t.dataset.v, newValue: input.value })), 'Renamed');
       renderManage();
       break;
     }
     case 'mgr-del': {
       if (!confirm('Delete "' + t.dataset.v + '"? Specifications using it will be updated.')) break;
-      await call(() => api().deleteItem({ kind: t.dataset.kind, value: t.dataset.v }), 'Deleted');
+      await call(() => api().deleteItem(payload({ kind: t.dataset.kind, value: t.dataset.v })), 'Deleted');
       renderManage();
       break;
     }
@@ -930,7 +1100,7 @@ async function onImportFile(e) {
       toast('Not a valid library or specification file');
       return;
     }
-    const result = await api().importLibrary({ data: parsed });
+    const result = await api().importLibrary(payload({ data: parsed }));
     await reload();
     renderAll();
     toast('Imported ' + result.imported + (result.skipped ? ', skipped ' + result.skipped : ''));
