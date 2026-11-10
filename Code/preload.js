@@ -908,3 +908,6 @@ contextBridge.exposeInMainWorld('ideClipAPI', {
 contextBridge.exposeInMainWorld('ideHistoryAPI', {
     op: (payload) => ipcRenderer.invoke('ide:fsOp', payload),
 });
+contextBridge.exposeInMainWorld('gitReposPageAPI', {
+  page: (payload) => ipcRenderer.invoke('gitAccounts:listReposPage', payload),
+});
