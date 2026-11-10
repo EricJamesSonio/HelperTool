@@ -54,7 +54,7 @@ function enabled() {
 }
 
 function currentMode() {
-  return csState.parallelMode ? 'modal' : 'dock';
+  return csState.parallelMode || csState.modalView ? 'modal' : 'dock';
 }
 
 function isLive() {
@@ -140,7 +140,8 @@ function onHostClick(e) {
 }
 
 function onHostChange(e) {
-  if (e.target && e.target.id === 'ocParallelToggle' && visible) place();
+  if (!e.target || !visible) return;
+  if (e.target.id === 'ocParallelToggle' || e.target.id === 'ocModalToggle') place();
 }
 
 function buildHosts() {
