@@ -1141,7 +1141,6 @@ function activate(path, focus) {
 
 async function loadTab(tab) {
   const fileExt = tab.name.split('.').pop().toLowerCase();
-  let staleDraft = false;
   if (BINARY_EXT.has(fileExt)) {
     tab.notice = 'Binary file - preview is not available.';
   } else {
@@ -1157,8 +1156,11 @@ async function loadTab(tab) {
         tab.eol = res.content.indexOf('\r\n') !== -1 ? '\r\n' : '\n';
         tab.content = tab.eol === '\r\n' ? res.content.replace(/\r\n/g, '\n') : res.content;
         tab.saved = tab.content;
-        if (typeof tab.draft === 'string' && tab.draft !== tab.saved) {
-          staleDraft = typeof tab.draftBase === 'number' && tab.draftBase !== hashStr(tab.saved);
+        const draftFits = typeof tab.draft === 'string'
+          && typeof tab.draftBase === 'number'
+          && tab.draftBase === hashStr(tab.saved)
+          && tab.draft !== tab.saved;
+        if (draftFits) {
           tab.content = tab.draft;
           tab.dirty = true;
         }
@@ -1173,7 +1175,6 @@ async function loadTab(tab) {
   const want = tab.wantFocus === true;
   tab.wantFocus = false;
   if (tabs.includes(tab) && activePath === tab.path) showTab(tab, want);
-  if (staleDraft) flash('Restored unsaved edits for ' + tab.name + '. The file changed on disk since then, check before saving.', 6000);
 }
 
 export async function openFile(path) {
@@ -2892,6 +2893,7 @@ async function autoSaveDirty() {
   if (n) {
     renderTabs();
     notify();
+    persistNow();
     flash('Auto-saved ' + n + ' file' + (n === 1 ? '' : 's'), 2500);
   }
 }
