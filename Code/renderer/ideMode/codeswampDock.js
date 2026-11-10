@@ -256,7 +256,6 @@ async function warm() {
   const panel = await ensurePanel();
   if (!panel || !isIde()) return;
   if (!tm) tm = await import('../codeswampUI/terminalManager.js');
-  prewarm();
 }
 
 function scheduleWarm() {
@@ -431,6 +430,9 @@ export function init() {
   document.addEventListener('repo:switched', () => {
     warmKey = '';
     if (isIde()) scheduleWarm();
+  });
+  document.addEventListener('cs:slept', () => {
+    warmKey = '';
   });
   document.addEventListener('ide:close-search', () => {
     if (visible && currentMode() === 'modal') hide();
