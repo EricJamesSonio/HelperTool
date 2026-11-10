@@ -1,7 +1,8 @@
 /**
  * reqLibrary.js
  * Requirements Library page: one library per repository, with a project profile,
- * preset specifications, a configurable generator and copy actions.
+ * preset specifications grouped by area (Frontend, Backend, Database, DevOps),
+ * a configurable generator and copy actions.
  */
 
 import { state } from './app_manager/appState.js';
@@ -16,6 +17,22 @@ const QUICK = [
   { id: 'viewed', label: 'Recently viewed' },
   { id: 'added', label: 'Recently added' },
   { id: 'updated', label: 'Recently updated' },
+];
+
+const SUB_ORDER = [
+  'Components',
+  'Pages',
+  'Layout',
+  'Globals',
+  'Shared',
+  'Modules',
+  'Pipelines',
+  'Utils',
+  'Standards',
+  'Endpoints',
+  'Schema',
+  'Queries',
+  'Security',
 ];
 
 const BOOK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>';
@@ -55,7 +72,7 @@ const _ui = {
   view: 'list',
   quick: 'all',
   category: '',
-  appType: null,
+  sub: '',
   level: '',
   tag: '',
   sort: 'name',
@@ -64,7 +81,6 @@ const _ui = {
 };
 
 const _cfg = {
-  appType: '',
   level: 'strict',
   groups: new Set(),
   includeRelated: false,
@@ -100,14 +116,8 @@ function newReqId() {
   return 'req_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
 }
 
-function typeName(id) {
-  const t = _data && _data.appTypes.find((x) => x.id === id);
-  return t ? t.name : id;
-}
-
-function effectiveAppType() {
-  if (_ui.appType !== null) return _ui.appType;
-  return (_data && _data.profile && _data.profile.appType) || '';
+function subOf(spec) {
+  return spec.subcategory || 'General';
 }
 
 function ensureStyles() {
@@ -200,7 +210,6 @@ function pickRequirements(spec, cfg) {
   const out = [];
   for (const r of spec.requirements) {
     if (levelRank(r.level) > max) continue;
-    if (r.appTypes && r.appTypes.length && !r.appTypes.includes(cfg.appType)) continue;
     const key = (r.title + '|' + r.description).toLowerCase().replace(/\s+/g, ' ').trim();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -249,7 +258,7 @@ function toMarkdown(spec, cfg, groupsSet, full) {
   if (spec.description) lines.push('', spec.description);
   const idx = levelRank(cfg.level);
   lines.push('', '## Implementation Context', '');
-  lines.push('- Application type: ' + typeName(cfg.appType));
+  lines.push('- Area: ' + spec.category + (spec.subcategory ? ' / ' + spec.subcategory : ''));
   lines.push('- Strictness: ' + LEVEL_LABEL[cfg.level] + ' (cumulative: ' + LEVELS.slice(0, idx + 1).map((l) => LEVEL_LABEL[l]).join(' + ') + ')');
   if (full) {
     const profile = _data && _data.profile;
@@ -274,19 +283,15 @@ function toMarkdown(spec, cfg, groupsSet, full) {
 function specToMarkdownFull(spec) {
   const lines = ['# ' + spec.name];
   if (spec.description) lines.push('', spec.description);
-  lines.push('', '- Category: ' + spec.category + (spec.subcategory ? ' / ' + spec.subcategory : ''));
+  lines.push('', '- Area: ' + spec.category + (spec.subcategory ? ' / ' + spec.subcategory : ''));
   if (spec.tags.length) lines.push('- Tags: ' + spec.tags.join(', '));
-  if (spec.appTypes.length) lines.push('- Application types: ' + spec.appTypes.map(typeName).join(', '));
   for (const level of LEVELS) {
     const reqs = spec.requirements.filter((r) => r.level === level);
     if (!reqs.length) continue;
     lines.push('', '## ' + LEVEL_LABEL[level]);
     for (const [group, items] of groupRequirements(reqs)) {
       lines.push('', '### ' + group, '');
-      for (const r of items) {
-        const scope = r.appTypes.length ? ' [' + r.appTypes.map(typeName).join(', ') + ']' : '';
-        lines.push(reqLine(r) + scope);
-      }
+      for (const r of items) lines.push(reqLine(r));
     }
   }
   return lines.join('\n') + '\n';
@@ -316,13 +321,12 @@ async function call(fn, okMsg) {
 
 function getFiltered() {
   const words = _ui.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const appType = effectiveAppType();
   let list = _data.specs.slice();
 
   if (_ui.quick === 'favorites') list = list.filter((s) => s.favorite);
   if (_ui.quick === 'viewed') list = list.filter((s) => s.lastAccessedAt);
   if (_ui.category) list = list.filter((s) => s.category === _ui.category);
-  if (appType) list = list.filter((s) => !s.appTypes.length || s.appTypes.includes(appType));
+  if (_ui.sub) list = list.filter((s) => subOf(s) === _ui.sub);
   if (_ui.level) list = list.filter((s) => s.requirements.some((r) => r.level === _ui.level));
   if (_ui.tag) list = list.filter((s) => s.tags.includes(_ui.tag));
 
@@ -351,14 +355,14 @@ function getFiltered() {
 }
 
 function hasActiveFilters() {
-  return !!(_ui.quick !== 'all' || _ui.category || _ui.appType !== null || _ui.level || _ui.tag || _ui.search.trim());
+  return !!(_ui.quick !== 'all' || _ui.category || _ui.sub || _ui.level || _ui.tag || _ui.search.trim());
 }
 
 function resetUi() {
   _ui.view = 'list';
   _ui.quick = 'all';
   _ui.category = '';
-  _ui.appType = null;
+  _ui.sub = '';
   _ui.level = '';
   _ui.tag = '';
   _ui.search = '';
@@ -485,7 +489,7 @@ function buildPanel() {
 function updateHeader() {
   const el = _panel && _panel.querySelector('#rlRepo');
   if (!el) return;
-  el.textContent = _data ? _data.repoName + ' / ' + typeName(_data.profile.appType) : 'No repository';
+  el.textContent = _data ? _data.repoName : 'No repository';
 }
 
 function renderNoRepo() {
@@ -512,6 +516,16 @@ function renderMain() {
   else renderList();
 }
 
+function subCounts(category) {
+  const map = new Map();
+  for (const s of _data.specs) {
+    if (s.category !== category) continue;
+    const key = subOf(s);
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+}
+
 function renderSidebar() {
   const side = _panel.querySelector('#rlSidebar');
   const counts = {};
@@ -521,16 +535,18 @@ function renderSidebar() {
     '<button class="rl-side-item' + (_ui.quick === q.id ? ' active' : '') + '" data-act="quick" data-v="' + q.id + '">' + esc(q.label) + '</button>'
   ).join('');
 
-  const cats =
-    '<button class="rl-side-item' + (!_ui.category ? ' active' : '') + '" data-act="category" data-v="">All categories<span class="rl-count">' + _data.specs.length + '</span></button>' +
-    _data.categories.map((c) =>
-      '<button class="rl-side-item' + (_ui.category === c ? ' active' : '') + '" data-act="category" data-v="' + esc(c) + '">' + esc(c) + '<span class="rl-count">' + (counts[c] || 0) + '</span></button>'
-    ).join('');
+  let cats = '<button class="rl-side-item' + (!_ui.category ? ' active' : '') + '" data-act="category" data-v="">All areas<span class="rl-count">' + _data.specs.length + '</span></button>';
+  for (const c of _data.categories) {
+    const n = counts[c] || 0;
+    if (c === 'Other' && !n && _ui.category !== c) continue;
+    cats += '<button class="rl-side-item' + (_ui.category === c && !_ui.sub ? ' active' : '') + '" data-act="category" data-v="' + esc(c) + '">' + esc(c) + '<span class="rl-count">' + n + '</span></button>';
+    if (_ui.category === c) {
+      for (const [name, count] of subCounts(c)) {
+        cats += '<button class="rl-side-item' + (_ui.sub === name ? ' active' : '') + '" style="padding-left:26px;font-size:12px" data-act="sub" data-v="' + esc(name) + '">' + esc(name) + '<span class="rl-count">' + count + '</span></button>';
+      }
+    }
+  }
 
-  const appOpts = optionsHtml(
-    [{ value: '', label: 'Any application type' }].concat(_data.appTypes.map((t) => ({ value: t.id, label: t.name }))),
-    effectiveAppType()
-  );
   const levelOpts = optionsHtml(
     [{ value: '', label: 'Any strictness' }].concat(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] }))),
     _ui.level
@@ -545,9 +561,8 @@ function renderSidebar() {
 
   side.innerHTML =
     '<div class="rl-side-section"><div class="rl-side-title">Browse</div>' + quick + '</div>' +
-    '<div class="rl-side-section"><div class="rl-side-title">Categories</div>' + cats + '</div>' +
+    '<div class="rl-side-section"><div class="rl-side-title">Areas</div>' + cats + '</div>' +
     '<div class="rl-side-section"><div class="rl-side-title">Filters</div>' +
-      '<select class="rl-input" data-field="fAppType">' + appOpts + '</select>' +
       '<select class="rl-input" data-field="fLevel">' + levelOpts + '</select>' +
       '<select class="rl-input" data-field="fSort">' + sortOpts + '</select>' +
     '</div>' +
@@ -561,52 +576,65 @@ function levelChips(spec) {
 }
 
 function cardHtml(s) {
-  const types = s.appTypes.length ? s.appTypes.map((id) => '<span class="rl-badge">' + esc(typeName(id)) + '</span>').join('') : '<span class="rl-badge">All types</span>';
   const tags = s.tags.map((t) => '<span class="rl-tag">#' + esc(t) + '</span>').join('');
   return '<div class="rl-card" data-act="open-spec" data-id="' + esc(s.id) + '">' +
     '<div class="rl-card-top"><span class="rl-card-name">' + esc(s.name) + '</span>' +
     '<button class="rl-star' + (s.favorite ? ' on' : '') + '" data-act="fav" data-id="' + esc(s.id) + '" title="Favorite">' + (s.favorite ? '&#9733;' : '&#9734;') + '</button></div>' +
     '<div class="rl-card-desc">' + esc(s.description) + '</div>' +
     '<div class="rl-card-meta">' + esc(s.category) + (s.subcategory ? ' / ' + esc(s.subcategory) : '') + '</div>' +
-    '<div class="rl-badges">' + types + '</div>' +
     '<div class="rl-badges">' + levelChips(s) + '</div>' +
     '<div class="rl-tags">' + tags + '</div>' +
   '</div>';
+}
+
+function groupList(list, keyFn, order) {
+  const map = new Map();
+  for (const s of list) {
+    const k = keyFn(s);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(s);
+  }
+  const keys = Array.from(map.keys());
+  keys.sort((a, b) => {
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  return keys.map((k) => [k, map.get(k)]);
 }
 
 function cardsHtml(list) {
   if (!list.length) {
     return '<div class="rl-empty">' + (hasActiveFilters() ? 'No specifications match your search or filters.' : 'No specifications yet. Create one with the New button.') + '</div>';
   }
-  const grouped = !_ui.category && _ui.quick === 'all' && _ui.sort === 'name';
-  if (!grouped) return '<div class="rl-grid">' + list.map(cardHtml).join('') + '</div>';
+  const plain = _ui.quick === 'all' && _ui.sort === 'name';
+  if (!plain || _ui.sub) return '<div class="rl-grid">' + list.map(cardHtml).join('') + '</div>';
 
-  const map = new Map();
-  for (const s of list) {
-    if (!map.has(s.category)) map.set(s.category, []);
-    map.get(s.category).push(s);
-  }
-  const names = _data.categories.filter((c) => map.has(c)).concat(Array.from(map.keys()).filter((c) => !_data.categories.includes(c)));
-  return names.map((c) =>
-    '<div class="rl-cat-head">' + esc(c) + '<span class="rl-count">' + map.get(c).length + '</span></div>' +
-    '<div class="rl-grid">' + map.get(c).map(cardHtml).join('') + '</div>'
+  const groups = !_ui.category
+    ? groupList(list, (s) => s.category, _data.categories)
+    : groupList(list, subOf, SUB_ORDER);
+
+  return groups.map(([name, items]) =>
+    '<div class="rl-cat-head">' + esc(name) + '<span class="rl-count">' + items.length + '</span></div>' +
+    '<div class="rl-grid">' + items.map(cardHtml).join('') + '</div>'
   ).join('');
 }
 
 function profileHtml() {
   const p = _data.profile;
-  const types = optionsHtml(_data.appTypes.map((t) => ({ value: t.id, label: t.name })), p.appType);
   const levels = optionsHtml(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] })), p.strictness);
   return '<details class="rl-profile">' +
-    '<summary>Project profile for <b>' + esc(_data.repoName) + '</b>: ' + esc(typeName(p.appType)) + ', default strictness ' + esc(LEVEL_LABEL[p.strictness]) + '</summary>' +
+    '<summary>Project profile for <b>' + esc(_data.repoName) + '</b>: default strictness ' + esc(LEVEL_LABEL[p.strictness]) + '</summary>' +
     '<div class="rl-form-grid">' +
-      '<label>Application type<select id="rlPApp" class="rl-input">' + types + '</select></label>' +
       '<label>Default strictness<select id="rlPLevel" class="rl-input">' + levels + '</select></label>' +
       '<label>Stack and conventions (optional)<input id="rlPStack" class="rl-input" placeholder="For example: framework, database, UI library" value="' + esc(p.stack) + '"></label>' +
       '<label>Project notes (optional)<textarea id="rlPNotes" class="rl-input" rows="2" placeholder="Anything the AI should know about this project">' + esc(p.notes) + '</textarea></label>' +
     '</div>' +
     '<button class="rl-btn rl-btn-primary" data-act="save-profile">Save profile</button>' +
-    '<span class="rl-muted"> The type sets the default filter and generator settings. Stack and notes are added to copied output.</span>' +
+    '<span class="rl-muted"> The default strictness is used by the generator. Stack and notes are added to copied output.</span>' +
   '</details>';
 }
 
@@ -618,7 +646,7 @@ function renderList() {
   const stats =
     '<div class="rl-stats">' +
       '<div class="rl-stat"><b>' + _data.specs.length + '</b><span>Specifications</span></div>' +
-      '<div class="rl-stat"><b>' + _data.categories.length + '</b><span>Categories</span></div>' +
+      '<div class="rl-stat"><b>' + _data.categories.length + '</b><span>Areas</span></div>' +
       '<div class="rl-stat"><b>' + _data.tags.length + '</b><span>Tags</span></div>' +
       '<div class="rl-stat"><b>' + favCount + '</b><span>Favorites</span></div>' +
     '</div>';
@@ -626,18 +654,11 @@ function renderList() {
   main.innerHTML = '<div class="rl-content">' + profileHtml() + stats + cardsHtml(list) + '</div>';
 }
 
-function supportedTypeIds(spec) {
-  return spec.appTypes.length ? spec.appTypes : _data.appTypes.map((t) => t.id);
-}
-
 function openSpec(id) {
   const spec = _data.specs.find((s) => s.id === id);
   if (!spec) return;
   _ui.selectedId = id;
   _ui.view = 'detail';
-  const supported = supportedTypeIds(spec);
-  const preferred = _data.profile.appType;
-  _cfg.appType = supported.includes(preferred) ? preferred : supported[0];
   _cfg.level = _data.profile.strictness;
   _cfg.groups = new Set(GROUPS);
   _cfg.includeRelated = false;
@@ -656,14 +677,11 @@ function renderDetail() {
     renderList();
     return;
   }
-  const supported = supportedTypeIds(spec);
-  if (!supported.includes(_cfg.appType)) _cfg.appType = supported[0];
 
   const picked = pickRequirements(spec, _cfg);
   const presentGroups = groupRequirements(picked).map((g) => g[0]);
   const md = toMarkdown(spec, _cfg, _cfg.groups, true);
 
-  const appOpts = optionsHtml(supported.map((id) => ({ value: id, label: typeName(id) })), _cfg.appType);
   const levelOpts = optionsHtml(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] })), _cfg.level);
   const groupBoxes = presentGroups.map((g) =>
     '<label class="rl-check"><input type="checkbox" data-field="cfgGroup" data-group="' + esc(g) + '"' + (_cfg.groups.has(g) ? ' checked' : '') + '> ' + esc(g.replace(' Requirements', '')) + '</label>'
@@ -678,7 +696,7 @@ function renderDetail() {
     if (!reqs.length) return '';
     return '<details class="rl-details"><summary><span class="rl-badge rl-lv-' + l + '">' + LEVEL_LABEL[l] + '</span> ' + reqs.length + ' requirements</summary>' +
       '<ul class="rl-req-list">' + reqs.map((r) =>
-        '<li><b>' + esc(r.title) + '</b> <span class="rl-muted">(' + esc(r.group.replace(' Requirements', '')) + (r.appTypes.length ? '; ' + esc(r.appTypes.map(typeName).join(', ')) : '; all types') + ')</span><br>' + esc(r.description) + '</li>'
+        '<li><b>' + esc(r.title) + '</b> <span class="rl-muted">(' + esc(r.group.replace(' Requirements', '')) + ')</span><br>' + esc(r.description) + '</li>'
       ).join('') + '</ul></details>';
   }).join('');
 
@@ -696,12 +714,11 @@ function renderDetail() {
     '</div>' +
     '<h3 class="rl-detail-title">' + esc(spec.name) + (spec.favorite ? ' <span class="rl-star on">&#9733;</span>' : '') + '</h3>' +
     '<p class="rl-detail-desc">' + esc(spec.description) + '</p>' +
-    '<div class="rl-meta">Category: ' + esc(spec.category) + (spec.subcategory ? ' / ' + esc(spec.subcategory) : '') +
+    '<div class="rl-meta">Area: ' + esc(spec.category) + (spec.subcategory ? ' / ' + esc(spec.subcategory) : '') +
       ' &middot; Version ' + esc(spec.version) + ' &middot; Updated ' + fmtDate(spec.updatedAt) + ' &middot; Created ' + fmtDate(spec.createdAt) +
       '<div class="rl-tags">' + spec.tags.map((t) => '<span class="rl-tag">#' + esc(t) + '</span>').join('') + '</div></div>' +
     '<div class="rl-config">' +
       '<div class="rl-config-row">' +
-        '<label>Application type<select class="rl-input" data-field="cfgAppType">' + appOpts + '</select></label>' +
         '<label>Strictness<select class="rl-input" data-field="cfgLevel">' + levelOpts + '</select></label>' +
       '</div>' +
       '<div class="rl-config-row rl-checks">' + groupBoxes + relatedBox + '</div>' +
@@ -726,10 +743,9 @@ function blankDraft() {
     id: null,
     name: '',
     description: '',
-    category: _data.categories[0] || 'Other',
-    subcategory: '',
+    category: _ui.category || _data.categories[0] || 'Other',
+    subcategory: _ui.sub && _ui.sub !== 'General' ? _ui.sub : '',
     tags: [],
-    appTypes: [],
     related: [],
     requirements: [],
   };
@@ -752,9 +768,6 @@ function startEdit(id) {
 function reqRowHtml(r) {
   const groupOpts = optionsHtml(GROUPS.map((g) => ({ value: g, label: g })), r.group);
   const levelOpts = optionsHtml(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] })), r.level);
-  const apps = _data.appTypes.map((t) =>
-    '<label class="rl-check rl-check-sm"><input type="checkbox" class="rl-r-app" value="' + esc(t.id) + '"' + (r.appTypes.includes(t.id) ? ' checked' : '') + '> ' + esc(t.name) + '</label>'
-  ).join('');
   return '<div class="rl-req-row" data-id="' + esc(r.id) + '">' +
     '<div class="rl-req-top">' +
       '<select class="rl-input rl-r-group">' + groupOpts + '</select>' +
@@ -766,7 +779,6 @@ function reqRowHtml(r) {
     '</div>' +
     '<textarea class="rl-input rl-r-desc" rows="2" placeholder="Specific, actionable description">' + esc(r.description) + '</textarea>' +
     '<input class="rl-input rl-r-notes" placeholder="Optional implementation notes" value="' + esc(r.notes || '') + '">' +
-    '<div class="rl-checks"><span class="rl-muted">Applies to (none checked = all):</span>' + apps + '</div>' +
   '</div>';
 }
 
@@ -774,9 +786,8 @@ function renderEdit() {
   const main = _panel.querySelector('#rlMain');
   const d = _draft;
   const catList = _data.categories.map((c) => '<option value="' + esc(c) + '"></option>').join('');
-  const appBoxes = _data.appTypes.map((t) =>
-    '<label class="rl-check"><input type="checkbox" class="rl-e-app" value="' + esc(t.id) + '"' + (d.appTypes.includes(t.id) ? ' checked' : '') + '> ' + esc(t.name) + '</label>'
-  ).join('');
+  const subNames = Array.from(new Set(_data.specs.map((s) => s.subcategory).filter(Boolean))).sort();
+  const subList = subNames.map((n) => '<option value="' + esc(n) + '"></option>').join('');
   const relBoxes = _data.specs.filter((s) => s.id !== d.id).map((s) =>
     '<label class="rl-check"><input type="checkbox" class="rl-e-rel" value="' + esc(s.id) + '"' + (d.related.includes(s.id) ? ' checked' : '') + '> ' + esc(s.name) + '</label>'
   ).join('');
@@ -791,12 +802,11 @@ function renderEdit() {
     '<h3 class="rl-detail-title">' + (d.id ? 'Edit specification' : 'New specification') + '</h3>' +
     '<div class="rl-form-grid">' +
       '<label>Name<input id="rlEName" class="rl-input" value="' + esc(d.name) + '"></label>' +
-      '<label>Category<input id="rlECat" class="rl-input" list="rlCats" value="' + esc(d.category) + '"><datalist id="rlCats">' + catList + '</datalist></label>' +
-      '<label>Subcategory<input id="rlESub" class="rl-input" value="' + esc(d.subcategory) + '"></label>' +
+      '<label>Area<input id="rlECat" class="rl-input" list="rlCats" value="' + esc(d.category) + '"><datalist id="rlCats">' + catList + '</datalist></label>' +
+      '<label>Group (Components, Globals, Security...)<input id="rlESub" class="rl-input" list="rlSubs" value="' + esc(d.subcategory) + '"><datalist id="rlSubs">' + subList + '</datalist></label>' +
       '<label>Tags (comma separated)<input id="rlETags" class="rl-input" value="' + esc(d.tags.join(', ')) + '"></label>' +
     '</div>' +
     '<label class="rl-block">Description<textarea id="rlEDesc" class="rl-input" rows="2">' + esc(d.description) + '</textarea></label>' +
-    '<div class="rl-block"><div class="rl-label">Supported application types (none checked = all)</div><div class="rl-checks">' + appBoxes + '</div></div>' +
     '<div class="rl-block"><div class="rl-label">Related specifications</div><div class="rl-checks">' + (relBoxes || '<span class="rl-muted">No other specifications</span>') + '</div></div>' +
     '<div class="rl-label rl-row-between">Requirements and acceptance criteria <button class="rl-btn" data-act="add-req">+ Add requirement</button></div>' +
     '<div id="rlReqRows">' + (d.requirements.length ? d.requirements.map(reqRowHtml).join('') : '<div class="rl-empty">No requirements yet.</div>') + '</div>' +
@@ -815,7 +825,6 @@ function collectDraft() {
   _draft.subcategory = val('#rlESub').trim();
   _draft.description = val('#rlEDesc').trim();
   _draft.tags = val('#rlETags').split(',').map((t) => t.trim()).filter(Boolean);
-  _draft.appTypes = Array.from(main.querySelectorAll('.rl-e-app:checked')).map((i) => i.value);
   _draft.related = Array.from(main.querySelectorAll('.rl-e-rel:checked')).map((i) => i.value);
   _draft.requirements = Array.from(main.querySelectorAll('.rl-req-row')).map((row) => ({
     id: row.dataset.id,
@@ -824,7 +833,6 @@ function collectDraft() {
     title: row.querySelector('.rl-r-title').value.trim(),
     description: row.querySelector('.rl-r-desc').value.trim(),
     notes: row.querySelector('.rl-r-notes').value.trim(),
-    appTypes: Array.from(row.querySelectorAll('.rl-r-app:checked')).map((i) => i.value),
   }));
 }
 
@@ -866,7 +874,6 @@ function renderManage() {
 
   const cats = _data.categories.map((c) => row('category', c, c, c !== 'Other')).join('');
   const tags = _data.tags.map((t) => row('tag', t, t, true)).join('');
-  const types = _data.appTypes.map((t) => row('appType', t.id, t.name, !t.builtin)).join('');
 
   const presets =
     '<div class="rl-mgr-section"><div class="rl-label">Presets</div>' +
@@ -882,9 +889,8 @@ function renderManage() {
       '<div class="rl-toolbar"><h3 class="rl-detail-title">Manage ' + esc(_data.repoName) + '</h3><div class="rl-spacer"></div>' +
       '<button class="rl-btn" data-act="modal-close">Close</button></div>' +
       presets +
-      section('Categories', 'category', cats) +
+      section('Areas', 'category', cats) +
       section('Tags', 'tag', tags) +
-      section('Application types', 'appType', types) +
     '</div>';
   modal.style.display = 'flex';
 }
@@ -896,10 +902,8 @@ function onChange(e) {
   const f = t.dataset && t.dataset.field;
   if (!f) return;
   switch (f) {
-    case 'fAppType': _ui.appType = t.value; renderAll(); break;
     case 'fLevel': _ui.level = t.value; renderAll(); break;
     case 'fSort': _ui.sort = t.value; renderAll(); break;
-    case 'cfgAppType': _cfg.appType = t.value; renderMain(); break;
     case 'cfgLevel': _cfg.level = t.value; renderMain(); break;
     case 'cfgRelated': _cfg.includeRelated = t.checked; renderMain(); break;
     case 'cfgGroup':
@@ -937,7 +941,6 @@ async function handleAction(act, t) {
         version: _data.version,
         categories: _data.categories,
         tags: _data.tags,
-        appTypes: _data.appTypes,
         specs: _data.specs,
       }, null, 2), 'application/json');
       toast('Library exported');
@@ -945,10 +948,11 @@ async function handleAction(act, t) {
     case 'manage': if (_data) renderManage(); break;
     case 'modal-close': _panel.querySelector('#rlModal').style.display = 'none'; break;
     case 'quick': _ui.quick = t.dataset.v; _ui.view = 'list'; renderAll(); break;
-    case 'category': _ui.category = t.dataset.v; _ui.view = 'list'; renderAll(); break;
+    case 'category': _ui.category = t.dataset.v; _ui.sub = ''; _ui.view = 'list'; renderAll(); break;
+    case 'sub': _ui.sub = _ui.sub === t.dataset.v ? '' : t.dataset.v; _ui.view = 'list'; renderAll(); break;
     case 'tag': _ui.tag = _ui.tag === t.dataset.v ? '' : t.dataset.v; _ui.view = 'list'; renderAll(); break;
     case 'clear-filters': {
-      _ui.quick = 'all'; _ui.category = ''; _ui.appType = null; _ui.level = ''; _ui.tag = ''; _ui.search = '';
+      _ui.quick = 'all'; _ui.category = ''; _ui.sub = ''; _ui.level = ''; _ui.tag = ''; _ui.search = '';
       _panel.querySelector('#rlSearch').value = '';
       _ui.view = 'list';
       renderAll();
@@ -956,12 +960,10 @@ async function handleAction(act, t) {
     }
     case 'save-profile': {
       const profile = {
-        appType: _panel.querySelector('#rlPApp').value,
         strictness: _panel.querySelector('#rlPLevel').value,
         stack: _panel.querySelector('#rlPStack').value,
         notes: _panel.querySelector('#rlPNotes').value,
       };
-      _ui.appType = null;
       await call(() => api().updateProfile(payload({ profile })), 'Profile saved');
       break;
     }
@@ -993,7 +995,7 @@ async function handleAction(act, t) {
     case 'save': await saveDraft(); break;
     case 'add-req':
       collectDraft();
-      _draft.requirements.push({ id: newReqId(), group: GROUPS[0], level: 'standard', title: '', description: '', notes: '', appTypes: [] });
+      _draft.requirements.push({ id: newReqId(), group: GROUPS[0], level: 'standard', title: '', description: '', notes: '' });
       renderEdit();
       break;
     case 'req-up':
@@ -1021,7 +1023,7 @@ async function handleAction(act, t) {
       if (!spec) break;
       const base = spec.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'specification';
       if (t.dataset.fmt === 'md') download(base + '.md', specToMarkdownFull(spec), 'text/markdown');
-      else download(base + '.json', JSON.stringify({ exportType: 'spec', appTypes: _data.appTypes, spec }, null, 2), 'application/json');
+      else download(base + '.json', JSON.stringify({ exportType: 'spec', spec }, null, 2), 'application/json');
       toast('Exported');
       break;
     }
