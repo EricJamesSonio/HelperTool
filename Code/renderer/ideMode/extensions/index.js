@@ -525,15 +525,20 @@ function createButton() {
   if (anchor) anchor.after(btn);
   else host.appendChild(btn);
 }
-
-function onRepoSwitched() {
-  repoKey = normRepo(state.selectedRepoPath);
-  overrides = loadOverrides();
-  noted = loadNoted();
-  serverStacks = {};
-  stacks = mergeStacks();
-  refresh(false);
-  detect();
+function onRepoSwitched(e) {
+  const repoPath = (e && e.detail && e.detail.repoPath) || state.selectedRepoPath;
+  const next = normRepo(repoPath);
+  const changed = next !== lastRepo;
+  lastRepo = next;
+  if (changed && mods) {
+    mods.search.reset();
+    mods.editor.switchRepoCached().catch((err) => console.error('[IDE] repo switch failed:', err));
+  }
+  if (active && !termAutoOpened && state.selectedRepoPath) {
+    dockTerminal(true).catch((err) => console.error('[IDE] terminal dock failed:', err));
+  } else if (active && changed) {
+    syncTerminalRepo(repoPath);
+  }
 }
 function findBarOpen() {
   const f = document.querySelector('.ide-find');
