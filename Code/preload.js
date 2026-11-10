@@ -929,3 +929,17 @@ contextBridge.exposeInMainWorld('hibernateAPI', {
     ipcRenderer.on('hibernate:state', (_event, data) => callback(data));
   },
 });
+contextBridge.exposeInMainWorld('reqLibraryAPI', {
+  load:           (payload) => ipcRenderer.invoke('reqLib:load', payload),
+  updateProfile:  (payload) => ipcRenderer.invoke('reqLib:updateProfile', payload),
+  syncPresets:    (payload) => ipcRenderer.invoke('reqLib:syncPresets', payload),
+  upsertSpec:     (payload) => ipcRenderer.invoke('reqLib:upsertSpec', payload),
+  deleteSpec:     (payload) => ipcRenderer.invoke('reqLib:deleteSpec', payload),
+  duplicateSpec:  (payload) => ipcRenderer.invoke('reqLib:duplicateSpec', payload),
+  toggleFavorite: (payload) => ipcRenderer.invoke('reqLib:toggleFavorite', payload),
+  markViewed:     (payload) => ipcRenderer.invoke('reqLib:markViewed', payload),
+  addItem:        (payload) => ipcRenderer.invoke('reqLib:addItem', payload),
+  renameItem:     (payload) => ipcRenderer.invoke('reqLib:renameItem', payload),
+  deleteItem:     (payload) => ipcRenderer.invoke('reqLib:deleteItem', payload),
+  importLibrary:  (payload) => ipcRenderer.invoke('reqLib:importLibrary', payload),
+});

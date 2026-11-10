@@ -583,3 +583,10 @@ app.whenReady().then(() => {
   console.error('[IPC] Failed to register versions_ipc:', e);
   }
 });
+app.whenReady().then(() => {
+  try {
+  require('./ipc/reqLibrary_ipc.js').register({ app });
+  } catch (e) {
+  console.error('[IPC] Failed to register reqLibrary_ipc:', e);
+  }
+});

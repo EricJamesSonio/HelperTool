@@ -1,6 +1,39 @@
 import { state } from '../app_manager/appState.js';
 import { esc, pathKey } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+const repoCaches = new Map();
+
+document.addEventListener('repo:closed', (e) => {
+  const p = e && e.detail && e.detail.repoPath;
+  if (p) repoCaches.delete(p);
+});
+
+export async function primeRepo(repoPath) {
+  if (!repoPath || repoPath === loadedRepo || !window.ideAPI) return;
+  let store = repoCaches.get(repoPath);
+  if (!store) {
+    store = new Map();
+    repoCaches.set(repoPath, store);
+  }
+  const open = loadExpanded(repoPath);
+  let budget = 60;
+  const walk = async (dirPath) => {
+    if (budget <= 0 || store.has(dirPath)) return;
+    budget--;
+    let val = null;
+    try {
+      const res = await window.ideAPI.readDir(dirPath);
+      if (res && res.success) val = { entries: res.entries || [], truncated: !!res.truncated, error: null };
+    } catch (_) {
+      val = null;
+    }
+    if (!val) return;
+    store.set(dirPath, val);
+    const subs = val.entries.filter((x) => x.type === 'folder' && open.has(x.path));
+    await Promise.all(subs.map((x) => walk(x.path)));
+  };
+  await walk(repoPath);
+}
 let clip = null;
 let explorerActive = false;
 let toastEl = null;
@@ -282,7 +315,6 @@ async function pollOnce() {
   }
 }
 
-
 const EXP_KEY = 'helpertool-ide-expanded:';
 const DIM_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', '.cache', '__pycache__', '.swc']);
 
@@ -464,7 +496,6 @@ function markDirty() {
   }
 }
 
-
 function markSelected() {
   setMark('selected', selected ? pathKey(selected.path) : null);
   markClip();
@@ -522,6 +553,17 @@ async function doRender() {
 
 export function renderTree() {
   if (!treeEl || !document.body.classList.contains('ide-mode')) return;
+  const repo = state.selectedRepoPath;
+  if (loadedRepo && repo !== loadedRepo) {
+    repoCaches.set(loadedRepo, cache);
+    const kept = repo ? repoCaches.get(repo) : null;
+    loadedRepo = repo;
+    cache = kept || new Map();
+    pending = new Map();
+    expanded = repo ? loadExpanded(repo) : new Set();
+    selected = null;
+    resetGit();
+  }
   if (!renderRaf) renderRaf = requestAnimationFrame(doRender);
 }
 
@@ -704,18 +746,33 @@ async function runAction(act, forcedTarget) {
   if (!state.selectedRepoPath) return;
   const mod = await import('../codebaseManager.js');
   const target = forcedTarget || targetFolder();
-  const before = cache.get(target);
-  const known = new Set(before ? before.entries.map((x) => x.name) : []);
   const isFile = act === 'newfile';
+  const known = new Set();
+  let knownOk = false;
+  if (isFile) {
+    try {
+      const res = await window.ideAPI.readDir(target);
+      if (res && res.success) {
+        (res.entries || []).forEach((x) => known.add(x.name));
+        knownOk = true;
+      }
+    } catch (_) {
+      knownOk = false;
+    }
+  }
   const done = () => {
     expanded.add(target);
     saveExpanded();
     cache.delete(target);
     renderTree();
-    if (!before || !isFile) return;
+    if (!isFile) return;
     loadDir(target).then((dir) => {
-      const names = dir.entries.filter((x) => x.type === 'file' && !known.has(x.name)).map((x) => x.name);
-      document.dispatchEvent(new CustomEvent('ide:files-created', { detail: { names } }));
+      const fresh = dir.entries.filter((x) => x.type === 'file' && !known.has(x.name));
+      document.dispatchEvent(new CustomEvent('ide:files-created', { detail: { names: fresh.map((x) => x.name) } }));
+      if (knownOk && fresh.length && handlers.onOpenFile) {
+        revealKey = pathKey(fresh[0].path);
+        handlers.onOpenFile(fresh[0].path);
+      }
     });
   };
   if (act === 'newfile') mod.openCreateFilesModal(target, done);
@@ -750,6 +807,7 @@ function onRootClick(e) {
   const head = e.target.closest('.ide-section-head');
   if (head) head.parentElement.classList.toggle('collapsed');
 }
+
 function markClip() {
   if (!treeEl) return;
   treeEl.querySelectorAll('.ide-row.clip-copy, .ide-row.clip-cut').forEach((r) => {
@@ -884,7 +942,6 @@ function onClipKey(e) {
   e.stopPropagation();
   setClip(low === 'x' ? 'cut' : 'copy');
 }
-
 
 export function mount(rootEl, h) {
   handlers = h || {};

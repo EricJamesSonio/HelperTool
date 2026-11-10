@@ -9,6 +9,61 @@ import * as ext from './extensions/index.js';
 import * as fmt from './extensions/formatter.js';
 import * as runners from './extensions/runners.js';
 import * as lineMarks from './lineMarks.js';
+const repoStash = new Map();
+
+document.addEventListener('repo:closed', (e) => {
+  const p = e && e.detail && e.detail.repoPath;
+  if (p) repoStash.delete(normRepo(p));
+});
+
+function swapInTabs(entry) {
+  closeFind(true);
+  clearPulse();
+  tabs = entry.tabs;
+  activePath = null;
+  els.ta.value = '';
+  lines = [''];
+  textChanged = true;
+  rendered.from = -1;
+  rendered.to = -1;
+  showTab(null);
+  const keep = entry.active && tabs.some((t) => t.path === entry.active) ? entry.active : null;
+  const want = keep || (tabs.length ? tabs[tabs.length - 1].path : null);
+  if (want) {
+    activate(want, false);
+  } else {
+    renderTabs();
+    notify();
+  }
+}
+
+export function switchRepoCached() {
+  if (!els) return Promise.resolve();
+  persistNow();
+  const prevKey = sessRepo;
+  if (prevKey && tabs.length) repoStash.set(prevKey, { tabs: tabs, active: activePath });
+  else if (prevKey) repoStash.delete(prevKey);
+  const nextKey = state.selectedRepoPath ? normRepo(state.selectedRepoPath) : null;
+  const entry = nextKey ? repoStash.get(nextKey) : null;
+  const reuse = !!(entry && entry.tabs.length);
+  suspendSave = true;
+  try {
+    if (reuse) {
+      repoStash.delete(nextKey);
+      sessRepo = nextKey;
+      swapInTabs(entry);
+    } else {
+      resetTabs();
+    }
+  } finally {
+    suspendSave = false;
+  }
+  if (reuse) {
+    scheduleSave();
+    return Promise.resolve();
+  }
+  return restoreSession();
+}
 
 const SEV_CLS = { error: 'e', warning: 'w', info: 'i' };
 const SEV_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' };
@@ -421,6 +476,8 @@ const MAX_MATCHES = 10000;
 const PULSE_MS = 2000;
 const SESS_KEY = 'helpertool-ide-session:';
 const SAVE_GAP = 600;
+const DRAFT_MAX_FILE = 1000000;
+const DRAFT_MAX_TOTAL = 3000000;
 const BINARY_EXT = new Set('png jpg jpeg gif webp bmp ico icns pdf zip gz tgz rar 7z exe dll so dylib node wasm mp3 mp4 mov avi mkv webm woff woff2 ttf otf eot db sqlite bin class jar'.split(' '));
 
 const FS = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
@@ -592,23 +649,54 @@ function scheduleSave() {
   saveTimer = setTimeout(persistNow, SAVE_GAP);
 }
 
+function hashStr(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+function savedHashOf(tab) {
+  if (!tab._hs || tab._hs.s !== tab.saved) tab._hs = { s: tab.saved, h: hashStr(tab.saved) };
+  return tab._hs.h;
+}
+
 function persistNow() {
   clearTimeout(saveTimer);
   saveTimer = 0;
   if (suspendSave || !els || !sessRepo) return;
   saveViewState();
-  const list = tabs.filter((t) => !t.kind).map((t) => ({
-    path: t.path,
-    scrollTop: t.scrollTop || 0,
-    scrollLeft: t.scrollLeft || 0,
-    selStart: t.selStart || 0,
-    selEnd: t.selEnd || 0,
-  }));
+  let budget = DRAFT_MAX_TOTAL;
+  const list = tabs.filter((t) => !t.kind).map((t) => {
+    const item = {
+      path: t.path,
+      scrollTop: t.scrollTop || 0,
+      scrollLeft: t.scrollLeft || 0,
+      selStart: t.selStart || 0,
+      selEnd: t.selEnd || 0,
+    };
+    if (isText(t) && t.dirty && typeof t.content === 'string' && t.content.length <= DRAFT_MAX_FILE && t.content.length <= budget) {
+      budget -= t.content.length;
+      item.draft = t.content;
+      item.base = savedHashOf(t);
+    }
+    return item;
+  });
   const act = activeTab();
   const payload = { v: 1, active: act ? (act.kind ? act.filePath : act.path) : null, tabs: list };
   try {
     localStorage.setItem(SESS_KEY + sessRepo, JSON.stringify(payload));
-  } catch (_) {}
+  } catch (_) {
+    try {
+      payload.tabs = list.map((it) => ({
+        path: it.path,
+        scrollTop: it.scrollTop,
+        scrollLeft: it.scrollLeft,
+        selStart: it.selStart,
+        selEnd: it.selEnd,
+      }));
+      localStorage.setItem(SESS_KEY + sessRepo, JSON.stringify(payload));
+    } catch (_) {}
+  }
 }
 
 function relParts(p) {
@@ -1123,11 +1211,21 @@ async function loadTab(tab) {
         tab.eol = res.content.indexOf('\r\n') !== -1 ? '\r\n' : '\n';
         tab.content = tab.eol === '\r\n' ? res.content.replace(/\r\n/g, '\n') : res.content;
         tab.saved = tab.content;
+        const draftFits = typeof tab.draft === 'string'
+          && typeof tab.draftBase === 'number'
+          && tab.draftBase === hashStr(tab.saved)
+          && tab.draft !== tab.saved;
+        if (draftFits) {
+          tab.content = tab.draft;
+          tab.dirty = true;
+        }
       }
     } catch (err) {
       tab.notice = 'Cannot open file: ' + (err && err.message ? err.message : String(err));
     }
   }
+  tab.draft = null;
+  tab.draftBase = null;
   tab.loading = false;
   const want = tab.wantFocus === true;
   tab.wantFocus = false;
@@ -1381,6 +1479,10 @@ async function restoreTabs(data) {
     tab.scrollLeft = Number(st.scrollLeft) || 0;
     tab.selStart = Number(st.selStart) || 0;
     tab.selEnd = Number(st.selEnd) || 0;
+    if (typeof st.draft === 'string' && !tab.media) {
+      tab.draft = st.draft;
+      tab.draftBase = typeof st.base === 'number' ? st.base : null;
+    }
     tabs.push(tab);
     created.push(tab);
   }
@@ -1390,7 +1492,11 @@ async function restoreTabs(data) {
   activate(first.path, false);
   await Promise.all(created.filter((t) => !t.media).map(loadTab));
   const dead = created.filter((t) => t.notice && t.notice.indexOf('Cannot open file') === 0);
-  if (!dead.length) return;
+  if (!dead.length) {
+    renderTabs();
+    notify();
+    return;
+  }
   for (const t of dead) {
     const i = tabs.indexOf(t);
     if (i >= 0) tabs.splice(i, 1);
@@ -2801,4 +2907,61 @@ function retargetTabs(from, to) {
 document.addEventListener('ide:path-moved', (e) => {
   const d = e && e.detail;
   if (d) retargetTabs(d.from, d.to);
+});
+let autoSaving = false;
+
+async function autoSaveDirty() {
+  if (!els || autoSaving) return;
+  saveViewState();
+  const list = tabs.filter((t) => isText(t) && t.dirty);
+  if (!list.length) return;
+  autoSaving = true;
+  let n = 0;
+  try {
+    for (const tab of list) {
+      const text = tab.content;
+      const before = tab.saved;
+      const out = tab.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
+      let res = null;
+      try {
+        res = await window.electronAPI.writeFile(tab.path, out);
+      } catch (_) {
+        res = null;
+      }
+      if (!res || !res.success) continue;
+      if (before !== text) {
+        document.dispatchEvent(new CustomEvent('ide:history-add', {
+          detail: { type: 'edit', path: tab.path, before, after: text, eol: tab.eol },
+        }));
+      }
+      tab.saved = text;
+      tab.dirty = tab.content !== text;
+      if (tab.path === activePath) {
+        textChanged = true;
+        schedule();
+      }
+      n++;
+    }
+  } finally {
+    autoSaving = false;
+  }
+  if (n) {
+    renderTabs();
+    notify();
+    persistNow();
+    flash('Auto-saved ' + n + ' file' + (n === 1 ? '' : 's'), 2500);
+  }
+}
+
+window.addEventListener('blur', () => {
+  autoSaveDirty();
+});
+window.addEventListener('pagehide', () => {
+  autoSaveDirty();
+});
+window.addEventListener('beforeunload', () => {
+  autoSaveDirty();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) autoSaveDirty();
 });

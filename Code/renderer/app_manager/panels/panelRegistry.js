@@ -180,3 +180,8 @@ PanelRegistry.prototype.closeAll = function closeAllWithHelpDocs() {
   document.getElementById('hdPanel')?.classList.remove('open');
   return _closeAllBase.apply(this, arguments);
 };
+const _closeAllBaseReq = PanelRegistry.prototype.closeAll;
+PanelRegistry.prototype.closeAll = function closeAllWithReqLibrary() {
+  document.getElementById('rlPanel')?.classList.remove('open');
+  return _closeAllBaseReq.apply(this, arguments);
+};
