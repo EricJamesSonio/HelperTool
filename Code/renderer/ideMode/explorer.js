@@ -412,7 +412,11 @@ function rowsHtml(dirPath, depth, out) {
     const k = attr(pathKey(e.path));
     if (e.type === 'folder') {
       const open = expanded.has(e.path);
-      out.push('<div class="ide-row folder' + (open ? ' open' : '') + (DIM_DIRS.has(e.name) ? ' dim' : '') + '" data-path="' + p + '" data-k="' + k + '" data-d="' + depth + '" style="--d:' + depth + '"><span class="ide-chev"></span><span class="ide-ficon">' + (open ? FOLDER_OPEN : FOLDER_CLOSED) + '</span><span class="ide-name">' + esc(e.name) + '</span><span class="ide-gs"></span></div>');
+      const acts = '<span class="ide-row-acts">' +
+        '<button type="button" class="ide-row-btn" data-ract="newfile" title="New File">' + I_FILE_ADD + '</button>' +
+        '<button type="button" class="ide-row-btn" data-ract="newfolder" title="New Folder">' + I_FOLDER_ADD + '</button>' +
+      '</span>';
+      out.push('<div class="ide-row folder' + (open ? ' open' : '') + (DIM_DIRS.has(e.name) ? ' dim' : '') + '" data-path="' + p + '" data-k="' + k + '" data-d="' + depth + '" style="--d:' + depth + '"><span class="ide-chev"></span><span class="ide-ficon">' + (open ? FOLDER_OPEN : FOLDER_CLOSED) + '</span><span class="ide-name">' + esc(e.name) + '</span><span class="ide-gs"></span>' + acts + '</div>');
       out.push('<div class="ide-children"' + (open ? '' : ' hidden') + '>');
       if (open) rowsHtml(e.path, depth + 1, out);
       out.push('</div>');
@@ -560,6 +564,17 @@ async function toggleFolder(row) {
 }
 
 function onTreeClick(e) {
+  const rb = e.target.closest('.ide-row-btn');
+  if (rb) {
+    e.stopPropagation();
+    const frow = rb.closest('.ide-row');
+    if (frow) {
+      selected = { path: frow.dataset.path, type: 'folder' };
+      markSelected();
+      runAction(rb.dataset.ract, frow.dataset.path);
+    }
+    return;
+  }
   const row = e.target.closest('.ide-row');
   if (!row) {
     selected = null;
@@ -667,7 +682,7 @@ function targetFolder() {
   return state.selectedRepoPath;
 }
 
-async function runAction(act) {
+async function runAction(act, forcedTarget) {
   if (act === 'search') {
     if (handlers.onSearch) handlers.onSearch();
     return;
@@ -688,7 +703,7 @@ async function runAction(act) {
   }
   if (!state.selectedRepoPath) return;
   const mod = await import('../codebaseManager.js');
-  const target = targetFolder();
+  const target = forcedTarget || targetFolder();
   const before = cache.get(target);
   const known = new Set(before ? before.entries.map((x) => x.name) : []);
   const isFile = act === 'newfile';
