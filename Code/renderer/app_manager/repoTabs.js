@@ -1,9 +1,10 @@
 import { state } from './appState.js';
-import { loadRepo } from './repoManager.js';
+import { loadRepo, preloadRepo, isRepoCached } from './repoManager.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
 
 const LS_KEY = 'helpertool-open-repos';
 const MAX_TABS = 12;
+const DQ = String.fromCharCode(34);
 
 const ICON_SPLIT = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M8 3v10"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>';
@@ -16,10 +17,9 @@ let listEl = null;
 let lookupMod = null;
 let inited = false;
 const loading = new Set();
-const ready = new Set();
 
 function norm(p) {
-  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return String(p || '').split('\\').join('/').replace(/\/+$/, '').toLowerCase();
 }
 
 function same(a, b) {
@@ -27,15 +27,24 @@ function same(a, b) {
 }
 
 function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s)
+    .split('&').join('&amp;')
+    .split('<').join('&lt;')
+    .split('>').join('&gt;')
+    .split(DQ).join('&quot;');
+}
+
+function partsOf(p) {
+  return norm(p).split('/').filter(Boolean);
 }
 
 function baseName(p) {
-  return String(p || '').split(/[\\/]/).filter(Boolean).pop() || String(p || '');
+  const parts = String(p || '').split('\\').join('/').split('/').filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : String(p || '');
 }
 
 function parentName(p) {
-  const parts = String(p || '').split(/[\\/]/).filter(Boolean);
+  const parts = String(p || '').split('\\').join('/').split('/').filter(Boolean);
   return parts.length > 1 ? parts[parts.length - 2] : '';
 }
 
@@ -60,8 +69,10 @@ function readSaved() {
 
 function save() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ tabs, lookup }));
-  } catch (_) {}
+    localStorage.setItem(LS_KEY, JSON.stringify({ tabs: tabs, lookup: lookup }));
+  } catch (_) {
+    return;
+  }
 }
 
 function injectCss() {
@@ -77,28 +88,38 @@ function emitLookup() {
   document.dispatchEvent(new CustomEvent('repo:lookup-changed', { detail: { repoPath: lookup } }));
 }
 
+function tabHtml(p, master) {
+  const isM = same(p, master);
+  const isL = same(p, lookup);
+  const busy = loading.has(norm(p));
+  let role = '';
+  if (isM) role = 'MASTER';
+  else if (isL) role = 'LOOKUP';
+  let tip = 'Click to make this the master repo';
+  if (isM) tip = 'Master repo: used by Global Seeder, Flow Tool, Git and the other tools';
+  else if (isL) tip = 'Lookup repo: shown beside the master in IDE mode (view and edit only)';
+  let cls = 'rt-tab';
+  if (isM) cls += ' master';
+  if (isL) cls += ' lookup';
+  if (busy) cls += ' loading';
+  let html = '<div class=' + DQ + cls + DQ + ' data-p=' + DQ + esc(p) + DQ + ' title=' + DQ + esc(p + ' - ' + tip) + DQ + '>';
+  html += '<span class="rt-dot"></span><span class="rt-name">' + esc(labelOf(p)) + '</span>';
+  if (role) html += '<span class="rt-role">' + role + '</span>';
+  if (!isM) {
+    const splitTitle = isL ? 'Close the split view for this repo' : 'Open beside the master in IDE mode (view and edit only)';
+    html += '<button type="button" class=' + DQ + 'rt-btn rt-split' + (isL ? ' on' : '') + DQ + ' data-act="split" title=' + DQ + splitTitle + DQ + '>' + ICON_SPLIT + '</button>';
+  }
+  if (tabs.length > 1) {
+    html += '<button type="button" class="rt-btn rt-close" data-act="close" title="Close tab">&times;</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function render() {
   if (!listEl) return;
   const master = state.selectedRepoPath;
-  listEl.innerHTML = tabs.map((p) => {
-    const isM = same(p, master);
-    const isL = same(p, lookup);
-    const busy = loading.has(norm(p));
-    const role = isM ? 'MASTER' : isL ? 'LOOKUP' : '';
-    let tip = 'Click to make this the master repo';
-    if (isM) tip = 'Master repo: used by Global Seeder, Flow Tool, Git and the other tools';
-    else if (isL) tip = 'Lookup repo: shown beside the master in IDE mode (view and edit only)';
-    let html = '<div class="rt-tab' + (isM ? ' master' : '') + (isL ? ' lookup' : '') + (busy ? ' loading' : '') + '" data-p="' + esc(p) + '" title="' + esc(p + ' - ' + tip) + '">';
-    html += '<span class="rt-dot"></span><span class="rt-name">' + esc(labelOf(p)) + '</span>';
-    if (role) html += '<span class="rt-role">' + role + '</span>';
-    if (!isM) {
-      html += '<button type="button" class="rt-btn rt-split' + (isL ? ' on' : '') + '" data-act="split" title="' + (isL ? 'Close the split view for this repo' : 'Open beside the master in IDE mode (view and edit only)') + '">' + ICON_SPLIT + '</button>';
-    }
-    if (tabs.length > 1) {
-      html += '<button type="button" class="rt-btn rt-close" data-act="close" title="Close tab">&times;</button>';
-    }
-    return html + '</div>';
-  }).join('');
+  listEl.innerHTML = tabs.map((p) => tabHtml(p, master)).join('');
 }
 
 function addTab(p) {
@@ -107,24 +128,29 @@ function addTab(p) {
   while (tabs.length > MAX_TABS) {
     const idx = tabs.findIndex((t) => !same(t, state.selectedRepoPath) && !same(t, lookup));
     if (idx < 0) break;
-    tabs.splice(idx, 1);
+    const gone = tabs.splice(idx, 1)[0];
+    document.dispatchEvent(new CustomEvent('repo:closed', { detail: { repoPath: gone } }));
   }
 }
 
 async function preload(p) {
   const key = norm(p);
-  if (!p || ready.has(key) || loading.has(key)) return;
+  if (!p || loading.has(key) || same(p, state.selectedRepoPath)) return;
   loading.add(key);
   render();
   try {
-    await window.electronAPI.getFolderTree(p);
-    ready.add(key);
+    if (!isRepoCached(p)) await preloadRepo(p);
   } catch (_) {
-    ready.delete(key);
-  } finally {
-    loading.delete(key);
-    render();
+    // ignore, the tab will load normally when clicked
   }
+  try {
+    const ex = await import('../ideMode/explorer.js');
+    await ex.primeRepo(p);
+  } catch (_) {
+    // ignore, explorer loads on demand
+  }
+  loading.delete(key);
+  render();
 }
 
 async function activate(p) {
@@ -136,16 +162,17 @@ async function activate(p) {
     if (lookupMod.hasDirty()) return;
   }
   const key = norm(p);
-  loading.add(key);
-  render();
+  if (!isRepoCached(p)) {
+    loading.add(key);
+    render();
+  }
   try {
     await loadRepo(p);
   } catch (err) {
     console.error('[RepoTabs] switch failed:', err);
-  } finally {
-    loading.delete(key);
-    render();
   }
+  loading.delete(key);
+  render();
 }
 
 function ensureIde() {
@@ -189,6 +216,7 @@ async function closeTab(p) {
     lookup = null;
     emitLookup();
   }
+  document.dispatchEvent(new CustomEvent('repo:closed', { detail: { repoPath: p } }));
   save();
   render();
 }
@@ -208,7 +236,6 @@ function onSwitched(e) {
   const old = prevMaster;
   prevMaster = p;
   addTab(p);
-  ready.add(norm(p));
   if (same(lookup, p)) {
     lookup = old && !same(old, p) ? old : null;
     emitLookup();
@@ -229,39 +256,60 @@ export function promoteLookup() {
   if (lookup) activate(lookup);
 }
 
+function onListClick(e) {
+  const tab = e.target.closest('.rt-tab');
+  if (!tab) return;
+  const p = tab.dataset.p;
+  const b = e.target.closest('.rt-btn');
+  if (b) {
+    e.stopPropagation();
+    if (b.dataset.act === 'split') toggleLookup(p);
+    else closeTab(p);
+    return;
+  }
+  activate(p);
+}
+
+function onListAux(e) {
+  if (e.button !== 1) return;
+  const tab = e.target.closest('.rt-tab');
+  if (!tab) return;
+  e.preventDefault();
+  closeTab(tab.dataset.p);
+}
+
+function onListWheel(e) {
+  if (listEl.scrollWidth <= listEl.clientWidth) return;
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (!d) return;
+  e.preventDefault();
+  listEl.scrollLeft += d;
+}
+
 function build() {
-  const nav = document.querySelector('.navbar-row--primary');
-  if (!nav || !nav.parentElement) return false;
+  const titlebar = document.getElementById('appTitlebar');
+  if (!titlebar) return false;
   bar = document.createElement('div');
   bar.id = 'repoTabsBar';
   bar.className = 'repo-tabs-row';
   bar.innerHTML =
     '<div class="rt-list" id="repoTabsList"></div>' +
     '<button type="button" class="rt-add" id="repoTabsAdd" title="Open another repo in a new tab">' + ICON_PLUS + '</button>';
-  nav.parentElement.insertBefore(bar, nav);
+  const controls = titlebar.querySelector('.titlebar-controls');
+  if (controls) titlebar.insertBefore(bar, controls);
+  else titlebar.appendChild(bar);
   listEl = bar.querySelector('#repoTabsList');
-  listEl.addEventListener('click', (e) => {
-    const tab = e.target.closest('.rt-tab');
-    if (!tab) return;
-    const p = tab.dataset.p;
-    const b = e.target.closest('.rt-btn');
-    if (b) {
-      e.stopPropagation();
-      if (b.dataset.act === 'split') toggleLookup(p);
-      else closeTab(p);
-      return;
-    }
-    activate(p);
-  });
-  listEl.addEventListener('auxclick', (e) => {
-    if (e.button !== 1) return;
-    const tab = e.target.closest('.rt-tab');
-    if (!tab) return;
-    e.preventDefault();
-    closeTab(tab.dataset.p);
-  });
+  listEl.addEventListener('click', onListClick);
+  listEl.addEventListener('auxclick', onListAux);
+  listEl.addEventListener('wheel', onListWheel, { passive: false });
   bar.querySelector('#repoTabsAdd').addEventListener('click', addNew);
   return true;
+}
+
+async function preloadOthers() {
+  for (const p of tabs.slice()) {
+    if (!same(p, state.selectedRepoPath)) await preload(p);
+  }
 }
 
 function init() {
@@ -282,11 +330,7 @@ function init() {
       m.init();
     })
     .catch((err) => console.error('[RepoTabs] lookup pane failed to load:', err));
-  setTimeout(async () => {
-    for (const p of tabs.slice()) {
-      if (!same(p, state.selectedRepoPath)) await preload(p);
-    }
-  }, 1500);
+  setTimeout(preloadOthers, 1500);
 }
 
 if (document.readyState === 'loading') {

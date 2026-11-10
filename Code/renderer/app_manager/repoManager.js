@@ -22,6 +22,65 @@ import { confirmDialog } from '../utils/confirmDialog.js';
 const activeRepoName = document.getElementById('activeRepoName');
 const treeContainer = document.getElementById('treeContainer');
 
+const REVALIDATE_GAP_MS = 20000;
+const repoCache = new Map();
+
+function keyOf(p) {
+    return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function treeSig(tree) {
+    let h = 5381;
+    let n = 0;
+    const stack = Array.isArray(tree) ? tree.slice() : [];
+    while (stack.length) {
+        const node = stack.pop();
+        if (!node) continue;
+        n++;
+        const s = node.path || node.name || '';
+        for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+        if (Array.isArray(node.children)) {
+            for (const c of node.children) stack.push(c);
+        }
+    }
+    return n + ':' + h;
+}
+
+function snapshotCurrent() {
+    if (!state.selectedRepoPath || !state.cachedTree) return;
+    const key = keyOf(state.selectedRepoPath);
+    const prev = repoCache.get(key);
+    repoCache.set(key, {
+        tree: state.cachedTree,
+        selected: state.selectedItems.slice(),
+        checkedAt: prev ? prev.checkedAt : Date.now(),
+    });
+}
+
+export function isRepoCached(repoPath) {
+    const hit = repoCache.get(keyOf(repoPath));
+    return !!(hit && hit.tree);
+}
+
+export async function preloadRepo(repoPath) {
+    const key = keyOf(repoPath);
+    if (!repoPath || repoCache.has(key) || key === keyOf(state.selectedRepoPath)) return false;
+    let tree = null;
+    try {
+        tree = await window.electronAPI.getFolderTree(repoPath);
+    } catch (_) {
+        tree = null;
+    }
+    if (!tree || repoCache.has(key)) return false;
+    repoCache.set(key, { tree, selected: [], checkedAt: Date.now() });
+    return true;
+}
+
+document.addEventListener('repo:closed', (e) => {
+    const p = e && e.detail && e.detail.repoPath;
+    if (p) repoCache.delete(keyOf(p));
+});
+
 function showTreeSkeleton() {
     if (!treeContainer) return;
     const div = document.createElement('div');
@@ -142,11 +201,55 @@ async function _guardActiveServices() {
     return true;
 }
 
+function repaintTree() {
+    const feats = getFeatures();
+    if (state.cachedTree) {
+        renderIgnorePanel(state.cachedTree);
+        if (feats.folderFilters) renderFolderPanel(state.cachedTree);
+    }
+    renderRootJumper(state.cachedTree);
+    displayTree(false);
+}
+
+function revalidate(repoPath) {
+    const key = keyOf(repoPath);
+    setTimeout(async () => {
+        let fresh = null;
+        try {
+            await window.electronAPI.clearFolderTreeCache(repoPath);
+            fresh = await window.electronAPI.getFolderTree(repoPath);
+        } catch (_) {
+            fresh = null;
+        }
+        if (!fresh) return;
+        if (keyOf(state.selectedRepoPath) !== key) {
+            const e = repoCache.get(key);
+            if (e) {
+                e.tree = fresh;
+                e.checkedAt = Date.now();
+            }
+            return;
+        }
+        const e = repoCache.get(key);
+        if (e) e.checkedAt = Date.now();
+        if (treeSig(fresh) === treeSig(state.cachedTree)) return;
+        state.cachedTree = fresh;
+        if (e) e.tree = fresh;
+        invalidateFilterCache();
+        repaintTree();
+    }, 250);
+}
+
 export async function loadRepo(repoPath, resetSel = true, skipGuard = false) {
     if (!skipGuard) {
         const ok = await _guardActiveServices();
         if (!ok) return;
     }
+
+    snapshotCurrent();
+    const hit = repoCache.get(keyOf(repoPath));
+    const fast = !!(hit && hit.tree);
+
     state.selectedRepoPath = repoPath;
     window.__activeRepoPath = repoPath;
     // Notify tools BEFORE updating activeProject so they save to the old repo
@@ -154,17 +257,25 @@ export async function loadRepo(repoPath, resetSel = true, skipGuard = false) {
     // Fire-and-forget - config writes that don't affect visible UI
     window.electronAPI.setActiveProject(repoPath);
 
-    if (resetSel) {
+    if (fast) {
+        state.selectedItems.length = 0;
+        for (const p of hit.selected || []) state.selectedItems.push(p);
+        window.electronAPI.setLastSelected(state.selectedItems.slice());
+    } else if (resetSel) {
         state.selectedItems.length = 0;
         window.electronAPI.setLastSelected([]);
     }
 
     updateActiveRepo(repoPath.split(/[/\\]/).pop());
 
-    if (!skipGuard) showRepoLoading(repoPath);
-    showTreeSkeleton();
-    state.cachedTree = await window.electronAPI.getFolderTree(repoPath);
-    hideTreeSkeleton();
+    if (fast) {
+        state.cachedTree = hit.tree;
+    } else {
+        if (!skipGuard) showRepoLoading(repoPath);
+        showTreeSkeleton();
+        state.cachedTree = await window.electronAPI.getFolderTree(repoPath);
+        hideTreeSkeleton();
+    }
     invalidateFilterCache();
 
     activeExtensions.clear();
@@ -180,7 +291,18 @@ export async function loadRepo(repoPath, resetSel = true, skipGuard = false) {
     displayTree();
 
     hideRepoLoading();
+
+    if (!fast && state.cachedTree) {
+        repoCache.set(keyOf(repoPath), {
+            tree: state.cachedTree,
+            selected: state.selectedItems.slice(),
+            checkedAt: Date.now(),
+        });
+    }
+
     document.dispatchEvent(new CustomEvent('repo:switched', { detail: { repoPath } }));
+
+    if (fast && Date.now() - (hit.checkedAt || 0) > REVALIDATE_GAP_MS) revalidate(repoPath);
 }
 
 export async function loadLastActiveRepo() {
