@@ -346,3 +346,29 @@
 }
 .ide-sm-ext-clear[hidden] { display: none; }
 .ide-sm-body { height: max(240px, min(68vh, calc(100vh - 340px))); }
+.ide-sm-mode {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--bg-base);
+}
+.ide-sm-mode-btn {
+  padding: 3px 14px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 12px var(--font-ui);
+  line-height: 18px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.ide-sm-mode-btn:hover { color: var(--text-primary); }
+.ide-sm-mode-btn.on {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.ide-sm.files-mode .ide-sm-rep { display: none; }
+.ide-sm.files-mode .ide-sm-foot-note { visibility: hidden; }

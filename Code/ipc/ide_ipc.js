@@ -464,6 +464,94 @@ async function runSearch(sender, id, root, query, session, extSet) {
     }
   }
 }
+function scoreFile(rel, tokens) {
+  const rl = rel.toLowerCase();
+  const slash = rl.lastIndexOf('/');
+  const base = rl.slice(slash + 1);
+  let total = 0;
+  let hs = 0;
+  let hl = 0;
+  let marked = false;
+  for (const t of tokens) {
+    let s = 0;
+    const bi = base.indexOf(t);
+    if (bi !== -1) {
+      s = base === t ? 130 : (bi === 0 ? 115 : 100);
+      if (!marked) {
+        hs = bi;
+        hl = t.length;
+        marked = true;
+      }
+    } else if (rl.indexOf(t) !== -1) {
+      s = 80;
+    } else if (t.length >= 2 && isSubsequence(t, base)) {
+      s = 60;
+    } else if (t.length >= 2 && isSubsequence(t, rl)) {
+      s = 45;
+    } else {
+      return null;
+    }
+    total += s;
+  }
+  total = total / tokens.length - Math.min(20, rel.length / 40);
+  return { score: total, hs, hl };
+}
+
+async function runFileSearch(sender, id, root, query, session, extSet) {
+  const t0 = Date.now();
+  const cap = 300;
+  const cancelled = () => session.cancelled || sender.isDestroyed();
+  try {
+    useRoot(root);
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const allFiles = await listFiles(root, cancelled);
+    if (!allFiles || cancelled()) return;
+    const files = extSet ? allFiles.filter((f) => extSet.has(extOf(f))) : allFiles;
+    const hits = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const rel = relOf(root, f);
+      const sc = scoreFile(rel, tokens);
+      if (sc) {
+        hits.push({
+          file: f,
+          rel,
+          line: 1,
+          col: 0,
+          len: 0,
+          text: rel.slice(rel.lastIndexOf('/') + 1),
+          hs: sc.hs,
+          hl: sc.hl,
+          more: false,
+          score: sc.score,
+          kind: 'file',
+        });
+      }
+      if (i % 4000 === 3999) {
+        await tick();
+        if (cancelled()) return;
+      }
+    }
+    if (cancelled()) return;
+    hits.sort((a, b) => (b.score - a.score) || a.rel.localeCompare(b.rel));
+    const out = hits.slice(0, cap);
+    sender.send('ide:searchBatch', {
+      id,
+      results: out,
+      phase: 'files',
+      scanned: files.length,
+      progress: 1,
+      done: true,
+      truncated: hits.length > cap,
+      ms: Date.now() - t0,
+    });
+  } catch (err) {
+    if (!cancelled()) {
+      sender.send('ide:searchBatch', { id, results: [], done: true, error: err && err.message ? err.message : 'Search failed' });
+    }
+  }
+}
+
 
 async function warmCorpus(root) {
   if (warming && warming.root === root) return;
@@ -689,6 +777,7 @@ function register() {
     const id = args && args.id;
     const root = args && args.root;
     const query = args && typeof args.query === 'string' ? args.query.trim() : '';
+    const mode = args && args.mode === 'files' ? 'files' : 'words';
     if (typeof root !== 'string' || !root) return { success: false, error: 'No folder opened' };
     if (query.length < 2 || query.length > 200) {
       sender.send('ide:searchBatch', { id, results: [], done: true, ms: 0 });
@@ -708,7 +797,8 @@ function register() {
       .slice(0, 200)
       .map((x) => x.toLowerCase());
     const extSet = extList.length ? new Set(extList) : null;
-    runSearch(sender, id, root, query, session, extSet);
+    if (mode === 'files') runFileSearch(sender, id, root, query, session, extSet);
+    else runSearch(sender, id, root, query, session, extSet);
     return { success: true };
   });
 

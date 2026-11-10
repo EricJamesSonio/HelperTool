@@ -1,6 +1,76 @@
 import { state } from '../app_manager/appState.js';
 import { esc } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+let mode = 'words';
+let modeWired = false;
+
+function emptyMsg() {
+  if (mode === 'files') return 'Type at least ' + MIN_CHARS + ' characters to find a file by name or path.';
+  return 'Type at least ' + MIN_CHARS + ' characters to search the codebase.';
+}
+
+function applyMode() {
+  if (!overlay) return;
+  const files = mode === 'files';
+  const root = overlay.querySelector('.ide-sm');
+  if (root) root.classList.toggle('files-mode', files);
+  overlay.querySelectorAll('.ide-sm-mode-btn').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mode === mode);
+  });
+  input.placeholder = files ? 'Search files by name or path...' : 'Search words in the codebase...';
+}
+
+function setMode(next) {
+  if (next !== 'words' && next !== 'files') return;
+  if (next === mode) {
+    input.focus();
+    return;
+  }
+  commitEdit();
+  mode = next;
+  saveState();
+  applyMode();
+  disarm();
+  cancelRemote();
+  curId++;
+  results = [];
+  sel = null;
+  previewFor = null;
+  collapsed = new Set();
+  curQuery = '';
+  finished = true;
+  pendingReset = false;
+  pendingOpen = false;
+  clearTimeout(timer);
+  timer = 0;
+  listEl.classList.remove('stale');
+  if (input.value.trim().length >= MIN_CHARS) {
+    run();
+  } else {
+    showEmpty(emptyMsg());
+    setStatus('');
+    barEl.classList.remove('on');
+  }
+  updateRepUi();
+  input.focus();
+}
+
+function wireMode() {
+  if (modeWired || !overlay) return;
+  modeWired = true;
+  const st = loadState();
+  if (st.mode === 'files') mode = 'files';
+  const box = overlay.querySelector('.ide-sm-mode');
+  box.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+  });
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('.ide-sm-mode-btn');
+    if (b) setMode(b.dataset.mode);
+  });
+  applyMode();
+  showEmpty(emptyMsg());
+}
 
 const SHOW = 300;
 const MIN_CHARS = 2;
@@ -79,6 +149,10 @@ const TEMPLATE =
 '<div class="ide-sm ide-root">' +
   '<div class="ide-sm-head">' +
     '<span class="ide-sm-icon">' + SVG_SEARCH + '</span>' +
+    '<div class="ide-sm-mode">' +
+      '<button type="button" class="ide-sm-mode-btn on" data-mode="words" title="Search words inside files">Words</button>' +
+      '<button type="button" class="ide-sm-mode-btn" data-mode="files" title="Search file names and paths">Files</button>' +
+    '</div>' +
     '<input class="ide-sm-input" type="text" spellcheck="false" autocomplete="off" placeholder="Search words in the codebase..." />' +
     '<span class="ide-sm-status"></span>' +
   '</div>' +
@@ -107,6 +181,7 @@ const TEMPLATE =
     '<span class="ide-sm-rep-msg"></span>' +
   '</div>' +
   '<div class="ide-sm-foot">' +
+    '<span><kbd>Tab</kbd> words / files</span>' +
     '<span><kbd>Up</kbd><kbd>Down</kbd> navigate</span>' +
     '<span><kbd>Click</kbd> preview / expand</span>' +
     '<span><kbd>Double-click</kbd> or <kbd>Enter</kbd> open</span>' +
@@ -201,7 +276,7 @@ function loadState() {
 function saveState() {
   if (!input || !repIn) return;
   try {
-    localStorage.setItem(LS_STATE, JSON.stringify({ cs: repCase }));
+    localStorage.setItem(LS_STATE, JSON.stringify({ cs: repCase, mode }));
   } catch (_) {}
 }
 
@@ -372,6 +447,15 @@ function rowHtml(r, i, isSel, nested) {
       '<span class="ide-sm-nl">' + esc(label) + '</span>' +
       '<div class="ide-sm-code">' + codeHtml(r) + '</div>' +
       (r.kind === 'file' ? '' : tagFor(r.kind)) +
+    '</div>';
+  }
+  if (r.kind === 'file') {
+    return '<div class="' + cls + '" data-i="' + i + '">' +
+      '<div class="ide-sm-code">' + codeHtml(r) + '</div>' +
+      '<div class="ide-sm-meta">' + fileIcon(baseName(r.rel)) +
+        '<span class="ide-sm-path">' + esc(r.rel) + '</span>' +
+        (mode === 'files' ? '' : tagFor(r.kind)) +
+      '</div>' +
     '</div>';
   }
   return '<div class="' + cls + '" data-i="' + i + '">' +
@@ -561,7 +645,7 @@ function run() {
     finished = true;
     pendingReset = false;
     listEl.classList.remove('stale');
-    showEmpty('Type at least ' + MIN_CHARS + ' characters to search the codebase.');
+    showEmpty(emptyMsg());
     setStatus('');
     barEl.classList.remove('on');
     updateRepUi();
@@ -587,7 +671,7 @@ function run() {
   updateRepUi();
   const inv = Array.from(pendingInvalidate);
   pendingInvalidate.clear();
-  api.start({ id: my, root, query: q, max: REQ_MAX, invalidate: inv, exts: Array.from(fx.sel) }).then((res) => {
+  api.start({ id: my, root, query: q, max: REQ_MAX, invalidate: inv, exts: Array.from(fx.sel), mode }).then((res) => {
     if (my !== curId) return;
     if (res && res.success === false) {
       finished = true;
@@ -1237,6 +1321,11 @@ function onKey(e) {
     close();
     return;
   }
+  if (k === 'Tab') {
+    e.preventDefault();
+    setMode(mode === 'words' ? 'files' : 'words');
+    return;
+  }
   if (k === 'ArrowDown' || (ctrl && (k === 'n' || k === 'j'))) {
     e.preventDefault();
     move(1);
@@ -1286,6 +1375,7 @@ export function isOpen() {
 
 export function open(prefill) {
   build();
+  wireMode();
   prevFocus = document.activeElement;
   overlay.hidden = false;
   if (state.selectedRepoPath) loadExts(state.selectedRepoPath);
