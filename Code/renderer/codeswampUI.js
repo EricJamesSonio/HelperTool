@@ -43,8 +43,5 @@ export async function handleRepoChange(repoPath) {
     await init();
   }
   await addRepo(repoPath);
-  setTimeout(() => {
-    if (csState.activeTab === repoPath) prewarmSession(repoPath).catch(() => {});
-  }, 1200);
   await refreshSidebar();
 }
