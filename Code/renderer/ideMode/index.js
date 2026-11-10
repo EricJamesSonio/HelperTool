@@ -427,6 +427,9 @@ function init() {
   import('./codeswampDock.js')
     .then((m) => m.init())
     .catch((err) => console.error('[IDE] code swamp dock failed to load:', err));
+  import('./missingTabs.js')
+    .then((m) => m.init())
+    .catch((err) => console.error('[IDE] missing tabs watcher failed to load:', err));
   if (readLS(LS_ON, '0') === '1') setActive(true);
 }
 
