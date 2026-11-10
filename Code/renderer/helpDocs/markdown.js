@@ -72,10 +72,11 @@ function capOf(text) {
   return m ? m[1] : null;
 }
 
-function figureHtml(caption, alt, src, opts) {
+function figureHtml(caption, alt, src, opts, descHtml) {
   return '<figure class="hd-md-fig">' +
     (caption ? '<figcaption class="hd-md-figcap">' + esc(caption) + '</figcaption>' : '') +
     imgHtml(esc(alt), esc(src), opts) +
+    (descHtml ? '<p class="hd-md-figdesc">' + descHtml + '</p>' : '') +
     '</figure>';
 }
 
@@ -138,6 +139,25 @@ function isBlockStart(l) {
   return FENCE_RE.test(l) || HR_RE.test(l) || HEAD_RE.test(l) || LIST_RE.test(l) || /^\s*>/.test(l) || IMG_LINE_RE.test(l);
 }
 
+function isTableStart(lines, i) {
+  return lines[i].indexOf('|') !== -1 &&
+    i + 1 < lines.length &&
+    lines[i + 1].indexOf('-') !== -1 &&
+    TABLE_SEP_RE.test(lines[i + 1]);
+}
+
+function readDesc(lines, start, opts) {
+  let j = start;
+  while (j < lines.length && !lines[j].trim()) j++;
+  const buf = [];
+  while (j < lines.length && lines[j].trim() && !isBlockStart(lines[j]) && !isTableStart(lines, j)) {
+    buf.push(lines[j].trim());
+    j++;
+  }
+  if (!buf.length) return { html: '', next: start };
+  return { html: inline(buf.join(' '), opts), next: j };
+}
+
 function renderBlocks(lines, opts) {
   const out = [];
   let i = 0;
@@ -186,7 +206,7 @@ function renderBlocks(lines, opts) {
       continue;
     }
 
-    if (line.indexOf('|') !== -1 && i + 1 < lines.length && lines[i + 1].indexOf('-') !== -1 && TABLE_SEP_RE.test(lines[i + 1])) {
+    if (isTableStart(lines, i)) {
       const head = splitRow(line);
       i += 2;
       const rows = [];
@@ -215,8 +235,9 @@ function renderBlocks(lines, opts) {
         while (j < lines.length && !lines[j].trim()) j++;
         const im = j < lines.length ? IMG_LINE_RE.exec(lines[j]) : null;
         if (im) {
-          out.push(figureHtml(capOf(items[0].text), im[1], im[2], opts));
-          i = j + 1;
+          const d = readDesc(lines, j + 1, opts);
+          out.push(figureHtml(capOf(items[0].text), im[1], im[2], opts, d.html));
+          i = d.next > j + 1 ? d.next : j + 1;
           continue;
         }
       }
@@ -227,8 +248,9 @@ function renderBlocks(lines, opts) {
 
     m = IMG_LINE_RE.exec(line);
     if (m) {
-      out.push(figureHtml('', m[1], m[2], opts));
-      i++;
+      const d = readDesc(lines, i + 1, opts);
+      out.push(figureHtml('', m[1], m[2], opts, d.html));
+      i = d.next > i + 1 ? d.next : i + 1;
       continue;
     }
 

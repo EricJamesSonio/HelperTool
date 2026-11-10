@@ -533,6 +533,7 @@ function _renderDraftImages() {
       '<div class="hd-imgrow-thumb"><img src="' + _esc(img.dataUrl) + '" alt=""></div>' +
       '<div class="hd-imgrow-body">' +
         '<input type="text" class="hd-input" data-cap="' + i + '" value="' + _esc(img.caption) + '" placeholder="Caption, e.g. Repo Console feature tool">' +
+        '<textarea class="hd-input hd-input--area" data-desc="' + i + '" rows="3" maxlength="600" placeholder="Description: what this screenshot shows or what changed">' + _esc(img.description || '') + '</textarea>' +
         '<div class="hd-imgrow-file">1.' + (i + 1) + '.' + _esc(_extOf(img.dataUrl)) + ' - ' + _esc(img.name) + '</div>' +
       '</div>' +
       '<div class="hd-imgrow-actions">' +
@@ -542,6 +543,12 @@ function _renderDraftImages() {
       '</div>' +
     '</div>'
   ).join('');
+  list.querySelectorAll('textarea[data-desc]').forEach((ta) => {
+    ta.addEventListener('input', () => {
+      const idx = Number(ta.getAttribute('data-desc'));
+      if (_draft && _draft.images[idx]) _draft.images[idx].description = ta.value;
+    });
+  });
 }
 
 function _setModalError(msg) {
@@ -569,6 +576,7 @@ async function _addImages(fileList) {
         name: f.name,
         dataUrl,
         caption: f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim(),
+        description: '',
       });
     } catch (_) {
       problems.push('Could not read ' + f.name + '.');
@@ -729,7 +737,7 @@ async function _submitCreate() {
       label: d.label.trim() || d.num + '.0.0',
       title: d.title.trim(),
       readme: d.readme,
-      images: d.images.map((i) => ({ caption: i.caption, dataUrl: i.dataUrl })),
+      images: d.images.map((i) => ({ caption: i.caption, description: i.description || '', dataUrl: i.dataUrl })),
     });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not create the version.');
     const newId = VER_PREFIX + res.id;
