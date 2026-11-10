@@ -563,10 +563,16 @@ function authConfigFor(acc, token) {
   return ['http.https://github.com/.extraheader=AUTHORIZATION: basic ' + basic];
 }
 
-async function activeCtx() {
-  const acc = activeAccount();
+async function activeCtx(accountId) {
+  const acc = accountId
+    ? load().accounts.find((a) => a.id === accountId)
+    : activeAccount();
   if (!acc) {
-    return { error: 'Select a GitHub account first. System default cannot list or create repositories.' };
+    return {
+      error: accountId
+        ? 'That GitHub account was not found. Reopen this window and pick another.'
+        : 'Select a GitHub account first. System default cannot list or create repositories.',
+    };
   }
   if (dueForRefresh(acc)) await refreshAccount(acc);
   const token = openToken(acc);
@@ -646,9 +652,9 @@ function registerProject(repoPath) {
 }
 
 function registerRepoTools() {
-  ipcMain.handle('gitAccounts:listRepos', async () => {
+  ipcMain.handle('gitAccounts:listRepos', async (_e, payload) => {
     try {
-      const ctx = await activeCtx();
+      const ctx = await activeCtx(payload && payload.accountId);
       if (ctx.error) return { success: false, error: ctx.error };
       const raw = await fetchUserRepos(ctx.token);
       return {
@@ -669,9 +675,44 @@ function registerRepoTools() {
     }
   });
 
+  ipcMain.handle('gitAccounts:listReposPage', async (_e, payload) => {
+    try {
+      const ctx = await activeCtx(payload && payload.accountId);
+      if (ctx.error) return { success: false, error: ctx.error };
+      const page = Math.max(1, Math.min(20, Number(payload && payload.page) || 1));
+      const perPage = 50;
+      const res = await ghGet('/user/repos?per_page=' + perPage + '&sort=updated&affiliation=owner,collaborator,organization_member&page=' + page, ctx.token);
+      if (res.status === 401) return { success: false, error: 'GitHub rejected the saved token. Sign in again.' };
+      if (res.status !== 200 || !Array.isArray(res.body)) {
+        return { success: false, error: 'GitHub answered with status ' + res.status + '.' };
+      }
+      const link = res.headers && res.headers.link ? String(res.headers.link) : '';
+      const hasMore = link.indexOf('rel="next"') !== -1 && page < 20;
+      return {
+        success: true,
+        hasMore,
+        nextPage: page + 1,
+        repos: res.body.map((r) => ({
+          name: r.name,
+          fullName: r.full_name,
+          description: r.description || '',
+          htmlUrl: r.html_url || '',
+          private: !!r.private,
+          fork: !!r.fork,
+          language: r.language || '',
+          pushedAt: r.pushed_at || '',
+          defaultBranch: r.default_branch || '',
+          stars: Number(r.stargazers_count) || 0,
+        })),
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('gitAccounts:createRepo', async (_e, payload) => {
     try {
-      const ctx = await activeCtx();
+      const ctx = await activeCtx(payload && payload.accountId);
       if (ctx.error) return { success: false, error: ctx.error };
       const name = String((payload && payload.name) || '').trim();
       if (!/^[A-Za-z0-9._-]{1,100}$/.test(name)) {
@@ -713,7 +754,7 @@ function registerRepoTools() {
       if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(fullName)) {
         return { success: false, error: 'Invalid repository name.' };
       }
-      if (!folderName || folderName === '.' || folderName === '..' || /[\\/:*?"<>|]/.test(folderName)) {
+      if (!folderName || folderName === '.' || folderName === '..' || /[\\/:*?\x22<>|]/.test(folderName)) {
         return { success: false, error: 'Invalid folder name.' };
       }
       let parentStat = null;
@@ -729,7 +770,7 @@ function registerRepoTools() {
           return { success: false, error: 'The folder ' + target + ' already exists and is not empty. Pick another folder or name.' };
         }
       }
-      const ctx = await activeCtx();
+      const ctx = await activeCtx(payload && payload.accountId);
       if (ctx.error) return { success: false, error: ctx.error };
       token = ctx.token;
       const git = simpleGit({ baseDir: parentDir, config: authConfigFor(ctx.acc, ctx.token) });
@@ -748,6 +789,7 @@ function registerRepoTools() {
     }
   });
 }
+
 function register() {
   ipcMain.handle('gitAccounts:list', async () => {
     try {
