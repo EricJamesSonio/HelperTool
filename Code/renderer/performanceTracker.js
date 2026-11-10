@@ -789,7 +789,7 @@ function renderTable(rows) {
       );
     })
     .join('');
-  return '<h2 class="pt-h2">Enabled features</h2><p class="pt-hint">Click a column to sort. Sleep frees memory now and wakes when you use the feature again. Stop closes it and forgets its chats.</p><div class="pt-table-wrap"><table class="pt-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  return '<h2 class="pt-h2">Enabled features</h2><p class="pt-hint">Click a column to sort. Sleep frees memory now and wakes when the feature is needed again. Stop closes it fully.</p><div class="pt-table-wrap"><table class="pt-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
 }
 
 function renderDisabled(rows) {
@@ -808,9 +808,11 @@ let _optLoaded = false;
 let _optMsg = '';
 let _optBusy = false;
 let _actBusy = false;
+let _hib = { asleep: false, sleeping: [], afterSec: 60 };
 
 const OPT_SHELL = /^(powershell|pwsh|cmd|conhost|openconsole|bash|zsh|sh|fish|wsl)/i;
 const OPT_CAPS = [[0, 'Off'], [1024, '1 GB'], [1536, '1.5 GB'], [2048, '2 GB'], [3072, '3 GB']];
+const HIB_OPTIONS = [[0, 'Off'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes'], [900, '15 minutes']];
 
 function injectOptStyles() {
   if (document.getElementById('ptOptCss')) return;
@@ -822,6 +824,8 @@ function injectOptStyles() {
     '.pt-opt-text strong{color:var(--text-primary,#eef2ff)}' +
     '.pt-opt-mem{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--text-primary,#eef2ff)}' +
     '.pt-opt-msg{margin-top:10px;font-size:12px;color:var(--text-primary,#eef2ff)}' +
+    'select.pt-select{color-scheme:dark;min-width:120px}' +
+    '.pt-select option{background:var(--bg-elevated,#1b1d24);color:var(--text-primary,#eef2ff)}' +
     '.pt-act{display:flex;gap:6px}' +
     '.pt-btn-sm{height:26px;padding:0 10px;font-size:0.74rem}' +
     '.pt-btn-stop:hover{color:var(--red,#ff6b69);border-color:var(--red,#ff6b69)}' +
@@ -846,7 +850,7 @@ function devTips(dev) {
   }
   const cap = Number(_optSettings.nodeMemMB) || 0;
   if (!cap && dev.some((p) => /^node/i.test(String(p.name || '')) && p.memKB >= 400 * 1024)) {
-    tips.push('Set the Node memory limit below, then restart the server. If a server later stops with "heap out of memory", raise the limit.');
+    tips.push('Set the Node memory limit below, then restart the server. If a server later stops with a heap out of memory error, raise the limit.');
   }
   return tips;
 }
@@ -886,16 +890,6 @@ function renderOptimizer(snap) {
     '<select class="pt-select" data-opt="cap">' + options + '</select></div>';
   if (_optMsg) body += '<div class="pt-opt-msg">' + esc(_optMsg) + '</div>';
   return '<h2 class="pt-h2">Optimizer</h2><p class="pt-hint">Safe clean-ups for the programs running inside Helper Tool terminals</p>' + body;
-}
-
-async function loadOptSettings() {
-  const api = window.perfOptAPI;
-  if (!api) return;
-  try {
-    const s = await api.getSettings();
-    if (s) _optSettings = s;
-  } catch (_) {}
-  renderOpt();
 }
 
 async function onOptClick(e) {
@@ -985,23 +979,142 @@ function renderDataFiles(snap) {
   return '<div class="pt-hint" style="margin-top:14px">Data files kept in memory (' + esc(fmtMem(total / 1024)) + ' on disk)</div>' + rows +
     '<div class="pt-opt-msg pt-cell-muted">Each file is loaded fully into memory by the app, so its size on disk is a floor for its memory use. The main database is also loaded by the background worker.</div>';
 }
+
+function hibLabelFor(id) {
+  if (id === 'workerService') return 'Background worker';
+  if (id === 'symbolIndex') return 'Symbol Index';
+  return id;
+}
+
+function renderHibernate() {
+  const api = window.hibernateAPI;
+  const cur = Number(_hib.afterSec) || 0;
+  let options = HIB_OPTIONS.map((o) => '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>').join('');
+  if (cur && !HIB_OPTIONS.some((o) => o[0] === cur)) {
+    options += '<option value="' + cur + '" selected>' + cur + ' seconds</option>';
+  }
+  const sleeping = (_hib.sleeping || []).map(hibLabelFor);
+  let status = 'Everything is awake.';
+  if (_hib.asleep) status = 'Helper Tool is hibernating now.';
+  else if (sleeping.length) status = 'Sleeping: ' + sleeping.join(', ') + '.';
+  const canWake = !!_hib.asleep || sleeping.length > 0;
+  let body = '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Hibernate when minimized or hidden</strong><br>' +
+    '<span class="pt-cell-muted">After this long in the taskbar or tray, Helper Tool stops its background worker and symbol indexer, pauses Gmail checks, closes idle Code Swamp terminals and pauses repeating timers. Everything wakes when you open the window. Terminals you opened, servers you started and running jobs are left alone.</span></div>' +
+    '<select class="pt-select" data-hib="after"' + (api ? '' : ' disabled') + '>' + options + '</select></div>';
+  body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(status) + '</strong>' +
+    (api ? '' : '<br><span class="pt-cell-muted">Restart Helper Tool once so hibernate can load.</span>') + '</div>' +
+    (canWake ? '<button type="button" class="pt-btn" data-hib="wake">Wake all</button>' : '') + '</div>';
+  return '<div style="margin-bottom:20px"><h2 class="pt-h2">Hibernate</h2><p class="pt-hint">Let the app rest while you are not using it</p>' + body + '</div>';
+}
+
+async function refreshHib() {
+  const api = window.hibernateAPI;
+  if (!api) return;
+  try {
+    const s = await api.getState();
+    if (s) _hib = s;
+  } catch (_) {}
+}
+
+async function onHibClick(e) {
+  const btn = e.target.closest('button[data-hib="wake"]');
+  if (!btn) return;
+  const api = window.hibernateAPI;
+  if (!api) {
+    _optMsg = 'Restart Helper Tool once so hibernate can load.';
+    renderOpt();
+    return;
+  }
+  try {
+    const s = await api.wake();
+    if (s) _hib = s;
+    _optMsg = 'Everything is awake.';
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not wake everything.';
+  }
+  renderOpt();
+  clearTimeout(_timer);
+  setTimeout(run, 800);
+}
+
+async function onHibChange(e) {
+  const sel = e.target.closest('select[data-hib="after"]');
+  if (!sel) return;
+  const api = window.hibernateAPI;
+  if (!api) {
+    _optMsg = 'Restart Helper Tool once so hibernate can load.';
+    renderOpt();
+    return;
+  }
+  const sec = Number(sel.value) || 0;
+  try {
+    const res = await api.setAfter(sec);
+    if (res && res.ok) {
+      _hib = Object.assign({}, _hib, { afterSec: res.afterSec });
+      _optMsg = res.afterSec
+        ? 'Helper Tool will hibernate after ' + sel.options[sel.selectedIndex].text + ' minimized or hidden.'
+        : 'Auto-hibernate is off.';
+    } else {
+      _optMsg = (res && res.error) || 'Could not save the setting.';
+    }
+  } catch (err) {
+    _optMsg = err && err.message ? err.message : 'Could not save the setting.';
+  }
+  sel.blur();
+  renderOpt();
+}
+
+function bindHib() {
+  const el = $('ptOpt');
+  if (!el || el.dataset.hibBound) return;
+  el.dataset.hibBound = '1';
+  el.addEventListener('click', onHibClick);
+  el.addEventListener('change', onHibChange);
+  document.addEventListener('app:hibernate-state', (e) => {
+    if (e && e.detail) {
+      _hib = e.detail;
+      if (_open) renderOpt();
+    }
+  });
+}
+
+async function loadOptSettings() {
+  bindHib();
+  const api = window.perfOptAPI;
+  if (api) {
+    try {
+      const s = await api.getSettings();
+      if (s) _optSettings = s;
+    } catch (_) {}
+  }
+  await refreshHib();
+  renderOpt();
+}
+
 function renderOpt() {
   const el = ensureOptSection();
   if (!el || !_snap) return;
   const active = document.activeElement;
   if (active && el.contains(active) && active.tagName === 'SELECT') return;
-  el.innerHTML = renderOptimizer(_snap) + renderDataFiles(_snap);
+  el.innerHTML = renderHibernate() + renderOptimizer(_snap) + renderDataFiles(_snap);
 }
 
 function actionsFor(r) {
-  if (r.id === 'codeswampChat' && r.procs > 0) {
+  if (r.procs <= 0) return [];
+  if (r.id === 'codeswampChat') {
     return [
       ['sleep', 'Sleep', 'Close the terminals now to free memory. They open again when you use Code Swamp.'],
       ['stop', 'Stop', 'Close every Code Swamp terminal and forget the saved conversation ids.'],
     ];
   }
-  if (r.id === 'graphify' && r.procs > 0) {
-    return [['stop', 'Stop', 'Stop the Graphify server.']];
+  if (r.id === 'graphify') {
+    return [['stop', 'Stop', 'Stop the Graphify server process.']];
+  }
+  if (r.id === 'symbolIndex') {
+    return [['sleep', 'Sleep', 'Stop the symbol indexer process. It wakes when you restore the window or press Wake all.']];
+  }
+  if (r.id === 'workerService') {
+    return [['sleep', 'Sleep', 'Stop the background worker. It starts again by itself when something needs it.']];
   }
   return [];
 }
@@ -1041,6 +1154,24 @@ async function codeswampHasChats() {
   return tm.hasChattedSessions();
 }
 
+async function callFeature(id, action) {
+  const api = window.hibernateAPI;
+  if (!api) throw new Error('Restart Helper Tool once so the sleep controls can load.');
+  const res = await api.feature(id, action);
+  if (res && res.state) _hib = res.state;
+  return res || { ok: false, error: 'No answer from the app.' };
+}
+
+function featureMsg(id, res) {
+  if (!res || !res.ok) {
+    if (res && res.busy) return 'It is busy right now. Try again in a moment.';
+    return (res && res.error) || 'Nothing changed.';
+  }
+  if (id === 'graphify') return 'Graphify stopped. Start it again from the Graphify panel.';
+  if (id === 'workerService') return 'Background worker is asleep. It starts again by itself when something needs it.';
+  return 'Symbol Index is asleep. It wakes when you restore the window or press Wake all.';
+}
+
 async function onFeatureAction(e) {
   const btn = e.target.closest('button[data-act]');
   if (!btn || _actBusy) return;
@@ -1059,10 +1190,10 @@ async function onFeatureAction(e) {
       _optMsg = act === 'stop'
         ? 'Code Swamp stopped (' + word + ' closed).'
         : 'Code Swamp is asleep (' + word + ' closed). It wakes when you use it.';
-    } else if (id === 'graphify') {
-      if (!window.confirm('Stop the Graphify server?')) return;
-      await window.electronAPI.graphifyStop();
-      _optMsg = 'Graphify stopped.';
+    } else if (id === 'graphify' || id === 'symbolIndex' || id === 'workerService') {
+      if (id === 'graphify' && !window.confirm('Stop the Graphify server?')) return;
+      const res = await callFeature(id, act);
+      _optMsg = featureMsg(id, res);
     }
   } catch (err) {
     _optMsg = err && err.message ? err.message : 'Could not complete that action.';
