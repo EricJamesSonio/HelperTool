@@ -605,7 +605,39 @@ window.addEventListener('DOMContentLoaded', async () => {
       loadShortcutConfig();
     });
 });
+
+// ── Requirements Library: navbar button + F5 toggle ──────────────────────────
+
+const reqShortcutState = { bound: false };
+
+async function toggleReqLibrary() {
+  try {
+    const mod = await import('./reqLibrary.js');
+    if (mod.isOpen()) {
+      mod.close();
+      return;
+    }
+    closeAllPanels();
+    await mod.open();
+  } catch (err) {
+    console.error('[UI] Requirements Library:', err);
+  }
+}
+
+function bindReqLibraryShortcut() {
+  if (reqShortcutState.bound) return;
+  reqShortcutState.bound = true;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'F5' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+    if (document.body.classList.contains('ide-mode')) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    toggleReqLibrary();
+  }, true);
+}
+
 function initReqLibraryButton() {
+  bindReqLibraryShortcut();
   if (document.getElementById('reqLibraryBtn')) return;
   const anchor = document.getElementById('essentialsBtn');
   const host = anchor ? anchor.parentElement : document.querySelector('.navbar-row--primary .navbar-section.right');
@@ -614,22 +646,15 @@ function initReqLibraryButton() {
   const btn = document.createElement('button');
   btn.id = 'reqLibraryBtn';
   btn.className = 'tool-btn';
-  btn.title = 'Requirements Library';
+  btn.title = 'Requirements Library (F5)';
   btn.setAttribute('aria-label', 'Requirements Library');
   btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>';
 
   if (anchor) host.insertBefore(btn, anchor);
   else host.appendChild(btn);
 
-  btn.addEventListener('click', async () => {
-    try {
-      const mod = await import('./reqLibrary.js');
-      if (mod.isOpen()) { mod.close(); return; }
-      closeAllPanels();
-      await mod.open();
-    } catch (err) {
-      console.error('[UI] Requirements Library:', err);
-    }
+  btn.addEventListener('click', () => {
+    toggleReqLibrary();
   });
 }
 

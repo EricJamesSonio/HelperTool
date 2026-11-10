@@ -375,6 +375,7 @@ function resetUi() {
 // ---- page lifecycle --------------------------------------------------------
 
 export function isOpen() {
+  if (_open && _panel && !_panel.classList.contains('open')) _open = false;
   return _open;
 }
 
@@ -390,7 +391,7 @@ async function refresh() {
 }
 
 export async function open() {
-  if (_open) return;
+  if (isOpen()) return;
   ensureStyles();
   if (!_panel) buildPanel();
   layoutBox();
@@ -400,7 +401,7 @@ export async function open() {
 }
 
 export function close() {
-  if (!_open) return;
+  if (!_panel) return;
   _panel.classList.remove('open');
   _open = false;
   const modal = _panel.querySelector('#rlModal');
