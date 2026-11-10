@@ -5,6 +5,7 @@ const path = require('path');
 const FILES = ['README.md', 'UI-Preview.md'];
 const MAX_ASSET_BYTES = 20 * 1024 * 1024;
 const MAX_NEW_IMAGES = 60;
+const MAX_DESC_LENGTH = 600;
 const IMG_MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -182,6 +183,15 @@ function oneLine(s) {
   return String(s || '').replace(/[\r\n]+/g, ' ').replace(/[\[\]]/g, '').trim();
 }
 
+function cleanDescription(s) {
+  let text = String(s || '').replace(/\s+/g, ' ').trim();
+  if (text.length > MAX_DESC_LENGTH) text = text.slice(0, MAX_DESC_LENGTH).trim();
+  if (text && /^(?:[#>|!`~*+-]|\d+[.)]\s|\[|_{3,})/.test(text)) {
+    text = '\u200B' + text;
+  }
+  return text;
+}
+
 function prepareImages(images) {
   const prepared = [];
   for (let i = 0; i < images.length; i++) {
@@ -199,6 +209,7 @@ function prepareImages(images) {
     prepared.push({
       name: '1.' + (i + 1) + '.' + ext,
       caption: oneLine(img.caption) || 'Screenshot ' + (i + 1),
+      description: cleanDescription(img.description),
       buf,
     });
   }
@@ -213,6 +224,7 @@ function buildPreviewMd(num, label, id, prepared) {
   prepared.forEach((p) => {
     lines.push('- [' + p.caption + ']', '');
     lines.push('![Version ' + num + ' UI](../assets/' + id + '/' + p.name + ')', '');
+    if (p.description) lines.push(p.description, '');
   });
   lines.push('---', '');
   return lines.join('\n');
