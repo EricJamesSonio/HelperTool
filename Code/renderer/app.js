@@ -15,7 +15,7 @@ import {
 } from './filterManager.js';
 
 import { setupSearch } from './searchManager.js';
-
+import './app_manager/repoTabs.js';
 import {
     initShortcutMode
 } from './shortcutMode.js';
