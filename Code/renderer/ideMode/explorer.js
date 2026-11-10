@@ -704,18 +704,33 @@ async function runAction(act, forcedTarget) {
   if (!state.selectedRepoPath) return;
   const mod = await import('../codebaseManager.js');
   const target = forcedTarget || targetFolder();
-  const before = cache.get(target);
-  const known = new Set(before ? before.entries.map((x) => x.name) : []);
   const isFile = act === 'newfile';
+  const known = new Set();
+  let knownOk = false;
+  if (isFile) {
+    try {
+      const res = await window.ideAPI.readDir(target);
+      if (res && res.success) {
+        (res.entries || []).forEach((x) => known.add(x.name));
+        knownOk = true;
+      }
+    } catch (_) {
+      knownOk = false;
+    }
+  }
   const done = () => {
     expanded.add(target);
     saveExpanded();
     cache.delete(target);
     renderTree();
-    if (!before || !isFile) return;
+    if (!isFile) return;
     loadDir(target).then((dir) => {
-      const names = dir.entries.filter((x) => x.type === 'file' && !known.has(x.name)).map((x) => x.name);
-      document.dispatchEvent(new CustomEvent('ide:files-created', { detail: { names } }));
+      const fresh = dir.entries.filter((x) => x.type === 'file' && !known.has(x.name));
+      document.dispatchEvent(new CustomEvent('ide:files-created', { detail: { names: fresh.map((x) => x.name) } }));
+      if (knownOk && fresh.length && handlers.onOpenFile) {
+        revealKey = pathKey(fresh[0].path);
+        handlers.onOpenFile(fresh[0].path);
+      }
     });
   };
   if (act === 'newfile') mod.openCreateFilesModal(target, done);
