@@ -23,6 +23,14 @@ async function ensureXterm() {
   xtermLoaded = true;
 }
 
+function injectRepoTabCss() {
+  if (document.getElementById('termRepoTabCss')) return;
+  const el = document.createElement('style');
+  el.id = 'termRepoTabCss';
+  el.textContent = '.terminal-tab.terminal-tab--other-repo{opacity:0.55;}.terminal-tab.terminal-tab--other-repo.active{opacity:1;}';
+  document.head.appendChild(el);
+}
+
 function monoFont() {
   try {
     const v = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim();
@@ -80,6 +88,7 @@ export default class TerminalUI {
 
   async init() {
     await ensureXterm();
+    injectRepoTabCss();
 
     this.shells = await window.electronAPI.terminalListShells();
     if (!this.shells || this.shells.length === 0) {
@@ -129,7 +138,7 @@ export default class TerminalUI {
       <div class="terminal-resize-handle"></div>
       <div class="terminal-tabs" id="terminalTabs">
         <div class="terminal-tabs-left">
-          <button class="terminal-tab-add" id="terminalTabAdd" title="Left-click: new terminal · Right-click: select shell">
+          <button class="terminal-tab-add" id="terminalTabAdd" title="Left-click: new terminal \u00b7 Right-click: select shell">
             <span class="terminal-tab-add-icon">${ICON_PLUS}</span>
             <span class="terminal-tab-add-label">${this._selectedShell.name}</span>
             <span class="terminal-tab-add-chevron">${ICON_CHEVRON}</span>
@@ -305,23 +314,23 @@ export default class TerminalUI {
     this._docked = false;
   }
 
+  _markRepoTabs() {
+    const current = normRepoKey(this._lastCwd);
+    for (const inst of this.instances.values()) {
+      const base = inst.repo || inst.cwd;
+      if (!base || !inst.tab) continue;
+      const k = normRepoKey(base);
+      const mine = !current || k === current || k.indexOf(current + '/') === 0;
+      inst.tab.classList.toggle('terminal-tab--other-repo', !mine);
+      const name = repoBaseName(base);
+      inst.tab.title = (name ? name + ' - ' : '') + String(base);
+    }
+  }
+
   _disposeForeign(repoPath) {
     if (!repoPath) return;
-    const key = normRepoKey(repoPath);
-    const doomed = [];
-    for (const [id, inst] of this.instances) {
-      const base = inst.repo || inst.cwd;
-      if (!base) continue;
-      const k = normRepoKey(base);
-      const same = inst.repo ? k === key : (k === key || k.indexOf(key + '/') === 0);
-      if (!same) doomed.push(id);
-    }
-    for (const id of doomed) this._killTerminal(id, true);
-    if (doomed.length && !this.instances.has(this.activeId)) {
-      const next = this.instances.keys().next();
-      this.activeId = next.done ? null : next.value;
-      if (this.activeId !== null) this._activateTerminal(this.activeId);
-    }
+    this._lastCwd = repoPath;
+    this._markRepoTabs();
   }
 
   async _ensureRepoTerminal(repoPath) {
@@ -434,8 +443,13 @@ export default class TerminalUI {
   async _addTerminal(cwd, shell, repo) {
     const id = this.nextId++;
     const useShell = shell || this._selectedShell || this.shells[0];
-    const label = repo ? `${useShell.name} · ${repoBaseName(repo)}` : undefined;
-    await this._addTerminalInstance(id, cwd, useShell, label, repo || null);
+    let owner = repo || null;
+    if (!owner && cwd && this._lastCwd && normRepoKey(cwd) === normRepoKey(this._lastCwd)) {
+      owner = cwd;
+    }
+    const label = owner ? `${useShell.name} \u00b7 ${repoBaseName(owner)}` : undefined;
+    await this._addTerminalInstance(id, cwd, useShell, label, owner);
+    this._markRepoTabs();
   }
 
   async _addTerminalInstance(id, cwd, useShell, label, repo) {
@@ -636,13 +650,13 @@ export default class TerminalUI {
     const entries = this._parseBufferToEntries(content);
     if (entries.length > 0) {
       showOutputViewer({
-        title: `${shellName} — Output`,
+        title: `${shellName} \u2014 Output`,
         entries,
         language: 'terminal'
       });
     } else {
       showOutputViewer({
-        title: `${shellName} — Output`,
+        title: `${shellName} \u2014 Output`,
         content,
         command: command || undefined,
         language: 'terminal'
@@ -708,6 +722,7 @@ export default class TerminalUI {
     }
   }
 }
+
 const _exitedIds = new Set();
 try {
   if (window.electronAPI && window.electronAPI.onTerminalExit) {
