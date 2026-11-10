@@ -8,6 +8,14 @@ function loadProvider() {
   return 'opencode';
 }
 
+function loadModalView() {
+  try {
+    return localStorage.getItem('helpertool-cs-modal') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
 export const state = {
   open: false,
 
@@ -39,6 +47,9 @@ export const state = {
 
   // Sidebar
   sidebarCollapsed: false,
+
+  // Show Code Swamp in the modal even when parallel mode is off
+  modalView: loadModalView(),
 
   // Last sent message text (used by session detection for title)
   lastSentMessage: null,

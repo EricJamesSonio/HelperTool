@@ -4,6 +4,7 @@ import { openTerminalForRepo } from './chat.js';
 import {
   fitActiveTerminal,
   getActiveSlots, getFreeSlot, getNextFreeSlot, killSlot, activateSlot, setParallelConfig,
+  getSlotForRepo,
 } from './terminalManager.js';
 import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
@@ -15,14 +16,14 @@ export function renderShellSelect() {
   if (!select) return;
   select.innerHTML = '';
 
-const shells = state.terminalShells && state.terminalShells.length > 0
-  ? state.terminalShells
-  : [
-      { name: 'PowerShell (powershell.exe)', cmd: 'powershell.exe', args: ['-NoLogo', '-NoExit'] },
-      { name: 'Command Prompt (cmd.exe)', cmd: 'cmd.exe', args: [] },
-      { name: 'Git Bash (bash.exe)', cmd: 'bash.exe', args: [] },
-      { name: 'WSL / Ubuntu (wsl.exe)', cmd: 'wsl.exe', args: [] },
-    ];
+  const shells = state.terminalShells && state.terminalShells.length > 0
+    ? state.terminalShells
+    : [
+        { name: 'PowerShell (powershell.exe)', cmd: 'powershell.exe', args: ['-NoLogo', '-NoExit'] },
+        { name: 'Command Prompt (cmd.exe)', cmd: 'cmd.exe', args: [] },
+        { name: 'Git Bash (bash.exe)', cmd: 'bash.exe', args: [] },
+        { name: 'WSL / Ubuntu (wsl.exe)', cmd: 'wsl.exe', args: [] },
+      ];
 
   for (const shell of shells) {
     const opt = document.createElement('option');
@@ -48,7 +49,6 @@ export function getSelectedShell() {
     state.selectedShell = s.cmd + '|' + (s.args || []).join('||');
   }
 
-  // Fallback default
   if (!state.selectedShell) {
     return { cmd: 'powershell.exe', args: ['-NoLogo', '-NoExit'] };
   }
@@ -57,7 +57,6 @@ export function getSelectedShell() {
   const cmd = parts[0];
   const rawArgs = parts.slice(1).filter(Boolean).map(a => a.replace(/\|\|/g, ' '));
 
-  // Always ensure -NoExit for powershell so it doesn't quit immediately
   if (cmd.toLowerCase().includes('powershell')) {
     const args = rawArgs.filter(a => a.trim());
     if (!args.includes('-NoExit')) args.push('-NoExit');
@@ -112,7 +111,7 @@ export function renderSidebarToggle() {
     const main = document.getElementById('ocMain');
     if (sidebar) sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
     if (main) main.classList.toggle('expanded', state.sidebarCollapsed);
-    if (btn) btn.textContent = state.sidebarCollapsed ? '▶' : '◀';
+    if (btn) btn.textContent = state.sidebarCollapsed ? '\u25b6' : '\u25c0';
   });
 
   const main = document.getElementById('ocMain');
@@ -129,7 +128,6 @@ export async function refreshSidebar(forceLoading = false) {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  // Step 1: Show cached data from local store immediately, or loading if requested
   const localConvs = convStore.getConversations(repoPath);
   if (localConvs.length === 0 || forceLoading) {
     renderConvList(true);
@@ -139,7 +137,6 @@ export async function refreshSidebar(forceLoading = false) {
     renderConvList();
   }
 
-  // Step 2: Sync with IPC to pick up any conversations from external sources
   const beforeSnapshot = JSON.stringify(state.conversations[repoPath]?.map(c => c.id + c.title));
   const result = await listConversations(repoPath, state.selectedProvider);
   const serverConvs = result.conversations;
@@ -147,7 +144,6 @@ export async function refreshSidebar(forceLoading = false) {
   if (serverConvs.length > 0) {
     convStore.mergeConversations(repoPath, serverConvs);
     const serverIds = new Set(serverConvs.map(c => c.id));
-    // Prune stale entries from store (non-local_ conversations that no longer exist on the server)
     const allStored = convStore.getConversations(repoPath);
     for (const c of allStored) {
       if (!c.id.startsWith('local_') && !serverIds.has(c.id)) {
@@ -170,7 +166,6 @@ export async function refreshSidebar(forceLoading = false) {
 
   if (!state.messages[repoPath]) state.messages[repoPath] = [];
 
-  // Step 3: Only re-render if data actually changed
   const afterSnapshot = JSON.stringify(state.conversations[repoPath]?.map(c => c.id + c.title));
   if (beforeSnapshot !== afterSnapshot) renderConvList();
 }
@@ -179,7 +174,6 @@ export async function loadConversation(convId) {
   const repoPath = state.activeTab;
   if (!repoPath) return;
 
-  // Store this conversation locally so the sidebar shows it even if IPC is unavailable
   const existing = (state.conversations[repoPath] || []).find(c => c.id === convId);
   if (existing) {
     convStore.addConversation(repoPath, existing);
@@ -191,10 +185,8 @@ export async function loadConversation(convId) {
       provider: state.selectedProvider,
     });
   }
-  // Bump to top — loaded conversations are recently used
   convStore.touchConversation(repoPath, convId);
 
-  // Validate session still exists on the server side (skip local_ artificial entries)
   if (!convId.startsWith('local_')) {
     const knownConvs = state.conversations[repoPath];
     if (knownConvs && knownConvs.length > 0) {
@@ -215,11 +207,20 @@ export async function loadConversation(convId) {
     const lc = getLoadingController();
     lc.start('Loading conversation...');
 
-    // Kill only the active slot so other sessions are preserved
-    killSlot(state.activeSlotIndex);
+    let slot = getSlotForRepo(repoPath);
+    if (slot >= 0) {
+      killSlot(slot);
+    } else {
+      slot = getNextFreeSlot();
+    }
+    if (slot < 0) {
+      lc.hide();
+      return;
+    }
+    state.activeSlotIndex = slot;
 
     try {
-      await openTerminalForRepo(repoPath, state.activeSlotIndex);
+      await openTerminalForRepo(repoPath, slot);
     } catch (e) {
       console.error('[CS] loadConversation error:', e);
       lc.hide();
@@ -228,7 +229,6 @@ export async function loadConversation(convId) {
     return;
   }
 
-  // Parallel mode
   const slots = getActiveSlots();
   const existingSlot = slots.findIndex(s => s && s.convId === convId);
   if (existingSlot >= 0) {
@@ -252,7 +252,6 @@ export async function loadConversation(convId) {
     return;
   }
 
-  // All slots full — show replace dialog
   const picked = await showReplaceDialog();
   if (picked === null) {
     renderConvList();
@@ -277,7 +276,6 @@ export async function startNewChat() {
 
   state.lastSentMessage = null;
 
-  // In parallel mode, stay within slot limits; in single mode, grow dynamically
   const freeSlot = state.parallelMode ? getFreeSlot() : getNextFreeSlot();
   if (freeSlot >= 0) {
     state.activeConvId[repoPath] = null;
@@ -335,6 +333,8 @@ export function renderParallelModeControls() {
   const existing = document.getElementById('ocParallelSettings');
   if (existing) existing.remove();
 
+  const modalOn = state.parallelMode || state.modalView;
+
   const div = document.createElement('div');
   div.className = 'oc-term-settings';
   div.id = 'ocParallelSettings';
@@ -351,22 +351,44 @@ export function renderParallelModeControls() {
         <option value="4" ${state.parallelSlots === 4 ? 'selected' : ''}>4</option>
       </select>
     </div>
+    <label class="oc-settings-label" style="margin-top:8px">Window</label>
+    <div class="oc-parallel-row">
+      <label class="oc-toggle" title="Show Code Swamp in a modal instead of the sidebar dock">
+        <input type="checkbox" id="ocModalToggle" ${modalOn ? 'checked' : ''} ${state.parallelMode ? 'disabled' : ''}>
+        <span class="oc-toggle-slider"></span>
+      </label>
+      <span class="oc-settings-label" style="margin:0;text-transform:none;letter-spacing:0">Open in modal</span>
+    </div>
   `;
 
   container.after(div);
 
   const toggle = document.getElementById('ocParallelToggle');
   const select = document.getElementById('ocParallelSelect');
+  const modalToggle = document.getElementById('ocModalToggle');
 
   toggle.addEventListener('change', () => {
     const mode = toggle.checked;
     select.disabled = !mode;
+    if (modalToggle) {
+      modalToggle.disabled = mode;
+      modalToggle.checked = mode || state.modalView;
+    }
     setParallelConfig(mode, Number(select.value));
   });
 
   select.addEventListener('change', () => {
     setParallelConfig(true, Number(select.value));
   });
+
+  if (modalToggle) {
+    modalToggle.addEventListener('change', () => {
+      state.modalView = modalToggle.checked;
+      try {
+        localStorage.setItem('helpertool-cs-modal', modalToggle.checked ? '1' : '0');
+      } catch (_) {}
+    });
+  }
 }
 
 export async function refreshSidebarAfterDelay(delay = 1500) {
@@ -374,4 +396,3 @@ export async function refreshSidebarAfterDelay(delay = 1500) {
     await refreshSidebar();
   }, delay);
 }
-

@@ -15,19 +15,21 @@ let _refreshInterval = null;
 
 export async function initCodeSwampUI() {
   console.log('[CS] initCodeSwampUI start');
-  if (_initialized) { console.log('[CS] initCodeSwampUI already initialized, return'); return; }
+  if (_initialized) {
+    console.log('[CS] initCodeSwampUI already initialized, return');
+    return;
+  }
   _initialized = true;
 
-let panel = document.getElementById('ocPanel');
-if (!panel || !panel.querySelector('.oc-header')) {
-  // If panelFactory already created an empty placeholder, remove it first
-  if (panel) panel.remove();
-  const container = document.getElementById('ocPanelContainer') || document.body;
-  container.insertAdjacentHTML('beforeend', getTemplate('content'));
-  console.log('[CS] template inserted');
-}
+  const panel = document.getElementById('ocPanel');
+  if (!panel || !panel.querySelector('.oc-header')) {
+    if (panel) panel.remove();
+    const container = document.getElementById('ocPanelContainer') || document.body;
+    container.insertAdjacentHTML('beforeend', getTemplate('content'));
+    console.log('[CS] template inserted');
+  }
 
-  getLoadingController(); // warm up loading controller singleton
+  getLoadingController();
   renderAIProviderSelect();
   renderParallelModeControls();
   renderSidebarToggle();
@@ -36,14 +38,9 @@ if (!panel || !panel.querySelector('.oc-header')) {
   renderInput();
   setupTerminalDataHandler();
 
-  // When terminal output contains a session ID, track the active conversation.
-  // If we just sent a message, store it with the message text as title.
-  // For loaded conversations (no lastSentMessage), the conversation is already stored
-  // by loadConversation() — skip to avoid overwriting. New chats get a default title.
   setOnSessionDetected((sessionId, repoPath, slotIndex) => {
     state.activeConvId[repoPath] = sessionId;
 
-    // Track the session in slotData so the sidebar can map it to a slot
     if (state.parallelMode && slotIndex !== undefined) {
       state.slotData[slotIndex] = { repoPath, convId: sessionId };
     }
@@ -80,10 +77,8 @@ if (!panel || !panel.querySelector('.oc-header')) {
     }
   });
 
-  // Init xterm.js (async, fire-and-forget)
   initXterm().catch(e => console.error('[CS] xterm init error:', e));
 
-  // Discover opencode binary path in background — don't block UI init
   discoverOpencode().then(info => {
     if (info) {
       state.opencodePath = info.binaryPath;
@@ -91,7 +86,6 @@ if (!panel || !panel.querySelector('.oc-header')) {
     }
   }).catch(() => {});
 
-  // Load active repo
   const activeRepo = await getActiveRepoPath();
   console.log('[CS] activeRepo:', activeRepo);
   if (activeRepo) {
@@ -99,19 +93,16 @@ if (!panel || !panel.querySelector('.oc-header')) {
     console.log('[CS] addRepo done, activeTab:', state.activeTab);
   }
 
-  // Listen for repo switches
   document.addEventListener('repo:switched', async (e) => {
     const { repoPath } = e.detail;
     if (!repoPath) return;
-    state.activeTab = repoPath;
-    showWelcome();
+    await addRepo(repoPath);
     clearFilePickerCache();
     if (state.activeTab) {
       await refreshSidebar();
     }
   });
 
-  // Defer slow non-blocking tasks (shells, repo list, refresh interval)
   setTimeout(async () => {
     try {
       const repos = await listRepos();
@@ -144,7 +135,7 @@ if (!panel || !panel.querySelector('.oc-header')) {
 
 function setupDom() {
   const newChatBtn = document.getElementById('ocNewChatBtn');
-  console.log('[CS] setupDom — ocNewChatBtn found:', !!newChatBtn);
+  console.log('[CS] setupDom - ocNewChatBtn found:', !!newChatBtn);
   newChatBtn?.addEventListener('click', startNewChat);
   document.getElementById('ocRefreshBtn')?.addEventListener('click', () => refreshSidebar(true));
   document.getElementById('ocCloseBtn')?.addEventListener('click', closeCodeSwampUI);
@@ -157,8 +148,8 @@ function setupDom() {
         overlay.style.display = 'none';
         return;
       }
-      const panel = document.getElementById('ocPanel');
-      if (panel && panel.classList.contains('open')) closeCodeSwampUI();
+      const panelEl = document.getElementById('ocPanel');
+      if (panelEl && panelEl.classList.contains('open')) closeCodeSwampUI();
     }
   });
 }

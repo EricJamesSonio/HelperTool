@@ -10,8 +10,20 @@ import { openStonePanel } from './stonePanel.js';
 import { openPlanningPanel } from './planningPanel.js';
 import { openBuildKitPanel } from './buildKitPanel.js';
 import { open, close as closePicker, isOpen, selectNext, selectPrev, confirmSelection, ensureTreeLoaded, getCachedFiles } from './filePicker.js';
-import { getSlotForRepo, pickSlotForRepo, revealTerminalForRepo, awaitPrewarm, waitForTerminalBoot } from './terminalManager.js';
+import { getSlotForRepo, pickSlotForRepo, revealTerminalForRepo, awaitPrewarm, waitForTerminalBoot, getTerminalInstances, getFreeSlot } from './terminalManager.js';
 
+function slotForSend(repoPath) {
+  if (!state.parallelMode) return pickSlotForRepo(repoPath);
+  const insts = getTerminalInstances();
+  const act = insts[state.activeSlotIndex];
+  if (act && act.repoPath === repoPath) return state.activeSlotIndex;
+  const own = getSlotForRepo(repoPath);
+  if (own >= 0) return own;
+  if (!act) return state.activeSlotIndex;
+  const free = getFreeSlot();
+  if (free >= 0) return free;
+  throw new Error('All parallel slots are used by other repos');
+}
 
 function extractFilePathsFromText(text) {
   const knownPaths = getCachedFiles().map(f => f.path);
@@ -144,7 +156,7 @@ function renderPendingFiles() {
   for (const f of state.pendingFiles) {
     const chip = document.createElement('span');
     chip.className = 'oc-file-chip oc-file-chip-pending';
-    chip.innerHTML = `${f.name} <span class="oc-file-chip-remove" data-path="${f.path}">✕</span>`;
+    chip.innerHTML = `${f.name} <span class="oc-file-chip-remove" data-path="${f.path}">\u2715</span>`;
     chip.querySelector('.oc-file-chip-remove').addEventListener('click', () => {
       state.pendingFiles = state.pendingFiles.filter(p => p.path !== f.path);
       renderPendingFiles();
@@ -175,7 +187,6 @@ async function sendMessage() {
     const repoPath = state.activeTab;
     if (!repoPath) return;
 
-    // Reset stale streaming flag — it gets stuck if a previous run crashed
     if (state.streaming) {
       console.warn('[CS] sendMessage: stale streaming=true, forcing reset');
       state.streaming = false;
@@ -183,7 +194,6 @@ async function sendMessage() {
 
     state.lastSentMessage = text;
 
-    // Disable send button while sending
     const sendBtn = document.getElementById('ocSendBtn');
     if (sendBtn) {
       sendBtn.disabled = true;
@@ -192,7 +202,7 @@ async function sendMessage() {
 
     await awaitPrewarm(repoPath);
 
-    let slotIndex = state.parallelMode ? state.activeSlotIndex : pickSlotForRepo(repoPath);
+    let slotIndex = slotForSend(repoPath);
     if (!hasTerminalSession(repoPath)) {
       await openTerminalForRepo(repoPath, slotIndex);
     } else if (!state.parallelMode) {
@@ -201,31 +211,25 @@ async function sendMessage() {
     if (!state.parallelMode) {
       state.activeSlotIndex = slotIndex;
       revealTerminalForRepo(repoPath);
+    } else {
+      state.activeSlotIndex = slotIndex;
     }
 
-    // Wait until opencode has finished loading behind the loading cover
     await waitForTerminalBoot(repoPath, slotIndex);
 
-    // If shell prompt is visible (opencode exited), restart it first
     if (isShellPrompt(repoPath, slotIndex)) {
       await restartOpencode(repoPath, slotIndex);
     }
 
-    // Wait until opencode confirms it's reading stdin
     await waitForTerminalOpencode(repoPath, slotIndex);
 
-    // Wrap in bracketed paste escape sequences so opencode recognizes
-    // this as a paste (same as if the user pasted directly into xterm.js)
     const pasted = `\x1b[200~${text}\x1b[201~`;
     await writeToSlot(slotIndex, pasted);
 
-    // Auto-accept opencode's paste warning dialog (Warning... Continue? y/N)
     await acceptPasteWarning(repoPath, slotIndex);
 
-    // Wait for opencode to finalize the pasted input before submitting
     await new Promise(r => setTimeout(r, 800));
 
-    // Submit
     await writeToSlot(slotIndex, '\r');
 
     input.value = '';
@@ -233,7 +237,6 @@ async function sendMessage() {
     state.pendingFiles = [];
     renderPendingFiles();
 
-    // Update conversation title immediately if still "New Chat"
     const activeConv = state.activeConvId[repoPath];
     if (activeConv) {
       const convs = convStore.getConversations(repoPath);
@@ -269,7 +272,6 @@ async function sendMessage() {
     }
   }
 }
-
 
 let _primeBusy = false;
 
