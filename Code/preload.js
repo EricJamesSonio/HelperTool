@@ -919,3 +919,13 @@ contextBridge.exposeInMainWorld('versionsAPI', {
 contextBridge.exposeInMainWorld('versionsEditAPI', {
   create: (payload) => ipcRenderer.invoke('versions:create', payload),
 });
+contextBridge.exposeInMainWorld('hibernateAPI', {
+  getState: () => ipcRenderer.invoke('hibernate:getState'),
+  setAfter: (sec) => ipcRenderer.invoke('hibernate:setAfter', sec),
+  wake: () => ipcRenderer.invoke('hibernate:wake'),
+  feature: (id, action) => ipcRenderer.invoke('hibernate:feature', { id, action }),
+  onState: (callback) => {
+    ipcRenderer.removeAllListeners('hibernate:state');
+    ipcRenderer.on('hibernate:state', (_event, data) => callback(data));
+  },
+});

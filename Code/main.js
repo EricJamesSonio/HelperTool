@@ -12,7 +12,7 @@ process.on('unhandledRejection', (reason) => {
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, screen } = require('electron');
 const path = require('path');
 
-// ── IPC timing wrapper (Phase 0 instrumentation) ──
+// -- IPC timing wrapper (Phase 0 instrumentation) --
 const _origHandle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = function (channel, handler) {
   return _origHandle(channel, async (event, ...args) => {
@@ -117,7 +117,7 @@ if (!gotTheLock) {
     // Keep the indexer off from the start when no enabled feature needs it
     if (!indexerWanted(readFeatures())) indexerProxy.stop();
 
-    // Indexer + prefetch — deferred until first repo selection (or 15s fallback)
+    // Indexer + prefetch - deferred until first repo selection (or 15s fallback)
     let _indexerStarted = false;
     const startIndexerAndPrefetch = (repoPath) => {
       if (_indexerStarted) return;
@@ -141,7 +141,7 @@ if (!gotTheLock) {
       console.error('[Tray] createTray failed:', e);
     }
 
-    // ── Start DB init before window creation ──
+    // -- Start DB init before window creation --
     // Each init*Db yields internally before sync I/O, so the event loop
     // processes renderer IPC between them. Running in parallel lets them
     // all start their async file reads concurrently.
@@ -151,10 +151,10 @@ if (!gotTheLock) {
       initErrorCopDb(app),
     ]);
 
-    // ── Worker fork (non-blocking) ──
+    // -- Worker fork (non-blocking) --
     workerProxy.start();
 
-    // ── Create window ──
+    // -- Create window --
     createWindow();
     serviceTrackerIpc.setWindow(mainWindow);
 
@@ -362,6 +362,12 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
+  try {
+    require('./ipc/hibernate.js').attach(mainWindow);
+  } catch (e) {
+    console.error('[Hibernate] attach failed:', e);
+  }
+
   // Immediately size to the display's workArea to avoid the frameless
   // maximize overflow bug on Windows (invisible resize-border padding
   // pushes content past visible screen area).
@@ -383,7 +389,7 @@ function createWindow() {
     mainWindow.webContents.setFrameRate(60);
   });
 
-  // Power save when hidden to tray (close button → hide → tray)
+  // Power save when hidden to tray (close button -> hide -> tray)
   mainWindow.on('hide', () => {
     mainWindow.webContents.setFrameRate(1);
   });
