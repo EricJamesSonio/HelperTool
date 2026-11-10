@@ -1,0 +1,103 @@
+const { def } = require('./helpers.js');
+
+module.exports = [
+    def('utility-helpers', 'Shared Utilities & Helpers', 'Small, pure, typed helper functions kept in one clear place so nothing is written twice.', 'Frontend', 'Utils', ['utils', 'helpers', 'shared', 'clean'], [], ['frontend-folder-structure', 'component-build-standards'], [
+        ['a', 'm', 'One home for helpers', 'Helpers live in clearly named utility files grouped by purpose (dates, money, text, arrays). Search the project before adding a new one.'],
+        ['f', 'm', 'Pure and focused', 'Each helper does one thing, has no hidden side effects and returns the same result for the same input.'],
+        ['f', 'm', 'Typed and documented', 'Give every helper explicit input and output types and a one-line description of what it does.'],
+        ['d', 's', 'Formatting in one place', 'Dates, currency, numbers and units are formatted by shared helpers that use one locale and time zone policy.'],
+        ['s', 's', 'Safe parsing', 'Parsing helpers validate input and fail with a clear, handled error instead of throwing raw exceptions.'],
+        ['a', 'd', 'No catch-all files', 'Do not create a single huge misc file. Split by purpose and keep each file small.'],
+        ['t', 's', 'Tests with edge cases', 'Test normal values, empty values, boundaries and invalid input for every helper.'],
+        ['c', 'm', 'Verified', 'No duplicated helper exists, every helper is typed and tested, and components import them from the shared location.'],
+    ]),
+
+    def('backend-request-pipeline', 'Request Pipeline (Middleware)', 'An ordered chain of steps every request passes through before and after the business logic.', 'Backend', 'Pipelines', ['middleware', 'pipeline', 'requests'], [], ['rest-endpoint', 'authentication', 'rbac', 'backend-error-logging'], [
+        ['a', 'm', 'Ordered pipeline', 'Each cross-cutting concern is one step in one ordered chain, defined in a single place and reused by every route.'],
+        ['a', 'm', 'Fixed order', 'Document the order, for example: request id, logging, rate limit, authentication, authorization, input validation, handler, response shaping, error handler.'],
+        ['s', 'm', 'Access before logic', 'Authentication and authorization run before any business logic or data access.'],
+        ['s', 'm', 'Validate every input', 'Validate body, query and parameters against a schema and reject unknown or invalid data with a clear error.'],
+        ['e', 'm', 'One error handler', 'A single final step turns every failure into the shared error format and hides internal details.'],
+        ['s', 's', 'Rate limits', 'Apply limits per user and per address, stricter on sensitive routes.'],
+        ['f', 's', 'Request id and tracing', 'Create a request id at the start, include it in logs and error responses.'],
+        ['a', 's', 'Thin handlers', 'Handlers only translate the request and call services. Business logic lives in services.'],
+        ['f', 'd', 'Timeouts and size limits', 'Set request body size and time limits so one request cannot hold the server.'],
+        ['s', 'd', 'Headers and origins', 'Set security headers and allow only the origins that need access.'],
+        ['t', 'd', 'Tests', 'Test each step alone and the full order, including a rejected request at every step.'],
+        ['c', 'm', 'Verified', 'Every route goes through the same ordered pipeline, unauthorized or invalid requests never reach the handler, and all failures use one error format.'],
+    ]),
+
+    def('backend-error-logging', 'Error Handling & Logging', 'One consistent way to raise, handle and log errors across the whole backend.', 'Backend', 'Globals', ['errors', 'logging', 'observability'], [], ['backend-request-pipeline', 'rest-endpoint'], [
+        ['e', 'm', 'Typed application errors', 'Use a small set of error types (validation, not found, forbidden, conflict, unexpected) that each carry a code, message and status.'],
+        ['e', 'm', 'No internal leaks', 'Never return stack traces, query errors or internal paths. Log the detail on the server and return a safe message.'],
+        ['f', 'm', 'Structured logs', 'Log as structured entries with level, time, request id, message and context.'],
+        ['e', 's', 'Central handling', 'Handle errors in one place instead of repeating try and catch blocks in every route.'],
+        ['f', 's', 'Meaningful levels', 'Use levels consistently (debug, info, warn, error) and keep noisy details out of production.'],
+        ['e', 's', 'Unhandled failures', 'Catch unhandled errors at process level, log them and shut down cleanly.'],
+        ['s', 's', 'Redact sensitive data', 'Never log passwords, tokens, keys or personal data. Redact them before logging.'],
+        ['e', 'd', 'Alerting', 'Raise alerts on repeated or critical errors so problems are seen before users report them.'],
+        ['t', 'd', 'Tests', 'Test that each error type maps to the right status and message and that nothing internal leaks.'],
+        ['c', 'm', 'Verified', 'Every failure returns the shared error shape, logs carry a request id, and no secret appears in logs.'],
+    ]),
+
+    def('db-schema-migrations', 'Schema & Migrations', 'A clean database design where every change is a tracked, safe migration.', 'Database', 'Schema', ['database', 'schema', 'migrations'], [], ['db-queries', 'db-security'], [
+        ['a', 'm', 'Changes only through migrations', 'Every schema change is a versioned migration committed with the code. Never edit the database by hand.'],
+        ['d', 'm', 'Rules in the database', 'Use primary keys, foreign keys, unique and not-null constraints and checks so bad data is blocked at the lowest level.'],
+        ['a', 's', 'Naming conventions', 'Use consistent, descriptive names for tables, columns, keys and indexes and follow the existing convention.'],
+        ['d', 's', 'Correct types', 'Use exact types for money (never floating point), store timestamps in UTC and choose sensible sizes and nullability.'],
+        ['d', 's', 'Audit columns', 'Add created and updated timestamps, and soft delete where records must be recoverable.'],
+        ['f', 's', 'Safe migrations', 'Make migrations small, reversible where possible, backward compatible with the running code and tested on a copy of real data.'],
+        ['d', 'd', 'Seed data', 'Keep seed and reference data in repeatable seed scripts that are safe to run twice.'],
+        ['d', 'x', 'Backups tested', 'Back up regularly and test restoring a backup.'],
+        ['c', 'm', 'Verified', 'A fresh database can be built from migrations alone, constraints block invalid data, and every migration runs cleanly on a copy of real data.'],
+    ]),
+
+    def('db-queries', 'Queries & Indexing', 'Fast, safe and predictable database access.', 'Database', 'Queries', ['database', 'queries', 'indexes', 'performance'], [], ['db-schema-migrations', 'list-endpoint'], [
+        ['s', 'm', 'Parameterized only', 'Build every query with parameters or the query builder. Never join user input into query text.'],
+        ['p', 'm', 'Index what you filter and sort', 'Add indexes for columns used in filters, joins and sorting and remove indexes nothing uses.'],
+        ['p', 's', 'No repeated queries', 'Avoid one-query-per-row patterns by loading related data in one query or one batch.'],
+        ['p', 's', 'Only what is needed', 'Select only the columns you need and bound every list with a limit.'],
+        ['d', 's', 'Transactions for multi-step writes', 'Wrap related writes in a transaction so a failure leaves no partial data.'],
+        ['d', 'd', 'Concurrency safety', 'Use unique constraints, optimistic locking or idempotency keys to prevent races and duplicates.'],
+        ['p', 'd', 'Measure slow queries', 'Inspect query plans for slow queries, log them with their duration and set query timeouts.'],
+        ['p', 'x', 'Connection pooling', 'Use a connection pool with sensible limits and release connections reliably.'],
+        ['c', 'm', 'Verified', 'No query is built from raw user input, list queries are bounded and indexed, and multi-step writes are transactional.'],
+    ]),
+
+    def('db-security', 'Database Security', 'Protect stored data through access control, encryption and safe handling.', 'Database', 'Security', ['database', 'security', 'encryption', 'access'], [], ['db-schema-migrations', 'db-queries', 'rbac', 'devops-security'], [
+        ['s', 'm', 'Least privilege accounts', 'The application account has only the permissions it needs. No admin or superuser rights at runtime.'],
+        ['s', 'm', 'No secrets in code', 'Connection details come from configuration or a secret store, never from source code.'],
+        ['s', 'm', 'Encrypt in transit', 'Use encrypted connections between the application and the database.'],
+        ['s', 's', 'Protect sensitive data', 'Hash passwords with a slow adaptive algorithm, encrypt highly sensitive fields and never log them.'],
+        ['s', 's', 'Scoped queries', 'Apply tenant or owner scope inside the query so one user can never read another record.'],
+        ['s', 'd', 'Backups protected', 'Encrypt backups and restrict who can read or restore them.'],
+        ['s', 'd', 'Audit trail', 'Record who changed sensitive records, when and what changed.'],
+        ['d', 'd', 'Retention and deletion', 'Define how long data is kept and delete or anonymize it when the time is over.'],
+        ['s', 'x', 'Separate environments', 'Never use real production data in development or tests without masking it.'],
+        ['c', 'm', 'Verified', 'The app account is least-privilege, connections are encrypted, sensitive fields are protected, and no secret is stored in code.'],
+    ]),
+
+    def('devops-security', 'Secrets & Pipeline Security', 'Keep secrets, dependencies and the build and deploy process safe.', 'DevOps', 'Security', ['devops', 'security', 'secrets', 'dependencies'], [], ['ci-pipeline', 'db-security', 'env-switcher'], [
+        ['s', 'm', 'Secrets in a secret store', 'Keep secrets in the secret store of the platform, never in the repository, and rotate them on a schedule and after any exposure.'],
+        ['s', 'm', 'Least privilege access', 'Give tokens, service accounts and people only the access they need and for the shortest time.'],
+        ['s', 's', 'Dependency scanning', 'Scan dependencies for known vulnerabilities automatically and fix or replace risky ones.'],
+        ['s', 's', 'Locked versions', 'Commit lock files and pin versions so builds are repeatable and unexpected updates cannot slip in.'],
+        ['s', 's', 'Protected branches and reviews', 'Protect the main branch, require review and passing checks before merging.'],
+        ['s', 'd', 'Clean build artifacts', 'Keep build outputs minimal and make sure no secrets or source-only files end up inside them.'],
+        ['s', 'd', 'Separate environments', 'Keep development, staging and production separate, with their own credentials.'],
+        ['s', 'x', 'Audit and alerts', 'Log access to secrets and deployments and alert on unusual activity.'],
+        ['c', 'm', 'Verified', 'No secret exists in the repository, access is least-privilege, dependencies are scanned and locked, and main is protected.'],
+    ]),
+
+    def('ci-pipeline', 'CI Pipeline', 'Automated checks and builds that run the same way for everyone on every change.', 'DevOps', 'Pipelines', ['ci', 'pipeline', 'build', 'checks'], [], ['devops-security', 'env-switcher'], [
+        ['a', 'm', 'Same checks everywhere', 'Run the same lint, type check, tests and build locally and in CI, using the same commands.'],
+        ['a', 'm', 'Fail fast and block merges', 'Stop the pipeline on the first failing check and block merging until everything passes.'],
+        ['t', 's', 'Automated tests', 'Run the automated tests on every change and report the results clearly.'],
+        ['a', 's', 'Reproducible builds', 'Install from lock files, pin tool versions and cache dependencies so builds give the same result.'],
+        ['a', 's', 'Explicit deploy steps', 'Deployments are explicit per environment, with approval before production.'],
+        ['a', 'd', 'Rollback plan', 'Know and test how to go back to the previous version quickly.'],
+        ['p', 'd', 'Fast feedback', 'Run independent jobs in parallel and keep the common path fast.'],
+        ['e', 'd', 'Clear failure output', 'Failures show which step failed and why, without exposing secrets.'],
+        ['c', 'm', 'Verified', 'Every change runs the full set of checks, a failing check blocks the merge, and a build can be reproduced from the repository alone.'],
+    ]),
+];

@@ -19,10 +19,54 @@ const GROUP = {
     c: 'Acceptance Criteria',
 };
 
-const UI = ['web', 'offline', 'desktop', 'mobile', 'hybrid'];
-const APP = ['web', 'desktop', 'mobile', 'hybrid'];
-const WEB = ['web', 'hybrid'];
-const API = ['backend', 'hybrid'];
+// Kept so older preset files keep loading. Application types no longer exist.
+const UI = [];
+const APP = [];
+const WEB = [];
+const API = [];
+
+// Area and group for the presets defined in the older files.
+const PLACE = {
+    'design-tokens': ['Frontend', 'Globals'],
+    'theme-system': ['Frontend', 'Globals'],
+    'typography-fonts': ['Frontend', 'Globals'],
+    'search-bar': ['Frontend', 'Components'],
+    'button': ['Frontend', 'Components'],
+    'card': ['Frontend', 'Components'],
+    'data-table': ['Frontend', 'Components'],
+    'filter-dropdown': ['Frontend', 'Components'],
+    'period-calendar': ['Frontend', 'Components'],
+    'form-validation': ['Frontend', 'Components'],
+    'modal-dialog': ['Frontend', 'Components'],
+    'pagination': ['Frontend', 'Components'],
+    'analytics-charts': ['Frontend', 'Components'],
+    'page-header': ['Frontend', 'Layout'],
+    'navbar': ['Frontend', 'Layout'],
+    'sidebar': ['Frontend', 'Layout'],
+    'states-feedback': ['Frontend', 'Shared'],
+    'login-page': ['Frontend', 'Pages'],
+    'profile-page': ['Frontend', 'Pages'],
+    'landing-page': ['Frontend', 'Pages'],
+    'dashboard-page': ['Frontend', 'Pages'],
+    'sales-report': ['Frontend', 'Pages'],
+    'portal-framework': ['Frontend', 'Modules'],
+    'authentication': ['Backend', 'Security'],
+    'rbac': ['Backend', 'Security'],
+    'rest-endpoint': ['Backend', 'Endpoints'],
+    'list-endpoint': ['Backend', 'Endpoints'],
+    'report-endpoint': ['Backend', 'Endpoints'],
+};
+
+// Requirements that only made sense for one kind of application.
+const DROP_TITLES = new Set([
+    'Local searching',
+    'Connectivity changes',
+    'Title sync',
+    'No flash on load',
+    'Font loading',
+    'Avoid layout shift',
+    'URL state sync',
+]);
 
 function toRequirement(row) {
     return {
@@ -30,21 +74,20 @@ function toRequirement(row) {
         level: LEVEL[row[1]],
         title: row[2],
         description: row[3],
-        appTypes: row[4] || [],
     };
 }
 
 function def(key, name, description, category, subcategory, tags, appTypes, related, rows) {
+    const place = PLACE[key];
     return {
         key,
         name,
         description,
-        category,
-        subcategory,
+        category: place ? place[0] : category,
+        subcategory: place ? place[1] : subcategory,
         tags,
-        appTypes,
         related,
-        requirements: rows.map(toRequirement),
+        requirements: rows.filter((r) => !DROP_TITLES.has(r[2])).map(toRequirement),
     };
 }
 
