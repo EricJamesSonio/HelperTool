@@ -1,22 +1,32 @@
+body .app-titlebar .titlebar-repo,
+body .app-titlebar #activeRepoName {
+  display: none !important;
+}
+
+body .app-titlebar .titlebar-drag-area {
+  flex: 0 0 auto;
+}
+
 .repo-tabs-row {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  height: 34px;
-  flex: 0 0 34px;
-  padding: 0 10px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  user-select: none;
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: stretch;
+  padding: 0 8px 0 10px;
   overflow: hidden;
+  user-select: none;
+  -webkit-app-region: drag;
 }
 
 .rt-list {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  min-width: 0;
+  gap: 2px;
   flex: 0 1 auto;
+  min-width: 0;
+  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -27,51 +37,50 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  flex: 0 0 auto;
-  max-width: 260px;
-  height: 28px;
-  padding: 0 6px 0 10px;
-  border: 1px solid var(--border-subtle);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  background: var(--bg-elevated);
+  flex: 0 1 auto;
+  min-width: 70px;
+  max-width: 240px;
+  height: calc(100% - 5px);
+  padding: 0 6px 0 11px;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
   color: var(--text-muted);
   font: 600 12px var(--font-ui);
   white-space: nowrap;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
+  -webkit-app-region: no-drag;
 }
 .rt-tab:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 .rt-tab.master {
-  background: var(--bg-base);
+  background: var(--bg-surface);
   color: var(--text-primary);
-  border-color: var(--border-default);
 }
 .rt-tab.master::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 8px;
+  right: 8px;
   height: 2px;
-  border-radius: 8px 8px 0 0;
+  border-radius: 0 0 2px 2px;
   background: var(--accent);
 }
 .rt-tab.lookup {
+  background: rgba(96, 165, 250, 0.08);
   color: var(--text-primary);
-  border-color: rgba(96, 165, 250, 0.45);
 }
 .rt-tab.lookup::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 8px;
+  right: 8px;
   height: 2px;
-  border-radius: 8px 8px 0 0;
+  border-radius: 0 0 2px 2px;
   background: var(--blue);
 }
 
@@ -139,6 +148,7 @@
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 .rt-btn:hover {
   background: var(--bg-active);
@@ -158,14 +168,14 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-sm);
+  border: 0;
+  border-radius: 50%;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 .rt-add:hover {
   background: var(--bg-hover);
   color: var(--accent);
-  border-color: var(--accent);
 }
