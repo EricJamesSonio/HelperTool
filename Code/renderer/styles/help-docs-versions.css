@@ -348,6 +348,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.hd-imgrow {
+  align-items: flex-start;
+}
+.hd-input--area {
+  height: auto;
+  min-height: 62px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
 .hd-imgrow-actions {
   display: flex;
   gap: 4px;
