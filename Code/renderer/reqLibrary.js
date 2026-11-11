@@ -1,8 +1,8 @@
 /**
  * reqLibrary.js
  * Requirements Library page: one library per repository, with a project profile,
- * preset specifications grouped by area (Frontend, Backend, Database, DevOps),
- * a configurable generator and copy actions.
+ * preset specifications grouped by area (Components, Globals, Security, Shared),
+ * ranked search, a configurable generator and copy actions.
  */
 
 import { state } from './app_manager/appState.js';
@@ -20,19 +20,34 @@ const QUICK = [
 ];
 
 const SUB_ORDER = [
-  'Components',
-  'Pages',
-  'Layout',
-  'Globals',
-  'Shared',
-  'Modules',
+  'Inputs',
+  'Actions',
+  'Display',
+  'Charts',
+  'Overlays',
+  'Loading',
+  'Labels',
+  'Confirmation',
+  'Styles',
+  'Store',
+  'Realtime',
   'Pipelines',
+  'Config',
+  'Errors',
+  'Auth',
+  'Authorization',
+  'Input protection',
+  'Layer',
+  'Database',
+  'Pipeline',
+  'Layout',
+  'Portals',
+  'Pages',
+  'Endpoints',
+  'DevOps',
   'Utils',
   'Standards',
-  'Endpoints',
-  'Schema',
-  'Queries',
-  'Security',
+  'Structure',
 ];
 
 const BOOK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>';
@@ -67,6 +82,7 @@ let _data = null;
 let _draft = null;
 let _searchTimer = null;
 let _bound = false;
+let _searchWordsCache = [];
 
 const _ui = {
   view: 'list',
@@ -319,8 +335,70 @@ async function call(fn, okMsg) {
   }
 }
 
+// ---- search ----------------------------------------------------------------
+
+function searchWords(q) {
+  return String(q || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+function specScore(spec, words) {
+  const name = String(spec.name || '').toLowerCase();
+  const nameParts = name.split(/[^a-z0-9]+/).filter(Boolean);
+  const desc = String(spec.description || '').toLowerCase();
+  const tags = spec.tags.join(' ').toLowerCase();
+  const area = (spec.category + ' ' + (spec.subcategory || '')).toLowerCase();
+  const reqTitles = spec.requirements.map((r) => r.title).join(' ').toLowerCase();
+  const reqText = spec.requirements.map((r) => r.description + ' ' + (r.notes || '')).join(' ').toLowerCase();
+  let total = 0;
+  for (const w of words) {
+    let best = 0;
+    if (nameParts.indexOf(w) !== -1) best = 100;
+    else if (name.indexOf(w) !== -1) best = 80;
+    else if (tags.indexOf(w) !== -1) best = 60;
+    else if (area.indexOf(w) !== -1) best = 50;
+    else if (desc.indexOf(w) !== -1) best = 40;
+    else if (reqTitles.indexOf(w) !== -1) best = 25;
+    else if (reqText.indexOf(w) !== -1) best = 10;
+    if (!best) return 0;
+    total += best;
+  }
+  if (name.indexOf(words.join(' ')) !== -1) total += 60;
+  return total;
+}
+
+function hlText(text, words) {
+  const raw = String(text == null ? '' : text);
+  if (!words.length) return esc(raw);
+  const low = raw.toLowerCase();
+  if (low.length !== raw.length) return esc(raw);
+  const marks = new Array(raw.length).fill(false);
+  for (const w of words) {
+    let i = low.indexOf(w);
+    while (i !== -1) {
+      for (let k = i; k < i + w.length; k++) marks[k] = true;
+      i = low.indexOf(w, i + w.length);
+    }
+  }
+  let out = '';
+  let open = false;
+  for (let k = 0; k < raw.length; k++) {
+    if (marks[k] && !open) {
+      out += '<mark class="rl-hl">';
+      open = true;
+    }
+    if (!marks[k] && open) {
+      out += '</mark>';
+      open = false;
+    }
+    out += esc(raw[k]);
+  }
+  if (open) out += '</mark>';
+  return out;
+}
+
 function getFiltered() {
-  const words = _ui.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const words = searchWords(_ui.search);
+  _searchWordsCache = words;
   let list = _data.specs.slice();
 
   if (_ui.quick === 'favorites') list = list.filter((s) => s.favorite);
@@ -331,17 +409,13 @@ function getFiltered() {
   if (_ui.tag) list = list.filter((s) => s.tags.includes(_ui.tag));
 
   if (words.length) {
-    list = list.filter((s) => {
-      const hay = [
-        s.name,
-        s.description,
-        s.category,
-        s.subcategory,
-        s.tags.join(' '),
-        s.requirements.map((r) => r.title + ' ' + r.description).join(' '),
-      ].join(' ').toLowerCase();
-      return words.every((w) => hay.includes(w));
-    });
+    const scored = [];
+    for (const s of list) {
+      const sc = specScore(s, words);
+      if (sc > 0) scored.push([s, sc]);
+    }
+    scored.sort((a, b) => (b[1] - a[1]) || a[0].name.localeCompare(b[0].name));
+    return scored.map((x) => x[0]);
   }
 
   const byDate = (key) => (a, b) => String(b[key] || '').localeCompare(String(a[key] || ''));
@@ -578,9 +652,9 @@ function levelChips(spec) {
 function cardHtml(s) {
   const tags = s.tags.map((t) => '<span class="rl-tag">#' + esc(t) + '</span>').join('');
   return '<div class="rl-card" data-act="open-spec" data-id="' + esc(s.id) + '">' +
-    '<div class="rl-card-top"><span class="rl-card-name">' + esc(s.name) + '</span>' +
+    '<div class="rl-card-top"><span class="rl-card-name">' + hlText(s.name, _searchWordsCache) + '</span>' +
     '<button class="rl-star' + (s.favorite ? ' on' : '') + '" data-act="fav" data-id="' + esc(s.id) + '" title="Favorite">' + (s.favorite ? '&#9733;' : '&#9734;') + '</button></div>' +
-    '<div class="rl-card-desc">' + esc(s.description) + '</div>' +
+    '<div class="rl-card-desc">' + hlText(s.description, _searchWordsCache) + '</div>' +
     '<div class="rl-card-meta">' + esc(s.category) + (s.subcategory ? ' / ' + esc(s.subcategory) : '') + '</div>' +
     '<div class="rl-badges">' + levelChips(s) + '</div>' +
     '<div class="rl-tags">' + tags + '</div>' +
@@ -607,11 +681,15 @@ function groupList(list, keyFn, order) {
 }
 
 function cardsHtml(list) {
+  const searching = _searchWordsCache.length > 0;
   if (!list.length) {
     return '<div class="rl-empty">' + (hasActiveFilters() ? 'No specifications match your search or filters.' : 'No specifications yet. Create one with the New button.') + '</div>';
   }
+  const note = searching
+    ? '<div class="rl-result-note">' + list.length + ' result' + (list.length === 1 ? '' : 's') + ' for "' + esc(_ui.search.trim()) + '" (best match first)</div>'
+    : '';
   const plain = _ui.quick === 'all' && _ui.sort === 'name';
-  if (!plain || _ui.sub) return '<div class="rl-grid">' + list.map(cardHtml).join('') + '</div>';
+  if (searching || !plain || _ui.sub) return note + '<div class="rl-grid">' + list.map(cardHtml).join('') + '</div>';
 
   const groups = !_ui.category
     ? groupList(list, (s) => s.category, _data.categories)
@@ -803,7 +881,7 @@ function renderEdit() {
     '<div class="rl-form-grid">' +
       '<label>Name<input id="rlEName" class="rl-input" value="' + esc(d.name) + '"></label>' +
       '<label>Area<input id="rlECat" class="rl-input" list="rlCats" value="' + esc(d.category) + '"><datalist id="rlCats">' + catList + '</datalist></label>' +
-      '<label>Group (Components, Globals, Security...)<input id="rlESub" class="rl-input" list="rlSubs" value="' + esc(d.subcategory) + '"><datalist id="rlSubs">' + subList + '</datalist></label>' +
+      '<label>Group (Inputs, Loading, Store...)<input id="rlESub" class="rl-input" list="rlSubs" value="' + esc(d.subcategory) + '"><datalist id="rlSubs">' + subList + '</datalist></label>' +
       '<label>Tags (comma separated)<input id="rlETags" class="rl-input" value="' + esc(d.tags.join(', ')) + '"></label>' +
     '</div>' +
     '<label class="rl-block">Description<textarea id="rlEDesc" class="rl-input" rows="2">' + esc(d.description) + '</textarea></label>' +
