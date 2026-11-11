@@ -1,7 +1,7 @@
 const { applyAppTypes } = require('./appTypes.js');
 const { buildBundles } = require('./bundles.js');
 
-const PRESET_VERSION = 14;
+const PRESET_VERSION = 15;
 
 const ALL = [].concat(
     require('./designSystem.js'),
@@ -15,7 +15,8 @@ const ALL = [].concat(
     require('./codeStyle.js'),
     require('./frontendErrors.js'),
     require('./pageStructure.js'),
-    require('./authPage.js')
+    require('./authPage.js'),
+    require('./securityChecklist.js')
 );
 
 const byKey = new Map();
