@@ -1,22 +1,22 @@
 const { applyAppTypes } = require('./appTypes.js');
 
-const PRESET_VERSION = 8;
+const PRESET_VERSION = 9;
 
 const ALL = [].concat(
-    require('./designSystem.js'),
-    require('./components.js'),
-    require('./pages.js'),
-    require('./system.js'),
-    require('./frontendArch.js'),
-    require('./extras.js'),
-    require('./unified.js'),
-    require('./globalsConfig.js'),
-    require('./codeStyle.js')
+  require('./designSystem.js'),
+  require('./components.js'),
+  require('./pages.js'),
+  require('./system.js'),
+  require('./frontendArch.js'),
+  require('./extras.js'),
+  require('./unified.js'),
+  require('./globalsConfig.js'),
+  require('./codeStyle.js')
 );
 
 const byKey = new Map();
 for (const preset of ALL) {
-    byKey.set(preset.key, preset);
+  byKey.set(preset.key, preset);
 }
 
 const PRESETS = applyAppTypes(Array.from(byKey.values()));

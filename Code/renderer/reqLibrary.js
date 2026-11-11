@@ -102,6 +102,7 @@ const _cfg = {
   appType: 'general',
   groups: new Set(),
   includeRelated: false,
+  includeStyle: true,
 };
 
 // ---- helpers ---------------------------------------------------------------
@@ -280,6 +281,32 @@ function groupsMarkdown(reqs, groupsSet, headingLevel) {
   return out;
 }
 
+const STYLE_KEY = 'code-style-guide';
+const STYLE_SELF = new Set(['code-style-guide', 'functional-utils-style', 'oop-infrastructure-style', 'modular-feature-style']);
+
+function styleGuideFor(spec) {
+  if (!_data || STYLE_SELF.has(spec.presetKey)) return null;
+  const guide = _data.specs.find((s) => s.presetKey === STYLE_KEY);
+  if (!guide || guide.id === spec.id) return null;
+  return guide;
+}
+
+function styleSectionLines(spec, cfg) {
+  if (!cfg.includeStyle) return [];
+  const guide = styleGuideFor(spec);
+  if (!guide) return [];
+  const rows = pickRequirements(guide, cfg);
+  if (!rows.length) return [];
+  const out = [
+    '',
+    '## Code Style & Folder Structure',
+    '',
+    'Follow the existing project style first. Use these suggestions for new code and for placing files.',
+    '',
+  ];
+  for (const r of rows) out.push(reqLine(r));
+  return out;
+}
 function toMarkdown(spec, cfg, groupsSet, full) {
   const lines = ['# Feature: ' + spec.name];
   if (spec.description) lines.push('', spec.description);
@@ -305,6 +332,10 @@ function toMarkdown(spec, cfg, groupsSet, full) {
       if (!body.length) continue;
       lines.push('', '## Related Specification: ' + rs.name, ...body);
     }
+  }
+
+  if (full || groupsSet.has('Architecture Requirements')) {
+    lines.push(...styleSectionLines(spec, cfg));
   }
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
@@ -759,6 +790,7 @@ function openSpec(id) {
   _cfg.appType = _data.profile.appType || 'general';
   _cfg.groups = new Set(GROUPS);
   _cfg.includeRelated = false;
+  _cfg.includeStyle = true;
   spec.lastAccessedAt = new Date().toISOString();
   api().markViewed(payload({ id })).catch(() => {});
   renderMain();
@@ -787,6 +819,9 @@ function renderDetail() {
   const relatedNames = (spec.related || []).map((rid) => _data.specs.find((s) => s.id === rid)).filter(Boolean);
   const relatedBox = relatedNames.length
     ? '<label class="rl-check"><input type="checkbox" data-field="cfgRelated"' + (_cfg.includeRelated ? ' checked' : '') + '> Include related: ' + esc(relatedNames.map((s) => s.name).join(', ')) + '</label>'
+    : '';
+  const styleBox = styleGuideFor(spec)
+    ? '<label class="rl-check"><input type="checkbox" data-field="cfgStyle"' + (_cfg.includeStyle ? ' checked' : '') + '> Include code style and folder structure</label>'
     : '';
 
   const byLevel = LEVELS.map((l) => {
@@ -824,7 +859,7 @@ function renderDetail() {
         '<label>Strictness<select class="rl-input" data-field="cfgLevel">' + levelOpts + '</select></label>' +
         '<label>Application type<select class="rl-input" data-field="cfgAppType">' + typeOpts + '</select></label>' +
       '</div>' +
-      '<div class="rl-config-row rl-checks">' + groupBoxes + relatedBox + '</div>' +
+      '<div class="rl-config-row rl-checks">' + groupBoxes + relatedBox + styleBox + '</div>' +
       '<div class="rl-copy-row">' +
         '<button class="rl-btn rl-btn-primary" data-act="copy" data-mode="all">Copy All</button>' +
         '<button class="rl-btn" data-act="copy" data-mode="selected">Copy Selected Groups</button>' +
@@ -1018,6 +1053,7 @@ function onChange(e) {
       call(() => api().updateProfile(payload({ profile: { appType: t.value } })), 'Application type saved');
       break;
     case 'cfgRelated': _cfg.includeRelated = t.checked; renderMain(); break;
+    case 'cfgStyle': _cfg.includeStyle = t.checked; renderMain(); break;
     case 'cfgGroup':
       if (t.checked) _cfg.groups.add(t.dataset.group);
       else _cfg.groups.delete(t.dataset.group);
