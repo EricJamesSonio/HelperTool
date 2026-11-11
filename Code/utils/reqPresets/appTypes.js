@@ -210,6 +210,32 @@ function dependencyRow(key) {
     );
 }
 
+const SCOPE_AREAS = new Set(['Components', 'Pages']);
+const SCOPE_SKIP = new Set(['page-structure']);
+
+const SCOPE_TEXT = {
+    web: 'The backend side is an API endpoint or route in the existing server modules, with validation, authorization and the shared error format. The security side is server-side input validation, authorization, rate limiting, CORS and CSRF, done the way the project already does them.',
+    desktop: 'The backend side is a handler in the main process reached through the existing bridge, plus the service and data access behind it. The security side is validating every payload in the main process and keeping system access out of the UI.',
+    mobile: 'The backend side is the API the app already calls or the local data layer, plus the server rules behind it. The security side is server-side validation, authorization, secure token storage and no secrets inside the app.',
+};
+
+function scopeRows(preset) {
+    if (!SCOPE_AREAS.has(preset.category)) return [];
+    if (SCOPE_SKIP.has(preset.key) || String(preset.key).indexOf('bundle-') === 0) return [];
+    const rows = [
+        req(
+            GROUP.arch,
+            'must-have',
+            'Full scope: frontend, backend and security',
+            'Deliver this feature end to end, not as a frontend-only piece. Inspect the project first and cover three parts: the UI, the backend or data side it needs, and the security for both. For each part, check whether it already exists. If the backend part already exists (endpoint, handler, service, schema, validation), do not rebuild it: reuse it and integrate the UI with it, and add only what is missing. If the feature is purely visual and needs nothing on the backend, say so and continue. If the existing backend cannot support the feature and the change would be large or unclear, ask the user before changing it. Do not guess how the backend works. At the end, report for each part whether it was reused, extended or created.',
+            []
+        ),
+    ];
+    for (const id of SPECIFIC_TYPES) {
+        rows.push(req(GROUP.arch, 'standard', 'Full scope (' + shortOf(id) + ')', SCOPE_TEXT[id], [id]));
+    }
+    return rows;
+}
 function applyAppTypes(presets) {
     return presets.map((p) => {
         const base = p.requirements.map((r) => Object.assign({ types: [] }, r));
@@ -217,6 +243,7 @@ function applyAppTypes(presets) {
         const extra = kind ? extraRows(kind) : [];
         const dep = dependencyRow(p.key);
         const rows = base.concat(extra);
+        for (const s of scopeRows(p)) rows.push(s);
         if (dep) rows.push(dep);
         return Object.assign({}, p, { requirements: rows });
     });
