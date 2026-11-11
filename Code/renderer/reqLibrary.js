@@ -1,8 +1,9 @@
 /**
  * reqLibrary.js
  * Requirements Library page: one library per repository, with a project profile,
- * preset specifications grouped by area (Components, Globals, Security, Shared),
- * ranked search, a configurable generator and copy actions.
+ * an application type, preset specifications grouped by area
+ * (Components, Globals, Security, Shared), ranked search, a configurable
+ * generator and copy actions.
  */
 
 import { state } from './app_manager/appState.js';
@@ -98,6 +99,7 @@ const _ui = {
 
 const _cfg = {
   level: 'strict',
+  appType: 'general',
   groups: new Set(),
   includeRelated: false,
 };
@@ -220,12 +222,21 @@ function levelRank(l) {
   return LEVELS.indexOf(l);
 }
 
+function appTypeLabel(id) {
+  const list = (_data && _data.appTypes) || [];
+  const found = list.find((t) => t.id === id);
+  return found ? found.label : id;
+}
+
 function pickRequirements(spec, cfg) {
   const max = levelRank(cfg.level);
+  const type = cfg.appType || 'general';
   const seen = new Set();
   const out = [];
   for (const r of spec.requirements) {
     if (levelRank(r.level) > max) continue;
+    const types = Array.isArray(r.types) ? r.types : [];
+    if (types.length && types.indexOf(type) === -1) continue;
     const key = (r.title + '|' + r.description).toLowerCase().replace(/\s+/g, ' ').trim();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -276,6 +287,8 @@ function toMarkdown(spec, cfg, groupsSet, full) {
   lines.push('', '## Implementation Context', '');
   lines.push('- Area: ' + spec.category + (spec.subcategory ? ' / ' + spec.subcategory : ''));
   lines.push('- Strictness: ' + LEVEL_LABEL[cfg.level] + ' (cumulative: ' + LEVELS.slice(0, idx + 1).map((l) => LEVEL_LABEL[l]).join(' + ') + ')');
+  const typeId = cfg.appType || 'general';
+  if (typeId !== 'general') lines.push('- Application type: ' + appTypeLabel(typeId));
   if (full) {
     const profile = _data && _data.profile;
     if (profile && profile.stack) lines.push('- Project stack: ' + profile.stack);
@@ -704,7 +717,12 @@ function cardsHtml(list) {
 function profileHtml() {
   const p = _data.profile;
   const levels = optionsHtml(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] })), p.strictness);
-  return '<details class="rl-profile">' +
+  const typeOpts = optionsHtml((_data.appTypes || []).map((t) => ({ value: t.id, label: t.label })), p.appType || 'general');
+  return '<div class="rl-config-row">' +
+      '<label>Application type of <b>' + esc(_data.repoName) + '</b><select class="rl-input" data-field="pAppType">' + typeOpts + '</select></label>' +
+      '<span class="rl-muted"> Every type has the same components. Only the integration, security and device rows change.</span>' +
+    '</div>' +
+    '<details class="rl-profile">' +
     '<summary>Project profile for <b>' + esc(_data.repoName) + '</b>: default strictness ' + esc(LEVEL_LABEL[p.strictness]) + '</summary>' +
     '<div class="rl-form-grid">' +
       '<label>Default strictness<select id="rlPLevel" class="rl-input">' + levels + '</select></label>' +
@@ -738,6 +756,7 @@ function openSpec(id) {
   _ui.selectedId = id;
   _ui.view = 'detail';
   _cfg.level = _data.profile.strictness;
+  _cfg.appType = _data.profile.appType || 'general';
   _cfg.groups = new Set(GROUPS);
   _cfg.includeRelated = false;
   spec.lastAccessedAt = new Date().toISOString();
@@ -761,6 +780,7 @@ function renderDetail() {
   const md = toMarkdown(spec, _cfg, _cfg.groups, true);
 
   const levelOpts = optionsHtml(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] })), _cfg.level);
+  const typeOpts = optionsHtml((_data.appTypes || []).map((t) => ({ value: t.id, label: t.label })), _cfg.appType || 'general');
   const groupBoxes = presentGroups.map((g) =>
     '<label class="rl-check"><input type="checkbox" data-field="cfgGroup" data-group="' + esc(g) + '"' + (_cfg.groups.has(g) ? ' checked' : '') + '> ' + esc(g.replace(' Requirements', '')) + '</label>'
   ).join('');
@@ -773,9 +793,13 @@ function renderDetail() {
     const reqs = spec.requirements.filter((r) => r.level === l);
     if (!reqs.length) return '';
     return '<details class="rl-details"><summary><span class="rl-badge rl-lv-' + l + '">' + LEVEL_LABEL[l] + '</span> ' + reqs.length + ' requirements</summary>' +
-      '<ul class="rl-req-list">' + reqs.map((r) =>
-        '<li><b>' + esc(r.title) + '</b> <span class="rl-muted">(' + esc(r.group.replace(' Requirements', '')) + ')</span><br>' + esc(r.description) + '</li>'
-      ).join('') + '</ul></details>';
+      '<ul class="rl-req-list">' + reqs.map((r) => {
+        const types = Array.isArray(r.types) ? r.types : [];
+        const typeTag = types.length
+          ? ' <span class="rl-badge">' + esc(types.map(appTypeLabel).join(', ')) + '</span>'
+          : '';
+        return '<li><b>' + esc(r.title) + '</b>' + typeTag + ' <span class="rl-muted">(' + esc(r.group.replace(' Requirements', '')) + ')</span><br>' + esc(r.description) + '</li>';
+      }).join('') + '</ul></details>';
   }).join('');
 
   main.innerHTML =
@@ -798,6 +822,7 @@ function renderDetail() {
     '<div class="rl-config">' +
       '<div class="rl-config-row">' +
         '<label>Strictness<select class="rl-input" data-field="cfgLevel">' + levelOpts + '</select></label>' +
+        '<label>Application type<select class="rl-input" data-field="cfgAppType">' + typeOpts + '</select></label>' +
       '</div>' +
       '<div class="rl-config-row rl-checks">' + groupBoxes + relatedBox + '</div>' +
       '<div class="rl-copy-row">' +
@@ -898,20 +923,25 @@ function collectDraft() {
     const el = main.querySelector(sel);
     return el ? el.value : '';
   };
+  const previous = new Map(_draft.requirements.map((r) => [r.id, r]));
   _draft.name = val('#rlEName').trim();
   _draft.category = val('#rlECat').trim() || 'Other';
   _draft.subcategory = val('#rlESub').trim();
   _draft.description = val('#rlEDesc').trim();
   _draft.tags = val('#rlETags').split(',').map((t) => t.trim()).filter(Boolean);
   _draft.related = Array.from(main.querySelectorAll('.rl-e-rel:checked')).map((i) => i.value);
-  _draft.requirements = Array.from(main.querySelectorAll('.rl-req-row')).map((row) => ({
-    id: row.dataset.id,
-    group: row.querySelector('.rl-r-group').value,
-    level: row.querySelector('.rl-r-level').value,
-    title: row.querySelector('.rl-r-title').value.trim(),
-    description: row.querySelector('.rl-r-desc').value.trim(),
-    notes: row.querySelector('.rl-r-notes').value.trim(),
-  }));
+  _draft.requirements = Array.from(main.querySelectorAll('.rl-req-row')).map((row) => {
+    const prev = previous.get(row.dataset.id);
+    return {
+      id: row.dataset.id,
+      group: row.querySelector('.rl-r-group').value,
+      level: row.querySelector('.rl-r-level').value,
+      title: row.querySelector('.rl-r-title').value.trim(),
+      description: row.querySelector('.rl-r-desc').value.trim(),
+      notes: row.querySelector('.rl-r-notes').value.trim(),
+      types: prev && Array.isArray(prev.types) ? prev.types : [],
+    };
+  });
 }
 
 async function saveDraft() {
@@ -983,6 +1013,10 @@ function onChange(e) {
     case 'fLevel': _ui.level = t.value; renderAll(); break;
     case 'fSort': _ui.sort = t.value; renderAll(); break;
     case 'cfgLevel': _cfg.level = t.value; renderMain(); break;
+    case 'cfgAppType': _cfg.appType = t.value; renderMain(); break;
+    case 'pAppType':
+      call(() => api().updateProfile(payload({ profile: { appType: t.value } })), 'Application type saved');
+      break;
     case 'cfgRelated': _cfg.includeRelated = t.checked; renderMain(); break;
     case 'cfgGroup':
       if (t.checked) _cfg.groups.add(t.dataset.group);
@@ -1073,7 +1107,7 @@ async function handleAction(act, t) {
     case 'save': await saveDraft(); break;
     case 'add-req':
       collectDraft();
-      _draft.requirements.push({ id: newReqId(), group: GROUPS[0], level: 'standard', title: '', description: '', notes: '' });
+      _draft.requirements.push({ id: newReqId(), group: GROUPS[0], level: 'standard', title: '', description: '', notes: '', types: [] });
       renderEdit();
       break;
     case 'req-up':
