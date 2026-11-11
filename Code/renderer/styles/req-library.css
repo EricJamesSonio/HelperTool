@@ -349,6 +349,17 @@ textarea.rl-input { resize: vertical; min-height: 54px; line-height: 1.45; }
     border: 1px dashed var(--border-default, #243049);
     border-radius: 10px;
 }
+.rl-result-note {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--text-muted, #8b96a5);
+}
+.rl-hl {
+    padding: 0 2px;
+    border-radius: 3px;
+    background: rgba(251, 191, 36, 0.28);
+    color: inherit;
+}
 
 /* ---------- toolbar + detail ---------- */
 .rl-toolbar {
