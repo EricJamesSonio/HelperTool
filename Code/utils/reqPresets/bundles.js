@@ -48,7 +48,7 @@ function buildBundles(find) {
                 group: 'Architecture Requirements',
                 level: 'must-have',
                 title: 'Bundle: one error contract',
-                description: 'Deliver backend and frontend error handling together as one contract: the backend defines one error format with stable codes, and the frontend normalizes and displays them. Agree the error format first and reuse it on both sides. The dependencies between these parts are covered by this bundle, so do not stop to ask about them. Inspect what already exists and build only what is missing.',
+                description: 'Deliver backend and frontend error handling together as one contract: the backend defines one error format with stable codes, and the frontend normalizes and displays them. Agree the error format first and reuse it on both sides. The dependencies between these two parts are covered by this bundle, so do not stop to ask about them. Anything this bundle does not contain is listed in the dependencies row below: check it and ask the user if it is missing. Inspect what already exists and build only what is missing.',
             },
         ],
     };
