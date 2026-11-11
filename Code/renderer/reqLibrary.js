@@ -307,6 +307,17 @@ function styleSectionLines(spec, cfg) {
   for (const r of rows) out.push(reqLine(r));
   return out;
 }
+const DEP_ROW_TITLE = 'Dependencies: ask before assuming';
+
+function isBundleSpec(spec) {
+  return !!(spec && spec.presetKey && String(spec.presetKey).indexOf('bundle-') === 0);
+}
+
+function withoutDependencyRows(spec) {
+  return Object.assign({}, spec, {
+    requirements: spec.requirements.filter((r) => r.title !== DEP_ROW_TITLE),
+  });
+}
 function toMarkdown(spec, cfg, groupsSet, full) {
   const lines = ['# Feature: ' + spec.name];
   if (spec.description) lines.push('', spec.description);
@@ -325,10 +336,12 @@ function toMarkdown(spec, cfg, groupsSet, full) {
   lines.push(...groupsMarkdown(pickRequirements(spec, cfg), groupsSet, '##'));
 
   if (cfg.includeRelated) {
+    const bundle = isBundleSpec(spec);
     for (const rid of spec.related || []) {
       const rs = _data.specs.find((s) => s.id === rid);
       if (!rs || rs.id === spec.id) continue;
-      const body = groupsMarkdown(pickRequirements(rs, cfg), groupsSet, '###');
+      const source = bundle ? withoutDependencyRows(rs) : rs;
+      const body = groupsMarkdown(pickRequirements(source, cfg), groupsSet, '###');
       if (!body.length) continue;
       lines.push('', '## Related Specification: ' + rs.name, ...body);
     }
@@ -789,7 +802,7 @@ function openSpec(id) {
   _cfg.level = _data.profile.strictness;
   _cfg.appType = _data.profile.appType || 'general';
   _cfg.groups = new Set(GROUPS);
-  _cfg.includeRelated = false;
+  _cfg.includeRelated = isBundleSpec(spec);
   _cfg.includeStyle = true;
   spec.lastAccessedAt = new Date().toISOString();
   api().markViewed(payload({ id })).catch(() => {});
