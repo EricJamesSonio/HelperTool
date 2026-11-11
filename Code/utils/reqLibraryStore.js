@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { PRESETS, PRESET_VERSION } = require('./reqPresets/index.js');
 const { APP_TYPES, APP_TYPE_IDS } = require('./reqPresets/appTypes.js');
 
-const DATA_VERSION = 6;
+const DATA_VERSION = 7;
 const LEVELS = ['must-have', 'standard', 'medium', 'strict'];
 
 const GROUPS = [
@@ -21,14 +21,13 @@ const GROUPS = [
     'Acceptance Criteria',
 ];
 
-const DEFAULT_CATEGORIES = ['Components', 'Globals', 'Security', 'Shared', 'Other'];
+const DEFAULT_CATEGORIES = ['Components', 'Globals', 'Pages', 'Security', 'Shared', 'Other'];
 
 const LEGACY_CATEGORY_MAP = {
     Frontend: ['Components', ''],
     Backend: ['Shared', 'Backend'],
     Database: ['Shared', 'Database'],
     DevOps: ['Shared', 'DevOps'],
-    Pages: ['Shared', 'Pages'],
     'Design System': ['Globals', 'Styles'],
     Architecture: ['Shared', 'Standards'],
     Performance: ['Shared', 'Standards'],
