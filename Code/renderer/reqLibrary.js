@@ -630,7 +630,323 @@ function renderNoRepo() {
   updateHeader();
 }
 
+const PROMPT_LS = 'helpertool-rl-prompt-draft';
+
+function promptReadDraft() {
+  try {
+    return localStorage.getItem(PROMPT_LS) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function promptSaveDraft() {
+  try {
+    localStorage.setItem(PROMPT_LS, _prompt.text);
+  } catch (_) { /* storage not available */ }
+}
+
+const _prompt = { text: promptReadDraft() };
+let _promptPick = null;
+
+function ensurePromptStyles() {
+  if (document.getElementById('rlPromptStyles')) return;
+  const style = document.createElement('style');
+  style.id = 'rlPromptStyles';
+  style.textContent =
+    '.rlp-wrap{position:relative;margin:10px 0}' +
+    '.rlp-text{width:100%;min-height:220px;resize:vertical;line-height:1.5;box-sizing:border-box}' +
+    '.rlp-pick{position:absolute;left:0;right:0;top:100%;z-index:30;margin-top:4px;max-height:280px;overflow:auto;background:var(--bg-elevated,#111d34);border:1px solid var(--border-default,rgba(255,255,255,.12));border-radius:8px;box-shadow:0 12px 32px rgba(0,0,0,.5)}' +
+    '.rlp-item{display:block;width:100%;text-align:left;padding:8px 12px;border:0;background:transparent;color:inherit;cursor:pointer;font:inherit}' +
+    '.rlp-item.active,.rlp-item:hover{background:var(--bg-active,rgba(255,255,255,.08))}' +
+    '.rlp-item-name{display:block;font-weight:600}' +
+    '.rlp-item-meta{display:block;font-size:11px;opacity:.65}' +
+    '.rlp-note{margin:6px 0;font-size:12px;opacity:.75}';
+  document.head.appendChild(style);
+}
+
+function findSpecByName(name) {
+  const key = String(name || '').trim().toLowerCase();
+  return _data.specs.find((s) => String(s.name).trim().toLowerCase() === key) || null;
+}
+
+function expandPrompt(text) {
+  const used = new Set();
+  const unknown = [];
+  let firstSpec = null;
+
+  let out = String(text || '').replace(/@\[([^\]\n]+)\]/g, (m, name) => {
+    const spec = findSpecByName(name);
+    if (!spec) {
+      unknown.push(name);
+      return m;
+    }
+    if (!firstSpec) firstSpec = spec;
+    if (used.has(spec.id)) return '(The "' + spec.name + '" preset is already included above.)';
+    used.add(spec.id);
+    const cfg = Object.assign({}, _cfg, {
+      includeStyle: false,
+      includeRelated: _cfg.includeRelated || isBundleSpec(spec),
+    });
+    const md = toMarkdown(spec, cfg, new Set(GROUPS), false).trim();
+    return '\n\n---\n**Preset: ' + spec.name + '**\n\n' + md + '\n---\n\n';
+  });
+
+  if (used.size) {
+    const tail = ['', '---', '', '## General instructions', ''];
+    const profile = _data && _data.profile;
+    tail.push('- Strictness: ' + LEVEL_LABEL[_cfg.level]);
+    if ((_cfg.appType || 'general') !== 'general') tail.push('- Application type: ' + appTypeLabel(_cfg.appType));
+    if (profile && profile.stack) tail.push('- Project stack: ' + profile.stack);
+    if (profile && profile.notes) tail.push('- Project notes: ' + profile.notes.replace(/\s*\n\s*/g, ' '));
+    for (const n of CONTEXT_NOTES) tail.push('- ' + n);
+    if (_cfg.includeStyle && firstSpec) {
+      tail.push(...styleSectionLines(firstSpec, Object.assign({}, _cfg, { includeStyle: true })));
+    }
+    out += '\n' + tail.join('\n');
+  }
+
+  out = out.replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  return { text: out, unknown, count: used.size };
+}
+
+function promptMatches(query) {
+  const words = searchWords(query);
+  const list = _data.specs.slice();
+  if (words.length) {
+    const scored = [];
+    for (const s of list) {
+      const sc = specScore(s, words);
+      if (sc > 0) scored.push([s, sc]);
+    }
+    scored.sort((a, b) => (b[1] - a[1]) || a[0].name.localeCompare(b[0].name));
+    return scored.slice(0, 8).map((x) => x[0]);
+  }
+  list.sort((a, b) => ((b.favorite ? 1 : 0) - (a.favorite ? 1 : 0)) || a.name.localeCompare(b.name));
+  return list.slice(0, 8);
+}
+
+function renderPromptPick() {
+  const box = _panel && _panel.querySelector('#rlPromptPick');
+  if (!box) return;
+  if (!_promptPick) {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = _promptPick.items.map((s, i) =>
+    '<button type="button" class="rlp-item' + (i === _promptPick.index ? ' active' : '') + '" data-act="prompt-pick" data-index="' + i + '">' +
+      '<span class="rlp-item-name">' + esc(s.name) + '</span>' +
+      '<span class="rlp-item-meta">' + esc(s.category + (s.subcategory ? ' / ' + s.subcategory : '')) + '</span>' +
+    '</button>'
+  ).join('');
+  box.style.display = 'block';
+  const active = box.querySelector('.rlp-item.active');
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+}
+
+function hidePromptPick() {
+  _promptPick = null;
+  renderPromptPick();
+}
+
+function updatePromptOut() {
+  if (!_panel || !_data) return;
+  const out = _panel.querySelector('#rlPromptOut');
+  const note = _panel.querySelector('#rlPromptNote');
+  const label = _panel.querySelector('#rlPromptCount');
+  if (!out) return;
+  const result = expandPrompt(_prompt.text);
+  out.textContent = result.text;
+  if (label) label.textContent = result.count + ' preset' + (result.count === 1 ? '' : 's') + ' included';
+  if (note) {
+    note.textContent = result.unknown.length
+      ? 'Not matched to a preset: ' + result.unknown.join(', ') + '. Pick presets from the @ list.'
+      : '';
+  }
+}
+
+function updatePromptPick(ta) {
+  const caret = ta.selectionStart;
+  const before = ta.value.slice(0, caret);
+  const m = /(^|\s)@([^\s@\[\]]*)$/.exec(before);
+  if (!m) {
+    hidePromptPick();
+    return;
+  }
+  const items = promptMatches(m[2]);
+  if (!items.length) {
+    hidePromptPick();
+    return;
+  }
+  _promptPick = { items, index: 0, start: caret - m[2].length - 1, end: caret };
+  renderPromptPick();
+}
+
+function pickPromptItem(index) {
+  if (!_promptPick) return;
+  const item = _promptPick.items[index];
+  const ta = _panel.querySelector('#rlPromptText');
+  if (!item || !ta) return;
+  const token = '@[' + item.name + '] ';
+  ta.value = ta.value.slice(0, _promptPick.start) + token + ta.value.slice(_promptPick.end);
+  const caret = _promptPick.start + token.length;
+  ta.focus();
+  ta.setSelectionRange(caret, caret);
+  _prompt.text = ta.value;
+  promptSaveDraft();
+  hidePromptPick();
+  updatePromptOut();
+}
+
+function onPromptInput(e) {
+  const t = e.target;
+  if (!t || t.id !== 'rlPromptText') return;
+  _prompt.text = t.value;
+  promptSaveDraft();
+  updatePromptOut();
+  updatePromptPick(t);
+}
+
+function onPromptKey(e) {
+  const t = e.target;
+  if (!t || t.id !== 'rlPromptText' || !_promptPick) return;
+  const n = _promptPick.items.length;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _promptPick.index = (_promptPick.index + 1) % n;
+    renderPromptPick();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _promptPick.index = (_promptPick.index - 1 + n) % n;
+    renderPromptPick();
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault();
+    pickPromptItem(_promptPick.index);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    hidePromptPick();
+  }
+}
+
+function openPrompt() {
+  if (!_data) return;
+  _ui.view = 'prompt';
+  _cfg.level = _data.profile.strictness;
+  _cfg.appType = _data.profile.appType || 'general';
+  _cfg.includeRelated = false;
+  _cfg.includeStyle = true;
+  _promptPick = null;
+  renderMain();
+  const main = _panel.querySelector('#rlMain');
+  if (main) main.scrollTop = 0;
+  const ta = _panel.querySelector('#rlPromptText');
+  if (ta) {
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+}
+
+async function copyPrompt() {
+  const result = expandPrompt(_prompt.text);
+  if (!_prompt.text.trim()) {
+    toast('The prompt is empty');
+    return;
+  }
+  const ok = await copyText(result.text);
+  toast(ok ? 'Prompt copied' : 'Copy failed');
+}
+
+function onPromptClick(e) {
+  const t = e.target.closest('[data-act]');
+  if (!t) {
+    if (_promptPick && !e.target.closest('#rlPromptText')) hidePromptPick();
+    return;
+  }
+  switch (t.dataset.act) {
+    case 'prompt': openPrompt(); break;
+    case 'prompt-back':
+      hidePromptPick();
+      _ui.view = 'list';
+      renderMain();
+      break;
+    case 'prompt-copy': copyPrompt(); break;
+    case 'prompt-clear':
+      _prompt.text = '';
+      promptSaveDraft();
+      hidePromptPick();
+      renderMain();
+      break;
+    default: break;
+  }
+}
+
+function onPromptMouseDown(e) {
+  const t = e.target.closest('[data-act="prompt-pick"]');
+  if (!t) return;
+  e.preventDefault();
+  pickPromptItem(Number(t.dataset.index));
+}
+
+function ensurePromptButton() {
+  if (!_panel) return;
+  ensurePromptStyles();
+  if (!_panel._rlPromptBound) {
+    _panel._rlPromptBound = true;
+    _panel.addEventListener('click', onPromptClick);
+    _panel.addEventListener('mousedown', onPromptMouseDown);
+    _panel.addEventListener('input', onPromptInput);
+    _panel.addEventListener('keydown', onPromptKey);
+  }
+  if (_panel.querySelector('[data-act="prompt"]')) return;
+  const wrap = _panel.querySelector('.rl-search-wrap');
+  if (!wrap) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'rl-btn rl-btn-primary';
+  btn.dataset.act = 'prompt';
+  btn.title = 'Write a prompt and insert presets with @';
+  btn.textContent = '+ Prompt';
+  wrap.appendChild(btn);
+}
+
+function renderPrompt() {
+  const main = _panel.querySelector('#rlMain');
+  const levelOpts = optionsHtml(LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] })), _cfg.level);
+  const typeOpts = optionsHtml((_data.appTypes || []).map((t) => ({ value: t.id, label: t.label })), _cfg.appType || 'general');
+  main.innerHTML =
+    '<div class="rl-content">' +
+    '<div class="rl-toolbar">' +
+      '<button class="rl-btn" data-act="prompt-back">Back to library</button>' +
+      '<div class="rl-spacer"></div>' +
+      '<button class="rl-btn rl-btn-primary" data-act="prompt-copy">Copy prompt</button>' +
+      '<button class="rl-btn rl-btn-danger" data-act="prompt-clear">Clear</button>' +
+    '</div>' +
+    '<h3 class="rl-detail-title">Prompt builder</h3>' +
+    '<p class="rl-detail-desc">Write your prompt freely. Type @ and a few letters to insert a preset exactly where you are typing, for example: I want to build a search bar @search</p>' +
+    '<div class="rl-config">' +
+      '<div class="rl-config-row">' +
+        '<label>Strictness<select class="rl-input" data-field="cfgLevel">' + levelOpts + '</select></label>' +
+        '<label>Application type<select class="rl-input" data-field="cfgAppType">' + typeOpts + '</select></label>' +
+      '</div>' +
+      '<div class="rl-config-row rl-checks">' +
+        '<label class="rl-check"><input type="checkbox" data-field="cfgRelated"' + (_cfg.includeRelated ? ' checked' : '') + '> Include related specifications</label>' +
+        '<label class="rl-check"><input type="checkbox" data-field="cfgStyle"' + (_cfg.includeStyle ? ' checked' : '') + '> Include code style and folder structure</label>' +
+      '</div>' +
+    '</div>' +
+    '<div class="rlp-wrap">' +
+      '<textarea id="rlPromptText" class="rl-input rlp-text" placeholder="Describe what you want the AI to do. Type @ to insert a preset...">' + esc(_prompt.text) + '</textarea>' +
+      '<div id="rlPromptPick" class="rlp-pick" style="display:none"></div>' +
+    '</div>' +
+    '<div class="rlp-note" id="rlPromptNote"></div>' +
+    '<div class="rl-label rl-row-between"><span>Final prompt (<span id="rlPromptCount"></span>)</span> <button class="rl-btn rl-btn-primary" data-act="prompt-copy">Copy prompt</button></div>' +
+    '<pre class="rl-preview" id="rlPromptOut"></pre>' +
+    '</div>';
+  updatePromptOut();
+}
 function renderAll() {
+  ensurePromptButton();
   if (!_data) {
     renderNoRepo();
     return;
@@ -644,6 +960,7 @@ function renderMain() {
   if (!_data) return;
   if (_ui.view === 'detail') renderDetail();
   else if (_ui.view === 'edit') renderEdit();
+  else if (_ui.view === 'prompt') renderPrompt();
   else renderList();
 }
 
