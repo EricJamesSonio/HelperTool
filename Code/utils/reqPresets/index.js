@@ -1,4 +1,6 @@
-const PRESET_VERSION = 6;
+const { applyAppTypes } = require('./appTypes.js');
+
+const PRESET_VERSION = 7;
 
 const ALL = [].concat(
     require('./designSystem.js'),
@@ -16,6 +18,6 @@ for (const preset of ALL) {
     byKey.set(preset.key, preset);
 }
 
-const PRESETS = Array.from(byKey.values());
+const PRESETS = applyAppTypes(Array.from(byKey.values()));
 
 module.exports = { PRESETS, PRESET_VERSION };
