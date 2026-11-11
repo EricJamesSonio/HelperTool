@@ -1,4 +1,4 @@
-const PRESET_VERSION = 4;
+const PRESET_VERSION = 5;
 
 const ALL = [].concat(
     require('./designSystem.js'),
@@ -6,7 +6,8 @@ const ALL = [].concat(
     require('./pages.js'),
     require('./system.js'),
     require('./frontendArch.js'),
-    require('./extras.js')
+    require('./extras.js'),
+    require('./unified.js')
 );
 
 const byKey = new Map();
