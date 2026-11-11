@@ -23,14 +23,10 @@ const SHORTCUT_SCRIPT = [
     '      return "closed";',
     '    }',
     '  }',
-    '  if (document.body.classList.contains("ide-mode")) {',
-    '    document.dispatchEvent(new KeyboardEvent("keydown", { key: "F5", code: "F5", keyCode: 116, bubbles: true, cancelable: true }));',
-    '    return "ide-mode: F5 dispatched";',
-    '  }',
     '  var btn = document.getElementById("reqLibraryBtn");',
     '  if (!btn) return "failed: #reqLibraryBtn not found";',
     '  btn.click();',
-    '  return "opened";',
+    '  return "clicked button (ide-mode: " + document.body.classList.contains("ide-mode") + ")";',
     '})();',
 ].join('\n');
 
@@ -39,7 +35,8 @@ const SHORTCUT_SCRIPT = [
  * The renderer sends repoPath in the payload; the active project is only a fallback.
  * Also owns the dot shortcut: pressing "." with no modifier presses the
  * Requirements Library button, unless the user is typing in a text field.
- * Every press logs its outcome to the terminal.
+ * Every press logs its outcome to the terminal. Logs use the [Main] prefix
+ * because utils/log.js hides every other prefix.
  * @param {{ app }} deps
  */
 function register({ app }) {
@@ -77,12 +74,12 @@ function register({ app }) {
                 url = '';
             }
             if (!/index\.html/i.test(url)) {
-                console.log('[ReqLibrary] "." ignored, window url:', url);
+                console.log('[Main] ReqLibrary "." ignored, window url:', url);
                 return;
             }
             wc.executeJavaScript(SHORTCUT_SCRIPT, true)
-                .then((result) => console.log('[ReqLibrary] "." ->', result))
-                .catch((err) => console.log('[ReqLibrary] "." failed:', err && err.message));
+                .then((result) => console.log('[Main] ReqLibrary "." ->', result))
+                .catch((err) => console.log('[Main] ReqLibrary "." failed:', err && err.message));
         });
     }
 
