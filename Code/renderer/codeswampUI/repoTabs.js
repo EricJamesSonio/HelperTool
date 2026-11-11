@@ -1,12 +1,27 @@
 import { state } from './state.js';
 import { refreshSidebar, loadConversation, startNewChat } from './sidebar.js';
-import { hasTerminalSession, showTerminalSession, getSlotForRepo, getConvSlotMap } from './terminalManager.js';
+import { hasTerminalSession, showTerminalSession, getSlotForRepo, getConvSlotMap, getTerminalInstances, killSlot, activateSlot } from './terminalManager.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
 import { convStore } from './conversationStore.js';
-import { promptDialog } from '../utils/confirmDialog.js';
+import { promptDialog, confirmDialog } from '../utils/confirmDialog.js';
 import { isTerminalRevealed, syncStage } from './terminalManager.js';
-import { ensureRepoBadges } from './repoBadges.js';
+import { ensureRepoBadges, dismissRepo, undismissRepo } from './repoBadges.js';
+
+function normRepo(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function sameRepoPath(a, b) {
+  return normRepo(a) === normRepo(b);
+}
+
+function showWelcomeOnly() {
+  const welcome = document.getElementById('ocWelcome');
+  const terminal = document.getElementById('ocTerminal');
+  if (welcome) welcome.style.display = '';
+  if (terminal) terminal.style.display = 'none';
+}
 
 export async function addRepo(repoPath) {
   console.log('[CS] addRepo:', repoPath);
@@ -14,6 +29,7 @@ export async function addRepo(repoPath) {
     console.log('[CS] addRepo: no path, return');
     return;
   }
+  undismissRepo(repoPath);
   const existing = state.tabs.find(t => t.repoPath === repoPath);
   if (existing) {
     console.log('[CS] addRepo: already exists, switching tab');
@@ -28,6 +44,86 @@ export async function addRepo(repoPath) {
   state.activeConvId[repoPath] = null;
   switchTab(repoPath);
   renderRepoTabs();
+}
+
+export async function closeRepoTab(repoPath, slotIndex) {
+  if (!repoPath) return false;
+
+  const slotMode = slotIndex !== undefined && slotIndex >= 0;
+  const name = repoPath.split(/[/\\]/).filter(Boolean).pop() || repoPath;
+  const insts = Object.values(getTerminalInstances()).filter((i) => {
+    if (!i || !sameRepoPath(i.repoPath, repoPath)) return false;
+    return !slotMode || i.slotIndex === slotIndex;
+  });
+  const running = insts.length > 0;
+
+  const safeName = escapeHtml(name);
+  let message;
+  if (slotMode) {
+    message = 'Close the terminal for <strong>' + safeName + '</strong> (slot ' + (slotIndex + 1) + ')? ' +
+      'The running session will be stopped. Your saved conversations stay in the sidebar and can be resumed.';
+  } else if (running) {
+    message = 'Close the <strong>' + safeName + '</strong> tab? ' +
+      'Its running terminal session will be stopped and unsaved terminal output is lost. ' +
+      'Your saved conversations stay in the sidebar and can be resumed.';
+  } else {
+    message = 'Close the <strong>' + safeName + '</strong> tab? Your saved conversations are kept.';
+  }
+
+  const ok = await confirmDialog(message, {
+    title: 'Close tab?',
+    confirmText: 'Close tab',
+    cancelText: 'Keep open',
+    danger: true,
+  });
+  if (!ok) return false;
+
+  for (const inst of insts) killSlot(inst.slotIndex);
+
+  if (slotMode) {
+    const left = Object.values(getTerminalInstances()).filter(Boolean);
+    if (!left.length) {
+      showWelcomeOnly();
+    } else if (state.parallelMode) {
+      activateSlot(left[0].slotIndex);
+    }
+    syncStage(state.activeTab);
+    renderConvList();
+    ensureRepoBadges();
+    return true;
+  }
+
+  dismissRepo(repoPath);
+  state.tabs = state.tabs.filter((t) => !sameRepoPath(t.repoPath, repoPath));
+  for (const key of Object.keys(state.conversations)) {
+    if (sameRepoPath(key, repoPath)) delete state.conversations[key];
+  }
+  for (const key of Object.keys(state.activeConvId)) {
+    if (sameRepoPath(key, repoPath)) delete state.activeConvId[key];
+  }
+
+  if (sameRepoPath(state.activeTab, repoPath)) {
+    let next = state.tabs.length ? state.tabs[0].repoPath : null;
+    if (!next) {
+      const live = Object.values(getTerminalInstances()).find((i) => i && i.repoPath);
+      if (live) next = live.repoPath;
+    }
+    if (next) {
+      switchTab(next);
+    } else {
+      state.activeTab = null;
+      showWelcomeOnly();
+      syncStage(null);
+      updateRepoPath(null);
+      renderConvList();
+    }
+  } else {
+    syncStage(state.activeTab);
+    renderConvList();
+  }
+
+  ensureRepoBadges();
+  return true;
 }
 
 export function updateRepoPath(repoPath) {
