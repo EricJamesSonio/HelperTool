@@ -7,26 +7,39 @@ const SHORTCUT_KEY = '.';
 const SHORTCUT_SCRIPT = [
     '(function () {',
     '  var el = document.activeElement;',
-    '  if (el) {',
+    '  if (el && el !== document.body) {',
     '    var tag = String(el.tagName || "").toLowerCase();',
-    '    if (tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable) return;',
-    '    if (el.closest && el.closest(".xterm, .cm-editor, .monaco-editor, [contenteditable]")) return;',
+    '    var type = String(el.type || "").toLowerCase();',
+    '    var textTypes = ["text", "search", "email", "password", "url", "tel", "number", ""];',
+    '    if (tag === "textarea" || el.isContentEditable || (tag === "input" && textTypes.indexOf(type) !== -1)) {',
+    '      return "skipped: typing in " + tag;',
+    '    }',
+    '  }',
+    '  var panel = document.getElementById("rlPanel");',
+    '  if (panel && panel.classList.contains("open")) {',
+    '    var closeBtn = panel.querySelector("[data-act=close]");',
+    '    if (closeBtn) {',
+    '      closeBtn.click();',
+    '      return "closed";',
+    '    }',
     '  }',
     '  if (document.body.classList.contains("ide-mode")) {',
     '    document.dispatchEvent(new KeyboardEvent("keydown", { key: "F5", code: "F5", keyCode: 116, bubbles: true, cancelable: true }));',
-    '    return;',
+    '    return "ide-mode: F5 dispatched";',
     '  }',
     '  var btn = document.getElementById("reqLibraryBtn");',
-    '  if (btn) btn.click();',
+    '  if (!btn) return "failed: #reqLibraryBtn not found";',
+    '  btn.click();',
+    '  return "opened";',
     '})();',
 ].join('\n');
 
 /**
  * Requirements Library IPC. Every call is scoped to one repository.
  * The renderer sends repoPath in the payload; the active project is only a fallback.
- * Also owns the dot shortcut: pressing "." (with no modifier) presses the
- * Requirements Library button, unless the user is typing in an input, a text
- * area, an editor or a terminal.
+ * Also owns the dot shortcut: pressing "." with no modifier presses the
+ * Requirements Library button, unless the user is typing in a text field.
+ * Every press logs its outcome to the terminal.
  * @param {{ app }} deps
  */
 function register({ app }) {
@@ -63,8 +76,13 @@ function register({ app }) {
             } catch (_) {
                 url = '';
             }
-            if (!/index\.html/i.test(url)) return;
-            wc.executeJavaScript(SHORTCUT_SCRIPT, true).catch(() => {});
+            if (!/index\.html/i.test(url)) {
+                console.log('[ReqLibrary] "." ignored, window url:', url);
+                return;
+            }
+            wc.executeJavaScript(SHORTCUT_SCRIPT, true)
+                .then((result) => console.log('[ReqLibrary] "." ->', result))
+                .catch((err) => console.log('[ReqLibrary] "." failed:', err && err.message));
         });
     }
 
