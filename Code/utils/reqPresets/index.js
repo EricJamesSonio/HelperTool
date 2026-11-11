@@ -1,6 +1,6 @@
 const { applyAppTypes } = require('./appTypes.js');
 
-const PRESET_VERSION = 7;
+const PRESET_VERSION = 8;
 
 const ALL = [].concat(
     require('./designSystem.js'),
@@ -10,7 +10,8 @@ const ALL = [].concat(
     require('./frontendArch.js'),
     require('./extras.js'),
     require('./unified.js'),
-    require('./globalsConfig.js')
+    require('./globalsConfig.js'),
+    require('./codeStyle.js')
 );
 
 const byKey = new Map();
