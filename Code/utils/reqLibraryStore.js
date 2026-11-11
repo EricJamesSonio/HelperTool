@@ -144,10 +144,16 @@ function rowKey(r) {
 
 function syncPresetRows(data) {
     const byKey = new Map(PRESETS.map((p) => [p.key, p]));
+    const idByKey = new Map(data.specs.filter((s) => s.presetKey).map((s) => [s.presetKey, s.id]));
     let added = 0;
     for (const spec of data.specs) {
         const p = spec.presetKey ? byKey.get(spec.presetKey) : null;
         if (!p) continue;
+        if (p.key.indexOf('bundle-') === 0) {
+            spec.requirements = p.requirements.map(presetReq);
+            spec.related = uniq(arr(p.related).map((k) => idByKey.get(k)).filter(Boolean));
+            continue;
+        }
         const have = new Set(spec.requirements.map(rowKey));
         for (const pr of p.requirements) {
             if (have.has(rowKey(pr))) continue;
