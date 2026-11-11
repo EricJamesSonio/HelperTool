@@ -235,7 +235,58 @@ function migrateData(data) {
 
 function makeReqLibraryStore({ app }) {
     const DIR = path.join(app.getPath('userData'), 'req-library');
+    const FAV_FILE = path.join(DIR, 'favorites.json');
     const cache = new Map();
+    let favCache = null;
+
+    function readFavorites() {
+        if (favCache) return favCache;
+        let keys = [];
+        try {
+            if (fs.existsSync(FAV_FILE)) {
+                const raw = JSON.parse(fs.readFileSync(FAV_FILE, 'utf-8'));
+                keys = arr(raw && raw.presetKeys).map(str).filter(Boolean);
+            }
+        } catch (_) {
+            keys = [];
+        }
+        favCache = new Set(keys);
+        return favCache;
+    }
+
+    function writeFavorites() {
+        const set = readFavorites();
+        if (!fs.existsSync(DIR)) fs.mkdirSync(DIR, { recursive: true });
+        const tmp = FAV_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify({ presetKeys: Array.from(set).sort() }, null, 2), 'utf-8');
+        fs.renameSync(tmp, FAV_FILE);
+    }
+
+    function isFavorite(spec) {
+        if (spec.presetKey) return readFavorites().has(spec.presetKey);
+        return !!spec.favorite;
+    }
+
+    function withFavorite(spec) {
+        return Object.assign({}, spec, { favorite: isFavorite(spec) });
+    }
+
+    function absorbRepoFavorites(data) {
+        const favs = readFavorites();
+        let moved = false;
+        let favChanged = false;
+        for (const spec of data.specs) {
+            if (!spec.presetKey || !spec.favorite) continue;
+            if (!favs.has(spec.presetKey)) {
+                favs.add(spec.presetKey);
+                favChanged = true;
+            }
+            spec.favorite = false;
+            moved = true;
+        }
+        if (favChanged) writeFavorites();
+        if (moved) persist(data);
+    }
 
     function fileFor(repoPath) {
         const key = String(repoPath).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -328,6 +379,7 @@ function makeReqLibraryStore({ app }) {
 
     function loadAll({ repoPath }) {
         const data = read(repoPath);
+        absorbRepoFavorites(data);
         const have = new Set(data.specs.map((s) => s.presetKey).filter(Boolean));
         return {
             version: data.version,
@@ -337,7 +389,7 @@ function makeReqLibraryStore({ app }) {
             appTypes: APP_TYPES,
             categories: data.categories,
             tags: data.tags,
-            specs: data.specs,
+            specs: data.specs.map(withFavorite),
             updatedAt: data.updatedAt,
             levels: LEVELS,
             groups: GROUPS,
@@ -388,7 +440,7 @@ function makeReqLibraryStore({ app }) {
         }
         ensureTaxonomy(data);
         persist(data);
-        return incoming;
+        return withFavorite(incoming);
     }
 
     function deleteSpec({ repoPath, id }) {
@@ -429,9 +481,16 @@ function makeReqLibraryStore({ app }) {
         const data = read(repoPath);
         const spec = data.specs.find((s) => s.id === id);
         if (!spec) throw new Error('Specification not found');
+        if (spec.presetKey) {
+            const favs = readFavorites();
+            if (favs.has(spec.presetKey)) favs.delete(spec.presetKey);
+            else favs.add(spec.presetKey);
+            writeFavorites();
+            return withFavorite(spec);
+        }
         spec.favorite = !spec.favorite;
         persist(data);
-        return spec;
+        return withFavorite(spec);
     }
 
     function markViewed({ repoPath, id }) {
