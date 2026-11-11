@@ -3,7 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { PRESETS, PRESET_VERSION } = require('./reqPresets/index.js');
 
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 const LEVELS = ['must-have', 'standard', 'medium', 'strict'];
 
 const GROUPS = [
@@ -20,15 +20,18 @@ const GROUPS = [
     'Acceptance Criteria',
 ];
 
-const DEFAULT_CATEGORIES = ['Frontend', 'Backend', 'Database', 'DevOps', 'Other'];
+const DEFAULT_CATEGORIES = ['Components', 'Globals', 'Security', 'Shared', 'Other'];
 
 const LEGACY_CATEGORY_MAP = {
-    Pages: ['Frontend', 'Pages'],
-    'Design System': ['Frontend', 'Globals'],
-    Architecture: ['Frontend', 'Standards'],
-    Security: ['Backend', 'Security'],
-    Performance: ['Frontend', 'Shared'],
-    Testing: ['DevOps', 'Pipelines'],
+    Frontend: ['Components', ''],
+    Backend: ['Shared', 'Backend'],
+    Database: ['Shared', 'Database'],
+    DevOps: ['Shared', 'DevOps'],
+    Pages: ['Shared', 'Pages'],
+    'Design System': ['Globals', 'Styles'],
+    Architecture: ['Shared', 'Standards'],
+    Performance: ['Shared', 'Standards'],
+    Testing: ['Shared', 'Standards'],
 };
 
 function newId(prefix) {
