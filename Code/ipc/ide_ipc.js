@@ -376,6 +376,7 @@ function countExts(files) {
     .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
     .slice(0, 80);
 }
+
 async function runSearch(sender, id, root, query, session, extSet) {
   const t0 = Date.now();
   const cancelled = () => session.cancelled || sender.isDestroyed();
@@ -464,6 +465,7 @@ async function runSearch(sender, id, root, query, session, extSet) {
     }
   }
 }
+
 function scoreFile(rel, tokens) {
   const rl = rel.toLowerCase();
   const slash = rl.lastIndexOf('/');
@@ -552,7 +554,6 @@ async function runFileSearch(sender, id, root, query, session, extSet) {
   }
 }
 
-
 async function warmCorpus(root) {
   if (warming && warming.root === root) return;
   if (lastWarm.root === root && Date.now() - lastWarm.at < WARM_GAP) return;
@@ -604,13 +605,15 @@ function parseHunks(text) {
 
 async function gitLineDiff(root, file) {
   const none = { success: true, kind: 'none', hunks: [] };
-  const inside = await runGit(root, ['rev-parse', '--is-inside-work-tree']);
+  const [inside, tracked, diff] = await Promise.all([
+    runGit(root, ['rev-parse', '--is-inside-work-tree']),
+    runGit(root, ['ls-files', '--error-unmatch', '--', file]),
+    runGit(root, ['diff', 'HEAD', '--unified=0', '--no-color', '--no-ext-diff', '--', file]),
+  ]);
   if (!inside.ok || inside.out.trim() !== 'true') return none;
-  const tracked = await runGit(root, ['ls-files', '--error-unmatch', '--', file]);
   if (tracked.ok) {
-    const d = await runGit(root, ['diff', 'HEAD', '--unified=0', '--no-color', '--no-ext-diff', '--', file]);
-    if (!d.ok) return none;
-    return { success: true, kind: 'tracked', hunks: parseHunks(d.out).slice(0, 5000) };
+    if (!diff.ok) return none;
+    return { success: true, kind: 'tracked', hunks: parseHunks(diff.out).slice(0, 5000) };
   }
   const ignored = await runGit(root, ['check-ignore', '-q', '--', file]);
   if (ignored.ok) return none;
@@ -629,6 +632,7 @@ ipcMain.handle('ide:gitLines', async (_event, args) => {
     return { success: false, error: err.message };
   }
 });
+
 async function clipExists(p) {
   try {
     await fs.promises.lstat(p);
@@ -755,6 +759,7 @@ ipcMain.handle('ide:fsPaste', async (_event, args) => {
     return { success: false, error: err.message };
   }
 });
+
 function register() {
   ipcMain.handle('ide:readDir', async (_event, dirPath) => {
     try {
