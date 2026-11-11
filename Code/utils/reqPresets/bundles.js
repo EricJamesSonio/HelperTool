@@ -16,6 +16,10 @@ function buildBundles(find) {
         'backend-error-logging',
         'frontend-error-handling',
     ]);
+    const folderKeys = existingKeys(find, [
+        'backend-folder-structure',
+        'frontend-folder-structure',
+    ]);
 
     const styles = {
         key: 'bundle-global-styles',
@@ -53,7 +57,25 @@ function buildBundles(find) {
         ],
     };
 
-    return [styles, errors].filter((b) => b.related.length > 0);
+    const folders = {
+        key: 'bundle-folder-structure',
+        name: 'Bundle: Folder Structure (Backend + Frontend)',
+        description: 'The modular backend and the modular frontend folder structures in one preset, so every new file on either side has an obvious place. Both parts are included automatically when you copy it.',
+        category: 'Shared',
+        subcategory: 'Structure',
+        tags: ['bundle', 'folders', 'structure', 'modular', 'backend', 'frontend'],
+        related: folderKeys,
+        requirements: [
+            {
+                group: 'Architecture Requirements',
+                level: 'must-have',
+                title: 'Bundle: both sides together',
+                description: 'Apply the frontend folder structure to UI code and the backend folder structure to server or main-process code, and keep the two sides consistent where they share names, types or contracts. Inspect the existing folders first and follow them. Propose a new structure only where the project has none. If the project has only one side, apply that side and say so. Do not move or rename existing files without asking the user first, because moving files is a large change. At the end, list the files created or changed for each side.',
+            },
+        ],
+    };
+
+    return [styles, errors, folders].filter((b) => b.related.length > 0);
 }
 
 module.exports = { buildBundles };

@@ -1,7 +1,7 @@
 const { applyAppTypes } = require('./appTypes.js');
 const { buildBundles } = require('./bundles.js');
 
-const PRESET_VERSION = 15;
+const PRESET_VERSION = 16;
 
 const ALL = [].concat(
     require('./designSystem.js'),
