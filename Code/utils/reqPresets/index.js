@@ -1,7 +1,7 @@
 const { applyAppTypes } = require('./appTypes.js');
 const { buildBundles } = require('./bundles.js');
 
-const PRESET_VERSION = 12;
+const PRESET_VERSION = 13;
 
 const ALL = [].concat(
     require('./designSystem.js'),
@@ -14,7 +14,8 @@ const ALL = [].concat(
     require('./globalsConfig.js'),
     require('./codeStyle.js'),
     require('./frontendErrors.js'),
-    require('./pageStructure.js')
+    require('./pageStructure.js'),
+    require('./authPage.js')
 );
 
 const byKey = new Map();
@@ -32,6 +33,7 @@ const RENAME = {
 
 const PAGE_KEYS = new Set([
     'login-page',
+    'login-signup-page',
     'profile-page',
     'landing-page',
     'dashboard-page',

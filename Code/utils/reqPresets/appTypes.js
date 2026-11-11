@@ -72,6 +72,7 @@ const NEEDS = {
     'bundle-error-handling': [N_STATES, N_STYLES],
     'page-structure': [N_LAYOUT, N_HEADER, N_STYLES, N_TYPE, N_STATES, N_FE_ERR],
     'login-page': [N_LAYOUT, N_HEADER, N_STYLES, N_TYPE, N_STATES, N_FE_ERR],
+    'login-signup-page': [N_LAYOUT, N_STYLES, N_TYPE, N_STATES, N_FE_ERR],
     'profile-page': [N_LAYOUT, N_HEADER, N_STYLES, N_TYPE, N_STATES, N_FE_ERR],
     'landing-page': [N_LAYOUT, N_HEADER, N_STYLES, N_TYPE, N_STATES, N_FE_ERR],
     'dashboard-page': [N_LAYOUT, N_HEADER, N_STYLES, N_TYPE, N_STATES, N_FE_ERR, N_LABELS],
