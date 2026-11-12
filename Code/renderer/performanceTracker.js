@@ -271,6 +271,21 @@ function buildReport() {
 
   return out.join('\n');
 }
+function reportText() {
+  const base = buildReport();
+  if (!base || !_snap) return base;
+  const files = Array.isArray(_snap.dataFiles) ? _snap.dataFiles : [];
+  if (!files.length) return base;
+  const total = files.reduce((a, f) => a + f.bytes, 0);
+  const lines = ['## Data files (' + fmtMem(total / 1024) + ' on disk)', ''];
+  files.forEach((f) => lines.push('- ' + mdCell(f.label) + ': ' + fmtMem(f.bytes / 1024)));
+  lines.push('');
+  const marker = '## Memory over time';
+  const at = base.indexOf(marker);
+  if (at < 0) return base + '\n' + lines.join('\n');
+  return base.slice(0, at) + lines.join('\n') + '\n' + base.slice(at);
+}
+
 
 function flashButton(id, text) {
   const b = $(id);
@@ -284,7 +299,7 @@ function flashButton(id, text) {
 }
 
 async function copyReport() {
-  const text = buildReport();
+  const text = reportText();
   if (!text) {
     flashButton('ptCopy', 'No data yet');
     return;
@@ -311,7 +326,7 @@ async function copyReport() {
 }
 
 function downloadReport() {
-  const text = buildReport();
+  const text = reportText();
   if (!text) {
     flashButton('ptDownload', 'No data yet');
     return;
