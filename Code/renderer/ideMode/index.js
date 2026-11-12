@@ -178,6 +178,7 @@ function ensureBuilt() {
       });
       search.init({
         onOpen: (p, line, col, len) => editor.openAt(p, line, col, len),
+        onOpenFolder: (p) => explorer.revealFolder(p),
         isDirty: (p) => editor.isDirty(p),
         onFileChanged: (p) => editor.reloadFromDisk(p),
       });
@@ -384,6 +385,21 @@ async function onRunFile(e) {
     console.error('[IDE] run failed:', err);
   }
 }
+function onReverted(e) {
+  if (!active || !mods) return;
+  const d = (e && e.detail) || {};
+  for (const p of d.removed || []) {
+    try { mods.editor.closeTab(p); } catch (_) {}
+  }
+  mods.explorer.refresh();
+  for (const p of d.restored || []) {
+    try {
+      const r = mods.editor.reloadFromDisk(p);
+      if (r && typeof r.catch === 'function') r.catch(() => {});
+    } catch (_) {}
+  }
+}
+
 
 async function undockTerminal() {
   try {
@@ -410,6 +426,7 @@ function init() {
   document.addEventListener('repo:switched', onRepoSwitched);
   document.addEventListener('keydown', onGlobalKey, true);
   document.addEventListener('ide:run-file', onRunFile);
+  document.addEventListener('ide:reverted', onReverted);
   const refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {

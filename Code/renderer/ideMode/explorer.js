@@ -245,6 +245,10 @@ function revealDir(dirPath) {
   revealKey = pathKey(dirPath);
   renderTree();
 }
+export function revealFolder(dirPath) {
+  revealDir(dirPath);
+}
+
 
 function onChangesClick(e) {
   const it = e.target.closest('.ide-ch-item');

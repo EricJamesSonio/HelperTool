@@ -1,27 +1,36 @@
 import { state } from '../app_manager/appState.js';
 import { esc } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+const FOLDER_ICON = '<span class="ide-ficon"><svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg></span>';
+let onOpenFolder = null;
+
 let mode = 'words';
 let modeWired = false;
 
 function emptyMsg() {
+  if (mode === 'folders') return 'Type at least ' + MIN_CHARS + ' characters to find a folder by name or path.';
   if (mode === 'files') return 'Type at least ' + MIN_CHARS + ' characters to find a file by name or path.';
   return 'Type at least ' + MIN_CHARS + ' characters to search the codebase.';
 }
 
 function applyMode() {
   if (!overlay) return;
-  const files = mode === 'files';
+  const plain = mode !== 'words';
   const root = overlay.querySelector('.ide-sm');
-  if (root) root.classList.toggle('files-mode', files);
+  if (root) {
+    root.classList.toggle('files-mode', plain);
+    root.classList.toggle('folders-mode', mode === 'folders');
+  }
   overlay.querySelectorAll('.ide-sm-mode-btn').forEach((b) => {
     b.classList.toggle('on', b.dataset.mode === mode);
   });
-  input.placeholder = files ? 'Search files by name or path...' : 'Search words in the codebase...';
+  if (mode === 'folders') input.placeholder = 'Search folders by name or path...';
+  else if (mode === 'files') input.placeholder = 'Search files by name or path...';
+  else input.placeholder = 'Search words in the codebase...';
 }
 
 function setMode(next) {
-  if (next !== 'words' && next !== 'files') return;
+  if (next !== 'words' && next !== 'files' && next !== 'folders') return;
   if (next === mode) {
     input.focus();
     return;
@@ -59,7 +68,7 @@ function wireMode() {
   if (modeWired || !overlay) return;
   modeWired = true;
   const st = loadState();
-  if (st.mode === 'files') mode = 'files';
+  if (st.mode === 'files' || st.mode === 'folders') mode = st.mode;
   const box = overlay.querySelector('.ide-sm-mode');
   box.addEventListener('mousedown', (e) => {
     e.preventDefault();
@@ -152,6 +161,7 @@ const TEMPLATE =
     '<div class="ide-sm-mode">' +
       '<button type="button" class="ide-sm-mode-btn on" data-mode="words" title="Search words inside files">Words</button>' +
       '<button type="button" class="ide-sm-mode-btn" data-mode="files" title="Search file names and paths">Files</button>' +
+      '<button type="button" class="ide-sm-mode-btn" data-mode="folders" title="Search folder names and paths">Folders</button>' +
     '</div>' +
     '<input class="ide-sm-input" type="text" spellcheck="false" autocomplete="off" placeholder="Search words in the codebase..." />' +
     '<span class="ide-sm-status"></span>' +
@@ -181,7 +191,7 @@ const TEMPLATE =
     '<span class="ide-sm-rep-msg"></span>' +
   '</div>' +
   '<div class="ide-sm-foot">' +
-    '<span><kbd>Tab</kbd> words / files</span>' +
+    '<span><kbd>Tab</kbd> words / files / folders</span>' +
     '<span><kbd>Up</kbd><kbd>Down</kbd> navigate</span>' +
     '<span><kbd>Click</kbd> preview / expand</span>' +
     '<span><kbd>Double-click</kbd> or <kbd>Enter</kbd> open</span>' +
@@ -452,9 +462,9 @@ function rowHtml(r, i, isSel, nested) {
   if (r.kind === 'file') {
     return '<div class="' + cls + '" data-i="' + i + '">' +
       '<div class="ide-sm-code">' + codeHtml(r) + '</div>' +
-      '<div class="ide-sm-meta">' + fileIcon(baseName(r.rel)) +
-        '<span class="ide-sm-path">' + esc(r.rel) + '</span>' +
-        (mode === 'files' ? '' : tagFor(r.kind)) +
+      '<div class="ide-sm-meta">' + (r.dir ? FOLDER_ICON : fileIcon(baseName(r.rel))) +
+        '<span class="ide-sm-path">' + esc(r.rel) + (r.dir ? '/' : '') + '</span>' +
+        (mode === 'words' ? tagFor(r.kind) : '') +
       '</div>' +
     '</div>';
   }
@@ -865,6 +875,33 @@ async function loadPreview() {
   const r = sel;
   if (!r) {
     clearPreview();
+    return;
+  }
+  if (r.dir) {
+    pvTitle.textContent = r.rel + '/';
+    pvFile = null;
+    pvCode.innerHTML = '<div class="ide-sm-empty">Loading...</div>';
+    let dres = null;
+    try {
+      dres = await window.ideAPI.readDir(r.file);
+    } catch (_) {
+      dres = null;
+    }
+    if (sel !== r) return;
+    if (!dres || !dres.success) {
+      pvCode.innerHTML = '<div class="ide-sm-empty">Preview not available.</div>';
+      return;
+    }
+    const entries = (dres.entries || []).slice(0, 400);
+    let dh = '';
+    for (const e of entries) {
+      const isDir = e.type === 'folder';
+      dh += '<div class="ide-sm-pl">' +
+        '<span class="ide-sm-pn">' + (isDir ? '&#9656;' : '') + '</span>' +
+        '<span class="ide-sm-pt">' + esc(e.name) + (isDir ? '/' : '') + '</span>' +
+      '</div>';
+    }
+    pvCode.innerHTML = dh || '<div class="ide-sm-empty">This folder is empty.</div>';
     return;
   }
   pvTitle.textContent = r.rel + ':' + r.line;
@@ -1305,6 +1342,10 @@ async function openItem(r) {
   if (!r) return;
   await commitEdit();
   close(true);
+  if (r.dir) {
+    if (onOpenFolder) onOpenFolder(r.file);
+    return;
+  }
   if (onOpen) onOpen(r.file, r.line, r.col, r.len);
 }
 
@@ -1323,7 +1364,10 @@ function onKey(e) {
   }
   if (k === 'Tab') {
     e.preventDefault();
-    setMode(mode === 'words' ? 'files' : 'words');
+    const order = ['words', 'files', 'folders'];
+    const at = order.indexOf(mode);
+    const step = e.shiftKey ? order.length - 1 : 1;
+    setMode(order[(at + step) % order.length]);
     return;
   }
   if (k === 'ArrowDown' || (ctrl && (k === 'n' || k === 'j'))) {
@@ -1365,6 +1409,7 @@ function onKey(e) {
 
 export function init(opts) {
   onOpen = (opts && opts.onOpen) || null;
+  onOpenFolder = (opts && opts.onOpenFolder) || null;
   isDirtyCb = (opts && opts.isDirty) || null;
   onFileChanged = (opts && opts.onFileChanged) || null;
 }

@@ -7,11 +7,16 @@ const FOLDER = '<span class="ide-ficon"><svg viewBox="0 0 16 16" width="16" heig
 const TITLES = { mod: 'Modified files', new: 'New files', del: 'Deleted files' };
 const EMPTY = { mod: 'No modified files.', new: 'No new files.', del: 'No deleted files.' };
 const TIP = { C: 'Conflict', D: 'Deleted', M: 'Modified', R: 'Renamed', A: 'Added (new)', U: 'Untracked (new)' };
+const HINT = 'Click a file to open it at its first change.';
 
 let overlay = null;
 let ctx = null;
 let cur = 'mod';
 let busy = false;
+let reverting = false;
+let revertOpen = false;
+let armed = false;
+let sel = { mod: true, new: true, del: true };
 
 function attr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -42,6 +47,58 @@ function tabHtml(key, label, count) {
     esc(label) + ' <span class="ide-cmd-n">' + count + '</span></button>';
 }
 
+function setNote(text, isErr) {
+  if (!overlay) return;
+  const el = overlay.querySelector('.ide-um-hint');
+  if (!el) return;
+  el.textContent = text || HINT;
+  el.classList.toggle('err', !!isErr);
+}
+
+function revertTotal(data) {
+  return (sel.mod ? data.modified.length : 0) + (sel.new ? data.added.length : 0) + (sel.del ? data.deleted.length : 0);
+}
+
+function optHtml(key, label, desc, count) {
+  const off = count === 0;
+  return '<label class="ide-rv-opt' + (off ? ' off' : '') + '">' +
+    '<input type="checkbox" data-rv="' + key + '"' + (sel[key] && !off ? ' checked' : '') + (off ? ' disabled' : '') + '>' +
+    '<span class="ide-rv-l">' + esc(label) + '</span>' +
+    '<span class="ide-rv-n">' + count + '</span>' +
+    '<span class="ide-rv-d">' + esc(desc) + '</span>' +
+  '</label>';
+}
+
+function renderRevert() {
+  if (!overlay || !ctx) return;
+  const box = overlay.querySelector('.ide-rv');
+  const toggle = overlay.querySelector('[data-cm="rv-toggle"]');
+  const data = ctx.getChanges();
+  const all = data.modified.length + data.added.length + data.deleted.length;
+  if (!all && !reverting) revertOpen = false;
+  if (toggle) {
+    toggle.disabled = all === 0 || reverting;
+    toggle.classList.toggle('armed', revertOpen);
+  }
+  box.classList.toggle('open', revertOpen);
+  if (!revertOpen) {
+    box.innerHTML = '';
+    return;
+  }
+  const total = revertTotal(data);
+  const label = reverting ? 'Reverting...' : (armed ? 'Click again to confirm' : 'Revert selected (' + total + ')');
+  box.innerHTML =
+    '<div class="ide-rv-title">Revert to the last commit</div>' +
+    '<div class="ide-rv-sub">Edits are discarded, new files are moved to the trash, deleted files come back.</div>' +
+    optHtml('mod', 'Modified', 'discard edits', data.modified.length) +
+    optHtml('new', 'New', 'remove from the project', data.added.length) +
+    optHtml('del', 'Deleted', 'bring back', data.deleted.length) +
+    '<div class="ide-rv-act">' +
+      '<button type="button" class="ide-um-btn" data-cm="rv-cancel"' + (reverting ? ' disabled' : '') + '>Cancel</button>' +
+      '<button type="button" class="ide-um-btn danger' + (armed ? ' armed' : '') + '" data-cm="rv-go"' + (!total || reverting ? ' disabled' : '') + '>' + esc(label) + '</button>' +
+    '</div>';
+}
+
 function render() {
   if (!overlay || !ctx) return;
   const data = ctx.getChanges();
@@ -58,6 +115,7 @@ function render() {
     : '<div class="ide-um-msg">' + esc(EMPTY[cur]) + '</div>';
   body.scrollTop = keep;
   overlay.querySelector('.ide-um-sum').textContent = list.length + ' item' + (list.length === 1 ? '' : 's');
+  renderRevert();
 }
 
 function close() {
@@ -66,6 +124,9 @@ function close() {
   overlay.remove();
   overlay = null;
   ctx = null;
+  revertOpen = false;
+  armed = false;
+  sel = { mod: true, new: true, del: true };
 }
 
 function onKey(e) {
@@ -83,6 +144,56 @@ async function refresh() {
     await ctx.refresh();
   } catch (_) {}
   busy = false;
+  render();
+}
+
+async function doRevert() {
+  if (reverting || !ctx) return;
+  const c = ctx;
+  const api = window.ideRevertAPI;
+  const root = state.selectedRepoPath;
+  if (!api || !root) {
+    armed = false;
+    setNote('Revert is not available here.', true);
+    renderRevert();
+    return;
+  }
+  const data = c.getChanges();
+  const restore = [];
+  const remove = [];
+  if (sel.mod) data.modified.forEach((r) => restore.push(r.path));
+  if (sel.del) data.deleted.forEach((r) => restore.push(r.path));
+  if (sel.new) data.added.forEach((r) => remove.push(r.path));
+  if (!restore.length && !remove.length) return;
+  reverting = true;
+  armed = false;
+  setNote('Reverting...', false);
+  renderRevert();
+  let res = null;
+  try {
+    res = await api.run({ root, restore, remove });
+  } catch (err) {
+    res = { success: false, error: err && err.message ? err.message : 'Revert failed' };
+  }
+  reverting = false;
+  const restored = res && res.restored ? res.restored : [];
+  const removed = res && res.removed ? res.removed : [];
+  const failed = res && res.failed ? res.failed : [];
+  document.dispatchEvent(new CustomEvent('ide:reverted', { detail: { restored, removed } }));
+  document.dispatchEvent(new CustomEvent('ide:tree-changed'));
+  if (c.refresh) {
+    try {
+      await c.refresh();
+    } catch (_) {}
+  }
+  if (!overlay) return;
+  if (!res || res.success === false) {
+    setNote((res && res.error) || 'Revert failed.', true);
+  } else {
+    let text = 'Restored ' + restored.length + ', removed ' + removed.length;
+    if (failed.length) text += ', ' + failed.length + ' failed: ' + (failed[0].error || 'unknown error');
+    setNote(text, failed.length > 0);
+  }
   render();
 }
 
@@ -111,6 +222,14 @@ async function openAtChange(filePath, c) {
   document.dispatchEvent(new CustomEvent('ide:open-at', { detail: { path: filePath, line, col: 0, len: 0 } }));
 }
 
+function onChange(e) {
+  const cb = e.target.closest ? e.target.closest('[data-rv]') : null;
+  if (!cb) return;
+  sel[cb.dataset.rv] = cb.checked;
+  armed = false;
+  renderRevert();
+}
+
 function onClick(e) {
   if (e.target === overlay) {
     close();
@@ -124,6 +243,22 @@ function onClick(e) {
     else if (act === 'tab') {
       cur = cm.dataset.tab || 'mod';
       render();
+    } else if (act === 'rv-toggle') {
+      revertOpen = !revertOpen;
+      armed = false;
+      renderRevert();
+    } else if (act === 'rv-cancel') {
+      revertOpen = false;
+      armed = false;
+      renderRevert();
+    } else if (act === 'rv-go') {
+      if (cm.disabled) return;
+      if (!armed) {
+        armed = true;
+        renderRevert();
+        return;
+      }
+      doRevert();
     }
     return;
   }
@@ -149,9 +284,11 @@ const SHELL =
     '</div>' +
     '<div class="ide-cmd-tabs"></div>' +
     '<div class="ide-um-body"></div>' +
+    '<div class="ide-rv"></div>' +
     '<div class="ide-um-foot">' +
-      '<span class="ide-um-hint">Click a file to open it at its first change.</span>' +
+      '<span class="ide-um-hint">' + HINT + '</span>' +
       '<span class="ide-um-spacer"></span>' +
+      '<button type="button" class="ide-um-btn danger" data-cm="rv-toggle" title="Reset the project to the last commit">Revert all...</button>' +
       '<button type="button" class="ide-um-btn" data-cm="refresh">Refresh</button>' +
       '<button type="button" class="ide-um-btn primary" data-cm="close">Close</button>' +
     '</div>' +
@@ -166,10 +303,14 @@ export function openChangesModal(kind, context) {
     return;
   }
   ctx = context;
+  revertOpen = false;
+  armed = false;
+  sel = { mod: true, new: true, del: true };
   overlay = document.createElement('div');
   overlay.className = 'ide-um-overlay';
   overlay.innerHTML = SHELL;
   overlay.addEventListener('click', onClick);
+  overlay.addEventListener('change', onChange);
   document.body.appendChild(overlay);
   document.addEventListener('keydown', onKey, true);
   render();
