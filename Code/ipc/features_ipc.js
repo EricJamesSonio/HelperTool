@@ -8,6 +8,16 @@ const DEFAULT_FEATURES = {
     swagger:       true,
 };
 
+function stopDisabledBackground(features) {
+    if (features && features.profileTool === false) {
+        try {
+            require('./profile.js').stopWatcher();
+        } catch (e) {
+            console.error('[IPC] stopping profile watcher failed:', e);
+        }
+    }
+}
+
 /**
  * @param {{ config, onFeaturesChanged }} deps
  */
@@ -29,6 +39,7 @@ function register({ config, onFeaturesChanged }) {
             const cfg = config.readConfig();
             cfg.features = { ...DEFAULT_FEATURES, ...features };
             config.writeConfig(cfg);
+            stopDisabledBackground(cfg.features);
             if (typeof onFeaturesChanged === 'function') {
                 try { onFeaturesChanged(cfg.features); }
                 catch (e) { console.error('[IPC] onFeaturesChanged error:', e); }

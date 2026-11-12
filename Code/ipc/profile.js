@@ -70,7 +70,18 @@ function _ignoredFor(repoPath) {
     return IGNORE_FILE.test(p);
   };
 }
+function _profileEnabled() {
+  try {
+    const feats = require('../config/config.js').readConfig()?.features ?? null;
+    return !feats || feats.profileTool !== false;
+  } catch (_) {
+    return true;
+  }
+}
 function _startWatcher(repoPath, repoName) {
+  if (!_profileEnabled()) {
+    return;
+  }
   if (_watchedPaths.has(repoPath)) {
     updateService('profileWatcher', 'done');
     return;
@@ -686,3 +697,22 @@ f = typeRow[2] || 0;
 }
 
 module.exports = { register, triggerCommitSync: _syncCommits, startWatcher: _startWatcher };
+function _stopWatchers() {
+  for (const w of _watchers) {
+    try { w.close(); } catch (_) {}
+  }
+  _watchers = [];
+  if (_flushTimer) {
+    clearTimeout(_flushTimer);
+    _flushTimer = null;
+  }
+  _flushSaveBatch();
+  _watchedPaths.clear();
+  _lastSyncDate = null;
+}
+
+module.exports.stopWatcher = _stopWatchers;
+module.exports.triggerCommitSync = function triggerCommitSync(repoPath, repoName) {
+  if (!_profileEnabled()) return Promise.resolve();
+  return _syncCommits(repoPath, repoName);
+};

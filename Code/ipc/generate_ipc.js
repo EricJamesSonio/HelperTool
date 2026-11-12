@@ -5,10 +5,15 @@ const fs = require('fs');
 const workerProxy = require('./workerProxy.js');
 
 let _progressCallback = null;
+let _running = false;
 
 function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow }) {
 
     ipcMain.handle('generate', async (event, actionType, repoPath, items, filePath, minify = false, promptText = '') => {
+        if (_running) {
+            return { success: false, busy: true, content: '', filePath: '' };
+        }
+        _running = true;
 
         try {
             if (!repoPath || !items?.length || !filePath) throw new Error('Invalid arguments');
@@ -19,8 +24,12 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
 
             const mainWindow = getMainWindow();
 
-            _progressCallback = (percent) => {
-                mainWindow.webContents.send('progress-update', percent);
+            _progressCallback = (data) => {
+                const percent = data && typeof data === 'object' ? data.percent : data;
+                if (!Number.isFinite(percent)) return;
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('progress-update', percent);
+                }
             };
             workerProxy.onProgress(_progressCallback);
 
@@ -34,9 +43,6 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
                 minify,
             });
 
-            workerProxy.offProgress(_progressCallback);
-            _progressCallback = null;
-
             let content = '';
             if (fs.existsSync(filePath)) {
                 content = await fs.promises.readFile(filePath, 'utf-8');
@@ -45,12 +51,14 @@ function register({ app, config, fileOps, docignoreUtils, codeOps, getMainWindow
             return { success: true, content, filePath };
         } catch (err) {
             console.error('[IPC] generate error:', err);
+            dialog.showErrorBox('Generate Error', err.message);
+            return { success: false, content: '', filePath: '' };
+        } finally {
             if (_progressCallback) {
                 workerProxy.offProgress(_progressCallback);
                 _progressCallback = null;
             }
-            dialog.showErrorBox('Generate Error', err.message);
-            return { success: false, content: '', filePath: '' };
+            _running = false;
         }
     });
 
