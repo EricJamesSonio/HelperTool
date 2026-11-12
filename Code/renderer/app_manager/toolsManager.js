@@ -1150,3 +1150,20 @@ RUN.errorCop = async () => {
   _registry.closeAll();
   ecp.open();
 };
+const _closeAllOriginal = _registry.closeAll.bind(_registry);
+_registry.closeAll = function closeAllWithRepoConsole() {
+  document.dispatchEvent(new CustomEvent('repoConsole:close-request'));
+  return _closeAllOriginal();
+};
+
+document.addEventListener('repoConsole:open-run', async (e) => {
+  const detail = (e && e.detail) || {};
+  try {
+    const mod = await import('../repoConsole.js');
+    _registry.closeAll();
+    await mod.openRun(detail.repoPath || state.selectedRepoPath, detail.runId, detail.tab);
+    _registry.register('repoConsole', mod.getPanel());
+  } catch (err) {
+    console.error('[Tools] Repo Console run:', err);
+  }
+});
