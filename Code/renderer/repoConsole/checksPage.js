@@ -79,12 +79,13 @@ function settingsCard(settings) {
     'div',
     { class: 'rc-card' },
     h('h3', { text: 'Run after push' }),
-    h('p', { text: 'After a push from Git Tool, only the projects that contain pushed files are checked, in the background.' }),
+    h('p', { text: 'After a push from Git Tool, only the projects that contain pushed files are checked, in the background. Lint, type check and tests run when found. A project with no tests gets its build run instead, so errors still show up.' }),
     h(
       'div',
       { class: 'pc-toggles' },
       toggle('Run checks automatically after every push', settings.enabled, (v) => saveSettings({ enabled: v })),
       KINDS.map(([id, label]) => toggle(label, settings.kinds[id] !== false, (v) => saveSettings({ kinds: { [id]: v } }))),
+      toggle('Always run the build, even when the project has tests', settings.buildMode === 'always', (v) => saveSettings({ buildMode: v ? 'always' : 'fallback' })),
       toggle('Include heavy builds (Next.js / Nuxt) that can clash with a running dev server', settings.heavyBuilds, (v) => saveSettings({ heavyBuilds: v }))
     ),
     h(
