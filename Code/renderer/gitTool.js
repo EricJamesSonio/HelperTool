@@ -7,11 +7,13 @@
 import GitManager from './gitTool/gitManager.js';
 import GitToolUI from './gitTool/gitToolUI.js';
 import GitCommandHandler from './gitTool/gitCommandHandler.js';
+import { installPushChecks } from './gitTool/pushChecks.js';
 
 class GitTool {
   constructor() {
     this.gitManager = new GitManager();
     this.gitCommandHandler = new GitCommandHandler(this.gitManager);
+    installPushChecks(this.gitCommandHandler);
     this.gitToolUI = null;
     this.isInitialized = false;
     this.currentRepoPath = null;
