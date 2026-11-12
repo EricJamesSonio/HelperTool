@@ -208,3 +208,19 @@
   flex-direction: column;
   gap: 2px;
 }
+.pc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary, #e0e4e8);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pc-toggle input {
+  cursor: pointer;
+  accent-color: var(--accent, #2f81f7);
+}
