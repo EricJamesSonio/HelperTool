@@ -1,23 +1,27 @@
 import { S, h, call, toast } from './state.js';
-import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLiveLog, schedulePanelRefresh, openLiveOutput } from './monitor.js';
-import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory } from './pages.js';
+import { mountPill, mountOutput, renderPill, renderOutput, closeOutput, appendLiveLog, schedulePanelRefresh, openLiveOutput, refreshStage, openHistoryRun } from './monitor.js';
+import { seedsPage, databasePage, scriptsPage, testsPage, historyPage, loadHistory, setSearch, getSearch } from './pages.js';
 import { securityPage } from './securityPage.js';
 import { ciPage } from './ciPage.js';
-import { refreshStage } from './monitor.js';
+import { checksPage } from './checksPage.js';
 
 const NAV = [
   ['seeds', 'Seeds'],
   ['database', 'Database'],
   ['scripts', 'Scripts'],
   ['tests', 'Tests'],
+  ['checks', 'Checks'],
   ['security', 'Security'],
   ['ci', 'CI'],
   ['history', 'History'],
 ];
 
+const SEARCH_PAGES = new Set(['seeds', 'database', 'scripts']);
+
 const els = {};
 let inited = false;
 let pageTimer = null;
+let searchTimer = null;
 
 function repoName() {
   return String(S.repoPath || '').split(/[\\/]/).filter(Boolean).pop() || 'No repo selected';
@@ -54,6 +58,7 @@ function renderNav() {
   els.panel.classList.toggle('prod', prod);
   els.banner.hidden = !prod;
   els.banner.textContent = prod ? 'PRODUCTION MODE - everything you run here changes the real database.' : '';
+  if (els.search) els.search.hidden = !SEARCH_PAGES.has(S.page);
   const stats = info ? (info.historyCount || 0) + ' saved runs \u00b7 ' + (S.catalog.source === 'manifest' ? 'Manifest actions' : 'Detected scripts') : '';
   const canPaste = typeof S.hooks.openImport === 'function';
   els.nav.replaceChildren(
@@ -106,11 +111,13 @@ function renderPage() {
           ? scriptsPage()
           : S.page === 'tests'
             ? testsPage()
-            : S.page === 'security'
-              ? securityPage()
-              : S.page === 'ci'
-                ? ciPage()
-                : historyPage();
+            : S.page === 'checks'
+              ? checksPage()
+              : S.page === 'security'
+                ? securityPage()
+                : S.page === 'ci'
+                  ? ciPage()
+                  : historyPage();
   els.page.replaceChildren(...[body].flat(Infinity).filter(Boolean));
 }
 
@@ -128,6 +135,22 @@ function schedulePageRender() {
     pageTimer = null;
     renderPage();
   }, 250);
+}
+
+function onSearchInput(e) {
+  const value = e.target.value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    setSearch(value);
+    renderPage();
+  }, 250);
+}
+
+function clearSearch() {
+  clearTimeout(searchTimer);
+  if (els.searchInput) els.searchInput.value = '';
+  setSearch('');
+  renderPage();
 }
 
 async function refreshCatalog() {
@@ -180,7 +203,9 @@ function onEvent(msg) {
     S.pending.clear();
     if (S.output.open && S.output.live && S.output.repoPath === repoPath && (!data || S.output.runId !== data.id)) closeOutput();
     renderAll();
-    if (data && data.kind === 'action' && repoPath === S.repoPath && isOpen()) openLiveOutput(repoPath, 'output');
+    if (data && (data.kind === 'action' || data.kind === 'checks') && repoPath === S.repoPath && isOpen()) {
+      openLiveOutput(repoPath, data.kind === 'checks' ? 'summary' : 'output');
+    }
     return;
   }
   let entry = S.jobs.get(repoPath);
@@ -245,6 +270,7 @@ function ensureInit() {
     ['repoConsoleSheet', 'styles/repo-console.css'],
     ['repoConsoleLayoutSheet', 'styles/repo-console-layout.css'],
     ['repoConsoleSecuritySheet', 'styles/repo-console-security.css'],
+    ['pushChecksSheet', 'styles/push-checks.css'],
   ]) {
     if (document.getElementById(id)) continue;
     const link = document.createElement('link');
@@ -268,9 +294,18 @@ function ensureInit() {
   els.panel = h('div', { id: 'repoConsolePanel', class: 'rc-panel' });
   els.nav = h('header', { class: 'rc-navbar' });
   els.banner = h('div', { class: 'rc-banner', hidden: true });
+  els.searchInput = h('input', {
+    type: 'search',
+    placeholder: 'Search actions, scripts and commands',
+    autocomplete: 'off',
+    spellcheck: 'false',
+    value: getSearch(),
+    oninput: onSearchInput,
+  });
+  els.search = h('div', { class: 'rc-searchbar', hidden: true }, els.searchInput);
   els.page = h('section', { class: 'rc-page' });
   els.pane = h('aside', { class: 'rc-pane' });
-  els.panel.append(els.nav, els.banner, h('div', { class: 'rc-body' }, els.page, els.pane));
+  els.panel.append(els.nav, els.banner, els.search, h('div', { class: 'rc-body' }, els.page, els.pane));
   document.body.append(els.panel);
 
   mountOutput(els.pane);
@@ -285,6 +320,10 @@ function ensureInit() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !els.panel.classList.contains('open') || S.modalOpen) return;
+    if (els.searchInput && document.activeElement === els.searchInput && els.searchInput.value) {
+      clearSearch();
+      return;
+    }
     if (S.output.open) closeOutput();
     else close();
   });
@@ -323,6 +362,18 @@ export async function open(repoPath) {
   }
 }
 
+export async function openRun(repoPath, runId, tab) {
+  await open(repoPath);
+  S.page = 'checks';
+  renderAll();
+  if (!runId) return;
+  await openHistoryRun(runId);
+  if (tab && S.output.runId === runId && S.output.detail) {
+    S.output.tab = tab;
+    renderOutput();
+  }
+}
+
 export function close() {
   if (!els.panel) return;
   els.panel.classList.remove('open');
@@ -353,4 +404,8 @@ export async function handleRepoChange(repoPath) {
 document.addEventListener('repo:switched', (e) => {
   const repoPath = e && e.detail ? e.detail.repoPath : '';
   handleRepoChange(repoPath);
+});
+
+document.addEventListener('repoConsole:close-request', () => {
+  if (isOpen()) close();
 });

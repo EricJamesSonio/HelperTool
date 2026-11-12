@@ -169,25 +169,91 @@ function emptyActions() {
   );
 }
 
+const ACTION_PAGES = [
+  ['seeds', 'Seeds'],
+  ['database', 'Database'],
+  ['scripts', 'Scripts'],
+];
+
+let searchText = '';
+
+export function setSearch(value) {
+  searchText = String(value || '').trim();
+}
+
+export function getSearch() {
+  return searchText;
+}
+
+function searchWords(text) {
+  return String(text || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function itemMatches(item, words) {
+  const parts = [item.title, item.summary, item.section, item.id];
+  for (const plan of Object.values(item.targets || {})) {
+    if (plan && plan.display) parts.push(plan.display);
+  }
+  const hay = parts.join(' ').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
+function otherMatches(pageId, words) {
+  const found = [];
+  for (const [id, label] of ACTION_PAGES) {
+    if (id === pageId) continue;
+    const n = S.catalog.items.filter((i) => i.page === id && i.targets && i.targets[S.env] && itemMatches(i, words)).length;
+    if (n) found.push([id, label, n]);
+  }
+  if (!found.length) return null;
+  return h(
+    'div',
+    { class: 'rc-row' },
+    h('span', { class: 'rc-where', text: 'Also found on:' }),
+    found.map(([id, label, n]) =>
+      h('button', {
+        class: 'rc-btn secondary small',
+        text: label + ' (' + n + ')',
+        onclick: () => {
+          S.page = id;
+          S.hooks.renderAll();
+        },
+      })
+    )
+  );
+}
 function actionPage(pageId, lead) {
+  const words = searchWords(searchText);
   const onPage = S.catalog.items.filter((i) => i.page === pageId);
-  const items = onPage.filter((i) => !!(i.targets && i.targets[S.env]));
-  const hidden = onPage.length - items.length;
+  const available = onPage.filter((i) => !!(i.targets && i.targets[S.env]));
+  const items = words.length ? available.filter((i) => itemMatches(i, words)) : available;
+  const hidden = onPage.length - available.length;
   const sections = [];
   for (const item of items) if (!sections.includes(item.section)) sections.push(item.section);
   const out = [trustBox(), h('p', { class: 'rc-lead', text: lead })];
+  if (words.length) {
+    out.push(h('div', { class: 'rc-where', text: 'Showing ' + items.length + ' of ' + available.length + ' for "' + searchText + '"' }), otherMatches(pageId, words));
+  }
   if (!onPage.length) {
     out.push(emptyActions());
     return out;
   }
   if (!items.length) {
-    out.push(h('div', { class: 'rc-empty', text: 'Nothing on this page is available for ' + S.env + '.' }));
+    out.push(
+      h('div', {
+        class: 'rc-empty',
+        text: words.length ? 'Nothing on this page matches "' + searchText + '".' : 'Nothing on this page is available for ' + S.env + '.',
+      })
+    );
     return out;
   }
   for (const section of sections) {
     out.push(h('div', { class: 'rc-section', text: section }), h('div', { class: 'rc-grid' }, items.filter((i) => i.section === section).map(itemCard)));
   }
-  if (hidden) {
+  if (hidden && !words.length) {
     out.push(h('p', { class: 'rc-where', text: hidden + ' action' + (hidden === 1 ? ' is' : 's are') + ' hidden because ' + (hidden === 1 ? 'it is' : 'they are') + ' not available for ' + S.env + '.' }));
   }
   return out;
