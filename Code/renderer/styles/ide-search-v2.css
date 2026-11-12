@@ -372,3 +372,4 @@
 }
 .ide-sm.files-mode .ide-sm-rep { display: none; }
 .ide-sm.files-mode .ide-sm-foot-note { visibility: hidden; }
+.ide-sm.folders-mode .ide-sm-ext { display: none; }

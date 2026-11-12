@@ -1,0 +1,195 @@
+.ide-hd-btn {
+  position: fixed;
+  left: 16px;
+  bottom: 40px;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+body.ide-mode .ide-hd-btn { display: flex; }
+.ide-hd-btn:hover { transform: scale(1.06); }
+.ide-hd-btn.open {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.ide-hd-btn.ok { border-color: var(--green); }
+.ide-hd-btn.bad { border-color: var(--red); }
+
+.ide-hd-panel {
+  position: fixed;
+  left: 16px;
+  bottom: 92px;
+  z-index: 9000;
+  display: none;
+  flex-direction: column;
+  width: 340px;
+  max-height: 60vh;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+body.ide-mode .ide-hd-panel { display: flex; }
+.ide-hd-panel[hidden] { display: none !important; }
+
+.ide-hd-head {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-default);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ide-hd-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.ide-hd-empty {
+  padding: 16px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ide-hd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ide-hd-row:hover { background: var(--bg-hover); }
+.ide-hd-run {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  cursor: pointer;
+}
+.ide-hd-run:hover { background: var(--accent); color: var(--bg-base); }
+.ide-hd-info {
+  flex: 1;
+  min-width: 0;
+}
+.ide-hd-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ide-hd-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ide-hd-mini {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 11px var(--font-ui);
+  cursor: pointer;
+}
+.ide-hd-mini:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.ide-hd-mini.del:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+.ide-hd-msg {
+  flex: 0 0 auto;
+  min-height: 16px;
+  padding: 6px 14px 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.ide-hd-msg.warn { color: var(--red); }
+.ide-hd-foot {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.ide-hd-add {
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.ide-hd-add:hover {
+  background: var(--accent);
+  color: var(--bg-base);
+}
+.ide-hd-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 0;
+  overflow: auto;
+}
+.ide-hd-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ide-hd-in {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  outline: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font: 12.5px var(--font-mono);
+  resize: vertical;
+}
+.ide-hd-in:focus { border-color: var(--accent); }
+.ide-hd-type {
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--bg-elevated);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ide-hd-chk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
