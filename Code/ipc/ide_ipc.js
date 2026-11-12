@@ -553,6 +553,92 @@ async function runFileSearch(sender, id, root, query, session, extSet) {
     }
   }
 }
+let folderCache = { root: null, at: 0, dirs: null };
+
+async function listFolders(root, isCancelled) {
+  const now = Date.now();
+  if (folderCache.root === root && folderCache.dirs && now - folderCache.at < LIST_TTL) return folderCache.dirs;
+  const dirs = [];
+  const stack = [root];
+  while (stack.length) {
+    if (isCancelled()) return null;
+    const dir = stack.pop();
+    let dirents;
+    try {
+      dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const d of dirents) {
+      if (!d.isDirectory()) continue;
+      if (SKIP_DIRS.has(d.name.toLowerCase())) continue;
+      const full = path.join(dir, d.name);
+      dirs.push(full);
+      stack.push(full);
+      if (dirs.length >= MAX_FILES) {
+        stack.length = 0;
+        break;
+      }
+    }
+  }
+  dirs.sort();
+  folderCache = { root, at: Date.now(), dirs };
+  return dirs;
+}
+
+async function runFolderSearch(sender, id, root, query, session) {
+  const t0 = Date.now();
+  const cap = 300;
+  const cancelled = () => session.cancelled || sender.isDestroyed();
+  try {
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const dirs = await listFolders(root, cancelled);
+    if (!dirs || cancelled()) return;
+    const hits = [];
+    for (let i = 0; i < dirs.length; i++) {
+      const f = dirs[i];
+      const rel = relOf(root, f);
+      const sc = scoreFile(rel, tokens);
+      if (sc) {
+        hits.push({
+          file: f,
+          rel,
+          dir: true,
+          line: 1,
+          col: 0,
+          len: 0,
+          text: rel.slice(rel.lastIndexOf('/') + 1),
+          hs: sc.hs,
+          hl: sc.hl,
+          more: false,
+          score: sc.score,
+          kind: 'file',
+        });
+      }
+      if (i % 4000 === 3999) {
+        await tick();
+        if (cancelled()) return;
+      }
+    }
+    if (cancelled()) return;
+    hits.sort((a, b) => (b.score - a.score) || a.rel.localeCompare(b.rel));
+    sender.send('ide:searchBatch', {
+      id,
+      results: hits.slice(0, cap),
+      phase: 'files',
+      scanned: dirs.length,
+      progress: 1,
+      done: true,
+      truncated: hits.length > cap,
+      ms: Date.now() - t0,
+    });
+  } catch (err) {
+    if (!cancelled()) {
+      sender.send('ide:searchBatch', { id, results: [], done: true, error: err && err.message ? err.message : 'Search failed' });
+    }
+  }
+}
+
 
 async function warmCorpus(root) {
   if (warming && warming.root === root) return;
@@ -782,7 +868,9 @@ function register() {
     const id = args && args.id;
     const root = args && args.root;
     const query = args && typeof args.query === 'string' ? args.query.trim() : '';
-    const mode = args && args.mode === 'files' ? 'files' : 'words';
+    let mode = 'words';
+    if (args && args.mode === 'files') mode = 'files';
+    if (args && args.mode === 'folders') mode = 'folders';
     if (typeof root !== 'string' || !root) return { success: false, error: 'No folder opened' };
     if (query.length < 2 || query.length > 200) {
       sender.send('ide:searchBatch', { id, results: [], done: true, ms: 0 });
@@ -802,7 +890,8 @@ function register() {
       .slice(0, 200)
       .map((x) => x.toLowerCase());
     const extSet = extList.length ? new Set(extList) : null;
-    if (mode === 'files') runFileSearch(sender, id, root, query, session, extSet);
+    if (mode === 'folders') runFolderSearch(sender, id, root, query, session);
+    else if (mode === 'files') runFileSearch(sender, id, root, query, session, extSet);
     else runSearch(sender, id, root, query, session, extSet);
     return { success: true };
   });
@@ -832,3 +921,87 @@ function register() {
 }
 
 module.exports = { register };
+function revertGit(cwd, args) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, timeout: 120000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+      resolve({ ok: !err, out: stdout || '', err: String(stderr || (err && err.message) || '').trim() });
+    });
+  });
+}
+
+function revertEntries(root, list) {
+  const seen = new Set();
+  const out = [];
+  if (!Array.isArray(list)) return out;
+  for (const p of list) {
+    if (typeof p !== 'string' || !p || !path.isAbsolute(p)) continue;
+    if (!clipInside(p, root)) continue;
+    const rel = relOf(root, p);
+    if (!rel || rel === '.git' || rel.startsWith('.git/')) continue;
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    out.push({ abs: p, rel });
+  }
+  return out;
+}
+
+function revertChunks(list, size) {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+ipcMain.handle('ide:revertChanges', async (_event, args) => {
+  const root = args && args.root;
+  if (typeof root !== 'string' || !root || !path.isAbsolute(root)) {
+    return { success: false, error: 'No folder opened' };
+  }
+  try {
+    const inside = await revertGit(root, ['rev-parse', '--is-inside-work-tree']);
+    if (!inside.ok || inside.out.trim() !== 'true') return { success: false, error: 'This folder is not a git repository' };
+    const head = await revertGit(root, ['rev-parse', '--verify', 'HEAD']);
+    const hasHead = head.ok;
+    const restore = revertEntries(root, args.restore);
+    const remove = revertEntries(root, args.remove);
+    const restored = [];
+    const removed = [];
+    const failed = [];
+
+    if (restore.length) {
+      if (!hasHead) {
+        for (const e of restore) failed.push({ path: e.abs, error: 'There is no commit to restore from' });
+      } else {
+        for (const group of revertChunks(restore, 150)) {
+          const res = await revertGit(root, ['checkout', 'HEAD', '--'].concat(group.map((e) => e.rel)));
+          if (res.ok) {
+            for (const e of group) restored.push(e.abs);
+            continue;
+          }
+          for (const e of group) {
+            const one = await revertGit(root, ['checkout', 'HEAD', '--', e.rel]);
+            if (one.ok) restored.push(e.abs);
+            else failed.push({ path: e.abs, error: one.err || 'Could not restore' });
+          }
+        }
+      }
+    }
+
+    if (remove.length) {
+      for (const group of revertChunks(remove, 150)) {
+        await revertGit(root, ['rm', '-r', '--cached', '--ignore-unmatch', '-q', '--'].concat(group.map((e) => e.rel)));
+      }
+      for (const e of remove) {
+        try {
+          if (await clipExists(e.abs)) await shell.trashItem(e.abs);
+          removed.push(e.abs);
+        } catch (err) {
+          failed.push({ path: e.abs, error: err && err.message ? err.message : 'Could not remove' });
+        }
+      }
+    }
+
+    return { success: true, restored, removed, failed };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});

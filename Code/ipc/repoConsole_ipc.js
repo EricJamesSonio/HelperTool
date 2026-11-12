@@ -7,6 +7,8 @@ const consoleDb = require('../database/consoleDb');
 const manifest = require('../services/consoleManifest');
 const { createRunner } = require('../services/consoleRunner');
 const ciIpc = require('../services/ci/ciIpc');
+const pushChecks = require('../services/pushChecks/pushChecks');
+const changedFiles = require('../services/pushChecks/changedFiles');
 
 let _runner = null;
 
@@ -29,10 +31,17 @@ function register({ app, config, getMainWindow }) {
   consoleDb.markInterrupted();
   manifest.init(app);
 
-  const runner = createRunner((repoPath, event, data) => {
+  function sendToWindow(channel, payload) {
     const win = getMainWindow();
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('repoConsole:event', { repoPath, event, data });
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  }
+
+  const runner = createRunner((repoPath, event, data) => {
+    sendToWindow('repoConsole:event', { repoPath, event, data });
+    try {
+      pushChecks.onRunnerEvent({ runner, repoPath, event, data, send: sendToWindow });
+    } catch (e) {
+      console.error('[RepoConsole] Push checks event failed:', e.message);
     }
   });
   _runner = runner;
@@ -207,6 +216,38 @@ function register({ app, config, getMainWindow }) {
     knownRepo(repoPath);
     manifest.trust(repoPath, hash);
     return { trusted: true };
+  });
+
+  handle('repoConsole:pushPreview', async ({ repoPath }) => {
+    knownRepo(repoPath);
+    const files = await changedFiles.unpushed(repoPath);
+    if (!Array.isArray(files)) throw httpError(500, 'Could not read the commits that are about to be pushed.');
+    return { files };
+  });
+
+  handle('repoConsole:pushChecks', ({ repoPath, files }) => {
+    knownRepo(repoPath);
+    const list = Array.isArray(files) ? files.filter((f) => typeof f === 'string').slice(0, 5000) : [];
+    return { result: pushChecks.start(runner, repoPath, { files: list, trigger: 'push' }) };
+  });
+
+  handle('repoConsole:checksPlan', ({ repoPath }) => {
+    knownRepo(repoPath);
+    return { plan: pushChecks.planView(repoPath) };
+  });
+
+  handle('repoConsole:checksSettings', ({ patch }) => {
+    return { settings: patch ? pushChecks.setSettings(patch) : pushChecks.getSettings() };
+  });
+
+  handle('repoConsole:checksRun', async ({ repoPath, scope }) => {
+    knownRepo(repoPath);
+    let files = null;
+    if (scope === 'unpushed') {
+      files = await changedFiles.unpushed(repoPath);
+      if (!Array.isArray(files)) throw httpError(500, 'Could not read the unpushed commits.');
+    }
+    return { result: pushChecks.start(runner, repoPath, { files, manual: true, trigger: 'manual' }) };
   });
 
   ciIpc.register({ handle, knownRepo, httpError, runner });
