@@ -9,12 +9,12 @@ const DEFAULT_FEATURES = {
 };
 
 function stopDisabledBackground(features) {
-    if (features && features.profileTool === false) {
-        try {
-            require('./profile.js').stopWatcher();
-        } catch (e) {
-            console.error('[IPC] stopping profile watcher failed:', e);
-        }
+    if (!features || features.profileTool !== false) return;
+    try {
+        const resolved = require.resolve('./profile.js');
+        if (require.cache[resolved]) require('./profile.js').stopWatcher();
+    } catch (e) {
+        console.error('[IPC] stopping profile watcher failed:', e);
     }
 }
 

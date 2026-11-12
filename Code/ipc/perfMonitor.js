@@ -449,6 +449,9 @@ function readDataFiles() {
   add('Main database (index.db)', () => require('../database/db.js').getDbPath());
   add('Error Cop database', () => require('../database/errorCopDb.js').getDbPath());
   add('HelperChat database', () => require('../database/chatDb.js').getDbPath());
+  add('Symbol index database', () => path.join(app.getPath('userData'), 'symbol-index', 'index.db'));
+  add('Prefetch cache', () => path.join(app.getPath('userData'), 'prefetch-cache.json'));
+  add('Active repo symbols.json', () => path.join(require('../config/config.js').readConfig().activeProject, 'MCP', 'graphify', 'symbol-index-storage', 'symbols.json'));
   return out;
 }
 function sample() {
