@@ -23,27 +23,37 @@ function showWelcomeOnly() {
   if (terminal) terminal.style.display = 'none';
 }
 
-export async function addRepo(repoPath) {
-  console.log('[CS] addRepo:', repoPath);
-  if (!repoPath) {
-    console.log('[CS] addRepo: no path, return');
-    return;
-  }
-  undismissRepo(repoPath);
-  const existing = state.tabs.find(t => t.repoPath === repoPath);
-  if (existing) {
-    console.log('[CS] addRepo: already exists, switching tab');
-    switchTab(repoPath);
-    return;
-  }
+function labelFor(repoPath) {
+  return repoPath.split(/[/\\]/).filter(Boolean).pop() || repoPath;
+}
 
-  const label = repoPath.split(/[/\\]/).filter(Boolean).pop() || repoPath;
-  console.log('[CS] addRepo: label:', label);
-  state.tabs.push({ repoPath, label, active: false });
+function ensureTab(repoPath) {
+  const existing = state.tabs.find((t) => sameRepoPath(t.repoPath, repoPath));
+  if (existing) return existing;
+  const tab = { repoPath, label: labelFor(repoPath), active: false };
+  state.tabs.push(tab);
   state.conversations[repoPath] = [];
   state.activeConvId[repoPath] = null;
-  switchTab(repoPath);
+  return tab;
+}
+
+export async function addRepo(repoPath) {
+  if (!repoPath) return;
+  undismissRepo(repoPath);
+  const tab = ensureTab(repoPath);
+  if (!state.activeTab) {
+    switchTab(tab.repoPath);
+  }
   renderRepoTabs();
+  ensureRepoBadges();
+}
+
+export async function openRepoTab(repoPath) {
+  if (!repoPath) return;
+  undismissRepo(repoPath);
+  const tab = ensureTab(repoPath);
+  switchTab(tab.repoPath);
+  refreshSidebar().catch(() => {});
 }
 
 export async function closeRepoTab(repoPath, slotIndex) {

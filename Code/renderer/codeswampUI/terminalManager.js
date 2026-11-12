@@ -44,16 +44,10 @@ function isTermReply(d) {
 
 function sleepCandidate(inst, now) {
   if (!inst || !inst.terminal) return false;
+  if (inst.revealed !== false || inst.used || inst.chatted) return false;
   const idle = now - (inst.lastUserAt || inst.bootStart || now);
-  const shown = inst.revealed !== false && state.open;
-  if (!inst.chatted) {
-    const mins = shown ? sleepMinutes(SLEEP_CHAT_KEY, 10) : sleepMinutes(SLEEP_PREWARM_KEY, 2);
-    return mins > 0 && idle > mins * 60000;
-  }
-  if (state.parallelMode || state.open || state.streaming) return false;
-  if (now - (inst.lastDataAt || 0) < SLEEP_QUIET_MS) return false;
-  const chatMins = sleepMinutes(SLEEP_CHAT_KEY, 10);
-  return chatMins > 0 && idle > chatMins * 60000;
+  const mins = sleepMinutes(SLEEP_PREWARM_KEY, 2);
+  return mins > 0 && idle > mins * 60000;
 }
 
 function stopSleepWatch() {

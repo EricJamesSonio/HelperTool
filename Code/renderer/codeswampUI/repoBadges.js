@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { getTerminalInstances, activateSlot } from './terminalManager.js';
 import { getProvider } from './providers.js';
+import { getOpenRepos } from '../app_manager/repoTabs.js';
 
 const CSS_ID = 'ocRepoBadgesCss';
 const WRAP_ID = 'ocRepoBadges';
@@ -83,6 +84,11 @@ function collect() {
   out.sort((a, b) => a.slot - b.slot);
 
   const known = [];
+  try {
+    for (const rp of getOpenRepos()) known.push(rp);
+  } catch (_) {
+    known.length = 0;
+  }
   for (const t of state.tabs) {
     if (t && t.repoPath) known.push(t.repoPath);
   }
@@ -103,7 +109,7 @@ function collect() {
 
 function onChipClick(it) {
   import('./repoTabs.js').then((m) => {
-    m.switchTab(it.repoPath);
+    m.openRepoTab(it.repoPath);
     if (it.provider && it.provider !== state.selectedProvider) {
       const sel = document.getElementById('ocAIProviderSelect');
       if (sel) {
@@ -158,7 +164,7 @@ function render() {
       : isActiveRepo;
     btn.className = 'oc-rb' + (isActive ? ' active' : '') + (it.live ? '' : ' idle');
     btn.style.setProperty('--rb-color', colorFor(it.repoPath));
-    btn.title = it.repoPath + (it.live ? ' (running)' : ' (no chat yet - click to start one)');
+    btn.title = it.repoPath + (it.live ? ' (running)' : ' (no chat yet - click, then press New Chat)');
 
     const dot = document.createElement('i');
     dot.className = 'oc-rb-dot';
