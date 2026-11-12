@@ -9,11 +9,11 @@ const MANIFEST_REL = path.join('.helper', 'console.json');
 const WIPE_PHRASE = 'WIPE EVERYTHING';
 const DETECT_DIRS = ['.', 'backend', 'frontend', 'server', 'client', 'api', 'web', 'app'];
 const TEST_DIRS = ['__TEST__', '__tests__', 'tests', 'test', 'src'];
-const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
+const TEST_FILE_RE = /\.(test|spec|e2e-spec|e2e-test)\.[cm]?[jt]sx?$/;
 const SCRIPT_NAME_RE = /^[A-Za-z0-9:_.-]+$/;
 const NODE_FILE_RE = /^[\w./\\-]+$/;
 const RISKS = ['readonly', 'adds', 'changes', 'destructive'];
-const SKIP_SCRIPTS = new Set(['start', 'dev', 'serve', 'watch', 'install', 'postinstall', 'prepare', 'test']);
+const SKIP_SCRIPTS = new Set(['install', 'preinstall', 'postinstall', 'prepare', 'prepublish', 'prepublishOnly', 'postpublish', 'prepack', 'postpack']);
 const SAFE_NAME_RE = /^[A-Za-z0-9:_.-]+$/;
 const SAFE_PATH_RE = /^[A-Za-z0-9_./-]+$/;
 const IGNORE_DIRS = new Set(['node_modules', 'vendor', 'bin', 'obj', 'target', 'venv', 'env', '__pycache__', 'dist', 'build', 'storage']);
@@ -143,8 +143,10 @@ function isInside(root, target) {
 
 function countFiles(dir, re) {
   let n = 0;
+  let seen = 0;
+  const skip = new Set(['node_modules', 'vendor', 'dist', 'build', 'coverage', 'out', 'target']);
   const stack = [dir];
-  while (stack.length) {
+  while (stack.length && seen < 20000) {
     const d = stack.pop();
     let entries;
     try {
@@ -153,7 +155,8 @@ function countFiles(dir, re) {
       continue;
     }
     for (const e of entries) {
-      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      seen += 1;
+      if (e.name.startsWith('.') || skip.has(e.name)) continue;
       const full = path.join(d, e.name);
       if (e.isDirectory()) stack.push(full);
       else if (re.test(e.name)) n += 1;
@@ -283,35 +286,44 @@ function simpleAction(prefix, label, rel, name, cmd, risk) {
 
 function detectNode(dir, rel, actions, suites) {
   const { scripts, deps } = readPackage(dir);
+  const runner = deps.vitest ? 'vitest' : deps.jest ? 'jest' : null;
+  const hasSuite = !!(runner && scripts.test);
+  const longRunRe = /(^|:)(start|dev|serve|watch|debug)(:|$)/;
   const groups = new Map();
   for (const name of Object.keys(scripts)) {
-    if (SKIP_SCRIPTS.has(name)) continue;
+    if (SKIP_SCRIPTS.has(name) || !SCRIPT_NAME_RE.test(name)) continue;
+    if (name === 'test' && hasSuite) continue;
     const hook = /^(pre|post)(.+)$/.exec(name);
     if (hook && scripts[hook[2]]) continue;
     const isProd = /:prod(uction)?$/.test(name);
     const base = name.replace(/:prod(uction)?$/, '');
-    if (!groups.has(base)) groups.set(base, {});
-    groups.get(base)[isProd ? 'production' : 'local'] = name;
+    const info = classifyTool(base);
+    const key = info.needsDb ? base : name;
+    const slot = info.needsDb && isProd ? 'production' : 'local';
+    if (!groups.has(key)) groups.set(key, { info, names: {} });
+    groups.get(key).names[slot] = name;
   }
-  for (const [base, names] of groups) {
-    const info = classify(base);
+  for (const [key, group] of groups) {
+    const info = group.info;
+    const names = group.names;
     const targets = {};
     if (names.local) targets.local = { script: names.local, appEnv: bodyAppEnv(scripts[names.local]) || 'development' };
     if (names.production) targets.production = { script: names.production, appEnv: bodyAppEnv(scripts[names.production]) || 'production' };
-    let section = 'Scripts';
+    const longRunning = longRunRe.test(key);
+    let section = rel === '.' ? 'Scripts' : rel.charAt(0).toUpperCase() + rel.slice(1);
     if (info.page === 'seeds') section = 'Seeds';
     else if (info.page === 'database') section = 'Database';
-    else if (rel !== '.') section = rel.charAt(0).toUpperCase() + rel.slice(1);
+    else if (longRunning) section = 'Dev servers' + (rel === '.' ? '' : ' / ' + rel);
     actions.push({
-      id: 'pkg:' + rel + ':' + base,
+      id: 'pkg:' + rel + ':' + key,
       page: info.page,
       section,
-      title: base,
-      summary: 'Runs "npm run ' + base + '" in ' + where(rel) + '. Read the script in package.json to see exactly what it does.',
+      title: key,
+      summary: 'Runs "npm run ' + (names.local || names.production) + '" in ' + where(rel) + '. Read the script in package.json to see exactly what it does.',
       risk: info.risk,
-      warn: null,
+      warn: longRunning ? 'This keeps running until you press Stop. Other console jobs for this repository wait until it ends.' : null,
       warnProd: info.needsDb ? 'This targets the PRODUCTION database. Take a backup first.' : null,
-      does: ['Runs the npm script "' + base + '" from ' + (rel === '.' ? 'the repo root' : rel + '/package.json') + '.'],
+      does: ['Runs the npm script "' + key + '" from ' + (rel === '.' ? 'the repo root' : rel + '/package.json') + '.'],
       changes: info.risk === 'readonly' ? ['Nothing the console knows about.'] : ['Whatever the script does. Review it before running.'],
       keeps: null,
       twice: null,
@@ -322,9 +334,7 @@ function detectNode(dir, rel, actions, suites) {
       autoAnswer: null,
     });
   }
-  const runner = deps.vitest ? 'vitest' : deps.jest ? 'jest' : null;
-  if (runner && scripts.test) {
-    const testDir = TEST_DIRS.find((d) => countFiles(path.join(dir, d), TEST_FILE_RE) > 0) || 'src';
+  if (hasSuite) {
     const label = rel === '.' ? 'root' : rel;
     suites.push({
       id: label,
@@ -332,7 +342,7 @@ function detectNode(dir, rel, actions, suites) {
       runner,
       command: suiteCommand(runner),
       cwd: rel,
-      dir: testDir,
+      dir: '.',
     });
   }
 }
@@ -578,11 +588,40 @@ function detectCMake(repoPath, dir, rel) {
     ['ctest', 'ctest --test-dir build', 'readonly'],
   ].map(([name, cmd, risk]) => simpleAction('cmake', 'CMake', rel, name, cmd, risk));
 }
+const GROUP_DIRS = ['apps', 'packages', 'services', 'libs', 'modules', 'projects'];
+const PROJECT_MARKERS = new Set(['package.json', 'composer.json', 'pyproject.toml', 'requirements.txt', 'manage.py', 'go.mod', 'Cargo.toml', 'Makefile', 'makefile', 'CMakeLists.txt', 'pom.xml', 'build.gradle', 'build.gradle.kts', 'Gemfile']);
+
+function hasProjectMarker(dir) {
+  return listDir(dir).some((e) => e.isFile() && (PROJECT_MARKERS.has(e.name) || /\.(sln|slnx|csproj)$/i.test(e.name)));
+}
+
+function projectDirs(repoPath) {
+  const out = [];
+  const add = (rel) => {
+    if (!out.includes(rel)) out.push(rel);
+  };
+  for (const rel of DETECT_DIRS) {
+    if (fs.existsSync(path.resolve(repoPath, rel))) add(rel);
+  }
+  for (const e of listDir(repoPath)) {
+    if (!e.isDirectory() || e.name.startsWith('.') || e.name === 'node_modules' || IGNORE_DIRS.has(e.name)) continue;
+    const full = path.join(repoPath, e.name);
+    if (GROUP_DIRS.includes(e.name)) {
+      for (const c of listDir(full)) {
+        if (!c.isDirectory() || c.name.startsWith('.') || c.name === 'node_modules' || IGNORE_DIRS.has(c.name)) continue;
+        if (hasProjectMarker(path.join(full, c.name))) add(e.name + '/' + c.name);
+      }
+    } else if (hasProjectMarker(full)) {
+      add(e.name);
+    }
+  }
+  return out.slice(0, 30);
+}
 function detect(repoPath) {
   const actions = [];
   const suites = [];
   const detectors = [detectPhp, detectPython, detectDotnet, detectGo, detectRust, detectMake, detectCMake];
-  for (const rel of DETECT_DIRS) {
+  for (const rel of projectDirs(repoPath)) {
     const dir = path.resolve(repoPath, rel);
     if (!fs.existsSync(dir)) continue;
     if (fs.existsSync(path.join(dir, 'package.json'))) detectNode(dir, rel, actions, suites);
