@@ -243,6 +243,7 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     { name: 'codebbaseChat_ipc',tier: 1, flags: ['codebbaseChat'],                           load: () => require('./ipc/codebbaseChat_ipc.js').register() },
     { name: 'projectInspector', tier: 1, flags: ['projectInspector', 'apiTool'],             load: () => require('./project-inspector/ipc.js').register() },
     { name: 'researcher_ipc',   tier: 1, flags: ['researcherTool'],                          load: () => { const r = require('./ipc/researcher_ipc.js'); r.register(shared); } },
+    { name: 'profile',          tier: 1, flags: ['profileTool'],                             load: () => require('./ipc/profile.js').register(shared) },
 
     { name: 'fileseeder_ipc',   tier: 2, flags: ['fileSeeder', 'globalSeeder', 'flowTool'],  load: () => require('./ipc/fileseeder_ipc.js').register(shared) },
     { name: 'loc_ipc',          tier: 2, flags: ['locDetector'],                             load: () => require('./ipc/loc_ipc.js').register(shared) },
@@ -262,11 +263,11 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     let feats = null;
     try { feats = config.readConfig()?.features ?? null; } catch (_) {}
     for (const m of FEATURE_IPC) {
-    if (tier && m.tier !== tier) continue;
-    if (registeredFeatureIpc.has(m.name)) continue;
-    if (!featureOn(feats, m.flags)) continue;
-    registeredFeatureIpc.add(m.name);
-    safeRegister(m.name, m.load);
+      if (tier && m.tier !== tier) continue;
+      if (registeredFeatureIpc.has(m.name)) continue;
+      if (!featureOn(feats, m.flags)) continue;
+      registeredFeatureIpc.add(m.name);
+      safeRegister(m.name, m.load);
     }
   };
 
@@ -290,7 +291,6 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     safeRegister('secrets_ipc',     () => require('./ipc/secrets_ipc.js').register(shared));
     safeRegister('watcher_ipc',     () => require('./ipc/watcher_ipc.js').register(getMainWindow));
     safeRegister('git_ipc',         () => require('./ipc/git_ipc.js').register(shared));
-    safeRegister('profile',         () => require('./ipc/profile.js').register(shared));
     safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
     safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
     safeRegister('codebaseManager', () => require('./ipc/codebaseManager_ipc.js').register());
@@ -326,7 +326,7 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
 
   ipcMain.handle('shell:openExternal', (event, url) => {
     if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
-    shell.openExternal(url);
+      shell.openExternal(url);
     }
   });
 }
