@@ -1,7 +1,7 @@
 .ide-hd-btn {
   position: fixed;
-  left: 16px;
-  bottom: 40px;
+  right: 16px;
+  bottom: 96px;
   z-index: 9000;
   display: none;
   align-items: center;
@@ -28,13 +28,13 @@ body.ide-mode .ide-hd-btn { display: flex; }
 
 .ide-hd-panel {
   position: fixed;
-  left: 16px;
-  bottom: 92px;
+  right: 16px;
+  bottom: 148px;
   z-index: 9000;
   display: none;
   flex-direction: column;
   width: 340px;
-  max-height: 60vh;
+  max-height: calc(100vh - 200px);
   overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: 10px;
