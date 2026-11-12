@@ -553,6 +553,7 @@ async function runFileSearch(sender, id, root, query, session, extSet) {
     }
   }
 }
+
 let folderCache = { root: null, at: 0, dirs: null };
 
 async function listFolders(root, isCancelled) {
