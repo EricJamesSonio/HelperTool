@@ -245,6 +245,7 @@ function revealDir(dirPath) {
   revealKey = pathKey(dirPath);
   renderTree();
 }
+
 export function revealFolder(dirPath) {
   revealDir(dirPath);
 }

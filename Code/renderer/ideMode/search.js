@@ -1,6 +1,7 @@
 import { state } from '../app_manager/appState.js';
 import { esc } from './highlight.js';
 import { fileIcon } from './fileIcons.js';
+
 const FOLDER_ICON = '<span class="ide-ficon"><svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg></span>';
 let onOpenFolder = null;
 

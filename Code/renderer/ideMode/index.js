@@ -426,7 +426,6 @@ function init() {
   document.addEventListener('repo:switched', onRepoSwitched);
   document.addEventListener('keydown', onGlobalKey, true);
   document.addEventListener('ide:run-file', onRunFile);
-  document.addEventListener('ide:reverted', onReverted);
   const refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
@@ -444,6 +443,9 @@ function init() {
   import('./codeswampDock.js')
     .then((m) => m.init())
     .catch((err) => console.error('[IDE] code swamp dock failed to load:', err));
+  import('./chatHead/index.js')
+    .then((m) => m.init())
+    .catch((err) => console.error('[IDE] chat head failed to load:', err));
   import('./missingTabs.js')
     .then((m) => m.init())
     .catch((err) => console.error('[IDE] missing tabs watcher failed to load:', err));
