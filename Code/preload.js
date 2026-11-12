@@ -841,6 +841,11 @@ const repoConsoleBridge = {
   ciSmart:       (payload)                 => ipcRenderer.invoke('repoConsole:ciSmart', payload),
   ciRerunPlan:   (payload)                 => ipcRenderer.invoke('repoConsole:ciRerunPlan', payload),
   ciRun:         (payload)                 => ipcRenderer.invoke('repoConsole:ciRun', payload),
+  pushPreview:   (payload)                 => ipcRenderer.invoke('repoConsole:pushPreview', payload),
+  pushChecks:    (payload)                 => ipcRenderer.invoke('repoConsole:pushChecks', payload),
+  checksPlan:    (payload)                 => ipcRenderer.invoke('repoConsole:checksPlan', payload),
+  checksSettings: (payload)                => ipcRenderer.invoke('repoConsole:checksSettings', payload),
+  checksRun:     (payload)                 => ipcRenderer.invoke('repoConsole:checksRun', payload),
   securityDetect:       (payload)          => ipcRenderer.invoke('security:detect', payload),
   securityDetectTarget: (payload)          => ipcRenderer.invoke('security:detectTarget', payload),
   securityGetSettings:  (payload)          => ipcRenderer.invoke('security:getSettings', payload),
@@ -849,6 +854,10 @@ const repoConsoleBridge = {
   onEvent: (callback) => {
     ipcRenderer.removeAllListeners('repoConsole:event');
     ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
+  },
+  onPushChecks: (callback) => {
+    ipcRenderer.removeAllListeners('pushChecks:event');
+    ipcRenderer.on('pushChecks:event', (_, payload) => callback(payload));
   },
 };
 
@@ -942,4 +951,7 @@ contextBridge.exposeInMainWorld('reqLibraryAPI', {
   renameItem:     (payload) => ipcRenderer.invoke('reqLib:renameItem', payload),
   deleteItem:     (payload) => ipcRenderer.invoke('reqLib:deleteItem', payload),
   importLibrary:  (payload) => ipcRenderer.invoke('reqLib:importLibrary', payload),
+});
+contextBridge.exposeInMainWorld('ideRevertAPI', {
+    run: (payload) => ipcRenderer.invoke('ide:revertChanges', payload),
 });
