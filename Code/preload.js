@@ -955,3 +955,6 @@ contextBridge.exposeInMainWorld('reqLibraryAPI', {
 contextBridge.exposeInMainWorld('ideRevertAPI', {
     run: (payload) => ipcRenderer.invoke('ide:revertChanges', payload),
 });
+contextBridge.exposeInMainWorld('ideStructureAPI', {
+    build: (payload) => ipcRenderer.invoke('generate:structureText', payload),
+});

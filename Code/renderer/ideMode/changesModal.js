@@ -16,7 +16,7 @@ let busy = false;
 let reverting = false;
 let revertOpen = false;
 let armed = false;
-let sel = { mod: true, new: true, del: true };
+let picked = new Set();
 
 function attr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -28,13 +28,40 @@ function listFor(data, kind) {
   return data.modified;
 }
 
-function rowHtml(r) {
+function allPaths(data) {
+  const out = [];
+  data.modified.forEach((r) => out.push(r.path));
+  data.added.forEach((r) => out.push(r.path));
+  data.deleted.forEach((r) => out.push(r.path));
+  return out;
+}
+
+function pickedCount(data, key) {
+  return listFor(data, key).filter((r) => picked.has(r.path)).length;
+}
+
+function revertTotal(data) {
+  return pickedCount(data, 'mod') + pickedCount(data, 'new') + pickedCount(data, 'del');
+}
+
+function prunePicked(data) {
+  const live = new Set(allPaths(data));
+  for (const p of Array.from(picked)) {
+    if (!live.has(p)) picked.delete(p);
+  }
+}
+
+function rowHtml(r, withCheck) {
   const i = r.rel.lastIndexOf('/');
   const name = i < 0 ? r.rel : r.rel.slice(i + 1);
   const dir = i < 0 ? '' : r.rel.slice(0, i);
   const icon = r.kind === 'dir' ? FOLDER : fileIcon(name);
   const letter = r.kind === 'dir' ? 'U' : r.s;
+  const check = withCheck
+    ? '<input type="checkbox" class="ide-rv-row" data-rvp="' + attr(r.path) + '"' + (picked.has(r.path) ? ' checked' : '') + '>'
+    : '';
   return '<div class="ide-ch-item ide-cmd-item' + (r.kind === 'del' ? ' del' : '') + '" data-p="' + attr(r.path) + '" data-t="' + r.kind + '" data-gs="' + letter + '" title="' + attr(r.rel + ' - ' + (TIP[letter] || '')) + '">' +
+    check +
     icon +
     '<span class="ide-ch-name">' + esc(name) + (r.kind === 'dir' ? '/' : '') + '</span>' +
     (dir ? '<span class="ide-ch-dir">' + esc(dir) + '</span>' : '') +
@@ -55,16 +82,16 @@ function setNote(text, isErr) {
   el.classList.toggle('err', !!isErr);
 }
 
-function revertTotal(data) {
-  return (sel.mod ? data.modified.length : 0) + (sel.new ? data.added.length : 0) + (sel.del ? data.deleted.length : 0);
-}
-
-function optHtml(key, label, desc, count) {
+function optHtml(key, label, desc, data) {
+  const count = listFor(data, key).length;
+  const got = pickedCount(data, key);
   const off = count === 0;
+  const part = got > 0 && got < count;
+  const shown = part ? got + '/' + count : String(count);
   return '<label class="ide-rv-opt' + (off ? ' off' : '') + '">' +
-    '<input type="checkbox" data-rv="' + key + '"' + (sel[key] && !off ? ' checked' : '') + (off ? ' disabled' : '') + '>' +
+    '<input type="checkbox" data-rv="' + key + '"' + (part ? ' data-part="1"' : '') + (got > 0 && got === count ? ' checked' : '') + (off ? ' disabled' : '') + '>' +
     '<span class="ide-rv-l">' + esc(label) + '</span>' +
-    '<span class="ide-rv-n">' + count + '</span>' +
+    '<span class="ide-rv-n">' + shown + '</span>' +
     '<span class="ide-rv-d">' + esc(desc) + '</span>' +
   '</label>';
 }
@@ -78,7 +105,7 @@ function renderRevert() {
   if (!all && !reverting) revertOpen = false;
   if (toggle) {
     toggle.disabled = all === 0 || reverting;
-    toggle.classList.toggle('armed', revertOpen);
+    toggle.classList.toggle('open', revertOpen);
   }
   box.classList.toggle('open', revertOpen);
   if (!revertOpen) {
@@ -89,20 +116,24 @@ function renderRevert() {
   const label = reverting ? 'Reverting...' : (armed ? 'Click again to confirm' : 'Revert selected (' + total + ')');
   box.innerHTML =
     '<div class="ide-rv-title">Revert to the last commit</div>' +
-    '<div class="ide-rv-sub">Edits are discarded, new files are moved to the trash, deleted files come back.</div>' +
-    optHtml('mod', 'Modified', 'discard edits', data.modified.length) +
-    optHtml('new', 'New', 'remove from the project', data.added.length) +
-    optHtml('del', 'Deleted', 'bring back', data.deleted.length) +
+    '<div class="ide-rv-sub">Tick the files to revert. Edits are discarded, new files go to the trash, deleted files come back.</div>' +
+    optHtml('mod', 'Modified', 'discard edits', data) +
+    optHtml('new', 'New', 'remove from the project', data) +
+    optHtml('del', 'Deleted', 'bring back', data) +
     '<div class="ide-rv-act">' +
       '<button type="button" class="ide-um-btn" data-cm="rv-cancel"' + (reverting ? ' disabled' : '') + '>Cancel</button>' +
       '<button type="button" class="ide-um-btn danger' + (armed ? ' armed' : '') + '" data-cm="rv-go"' + (!total || reverting ? ' disabled' : '') + '>' + esc(label) + '</button>' +
     '</div>';
+  box.querySelectorAll('[data-part="1"]').forEach((el) => {
+    el.indeterminate = true;
+  });
 }
 
 function render() {
   if (!overlay || !ctx) return;
   const data = ctx.getChanges();
   if (cur === 'del' && !data.deleted.length) cur = 'mod';
+  prunePicked(data);
   let tabs = tabHtml('mod', 'Modified', data.modified.length) + tabHtml('new', 'New', data.added.length);
   if (data.deleted.length) tabs += tabHtml('del', 'Deleted', data.deleted.length);
   overlay.querySelector('.ide-cmd-tabs').innerHTML = tabs;
@@ -111,7 +142,7 @@ function render() {
   const body = overlay.querySelector('.ide-um-body');
   const keep = body.scrollTop;
   body.innerHTML = list.length
-    ? list.map(rowHtml).join('')
+    ? list.map((r) => rowHtml(r, revertOpen)).join('')
     : '<div class="ide-um-msg">' + esc(EMPTY[cur]) + '</div>';
   body.scrollTop = keep;
   overlay.querySelector('.ide-um-sum').textContent = list.length + ' item' + (list.length === 1 ? '' : 's');
@@ -126,7 +157,7 @@ function close() {
   ctx = null;
   revertOpen = false;
   armed = false;
-  sel = { mod: true, new: true, del: true };
+  picked = new Set();
 }
 
 function onKey(e) {
@@ -147,6 +178,16 @@ async function refresh() {
   render();
 }
 
+async function stillDiffers(root, filePath) {
+  if (!window.ideLineAPI) return false;
+  try {
+    const r = await window.ideLineAPI.diff(root, filePath);
+    return !!(r && r.success && r.kind === 'tracked' && r.hunks && r.hunks.length);
+  } catch (_) {
+    return false;
+  }
+}
+
 async function doRevert() {
   if (reverting || !ctx) return;
   const c = ctx;
@@ -154,16 +195,26 @@ async function doRevert() {
   const root = state.selectedRepoPath;
   if (!api || !root) {
     armed = false;
-    setNote('Revert is not available here.', true);
+    setNote('Revert is not available. Fully restart the app and try again.', true);
     renderRevert();
     return;
   }
   const data = c.getChanges();
   const restore = [];
   const remove = [];
-  if (sel.mod) data.modified.forEach((r) => restore.push(r.path));
-  if (sel.del) data.deleted.forEach((r) => restore.push(r.path));
-  if (sel.new) data.added.forEach((r) => remove.push(r.path));
+  const modPaths = new Set();
+  data.modified.forEach((r) => {
+    if (picked.has(r.path)) {
+      restore.push(r.path);
+      modPaths.add(r.path);
+    }
+  });
+  data.deleted.forEach((r) => {
+    if (picked.has(r.path)) restore.push(r.path);
+  });
+  data.added.forEach((r) => {
+    if (picked.has(r.path)) remove.push(r.path);
+  });
   if (!restore.length && !remove.length) return;
   reverting = true;
   armed = false;
@@ -175,10 +226,18 @@ async function doRevert() {
   } catch (err) {
     res = { success: false, error: err && err.message ? err.message : 'Revert failed' };
   }
-  reverting = false;
-  const restored = res && res.restored ? res.restored : [];
+  const failed = res && res.failed ? res.failed.slice() : [];
+  let restored = res && res.restored ? res.restored.slice() : [];
   const removed = res && res.removed ? res.removed : [];
-  const failed = res && res.failed ? res.failed : [];
+  const bad = new Set();
+  for (const p of restored) {
+    if (modPaths.has(p) && (await stillDiffers(root, p))) {
+      bad.add(p);
+      failed.push({ path: p, error: 'Still differs from the last commit' });
+    }
+  }
+  restored = restored.filter((p) => !bad.has(p));
+  reverting = false;
   document.dispatchEvent(new CustomEvent('ide:reverted', { detail: { restored, removed } }));
   document.dispatchEvent(new CustomEvent('ide:tree-changed'));
   if (c.refresh) {
@@ -191,7 +250,11 @@ async function doRevert() {
     setNote((res && res.error) || 'Revert failed.', true);
   } else {
     let text = 'Restored ' + restored.length + ', removed ' + removed.length;
-    if (failed.length) text += ', ' + failed.length + ' failed: ' + (failed[0].error || 'unknown error');
+    if (failed.length) {
+      const f = failed[0];
+      const nm = String(f.path || '').split(/[\\/]/).pop();
+      text += ', ' + failed.length + ' failed (' + nm + ': ' + (f.error || 'unknown error') + ')';
+    }
     setNote(text, failed.length > 0);
   }
   render();
@@ -223,11 +286,25 @@ async function openAtChange(filePath, c) {
 }
 
 function onChange(e) {
-  const cb = e.target.closest ? e.target.closest('[data-rv]') : null;
-  if (!cb) return;
-  sel[cb.dataset.rv] = cb.checked;
+  if (!ctx) return;
+  const t = e.target;
+  if (!t || !t.matches) return;
+  const data = ctx.getChanges();
+  if (t.matches('[data-rvp]')) {
+    const p = t.getAttribute('data-rvp');
+    if (t.checked) picked.add(p);
+    else picked.delete(p);
+  } else if (t.matches('[data-rv]')) {
+    const list = listFor(data, t.getAttribute('data-rv'));
+    list.forEach((r) => {
+      if (t.checked) picked.add(r.path);
+      else picked.delete(r.path);
+    });
+  } else {
+    return;
+  }
   armed = false;
-  renderRevert();
+  render();
 }
 
 function onClick(e) {
@@ -235,6 +312,7 @@ function onClick(e) {
     close();
     return;
   }
+  if (e.target.closest && e.target.closest('.ide-rv-row')) return;
   const cm = e.target.closest('[data-cm]');
   if (cm) {
     const act = cm.dataset.cm;
@@ -244,13 +322,16 @@ function onClick(e) {
       cur = cm.dataset.tab || 'mod';
       render();
     } else if (act === 'rv-toggle') {
+      if (cm.disabled) return;
       revertOpen = !revertOpen;
       armed = false;
-      renderRevert();
+      if (revertOpen && ctx) picked = new Set(allPaths(ctx.getChanges()));
+      setNote('', false);
+      render();
     } else if (act === 'rv-cancel') {
       revertOpen = false;
       armed = false;
-      renderRevert();
+      render();
     } else if (act === 'rv-go') {
       if (cm.disabled) return;
       if (!armed) {
@@ -288,7 +369,7 @@ const SHELL =
     '<div class="ide-um-foot">' +
       '<span class="ide-um-hint">' + HINT + '</span>' +
       '<span class="ide-um-spacer"></span>' +
-      '<button type="button" class="ide-um-btn danger" data-cm="rv-toggle" title="Reset the project to the last commit">Revert all...</button>' +
+      '<button type="button" class="ide-um-btn danger" data-cm="rv-toggle" title="Reset files to the last commit">Revert all...</button>' +
       '<button type="button" class="ide-um-btn" data-cm="refresh">Refresh</button>' +
       '<button type="button" class="ide-um-btn primary" data-cm="close">Close</button>' +
     '</div>' +
@@ -305,7 +386,7 @@ export function openChangesModal(kind, context) {
   ctx = context;
   revertOpen = false;
   armed = false;
-  sel = { mod: true, new: true, del: true };
+  picked = new Set();
   overlay = document.createElement('div');
   overlay.className = 'ide-um-overlay';
   overlay.innerHTML = SHELL;
