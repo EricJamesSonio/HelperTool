@@ -31,7 +31,6 @@ function getSettings() {
     enabled: saved.enabled !== false,
     kinds: Object.assign({}, DEFAULT_KINDS, saved.kinds || {}),
     heavyBuilds: saved.heavyBuilds === true,
-    buildMode: saved.buildMode === 'always' ? 'always' : 'fallback',
   };
 }
 
@@ -42,7 +41,6 @@ function setSettings(patch) {
     enabled: typeof p.enabled === 'boolean' ? p.enabled : current.enabled,
     kinds: Object.assign({}, current.kinds),
     heavyBuilds: typeof p.heavyBuilds === 'boolean' ? p.heavyBuilds : current.heavyBuilds,
-    buildMode: p.buildMode === 'always' || p.buildMode === 'fallback' ? p.buildMode : current.buildMode,
   };
   if (p.kinds && typeof p.kinds === 'object') {
     for (const kind of KINDS) {
@@ -64,16 +62,12 @@ function buildPlan(repoPath, files) {
 
   for (const project of projects) {
     const entry = { rel: project.rel, label: project.label, stacks: project.stacks, checks: [] };
-    const hasTests = project.checks.some((c) => c.kind === 'test');
     for (const kind of KINDS) {
       for (const check of project.checks.filter((c) => c.kind === kind)) {
         let reason = '';
         let quiet = false;
         if (!settings.kinds[kind]) {
           reason = KIND_LABEL[kind] + ' checks are turned off.';
-          quiet = true;
-        } else if (kind === 'build' && settings.buildMode === 'fallback' && hasTests) {
-          reason = 'Build only runs when a project has no tests. Turn on "always run the build" to include it.';
           quiet = true;
         } else if (check.skip) {
           reason = check.skip;
