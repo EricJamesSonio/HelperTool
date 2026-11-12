@@ -149,6 +149,37 @@ function initListeners() {
     if (msg.type === 'finished') showResult(msg.summary);
   });
 }
+export async function mountPushChecksToggle(container) {
+  const host = container ? container.querySelector('.git-topbar-right') : null;
+  const api = bridge();
+  if (!host || !api || typeof api.checksSettings !== 'function') return;
+  if (host.querySelector('#pushChecksToggleWrap')) return;
+  ensureStyles();
+  const wrap = document.createElement('label');
+  wrap.id = 'pushChecksToggleWrap';
+  wrap.className = 'pc-toggle';
+  wrap.title = 'Run lint, type check, tests or build in the background after a successful push';
+  wrap.innerHTML = '<input type="checkbox" id="pushChecksToggle" checked /><span>Checks on push</span>';
+  host.prepend(wrap);
+  const box = wrap.querySelector('input');
+  try {
+    const res = await api.checksSettings({});
+    if (res && res.settings) box.checked = res.settings.enabled !== false;
+  } catch (_) {
+    box.checked = true;
+  }
+  box.addEventListener('change', async () => {
+    const want = box.checked;
+    try {
+      const res = await api.checksSettings({ patch: { enabled: want } });
+      if (!res || res.ok === false) throw new Error((res && res.error) || 'Request failed');
+      toast(want ? 'Checks after push: on' : 'Checks after push: off');
+    } catch (err) {
+      box.checked = !want;
+      toast('Could not save: ' + (err && err.message ? err.message : err), 'error');
+    }
+  });
+}
 
 async function trigger(repoPath, files) {
   const api = bridge();

@@ -7,6 +7,8 @@
 
 import * as branchManager from './branchManager.js';
 import * as inspectPanel from './inspectPanel.js';
+import { mountPushChecksToggle } from './pushChecks.js';
+
 
 const ICON_GIT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="4" r="2"/><circle cx="15" cy="16" r="2"/><path d="M5 6v8a4 4 0 0 0 4 4h6"/></svg>';
 const ICON_FILE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h4.5L15 7.5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M10.5 2v5.5H16"/></svg>';
@@ -64,6 +66,7 @@ class GitToolUI {
     this.refreshUI();
     this._syncNav();
     this.setupComplete = true;
+    mountPushChecksToggle(this.container);
     // When connectivity data finishes loading from symbols.json, re-render with smart splits
     this.gitHandler._onConnectivityReady = () => this.refreshUI();
   }
