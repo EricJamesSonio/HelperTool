@@ -195,7 +195,9 @@ async function _prefetchBranches(repoPath) {
 function _pushCachedToRenderer() {
   const w = typeof _getMainWindow === 'function' && _getMainWindow();
   if (!w || w.isDestroyed()) return;
+  const profileOn = _profileEnabled();
   for (const [key, entry] of _cache) {
+    if (key === 'profile' && !profileOn) continue;
     if (_now() - entry.ts < entry.ttl) {
       w.webContents.send('prefetch:ready', { key, ttl: entry.ttl });
     }
