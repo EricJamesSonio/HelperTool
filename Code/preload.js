@@ -223,6 +223,7 @@ const dbInspectorBridge = {
         listSeeds:       (snapshotId)    => ipcRenderer.invoke('dbInspector:listSeeds', snapshotId),
         saveSeed:        (data)          => ipcRenderer.invoke('dbInspector:saveSeed', data),
         deleteSeed:      (id)            => ipcRenderer.invoke('dbInspector:deleteSeed', id),
+        exportPdf:       (snapshotId)    => ipcRenderer.invoke('dbInspector:exportPdf', snapshotId),
     },
 };
 
