@@ -27,6 +27,17 @@ export function createPanel() {
 
   window.__dbiSelectTable = (tableName) => selectTable(tableName);
 
+  const refreshBtn = wrapper.querySelector('#dbiRefreshBtn');
+  if (refreshBtn) {
+    const pdfBtn = document.createElement('button');
+    pdfBtn.className = 'dbi-btn dbi-btn-secondary';
+    pdfBtn.id = 'dbiExportPdfBtn';
+    pdfBtn.title = 'Export full schema as PDF';
+    pdfBtn.innerHTML = dbiIcon('save') + ' PDF';
+    pdfBtn.addEventListener('click', () => exportSchemaPdf());
+    refreshBtn.insertAdjacentElement('beforebegin', pdfBtn);
+  }
+
   setupEventListeners(wrapper);
   initQueryMode(wrapper);
   setSchema([], null, null);
@@ -477,6 +488,36 @@ function closeScanDialog() {
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+async function exportSchemaPdf() {
+  const bar = _panel?.querySelector('#dbiDiffBar');
+  const showMsg = (msg, isError) => {
+    if (!bar) return;
+    const color = isError ? 'var(--red,#f87171)' : 'var(--green,#34d399)';
+    bar.innerHTML = `<span style="color:${color}">${esc(msg)}</span> <span class="dbi-diff-dismiss">${dbiIcon('close')}</span>`;
+    bar.style.display = 'flex';
+  };
+
+  if (!state.currentSnapshotId) {
+    showMsg('Scan or select a database first', true);
+    return;
+  }
+
+  const btn = _panel?.querySelector('#dbiExportPdfBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = dbiIcon('refresh', 'dbi-spin') + ' Exporting\u2026'; }
+  try {
+    const res = await window.electronAPI.dbInspector.exportPdf(state.currentSnapshotId);
+    if (res.success) {
+      showMsg('PDF saved: ' + res.filePath, false);
+    } else if (!res.canceled) {
+      showMsg('PDF export failed: ' + res.error, true);
+    }
+  } catch (err) {
+    showMsg('PDF export failed: ' + err.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = dbiIcon('save') + ' PDF'; }
+  }
+}
+
 
 function applyTabVisibility(tab) {
   const panel = _panel;
