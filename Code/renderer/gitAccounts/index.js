@@ -1,6 +1,8 @@
 import { state } from '../app_manager/appState.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
 import { openCloneModal, openCreateModal } from './repoTools.js';
+import { warmRepos } from './repoTools.js';
+
 
 const I_CLONE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M4 16h12"/></svg>';
 
@@ -544,7 +546,9 @@ function openPanel() {
   }
   panel.hidden = false;
   render();
-  refresh();
+  refresh().then(() => {
+    if (activeId) warmRepos(activeId);
+  });
 }
 
 function onDocDown(e) {

@@ -3,6 +3,7 @@ import { alertDialog } from '../utils/confirmDialog.js';
 
 const NAME_RE = /^[A-Za-z0-9._-]{1,100}$/;
 const FOLDER_RE = /^[^\\/:*?\x22<>|]+$/;
+const CACHE_TTL = 5 * 60 * 1000;
 
 const I_CHEV = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 8l5 5 5-5"/></svg>';
 
@@ -22,6 +23,9 @@ const LICENSES = [
   ['apache-2.0', 'Apache 2.0'],
   ['gpl-3.0', 'GNU GPL v3'],
 ];
+
+const repoCache = new Map();
+const jobs = new Map();
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -131,6 +135,48 @@ function streamRepos(accountId, handlers) {
   };
 }
 
+function getJob(accountId) {
+  let job = jobs.get(accountId);
+  if (job) return job;
+  job = { acc: [], subs: new Set() };
+  jobs.set(accountId, job);
+  streamRepos(accountId, {
+    onBatch: (batch) => {
+      job.acc = job.acc.concat(batch);
+      job.subs.forEach((s) => s.onBatch(batch));
+    },
+    onDone: () => {
+      jobs.delete(accountId);
+      repoCache.set(accountId, { repos: job.acc, at: Date.now() });
+      job.subs.forEach((s) => s.onDone(job.acc));
+    },
+    onError: (msg) => {
+      jobs.delete(accountId);
+      job.subs.forEach((s) => s.onError(msg));
+    },
+  });
+  return job;
+}
+
+function subscribeRepos(accountId, handlers) {
+  const job = getJob(accountId);
+  if (job.acc.length) handlers.onBatch(job.acc.slice());
+  job.subs.add(handlers);
+  return () => {
+    job.subs.delete(handlers);
+  };
+}
+
+function isFresh(hit) {
+  return !!hit && Date.now() - hit.at < CACHE_TTL;
+}
+
+export function warmRepos(accountId) {
+  if (!accountId || !pageApi()) return;
+  if (isFresh(repoCache.get(accountId))) return;
+  getJob(accountId);
+}
+
 function mountPicker(host, accounts, initialId, note, onChange) {
   let selId = initialId;
   let open = false;
@@ -208,14 +254,19 @@ function mountPicker(host, accounts, initialId, note, onChange) {
 
 function createRepoList(el, o) {
   let repos = [];
+  let names = new Set();
   let selected = null;
   let query = '';
   let loading = true;
   let error = '';
 
+  function rebuildNames() {
+    names = new Set(repos.map((r) => String(r.name || '').toLowerCase()));
+  }
+
   function matches(r) {
     if (!query) return true;
-    return r.fullName.toLowerCase().indexOf(query) !== -1 || r.description.toLowerCase().indexOf(query) !== -1;
+    return r.fullName.toLowerCase().indexOf(query) !== -1 || String(r.description || '').toLowerCase().indexOf(query) !== -1;
   }
 
   function rowHtml(r) {
@@ -268,6 +319,7 @@ function createRepoList(el, o) {
   return {
     reset() {
       repos = [];
+      names = new Set();
       selected = null;
       loading = true;
       error = '';
@@ -276,6 +328,13 @@ function createRepoList(el, o) {
     add(batch) {
       const seen = new Set(repos.map((r) => r.fullName));
       repos = repos.concat(batch.filter((r) => !seen.has(r.fullName)));
+      rebuildNames();
+      paint();
+    },
+    replace(next) {
+      repos = next.slice();
+      rebuildNames();
+      if (selected) selected = repos.find((r) => r.fullName === selected.fullName) || null;
       paint();
     },
     done() {
@@ -296,7 +355,7 @@ function createRepoList(el, o) {
     },
     hasName(name) {
       const n = String(name || '').toLowerCase();
-      return !!n && repos.some((r) => r.name.toLowerCase() === n);
+      return !!n && names.has(n);
     },
   };
 }
@@ -319,6 +378,31 @@ function infoHtml(r) {
     (r.htmlUrl ? '<button type="button" class="grt-btn" data-gh="' + esc(r.htmlUrl) + '">Open on GitHub</button>' : '');
 }
 
+function loadList(list, accountId, state) {
+  if (state.unsub) state.unsub();
+  state.unsub = null;
+  list.reset();
+  const hit = repoCache.get(accountId);
+  if (hit) list.replace(hit.repos);
+  if (isFresh(hit)) {
+    list.done();
+    return;
+  }
+  state.unsub = subscribeRepos(accountId, {
+    onBatch: (batch) => {
+      if (!hit) list.add(batch);
+    },
+    onDone: (all) => {
+      if (hit) list.replace(all);
+      list.done();
+    },
+    onError: (msg) => {
+      if (hit) list.done();
+      else list.fail(msg);
+    },
+  });
+}
+
 export async function openCloneModal() {
   const a = api();
   if (!a || !pageApi()) {
@@ -339,7 +423,7 @@ export async function openCloneModal() {
   let parentDir = '';
   let list = null;
   let picker = null;
-  let stopStream = null;
+  const stream = { unsub: null };
 
   const bodyHtml =
     '<div class="grt-split">' +
@@ -371,7 +455,8 @@ export async function openCloneModal() {
     submitText: 'Clone',
     bodyHtml,
     onClose: () => {
-      if (stopStream) stopStream();
+      if (stream.unsub) stream.unsub();
+      stream.unsub = null;
     },
     onMount: (modal) => {
       const el = modal.el;
@@ -385,16 +470,6 @@ export async function openCloneModal() {
       function updateHint() {
         const name = nameEl.value.trim();
         hintEl.textContent = parentDir && name ? 'Will clone to: ' + joinPath(parentDir, name) : '';
-      }
-
-      function startLoad(accountId) {
-        if (stopStream) stopStream();
-        list.reset();
-        stopStream = streamRepos(accountId, {
-          onBatch: list.add,
-          onDone: list.done,
-          onError: list.fail,
-        });
       }
 
       list = createRepoList(el.querySelector('#grtList'), {
@@ -416,7 +491,7 @@ export async function openCloneModal() {
           infoEl.innerHTML = infoHtml(null);
           nameEl.value = '';
           updateHint();
-          startLoad(id);
+          loadList(list, id, stream);
         }
       );
 
@@ -434,7 +509,7 @@ export async function openCloneModal() {
         updateHint();
       });
 
-      startLoad(startId);
+      loadList(list, startId, stream);
     },
     onSubmit: async ({ el }) => {
       const selected = list ? list.getSelected() : null;
@@ -485,7 +560,7 @@ export async function openCreateModal() {
   let parentDir = '';
   let list = null;
   let picker = null;
-  let stopStream = null;
+  const stream = { unsub: null };
 
   const bodyHtml =
     '<div class="grt-split">' +
@@ -529,7 +604,8 @@ export async function openCreateModal() {
     submitText: 'Create',
     bodyHtml,
     onClose: () => {
-      if (stopStream) stopStream();
+      if (stream.unsub) stream.unsub();
+      stream.unsub = null;
     },
     onMount: (modal) => {
       const el = modal.el;
@@ -558,16 +634,6 @@ export async function openCreateModal() {
         warnEl.textContent = 'A repository named ' + name + ' already exists' + (acc ? ' on @' + acc.username : '') + '.';
       }
 
-      function startLoad(accountId) {
-        if (stopStream) stopStream();
-        list.reset();
-        stopStream = streamRepos(accountId, {
-          onBatch: list.add,
-          onDone: list.done,
-          onError: list.fail,
-        });
-      }
-
       list = createRepoList(el.querySelector('#grtList'), {
         selectable: false,
         countEl: el.querySelector('#grtCount'),
@@ -579,7 +645,7 @@ export async function openCreateModal() {
         ctx.accounts,
         startId,
         'Used only for creating this repository. Your active account does not change.',
-        (id) => startLoad(id)
+        (id) => loadList(list, id, stream)
       );
 
       searchEl.addEventListener('input', () => list.setQuery(searchEl.value));
@@ -598,7 +664,7 @@ export async function openCreateModal() {
         updateHint();
       });
 
-      startLoad(startId);
+      loadList(list, startId, stream);
     },
     onSubmit: async ({ el }) => {
       const name = el.querySelector('#grtNewName').value.trim();
@@ -626,6 +692,7 @@ export async function openCreateModal() {
           license: el.querySelector('#grtLicense').value,
         });
         if (!res || !res.success) throw new Error((res && res.error) || 'Could not create the repository.');
+        repoCache.delete(accountId);
         if (!wantClone) return;
 
         setBusy(el, true, 'Cloning...');
