@@ -257,6 +257,7 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     { name: 'gmail_ipc',        tier: 2, flags: ['gmailTool', 'codebbaseChat'],              load: () => require('./ipc/gmail_ipc.js').register(shared) },
     { name: 'codebaseMap_ipc',  tier: 2, flags: ['codebaseMap'],                             load: () => require('./ipc/codebaseMap_ipc.js').register() },
     { name: 'graphify_ipc',     tier: 2, flags: ['graphify'],                                load: () => { graphifyIpc = require('./ipc/graphify_ipc.js'); graphifyIpc.register({ app }); } },
+    { name: 'blueprintLibrary', tier: 2, flags: ['blueprintLibraryTool'],                    load: () => require('./ipc/blueprintLibrary/index.js').register() },
   ];
 
   const registerFeatureIpc = (tier) => {
@@ -310,7 +311,6 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
   // Tier 2 (4s): heavy / rarely used tools - only the enabled ones
   setTimeout(() => {
     safeRegister('docignoreManager',() => require('./ipc/docignoreManager_ipc.js').register(shared));
-    safeRegister('blueprintLibrary',() => require('./ipc/blueprintLibrary/index.js').register());
     safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
     registerFeatureIpc(2);
     console.log('[Main] Tier 2: enabled heavy IPC modules loaded');
