@@ -30,6 +30,8 @@ function _resolvePassword(conn) {
   if (conn.encrypted_password) return decryptPassword(conn.encrypted_password);
   return '';
 }
+require('./dbInspectorPdf.js').register();
+
 
 function register(shared) {
   // ── Heavy: proxied to worker ──
