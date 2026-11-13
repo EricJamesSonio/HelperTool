@@ -2121,16 +2121,30 @@ function smartEnter(e) {
   const prev = s > 0 ? v[s - 1] : '';
   const next = v[en] || '';
   e.preventDefault();
+  const fixX = () => {
+    const pos = ta.selectionStart;
+    const lineStart = pos === 0 ? 0 : ta.value.lastIndexOf('\n', pos - 1) + 1;
+    const x = (pos - lineStart) * charWidth() + 12;
+    const w = ta.clientWidth || 800;
+    if (x - ta.scrollLeft < 40) ta.scrollLeft = Math.max(0, x - 40);
+    else if (x - ta.scrollLeft > w - 100) ta.scrollLeft = Math.max(0, x - Math.round(w * 0.5));
+    syncTransform();
+    schedule();
+  };
   const pairBetween = s === en && !!prev && CLOSERS.indexOf(next) !== -1 && PAIRS[prev] === next && prev !== next;
   const tagBetween = lang === 'html' && s === en && prev === '>' && v.slice(s, s + 2) === '</';
   if (pairBetween || tagBetween) {
     exec('\n' + lead + '  \n' + lead);
     const pos = s + 1 + lead.length + 2;
     ta.setSelectionRange(pos, pos);
+    fixX();
+    requestAnimationFrame(fixX);
     scheduleCursor();
     return;
   }
   exec('\n' + lead + indentExtra(before));
+  fixX();
+  requestAnimationFrame(fixX);
 }
 
 function smartBackspace(e) {
@@ -2327,30 +2341,9 @@ const CENTER_MIN_H = 120;
 let centerRaf = 0;
 
 function centerCaret() {
-  if (!els || els.codewrap.hidden) return;
+  if (!els) return;
   const ta = els.ta;
-  if (document.activeElement !== ta || ta.selectionStart !== ta.selectionEnd) return;
-  const h = ta.clientHeight;
-  if (h < CENTER_MIN_H) return;
-  const pb = PAD + Math.round(h * 0.5) + 'px';
-  if (ta.style.paddingBottom !== pb) ta.style.paddingBottom = pb;
-  const v = ta.value;
-  const s = ta.selectionStart;
-  let row = 0;
-  let i = -1;
-  for (;;) {
-    i = v.indexOf('\n', i + 1);
-    if (i === -1 || i >= s) break;
-    row++;
-  }
-  const y = row * LH + PAD;
-  const rel = y - ta.scrollTop;
-  const mid = (h - LH) / 2;
-  if (rel > mid + LH / 2) ta.scrollTop = Math.max(0, y - mid);
-  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
-  const x = (s - ls) * charWidth() + 12;
-  const w = ta.clientWidth || 800;
-  if (x - ta.scrollLeft > w - 100) ta.scrollLeft = Math.max(0, x - Math.round(w * 0.5));
+  if (ta.style.paddingBottom) ta.style.paddingBottom = '';
 }
 
 function scheduleCenter() {
