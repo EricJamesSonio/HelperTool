@@ -2,7 +2,7 @@ const { applyAppTypes } = require('./appTypes.js');
 const { buildBundles } = require('./bundles.js');
 const REFINEMENTS = require('./refinements.js');
 
-const PRESET_VERSION = 17;
+const PRESET_VERSION = 18;
 
 const ALL = [].concat(
     require('./designSystem.js'),

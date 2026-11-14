@@ -2,6 +2,8 @@ const FUNCTIONAL = 'Functional Requirements';
 const ARCH = 'Architecture Requirements';
 const UX = 'User Experience Requirements';
 const TESTING = 'Testing Requirements';
+const SECURITY = 'Security Requirements';
+const ACCESS = 'Accessibility Requirements';
 
 // Edits applied on top of existing presets by key.
 // replace: swaps the row with that exact title. add: appends new rows.
@@ -106,6 +108,124 @@ module.exports = {
                 level: 'must-have',
                 title: 'Centered in the viewport',
                 description: 'Every modal opens centered horizontally and vertically in the viewport, independent of the element that opened it, the page scroll position and the app layout. Render it in a top-level layer so parent transforms or overflow never shift it, and keep it centered on resize and zoom.',
+            },
+        ],
+    },
+
+    'data-table': {
+        replace: {
+            'Pagination': {
+                level: 'must-have',
+                title: 'Pagination is always on',
+                description: 'Every list and table is paginated, always, on the frontend and on the backend. No table, list or card list loads all records at once, even when the data is small today, because it will grow. The table shows only the current page and gets its page, page size and totals from the server.',
+            },
+        },
+        add: [
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Previous and Next buttons',
+                description: 'Every table has Previous and Next buttons at the bottom, always present and using the shared Button component. Previous is disabled on the first page and Next is disabled on the last page. Show "Page X of Y" and a range such as "Showing 21 to 40 of 135". Provide page numbers for large lists where it helps, but Previous and Next are always there.',
+            },
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Rows-per-page threshold',
+                description: 'Provide a rows-per-page selector with a fixed set of allowed sizes (for example 10, 25, 50 and 100) and a default. The allowed sizes, the default and the maximum come from one shared constant and never from literals inside components. The chosen size is sent to the server, and changing it resets the table to page one.',
+            },
+            {
+                group: ARCH,
+                level: 'must-have',
+                title: 'Backend integration for every list',
+                description: 'Every table is backed by a paginated list endpoint that accepts page and size (or a cursor) and returns the rows with the total, total pages and next and previous flags. The table never loads the full dataset and slices it in the browser. If a list endpoint does not exist yet or is not paginated, build or extend it as part of the same change.',
+            },
+            {
+                group: ARCH,
+                level: 'standard',
+                title: 'Shared limits on both sides',
+                description: 'The default page size, the allowed sizes and the maximum page size live in one shared constants module used by both the frontend and the backend. The frontend never offers a size above the backend maximum.',
+            },
+            {
+                group: UX,
+                level: 'standard',
+                title: 'Stable paging behavior',
+                description: 'Keep the previous rows visible with a subtle loading state while the next page loads, keep the controls in place and disable Previous and Next while a request is in flight. When a page becomes empty after deletions, move to the last page that has data. Keep page and size in the query state, mirrored in the URL on the web, and clamp out-of-range pages.',
+            },
+            {
+                group: ACCESS,
+                level: 'standard',
+                title: 'Accessible paging controls',
+                description: 'Use navigation semantics with a label for the pager, label Previous and Next clearly, mark the current page, announce the new page and range through a live region and keep every pager control keyboard operable.',
+            },
+            {
+                group: TESTING,
+                level: 'medium',
+                title: 'Paging tests',
+                description: 'Test the first and last page (Previous and Next disabled), a single page, an empty list, a changed page size, a page emptied by deletion, an out-of-range page in the URL and a size above the maximum being clamped by the server.',
+            },
+        ],
+    },
+
+    'pagination': {
+        add: [
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Always paired with a list',
+                description: 'Any list, table or card grid that shows server data uses this control. It is never skipped because the data set is small.',
+            },
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Previous and Next always present',
+                description: 'The control always shows Previous and Next buttons. Previous is disabled on the first page and Next on the last page. It also shows the current page, the total pages and a range such as "Showing 21 to 40 of 135". Page numbers with ellipsis are optional on top of that.',
+            },
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Rows-per-page threshold',
+                description: 'Provide the page size selector with the allowed sizes and the default from one shared constant. The control never offers a size above the backend maximum, and changing the size resets to page one.',
+            },
+            {
+                group: ARCH,
+                level: 'must-have',
+                title: 'Backend contract',
+                description: 'The control works from the list envelope returned by the backend (items, page, size, total, totalPages, hasNext, hasPrev) and never computes totals itself. Page changes always call the server.',
+            },
+        ],
+    },
+
+    'list-endpoint': {
+        add: [
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Always paginated',
+                description: 'Every list endpoint is paginated, with no exceptions and no unbounded mode. When the caller sends no page parameters, the endpoint applies the default page size.',
+            },
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Page size threshold',
+                description: 'Define the default page size, the allowed sizes and the maximum page size in one shared constants module that the frontend also uses. A size above the maximum is clamped to the maximum, a size below one or a page below one is rejected with a 400 error, and the response returns the size that was actually applied.',
+            },
+            {
+                group: FUNCTIONAL,
+                level: 'must-have',
+                title: 'Pager fields in the envelope',
+                description: 'Return items, page, size, total, totalPages, hasNext and hasPrev in the one shared list envelope so the Previous and Next buttons need no calculation on the client. For cursor pagination return nextCursor and prevCursor instead of page numbers.',
+            },
+            {
+                group: SECURITY,
+                level: 'standard',
+                title: 'Pagination abuse protection',
+                description: 'Cap the offset depth, apply the maximum size before running the query and rate-limit list endpoints so large page sizes and deep pages cannot be used to drain the database.',
+            },
+            {
+                group: TESTING,
+                level: 'medium',
+                title: 'Paging contract tests',
+                description: 'Test the default size, a size above the maximum being clamped, an invalid page or size returning 400, the first and last page flags, an empty result and the totals matching the filtered data.',
             },
         ],
     },
