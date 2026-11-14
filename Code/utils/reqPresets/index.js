@@ -1,7 +1,8 @@
 const { applyAppTypes } = require('./appTypes.js');
 const { buildBundles } = require('./bundles.js');
+const REFINEMENTS = require('./refinements.js');
 
-const PRESET_VERSION = 16;
+const PRESET_VERSION = 17;
 
 const ALL = [].concat(
     require('./designSystem.js'),
@@ -12,6 +13,9 @@ const ALL = [].concat(
     require('./extras.js'),
     require('./unified.js'),
     require('./globalsConfig.js'),
+    require('./logging.js'),
+    require('./imageStorage.js'),
+    require('./appShellText.js'),
     require('./codeStyle.js'),
     require('./frontendErrors.js'),
     require('./pageStructure.js'),
@@ -41,8 +45,18 @@ const PAGE_KEYS = new Set([
     'sales-report',
 ]);
 
+function refine(preset) {
+    const edit = REFINEMENTS[preset.key];
+    if (!edit) return preset;
+    const replace = edit.replace || {};
+    const rows = preset.requirements.map((row) => (
+        replace[row.title] ? Object.assign({}, row, replace[row.title]) : row
+    ));
+    return Object.assign({}, preset, { requirements: rows.concat(edit.add || []) });
+}
+
 function adjust(preset) {
-    const next = Object.assign({}, preset);
+    const next = Object.assign({}, refine(preset));
     if (RENAME[preset.key]) next.name = RENAME[preset.key];
     if (PAGE_KEYS.has(preset.key)) {
         next.category = 'Pages';
