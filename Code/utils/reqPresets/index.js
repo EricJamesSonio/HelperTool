@@ -1,12 +1,17 @@
 const { applyAppTypes } = require('./appTypes.js');
 const { buildBundles } = require('./bundles.js');
-const REFINEMENTS = require('./refinements.js');
+const BASE_REFINEMENTS = require('./refinements.js');
+const NAV_REFINEMENTS = require('./refinementsNav.js');
+const ENV_REFINEMENTS = require('./refinementsEnv.js');
 
-const PRESET_VERSION = 18;
+const REFINEMENTS = Object.assign({}, BASE_REFINEMENTS, NAV_REFINEMENTS, ENV_REFINEMENTS);
+
+const PRESET_VERSION = 20;
 
 const ALL = [].concat(
     require('./designSystem.js'),
     require('./components.js'),
+    require('./notifications.js'),
     require('./pages.js'),
     require('./system.js'),
     require('./frontendArch.js'),
