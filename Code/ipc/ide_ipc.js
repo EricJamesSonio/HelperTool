@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
+const fuzzy = require('../utils/fuzzyMatch.js');
 const MAX_ENTRIES = 5000;
 
 const SKIP_DIRS = new Set([
@@ -72,34 +73,7 @@ function relOf(root, file) {
   return path.relative(root, file).split(path.sep).join('/');
 }
 
-function editDistance(a, b, max) {
-  const al = a.length;
-  const bl = b.length;
-  if (Math.abs(al - bl) > max) return max + 1;
-  let prev = new Array(bl + 1);
-  for (let j = 0; j <= bl; j++) prev[j] = j;
-  for (let i = 1; i <= al; i++) {
-    const cur = [i];
-    let rowMin = i;
-    for (let j = 1; j <= bl; j++) {
-      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
-      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-      cur[j] = v;
-      if (v < rowMin) rowMin = v;
-    }
-    if (rowMin > max) return max + 1;
-    prev = cur;
-  }
-  return prev[bl];
-}
 
-function isSubsequence(q, w) {
-  let qi = 0;
-  for (let i = 0; i < w.length && qi < q.length; i++) {
-    if (w[i] === q[qi]) qi++;
-  }
-  return qi === q.length;
-}
 
 function snippetOf(line, col, len) {
   const start = Math.max(0, col - 50);
@@ -282,7 +256,6 @@ function scanExact(root, file, text, lower, ctx, out) {
 function scanNear(root, file, text, ctx, out) {
   const lines = text.split(/\r?\n/);
   const q = ctx.q;
-  const tol = q.length >= 8 ? 2 : 1;
   let count = 0;
   for (let i = 0; i < lines.length && count < PER_FILE_NEAR; i++) {
     const line = lines[i];
@@ -294,18 +267,9 @@ function scanNear(root, file, text, ctx, out) {
     while ((m = WORD_RE.exec(line)) !== null) {
       const w = m[0];
       if (w.length < 3 || w.length > 48) continue;
-      const lw = w.toLowerCase();
-      if (q.length >= 4 && Math.abs(lw.length - q.length) <= tol) {
-        const d = editDistance(lw, q, tol);
-        if (d <= tol) {
-          const sc = 62 - d * 8;
-          if (!best || sc > best.score) best = { score: sc, col: m.index, len: w.length, kind: 'near' };
-          continue;
-        }
-      }
-      if (q.length >= 3 && lw.length > q.length && lw[0] === q[0] && isSubsequence(q, lw)) {
-        const sc = 38 - Math.min(15, lw.length - q.length);
-        if (!best || sc > best.score) best = { score: sc, col: m.index, len: w.length, kind: 'fuzzy' };
+      const hit = fuzzy.nearWord(q, w);
+      if (hit && (!best || hit.score > best.score)) {
+        best = { score: hit.score, col: m.index + hit.off, len: hit.len, kind: hit.kind };
       }
     }
     if (best) {
@@ -316,47 +280,44 @@ function scanNear(root, file, text, ctx, out) {
   return count;
 }
 
+const NAME_HIT_MIN = 60;
+const NAME_HIT_CAP = 60;
+
+function fileResult(file, rel, sc, score, dir) {
+  const first = sc.marks[0];
+  const result = {
+    file,
+    rel,
+    line: 1,
+    col: 0,
+    len: 0,
+    text: rel.slice(rel.lastIndexOf('/') + 1),
+    hs: first ? first[0] : 0,
+    hl: first ? first[1] - first[0] : 0,
+    marks: sc.marks,
+    approx: sc.approx,
+    more: false,
+    score,
+    kind: 'file',
+  };
+  if (dir) result.dir = true;
+  return result;
+}
+
+function wordsFileScore(score) {
+  if (score >= 100) return 92 + Math.min(5, (score - 100) / 6);
+  return score * 0.75;
+}
 function fileMatches(root, files, ctx) {
-  const out = [];
+  const hits = [];
   for (const f of files) {
-    if (out.length >= 60) break;
     const rel = relOf(root, f);
-    const rl = rel.toLowerCase();
-    const slash = rl.lastIndexOf('/');
-    const base = rl.slice(slash + 1);
-    const baseOrig = rel.slice(slash + 1);
-    const idx = base.indexOf(ctx.q);
-    if (idx !== -1) {
-      out.push({
-        file: f,
-        rel,
-        line: 1,
-        col: 0,
-        len: 0,
-        text: baseOrig,
-        hs: idx,
-        hl: ctx.q.length,
-        more: false,
-        score: 92 + (idx === 0 ? 5 : 0),
-        kind: 'file',
-      });
-    } else if (rl.indexOf(ctx.q) !== -1) {
-      out.push({
-        file: f,
-        rel,
-        line: 1,
-        col: 0,
-        len: 0,
-        text: baseOrig,
-        hs: 0,
-        hl: 0,
-        more: false,
-        score: 60,
-        kind: 'file',
-      });
-    }
+    const sc = fuzzy.scorePath(rel, ctx.tokens);
+    if (!sc || sc.score < NAME_HIT_MIN) continue;
+    hits.push(fileResult(f, rel, sc, wordsFileScore(sc.score), false));
   }
-  return out;
+  hits.sort((a, b) => (b.score - a.score) || a.rel.localeCompare(b.rel));
+  return hits.slice(0, NAME_HIT_CAP);
 }
 
 function extOf(file) {
@@ -466,38 +427,6 @@ async function runSearch(sender, id, root, query, session, extSet) {
   }
 }
 
-function scoreFile(rel, tokens) {
-  const rl = rel.toLowerCase();
-  const slash = rl.lastIndexOf('/');
-  const base = rl.slice(slash + 1);
-  let total = 0;
-  let hs = 0;
-  let hl = 0;
-  let marked = false;
-  for (const t of tokens) {
-    let s = 0;
-    const bi = base.indexOf(t);
-    if (bi !== -1) {
-      s = base === t ? 130 : (bi === 0 ? 115 : 100);
-      if (!marked) {
-        hs = bi;
-        hl = t.length;
-        marked = true;
-      }
-    } else if (rl.indexOf(t) !== -1) {
-      s = 80;
-    } else if (t.length >= 2 && isSubsequence(t, base)) {
-      s = 60;
-    } else if (t.length >= 2 && isSubsequence(t, rl)) {
-      s = 45;
-    } else {
-      return null;
-    }
-    total += s;
-  }
-  total = total / tokens.length - Math.min(20, rel.length / 40);
-  return { score: total, hs, hl };
-}
 
 async function runFileSearch(sender, id, root, query, session, extSet) {
   const t0 = Date.now();
@@ -513,23 +442,9 @@ async function runFileSearch(sender, id, root, query, session, extSet) {
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const rel = relOf(root, f);
-      const sc = scoreFile(rel, tokens);
-      if (sc) {
-        hits.push({
-          file: f,
-          rel,
-          line: 1,
-          col: 0,
-          len: 0,
-          text: rel.slice(rel.lastIndexOf('/') + 1),
-          hs: sc.hs,
-          hl: sc.hl,
-          more: false,
-          score: sc.score,
-          kind: 'file',
-        });
-      }
-      if (i % 4000 === 3999) {
+      const sc = fuzzy.scorePath(rel, tokens);
+      if (sc) hits.push(fileResult(f, rel, sc, sc.score, false));
+      if (i % 2000 === 1999) {
         await tick();
         if (cancelled()) return;
       }
@@ -599,24 +514,9 @@ async function runFolderSearch(sender, id, root, query, session) {
     for (let i = 0; i < dirs.length; i++) {
       const f = dirs[i];
       const rel = relOf(root, f);
-      const sc = scoreFile(rel, tokens);
-      if (sc) {
-        hits.push({
-          file: f,
-          rel,
-          dir: true,
-          line: 1,
-          col: 0,
-          len: 0,
-          text: rel.slice(rel.lastIndexOf('/') + 1),
-          hs: sc.hs,
-          hl: sc.hl,
-          more: false,
-          score: sc.score,
-          kind: 'file',
-        });
-      }
-      if (i % 4000 === 3999) {
+      const sc = fuzzy.scorePath(rel, tokens);
+      if (sc) hits.push(fileResult(f, rel, sc, sc.score, true));
+      if (i % 2000 === 1999) {
         await tick();
         if (cancelled()) return;
       }

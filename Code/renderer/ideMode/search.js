@@ -440,8 +440,26 @@ function tagFor(kind) {
   return '';
 }
 
+function marksHtml(t, marks) {
+  let out = '';
+  let pos = 0;
+  for (const m of marks) {
+    const s = Math.max(pos, Math.min(t.length, m[0]));
+    const e = Math.min(t.length, m[1]);
+    if (e <= s) continue;
+    out += esc(t.slice(pos, s)) + '<span class="ide-sm-hit">' + esc(t.slice(s, e)) + '</span>';
+    pos = e;
+  }
+  return out + esc(t.slice(pos));
+}
+
+function fileTag(r) {
+  if (mode === 'words') return tagFor(r.kind);
+  return r.approx ? '<span class="ide-sm-tag">similar</span>' : '';
+}
 function codeHtml(r) {
   const t = r.text || '';
+  if (Array.isArray(r.marks) && r.marks.length) return marksHtml(t, r.marks);
   const hs = Math.min(t.length, Math.max(0, r.hs || 0));
   const he = Math.min(t.length, hs + (r.hl || 0));
   return (r.more ? '<span class="ide-sm-dim">...</span>' : '') +
@@ -465,7 +483,7 @@ function rowHtml(r, i, isSel, nested) {
       '<div class="ide-sm-code">' + codeHtml(r) + '</div>' +
       '<div class="ide-sm-meta">' + (r.dir ? FOLDER_ICON : fileIcon(baseName(r.rel))) +
         '<span class="ide-sm-path">' + esc(r.rel) + (r.dir ? '/' : '') + '</span>' +
-        (mode === 'words' ? tagFor(r.kind) : '') +
+        fileTag(r) +
       '</div>' +
     '</div>';
   }
