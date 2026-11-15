@@ -6,7 +6,7 @@ const ENV_REFINEMENTS = require('./refinementsEnv.js');
 
 const REFINEMENTS = Object.assign({}, BASE_REFINEMENTS, NAV_REFINEMENTS, ENV_REFINEMENTS);
 
-const PRESET_VERSION = 20;
+const PRESET_VERSION = 21;
 
 const ALL = [].concat(
     require('./designSystem.js'),
@@ -16,6 +16,7 @@ const ALL = [].concat(
     require('./system.js'),
     require('./frontendArch.js'),
     require('./extras.js'),
+    require('./cicdPipeline.js'),
     require('./unified.js'),
     require('./globalsConfig.js'),
     require('./logging.js'),
