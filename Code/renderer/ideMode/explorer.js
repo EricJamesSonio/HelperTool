@@ -249,6 +249,11 @@ function revealDir(dirPath) {
 export function revealFolder(dirPath) {
   revealDir(dirPath);
 }
+document.addEventListener('ide:reveal-folder', (e) => {
+  const p = e && e.detail && e.detail.path;
+  if (p) revealDir(p);
+});
+
 
 
 function onChangesClick(e) {
