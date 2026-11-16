@@ -41,7 +41,7 @@ function freshState() {
     filesLoading: '',
     filesError: '',
     selectedFile: '',
-    mode: 'version',
+    mode: 'changes',
     previewLoading: false,
     files: new Map(),
     contents: new Map(),
