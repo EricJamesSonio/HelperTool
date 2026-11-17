@@ -227,6 +227,20 @@ function limitedRows(metrics, rootPid) {
   return out;
 }
 
+CHANNEL_FEATURES.push(['deploy:', 'deployTool']);
+
+function deployPids() {
+  try {
+    return require('./deploy_ipc.js').getPids();
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function viewFeature(pid, ctx) {
+  if (deployPids().has(pid)) return 'deployTool';
+  return ctx.wc.get(pid) === 'browserView' ? 'researcherTool' : 'core';
+}
 function classifyTop(top, subtree, ctx) {
   const cmd = norm(top.cmd);
   const name = String(top.name || '').toLowerCase().replace(/\.exe$/, '');
@@ -234,10 +248,10 @@ function classifyTop(top, subtree, ctx) {
 
   const m = ctx.metrics.get(top.pid);
   if (m) {
-    if (m.type === 'Tab') return ctx.wc.get(top.pid) === 'browserView' ? 'researcherTool' : 'core';
+    if (m.type === 'Tab') return viewFeature(top.pid, ctx);
     return m.type === 'Browser' ? 'core' : 'electron';
   }
-  if (cmd.includes('--type=renderer')) return ctx.wc.get(top.pid) === 'browserView' ? 'researcherTool' : 'core';
+  if (cmd.includes('--type=renderer')) return viewFeature(top.pid, ctx);
   if (cmd.includes('--type=')) return 'electron';
 
   if (/^wakatime-cli/.test(name)) return 'ideMode';
@@ -266,7 +280,11 @@ function friendlyName(row, feature, ctx) {
   if (row.pid === ctx.rootPid) return 'Main process';
   const m = ctx.metrics.get(row.pid);
   if (m) {
-    if (m.type === 'Tab') return feature === 'researcherTool' ? 'Browser view (researcher)' : 'Window renderer';
+    if (m.type === 'Tab') {
+      if (feature === 'researcherTool') return 'Browser view (researcher)';
+      if (feature === 'deployTool') return 'Browser view (deploy)';
+      return 'Window renderer';
+    }
     if (m.type === 'GPU') return 'GPU process';
     return 'Electron ' + String(m.type || 'helper').toLowerCase();
   }
