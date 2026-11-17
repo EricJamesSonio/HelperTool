@@ -590,3 +590,13 @@ app.whenReady().then(() => {
   console.error('[IPC] Failed to register reqLibrary_ipc:', e);
   }
 });
+app.whenReady().then(() => {
+  try {
+  require('./ipc/deploy_ipc.js').register({ app, getMainWindow });
+  } catch (e) {
+  console.error('[IPC] Failed to register deploy_ipc:', e);
+  }
+});
+app.on('before-quit', () => {
+  try { require('./ipc/deploy_ipc.js').cleanup(); } catch (_) {}
+});

@@ -959,3 +959,24 @@ contextBridge.exposeInMainWorld('ideRevertAPI', {
 contextBridge.exposeInMainWorld('ideStructureAPI', {
     build: (payload) => ipcRenderer.invoke('generate:structureText', payload),
 });
+contextBridge.exposeInMainWorld('deployAPI', {
+  load:           (payload) => ipcRenderer.invoke('deploy:load', payload),
+  search:         (payload) => ipcRenderer.invoke('deploy:search', payload),
+  suggest:        (payload) => ipcRenderer.invoke('deploy:suggest', payload),
+  saveAccount:    (payload) => ipcRenderer.invoke('deploy:saveAccount', payload),
+  deleteAccount:  (payload) => ipcRenderer.invoke('deploy:deleteAccount', payload),
+  saveTarget:     (payload) => ipcRenderer.invoke('deploy:saveTarget', payload),
+  deleteTarget:   (payload) => ipcRenderer.invoke('deploy:deleteTarget', payload),
+  setUi:          (payload) => ipcRenderer.invoke('deploy:setUi', payload),
+  openTab:        (payload) => ipcRenderer.invoke('deploy:openTab', payload),
+  closeTab:       (payload) => ipcRenderer.invoke('deploy:closeTab', payload),
+  closeAll:       ()        => ipcRenderer.invoke('deploy:closeAll'),
+  layout:         (payload) => ipcRenderer.invoke('deploy:layout', payload),
+  hide:           ()        => ipcRenderer.invoke('deploy:hide'),
+  nav:            (payload) => ipcRenderer.invoke('deploy:nav', payload),
+  openExternal:   (payload) => ipcRenderer.invoke('deploy:openExternal', payload),
+  onViewState: (callback) => {
+    ipcRenderer.removeAllListeners('deploy:viewState');
+    ipcRenderer.on('deploy:viewState', (_event, data) => callback(data));
+  },
+});
