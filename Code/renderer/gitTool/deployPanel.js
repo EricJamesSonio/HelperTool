@@ -543,7 +543,8 @@ export async function open(container, repoPath) {
     restoreMemory();
     await reopenSaved(gen);
     if (!S.open || gen !== S.gen) return;
-    S.page = S.targets.length ? 'browse' : 'manage';
+    S.page = 'manage';
+    S.hub.view = 'home';
   } catch (err) {
     if (!S.open || gen !== S.gen) return;
     S.error = err.message;
