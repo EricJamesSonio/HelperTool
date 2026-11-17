@@ -70,7 +70,7 @@ function freshState() {
     form: null,
     results: null,
     ghDraft: '',
-    hub: { role: 'all', query: '', addingRole: false, view: 'home' },
+    hub: { role: 'all', query: '', addingRole: false, view: 'home', choose: '', fresh: false },
     customRoles: [],
   };
 }
@@ -853,8 +853,17 @@ function browseHtml() {
   const stage = S.tabs.length
     ? '<div class="dp-stage" data-count="' + S.tabs.length + '" data-mode="' + mode + '">' + S.tabs.map(paneHtml).join('') + '</div>'
     : '<div class="dp-empty"><div class="dp-empty-title">Pick a target above to open it here</div><div class="dp-empty-sub">Up to ' + MAX_TABS + ' dashboards can be open at once. Logins are saved per account.</div></div>';
+  const activeTab = S.tabs.find((t) => t.id === S.active);
+  const activeTarget = activeTab ? targetById(activeTab.targetId) : null;
+  const changeBtns = activeTarget
+    ? '<button type="button" class="dp-btn" data-act="cat-change" data-id="' + esc(activeTarget.id) + '" title="Switch ' + esc(activeTarget.name) + ' to another provider or edit its link">Change</button>' +
+      '<button type="button" class="dp-btn" data-act="cat-new" data-role="' + esc(roleKeyOfTarget(activeTarget)) + '" title="Add another target in this category">' + ICONS.plus + ' Create new</button>'
+    : '';
   return '<div class="dp-top">' + targetsBarHtml() +
-    '<div class="dp-top-actions">' + modeBtn + '<button type="button" class="dp-btn" data-act="manage">' + ICONS.grid + ' Providers</button></div></div>' +
+    '<div class="dp-top-actions">' + modeBtn + changeBtns +
+      '<button type="button" class="dp-btn" data-act="categories" title="Back to the categories">' + ICONS.back + ' Categories</button>' +
+      '<button type="button" class="dp-btn" data-act="manage">' + ICONS.grid + ' Providers</button>' +
+    '</div></div>' +
     tabsHtml() + stage;
 }
 
@@ -899,6 +908,26 @@ function catCardHtml(key, label) {
     '<span class="dp-cat-line">' + line + '</span>' +
   '</button>';
 }
+function chooserHtml() {
+  const key = S.hub.choose;
+  if (!key) return '';
+  const items = S.targets.filter((t) => roleKeyOfTarget(t) === key);
+  if (!items.length) return '';
+  const found = roleButtons().find((r) => r.key === key);
+  const label = found ? found.label : key;
+  const rows = items.map((t) =>
+    '<div class="dp-roles dp-roles-center">' +
+      '<span class="dp-hint">' + esc(label) + ': ' + esc(t.name) + '</span>' +
+      '<button type="button" class="dp-btn dp-primary" data-act="open-target" data-id="' + esc(t.id) + '">Open</button>' +
+      '<button type="button" class="dp-btn" data-act="cat-change" data-id="' + esc(t.id) + '">Change</button>' +
+    '</div>'
+  ).join('');
+  return rows +
+    '<div class="dp-roles dp-roles-center">' +
+      '<button type="button" class="dp-btn" data-act="cat-new" data-role="' + esc(key) + '">' + ICONS.plus + ' Create new</button>' +
+      '<button type="button" class="dp-btn" data-act="cat-close">Cancel</button>' +
+    '</div>';
+}
 
 function homeHtml() {
   const cards = roleButtons().map((r) => catCardHtml(r.key, r.label)).join('') +
@@ -913,7 +942,7 @@ function homeHtml() {
     : '';
   return '<div class="dp-home">' +
     '<div class="dp-home-title">What do you want to connect?</div>' +
-    '<div class="dp-cats">' + cards + '</div>' + adding +
+    '<div class="dp-cats">' + cards + '</div>' + adding + chooserHtml() +
     '<div class="dp-home-foot"><button type="button" class="dp-btn" data-act="home-cat" data-role="all">Browse all providers</button></div>' +
   '</div>';
 }
@@ -1000,7 +1029,10 @@ function gridHtml() {
 }
 
 function catalogHtml() {
-  return '<div id="dpRoleBar" class="dp-roles">' + roleBarHtml() + '</div>' +
+  const fresh = S.hub.fresh
+    ? '<div class="dp-hint">Creating a new target. Pick a provider and it starts with its default link.</div>'
+    : '';
+  return fresh + '<div id="dpRoleBar" class="dp-roles">' + roleBarHtml() + '</div>' +
     '<input id="dpSearch" class="dp-input dp-search" placeholder="Search providers (aws, vercel, render, hostinger, mongodb...)" autocomplete="off" value="' + esc(S.hub.query) + '">' +
     '<div id="dpGrid" class="dp-gridwrap">' + gridHtml() + '</div>';
 }
@@ -1023,7 +1055,13 @@ function formHtml() {
     '<option value="__new"' + (f.accountId === '__new' ? ' selected' : '') + '>+ New account...</option>';
   let sub = 'Sign in once, the login is saved and reused in every repo.';
   if (f.id) sub = 'Edit this target';
-  else if (f.reuse) sub = 'Reusing the setup from another repo. Press Save to add it to this repo.';
+  else if (f.reuse) sub = 'Reusing the setup from another repo. Press Save to add it to this repo, or Create new instead for a fresh link.';
+  let swap = '';
+  if (!f.id && f.reuse) {
+    swap = '<button type="button" class="dp-btn" data-act="form-fresh">Create new instead</button>';
+  } else if (!f.id && f.reuseSrc) {
+    swap = '<button type="button" class="dp-btn" data-act="form-reuse">Use other repo link</button>';
+  }
   return '<section class="dp-card dp-formcard">' +
     '<div class="dp-fhead">' + badge(p, true) +
       '<div><div class="dp-mtitle">' + esc(p ? p.name : '') + '</div><div class="dp-hint">' + esc(sub) + '</div></div></div>' +
@@ -1038,6 +1076,7 @@ function formHtml() {
     '<div class="dp-form-actions">' +
       '<button type="button" class="dp-btn dp-primary" data-act="save-open">Save and open</button>' +
       '<button type="button" class="dp-btn" data-act="save-only">Save</button>' +
+      swap +
       '<button type="button" class="dp-btn" data-act="cancel-form">Cancel</button>' +
     '</div>' +
   '</section>';
@@ -1185,6 +1224,8 @@ function setHubView(view) {
   if (S.form) S.form = readForm();
   S.hub.view = view;
   S.hub.addingRole = false;
+  S.hub.choose = '';
+  S.hub.fresh = false;
   renderAll();
 }
 
@@ -1293,10 +1334,13 @@ function pickCard(id, forceNew) {
   startForm(Object.assign({ providerId: id }, seedRole(p)));
 }
 
-function enterCatalog(roleKey) {
+function enterCatalog(roleKey, fresh) {
+  S.page = 'manage';
   S.hub.role = roleKey || 'all';
   S.hub.view = 'catalog';
   S.hub.addingRole = false;
+  S.hub.choose = '';
+  S.hub.fresh = !!fresh;
   S.hub.query = '';
   S.results = null;
   renderAll();
@@ -1307,10 +1351,8 @@ function openCategory(roleKey) {
   if (key !== 'all') {
     const items = S.targets.filter((t) => roleKeyOfTarget(t) === key);
     if (items.length) {
-      const live = items.find((t) => S.tabs.some((x) => x.targetId === t.id));
-      const pick = live || items[0];
-      hintForTarget(pick.id);
-      openTarget(pick.id);
+      hintForTarget(items[0].id);
+      openTarget(items[0].id);
       return;
     }
   }
@@ -1531,10 +1573,27 @@ function nav(tabId, action, url) {
 
 async function pinTarget(tabId) {
   const tab = S.tabs.find((t) => t.id === tabId);
-  const target = tab ? targetById(tab.targetId) : null;
-  if (!tab || !target) return;
+  if (!tab) return;
+  const target = targetById(tab.targetId);
+  const btn = root ? root.querySelector('[data-act="pin"][data-tab="' + esc(tabId) + '"]') : null;
+  const idleTitle = 'Save this page as the link of this target';
+  const flash = (icon, msg, kind) => {
+    toast(msg, kind);
+    if (!btn) return;
+    btn.innerHTML = icon;
+    btn.title = msg;
+    setTimeout(() => {
+      if (!btn.isConnected) return;
+      btn.innerHTML = ICONS.pin;
+      btn.title = idleTitle;
+    }, 2000);
+  };
+  if (!target) {
+    flash(ICONS.stop, 'This tab is not linked to a saved target, so there is no link to update', 'error');
+    return;
+  }
   if (!tab.url || tab.url === target.url) {
-    toast('This page is already the saved link');
+    flash(ICONS.check, 'This page is already the saved link');
     return;
   }
   try {
@@ -1542,9 +1601,9 @@ async function pinTarget(tabId) {
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not save the link');
     S.targets = res.targets;
     S.others = res.others || [];
-    toast('Saved this page as the link of ' + target.name);
+    flash(ICONS.check, 'Saved this page as the link of ' + target.name);
   } catch (err) {
-    toast(err.message, 'error');
+    flash(ICONS.stop, err.message, 'error');
   }
 }
 
@@ -1555,12 +1614,25 @@ function toggleMode() {
   } catch (_) {}
   renderAll();
 }
+function goCategories() {
+  S.page = 'manage';
+  S.form = null;
+  S.hub.view = 'home';
+  S.hub.choose = '';
+  S.hub.fresh = false;
+  S.hub.addingRole = false;
+  renderAll();
+  if (!S.suggest && !S.suggestLoading) loadSuggestions();
+  else ensureGhData();
+}
 
 function goManage() {
   const tab = S.tabs.find((t) => t.id === S.active);
   const tg = tab ? targetById(tab.targetId) : null;
   S.page = 'manage';
   S.hub.addingRole = false;
+  S.hub.choose = '';
+  S.hub.fresh = false;
   S.hub.role = tg ? roleKeyOfTarget(tg) : 'all';
   S.hub.view = 'catalog';
   S.hub.query = '';
@@ -1580,6 +1652,7 @@ function handleAct(act, btn) {
     hintForTarget(id);
     openTarget(id);
   } else if (act === 'manage') goManage();
+  else if (act === 'categories') goCategories();
   else if (act === 'back-browse') {
     S.page = 'browse';
     renderAll();
@@ -1596,7 +1669,23 @@ function handleAct(act, btn) {
     setHubView('github');
     ensureGhData();
   } else if (act === 'home-cat') openCategory(btn.dataset.role || 'all');
-  else if (act === 'role') {
+  else if (act === 'cat-new') enterCatalog(btn.dataset.role || 'all', true);
+  else if (act === 'cat-close') {
+    S.hub.choose = '';
+    renderMain();
+  } else if (act === 'cat-change') {
+    const ct = targetById(id);
+    if (!ct) return;
+    S.hub.choose = '';
+    S.hub.fresh = false;
+    S.hub.role = roleKeyOfTarget(ct);
+    S.hub.view = 'catalog';
+    S.hub.query = '';
+    S.results = null;
+    renderAll();
+    refreshCatalog();
+    startForm({ id: ct.id, role: ct.role, roleLabel: ct.roleLabel, providerId: ct.providerId, accountId: ct.accountId, name: ct.name, url: ct.url });
+  } else if (act === 'role') {
     S.hub.role = btn.dataset.role || 'all';
     S.hub.addingRole = false;
     renderRoleBar();
@@ -1608,7 +1697,7 @@ function handleAct(act, btn) {
     const input = root ? root.querySelector('#dpNewRole') : null;
     if (input) input.focus();
   } else if (act === 'role-add-save') saveCustomRole();
-  else if (act === 'pick-card') pickCard(id, false);
+  else if (act === 'pick-card') pickCard(id, !!S.hub.fresh);
   else if (act === 'setup-provider') pickCard(id, true);
   else if (act === 'edit-target') {
     const t = targetById(id);
@@ -1618,6 +1707,24 @@ function handleAct(act, btn) {
   else if (act === 'save-only') saveForm(false);
   else if (act === 'cancel-form') {
     S.form = null;
+    renderForm();
+  } else if (act === 'form-fresh') {
+    const cur = readForm();
+    const fp = cur ? providerById(cur.providerId) : null;
+    if (!cur || !fp) return;
+    cur.reuseSrc = { name: cur.name, url: cur.url };
+    cur.reuse = false;
+    cur.name = fp.name;
+    cur.url = fp.url;
+    S.form = cur;
+    renderForm();
+  } else if (act === 'form-reuse') {
+    const cur = readForm();
+    if (!cur || !cur.reuseSrc) return;
+    cur.name = cur.reuseSrc.name;
+    cur.url = cur.reuseSrc.url;
+    cur.reuse = true;
+    S.form = cur;
     renderForm();
   } else if (act === 'add-account') addAccount();
   else if (act === 'delete-account') deleteAccount(id);
