@@ -7,6 +7,7 @@ const { ROLES, getProvider, normalizeUrl } = require('./deployProviders.js');
 const ROLE_IDS = new Set(ROLES.map((r) => r.id));
 const FILE_NAME = 'deploy-tool.json';
 const MAX_TARGETS = 40;
+const MAX_LEGACY = 80;
 const MAX_ACCOUNTS = 60;
 
 function newId(prefix) {
@@ -62,29 +63,25 @@ function normalizeTarget(raw) {
   };
 }
 
-function mergeTargets(src) {
-  const lists = [];
-  if (Array.isArray(src.targets)) lists.push(src.targets);
-  const srcRepos = src.repos && typeof src.repos === 'object' ? src.repos : {};
-  for (const key of Object.keys(srcRepos)) {
-    const list = srcRepos[key] && Array.isArray(srcRepos[key].targets) ? srcRepos[key].targets : [];
-    lists.push(list);
-  }
+function targetSig(t) {
+  return t.providerId + '|' + t.accountId + '|' + t.url;
+}
+
+function normalizeTargets(list, max) {
   const out = [];
   const ids = new Set();
   const sigs = new Set();
-  for (const list of lists) {
-    for (const t of list) {
-      const n = normalizeTarget(t);
-      if (!n) continue;
-      const sig = n.providerId + '|' + n.accountId + '|' + n.url;
-      if (ids.has(n.id) || sigs.has(sig)) continue;
-      ids.add(n.id);
-      sigs.add(sig);
-      out.push(n);
-    }
+  const src = Array.isArray(list) ? list : [];
+  for (const t of src) {
+    const n = normalizeTarget(t);
+    if (!n) continue;
+    const sig = targetSig(n);
+    if (ids.has(n.id) || sigs.has(sig)) continue;
+    ids.add(n.id);
+    sigs.add(sig);
+    out.push(n);
   }
-  return out.slice(0, MAX_TARGETS);
+  return out.slice(0, max);
 }
 
 function cleanOpen(list) {
@@ -108,11 +105,26 @@ function normalizeData(raw) {
       accounts.push(n);
     }
   }
+  const repos = {};
+  const srcRepos = src.repos && typeof src.repos === 'object' ? src.repos : {};
+  for (const rawKey of Object.keys(srcRepos)) {
+    const key = repoKey(rawKey);
+    if (!key) continue;
+    const entry = srcRepos[rawKey];
+    const list = entry && Array.isArray(entry.targets) ? entry.targets : [];
+    const prev = repos[key] ? repos[key].targets : [];
+    const targets = normalizeTargets(prev.concat(list), MAX_TARGETS);
+    if (targets.length) repos[key] = { targets };
+  }
+  const legacySrc = [];
+  if (Array.isArray(src.targets)) legacySrc.push(...src.targets);
+  if (Array.isArray(src.legacy)) legacySrc.push(...src.legacy);
   const srcUi = src.ui && typeof src.ui === 'object' ? src.ui : {};
   return {
-    version: 2,
+    version: 3,
     accounts,
-    targets: mergeTargets(src),
+    repos,
+    legacy: normalizeTargets(legacySrc, MAX_LEGACY),
     ui: { mode: srcUi.mode === 'focus' ? 'focus' : 'grid', open: cleanOpen(srcUi.open) },
   };
 }
@@ -140,12 +152,30 @@ function makeDeployStore({ app }) {
     fs.renameSync(tmp, file);
   }
 
-  function view() {
+  function view(repoPath) {
     const d = load();
+    const key = repoKey(repoPath);
     const ids = new Set(d.accounts.map((a) => a.id));
+    const fix = (t) => Object.assign({}, t, { accountId: ids.has(t.accountId) ? t.accountId : '' });
+    const mine = key && d.repos[key] ? d.repos[key].targets.map(fix) : [];
+    const seen = new Set(mine.map(targetSig));
+    const pool = [];
+    for (const k of Object.keys(d.repos)) {
+      if (k !== key) pool.push(...d.repos[k].targets);
+    }
+    pool.push(...d.legacy);
+    const others = [];
+    for (const t of pool) {
+      const f = fix(t);
+      const sig = targetSig(f);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      others.push(f);
+    }
     return {
       accounts: d.accounts.map((a) => Object.assign({}, a)),
-      targets: d.targets.map((t) => Object.assign({}, t, { accountId: ids.has(t.accountId) ? t.accountId : '' })),
+      targets: mine,
+      others,
       ui: { mode: d.ui.mode, open: d.ui.open ? d.ui.open.slice() : null },
     };
   }
@@ -177,34 +207,54 @@ function makeDeployStore({ app }) {
     const d = load();
     const key = safeId(id);
     d.accounts = d.accounts.filter((a) => a.id !== key);
-    for (const t of d.targets) {
-      if (t.accountId === key) t.accountId = '';
+    const lists = Object.keys(d.repos).map((k) => d.repos[k].targets);
+    lists.push(d.legacy);
+    for (const list of lists) {
+      for (const t of list) {
+        if (t.accountId === key) t.accountId = '';
+      }
     }
     save();
     return { accounts: d.accounts.map((a) => Object.assign({}, a)) };
   }
 
-  function saveTarget(_repoPath, raw) {
+  function saveTarget(repoPath, raw) {
     const d = load();
+    const key = repoKey(repoPath);
+    if (!key) throw new Error('Open a repository first');
     const n = normalizeTarget(raw);
     if (!n) throw new Error('Pick a provider first');
     if (n.accountId && !d.accounts.some((a) => a.id === n.accountId)) n.accountId = '';
-    const idx = d.targets.findIndex((t) => t.id === n.id);
+    if (!d.repos[key]) d.repos[key] = { targets: [] };
+    const list = d.repos[key].targets;
+    const idx = list.findIndex((t) => t.id === n.id);
     if (idx >= 0) {
-      d.targets[idx] = n;
-    } else {
-      if (d.targets.length >= MAX_TARGETS) throw new Error('Too many targets');
-      d.targets.push(n);
+      list[idx] = n;
+      save();
+      return { target: Object.assign({}, n) };
     }
+    const sig = targetSig(n);
+    const dupIdx = list.findIndex((t) => targetSig(t) === sig);
+    if (dupIdx >= 0) {
+      const merged = Object.assign({}, n, { id: list[dupIdx].id });
+      list[dupIdx] = merged;
+      save();
+      return { target: Object.assign({}, merged) };
+    }
+    if (list.length >= MAX_TARGETS) throw new Error('Too many targets in this repo');
+    list.push(n);
     save();
     return { target: Object.assign({}, n) };
   }
 
-  function deleteTarget(_repoPath, id) {
+  function deleteTarget(repoPath, id) {
     const d = load();
-    const key = safeId(id);
-    d.targets = d.targets.filter((t) => t.id !== key);
-    if (d.ui.open) d.ui.open = d.ui.open.filter((x) => x !== key);
+    const key = repoKey(repoPath);
+    const tid = safeId(id);
+    if (key && d.repos[key]) {
+      d.repos[key].targets = d.repos[key].targets.filter((t) => t.id !== tid);
+    }
+    if (d.ui.open) d.ui.open = d.ui.open.filter((x) => x !== tid);
     save();
   }
 

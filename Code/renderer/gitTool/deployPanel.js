@@ -60,6 +60,7 @@ function freshState() {
     roles: [],
     accounts: [],
     targets: [],
+    others: [],
     providers: [],
     ui: { mode: 'grid', open: null },
     tabs: [],
@@ -220,6 +221,21 @@ function targetsFor(providerId) {
   return S.targets.filter((t) => t.providerId === providerId && (key === 'all' || roleKeyOfTarget(t) === key));
 }
 
+function othersForProvider(providerId) {
+  const key = S.hub.role;
+  return S.others.filter((t) => t.providerId === providerId && (key === 'all' || roleKeyOfTarget(t) === key));
+}
+
+function othersProviders(roleKey) {
+  const out = [];
+  for (const t of S.others) {
+    if (roleKeyOfTarget(t) !== roleKey) continue;
+    const p = providerById(t.providerId);
+    if (p && !out.some((x) => x.id === p.id)) out.push(p);
+  }
+  return out;
+}
+
 function suggestionFor(providerId) {
   if (!S.suggest || !S.suggest.suggestions) return null;
   const key = S.hub.role;
@@ -259,26 +275,70 @@ async function reopenSaved() {
 
 /* ---------- github accounts ---------- */
 
-function ghUserNames() {
-  const out = [];
-  const add = (u) => {
-    const v = String(u || '').trim();
-    if (v && !out.some((x) => x.toLowerCase() === v.toLowerCase())) out.push(v);
-  };
-  for (const g of gitAccts) add(g.username);
-  for (const a of S.accounts) {
-    if (a.providerId === 'github') add(a.githubUser || a.label);
-  }
-  return out;
+function ghAccountByUser(user) {
+  const key = String(user || '').trim().toLowerCase();
+  if (!key) return null;
+  return S.accounts.find((a) => a.providerId === 'github' && String(a.githubUser || a.label).toLowerCase() === key) || null;
 }
 
-function ghOptionsHtml(selected) {
-  const names = ghUserNames();
+function ghSignedIn(user) {
+  const a = ghAccountByUser(user);
+  const st = a ? ghStatus.get(a.id) : null;
+  return !!(st && st.loggedIn);
+}
+
+function ghUnknown(user) {
+  const a = ghAccountByUser(user);
+  return !!a && !ghStatus.has(a.id);
+}
+
+function ghAnyUnknown() {
+  return S.accounts.some((a) => a.providerId === 'github' && !ghStatus.has(a.id));
+}
+
+function firstSignedInGh() {
+  for (const a of S.accounts) {
+    if (a.providerId !== 'github') continue;
+    const st = ghStatus.get(a.id);
+    if (st && st.loggedIn) return a.githubUser || a.label;
+  }
+  return '';
+}
+
+function defaultGh(acc, isNew) {
+  if (acc && acc.githubUser) return acc.githubUser;
+  return isNew ? firstSignedInGh() : '';
+}
+
+function ghPickHtml(selected) {
   const want = String(selected || '');
-  if (want && !names.some((n) => n.toLowerCase() === want.toLowerCase())) names.push(want);
-  return '<option value="">No GitHub login</option>' + names.map((u) =>
-    '<option value="' + esc(u) + '"' + (u.toLowerCase() === want.toLowerCase() ? ' selected' : '') + '>@' + esc(u) + '</option>'
+  const list = [];
+  for (const a of S.accounts) {
+    if (a.providerId !== 'github') continue;
+    const user = a.githubUser || a.label;
+    const on = ghSignedIn(user);
+    if (on || user.toLowerCase() === want.toLowerCase()) list.push({ user, on });
+  }
+  if (want && !list.some((x) => x.user.toLowerCase() === want.toLowerCase())) list.push({ user: want, on: false });
+  return '<option value="">No GitHub login</option>' + list.map((x) =>
+    '<option value="' + esc(x.user) + '"' + (x.user.toLowerCase() === want.toLowerCase() ? ' selected' : '') + '>@' + esc(x.user) +
+    (x.on ? '' : ' (not signed in)') + '</option>'
   ).join('');
+}
+
+function ghNoteHtml(gh) {
+  const user = String(gh || '').trim();
+  const openBtn = '<div class="dp-form-actions"><button type="button" class="dp-btn" data-act="gh-open">' + ICONS.user + ' GitHub accounts</button></div>';
+  if (user) {
+    if (ghSignedIn(user)) {
+      return '<div class="dp-hint"><span class="dp-gh-state ok">' + ICONS.check + ' @' + esc(user) + ' is signed in.</span> After the provider opens, press Continue with GitHub.</div>';
+    }
+    if (ghUnknown(user)) return '<div class="dp-hint">Checking the GitHub sign in...</div>';
+    return '<div class="dp-hint"><span class="dp-gh-state warn">@' + esc(user) + ' is not signed in.</span> Sign in under GitHub accounts first.</div>' + openBtn;
+  }
+  if (firstSignedInGh()) return '<div class="dp-hint">Pick the signed in GitHub account this provider should use for Continue with GitHub.</div>';
+  if (ghAnyUnknown()) return '<div class="dp-hint">Checking GitHub sign ins...</div>';
+  return '<div class="dp-hint">No GitHub account is signed in. Sign one in under GitHub accounts, then pick it here.</div>' + openBtn;
 }
 
 function ghStateHtml(a) {
@@ -297,14 +357,10 @@ function ghStateHtml(a) {
 }
 
 function ghRowHtml(a) {
-  const st = ghStatus.get(a.id);
-  const signedIn = !!(st && st.loggedIn);
+  const hasLink = !!a.githubUser;
   return '<div class="dp-gh">' +
-    '<select class="dp-input dp-gh-sel" data-act="gh-link" data-id="' + esc(a.id) + '" title="Which GitHub account this login uses">' + ghOptionsHtml(a.githubUser) + '</select>' +
-    ghStateHtml(a) +
-    (signedIn
-      ? '<button type="button" class="dp-btn" data-act="gh-logout" data-id="' + esc(a.id) + '">Sign out</button>'
-      : '<button type="button" class="dp-btn dp-primary" data-act="gh-login" data-id="' + esc(a.id) + '">Sign in to GitHub</button>') +
+    '<select class="dp-input dp-gh-sel" data-act="gh-link" data-id="' + esc(a.id) + '" title="Which signed in GitHub account this login uses">' + ghPickHtml(a.githubUser) + '</select>' +
+    (hasLink ? ghStateHtml(ghAccountByUser(a.githubUser) || a) : '') +
   '</div>';
 }
 
@@ -341,15 +397,20 @@ async function refreshGhStatus(accountId) {
   if (S.page !== 'manage' || !root) return;
   const side = root.querySelector('#dpSideLists');
   const main = root.querySelector('#dpMain');
+  const formEl = root.querySelector('#dpSideForm');
   const cur = document.activeElement;
   const typingIn = (el) => !!(el && cur && el.contains(cur) && (cur.tagName === 'SELECT' || cur.tagName === 'INPUT'));
-  if (typingIn(side)) return;
-  if (S.hub.view === 'github' && typingIn(main)) return;
-  renderGhParts();
+  if (!typingIn(side) && !(S.hub.view === 'github' && typingIn(main))) renderGhParts();
+  if (S.form && formEl && !typingIn(formEl)) {
+    S.form = readForm();
+    renderForm();
+  }
 }
 
 function refreshAllGhStatus() {
-  for (const a of S.accounts) refreshGhStatus(a.id);
+  for (const a of S.accounts) {
+    if (a.providerId === 'github') refreshGhStatus(a.id);
+  }
 }
 
 function scheduleGhRefresh(accountId) {
@@ -408,9 +469,11 @@ function ensureGhData() {
 function hintGithub(acc) {
   const g = ghApi();
   if (!g || !acc || !acc.githubUser) return;
-  g.status(acc.id).then((res) => {
+  const gh = ghAccountByUser(acc.githubUser);
+  if (!gh) return;
+  g.status(gh.id).then((res) => {
     if (!res || res.success === false) return;
-    ghStatus.set(acc.id, { loggedIn: !!res.loggedIn, user: res.user || '' });
+    ghStatus.set(gh.id, { loggedIn: !!res.loggedIn, user: res.user || '' });
     if (!res.loggedIn) {
       toast('@' + acc.githubUser + ' is not signed in to GitHub yet. Use the GitHub accounts button, then Sign in.', 'error');
     } else if (res.user && res.user.toLowerCase() !== acc.githubUser.toLowerCase()) {
@@ -434,7 +497,6 @@ async function setAccountGithub(id, user) {
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not save the GitHub link');
     S.accounts = res.accounts;
     renderGhParts();
-    refreshGhStatus(a.id);
     toast(user ? 'Linked to @' + user : 'GitHub link removed');
   } catch (err) {
     toast(err.message, 'error');
@@ -499,6 +561,10 @@ async function ghLogout(accountId) {
     await g.logout(accountId);
     ghStatus.set(accountId, { loggedIn: false, user: '' });
     renderGhParts();
+    if (S.form) {
+      S.form = readForm();
+      renderForm();
+    }
     toast('Signed out of GitHub');
   } catch (err) {
     toast(err.message, 'error');
@@ -545,6 +611,7 @@ export async function open(container, repoPath) {
     if (!data || data.success === false) throw new Error((data && data.error) || 'Could not load the Deploy tool.');
     S.accounts = data.accounts || [];
     S.targets = data.targets || [];
+    S.others = data.others || [];
     S.roles = data.roles || [];
     S.providers = data.providers || [];
     S.ui = Object.assign({ mode: 'grid', open: null }, data.ui || {});
@@ -814,14 +881,18 @@ function catCardHtml(key, label) {
   }
   let state = '<span class="dp-pc-state">None yet</span>';
   let line = '';
+  let tip = 'Pick a provider for ' + label;
   if (items.length) {
     state = '<span class="dp-pc-state ok">' + ICONS.check + ' ' + items.length + ' configured</span>';
     line = provs.slice(0, 3).map((p) => esc(p.name)).join(', ');
+    tip = 'Open ' + items[0].name + ' (use Providers in the browser to switch)';
   } else {
+    const reuse = othersProviders(key);
     const sug = suggestedProviderFor(key);
-    line = sug ? 'Suggested: ' + esc(sug.name) : 'Pick a provider to set up';
+    if (reuse.length) line = 'Used in other repos: ' + reuse.slice(0, 2).map((p) => esc(p.name)).join(', ');
+    else line = sug ? 'Suggested: ' + esc(sug.name) : 'Pick a provider to set up';
   }
-  return '<button type="button" class="dp-cat' + (items.length ? ' done' : '') + '" data-act="home-cat" data-role="' + esc(key) + '">' +
+  return '<button type="button" class="dp-cat' + (items.length ? ' done' : '') + '" data-act="home-cat" data-role="' + esc(key) + '" title="' + esc(tip) + '">' +
     visual +
     '<span class="dp-cat-title">' + esc(label) + '</span>' +
     state +
@@ -878,8 +949,9 @@ function roleBarHtml() {
 
 function rank(p) {
   if (targetsFor(p.id).length) return 0;
-  if (suggestionFor(p.id)) return 1;
-  return 2;
+  if (othersForProvider(p.id).length) return 1;
+  if (suggestionFor(p.id)) return 2;
+  return 3;
 }
 
 function orderedItems() {
@@ -893,13 +965,18 @@ function orderedItems() {
 
 function cardHtml(p) {
   const mine = targetsFor(p.id);
+  const used = othersForProvider(p.id);
   const sug = suggestionFor(p.id);
   const done = mine.length > 0;
   const roles = p.roles.length ? p.roles.slice(0, 3).map(roleName).join(' / ') : 'Other';
   let state = '<span class="dp-pc-state">Not set up</span>';
   if (done) state = '<span class="dp-pc-state ok">' + ICONS.check + ' Configured' + (mine.length > 1 ? ' (' + mine.length + ')' : '') + '</span>';
+  else if (used.length) state = '<span class="dp-pc-state sug">Used elsewhere</span>';
   else if (sug) state = '<span class="dp-pc-state sug">Suggested</span>';
-  const title = done ? 'Open ' + mine[0].name : (sug ? sug.reason : 'Set up ' + p.name);
+  let title = 'Set up ' + p.name;
+  if (done) title = 'Open ' + mine[0].name;
+  else if (used.length) title = 'Reuse ' + used[0].name + ' from another repo';
+  else if (sug) title = sug.reason;
   return '<div class="dp-pc' + (done ? ' done' : '') + '">' +
     '<button type="button" class="dp-pc-main" data-act="pick-card" data-id="' + esc(p.id) + '" title="' + esc(title) + '">' +
       badge(p, true) +
@@ -944,19 +1021,18 @@ function formHtml() {
   const accOpts = '<option value="">No account (shared session)</option>' +
     accounts.map((a) => '<option value="' + esc(a.id) + '"' + (a.id === f.accountId ? ' selected' : '') + '>' + esc(a.label) + '</option>').join('') +
     '<option value="__new"' + (f.accountId === '__new' ? ' selected' : '') + '>+ New account...</option>';
-  const chosen = accountById(f.accountId);
-  const linkNote = chosen && chosen.githubUser
-    ? '<div class="dp-hint">Uses the GitHub login @' + esc(chosen.githubUser) + '. Sign in under GitHub accounts, then press Continue with GitHub on the provider page.</div>'
-    : '';
+  let sub = 'Sign in once, the login is saved and reused in every repo.';
+  if (f.id) sub = 'Edit this target';
+  else if (f.reuse) sub = 'Reusing the setup from another repo. Press Save to add it to this repo.';
   return '<section class="dp-card dp-formcard">' +
     '<div class="dp-fhead">' + badge(p, true) +
-      '<div><div class="dp-mtitle">' + esc(p ? p.name : '') + '</div><div class="dp-hint">' + (f.id ? 'Edit this target' : 'Sign in once, the login is saved and reused in every repo.') + '</div></div></div>' +
+      '<div><div class="dp-mtitle">' + esc(p ? p.name : '') + '</div><div class="dp-hint">' + esc(sub) + '</div></div></div>' +
     '<label class="dp-label">Category</label><select id="dpFRole" class="dp-input">' + roleOpts + '</select>' +
     (f.role === 'custom' ? '<input id="dpFRoleLabel" class="dp-input" placeholder="Label, for example Emails" maxlength="24" value="' + esc(f.roleLabel) + '">' : '') +
     '<label class="dp-label">Account</label><select id="dpFAccount" class="dp-input">' + accOpts + '</select>' +
     (f.accountId === '__new' ? '<input id="dpFNewAcc" class="dp-input" placeholder="Account name or email (optional)" maxlength="60" value="' + esc(f.newAccount) + '">' : '') +
-    (f.accountId === '__new' ? '<select id="dpFNewGh" class="dp-input" title="Which GitHub account this login uses">' + ghOptionsHtml(f.newGh) + '</select>' : '') +
-    linkNote +
+    '<label class="dp-label">Continue with GitHub</label><select id="dpFGh" class="dp-input" title="The signed in GitHub account this provider will use">' + ghPickHtml(f.gh) + '</select>' +
+    ghNoteHtml(f.gh) +
     '<label class="dp-label">Name</label><input id="dpFName" class="dp-input" maxlength="60" value="' + esc(f.name) + '">' +
     '<label class="dp-label">Link (deep link to the exact page)</label><input id="dpFUrl" class="dp-input" spellcheck="false" value="' + esc(f.url) + '">' +
     '<div class="dp-form-actions">' +
@@ -968,7 +1044,7 @@ function formHtml() {
 }
 
 function targetsCardHtml() {
-  let body = '<p class="dp-hint">No targets yet. Pick a provider card to set one up.</p>';
+  let body = '<p class="dp-hint">No targets in this repo yet. Pick a provider card to set one up.</p>';
   if (S.targets.length) {
     body = groupTargets().map((g) =>
       '<div class="dp-list-group">' + esc(g.label) + '</div>' + g.items.map((t) => {
@@ -984,7 +1060,7 @@ function targetsCardHtml() {
       }).join('')
     ).join('');
   }
-  return '<section class="dp-card"><h3 class="dp-h3">Your targets</h3>' + body + '</section>';
+  return '<section class="dp-card"><h3 class="dp-h3">Targets in this repo</h3>' + body + '</section>';
 }
 
 function ghProfilesHtml() {
@@ -1012,7 +1088,7 @@ function ghProfilesHtml() {
     '</div>';
   }).join('');
   return '<section class="dp-card"><h3 class="dp-h3">GitHub accounts</h3>' +
-    '<p class="dp-hint">Sign in here once per account. Link it to a provider login when you add a target, and Continue with GitHub works in that provider.</p>' +
+    '<p class="dp-hint">Sign in and out here. When you set up a provider, you choose which signed in account it uses for Continue with GitHub. These accounts are shared by all repos.</p>' +
     (rows || '<p class="dp-hint">No GitHub accounts yet.</p>') +
     '<div class="dp-ghadd"><input id="dpGhUser" class="dp-input" placeholder="GitHub username" maxlength="39" autocomplete="off" spellcheck="false" value="' + esc(S.ghDraft || '') + '">' +
     '<button type="button" class="dp-btn dp-primary" data-act="gh-add">Add and sign in</button></div>' +
@@ -1025,19 +1101,19 @@ function accountsCardHtml() {
     const p = providerById(a.providerId);
     const n = S.targets.filter((t) => t.accountId === a.id).length;
     return '<div class="dp-acc"><div class="dp-row">' + badge(p) +
-      '<div class="dp-row-main"><div class="dp-row-name">' + esc(a.label) + '</div><div class="dp-row-sub">' + esc(p ? p.name : '') + (n ? ' - used by ' + n + ' target' + (n === 1 ? '' : 's') : '') + '</div></div>' +
+      '<div class="dp-row-main"><div class="dp-row-name">' + esc(a.label) + '</div><div class="dp-row-sub">' + esc(p ? p.name : '') + (n ? ' - used by ' + n + ' target' + (n === 1 ? '' : 's') + ' here' : '') + '</div></div>' +
       '<button type="button" class="dp-btn dp-danger" data-act="delete-account" data-id="' + esc(a.id) + '">Remove</button></div>' +
       ghRowHtml(a) +
     '</div>';
   }).join('');
   const opts = S.providers.filter((p) => p.id !== 'github').sort((a, b) => a.name.localeCompare(b.name)).map((p) =>
     '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join('');
-  return ghProfilesHtml() + '<section class="dp-card"><h3 class="dp-h3">Provider accounts</h3>' +
-    '<p class="dp-hint">Link a GitHub account to share its sign in, or leave it unlinked to keep this login separate.</p>' +
+  return '<section class="dp-card"><h3 class="dp-h3">Provider accounts</h3>' +
+    '<p class="dp-hint">Shared by all repos, so you can reuse a login in any repo. Choose which signed in GitHub account each one uses, or leave it unlinked.</p>' +
     (rows || '<p class="dp-hint">No accounts yet.</p>') +
     '<div class="dp-addacc"><select id="dpAProvider" class="dp-input">' + opts + '</select>' +
     '<input id="dpALabel" class="dp-input" placeholder="Account name or email" maxlength="60">' +
-    '<select id="dpAGh" class="dp-input" title="Which GitHub account this login uses">' + ghOptionsHtml('') + '</select>' +
+    '<select id="dpAGh" class="dp-input" title="Which signed in GitHub account this login uses">' + ghPickHtml('') + '</select>' +
     '<button type="button" class="dp-btn dp-primary" data-act="add-account">Add account</button></div>' +
   '</section>';
 }
@@ -1053,8 +1129,8 @@ function manageHtml() {
   const ghBtn = '<button type="button" class="dp-btn' + (S.hub.view === 'github' ? ' dp-primary' : '') + '" data-act="gh-manage" title="Manage the GitHub accounts used for Continue with GitHub">' +
     ICONS.user + ' GitHub accounts</button>';
   let sub = S.targets.length
-    ? 'Pick a category, then a provider. Targets and accounts are shared by all repos.'
-    : 'Nothing is set up yet. Pick what you want to connect, then choose a provider and sign in.';
+    ? 'Pick a category, then a provider. Targets belong to this repo, accounts are shared by all repos.'
+    : 'Nothing is set up in this repo yet. Pick what you want to connect, then reuse an account or sign in.';
   if (S.hub.view === 'github') sub = 'Sign in to the GitHub accounts you use for Continue with GitHub on provider sites.';
   const solo = isSolo() ? ' dp-solo' : '';
   return '<div class="dp-manage">' +
@@ -1159,7 +1235,7 @@ function readForm() {
   read('dpFRoleLabel', 'roleLabel');
   read('dpFAccount', 'accountId');
   read('dpFNewAcc', 'newAccount');
-  read('dpFNewGh', 'newGh');
+  read('dpFGh', 'gh');
   read('dpFName', 'name');
   read('dpFUrl', 'url');
   return f;
@@ -1167,8 +1243,9 @@ function readForm() {
 
 function startForm(seed) {
   S.page = 'manage';
+  const fromSeed = !!(seed && seed.accountId);
   const f = Object.assign({
-    id: '', role: 'frontend', roleLabel: '', providerId: '', accountId: '', newAccount: '', newGh: '', name: '', url: '',
+    id: '', role: 'frontend', roleLabel: '', providerId: '', accountId: '', newAccount: '', gh: '', name: '', url: '', reuse: false,
   }, seed || {});
   const p = providerById(f.providerId);
   if (p) {
@@ -1179,6 +1256,7 @@ function startForm(seed) {
       f.accountId = accs.length ? accs[0].id : '__new';
     }
   }
+  f.gh = defaultGh(accountById(f.accountId), !f.id && !fromSeed);
   S.form = f;
   if (root && root.querySelector('#dpSideForm')) {
     renderForm();
@@ -1187,6 +1265,7 @@ function startForm(seed) {
   } else {
     renderAll();
   }
+  refreshAllGhStatus();
 }
 
 function pickCard(id, forceNew) {
@@ -1196,6 +1275,19 @@ function pickCard(id, forceNew) {
   if (mine.length && !forceNew) {
     hintForTarget(mine[0].id);
     openTarget(mine[0].id);
+    return;
+  }
+  const other = forceNew ? null : othersForProvider(id)[0];
+  if (other) {
+    startForm({
+      providerId: id,
+      role: other.role,
+      roleLabel: other.roleLabel,
+      accountId: other.accountId,
+      name: other.name,
+      url: other.url,
+      reuse: true,
+    });
     return;
   }
   startForm(Object.assign({ providerId: id }, seedRole(p)));
@@ -1209,6 +1301,20 @@ function enterCatalog(roleKey) {
   S.results = null;
   renderAll();
   refreshCatalog();
+}
+function openCategory(roleKey) {
+  const key = roleKey || 'all';
+  if (key !== 'all') {
+    const items = S.targets.filter((t) => roleKeyOfTarget(t) === key);
+    if (items.length) {
+      const live = items.find((t) => S.tabs.some((x) => x.targetId === t.id));
+      const pick = live || items[0];
+      hintForTarget(pick.id);
+      openTarget(pick.id);
+      return;
+    }
+  }
+  enterCatalog(key);
 }
 
 function saveCustomRole() {
@@ -1248,9 +1354,17 @@ async function saveForm(openAfter) {
   }
   try {
     let accountId = f.accountId === '__new' ? '' : f.accountId;
-    if (f.accountId === '__new') {
-      const gh = String(f.newGh || '').trim();
-      const label = String(f.newAccount || '').trim() || (gh ? '@' + gh : '');
+    const gh = String(f.gh || '').trim();
+    if (accountId) {
+      const acc = accountById(accountId);
+      if (acc && String(acc.githubUser || '').toLowerCase() !== gh.toLowerCase()) {
+        const upd = await api().saveAccount({ id: acc.id, providerId: acc.providerId, label: acc.label, githubUser: gh });
+        if (!upd || !upd.success) throw new Error((upd && upd.error) || 'Could not link the GitHub account');
+        S.accounts = upd.accounts;
+      }
+    } else if (gh || f.accountId === '__new') {
+      const typed = f.accountId === '__new' ? String(f.newAccount || '').trim() : '';
+      const label = typed || (gh ? '@' + gh : '');
       if (label) {
         const acc = await api().saveAccount({ providerId: f.providerId, label, githubUser: gh });
         if (!acc || !acc.success) throw new Error((acc && acc.error) || 'Could not save the account');
@@ -1264,6 +1378,7 @@ async function saveForm(openAfter) {
     });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not save the target');
     S.targets = res.targets;
+    S.others = res.others || [];
     S.accounts = res.accounts;
     S.form = null;
     toast('Target saved');
@@ -1282,12 +1397,13 @@ async function saveForm(openAfter) {
 async function deleteTarget(id) {
   const t = targetById(id);
   if (!t) return;
-  const ok = await confirmDialog('Remove the target <b>' + esc(t.name) + '</b>? Your saved logins are kept.');
+  const ok = await confirmDialog('Remove the target <b>' + esc(t.name) + '</b> from this repo? Your saved logins are kept.');
   if (!ok) return;
   try {
     const res = await api().deleteTarget({ repoPath: S.repoPath, id });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not remove the target');
     S.targets = res.targets;
+    S.others = res.others || [];
     if (S.form && S.form.id === id) S.form = null;
     for (const tab of S.tabs.filter((x) => x.targetId === id)) await closeTab(tab.id, true);
     saveMemory();
@@ -1324,13 +1440,14 @@ async function addAccount() {
 async function deleteAccount(id) {
   const a = accountById(id);
   if (!a) return;
-  const ok = await confirmDialog('Remove the account <b>' + esc(a.label) + '</b>? Its saved login in the Deploy browser is cleared, and targets using it fall back to the shared session.');
+  const ok = await confirmDialog('Remove the account <b>' + esc(a.label) + '</b>? Its saved login in the Deploy browser is cleared, and targets using it fall back to the shared session in every repo.');
   if (!ok) return;
   try {
     const res = await api().deleteAccount({ id, repoPath: S.repoPath });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not remove the account');
     S.accounts = res.accounts;
     S.targets = res.targets;
+    S.others = res.others || [];
     S.tabs = S.tabs.filter((t) => t.accountId !== id);
     ghStatus.delete(id);
     if (S.form && S.form.accountId === id) S.form.accountId = '';
@@ -1424,6 +1541,7 @@ async function pinTarget(tabId) {
     const res = await api().saveTarget({ repoPath: S.repoPath, target: Object.assign({}, target, { url: tab.url }) });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not save the link');
     S.targets = res.targets;
+    S.others = res.others || [];
     toast('Saved this page as the link of ' + target.name);
   } catch (err) {
     toast(err.message, 'error');
@@ -1439,10 +1557,16 @@ function toggleMode() {
 }
 
 function goManage() {
+  const tab = S.tabs.find((t) => t.id === S.active);
+  const tg = tab ? targetById(tab.targetId) : null;
   S.page = 'manage';
-  S.hub.view = 'home';
   S.hub.addingRole = false;
+  S.hub.role = tg ? roleKeyOfTarget(tg) : 'all';
+  S.hub.view = 'catalog';
+  S.hub.query = '';
+  S.results = null;
   renderAll();
+  refreshCatalog();
   if (!S.suggest && !S.suggestLoading) loadSuggestions();
   else ensureGhData();
 }
@@ -1468,7 +1592,10 @@ function handleAct(act, btn) {
   else if (act === 'gh-manage') {
     setHubView(S.hub.view === 'github' ? 'home' : 'github');
     if (S.hub.view === 'github') ensureGhData();
-  } else if (act === 'home-cat') enterCatalog(btn.dataset.role || 'all');
+  } else if (act === 'gh-open') {
+    setHubView('github');
+    ensureGhData();
+  } else if (act === 'home-cat') openCategory(btn.dataset.role || 'all');
   else if (act === 'role') {
     S.hub.role = btn.dataset.role || 'all';
     S.hub.addingRole = false;
@@ -1521,7 +1648,13 @@ function onClick(e) {
 function onChange(e) {
   const t = e.target;
   const id = t && t.id;
-  if (id === 'dpFRole' || id === 'dpFAccount') {
+  if (id === 'dpFAccount') {
+    S.form = readForm();
+    S.form.gh = defaultGh(accountById(S.form.accountId), !S.form.id);
+    renderForm();
+    return;
+  }
+  if (id === 'dpFRole' || id === 'dpFGh') {
     S.form = readForm();
     renderForm();
     return;
