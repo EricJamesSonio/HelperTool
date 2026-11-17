@@ -18,6 +18,7 @@ const ICONS = {
   one: SV + '<rect x="2.5" y="3" width="11" height="10" rx="1.5"/></svg>',
   plus: SV + '<path d="M8 3v10M3 8h10"/></svg>',
   check: SV + '<path d="M3 8.5l3.2 3L13 4.5"/></svg>',
+  user: SV + '<circle cx="8" cy="5.5" r="2.8"/><path d="M2.5 14c0.6-2.8 2.7-4.3 5.5-4.3s4.9 1.5 5.5 4.3"/></svg>',
 };
 const SVL = '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">';
 const CAT_ICONS = {
@@ -77,9 +78,13 @@ function catIcon(key) {
   return CAT_ICONS[key] || CAT_ICONS.custom;
 }
 
+function isSolo() {
+  return (S.hub.view === 'home' || S.hub.view === 'github') && !S.form;
+}
+
 function syncSolo() {
   const el = root ? root.querySelector('.dp-mbody') : null;
-  if (el) el.classList.toggle('dp-solo', S.hub.view === 'home' && !S.form);
+  if (el) el.classList.toggle('dp-solo', isSolo());
 }
 
 function esc(s) {
@@ -335,9 +340,12 @@ async function refreshGhStatus(accountId) {
   }
   if (S.page !== 'manage' || !root) return;
   const side = root.querySelector('#dpSideLists');
+  const main = root.querySelector('#dpMain');
   const cur = document.activeElement;
-  if (side && cur && side.contains(cur) && (cur.tagName === 'SELECT' || cur.tagName === 'INPUT')) return;
-  renderLists();
+  const typingIn = (el) => !!(el && cur && el.contains(cur) && (cur.tagName === 'SELECT' || cur.tagName === 'INPUT'));
+  if (typingIn(side)) return;
+  if (S.hub.view === 'github' && typingIn(main)) return;
+  renderGhParts();
 }
 
 function refreshAllGhStatus() {
@@ -391,7 +399,7 @@ function ensureGhData() {
     if (S.page === 'manage') {
       if (S.form) S.form = readForm();
       renderForm();
-      renderLists();
+      renderGhParts();
     }
     refreshAllGhStatus();
   });
@@ -404,7 +412,7 @@ function hintGithub(acc) {
     if (!res || res.success === false) return;
     ghStatus.set(acc.id, { loggedIn: !!res.loggedIn, user: res.user || '' });
     if (!res.loggedIn) {
-      toast('@' + acc.githubUser + ' is not signed in to GitHub yet. Use Providers, then GitHub accounts, then Sign in.', 'error');
+      toast('@' + acc.githubUser + ' is not signed in to GitHub yet. Use the GitHub accounts button, then Sign in.', 'error');
     } else if (res.user && res.user.toLowerCase() !== acc.githubUser.toLowerCase()) {
       toast('This account is signed in to GitHub as @' + res.user + ', not @' + acc.githubUser + '.', 'error');
     }
@@ -425,7 +433,7 @@ async function setAccountGithub(id, user) {
     const res = await api().saveAccount({ id: a.id, providerId: a.providerId, label: a.label, githubUser: user });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not save the GitHub link');
     S.accounts = res.accounts;
-    renderLists();
+    renderGhParts();
     refreshGhStatus(a.id);
     toast(user ? 'Linked to @' + user : 'GitHub link removed');
   } catch (err) {
@@ -490,7 +498,7 @@ async function ghLogout(accountId) {
   try {
     await g.logout(accountId);
     ghStatus.set(accountId, { loggedIn: false, user: '' });
-    renderLists();
+    renderGhParts();
     toast('Signed out of GitHub');
   } catch (err) {
     toast(err.message, 'error');
@@ -839,6 +847,14 @@ function homeHtml() {
   '</div>';
 }
 
+function githubViewHtml() {
+  return '<div class="dp-home">' +
+    '<div class="dp-home-title">GitHub accounts</div>' +
+    '<div style="width:100%;max-width:640px;min-height:0;overflow-y:auto">' + ghProfilesHtml() + '</div>' +
+    '<div class="dp-home-foot"><button type="button" class="dp-btn" data-act="home">' + ICONS.back + ' Categories</button></div>' +
+  '</div>';
+}
+
 /* ---------- rendering: providers page ---------- */
 
 function roleBtnHtml(key, label, count) {
@@ -913,7 +929,9 @@ function catalogHtml() {
 }
 
 function mainHtml() {
-  return S.hub.view === 'home' ? homeHtml() : catalogHtml();
+  if (S.hub.view === 'home') return homeHtml();
+  if (S.hub.view === 'github') return githubViewHtml();
+  return catalogHtml();
 }
 
 function formHtml() {
@@ -994,7 +1012,7 @@ function ghProfilesHtml() {
     '</div>';
   }).join('');
   return '<section class="dp-card"><h3 class="dp-h3">GitHub accounts</h3>' +
-    '<p class="dp-hint">Sign in here once per account. Then pick that GitHub account on a provider account below, and Continue with GitHub works in that provider.</p>' +
+    '<p class="dp-hint">Sign in here once per account. Link it to a provider login when you add a target, and Continue with GitHub works in that provider.</p>' +
     (rows || '<p class="dp-hint">No GitHub accounts yet.</p>') +
     '<div class="dp-ghadd"><input id="dpGhUser" class="dp-input" placeholder="GitHub username" maxlength="39" autocomplete="off" spellcheck="false" value="' + esc(S.ghDraft || '') + '">' +
     '<button type="button" class="dp-btn dp-primary" data-act="gh-add">Add and sign in</button></div>' +
@@ -1032,12 +1050,16 @@ function manageHtml() {
   const back = S.targets.length
     ? '<button type="button" class="dp-btn" data-act="back-browse">' + ICONS.back + ' Back to browser</button>'
     : '';
-  const sub = S.targets.length
+  const ghBtn = '<button type="button" class="dp-btn' + (S.hub.view === 'github' ? ' dp-primary' : '') + '" data-act="gh-manage" title="Manage the GitHub accounts used for Continue with GitHub">' +
+    ICONS.user + ' GitHub accounts</button>';
+  let sub = S.targets.length
     ? 'Pick a category, then a provider. Targets and accounts are shared by all repos.'
     : 'Nothing is set up yet. Pick what you want to connect, then choose a provider and sign in.';
-  const solo = S.hub.view === 'home' && !S.form ? ' dp-solo' : '';
+  if (S.hub.view === 'github') sub = 'Sign in to the GitHub accounts you use for Continue with GitHub on provider sites.';
+  const solo = isSolo() ? ' dp-solo' : '';
   return '<div class="dp-manage">' +
-    '<div class="dp-mhead"><div><div class="dp-mtitle">Deploy</div><div class="dp-hint">' + esc(sub) + '</div></div>' + back + '</div>' +
+    '<div class="dp-mhead"><div><div class="dp-mtitle">Deploy</div><div class="dp-hint">' + esc(sub) + '</div></div>' +
+      '<div class="dp-top-actions">' + ghBtn + back + '</div></div>' +
     '<div class="dp-mbody' + solo + '">' +
       '<section class="dp-main" id="dpMain">' + mainHtml() + '</section>' +
       '<aside class="dp-side"><div id="dpSideForm">' + formHtml() + '</div><div id="dpSideLists">' + listsHtml() + '</div></aside>' +
@@ -1066,6 +1088,11 @@ function renderLists() {
   setHtml('#dpSideLists', listsHtml());
 }
 
+function renderGhParts() {
+  if (S.hub.view === 'github') renderMain();
+  renderLists();
+}
+
 function rerenderRoleArea() {
   if (S.hub.view === 'home') renderMain();
   else renderRoleBar();
@@ -1076,6 +1103,13 @@ function renderManageParts() {
   renderMain();
   renderForm();
   renderLists();
+}
+
+function setHubView(view) {
+  if (S.form) S.form = readForm();
+  S.hub.view = view;
+  S.hub.addingRole = false;
+  renderAll();
 }
 
 /* ---------- data actions ---------- */
@@ -1097,7 +1131,7 @@ async function loadSuggestions() {
   S.suggestLoading = false;
   if (S.page === 'manage') {
     if (S.hub.view === 'home') renderMain();
-    else renderGrid();
+    else if (S.hub.view === 'catalog') renderGrid();
   }
 }
 
@@ -1173,7 +1207,7 @@ function enterCatalog(roleKey) {
   S.hub.addingRole = false;
   S.hub.query = '';
   S.results = null;
-  renderMain();
+  renderAll();
   refreshCatalog();
 }
 
@@ -1430,10 +1464,10 @@ function handleAct(act, btn) {
   else if (act === 'back' || act === 'forward' || act === 'reload' || act === 'stop') nav(tabId, act);
   else if (act === 'pin') pinTarget(tabId);
   else if (act === 'external') api().openExternal({ tabId }).catch(() => {});
-  else if (act === 'home') {
-    S.hub.view = 'home';
-    S.hub.addingRole = false;
-    renderMain();
+  else if (act === 'home') setHubView('home');
+  else if (act === 'gh-manage') {
+    setHubView(S.hub.view === 'github' ? 'home' : 'github');
+    if (S.hub.view === 'github') ensureGhData();
   } else if (act === 'home-cat') enterCatalog(btn.dataset.role || 'all');
   else if (act === 'role') {
     S.hub.role = btn.dataset.role || 'all';
