@@ -1296,6 +1296,7 @@ function startForm(seed) {
       const accs = S.accounts.filter((a) => a.providerId === p.id);
       f.accountId = accs.length ? accs[0].id : '__new';
     }
+    if (!f.accountId && p.id !== 'custom') f.url = p.url;
   }
   f.gh = defaultGh(accountById(f.accountId), !f.id && !fromSeed);
   S.form = f;
@@ -1534,6 +1535,8 @@ async function openTarget(targetId) {
     renderAll();
     return;
   }
+  const prov = providerById(target.providerId);
+  const startUrl = !target.accountId && prov && prov.id !== 'custom' ? prov.url : target.url;
   try {
     if (S.tabs.length >= MAX_TABS) {
       const victim = S.tabs.slice().sort((a, b) => (a.used || 0) - (b.used || 0))[0];
@@ -1542,9 +1545,9 @@ async function openTarget(targetId) {
       toast('Closed ' + (vt ? vt.name : 'the oldest tab') + ' to make room (at most ' + MAX_TABS + ' tabs)');
     }
     const id = 'dt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const res = await api().openTab({ tabId: id, url: target.url, accountId: target.accountId });
+    const res = await api().openTab({ tabId: id, url: startUrl, accountId: target.accountId });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not open that target');
-    S.tabs.push({ id, targetId, accountId: target.accountId, url: target.url, pageTitle: '', loading: true, canGoBack: false, canGoForward: false, used: Date.now() });
+    S.tabs.push({ id, targetId, accountId: target.accountId, url: startUrl, pageTitle: '', loading: true, canGoBack: false, canGoForward: false, used: Date.now() });
     S.active = id;
     saveMemory();
     renderAll();
@@ -1756,7 +1759,12 @@ function onChange(e) {
   const t = e.target;
   const id = t && t.id;
   if (id === 'dpFAccount') {
+    const prevAccount = S.form ? S.form.accountId : '';
     S.form = readForm();
+    if (S.form.accountId !== prevAccount) {
+      const fp = providerById(S.form.providerId);
+      if (fp) S.form.url = fp.url;
+    }
     S.form.gh = defaultGh(accountById(S.form.accountId), !S.form.id);
     renderForm();
     return;

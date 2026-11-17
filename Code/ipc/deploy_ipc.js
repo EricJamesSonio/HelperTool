@@ -159,8 +159,19 @@ function popupHandler(wc, partition) {
   };
 }
 
+function tabPartition(tab) {
+  if (tab.accountId) return accountPartition(tab.accountId);
+  return 'deploy-fresh-' + tab.id;
+}
+
+function wipeFresh(partition) {
+  configured.delete(partition);
+  try {
+    session.fromPartition(partition).clearStorageData().catch(() => {});
+  } catch (_) {}
+}
 function createView(tab) {
-  const partition = accountPartition(tab.accountId);
+  const partition = tabPartition(tab);
   const view = new BrowserView({
     webPreferences: { partition, nodeIntegration: false, contextIsolation: true, sandbox: true, spellcheck: false },
   });
@@ -233,8 +244,10 @@ function destroyView(tab) {
 function closeTab(id) {
   const tab = tabs.get(id);
   if (!tab) return;
+  const fresh = tab.accountId ? '' : tabPartition(tab);
   destroyView(tab);
   tabs.delete(id);
+  if (fresh) wipeFresh(fresh);
 }
 
 function closeAll() {
