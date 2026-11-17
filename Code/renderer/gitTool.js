@@ -8,6 +8,9 @@ import GitManager from './gitTool/gitManager.js';
 import GitToolUI from './gitTool/gitToolUI.js';
 import GitCommandHandler from './gitTool/gitCommandHandler.js';
 import { installPushChecks } from './gitTool/pushChecks.js';
+import { installDeployTab } from './gitTool/deployTab.js';
+
+installDeployTab(GitToolUI);
 
 class GitTool {
   constructor() {
