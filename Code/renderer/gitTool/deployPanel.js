@@ -4,7 +4,7 @@ const STYLE_ID = 'gitDeploySheet';
 const MAX_TABS = 4;
 const WATCH_MS = 600;
 const RESEND_MS = 4000;
-const SEARCH_MS = 120;
+const SEARCH_MS = 180;
 
 const SV = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
 const ICONS = {
@@ -16,13 +16,24 @@ const ICONS = {
   external: SV + '<path d="M9 2.5h4.5V7"/><path d="M13.5 2.5L7.5 8.5"/><path d="M11 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1H6.5"/></svg>',
   grid: SV + '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>',
   one: SV + '<rect x="2.5" y="3" width="11" height="10" rx="1.5"/></svg>',
-  gear: SV + '<circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>',
   plus: SV + '<path d="M8 3v10M3 8h10"/></svg>',
+  check: SV + '<path d="M3 8.5l3.2 3L13 4.5"/></svg>',
+};
+const SVL = '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">';
+const CAT_ICONS = {
+  database: SVL + '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
+  frontend: SVL + '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><circle cx="6.5" cy="6.5" r="0.6"/><circle cx="9" cy="6.5" r="0.6"/><path d="M8 14l-2 2 2 2"/><path d="M16 14l2 2-2 2"/></svg>',
+  backend: SVL + '<rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><circle cx="7" cy="6.5" r="0.7"/><circle cx="7" cy="17.5" r="0.7"/><path d="M11 6.5h6M11 17.5h6"/></svg>',
+  images: SVL + '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>',
+  custom: SVL + '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
 };
 
 const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
 
 const memory = new Map();
+const ghStatus = new Map();
+let gitAccts = [];
+let ghTimer = 0;
 let cleaned = false;
 let S = freshState();
 let root = null;
@@ -34,6 +45,7 @@ let hiddenSent = false;
 let lastSig = '';
 let lastSentAt = 0;
 let searchTimer = 0;
+let searchSeq = 0;
 
 function freshState() {
   return {
@@ -48,22 +60,30 @@ function freshState() {
     accounts: [],
     targets: [],
     providers: [],
-    ui: { mode: 'grid' },
+    ui: { mode: 'grid', open: null },
     tabs: [],
     active: '',
     suggest: null,
     suggestLoading: false,
     form: null,
-    results: [],
+    results: null,
+    ghDraft: '',
+    hub: { role: 'all', query: '', addingRole: false, view: 'home' },
+    customRoles: [],
   };
+}
+
+function catIcon(key) {
+  return CAT_ICONS[key] || CAT_ICONS.custom;
+}
+
+function syncSolo() {
+  const el = root ? root.querySelector('.dp-mbody') : null;
+  if (el) el.classList.toggle('dp-solo', S.hub.view === 'home' && !S.form);
 }
 
 function esc(s) {
   return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (m) => HTML_ESC[m]);
-}
-
-function keyOf(p) {
-  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
 function hue(id) {
@@ -81,10 +101,30 @@ function hostOf(url) {
   }
 }
 
+function rootDomain(host) {
+  const parts = String(host || '').split('.').filter(Boolean);
+  if (parts.length <= 2) return parts.join('.');
+  const tld = parts[parts.length - 1];
+  const sld = parts[parts.length - 2];
+  const take = tld.length === 2 && sld.length <= 3 ? 3 : 2;
+  return parts.slice(-take).join('.');
+}
+
+function faviconUrl(p) {
+  if (!p || p.id === 'custom') return '';
+  const domain = rootDomain(hostOf(p.url));
+  if (!domain) return '';
+  return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(domain);
+}
+
 function api() {
   const a = window.deployAPI;
   if (!a) throw new Error('The Deploy bridge is not available. Restart the app once.');
   return a;
+}
+
+function ghApi() {
+  return window.deployGithubAPI || null;
 }
 
 function ensureStyles() {
@@ -116,15 +156,18 @@ function targetById(id) {
   return S.targets.find((t) => t.id === id) || null;
 }
 
-function roleLabel(t) {
-  if (t.role === 'custom') return t.roleLabel || 'Custom';
-  const r = S.roles.find((x) => x.id === t.role);
-  return r ? r.label : t.role;
+function roleName(id) {
+  const r = S.roles.find((x) => x.id === id);
+  return r ? r.label : id;
 }
 
-function badge(p) {
+function badge(p, big) {
   const name = p ? p.name : '?';
-  return '<span class="dp-badge" style="--h:' + hue(p ? p.id : '') + '">' + esc(name.charAt(0).toUpperCase()) + '</span>';
+  const icon = p ? faviconUrl(p) : '';
+  return '<span class="dp-badge' + (big ? ' dp-badge-lg' : '') + '" style="--h:' + hue(p ? p.id : '') + '">' +
+    esc(name.charAt(0).toUpperCase()) +
+    (icon ? '<img class="dp-ico" alt="" loading="lazy" referrerpolicy="no-referrer" src="' + esc(icon) + '">' : '') +
+  '</span>';
 }
 
 function groupTargets() {
@@ -143,6 +186,52 @@ function groupTargets() {
   return groups;
 }
 
+function roleKeyOfTarget(t) {
+  return t.role === 'custom' ? 'custom:' + (t.roleLabel || 'Custom') : t.role;
+}
+
+function roleButtons() {
+  const list = S.roles.map((r) => ({ key: r.id, label: r.label }));
+  const seen = [];
+  for (const t of S.targets) {
+    if (t.role === 'custom') {
+      const label = t.roleLabel || 'Custom';
+      if (seen.indexOf(label) === -1) seen.push(label);
+    }
+  }
+  for (const label of S.customRoles) {
+    if (seen.indexOf(label) === -1) seen.push(label);
+  }
+  for (const label of seen) list.push({ key: 'custom:' + label, label });
+  return list;
+}
+
+function roleParam() {
+  return S.roles.some((r) => r.id === S.hub.role) ? S.hub.role : '';
+}
+
+function targetsFor(providerId) {
+  const key = S.hub.role;
+  return S.targets.filter((t) => t.providerId === providerId && (key === 'all' || roleKeyOfTarget(t) === key));
+}
+
+function suggestionFor(providerId) {
+  if (!S.suggest || !S.suggest.suggestions) return null;
+  const key = S.hub.role;
+  const list = S.suggest.suggestions.filter((s) => s.providerId === providerId && (key === 'all' || s.role === key));
+  return list.length ? list[0] : null;
+}
+
+function seedRole(p) {
+  const key = S.hub.role;
+  if (key.indexOf('custom:') === 0) return { role: 'custom', roleLabel: key.slice(7) };
+  if (key !== 'all') return { role: key, roleLabel: '' };
+  const sug = S.suggest && S.suggest.suggestions ? S.suggest.suggestions.find((s) => s.providerId === p.id) : null;
+  if (sug) return { role: sug.role, roleLabel: '' };
+  if (p.roles.length) return { role: p.roles[0], roleLabel: '' };
+  return { role: 'custom', roleLabel: 'Other' };
+}
+
 function saveMemory() {
   if (!S.key) return;
   memory.set(S.key, { tabs: S.tabs.map((t) => Object.assign({}, t)), active: S.active });
@@ -150,14 +239,262 @@ function saveMemory() {
 
 function restoreMemory() {
   const mem = memory.get(S.key);
+  memory.delete(S.key);
+  S.tabs = [];
+  S.active = '';
   if (!mem) return;
-  const kept = [];
   for (const t of mem.tabs) {
-    if (S.targets.some((x) => x.id === t.targetId)) kept.push(Object.assign({}, t));
-    else api().closeTab({ tabId: t.id }).catch(() => {});
+    api().closeTab({ tabId: t.id }).catch(() => {});
   }
-  S.tabs = kept;
-  S.active = kept.some((t) => t.id === mem.active) ? mem.active : (kept.length ? kept[0].id : '');
+}
+
+async function reopenSaved() {
+  return;
+}
+
+/* ---------- github accounts ---------- */
+
+function ghUserNames() {
+  const out = [];
+  const add = (u) => {
+    const v = String(u || '').trim();
+    if (v && !out.some((x) => x.toLowerCase() === v.toLowerCase())) out.push(v);
+  };
+  for (const g of gitAccts) add(g.username);
+  for (const a of S.accounts) {
+    if (a.providerId === 'github') add(a.githubUser || a.label);
+  }
+  return out;
+}
+
+function ghOptionsHtml(selected) {
+  const names = ghUserNames();
+  const want = String(selected || '');
+  if (want && !names.some((n) => n.toLowerCase() === want.toLowerCase())) names.push(want);
+  return '<option value="">No GitHub login</option>' + names.map((u) =>
+    '<option value="' + esc(u) + '"' + (u.toLowerCase() === want.toLowerCase() ? ' selected' : '') + '>@' + esc(u) + '</option>'
+  ).join('');
+}
+
+function ghStateHtml(a) {
+  const st = ghStatus.get(a.id);
+  if (!st) return '<span class="dp-gh-state">Checking...</span>';
+  if (st.unavailable) return '<span class="dp-gh-state warn">Restart the app to enable GitHub login</span>';
+  if (!st.loggedIn) {
+    const who = a.githubUser ? '@' + a.githubUser + ' is not signed in' : 'Not signed in to GitHub';
+    return '<span class="dp-gh-state warn">' + esc(who) + '</span>';
+  }
+  const mismatch = a.githubUser && st.user && st.user.toLowerCase() !== a.githubUser.toLowerCase();
+  if (mismatch) {
+    return '<span class="dp-gh-state warn">Signed in as @' + esc(st.user) + ' (expected @' + esc(a.githubUser) + ')</span>';
+  }
+  return '<span class="dp-gh-state ok">' + ICONS.check + ' Signed in' + (st.user ? ' as @' + esc(st.user) : '') + '</span>';
+}
+
+function ghRowHtml(a) {
+  const st = ghStatus.get(a.id);
+  const signedIn = !!(st && st.loggedIn);
+  return '<div class="dp-gh">' +
+    '<select class="dp-input dp-gh-sel" data-act="gh-link" data-id="' + esc(a.id) + '" title="Which GitHub account this login uses">' + ghOptionsHtml(a.githubUser) + '</select>' +
+    ghStateHtml(a) +
+    (signedIn
+      ? '<button type="button" class="dp-btn" data-act="gh-logout" data-id="' + esc(a.id) + '">Sign out</button>'
+      : '<button type="button" class="dp-btn dp-primary" data-act="gh-login" data-id="' + esc(a.id) + '">Sign in to GitHub</button>') +
+  '</div>';
+}
+
+async function loadGitAccts() {
+  const a = window.gitAccountsAPI;
+  if (!a) {
+    gitAccts = [];
+    return;
+  }
+  try {
+    const res = await a.list(S.repoPath || null);
+    gitAccts = res && res.success ? (res.accounts || []) : [];
+  } catch (_) {
+    gitAccts = [];
+  }
+}
+
+async function refreshGhStatus(accountId) {
+  if (!accountId) return;
+  const gen = S.gen;
+  const g = ghApi();
+  if (!g) {
+    ghStatus.set(accountId, { loggedIn: false, user: '', unavailable: true });
+  } else {
+    try {
+      const res = await g.status(accountId);
+      if (!S.open || gen !== S.gen) return;
+      const ok = res && res.success !== false;
+      ghStatus.set(accountId, { loggedIn: ok && !!res.loggedIn, user: ok ? (res.user || '') : '' });
+    } catch (_) {
+      return;
+    }
+  }
+  if (S.page !== 'manage' || !root) return;
+  const side = root.querySelector('#dpSideLists');
+  const cur = document.activeElement;
+  if (side && cur && side.contains(cur) && (cur.tagName === 'SELECT' || cur.tagName === 'INPUT')) return;
+  renderLists();
+}
+
+function refreshAllGhStatus() {
+  for (const a of S.accounts) refreshGhStatus(a.id);
+}
+
+function scheduleGhRefresh(accountId) {
+  clearTimeout(ghTimer);
+  ghTimer = setTimeout(() => refreshGhStatus(accountId), 800);
+}
+
+async function syncGithubProfiles() {
+  const have = new Set(S.accounts.filter((a) => a.providerId === 'github').map((a) => String(a.githubUser || a.label).toLowerCase()));
+  for (const g of gitAccts) {
+    const key = String(g.username || '').toLowerCase();
+    if (!key || have.has(key)) continue;
+    try {
+      const res = await api().saveAccount({ providerId: 'github', label: g.username, githubUser: g.username });
+      if (res && res.success) {
+        S.accounts = res.accounts;
+        have.add(key);
+      }
+    } catch (_) {}
+  }
+}
+
+async function addGithubAccount() {
+  if (!root) return;
+  const el = root.querySelector('#dpGhUser');
+  const user = String(el ? el.value : '').trim().replace(/^@/, '');
+  if (!/^[A-Za-z0-9-]{1,39}$/.test(user)) {
+    toast('Type the GitHub username (letters, numbers and dashes only)', 'error');
+    return;
+  }
+  try {
+    const res = await api().saveAccount({ providerId: 'github', label: user, githubUser: user });
+    if (!res || !res.success) throw new Error((res && res.error) || 'Could not add the GitHub account');
+    S.accounts = res.accounts;
+    S.ghDraft = '';
+    refreshGhStatus(res.account.id);
+    await openGithubLogin(res.account.id);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function ensureGhData() {
+  const gen = S.gen;
+  loadGitAccts().then(() => syncGithubProfiles()).then(() => {
+    if (!S.open || gen !== S.gen) return;
+    if (S.page === 'manage') {
+      if (S.form) S.form = readForm();
+      renderForm();
+      renderLists();
+    }
+    refreshAllGhStatus();
+  });
+}
+
+function hintGithub(acc) {
+  const g = ghApi();
+  if (!g || !acc || !acc.githubUser) return;
+  g.status(acc.id).then((res) => {
+    if (!res || res.success === false) return;
+    ghStatus.set(acc.id, { loggedIn: !!res.loggedIn, user: res.user || '' });
+    if (!res.loggedIn) {
+      toast('@' + acc.githubUser + ' is not signed in to GitHub yet. Use Providers, then GitHub accounts, then Sign in.', 'error');
+    } else if (res.user && res.user.toLowerCase() !== acc.githubUser.toLowerCase()) {
+      toast('This account is signed in to GitHub as @' + res.user + ', not @' + acc.githubUser + '.', 'error');
+    }
+  }).catch(() => {});
+}
+
+function hintForTarget(targetId) {
+  const t = targetById(targetId);
+  if (!t || !t.accountId) return;
+  if (S.tabs.some((x) => x.targetId === targetId)) return;
+  hintGithub(accountById(t.accountId));
+}
+
+async function setAccountGithub(id, user) {
+  const a = accountById(id);
+  if (!a) return;
+  try {
+    const res = await api().saveAccount({ id: a.id, providerId: a.providerId, label: a.label, githubUser: user });
+    if (!res || !res.success) throw new Error((res && res.error) || 'Could not save the GitHub link');
+    S.accounts = res.accounts;
+    renderLists();
+    refreshGhStatus(a.id);
+    toast(user ? 'Linked to @' + user : 'GitHub link removed');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function openGithubLogin(accountId) {
+  const acc = accountById(accountId);
+  if (!acc) return;
+  const targetId = 'gh:' + accountId;
+  const user = acc.githubUser || '';
+  const url = 'https://github.com/login' + (user ? '?login=' + encodeURIComponent(user) : '');
+  S.page = 'browse';
+  const existing = S.tabs.find((t) => t.targetId === targetId);
+  if (existing) {
+    S.active = existing.id;
+    existing.used = Date.now();
+    nav(existing.id, 'goto', url);
+    saveMemory();
+    renderAll();
+    return;
+  }
+  try {
+    if (S.tabs.length >= MAX_TABS) {
+      const victim = S.tabs.slice().sort((a, b) => (a.used || 0) - (b.used || 0))[0];
+      const vt = targetById(victim.targetId);
+      await closeTab(victim.id, true);
+      toast('Closed ' + (vt ? vt.name : 'the oldest tab') + ' to make room (at most ' + MAX_TABS + ' tabs)');
+    }
+    const id = 'dt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const res = await api().openTab({ tabId: id, url, accountId });
+    if (!res || !res.success) throw new Error((res && res.error) || 'Could not open GitHub');
+    S.tabs.push({
+      id,
+      targetId,
+      accountId,
+      label: 'GitHub' + (user ? ' @' + user : ''),
+      url,
+      pageTitle: '',
+      loading: true,
+      canGoBack: false,
+      canGoForward: false,
+      used: Date.now(),
+    });
+    S.active = id;
+    saveMemory();
+    renderAll();
+  } catch (err) {
+    toast(err.message, 'error');
+    S.page = 'manage';
+    renderAll();
+  }
+}
+
+async function ghLogout(accountId) {
+  const a = accountById(accountId);
+  const g = ghApi();
+  if (!a || !g) return;
+  const ok = await confirmDialog('Sign <b>' + esc(a.label) + '</b> out of GitHub? Other accounts keep their own sign in.');
+  if (!ok) return;
+  try {
+    await g.logout(accountId);
+    ghStatus.set(accountId, { loggedIn: false, user: '' });
+    renderLists();
+    toast('Signed out of GitHub');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 /* ---------- lifecycle ---------- */
@@ -173,7 +510,7 @@ export async function open(container, repoPath) {
   S.gen = gen;
   S.open = true;
   S.repoPath = repoPath || '';
-  S.key = keyOf(repoPath);
+  S.key = 'global';
 
   container.innerHTML = '<div class="dp-root"></div>';
   root = container.querySelector('.dp-root');
@@ -181,6 +518,8 @@ export async function open(container, repoPath) {
   root.addEventListener('change', onChange);
   root.addEventListener('input', onInput);
   root.addEventListener('keydown', onKeydown);
+  root.addEventListener('load', onImgLoad, true);
+  root.addEventListener('error', onImgError, true);
   startWatch();
   document.addEventListener('app:wake', onWake);
   renderAll();
@@ -200,9 +539,11 @@ export async function open(container, repoPath) {
     S.targets = data.targets || [];
     S.roles = data.roles || [];
     S.providers = data.providers || [];
-    S.ui = data.ui || S.ui;
+    S.ui = Object.assign({ mode: 'grid', open: null }, data.ui || {});
     restoreMemory();
-    if (!S.targets.length) S.page = 'manage';
+    await reopenSaved(gen);
+    if (!S.open || gen !== S.gen) return;
+    S.page = S.targets.length ? 'browse' : 'manage';
   } catch (err) {
     if (!S.open || gen !== S.gen) return;
     S.error = err.message;
@@ -217,6 +558,8 @@ export function close() {
   saveMemory();
   stopWatch();
   document.removeEventListener('app:wake', onWake);
+  clearTimeout(searchTimer);
+  clearTimeout(ghTimer);
   S.open = false;
   S.gen += 1;
   try {
@@ -263,6 +606,16 @@ function onWindowResize() {
 function onWake() {
   lastSig = '';
   scheduleLayout(true);
+}
+
+function onImgLoad(e) {
+  const el = e.target;
+  if (el && el.classList && el.classList.contains('dp-ico')) el.classList.add('ok');
+}
+
+function onImgError(e) {
+  const el = e.target;
+  if (el && el.classList && el.classList.contains('dp-ico')) el.remove();
 }
 
 /* ---------- layout sync with the main process ---------- */
@@ -312,6 +665,7 @@ function onViewState(d) {
   t.canGoBack = !!d.canGoBack;
   t.canGoForward = !!d.canGoForward;
   patchTab(t);
+  if (t.accountId && !t.loading && /(^|\.)github\.com$/i.test(hostOf(t.url))) scheduleGhRefresh(t.accountId);
 }
 
 function patchTab(t) {
@@ -339,7 +693,7 @@ function patchTab(t) {
   }
 }
 
-/* ---------- rendering ---------- */
+/* ---------- rendering: shared ---------- */
 
 function renderAll() {
   if (!root) return;
@@ -349,7 +703,6 @@ function renderAll() {
     root.innerHTML = '<div class="dp-empty"><div class="dp-empty-title dp-bad">' + esc(S.error) + '</div></div>';
   } else if (S.page === 'manage') {
     root.innerHTML = manageHtml();
-    renderProviderList();
   } else {
     ensureActive();
     root.innerHTML = browseHtml();
@@ -361,18 +714,25 @@ function ensureActive() {
   if (!S.tabs.some((t) => t.id === S.active)) S.active = S.tabs.length ? S.tabs[S.tabs.length - 1].id : '';
 }
 
+function setHtml(selector, html) {
+  const el = root ? root.querySelector(selector) : null;
+  if (el) el.innerHTML = html;
+}
+
+/* ---------- rendering: browse page ---------- */
+
 function chipHtml(t) {
   const p = providerById(t.providerId);
   const acc = accountById(t.accountId);
-  const open = S.tabs.some((x) => x.targetId === t.id);
-  return '<button type="button" class="dp-chip' + (open ? ' open' : '') + '" data-act="open-target" data-id="' + esc(t.id) + '" title="' + esc(t.url) + '">' +
+  const isOpenTab = S.tabs.some((x) => x.targetId === t.id);
+  return '<button type="button" class="dp-chip' + (isOpenTab ? ' open' : '') + '" data-act="open-target" data-id="' + esc(t.id) + '" title="' + esc(t.url) + '">' +
     badge(p) + '<span class="dp-chip-name">' + esc(t.name) + '</span>' +
     (acc ? '<span class="dp-chip-acc">' + esc(acc.label) + '</span>' : '') +
   '</button>';
 }
 
 function targetsBarHtml() {
-  if (!S.targets.length) return '<div class="dp-targets"><span class="dp-hint">No targets yet. Open Manage to add your first one.</span></div>';
+  if (!S.targets.length) return '<div class="dp-targets"><span class="dp-hint">No targets yet. Open Providers to add your first one.</span></div>';
   return '<div class="dp-targets">' + groupTargets().map((g) =>
     '<div class="dp-group"><span class="dp-group-label">' + esc(g.label) + '</span>' + g.items.map(chipHtml).join('') + '</div>'
   ).join('') + '</div>';
@@ -383,7 +743,7 @@ function tabsHtml() {
   const items = S.tabs.map((t) => {
     const tg = targetById(t.targetId);
     return '<div class="dp-tab' + (t.id === S.active ? ' active' : '') + (t.loading ? ' loading' : '') + '" data-tab="' + esc(t.id) + '" title="' + esc(t.pageTitle || t.url) + '">' +
-      '<span class="dp-tab-dot"></span><span class="dp-tab-name">' + esc(tg ? tg.name : 'Tab') + '</span>' +
+      '<span class="dp-tab-dot"></span><span class="dp-tab-name">' + esc(tg ? tg.name : (t.label || 'Tab')) + '</span>' +
       '<button type="button" class="dp-x" data-act="close-tab" data-tab="' + esc(t.id) + '" title="Close tab">' + ICONS.stop + '</button>' +
     '</div>';
   }).join('');
@@ -418,126 +778,310 @@ function browseHtml() {
     ? '<div class="dp-stage" data-count="' + S.tabs.length + '" data-mode="' + mode + '">' + S.tabs.map(paneHtml).join('') + '</div>'
     : '<div class="dp-empty"><div class="dp-empty-title">Pick a target above to open it here</div><div class="dp-empty-sub">Up to ' + MAX_TABS + ' dashboards can be open at once. Logins are saved per account.</div></div>';
   return '<div class="dp-top">' + targetsBarHtml() +
-    '<div class="dp-top-actions">' + modeBtn + '<button type="button" class="dp-btn" data-act="manage">' + ICONS.gear + ' Manage</button></div></div>' +
+    '<div class="dp-top-actions">' + modeBtn + '<button type="button" class="dp-btn" data-act="manage">' + ICONS.grid + ' Providers</button></div></div>' +
     tabsHtml() + stage;
 }
 
-function suggestInner() {
-  if (S.suggestLoading) return '<p class="dp-hint">Looking at your stack...</p>';
-  if (!S.suggest) return '<p class="dp-hint">No suggestions yet.</p>';
-  if (S.suggest.success === false) return '<p class="dp-hint dp-bad">' + esc(S.suggest.error || 'Could not read the stack.') + '</p>';
-  const detected = (S.suggest.detected || []).length
-    ? '<p class="dp-hint">Detected: ' + (S.suggest.detected).map(esc).join(', ') + '</p>'
-    : '<p class="dp-hint">Nothing specific detected, showing common choices.</p>';
-  const rows = (S.suggest.suggestions || []).map((s) => {
-    const p = providerById(s.providerId);
-    const role = S.roles.find((r) => r.id === s.role);
-    const added = S.targets.some((t) => t.role === s.role && t.providerId === s.providerId);
-    return '<div class="dp-row"><span class="dp-tag">' + esc(role ? role.label : s.role) + '</span>' + badge(p) +
-      '<div class="dp-row-main"><div class="dp-row-name">' + esc(p ? p.name : s.providerId) + '</div><div class="dp-row-sub">' + esc(s.reason) + '</div></div>' +
-      (added ? '<span class="dp-hint">Added</span>' : '<button type="button" class="dp-btn" data-act="use-suggestion" data-role="' + esc(s.role) + '" data-provider="' + esc(s.providerId) + '">Add</button>') +
-    '</div>';
-  }).join('');
-  return detected + rows;
+/* ---------- rendering: home (categories) ---------- */
+
+function suggestedProviderFor(roleKey) {
+  if (!S.suggest || !S.suggest.suggestions) return null;
+  const list = S.suggest.suggestions.filter((s) => s.role === roleKey);
+  if (!list.length) return null;
+  return providerById(list[0].providerId);
 }
 
-function targetsListHtml() {
-  if (!S.targets.length) return '<p class="dp-hint">No targets for this repo yet.</p>';
-  return groupTargets().map((g) =>
-    '<div class="dp-list-group">' + esc(g.label) + '</div>' + g.items.map((t) => {
-      const p = providerById(t.providerId);
-      const acc = accountById(t.accountId);
-      return '<div class="dp-row">' + badge(p) +
-        '<div class="dp-row-main"><div class="dp-row-name">' + esc(t.name) + '</div>' +
-        '<div class="dp-row-sub">' + esc(p ? p.name : '') + (acc ? ' - ' + esc(acc.label) : '') + ' - ' + esc(hostOf(t.url)) + '</div></div>' +
-        '<button type="button" class="dp-btn" data-act="open-from-list" data-id="' + esc(t.id) + '">Open</button>' +
-        '<button type="button" class="dp-btn" data-act="edit-target" data-id="' + esc(t.id) + '">Edit</button>' +
-        '<button type="button" class="dp-btn dp-danger" data-act="delete-target" data-id="' + esc(t.id) + '">Delete</button>' +
-      '</div>';
-    }).join('')
-  ).join('');
+function catCardHtml(key, label) {
+  const items = S.targets.filter((t) => roleKeyOfTarget(t) === key);
+  const provs = [];
+  for (const t of items) {
+    const p = providerById(t.providerId);
+    if (p && !provs.some((x) => x.id === p.id)) provs.push(p);
+  }
+  let visual = '<span class="dp-cat-glyph">' + catIcon(key) + '</span>';
+  if (provs.length) {
+    visual = '<span class="dp-cat-logos">' + provs.slice(0, 4).map((p) => badge(p, true)).join('') +
+      (provs.length > 4 ? '<span class="dp-cat-more">+' + (provs.length - 4) + '</span>' : '') + '</span>';
+  }
+  let state = '<span class="dp-pc-state">None yet</span>';
+  let line = '';
+  if (items.length) {
+    state = '<span class="dp-pc-state ok">' + ICONS.check + ' ' + items.length + ' configured</span>';
+    line = provs.slice(0, 3).map((p) => esc(p.name)).join(', ');
+  } else {
+    const sug = suggestedProviderFor(key);
+    line = sug ? 'Suggested: ' + esc(sug.name) : 'Pick a provider to set up';
+  }
+  return '<button type="button" class="dp-cat' + (items.length ? ' done' : '') + '" data-act="home-cat" data-role="' + esc(key) + '">' +
+    visual +
+    '<span class="dp-cat-title">' + esc(label) + '</span>' +
+    state +
+    '<span class="dp-cat-line">' + line + '</span>' +
+  '</button>';
+}
+
+function homeHtml() {
+  const cards = roleButtons().map((r) => catCardHtml(r.key, r.label)).join('') +
+    '<button type="button" class="dp-cat dp-cat-add" data-act="role-add" title="Add another category">' +
+      '<span class="dp-cat-plus">' + ICONS.plus + '</span>' +
+      '<span class="dp-cat-title">Add</span>' +
+      '<span class="dp-cat-line">Emails, auth, payments...</span>' +
+    '</button>';
+  const adding = S.hub.addingRole
+    ? '<div class="dp-roles dp-roles-center"><input id="dpNewRole" class="dp-input dp-newrole" maxlength="24" placeholder="Category, for example Emails" autocomplete="off">' +
+      '<button type="button" class="dp-btn dp-primary" data-act="role-add-save">Add</button></div>'
+    : '';
+  return '<div class="dp-home">' +
+    '<div class="dp-home-title">What do you want to connect?</div>' +
+    '<div class="dp-cats">' + cards + '</div>' + adding +
+    '<div class="dp-home-foot"><button type="button" class="dp-btn" data-act="home-cat" data-role="all">Browse all providers</button></div>' +
+  '</div>';
+}
+
+/* ---------- rendering: providers page ---------- */
+
+function roleBtnHtml(key, label, count) {
+  return '<button type="button" class="dp-role' + (S.hub.role === key ? ' on' : '') + '" data-act="role" data-role="' + esc(key) + '">' +
+    esc(label) + (count ? '<span class="dp-role-n">' + count + '</span>' : '') + '</button>';
+}
+
+function roleBarHtml() {
+  let html = '<button type="button" class="dp-btn" data-act="home" title="Back to the categories">' + ICONS.back + ' Categories</button>';
+  html += roleBtnHtml('all', 'All', S.targets.length);
+  for (const r of roleButtons()) {
+    html += roleBtnHtml(r.key, r.label, S.targets.filter((t) => roleKeyOfTarget(t) === r.key).length);
+  }
+  html += '<button type="button" class="dp-role dp-role-add" data-act="role-add" title="Add another category">' + ICONS.plus + '</button>';
+  if (S.hub.addingRole) {
+    html += '<input id="dpNewRole" class="dp-input dp-newrole" maxlength="24" placeholder="Category, for example Emails" autocomplete="off">' +
+      '<button type="button" class="dp-btn dp-primary" data-act="role-add-save">Add</button>';
+  }
+  return html;
+}
+
+function rank(p) {
+  if (targetsFor(p.id).length) return 0;
+  if (suggestionFor(p.id)) return 1;
+  return 2;
+}
+
+function orderedItems() {
+  const base = (S.results || S.providers).slice();
+  if (S.hub.query.trim()) return base;
+  return base
+    .map((p, i) => ({ p, i, r: rank(p) }))
+    .sort((a, b) => (a.r - b.r) || (a.i - b.i))
+    .map((x) => x.p);
+}
+
+function cardHtml(p) {
+  const mine = targetsFor(p.id);
+  const sug = suggestionFor(p.id);
+  const done = mine.length > 0;
+  const roles = p.roles.length ? p.roles.slice(0, 3).map(roleName).join(' / ') : 'Other';
+  let state = '<span class="dp-pc-state">Not set up</span>';
+  if (done) state = '<span class="dp-pc-state ok">' + ICONS.check + ' Configured' + (mine.length > 1 ? ' (' + mine.length + ')' : '') + '</span>';
+  else if (sug) state = '<span class="dp-pc-state sug">Suggested</span>';
+  const title = done ? 'Open ' + mine[0].name : (sug ? sug.reason : 'Set up ' + p.name);
+  return '<div class="dp-pc' + (done ? ' done' : '') + '">' +
+    '<button type="button" class="dp-pc-main" data-act="pick-card" data-id="' + esc(p.id) + '" title="' + esc(title) + '">' +
+      badge(p, true) +
+      '<span class="dp-pc-name">' + esc(p.name) + '</span>' +
+      '<span class="dp-pc-roles">' + esc(roles) + '</span>' +
+      state +
+    '</button>' +
+    (done ? '<button type="button" class="dp-pc-add" data-act="setup-provider" data-id="' + esc(p.id) + '" title="Add another target for ' + esc(p.name) + '">' + ICONS.plus + '</button>' : '') +
+  '</div>';
+}
+
+function gridHtml() {
+  const items = orderedItems();
+  const detected = S.suggest && S.suggest.success !== false && (S.suggest.detected || []).length
+    ? '<div class="dp-hint">Detected in this repo: ' + S.suggest.detected.map(esc).join(', ') + '. Suggested providers are marked.</div>'
+    : '';
+  let note = '';
+  if (!S.hub.query.trim() && S.hub.role !== 'all') note = '<div class="dp-hint">Every provider is listed. The ones that usually fit this category come first.</div>';
+  if (!items.length) return detected + '<div class="dp-hint">No providers match "' + esc(S.hub.query) + '". Try another name, or use the Custom link card.</div>';
+  return detected + note + '<div class="dp-grid">' + items.map(cardHtml).join('') + '</div>';
+}
+
+function catalogHtml() {
+  return '<div id="dpRoleBar" class="dp-roles">' + roleBarHtml() + '</div>' +
+    '<input id="dpSearch" class="dp-input dp-search" placeholder="Search providers (aws, vercel, render, hostinger, mongodb...)" autocomplete="off" value="' + esc(S.hub.query) + '">' +
+    '<div id="dpGrid" class="dp-gridwrap">' + gridHtml() + '</div>';
+}
+
+function mainHtml() {
+  return S.hub.view === 'home' ? homeHtml() : catalogHtml();
 }
 
 function formHtml() {
   const f = S.form;
-  if (!f) {
-    return '<h3 class="dp-h3">Add a target</h3><p class="dp-hint">A target is one page you open often, for example the Render dashboard of your backend.</p>' +
-      '<button type="button" class="dp-btn dp-primary" data-act="new-target">' + ICONS.plus + ' New target</button>';
-  }
+  if (!f) return '';
+  const p = providerById(f.providerId);
   const roleOpts = S.roles.concat([{ id: 'custom', label: 'Custom...' }]).map((r) =>
     '<option value="' + esc(r.id) + '"' + (r.id === f.role ? ' selected' : '') + '>' + esc(r.label) + '</option>').join('');
   const accounts = S.accounts.filter((a) => a.providerId === f.providerId);
   const accOpts = '<option value="">No account (shared session)</option>' +
     accounts.map((a) => '<option value="' + esc(a.id) + '"' + (a.id === f.accountId ? ' selected' : '') + '>' + esc(a.label) + '</option>').join('') +
     '<option value="__new"' + (f.accountId === '__new' ? ' selected' : '') + '>+ New account...</option>';
-  const p = providerById(f.providerId);
-  return '<h3 class="dp-h3">' + (f.id ? 'Edit target' : 'New target') + '</h3>' +
-    '<label class="dp-label">Role</label><select id="dpFRole" class="dp-input">' + roleOpts + '</select>' +
+  const chosen = accountById(f.accountId);
+  const linkNote = chosen && chosen.githubUser
+    ? '<div class="dp-hint">Uses the GitHub login @' + esc(chosen.githubUser) + '. Sign in under GitHub accounts, then press Continue with GitHub on the provider page.</div>'
+    : '';
+  return '<section class="dp-card dp-formcard">' +
+    '<div class="dp-fhead">' + badge(p, true) +
+      '<div><div class="dp-mtitle">' + esc(p ? p.name : '') + '</div><div class="dp-hint">' + (f.id ? 'Edit this target' : 'Sign in once, the login is saved and reused in every repo.') + '</div></div></div>' +
+    '<label class="dp-label">Category</label><select id="dpFRole" class="dp-input">' + roleOpts + '</select>' +
     (f.role === 'custom' ? '<input id="dpFRoleLabel" class="dp-input" placeholder="Label, for example Emails" maxlength="24" value="' + esc(f.roleLabel) + '">' : '') +
-    '<label class="dp-label">Provider</label>' +
-    '<div class="dp-selected">' + (p ? badge(p) + '<span>' + esc(p.name) + '</span>' : '<span class="dp-hint">None selected</span>') + '</div>' +
-    '<input id="dpFQuery" class="dp-input" placeholder="Search providers (render, vercel, cloudinary...)" autocomplete="off" value="' + esc(f.query) + '">' +
-    '<div id="dpProviderList" class="dp-plist"></div>' +
     '<label class="dp-label">Account</label><select id="dpFAccount" class="dp-input">' + accOpts + '</select>' +
-    (f.accountId === '__new' ? '<input id="dpFNewAcc" class="dp-input" placeholder="Account name, for example the email you sign in with" value="' + esc(f.newAccount) + '">' : '') +
+    (f.accountId === '__new' ? '<input id="dpFNewAcc" class="dp-input" placeholder="Account name or email (optional)" maxlength="60" value="' + esc(f.newAccount) + '">' : '') +
+    (f.accountId === '__new' ? '<select id="dpFNewGh" class="dp-input" title="Which GitHub account this login uses">' + ghOptionsHtml(f.newGh) + '</select>' : '') +
+    linkNote +
     '<label class="dp-label">Name</label><input id="dpFName" class="dp-input" maxlength="60" value="' + esc(f.name) + '">' +
     '<label class="dp-label">Link (deep link to the exact page)</label><input id="dpFUrl" class="dp-input" spellcheck="false" value="' + esc(f.url) + '">' +
-    '<div class="dp-form-actions"><button type="button" class="dp-btn dp-primary" data-act="save-target">Save target</button>' +
-    '<button type="button" class="dp-btn" data-act="cancel-form">Cancel</button></div>';
+    '<div class="dp-form-actions">' +
+      '<button type="button" class="dp-btn dp-primary" data-act="save-open">Save and open</button>' +
+      '<button type="button" class="dp-btn" data-act="save-only">Save</button>' +
+      '<button type="button" class="dp-btn" data-act="cancel-form">Cancel</button>' +
+    '</div>' +
+  '</section>';
 }
 
-function accountsHtml() {
-  const rows = S.accounts.map((a) => {
+function targetsCardHtml() {
+  let body = '<p class="dp-hint">No targets yet. Pick a provider card to set one up.</p>';
+  if (S.targets.length) {
+    body = groupTargets().map((g) =>
+      '<div class="dp-list-group">' + esc(g.label) + '</div>' + g.items.map((t) => {
+        const p = providerById(t.providerId);
+        const acc = accountById(t.accountId);
+        return '<div class="dp-row">' + badge(p) +
+          '<div class="dp-row-main"><div class="dp-row-name">' + esc(t.name) + '</div>' +
+          '<div class="dp-row-sub">' + esc(p ? p.name : '') + (acc ? ' - ' + esc(acc.label) : '') + ' - ' + esc(hostOf(t.url)) + '</div></div>' +
+          '<button type="button" class="dp-btn" data-act="open-from-list" data-id="' + esc(t.id) + '">Open</button>' +
+          '<button type="button" class="dp-btn" data-act="edit-target" data-id="' + esc(t.id) + '">Edit</button>' +
+          '<button type="button" class="dp-btn dp-danger" data-act="delete-target" data-id="' + esc(t.id) + '">Delete</button>' +
+        '</div>';
+      }).join('')
+    ).join('');
+  }
+  return '<section class="dp-card"><h3 class="dp-h3">Your targets</h3>' + body + '</section>';
+}
+
+function ghProfilesHtml() {
+  const list = S.accounts.filter((a) => a.providerId === 'github');
+  const rows = list.map((a) => {
+    const user = a.githubUser || a.label;
+    const g = gitAccts.find((x) => String(x.username).toLowerCase() === String(user).toLowerCase());
+    const st = ghStatus.get(a.id);
+    const signedIn = !!(st && st.loggedIn);
+    let img = '';
+    if (g && g.avatarUrl) {
+      const sep = g.avatarUrl.indexOf('?') === -1 ? '?' : '&';
+      img = '<img class="dp-ico dp-av" alt="" referrerpolicy="no-referrer" src="' + esc(g.avatarUrl + sep + 's=64') + '">';
+    }
+    const av = '<span class="dp-badge" style="--h:' + hue(user) + '">' + esc(String(user).charAt(0).toUpperCase()) + img + '</span>';
+    return '<div class="dp-ghp">' +
+      '<button type="button" class="dp-ghp-main" data-act="gh-login" data-id="' + esc(a.id) + '" title="Open GitHub login for @' + esc(user) + '">' +
+        av +
+        '<span class="dp-row-main"><span class="dp-row-name">@' + esc(user) + '</span>' + ghStateHtml(a) + '</span>' +
+      '</button>' +
+      (signedIn
+        ? '<button type="button" class="dp-btn" data-act="gh-logout" data-id="' + esc(a.id) + '">Sign out</button>'
+        : '<button type="button" class="dp-btn dp-primary" data-act="gh-login" data-id="' + esc(a.id) + '">Sign in</button>') +
+      '<button type="button" class="dp-btn dp-danger" data-act="delete-account" data-id="' + esc(a.id) + '">Remove</button>' +
+    '</div>';
+  }).join('');
+  return '<section class="dp-card"><h3 class="dp-h3">GitHub accounts</h3>' +
+    '<p class="dp-hint">Sign in here once per account. Then pick that GitHub account on a provider account below, and Continue with GitHub works in that provider.</p>' +
+    (rows || '<p class="dp-hint">No GitHub accounts yet.</p>') +
+    '<div class="dp-ghadd"><input id="dpGhUser" class="dp-input" placeholder="GitHub username" maxlength="39" autocomplete="off" spellcheck="false" value="' + esc(S.ghDraft || '') + '">' +
+    '<button type="button" class="dp-btn dp-primary" data-act="gh-add">Add and sign in</button></div>' +
+    '<p class="dp-hint">Continue with Google may be blocked by Google in an embedded browser. If it is, use Continue with GitHub or email instead.</p>' +
+  '</section>';
+}
+
+function accountsCardHtml() {
+  const rows = S.accounts.filter((a) => a.providerId !== 'github').map((a) => {
     const p = providerById(a.providerId);
     const n = S.targets.filter((t) => t.accountId === a.id).length;
-    return '<div class="dp-row">' + badge(p) +
-      '<div class="dp-row-main"><div class="dp-row-name">' + esc(a.label) + '</div><div class="dp-row-sub">' + esc(p ? p.name : '') + (n ? ' - used by ' + n + ' target' + (n === 1 ? '' : 's') + ' here' : '') + '</div></div>' +
-      '<button type="button" class="dp-btn dp-danger" data-act="delete-account" data-id="' + esc(a.id) + '">Remove</button></div>';
+    return '<div class="dp-acc"><div class="dp-row">' + badge(p) +
+      '<div class="dp-row-main"><div class="dp-row-name">' + esc(a.label) + '</div><div class="dp-row-sub">' + esc(p ? p.name : '') + (n ? ' - used by ' + n + ' target' + (n === 1 ? '' : 's') : '') + '</div></div>' +
+      '<button type="button" class="dp-btn dp-danger" data-act="delete-account" data-id="' + esc(a.id) + '">Remove</button></div>' +
+      ghRowHtml(a) +
+    '</div>';
   }).join('');
-  const opts = S.providers.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) =>
+  const opts = S.providers.filter((p) => p.id !== 'github').sort((a, b) => a.name.localeCompare(b.name)).map((p) =>
     '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join('');
-  return '<h3 class="dp-h3">Accounts</h3>' +
-    '<p class="dp-hint">Shared by every repo. Each account keeps its own saved login in the Deploy browser, so you sign in once.</p>' +
+  return ghProfilesHtml() + '<section class="dp-card"><h3 class="dp-h3">Provider accounts</h3>' +
+    '<p class="dp-hint">Link a GitHub account to share its sign in, or leave it unlinked to keep this login separate.</p>' +
     (rows || '<p class="dp-hint">No accounts yet.</p>') +
     '<div class="dp-addacc"><select id="dpAProvider" class="dp-input">' + opts + '</select>' +
     '<input id="dpALabel" class="dp-input" placeholder="Account name or email" maxlength="60">' +
-    '<button type="button" class="dp-btn dp-primary" data-act="add-account">Add account</button></div>';
+    '<select id="dpAGh" class="dp-input" title="Which GitHub account this login uses">' + ghOptionsHtml('') + '</select>' +
+    '<button type="button" class="dp-btn dp-primary" data-act="add-account">Add account</button></div>' +
+  '</section>';
+}
+
+function listsHtml() {
+  return targetsCardHtml() + accountsCardHtml();
 }
 
 function manageHtml() {
+  const back = S.targets.length
+    ? '<button type="button" class="dp-btn" data-act="back-browse">' + ICONS.back + ' Back to browser</button>'
+    : '';
+  const sub = S.targets.length
+    ? 'Pick a category, then a provider. Targets and accounts are shared by all repos.'
+    : 'Nothing is set up yet. Pick what you want to connect, then choose a provider and sign in.';
+  const solo = S.hub.view === 'home' && !S.form ? ' dp-solo' : '';
   return '<div class="dp-manage">' +
-    '<div class="dp-mhead"><div><div class="dp-mtitle">Deploy targets</div><div class="dp-hint">Targets are saved for this repo. Accounts are shared by all repos.</div></div>' +
-    '<button type="button" class="dp-btn" data-act="back-browse">' + ICONS.back + ' Back to browser</button></div>' +
-    '<div class="dp-mgrid">' +
-      '<section class="dp-card"><h3 class="dp-h3">Suggested for this repo</h3><div id="dpSuggest">' + suggestInner() + '</div>' +
-      '<h3 class="dp-h3 dp-mt">Targets</h3>' + targetsListHtml() + '</section>' +
-      '<section class="dp-card" id="dpFormCard">' + formHtml() + '</section>' +
-      '<section class="dp-card" id="dpAccountsCard">' + accountsHtml() + '</section>' +
+    '<div class="dp-mhead"><div><div class="dp-mtitle">Deploy</div><div class="dp-hint">' + esc(sub) + '</div></div>' + back + '</div>' +
+    '<div class="dp-mbody' + solo + '">' +
+      '<section class="dp-main" id="dpMain">' + mainHtml() + '</section>' +
+      '<aside class="dp-side"><div id="dpSideForm">' + formHtml() + '</div><div id="dpSideLists">' + listsHtml() + '</div></aside>' +
     '</div></div>';
 }
 
-function renderFormCard() {
-  if (!root) return;
-  const el = root.querySelector('#dpFormCard');
-  if (el) el.innerHTML = formHtml();
-  renderProviderList();
+function renderMain() {
+  setHtml('#dpMain', mainHtml());
+  syncSolo();
 }
 
-function renderProviderList() {
-  if (!root || !S.form) return;
-  const el = root.querySelector('#dpProviderList');
-  if (!el) return;
-  el.innerHTML = S.results.length
-    ? S.results.map((p) =>
-      '<button type="button" class="dp-pitem' + (p.id === S.form.providerId ? ' sel' : '') + '" data-act="pick-provider" data-id="' + esc(p.id) + '">' +
-        badge(p) + '<span class="dp-pname">' + esc(p.name) + '</span><span class="dp-proles">' + esc(p.roles.join(' / ')) + '</span></button>').join('')
-    : '<div class="dp-hint">No providers match. Choose any provider and paste your own link below.</div>';
+function renderRoleBar() {
+  setHtml('#dpRoleBar', roleBarHtml());
+}
+
+function renderGrid() {
+  setHtml('#dpGrid', gridHtml());
+}
+
+function renderForm() {
+  setHtml('#dpSideForm', formHtml());
+  syncSolo();
+}
+
+function renderLists() {
+  setHtml('#dpSideLists', listsHtml());
+}
+
+function rerenderRoleArea() {
+  if (S.hub.view === 'home') renderMain();
+  else renderRoleBar();
+}
+
+function renderManageParts() {
+  if (!root || S.page !== 'manage') return;
+  renderMain();
+  renderForm();
+  renderLists();
 }
 
 /* ---------- data actions ---------- */
 
 async function loadSuggestions() {
   if (S.suggestLoading) return;
+  ensureGhData();
   const gen = S.gen;
   S.suggestLoading = true;
   S.suggest = null;
@@ -550,18 +1094,22 @@ async function loadSuggestions() {
     S.suggest = { success: false, error: err.message };
   }
   S.suggestLoading = false;
-  const el = root && root.querySelector('#dpSuggest');
-  if (el) el.innerHTML = suggestInner();
+  if (S.page === 'manage') {
+    if (S.hub.view === 'home') renderMain();
+    else renderGrid();
+  }
 }
 
-async function refreshProviders() {
-  if (!S.form || !S.open) return;
+async function refreshCatalog() {
+  if (!S.open) return;
   const gen = S.gen;
+  searchSeq += 1;
+  const seq = searchSeq;
   try {
-    const res = await api().search({ query: S.form.query, role: S.form.role });
-    if (!S.open || gen !== S.gen || !S.form) return;
+    const res = await api().search({ query: S.hub.query, role: roleParam() });
+    if (!S.open || gen !== S.gen || seq !== searchSeq) return;
     S.results = res && res.providers ? res.providers : [];
-    renderProviderList();
+    if (S.page === 'manage' && S.hub.view === 'catalog') renderGrid();
   } catch (_) {}
 }
 
@@ -576,52 +1124,83 @@ function readForm() {
   read('dpFRoleLabel', 'roleLabel');
   read('dpFAccount', 'accountId');
   read('dpFNewAcc', 'newAccount');
+  read('dpFNewGh', 'newGh');
   read('dpFName', 'name');
   read('dpFUrl', 'url');
-  read('dpFQuery', 'query');
   return f;
 }
 
 function startForm(seed) {
   S.page = 'manage';
-  S.form = Object.assign({
-    id: '', role: 'frontend', roleLabel: '', providerId: '', accountId: '', newAccount: '', name: '', url: '', query: '', nameTouched: false, urlTouched: false,
+  const f = Object.assign({
+    id: '', role: 'frontend', roleLabel: '', providerId: '', accountId: '', newAccount: '', newGh: '', name: '', url: '',
   }, seed || {});
-  const p = providerById(S.form.providerId);
+  const p = providerById(f.providerId);
   if (p) {
-    if (!S.form.name) S.form.name = p.name;
-    if (!S.form.url) S.form.url = p.url;
-    const accs = S.accounts.filter((a) => a.providerId === p.id);
-    if (!S.form.accountId && accs.length && !S.form.id) S.form.accountId = accs[0].id;
+    if (!f.name) f.name = p.name;
+    if (!f.url) f.url = p.url;
+    if (!f.id && !f.accountId) {
+      const accs = S.accounts.filter((a) => a.providerId === p.id);
+      f.accountId = accs.length ? accs[0].id : '__new';
+    }
   }
-  S.results = [];
-  if (root && root.querySelector('#dpFormCard')) renderFormCard();
-  else renderAll();
-  refreshProviders();
-}
-
-function pickProvider(id) {
-  const p = providerById(id);
-  if (!p || !S.form) return;
-  const f = readForm();
-  const prev = providerById(f.providerId);
-  f.providerId = id;
-  if (!f.urlTouched || !f.url || (prev && f.url === prev.url)) {
-    f.url = p.url;
-    f.urlTouched = false;
-  }
-  if (!f.nameTouched || !f.name || (prev && f.name === prev.name)) {
-    f.name = p.name;
-    f.nameTouched = false;
-  }
-  const accs = S.accounts.filter((a) => a.providerId === id);
-  f.accountId = accs.length ? accs[0].id : '';
   S.form = f;
-  renderFormCard();
-  refreshProviders();
+  if (root && root.querySelector('#dpSideForm')) {
+    renderForm();
+    const side = root.querySelector('.dp-side');
+    if (side) side.scrollTop = 0;
+  } else {
+    renderAll();
+  }
 }
 
-async function saveForm() {
+function pickCard(id, forceNew) {
+  const p = providerById(id);
+  if (!p) return;
+  const mine = targetsFor(id);
+  if (mine.length && !forceNew) {
+    hintForTarget(mine[0].id);
+    openTarget(mine[0].id);
+    return;
+  }
+  startForm(Object.assign({ providerId: id }, seedRole(p)));
+}
+
+function enterCatalog(roleKey) {
+  S.hub.role = roleKey || 'all';
+  S.hub.view = 'catalog';
+  S.hub.addingRole = false;
+  S.hub.query = '';
+  S.results = null;
+  renderMain();
+  refreshCatalog();
+}
+
+function saveCustomRole() {
+  if (!root) return;
+  const input = root.querySelector('#dpNewRole');
+  const label = String(input ? input.value : '').trim().slice(0, 24);
+  if (!label) {
+    toast('Type a name for the category', 'error');
+    return;
+  }
+  let key = '';
+  const builtin = S.roles.find((r) => r.label.toLowerCase() === label.toLowerCase());
+  if (builtin) {
+    key = builtin.id;
+  } else {
+    const known = roleButtons().find((r) => r.key.indexOf('custom:') === 0 && r.label.toLowerCase() === label.toLowerCase());
+    if (known) {
+      key = known.key;
+    } else {
+      S.customRoles.push(label);
+      key = 'custom:' + label;
+    }
+  }
+  enterCatalog(key);
+}
+
+async function saveForm(openAfter) {
   const f = readForm();
   if (!f) return;
   if (!f.providerId) {
@@ -629,21 +1208,20 @@ async function saveForm() {
     return;
   }
   if (f.role === 'custom' && !String(f.roleLabel || '').trim()) {
-    toast('Give the custom role a label', 'error');
+    toast('Give the custom category a label', 'error');
     return;
   }
   try {
     let accountId = f.accountId === '__new' ? '' : f.accountId;
     if (f.accountId === '__new') {
-      const label = String(f.newAccount || '').trim();
-      if (!label) {
-        toast('Type a name for the new account', 'error');
-        return;
+      const gh = String(f.newGh || '').trim();
+      const label = String(f.newAccount || '').trim() || (gh ? '@' + gh : '');
+      if (label) {
+        const acc = await api().saveAccount({ providerId: f.providerId, label, githubUser: gh });
+        if (!acc || !acc.success) throw new Error((acc && acc.error) || 'Could not save the account');
+        S.accounts = acc.accounts;
+        accountId = acc.account.id;
       }
-      const acc = await api().saveAccount({ providerId: f.providerId, label });
-      if (!acc || !acc.success) throw new Error((acc && acc.error) || 'Could not save the account');
-      S.accounts = acc.accounts;
-      accountId = acc.account.id;
     }
     const res = await api().saveTarget({
       repoPath: S.repoPath,
@@ -653,17 +1231,17 @@ async function saveForm() {
     S.targets = res.targets;
     S.accounts = res.accounts;
     S.form = null;
-    renderAll();
     toast('Target saved');
+    if (openAfter && res.target && res.target.id) {
+      hintForTarget(res.target.id);
+      await openTarget(res.target.id);
+    } else {
+      renderManageParts();
+      refreshAllGhStatus();
+    }
   } catch (err) {
     toast(err.message, 'error');
   }
-}
-
-function afterManageChange() {
-  if (S.form) S.form = readForm();
-  renderAll();
-  if (S.form) refreshProviders();
 }
 
 async function deleteTarget(id) {
@@ -675,9 +1253,10 @@ async function deleteTarget(id) {
     const res = await api().deleteTarget({ repoPath: S.repoPath, id });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not remove the target');
     S.targets = res.targets;
+    if (S.form && S.form.id === id) S.form = null;
     for (const tab of S.tabs.filter((x) => x.targetId === id)) await closeTab(tab.id, true);
     saveMemory();
-    afterManageChange();
+    renderManageParts();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -686,16 +1265,21 @@ async function deleteTarget(id) {
 async function addAccount() {
   if (!root) return;
   const providerId = (root.querySelector('#dpAProvider') || {}).value;
-  const label = ((root.querySelector('#dpALabel') || {}).value || '').trim();
+  const gh = String((root.querySelector('#dpAGh') || {}).value || '').trim();
+  let label = ((root.querySelector('#dpALabel') || {}).value || '').trim();
+  if (!label && gh) label = '@' + gh;
   if (!providerId || !label) {
     toast('Pick a provider and type a name for the account', 'error');
     return;
   }
   try {
-    const res = await api().saveAccount({ providerId, label });
+    const res = await api().saveAccount({ providerId, label, githubUser: gh });
     if (!res || !res.success) throw new Error((res && res.error) || 'Could not save the account');
     S.accounts = res.accounts;
-    afterManageChange();
+    if (S.form) S.form = readForm();
+    renderLists();
+    renderForm();
+    refreshAllGhStatus();
     toast('Account added');
   } catch (err) {
     toast(err.message, 'error');
@@ -713,9 +1297,11 @@ async function deleteAccount(id) {
     S.accounts = res.accounts;
     S.targets = res.targets;
     S.tabs = S.tabs.filter((t) => t.accountId !== id);
+    ghStatus.delete(id);
+    if (S.form && S.form.accountId === id) S.form.accountId = '';
     ensureActive();
     saveMemory();
-    afterManageChange();
+    renderManageParts();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -770,6 +1356,8 @@ async function openTarget(targetId) {
     renderAll();
   } catch (err) {
     toast(err.message, 'error');
+    S.page = 'manage';
+    renderAll();
   }
 }
 
@@ -817,8 +1405,11 @@ function toggleMode() {
 
 function goManage() {
   S.page = 'manage';
+  S.hub.view = 'home';
+  S.hub.addingRole = false;
   renderAll();
   if (!S.suggest && !S.suggestLoading) loadSuggestions();
+  else ensureGhData();
 }
 
 /* ---------- events ---------- */
@@ -826,8 +1417,10 @@ function goManage() {
 function handleAct(act, btn) {
   const id = btn.dataset.id;
   const tabId = btn.dataset.tab;
-  if (act === 'open-target' || act === 'open-from-list') openTarget(id);
-  else if (act === 'manage') goManage();
+  if (act === 'open-target' || act === 'open-from-list') {
+    hintForTarget(id);
+    openTarget(id);
+  } else if (act === 'manage') goManage();
   else if (act === 'back-browse') {
     S.page = 'browse';
     renderAll();
@@ -836,19 +1429,39 @@ function handleAct(act, btn) {
   else if (act === 'back' || act === 'forward' || act === 'reload' || act === 'stop') nav(tabId, act);
   else if (act === 'pin') pinTarget(tabId);
   else if (act === 'external') api().openExternal({ tabId }).catch(() => {});
-  else if (act === 'new-target') startForm({});
+  else if (act === 'home') {
+    S.hub.view = 'home';
+    S.hub.addingRole = false;
+    renderMain();
+  } else if (act === 'home-cat') enterCatalog(btn.dataset.role || 'all');
+  else if (act === 'role') {
+    S.hub.role = btn.dataset.role || 'all';
+    S.hub.addingRole = false;
+    renderRoleBar();
+    renderGrid();
+    refreshCatalog();
+  } else if (act === 'role-add') {
+    S.hub.addingRole = !S.hub.addingRole;
+    rerenderRoleArea();
+    const input = root ? root.querySelector('#dpNewRole') : null;
+    if (input) input.focus();
+  } else if (act === 'role-add-save') saveCustomRole();
+  else if (act === 'pick-card') pickCard(id, false);
+  else if (act === 'setup-provider') pickCard(id, true);
   else if (act === 'edit-target') {
     const t = targetById(id);
-    if (t) startForm({ id: t.id, role: t.role, roleLabel: t.roleLabel, providerId: t.providerId, accountId: t.accountId, name: t.name, url: t.url, nameTouched: true, urlTouched: true });
+    if (t) startForm({ id: t.id, role: t.role, roleLabel: t.roleLabel, providerId: t.providerId, accountId: t.accountId, name: t.name, url: t.url });
   } else if (act === 'delete-target') deleteTarget(id);
-  else if (act === 'use-suggestion') startForm({ role: btn.dataset.role, providerId: btn.dataset.provider });
-  else if (act === 'pick-provider') pickProvider(id);
-  else if (act === 'save-target') saveForm();
+  else if (act === 'save-open') saveForm(true);
+  else if (act === 'save-only') saveForm(false);
   else if (act === 'cancel-form') {
     S.form = null;
-    renderFormCard();
+    renderForm();
   } else if (act === 'add-account') addAccount();
   else if (act === 'delete-account') deleteAccount(id);
+  else if (act === 'gh-add') addGithubAccount();
+  else if (act === 'gh-login') openGithubLogin(id);
+  else if (act === 'gh-logout') ghLogout(id);
 }
 
 function onClick(e) {
@@ -856,7 +1469,9 @@ function onClick(e) {
   if (!t || !t.closest) return;
   const btn = t.closest('[data-act]');
   if (btn) {
-    if (!btn.disabled) handleAct(btn.dataset.act, btn);
+    if (btn.disabled) return;
+    if (btn.dataset.act === 'gh-link') return;
+    handleAct(btn.dataset.act, btn);
     return;
   }
   const tabEl = t.closest('.dp-tab');
@@ -869,25 +1484,24 @@ function onClick(e) {
 }
 
 function onChange(e) {
-  const id = e.target && e.target.id;
+  const t = e.target;
+  const id = t && t.id;
   if (id === 'dpFRole' || id === 'dpFAccount') {
     S.form = readForm();
-    renderFormCard();
-    if (id === 'dpFRole') refreshProviders();
+    renderForm();
+    return;
   }
+  if (t && t.dataset && t.dataset.act === 'gh-link') setAccountGithub(t.dataset.id, t.value);
 }
 
 function onInput(e) {
   const id = e.target && e.target.id;
-  if (!S.form) return;
-  if (id === 'dpFQuery') {
-    S.form.query = e.target.value;
+  if (id === 'dpSearch') {
+    S.hub.query = e.target.value;
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(refreshProviders, SEARCH_MS);
-  } else if (id === 'dpFName') {
-    S.form.nameTouched = true;
-  } else if (id === 'dpFUrl') {
-    S.form.urlTouched = true;
+    searchTimer = setTimeout(refreshCatalog, SEARCH_MS);
+  } else if (id === 'dpGhUser') {
+    S.ghDraft = e.target.value;
   }
 }
 
@@ -899,5 +1513,11 @@ function onKeydown(e) {
     e.preventDefault();
     nav(e.target.dataset.tab, 'goto', e.target.value);
     e.target.blur();
+  } else if (e.key === 'Enter' && e.target.id === 'dpNewRole') {
+    e.preventDefault();
+    saveCustomRole();
+  } else if (e.key === 'Enter' && e.target.id === 'dpGhUser') {
+    e.preventDefault();
+    addGithubAccount();
   }
 }
