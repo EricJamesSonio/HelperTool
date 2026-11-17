@@ -528,17 +528,15 @@ function createButton() {
 function onRepoSwitched(e) {
   const repoPath = (e && e.detail && e.detail.repoPath) || state.selectedRepoPath;
   const next = normRepo(repoPath);
-  const changed = next !== lastRepo;
-  lastRepo = next;
-  if (changed && mods) {
-    mods.search.reset();
-    mods.editor.switchRepoCached().catch((err) => console.error('[IDE] repo switch failed:', err));
-  }
-  if (active && !termAutoOpened && state.selectedRepoPath) {
-    dockTerminal(true).catch((err) => console.error('[IDE] terminal dock failed:', err));
-  } else if (active && changed) {
-    syncTerminalRepo(repoPath);
-  }
+  if (next === repoKey) return;
+  repoKey = next;
+  memo.clear();
+  overrides = loadOverrides();
+  noted = loadNoted();
+  serverStacks = {};
+  stacks = mergeStacks();
+  refresh(true);
+  detect();
 }
 function findBarOpen() {
   const f = document.querySelector('.ide-find');
