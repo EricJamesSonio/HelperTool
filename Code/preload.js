@@ -980,3 +980,7 @@ contextBridge.exposeInMainWorld('deployAPI', {
     ipcRenderer.on('deploy:viewState', (_event, data) => callback(data));
   },
 });
+contextBridge.exposeInMainWorld('deployGithubAPI', {
+  status: (accountId) => ipcRenderer.invoke('deploy:githubStatus', { accountId }),
+  logout: (accountId) => ipcRenderer.invoke('deploy:githubLogout', { accountId }),
+});
