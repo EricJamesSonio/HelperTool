@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'helpertool-canvas-shortcuts';
 
 import { eventToString } from '../shortcuts/parser.js';
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
 
 const CANVAS_FEATURES = [
   { id: 'selectTool',    icon: '\u261F', name: 'Select' },
@@ -18,21 +19,7 @@ const CANVAS_FEATURES = [
   { id: 'shapeCircle',       icon: '\u25EF', name: 'Connector' },
 ];
 
-const DEFAULTS = {
-  selectTool: 'V',
-  penTool: 'P',
-  rectTool: 'R',
-  ellipseTool: 'E',
-  lineTool: 'L',
-  arrowTool: 'A',
-  textTool: 'T',
-  panTool: 'H',
-  shapeTerminator: null,
-  shapeDiamond: null,
-  shapeParallelogram: null,
-  shapeDoubleRect: null,
-  shapeCircle: null,
-};
+const DEFAULTS = DEFAULT_PREFERENCES.canvasShortcuts;
 
 let _shortcuts = {};
 let _modal = null;
