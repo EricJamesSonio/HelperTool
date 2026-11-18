@@ -12,6 +12,7 @@ const GROUPS = [
 
 const THEMES = [
   { id: 'app', name: 'App theme', tone: 'dark', group: 'dark' },
+  { id: 'escode', name: 'ES Code', tone: 'dark', group: 'dark' },
   { id: 'darkplus', name: 'Dark+', tone: 'dark', group: 'dark' },
   { id: 'onedark', name: 'One Dark', tone: 'dark', group: 'dark' },
   { id: 'dracula', name: 'Dracula', tone: 'dark', group: 'dark' },
