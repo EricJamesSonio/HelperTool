@@ -1,15 +1,12 @@
-import { S, notesList, noteFormTitle, noteFormBody, noteFormDate, noteFormCategory,
-    noteSaveBtn, noteDeleteBtn, notesEditorEmpty, notesEditorForm,
-    notePreview, noteToolbar, noteModeBar, notesFilterBar } from './state.js';
+import { S, notesList, noteFormTitle, noteFormBody, noteFormDate, tabStudy,
+    noteSaveBtn, noteDeleteBtn, noteMoveBtn, notesEditorEmpty, notesEditorForm,
+    notePreview, noteToolbar, noteModeBar } from './state.js';
 import { _newNoteId, _todayISO, _formatDisplayDate } from './utils.js';
 import { renderMarkdown } from '../ideMode/markdownPreview.js';
+import { switchTab } from './tabs.js';
 
 const NOTES_KEY = 'sh_notes_v1';
 const FENCE = '`'.repeat(3);
-const CATS = [
-    { id: 'study',   label: 'Study notes' },
-    { id: 'general', label: 'General notes' },
-];
 const SAVE_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M6 10h8"/><path d="M6 14h8"/><path d="M6 6h2"/></svg> Save';
 
 export function loadNotesFromStorage() {
@@ -23,13 +20,37 @@ function saveNotesToStorage() {
     try { localStorage.setItem(NOTES_KEY, JSON.stringify(S.notes)); } catch {}
 }
 
-function updateNotesCount() {
-    const tab = document.getElementById('shTabNotesCount');
-    if (tab) tab.textContent = String(S.notes.length);
-}
-
 function catOf(note) {
     return note && note.category === 'study' ? 'study' : 'general';
+}
+
+function currentCat() {
+    return S.activeTab === 'study' ? 'study' : 'general';
+}
+
+function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+function updateCounts() {
+    const c = { study: 0, general: 0 };
+    S.notes.forEach((n) => { c[catOf(n)]++; });
+    setText('shTabGeneralCount', String(c.general));
+    setText('shTabStudyCount', String(c.study));
+}
+
+function updateSidebarTitle() {
+    setText('shNotesSidebarTitleText', currentCat() === 'study' ? 'Study notes' : 'General notes');
+}
+
+function syncMoveBtn() {
+    if (!noteMoveBtn) return;
+    const note = S.editingNoteId ? S.notes.find((n) => n.id === S.editingNoteId) : null;
+    noteMoveBtn.style.display = note ? 'inline-flex' : 'none';
+    if (note) {
+        noteMoveBtn.lastChild.textContent = catOf(note) === 'study' ? ' Move to General notes' : ' Move to Study notes';
+    }
 }
 
 function emptyMessage(lines) {
@@ -50,18 +71,6 @@ function plainPreview(body) {
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 120);
-}
-
-function renderFilterBar() {
-    if (!notesFilterBar) return;
-    const counts = { all: S.notes.length, study: 0, general: 0 };
-    S.notes.forEach((n) => { counts[catOf(n)]++; });
-    notesFilterBar.querySelectorAll('.sh-notes-filter').forEach((b) => {
-        const f = b.dataset.filter;
-        b.classList.toggle('active', f === S.notesFilter);
-        const c = b.querySelector('.sh-notes-filter-n');
-        if (c) c.textContent = String(counts[f] || 0);
-    });
 }
 
 function buildItem(note) {
@@ -85,55 +94,27 @@ function buildItem(note) {
     return item;
 }
 
-function buildGroupHeader(label, count) {
-    const h = document.createElement('div');
-    h.className = 'sh-notes-group';
-    const a = document.createElement('span');
-    a.textContent = label;
-    const b = document.createElement('span');
-    b.className = 'sh-notes-group-n';
-    b.textContent = String(count);
-    h.appendChild(a);
-    h.appendChild(b);
-    return h;
-}
-
 export function renderSidebar() {
     notesList.innerHTML = '';
-    updateNotesCount();
-    renderFilterBar();
+    updateCounts();
+    updateSidebarTitle();
 
+    const cat = currentCat();
     const rawQ = (S.searchNotes || '').trim();
     const q = rawQ.toLowerCase();
     const sorted = [...S.notes].sort((a, b) =>
         (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
     );
     const filtered = sorted.filter((n) => {
-        if (S.notesFilter !== 'all' && catOf(n) !== S.notesFilter) return false;
+        if (catOf(n) !== cat) return false;
         if (!q) return true;
         return (n.title || '').toLowerCase().includes(q) || (n.body || '').toLowerCase().includes(q);
     });
 
     if (filtered.length === 0) {
-        if (q) {
-            notesList.appendChild(emptyMessage(['No notes match', '"' + rawQ + '"']));
-        } else if (S.notesFilter === 'study') {
-            notesList.appendChild(emptyMessage(['No study notes yet.', 'Hit + New to start.']));
-        } else if (S.notesFilter === 'general') {
-            notesList.appendChild(emptyMessage(['No general notes yet.', 'Hit + New to start.']));
-        } else {
-            notesList.appendChild(emptyMessage(['No notes yet.', 'Hit + New to start.']));
-        }
-        return;
-    }
-
-    if (S.notesFilter === 'all') {
-        CATS.forEach((cat) => {
-            const group = filtered.filter((n) => catOf(n) === cat.id);
-            if (!group.length) return;
-            notesList.appendChild(buildGroupHeader(cat.label, group.length));
-            group.forEach((n) => notesList.appendChild(buildItem(n)));
-        });
+        if (q) notesList.appendChild(emptyMessage(['No notes match', '"' + rawQ + '"']));
+        else if (cat === 'study') notesList.appendChild(emptyMessage(['No study notes yet.', 'Hit + New to start.']));
+        else notesList.appendChild(emptyMessage(['No general notes yet.', 'Hit + New to start.']));
         return;
     }
     filtered.forEach((n) => notesList.appendChild(buildItem(n)));
@@ -174,8 +155,8 @@ export function openEditorForNew() {
     noteFormTitle.value = '';
     noteFormBody.value = '';
     noteFormDate.value = _todayISO();
-    noteFormCategory.value = S.notesFilter === 'study' ? 'study' : 'general';
     noteDeleteBtn.style.display = 'none';
+    syncMoveBtn();
     showEditor();
     highlightSidebarItem(null);
     setMode('edit', false);
@@ -187,8 +168,8 @@ export function openEditorForNote(note) {
     noteFormTitle.value = note.title || '';
     noteFormBody.value = note.body || '';
     noteFormDate.value = note.date || note.createdAt?.slice(0, 10) || _todayISO();
-    noteFormCategory.value = catOf(note);
     noteDeleteBtn.style.display = 'inline-flex';
+    syncMoveBtn();
     showEditor();
     highlightSidebarItem(note.id);
     setMode('view', false);
@@ -209,7 +190,6 @@ export function closeEditor() {
 export function handleNoteSave() {
     const title = noteFormTitle.value.trim();
     const body  = noteFormBody.value.trim();
-    const category = noteFormCategory.value === 'study' ? 'study' : 'general';
     if (!title && !body) {
         noteFormTitle.classList.add('sh-err-border');
         setTimeout(() => noteFormTitle.classList.remove('sh-err-border'), 1200);
@@ -219,19 +199,19 @@ export function handleNoteSave() {
     if (S.editingNoteId) {
         const idx = S.notes.findIndex(n => n.id === S.editingNoteId);
         if (idx !== -1) {
-            S.notes[idx] = { ...S.notes[idx], title: title || '(Untitled)', body, category,
-                date, updatedAt: new Date().toISOString() };
+            S.notes[idx] = { ...S.notes[idx], title: title || '(Untitled)', body,
+                category: catOf(S.notes[idx]), date, updatedAt: new Date().toISOString() };
         }
     } else {
-        const newNote = { id: _newNoteId(), title: title || '(Untitled)', body, category, date,
+        const newNote = { id: _newNoteId(), title: title || '(Untitled)', body, category: currentCat(), date,
             createdAt: new Date().toISOString(), updatedAt: null };
         S.notes.unshift(newNote);
         S.editingNoteId = newNote.id;
         noteDeleteBtn.style.display = 'inline-flex';
     }
-    if (S.notesFilter !== 'all' && S.notesFilter !== category) S.notesFilter = 'all';
     saveNotesToStorage();
     renderSidebar();
+    syncMoveBtn();
     highlightSidebarItem(S.editingNoteId);
     if (S.noteMode === 'view') renderPreview();
     noteSaveBtn.textContent       = 'Saved';
@@ -249,6 +229,17 @@ export function handleNoteSave() {
 export function handleNoteDeleteCurrent() {
     if (!S.editingNoteId) return;
     S.notes = S.notes.filter(n => n.id !== S.editingNoteId);
+    saveNotesToStorage();
+    closeEditor();
+    renderSidebar();
+}
+
+function handleNoteMove() {
+    if (!S.editingNoteId) return;
+    const idx = S.notes.findIndex(n => n.id === S.editingNoteId);
+    if (idx === -1) return;
+    const to = catOf(S.notes[idx]) === 'study' ? 'general' : 'study';
+    S.notes[idx] = { ...S.notes[idx], category: to };
     saveNotesToStorage();
     closeEditor();
     renderSidebar();
@@ -416,14 +407,8 @@ function onBodyKey(e) {
 }
 
 export function wireNotesExtras() {
-    if (notesFilterBar) {
-        notesFilterBar.addEventListener('click', (e) => {
-            const b = e.target.closest('.sh-notes-filter');
-            if (!b) return;
-            S.notesFilter = b.dataset.filter || 'all';
-            renderSidebar();
-        });
-    }
+    tabStudy.addEventListener('click', () => switchTab('study'));
+    noteMoveBtn.addEventListener('click', handleNoteMove);
     noteModeBar.addEventListener('click', (e) => {
         const b = e.target.closest('.sh-notes-mode-btn');
         if (!b) return;

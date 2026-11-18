@@ -8,7 +8,6 @@ export const S = {
     activeTab: 'secrets',
     searchSecrets: '',
     searchNotes: '',
-    notesFilter: 'all',
     noteMode: 'view',
 };
 
@@ -20,11 +19,11 @@ export let panel, lockScreen, mainScreen,
     lockBtn, closeBtn, closeLockBtn,
     resetSection, resetOld, resetNew, resetBtn, resetErr, resetSuccess,
     togglePwBtn,
-    tabSecrets, tabNotes, panelSecrets, panelNotes,
-    notesList, noteFormTitle, noteFormBody, noteFormDate, noteFormCategory,
-    noteSaveBtn, noteCancelBtn, noteDeleteBtn, noteNewBtn,
+    tabSecrets, tabNotes, tabStudy, panelSecrets, panelNotes,
+    notesList, noteFormTitle, noteFormBody, noteFormDate,
+    noteSaveBtn, noteCancelBtn, noteDeleteBtn, noteMoveBtn, noteNewBtn,
     notesEditorEmpty, notesEditorForm,
-    notePreview, noteToolbar, noteModeBar, notesFilterBar,
+    notePreview, noteToolbar, noteModeBar,
     searchSecretsInput, searchNotesInput;
 
 export function assignRefs() {
@@ -61,23 +60,23 @@ export function assignRefs() {
     togglePwBtn    = document.getElementById('shTogglePw');
     tabSecrets     = document.getElementById('shTabSecrets');
     tabNotes       = document.getElementById('shTabNotes');
+    tabStudy       = document.getElementById('shTabStudy');
     panelSecrets   = document.getElementById('shPanelSecrets');
     panelNotes     = document.getElementById('shPanelNotes');
     notesList          = document.getElementById('shNotesList');
     noteFormTitle      = document.getElementById('shNoteFormTitle');
     noteFormBody       = document.getElementById('shNoteFormBody');
     noteFormDate       = document.getElementById('shNoteFormDate');
-    noteFormCategory   = document.getElementById('shNoteFormCategory');
     noteSaveBtn        = document.getElementById('shNoteSaveBtn');
     noteCancelBtn      = document.getElementById('shNoteCancelBtn');
     noteDeleteBtn      = document.getElementById('shNoteDeleteBtn');
+    noteMoveBtn        = document.getElementById('shNoteMoveBtn');
     noteNewBtn         = document.getElementById('shNoteNewBtn');
     notesEditorEmpty   = document.getElementById('shNotesEditorEmpty');
     notesEditorForm    = document.getElementById('shNotesEditorForm');
     notePreview        = document.getElementById('shNotePreview');
     noteToolbar        = document.getElementById('shNoteToolbar');
     noteModeBar        = document.getElementById('shNoteModeBar');
-    notesFilterBar     = document.getElementById('shNotesFilter');
     searchSecretsInput = document.getElementById('shSearchSecrets');
     searchNotesInput   = document.getElementById('shSearchNotes');
 }

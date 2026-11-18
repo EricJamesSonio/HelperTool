@@ -4,6 +4,8 @@ function icon(name) {
     eye:     '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="2.5"/></svg>',
     key:     '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a4 4 0 0 0-5.4 5.4L3 17v2h3l1.5-1.5L9 19l2-2-1.5-1.5L12 13A4 4 0 0 0 17 3z"/><circle cx="14" cy="6" r="1"/></svg>',
     note:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M6 9h8"/><path d="M6 12h6"/><path d="M6 15h4"/></svg>',
+    book:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H10v14H4.5A1.5 1.5 0 0 0 3 18.5z"/><path d="M17 4.5A1.5 1.5 0 0 0 15.5 3H10v14h5.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg>',
+    swap:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h13"/><path d="M13 4l3 3-3 3"/><path d="M17 13H4"/><path d="M7 10l-3 3 3 3"/></svg>',
     plus:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v14"/><path d="M3 10h14"/></svg>',
     search:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg>',
     edit:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2l4 4-10 10H4v-4L14 2z"/></svg>',
@@ -45,7 +47,8 @@ export function getTemplate() {
   </div>
   <div class="sh-tabs">
     <button id="shTabSecrets" class="sh-tab sh-tab-active" type="button">${icon('key')} Secrets <span class="sh-tab-count" id="shTabSecretsCount"></span></button>
-    <button id="shTabNotes"   class="sh-tab"               type="button">${icon('note')} Notes <span class="sh-tab-count" id="shTabNotesCount"></span></button>
+    <button id="shTabNotes"   class="sh-tab"               type="button">${icon('note')} General notes <span class="sh-tab-count" id="shTabGeneralCount"></span></button>
+    <button id="shTabStudy"   class="sh-tab"               type="button">${icon('book')} Study notes <span class="sh-tab-count" id="shTabStudyCount"></span></button>
   </div>
   <div id="shPanelSecrets" class="sh-tab-panel">
     <div class="sh-zone">
@@ -78,7 +81,7 @@ export function getTemplate() {
   <div id="shPanelNotes" class="sh-tab-panel sh-notes-layout" style="display:none">
     <div class="sh-notes-sidebar">
       <div class="sh-notes-sidebar-header">
-        <span class="sh-notes-sidebar-title">${icon('note')} Notes</span>
+        <span class="sh-notes-sidebar-title">${icon('note')} <span id="shNotesSidebarTitleText">General notes</span></span>
         <button id="shNoteNewBtn" class="sh-btn sh-btn-accent sh-btn-xs" type="button">${icon('plus')} New</button>
       </div>
       <div class="sh-notes-search">
@@ -87,11 +90,6 @@ export function getTemplate() {
           <input id="shSearchNotes" class="sh-input sh-input-sm sh-search-input"
                  placeholder="Search notes..." autocomplete="off" />
         </div>
-      </div>
-      <div id="shNotesFilter" class="sh-notes-filter-bar">
-        <button type="button" class="sh-notes-filter active" data-filter="all">All <span class="sh-notes-filter-n">0</span></button>
-        <button type="button" class="sh-notes-filter" data-filter="study">Study <span class="sh-notes-filter-n">0</span></button>
-        <button type="button" class="sh-notes-filter" data-filter="general">General <span class="sh-notes-filter-n">0</span></button>
       </div>
       <div id="shNotesList" class="sh-notes-sidebar-list"></div>
     </div>
@@ -103,10 +101,6 @@ export function getTemplate() {
       <div id="shNotesEditorForm" class="sh-notes-editor-form" style="display:none">
         <div class="sh-notes-editor-topbar">
           <input id="shNoteFormTitle" class="sh-input sh-notes-editor-title-input" placeholder="Note title..." maxlength="120" />
-          <select id="shNoteFormCategory" class="sh-input sh-input-sm sh-note-cat-select" title="Note section">
-            <option value="general">General notes</option>
-            <option value="study">Study notes</option>
-          </select>
           <input id="shNoteFormDate"  class="sh-input sh-input-sm sh-mono sh-note-date-input" type="date" />
         </div>
         <div class="sh-notes-editor-bar">
@@ -131,6 +125,7 @@ export function getTemplate() {
         <div id="shNotePreview" class="sh-md sh-notes-preview" style="display:none" title="Double-click to edit"></div>
         <div class="sh-notes-editor-actions">
           <button id="shNoteDeleteBtn" class="sh-btn sh-btn-danger sh-btn-sm" type="button" style="display:none">${icon('trash')} Delete</button>
+          <button id="shNoteMoveBtn" class="sh-btn sh-btn-ghost sh-btn-sm" type="button" style="display:none">${icon('swap')} Move to Study notes</button>
           <div style="flex:1"></div>
           <button id="shNoteCancelBtn" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">${icon('close')} Discard</button>
           <button id="shNoteSaveBtn"   class="sh-btn sh-btn-accent sh-btn-sm" type="button">${icon('save')} Save</button>
