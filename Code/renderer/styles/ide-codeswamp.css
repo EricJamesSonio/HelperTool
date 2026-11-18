@@ -210,6 +210,10 @@ body.ide-sb-right .ide-cs-resizer {
   background: var(--yellow-dim);
   color: var(--yellow);
 }
+.ide-cs-host .oc-provider-copilot {
+  background: color-mix(in srgb, #a371f7 18%, transparent);
+  color: #a371f7;
+}
 .ide-cs-host .oc-toggle-slider {
   border-color: var(--border-default);
 }
@@ -417,9 +421,8 @@ body.ide-sb-right .ide-cs-resizer {
 }
 
 .ide-cs-host .oc-input {
-  height: 40px !important;
-  min-height: 40px;
-  max-height: 40px !important;
+  min-height: 80px;
+  max-height: 240px;
   overflow-y: auto;
   resize: none;
   scrollbar-width: thin;

@@ -277,6 +277,10 @@
   background: rgba(234, 179, 8, 0.12);
   color: #eab308;
 }
+.oc-provider-copilot {
+  background: rgba(163, 113, 247, 0.14);
+  color: #a371f7;
+}
 
 /* ── Conversation list ──────────────────────────── */
 
@@ -453,10 +457,6 @@
   zoom: normal;
 }
 
-
-
-Claude Fab
-
 .oc-term-instance {
   position: relative;
   width: 100%;
@@ -614,9 +614,9 @@ Claude Fab
 
 .oc-input {
   flex: 1;
-  min-height: 40px;
-  max-height: 200px;
-  padding: 10px 14px;
+  min-height: 88px;
+  max-height: 340px;
+  padding: 12px 14px;
   border-radius: var(--r-sm, 6px);
   border: 1px solid var(--border-mid, rgba(255,255,255,0.19));
   background: var(--bg-elevated, #0f1117);
