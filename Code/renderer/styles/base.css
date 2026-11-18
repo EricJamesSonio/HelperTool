@@ -1,5 +1,5 @@
 /* ============================================================
-   BASE.CSS — Helper Tool Design System
+   BASE.CSS — ES Code Design System
    PERF FIXES:
     – Removed Google Fonts @import (causes network fetch on every launch)
     – Removed `transition: background 0.25s, color 0.25s` from body
