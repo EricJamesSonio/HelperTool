@@ -1,5 +1,6 @@
 /* ============================================================
-   IDE theme. Everything here is scoped to IDE mode elements.
+   IDE theme. Editor, sidebar and tabs are themed in IDE mode.
+   With scope "app" the whole app is themed in every mode.
    Palettes are defined once and reused by the picker cards
    and by the live preview inside the picker.
    ============================================================ */
@@ -49,6 +50,30 @@ body[data-ide-theme="ghdark"], .ith-box [data-t="ghdark"] {
   --th-bg:#0d1117; --th-sf:#010409; --th-el:#161b22; --th-fg:#e6edf3; --th-fg2:#c9d1d9; --th-mu:#8b949e; --th-ac:#2f81f7;
   --sx-c:#8b949e; --sx-s:#a5d6ff; --sx-n:#79c0ff; --sx-k:#ff7b72; --sx-f:#d2a8ff; --sx-t:#ffa657; --sx-p:#79c0ff; --sx-a:#79c0ff; --sx-tag:#7ee787;
 }
+body[data-ide-theme="indigo"], .ith-box [data-t="indigo"] {
+  --th-bg:#0f0e2b; --th-sf:#26273b; --th-el:#31334d; --th-fg:#ececf5; --th-fg2:#c9cbe0; --th-mu:#6d7096; --th-ac:#6c9ef8;
+  --sx-c:#8c8fb5; --sx-s:#2fe0b0; --sx-n:#ffb454; --sx-k:#ffffff; --sx-f:#a78bfa; --sx-t:#ff7b54; --sx-p:#8f9bff; --sx-a:#ffb454; --sx-tag:#ff7b54;
+}
+body[data-ide-theme="ocean"], .ith-box [data-t="ocean"] {
+  --th-bg:#0e1a2c; --th-sf:#262a44; --th-el:#30355a; --th-fg:#f0f4f8; --th-fg2:#c5cbe0; --th-mu:#5d6b8a; --th-ac:#4fc3f7;
+  --sx-c:#5f7a99; --sx-s:#2ee6d6; --sx-n:#ffb86c; --sx-k:#3cc8f0; --sx-f:#5cd0f5; --sx-t:#7ce38b; --sx-p:#9bb6ff; --sx-a:#ffb86c; --sx-tag:#3cc8f0; --sx-cs:italic;
+}
+body[data-ide-theme="gold"], .ith-box [data-t="gold"] {
+  --th-bg:#0b1a29; --th-sf:#223350; --th-el:#2b4163; --th-fg:#ffffff; --th-fg2:#cfd8e8; --th-mu:#5b6f8f; --th-ac:#3d9dff;
+  --sx-c:#e0b030; --sx-s:#fff1b8; --sx-n:#ff9d52; --sx-k:#3d9dff; --sx-f:#c792ea; --sx-t:#5cc8ff; --sx-p:#e4f0ff; --sx-a:#3d9dff; --sx-tag:#3d9dff; --sx-ks:italic;
+}
+body[data-ide-theme="noir"], .ith-box [data-t="noir"] {
+  --th-bg:#0a0a10; --th-sf:#272a3b; --th-el:#31354a; --th-fg:#e8e8ee; --th-fg2:#c6c9d6; --th-mu:#5f6376; --th-ac:#5aa0ff;
+  --sx-c:#8a8d99; --sx-s:#d9b36a; --sx-n:#f2a24a; --sx-k:#6ea4ff; --sx-f:#f0b050; --sx-t:#ffb454; --sx-p:#6cb6ff; --sx-a:#f0b050; --sx-tag:#6ea4ff;
+}
+body[data-ide-theme="neon"], .ith-box [data-t="neon"] {
+  --th-bg:#07070e; --th-sf:#22243a; --th-el:#2c2f4a; --th-fg:#f4f4fb; --th-fg2:#c3c6dc; --th-mu:#585c7e; --th-ac:#3d8bff;
+  --sx-c:#5d6285; --sx-s:#bff3ff; --sx-n:#ff9f43; --sx-k:#ff4fa3; --sx-f:#4d94ff; --sx-t:#ff5fa8; --sx-p:#4da3ff; --sx-a:#ff9f43; --sx-tag:#ff4fa3;
+}
+body[data-ide-theme="scarlet"], .ith-box [data-t="scarlet"] {
+  --th-bg:#191a1c; --th-sf:#27323f; --th-el:#33445b; --th-fg:#f2f2f2; --th-fg2:#c8d0da; --th-mu:#6b7683; --th-ac:#3ea6ff;
+  --sx-c:#7d8794; --sx-s:#3ddc97; --sx-n:#ffb454; --sx-k:#ff5a45; --sx-f:#2fd5c6; --sx-t:#3ddc97; --sx-p:#3ea6ff; --sx-a:#ffb454; --sx-tag:#ff5a45; --sx-cs:italic;
+}
 body[data-ide-theme="ghlight"], .ith-box [data-t="ghlight"] {
   --th-bg:#ffffff; --th-sf:#f6f8fa; --th-el:#eaeef2; --th-fg:#1f2328; --th-fg2:#424a53; --th-mu:#6e7781; --th-ac:#0969da;
   --sx-c:#6e7781; --sx-s:#0a3069; --sx-n:#0550ae; --sx-k:#cf222e; --sx-f:#8250df; --sx-t:#953800; --sx-p:#0550ae; --sx-a:#0550ae; --sx-tag:#116329;
@@ -65,6 +90,14 @@ body[data-ide-theme="sollight"], .ith-box [data-t="sollight"] {
   --th-bg:#fdf6e3; --th-sf:#eee8d5; --th-el:#e6dfc8; --th-fg:#586e75; --th-fg2:#657b83; --th-mu:#93a1a1; --th-ac:#268bd2;
   --sx-c:#93a1a1; --sx-s:#2aa198; --sx-n:#d33682; --sx-k:#859900; --sx-f:#268bd2; --sx-t:#b58900; --sx-p:#268bd2; --sx-a:#b58900; --sx-tag:#268bd2; --sx-cs:italic;
 }
+body[data-ide-theme="macdark"], .ith-box [data-t="macdark"] {
+  --th-bg:#1f1f24; --th-sf:#2a2a30; --th-el:#35353c; --th-fg:#dfdfe0; --th-fg2:#c8c8cc; --th-mu:#7f8590; --th-ac:#0a84ff;
+  --sx-c:#6c7986; --sx-s:#fc6a5d; --sx-n:#d0bf69; --sx-k:#fc5fa3; --sx-f:#67b7a4; --sx-t:#5dd8ff; --sx-p:#a167e6; --sx-a:#d0a8ff; --sx-tag:#fc5fa3;
+}
+body[data-ide-theme="maclight"], .ith-box [data-t="maclight"] {
+  --th-bg:#ffffff; --th-sf:#f2f2f7; --th-el:#e5e5ea; --th-fg:#1d1d1f; --th-fg2:#3a3a3c; --th-mu:#8e8e93; --th-ac:#007aff;
+  --sx-c:#536579; --sx-s:#d12f1b; --sx-n:#272ad8; --sx-k:#ad3da4; --sx-f:#4b21b0; --sx-t:#703daa; --sx-p:#3e8087; --sx-a:#815f03; --sx-tag:#ad3da4;
+}
 /* The App theme reads the real app colors, copied onto the modal by the script as --pa-* */
 .ith-box [data-t="app"] {
   --th-bg: var(--pa-bg); --th-sf: var(--pa-sf); --th-el: var(--pa-el);
@@ -74,10 +107,11 @@ body[data-ide-theme="sollight"], .ith-box [data-t="sollight"] {
 }
 .ith-card, .ith-pv { --sx-cs: normal; --sx-ks: normal; }
 
-/* ---- Surfaces: editor always; sidebar/tabs/status with "chrome"; the whole app with "shell" (IDE mode only) ---- */
+/* ---- Surfaces: editor always; sidebar/tabs/status with "chrome"; the whole app with "shell" in IDE mode, or always with scope "app" ---- */
 body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
 body[data-ide-theme][data-ide-chrome="1"] :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems, #ideLookup),
-body.ide-mode[data-ide-theme][data-ide-shell="1"] {
+body.ide-mode[data-ide-theme][data-ide-shell="1"],
+body[data-ide-theme][data-ide-scope="app"] {
   --bg-base: var(--th-bg);
   --bg-surface: var(--th-sf);
   --bg-elevated: var(--th-el);
@@ -110,7 +144,8 @@ body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor) {
   background: var(--th-bg);
 }
 
-body.ide-mode[data-ide-theme][data-ide-shell="1"] {
+body.ide-mode[data-ide-theme][data-ide-shell="1"],
+body[data-ide-theme][data-ide-scope="app"] {
   background: var(--bg-base);
   color: var(--text-primary);
 }
@@ -118,7 +153,8 @@ body.ide-mode[data-ide-theme][data-ide-shell="1"] {
 /* ---- Light tone: darker semantic colors and dark text on selected rows ---- */
 body[data-ide-theme][data-ide-tone="light"] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
 body[data-ide-theme][data-ide-tone="light"][data-ide-chrome="1"] :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems, #ideLookup),
-body.ide-mode[data-ide-theme][data-ide-tone="light"][data-ide-shell="1"] {
+body.ide-mode[data-ide-theme][data-ide-tone="light"][data-ide-shell="1"],
+body[data-ide-theme][data-ide-tone="light"][data-ide-scope="app"] {
   --green: #1a7f37;
   --red: #cf222e;
   --yellow: #9a6700;
@@ -454,7 +490,8 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
 .ith-sb:hover { background: var(--bg-hover); color: var(--text-primary); }
 .ith-sb.on { background: var(--accent-dim); color: var(--accent); }
 
-.ith-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; color: var(--text-primary); }
+.ith-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; color: var(--text-primary); transition: opacity 0.12s; }
+.ith-row.dim { opacity: 0.4; }
 .ith-sw {
   position: relative;
   flex: 0 0 34px;

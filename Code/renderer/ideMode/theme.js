@@ -3,23 +3,37 @@ import { fileIcon } from './fileIcons.js';
 const LS_KEY = 'helpertool-ide-theme';
 const CSS_ID = 'ideThemeCss';
 
+const GROUPS = [
+  { id: 'dark', title: 'Dark themes' },
+  { id: 'light', title: 'Light themes' },
+  { id: 'mac', title: 'macOS themes' },
+];
+
 const THEMES = [
-  { id: 'app', name: 'App theme', tone: 'dark' },
-  { id: 'darkplus', name: 'Dark+', tone: 'dark' },
-  { id: 'onedark', name: 'One Dark', tone: 'dark' },
-  { id: 'dracula', name: 'Dracula', tone: 'dark' },
-  { id: 'monokai', name: 'Monokai', tone: 'dark' },
-  { id: 'nightowl', name: 'Night Owl', tone: 'dark' },
-  { id: 'synthwave', name: 'Synthwave', tone: 'dark' },
-  { id: 'cobalt', name: 'Cobalt', tone: 'dark' },
-  { id: 'tokyo', name: 'Tokyo Night', tone: 'dark' },
-  { id: 'ember', name: 'Ember', tone: 'dark' },
-  { id: 'solardark', name: 'Solarized Dark', tone: 'dark' },
-  { id: 'ghdark', name: 'GitHub Dark', tone: 'dark' },
-  { id: 'ghlight', name: 'GitHub Light', tone: 'light' },
-  { id: 'lightplus', name: 'Light+', tone: 'light' },
-  { id: 'daylight', name: 'Daylight', tone: 'light' },
-  { id: 'sollight', name: 'Solarized Light', tone: 'light' },
+  { id: 'app', name: 'App theme', tone: 'dark', group: 'dark' },
+  { id: 'darkplus', name: 'Dark+', tone: 'dark', group: 'dark' },
+  { id: 'onedark', name: 'One Dark', tone: 'dark', group: 'dark' },
+  { id: 'dracula', name: 'Dracula', tone: 'dark', group: 'dark' },
+  { id: 'monokai', name: 'Monokai', tone: 'dark', group: 'dark' },
+  { id: 'nightowl', name: 'Night Owl', tone: 'dark', group: 'dark' },
+  { id: 'synthwave', name: 'Synthwave', tone: 'dark', group: 'dark' },
+  { id: 'cobalt', name: 'Cobalt', tone: 'dark', group: 'dark' },
+  { id: 'tokyo', name: 'Tokyo Night', tone: 'dark', group: 'dark' },
+  { id: 'ember', name: 'Ember', tone: 'dark', group: 'dark' },
+  { id: 'solardark', name: 'Solarized Dark', tone: 'dark', group: 'dark' },
+  { id: 'ghdark', name: 'GitHub Dark', tone: 'dark', group: 'dark' },
+  { id: 'indigo', name: 'Midnight Indigo', tone: 'dark', group: 'dark' },
+  { id: 'ocean', name: 'Deep Ocean', tone: 'dark', group: 'dark' },
+  { id: 'gold', name: 'Midnight Gold', tone: 'dark', group: 'dark' },
+  { id: 'noir', name: 'Noir Slate', tone: 'dark', group: 'dark' },
+  { id: 'neon', name: 'Neon Night', tone: 'dark', group: 'dark' },
+  { id: 'scarlet', name: 'Scarlet Pop', tone: 'dark', group: 'dark' },
+  { id: 'ghlight', name: 'GitHub Light', tone: 'light', group: 'light' },
+  { id: 'lightplus', name: 'Light+', tone: 'light', group: 'light' },
+  { id: 'daylight', name: 'Daylight', tone: 'light', group: 'light' },
+  { id: 'sollight', name: 'Solarized Light', tone: 'light', group: 'light' },
+  { id: 'macdark', name: 'macOS Dark', tone: 'dark', group: 'mac' },
+  { id: 'maclight', name: 'macOS Light', tone: 'light', group: 'mac' },
 ];
 
 const FONTS = [
@@ -45,6 +59,11 @@ const GUIDES = [
   { id: 'bold', name: 'Bold' },
 ];
 
+const SCOPES = [
+  { id: 'ide', name: 'IDE mode only' },
+  { id: 'app', name: 'Whole app' },
+];
+
 const FLAGS = ['ruler', 'chrome', 'shell'];
 
 const DEFAULTS = {
@@ -52,6 +71,7 @@ const DEFAULTS = {
   font: 'default',
   icons: 'classic',
   guides: 'normal',
+  scope: 'ide',
   ruler: true,
   chrome: true,
   shell: true,
@@ -116,6 +136,7 @@ function load() {
     font: pick(FONTS, r.font, DEFAULTS.font),
     icons: pick(ICON_SETS, r.icons, DEFAULTS.icons),
     guides: pick(GUIDES, r.guides, DEFAULTS.guides),
+    scope: pick(SCOPES, r.scope, DEFAULTS.scope),
     ruler: flagOf(r, 'ruler'),
     chrome: flagOf(r, 'chrome'),
     shell: flagOf(r, 'shell'),
@@ -156,6 +177,7 @@ function apply(notify) {
   setAttr(b, 'data-ide-font', prefs.font === 'default' ? null : prefs.font);
   setAttr(b, 'data-ide-icons', prefs.icons === 'classic' ? null : prefs.icons);
   setAttr(b, 'data-ide-guides', prefs.guides);
+  setAttr(b, 'data-ide-scope', prefs.scope === 'app' ? 'app' : null);
   setAttr(b, 'data-ide-ruler', prefs.ruler ? '1' : null);
   setAttr(b, 'data-ide-chrome', prefs.chrome ? '1' : null);
   setAttr(b, 'data-ide-shell', prefs.shell ? '1' : null);
@@ -197,7 +219,7 @@ function segHtml(key, items) {
 }
 
 function rowHtml(key, label) {
-  return '<div class="ith-row"><span>' + label + '</span>' +
+  return '<div class="ith-row" data-row="' + key + '"><span>' + label + '</span>' +
     '<button type="button" class="ith-sw" data-act="flag" data-key="' + key + '" role="switch" aria-checked="false"><i></i></button></div>';
 }
 
@@ -243,21 +265,29 @@ function previewHtml() {
   '</div>';
 }
 
+function themeSectionsHtml() {
+  return GROUPS.map((g, i) => {
+    const cards = THEMES.filter((t) => t.group === g.id).map(cardHtml).join('');
+    return '<div class="ith-sec' + (i === 0 ? ' ith-sec-first' : '') + '">' + g.title + '</div>' +
+      '<div class="ith-grid">' + cards + '</div>';
+  }).join('');
+}
+
 function modalHtml() {
-  const dark = THEMES.filter((t) => t.tone === 'dark').map(cardHtml).join('');
-  const light = THEMES.filter((t) => t.tone === 'light').map(cardHtml).join('');
   const fonts = FONTS.map(fontHtml).join('');
   return '<div class="ith-box" role="dialog" aria-modal="true" aria-label="IDE theme">' +
     '<div class="ith-head">' +
       '<span class="ith-title">IDE theme</span>' +
-      '<span class="ith-sub">Only applies while IDE mode is on</span>' +
+      '<span class="ith-sub"></span>' +
       '<span class="ith-spacer"></span>' +
       '<button type="button" class="ith-reset" data-act="reset">Reset</button>' +
       '<button type="button" class="ith-x" data-act="close" title="Close (Esc)" aria-label="Close">' + CLOSE_SVG + '</button>' +
     '</div>' +
     '<div class="ith-body">' +
       '<aside class="ith-side">' +
-        '<div class="ith-sec ith-sec-first">Editor font</div>' +
+        '<div class="ith-sec ith-sec-first">Apply theme to</div>' + segHtml('scope', SCOPES) +
+        '<div class="ith-hint">Whole app also themes the main view outside IDE mode. Open IDE mode to change this theme.</div>' +
+        '<div class="ith-sec">Editor font</div>' +
         '<div class="ith-fonts">' + fonts + '</div>' +
         '<div class="ith-hint">Uses fonts installed on this computer. A missing font falls back to the default.</div>' +
         '<div class="ith-sec">File icons</div>' + segHtml('icons', ICON_SETS) +
@@ -272,10 +302,7 @@ function modalHtml() {
           '<div class="ith-pvhead"><span>Live preview</span><span class="ith-pvname"></span></div>' +
           previewHtml() +
         '</div>' +
-        '<div class="ith-cards">' +
-          '<div class="ith-sec ith-sec-first">Dark themes</div><div class="ith-grid">' + dark + '</div>' +
-          '<div class="ith-sec">Light themes</div><div class="ith-grid">' + light + '</div>' +
-        '</div>' +
+        '<div class="ith-cards">' + themeSectionsHtml() + '</div>' +
       '</section>' +
     '</div>' +
   '</div>';
@@ -297,14 +324,17 @@ function updatePreview() {
   const themeId = hover.theme || prefs.theme;
   const fontId = hover.font || prefs.font;
   const font = FONTS.find((f) => f.id === fontId);
+  const shell = prefs.scope === 'app' || prefs.shell;
   pv.setAttribute('data-t', themeId);
   pv.setAttribute('data-g', prefs.guides);
   pv.setAttribute('data-r', prefs.ruler ? '1' : '0');
   pv.setAttribute('data-c', prefs.chrome ? '1' : '0');
-  pv.setAttribute('data-s', prefs.shell ? '1' : '0');
+  pv.setAttribute('data-s', shell ? '1' : '0');
   pv.style.setProperty('--pvfont', font ? font.css : 'var(--font-mono)');
   const label = pop.querySelector('.ith-pvname');
   if (label) label.textContent = nameOf(THEMES, themeId) + '  \u00B7  ' + nameOf(FONTS, fontId);
+  const sub = pop.querySelector('.ith-sub');
+  if (sub) sub.textContent = prefs.scope === 'app' ? 'Applies to the whole app' : 'Only applies while IDE mode is on';
 }
 
 function sync() {
@@ -317,6 +347,8 @@ function sync() {
     b.classList.toggle('on', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
   });
+  const shellRow = pop.querySelector('.ith-row[data-row="shell"]');
+  if (shellRow) shellRow.classList.toggle('dim', prefs.scope === 'app');
   updatePreview();
 }
 
@@ -345,6 +377,7 @@ function onPopClick(e) {
   } else if (act === 'set') {
     if (el.dataset.key === 'icons') prefs.icons = pick(ICON_SETS, el.dataset.v, prefs.icons);
     else if (el.dataset.key === 'guides') prefs.guides = pick(GUIDES, el.dataset.v, prefs.guides);
+    else if (el.dataset.key === 'scope') prefs.scope = pick(SCOPES, el.dataset.v, prefs.scope);
     else return;
   } else if (act === 'flag') {
     if (FLAGS.indexOf(el.dataset.key) === -1) return;
