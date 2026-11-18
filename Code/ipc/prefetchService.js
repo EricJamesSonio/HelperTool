@@ -214,7 +214,7 @@ async function start(dbPath, repoPath, getMainWindow) {
   _pushCachedToRenderer();
 
   const _launchPrefetch = () => {
-    setTimeout(() => _doPrefetch(repoPath), 8000);
+    _doPrefetch(repoPath);
   };
 
   if (!workerProxy.isReady()) {
@@ -261,25 +261,25 @@ async function _startProfileWatcher(repoPath) {
 }
 
 async function _doPrefetch(repoPath) {
-  console.log('[Prefetch] start', Date.now());
+  const startupQueue = require('./startupQueue.js');
+  console.log('[Prefetch] queueing background tasks', Date.now());
 
   const profileOn = _profileEnabled();
 
   if (profileOn) {
-    await _startProfileWatcher(repoPath).catch(err =>
+    startupQueue.enqueue('prefetch:profile-watcher', () => _startProfileWatcher(repoPath).catch((err) =>
       console.warn('[Prefetch] Profile watcher failed:', err.message)
-    );
-
-    await _triggerProfileSync(repoPath).catch(err =>
+    ), 1);
+    startupQueue.enqueue('prefetch:profile-sync', () => _triggerProfileSync(repoPath).catch((err) =>
       console.warn('[Prefetch] Profile sync failed:', err.message)
-    );
+    ), 2);
   }
 
-  const jobs = [_prefetchBranches(repoPath)];
-  if (profileOn) jobs.push(_prefetchProfile());
-  await Promise.all(jobs);
+  startupQueue.enqueue('prefetch:branches', () => _prefetchBranches(repoPath), 2);
 
-  console.log('[Prefetch] Background refresh scheduled');
+  if (profileOn) {
+    startupQueue.enqueue('prefetch:profile', () => _prefetchProfile(), 3);
+  }
 }
 
 function get(key) {

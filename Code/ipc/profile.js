@@ -362,6 +362,10 @@ async function _syncCommits(repoPath, repoName, force) {
 }
 
 async function _syncAllRepos(config) {
+  require('./startupQueue.js').enqueue('profile:sync-all-repos', () => _syncAllReposNow(config), 4);
+}
+async function _syncAllReposNow(config) {
+  if (!_profileEnabled()) return;
   const cfg = _readConfig(config);
   const projects = Object.keys(cfg.projects || {});
   for (const repoPath of projects) {
@@ -370,6 +374,7 @@ async function _syncAllRepos(config) {
     await new Promise((resolve) => setTimeout(resolve, SYNC_GAP_MS));
   }
 }
+
 
 function _ensureTables() {
   db().run(
@@ -589,6 +594,10 @@ function _refreshOverview(range, config) {
 }
 
 async function _warmOverview(config) {
+  require('./startupQueue.js').enqueue('profile:warm-overview', () => _warmOverviewNow(config), 3);
+}
+async function _warmOverviewNow(config) {
+  if (!_profileEnabled()) return;
   _svc('profileWarm', 'running', 'Loading profile resources...');
   try {
     await _refreshOverview('week', config);
@@ -597,6 +606,7 @@ async function _warmOverview(config) {
     _svc('profileWarm', 'failed', err && err.message ? err.message : 'failed');
   }
 }
+
 function register(shared) {
   const config = shared ? shared.config : null;
 
