@@ -374,3 +374,10 @@
 .ide-sm.files-mode .ide-sm-foot-note { visibility: hidden; }
 .ide-sm.folders-mode .ide-sm-ext { display: none; }
 .ide-sm.folders-mode .ide-sm-ext { display: none; }
+.ide-sm-overlay {
+  align-items: center;
+  padding: var(--titlebar-h, 34px) 0 3vh;
+}
+.ide-sm-body {
+  height: max(240px, min(56vh, calc(100vh - 360px)));
+}

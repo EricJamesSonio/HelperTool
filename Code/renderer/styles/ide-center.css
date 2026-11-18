@@ -7,8 +7,9 @@ html body.ide-mode .navbar-row--primary .navbar-section.center {
   flex: none;
   width: auto;
   margin: 0;
-  gap: 6px;
+  gap: 4px;
   justify-content: center;
+  align-items: center;
   transform: translateX(-50%);
   z-index: 1;
 }
@@ -19,15 +20,38 @@ html body.ide-mode .navbar-row--primary .navbar-section.center::before {
 }
 
 html body.ide-mode .navbar-row--primary .navbar-section.center > #ideNavSearch,
-html body.ide-mode .navbar-row--primary .navbar-section.center > #ideHistoryBtn,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideCsBtn,
 html body.ide-mode .navbar-row--primary .navbar-section.center > #ideExtBtn,
-html body.ide-mode .navbar-row--primary .navbar-section.center > #ideCsBtn {
-  display: flex !important;
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideThemeBtn,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideHistoryBtn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
   flex: 0 0 auto;
   margin: 0 !important;
 }
 
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideCsBtn,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideExtBtn,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideThemeBtn,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideHistoryBtn {
+  width: 30px;
+  height: 30px;
+}
+
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideNavSearch { order: 0; }
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideCsBtn { order: 1; }
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideExtBtn { order: 2; }
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideThemeBtn { order: 3; }
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideHistoryBtn { order: 4; }
+
 html body.ide-mode .navbar-row--primary .ide-nav-search {
-  width: clamp(180px, calc(50vw - 520px), 440px);
+  width: clamp(200px, calc(100vw - 1050px), 640px);
   min-width: 0;
+  margin-right: 4px !important;
 }
