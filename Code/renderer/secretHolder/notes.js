@@ -23,7 +23,13 @@ export function loadNotesFromStorage() {
 }
 
 function saveNotesToStorage() {
-    try { localStorage.setItem(NOTES_KEY, JSON.stringify(S.notes)); } catch {}
+    try {
+        localStorage.setItem(NOTES_KEY, JSON.stringify(S.notes));
+        return true;
+    } catch (err) {
+        console.error('[SecretHolder] could not write notes:', err);
+        return false;
+    }
 }
 
 function catOf(note) {
@@ -179,6 +185,7 @@ function saveNow(manual) {
     const title = noteFormTitle.value.trim();
     const body = noteFormBody.value.replace(/\s+$/, '');
     if (!title && !body.trim()) {
+        S.noteDirty = false;
         if (manual) {
             noteFormTitle.classList.add('sh-err-border');
             setTimeout(() => noteFormTitle.classList.remove('sh-err-border'), 1200);
@@ -194,6 +201,7 @@ function saveNow(manual) {
         if (idx === -1) return false;
         const prev = S.notes[idx];
         if (prev.title === finalTitle && prev.body === body && prev.date === date) {
+            S.noteDirty = false;
             setStatus('Saved', 'saved');
             return true;
         }
@@ -205,7 +213,11 @@ function saveNow(manual) {
         S.editingNoteId = created.id;
         noteDeleteBtn.style.display = 'inline-flex';
     }
-    saveNotesToStorage();
+    if (!saveNotesToStorage()) {
+        setStatus('Save failed - storage error', 'error');
+        return false;
+    }
+    S.noteDirty = false;
     renderSidebar();
     syncMoveBtn();
     highlightSidebarItem(S.editingNoteId);
@@ -214,11 +226,20 @@ function saveNow(manual) {
 }
 
 export function flushNoteSave() {
-    if (saveTimer) saveNow(false);
+    if (saveTimer || S.noteDirty) saveNow(false);
 }
+window.addEventListener('pagehide', flushNoteSave);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushNoteSave();
+});
+document.addEventListener('focusout', (e) => {
+    const t = e.target;
+    if (t && t.closest && t.closest('#shNotesEditorForm')) flushNoteSave();
+});
 
 function scheduleAutoSave() {
     if (!S.unlocked) return;
+    S.noteDirty = true;
     setStatus('Unsaved changes...', 'pending');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => saveNow(false), SAVE_DEBOUNCE);
