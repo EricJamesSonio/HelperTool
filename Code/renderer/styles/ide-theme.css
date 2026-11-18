@@ -1,73 +1,78 @@
 /* ============================================================
    IDE theme. Everything here is scoped to IDE mode elements.
-   Palettes are defined once and reused by the picker previews.
+   Palettes are defined once and reused by the picker cards
+   and by the live preview inside the picker.
    ============================================================ */
 
 /* ---- Palettes ---- */
-body[data-ide-theme="darkplus"], .ith-card[data-t="darkplus"] {
+body[data-ide-theme="darkplus"], .ith-box [data-t="darkplus"] {
   --th-bg:#1e1e1e; --th-sf:#181818; --th-el:#252526; --th-fg:#d4d4d4; --th-fg2:#cccccc; --th-mu:#858585; --th-ac:#3794ff;
   --sx-c:#6a9955; --sx-s:#ce9178; --sx-n:#b5cea8; --sx-k:#569cd6; --sx-f:#dcdcaa; --sx-t:#4ec9b0; --sx-p:#9cdcfe; --sx-a:#9cdcfe; --sx-tag:#569cd6;
 }
-body[data-ide-theme="onedark"], .ith-card[data-t="onedark"] {
+body[data-ide-theme="onedark"], .ith-box [data-t="onedark"] {
   --th-bg:#282c34; --th-sf:#21252b; --th-el:#2c313a; --th-fg:#abb2bf; --th-fg2:#9da5b4; --th-mu:#5c6370; --th-ac:#61afef;
   --sx-c:#5c6370; --sx-s:#98c379; --sx-n:#d19a66; --sx-k:#c678dd; --sx-f:#61afef; --sx-t:#e5c07b; --sx-p:#e06c75; --sx-a:#d19a66; --sx-tag:#e06c75; --sx-cs:italic;
 }
-body[data-ide-theme="dracula"], .ith-card[data-t="dracula"] {
+body[data-ide-theme="dracula"], .ith-box [data-t="dracula"] {
   --th-bg:#282a36; --th-sf:#21222c; --th-el:#2d2f3d; --th-fg:#f8f8f2; --th-fg2:#e0e0e0; --th-mu:#6272a4; --th-ac:#bd93f9;
   --sx-c:#6272a4; --sx-s:#f1fa8c; --sx-n:#bd93f9; --sx-k:#ff79c6; --sx-f:#50fa7b; --sx-t:#8be9fd; --sx-p:#8be9fd; --sx-a:#50fa7b; --sx-tag:#ff79c6; --sx-cs:italic;
 }
-body[data-ide-theme="monokai"], .ith-card[data-t="monokai"] {
+body[data-ide-theme="monokai"], .ith-box [data-t="monokai"] {
   --th-bg:#272822; --th-sf:#1e1f1c; --th-el:#2d2e27; --th-fg:#f8f8f2; --th-fg2:#cfcfc2; --th-mu:#75715e; --th-ac:#a6e22e;
   --sx-c:#75715e; --sx-s:#e6db74; --sx-n:#ae81ff; --sx-k:#f92672; --sx-f:#a6e22e; --sx-t:#66d9ef; --sx-p:#66d9ef; --sx-a:#a6e22e; --sx-tag:#f92672;
 }
-body[data-ide-theme="nightowl"], .ith-card[data-t="nightowl"] {
+body[data-ide-theme="nightowl"], .ith-box [data-t="nightowl"] {
   --th-bg:#011627; --th-sf:#010e1a; --th-el:#0b2942; --th-fg:#d6deeb; --th-fg2:#b2c1d6; --th-mu:#637777; --th-ac:#82aaff;
   --sx-c:#637777; --sx-s:#ecc48d; --sx-n:#f78c6c; --sx-k:#c792ea; --sx-f:#82aaff; --sx-t:#addb67; --sx-p:#7fdbca; --sx-a:#addb67; --sx-tag:#7fdbca; --sx-cs:italic; --sx-ks:italic;
 }
-body[data-ide-theme="synthwave"], .ith-card[data-t="synthwave"] {
+body[data-ide-theme="synthwave"], .ith-box [data-t="synthwave"] {
   --th-bg:#262335; --th-sf:#1f1b2e; --th-el:#2f2a44; --th-fg:#f0eff1; --th-fg2:#c9c7d8; --th-mu:#848bbd; --th-ac:#ff7edb;
   --sx-c:#848bbd; --sx-s:#ff8b39; --sx-n:#f97e72; --sx-k:#fede5d; --sx-f:#36f9f6; --sx-t:#fe4450; --sx-p:#72f1b8; --sx-a:#fede5d; --sx-tag:#ff7edb; --sx-cs:italic;
 }
-body[data-ide-theme="cobalt"], .ith-card[data-t="cobalt"] {
+body[data-ide-theme="cobalt"], .ith-box [data-t="cobalt"] {
   --th-bg:#193549; --th-sf:#15232d; --th-el:#1f4662; --th-fg:#ffffff; --th-fg2:#c8d3dc; --th-mu:#4d9bd6; --th-ac:#ffc600;
   --sx-c:#4d9bd6; --sx-s:#3ad900; --sx-n:#ff628c; --sx-k:#ff9d00; --sx-f:#ffc600; --sx-t:#80ffbb; --sx-p:#9effff; --sx-a:#ffc600; --sx-tag:#9effff; --sx-cs:italic;
 }
-body[data-ide-theme="tokyo"], .ith-card[data-t="tokyo"] {
+body[data-ide-theme="tokyo"], .ith-box [data-t="tokyo"] {
   --th-bg:#1a1b26; --th-sf:#16161e; --th-el:#1f2335; --th-fg:#c0caf5; --th-fg2:#a9b1d6; --th-mu:#565f89; --th-ac:#7aa2f7;
   --sx-c:#565f89; --sx-s:#9ece6a; --sx-n:#ff9e64; --sx-k:#bb9af7; --sx-f:#7aa2f7; --sx-t:#2ac3de; --sx-p:#73daca; --sx-a:#e0af68; --sx-tag:#f7768e; --sx-cs:italic; --sx-ks:italic;
 }
-body[data-ide-theme="ember"], .ith-card[data-t="ember"] {
+body[data-ide-theme="ember"], .ith-box [data-t="ember"] {
   --th-bg:#0d1117; --th-sf:#090c10; --th-el:#161b22; --th-fg:#e6edf3; --th-fg2:#c9d1d9; --th-mu:#6e7681; --th-ac:#ff9e64;
   --sx-c:#7d8590; --sx-s:#a5e075; --sx-n:#79c0ff; --sx-k:#ff9966; --sx-f:#a5b4fc; --sx-t:#ffa657; --sx-p:#ffa657; --sx-a:#79c0ff; --sx-tag:#ff7b72; --sx-cs:italic;
 }
-body[data-ide-theme="solardark"], .ith-card[data-t="solardark"] {
+body[data-ide-theme="solardark"], .ith-box [data-t="solardark"] {
   --th-bg:#002b36; --th-sf:#00212b; --th-el:#073642; --th-fg:#93a1a1; --th-fg2:#839496; --th-mu:#586e75; --th-ac:#268bd2;
   --sx-c:#586e75; --sx-s:#2aa198; --sx-n:#d33682; --sx-k:#859900; --sx-f:#268bd2; --sx-t:#b58900; --sx-p:#268bd2; --sx-a:#b58900; --sx-tag:#268bd2; --sx-cs:italic;
 }
-body[data-ide-theme="ghdark"], .ith-card[data-t="ghdark"] {
+body[data-ide-theme="ghdark"], .ith-box [data-t="ghdark"] {
   --th-bg:#0d1117; --th-sf:#010409; --th-el:#161b22; --th-fg:#e6edf3; --th-fg2:#c9d1d9; --th-mu:#8b949e; --th-ac:#2f81f7;
   --sx-c:#8b949e; --sx-s:#a5d6ff; --sx-n:#79c0ff; --sx-k:#ff7b72; --sx-f:#d2a8ff; --sx-t:#ffa657; --sx-p:#79c0ff; --sx-a:#79c0ff; --sx-tag:#7ee787;
 }
-body[data-ide-theme="ghlight"], .ith-card[data-t="ghlight"] {
+body[data-ide-theme="ghlight"], .ith-box [data-t="ghlight"] {
   --th-bg:#ffffff; --th-sf:#f6f8fa; --th-el:#eaeef2; --th-fg:#1f2328; --th-fg2:#424a53; --th-mu:#6e7781; --th-ac:#0969da;
   --sx-c:#6e7781; --sx-s:#0a3069; --sx-n:#0550ae; --sx-k:#cf222e; --sx-f:#8250df; --sx-t:#953800; --sx-p:#0550ae; --sx-a:#0550ae; --sx-tag:#116329;
 }
-body[data-ide-theme="lightplus"], .ith-card[data-t="lightplus"] {
+body[data-ide-theme="lightplus"], .ith-box [data-t="lightplus"] {
   --th-bg:#ffffff; --th-sf:#f3f3f3; --th-el:#e8e8e8; --th-fg:#1f1f1f; --th-fg2:#3b3b3b; --th-mu:#6a737d; --th-ac:#005fb8;
   --sx-c:#008000; --sx-s:#a31515; --sx-n:#098658; --sx-k:#0000ff; --sx-f:#795e26; --sx-t:#267f99; --sx-p:#001080; --sx-a:#e50000; --sx-tag:#800000;
 }
-body[data-ide-theme="daylight"], .ith-card[data-t="daylight"] {
+body[data-ide-theme="daylight"], .ith-box [data-t="daylight"] {
   --th-bg:#ffffff; --th-sf:#eceef1; --th-el:#e1e5ea; --th-fg:#24292e; --th-fg2:#3c4249; --th-mu:#7a8794; --th-ac:#2d9cdb;
   --sx-c:#98a4b3; --sx-s:#0f92cf; --sx-n:#d97706; --sx-k:#0b6bcb; --sx-f:#15803d; --sx-t:#7c3aed; --sx-p:#be185d; --sx-a:#be185d; --sx-tag:#be185d; --sx-cs:italic; --sx-ks:italic;
 }
-body[data-ide-theme="sollight"], .ith-card[data-t="sollight"] {
+body[data-ide-theme="sollight"], .ith-box [data-t="sollight"] {
   --th-bg:#fdf6e3; --th-sf:#eee8d5; --th-el:#e6dfc8; --th-fg:#586e75; --th-fg2:#657b83; --th-mu:#93a1a1; --th-ac:#268bd2;
   --sx-c:#93a1a1; --sx-s:#2aa198; --sx-n:#d33682; --sx-k:#859900; --sx-f:#268bd2; --sx-t:#b58900; --sx-p:#268bd2; --sx-a:#b58900; --sx-tag:#268bd2; --sx-cs:italic;
 }
-.ith-card[data-t="app"] {
-  --th-bg:var(--bg-base); --th-fg:var(--text-primary); --th-fg2:var(--text-secondary); --th-mu:var(--text-muted); --th-ac:var(--accent);
-  --sx-c:var(--text-muted); --sx-s:var(--green); --sx-n:var(--yellow); --sx-k:var(--purple); --sx-f:var(--blue);
+/* The App theme reads the real app colors, copied onto the modal by the script as --pa-* */
+.ith-box [data-t="app"] {
+  --th-bg: var(--pa-bg); --th-sf: var(--pa-sf); --th-el: var(--pa-el);
+  --th-fg: var(--pa-fg); --th-fg2: var(--pa-fg2); --th-mu: var(--pa-mu); --th-ac: var(--pa-ac);
+  --sx-c: var(--pa-mu); --sx-s: var(--pa-green); --sx-n: var(--pa-yellow); --sx-k: var(--pa-purple);
+  --sx-f: var(--pa-blue); --sx-t: var(--pa-ac); --sx-p: var(--pa-blue); --sx-tag: var(--pa-red);
 }
+.ith-card, .ith-pv { --sx-cs: normal; --sx-ks: normal; }
 
 /* ---- Surfaces: editor always; sidebar/tabs/status with "chrome"; the whole app with "shell" (IDE mode only) ---- */
 body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
@@ -276,7 +281,7 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 20px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(3px);
 }
@@ -284,8 +289,8 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
 .ith-box {
   display: flex;
   flex-direction: column;
-  width: min(1120px, 96vw);
-  height: min(740px, 90vh);
+  width: min(1260px, 97vw);
+  height: min(880px, 95vh);
   overflow: hidden;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
@@ -341,14 +346,39 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
   background: var(--bg-base);
 }
 .ith-main {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+.ith-pvwrap {
+  flex: 0 0 auto;
+  padding: 14px 22px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+.ith-pvhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ith-pvname { letter-spacing: 0.02em; text-transform: none; font-weight: 600; font-size: 12px; color: var(--text-secondary); white-space: pre; }
+.ith-cards {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 2px 20px 22px;
+  padding: 2px 22px 24px;
 }
 
 .ith-sec {
-  margin: 16px 0 8px;
+  margin: 18px 0 9px;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -360,14 +390,15 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
 .ith-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 .ith-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
-  padding: 10px 11px;
+  min-height: 118px;
+  padding: 14px 16px;
   border: 1px solid var(--border-default);
   border-radius: var(--r-md, 8px);
   background: var(--th-bg);
@@ -378,7 +409,7 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
 }
 .ith-card:hover { border-color: var(--text-muted); transform: translateY(-1px); }
 .ith-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.ith-prev { display: block; font: 11px/16px var(--font-mono); white-space: pre; overflow: hidden; }
+.ith-prev { display: block; font: 12.5px/19px var(--font-mono); white-space: pre; overflow: hidden; }
 .ith-ln { display: block; }
 .ith-prev i { font-style: normal; }
 .ith-prev .c { color: var(--sx-c); font-style: var(--sx-cs, normal); }
@@ -386,8 +417,8 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
 .ith-prev .n { color: var(--sx-n); }
 .ith-prev .k { color: var(--sx-k); font-style: var(--sx-ks, normal); }
 .ith-prev .f { color: var(--sx-f); }
-.ith-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.ith-name { font: 600 12px var(--font-ui); color: var(--th-fg2); }
+.ith-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; }
+.ith-name { font: 700 13px var(--font-ui); color: var(--th-fg2); }
 .ith-tone { font: 700 9px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--th-mu); }
 
 .ith-fonts { display: flex; flex-direction: column; gap: 6px; }
@@ -448,11 +479,204 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
 .ith-sw.on { border-color: var(--accent); background: var(--accent-dim); }
 .ith-sw.on i { transform: translateX(16px); background: var(--accent); }
 
+/* ---- Live preview ---- */
+.ith-pv {
+  display: flex;
+  flex-direction: column;
+  height: 272px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md, 8px);
+  background: var(--th-bg);
+  color: var(--th-fg);
+  font: 11px var(--font-ui);
+  --cb: var(--th-sf);
+  --cbase: var(--th-bg);
+  --cfg: var(--th-fg);
+  --cmu: var(--th-mu);
+  --cl: color-mix(in srgb, var(--th-fg) 14%, transparent);
+  --ca: var(--th-ac);
+}
+.ith-pv[data-c="0"] :is(.pv-side, .pv-tabs, .pv-status) {
+  --cb: var(--pa-sf);
+  --cbase: var(--pa-bg);
+  --cfg: var(--pa-fg);
+  --cmu: var(--pa-mu);
+  --cl: color-mix(in srgb, var(--pa-fg) 14%, transparent);
+  --ca: var(--pa-ac);
+}
+.ith-pv[data-s="0"] .pv-nav {
+  --cb: var(--pa-sf);
+  --cbase: var(--pa-bg);
+  --cfg: var(--pa-fg);
+  --cmu: var(--pa-mu);
+  --cl: color-mix(in srgb, var(--pa-fg) 14%, transparent);
+  --ca: var(--pa-ac);
+}
+.ith-pv[data-g="soft"] { --ide-guide: color-mix(in srgb, var(--th-mu) 26%, transparent); --ide-gw: 1px; }
+.ith-pv[data-g="normal"] { --ide-guide: color-mix(in srgb, var(--th-mu) 44%, transparent); --ide-gw: 1px; }
+.ith-pv[data-g="bold"] { --ide-guide: color-mix(in srgb, var(--th-mu) 66%, transparent); --ide-gw: 2px; }
+
+.ith-pv .pv-grow { flex: 1; }
+.ith-pv .pv-acc { color: var(--ca); }
+
+.ith-pv .pv-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 28px;
+  padding: 0 10px;
+  background: var(--cb);
+  color: var(--cmu);
+  border-bottom: 1px solid var(--cl);
+}
+.ith-pv .pv-chip {
+  padding: 2px 9px;
+  border: 1px solid var(--cl);
+  border-radius: 5px;
+  font-weight: 600;
+  color: var(--cfg);
+  white-space: nowrap;
+}
+.ith-pv .pv-chip.pv-acc { color: var(--ca); border-color: color-mix(in srgb, var(--ca) 45%, transparent); }
+.ith-pv .pv-search {
+  min-width: 150px;
+  padding: 2px 10px;
+  border: 1px solid var(--cl);
+  border-radius: 5px;
+  color: var(--cmu);
+  white-space: nowrap;
+}
+
+.ith-pv .pv-row { display: flex; flex: 1; min-height: 0; }
+.ith-pv .pv-side {
+  flex: 0 0 160px;
+  overflow: hidden;
+  padding: 6px 0;
+  background: var(--cb);
+  color: var(--cfg);
+  border-right: 1px solid var(--cl);
+}
+.ith-pv .pv-sh {
+  padding: 2px 10px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--cfg);
+}
+.ith-pv .pv-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  white-space: nowrap;
+  color: var(--cfg);
+}
+.ith-pv .pv-item.on {
+  background: color-mix(in srgb, var(--ca) 22%, transparent);
+  box-shadow: inset 2px 0 0 var(--ca);
+}
+.ith-pv .pv-ch { width: 10px; text-align: center; color: var(--cmu); }
+.ith-pv .pv-sp { width: 14px; flex: 0 0 14px; }
+.ith-pv .pv-item .ide-ficon { width: 14px; height: 14px; flex: 0 0 14px; }
+
+.ith-pv .pv-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.ith-pv .pv-tabs {
+  display: flex;
+  flex: 0 0 26px;
+  background: var(--cb);
+  border-bottom: 1px solid var(--cl);
+}
+.ith-pv .pv-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  color: var(--cmu);
+  border-right: 1px solid var(--cl);
+}
+.ith-pv .pv-tab.on { background: var(--cbase); color: var(--cfg); }
+.ith-pv .pv-tab.on::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ca);
+}
+
+.ith-pv .pv-code {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--th-bg);
+  font: 12px/19px var(--pvfont, var(--font-mono));
+  font-variant-ligatures: none;
+}
+.ith-pv .pv-gut {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 12px 0 14px;
+  text-align: right;
+  font: inherit;
+  color: var(--th-mu);
+  user-select: none;
+}
+.ith-pv .pv-body {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 0 0 12px;
+  overflow: hidden;
+  font: inherit;
+  white-space: pre;
+  color: var(--th-fg);
+}
+.ith-pv[data-r="1"] .pv-body { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--th-mu) 32%, transparent); }
+.ith-pv .pv-body i { font-style: normal; }
+.ith-pv .pv-body .c { color: var(--sx-c); font-style: var(--sx-cs, normal); }
+.ith-pv .pv-body .s { color: var(--sx-s); }
+.ith-pv .pv-body .n { color: var(--sx-n); }
+.ith-pv .pv-body .k { color: var(--sx-k); font-style: var(--sx-ks, normal); }
+.ith-pv .pv-body .f { color: var(--sx-f); }
+.ith-pv .pv-body .t { color: var(--sx-t); }
+
+.ith-ig {
+  display: inline-block;
+  height: 19px;
+  vertical-align: top;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--ide-guide) 0,
+    var(--ide-guide) var(--ide-gw, 1px),
+    transparent var(--ide-gw, 1px),
+    transparent calc(2 * 1ch)
+  );
+}
+.ith-pv[data-g="off"] .ith-ig { background-image: none; }
+
+.ith-pv .pv-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 0 0 22px;
+  padding: 0 12px;
+  background: var(--cb);
+  color: var(--cmu);
+  border-top: 1px solid var(--cl);
+  white-space: nowrap;
+}
+.ith-pv .pv-status .pv-acc { font-weight: 600; }
+
 @media (max-width: 1000px) {
   .ith-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
   .ith-body { flex-direction: column; }
-  .ith-side { flex: 0 0 auto; max-height: 40%; border-right: 0; border-bottom: 1px solid var(--border-subtle); }
+  .ith-side { flex: 0 0 auto; max-height: 30%; border-right: 0; border-bottom: 1px solid var(--border-subtle); }
   .ith-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

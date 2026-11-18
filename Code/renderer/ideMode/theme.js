@@ -1,3 +1,5 @@
+import { fileIcon } from './fileIcons.js';
+
 const LS_KEY = 'helpertool-ide-theme';
 const CSS_ID = 'ideThemeCss';
 
@@ -55,23 +57,40 @@ const DEFAULTS = {
   shell: true,
 };
 
-const APP_CARD_MAP = [
-  ['--th-bg', '--bg-base'],
-  ['--th-fg', '--text-primary'],
-  ['--th-fg2', '--text-secondary'],
-  ['--th-mu', '--text-muted'],
-  ['--th-ac', '--accent'],
-  ['--sx-c', '--text-muted'],
-  ['--sx-s', '--green'],
-  ['--sx-n', '--yellow'],
-  ['--sx-k', '--purple'],
-  ['--sx-f', '--blue'],
+const APP_VARS = [
+  ['--pa-bg', '--bg-base'],
+  ['--pa-sf', '--bg-surface'],
+  ['--pa-el', '--bg-elevated'],
+  ['--pa-fg', '--text-primary'],
+  ['--pa-fg2', '--text-secondary'],
+  ['--pa-mu', '--text-muted'],
+  ['--pa-ac', '--accent'],
+  ['--pa-green', '--green'],
+  ['--pa-yellow', '--yellow'],
+  ['--pa-purple', '--purple'],
+  ['--pa-blue', '--blue'],
+  ['--pa-red', '--red'],
+];
+
+const CODE = [
+  { ind: 0, h: '<i class="k">import</i> { <i class="f">run</i> } <i class="k">from</i> <i class="s">\'./loop\'</i>;' },
+  { ind: 0, h: '<i class="c">// retry until the result validates</i>' },
+  { ind: 0, h: '<i class="k">const</i> <i class="t">MAX</i> = <i class="n">3</i>;' },
+  { ind: 0, h: '' },
+  { ind: 0, h: '<i class="k">async function</i> <i class="f">loop</i>(prompt) {' },
+  { ind: 2, h: '<i class="k">for</i> (<i class="k">let</i> i = <i class="n">0</i>; i &lt; <i class="t">MAX</i>; i++) {' },
+  { ind: 4, h: '<i class="k">const</i> ok = <i class="k">await</i> <i class="f">run</i>(prompt, <i class="s">\'test\'</i>);' },
+  { ind: 4, h: '<i class="k">if</i> (ok) <i class="k">return</i> <i class="k">true</i>;' },
+  { ind: 2, h: '}' },
+  { ind: 0, h: '}' },
 ];
 
 const ICON_SVG = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2a5.8 5.8 0 1 0 0 11.6c.9 0 1.3-.6 1.3-1.2 0-.9-.7-1.1-.7-1.9 0-.7.6-1.2 1.4-1.2h1.3A2.6 2.6 0 0 0 13.9 7C13.9 4.3 11.3 2.2 8 2.2z"/><circle cx="5" cy="7.2" r=".6" fill="currentColor"/><circle cx="7.5" cy="4.9" r=".6" fill="currentColor"/><circle cx="10.6" cy="5.6" r=".6" fill="currentColor"/></svg>';
 const CLOSE_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+const FOLDER_SVG = '<span class="ide-ficon"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg></span>';
 
 let prefs = load();
+let hover = { theme: null, font: null };
 let btn = null;
 let pop = null;
 let started = false;
@@ -116,6 +135,11 @@ function toneOf(id) {
   return t ? t.tone : 'dark';
 }
 
+function nameOf(list, id) {
+  const t = list.find((x) => x.id === id);
+  return t ? t.name : '';
+}
+
 function setAttr(el, name, value) {
   if (value === null || value === undefined) {
     if (el.hasAttribute(name)) el.removeAttribute(name);
@@ -152,6 +176,7 @@ function cardHtml(t) {
     '<span class="ith-prev">' +
       '<span class="ith-ln"><i class="k">const</i> <i class="f">run</i> = <i class="n">42</i>;</span>' +
       '<span class="ith-ln"><i class="c">// note</i> <i class="s">\'ok\'</i></span>' +
+      '<span class="ith-ln"><i class="k">return</i> <i class="f">run</i>();</span>' +
     '</span>' +
     '<span class="ith-meta"><span class="ith-name">' + t.name + '</span>' +
     (t.tone === 'light' ? '<span class="ith-tone">Light</span>' : '') + '</span>' +
@@ -176,6 +201,48 @@ function rowHtml(key, label) {
     '<button type="button" class="ith-sw" data-act="flag" data-key="' + key + '" role="switch" aria-checked="false"><i></i></button></div>';
 }
 
+function treeRow(name, active) {
+  return '<div class="pv-item' + (active ? ' on' : '') + '"><span class="pv-sp"></span>' + fileIcon(name) + '<span>' + name + '</span></div>';
+}
+
+function previewHtml() {
+  const nums = CODE.map((l, i) => String(i + 1)).join('\n');
+  const body = CODE.map((l) =>
+    (l.ind ? '<span class="ith-ig" style="width:' + l.ind + 'ch"></span>' : '') + l.h
+  ).join('\n');
+  return '<div class="ith-pv" data-t="app" data-g="normal" data-r="1" data-c="1" data-s="1">' +
+    '<div class="pv-nav">' +
+      '<span class="pv-chip pv-acc">Global Seed</span>' +
+      '<span class="pv-chip">Select Repo</span>' +
+      '<span class="pv-search">Search in codebase</span>' +
+      '<span class="pv-grow"></span>' +
+      '<span class="pv-chip pv-acc">IDE Mode</span>' +
+    '</div>' +
+    '<div class="pv-row">' +
+      '<div class="pv-side">' +
+        '<div class="pv-sh">HELPERTOOL</div>' +
+        '<div class="pv-item"><span class="pv-ch">\u25BE</span>' + FOLDER_SVG + '<span>harness</span></div>' +
+        treeRow('loop.js', true) +
+        treeRow('promptFixer.js', false) +
+        treeRow('runner.js', false) +
+        treeRow('validator.js', false) +
+        '<div class="pv-item"><span class="pv-ch">\u203A</span>' + FOLDER_SVG + '<span>indexer</span></div>' +
+      '</div>' +
+      '<div class="pv-main">' +
+        '<div class="pv-tabs">' +
+          '<span class="pv-tab on">' + fileIcon('loop.js') + '<span>loop.js</span></span>' +
+          '<span class="pv-tab">' + fileIcon('runner.js') + '<span>runner.js</span></span>' +
+        '</div>' +
+        '<div class="pv-code">' +
+          '<pre class="pv-gut">' + nums + '</pre>' +
+          '<pre class="pv-body">' + body + '</pre>' +
+        '</div>' +
+        '<div class="pv-status"><span class="pv-grow"></span><span>Ln 7, Col 12</span><span>Spaces: 2</span><span>UTF-8</span><span class="pv-acc">JavaScript</span></div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
 function modalHtml() {
   const dark = THEMES.filter((t) => t.tone === 'dark').map(cardHtml).join('');
   const light = THEMES.filter((t) => t.tone === 'light').map(cardHtml).join('');
@@ -190,7 +257,7 @@ function modalHtml() {
     '</div>' +
     '<div class="ith-body">' +
       '<aside class="ith-side">' +
-        '<div class="ith-sec">Editor font</div>' +
+        '<div class="ith-sec ith-sec-first">Editor font</div>' +
         '<div class="ith-fonts">' + fonts + '</div>' +
         '<div class="ith-hint">Uses fonts installed on this computer. A missing font falls back to the default.</div>' +
         '<div class="ith-sec">File icons</div>' + segHtml('icons', ICON_SETS) +
@@ -201,22 +268,43 @@ function modalHtml() {
         rowHtml('shell', 'Theme the whole app in IDE mode') +
       '</aside>' +
       '<section class="ith-main">' +
-        '<div class="ith-sec ith-sec-first">Dark themes</div><div class="ith-grid">' + dark + '</div>' +
-        '<div class="ith-sec">Light themes</div><div class="ith-grid">' + light + '</div>' +
+        '<div class="ith-pvwrap">' +
+          '<div class="ith-pvhead"><span>Live preview</span><span class="ith-pvname"></span></div>' +
+          previewHtml() +
+        '</div>' +
+        '<div class="ith-cards">' +
+          '<div class="ith-sec ith-sec-first">Dark themes</div><div class="ith-grid">' + dark + '</div>' +
+          '<div class="ith-sec">Light themes</div><div class="ith-grid">' + light + '</div>' +
+        '</div>' +
       '</section>' +
     '</div>' +
   '</div>';
 }
 
-function paintAppCard() {
+function paintAppVars() {
   if (!pop) return;
-  const card = pop.querySelector('.ith-card[data-t="app"]');
-  if (!card) return;
   const cs = getComputedStyle(document.documentElement);
-  for (const pair of APP_CARD_MAP) {
+  for (const pair of APP_VARS) {
     const v = cs.getPropertyValue(pair[1]).trim();
-    if (v) card.style.setProperty(pair[0], v);
+    if (v) pop.style.setProperty(pair[0], v);
   }
+}
+
+function updatePreview() {
+  if (!pop) return;
+  const pv = pop.querySelector('.ith-pv');
+  if (!pv) return;
+  const themeId = hover.theme || prefs.theme;
+  const fontId = hover.font || prefs.font;
+  const font = FONTS.find((f) => f.id === fontId);
+  pv.setAttribute('data-t', themeId);
+  pv.setAttribute('data-g', prefs.guides);
+  pv.setAttribute('data-r', prefs.ruler ? '1' : '0');
+  pv.setAttribute('data-c', prefs.chrome ? '1' : '0');
+  pv.setAttribute('data-s', prefs.shell ? '1' : '0');
+  pv.style.setProperty('--pvfont', font ? font.css : 'var(--font-mono)');
+  const label = pop.querySelector('.ith-pvname');
+  if (label) label.textContent = nameOf(THEMES, themeId) + '  \u00B7  ' + nameOf(FONTS, fontId);
 }
 
 function sync() {
@@ -229,6 +317,7 @@ function sync() {
     b.classList.toggle('on', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
   });
+  updatePreview();
 }
 
 function commit() {
@@ -268,6 +357,24 @@ function onPopClick(e) {
   commit();
 }
 
+function onPopOver(e) {
+  const card = e.target.closest ? e.target.closest('.ith-card') : null;
+  const font = e.target.closest ? e.target.closest('.ith-font') : null;
+  const t = card ? card.dataset.t : null;
+  const f = font ? font.dataset.v : null;
+  if (t === hover.theme && f === hover.font) return;
+  hover.theme = t;
+  hover.font = f;
+  updatePreview();
+}
+
+function onPopLeave() {
+  if (hover.theme === null && hover.font === null) return;
+  hover.theme = null;
+  hover.font = null;
+  updatePreview();
+}
+
 function build() {
   if (pop) return;
   pop = document.createElement('div');
@@ -275,6 +382,8 @@ function build() {
   pop.hidden = true;
   pop.innerHTML = modalHtml();
   pop.addEventListener('click', onPopClick);
+  pop.addEventListener('mouseover', onPopOver);
+  pop.addEventListener('mouseleave', onPopLeave);
   document.body.appendChild(pop);
 }
 
@@ -285,6 +394,8 @@ export function isOpen() {
 export function close() {
   if (!pop || pop.hidden) return;
   pop.hidden = true;
+  hover.theme = null;
+  hover.font = null;
   if (btn) btn.classList.remove('on');
 }
 
@@ -293,7 +404,7 @@ export function open() {
   build();
   pop.hidden = false;
   if (btn) btn.classList.add('on');
-  paintAppCard();
+  paintAppVars();
   sync();
 }
 
