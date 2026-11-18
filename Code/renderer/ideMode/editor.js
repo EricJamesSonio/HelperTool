@@ -526,13 +526,6 @@ const TEMPLATE =
       '</div>' +
     '</div>' +
   '</div>' +
-  '<div class="ide-md-toolbar" hidden>' +
-    '<span class="ide-md-label">Markdown</span>' +
-    '<div class="ide-md-modes" role="group" aria-label="Markdown view">' +
-      '<button type="button" class="ide-md-mode active" data-md-mode="source" aria-pressed="true">Source</button>' +
-      '<button type="button" class="ide-md-mode" data-md-mode="preview" aria-pressed="false">Preview</button>' +
-    '</div>' +
-  '</div>' +
   '<div class="ide-md-preview" hidden></div>' +
   '<div class="ide-dv" hidden></div>' +
   '<div class="ide-media" hidden></div>' +
@@ -624,7 +617,7 @@ function makeTab(path, name, media) {
     selStart: 0,
     selEnd: 0,
     hist: null,
-    markdownPreview: false,
+    markdownPreview: /\.(?:md|markdown|mdown|mkd)$/i.test(name || ''),
   };
 }
 
@@ -1150,15 +1143,13 @@ function showTab(tab, focus) {
   const showCode = !!tab && !isPane && !isMedia && !tab.loading && !tab.notice;
   const isMd = showCode && isMarkdown(tab);
   const previewMd = isMd && !!tab.markdownPreview;
-  els.mdToolbar.hidden = !isMd;
+  els.mdToggle.hidden = !isMd;
+  els.mdToggle.dataset.mdMode = previewMd ? 'source' : 'preview';
+  els.mdToggle.setAttribute('aria-pressed', previewMd ? 'true' : 'false');
+  els.mdToggle.textContent = previewMd ? 'Source' : 'Preview';
   els.mdPreview.hidden = !previewMd;
   els.codewrap.hidden = !showCode || previewMd;
   els.mdPreview.innerHTML = previewMd ? renderMarkdown(tab.content) : '';
-  els.mdModes.forEach((button) => {
-    const active = button.dataset.mdMode === (previewMd ? 'preview' : 'source');
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', active ? 'true' : 'false');
-  });
   els.dv.hidden = !isPane;
   els.media.hidden = !isMedia;
   els.welcome.hidden = showCode || isPane || isMedia;
@@ -2752,7 +2743,8 @@ export function mount(mainEl, handlers) {
   onChange = (handlers && handlers.onTabsChange) || null;
   mainEl.innerHTML = TEMPLATE;
   const crumbsEl = mainEl.querySelector('.ide-crumbs');
-  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML;
+  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML +
+    '<button type="button" class="ide-md-toggle" aria-label="Toggle Markdown preview" aria-pressed="false" data-md-mode="preview" hidden>Preview</button>';
   els = {
     tabs: mainEl.querySelector('.ide-tabs'),
     crumbs: crumbsEl,
@@ -2760,6 +2752,7 @@ export function mount(mainEl, handlers) {
     runbar: crumbsEl.querySelector('.ide-runbar'),
     dbgBtn: crumbsEl.querySelector('[data-rb="debug"]'),
     runBtn: crumbsEl.querySelector('[data-rb="run"]'),
+    mdToggle: crumbsEl.querySelector('.ide-md-toggle'),
     welcome: mainEl.querySelector('.ide-welcome'),
     home: mainEl.querySelector('.ide-welcome-home'),
     notice: mainEl.querySelector('.ide-notice'),
@@ -2778,9 +2771,7 @@ export function mount(mainEl, handlers) {
     pbTitle: mainEl.querySelector('.ide-pb-title'),
     stProb: mainEl.querySelector('.ide-st-problems'),
     find: mainEl.querySelector('.ide-find'),
-    mdToolbar: mainEl.querySelector('.ide-md-toolbar'),
     mdPreview: mainEl.querySelector('.ide-md-preview'),
-    mdModes: Array.from(mainEl.querySelectorAll('.ide-md-mode')),
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
     findCount: mainEl.querySelector('.ide-find-count'),
@@ -2814,14 +2805,14 @@ export function mount(mainEl, handlers) {
   els.tabs.addEventListener('click', onTabClick);
   els.tabs.addEventListener('auxclick', onTabAux);
   els.tabs.addEventListener('wheel', onTabsWheel, { passive: false });
+  els.crumbs.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-md-mode]');
+    if (button) setMarkdownPreview(button.dataset.mdMode === 'preview');
+  });
   els.findIn.addEventListener('input', () => runFind(true));
   els.findIn.addEventListener('keydown', onFindKey);
   els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
-  els.mdToolbar.addEventListener('click', (e) => {
-    const button = e.target.closest('[data-md-mode]');
-    if (button) setMarkdownPreview(button.dataset.mdMode === 'preview');
-  });
   els.runbar.addEventListener('click', onRunbarClick);
   els.stProb.addEventListener('click', () => setProblemsOpen(!problemsOpen));
   els.problems.addEventListener('click', onProblemsClick);
