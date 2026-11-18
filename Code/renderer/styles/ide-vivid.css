@@ -312,3 +312,7 @@ body[data-ide-theme][data-ide-app="1"] :is(.workspace-input, .workspace-select, 
   border-color: var(--border-default);
   color: var(--th-fg);
 }
+/* Hide the Global Seeder button while IDE mode is on */
+body.ide-mode .navbar-row--primary .global-seeder-navbar-btn {
+  display: none !important;
+}
