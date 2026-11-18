@@ -615,7 +615,7 @@ async function toggleFolder(row) {
   saveExpanded();
 }
 
-function onTreeClick(e) {
+async function onTreeClick(e) {
   const rb = e.target.closest('.ide-row-btn');
   if (rb) {
     e.stopPropagation();
@@ -637,7 +637,12 @@ function onTreeClick(e) {
   selected = { path: row.dataset.path, type: isFolder ? 'folder' : 'file' };
   markSelected();
   if (isFolder) {
-    toggleFolder(row);
+    const folderPath = row.dataset.path;
+    await toggleFolder(row);
+    if (expanded.has(folderPath)) {
+      revealKey = pathKey(folderPath);
+      scrollReveal();
+    }
     return;
   }
   revealKey = pathKey(row.dataset.path);
