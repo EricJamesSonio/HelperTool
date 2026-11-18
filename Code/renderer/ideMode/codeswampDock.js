@@ -238,11 +238,10 @@ function place() {
 
 function prewarm() {
   const repo = csState.activeTab;
-  if (!repo || !tm || typeof tm.prewarmSession !== 'function') return;
-  const key = repo + '|' + csState.selectedProvider;
-  if (key === warmKey) return;
-  warmKey = key;
-  const p = tm.prewarmSession(repo);
+  if (!repo || !tm || typeof tm.prewarmAllProviders !== 'function') return;
+  if (repo === warmKey) return;
+  warmKey = repo;
+  const p = tm.prewarmAllProviders(repo);
   if (p && typeof p.catch === 'function') {
     p.catch(() => {
       warmKey = '';
@@ -257,6 +256,7 @@ async function warm() {
   const panel = await ensurePanel();
   if (!panel || !isIde()) return;
   if (!tm) tm = await import('../codeswampUI/terminalManager.js');
+  prewarm();
 }
 
 function scheduleWarm() {
