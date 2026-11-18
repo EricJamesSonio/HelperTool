@@ -54,6 +54,7 @@ function injectCss() {
     ['ideChangesModalCss', './styles/ide-changes-modal.css'],
     ['ideClipboardCss', './styles/ide-clipboard.css'],
     ['ideGuidesCss', './styles/ide-guides.css'],
+    ['ideCenterCss', './styles/ide-center.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
@@ -259,7 +260,7 @@ function createButton() {
   btn.type = 'button';
   btn.className = 'view-mode-btn ide-mode-btn';
   btn.title = 'Toggle IDE mode (VS Code style explorer and editor)';
-  btn.innerHTML = BTN_ICON + 'IDE Mode';
+  btn.innerHTML = BTN_ICON + 'IDE';
   btn.addEventListener('click', () => setActive(!active));
   host.insertBefore(btn, host.firstChild);
   createNavSearch();
