@@ -660,6 +660,7 @@ const opencodeBridge = {
   termWrite:          (payload)                     => ipcRenderer.invoke('opencode:termWrite', payload),
   termResize:         (payload)                     => ipcRenderer.invoke('opencode:termResize', payload),
   termKill:           (id)                          => ipcRenderer.invoke('opencode:termKill', id),
+  setNotifyEnabled:   (enabled)                     => ipcRenderer.invoke('opencode:setNotifyEnabled', enabled),
   onTermData:         (callback) => {
     ipcRenderer.removeAllListeners('opencode:termData');
     ipcRenderer.on('opencode:termData', (_, data) => callback(data));
@@ -667,6 +668,10 @@ const opencodeBridge = {
   onTermExited:       (callback) => {
     ipcRenderer.removeAllListeners('opencode:termExited');
     ipcRenderer.on('opencode:termExited', (_, data) => callback(data));
+  },
+  onTermActivated:    (callback) => {
+    ipcRenderer.removeAllListeners('opencode:termActivated');
+    ipcRenderer.on('opencode:termActivated', (_, data) => callback(data));
   },
 };
 
