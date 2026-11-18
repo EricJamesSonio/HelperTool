@@ -276,6 +276,9 @@ async function show() {
   if (!scroll) scroll = await import('./csScrollHelper.js');
   visible = true;
   place();
+  import('../codeswampUI/repoTabs.js')
+    .then((m) => m.restoreActiveView())
+    .catch(() => {});
   const input = document.getElementById('ocInput');
   if (input) input.focus();
   prewarm();
