@@ -224,10 +224,29 @@ if (!gotTheLock) {
 function registerAllIpc(onRepoSelected, syncIndexer) {
   const shared = { app, config, fileOps, docignoreUtils, codeOps, getMainWindow, onRepoSelected };
 
+  const startupQueue = require('./ipc/startupQueue.js');
+  startupQueue.init(getMainWindow);
+
   ipcMain.handle('get-app-start-time', () => __appStartTime);
 
   const safeRegister = (name, fn) => {
     try { fn(); } catch (e) { console.error(`[IPC] Failed to register ${name}:`, e); }
+  };
+
+  const runSpread = (steps, gapMs) => {
+    let i = 0;
+    const next = () => {
+      if (i >= steps.length) return;
+      const step = steps[i];
+      i += 1;
+      try {
+        step();
+      } catch (e) {
+        console.error('[IPC] startup step failed:', e);
+      }
+      setTimeout(next, gapMs);
+    };
+    next();
   };
 
   // Feature-gated IPC modules. null features (first launch) means everything is on.
@@ -260,17 +279,24 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     { name: 'blueprintLibrary', tier: 2, flags: ['blueprintLibraryTool'],                    load: () => require('./ipc/blueprintLibrary/index.js').register() },
   ];
 
-  const registerFeatureIpc = (tier) => {
+  const pendingFeatureModules = (tier) => {
     let feats = null;
     try { feats = config.readConfig()?.features ?? null; } catch (_) {}
-    for (const m of FEATURE_IPC) {
-      if (tier && m.tier !== tier) continue;
-      if (registeredFeatureIpc.has(m.name)) continue;
-      if (!featureOn(feats, m.flags)) continue;
+    return FEATURE_IPC.filter((m) => (!tier || m.tier === tier) && !registeredFeatureIpc.has(m.name) && featureOn(feats, m.flags));
+  };
+
+  const registerFeatureIpc = (tier) => {
+    for (const m of pendingFeatureModules(tier)) {
       registeredFeatureIpc.add(m.name);
       safeRegister(m.name, m.load);
     }
   };
+
+  const featureSteps = (tier) => pendingFeatureModules(tier).map((m) => () => {
+    if (registeredFeatureIpc.has(m.name)) return;
+    registeredFeatureIpc.add(m.name);
+    safeRegister(m.name, m.load);
+  });
 
   // Called by features-set so newly enabled features work without an app restart,
   // and so the indexer process follows the enabled features
@@ -308,12 +334,14 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     safeRegister('error_cop_ipc',   () => require('./ipc/error_cop_ipc.js').register({ app, getMainWindow }));
   }, 600);
 
-  // Tier 2 (4s): heavy / rarely used tools - only the enabled ones
+  // Tier 2 (after 4s and after boot): heavy / rarely used tools, one module per tick
   setTimeout(() => {
-    safeRegister('docignoreManager',() => require('./ipc/docignoreManager_ipc.js').register(shared));
-    safeRegister('gemini_ipc',      () => require('./ipc/gemini_ipc.js').register());
-    registerFeatureIpc(2);
-    console.log('[Main] Tier 2: enabled heavy IPC modules loaded');
+    const steps = [
+      () => safeRegister('docignoreManager', () => require('./ipc/docignoreManager_ipc.js').register(shared)),
+      () => safeRegister('gemini_ipc', () => require('./ipc/gemini_ipc.js').register()),
+    ].concat(featureSteps(2));
+    steps.push(() => console.log('[Main] Tier 2: enabled heavy IPC modules loaded'));
+    startupQueue.whenBooted().then(() => runSpread(steps, 25));
   }, 4000);
 
   // Window control IPC (registered once, outside createWindow)
