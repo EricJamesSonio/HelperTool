@@ -2,7 +2,7 @@
 // Shortcut (paste file list -> auto-select) for GitHub Explorer.
 // Find-only: reuses pure matching logic from shortcutMode/core.js
 // (extractPotentialFilenames + findBestMatch, same exact > suffix > name >
-// fuzzy 0.75 priority as the main helper tool) but operates on
+// fuzzy 0.75 priority as the main ES Code) but operates on
 // githubState.selectedPaths instead of appState.selectedItems.
 
 import { extractPotentialFilenames, findBestMatch } from '../shortcutMode/core.js';
