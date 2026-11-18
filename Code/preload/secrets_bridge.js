@@ -9,4 +9,6 @@ module.exports = {
     secretsAdd:            (n, v)        => ipcRenderer.invoke('secrets-add', n, v),
     secretsUpdate:         (id, n, v)    => ipcRenderer.invoke('secrets-update', id, n, v),
     secretsDelete:         (id)          => ipcRenderer.invoke('secrets-delete', id),
+    notesLoad:             ()            => ipcRenderer.invoke('notes-load'),
+    notesSave:             (notes)       => ipcRenderer.invoke('notes-save', notes),
 };
