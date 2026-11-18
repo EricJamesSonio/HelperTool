@@ -607,3 +607,10 @@ app.whenReady().then(() => {
     console.error('[IPC] Failed to register storageInspector_ipc:', e);
   }
 });
+app.whenReady().then(() => {
+  try {
+    require('./ipc/recentRepos_ipc.js').register({ config });
+  } catch (e) {
+    console.error('[IPC] Failed to register recentRepos_ipc:', e);
+  }
+});

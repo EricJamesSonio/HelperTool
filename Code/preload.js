@@ -23,7 +23,7 @@ const repoBridge = {
     setIgnoredExtensions: (exts)         => ipcRenderer.invoke('set-ignored-extensions', exts),
     getFolderFilters:    ()              => ipcRenderer.invoke('get-folder-filters'),
     setFolderFilters:    (filters)       => ipcRenderer.invoke('set-folder-filters', filters),
-    getRecentRepos:      ()              => ipcRenderer.invoke('get-recent-repos'),
+    getRecentRepos:      ()              => ipcRenderer.invoke('repos:recent', 30),
     setActiveProject:    (repoPath)      => ipcRenderer.invoke('set-active-project', repoPath),
     getSessionNotes:     ()              => ipcRenderer.invoke('get-session-notes'),
     setSessionNotes:     (text)          => ipcRenderer.invoke('set-session-notes', text),
@@ -993,4 +993,11 @@ contextBridge.exposeInMainWorld('storageInspectorAPI', {
   readFile:     (payload) => ipcRenderer.invoke('storageInspector:readFile', payload),
   listDir:      (payload) => ipcRenderer.invoke('storageInspector:listDir', payload),
   showInFolder: (payload) => ipcRenderer.invoke('storageInspector:showInFolder', payload),
+});
+contextBridge.exposeInMainWorld('wakaOauthAPI', {
+  status:     ()                         => ipcRenderer.invoke('wakatime:oauthStatus'),
+  saveApp:    (clientId, clientSecret)   => ipcRenderer.invoke('wakatime:oauthSaveApp', { clientId, clientSecret }),
+  connect:    ()                         => ipcRenderer.invoke('wakatime:oauthConnect'),
+  cancel:     ()                         => ipcRenderer.invoke('wakatime:oauthCancel'),
+  disconnect: ()                         => ipcRenderer.invoke('wakatime:oauthDisconnect'),
 });
