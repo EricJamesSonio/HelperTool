@@ -835,13 +835,14 @@ export async function handleRepoChange(newRepoPath) {
     _destroyGitTool();
     _initializeGitTool(newRepoPath);
   }
+
+  // Symbol Index and HelperChat initialise lazily, when their panel is opened.
+  // A repo switch only tears down the old instance.
   if (on('symbolIndex')) {
     _destroySymbolIndexTool();
-    _initializeSymbolIndexTool(newRepoPath);
   }
   if (on('codebbaseChat')) {
     _destroyCCTool();
-    _initializeCCTool(newRepoPath);
   }
 
   if (on('gitTool') || on('teamActivityTool') || on('profileTool')) {

@@ -264,6 +264,7 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     { name: 'researcher_ipc',   tier: 1, flags: ['researcherTool'],                          load: () => { const r = require('./ipc/researcher_ipc.js'); r.register(shared); } },
     { name: 'profile',          tier: 1, flags: ['profileTool'],                             load: () => require('./ipc/profile.js').register(shared) },
 
+    { name: 'symbolIndex_ipc',  tier: 2, flags: ['symbolIndex'],                             load: () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); Promise.resolve(symbolIndexIpc.register(shared)).catch((e) => console.error('[IPC] symbolIndex_ipc failed:', e)); } },
     { name: 'fileseeder_ipc',   tier: 2, flags: ['fileSeeder', 'globalSeeder', 'flowTool'],  load: () => require('./ipc/fileseeder_ipc.js').register(shared) },
     { name: 'loc_ipc',          tier: 2, flags: ['locDetector'],                             load: () => require('./ipc/loc_ipc.js').register(shared) },
     { name: 'portManager',      tier: 2, flags: ['portManagerTool'],                         load: () => require('./ipc/portManager.js').register() },
@@ -319,7 +320,6 @@ function registerAllIpc(onRepoSelected, syncIndexer) {
     safeRegister('watcher_ipc',     () => require('./ipc/watcher_ipc.js').register(getMainWindow));
     safeRegister('git_ipc',         () => require('./ipc/git_ipc.js').register(shared));
     safeRegister('generate_ipc',    () => require('./ipc/generate_ipc.js').register(shared));
-    safeRegister('symbolIndex_ipc', () => { symbolIndexIpc = require('./ipc/symbolIndex_ipc.js'); symbolIndexIpc.register(shared); });
     safeRegister('codebaseManager', () => require('./ipc/codebaseManager_ipc.js').register());
     safeRegister('prompts_ipc',     () => require('./ipc/prompts_ipc.js').register({ app }));
     safeRegister('shortcut_ipc',    () => require('./ipc/shortcut_ipc.js').register(shared));
