@@ -160,6 +160,7 @@ function highlightSidebarItem(id) {
     notesList.querySelectorAll('.sh-notes-sidebar-item').forEach(el => {
         el.classList.toggle('active', el.dataset.noteId === id);
     });
+    refreshStructureBtn();
 }
 
 function renderPreview() {
@@ -519,10 +520,22 @@ function onBodyKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) continueList(e);
 }
 
+function refreshStructureBtn() {
+    if (!noteSmartBtn) return;
+    const on = S.structureResult != null && !!S.structureNoteId && S.structureNoteId === S.editingNoteId;
+    noteSmartBtn.classList.toggle('on', on);
+    noteSmartBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 function autoStructureNow() {
     if (!S.unlocked || !noteFormBody) return;
     const cur = noteFormBody.value;
     if (!cur.trim()) return;
+    const isOn = S.structureResult != null && S.structureNoteId === S.editingNoteId;
+    if (isOn && cur === S.structureResult) {
+        setStatus('Already structured - double-click to turn off', 'saved');
+        return;
+    }
     let next;
     try {
         next = structureNote(cur);
@@ -544,15 +557,48 @@ function autoStructureNow() {
     }
     S.noteDirty = true;
     saveNow(false);
+    S.structureBackup = cur;
+    S.structureResult = noteFormBody.value;
+    S.structureNoteId = S.editingNoteId;
+    refreshStructureBtn();
+    if (S.noteMode === 'view') renderPreview();
+}
+
+function autoStructureOff() {
+    if (!S.unlocked || !noteFormBody) return;
+    if (S.structureResult == null || S.structureNoteId !== S.editingNoteId) return;
+    const unchanged = noteFormBody.value === S.structureResult;
+    const original = S.structureBackup;
+    S.structureBackup = null;
+    S.structureResult = null;
+    S.structureNoteId = null;
+    refreshStructureBtn();
+    if (!unchanged) {
+        setStatus('Auto-structure off - your edits were kept', 'saved');
+        return;
+    }
+    if (S.noteMode === 'edit') {
+        noteFormBody.focus();
+        noteFormBody.select();
+        insertText(original);
+    } else {
+        noteFormBody.value = original;
+    }
+    S.noteDirty = true;
+    saveNow(false);
     if (S.noteMode === 'view') renderPreview();
 }
 
 export function wireNotesExtras() {
     if (noteSmartBtn) {
         noteSmartBtn.classList.remove('on');
-        noteSmartBtn.removeAttribute('aria-pressed');
-        noteSmartBtn.title = 'Auto-structure this note: adds ## and ### headings with divider lines, turns "term : definition" and "- a -- b" rows into tables, "Note: ..." into a quote and short lines into a list. Ctrl+Z undoes it in Edit mode.';
+        noteSmartBtn.setAttribute('aria-pressed', 'false');
+        noteSmartBtn.title = 'Auto-structure this note: adds ## and ### headings with divider lines, turns "term : definition" and "- a -- b" rows into tables, "Note: ..." into a quote and short lines into a list. Double-click to turn it off and restore the original text.';
         noteSmartBtn.addEventListener('click', autoStructureNow);
+        noteSmartBtn.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            autoStructureOff();
+        });
     }
     tabStudy.addEventListener('click', () => switchTab('study'));
     noteMoveBtn.addEventListener('click', handleNoteMove);
