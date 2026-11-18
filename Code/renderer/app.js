@@ -49,7 +49,6 @@ import {
 } from './app_manager/viewManager.js';
 
 import {
-    loadRepo,
     loadLastActiveRepo,
     setRepoChangeHandler
 } from './app_manager/repoManager.js';
@@ -89,7 +88,6 @@ import './gitAccounts/index.js';
 
 // ── DOM refs only used in app.js ──────────────────────────────────────────────
 
-const selectRepoBtn  = document.getElementById('selectRepoBtn');
 const notesBtn       = document.getElementById('notesBtn');
 const refreshBtn     = document.getElementById('refreshBtn');
 const editDocignoreBtn = document.getElementById('editDocignoreBtn');
@@ -281,92 +279,7 @@ document.addEventListener('repo:switched', () => {
 });
 
 // ── Navbar listeners ──────────────────────────────────────────────────────────
-
-selectRepoBtn.addEventListener('click', async () => {
-    try {
-        const repoPath = await window.electronAPI.selectRepo();
-        if (repoPath) await loadRepo(repoPath);
-    } catch (err) {
-        console.error('[UI] Repo selection failed:', err);
-    }
-});
-
-selectRepoBtn.addEventListener('contextmenu', async (e) => {
-    e.preventDefault();
-    document.getElementById('repoDropdown')?.remove();
-
-    const repos = await window.electronAPI.getRecentRepos?.() || [];
-
-    const dropdown = document.createElement('div');
-    dropdown.id = 'repoDropdown';
-    dropdown.className = 'repo-dropdown';
-
-    const rect = selectRepoBtn.getBoundingClientRect();
-    dropdown.style.top = rect.bottom + 4 + 'px';
-    dropdown.style.left = rect.left + 'px';
-
-    if (repos.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'repo-dropdown-item repo-dropdown-empty';
-        empty.textContent = 'No recent repos';
-        dropdown.appendChild(empty);
-    } else {
-        repos.forEach(r => {
-            const item = document.createElement('div');
-            item.className = 'repo-dropdown-item';
-            if (r.repoPath === state.selectedRepoPath) {
-                item.classList.add('repo-dropdown-item--active');
-            }
-            item.innerHTML = `
-                <div class="repo-dropdown-item-name">${r.repoPath.split(/[/\\]/).pop()}</div>
-                <div class="repo-dropdown-item-path">${r.repoPath}</div>
-            `;
-            item.addEventListener('click', () => {
-                dropdown.remove();
-                if (r.repoPath !== state.selectedRepoPath) {
-                    loadRepo(r.repoPath);
-                }
-            });
-            dropdown.appendChild(item);
-        });
-    }
-
-    const divider = document.createElement('div');
-    divider.className = 'repo-dropdown-divider';
-    dropdown.appendChild(divider);
-
-    const browse = document.createElement('div');
-    browse.className = 'repo-dropdown-item';
-    browse.innerHTML = '<span style="margin-right:6px"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg></span> Browse for another folder...';
-    browse.addEventListener('click', async () => {
-        dropdown.remove();
-        const repoPath = await window.electronAPI.selectRepo();
-        if (repoPath) await loadRepo(repoPath);
-    });
-    dropdown.appendChild(browse);
-
-    document.body.appendChild(dropdown);
-
-    const closeDropdown = (ev) => {
-        if (!dropdown.contains(ev.target) && ev.target !== selectRepoBtn) {
-            dropdown.remove();
-            document.removeEventListener('click', closeDropdown);
-            document.removeEventListener('keydown', closeOnEscape);
-        }
-    };
-    const closeOnEscape = (ev) => {
-        if (ev.key === 'Escape') {
-            dropdown.remove();
-            document.removeEventListener('click', closeDropdown);
-            document.removeEventListener('keydown', closeOnEscape);
-        }
-    };
-
-    setTimeout(() => {
-        document.addEventListener('click', closeDropdown);
-        document.addEventListener('keydown', closeOnEscape);
-    }, 0);
-});
+// Repo opening lives in the repo tabs row: click + to browse, right-click + for recent repos.
 
 refreshBtn.addEventListener('click', async () => {
     if (!state.selectedRepoPath) return;

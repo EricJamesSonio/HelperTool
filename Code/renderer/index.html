@@ -62,6 +62,7 @@
   <link rel="stylesheet" href="../project-inspector/ui.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/harness-tool.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="./styles/ui-global.css">
+  <link rel="stylesheet" href="./styles/ui-neat.css">
 </head>
 <body>
 <div id="appLoadingOverlay" class="app-loading-overlay">
@@ -90,6 +91,7 @@
       <img class="titlebar-icon" src="../assets/es-code.png" width="16" height="16" alt="" draggable="false" style="width:16px;height:16px;object-fit:contain;">
       <span class="titlebar-label">ES Code</span>
     </span>
+    <span id="activeRepoName" class="repo-name titlebar-repo">No repo selected</span>
     <div class="titlebar-controls">
       <button class="titlebar-btn titlebar-minimize" title="Minimize">─</button>
       <button class="titlebar-btn titlebar-maximize" id="titlebarMaxBtn" title="Maximize">□</button>
@@ -111,13 +113,6 @@
         </button>
         <button id="clearSelectionBtn" class="tool-btn clear-btn" title="Clear selections"><span class="btn-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></span></button>
       </div>
-    </div>
-
-    <div class="navbar-section">
-      <button id="selectRepoBtn" class="primary-btn">
-        <span class="btn-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg></span>Select Repo
-      </button>
-      <span id="activeRepoName" class="repo-name">No repo selected</span>
     </div>
 
     <div class="navbar-section center">
@@ -282,13 +277,6 @@
           <div class="progress-compact">
             <progress id="progressBar" value="0" max="100"></progress>
             <span id="progressText">0%</span>
-          </div>
-          <div class="bar-divider"></div>
-          <div class="zoom-controls" id="zoomControls">
-            <button class="zoom-btn" id="zoomOutBtn" title="Zoom out (Ctrl+-)">−</button>
-            <span class="zoom-level" id="zoomLevel">100%</span>
-            <button class="zoom-btn" id="zoomInBtn" title="Zoom in (Ctrl+=)">+</button>
-            <button class="zoom-btn zoom-reset" id="zoomResetBtn" title="Reset zoom (Ctrl+0)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle"><path d="M3 10a7 7 0 0 1 11.7-4.7"/><path d="M17 10a7 7 0 0 1-11.7 4.7"/><path d="M14.5 2v4h-4"/><path d="M5.5 18v-4h4"/></svg></button>
           </div>
         </div>
       </div>
