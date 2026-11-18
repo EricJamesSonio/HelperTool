@@ -58,6 +58,12 @@ const GUIDES = [
   { id: 'normal', name: 'Normal' },
   { id: 'bold', name: 'Bold' },
 ];
+const CONTRASTS = [
+  { id: 'soft', name: 'Soft' },
+  { id: 'normal', name: 'Normal' },
+  { id: 'high', name: 'High' },
+  { id: 'max', name: 'Max' },
+];
 
 const SCOPES = [
   { id: 'ide', name: 'IDE mode only' },
@@ -71,6 +77,7 @@ const DEFAULTS = {
   font: 'default',
   icons: 'classic',
   guides: 'normal',
+  contrast: 'high',
   scope: 'ide',
   ruler: true,
   chrome: true,
@@ -136,6 +143,7 @@ function load() {
     font: pick(FONTS, r.font, DEFAULTS.font),
     icons: pick(ICON_SETS, r.icons, DEFAULTS.icons),
     guides: pick(GUIDES, r.guides, DEFAULTS.guides),
+    contrast: pick(CONTRASTS, r.contrast, DEFAULTS.contrast),
     scope: pick(SCOPES, r.scope, DEFAULTS.scope),
     ruler: flagOf(r, 'ruler'),
     chrome: flagOf(r, 'chrome'),
@@ -189,6 +197,7 @@ function apply(notify) {
   setAttr(b, 'data-ide-font', prefs.font === 'default' ? null : prefs.font);
   setAttr(b, 'data-ide-icons', prefs.icons === 'classic' ? null : prefs.icons);
   setAttr(b, 'data-ide-guides', prefs.guides);
+  setAttr(b, 'data-ide-contrast', prefs.contrast);
   setAttr(b, 'data-ide-scope', prefs.scope === 'app' ? 'app' : null);
   setAttr(b, 'data-ide-ruler', prefs.ruler ? '1' : null);
   setAttr(b, 'data-ide-chrome', prefs.chrome ? '1' : null);
@@ -306,6 +315,8 @@ function modalHtml() {
       '<aside class="ith-side">' +
         '<div class="ith-sec ith-sec-first">Apply theme to</div>' + segHtml('scope', SCOPES) +
         '<div class="ith-hint">Whole app also themes the main view outside IDE mode. Open IDE mode to change this theme.</div>' +
+        '<div class="ith-sec">Contrast</div>' + segHtml('contrast', CONTRASTS) +
+        '<div class="ith-hint">Higher contrast makes dim text, comments, line numbers and tabs brighter. Does not affect the App theme.</div>' +
         '<div class="ith-sec">Editor font</div>' +
         '<div class="ith-fonts">' + fonts + '</div>' +
         '<div class="ith-hint">Uses fonts installed on this computer. A missing font falls back to the default.</div>' +
@@ -396,6 +407,7 @@ function onPopClick(e) {
   } else if (act === 'set') {
     if (el.dataset.key === 'icons') prefs.icons = pick(ICON_SETS, el.dataset.v, prefs.icons);
     else if (el.dataset.key === 'guides') prefs.guides = pick(GUIDES, el.dataset.v, prefs.guides);
+    else if (el.dataset.key === 'contrast') prefs.contrast = pick(CONTRASTS, el.dataset.v, prefs.contrast);
     else if (el.dataset.key === 'scope') prefs.scope = pick(SCOPES, el.dataset.v, prefs.scope);
     else return;
   } else if (act === 'flag') {

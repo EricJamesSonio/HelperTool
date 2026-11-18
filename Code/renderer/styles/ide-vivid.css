@@ -1,4 +1,48 @@
-/* Higher contrast for every card theme. The App theme is not touched. */
+/* Contrast levels. data-ide-contrast is set on body by theme.js. Default is high. */
+body {
+  --ct-t2: 97%;
+  --ct-mu: 88%;
+  --ct-fa: 72%;
+  --ct-cm: 50%;
+  --ct-gu: 76%;
+  --ct-tb: 92%;
+  --ct-b1: 16%;
+  --ct-b2: 30%;
+  --ct-b3: 46%;
+}
+body[data-ide-contrast="soft"] {
+  --ct-t2: 88%;
+  --ct-mu: 66%;
+  --ct-fa: 48%;
+  --ct-cm: 100%;
+  --ct-gu: 55%;
+  --ct-tb: 78%;
+  --ct-b1: 11%;
+  --ct-b2: 20%;
+  --ct-b3: 34%;
+}
+body[data-ide-contrast="normal"] {
+  --ct-t2: 94%;
+  --ct-mu: 76%;
+  --ct-fa: 58%;
+  --ct-cm: 80%;
+  --ct-gu: 64%;
+  --ct-tb: 84%;
+  --ct-b1: 13%;
+  --ct-b2: 24%;
+  --ct-b3: 40%;
+}
+body[data-ide-contrast="max"] {
+  --ct-t2: 100%;
+  --ct-mu: 97%;
+  --ct-fa: 88%;
+  --ct-cm: 25%;
+  --ct-gu: 90%;
+  --ct-tb: 100%;
+  --ct-b1: 22%;
+  --ct-b2: 40%;
+  --ct-b3: 58%;
+}
 
 body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
 body[data-ide-theme][data-ide-chrome="1"] :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems, #ideLookup),
@@ -10,13 +54,13 @@ body[data-ide-theme] #terminalPanel {
   --bg-raised: var(--th-el);
   --bg-overlay: var(--th-el);
   --text-primary: var(--th-fg);
-  --text-secondary: color-mix(in srgb, var(--th-fg) 97%, var(--th-bg));
-  --text-muted: color-mix(in srgb, var(--th-fg) 88%, var(--th-bg));
-  --text-faint: color-mix(in srgb, var(--th-fg) 72%, var(--th-bg));
-  --border-subtle: color-mix(in srgb, var(--th-fg) 16%, transparent);
-  --border-default: color-mix(in srgb, var(--th-fg) 30%, transparent);
-  --border-mid: color-mix(in srgb, var(--th-fg) 30%, transparent);
-  --border-strong: color-mix(in srgb, var(--th-fg) 46%, transparent);
+  --text-secondary: color-mix(in srgb, var(--th-fg) var(--ct-t2), var(--th-bg));
+  --text-muted: color-mix(in srgb, var(--th-fg) var(--ct-mu), var(--th-bg));
+  --text-faint: color-mix(in srgb, var(--th-fg) var(--ct-fa), var(--th-bg));
+  --border-subtle: color-mix(in srgb, var(--th-fg) var(--ct-b1), transparent);
+  --border-default: color-mix(in srgb, var(--th-fg) var(--ct-b2), transparent);
+  --border-mid: color-mix(in srgb, var(--th-fg) var(--ct-b2), transparent);
+  --border-strong: color-mix(in srgb, var(--th-fg) var(--ct-b3), transparent);
   --bg-hover: color-mix(in srgb, var(--th-fg) 10%, transparent);
   --bg-active: color-mix(in srgb, var(--th-fg) 18%, transparent);
   --accent: var(--th-ac);
@@ -38,19 +82,28 @@ body[data-ide-theme][data-ide-tone="light"] #terminalPanel {
   color-scheme: light;
 }
 
-/* Terminal panel follows the theme */
+/* Terminal panel follows the theme, including every inner layer */
 body[data-ide-theme] #terminalPanel {
   background: var(--th-bg);
   color: var(--text-secondary);
 }
-body[data-ide-theme] #terminalPanel .terminal-body {
+body[data-ide-theme] #terminalPanel :is(.terminal-body, .terminal-instance, .terminal-instance .xterm, .terminal-instance .xterm-viewport, .terminal-instance .xterm-screen) {
+  background-color: var(--th-bg) !important;
+}
+body[data-ide-theme] #terminalPanel .xterm-viewport {
+  scrollbar-color: color-mix(in srgb, var(--th-fg) 40%, transparent) var(--th-bg);
+}
+body[data-ide-theme] #terminalPanel .xterm-viewport::-webkit-scrollbar-track {
   background: var(--th-bg);
+}
+body[data-ide-theme] #terminalPanel .xterm-viewport::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--th-fg) 40%, transparent);
 }
 body[data-ide-theme] #terminalPanel .terminal-tabs {
   background: var(--th-sf);
 }
 body[data-ide-theme] #terminalPanel .terminal-tab {
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--th-fg) var(--ct-tb), var(--th-bg));
 }
 body[data-ide-theme] #terminalPanel .terminal-tab:hover {
   color: var(--th-fg);
@@ -73,33 +126,26 @@ body[data-ide-theme] #terminalPanel .terminal-tab-add:hover {
   border-color: var(--th-ac);
   color: var(--th-ac);
 }
-body[data-ide-theme] #terminalPanel .terminal-tab-close,
-body[data-ide-theme] #terminalPanel .terminal-view-output,
-body[data-ide-theme] #terminalPanel .terminal-panel-close {
+body[data-ide-theme] #terminalPanel :is(.terminal-tab-close, .terminal-view-output, .terminal-panel-close, .terminal-instance-output-btn) {
   color: var(--text-secondary);
 }
 body[data-ide-theme] #terminalPanel .terminal-view-output:hover {
   color: var(--th-ac);
 }
-body[data-ide-theme] #terminalPanel .terminal-instance-output-btn {
-  color: var(--text-secondary);
-}
 
 /* Code colors */
 body[data-ide-theme] :is(.ide-hl-inner, .lk-hl-inner) .t-c {
-  color: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
+  color: color-mix(in srgb, var(--sx-c) var(--ct-cm), var(--th-fg));
 }
-
 body[data-ide-theme] .ide-minimap {
-  --text-muted: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
+  --text-muted: color-mix(in srgb, var(--sx-c) var(--ct-cm), var(--th-fg));
 }
-
 body[data-ide-theme] .ide-gutter {
-  color: color-mix(in srgb, var(--th-fg) 76%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) var(--ct-gu), var(--th-bg));
 }
 
 body[data-ide-theme] .ide-tab:not(.active) {
-  color: color-mix(in srgb, var(--th-fg) 92%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) var(--ct-tb), var(--th-bg));
 }
 body[data-ide-theme] .ide-tab:not(.active):hover {
   color: var(--th-fg);
@@ -113,14 +159,14 @@ body[data-ide-theme] .ide-tab.active::before {
 }
 
 body[data-ide-theme] .ide-crumb {
-  color: color-mix(in srgb, var(--th-fg) 92%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) var(--ct-tb), var(--th-bg));
 }
 body[data-ide-theme] .ide-crumb.last {
   color: var(--th-fg);
   font-weight: 600;
 }
 body[data-ide-theme] .ide-crumb-sep::before {
-  color: color-mix(in srgb, var(--th-fg) 70%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) var(--ct-gu), var(--th-bg));
 }
 
 body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-row {
@@ -142,20 +188,127 @@ body[data-ide-theme] .ide-rb-btn {
 
 /* Picker cards and live preview (App theme card is left as it was) */
 .ith-card:not([data-t="app"]) .ith-prev .c {
-  color: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
+  color: color-mix(in srgb, var(--sx-c) var(--ct-cm), var(--th-fg));
 }
 .ith-card:not([data-t="app"]) .ith-name {
   color: var(--th-fg);
 }
 .ith-pv:not([data-t="app"]) {
-  --cmu: color-mix(in srgb, var(--th-fg) 88%, var(--th-bg));
+  --cmu: color-mix(in srgb, var(--th-fg) var(--ct-mu), var(--th-bg));
 }
 .ith-pv:not([data-t="app"]) .pv-body .c {
-  color: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
+  color: color-mix(in srgb, var(--sx-c) var(--ct-cm), var(--th-fg));
 }
 .ith-pv:not([data-t="app"]) .pv-gut {
-  color: color-mix(in srgb, var(--th-fg) 76%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) var(--ct-gu), var(--th-bg));
 }
 .ith-pv:not([data-t="app"]) .pv-tab:not(.on) {
-  color: color-mix(in srgb, var(--th-fg) 92%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) var(--ct-tb), var(--th-bg));
+}
+/* Whole-app tools: dark pages and headers, lighter color only for buttons */
+body[data-ide-theme][data-ide-app="1"] {
+  --bg-surface: var(--th-bg);
+  --bg-root: var(--th-bg);
+  --bg-tree: var(--th-bg);
+  --bg-statusbar: var(--th-bg);
+  --bg-overlay: color-mix(in srgb, var(--th-bg) 55%, var(--th-el));
+}
+
+body[data-ide-theme][data-ide-app="1"] :is(.settings-header, .settings-footer, .git-tool-panel-navbar, .git-header, .workspace-navbar, .pf-header, .env-header, .rs-navbar, .oc-header) {
+  background: var(--th-bg);
+  border-color: var(--border-strong);
+}
+
+body[data-ide-theme][data-ide-app="1"] :is(.settings-title, .git-tool-panel-title, .git-title, .workspace-title, .pf-header h2, .modal-title) {
+  color: var(--th-fg);
+}
+
+body[data-ide-theme][data-ide-app="1"] :is(.settings-modal, .settings-overlay, .git-tool-panel, .git-tool-wrapper, .git-content, .workspace-container, .pf-container, .pf-body) {
+  background: var(--th-bg);
+}
+
+/* Profile cards, stats, tables */
+body[data-ide-theme][data-ide-app="1"] :is(.pf-card-vertical, .pf-stat-item, .pf-donut-wrap, .pf-history-item, .pf-detail-sidebar, .pf-detail-main, .pf-repo-card, .pf-dash-card, .pf-dash-tablewrap, .pf-commit-msg, .pf-commit-files, .pf-repos-nav-btn) {
+  background: var(--th-bg);
+  border-color: var(--border-default);
+}
+body[data-ide-theme][data-ide-app="1"] .pf-dash-cards {
+  background: var(--border-default);
+  border-color: var(--border-default);
+}
+body[data-ide-theme][data-ide-app="1"] .pf-dash-table th {
+  background: var(--th-sf);
+  color: var(--text-secondary);
+}
+body[data-ide-theme][data-ide-app="1"] .pf-dash-table td {
+  color: var(--text-secondary);
+  border-bottom-color: var(--border-subtle);
+}
+body[data-ide-theme][data-ide-app="1"] .pf-dash-name,
+body[data-ide-theme][data-ide-app="1"] .pf-card-name,
+body[data-ide-theme][data-ide-app="1"] .pf-stat-value,
+body[data-ide-theme][data-ide-app="1"] .pf-heatmap-title,
+body[data-ide-theme][data-ide-app="1"] .pf-section-title {
+  color: var(--th-fg);
+}
+body[data-ide-theme][data-ide-app="1"] :is(.pf-stat-label, .pf-dash-card-label, .pf-card-email, .pf-acc-label, .pf-acc-sub, .pf-dash-sub, .pf-history-stats, .pf-hm-legend, .pf-hm-months, .pf-hm-day-labels) {
+  color: var(--text-muted);
+}
+body[data-ide-theme][data-ide-app="1"] .pf-social-link,
+body[data-ide-theme][data-ide-app="1"] .pf-card-bio {
+  color: var(--text-secondary);
+}
+
+/* Workspace and git: cards and columns */
+body[data-ide-theme][data-ide-app="1"] :is(.ws-stat-card, .ws-home-card, .ws-home-activity, .workspace-form-section, .ws-fullheight-section, .ws-folder-panel, .workspace-project-card, .workspace-worker-card, .ws-kanban-col, .ws-assigned-worker-row, .workspace-log-item, .ws-stone-card) {
+  background: var(--th-bg);
+  border-color: var(--border-default);
+}
+body[data-ide-theme][data-ide-app="1"] :is(.git-panel, .ins-panel, .bm-panel-inline, .ins-col-head, .panel-header) {
+  border-color: var(--border-default);
+}
+body[data-ide-theme][data-ide-app="1"] :is(.ins-toolbar, .ins-col-head, .ins-preview-head, .time-group-header, .smart-group-header) {
+  background: var(--th-sf);
+}
+body[data-ide-theme][data-ide-app="1"] .commit-box {
+  background: var(--th-bg);
+  border-top-color: var(--border-default);
+}
+
+/* Bright labels and text */
+body[data-ide-theme][data-ide-app="1"] :is(.settings-section-label, .workspace-form-label, .ws-home-section-label, .ws-kanban-col-title, .ui-label, .section-label, .panel-title) {
+  color: var(--text-secondary);
+}
+body[data-ide-theme][data-ide-app="1"] :is(.settings-row-label, .ws-project-desc, .ws-kanban-card-desc, .workspace-log-message, .file-path, .commit-message) {
+  color: var(--th-fg);
+}
+
+/* Buttons keep the lighter color, with bright text */
+body[data-ide-theme][data-ide-app="1"] :is(.workspace-nav-chip, .workspace-back-btn, .git-tool-panel-close-btn, .settings-reset-btn, .modal-btn-secondary, .action-btn, .tool-btn, .pf-btn:not(.primary), .pf-repo-visit-btn) {
+  background: var(--th-el);
+  border-color: var(--border-default);
+  color: var(--th-fg);
+}
+body[data-ide-theme][data-ide-app="1"] :is(.workspace-nav-chip, .workspace-back-btn, .git-tool-panel-close-btn, .settings-reset-btn, .modal-btn-secondary, .action-btn, .tool-btn, .pf-btn:not(.primary), .pf-repo-visit-btn):hover {
+  border-color: var(--th-ac);
+  color: var(--th-ac);
+}
+
+/* Inactive tabs */
+body[data-ide-theme][data-ide-app="1"] :is(.pf-tab, .ws-tab-btn, .git-nav-tab, .ui-tab, .view-tab):not(.active) {
+  color: color-mix(in srgb, var(--th-fg) var(--ct-tb), var(--th-bg));
+}
+body[data-ide-theme][data-ide-app="1"] .git-nav {
+  background: var(--th-el);
+  border-color: var(--border-default);
+}
+body[data-ide-theme][data-ide-app="1"] :is(.pf-tab.active, .ws-tab-btn.active, .git-nav-tab.active, .ui-tab.active) {
+  color: var(--th-ac);
+}
+
+/* Inputs */
+body[data-ide-theme][data-ide-app="1"] :is(.workspace-input, .workspace-select, .workspace-textarea, .pf-edit-input, .pf-edit-textarea, .pf-history-search, .pf-repos-search, .pf-repos-token-input, .commit-input, .commit-input-text, .commit-select, .ins-select, .ins-filter, .ui-input, .ui-select, .ui-textarea) {
+  background: var(--th-bg);
+  border-color: var(--border-default);
+  color: var(--th-fg);
 }
