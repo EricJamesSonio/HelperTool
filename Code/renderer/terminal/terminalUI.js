@@ -1,10 +1,12 @@
 let TerminalClass = null;
 let FitAddonClass = null;
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
+
 let themeFn = null;
 let xtermLoaded = false;
 
 const DOCK_H_KEY = 'helpertool-ide-terminal-h2';
-const DOCK_H_DEFAULT = 200;
+const DOCK_H_DEFAULT = DEFAULT_PREFERENCES.ide.terminalDockHeight;
 
 async function ensureXterm() {
   if (xtermLoaded) return;
