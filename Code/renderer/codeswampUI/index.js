@@ -176,6 +176,12 @@ export function openCodeSwampUI() {
       initCodeSwampUI();
     } else {
       restoreActiveView();
+      if (state.activeTab) {
+        const repo = state.activeTab;
+        import('./terminalManager.js')
+          .then((m) => m.prewarmAllProviders(repo))
+          .catch(() => {});
+      }
     }
   }
 }

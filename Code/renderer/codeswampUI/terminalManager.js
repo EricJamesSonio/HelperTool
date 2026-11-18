@@ -51,6 +51,7 @@ function isSubmitData(data) {
 function sleepCandidate(inst, now) {
   if (!inst || !inst.terminal) return false;
   if (inst.revealed !== false || inst.used || inst.chatted) return false;
+  if (sameRepoPath(inst.repoPath, state.activeTab)) return false;
   const idle = now - (inst.lastUserAt || inst.bootStart || now);
   const mins = sleepMinutes(SLEEP_PREWARM_KEY, 2);
   return mins > 0 && idle > mins * 60000;
@@ -149,16 +150,20 @@ function sameRepoPath(a, b) {
   return normRepoPath(a) === normRepoPath(b);
 }
 
-function _findSlotByRepoPath(repoPath) {
-  const want = state.parallelMode ? null : getProvider(state.selectedProvider).id;
+function _findSlotForProvider(repoPath, providerId) {
   let hidden = -1;
   for (const [slot, inst] of Object.entries(instances)) {
     if (!inst || !sameRepoPath(inst.repoPath, repoPath)) continue;
-    if (want && inst.provider && inst.provider !== want) continue;
+    if (providerId && inst.provider && inst.provider !== providerId) continue;
     if (inst.revealed !== false) return Number(slot);
     if (hidden < 0) hidden = Number(slot);
   }
   return hidden;
+}
+
+function _findSlotByRepoPath(repoPath) {
+  const want = state.parallelMode ? null : getProvider(state.selectedProvider).id;
+  return _findSlotForProvider(repoPath, want);
 }
 
 export function getRevealedProvider(repoPath) {
@@ -358,7 +363,7 @@ export async function initXterm() {
 export function createTerminalSession(repoPath, slotIndex = 0, opts = {}) {
   if (instances[slotIndex]) return Promise.resolve(instances[slotIndex]);
   if (_creating.has(slotIndex)) return _creating.get(slotIndex);
-  const pid = getProvider(state.selectedProvider).id;
+  const pid = getProvider((opts && opts.providerId) || state.selectedProvider).id;
   const p = _createSession(repoPath, slotIndex, opts)
     .then((inst) => {
       if (inst && !inst.provider) inst.provider = pid;
@@ -390,7 +395,7 @@ async function _createSession(repoPath, slotIndex, opts) {
   const existing = _getSlotDiv(slotIndex);
   if (existing) existing.remove();
 
-  const provider = getProvider(state.selectedProvider);
+  const provider = getProvider((opts && opts.providerId) || state.selectedProvider);
 
   const div = document.createElement('div');
   div.className = `oc-term-instance slot-${slotIndex}`;
@@ -403,7 +408,7 @@ async function _createSession(repoPath, slotIndex, opts) {
   viewBtn.title = 'View full terminal output';
   viewBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const inst = instances[slotIndex];
+    const inst = instances[Number(div.dataset.slot)];
     if (!inst || !inst.terminal) return;
     const buf = inst.terminal.buffer.active;
     const total = buf.baseY + buf.cursorY;
@@ -415,7 +420,7 @@ async function _createSession(repoPath, slotIndex, opts) {
     showOutputViewer({ title: `Terminal [${repoPath.split('\\').pop().split('/').pop() || repoPath}]`, content: lines.join('\n'), language: 'terminal' });
   });
   div.appendChild(viewBtn);
-  if (!state.parallelMode) {
+  if (!state.parallelMode || background) {
     div.style.position = 'absolute';
     div.style.top = '0';
     div.style.left = '0';
@@ -430,7 +435,7 @@ async function _createSession(repoPath, slotIndex, opts) {
   }
   container.appendChild(div);
   div.addEventListener('click', () => {
-    if (state.parallelMode) activateSlot(slotIndex);
+    if (state.parallelMode) activateSlot(Number(div.dataset.slot));
   });
 
   if (background) {
@@ -518,13 +523,20 @@ async function _createSession(repoPath, slotIndex, opts) {
   const lc = getLoadingController();
   if (!background) lc.setProgress('Starting shell...', 0.35);
 
+  const hasConvOverride = !!(opts && Object.prototype.hasOwnProperty.call(opts, 'convId'));
+  const convId = hasConvOverride
+    ? opts.convId
+    : (state.slotData[slotIndex]?.convId || state.activeConvId[repoPath]);
+
   const instance = {
     id: result.id,
     terminal,
     fitAddon,
     div,
     repoPath,
+    provider: provider.id,
     slotIndex,
+    convId: convId || null,
     ready: false,
     booted: false,
     revealed: !background,
@@ -558,7 +570,6 @@ async function _createSession(repoPath, slotIndex, opts) {
   requestAnimationFrame(() => fitActiveTerminal());
 
   const binaryPath = provider.id === 'opencode' ? (state.opencodePath || provider.bin) : provider.bin;
-  const convId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
   const cmd = convId ? provider.resumeCmd(convId, binaryPath) : provider.newChatCmd(binaryPath);
   window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
 
@@ -1200,7 +1211,10 @@ export function getTerminalInstances() {
 function killUnusedPrewarmed(keepRepo) {
   Object.keys(instances).forEach((key) => {
     const inst = instances[key];
-    if (inst && inst.prewarmed && !inst.used && inst.repoPath !== keepRepo) killSlot(Number(key));
+    if (!inst || !inst.prewarmed || inst.chatted) return;
+    if (keepRepo && sameRepoPath(inst.repoPath, keepRepo)) return;
+    if (state.parallelMode && inst.revealed !== false) return;
+    killSlot(Number(key));
   });
 }
 export function discardPrewarmed() {
@@ -1218,41 +1232,68 @@ export function discardUnchatted() {
   });
 }
 
-export function awaitPrewarm(repoPath) {
-  const p = _prewarming.get(repoPath);
+const AUTO_PREPARE_PROVIDERS = ['opencode', 'cline', 'copilot'];
+
+function prewarmKey(repoPath, providerId) {
+  return repoPath + '|' + providerId;
+}
+
+export function awaitPrewarm(repoPath, providerId) {
+  const pid = providerId || getProvider(state.selectedProvider).id;
+  const p = _prewarming.get(prewarmKey(repoPath, pid));
   return p ? p.then(() => undefined, () => undefined) : Promise.resolve();
 }
 
-export function prewarmSession(repoPath) {
-  if (!repoPath || !prewarmEnabled() || state.parallelMode) return Promise.resolve(null);
-  const have = _findSlotByRepoPath(repoPath);
+export function prewarmSession(repoPath, providerId) {
+  const pid = providerId || getProvider(state.selectedProvider).id;
+  if (!repoPath || !pid || !prewarmEnabled()) return Promise.resolve(null);
+  const have = _findSlotForProvider(repoPath, pid);
   if (have >= 0) return Promise.resolve(instances[have]);
-  if (_prewarming.has(repoPath)) return _prewarming.get(repoPath);
+  const key = prewarmKey(repoPath, pid);
+  if (_prewarming.has(key)) return _prewarming.get(key);
   const p = (async () => {
     killUnusedPrewarmed(repoPath);
     for (let i = 0; i < 15 && !(state.terminalShells && state.terminalShells.length); i++) {
       await sleep(100);
     }
-    if (_findSlotByRepoPath(repoPath) >= 0) return null;
-    const slot = getNextFreeSlot();
+    if (_findSlotForProvider(repoPath, pid) >= 0) return null;
+    const slot = _prepSlot();
     if (slot < 0) return null;
-    return createTerminalSession(repoPath, slot, { background: true });
+    const selected = getProvider(state.selectedProvider).id;
+    return createTerminalSession(repoPath, slot, {
+      background: true,
+      providerId: pid,
+      convId: pid === selected ? (state.activeConvId[repoPath] || null) : null,
+    });
   })()
     .catch((err) => {
       console.warn('[CS] prewarm failed:', err && err.message ? err.message : err);
       return null;
     })
     .finally(() => {
-      _prewarming.delete(repoPath);
+      _prewarming.delete(key);
     });
-  _prewarming.set(repoPath, p);
+  _prewarming.set(key, p);
   return p;
 }
 
-export function revealTerminalForRepo(repoPath) {
-  const slot = _findSlotByRepoPath(repoPath);
-  if (slot < 0) return false;
+export async function prewarmAllProviders(repoPath) {
+  if (!repoPath || !prewarmEnabled()) return [];
+  killUnusedPrewarmed(repoPath);
+  const selected = getProvider(state.selectedProvider).id;
+  const order = [selected, ...AUTO_PREPARE_PROVIDERS.filter((id) => id !== selected)];
+  const out = [];
+  for (const pid of order) {
+    if (!AUTO_PREPARE_PROVIDERS.includes(pid)) continue;
+    out.push(await prewarmSession(repoPath, pid));
+  }
+  return out;
+}
+
+
+function _revealInstance(slot) {
   const inst = instances[slot];
+  if (!inst) return false;
   inst.revealed = true;
   inst.used = true;
   inst.lastUserAt = Date.now();
@@ -1264,6 +1305,144 @@ export function revealTerminalForRepo(repoPath) {
   state.activeSlotIndex = slot;
   showSlot(slot);
   return true;
+}
+
+export function activateProviderForRepo(repoPath, providerId) {
+  const pid = providerId || getProvider(state.selectedProvider).id;
+  if (!repoPath || !pid) return false;
+  let slot = _findSlotForProvider(repoPath, pid);
+  if (slot < 0) return false;
+  if (state.parallelMode && slot >= state.parallelSlots) {
+    const target = Math.max(0, Math.min(state.activeSlotIndex, state.parallelSlots - 1));
+    _swapIntoGrid(slot, target);
+    slot = target;
+  }
+  const shown = _revealInstance(slot);
+  if (shown) fitActiveTerminal();
+  return shown;
+}
+function _prepSlot() {
+  const start = state.parallelMode ? state.parallelSlots : 0;
+  for (let i = start; i < 20; i++) {
+    if (!instances[i] && !_creating.has(i)) return i;
+  }
+  return -1;
+}
+
+function _placeInstance(inst, slot, show) {
+  if (!inst) return;
+  const div = inst.div;
+  if (div) {
+    div.className = div.className.replace(/\bslot-\d+\b/g, '').replace(/\s+/g, ' ').trim() + ' slot-' + slot;
+    div.dataset.slot = String(slot);
+    if (show) {
+      if (state.parallelMode) {
+        div.style.position = 'relative';
+        div.style.top = '';
+        div.style.left = '';
+        div.style.width = '';
+        div.style.height = '';
+      } else {
+        div.style.position = 'absolute';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.height = '100%';
+      }
+      div.style.display = '';
+      div.style.visibility = '';
+      div.style.pointerEvents = '';
+    } else {
+      div.style.position = 'absolute';
+      div.style.top = '0';
+      div.style.left = '0';
+      div.style.width = '100%';
+      div.style.height = '100%';
+      div.style.visibility = 'hidden';
+      div.style.pointerEvents = 'none';
+    }
+  }
+  inst.slotIndex = slot;
+  if (!show) inst.revealed = false;
+  instances[slot] = inst;
+}
+
+function _swapIntoGrid(outer, target) {
+  const incoming = instances[outer];
+  if (!incoming) return;
+  const outgoing = instances[target] || null;
+  const data = state.slotData[target] || null;
+  delete instances[outer];
+  delete instances[target];
+  delete state.slotData[outer];
+  delete state.slotData[target];
+  if (outgoing) {
+    outgoing.convId = data ? (data.convId || null) : (outgoing.convId || null);
+    _placeInstance(outgoing, outer, false);
+  }
+  _placeInstance(incoming, target, true);
+  const convId = incoming.convId || null;
+  state.slotData[target] = { repoPath: incoming.repoPath, convId };
+  state.activeConvId[incoming.repoPath] = convId;
+}
+
+export function showProviderForRepo(repoPath, providerId) {
+  const pid = providerId || getProvider(state.selectedProvider).id;
+  if (!repoPath || !pid) return false;
+  if (state.parallelMode) return activateProviderForRepo(repoPath, pid);
+  const slot = _findSlotForProvider(repoPath, pid);
+  if (slot < 0) return false;
+  const shown = _revealInstance(slot);
+  if (shown) fitActiveTerminal();
+  return shown;
+}
+
+export function takePreparedForNewChat(repoPath, providerId) {
+  const pid = providerId || getProvider(state.selectedProvider).id;
+  if (!repoPath || !pid) return -1;
+  let slot = -1;
+  for (const [s, inst] of Object.entries(instances)) {
+    if (!inst || !sameRepoPath(inst.repoPath, repoPath)) continue;
+    if (inst.provider !== pid || inst.revealed !== false || inst.chatted || inst.convId) continue;
+    slot = Number(s);
+    break;
+  }
+  if (slot < 0) return -1;
+  if (state.parallelMode && slot >= state.parallelSlots) {
+    const free = getFreeSlot();
+    if (free < 0) return -1;
+    const moving = instances[slot];
+    delete instances[slot];
+    _placeInstance(moving, free, true);
+    slot = free;
+  }
+  const inst = instances[slot];
+  if (!inst) return -1;
+  inst.prewarmed = false;
+  inst.convId = null;
+  state.slotData[slot] = { repoPath, convId: null };
+  state.activeConvId[repoPath] = null;
+  _revealInstance(slot);
+  fitActiveTerminal();
+  return slot;
+}
+
+export function getProviderStatus(repoPath) {
+  const out = {};
+  for (const inst of Object.values(instances)) {
+    if (!inst || !inst.provider || !sameRepoPath(inst.repoPath, repoPath)) continue;
+    const st = inst.booted ? 'ready' : 'booting';
+    if (out[inst.provider] !== 'ready') out[inst.provider] = st;
+  }
+  return out;
+}
+
+
+export function revealTerminalForRepo(repoPath, providerId) {
+  const pid = providerId || getProvider(state.selectedProvider).id;
+  const slot = _findSlotForProvider(repoPath, pid);
+  if (slot < 0) return false;
+  return _revealInstance(slot);
 }
 
 export function isTerminalRevealed(repoPath) {
@@ -1287,19 +1466,16 @@ export function switchProviderView(repoPath, prevProvider) {
     _convStash[repoPath + '|' + prevProvider] = state.activeConvId[repoPath] || null;
     state.activeConvId[repoPath] = _convStash[repoPath + '|' + now] || null;
   }
-  const slot = _findSlotByRepoPath(repoPath);
-  const inst = slot >= 0 ? instances[slot] : null;
-  if (inst && inst.revealed !== false) {
-    stageTerminal(false);
-    state.activeSlotIndex = slot;
-    showSlot(slot);
+  const slot = _findSlotForProvider(repoPath, now);
+  if (slot >= 0 && _revealInstance(slot)) {
+    fitActiveTerminal();
     return true;
   }
   const welcome = document.getElementById('ocWelcome');
   const wrapper = document.getElementById('ocTerminal');
   if (welcome) welcome.style.display = '';
   if (wrapper) wrapper.style.display = 'none';
-  if (inst) {
+  if (slot >= 0) {
     state.activeSlotIndex = slot;
   } else {
     const free = getNextFreeSlot();
@@ -1376,6 +1552,12 @@ export function getNextFreeSlot() {
 
 export function setParallelConfig(mode, count) {
   const wasParallel = state.parallelMode;
+
+  Object.keys(instances).forEach((key) => {
+    const inst = instances[key];
+    if (inst && inst.prewarmed && !inst.chatted && inst.revealed === false) killSlot(Number(key));
+  });
+
   state.parallelMode = mode;
   state.parallelSlots = count;
 
@@ -1426,12 +1608,29 @@ export function setParallelConfig(mode, count) {
   }
 
   fitActiveTerminal();
+
+  if (state.activeTab) {
+    const repo = state.activeTab;
+    setTimeout(() => {
+      prewarmAllProviders(repo).catch(() => {});
+    }, 300);
+  }
 }
 
 export function activateSlot(slotIndex) {
   if (slotIndex < 0 || (state.parallelMode && slotIndex >= state.parallelSlots)) return;
   if (!state.parallelMode && slotIndex > 0) return;
   const prevSlot = state.activeSlotIndex;
+  const inst = instances[slotIndex];
+  if (inst) {
+    inst.revealed = true;
+    inst.used = true;
+    inst.lastUserAt = Date.now();
+    if (inst.div) {
+      inst.div.style.visibility = '';
+      inst.div.style.pointerEvents = '';
+    }
+  }
   state.activeSlotIndex = slotIndex;
   _highlightActiveSlot();
   showSlot(slotIndex);

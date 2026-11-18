@@ -10,6 +10,8 @@ import { renderConvList } from './repoTabs.js';
 import { getLoadingController } from './loading.js';
 import { getProviderList } from './providers.js';
 import { convStore } from './conversationStore.js';
+import { takePreparedForNewChat } from './terminalManager.js';
+
 
 export function renderShellSelect() {
   const select = document.getElementById('ocShellSelect');
@@ -87,12 +89,13 @@ export function renderAIProviderSelect() {
     try { localStorage.setItem('helpertool-cs-provider', select.value); } catch (_) {}
     const repo = state.activeTab;
     import('./terminalManager.js').then((m) => {
-      if (repo && !state.parallelMode) {
-        m.switchProviderView(repo, prev);
-        m.prewarmSession(repo).catch(() => {});
-      } else {
-        m.discardPrewarmed();
-        if (repo) m.prewarmSession(repo).catch(() => {});
+      if (repo) {
+        if (state.parallelMode) {
+          m.activateProviderForRepo(repo, select.value);
+        } else {
+          m.switchProviderView(repo, prev);
+        }
+        m.prewarmSession(repo, select.value).catch(() => {});
       }
       renderConvList();
       return refreshSidebar(true);
@@ -292,13 +295,31 @@ export async function startNewChat() {
 
   state.lastSentMessage = null;
 
-  const freeSlot = state.parallelMode ? getFreeSlot() : getNextFreeSlot();
-  if (freeSlot >= 0) {
-    state.activeConvId[repoPath] = null;
-    state.activeSlotIndex = freeSlot;
-    state.slotData[freeSlot] = { repoPath, convId: null };
-    await openTerminalForRepo(repoPath, freeSlot);
+  const prepared = takePreparedForNewChat(repoPath, state.selectedProvider);
+  if (prepared >= 0) {
     renderConvList();
+    const preparedInput = document.getElementById('ocInput');
+    if (preparedInput) setTimeout(() => preparedInput.focus(), 50);
+    return;
+  }
+
+  const existing = !state.parallelMode ? getSlotForRepo(repoPath) : -1;
+  if (existing >= 0) {
+    killSlot(existing);
+    state.activeConvId[repoPath] = null;
+    state.activeSlotIndex = existing;
+    state.slotData[existing] = { repoPath, convId: null };
+    await openTerminalForRepo(repoPath, existing);
+    renderConvList();
+  } else {
+    const freeSlot = state.parallelMode ? getFreeSlot() : getNextFreeSlot();
+    if (freeSlot >= 0) {
+      state.activeConvId[repoPath] = null;
+      state.activeSlotIndex = freeSlot;
+      state.slotData[freeSlot] = { repoPath, convId: null };
+      await openTerminalForRepo(repoPath, freeSlot);
+      renderConvList();
+    }
   }
 
   const input = document.getElementById('ocInput');

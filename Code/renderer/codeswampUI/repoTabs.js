@@ -6,6 +6,8 @@ import { getProvider } from './providers.js';
 import { convStore } from './conversationStore.js';
 import { promptDialog, confirmDialog } from '../utils/confirmDialog.js';
 import { ensureRepoBadges, dismissRepo, undismissRepo } from './repoBadges.js';
+import { prewarmAllProviders, showProviderForRepo } from './terminalManager.js';
+
 
 function normRepo(p) {
   return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -62,6 +64,9 @@ export async function addRepo(repoPath) {
   }
   renderRepoTabs();
   ensureRepoBadges();
+  if (state.activeTab) {
+    prewarmAllProviders(state.activeTab).catch(() => {});
+  }
 }
 
 export async function openRepoTab(repoPath) {
@@ -70,6 +75,7 @@ export async function openRepoTab(repoPath) {
   const tab = ensureTab(repoPath);
   switchTab(tab.repoPath);
   refreshSidebar().catch(() => {});
+  prewarmAllProviders(tab.repoPath).catch(() => {});
 }
 
 export async function closeRepoTab(repoPath, slotIndex) {
@@ -171,7 +177,7 @@ export function restoreActiveView() {
   const repoPath = state.activeTab;
   const welcome = document.getElementById('ocWelcome');
   if (!repoPath || !welcome || welcome.style.display === 'none') return;
-  if (!hasRevealedTerminal(repoPath)) return;
+  if (!hasTerminalSession(repoPath)) return;
   switchTab(repoPath);
 }
 
@@ -181,6 +187,10 @@ export function switchTab(repoPath) {
 
   if (!isTerminalRevealed(repoPath)) {
     adoptProvider(getRevealedProvider(repoPath));
+  }
+
+  if (!state.parallelMode && hasTerminalSession(repoPath) && !isTerminalRevealed(repoPath)) {
+    showProviderForRepo(repoPath, state.selectedProvider);
   }
 
   if (hasTerminalSession(repoPath) && isTerminalRevealed(repoPath)) {
@@ -202,6 +212,7 @@ export function switchTab(repoPath) {
   updateRepoPath(repoPath);
   renderRepoTabs();
   renderConvList();
+  import('./providerTabs.js').then((m) => m.renderProviderTabs()).catch(() => {});
 }
 
 export function renderRepoTabs() {
