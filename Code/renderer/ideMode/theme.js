@@ -5,6 +5,7 @@ const CSS_ID = 'ideThemeCss';
 
 const GROUPS = [
   { id: 'dark', title: 'Dark themes' },
+  { id: 'hacker', title: 'Hacker themes' },
   { id: 'light', title: 'Light themes' },
   { id: 'mac', title: 'macOS themes' },
 ];
@@ -28,6 +29,11 @@ const THEMES = [
   { id: 'noir', name: 'Noir Slate', tone: 'dark', group: 'dark' },
   { id: 'neon', name: 'Neon Night', tone: 'dark', group: 'dark' },
   { id: 'scarlet', name: 'Scarlet Pop', tone: 'dark', group: 'dark' },
+  { id: 'crimson', name: 'Crimson Code', tone: 'dark', group: 'dark' },
+  { id: 'magenta', name: 'Magenta Burst', tone: 'dark', group: 'dark' },
+  { id: 'maroon', name: 'Maroon Night', tone: 'dark', group: 'dark' },
+  { id: 'matrix', name: 'Matrix Green', tone: 'dark', group: 'hacker' },
+  { id: 'hackerblack', name: 'Terminal Black', tone: 'dark', group: 'hacker' },
   { id: 'ghlight', name: 'GitHub Light', tone: 'light', group: 'light' },
   { id: 'lightplus', name: 'Light+', tone: 'light', group: 'light' },
   { id: 'daylight', name: 'Daylight', tone: 'light', group: 'light' },
