@@ -18,7 +18,7 @@ function rawGetOnce(url, token) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       headers: {
-        'User-Agent': 'HelperTool/1.0',
+        'User-Agent': 'ES Code/1.0',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     }, res => {
