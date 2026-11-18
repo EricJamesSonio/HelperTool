@@ -7,6 +7,9 @@
 
 import * as branchManager from './branchManager.js';
 import * as inspectPanel from './inspectPanel.js';
+import { mountPushChecksToggle } from './pushChecks.js';
+import { openChangedFile } from './openChangedFile.js';
+
 
 const ICON_GIT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="4" r="2"/><circle cx="15" cy="16" r="2"/><path d="M5 6v8a4 4 0 0 0 4 4h6"/></svg>';
 const ICON_FILE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h4.5L15 7.5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M10.5 2v5.5H16"/></svg>';
@@ -64,6 +67,7 @@ class GitToolUI {
     this.refreshUI();
     this._syncNav();
     this.setupComplete = true;
+    mountPushChecksToggle(this.container);
     // When connectivity data finishes loading from symbols.json, re-render with smart splits
     this.gitHandler._onConnectivityReady = () => this.refreshUI();
   }
@@ -261,6 +265,9 @@ class GitToolUI {
       }
       if (e.target.closest('.working-file-item')) {
         this.handleFileSelection(e);
+      }
+      if (e.target.closest('.working-file-item') || e.target.closest('.staged-file-item')) {
+        this.handleOpenFile(e);
       }
       if (e.target.closest('.stage-btn')) {
         this.handleStageFile(e);
@@ -494,6 +501,30 @@ class GitToolUI {
     } else {
       this.selectedFiles.delete(filePath);
     }
+  }
+
+  /**
+   * Open a clicked working tree or staged file: in the IDE at its first change,
+   * or scrolled to and highlighted in the main tree outside IDE mode
+   */
+  async handleOpenFile(event) {
+    const row = event.target.closest('.working-file-item, .staged-file-item');
+    if (!row) return;
+    if (event.target.closest('.file-checkbox, .stage-btn, .unstage-btn')) return;
+
+    const file = row.dataset.file;
+    if (!file) return;
+
+    const gitState = this.gitManager.getState();
+    const list = row.classList.contains('staged-file-item') ? gitState.staged : gitState.workingTree;
+    const entry = list.find((f) => f.file === file);
+
+    const result = await openChangedFile({
+      repoPath: this.gitHandler.repoPath,
+      file,
+      status: entry ? entry.status : '',
+    });
+    if (!result.success) this.showError(result.error);
   }
 
   /**
@@ -897,7 +928,7 @@ class GitToolUI {
       '<div class="file-item working-file-item" data-file="' + file.file + '">' +
       '<input type="checkbox" class="file-checkbox" data-file="' + file.file + '" />' +
       '<span class="file-status-badge status-' + status + '">' + label + '</span>' +
-      '<span class="file-path" title="' + file.file + '">' + this.escapeHtml(file.file) + '</span>' +
+      '<span class="file-path" title="' + file.file + ' (click to open)">' + this.escapeHtml(file.file) + '</span>' +
       '<button class="stage-btn btn-icon-small" data-file="' + file.file + '" title="Stage file">' + ICON_ARROW_RIGHT + '</button>' +
       '</div>'
     );
@@ -976,7 +1007,7 @@ class GitToolUI {
       return (
         '<div class="file-item staged-file-item" data-file="' + file.file + '">' +
         '<span class="file-status-badge status-' + this.getStatusClass(file.status) + '">' + this.getStatusLabel(file.status) + '</span>' +
-        '<span class="file-path" title="' + file.file + '">' + this.getFileName(file.file) + '</span>' +
+        '<span class="file-path" title="' + file.file + ' (click to open)">' + this.getFileName(file.file) + '</span>' +
         '<button class="unstage-btn btn-icon-small" data-file="' + file.file + '" title="Unstage file">' + ICON_ARROW_LEFT + '</button>' +
         '</div>'
       );

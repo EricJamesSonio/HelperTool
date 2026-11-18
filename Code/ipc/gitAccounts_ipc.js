@@ -680,7 +680,7 @@ function registerRepoTools() {
       const ctx = await activeCtx(payload && payload.accountId);
       if (ctx.error) return { success: false, error: ctx.error };
       const page = Math.max(1, Math.min(20, Number(payload && payload.page) || 1));
-      const perPage = 50;
+      const perPage = 100;
       const res = await ghGet('/user/repos?per_page=' + perPage + '&sort=updated&affiliation=owner,collaborator,organization_member&page=' + page, ctx.token);
       if (res.status === 401) return { success: false, error: 'GitHub rejected the saved token. Sign in again.' };
       if (res.status !== 200 || !Array.isArray(res.body)) {

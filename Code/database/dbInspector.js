@@ -211,12 +211,21 @@ function getGraphData(snapshotId) {
   }
 
   const edges = [];
+  const usedIds = new Set();
   for (const [srcTable, srcCol, tgtTable, tgtCol, cName] of relRows) {
     const src = nodeMap[srcTable];
     const tgt = nodeMap[tgtTable];
     if (src && tgt) {
+      const baseId = [src, tgt, srcCol, tgtCol, cName || ''].join('-');
+      let edgeId = baseId;
+      let n = 1;
+      while (usedIds.has(edgeId)) {
+        n++;
+        edgeId = baseId + '-' + n;
+      }
+      usedIds.add(edgeId);
       edges.push({
-        id: src + '-' + tgt,
+        id: edgeId,
         source: src,
         target: tgt,
         label: cName || '',

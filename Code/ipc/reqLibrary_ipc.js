@@ -2,22 +2,41 @@ const { ipcMain, BrowserWindow } = require('electron');
 const config = require('../config/config.js');
 const { makeReqLibraryStore } = require('../utils/reqLibraryStore.js');
 
-const F5_SCRIPT = [
+const SHORTCUT_KEY = '.';
+
+const SHORTCUT_SCRIPT = [
     '(function () {',
-    '  if (document.body.classList.contains("ide-mode")) {',
-    '    document.dispatchEvent(new KeyboardEvent("keydown", { key: "F5", code: "F5", keyCode: 116, bubbles: true, cancelable: true }));',
-    '    return;',
+    '  var el = document.activeElement;',
+    '  if (el && el !== document.body) {',
+    '    var tag = String(el.tagName || "").toLowerCase();',
+    '    var type = String(el.type || "").toLowerCase();',
+    '    var textTypes = ["text", "search", "email", "password", "url", "tel", "number", ""];',
+    '    if (tag === "textarea" || el.isContentEditable || (tag === "input" && textTypes.indexOf(type) !== -1)) {',
+    '      return "skipped: typing in " + tag;',
+    '    }',
+    '  }',
+    '  var panel = document.getElementById("rlPanel");',
+    '  if (panel && panel.classList.contains("open")) {',
+    '    var closeBtn = panel.querySelector("[data-act=close]");',
+    '    if (closeBtn) {',
+    '      closeBtn.click();',
+    '      return "closed";',
+    '    }',
     '  }',
     '  var btn = document.getElementById("reqLibraryBtn");',
-    '  if (btn) btn.click();',
+    '  if (!btn) return "failed: #reqLibraryBtn not found";',
+    '  btn.click();',
+    '  return "clicked button (ide-mode: " + document.body.classList.contains("ide-mode") + ")";',
     '})();',
 ].join('\n');
 
 /**
  * Requirements Library IPC. Every call is scoped to one repository.
  * The renderer sends repoPath in the payload; the active project is only a fallback.
- * Also owns the F5 shortcut: F5 is intercepted before the page sees it, so the
- * default reload never wins, and it presses the Requirements Library button.
+ * Also owns the dot shortcut: pressing "." with no modifier presses the
+ * Requirements Library button, unless the user is typing in a text field.
+ * Every press logs its outcome to the terminal. Logs use the [Main] prefix
+ * because utils/log.js hides every other prefix.
  * @param {{ app }} deps
  */
 function register({ app }) {
@@ -40,28 +59,32 @@ function register({ app }) {
         ipcMain.handle(channel, (event, payload) => fn(withRepo(payload)));
     }
 
-    function attachF5(win) {
+    function attachShortcut(win) {
         if (!win || win.isDestroyed() || attached.has(win)) return;
         attached.add(win);
         const wc = win.webContents;
         wc.on('before-input-event', (event, input) => {
-            if (input.type !== 'keyDown' || input.key !== 'F5') return;
+            if (input.type !== 'keyDown' || input.key !== SHORTCUT_KEY) return;
             if (input.control || input.alt || input.shift || input.meta) return;
+            if (input.isAutoRepeat) return;
             let url = '';
             try {
                 url = wc.getURL();
             } catch (_) {
                 url = '';
             }
-            if (!/index\.html/i.test(url)) return;
-            event.preventDefault();
-            if (input.isAutoRepeat) return;
-            wc.executeJavaScript(F5_SCRIPT, true).catch(() => {});
+            if (!/index\.html/i.test(url)) {
+                console.log('[Main] ReqLibrary "." ignored, window url:', url);
+                return;
+            }
+            wc.executeJavaScript(SHORTCUT_SCRIPT, true)
+                .then((result) => console.log('[Main] ReqLibrary "." ->', result))
+                .catch((err) => console.log('[Main] ReqLibrary "." failed:', err && err.message));
         });
     }
 
-    BrowserWindow.getAllWindows().forEach(attachF5);
-    app.on('browser-window-created', (_event, win) => attachF5(win));
+    BrowserWindow.getAllWindows().forEach(attachShortcut);
+    app.on('browser-window-created', (_event, win) => attachShortcut(win));
 
     handle('reqLib:load', store.loadAll);
     handle('reqLib:updateProfile', store.updateProfile);

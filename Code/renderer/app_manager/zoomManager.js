@@ -1,55 +1,90 @@
-const ZOOM_MIN = 0.5;
+const ZOOM_MIN = 1;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
+const ZOOM_KEY = 'helpertool-ui-zoom';
 
 let _zoom = 1;
 let _zoomKeyHandler = null;
 
-function setZoom(val) {
-  _zoom = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, val)) * 10) / 10;
-  const el = document.getElementById('treeContainer');
-  if (el) el.style.setProperty('--tree-zoom', _zoom);
+function _clamp(val) {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return 1;
+  return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, n)) * 10) / 10;
+}
+
+function _readSaved() {
+  try {
+    return _clamp(localStorage.getItem(ZOOM_KEY) || 1);
+  } catch (_) {
+    return 1;
+  }
+}
+
+function _saveZoom() {
+  try {
+    localStorage.setItem(ZOOM_KEY, String(_zoom));
+  } catch (_) {}
+}
+
+function setZoom(val, persist = true) {
+  _zoom = _clamp(val);
+  document.documentElement.style.setProperty('--ui-zoom', String(_zoom));
+
   const lbl = document.getElementById('zoomLevel');
   if (lbl) lbl.textContent = Math.round(_zoom * 100) + '%';
+
+  const outBtn = document.getElementById('zoomOutBtn');
+  const inBtn = document.getElementById('zoomInBtn');
+  if (outBtn) outBtn.disabled = _zoom <= ZOOM_MIN;
+  if (inBtn) inBtn.disabled = _zoom >= ZOOM_MAX;
+
+  if (persist) _saveZoom();
+  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+}
+
+function _mountInTitlebar() {
+  const controls = document.getElementById('zoomControls');
+  const host = document.querySelector('.titlebar-controls');
+  if (!controls || !host) return controls;
+  controls.classList.add('zoom-controls--titlebar');
+  controls.style.display = '';
+  if (controls.parentElement !== host) host.insertBefore(controls, host.firstChild);
+  return controls;
 }
 
 export function initZoomManager() {
-  const controls = document.getElementById('zoomControls');
-  const treeContainer = document.getElementById('treeContainer');
+  _mountInTitlebar();
 
-  // Start hidden — tree is empty on init
-  if (controls) controls.style.display = 'none';
-
-  // Show when tree has content, hide when empty
-  const observer = new MutationObserver(() => {
-    if (!controls) return;
-    const hasContent = treeContainer?.children.length > 0 && treeContainer.textContent !== 'Select a repo to view files';
-    controls.style.display = hasContent ? '' : 'none';
-  });
-  if (treeContainer) {
-    observer.observe(treeContainer, { childList: true, subtree: false, characterData: false });
-  }
-
-  // Buttons
   document.getElementById('zoomInBtn')?.addEventListener('click', () => setZoom(_zoom + ZOOM_STEP));
   document.getElementById('zoomOutBtn')?.addEventListener('click', () => setZoom(_zoom - ZOOM_STEP));
   document.getElementById('zoomResetBtn')?.addEventListener('click', () => setZoom(1));
 
-  // Keyboard shortcuts — skip when canvas panel is open or typing in inputs
+  const lbl = document.getElementById('zoomLevel');
+  if (lbl) {
+    lbl.title = 'Reset zoom (Ctrl+0)';
+    lbl.addEventListener('click', () => setZoom(1));
+  }
+
   if (_zoomKeyHandler) destroyZoomManager();
   _zoomKeyHandler = (e) => {
-    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
     const canvasPanel = document.getElementById('canvasPanelWrapper');
     if (canvasPanel && canvasPanel.style.display !== 'none') return;
     const ctrl = e.ctrlKey || e.metaKey;
     if (!ctrl) return;
-    if (e.key === '=' || e.key === '+') { e.preventDefault(); setZoom(_zoom + ZOOM_STEP); }
-    else if (e.key === '-') { e.preventDefault(); setZoom(_zoom - ZOOM_STEP); }
-    else if (e.key === '0') { e.preventDefault(); setZoom(1); }
+    if (e.key === '=' || e.key === '+') {
+      e.preventDefault();
+      setZoom(_zoom + ZOOM_STEP);
+    } else if (e.key === '-') {
+      e.preventDefault();
+      setZoom(_zoom - ZOOM_STEP);
+    } else if (e.key === '0') {
+      e.preventDefault();
+      setZoom(1);
+    }
   };
   document.addEventListener('keydown', _zoomKeyHandler);
 
-  setZoom(1);
+  setZoom(_readSaved(), false);
 }
 
 export function destroyZoomManager() {

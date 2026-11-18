@@ -17,7 +17,13 @@ export async function listConversations(repoPath, provider = 'opencode') {
     } else {
       convs = await window.electronAPI.opencode.listConversations(repoPath);
     }
-    return { conversations: (convs || []).map(c => ({ ...c, provider })), error: null };
+    let list = convs || [];
+    if (provider === 'opencode' && repoPath) {
+      const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+      const want = norm(repoPath);
+      list = list.filter((c) => !c.repoPath || norm(c.repoPath) === want);
+    }
+    return { conversations: list.map(c => ({ ...c, provider })), error: null };
   } catch (err) {
     return { conversations: [], error: err.message || 'Failed to fetch' };
   }

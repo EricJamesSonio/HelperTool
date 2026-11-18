@@ -2,8 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PRESETS, PRESET_VERSION } = require('./reqPresets/index.js');
+const { APP_TYPES, APP_TYPE_IDS } = require('./reqPresets/appTypes.js');
 
-const DATA_VERSION = 3;
+const DATA_VERSION = 7;
 const LEVELS = ['must-have', 'standard', 'medium', 'strict'];
 
 const GROUPS = [
@@ -20,15 +21,17 @@ const GROUPS = [
     'Acceptance Criteria',
 ];
 
-const DEFAULT_CATEGORIES = ['Frontend', 'Backend', 'Database', 'DevOps', 'Other'];
+const DEFAULT_CATEGORIES = ['Components', 'Globals', 'Pages', 'Security', 'Shared', 'Other'];
 
 const LEGACY_CATEGORY_MAP = {
-    Pages: ['Frontend', 'Pages'],
-    'Design System': ['Frontend', 'Globals'],
-    Architecture: ['Frontend', 'Standards'],
-    Security: ['Backend', 'Security'],
-    Performance: ['Frontend', 'Shared'],
-    Testing: ['DevOps', 'Pipelines'],
+    Frontend: ['Components', ''],
+    Backend: ['Shared', 'Backend'],
+    Database: ['Shared', 'Database'],
+    DevOps: ['Shared', 'DevOps'],
+    'Design System': ['Globals', 'Styles'],
+    Architecture: ['Shared', 'Standards'],
+    Performance: ['Shared', 'Standards'],
+    Testing: ['Shared', 'Standards'],
 };
 
 function newId(prefix) {
@@ -55,10 +58,15 @@ function repoNameOf(repoPath) {
     return String(repoPath).split(/[\\/]/).filter(Boolean).pop() || String(repoPath);
 }
 
+function normalizeTypes(v) {
+    return uniq(arr(v).map(str).filter((t) => t !== 'general' && APP_TYPE_IDS.includes(t)));
+}
+
 function normalizeProfile(profile) {
     const o = profile || {};
     return {
         strictness: LEVELS.includes(o.strictness) ? o.strictness : 'strict',
+        appType: APP_TYPE_IDS.includes(o.appType) ? o.appType : 'general',
         stack: clip(o.stack, 300),
         notes: clip(o.notes, 2000),
     };
@@ -73,6 +81,7 @@ function normalizeReq(r) {
         title: str(o.title),
         description: typeof o.description === 'string' ? o.description.trim() : '',
         notes: typeof o.notes === 'string' ? o.notes.trim() : '',
+        types: normalizeTypes(o.types),
     };
 }
 
@@ -105,6 +114,7 @@ function presetReq(r) {
         title: r.title,
         description: r.description,
         notes: '',
+        types: normalizeTypes(r.types),
     };
 }
 
@@ -126,6 +136,33 @@ function specFromPreset(p) {
         lastAccessedAt: null,
         requirements: p.requirements.map(presetReq),
     };
+}
+
+function rowKey(r) {
+    return String(r.title || '').toLowerCase() + '|' + normalizeTypes(r.types).join(',');
+}
+
+function syncPresetRows(data) {
+    const byKey = new Map(PRESETS.map((p) => [p.key, p]));
+    const idByKey = new Map(data.specs.filter((s) => s.presetKey).map((s) => [s.presetKey, s.id]));
+    let added = 0;
+    for (const spec of data.specs) {
+        const p = spec.presetKey ? byKey.get(spec.presetKey) : null;
+        if (!p) continue;
+        if (p.key.indexOf('bundle-') === 0) {
+            spec.requirements = p.requirements.map(presetReq);
+            spec.related = uniq(arr(p.related).map((k) => idByKey.get(k)).filter(Boolean));
+            continue;
+        }
+        const have = new Set(spec.requirements.map(rowKey));
+        for (const pr of p.requirements) {
+            if (have.has(rowKey(pr))) continue;
+            spec.requirements.push(presetReq(pr));
+            have.add(rowKey(pr));
+            added += 1;
+        }
+    }
+    return added;
 }
 
 function ensureTaxonomy(data) {
@@ -188,6 +225,8 @@ function migrateData(data) {
         }
     }
 
+    syncPresetRows(data);
+
     const used = new Set(data.specs.map((s) => s.category));
     const custom = data.categories.filter((c) => !DEFAULT_CATEGORIES.includes(c) && used.has(c));
     data.categories = DEFAULT_CATEGORIES.concat(custom);
@@ -196,7 +235,58 @@ function migrateData(data) {
 
 function makeReqLibraryStore({ app }) {
     const DIR = path.join(app.getPath('userData'), 'req-library');
+    const FAV_FILE = path.join(DIR, 'favorites.json');
     const cache = new Map();
+    let favCache = null;
+
+    function readFavorites() {
+        if (favCache) return favCache;
+        let keys = [];
+        try {
+            if (fs.existsSync(FAV_FILE)) {
+                const raw = JSON.parse(fs.readFileSync(FAV_FILE, 'utf-8'));
+                keys = arr(raw && raw.presetKeys).map(str).filter(Boolean);
+            }
+        } catch (_) {
+            keys = [];
+        }
+        favCache = new Set(keys);
+        return favCache;
+    }
+
+    function writeFavorites() {
+        const set = readFavorites();
+        if (!fs.existsSync(DIR)) fs.mkdirSync(DIR, { recursive: true });
+        const tmp = FAV_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify({ presetKeys: Array.from(set).sort() }, null, 2), 'utf-8');
+        fs.renameSync(tmp, FAV_FILE);
+    }
+
+    function isFavorite(spec) {
+        if (spec.presetKey) return readFavorites().has(spec.presetKey);
+        return !!spec.favorite;
+    }
+
+    function withFavorite(spec) {
+        return Object.assign({}, spec, { favorite: isFavorite(spec) });
+    }
+
+    function absorbRepoFavorites(data) {
+        const favs = readFavorites();
+        let moved = false;
+        let favChanged = false;
+        for (const spec of data.specs) {
+            if (!spec.presetKey || !spec.favorite) continue;
+            if (!favs.has(spec.presetKey)) {
+                favs.add(spec.presetKey);
+                favChanged = true;
+            }
+            spec.favorite = false;
+            moved = true;
+        }
+        if (favChanged) writeFavorites();
+        if (moved) persist(data);
+    }
 
     function fileFor(repoPath) {
         const key = String(repoPath).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -277,6 +367,7 @@ function makeReqLibraryStore({ app }) {
         let changed = needsMigrate;
         if (data.presetVersion < PRESET_VERSION) {
             addPresets(data, false);
+            syncPresetRows(data);
             data.presetVersion = PRESET_VERSION;
             changed = true;
         }
@@ -288,15 +379,17 @@ function makeReqLibraryStore({ app }) {
 
     function loadAll({ repoPath }) {
         const data = read(repoPath);
+        absorbRepoFavorites(data);
         const have = new Set(data.specs.map((s) => s.presetKey).filter(Boolean));
         return {
             version: data.version,
             repoPath: data.repoPath,
             repoName: data.repoName,
             profile: data.profile,
+            appTypes: APP_TYPES,
             categories: data.categories,
             tags: data.tags,
-            specs: data.specs,
+            specs: data.specs.map(withFavorite),
             updatedAt: data.updatedAt,
             levels: LEVELS,
             groups: GROUPS,
@@ -308,7 +401,7 @@ function makeReqLibraryStore({ app }) {
 
     function updateProfile({ repoPath, profile }) {
         const data = read(repoPath);
-        data.profile = normalizeProfile(profile);
+        data.profile = normalizeProfile(Object.assign({}, data.profile, profile || {}));
         persist(data);
         return data.profile;
     }
@@ -316,6 +409,7 @@ function makeReqLibraryStore({ app }) {
     function syncPresets({ repoPath, includeRemoved }) {
         const data = read(repoPath);
         const added = addPresets(data, !!includeRemoved);
+        syncPresetRows(data);
         persist(data);
         return { added };
     }
@@ -346,7 +440,7 @@ function makeReqLibraryStore({ app }) {
         }
         ensureTaxonomy(data);
         persist(data);
-        return incoming;
+        return withFavorite(incoming);
     }
 
     function deleteSpec({ repoPath, id }) {
@@ -387,9 +481,16 @@ function makeReqLibraryStore({ app }) {
         const data = read(repoPath);
         const spec = data.specs.find((s) => s.id === id);
         if (!spec) throw new Error('Specification not found');
+        if (spec.presetKey) {
+            const favs = readFavorites();
+            if (favs.has(spec.presetKey)) favs.delete(spec.presetKey);
+            else favs.add(spec.presetKey);
+            writeFavorites();
+            return withFavorite(spec);
+        }
         spec.favorite = !spec.favorite;
         persist(data);
-        return spec;
+        return withFavorite(spec);
     }
 
     function markViewed({ repoPath, id }) {

@@ -1,32 +1,41 @@
 const { ipcMain, app } = require('electron');
-const { getDb, save } = require('../database/db.js');
-const simpleGit = require('simple-git');
-const gitService = require('./gitService.js');
+const { execFile } = require('child_process');
 const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
+const { getDb, save } = require('../database/db.js');
 const prefetchService = require('./prefetchService.js');
 const { updateService } = require('./serviceTracker_ipc.js');
+const { makeQueries, localDate } = require('../utils/profileQueries.js');
+const { collectRepos, runGit } = require('../utils/repoOverview.js');
+const { makeDeployStore } = require('../utils/deployStore.js');
 
-let _watchers = [];
+const FLUSH_MS = 3000;
+const BULK_LIMIT = 300;
+const KEEP_DAYS = 7;
+const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
+const MAX_WATCHERS = 6;
+const SYNC_START_DELAY_MS = 8000;
+const SYNC_GAP_MS = 400;
+const OVERVIEW_TTL_MS = 60000;
+const DAY_CACHE_TTL_MS = 300000;
+const DAY_CACHE_MAX = 50;
+
+let _watchers = new Map();
 let _saveBatch = [];
 let _flushTimer = null;
-const _FLUSH_INTERVAL = 3000;
-let _syncInProgress = false;
-let _lastSyncDate = null;
-const _watchedPaths = new Set();
+let _pruneTimer = null;
+let _overviewCache = { range: '', at: 0, data: null };
+const _syncing = new Set();
+const _synced = new Map();
+const _dayCache = new Map();
 
-function db() { return getDb(); }
+function db() {
+  return getDb();
+}
 
-function _getOrSetActivationDate() {
-  const rows = db().exec("SELECT value FROM profile_meta WHERE key='activation_date'");
-  if (rows.length && rows[0].values.length) {
-    return rows[0].values[0][0];
-  }
-  const today = new Date().toISOString().slice(0, 10);
-  db().run("INSERT INTO profile_meta (key, value) VALUES ('activation_date', ?)", [today]);
-  save();
-  return today;
+function queries() {
+  return makeQueries(getDb());
 }
 
 function _query(sql, params) {
@@ -43,14 +52,104 @@ function _query(sql, params) {
   return columns.length > 0 ? [{ columns, values }] : [];
 }
 
-function _getActiveRepo(config) {
+function _scalar(sql, params) {
+  const rows = _query(sql, params);
+  return rows.length && rows[0].values.length ? rows[0].values[0][0] : 0;
+}
+
+function _exec(stmt, params) {
+  stmt.bind(params);
+  stmt.step();
+  stmt.reset();
+}
+
+function _metaGet(key) {
+  const rows = _query('SELECT value FROM profile_meta WHERE key=?', [key]);
+  return rows.length && rows[0].values.length ? rows[0].values[0][0] : null;
+}
+
+function _metaSet(key, value) {
+  db().run('INSERT OR REPLACE INTO profile_meta (key, value) VALUES (?, ?)', [key, String(value)]);
+}
+
+function _activationDate() {
+  const stored = _metaGet('activation_date');
+  if (stored) return stored;
+  const today = localDate();
+  _metaSet('activation_date', today);
+  save();
+  return today;
+}
+
+function _dayBounds(date) {
+  const start = new Date(date + 'T00:00:00');
+  const end = new Date(start.getTime() + 86400000);
+  return [start.toISOString(), end.toISOString()];
+}
+
+function _norm(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function _readConfig(config) {
   try {
-    const cfg = config ? config.readConfig() : null;
-    if (cfg && cfg.activeProject) {
-      return { repoPath: cfg.activeProject, name: path.basename(cfg.activeProject) };
-    }
-  } catch (_) {}
+    return (config && config.readConfig()) || {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function _getActiveRepo(config) {
+  const cfg = _readConfig(config);
+  if (cfg.activeProject) {
+    return { repoPath: cfg.activeProject, name: path.basename(cfg.activeProject) };
+  }
   return null;
+}
+
+function _gitConfigValue(key) {
+  return new Promise((resolve) => {
+    execFile('git', ['config', '--global', '--get', key], { windowsHide: true, timeout: 5000 }, (err, stdout) => {
+      resolve(err ? '' : String(stdout).trim());
+    });
+  });
+}
+
+function _readProfileRow() {
+  const rows = db().exec('SELECT * FROM profile WHERE id=1');
+  return rows.length && rows[0].values.length ? rows[0].values[0] : null;
+}
+
+function _profileFromRow(r) {
+  if (!r) return null;
+  return {
+    id: r[0],
+    name: r[1],
+    email: r[2],
+    avatarColor: r[3] || '#4F8EF7',
+    facebook: r[4],
+    tiktok: r[5],
+    linkedin: r[6],
+    wakatime: r[7],
+    bio: r[10] || '',
+    website: r[11] || '',
+  };
+}
+
+async function _ensureProfile() {
+  let row = _readProfileRow();
+  if (!row || !row[2]) {
+    const name = await _gitConfigValue('user.name');
+    const email = await _gitConfigValue('user.email');
+    if (!row) {
+      db().run('INSERT OR IGNORE INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
+    } else {
+      db().run('UPDATE profile SET name=?, email=? WHERE id=1', [name || row[1] || '', email]);
+    }
+    save();
+    row = _readProfileRow();
+  }
+  return _profileFromRow(row);
 }
 
 const IGNORE_DIRS = new Set([
@@ -70,12 +169,35 @@ function _ignoredFor(repoPath) {
     return IGNORE_FILE.test(p);
   };
 }
+
+function _profileEnabled() {
+  try {
+    const feats = require('../config/config.js').readConfig()?.features ?? null;
+    return !feats || feats.profileTool !== false;
+  } catch (_) {
+    return true;
+  }
+}
+
 function _startWatcher(repoPath, repoName) {
-  if (_watchedPaths.has(repoPath)) {
+  if (!_profileEnabled() || !repoPath) return;
+  if (_watchers.has(repoPath)) {
+    const existing = _watchers.get(repoPath);
+    _watchers.delete(repoPath);
+    _watchers.set(repoPath, existing);
     updateService('profileWatcher', 'done');
     return;
   }
-  _watchedPaths.add(repoPath);
+  while (_watchers.size >= MAX_WATCHERS) {
+    const oldest = _watchers.keys().next().value;
+    const old = _watchers.get(oldest);
+    _watchers.delete(oldest);
+    try {
+      old.close();
+    } catch (_) {}
+  }
+
+  const name = repoName || path.basename(repoPath);
   const watcher = chokidar.watch(repoPath, {
     ignored: _ignoredFor(repoPath),
     ignoreInitial: true,
@@ -85,428 +207,496 @@ function _startWatcher(repoPath, repoName) {
     depth: 5,
     disableGlobbing: false,
   });
-  watcher.on('ready', () => {
-    updateService('profileWatcher', 'done');
-  });
-  watcher.on('change', (filePath) => {
+
+  const record = (filePath) => {
     const normalized = filePath.replace(/\\/g, '/');
     if (normalized.includes('/.git/')) return;
-
     const now = new Date();
-    const date = now.toISOString().slice(0, 10);
-    const ts = now.toISOString();
-    const ext = path.extname(filePath) || '';
-
-    _saveBatch.push({ ts, date, repoPath, repoName, filePath, ext });
-
+    _saveBatch.push({
+      ts: now.toISOString(),
+      date: localDate(now),
+      repoPath,
+      repoName: name,
+      filePath,
+      ext: (path.extname(filePath) || '').toLowerCase(),
+    });
     if (!_flushTimer) {
       _flushTimer = setTimeout(() => {
         _flushTimer = null;
         _flushSaveBatch();
-      }, _FLUSH_INTERVAL);
+      }, FLUSH_MS);
     }
-  });
-  _watchers.push(watcher);
+  };
+
+  watcher.on('ready', () => updateService('profileWatcher', 'done'));
+  watcher.on('change', record);
+  watcher.on('add', record);
+  watcher.on('error', (err) => console.warn('[Profile] watcher error:', err && err.message));
+  _watchers.set(repoPath, watcher);
+}
+
+function _stopWatchers() {
+  for (const w of _watchers.values()) {
+    try {
+      w.close();
+    } catch (_) {}
+  }
+  _watchers = new Map();
+  if (_flushTimer) {
+    clearTimeout(_flushTimer);
+    _flushTimer = null;
+  }
+  _flushSaveBatch();
+  _synced.clear();
 }
 
 function _flushSaveBatch() {
   if (_saveBatch.length === 0) return;
   const batch = _saveBatch;
   _saveBatch = [];
-  try {
-    const db = getDb();
-    db.run('BEGIN');
-    for (const { ts, date, repoPath, repoName, filePath, ext } of batch) {
-      db.run('INSERT INTO file_save_events (timestamp, repo_path, repo_name, file_path, file_ext) VALUES (?, ?, ?, ?, ?)',
-        [ts, repoPath, repoName, filePath, ext]);
-    }
-    const dates = new Set(batch.map(e => e.date + '|' + e.repoPath + '|' + e.repoName));
-    const stmt = db.prepare(`INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(date, repo_path) DO UPDATE SET file_saves=file_saves+?, files_touched=files_touched+?`);
-    for (const key of dates) {
-      const [date, rp, rn] = key.split('|');
-      const count = batch.filter(e => e.date === date && e.repoPath === rp).length;
-      stmt.bind([date, rp, rn, count, count, count, count]);
-      stmt.step();
-      stmt.reset();
-    }
-    stmt.free();
-    db.run('COMMIT');
-  } catch (err) {
-    console.warn('[Profile] flush error:', err.message);
-    try { getDb().run('ROLLBACK'); } catch (_) {}
-  }
-}
-
-async function _syncCommits(repoPath, repoName) {
-  console.log('[SyncCommits] called repoPath:', JSON.stringify(repoPath), 'inProgress:', _syncInProgress, 'lastSyncDate:', _lastSyncDate);
-  console.log('[SyncCommits] stack:', new Error().stack.split('\n').slice(1,4).join(' | '));
-  const today = new Date().toISOString().slice(0, 10);
-  if (_syncInProgress || _lastSyncDate === today + repoPath) {
-    console.log('[SyncCommits] SKIPPED');
+  if (batch.length > BULK_LIMIT) {
+    console.warn('[Profile] ignored a bulk change of ' + batch.length + ' files (branch switch or mass rewrite)');
     return;
   }
-  _syncInProgress = true;
-  _lastSyncDate = today + repoPath;
-  updateService('profileSync', 'running', 'Syncing commits...');
 
+  const d = db();
   try {
-    const activationDate = _getOrSetActivationDate();
-    const workerProxy = require('./workerProxy');
+    d.run('BEGIN');
 
-    let dates = [];
+    const insEvent = d.prepare('INSERT INTO file_save_events (timestamp, repo_path, repo_name, file_path, file_ext) VALUES (?, ?, ?, ?, ?)');
+    for (const e of batch) _exec(insEvent, [e.ts, e.repoPath, e.repoName, e.filePath, e.ext]);
+    insEvent.free();
 
-    if (workerProxy.isReady()) {
-      const result = await workerProxy.send('profileSync', {
-        repoPath,
-        activationDate,
-      }, 120000);
-      dates = result?.dates || [];
-    } else {
-      const git = simpleGit(repoPath);
-      const today = new Date().toISOString().slice(0, 10);
-      const log = await git.raw([
-        'log', '--format=>>>%H|%ad', '--date=short', '--no-merges', '--name-only',
-        '--after=' + activationDate + 'T00:00:00',
-        '--before=' + today + 'T23:59:59',
-      ]);
-      if (log.trim()) {
-        const dateCounts = {}, dateFiles = {};
-        let currentDate = null;
-        for (const line of log.split('\n')) {
-          if (line.startsWith('>>>')) {
-            const pipeIdx = line.indexOf('|');
-            currentDate = pipeIdx >= 0 ? line.substring(pipeIdx + 1).trim() : null;
-            if (currentDate && currentDate >= activationDate) {
-              dateCounts[currentDate] = (dateCounts[currentDate] || 0) + 1;
-              if (!dateFiles[currentDate]) dateFiles[currentDate] = new Set();
-            } else currentDate = null;
-          } else if (currentDate && line.trim()) {
-            dateFiles[currentDate].add(line.trim());
-          }
-        }
-        dates = Object.entries(dateCounts).map(([date, count]) => ({
-          date, commits: count, files: dateFiles[date]?.size || 0,
-        }));
+    const groups = new Map();
+    for (const e of batch) {
+      const key = e.date + '\u0000' + e.repoPath;
+      let g = groups.get(key);
+      if (!g) {
+        g = { date: e.date, repoPath: e.repoPath, repoName: e.repoName, saves: 0, exts: new Map() };
+        groups.set(key, g);
       }
+      g.saves += 1;
+      g.exts.set(e.ext, (g.exts.get(e.ext) || 0) + 1);
     }
 
-    if (!dates.length) {
-      updateService('profileSync', 'done');
-      _syncInProgress = false;
-      return;
-    }
+    const upDay = d.prepare(
+      'INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched) VALUES (?, ?, ?, ?, ?) ' +
+        'ON CONFLICT(date, repo_path) DO UPDATE SET file_saves = file_saves + excluded.file_saves, ' +
+        'files_touched = MAX(files_touched, excluded.files_touched)'
+    );
+    const upExt = d.prepare(
+      'INSERT INTO activity_ext_days (date, repo_path, ext, saves) VALUES (?, ?, ?, ?) ' +
+        'ON CONFLICT(date, repo_path, ext) DO UPDATE SET saves = saves + excluded.saves'
+    );
 
-    const BATCH_SIZE = 10;
-    db().run('BEGIN');
-    for (let i = 0; i < dates.length; i++) {
-      const { date, commits, files } = dates[i];
-      db().run(
-        `INSERT INTO activity_days (date, repo_path, repo_name, commits, files_touched)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(date, repo_path) DO UPDATE SET commits=?, files_touched=?`,
-        [date, repoPath, repoName, commits, files, commits, files]
+    for (const g of groups.values()) {
+      const bounds = _dayBounds(g.date);
+      const distinct = _scalar(
+        'SELECT COUNT(DISTINCT file_path) FROM file_save_events WHERE repo_path = ? AND timestamp >= ? AND timestamp < ?',
+        [g.repoPath, bounds[0], bounds[1]]
       );
-
-      if ((i + 1) % BATCH_SIZE === 0 && i + 1 < dates.length) {
-        db().run('COMMIT');
-        save();
-        await new Promise(r => setImmediate(r));
-        db().run('BEGIN');
-      }
+      _exec(upDay, [g.date, g.repoPath, g.repoName, g.saves, distinct]);
+      for (const [ext, n] of g.exts) _exec(upExt, [g.date, g.repoPath, ext, n]);
     }
-    db().run('COMMIT');
+    upDay.free();
+    upExt.free();
+
+    d.run('COMMIT');
     save();
-
-    prefetchService.invalidate('profile');
-    updateService('profileSync', 'done');
-
   } catch (err) {
-    console.error('[Profile] _syncCommits error:', err.message);
-    try { db().run('ROLLBACK'); } catch (_) {}
-    updateService('profileSync', 'failed', err.message);
+    console.warn('[Profile] flush error:', err.message);
+    try {
+      d.run('ROLLBACK');
+    } catch (_) {}
   }
-
-  _syncInProgress = false;
 }
 
+function _writeCommitDays(repoPath, repoName, dates) {
+  const d = db();
+  try {
+    d.run('BEGIN');
+    const stmt = d.prepare(
+      'INSERT INTO activity_days (date, repo_path, repo_name, commits, files_touched) VALUES (?, ?, ?, ?, ?) ' +
+        'ON CONFLICT(date, repo_path) DO UPDATE SET commits = excluded.commits, ' +
+        'files_touched = MAX(files_touched, excluded.files_touched), repo_name = excluded.repo_name'
+    );
+    for (const x of dates) _exec(stmt, [x.date, repoPath, repoName, x.commits, x.files]);
+    stmt.free();
+    d.run('COMMIT');
+    save();
+  } catch (err) {
+    console.warn('[Profile] commit write error:', err.message);
+    try {
+      d.run('ROLLBACK');
+    } catch (_) {}
+  }
+}
+
+async function _syncCommits(repoPath, repoName, force) {
+  if (!repoPath || _syncing.has(repoPath)) return;
+  const today = localDate();
+  if (!force && _synced.get(repoPath) === today) return;
+
+  _syncing.add(repoPath);
+  updateService('profileSync', 'running', 'Syncing commits...');
+  try {
+    const activationDate = _activationDate();
+    const workerProxy = require('./workerProxy');
+    let result;
+    if (workerProxy.isReady()) {
+      result = await workerProxy.send('profileSync', { repoPath, activationDate }, 120000);
+    } else {
+      result = await require('../worker-service/tasks/profileSync.js')({ repoPath, activationDate });
+    }
+    const dates = (result && result.dates) || [];
+    if (dates.length) _writeCommitDays(repoPath, repoName || path.basename(repoPath), dates);
+    _synced.set(repoPath, today);
+    prefetchService.invalidate('profile');
+    updateService('profileSync', 'done');
+  } catch (err) {
+    console.error('[Profile] _syncCommits error:', err.message);
+    updateService('profileSync', 'failed', err.message);
+  } finally {
+    _syncing.delete(repoPath);
+  }
+}
+
+async function _syncAllRepos(config) {
+  const cfg = _readConfig(config);
+  const projects = Object.keys(cfg.projects || {});
+  for (const repoPath of projects) {
+    if (!fs.existsSync(path.join(repoPath, '.git'))) continue;
+    await _syncCommits(repoPath, path.basename(repoPath));
+    await new Promise((resolve) => setTimeout(resolve, SYNC_GAP_MS));
+  }
+}
+
+function _ensureTables() {
+  db().run(
+    'CREATE TABLE IF NOT EXISTS activity_ext_days (' +
+      'date TEXT NOT NULL, repo_path TEXT NOT NULL, ext TEXT NOT NULL, saves INTEGER DEFAULT 0, ' +
+      'PRIMARY KEY (date, repo_path, ext))'
+  );
+  db().run('CREATE INDEX IF NOT EXISTS idx_activity_ext_days_date ON activity_ext_days(date)');
+}
+
+function _tzModifier() {
+  const offset = -new Date().getTimezoneOffset();
+  return (offset >= 0 ? '+' : '-') + Math.abs(offset) + ' minutes';
+}
+
+function _rebuildFromEvents() {
+  if (_metaGet('tracking_v2')) return true;
+  const d = db();
+  const count = _scalar('SELECT COUNT(*) FROM file_save_events', []);
+  if (count > 0) {
+    const mod = _tzModifier();
+    try {
+      d.run('BEGIN');
+      d.run('DELETE FROM activity_ext_days');
+      d.run(
+        'INSERT INTO activity_ext_days (date, repo_path, ext, saves) ' +
+          'SELECT date(timestamp, ?), repo_path, file_ext, COUNT(*) FROM file_save_events WHERE 1 GROUP BY 1, 2, 3',
+        [mod]
+      );
+      d.run('UPDATE activity_days SET file_saves = 0, files_touched = 0');
+      d.run(
+        'INSERT INTO activity_days (date, repo_path, repo_name, file_saves, files_touched) ' +
+          'SELECT date(timestamp, ?) AS d, repo_path, MAX(repo_name), COUNT(*), COUNT(DISTINCT file_path) ' +
+          'FROM file_save_events WHERE 1 GROUP BY d, repo_path ' +
+          'ON CONFLICT(date, repo_path) DO UPDATE SET file_saves = excluded.file_saves, files_touched = excluded.files_touched',
+        [mod]
+      );
+      d.run('DELETE FROM activity_days WHERE commits = 0 AND file_saves = 0 AND files_touched = 0');
+      d.run('COMMIT');
+    } catch (err) {
+      console.warn('[Profile] rebuild failed, keeping old totals:', err.message);
+      try {
+        d.run('ROLLBACK');
+      } catch (_) {}
+      return false;
+    }
+  }
+  _metaSet('tracking_v2', '1');
+  save();
+  return true;
+}
+
+function _prune() {
+  try {
+    if (!_metaGet('tracking_v2')) return;
+    const cutoff = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
+    db().run('DELETE FROM file_save_events WHERE timestamp < ?', [cutoff]);
+    db().run('DELETE FROM activity_days WHERE commits = 0 AND files_touched = 0 AND file_saves = 0');
+    save();
+  } catch (err) {
+    console.warn('[Profile] prune failed:', err.message);
+  }
+}
+
+function _maintain() {
+  try {
+    _ensureTables();
+    _rebuildFromEvents();
+    _prune();
+  } catch (err) {
+    console.warn('[Profile] maintenance failed:', err.message);
+  }
+}
+
+function _reposForDay(date) {
+  const rows = _query('SELECT repo_path, repo_name FROM activity_days WHERE date=? AND (commits > 0 OR file_saves > 0)', [date]);
+  const out = rows.length ? rows[0].values.map((r) => ({ repoPath: r[0], repoName: r[1] })) : [];
+  return out.filter((t) => fs.existsSync(path.join(t.repoPath, '.git')));
+}
+
+async function _commitsForDay(repoPath, repoName, date) {
+  const raw = await runGit(repoPath, [
+    'log', '--branches', '--no-color',
+    '--since=' + date + 'T00:00:00',
+    '--until=' + date + 'T23:59:59',
+    '--format=@@%H%x1f%at%x1f%s',
+    '--name-status',
+  ]).catch(() => '');
+
+  const commits = [];
+  let cur = null;
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('@@')) {
+      const parts = line.slice(2).split('\x1f');
+      const at = Number(parts[1]) || 0;
+      cur = {
+        hash: parts[0],
+        shortHash: String(parts[0]).slice(0, 7),
+        timestamp: at,
+        time: new Date(at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        message: parts.slice(2).join('\x1f') || '(no message)',
+        repoPath,
+        repoName,
+        files: [],
+      };
+      commits.push(cur);
+    } else if (cur && line.trim()) {
+      const cols = line.split('\t');
+      cur.files.push({ status: (cols[0] || 'M').charAt(0), path: cols[cols.length - 1] });
+    }
+  }
+  return commits;
+}
+
+function _dayCacheGet(key) {
+  const hit = _dayCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.ts > DAY_CACHE_TTL_MS) {
+    _dayCache.delete(key);
+    return null;
+  }
+  _dayCache.delete(key);
+  _dayCache.set(key, hit);
+  return hit.data;
+}
+
+function _dayCacheSet(key, data) {
+  _dayCache.delete(key);
+  _dayCache.set(key, { ts: Date.now(), data });
+  if (_dayCache.size > DAY_CACHE_MAX) {
+    _dayCache.delete(_dayCache.keys().next().value);
+  }
+}
+
+const REMOTE_TTL_MS = 10 * 60 * 1000;
+const WARM_DELAY_MS = 4000;
+const _remoteCache = new Map();
+const _ovBuilding = {};
+
+function _svc(name, status, message) {
+  try {
+    updateService(name, status, message);
+  } catch (_) {}
+}
+
+function _ovStore() {
+  if (!_overviewCache.byRange) _overviewCache.byRange = {};
+  return _overviewCache.byRange;
+}
+
+async function _remoteFor(repoPath) {
+  const key = _norm(repoPath);
+  const hit = _remoteCache.get(key);
+  if (hit && Date.now() - hit.at < REMOTE_TTL_MS) return hit.value;
+  let value = '';
+  try {
+    const url = String(await runGit(repoPath, ['remote', 'get-url', 'origin'])).trim();
+    const m = /github\.com[:/]+([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(url);
+    value = m ? (m[1] + '/' + m[2]).toLowerCase() : '';
+  } catch (_) {
+    value = '';
+  }
+  _remoteCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+async function _buildOverview(range, config) {
+  const cfg = _readConfig(config);
+  const q = queries();
+  const stats = new Map(q.getRepoStats(range).map((r) => [_norm(r.repoPath), r]));
+
+  const paths = new Map();
+  for (const p of Object.keys(cfg.projects || {})) paths.set(_norm(p), p);
+  for (const r of stats.values()) {
+    if (!paths.has(_norm(r.repoPath))) paths.set(_norm(r.repoPath), r.repoPath);
+  }
+
+  const gitRows = await collectRepos(Array.from(paths.values()), 4);
+  const deployStore = makeDeployStore({ app });
+  const active = _norm(cfg.activeProject);
+  const remotes = await Promise.all(gitRows.map((g) => (g.exists && g.isGit ? _remoteFor(g.repoPath) : Promise.resolve(''))));
+
+  const repos = gitRows.map((g, i) => {
+    const s = stats.get(_norm(g.repoPath)) || {};
+    let deploy = [];
+    try {
+      deploy = deployStore.view(g.repoPath).targets.map((t) => ({
+        role: t.role === 'custom' ? (t.roleLabel || 'Custom') : t.role,
+        name: t.name,
+      }));
+    } catch (_) {
+      deploy = [];
+    }
+    return Object.assign({}, g, {
+      commits: s.commits || 0,
+      saves: s.saves || 0,
+      files: s.files || 0,
+      activeDays: s.days || 0,
+      deploy,
+      remote: remotes[i] || '',
+      isActive: _norm(g.repoPath) === active,
+    });
+  });
+
+  const data = { success: true, range, repos, daily: q.getDaily(30), generatedAt: Date.now() };
+  _ovStore()[range] = { at: Date.now(), data };
+  return data;
+}
+
+function _refreshOverview(range, config) {
+  if (_ovBuilding[range]) return _ovBuilding[range];
+  const p = _buildOverview(range, config).finally(() => {
+    delete _ovBuilding[range];
+  });
+  _ovBuilding[range] = p;
+  return p;
+}
+
+async function _warmOverview(config) {
+  _svc('profileWarm', 'running', 'Loading profile resources...');
+  try {
+    await _refreshOverview('week', config);
+    _svc('profileWarm', 'done');
+  } catch (err) {
+    _svc('profileWarm', 'failed', err && err.message ? err.message : 'failed');
+  }
+}
 function register(shared) {
   const config = shared ? shared.config : null;
 
-ipcMain.handle('profile:get', async () => {
-  const rows = db().exec('SELECT * FROM profile WHERE id=1');
-
-  // always attempt to backfill if email is missing
-  const stored = rows.length && rows[0].values.length ? rows[0].values[0] : null;
-  const storedEmail = stored ? stored[2] : '';
-
-  if (!stored || !storedEmail) {
-    let name = '', email = '';
-    try {
-      const git = simpleGit();
-      const config = await git.listConfig('global');
-      name = config.all['user.name'] || '';
-      email = config.all['user.email'] || '';
-    } catch (_) {}
-
-    if (!stored) {
-      db().run('INSERT OR IGNORE INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
-    } else {
-      db().run('UPDATE profile SET name=?, email=? WHERE id=1', [name || stored[1], email]);
-    }
-    save();
-
-    return {
-      id: 1,
-      name: name || (stored ? stored[1] : ''),
-      email,
-      avatarColor: stored ? stored[3] : '#4F8EF7',
-      facebook: stored ? stored[4] : null,
-      tiktok: stored ? stored[5] : null,
-      linkedin: stored ? stored[6] : null,
-      wakatime: stored ? stored[7] : null,
-      bio: stored ? stored[10] || '' : '',
-      website: stored ? stored[11] || '' : '',
-    };
+  _maintain();
+  if (!_pruneTimer) {
+    _pruneTimer = setInterval(_prune, PRUNE_EVERY_MS);
+    if (_pruneTimer.unref) _pruneTimer.unref();
+  }
+  if (_profileEnabled()) {
+    const t = setTimeout(() => _syncAllRepos(config), SYNC_START_DELAY_MS);
+    if (t.unref) t.unref();
+    const w = setTimeout(() => { _warmOverview(config); }, WARM_DELAY_MS);
+    if (w.unref) w.unref();
   }
 
-  return {
-    id: stored[0], name: stored[1], email: stored[2],
-    avatarColor: stored[3], facebook: stored[4],
-    tiktok: stored[5], linkedin: stored[6], wakatime: stored[7],
-    bio: stored[10] || '', website: stored[11] || '',
-  };
-});
+  ipcMain.handle('profile:get', async () => _ensureProfile());
+
   ipcMain.handle('profile:update', (event, data) => {
-    db().run(`UPDATE profile SET name=?, email=?, avatar_color=?, facebook=?, tiktok=?, linkedin=?, wakatime=?, bio=?, website=?, updated_at=datetime('now') WHERE id=1`,
-      [data.name || '', data.email || '', data.avatarColor || '#4F8EF7', data.facebook || '',
-       data.tiktok || '', data.linkedin || '', data.wakatime || '',
-       data.bio || '', data.website || '']);
+    db().run(
+      "UPDATE profile SET name=?, email=?, avatar_color=?, facebook=?, tiktok=?, linkedin=?, wakatime=?, bio=?, website=?, updated_at=datetime('now') WHERE id=1",
+      [
+        data.name || '', data.email || '', data.avatarColor || '#4F8EF7', data.facebook || '',
+        data.tiktok || '', data.linkedin || '', data.wakatime || '',
+        data.bio || '', data.website || '',
+      ]
+    );
     save();
     prefetchService.invalidate('profile');
     return { success: true };
   });
 
-  ipcMain.handle('profile:getHeatmap', async (event, { year }) => {
-    try {
-      const workerProxy = require('./workerProxy');
-      if (workerProxy.isReady()) {
-        const dbPath = require('../database/db.js').getDbPath();
-        return await workerProxy.send('profileData', { action: 'getHeatmap', dbPath, params: { year } });
-      }
-    } catch (_) {}
-    const y = year || new Date().getFullYear();
-    const start = y + '-01-01';
-    const end = y + '-12-31';
-    const rows = _query(`SELECT date, SUM(commits + file_saves + files_touched) AS total,
-                         SUM(commits) AS commits, SUM(file_saves) AS saves, SUM(files_touched) AS files
-                         FROM activity_days WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date`,
-      [start, end]);
-    const map = {};
-    if (rows.length) {
-      for (const r of rows[0].values) {
-        map[r[0]] = { total: r[1] || 0, commits: r[2] || 0, saves: r[3] || 0, files: r[4] || 0 };
-      }
-    }
-    return map;
-  });
-
-  ipcMain.handle('profile:getStats', async (event, { range }) => {
-    try {
-      const workerProxy = require('./workerProxy');
-      if (workerProxy.isReady()) {
-        const dbPath = require('../database/db.js').getDbPath();
-        return await workerProxy.send('profileData', { action: 'getStats', dbPath, params: { range: range || 'all' } });
-      }
-    } catch (_) {}
-    let dateFilter = '';
-    if (range === 'week') dateFilter = "WHERE date >= datetime('now', '-7 days')";
-    else if (range === 'month') dateFilter = "WHERE date >= datetime('now', '-30 days')";
-    else if (range === 'year') dateFilter = "WHERE date >= datetime('now', '-365 days')";
-    const rows = db().exec(`SELECT COALESCE(SUM(commits),0), COALESCE(SUM(files_touched),0), COALESCE(SUM(file_saves),0),
-                            COUNT(DISTINCT repo_path) FROM activity_days ${dateFilter}`);
-    if (!rows.length || !rows[0].values.length) return { commits: 0, files: 0, saves: 0, repos: 0 };
-    const r = rows[0].values[0];
-    return { commits: r[0], files: r[1], saves: r[2], repos: r[3] };
-  });
-
-  ipcMain.handle('profile:getDonutData', async (event, { range }) => {
-    try {
-      const workerProxy = require('./workerProxy');
-      if (workerProxy.isReady()) {
-        const dbPath = require('../database/db.js').getDbPath();
-        return await workerProxy.send('profileData', { action: 'getDonutData', dbPath, params: { range: range || 'all' } });
-      }
-    } catch (_) {}
-    let dateFilter = '';
-    if (range === 'week') dateFilter = "WHERE date >= datetime('now', '-7 days')";
-    else if (range === 'month') dateFilter = "WHERE date >= datetime('now', '-30 days')";
-    else if (range === 'year') dateFilter = "WHERE date >= datetime('now', '-365 days')";
-    const repoRows = db().exec(`SELECT repo_name, SUM(commits+file_saves+files_touched) AS total
-                                FROM activity_days ${dateFilter} GROUP BY repo_path ORDER BY total DESC`);
-    const repoData = repoRows.length ? repoRows[0].values.map(r => ({ label: r[0], value: r[1] || 0 })) : [];
-
-    const extRows = db().exec(`SELECT file_ext, COUNT(*) AS cnt FROM file_save_events GROUP BY file_ext ORDER BY cnt DESC LIMIT 10`);
-    const extData = extRows.length ? extRows[0].values.map(r => ({ label: r[0] || '(none)', value: r[1] || 0 })) : [];
-
-    const typeRows = db().exec(`SELECT
-      COALESCE(SUM(commits),0) AS c, COALESCE(SUM(file_saves),0) AS s, COALESCE(SUM(files_touched),0) AS f
-      FROM activity_days ${dateFilter}`);
-    let c = 0, s = 0, f = 0;
-    if (typeRows.length && typeRows[0].values.length) {
-      const typeRow = typeRows[0].values[0];
-c = typeRow[0] || 0;
-s = typeRow[1] || 0;
-f = typeRow[2] || 0;
-    }
-    const typeData = [
-      { label: 'File Saves', value: s },
-      { label: 'Commits', value: c },
-      { label: 'Files Touched', value: f },
-    ];
-
-    return { repo: repoData, ext: extData, type: typeData };
-  });
-
-  let _histCountCache = { val: 0, ts: 0 };
-
-  ipcMain.handle('profile:getHistory', async (event, { page, repoPath }) => {
-    try {
-      const workerProxy = require('./workerProxy');
-      if (workerProxy.isReady()) {
-        const dbPath = require('../database/db.js').getDbPath();
-        return await workerProxy.send('profileData', { action: 'getHistory', dbPath, params: { page, repoPath } });
-      }
-    } catch (_) {}
-    const pageSize = 20;
-    const offset = ((page || 1) - 1) * pageSize;
-    let where = '';
-    const params = [];
-    if (repoPath) { where = 'WHERE repo_path=?'; params.push(repoPath); }
-    const hasDataFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
-    const cacheKey = repoPath || '__all__';
-    const now = Date.now();
-    let total = _histCountCache.val;
-    if (_histCountCache.cacheKey !== cacheKey || now - _histCountCache.ts > 5000) {
-      const countRows = _query(`SELECT COUNT(*) FROM activity_days ${where ? where + ' AND' : 'WHERE'} ${hasDataFilter}`, params);
-      total = (countRows.length && countRows[0].values.length) ? countRows[0].values[0][0] : 0;
-      _histCountCache = { val: total, ts: now, cacheKey };
-    }
-    const rows = _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${where ? where + ' AND' : 'WHERE'} ${hasDataFilter} ORDER BY date DESC LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]);
-    const items = rows.length ? rows[0].values.map(r => ({
-      date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0,
-    })) : [];
-    return { items, total, page: page || 1, pageSize };
-  });
+  ipcMain.handle('profile:getHeatmap', (event, { year }) => queries().getHeatmap(year));
+  ipcMain.handle('profile:getStats', (event, { range }) => queries().getStats(range || 'all'));
+  ipcMain.handle('profile:getDonutData', (event, { range }) => queries().getDonutData(range || 'all'));
+  ipcMain.handle('profile:getHistory', (event, { page, repoPath }) => queries().getHistory(page, repoPath));
 
   ipcMain.handle('profile:getDayDetail', (event, { date }) => {
-    const rows = _query(`SELECT repo_name, commits, files_touched, file_saves, lines_added, lines_removed
-                         FROM activity_days WHERE date=?`, [date]);
-    const repos = rows.length ? rows[0].values.map(r => ({
-      repo: r[0], commits: r[1] || 0, files: r[2] || 0, saves: r[3] || 0, added: r[4] || 0, removed: r[5] || 0,
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { repos: [], files: [] };
+    const rows = _query(
+      'SELECT repo_name, repo_path, commits, files_touched, file_saves FROM activity_days WHERE date=? ORDER BY (commits + file_saves) DESC',
+      [date]
+    );
+    const repos = rows.length ? rows[0].values.map((r) => ({
+      repo: r[0], repoPath: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0,
     })) : [];
 
-    const saveRows = _query(`SELECT file_path, repo_name, repo_path, COUNT(*) AS cnt FROM file_save_events
-                             WHERE timestamp >= ? AND timestamp < ? GROUP BY file_path ORDER BY cnt DESC LIMIT 30`,
-      [date + 'T00:00:00', date + 'T23:59:59']);
-    const files = saveRows.length ? saveRows[0].values.map(r => ({
+    const bounds = _dayBounds(date);
+    const saveRows = _query(
+      'SELECT file_path, repo_name, repo_path, COUNT(*) AS cnt FROM file_save_events WHERE timestamp >= ? AND timestamp < ? GROUP BY repo_path, file_path ORDER BY cnt DESC LIMIT 30',
+      [bounds[0], bounds[1]]
+    );
+    const files = saveRows.length ? saveRows[0].values.map((r) => ({
       path: path.relative(r[2], r[0]).replace(/\\/g, '/'),
-      repo: r[1], saves: r[3] || 0,
+      repo: r[1],
+      saves: r[3] || 0,
     })) : [];
 
     return { repos, files };
   });
 
-  let _dayCommitCache = new Map();
-  const DAY_COMMIT_CACHE_TTL = 300000; // 5 min
-  const DAY_COMMIT_CACHE_MAX = 50;
-
-  function _dayCommitLruGet(cacheKey) {
-    if (!_dayCommitCache.has(cacheKey)) return undefined;
-    const value = _dayCommitCache.get(cacheKey);
-    _dayCommitCache.delete(cacheKey);
-    _dayCommitCache.set(cacheKey, value);
-    return value;
-  }
-
-  function _dayCommitLruSet(cacheKey, data) {
-    if (_dayCommitCache.has(cacheKey)) _dayCommitCache.delete(cacheKey);
-    _dayCommitCache.set(cacheKey, data);
-    if (_dayCommitCache.size > DAY_COMMIT_CACHE_MAX) {
-      const first = _dayCommitCache.keys().next().value;
-      _dayCommitCache.delete(first);
-    }
-  }
-
-  ipcMain.handle('profile:getDayCommits', async (event, { date }) => {
+  ipcMain.handle('profile:getDayCommits', async (event, { date, repoPath }) => {
     try {
-      const repo = _getActiveRepo(config);
-      if (!repo) return [];
-      const rp = repo.repoPath;
-      const cacheKey = rp + '|' + date;
-      const cached = _dayCommitLruGet(cacheKey);
-      if (cached && Date.now() - cached.ts < DAY_COMMIT_CACHE_TTL) {
-        return cached.data;
-      }
-      const log = await gitService.getCommits(rp, {
-        format: '%H|%at|%s', since: date + 'T00:00:00', until: date + 'T23:59:59',
-        noMerges: false, ttl: 30000,
-      });
-      if (!log.trim()) { _dayCommitLruSet(cacheKey, { data: [], ts: Date.now() }); return []; }
-      const commits = log.trim().split('\n').map(line => {
-        const [hash, at, ...msgParts] = line.split('|');
-        const time = new Date(parseInt(at) * 1000);
-        const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        return { hash, shortHash: hash.substring(0, 7), time: timeStr, timestamp: parseInt(at), message: msgParts.join('|') || '(no message)' };
-      });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return [];
+      const targets = repoPath
+        ? [{ repoPath, repoName: path.basename(repoPath) }]
+        : _reposForDay(date);
+      const key = date + '|' + targets.map((t) => t.repoPath).join(',');
+      const cached = _dayCacheGet(key);
+      if (cached) return cached;
 
-      // Batch: fetch all commit file lists in a single git log --name-only command
-      const hashList = commits.map(c => c.hash);
-      const batchOut = await gitService.getCommits(rp, {
-        format: '---COMMIT:%H---', noMerges: false,
-        since: date + 'T00:00:00', until: date + 'T23:59:59',
-        nameOnly: true, ttl: 60000,
-      });
-      const fileMap = {};
-      let currentHash = null;
-      for (const line of (batchOut || '').split('\n')) {
-        const m = line.match(/^---COMMIT:(.+?)---$/);
-        if (m) { currentHash = m[1]; fileMap[currentHash] = []; continue; }
-        if (currentHash && line.trim()) {
-          const parts = line.split('\t');
-          fileMap[currentHash].push({ status: parts[0] || 'M', path: parts.slice(1).join('\t') || line.trim() });
-        }
+      const lists = [];
+      for (const t of targets) {
+        lists.push(await _commitsForDay(t.repoPath, t.repoName, date));
       }
-      for (const c of commits) c.files = fileMap[c.hash] || [];
-      _dayCommitLruSet(cacheKey, { data: commits, ts: Date.now() });
+      const commits = [].concat(...lists).sort((a, b) => b.timestamp - a.timestamp);
+      _dayCacheSet(key, commits);
       return commits;
-    } catch (err) {
+    } catch (_) {
       return [];
     }
   });
 
   ipcMain.handle('profile:fileDiff', async (event, { filePath, repoPath, commitHash }) => {
     try {
-      const repoDir = repoPath || path.dirname(filePath);
-      const relPath = path.relative(repoDir, filePath).replace(/\\/g, '/');
-      let diff, content;
-      if (commitHash) {
-        const [raw, cnt] = await Promise.all([
-          gitService.show(repoDir, commitHash, { filePath, ttl: 30000 }),
-          gitService.showFileAtCommit(repoDir, commitHash, relPath, { ttl: 60000 }),
-        ]);
-        const idx = raw.indexOf('\ndiff --git');
-        diff = idx >= 0 ? raw.substring(idx + 1) : raw;
-        content = cnt;
-      } else {
-        const [d, c] = await Promise.all([
-          gitService.diff(repoDir, ['HEAD', '--', filePath], { ttl: 10000 }),
-          gitService.showFileAtCommit(repoDir, 'HEAD', relPath, { ttl: 60000 }),
-        ]);
-        diff = d; content = c;
+      if (!filePath || !repoPath || !fs.existsSync(path.join(repoPath, '.git'))) {
+        return { diff: '', content: '' };
       }
+      const rel = (path.isAbsolute(filePath) ? path.relative(repoPath, filePath) : filePath).replace(/\\/g, '/');
+      if (commitHash) {
+        if (!/^[0-9a-f]{7,40}$/i.test(String(commitHash))) return { diff: '', content: '' };
+        const [diff, content] = await Promise.all([
+          runGit(repoPath, ['show', '--format=', '--no-color', commitHash, '--', rel]).catch(() => ''),
+          runGit(repoPath, ['show', commitHash + ':' + rel]).catch(() => ''),
+        ]);
+        return { diff, content };
+      }
+      const [diff, content] = await Promise.all([
+        runGit(repoPath, ['diff', '--no-color', 'HEAD', '--', rel]).catch(() => ''),
+        runGit(repoPath, ['show', 'HEAD:' + rel]).catch(() => ''),
+      ]);
       return { diff, content };
     } catch (err) {
       return { diff: '', content: '', error: err.message };
@@ -516,8 +706,11 @@ f = typeRow[2] || 0;
   ipcMain.handle('profile:resetStats', () => {
     db().run('DELETE FROM activity_days');
     db().run('DELETE FROM file_save_events');
+    db().run('DELETE FROM activity_ext_days');
     db().run("DELETE FROM profile_meta WHERE key='activation_date'");
-    _getOrSetActivationDate();
+    _synced.clear();
+    _overviewCache = { range: '', at: 0, data: null };
+    _activationDate();
     save();
     return { success: true };
   });
@@ -544,145 +737,47 @@ f = typeRow[2] || 0;
     }
   });
 
-  ipcMain.handle('profile:getAll', async (event, { statsRange, heatmapYear, donutRange, historyPage, historyRepo }) => {
-    const cached = prefetchService.get('profile');
-    if (cached) {
-      cached._cachedAt = cached._cachedAt || Date.now();
-      const defaultYear = new Date().getFullYear();
-      // Return cached immediately for default params (prefetch scenario); filter-change calls bypass cache
-      if (
-        (!statsRange || statsRange === 'all') &&
-        (!heatmapYear || heatmapYear === defaultYear) &&
-        (!donutRange || donutRange === 'all') &&
-        (!historyPage || historyPage === 1) &&
-        !historyRepo
-      ) {
-        if (Date.now() - (cached._cachedAt || 0) < 120000) {
-          return cached;
-        }
-      }
-    }
-    const y = heatmapYear || new Date().getFullYear();
-    const statsDateFilter = '';
-    const donutDateFilter = '';
-    const heatmapStart = y + '-01-01';
-    const heatmapEnd = y + '-12-31';
-
-    // profile — backfill name/email from git global config if missing (must run first)
-    let pRows = db().exec('SELECT * FROM profile WHERE id=1');
-    let stored = pRows.length && pRows[0].values.length ? pRows[0].values[0] : null;
-
-    if (!stored || !stored[2]) {
-      let name = '', email = '';
-      try {
-        const git = simpleGit();
-        const gitCfg = await git.listConfig('global');
-        name = gitCfg.all['user.name'] || '';
-        email = gitCfg.all['user.email'] || '';
-      } catch (_) {}
-
-      if (!stored) {
-        db().run('INSERT OR IGNORE INTO profile (id, name, email) VALUES (1, ?, ?)', [name, email]);
-      } else {
-        db().run('UPDATE profile SET name=?, email=? WHERE id=1', [name || stored[1], email]);
-      }
-      save();
-
-      const refreshed = db().exec('SELECT * FROM profile WHERE id=1');
-      stored = refreshed.length && refreshed[0].values.length ? refreshed[0].values[0] : stored;
-    }
-
-    // Build filter clauses
-    let sFilter = '';
-    if (statsRange === 'week') sFilter = "WHERE date >= datetime('now', '-7 days')";
-    else if (statsRange === 'month') sFilter = "WHERE date >= datetime('now', '-30 days')";
-    else if (statsRange === 'year') sFilter = "WHERE date >= datetime('now', '-365 days')";
-
-    let dFilter = '';
-    if (donutRange === 'week') dFilter = "WHERE date >= datetime('now', '-7 days')";
-    else if (donutRange === 'month') dFilter = "WHERE date >= datetime('now', '-30 days')";
-    else if (donutRange === 'year') dFilter = "WHERE date >= datetime('now', '-365 days')";
-
-    // Run all data queries in parallel
-    const [sRes, hRes, repoRes, extRes, typeRes, histRes, countRes] = await Promise.all([
-      new Promise(r => r(db().exec(`SELECT COALESCE(SUM(commits),0), COALESCE(SUM(files_touched),0), COALESCE(SUM(file_saves),0), COUNT(DISTINCT repo_path) FROM activity_days ${sFilter}`))),
-      new Promise(r => r(_query(`SELECT date, SUM(commits + file_saves + files_touched) AS total, SUM(commits) AS commits, SUM(file_saves) AS saves, SUM(files_touched) AS files FROM activity_days WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date`, [heatmapStart, heatmapEnd]))),
-      new Promise(r => r(db().exec(`SELECT repo_name, SUM(commits+file_saves+files_touched) AS total FROM activity_days ${dFilter} GROUP BY repo_path ORDER BY total DESC`))),
-      new Promise(r => r(db().exec(`SELECT file_ext, COUNT(*) AS cnt FROM file_save_events GROUP BY file_ext ORDER BY cnt DESC LIMIT 10`))),
-      new Promise(r => r(db().exec(`SELECT COALESCE(SUM(commits),0) AS c, COALESCE(SUM(file_saves),0) AS s, COALESCE(SUM(files_touched),0) AS f FROM activity_days ${dFilter}`))),
-      (() => {
-        const pageSize = 20;
-        const offset = ((historyPage || 1) - 1) * pageSize;
-        let hWhere = '';
-        const hParams = [];
-        if (historyRepo) { hWhere = 'WHERE repo_path=?'; hParams.push(historyRepo); }
-        const hFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
-        return _query(`SELECT date, repo_name, commits, files_touched, file_saves FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter} ORDER BY date DESC LIMIT ? OFFSET ?`, [...hParams, pageSize, offset]);
-      })(),
-      (() => {
-        let hWhere = '';
-        const hParams = [];
-        if (historyRepo) { hWhere = 'WHERE repo_path=?'; hParams.push(historyRepo); }
-        const hFilter = '(commits > 0 OR files_touched > 0 OR file_saves > 0)';
-        return _query(`SELECT COUNT(*) FROM activity_days ${hWhere ? hWhere + ' AND' : 'WHERE'} ${hFilter}`, hParams);
-      })(),
-    ]);
-
-    // Process stats
-    const statsRows = sRes.length && sRes[0].values.length ? sRes[0].values : null;
-    const stats = statsRows ? { commits: statsRows[0][0], files: statsRows[0][1], saves: statsRows[0][2], repos: statsRows[0][3] } : { commits: 0, files: 0, saves: 0, repos: 0 };
-
-    // Process heatmap
-    const heatmap = {};
-    if (hRes.length && hRes[0].values) {
-      for (const r of hRes[0].values) heatmap[r[0]] = { total: r[1] || 0, commits: r[2] || 0, saves: r[3] || 0, files: r[4] || 0 };
-    }
-
-    // Process donuts
-    const donuts = {
-      repo: repoRes.length && repoRes[0].values ? repoRes[0].values.map(r => ({ label: r[0], value: r[1] || 0 })) : [],
-      ext: extRes.length && extRes[0].values ? extRes[0].values.map(r => ({ label: r[0] || '(none)', value: r[1] || 0 })) : [],
-      type: (typeRes.length && typeRes[0].values.length) ? [
-        { label: 'File Saves', value: typeRes[0].values[0][1] || 0 },
-        { label: 'Commits', value: typeRes[0].values[0][0] || 0 },
-        { label: 'Files Touched', value: typeRes[0].values[0][2] || 0 },
-      ] : [],
+  ipcMain.handle('profile:getAll', async (event, opts) => {
+    const o = opts || {};
+    const q = queries();
+    const profile = await _ensureProfile();
+    return {
+      profile,
+      avatar: null,
+      stats: q.getStats(o.statsRange || 'all'),
+      heatmap: q.getHeatmap(o.heatmapYear),
+      donuts: q.getDonutData(o.donutRange || 'all'),
+      history: q.getHistory(o.historyPage, o.historyRepo),
+      _cachedAt: Date.now(),
     };
+  });
 
-    // Process history
-    const history = {
-      items: histRes.length && histRes[0].values ? histRes[0].values.map(r => ({ date: r[0], repoName: r[1], commits: r[2] || 0, files: r[3] || 0, saves: r[4] || 0 })) : [],
-      total: (countRes.length && countRes[0].values.length) ? countRes[0].values[0][0] : 0,
-      page: historyPage || 1, pageSize: 20,
-    };
-
-    return { profile: stored ? { id: stored[0], name: stored[1], email: stored[2], avatarColor: stored[3], facebook: stored[4], tiktok: stored[5], linkedin: stored[6], wakatime: stored[7], bio: stored[10] || '', website: stored[11] || '' } : null, avatar: null, stats, heatmap, donuts, history, _cachedAt: Date.now() };
+  ipcMain.handle('profile:getOverview', async (event, opts) => {
+    const o = opts || {};
+    const range = o.range === 'month' ? 'month' : 'week';
+    const hit = _ovStore()[range];
+    if (!o.fresh && hit && Date.now() - hit.at < OVERVIEW_TTL_MS) return hit.data;
+    return _refreshOverview(range, config);
   });
 
   ipcMain.handle('profile:initWatcher', () => {
     const repo = _getActiveRepo(config);
-    if (!repo) return { watching: 0 };
-    const alreadyWatching = _watchers.length > 0;
-    if (alreadyWatching) return { watching: 1 };
-    _startWatcher(repo.repoPath, repo.name);
-    return { watching: 1 };
+    if (repo) _startWatcher(repo.repoPath, repo.name);
+    return { watching: _watchers.size };
   });
 
   ipcMain.handle('profile:stopWatcher', () => {
-    for (const w of _watchers) { try { w.close(); } catch (_) {} }
-    _watchers = [];
-    if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
-    _flushSaveBatch();
-    _watchedPaths.clear();
-    _lastSyncDate = null;
+    _stopWatchers();
     return { success: true };
   });
-
-  // Cleanup stale zero-rows inserted during partial syncs
-  try {
-    db().run(`DELETE FROM activity_days WHERE commits = 0 AND files_touched = 0 AND file_saves = 0`);
-    save();
-  } catch (_) {}
 }
 
-module.exports = { register, triggerCommitSync: _syncCommits, startWatcher: _startWatcher };
+module.exports = {
+  register,
+  startWatcher: _startWatcher,
+  stopWatcher: _stopWatchers,
+  triggerCommitSync(repoPath, repoName) {
+    if (!_profileEnabled()) return Promise.resolve();
+    return _syncCommits(repoPath, repoName);
+  },
+};

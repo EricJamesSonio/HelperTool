@@ -4,6 +4,18 @@ const path = require('path');
 const CACHE_TTL = 30000;
 const _jsonCache = new Map();
 
+const _evictTimers = new Map();
+
+function _scheduleEvict(repoPath) {
+  const old = _evictTimers.get(repoPath);
+  if (old) clearTimeout(old);
+  const timer = setTimeout(() => {
+    _evictTimers.delete(repoPath);
+    _jsonCache.delete(repoPath);
+  }, CACHE_TTL + 1000);
+  if (timer.unref) timer.unref();
+  _evictTimers.set(repoPath, timer);
+}
 function _read(repoPath) {
   if (!repoPath) return null;
   const cached = _jsonCache.get(repoPath);
@@ -12,6 +24,7 @@ function _read(repoPath) {
   try {
     const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     _jsonCache.set(repoPath, { data, ts: Date.now() });
+    _scheduleEvict(repoPath);
     return data;
   } catch {
     _jsonCache.delete(repoPath);

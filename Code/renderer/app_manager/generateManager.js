@@ -6,6 +6,8 @@
 import { state }       from './appState.js';
 import { displayTree } from './viewManager.js';
 import { filterTree }  from '../filterManager.js';
+let _generating = false;
+
 
 
 const generateBtn        = document.getElementById('generateBtn');
@@ -42,7 +44,7 @@ export function updateSelectionCounter() {
 }
 
 export function updateGenerateState() {
-    generateBtn.disabled = state.selectedItems.length === 0;
+    generateBtn.disabled = _generating || state.selectedItems.length === 0;
     updateSelectionCounter();
 }
 
@@ -266,10 +268,17 @@ function escapeHtml(text) {
 // ── Generate button ───────────────────────────────────────────────────────────
 
 export async function triggerGenerate() {
-    try {
-        if (!state.selectedRepoPath || !state.selectedItems.length)
-            return alert('Select repo and items first!');
+    if (_generating) return;
 
+    if (!state.selectedRepoPath || !state.selectedItems.length) {
+        alert('Select repo and items first!');
+        return;
+    }
+
+    _generating = true;
+    updateGenerateState();
+
+    try {
         const { filePath } = await window.electronAPI.saveFileDialog(state.actionType);
         if (!filePath) return;
 
@@ -285,6 +294,8 @@ export async function triggerGenerate() {
             state.selectedPromptText || ''
         );
 
+        if (result && result.busy) return;
+
         if (result && result.success && result.content) {
             showGeneratedViewer(result.content, result.filePath);
         } else if (!result || !result.success) {
@@ -295,6 +306,9 @@ export async function triggerGenerate() {
     } catch (err) {
         console.error('[Generate] Failed:', err);
         alert('Generation failed.');
+    } finally {
+        _generating = false;
+        updateGenerateState();
     }
 }
 

@@ -246,6 +246,16 @@ function revealDir(dirPath) {
   renderTree();
 }
 
+export function revealFolder(dirPath) {
+  revealDir(dirPath);
+}
+document.addEventListener('ide:reveal-folder', (e) => {
+  const p = e && e.detail && e.detail.path;
+  if (p) revealDir(p);
+});
+
+
+
 function onChangesClick(e) {
   const it = e.target.closest('.ide-ch-item');
   if (!it) return;

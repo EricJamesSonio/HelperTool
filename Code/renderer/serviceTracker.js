@@ -1,4 +1,4 @@
-const SERVICES = [
+const ALL_SERVICES = [
   { id: 'worker',         label: 'Worker Process',        group: 'Core', icon: '⚙' },
   { id: 'database',       label: 'Database Init',          group: 'Core', icon: '🗄' },
   { id: 'symbolIndexer',  label: 'Symbol Indexer',         group: 'Core', icon: '🔍' },
@@ -6,6 +6,11 @@ const SERVICES = [
   { id: 'profileWatcher', label: 'Profile File Watcher',   group: 'Profile', icon: '👁' },
   { id: 'prefetchProfile',label: 'Prefetch: Profile',      group: 'Prefetch', icon: '📥' },
 ];
+
+const PROFILE_SERVICE_IDS = ['profileSync', 'profileWatcher', 'prefetchProfile'];
+const INDEXER_FLAGS = ['symbolIndex', 'codebbaseChat', 'codebaseMap', 'graphify'];
+
+let _services = ALL_SERVICES.slice();
 
 const state = {
   open: false,
@@ -20,13 +25,30 @@ let _navBtn = null;
 
 function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+async function _visibleServices() {
+  let feats = null;
+  try {
+    feats = await window.electronAPI.featuresGet();
+  } catch (_) {
+    feats = null;
+  }
+  if (!feats) return ALL_SERVICES.slice();
+  const profileOn = feats.profileTool !== false;
+  const indexerOn = INDEXER_FLAGS.some((id) => feats[id] !== false);
+  return ALL_SERVICES.filter((s) => {
+    if (PROFILE_SERVICE_IDS.includes(s.id)) return profileOn;
+    if (s.id === 'symbolIndexer') return indexerOn;
+    return true;
+  });
+}
+
 function _buildModal() {
   _overlay = document.createElement('div');
   _overlay.className = 'st-overlay';
   _overlay.style.display = 'none';
 
   const groups = {};
-  for (const s of SERVICES) {
+  for (const s of _services) {
     if (!groups[s.group]) groups[s.group] = [];
     groups[s.group].push(s);
   }
@@ -51,7 +73,7 @@ function _buildModal() {
         <button class="st-modal-close" id="stCloseBtn">✕</button>
       </div>
       <div class="st-modal-body" id="stModalBody">${bodyHtml}</div>
-      <div class="st-footer" id="stFooter">0 / ${SERVICES.length} complete</div>
+      <div class="st-footer" id="stFooter">0 / ${_services.length} complete</div>
     </div>
   `;
 
@@ -132,7 +154,7 @@ function _updateNavBtn() {
   const badge = document.getElementById('stNavBadge');
   if (!badge) return;
   const counts = { running: 0, idle: 0, done: 0, failed: 0 };
-  for (const s of SERVICES) {
+  for (const s of _services) {
     const st = state.services[s.id]?.status || 'idle';
     counts[st]++;
   }
@@ -153,21 +175,22 @@ function _updateNavBtn() {
 
 function _updateSummary() {
   if (!_footer) return;
-  const done = SERVICES.filter(s => {
+  const done = _services.filter(s => {
     const st = state.services[s.id]?.status;
     return st === 'done' || st === 'failed';
   }).length;
-  _footer.textContent = `${done} / ${SERVICES.length} complete`;
+  _footer.textContent = `${done} / ${_services.length} complete`;
 }
 
 function _allSettled() {
-  return SERVICES.every(s => {
+  return _services.every(s => {
     const st = state.services[s.id]?.status;
     return st === 'done' || st === 'failed';
   });
 }
 
 export async function init() {
+  _services = await _visibleServices();
   _buildModal();
   _buildNavBtn();
 
@@ -179,7 +202,7 @@ export async function init() {
     console.error('[ServiceTracker] init: getAll failed', err);
   }
 
-  for (const s of SERVICES) {
+  for (const s of _services) {
     _updateServiceRow(s.id);
   }
   _updateNavBtn();

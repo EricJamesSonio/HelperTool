@@ -3,16 +3,35 @@
 const { ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const engine = require('../services/security/engine');
-const audit = require('../services/security/audit');
-const reportStore = require('../services/security/reportStore');
-const reportFile = require('../services/security/reportFile');
-const markdownReport = require('../services/security/markdownReport');
-const targetGuard = require('../services/security/targetGuard');
-const targetDetector = require('../services/security/targetDetector');
-const consoleDb = require('../database/consoleDb');
 
 const running = new Set();
+
+const loaded = {};
+
+function lazy(name, rel) {
+  if (!loaded[name]) loaded[name] = require(rel);
+  return loaded[name];
+}
+
+const engine = () => lazy('engine', '../services/security/engine');
+const audit = () => lazy('audit', '../services/security/audit');
+const reportFile = () => lazy('reportFile', '../services/security/reportFile');
+const markdownReport = () => lazy('markdownReport', '../services/security/markdownReport');
+const targetGuard = () => lazy('targetGuard', '../services/security/targetGuard');
+const targetDetector = () => lazy('targetDetector', '../services/security/targetDetector');
+const consoleDb = () => lazy('consoleDb', '../database/consoleDb');
+
+let storeDir = '';
+let storeReady = false;
+
+function reportStore() {
+  const store = lazy('reportStore', '../services/security/reportStore');
+  if (!storeReady) {
+    store.init(storeDir);
+    storeReady = true;
+  }
+  return store;
+}
 
 function httpError(status, message) {
   return Object.assign(new Error(message), { status });
@@ -40,7 +59,7 @@ async function resolveTarget(repoPath, profile, settings, send) {
   send({ type: 'stage', text: 'No target saved: looking for the app URL in env files, package scripts and config' });
   let found = null;
   try {
-    found = await targetDetector.detect(repoPath, profile);
+    found = await targetDetector().detect(repoPath, profile);
   } catch (e) {
     found = null;
   }
@@ -66,7 +85,7 @@ async function resolveTarget(repoPath, profile, settings, send) {
 }
 
 function register({ app, config, getMainWindow }) {
-  reportStore.init(path.join(app.getPath('userData'), 'repo-console'));
+  storeDir = path.join(app.getPath('userData'), 'repo-console');
 
   function knownRepo(repoPath) {
     if (typeof repoPath !== 'string' || !repoPath) throw httpError(400, 'No repository selected.');
@@ -94,9 +113,9 @@ function register({ app, config, getMainWindow }) {
 
   handle('security:detect', ({ repoPath }) => {
     knownRepo(repoPath);
-    const profile = engine.detectStack(repoPath);
+    const profile = engine().detectStack(repoPath);
     try {
-      consoleDb.saveSecurityProfile(repoPath, profile);
+      consoleDb().saveSecurityProfile(repoPath, profile);
     } catch (e) {
       /* history db is optional */
     }
@@ -107,24 +126,25 @@ function register({ app, config, getMainWindow }) {
     knownRepo(repoPath);
     let profile = null;
     try {
-      profile = consoleDb.getSecurityProfile(repoPath);
+      profile = consoleDb().getSecurityProfile(repoPath);
     } catch (e) {
       profile = null;
     }
-    if (!profile) profile = engine.detectStack(repoPath);
-    const target = await targetDetector.detect(repoPath, profile);
+    if (!profile) profile = engine().detectStack(repoPath);
+    const target = await targetDetector().detect(repoPath, profile);
     return { target };
   });
 
   handle('security:getSettings', ({ repoPath }) => {
     knownRepo(repoPath);
-    const settings = consoleDb.getSecuritySettings(repoPath) || defaultSettings();
-    const profile = consoleDb.getSecurityProfile(repoPath);
+    const settings = consoleDb().getSecuritySettings(repoPath) || defaultSettings();
+    const profile = consoleDb().getSecurityProfile(repoPath);
     let lastReport = null;
     let history = [];
     try {
-      lastReport = reportStore.getLast(repoPath);
-      history = reportStore.getHistory(repoPath);
+      const store = reportStore();
+      lastReport = store.getLast(repoPath);
+      history = store.getHistory(repoPath);
     } catch (e) {
       lastReport = null;
       history = [];
@@ -134,16 +154,16 @@ function register({ app, config, getMainWindow }) {
 
   handle('security:setSettings', ({ repoPath, targetUrl, safeMode, confirmHost }) => {
     knownRepo(repoPath);
-    const current = consoleDb.getSecuritySettings(repoPath) || defaultSettings();
+    const current = consoleDb().getSecuritySettings(repoPath) || defaultSettings();
     const url = String(targetUrl || '').trim();
 
     if (!url) {
       const saved = Object.assign({}, current, { targetUrl: '', safeMode: safeMode !== false });
-      consoleDb.saveSecuritySettings(repoPath, saved);
+      consoleDb().saveSecuritySettings(repoPath, saved);
       return { settings: saved };
     }
 
-    const result = targetGuard.check(url, current.confirmedHosts);
+    const result = targetGuard().check(url, current.confirmedHosts);
     if (!result.allowed && !confirmHost) {
       return { needsConfirm: true, reason: result.reason, hostname: result.hostname };
     }
@@ -154,7 +174,7 @@ function register({ app, config, getMainWindow }) {
     }
 
     const saved = { targetUrl: url, safeMode: safeMode !== false, confirmedHosts };
-    consoleDb.saveSecuritySettings(repoPath, saved);
+    consoleDb().saveSecuritySettings(repoPath, saved);
     return { settings: saved };
   });
 
@@ -164,17 +184,17 @@ function register({ app, config, getMainWindow }) {
     running.add(repoPath);
     const send = (data) => sendProgress(getMainWindow, repoPath, Object.assign({ at: Date.now() }, data));
     try {
-      const settings = consoleDb.getSecuritySettings(repoPath) || defaultSettings();
+      const settings = consoleDb().getSecuritySettings(repoPath) || defaultSettings();
       send({ type: 'stage', text: 'Detecting the project stack' });
-      const profile = engine.detectStack(repoPath);
+      const profile = engine().detectStack(repoPath);
       try {
-        consoleDb.saveSecurityProfile(repoPath, profile);
+        consoleDb().saveSecurityProfile(repoPath, profile);
       } catch (e) {
         /* history db is optional */
       }
 
       const resolved = await resolveTarget(repoPath, profile, settings, send);
-      const report = await audit.runAudit({
+      const report = await audit().runAudit({
         repoPath,
         profile,
         settings: resolved.settings,
@@ -185,7 +205,7 @@ function register({ app, config, getMainWindow }) {
 
       send({ type: 'stage', text: 'Saving the report to the repository' });
       try {
-        reportFile.save(repoPath, report);
+        reportFile().save(repoPath, report);
         send({ type: 'log', text: 'Saved the report to ' + report.savedFile });
       } catch (e) {
         report.saveError = e.message;
@@ -193,21 +213,19 @@ function register({ app, config, getMainWindow }) {
       }
       if (!report.markdown) {
         try {
-          report.markdown = markdownReport.build(report);
+          report.markdown = markdownReport().build(report);
         } catch (e) {
           report.markdown = '';
         }
       }
 
-      try {
-        reportStore.save(repoPath, report);
-      } catch (e) {
-        console.error('[Security] Could not save the report:', e.message);
-      }
       let history = [];
       try {
-        history = reportStore.getHistory(repoPath);
+        const store = reportStore();
+        store.save(repoPath, report);
+        history = store.getHistory(repoPath);
       } catch (e) {
+        console.error('[Security] Could not save the report:', e.message);
         history = [];
       }
       return { report, history, profile };

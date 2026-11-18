@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
+const fuzzy = require('../utils/fuzzyMatch.js');
 const MAX_ENTRIES = 5000;
 
 const SKIP_DIRS = new Set([
@@ -72,34 +73,7 @@ function relOf(root, file) {
   return path.relative(root, file).split(path.sep).join('/');
 }
 
-function editDistance(a, b, max) {
-  const al = a.length;
-  const bl = b.length;
-  if (Math.abs(al - bl) > max) return max + 1;
-  let prev = new Array(bl + 1);
-  for (let j = 0; j <= bl; j++) prev[j] = j;
-  for (let i = 1; i <= al; i++) {
-    const cur = [i];
-    let rowMin = i;
-    for (let j = 1; j <= bl; j++) {
-      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
-      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-      cur[j] = v;
-      if (v < rowMin) rowMin = v;
-    }
-    if (rowMin > max) return max + 1;
-    prev = cur;
-  }
-  return prev[bl];
-}
 
-function isSubsequence(q, w) {
-  let qi = 0;
-  for (let i = 0; i < w.length && qi < q.length; i++) {
-    if (w[i] === q[qi]) qi++;
-  }
-  return qi === q.length;
-}
 
 function snippetOf(line, col, len) {
   const start = Math.max(0, col - 50);
@@ -282,7 +256,6 @@ function scanExact(root, file, text, lower, ctx, out) {
 function scanNear(root, file, text, ctx, out) {
   const lines = text.split(/\r?\n/);
   const q = ctx.q;
-  const tol = q.length >= 8 ? 2 : 1;
   let count = 0;
   for (let i = 0; i < lines.length && count < PER_FILE_NEAR; i++) {
     const line = lines[i];
@@ -294,18 +267,9 @@ function scanNear(root, file, text, ctx, out) {
     while ((m = WORD_RE.exec(line)) !== null) {
       const w = m[0];
       if (w.length < 3 || w.length > 48) continue;
-      const lw = w.toLowerCase();
-      if (q.length >= 4 && Math.abs(lw.length - q.length) <= tol) {
-        const d = editDistance(lw, q, tol);
-        if (d <= tol) {
-          const sc = 62 - d * 8;
-          if (!best || sc > best.score) best = { score: sc, col: m.index, len: w.length, kind: 'near' };
-          continue;
-        }
-      }
-      if (q.length >= 3 && lw.length > q.length && lw[0] === q[0] && isSubsequence(q, lw)) {
-        const sc = 38 - Math.min(15, lw.length - q.length);
-        if (!best || sc > best.score) best = { score: sc, col: m.index, len: w.length, kind: 'fuzzy' };
+      const hit = fuzzy.nearWord(q, w);
+      if (hit && (!best || hit.score > best.score)) {
+        best = { score: hit.score, col: m.index + hit.off, len: hit.len, kind: hit.kind };
       }
     }
     if (best) {
@@ -316,47 +280,44 @@ function scanNear(root, file, text, ctx, out) {
   return count;
 }
 
+const NAME_HIT_MIN = 60;
+const NAME_HIT_CAP = 60;
+
+function fileResult(file, rel, sc, score, dir) {
+  const first = sc.marks[0];
+  const result = {
+    file,
+    rel,
+    line: 1,
+    col: 0,
+    len: 0,
+    text: rel.slice(rel.lastIndexOf('/') + 1),
+    hs: first ? first[0] : 0,
+    hl: first ? first[1] - first[0] : 0,
+    marks: sc.marks,
+    approx: sc.approx,
+    more: false,
+    score,
+    kind: 'file',
+  };
+  if (dir) result.dir = true;
+  return result;
+}
+
+function wordsFileScore(score) {
+  if (score >= 100) return 92 + Math.min(5, (score - 100) / 6);
+  return score * 0.75;
+}
 function fileMatches(root, files, ctx) {
-  const out = [];
+  const hits = [];
   for (const f of files) {
-    if (out.length >= 60) break;
     const rel = relOf(root, f);
-    const rl = rel.toLowerCase();
-    const slash = rl.lastIndexOf('/');
-    const base = rl.slice(slash + 1);
-    const baseOrig = rel.slice(slash + 1);
-    const idx = base.indexOf(ctx.q);
-    if (idx !== -1) {
-      out.push({
-        file: f,
-        rel,
-        line: 1,
-        col: 0,
-        len: 0,
-        text: baseOrig,
-        hs: idx,
-        hl: ctx.q.length,
-        more: false,
-        score: 92 + (idx === 0 ? 5 : 0),
-        kind: 'file',
-      });
-    } else if (rl.indexOf(ctx.q) !== -1) {
-      out.push({
-        file: f,
-        rel,
-        line: 1,
-        col: 0,
-        len: 0,
-        text: baseOrig,
-        hs: 0,
-        hl: 0,
-        more: false,
-        score: 60,
-        kind: 'file',
-      });
-    }
+    const sc = fuzzy.scorePath(rel, ctx.tokens);
+    if (!sc || sc.score < NAME_HIT_MIN) continue;
+    hits.push(fileResult(f, rel, sc, wordsFileScore(sc.score), false));
   }
-  return out;
+  hits.sort((a, b) => (b.score - a.score) || a.rel.localeCompare(b.rel));
+  return hits.slice(0, NAME_HIT_CAP);
 }
 
 function extOf(file) {
@@ -376,6 +337,7 @@ function countExts(files) {
     .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
     .slice(0, 80);
 }
+
 async function runSearch(sender, id, root, query, session, extSet) {
   const t0 = Date.now();
   const cancelled = () => session.cancelled || sender.isDestroyed();
@@ -464,38 +426,7 @@ async function runSearch(sender, id, root, query, session, extSet) {
     }
   }
 }
-function scoreFile(rel, tokens) {
-  const rl = rel.toLowerCase();
-  const slash = rl.lastIndexOf('/');
-  const base = rl.slice(slash + 1);
-  let total = 0;
-  let hs = 0;
-  let hl = 0;
-  let marked = false;
-  for (const t of tokens) {
-    let s = 0;
-    const bi = base.indexOf(t);
-    if (bi !== -1) {
-      s = base === t ? 130 : (bi === 0 ? 115 : 100);
-      if (!marked) {
-        hs = bi;
-        hl = t.length;
-        marked = true;
-      }
-    } else if (rl.indexOf(t) !== -1) {
-      s = 80;
-    } else if (t.length >= 2 && isSubsequence(t, base)) {
-      s = 60;
-    } else if (t.length >= 2 && isSubsequence(t, rl)) {
-      s = 45;
-    } else {
-      return null;
-    }
-    total += s;
-  }
-  total = total / tokens.length - Math.min(20, rel.length / 40);
-  return { score: total, hs, hl };
-}
+
 
 async function runFileSearch(sender, id, root, query, session, extSet) {
   const t0 = Date.now();
@@ -511,23 +442,9 @@ async function runFileSearch(sender, id, root, query, session, extSet) {
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const rel = relOf(root, f);
-      const sc = scoreFile(rel, tokens);
-      if (sc) {
-        hits.push({
-          file: f,
-          rel,
-          line: 1,
-          col: 0,
-          len: 0,
-          text: rel.slice(rel.lastIndexOf('/') + 1),
-          hs: sc.hs,
-          hl: sc.hl,
-          more: false,
-          score: sc.score,
-          kind: 'file',
-        });
-      }
-      if (i % 4000 === 3999) {
+      const sc = fuzzy.scorePath(rel, tokens);
+      if (sc) hits.push(fileResult(f, rel, sc, sc.score, false));
+      if (i % 2000 === 1999) {
         await tick();
         if (cancelled()) return;
       }
@@ -540,6 +457,77 @@ async function runFileSearch(sender, id, root, query, session, extSet) {
       results: out,
       phase: 'files',
       scanned: files.length,
+      progress: 1,
+      done: true,
+      truncated: hits.length > cap,
+      ms: Date.now() - t0,
+    });
+  } catch (err) {
+    if (!cancelled()) {
+      sender.send('ide:searchBatch', { id, results: [], done: true, error: err && err.message ? err.message : 'Search failed' });
+    }
+  }
+}
+
+let folderCache = { root: null, at: 0, dirs: null };
+
+async function listFolders(root, isCancelled) {
+  const now = Date.now();
+  if (folderCache.root === root && folderCache.dirs && now - folderCache.at < LIST_TTL) return folderCache.dirs;
+  const dirs = [];
+  const stack = [root];
+  while (stack.length) {
+    if (isCancelled()) return null;
+    const dir = stack.pop();
+    let dirents;
+    try {
+      dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const d of dirents) {
+      if (!d.isDirectory()) continue;
+      if (SKIP_DIRS.has(d.name.toLowerCase())) continue;
+      const full = path.join(dir, d.name);
+      dirs.push(full);
+      stack.push(full);
+      if (dirs.length >= MAX_FILES) {
+        stack.length = 0;
+        break;
+      }
+    }
+  }
+  dirs.sort();
+  folderCache = { root, at: Date.now(), dirs };
+  return dirs;
+}
+
+async function runFolderSearch(sender, id, root, query, session) {
+  const t0 = Date.now();
+  const cap = 300;
+  const cancelled = () => session.cancelled || sender.isDestroyed();
+  try {
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const dirs = await listFolders(root, cancelled);
+    if (!dirs || cancelled()) return;
+    const hits = [];
+    for (let i = 0; i < dirs.length; i++) {
+      const f = dirs[i];
+      const rel = relOf(root, f);
+      const sc = fuzzy.scorePath(rel, tokens);
+      if (sc) hits.push(fileResult(f, rel, sc, sc.score, true));
+      if (i % 2000 === 1999) {
+        await tick();
+        if (cancelled()) return;
+      }
+    }
+    if (cancelled()) return;
+    hits.sort((a, b) => (b.score - a.score) || a.rel.localeCompare(b.rel));
+    sender.send('ide:searchBatch', {
+      id,
+      results: hits.slice(0, cap),
+      phase: 'files',
+      scanned: dirs.length,
       progress: 1,
       done: true,
       truncated: hits.length > cap,
@@ -604,13 +592,15 @@ function parseHunks(text) {
 
 async function gitLineDiff(root, file) {
   const none = { success: true, kind: 'none', hunks: [] };
-  const inside = await runGit(root, ['rev-parse', '--is-inside-work-tree']);
+  const [inside, tracked, diff] = await Promise.all([
+    runGit(root, ['rev-parse', '--is-inside-work-tree']),
+    runGit(root, ['ls-files', '--error-unmatch', '--', file]),
+    runGit(root, ['diff', 'HEAD', '--unified=0', '--no-color', '--no-ext-diff', '--', file]),
+  ]);
   if (!inside.ok || inside.out.trim() !== 'true') return none;
-  const tracked = await runGit(root, ['ls-files', '--error-unmatch', '--', file]);
   if (tracked.ok) {
-    const d = await runGit(root, ['diff', 'HEAD', '--unified=0', '--no-color', '--no-ext-diff', '--', file]);
-    if (!d.ok) return none;
-    return { success: true, kind: 'tracked', hunks: parseHunks(d.out).slice(0, 5000) };
+    if (!diff.ok) return none;
+    return { success: true, kind: 'tracked', hunks: parseHunks(diff.out).slice(0, 5000) };
   }
   const ignored = await runGit(root, ['check-ignore', '-q', '--', file]);
   if (ignored.ok) return none;
@@ -629,6 +619,7 @@ ipcMain.handle('ide:gitLines', async (_event, args) => {
     return { success: false, error: err.message };
   }
 });
+
 async function clipExists(p) {
   try {
     await fs.promises.lstat(p);
@@ -755,6 +746,7 @@ ipcMain.handle('ide:fsPaste', async (_event, args) => {
     return { success: false, error: err.message };
   }
 });
+
 function register() {
   ipcMain.handle('ide:readDir', async (_event, dirPath) => {
     try {
@@ -777,7 +769,9 @@ function register() {
     const id = args && args.id;
     const root = args && args.root;
     const query = args && typeof args.query === 'string' ? args.query.trim() : '';
-    const mode = args && args.mode === 'files' ? 'files' : 'words';
+    let mode = 'words';
+    if (args && args.mode === 'files') mode = 'files';
+    if (args && args.mode === 'folders') mode = 'folders';
     if (typeof root !== 'string' || !root) return { success: false, error: 'No folder opened' };
     if (query.length < 2 || query.length > 200) {
       sender.send('ide:searchBatch', { id, results: [], done: true, ms: 0 });
@@ -797,7 +791,8 @@ function register() {
       .slice(0, 200)
       .map((x) => x.toLowerCase());
     const extSet = extList.length ? new Set(extList) : null;
-    if (mode === 'files') runFileSearch(sender, id, root, query, session, extSet);
+    if (mode === 'folders') runFolderSearch(sender, id, root, query, session);
+    else if (mode === 'files') runFileSearch(sender, id, root, query, session, extSet);
     else runSearch(sender, id, root, query, session, extSet);
     return { success: true };
   });
@@ -827,3 +822,87 @@ function register() {
 }
 
 module.exports = { register };
+function revertGit(cwd, args) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, timeout: 120000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+      resolve({ ok: !err, out: stdout || '', err: String(stderr || (err && err.message) || '').trim() });
+    });
+  });
+}
+
+function revertEntries(root, list) {
+  const seen = new Set();
+  const out = [];
+  if (!Array.isArray(list)) return out;
+  for (const p of list) {
+    if (typeof p !== 'string' || !p || !path.isAbsolute(p)) continue;
+    if (!clipInside(p, root)) continue;
+    const rel = relOf(root, p);
+    if (!rel || rel === '.git' || rel.startsWith('.git/')) continue;
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    out.push({ abs: p, rel });
+  }
+  return out;
+}
+
+function revertChunks(list, size) {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+ipcMain.handle('ide:revertChanges', async (_event, args) => {
+  const root = args && args.root;
+  if (typeof root !== 'string' || !root || !path.isAbsolute(root)) {
+    return { success: false, error: 'No folder opened' };
+  }
+  try {
+    const inside = await revertGit(root, ['rev-parse', '--is-inside-work-tree']);
+    if (!inside.ok || inside.out.trim() !== 'true') return { success: false, error: 'This folder is not a git repository' };
+    const head = await revertGit(root, ['rev-parse', '--verify', 'HEAD']);
+    const hasHead = head.ok;
+    const restore = revertEntries(root, args.restore);
+    const remove = revertEntries(root, args.remove);
+    const restored = [];
+    const removed = [];
+    const failed = [];
+
+    if (restore.length) {
+      if (!hasHead) {
+        for (const e of restore) failed.push({ path: e.abs, error: 'There is no commit to restore from' });
+      } else {
+        for (const group of revertChunks(restore, 150)) {
+          const res = await revertGit(root, ['checkout', 'HEAD', '--'].concat(group.map((e) => e.rel)));
+          if (res.ok) {
+            for (const e of group) restored.push(e.abs);
+            continue;
+          }
+          for (const e of group) {
+            const one = await revertGit(root, ['checkout', 'HEAD', '--', e.rel]);
+            if (one.ok) restored.push(e.abs);
+            else failed.push({ path: e.abs, error: one.err || 'Could not restore' });
+          }
+        }
+      }
+    }
+
+    if (remove.length) {
+      for (const group of revertChunks(remove, 150)) {
+        await revertGit(root, ['rm', '-r', '--cached', '--ignore-unmatch', '-q', '--'].concat(group.map((e) => e.rel)));
+      }
+      for (const e of remove) {
+        try {
+          if (await clipExists(e.abs)) await shell.trashItem(e.abs);
+          removed.push(e.abs);
+        } catch (err) {
+          failed.push({ path: e.abs, error: err && err.message ? err.message : 'Could not remove' });
+        }
+      }
+    }
+
+    return { success: true, restored, removed, failed };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});

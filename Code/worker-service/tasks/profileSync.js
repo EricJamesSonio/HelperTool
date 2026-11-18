@@ -3,15 +3,13 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 module.exports = async function handle({ repoPath, activationDate }) {
-  const today = new Date().toISOString().slice(0, 10);
-
   let log = '';
   try {
     const { stdout } = await execFileAsync('git', [
-      'log', '--format=>>>%H|%ad', '--date=short', '--no-merges', '--name-only',
+      '--no-optional-locks',
+      'log', '--branches', '--format=>>>%H|%ad', '--date=short', '--no-merges', '--name-only',
       '--after=' + activationDate + 'T00:00:00',
-      '--before=' + today + 'T23:59:59',
-    ], { cwd: repoPath, maxBuffer: 50 * 1024 * 1024 });
+    ], { cwd: repoPath, maxBuffer: 50 * 1024 * 1024, windowsHide: true });
     log = stdout;
   } catch (_) {
     return { dates: [] };
@@ -42,7 +40,7 @@ module.exports = async function handle({ repoPath, activationDate }) {
     dates: Object.entries(dateCounts).map(([date, count]) => ({
       date,
       commits: count,
-      files: dateFiles[date]?.size || 0,
+      files: dateFiles[date] ? dateFiles[date].size : 0,
     })),
   };
 };

@@ -115,6 +115,13 @@ function resumeGmail() {
   }
 }
 
+function sleepDeploy() {
+  try {
+    return { ok: true, count: require('./deploy_ipc.js').sleepAll() };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
 function tryEnter() {
   _timer = null;
   if (_asleep || !winAway()) return;
@@ -125,6 +132,7 @@ function tryEnter() {
     return;
   }
   pauseGmail();
+  sleepDeploy();
   _asleep = true;
   console.log('[Hibernate] asleep');
   broadcast();
@@ -168,6 +176,11 @@ function featureAction(id, action) {
   }
   if (id === 'symbolIndex' && action === 'sleep') {
     const r = sleepIndexer(false);
+    broadcast();
+    return r;
+  }
+  if (id === 'deployTool' && action === 'sleep') {
+    const r = sleepDeploy();
     broadcast();
     return r;
   }

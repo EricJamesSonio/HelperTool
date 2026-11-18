@@ -7,6 +7,8 @@ const EventEmitter = require('events');
 function uuid() { return crypto.randomUUID(); }
 
 const STOP_GRACE_MS = 3000;
+const IDLE_SLEEP_MS = 2 * 60 * 1000;
+const IDLE_CHECK_MS = 20000;
 
 let _child = null;
 let _pending = new Map();
@@ -18,6 +20,10 @@ let _queue = [];
 let _dbPath = null;
 let _disabled = false;
 let _asleep = false;
+let _dormant = false;
+let _hold = false;
+let _lastUse = Date.now();
+let _idleTimer = null;
 const _events = new EventEmitter();
 
 function _getIndexerPath() {
@@ -32,10 +38,43 @@ function _terminate(child) {
   child.once('exit', () => clearTimeout(timer));
 }
 
+function _startIdleWatch() {
+  if (_idleTimer) return;
+  _idleTimer = setInterval(() => {
+    if (!_child || !_ready || _disabled || _asleep) return;
+    if (isBusy()) return;
+    if (Date.now() - _lastUse < IDLE_SLEEP_MS) return;
+    _goDormant();
+  }, IDLE_CHECK_MS);
+  if (_idleTimer.unref) _idleTimer.unref();
+}
+
+function _stopIdleWatch() {
+  if (_idleTimer) {
+    clearInterval(_idleTimer);
+    _idleTimer = null;
+  }
+}
+
+function _goDormant() {
+  const child = _child;
+  _child = null;
+  _rl = null;
+  _ready = false;
+  _dormant = true;
+  if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
+  console.log('[indexer] idle, process closed until the next request');
+  _terminate(child);
+}
+
 function _spawn() {
   if (_child) { try { _child.kill(); } catch (_) {}; _child = null; }
 
   _asleep = false;
+  _dormant = false;
+  _hold = false;
+  _lastUse = Date.now();
+  _startIdleWatch();
   const indexPath = _getIndexerPath();
   const args = [indexPath];
   if (_dbPath) args.push(_dbPath);
@@ -58,11 +97,13 @@ function _spawn() {
         return;
       }
       if (msg.type === 'progress') {
+        _lastUse = Date.now();
         _events.emit('progress', msg.data || {});
         return;
       }
       const pending = _pending.get(msg.id);
       if (pending) {
+        _lastUse = Date.now();
         _pending.delete(msg.id);
         pending.resolve(msg);
       }
@@ -105,6 +146,7 @@ function _send(msg, timeout = 30000) {
     if (!_child) { reject(new Error('Indexer not running')); return; }
     const id = msg.id || uuid();
     msg.id = id;
+    _lastUse = Date.now();
     const timer = setTimeout(() => { _pending.delete(id); reject(new Error('Indexer request timed out: ' + msg.type)); }, timeout);
     _pending.set(id, { resolve: (res) => { clearTimeout(timer); resolve(res); }, reject: (err) => { clearTimeout(timer); reject(err); } });
     _child.stdin.write(JSON.stringify(msg) + '\n');
@@ -113,22 +155,38 @@ function _send(msg, timeout = 30000) {
 
 function _queueOrSend(msg, timeout) {
   if (_disabled) return Promise.reject(new Error('Indexer is turned off'));
+  _lastUse = Date.now();
   if (_asleep) wake();
+  if (_dormant) {
+    _dormant = false;
+    _hold = false;
+    if (!_child) _spawn();
+  }
   if (_ready) return _send(msg, timeout);
   return new Promise((resolve, reject) => { _queue.push({ msg, timeout, resolve, reject }); });
 }
 
-function start(dbPath) {
+function start(dbPath, opts) {
   _disabled = false;
   _asleep = false;
+  _hold = false;
   if (dbPath) _dbPath = dbPath;
   if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
-  if (!_child) _spawn();
+  if (_child) return;
+  if (opts && opts.eager) {
+    _dormant = false;
+    _spawn();
+    return;
+  }
+  _dormant = true;
 }
 
 function stop() {
   _disabled = true;
   _asleep = false;
+  _dormant = false;
+  _hold = false;
+  _stopIdleWatch();
   if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
   const child = _child;
   _child = null;
@@ -149,9 +207,13 @@ function isBusy() {
 
 function sleep(force) {
   if (_disabled) return { ok: true, already: true };
-  if (!_child && !_restartTimer) return { ok: true, already: true };
+  if (!_child && !_restartTimer) {
+    if (_dormant) _hold = true;
+    return { ok: true, already: true };
+  }
   if (isBusy() && !force) return { ok: false, busy: true };
   _asleep = true;
+  _dormant = false;
   if (_restartTimer) { clearTimeout(_restartTimer); _restartTimer = null; }
   const child = _child;
   _child = null;
@@ -168,6 +230,7 @@ function sleep(force) {
 }
 
 function wake() {
+  _hold = false;
   if (!_asleep) return false;
   _asleep = false;
   if (!_disabled && !_child) _spawn();
@@ -176,7 +239,7 @@ function wake() {
 
 function isAsleep() { return _asleep; }
 
-function isReady() { return _ready; }
+function isReady() { return _ready || (_dormant && !_hold && !_disabled); }
 
 async function send(type, payload, timeout) {
   const res = await _queueOrSend({ type, payload }, timeout);

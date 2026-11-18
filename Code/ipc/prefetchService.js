@@ -118,7 +118,16 @@ async function _fetchFromWorker(type, payload) {
   }
 }
 
+function _profileEnabled() {
+  try {
+    const feats = require('../config/config.js').readConfig()?.features ?? null;
+    return !feats || feats.profileTool !== false;
+  } catch (_) {
+    return true;
+  }
+}
 async function _prefetchProfile() {
+  if (!_profileEnabled()) return;
   console.time('[Prefetch] profile');
   updateService('prefetchProfile', 'running', 'Fetching profile data...');
   try {
@@ -186,7 +195,9 @@ async function _prefetchBranches(repoPath) {
 function _pushCachedToRenderer() {
   const w = typeof _getMainWindow === 'function' && _getMainWindow();
   if (!w || w.isDestroyed()) return;
+  const profileOn = _profileEnabled();
   for (const [key, entry] of _cache) {
+    if (key === 'profile' && !profileOn) continue;
     if (_now() - entry.ts < entry.ttl) {
       w.webContents.send('prefetch:ready', { key, ttl: entry.ttl });
     }
@@ -252,21 +263,21 @@ async function _startProfileWatcher(repoPath) {
 async function _doPrefetch(repoPath) {
   console.log('[Prefetch] start', Date.now());
 
-  // Start file watcher first
-  await _startProfileWatcher(repoPath).catch(err =>
-    console.warn('[Prefetch] Profile watcher failed:', err.message)
-  );
+  const profileOn = _profileEnabled();
 
-  // Sync commits to populate activity_days before we cache profile data
-  await _triggerProfileSync(repoPath).catch(err =>
-    console.warn('[Prefetch] Profile sync failed:', err.message)
-  );
+  if (profileOn) {
+    await _startProfileWatcher(repoPath).catch(err =>
+      console.warn('[Prefetch] Profile watcher failed:', err.message)
+    );
 
-  // Now prefetch — activity_days includes synced commits
-  await Promise.all([
-    _prefetchProfile(),
-    _prefetchBranches(repoPath),
-  ]);
+    await _triggerProfileSync(repoPath).catch(err =>
+      console.warn('[Prefetch] Profile sync failed:', err.message)
+    );
+  }
+
+  const jobs = [_prefetchBranches(repoPath)];
+  if (profileOn) jobs.push(_prefetchProfile());
+  await Promise.all(jobs);
 
   console.log('[Prefetch] Background refresh scheduled');
 }

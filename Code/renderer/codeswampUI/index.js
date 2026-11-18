@@ -14,9 +14,7 @@ let _initialized = false;
 let _refreshInterval = null;
 
 export async function initCodeSwampUI() {
-  console.log('[CS] initCodeSwampUI start');
   if (_initialized) {
-    console.log('[CS] initCodeSwampUI already initialized, return');
     return;
   }
   _initialized = true;
@@ -26,7 +24,6 @@ export async function initCodeSwampUI() {
     if (panel) panel.remove();
     const container = document.getElementById('ocPanelContainer') || document.body;
     container.insertAdjacentHTML('beforeend', getTemplate('content'));
-    console.log('[CS] template inserted');
   }
 
   getLoadingController();
@@ -87,10 +84,8 @@ export async function initCodeSwampUI() {
   }).catch(() => {});
 
   const activeRepo = await getActiveRepoPath();
-  console.log('[CS] activeRepo:', activeRepo);
   if (activeRepo) {
     await addRepo(activeRepo);
-    console.log('[CS] addRepo done, activeTab:', state.activeTab);
   }
 
   document.addEventListener('repo:switched', async (e) => {
@@ -98,9 +93,6 @@ export async function initCodeSwampUI() {
     if (!repoPath) return;
     await addRepo(repoPath);
     clearFilePickerCache();
-    if (state.activeTab) {
-      await refreshSidebar();
-    }
   });
 
   setTimeout(async () => {
@@ -135,7 +127,6 @@ export async function initCodeSwampUI() {
 
 function setupDom() {
   const newChatBtn = document.getElementById('ocNewChatBtn');
-  console.log('[CS] setupDom - ocNewChatBtn found:', !!newChatBtn);
   newChatBtn?.addEventListener('click', startNewChat);
   document.getElementById('ocRefreshBtn')?.addEventListener('click', () => refreshSidebar(true));
   document.getElementById('ocCloseBtn')?.addEventListener('click', closeCodeSwampUI);
@@ -164,14 +155,11 @@ async function getActiveRepoPath() {
 }
 
 export function openCodeSwampUI() {
-  console.log('[CS] openCodeSwampUI, tabs.length:', state.tabs.length);
   const panel = document.getElementById('ocPanel');
-  console.log('[CS] panel found:', !!panel);
   if (panel) {
     panel.classList.add('open');
     state.open = true;
     if (state.tabs.length === 0) {
-      console.log('[CS] tabs empty, calling initCodeSwampUI');
       initCodeSwampUI();
     }
   }

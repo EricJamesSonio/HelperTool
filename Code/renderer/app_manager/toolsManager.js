@@ -1150,3 +1150,39 @@ RUN.errorCop = async () => {
   _registry.closeAll();
   ecp.open();
 };
+const _closeAllOriginal = _registry.closeAll.bind(_registry);
+_registry.closeAll = function closeAllWithRepoConsole() {
+  document.dispatchEvent(new CustomEvent('repoConsole:close-request'));
+  return _closeAllOriginal();
+};
+
+document.addEventListener('repoConsole:open-run', async (e) => {
+  const detail = (e && e.detail) || {};
+  try {
+    const mod = await import('../repoConsole.js');
+    _registry.closeAll();
+    await mod.openRun(detail.repoPath || state.selectedRepoPath, detail.runId, detail.tab);
+    _registry.register('repoConsole', mod.getPanel());
+  } catch (err) {
+    console.error('[Tools] Repo Console run:', err);
+  }
+});
+ICONS.storageInspector = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="4.5" rx="6.5" ry="2.5"/><path d="M3.5 4.5v11c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5v-11"/><path d="M3.5 10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5"/><circle cx="15" cy="15" r="2.6"/><path d="M17 17l2 2"/></svg>';
+
+RUN.storageInspector = async () => {
+  const mod = await import('../storageInspector.js');
+  if (mod.isOpen()) { mod.close(); return; }
+  _registry.closeAll();
+  await mod.open();
+  _registry.register('storageInspector', mod.getPanel());
+};
+
+TOOLS.push({
+  id: 'storageInspector',
+  key: 'storageInspector',
+  flag: 'storageInspector',
+  icon: ICONS.storageInspector,
+  name: 'Storage Inspector',
+  desc: 'Every database, JSON file & local storage this app uses',
+  shortcut: null,
+});

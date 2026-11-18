@@ -16,6 +16,7 @@ const PSEUDO = {
   electron: { label: 'Electron helpers', group: 'Core', desc: 'GPU, network and utility processes.' },
   commands: { label: 'Commands and scripts', group: 'Core', desc: 'Shell commands started by the console, ecosystem and error tools.' },
   other: { label: 'Other processes', group: 'Core', desc: 'Processes that could not be matched to a feature.' },
+  deployTool: { label: 'Deploy Tool browsers', group: 'Code and Git', desc: 'Hosting dashboards opened in the Deploy tab of the Git Tool. They sleep shortly after you leave it.' },
 };
 const EXTRA_FEATURES = [
   { id: 'ideMode', label: 'IDE Mode', group: 'Code and Git', desc: 'Built-in explorer, editor, search and WakaTime. Runs inside the app window, so its memory is part of Helper Tool core.' },
@@ -271,6 +272,21 @@ function buildReport() {
 
   return out.join('\n');
 }
+function reportText() {
+  const base = buildReport();
+  if (!base || !_snap) return base;
+  const files = Array.isArray(_snap.dataFiles) ? _snap.dataFiles : [];
+  if (!files.length) return base;
+  const total = files.reduce((a, f) => a + f.bytes, 0);
+  const lines = ['## Data files (' + fmtMem(total / 1024) + ' on disk)', ''];
+  files.forEach((f) => lines.push('- ' + mdCell(f.label) + ': ' + fmtMem(f.bytes / 1024)));
+  lines.push('');
+  const marker = '## Memory over time';
+  const at = base.indexOf(marker);
+  if (at < 0) return base + '\n' + lines.join('\n');
+  return base.slice(0, at) + lines.join('\n') + '\n' + base.slice(at);
+}
+
 
 function flashButton(id, text) {
   const b = $(id);
@@ -284,7 +300,7 @@ function flashButton(id, text) {
 }
 
 async function copyReport() {
-  const text = buildReport();
+  const text = reportText();
   if (!text) {
     flashButton('ptCopy', 'No data yet');
     return;
@@ -311,7 +327,7 @@ async function copyReport() {
 }
 
 function downloadReport() {
-  const text = buildReport();
+  const text = reportText();
   if (!text) {
     flashButton('ptDownload', 'No data yet');
     return;
@@ -1116,6 +1132,9 @@ function actionsFor(r) {
   if (r.id === 'workerService') {
     return [['sleep', 'Sleep', 'Stop the background worker. It starts again by itself when something needs it.']];
   }
+  if (r.id === 'deployTool') {
+    return [['sleep', 'Sleep', 'Close the Deploy browsers now to free memory. Pages reload when you open the Deploy tab again.']];
+  }
   return [];
 }
 
@@ -1167,6 +1186,7 @@ function featureMsg(id, res) {
     if (res && res.busy) return 'It is busy right now. Try again in a moment.';
     return (res && res.error) || 'Nothing changed.';
   }
+  if (id === 'deployTool') return 'Deploy browsers are asleep. They reload when you open the Deploy tab.';
   if (id === 'graphify') return 'Graphify stopped. Start it again from the Graphify panel.';
   if (id === 'workerService') return 'Background worker is asleep. It starts again by itself when something needs it.';
   return 'Symbol Index is asleep. It wakes when you restore the window or press Wake all.';
@@ -1190,7 +1210,7 @@ async function onFeatureAction(e) {
       _optMsg = act === 'stop'
         ? 'Code Swamp stopped (' + word + ' closed).'
         : 'Code Swamp is asleep (' + word + ' closed). It wakes when you use it.';
-    } else if (id === 'graphify' || id === 'symbolIndex' || id === 'workerService') {
+    } else if (id === 'graphify' || id === 'symbolIndex' || id === 'workerService' || id === 'deployTool') {
       if (id === 'graphify' && !window.confirm('Stop the Graphify server?')) return;
       const res = await callFeature(id, act);
       _optMsg = featureMsg(id, res);

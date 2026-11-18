@@ -223,6 +223,7 @@ const dbInspectorBridge = {
         listSeeds:       (snapshotId)    => ipcRenderer.invoke('dbInspector:listSeeds', snapshotId),
         saveSeed:        (data)          => ipcRenderer.invoke('dbInspector:saveSeed', data),
         deleteSeed:      (id)            => ipcRenderer.invoke('dbInspector:deleteSeed', id),
+        exportPdf:       (snapshotId)    => ipcRenderer.invoke('dbInspector:exportPdf', snapshotId),
     },
 };
 
@@ -365,8 +366,10 @@ const profileBridge = {
     getDonutData: (range)        => ipcRenderer.invoke('profile:getDonutData', { range }),
     getHistory:   (page, repo)   => ipcRenderer.invoke('profile:getHistory', { page, repoPath: repo }),
     getDayDetail: (date)         => ipcRenderer.invoke('profile:getDayDetail', { date }),
-    getDayCommits:(date)         => ipcRenderer.invoke('profile:getDayCommits', { date }),
+    getDayCommits:(date, repoPath) => ipcRenderer.invoke('profile:getDayCommits', { date, repoPath }),
     fileDiff:     (filePath, repoPath, commitHash) => ipcRenderer.invoke('profile:fileDiff', { filePath, repoPath, commitHash }),
+    getOverview:  (opts)         => ipcRenderer.invoke('profile:getOverview', opts),
+    getHours:     (days)         => ipcRenderer.invoke('wakatime:range', { days }),
     resetStats:   ()             => ipcRenderer.invoke('profile:resetStats'),
     initWatcher:  ()             => ipcRenderer.invoke('profile:initWatcher'),
     stopWatcher:  ()             => ipcRenderer.invoke('profile:stopWatcher'),
@@ -841,6 +844,11 @@ const repoConsoleBridge = {
   ciSmart:       (payload)                 => ipcRenderer.invoke('repoConsole:ciSmart', payload),
   ciRerunPlan:   (payload)                 => ipcRenderer.invoke('repoConsole:ciRerunPlan', payload),
   ciRun:         (payload)                 => ipcRenderer.invoke('repoConsole:ciRun', payload),
+  pushPreview:   (payload)                 => ipcRenderer.invoke('repoConsole:pushPreview', payload),
+  pushChecks:    (payload)                 => ipcRenderer.invoke('repoConsole:pushChecks', payload),
+  checksPlan:    (payload)                 => ipcRenderer.invoke('repoConsole:checksPlan', payload),
+  checksSettings: (payload)                => ipcRenderer.invoke('repoConsole:checksSettings', payload),
+  checksRun:     (payload)                 => ipcRenderer.invoke('repoConsole:checksRun', payload),
   securityDetect:       (payload)          => ipcRenderer.invoke('security:detect', payload),
   securityDetectTarget: (payload)          => ipcRenderer.invoke('security:detectTarget', payload),
   securityGetSettings:  (payload)          => ipcRenderer.invoke('security:getSettings', payload),
@@ -849,6 +857,10 @@ const repoConsoleBridge = {
   onEvent: (callback) => {
     ipcRenderer.removeAllListeners('repoConsole:event');
     ipcRenderer.on('repoConsole:event', (_, payload) => callback(payload));
+  },
+  onPushChecks: (callback) => {
+    ipcRenderer.removeAllListeners('pushChecks:event');
+    ipcRenderer.on('pushChecks:event', (_, payload) => callback(payload));
   },
 };
 
@@ -942,4 +954,43 @@ contextBridge.exposeInMainWorld('reqLibraryAPI', {
   renameItem:     (payload) => ipcRenderer.invoke('reqLib:renameItem', payload),
   deleteItem:     (payload) => ipcRenderer.invoke('reqLib:deleteItem', payload),
   importLibrary:  (payload) => ipcRenderer.invoke('reqLib:importLibrary', payload),
+});
+contextBridge.exposeInMainWorld('ideRevertAPI', {
+    run: (payload) => ipcRenderer.invoke('ide:revertChanges', payload),
+});
+contextBridge.exposeInMainWorld('ideStructureAPI', {
+    build: (payload) => ipcRenderer.invoke('generate:structureText', payload),
+});
+contextBridge.exposeInMainWorld('deployAPI', {
+  load:           (payload) => ipcRenderer.invoke('deploy:load', payload),
+  search:         (payload) => ipcRenderer.invoke('deploy:search', payload),
+  suggest:        (payload) => ipcRenderer.invoke('deploy:suggest', payload),
+  saveAccount:    (payload) => ipcRenderer.invoke('deploy:saveAccount', payload),
+  deleteAccount:  (payload) => ipcRenderer.invoke('deploy:deleteAccount', payload),
+  saveTarget:     (payload) => ipcRenderer.invoke('deploy:saveTarget', payload),
+  deleteTarget:   (payload) => ipcRenderer.invoke('deploy:deleteTarget', payload),
+  setUi:          (payload) => ipcRenderer.invoke('deploy:setUi', payload),
+  openTab:        (payload) => ipcRenderer.invoke('deploy:openTab', payload),
+  closeTab:       (payload) => ipcRenderer.invoke('deploy:closeTab', payload),
+  closeAll:       ()        => ipcRenderer.invoke('deploy:closeAll'),
+  layout:         (payload) => ipcRenderer.invoke('deploy:layout', payload),
+  hide:           ()        => ipcRenderer.invoke('deploy:hide'),
+  nav:            (payload) => ipcRenderer.invoke('deploy:nav', payload),
+  openExternal:   (payload) => ipcRenderer.invoke('deploy:openExternal', payload),
+  onViewState: (callback) => {
+    ipcRenderer.removeAllListeners('deploy:viewState');
+    ipcRenderer.on('deploy:viewState', (_event, data) => callback(data));
+  },
+});
+contextBridge.exposeInMainWorld('deployGithubAPI', {
+  status: (accountId) => ipcRenderer.invoke('deploy:githubStatus', { accountId }),
+  logout: (accountId) => ipcRenderer.invoke('deploy:githubLogout', { accountId }),
+});
+contextBridge.exposeInMainWorld('storageInspectorAPI', {
+  catalog:      ()        => ipcRenderer.invoke('storageInspector:catalog'),
+  dbTables:     (payload) => ipcRenderer.invoke('storageInspector:dbTables', payload),
+  dbRows:       (payload) => ipcRenderer.invoke('storageInspector:dbRows', payload),
+  readFile:     (payload) => ipcRenderer.invoke('storageInspector:readFile', payload),
+  listDir:      (payload) => ipcRenderer.invoke('storageInspector:listDir', payload),
+  showInFolder: (payload) => ipcRenderer.invoke('storageInspector:showInFolder', payload),
 });

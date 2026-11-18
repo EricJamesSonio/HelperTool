@@ -43,7 +43,7 @@
 .git-nav {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(104px, 1fr));
+  grid-template-columns: repeat(4, minmax(104px, 1fr));
   padding: 4px;
   border-radius: 999px;
   background: var(--bg-raised, #15171d);
@@ -59,7 +59,7 @@
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc((100% - 8px) / 3);
+  width: calc((100% - 8px) / 4);
   box-sizing: border-box;
   border-radius: 999px;
   background: var(--accent-dim, rgba(34, 211, 238, 0.14));
@@ -74,6 +74,10 @@
 
 .git-nav[data-active='inspect']::before {
   transform: translateX(200%);
+}
+
+.git-nav[data-active='deploy']::before {
+  transform: translateX(300%);
 }
 
 .git-nav-tab {

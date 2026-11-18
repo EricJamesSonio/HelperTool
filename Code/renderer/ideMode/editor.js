@@ -9,6 +9,7 @@ import * as ext from './extensions/index.js';
 import * as fmt from './extensions/formatter.js';
 import * as runners from './extensions/runners.js';
 import * as lineMarks from './lineMarks.js';
+import { renderMarkdown } from './markdownPreview.js';
 const repoStash = new Map();
 
 document.addEventListener('repo:closed', (e) => {
@@ -525,6 +526,14 @@ const TEMPLATE =
       '</div>' +
     '</div>' +
   '</div>' +
+  '<div class="ide-md-toolbar" hidden>' +
+    '<span class="ide-md-label">Markdown</span>' +
+    '<div class="ide-md-modes" role="group" aria-label="Markdown view">' +
+      '<button type="button" class="ide-md-mode active" data-md-mode="source" aria-pressed="true">Source</button>' +
+      '<button type="button" class="ide-md-mode" data-md-mode="preview" aria-pressed="false">Preview</button>' +
+    '</div>' +
+  '</div>' +
+  '<div class="ide-md-preview" hidden></div>' +
   '<div class="ide-dv" hidden></div>' +
   '<div class="ide-media" hidden></div>' +
   '<div class="ide-codewrap" hidden>' +
@@ -594,6 +603,10 @@ function isText(tab) {
   return !!tab && !tab.kind && !tab.media && !tab.loading && !tab.notice;
 }
 
+function isMarkdown(tab) {
+  return !!tab && /\.(?:md|markdown|mdown|mkd)$/i.test(tab.name || '');
+}
+
 function makeTab(path, name, media) {
   return {
     path,
@@ -611,6 +624,7 @@ function makeTab(path, name, media) {
     selStart: 0,
     selEnd: 0,
     hist: null,
+    markdownPreview: false,
   };
 }
 
@@ -1134,7 +1148,17 @@ function showTab(tab, focus) {
   const isPane = !!tab && !!tab.kind;
   const isMedia = !!tab && !isPane && !!tab.media;
   const showCode = !!tab && !isPane && !isMedia && !tab.loading && !tab.notice;
-  els.codewrap.hidden = !showCode;
+  const isMd = showCode && isMarkdown(tab);
+  const previewMd = isMd && !!tab.markdownPreview;
+  els.mdToolbar.hidden = !isMd;
+  els.mdPreview.hidden = !previewMd;
+  els.codewrap.hidden = !showCode || previewMd;
+  els.mdPreview.innerHTML = previewMd ? renderMarkdown(tab.content) : '';
+  els.mdModes.forEach((button) => {
+    const active = button.dataset.mdMode === (previewMd ? 'preview' : 'source');
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
   els.dv.hidden = !isPane;
   els.media.hidden = !isMedia;
   els.welcome.hidden = showCode || isPane || isMedia;
@@ -1157,6 +1181,7 @@ function showTab(tab, focus) {
     return;
   }
   if (!showCode) {
+    els.mdPreview.innerHTML = '';
     closeFind(true);
     updateStatus(tab);
     return;
@@ -1177,6 +1202,19 @@ function showTab(tab, focus) {
   if (focus) els.ta.focus({ preventScroll: true });
   updateStatus(tab);
   scheduleCursor();
+}
+
+function setMarkdownPreview(preview) {
+  const tab = activeTab();
+  if (!isText(tab) || !isMarkdown(tab)) return;
+  if (preview) {
+    saveViewState();
+    closeFind(true);
+    tab.markdownPreview = true;
+  } else {
+    tab.markdownPreview = false;
+  }
+  showTab(tab, !preview);
 }
 
 function activate(path, focus) {
@@ -2121,16 +2159,30 @@ function smartEnter(e) {
   const prev = s > 0 ? v[s - 1] : '';
   const next = v[en] || '';
   e.preventDefault();
+  const fixX = () => {
+    const pos = ta.selectionStart;
+    const lineStart = pos === 0 ? 0 : ta.value.lastIndexOf('\n', pos - 1) + 1;
+    const x = (pos - lineStart) * charWidth() + 12;
+    const w = ta.clientWidth || 800;
+    if (x - ta.scrollLeft < 40) ta.scrollLeft = Math.max(0, x - 40);
+    else if (x - ta.scrollLeft > w - 100) ta.scrollLeft = Math.max(0, x - Math.round(w * 0.5));
+    syncTransform();
+    schedule();
+  };
   const pairBetween = s === en && !!prev && CLOSERS.indexOf(next) !== -1 && PAIRS[prev] === next && prev !== next;
   const tagBetween = lang === 'html' && s === en && prev === '>' && v.slice(s, s + 2) === '</';
   if (pairBetween || tagBetween) {
     exec('\n' + lead + '  \n' + lead);
     const pos = s + 1 + lead.length + 2;
     ta.setSelectionRange(pos, pos);
+    fixX();
+    requestAnimationFrame(fixX);
     scheduleCursor();
     return;
   }
   exec('\n' + lead + indentExtra(before));
+  fixX();
+  requestAnimationFrame(fixX);
 }
 
 function smartBackspace(e) {
@@ -2327,30 +2379,9 @@ const CENTER_MIN_H = 120;
 let centerRaf = 0;
 
 function centerCaret() {
-  if (!els || els.codewrap.hidden) return;
+  if (!els) return;
   const ta = els.ta;
-  if (document.activeElement !== ta || ta.selectionStart !== ta.selectionEnd) return;
-  const h = ta.clientHeight;
-  if (h < CENTER_MIN_H) return;
-  const pb = PAD + Math.round(h * 0.5) + 'px';
-  if (ta.style.paddingBottom !== pb) ta.style.paddingBottom = pb;
-  const v = ta.value;
-  const s = ta.selectionStart;
-  let row = 0;
-  let i = -1;
-  for (;;) {
-    i = v.indexOf('\n', i + 1);
-    if (i === -1 || i >= s) break;
-    row++;
-  }
-  const y = row * LH + PAD;
-  const rel = y - ta.scrollTop;
-  const mid = (h - LH) / 2;
-  if (rel > mid + LH / 2) ta.scrollTop = Math.max(0, y - mid);
-  const ls = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1;
-  const x = (s - ls) * charWidth() + 12;
-  const w = ta.clientWidth || 800;
-  if (x - ta.scrollLeft > w - 100) ta.scrollLeft = Math.max(0, x - Math.round(w * 0.5));
+  if (ta.style.paddingBottom) ta.style.paddingBottom = '';
 }
 
 function scheduleCenter() {
@@ -2747,6 +2778,9 @@ export function mount(mainEl, handlers) {
     pbTitle: mainEl.querySelector('.ide-pb-title'),
     stProb: mainEl.querySelector('.ide-st-problems'),
     find: mainEl.querySelector('.ide-find'),
+    mdToolbar: mainEl.querySelector('.ide-md-toolbar'),
+    mdPreview: mainEl.querySelector('.ide-md-preview'),
+    mdModes: Array.from(mainEl.querySelectorAll('.ide-md-mode')),
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
     findCount: mainEl.querySelector('.ide-find-count'),
@@ -2784,6 +2818,10 @@ export function mount(mainEl, handlers) {
   els.findIn.addEventListener('keydown', onFindKey);
   els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
+  els.mdToolbar.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-md-mode]');
+    if (button) setMarkdownPreview(button.dataset.mdMode === 'preview');
+  });
   els.runbar.addEventListener('click', onRunbarClick);
   els.stProb.addEventListener('click', () => setProblemsOpen(!problemsOpen));
   els.problems.addEventListener('click', onProblemsClick);
