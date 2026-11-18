@@ -235,7 +235,6 @@ async function setActive(on) {
   }
 }
 
-const NAV_SEARCH_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
 
 function createNavSearch() {
   const center = document.querySelector('.navbar-row--primary .navbar-section.center');
@@ -245,7 +244,7 @@ function createNavSearch() {
   el.type = 'button';
   el.className = 'ide-nav-search';
   el.title = 'Search words in the codebase (F2)';
-  el.innerHTML = NAV_SEARCH_ICON + '<span class="ide-nav-search-text">Search in codebase</span><kbd class="ide-nav-search-key">F2</kbd>';
+  el.innerHTML = '<span class="ide-nav-search-text">Search in codebase</span><kbd class="ide-nav-search-key">F2</kbd>';
   el.addEventListener('click', () => openSearch(false));
   center.insertBefore(el, center.firstChild);
 }
