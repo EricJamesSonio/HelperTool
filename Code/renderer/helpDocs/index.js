@@ -327,7 +327,7 @@ function _renderVersionsList() {
   let html = '<article class="hd-page hd-page--wide">';
   html += '<div class="hd-eyebrow">Releases</div>';
   html += '<div class="hd-vhead"><div><h1 class="hd-title">Versions</h1>' +
-    '<p class="hd-lead hd-lead--tight">Every release of HelperTool with its documentation and UI preview.</p></div>' +
+    '<p class="hd-lead hd-lead--tight">Every release of ES Code with its documentation and UI preview.</p></div>' +
     '<button type="button" class="hd-btn-primary" data-act="create">+ Create new</button></div>';
 
   if (_versionsState === 'error') {
@@ -766,7 +766,7 @@ function _buildPanel() {
       '<div class="hd-header">' +
         '<h2>' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5"/><circle cx="12" cy="17.5" r="0.6" fill="currentColor"/></svg>' +
-          'HelperTool Documentation' +
+          'ES Code Documentation' +
           '<span class="hd-version">v' + _esc(APP_INFO.version) + '</span>' +
         '</h2>' +
         '<div class="hd-header-right">' +

@@ -1,5 +1,5 @@
 export const APP_INFO = {
-  name: 'HelperTool',
+  name: 'ES Code',
   version: '19.0.5',
   creator: 'Eric James A. Sonio',
   started: 'January 5-8',
@@ -46,9 +46,9 @@ export const SECTIONS = [
   {
     id: 'overview',
     group: 'intro',
-    title: 'What is HelperTool',
+    title: 'What is ES Code',
     icon: ICONS.info,
-    lead: 'HelperTool is a desktop workspace that sits between your codebase and your AI assistants, and has grown into a full developer toolbox.',
+    lead: 'ES Code is a desktop workspace that sits between your codebase and your AI assistants, and has grown into a full developer toolbox.',
     blocks: [
       { t: 'stats', items: [
         { value: 'v19.0.5', label: 'Current version' },
@@ -56,10 +56,10 @@ export const SECTIONS = [
         { value: 'Jan 5-8', label: 'Version 1 built' },
         { value: 'IDE Mode', label: 'Latest big milestone' },
       ] },
-      { t: 'p', text: 'You open a repository, browse its files, pick exactly what you need, and HelperTool turns that selection into clean output you can hand to an AI assistant. When the assistant answers, HelperTool can read the reply and apply the code back into your repo safely.' },
-      { t: 'p', text: 'Around that core loop, HelperTool now includes Git tooling, code intelligence, terminals, database and Docker inspectors, monitoring dashboards, an embedded AI chat, and a complete IDE Mode.' },
+      { t: 'p', text: 'You open a repository, browse its files, pick exactly what you need, and ES Code turns that selection into clean output you can hand to an AI assistant. When the assistant answers, ES Code can read the reply and apply the code back into your repo safely.' },
+      { t: 'p', text: 'Around that core loop, ES Code now includes Git tooling, code intelligence, terminals, database and Docker inspectors, monitoring dashboards, an embedded AI chat, and a complete IDE Mode.' },
       { t: 'h', text: 'In one sentence' },
-      { t: 'callout', text: 'HelperTool helps you prepare context for AI, apply AI results to your code, and manage everything around your project from one place.' },
+      { t: 'callout', text: 'ES Code helps you prepare context for AI, apply AI results to your code, and manage everything around your project from one place.' },
     ],
   },
   {
@@ -67,14 +67,14 @@ export const SECTIONS = [
     group: 'intro',
     title: 'Why it was created',
     icon: ICONS.why,
-    lead: 'Working with AI assistants on real projects meant a lot of repetitive, error-prone manual steps. HelperTool exists to remove them.',
+    lead: 'Working with AI assistants on real projects meant a lot of repetitive, error-prone manual steps. ES Code exists to remove them.',
     blocks: [
       { t: 'h', text: 'The problems it solves' },
       { t: 'cards', items: [
-        { title: 'Gathering context', text: 'Copying many files by hand into an AI chat is slow and easy to get wrong. HelperTool lets you select files and folders and generate one clean bundle.' },
+        { title: 'Gathering context', text: 'Copying many files by hand into an AI chat is slow and easy to get wrong. ES Code lets you select files and folders and generate one clean bundle.' },
         { title: 'Wasted tokens', text: 'Comments, blank lines and irrelevant files cost tokens. Minified output, extension filters, folder filters and a global ignore list keep the context lean.' },
         { title: 'Applying results', text: 'Pasting AI code back into the right files is where mistakes happen. The seeders place files and patch code for you, with a dry-run and syntax checks.' },
-        { title: 'Scattered tools', text: 'Git, terminals, ports, Docker, databases and notes usually live in separate apps. HelperTool puts them behind one sidebar.' },
+        { title: 'Scattered tools', text: 'Git, terminals, ports, Docker, databases and notes usually live in separate apps. ES Code puts them behind one sidebar.' },
         { title: 'Losing the thread', text: 'Prompts, session notes, secrets and reusable blueprints are kept inside the app so your working knowledge stays with your projects.' },
       ] },
       { t: 'h', text: 'The idea behind it' },
@@ -86,12 +86,12 @@ export const SECTIONS = [
     group: 'intro',
     title: 'The creator',
     icon: ICONS.user,
-    lead: 'HelperTool was designed and built by Eric James A. Sonio.',
+    lead: 'ES Code was designed and built by Eric James A. Sonio.',
     blocks: [
-      { t: 'profile', name: 'Eric James A. Sonio', role: 'Creator and developer of HelperTool', text: 'Eric started building HelperTool on January 5-8 as a personal tool to speed up his own workflow with AI assistants. It has since grown, version after version, into the 19.0.5 release with its own IDE Mode.' },
+      { t: 'profile', name: 'Eric James A. Sonio', role: 'Creator and developer of ES Code', text: 'Eric started building ES Code on January 5-8 as a personal tool to speed up his own workflow with AI assistants. It has since grown, version after version, into the 19.0.5 release with its own IDE Mode.' },
       { t: 'kv', items: [
         { k: 'Creator', v: 'Eric James A. Sonio' },
-        { k: 'Project', v: 'HelperTool' },
+        { k: 'Project', v: 'ES Code' },
         { k: 'Started', v: 'January 5-8 (Version 1)' },
         { k: 'Current version', v: '19.0.5' },
       ] },
@@ -108,7 +108,7 @@ export const SECTIONS = [
         { label: 'January 5-8', title: 'Version 1', text: 'The first build. The foundation of the app: choose a repository, browse and select files, and generate output ready for an AI assistant.' },
         { label: 'Growing', title: 'More tools, version by version', text: 'Seeders, the Git tool, prompts, code intelligence, terminals, monitoring and AI integrations were added one release at a time.' },
         { label: 'Recent', title: 'Code Swamp, Researcher, Flow, Harness and MCP', text: 'AI-focused tools arrived: an embedded chat, a researcher with a live browser, a reply-review flow, a controlled execution loop and an MCP server manager.' },
-        { label: 'Now', title: 'Version 19.0.5 and IDE Mode', text: 'HelperTool became an IDE. IDE Mode adds an editor, explorer, search, history, diffs, extensions and an AI dock on top of everything else.' },
+        { label: 'Now', title: 'Version 19.0.5 and IDE Mode', text: 'ES Code became an IDE. IDE Mode adds an editor, explorer, search, history, diffs, extensions and an AI dock on top of everything else.' },
       ] },
       { t: 'callout', text: 'The project is still moving. Version 19.0.5 is the one that is being implemented and refined right now.' },
     ],
@@ -140,7 +140,7 @@ export const SECTIONS = [
     group: 'features',
     title: 'Types of features',
     icon: ICONS.grid,
-    lead: 'HelperTool groups its tools into nine families. Each one is covered in its own topic.',
+    lead: 'ES Code groups its tools into nine families. Each one is covered in its own topic.',
     blocks: [
       { t: 'cards', items: [
         { tag: '1', title: 'Selection and navigation', text: 'Pick the right files quickly.' },
@@ -169,7 +169,7 @@ export const SECTIONS = [
         { title: 'Extension filter and ignore', text: 'Show only certain extensions, or hide the ones you never want in the output.' },
         { title: 'Folder filters', text: 'Ignore folders such as build output, or focus on a few folders only.' },
         { title: 'Global ignore', text: 'A shared ignore list that applies across repositories.' },
-        { title: 'Shortcut Mode', text: 'Paste any text that mentions file names and HelperTool finds and selects the matching files, or removes them from the selection.' },
+        { title: 'Shortcut Mode', text: 'Paste any text that mentions file names and ES Code finds and selects the matching files, or removes them from the selection.' },
         { title: 'Select shortcuts', text: 'Save a set of folders or files as a one-click selection.' },
         { title: 'File management', text: 'Create, rename, move and delete files and folders from the right-click menu.' },
         { title: 'Zoom', text: 'Scale the interface up or down to fit your screen.' },
@@ -289,7 +289,7 @@ export const SECTIONS = [
     group: 'features',
     title: 'AI tools',
     icon: ICONS.chat,
-    lead: 'Work with AI directly inside HelperTool.',
+    lead: 'Work with AI directly inside ES Code.',
     blocks: [
       { t: 'cards', items: [
         { title: 'Code Swamp', text: 'Chat with AI inside the app, with history, a file picker, prompt picker, tickets and a terminal.' },
@@ -324,7 +324,7 @@ export const SECTIONS = [
     group: 'features',
     title: 'IDE Mode',
     icon: ICONS.code,
-    lead: 'The biggest step so far: HelperTool can now act as your editor.',
+    lead: 'The biggest step so far: ES Code can now act as your editor.',
     blocks: [
       { t: 'p', text: 'IDE Mode turns the file tree into a working development environment. The top bar simplifies to a single search field so the editor gets the space.' },
       { t: 'cards', items: [
@@ -430,7 +430,7 @@ export const SECTIONS = [
     group: 'reference',
     title: 'Tech stack',
     icon: ICONS.layers,
-    lead: 'The main technologies behind HelperTool.',
+    lead: 'The main technologies behind ES Code.',
     blocks: [
       { t: 'kv', items: [
         { k: 'Desktop shell', v: 'Electron' },
@@ -447,10 +447,10 @@ export const SECTIONS = [
     group: 'about',
     title: 'About and credits',
     icon: ICONS.heart,
-    lead: 'Thank you for using HelperTool.',
+    lead: 'Thank you for using ES Code.',
     blocks: [
       { t: 'kv', items: [
-        { k: 'Application', v: 'HelperTool' },
+        { k: 'Application', v: 'ES Code' },
         { k: 'Version', v: '19.0.5' },
         { k: 'Created by', v: 'Eric James A. Sonio' },
         { k: 'Development started', v: 'January 5-8 (Version 1)' },
