@@ -525,3 +525,32 @@ body {
 #treeContainer.mode-list [data-depth-level] > .tree-node.file.file-selected {
   box-shadow: inset 2px 0 0 currentColor;
 }
+/* ══ Recent repos dropdown: scrollable list (up to 30 repos) ══ */
+.repo-dropdown {
+  max-height: min(600px, calc(100vh - 80px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.repo-dropdown-item {
+  flex-shrink: 0;
+}
+/* ══ Recent repos dropdown: keep "Browse for another folder" pinned at the bottom ══ */
+.repo-dropdown {
+  padding-bottom: 0;
+}
+.repo-dropdown > .repo-dropdown-divider {
+  display: none;
+}
+.repo-dropdown > .repo-dropdown-item:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+}
+.repo-dropdown > .repo-dropdown-item:last-child:hover {
+  background: var(--bg-elevated);
+}
