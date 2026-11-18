@@ -54,9 +54,8 @@ function _cached(key, fetcher, ttlMs) {
   return promise;
 }
 
-function _clearCache(forceFull) {
-  if (forceFull) { _cache = {}; return; }
-  for (const key of Object.keys(_cache)) _cache[key].ttl = 0;
+function _clearCache() {
+  _cache = {};
 }
 
 function _el(tag, attrs, children) {
@@ -71,8 +70,13 @@ function _el(tag, attrs, children) {
 }
 
 function _esc(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function _resizeImage(file, maxSize) {
@@ -162,54 +166,19 @@ async function _load() {
   _viewSection = 'main';
   const body = _panel.querySelector('#pfBody');
   const now = Date.now();
-  const cacheAge = _lastLoadTime ? now - _lastLoadTime : Infinity;
-  if (cacheAge > 60000) {
-    _cache = {};
-  }
+  if (!_lastLoadTime || now - _lastLoadTime > 60000) _cache = {};
   _lastLoadTime = now;
-
-  const { getPrefetchCache } = await import('./app_manager/prefetchManager.js');
-  let rawCached = getPrefetchCache().get('profile');
-  if (!rawCached) {
-    try {
-      rawCached = await window.electronAPI.getPrefetchData('profile');
-      if (rawCached) getPrefetchCache().set('profile', rawCached, 300000);
-    } catch (_) {}
-  }
-  const cached = rawCached
-    ? (rawCached.all ? rawCached : { all: rawCached, avatar: null })
-    : null;
-  if (cached?.all) {
-    const { all, avatar } = cached;
-    if (all.profile) _profile = all.profile;
-    _avatarDataUrl = avatar;
-    body.innerHTML = _buildBodyHtml(all);
-    _bodyEls = {};
-    body.querySelectorAll('.pf-section').forEach(el => { _bodyEls[el.dataset.section] = el; });
-    const newCard = _renderProfileCard();
-    if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
-    _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: Date.now(), ttl: 30000 };
-    _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: Date.now(), ttl: 60000 };
-    _cache['donuts:' + _donutRange] = { data: Promise.resolve(all.donuts), fetchedAt: Date.now(), ttl: 30000 };
-    const histKey = 'history:' + _historyPage + ':' + _historyRepo;
-    _cache[histKey] = { data: Promise.resolve(all.history), fetchedAt: Date.now(), ttl: 10000 };
-    _renderStatsBar().then(el => { if (_bodyEls.stats) { _bodyEls.stats.replaceWith(el); _bodyEls.stats = el; } }).catch(() => {});
-    _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
-    _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
-    _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {});
-    _wireReposNav();
-    return;
-  }
 
   body.innerHTML = _buildSkeleton();
   _bodyEls = {};
-  body.querySelectorAll('.pf-section').forEach(el => {
+  body.querySelectorAll('.pf-section').forEach((el) => {
     _bodyEls[el.dataset.section] = el;
   });
+  _wireReposNav();
 
-  // Single batched IPC call for all data + profile
-  Promise.all([
-    window.electronAPI.profile.getAll({
+  const api = window.electronAPI.profile;
+  const [all, av] = await Promise.all([
+    api.getAll({
       statsRange: _statsRange,
       heatmapYear: _heatmapYear,
       donutRange: _donutRange,
@@ -218,34 +187,25 @@ async function _load() {
     }).catch(() => null),
     _avatarDataUrl
       ? Promise.resolve({ dataUrl: _avatarDataUrl })
-      : window.electronAPI.profile.getAvatar().catch(() => ({ dataUrl: null })),
-  ]).then(([all, av]) => {
-    if (!all) return;
-    if (all.profile) _profile = all.profile;
-    _avatarDataUrl = av ? av.dataUrl : null;
+      : api.getAvatar().catch(() => ({ dataUrl: null })),
+  ]);
+  if (!_open || !all || _dayDetail) return;
 
-    import('./app_manager/prefetchManager.js').then(mod => {
-      mod.getPrefetchCache().set('profile', { all, avatar: av?.dataUrl || null }, 300000);
-    });
+  if (all.profile) _profile = all.profile;
+  _avatarDataUrl = (av && av.dataUrl) || _avatarDataUrl;
 
-    // Populate cache with batched results
-    _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: Date.now(), ttl: 30000 };
-    _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: Date.now(), ttl: 60000 };
-    _cache['donuts:' + _donutRange] = { data: Promise.resolve(all.donuts), fetchedAt: Date.now(), ttl: 30000 };
-    const histKey = 'history:' + _historyPage + ':' + _historyRepo;
-    _cache[histKey] = { data: Promise.resolve(all.history), fetchedAt: Date.now(), ttl: 10000 };
+  const t = Date.now();
+  _cache['stats:' + _statsRange] = { data: Promise.resolve(all.stats), fetchedAt: t, ttl: 30000 };
+  _cache['heatmap:' + _heatmapYear] = { data: Promise.resolve(all.heatmap), fetchedAt: t, ttl: 60000 };
+  _cache['donuts:' + _donutRange] = { data: Promise.resolve(all.donuts), fetchedAt: t, ttl: 30000 };
+  _cache['history:' + _historyPage + ':' + _historyRepo] = { data: Promise.resolve(all.history), fetchedAt: t, ttl: 10000 };
 
-    // Render card
-    const newCard = _renderProfileCard();
-    if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
-
-    // Render all 4 sections from cached data
-    _renderStatsBar().then(el => { if (_bodyEls.stats) { _bodyEls.stats.replaceWith(el); _bodyEls.stats = el; } }).catch(() => {});
-    _renderHeatmap().then(el => { if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(el); _bodyEls.heatmap = el; } }).catch(() => {});
-    _renderDonuts().then(el => { if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(el); _bodyEls.donuts = el; } }).catch(() => {});
-    _renderHistory().then(el => { if (_bodyEls.history) { _bodyEls.history.replaceWith(el); _bodyEls.history = el; } }).catch(() => {});
-    _wireReposNav();
-  });
+  _swap('card', async () => _renderProfileCard());
+  _swap('stats', _renderStatsBar);
+  _swap('heatmap', _renderHeatmap);
+  _swap('donuts', _renderDonuts);
+  _swap('history', _renderHistory);
+  _swap('dash', _renderDashboard);
 }
 
 function _wireReposNav() {
@@ -653,7 +613,10 @@ function _timeAgo(dateStr) {
   return `${Math.floor(months / 12)}y ago`;
 }
 
-function _buildBodyHtml(all) {
+
+let _bodyEls = {};
+
+function _buildSkeleton() {
   return `
     <div class="pf-body-sidebar">
       <div class="pf-section" data-section="card">
@@ -668,29 +631,12 @@ function _buildBodyHtml(all) {
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;margin-left:auto"><path d="M8 5l5 5-5 5"/></svg>
         </button>
       </div>
-      <div class="pf-section" data-section="stats"><div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div></div>
-      <div class="pf-section" data-section="heatmap"><div class="pf-skel-line" style="width:100%;height:140px"></div></div>
-      <div class="pf-section" data-section="donuts"><div class="pf-skel-donuts" style="display:flex;gap:16px"><div class="pf-skel-line" style="flex:1;height:120px"></div><div class="pf-skel-line" style="flex:1;height:120px"></div></div></div>
-      <div class="pf-section" data-section="history"><div class="pf-skel-line" style="width:100%;height:200px"></div></div>
-    </div>
-  `;
-}
-
-let _bodyEls = {};
-
-function _buildSkeleton() {
-  return `
-    <div class="pf-body-sidebar">
-      <div class="pf-section" data-section="card">
-        <div class="pf-card-vertical pf-skel"><div class="pf-skel-avatar pf-skel-avatar-lg" style="margin:0 auto 8px"></div><div class="pf-skel-line" style="width:50%;margin:0 auto"></div><div class="pf-skel-line" style="width:70%;margin:6px auto 0"></div></div>
-      </div>
-    </div>
-    <div class="pf-body-main">
-      <div class="pf-section" data-section="repos-nav">
-        <div class="pf-repos-nav-btn pf-skel" style="height:36px;border-radius:8px;margin-bottom:8px"></div>
-      </div>
       <div class="pf-section" data-section="stats">
-        <div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div>
+        <div class="pf-stats-bar pf-skel"><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div><div class="pf-stat-item"><div class="pf-skel-line" style="width:60%;height:24px;margin:0 auto"></div></div></div>
+      </div>
+      <div class="pf-section" data-section="dash">
+        <div class="pf-dash-head"><span class="pf-section-title">Workspace</span><span class="pf-dash-sub">Scanning repositories\u2026</span></div>
+        <div class="pf-skel-line" style="width:100%;height:200px"></div>
       </div>
       <div class="pf-section" data-section="heatmap">
         <div class="pf-heatmap-header"><div class="pf-skel-line" style="width:120px;height:16px"></div></div>
@@ -712,21 +658,33 @@ async function _renderBody(change) {
   const body = _panel.querySelector('#pfBody');
   if (!body.firstChild || change === 'full') {
     await _load();
-  } else if (change === 'stats') {
-    const newEl = await _renderStatsBar();
-    if (_bodyEls.stats) { _bodyEls.stats.replaceWith(newEl); _bodyEls.stats = newEl; }
-  } else if (change === 'heatmap') {
-    const newEl = await _renderHeatmap();
-    if (_bodyEls.heatmap) { _bodyEls.heatmap.replaceWith(newEl); _bodyEls.heatmap = newEl; }
-  } else if (change === 'donuts') {
-    const newEl = await _renderDonuts();
-    if (_bodyEls.donuts) { _bodyEls.donuts.replaceWith(newEl); _bodyEls.donuts = newEl; }
-  } else if (change === 'history') {
-    const newEl = await _renderHistory();
-    if (_bodyEls.history) { _bodyEls.history.replaceWith(newEl); _bodyEls.history = newEl; }
-  } else if (change === 'card') {
+    return;
+  }
+  if (change === 'card') {
     const newCard = _renderProfileCard();
-    if (_bodyEls.card) { _bodyEls.card.replaceWith(newCard); _bodyEls.card = newCard; }
+    if (_bodyEls.card) _bodyEls.card.replaceWith(newCard);
+    _bodyEls.card = newCard;
+    return;
+  }
+  const renderers = {
+    stats: _renderStatsBar,
+    heatmap: _renderHeatmap,
+    donuts: _renderDonuts,
+    history: _renderHistory,
+    dash: _renderDashboard,
+  };
+  const render = renderers[change];
+  if (!render) return;
+  const focusId = document.activeElement ? document.activeElement.id : '';
+  const newEl = await render();
+  if (_bodyEls[change]) _bodyEls[change].replaceWith(newEl);
+  _bodyEls[change] = newEl;
+  if (focusId === 'pfHistorySearch') {
+    const input = newEl.querySelector('#pfHistorySearch');
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
   }
 }
 
@@ -834,8 +792,9 @@ function _socialLink(platform, url) {
 
 async function _renderStatsBar() {
   const section = _el('div', { className: 'pf-section' });
-  const stats = await _cached('stats:' + _statsRange, () => window.electronAPI.profile.getStats(_statsRange), 30000);
+  const stats = (await _cached('stats:' + _statsRange, () => window.electronAPI.profile.getStats(_statsRange), 30000)) || {};
   const items = [
+    { label: 'Commits', value: (stats.commits || 0).toLocaleString() },
     { label: 'File Saves', value: (stats.saves || 0).toLocaleString() },
     { label: 'Files Touched', value: (stats.files || 0).toLocaleString() },
     { label: 'Repos Active', value: (stats.repos || 0).toLocaleString() },
@@ -848,11 +807,11 @@ async function _renderStatsBar() {
   ];
   section.innerHTML = `
     <div class="pf-stats-bar">
-      ${items.map(s => `<div class="pf-stat-item"><div class="pf-stat-value">${s.value}</div><div class="pf-stat-label">${s.label}</div></div>`).join('')}
+      ${items.map((s) => `<div class="pf-stat-item"><div class="pf-stat-value">${s.value}</div><div class="pf-stat-label">${s.label}</div></div>`).join('')}
     </div>
-    <div class="pf-range-tabs">${ranges.map(r => `<button class="pf-range-btn${_statsRange === r.id ? ' active' : ''}" data-range="${r.id}">${r.label}</button>`).join('')}</div>
+    <div class="pf-range-tabs">${ranges.map((r) => `<button class="pf-range-btn${_statsRange === r.id ? ' active' : ''}" data-range="${r.id}">${r.label}</button>`).join('')}</div>
   `;
-  section.querySelectorAll('.pf-range-btn').forEach(btn => {
+  section.querySelectorAll('.pf-range-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       _statsRange = btn.dataset.range;
       delete _cache['stats:' + _statsRange];
@@ -866,43 +825,67 @@ async function _renderStatsBar() {
 
 async function _renderHeatmap() {
   const section = _el('div', { className: 'pf-section' });
-  const heatmap = await _cached('heatmap:' + _heatmapYear, () => window.electronAPI.profile.getHeatmap(_heatmapYear), 60000) || {};
+  const heatmap = (await _cached('heatmap:' + _heatmapYear, () => window.electronAPI.profile.getHeatmap(_heatmapYear), 60000)) || {};
   const year = _heatmapYear;
+  const thisYear = new Date().getFullYear();
+  const today = _localDate();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const start = new Date(year, 0, 1);
-  const end = new Date(year, 11, 31);
   const startDow = start.getDay();
-  const totalDays = Math.ceil((end - start) / 86400000) + 1;
+  const totalDays = Math.round((new Date(year + 1, 0, 1) - start) / 86400000);
 
-  let maxVal = 1;
-  for (const v of Object.values(heatmap)) { const t = v.total || 0; if (t > maxVal) maxVal = t; }
+  const vals = Object.values(heatmap).map((v) => v.total || 0).filter((v) => v > 0).sort((a, b) => a - b);
+  const pick = (p) => (vals.length ? vals[Math.min(vals.length - 1, Math.floor(vals.length * p))] : 0);
+  const t1 = pick(0.25);
+  const t2 = pick(0.5);
+  const t3 = pick(0.75);
+  const level = (v) => (v <= 0 ? 0 : v <= t1 ? 1 : v <= t2 ? 2 : v <= t3 ? 3 : 4);
 
-  const cellsArr = [];
+  const cells = [];
   for (let i = 0; i < startDow; i++) {
-    cellsArr.push(`<div class="pf-hm-cell lvl-0 pf-hm-empty"></div>`);
+    cells.push('<div class="pf-hm-cell lvl-0 pf-hm-empty"></div>');
   }
 
-  const d = new Date(start);
+  const months = [];
+  let lastMonth = -1;
+  let lastLabelCol = -10;
   for (let i = 0; i < totalDays; i++) {
-    d.setFullYear(year, 0, i + 1);
-    const dateStr = d.toISOString().slice(0, 10);
-    const dayData = heatmap[dateStr];
-    const val = dayData ? dayData.total : 0;
-    const level = val === 0 ? 0 : val / maxVal <= 0.25 ? 1 : val / maxVal <= 0.5 ? 2 : val / maxVal <= 0.75 ? 3 : 4;
-    const tip = val > 0 ? `${dateStr} — ${val} total · ${dayData.saves || 0} saves` : dateStr;
-    cellsArr.push(`<div class="pf-hm-cell lvl-${level}" title="${_esc(tip)}" data-date="${dateStr}"></div>`);
+    const d = new Date(year, 0, 1 + i);
+    const dateStr = _localDate(d);
+    const col = Math.floor((startDow + i) / 7);
+    if (d.getMonth() !== lastMonth) {
+      lastMonth = d.getMonth();
+      if (col - lastLabelCol >= 3) {
+        months.push('<span style="grid-column:' + (col + 1) + '">' + monthNames[lastMonth] + '</span>');
+        lastLabelCol = col;
+      }
+    }
+    if (dateStr > today) {
+      cells.push('<div class="pf-hm-cell lvl-0 pf-hm-future"></div>');
+      continue;
+    }
+    const day = heatmap[dateStr];
+    const total = day ? day.total : 0;
+    const tip = total > 0
+      ? dateStr + ': ' + day.commits + ' commits, ' + day.saves + ' saves'
+      : dateStr + ': no activity';
+    cells.push('<div class="pf-hm-cell lvl-' + level(total) + '" title="' + _esc(tip) + '" data-date="' + dateStr + '"></div>');
   }
 
   section.innerHTML = `
     <div class="pf-heatmap-header">
-      <button class="pf-heatmap-nav" id="pfHeatPrev">◀</button>
+      <button class="pf-heatmap-nav" id="pfHeatPrev">\u25C0</button>
       <span class="pf-heatmap-title">${year} Activity</span>
-      <button class="pf-heatmap-nav" id="pfHeatNext">▶</button>
+      <button class="pf-heatmap-nav" id="pfHeatNext"${year >= thisYear ? ' disabled' : ''}>\u25B6</button>
     </div>
     <div class="pf-heatmap-wrap">
-      <div class="pf-hm-day-labels">${['', 'Mon', '', 'Wed', '', 'Fri', ''].map(l => `<div>${l}</div>`).join('')}</div>
-      <div class="pf-heatmap-grid-auto">${cellsArr.join('')}</div>
+      <div class="pf-hm-day-labels">${['', 'Mon', '', 'Wed', '', 'Fri', ''].map((l) => `<div>${l}</div>`).join('')}</div>
+      <div class="pf-hm-cols">
+        <div class="pf-hm-months">${months.join('')}</div>
+        <div class="pf-heatmap-grid-auto">${cells.join('')}</div>
+      </div>
     </div>
-    <div class="pf-hm-legend"><span>Less</span>${[0,1,2,3,4].map(l => `<div class="pf-hm-cell lvl-${l}"></div>`).join('')}<span>More</span></div>
+    <div class="pf-hm-legend"><span>Less</span>${[0, 1, 2, 3, 4].map((l) => `<div class="pf-hm-cell lvl-${l}"></div>`).join('')}<span>More</span></div>
   `;
 
   section.querySelector('#pfHeatPrev').addEventListener('click', () => {
@@ -911,21 +894,15 @@ async function _renderHeatmap() {
     _renderBody('heatmap');
   });
   section.querySelector('#pfHeatNext').addEventListener('click', () => {
+    if (_heatmapYear >= thisYear) return;
     _heatmapYear++;
     delete _cache['heatmap:' + _heatmapYear];
     _renderBody('heatmap');
   });
 
-  // single delegated click listener on the heatmap wrap
-  const wrap = section.querySelector('.pf-heatmap-wrap');
-  wrap.addEventListener('click', async (e) => {
+  section.querySelector('.pf-heatmap-wrap').addEventListener('click', (e) => {
     const cell = e.target.closest('.pf-hm-cell[data-date]');
-    if (!cell) return;
-    const date = cell.dataset.date;
-    try {
-      const detail = await window.electronAPI.profile.getDayDetail(date);
-      if (detail) { _dayDetail = { date, ...detail }; _renderDayDetail(); }
-    } catch (_) {}
+    if (cell) _openDay(cell.dataset.date);
   });
 
   return section;
@@ -935,33 +912,34 @@ async function _renderHeatmap() {
 
 const DONUT_COLORS = ['#4F8EF7', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#fbbf24', '#f87171', '#2dd4bf'];
 
-function _buildDonutHTML(title, items) {
-  const total = items.reduce((s, i) => s + (Number(i.value) || 0), 0);
-  if (!total) return `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-empty">No data</div></div>`;
+function _buildDonutHTML(title, items, fmt) {
+  const list = (items || []).filter((i) => (Number(i.value) || 0) > 0).slice(0, 7);
+  const total = list.reduce((s, i) => s + i.value, 0);
+  if (!total) {
+    return `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-empty">No data</div></div>`;
+  }
   const r = 50, cx = 60, cy = 60;
-  let html = `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-chart"><svg viewBox="0 0 120 120" width="120" height="120">`;
-  const slices = items.filter(i => (Number(i.value) || 0) > 0).slice(0, 7);
-
-  if (slices.length === 1) {
-    const color = DONUT_COLORS[0];
-    html += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
+  let svg = '';
+  if (list.length === 1) {
+    svg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${DONUT_COLORS[0]}"/>`;
   } else {
     let angle = -Math.PI / 2;
-    slices.forEach((item, i) => {
+    list.forEach((item, i) => {
       const pct = item.value / total;
       const endAngle = angle + pct * 2 * Math.PI;
-      const color = DONUT_COLORS[i % DONUT_COLORS.length];
       const x1 = cx + r * Math.cos(angle);
       const y1 = cy + r * Math.sin(angle);
       const x2 = cx + r * Math.cos(endAngle);
       const y2 = cy + r * Math.sin(endAngle);
-      html += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2},${y2} Z" fill="${color}" stroke="var(--bg-surface)" stroke-width="1"/>`;
+      svg += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2},${y2} Z" fill="${DONUT_COLORS[i % DONUT_COLORS.length]}" stroke="var(--bg-surface)" stroke-width="1"/>`;
       angle = endAngle;
     });
   }
-  html += `<circle cx="${cx}" cy="${cy}" r="28" fill="var(--bg-surface)"/></svg></div><div class="pf-donut-legend">`;
-  slices.forEach((item, i) => {
-    html += `<div class="pf-donut-legend-item"><span class="pf-donut-dot" style="background:${DONUT_COLORS[i % DONUT_COLORS.length]}"></span>${_esc(item.label)} <span class="pf-donut-pct">${((item.value / total) * 100).toFixed(1)}%</span></div>`;
+  let html = `<div class="pf-donut-wrap"><div class="pf-donut-title">${_esc(title)}</div><div class="pf-donut-chart"><svg viewBox="0 0 120 120" width="120" height="120">${svg}<circle cx="${cx}" cy="${cy}" r="28" fill="var(--bg-surface)"/></svg></div><div class="pf-donut-legend">`;
+  list.forEach((item, i) => {
+    const pct = ((item.value / total) * 100).toFixed(1) + '%';
+    const right = fmt ? fmt(item.value) + ' \u00B7 ' + pct : pct;
+    html += `<div class="pf-donut-legend-item"><span class="pf-donut-dot" style="background:${DONUT_COLORS[i % DONUT_COLORS.length]}"></span>${_esc(item.label)} <span class="pf-donut-pct">${right}</span></div>`;
   });
   html += '</div></div>';
   return html;
@@ -969,7 +947,7 @@ function _buildDonutHTML(title, items) {
 
 async function _renderDonuts() {
   const section = _el('div', { className: 'pf-section' });
-  const data = await _cached('donuts:' + _donutRange, () => window.electronAPI.profile.getDonutData(_donutRange), 30000) || { repo: [], ext: [], type: [] };
+  const data = (await _cached('donuts:' + _donutRange, () => window.electronAPI.profile.getDonutData(_donutRange), 30000)) || { repo: [], ext: [], weekday: [] };
 
   const ranges = [
     { id: 'week', label: 'Week' },
@@ -978,10 +956,10 @@ async function _renderDonuts() {
     { id: 'all', label: 'All' },
   ];
 
-  section.innerHTML = `<div class="pf-range-tabs">${ranges.map(r => `<button class="pf-range-btn${_donutRange === r.id ? ' active' : ''}" data-range="${r.id}">${r.label}</button>`).join('')}</div>
-    <div class="pf-donuts-row">${_buildDonutHTML('Activity by Repo', data.repo)}${_buildDonutHTML('Activity by File Type', data.ext)}${_buildDonutHTML('Activity by Type', data.type)}</div>`;
+  section.innerHTML = `<div class="pf-range-tabs">${ranges.map((r) => `<button class="pf-range-btn${_donutRange === r.id ? ' active' : ''}" data-range="${r.id}">${r.label}</button>`).join('')}</div>
+    <div class="pf-donuts-row">${_buildDonutHTML('Activity by Repo', data.repo)}${_buildDonutHTML('Activity by File Type', data.ext)}${_buildDonutHTML('Activity by Weekday', data.weekday)}</div>`;
 
-  section.querySelectorAll('.pf-range-btn').forEach(btn => {
+  section.querySelectorAll('.pf-range-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       _donutRange = btn.dataset.range;
       delete _cache['donuts:' + _donutRange];
@@ -1023,9 +1001,7 @@ function _wireHistoryEvents(section) {
   section.addEventListener('click', (e) => {
     const btn = e.target.closest('.pf-history-view-btn');
     if (btn) {
-      window.electronAPI.profile.getDayDetail(btn.dataset.date).then(detail => {
-        if (detail) { _dayDetail = { date: btn.dataset.date, ...detail }; _renderDayDetail(); }
-      }).catch(() => {});
+      _openDay(btn.dataset.date, btn.dataset.repo || '');
       return;
     }
 
@@ -1037,7 +1013,7 @@ function _wireHistoryEvents(section) {
       let targetPage;
       if (pageBtn.dataset.page === 'prev') targetPage = _historyPage - 1;
       else if (pageBtn.dataset.page === 'next') targetPage = _historyPage + 1;
-      else targetPage = parseInt(pageBtn.dataset.page);
+      else targetPage = parseInt(pageBtn.dataset.page, 10);
 
       if (!targetPage || targetPage < 1 || targetPage > Math.ceil(_lastHistoryTotal / 20)) return;
       _historyPage = targetPage;
@@ -1066,16 +1042,16 @@ let _lastHistoryTotal = 0;
 async function _renderHistory() {
   const section = _el('div', { className: 'pf-section' });
   const cacheKey = 'history:' + _historyPage + ':' + _historyRepo;
-  const result = await _cached(cacheKey, () => window.electronAPI.profile.getHistory(_historyPage, _historyRepo), 10000) || { items: [], total: 0, page: 1, pageSize: 20 };
+  const result = (await _cached(cacheKey, () => window.electronAPI.profile.getHistory(_historyPage, _historyRepo), 10000)) || { items: [], total: 0, page: 1, pageSize: 20 };
   _lastHistoryTotal = result.total;
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
-  const itemsHtml = result.items.length ? result.items.map(item => `
-    <div class="pf-history-item" data-date="${item.date}">
-      <div class="pf-history-date">${item.date}</div>
-      <div class="pf-history-repo">${_esc(item.repoName)}</div>
-      <div class="pf-history-stats">${item.files} files · ${item.saves} saves</div>
-      <button class="pf-history-view-btn" data-date="${item.date}">View Day</button>
+  const itemsHtml = result.items.length ? result.items.map((item) => `
+    <div class="pf-history-item" data-date="${_esc(item.date)}">
+      <div class="pf-history-date">${_esc(item.date)}</div>
+      <div class="pf-history-repo" title="${_esc(item.repoPath)}">${_esc(item.repoName)}</div>
+      <div class="pf-history-stats">${item.commits} commits \u00B7 ${item.files} files \u00B7 ${item.saves} saves</div>
+      <button class="pf-history-view-btn" data-date="${_esc(item.date)}" data-repo="${_esc(item.repoPath)}">View Day</button>
     </div>
   `).join('') : '<div class="pf-empty">No activity yet</div>';
 
@@ -1083,26 +1059,14 @@ async function _renderHistory() {
 
   section.innerHTML = `
     <div class="pf-history-header">
-      <span class="pf-section-title">Activity History <span class="pf-history-count">(${result.total} days)</span></span>
-      <input class="pf-history-search" id="pfHistorySearch" placeholder="Filter by repo\u2026" value="${_esc(_historyRepo)}">
+      <span class="pf-section-title">Activity History <span class="pf-history-count">(${result.total} entries)</span></span>
+      <input class="pf-history-search" id="pfHistorySearch" placeholder="Filter by repo name\u2026" value="${_esc(_historyRepo)}">
     </div>
     <div class="pf-history-list">${itemsHtml}</div>
     ${pagesHtml ? `<div class="pf-history-pages" id="pfHistoryPages">${pagesHtml}</div>` : ''}
   `;
 
   _wireHistoryEvents(section);
-
-  let searchTimer;
-  section.querySelector('#pfHistorySearch').addEventListener('input', (e) => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      _historyRepo = e.target.value;
-      _historyPage = 1;
-      delete _cache['history:1:' + _historyRepo];
-      _renderBody('history');
-    }, 300);
-  });
-
   return section;
 }
 
@@ -1119,7 +1083,7 @@ function _isGitPath(p) {
   return n.includes('/.git/') || n.startsWith('.git/');
 }
 
-async function _loadFileDiff(filePath, commitHash) {
+async function _loadFileDiff(filePath, commitHash, repoPath) {
   _dayDetailFile = filePath;
   _dayDetailDiff = null;
   _dayDetailContent = null;
@@ -1128,12 +1092,14 @@ async function _loadFileDiff(filePath, commitHash) {
   if (el) el.innerHTML = '<div class="pf-diff-loading">Loading diff\u2026</div>';
 
   try {
-    const result = await window.electronAPI.profile.fileDiff(filePath, null, commitHash);
+    const result = await window.electronAPI.profile.fileDiff(filePath, repoPath || null, commitHash || null);
     _dayDetailDiff = result.diff || '';
     _dayDetailContent = result.content || '';
     const activeEl = _panel.querySelector('#pfDiffContent');
     if (activeEl) activeEl.innerHTML = _renderDiffHTML(result.diff || '', result.content || '');
-    _panel.querySelectorAll('.pf-commit-file').forEach(e => e.classList.toggle('active', e.dataset.path === filePath && e.dataset.hash === (commitHash || '')));
+    _panel.querySelectorAll('.pf-commit-file').forEach((e) => {
+      e.classList.toggle('active', e.dataset.path === filePath && e.dataset.hash === (commitHash || ''));
+    });
   } catch {
     const activeEl = _panel.querySelector('#pfDiffContent');
     if (activeEl) activeEl.innerHTML = '<div class="pf-diff-loading">Failed to load diff</div>';
@@ -1163,23 +1129,25 @@ function _renderDiffHTML(diffText, contentText) {
 }
 
 function _renderCommitSidebar(commits) {
-  let html = '';
   if (!commits || !commits.length) {
     return '<div class="pf-commit-empty">No commits on this day</div>';
   }
+  const multi = new Set(commits.map((c) => c.repoPath)).size > 1;
+  let html = '';
   for (const c of commits) {
-    const files = (c.files || []).filter(f => !_isGitPath(f.path));
+    const files = (c.files || []).filter((f) => !_isGitPath(f.path));
     html += `<div class="pf-commit-group">
       <div class="pf-commit-header">
         <span class="pf-commit-hash">${_esc(c.shortHash)}</span>
+        ${multi ? `<span class="pf-commit-repo">${_esc(c.repoName)}</span>` : ''}
         <span class="pf-commit-time">${_esc(c.time)}</span>
       </div>
       <div class="pf-commit-msg">${_esc(c.message)}</div>
       <div class="pf-commit-files">`;
     for (const f of files) {
       const statusClass = f.status === 'A' ? 'pf-cs-added' : f.status === 'D' ? 'pf-cs-deleted' : 'pf-cs-modified';
-      const statusLabel = f.status === 'A' ? 'A' : f.status === 'D' ? 'D' : 'M';
-      html += `<div class="pf-commit-file" data-path="${_esc(f.path)}" data-hash="${_esc(c.hash)}">
+      const statusLabel = f.status === 'A' || f.status === 'D' || f.status === 'R' ? f.status : 'M';
+      html += `<div class="pf-commit-file" data-path="${_esc(f.path)}" data-hash="${_esc(c.hash)}" data-repo="${_esc(c.repoPath)}">
         <span class="pf-commit-file-status ${statusClass}">${statusLabel}</span>
         <span class="pf-commit-file-path">${_esc(f.path)}</span>
       </div>`;
@@ -1194,13 +1162,14 @@ async function _renderDayDetail() {
   const body = _panel.querySelector('#pfBody');
   const d = _dayDetail;
   const commitCount = _dayCommits ? _dayCommits.length : '...';
+  const repoLabel = d.repoPath ? d.repoPath.split(/[\\/]/).pop() : 'all repos';
 
   body.innerHTML = `
     <div class="pf-day-detail">
       <div class="pf-day-detail-header">
-        <span class="pf-day-detail-title">${d.date}</span>
-        <div class="pf-day-summary">${commitCount} commits</div>
-        <button class="pf-btn" id="pfDayClose">← Back</button>
+        <span class="pf-day-detail-title">${_esc(d.date)}</span>
+        <div class="pf-day-summary"><span id="pfDayCount">${commitCount}</span> commits \u00B7 ${_esc(repoLabel)}</div>
+        <button class="pf-btn" id="pfDayClose">\u2190 Back</button>
       </div>
       <div class="pf-detail-body">
         <div class="pf-detail-sidebar">
@@ -1228,44 +1197,44 @@ async function _renderDayDetail() {
   `;
 
   body.querySelector('#pfDayClose').addEventListener('click', () => {
-    _dayDetail = null; _dayDetailFile = null; _dayDetailDiff = null;
-    _dayDetailContent = null; _dayDetailCommitHash = null; _dayCommits = null;
+    _dayDetail = null;
+    _dayDetailFile = null;
+    _dayDetailDiff = null;
+    _dayDetailContent = null;
+    _dayDetailCommitHash = null;
+    _dayCommits = null;
     _renderBody('full');
   });
 
-  // Fetch commits in background and populate sidebar
-  if (!_dayCommits) {
-    window.electronAPI.profile.getDayCommits(d.date).then(commits => {
-      _dayCommits = commits || [];
-      const list = body.querySelector('#pfCommitsList');
-      if (list) {
-        list.innerHTML = _renderCommitSidebar(_dayCommits);
-        _attachCommitFileClicks(body);
-        // Update header count
-        const sumEl = body.querySelector('.pf-day-summary');
-        if (sumEl) sumEl.textContent = _dayCommits.length + ' commits';
-        const titleEl = body.querySelector('.pf-detail-sidebar-title');
-        if (titleEl) titleEl.textContent = 'Commits (' + _dayCommits.length + ')';
-      }
-    }).catch(() => {
-      const list = body.querySelector('#pfCommitsList');
-      if (list) list.innerHTML = '<div class="pf-commit-empty">Failed to load commits</div>';
-    });
-  } else {
+  const fill = (commits) => {
     const list = body.querySelector('#pfCommitsList');
-    if (list) {
-      list.innerHTML = _renderCommitSidebar(_dayCommits);
-      _attachCommitFileClicks(body);
-    }
+    if (!list) return;
+    list.innerHTML = _renderCommitSidebar(commits);
+    _attachCommitFileClicks(body);
+    const countEl = body.querySelector('#pfDayCount');
+    if (countEl) countEl.textContent = String(commits.length);
+    const titleEl = body.querySelector('.pf-detail-sidebar-title');
+    if (titleEl) titleEl.textContent = 'Commits (' + commits.length + ')';
+  };
+
+  if (_dayCommits) {
+    fill(_dayCommits);
+    return;
   }
+
+  window.electronAPI.profile.getDayCommits(d.date, d.repoPath || null).then((commits) => {
+    _dayCommits = commits || [];
+    fill(_dayCommits);
+  }).catch(() => {
+    const list = body.querySelector('#pfCommitsList');
+    if (list) list.innerHTML = '<div class="pf-commit-empty">Failed to load commits</div>';
+  });
 }
 
 function _attachCommitFileClicks(body) {
-  body.querySelectorAll('.pf-commit-file').forEach(el => {
+  body.querySelectorAll('.pf-commit-file').forEach((el) => {
     el.addEventListener('click', () => {
-      const filePath = el.dataset.path;
-      const hash = el.dataset.hash;
-      _loadFileDiff(filePath, hash || null);
+      _loadFileDiff(el.dataset.path, el.dataset.hash || null, el.dataset.repo || null);
     });
     if (el.dataset.path === _dayDetailFile && el.dataset.hash === (_dayDetailCommitHash || '')) {
       el.classList.add('active');
@@ -1284,4 +1253,224 @@ if (window.electronAPI?.profile?.onDataChanged) {
       _load();
     }
   });
+}
+let _dashRange = 'week';
+let _dashFilter = 'all';
+let _dashSort = 'recent';
+
+function _localDate(d) {
+  const x = d || new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return x.getFullYear() + '-' + p(x.getMonth() + 1) + '-' + p(x.getDate());
+}
+
+function _swap(key, render) {
+  Promise.resolve(render()).then((el) => {
+    if (!_open || !el) return;
+    const old = _bodyEls[key];
+    if (old && old.isConnected) old.replaceWith(el);
+    _bodyEls[key] = el;
+  }).catch(() => {});
+}
+
+async function _openDay(date, repoPath) {
+  try {
+    const detail = await window.electronAPI.profile.getDayDetail(date);
+    if (!detail) return;
+    _dayCommits = null;
+    _dayDetailFile = null;
+    _dayDetailDiff = null;
+    _dayDetailContent = null;
+    _dayDetailCommitHash = null;
+    _dayDetail = Object.assign({ date, repoPath: repoPath || '' }, detail);
+    _renderDayDetail();
+  } catch (_) {}
+}
+
+function _fmtHours(sec) {
+  const s = Number(sec) || 0;
+  if (s < 60) return '\u2014';
+  if (s < 3600) return Math.round(s / 60) + 'm';
+  const h = s / 3600;
+  return (h < 10 ? h.toFixed(1) : String(Math.round(h))) + 'h';
+}
+
+function _topWithOther(items, top) {
+  const sorted = items.filter((i) => i.value > 0).sort((a, b) => b.value - a.value);
+  if (sorted.length <= top) return sorted;
+  const head = sorted.slice(0, top);
+  head.push({ label: 'Other', value: sorted.slice(top).reduce((s, i) => s + i.value, 0) });
+  return head;
+}
+
+function _commitsChartHtml(daily) {
+  const list = daily || [];
+  const max = Math.max(1, ...list.map((d) => d.commits));
+  const total = list.reduce((s, d) => s + d.commits, 0);
+  const w = 8;
+  const gap = 3;
+  const h = 70;
+  const bars = list.map((d, i) => {
+    const bh = d.commits ? Math.max(3, Math.round((d.commits / max) * h)) : 1;
+    return '<rect x="' + (i * (w + gap)) + '" y="' + (h - bh) + '" width="' + w + '" height="' + bh + '" rx="1.5" class="pf-bar' + (d.commits ? '' : ' empty') + '"><title>' + _esc(d.date) + ': ' + d.commits + ' commits, ' + d.saves + ' saves</title></rect>';
+  }).join('');
+  const width = Math.max(1, list.length * (w + gap) - gap);
+  const first = list.length ? list[0].date : '';
+  const last = list.length ? list[list.length - 1].date : '';
+  return '<div class="pf-donut-wrap pf-dash-chart"><div class="pf-donut-title">Commits, last 30 days <span class="pf-donut-pct">' + total + ' total</span></div>' +
+    '<svg viewBox="0 0 ' + width + ' ' + h + '" preserveAspectRatio="none" class="pf-bars">' + bars + '</svg>' +
+    '<div class="pf-bars-axis"><span>' + _esc(first) + '</span><span>' + _esc(last) + '</span></div></div>';
+}
+
+function _dashSorted(repos, hours) {
+  const hoursOf = (r) => hours.get(r.name.toLowerCase()) || 0;
+  const by = {
+    recent: (a, b) => b.lastCommitAt - a.lastCommitAt,
+    changes: (a, b) => (b.dirty + b.unpushed) - (a.dirty + a.unpushed) || b.lastCommitAt - a.lastCommitAt,
+    commits: (a, b) => b.commits - a.commits,
+    hours: (a, b) => hoursOf(b) - hoursOf(a),
+  };
+  return repos.slice().sort(by[_dashSort] || by.recent);
+}
+
+function _dashRowHtml(r, hours, hasHours) {
+  let changes = '<span class="pf-dash-ok">clean</span>';
+  if (r.error) changes = '<span class="pf-dash-warn">error</span>';
+  else if (r.dirty > 0) {
+    changes = '<span class="pf-dash-warn">' + r.dirty + ' changed</span>' +
+      (r.staged ? ' <span class="pf-dash-mute">(' + r.staged + ' staged)</span>' : '');
+  }
+
+  const bits = [];
+  if (r.unpushed > 0) {
+    bits.push('<span class="pf-dash-warn">\u2191' + r.unpushed + (r.upstream ? '' : ' unpushed') + '</span>');
+  }
+  if (r.behind > 0) bits.push('<span class="pf-dash-info">\u2193' + r.behind + '</span>');
+  if (!bits.length) {
+    bits.push(r.upstream ? '<span class="pf-dash-ok">synced</span>' : '<span class="pf-dash-mute">no upstream</span>');
+  }
+
+  const last = r.lastCommitAt ? _timeAgo(new Date(r.lastCommitAt * 1000).toISOString()) : '\u2014';
+  const hoursCell = hasHours ? _fmtHours(hours.get(r.name.toLowerCase())) : '\u2014';
+  const deploy = (r.deploy || []).map((d) => '<span class="pf-dash-chip" title="' + _esc(d.role) + '">' + _esc(d.name) + '</span>').join('') || '<span class="pf-dash-mute">\u2014</span>';
+
+  return '<tr class="pf-dash-row' + (r.isActive ? ' active' : '') + '" data-path="' + _esc(r.repoPath) + '" title="' + _esc(r.repoPath) + '">' +
+    '<td class="pf-dash-name">' + _esc(r.name) + '</td>' +
+    '<td><span class="pf-dash-branch">' + _esc(r.branch || 'detached') + '</span></td>' +
+    '<td>' + changes + '</td>' +
+    '<td>' + bits.join(' ') + '</td>' +
+    '<td title="' + _esc(r.lastCommitMsg) + '">' + _esc(last) + '</td>' +
+    '<td class="pf-dash-num">' + r.commits + '</td>' +
+    '<td class="pf-dash-num">' + r.saves + '</td>' +
+    '<td class="pf-dash-num">' + hoursCell + '</td>' +
+    '<td>' + deploy + '</td>' +
+  '</tr>';
+}
+
+async function _openRepoFromDash(repoPath) {
+  if (!repoPath) return;
+  try {
+    const mod = await import('./app_manager/repoManager.js');
+    await mod.loadRepo(repoPath);
+    if (window.__activeRepoPath === repoPath) close();
+  } catch (_) {}
+}
+
+async function _renderDashboard() {
+  const section = _el('div', { className: 'pf-section' });
+  const days = _dashRange === 'month' ? 30 : 7;
+  const [ov, hrs] = await Promise.all([
+    _cached('overview:' + _dashRange, () => window.electronAPI.profile.getOverview({ range: _dashRange }), 60000),
+    _cached('hours:' + days, () => window.electronAPI.profile.getHours(days), 300000),
+  ]);
+
+  const rangeTabs = '<div class="pf-range-tabs">' +
+    [['week', '7D'], ['month', '30D']].map((x) => '<button class="pf-range-btn' + (_dashRange === x[0] ? ' active' : '') + '" data-dash-range="' + x[0] + '">' + x[1] + '</button>').join('') +
+  '</div>';
+
+  if (!ov || !ov.repos) {
+    section.innerHTML = '<div class="pf-dash-head"><span class="pf-section-title">Workspace</span>' + rangeTabs + '</div><div class="pf-empty">Could not read your repositories</div>';
+    section.querySelectorAll('[data-dash-range]').forEach((b) => b.addEventListener('click', () => {
+      _dashRange = b.dataset.dashRange;
+      _renderBody('dash');
+    }));
+    return section;
+  }
+
+  const repos = ov.repos.filter((r) => r.exists && r.isGit);
+  const skipped = ov.repos.length - repos.length;
+  const hasHours = !!(hrs && hrs.success);
+  const hours = new Map();
+  if (hasHours) for (const p of hrs.projects) hours.set(String(p.name).toLowerCase(), p.seconds);
+
+  const dirtyRepos = repos.filter((r) => r.dirty > 0).length;
+  const unpushed = repos.reduce((s, r) => s + r.unpushed, 0);
+  const commits = repos.reduce((s, r) => s + r.commits, 0);
+  const attention = repos.filter((r) => r.dirty > 0 || r.unpushed > 0 || r.behind > 0);
+  const shown = _dashSorted(_dashFilter === 'attention' ? attention : repos, hours);
+
+  const card = (value, label, warn) => '<div class="pf-dash-card"><div class="pf-dash-card-value' + (warn ? ' warn' : '') + '">' + value + '</div><div class="pf-dash-card-label">' + label + '</div></div>';
+  const cards = '<div class="pf-dash-cards">' +
+    card(repos.length, 'Repos', false) +
+    card(dirtyRepos, 'Uncommitted', dirtyRepos > 0) +
+    card(unpushed, 'Unpushed commits', unpushed > 0) +
+    card(commits, 'Commits (' + (_dashRange === 'month' ? '30d' : '7d') + ')', false) +
+    card(hasHours ? _fmtHours(hrs.seconds) : '\u2014', 'Hours (' + (_dashRange === 'month' ? '30d' : '7d') + ')', false) +
+  '</div>';
+
+  const filters = '<div class="pf-range-tabs">' +
+    '<button class="pf-range-btn' + (_dashFilter === 'all' ? ' active' : '') + '" data-dash-filter="all">All</button>' +
+    '<button class="pf-range-btn' + (_dashFilter === 'attention' ? ' active' : '') + '" data-dash-filter="attention">Needs attention (' + attention.length + ')</button>' +
+  '</div>';
+
+  const cols = [
+    { label: 'Repository' },
+    { label: 'Branch' },
+    { label: 'Changes', sort: 'changes' },
+    { label: 'Sync' },
+    { label: 'Last commit', sort: 'recent' },
+    { label: 'Commits', sort: 'commits', num: true },
+    { label: 'Saves', num: true },
+    { label: 'Hours', sort: 'hours', num: true },
+    { label: 'Deploy' },
+  ];
+  const head = cols.map((c) => '<th class="' + (c.sort && c.sort === _dashSort ? 'sorted ' : '') + (c.num ? 'pf-dash-num' : '') + '"' + (c.sort ? ' data-sort="' + c.sort + '"' : '') + '>' + c.label + '</th>').join('');
+  const rowsHtml = shown.length
+    ? shown.map((r) => _dashRowHtml(r, hours, hasHours)).join('')
+    : '<tr><td colspan="9" class="pf-dash-mute" style="text-align:center;padding:24px">Nothing needs attention</td></tr>';
+
+  const hoursItems = hasHours && hrs.projects.length
+    ? _topWithOther(hrs.projects.map((p) => ({ label: p.name, value: p.seconds })), 6)
+    : [];
+  const hoursCard = hoursItems.length
+    ? _buildDonutHTML('Hours by Project', hoursItems, _fmtHours)
+    : '<div class="pf-donut-wrap"><div class="pf-donut-title">Hours by Project</div><div class="pf-donut-empty">' + _esc(hrs && hrs.error ? hrs.error : 'Connect WakaTime to see hours') + '</div></div>';
+
+  section.innerHTML =
+    '<div class="pf-dash-head"><span class="pf-section-title">Workspace</span>' + filters + rangeTabs + '</div>' +
+    cards +
+    '<div class="pf-dash-tablewrap"><table class="pf-dash-table"><thead><tr>' + head + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
+    (skipped > 0 ? '<div class="pf-dash-sub">' + skipped + ' tracked folder' + (skipped === 1 ? '' : 's') + ' skipped (missing or not a git repository)</div>' : '') +
+    '<div class="pf-dash-charts">' + _commitsChartHtml(ov.daily) + hoursCard + '</div>';
+
+  section.querySelectorAll('[data-dash-range]').forEach((b) => b.addEventListener('click', () => {
+    _dashRange = b.dataset.dashRange;
+    _renderBody('dash');
+  }));
+  section.querySelectorAll('[data-dash-filter]').forEach((b) => b.addEventListener('click', () => {
+    _dashFilter = b.dataset.dashFilter;
+    _renderBody('dash');
+  }));
+  section.querySelectorAll('th[data-sort]').forEach((th) => th.addEventListener('click', () => {
+    _dashSort = th.dataset.sort;
+    _renderBody('dash');
+  }));
+  const tbody = section.querySelector('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', (e) => {
+      const row = e.target.closest('.pf-dash-row');
+      if (row) _openRepoFromDash(row.dataset.path);
+    });
+  }
+  return section;
 }
