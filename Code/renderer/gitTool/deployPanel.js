@@ -707,6 +707,7 @@ function pushLayout() {
   const force = forceNext;
   forceNext = false;
   if (!S.open || !root || !window.deployAPI) return;
+  if (S.dialog) return;
   const a = window.deployAPI;
   const visible = S.page === 'browse' && !S.loading && !S.error && root.isConnected && root.getClientRects().length > 0;
   if (!visible) {
@@ -857,7 +858,8 @@ function browseHtml() {
   const activeTarget = activeTab ? targetById(activeTab.targetId) : null;
   const changeBtns = activeTarget
     ? '<button type="button" class="dp-btn" data-act="cat-change" data-id="' + esc(activeTarget.id) + '" title="Switch ' + esc(activeTarget.name) + ' to another provider or edit its link">Change</button>' +
-      '<button type="button" class="dp-btn" data-act="cat-new" data-role="' + esc(roleKeyOfTarget(activeTarget)) + '" title="Add another target in this category">' + ICONS.plus + ' Create new</button>'
+      '<button type="button" class="dp-btn" data-act="cat-new" data-role="' + esc(roleKeyOfTarget(activeTarget)) + '" title="Add another target in this category">' + ICONS.plus + ' Create new</button>' +
+      '<button type="button" class="dp-btn dp-danger" data-act="delete-target" data-id="' + esc(activeTarget.id) + '" title="This repo does not use ' + esc(activeTarget.name) + '. Removes it from this repo and keeps your saved logins.">Unconfigure</button>'
     : '';
   return '<div class="dp-top">' + targetsBarHtml() +
     '<div class="dp-top-actions">' + modeBtn + changeBtns +
@@ -1437,20 +1439,39 @@ async function saveForm(openAfter) {
   }
 }
 
+async function confirmOverView(message) {
+  S.dialog = true;
+  try {
+    await api().hide();
+  } catch (_) {}
+  hiddenSent = true;
+  lastSig = '';
+  let ok = false;
+  try {
+    ok = await confirmDialog(message);
+  } finally {
+    S.dialog = false;
+    lastSig = '';
+    scheduleLayout(true);
+  }
+  return ok;
+}
 async function deleteTarget(id) {
   const t = targetById(id);
   if (!t) return;
-  const ok = await confirmDialog('Remove the target <b>' + esc(t.name) + '</b> from this repo? Your saved logins are kept.');
+  const ok = await confirmOverView('Unconfigure <b>' + esc(t.name) + '</b>? This repo will no longer use it. Your saved logins are kept.');
   if (!ok) return;
   try {
     const res = await api().deleteTarget({ repoPath: S.repoPath, id });
-    if (!res || !res.success) throw new Error((res && res.error) || 'Could not remove the target');
+    if (!res || !res.success) throw new Error((res && res.error) || 'Could not unconfigure the target');
     S.targets = res.targets;
     S.others = res.others || [];
     if (S.form && S.form.id === id) S.form = null;
     for (const tab of S.tabs.filter((x) => x.targetId === id)) await closeTab(tab.id, true);
     saveMemory();
-    renderManageParts();
+    if (S.page === 'browse') goCategories();
+    else renderManageParts();
+    toast('Unconfigured ' + t.name);
   } catch (err) {
     toast(err.message, 'error');
   }
