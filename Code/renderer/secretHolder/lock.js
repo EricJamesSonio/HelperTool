@@ -57,7 +57,7 @@ export async function openVault() {
     lockScreen.style.display = 'none';
     mainScreen.style.display = 'flex';
     await refreshSecrets();
-    S.notes = loadNotesFromStorage();
+    S.notes = await loadNotesFromStorage();
     renderSidebar();
     if (S.activeTab !== 'secrets') openMostRecent();
 }

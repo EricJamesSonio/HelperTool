@@ -235,3 +235,105 @@ function tablesOnly(text) {
     }
     return out.join('\n');
 }
+const KV_RE = /^(.{1,40}?)\s*:\s+(\S.*)$/;
+
+function kvTable(rows) {
+    const esc = (s) => s.replace(/\|/g, '/').trim();
+    const out = ['| Term | Details |', '| --- | --- |'];
+    rows.forEach((m) => out.push('| ' + esc(m[1]) + ' | ' + esc(m[2]) + ' |'));
+    return out.join('\n');
+}
+
+function plainRun(run) {
+    const t = run.map((l) => l.trim());
+    const callout = t.length === 1 ? CALLOUT_RE.exec(t[0]) : null;
+    if (callout) return '> **' + cap(callout[1]) + ':** ' + callout[2];
+    const kv = t.map((l) => KV_RE.exec(l));
+    if (kv.every(Boolean)) {
+        if (kv.length >= 2) return kvTable(kv);
+        return '> **' + stripColon(kv[0][1]) + ':** ' + kv[0][2];
+    }
+    if (t.length >= 2 && t.every((l) => l.length <= 60 && !END_PUNCT_RE.test(l))) {
+        return t.map((l) => '- ' + l).join('\n');
+    }
+    return t.join('  \n');
+}
+
+function structureBody(ls) {
+    const pieces = [];
+    let i = 0;
+    while (i < ls.length) {
+        const plain = kindOf(ls[i]) === 'plain';
+        const run = [];
+        while (i < ls.length && (kindOf(ls[i]) === 'plain') === plain) {
+            run.push(ls[i]);
+            i++;
+        }
+        pieces.push(plain ? plainRun(run) : formatBlock(run, { auto: false, hasNext: false }));
+    }
+    return pieces.join('\n\n');
+}
+
+export function structureNote(src) {
+    const text = String(src || '').replace(/\r\n?/g, '\n');
+    if (!text.trim()) return text;
+    const segs = splitSegments(text.split('\n'));
+    const items = [];
+    for (const seg of segs) {
+        if (seg.code) {
+            items.push({ code: true, lines: seg.lines });
+            continue;
+        }
+        let block = [];
+        const flush = () => {
+            if (block.length) items.push({ code: false, lines: block });
+            block = [];
+        };
+        for (const l of seg.lines) {
+            if (!l.trim()) flush();
+            else block.push(l);
+        }
+        flush();
+    }
+    const hasHeading = items.some((it) => !it.code && it.lines.some((l) => HEAD_RE.test(l)));
+    let titled = hasHeading;
+    let sections = 0;
+    const out = [];
+    items.forEach((it, idx) => {
+        if (it.code) {
+            out.push(it.lines.join('\n'));
+            return;
+        }
+        const ls = it.lines.map(normLine);
+        if (ls.some((l) => kindOf(l) === 'table' || kindOf(l) === 'head')) {
+            out.push(ls.join('\n'));
+            return;
+        }
+        const first = ls[0].trim();
+        const rest = ls.slice(1);
+        const hasNext = idx < items.length - 1;
+        const firstOk = kindOf(ls[0]) === 'plain' && titleLike(first, TITLE_MAX) && !CALLOUT_RE.test(first);
+        let isTitle = false;
+        if (firstOk) {
+            if (rest.length === 0) {
+                isTitle = hasNext;
+            } else {
+                isTitle = rest.some((l) => kindOf(l) !== 'plain' || KV_RE.test(l.trim()) || l.trim().length > 60);
+            }
+        }
+        if (!isTitle) {
+            out.push(structureBody(ls));
+            return;
+        }
+        if (!titled) {
+            titled = true;
+            out.push('## ' + stripColon(first));
+        } else {
+            if (sections > 0) out.push('---');
+            sections++;
+            out.push('### ' + stripColon(first));
+        }
+        if (rest.length) out.push(structureBody(rest));
+    });
+    return out.join('\n\n');
+}

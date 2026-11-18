@@ -3,33 +3,50 @@ import { S, notesList, noteFormTitle, noteFormBody, noteFormDate, tabStudy,
     notePreview, noteToolbar, noteModeBar, noteSaveStatus, noteSmartBtn } from './state.js';
 import { _newNoteId, _todayISO, _formatDisplayDate } from './utils.js';
 import { renderMarkdown } from '../ideMode/markdownPreview.js';
-import { smartFormat } from './smartFormat.js';
+import { smartFormat, structureNote } from './smartFormat.js';
 import { switchTab } from './tabs.js';
 
 const NOTES_KEY = 'sh_notes_v1';
-const SMART_KEY = 'sh_notes_smart_v1';
 const SAVE_DEBOUNCE = 800;
 const FENCE = '`'.repeat(3);
 const SAVE_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M6 10h8"/><path d="M6 14h8"/><path d="M6 6h2"/></svg> Save';
 
 let saveTimer = 0;
 let newNoteCat = 'general';
+let writeChain = Promise.resolve();
 
-export function loadNotesFromStorage() {
+export async function loadNotesFromStorage() {
+    let local = [];
     try {
         const raw = localStorage.getItem(NOTES_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
+        const parsed = raw ? JSON.parse(raw) : [];
+        local = Array.isArray(parsed) ? parsed : [];
+    } catch { local = []; }
+    try {
+        const disk = await window.electronAPI.notesLoad();
+        if (Array.isArray(disk)) return disk;
+        if (local.length) await window.electronAPI.notesSave(local);
+        return local;
+    } catch (err) {
+        console.error('[SecretHolder] could not read notes file:', err);
+        return local;
+    }
 }
 
 function saveNotesToStorage() {
-    try {
-        localStorage.setItem(NOTES_KEY, JSON.stringify(S.notes));
-        return true;
-    } catch (err) {
-        console.error('[SecretHolder] could not write notes:', err);
-        return false;
-    }
+    const snapshot = JSON.parse(JSON.stringify(S.notes));
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(snapshot)); } catch {}
+    writeChain = writeChain
+        .then(() => window.electronAPI.notesSave(snapshot))
+        .then((ok) => {
+            if (!ok) throw new Error('notes-save returned false');
+            if (!S.noteDirty && !saveTimer && S.editingNoteId) setStatus('Saved', 'saved');
+        })
+        .catch((err) => {
+            console.error('[SecretHolder] could not write notes:', err);
+            setStatus('Save failed - disk error', 'error');
+        });
+    return true;
 }
 
 function catOf(note) {
@@ -152,9 +169,9 @@ function renderPreview() {
     } else {
         let src = text;
         try {
-            src = smartFormat(text, { tablesOnly: !S.smartFormat });
+            src = smartFormat(text, { tablesOnly: true });
         } catch (err) {
-            console.error('[SecretHolder] auto-structure failed:', err);
+            console.error('[SecretHolder] table conversion failed:', err);
             src = text;
         }
         notePreview.innerHTML = renderMarkdown(src);
@@ -213,15 +230,12 @@ function saveNow(manual) {
         S.editingNoteId = created.id;
         noteDeleteBtn.style.display = 'inline-flex';
     }
-    if (!saveNotesToStorage()) {
-        setStatus('Save failed - storage error', 'error');
-        return false;
-    }
     S.noteDirty = false;
+    setStatus('Saving...', 'pending');
+    saveNotesToStorage();
     renderSidebar();
     syncMoveBtn();
     highlightSidebarItem(S.editingNoteId);
-    setStatus('Saved', 'saved');
     return true;
 }
 
@@ -505,21 +519,41 @@ function onBodyKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) continueList(e);
 }
 
-function syncSmartBtn() {
-    if (!noteSmartBtn) return;
-    noteSmartBtn.classList.toggle('on', !!S.smartFormat);
-    noteSmartBtn.setAttribute('aria-pressed', S.smartFormat ? 'true' : 'false');
+function autoStructureNow() {
+    if (!S.unlocked || !noteFormBody) return;
+    const cur = noteFormBody.value;
+    if (!cur.trim()) return;
+    let next;
+    try {
+        next = structureNote(cur);
+    } catch (err) {
+        console.error('[SecretHolder] auto-structure failed:', err);
+        setStatus('Auto-structure failed', 'error');
+        return;
+    }
+    if (next === cur) {
+        setStatus('Already structured', 'saved');
+        return;
+    }
+    if (S.noteMode === 'edit') {
+        noteFormBody.focus();
+        noteFormBody.select();
+        insertText(next);
+    } else {
+        noteFormBody.value = next;
+    }
+    S.noteDirty = true;
+    saveNow(false);
+    if (S.noteMode === 'view') renderPreview();
 }
 
 export function wireNotesExtras() {
-    try { S.smartFormat = localStorage.getItem(SMART_KEY) !== '0'; } catch (_) { S.smartFormat = true; }
-    syncSmartBtn();
-    noteSmartBtn.addEventListener('click', () => {
-        S.smartFormat = !S.smartFormat;
-        try { localStorage.setItem(SMART_KEY, S.smartFormat ? '1' : '0'); } catch (_) {}
-        syncSmartBtn();
-        if (S.noteMode === 'view') renderPreview();
-    });
+    if (noteSmartBtn) {
+        noteSmartBtn.classList.remove('on');
+        noteSmartBtn.removeAttribute('aria-pressed');
+        noteSmartBtn.title = 'Auto-structure this note: adds ## and ### headings with divider lines, turns "term : definition" and "- a -- b" rows into tables, "Note: ..." into a quote and short lines into a list. Ctrl+Z undoes it in Edit mode.';
+        noteSmartBtn.addEventListener('click', autoStructureNow);
+    }
     tabStudy.addEventListener('click', () => switchTab('study'));
     noteMoveBtn.addEventListener('click', handleNoteMove);
     noteModeBar.addEventListener('click', (e) => {
