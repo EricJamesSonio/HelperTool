@@ -379,9 +379,27 @@ async function _doPrime() {
 
 export async function warm() {
   if (!window.electronAPI || !window.electronAPI.profile) return;
+  const bootDone = (capMs) => new Promise((resolve) => {
+    const started = Date.now();
+    const check = () => {
+      if (!document.getElementById('appLoadingOverlay') || Date.now() - started > capMs) {
+        resolve();
+        return;
+      }
+      setTimeout(check, 400);
+    };
+    check();
+  });
+  const idle = (timeoutMs) => new Promise((resolve) => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => resolve(), { timeout: timeoutMs });
+    else setTimeout(resolve, 1000);
+  });
   try {
-    _ensurePanel();
-    await _load();
+    await bootDone(25000);
+    await idle(5000);
+    if (_open) return;
+    await _prime(false);
+    if (_open) return;
     if (_activeAccount()) {
       _pillShow('Loading repositories\u2026', 'loading');
       await _loadRepos(false);
