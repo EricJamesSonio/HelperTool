@@ -333,6 +333,8 @@ const I_FILE_ADD = SVG_OPEN + '<path d="M9 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h
 const I_FOLDER_ADD = SVG_OPEN + '<path d="M1.5 4v8.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V5.5a1 1 0 0 0-1-1H7.5L6 3H2.5a1 1 0 0 0-1 1z"/><path d="M8 7.5v4M6 9.5h4"/></svg>';
 const I_REFRESH = SVG_OPEN + '<path d="M13 8a5 5 0 1 1-1.5-3.5"/><path d="M13 2.5v3h-3"/></svg>';
 const I_COLLAPSE = SVG_OPEN + '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M5.5 8h5"/></svg>';
+const I_CLOSE_ALL = SVG_OPEN + '<path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg>';
+
 
 const FOLDER_CLOSED = '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg>';
 const FOLDER_OPEN = '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" opacity="0.6" d="M1.5 3.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1V6h-12z"/><path fill="currentColor" d="M2.2 7h12.6a.7.7 0 0 1 .67.9l-1.3 4.8a1 1 0 0 1-.97.8H2.5a1 1 0 0 1-1-1V8a1 1 0 0 1 .7-1z"/></svg>';
@@ -341,6 +343,9 @@ const TEMPLATE =
 '<div class="ide-section ide-oe collapsed">' +
   '<div class="ide-section-head">' +
     '<span class="ide-sec-chev"></span><span class="ide-sec-name">File Express</span><span class="ide-sec-count"></span>' +
+    '<span class="ide-sec-actions">' +
+      '<button type="button" class="ide-sec-btn" data-act="clearall" title="Close All Files">' + I_CLOSE_ALL + '</button>' +
+    '</span>' +
   '</div>' +
   '<div class="ide-sec-body ide-oe-body">' +
     '<div class="ide-empty ide-oe-empty">No open files</div>' +
