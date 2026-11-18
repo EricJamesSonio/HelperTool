@@ -1,74 +1,84 @@
-body:not([data-ide-theme]) {
-  --sx-c: #7f86ab;
-  --sx-s: #bff3ff;
-  --sx-n: #ff9f43;
-  --sx-k: #ff4fa3;
-  --sx-f: #4d94ff;
-  --sx-t: #ff5fa8;
-  --sx-p: #4da3ff;
-  --sx-a: #ff9f43;
-  --sx-tag: #ff4fa3;
+/* Higher contrast for every card theme. The App theme is not touched. */
+
+body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
+body[data-ide-theme][data-ide-chrome="1"] :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems, #ideLookup),
+body[data-ide-theme][data-ide-app="1"] {
+  --text-primary: var(--th-fg);
+  --text-secondary: color-mix(in srgb, var(--th-fg) 94%, var(--th-bg));
+  --text-muted: color-mix(in srgb, var(--th-fg) 72%, var(--th-bg));
+  --text-faint: color-mix(in srgb, var(--th-fg) 54%, var(--th-bg));
+  --border-subtle: color-mix(in srgb, var(--th-fg) 16%, transparent);
+  --border-default: color-mix(in srgb, var(--th-fg) 28%, transparent);
+  --border-mid: color-mix(in srgb, var(--th-fg) 28%, transparent);
+  --border-strong: color-mix(in srgb, var(--th-fg) 42%, transparent);
+  --bg-hover: color-mix(in srgb, var(--th-fg) 10%, transparent);
+  --bg-active: color-mix(in srgb, var(--th-fg) 18%, transparent);
 }
 
-body:not([data-ide-theme]) :is(#ideSidebar, #ideMain, #ideLookup) {
-  --text-primary: #ffffff;
-  --text-secondary: #eceefa;
-  --text-muted: #aab1d4;
-  --border-subtle: rgba(255, 255, 255, 0.14);
-  --border-default: rgba(255, 255, 255, 0.26);
-  --bg-hover: rgba(255, 255, 255, 0.1);
+body[data-ide-theme] :is(.ide-hl-inner, .lk-hl-inner) .t-c {
+  color: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
 }
 
-.ith-box [data-t="app"] {
-  --sx-c: #7f86ab;
-  --sx-s: #bff3ff;
-  --sx-n: #ff9f43;
-  --sx-k: #ff4fa3;
-  --sx-f: #4d94ff;
-  --sx-t: #ff5fa8;
-  --sx-p: #4da3ff;
-  --sx-a: #ff9f43;
-  --sx-tag: #ff4fa3;
+body[data-ide-theme] .ide-minimap {
+  --text-muted: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
 }
 
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) { color: #ffffff; }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-c { color: var(--sx-c); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-s { color: var(--sx-s); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-n { color: var(--sx-n); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-k { color: var(--sx-k); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-f { color: var(--sx-f); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-t { color: var(--sx-t); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-p { color: var(--sx-p); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner) .t-a { color: var(--sx-a); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner)[data-lang="html"] .t-t { color: var(--sx-tag); }
-body:not([data-ide-theme]) :is(.ide-hl-inner, .lk-hl-inner)[data-lang="md"] .t-k { color: var(--sx-t); }
-
-body:not([data-ide-theme]) .ide-minimap {
-  --text-primary: #ffffff;
-  --text-muted: var(--sx-c);
-  --green: var(--sx-s);
-  --yellow: var(--sx-n);
-  --purple: var(--sx-k);
-  --blue: var(--sx-f);
-  --accent: var(--sx-t);
-  --red: var(--sx-tag);
+body[data-ide-theme] .ide-gutter {
+  color: color-mix(in srgb, var(--th-fg) 62%, var(--th-bg));
 }
 
-body:not([data-ide-theme]) .ide-gutter { color: #8d94bb; }
+body[data-ide-theme] .ide-tab:not(.active) {
+  color: color-mix(in srgb, var(--th-fg) 80%, var(--th-bg));
+}
+body[data-ide-theme] .ide-tab:not(.active):hover {
+  color: var(--th-fg);
+}
+body[data-ide-theme] .ide-tab.active {
+  color: var(--th-fg);
+  font-weight: 600;
+}
+body[data-ide-theme] .ide-tab.active::before {
+  height: 3px;
+}
 
-body:not([data-ide-theme]) .ide-tab:not(.active) { color: #cfd4ee; }
-body:not([data-ide-theme]) .ide-tab:not(.active):hover { color: #ffffff; }
-body:not([data-ide-theme]) .ide-tab.active { color: #ffffff; font-weight: 600; }
-body:not([data-ide-theme]) .ide-tab.active::before { height: 3px; }
+body[data-ide-theme] .ide-crumb {
+  color: color-mix(in srgb, var(--th-fg) 80%, var(--th-bg));
+}
+body[data-ide-theme] .ide-crumb.last {
+  color: var(--th-fg);
+  font-weight: 600;
+}
 
-body:not([data-ide-theme]) .ide-crumb { color: #cfd4ee; }
-body:not([data-ide-theme]) .ide-crumb.last { color: #ffffff; font-weight: 600; }
-body:not([data-ide-theme]) .ide-crumb-sep::before { color: #8d94bb; }
+body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-row {
+  color: color-mix(in srgb, var(--th-fg) 94%, var(--th-bg));
+}
+body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-row.dim {
+  opacity: 0.85;
+}
+body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-oe-item {
+  color: color-mix(in srgb, var(--th-fg) 94%, var(--th-bg));
+}
 
-body:not([data-ide-theme]) .ide-row { color: #f2f4ff; }
-body:not([data-ide-theme]) .ide-row.dim { opacity: 0.85; }
-body:not([data-ide-theme]) .ide-row.active { color: #ffffff; font-weight: 600; }
-body:not([data-ide-theme]) .ide-oe-item { color: #f2f4ff; }
+body[data-ide-theme] .ide-status {
+  color: color-mix(in srgb, var(--th-fg) 90%, var(--th-bg));
+}
 
-body:not([data-ide-theme]) .ide-status { color: #eceefa; }
-body:not([data-ide-theme]) .ide-st-lang { color: var(--sx-f); }
+/* Picker cards and live preview (App theme card is left as it was) */
+.ith-card:not([data-t="app"]) .ith-prev .c {
+  color: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
+}
+.ith-card:not([data-t="app"]) .ith-name {
+  color: var(--th-fg);
+}
+.ith-pv:not([data-t="app"]) {
+  --cmu: color-mix(in srgb, var(--th-fg) 72%, var(--th-bg));
+}
+.ith-pv:not([data-t="app"]) .pv-body .c {
+  color: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
+}
+.ith-pv:not([data-t="app"]) .pv-gut {
+  color: color-mix(in srgb, var(--th-fg) 62%, var(--th-bg));
+}
+.ith-pv:not([data-t="app"]) .pv-tab:not(.on) {
+  color: color-mix(in srgb, var(--th-fg) 80%, var(--th-bg));
+}
