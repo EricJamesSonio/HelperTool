@@ -875,3 +875,7 @@ body[data-ide-theme="hackerblack"], .ith-box [data-t="hackerblack"] {
   --th-bg:#000000; --th-sf:#050505; --th-el:#121212; --th-fg:#f2f2f2; --th-fg2:#d0d0d0; --th-mu:#707070; --th-ac:#00e640;
   --sx-c:#59b4ff; --sx-s:#ff8c42; --sx-n:#ffd23f; --sx-k:#00e640; --sx-f:#a58bff; --sx-t:#4dd0ff; --sx-p:#a58bff; --sx-a:#ffd23f; --sx-tag:#00e640; --sx-cs:italic;
 }
+body[data-ide-theme="escode"], .ith-box [data-t="escode"] {
+  --th-bg:#1e1e22; --th-sf:#18181c; --th-el:#26262c; --th-fg:#e6e6ea; --th-fg2:#c4c4cc; --th-mu:#7a7a86; --th-ac:#f5a02b;
+  --sx-c:#7a8a78; --sx-s:#5fc16d; --sx-n:#f5a02b; --sx-k:#e0524f; --sx-f:#3da0e8; --sx-t:#f5c04a; --sx-p:#6cb8f0; --sx-a:#f5a02b; --sx-tag:#e0524f; --sx-cs:italic;
+}

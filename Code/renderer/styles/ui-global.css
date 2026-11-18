@@ -554,3 +554,77 @@ body {
 .repo-dropdown > .repo-dropdown-item:last-child:hover {
   background: var(--bg-elevated);
 }
+.app-loading-overlay {
+  background: radial-gradient(ellipse at 50% 42%, #2a2a31 0%, #1a1a1e 55%, #121215 100%);
+}
+.app-loading-inner {
+  gap: 14px;
+}
+.app-loading-orb {
+  width: 132px;
+  height: 132px;
+  margin-bottom: 6px;
+}
+.app-loading-ring {
+  border: 0;
+  background: conic-gradient(from 0deg, #f5a02b, #e0524f, #1a8ad4, #3fa34d, #f5a02b);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  opacity: 0.9;
+  animation: app-loading-spin 2.6s linear infinite;
+}
+.app-loading-icon {
+  width: 86px;
+  height: 86px;
+  background-image: url("../../assets/helpertool.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  animation: escode-load-pulse 2.2s ease-in-out infinite;
+}
+.app-loading-icon svg {
+  display: none;
+}
+.app-loading-text {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #f2f2f5;
+}
+.app-loading-sub {
+  font-size: 12.5px;
+  color: #9a9aa6;
+}
+.app-loading-timer {
+  color: #6c6c78;
+}
+.app-loading-dots {
+  display: none;
+}
+.app-loading-inner::after {
+  content: '';
+  order: 99;
+  width: 200px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background-color: rgba(255, 255, 255, 0.08);
+  background-image: linear-gradient(90deg, transparent, #f5a02b, #e0524f, #1a8ad4, #3fa34d, transparent);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: escode-load-bar 1.4s ease-in-out infinite;
+}
+@keyframes escode-load-pulse {
+  0%, 100% {
+    transform: scale(0.96);
+    filter: drop-shadow(0 0 10px rgba(245, 160, 43, 0.25));
+  }
+  50% {
+    transform: scale(1.03);
+    filter: drop-shadow(0 0 22px rgba(245, 160, 43, 0.55));
+  }
+}
+@keyframes escode-load-bar {
+  0% { background-position: -60% 0; }
+  100% { background-position: 160% 0; }
+}
