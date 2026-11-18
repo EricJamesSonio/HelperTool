@@ -12,6 +12,9 @@ process.on('unhandledRejection', (reason) => {
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, screen } = require('electron');
 const path = require('path');
 
+app.setName('ES Code');
+app.setPath('userData', path.join(app.getPath('appData'), 'helper-tool'));
+
 // -- IPC timing wrapper (Phase 0 instrumentation) --
 const _origHandle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = function (channel, handler) {
@@ -199,7 +202,7 @@ if (!gotTheLock) {
       });
     });
 
-    console.log('[Main] Helper Tool app running...');
+    console.log('[Main] ES Code app running...');
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -441,7 +444,7 @@ function createWindow() {
 // ----------------------------
 function createTray() {
   console.log('[Tray] Creating tray icon...');
-  tray = new Tray(path.join(__dirname, 'assets', 'helpertool.png'));
+  tray = new Tray(path.join(__dirname, 'assets', 'es-code.png'));
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -483,7 +486,7 @@ function createTray() {
     }
   ]);
 
-  tray.setToolTip('Helper Tool');
+  tray.setToolTip('ES Code');
   tray.setContextMenu(contextMenu);
   console.log('[Tray] Tray menu created');
 }

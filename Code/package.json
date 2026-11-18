@@ -1,7 +1,7 @@
 {
   "name": "helper-tool",
   "version": "1.0.2",
-  "description": "Tray-based helper tool",
+  "description": "Tray-based ES Code",
   "author": "Eric Sonio",
   "main": "main.js",
   "type": "commonjs",
@@ -17,8 +17,8 @@
   },
   "build": {
     "appId": "com.eric.helpertool",
-    "productName": "HelperTool",
-    "icon": "assets/helpertool.ico",
+    "productName": "ES Code",
+    "icon": "assets/es-code.ico",
     "directories": {
       "output": "dist"
     },
