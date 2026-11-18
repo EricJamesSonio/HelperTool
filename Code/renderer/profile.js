@@ -1650,6 +1650,104 @@ function _fmtHours(sec) {
   const h = s / 3600;
   return (h < 10 ? h.toFixed(1) : String(Math.round(h))) + 'h';
 }
+let _wk = { open: false, busy: false, msg: '', warn: false, clientId: '', secret: '', hasApp: false, redirect: '' };
+
+function _wakaApi() {
+  return window.wakaOauthAPI || null;
+}
+
+function _wakaDropHours() {
+  for (const k of Object.keys(_cache)) {
+    if (k.indexOf('hours:') === 0) delete _cache[k];
+  }
+  for (const k of Object.keys(_plain)) {
+    if (k.indexOf('hours:') === 0) delete _plain[k];
+  }
+}
+
+function _wakaConnectHtml(hrs) {
+  if (hrs && hrs.success) return '';
+  if (!_wakaApi()) {
+    return '<div class="pf-waka"><div class="pf-waka-hint">Fully restart the app to enable WakaTime sign in.</div></div>';
+  }
+  let h = '<div class="pf-waka">';
+  if (_wk.busy) {
+    h += '<div class="pf-waka-wait"><span class="pf-spinner sm"></span><span>Waiting for approval in your browser...</span></div>' +
+      '<div class="pf-waka-actions"><button type="button" class="pf-btn" data-waka="cancel">Cancel</button></div>';
+  } else if (_wk.open) {
+    h += '<div class="pf-waka-hint">Create an app on WakaTime (<a class="pf-waka-link" data-waka="apps">open apps page</a>) and add this exact redirect URI to it:</div>' +
+      '<div class="pf-waka-redirect">' + _esc(_wk.redirect) + '</div>' +
+      '<div class="pf-edit-field"><label>Client ID</label><input class="pf-edit-input" id="pfWkId" autocomplete="off" spellcheck="false" value="' + _esc(_wk.clientId) + '"></div>' +
+      '<div class="pf-edit-field"><label>Client secret</label><input class="pf-edit-input" id="pfWkSecret" type="password" autocomplete="off" spellcheck="false" placeholder="' + (_wk.hasApp ? 'Saved - leave empty to keep it' : 'waka_sec_...') + '" value="' + _esc(_wk.secret) + '"></div>' +
+      '<div class="pf-waka-actions"><button type="button" class="pf-btn" data-waka="close">Cancel</button><button type="button" class="pf-btn primary" data-waka="connect">Connect</button></div>';
+  } else {
+    h += '<div class="pf-waka-actions"><button type="button" class="pf-btn primary" data-waka="open">Connect WakaTime</button></div>';
+  }
+  if (_wk.msg) h += '<div class="pf-acc-msg' + (_wk.warn ? ' warn' : '') + '">' + _esc(_wk.msg) + '</div>';
+  return h + '</div>';
+}
+
+async function _wakaOpen() {
+  const a = _wakaApi();
+  if (!a) return;
+  try {
+    const st = await a.status();
+    if (st && st.success) {
+      _wk.hasApp = !!st.hasApp;
+      _wk.redirect = st.redirectUri || '';
+      if (!_wk.clientId) _wk.clientId = st.clientId || '';
+    }
+  } catch (_) {}
+  _wk.open = true;
+  _wk.msg = '';
+  _wk.warn = false;
+  _renderBody('dash');
+}
+
+async function _wakaConnect() {
+  const a = _wakaApi();
+  if (!a || _wk.busy) return;
+  const id = _wk.clientId.trim();
+  const secret = _wk.secret.trim();
+  if (!id || (!secret && !_wk.hasApp)) {
+    _wk.msg = 'Enter the Client ID and Client secret of your WakaTime app.';
+    _wk.warn = true;
+    _renderBody('dash');
+    return;
+  }
+  _wk.busy = true;
+  _wk.msg = '';
+  _wk.warn = false;
+  _renderBody('dash');
+  try {
+    const saved = await a.saveApp(id, secret);
+    if (!saved || !saved.success) throw new Error((saved && saved.error) || 'Could not save the app details.');
+    _wk.secret = '';
+    _wk.hasApp = true;
+    const res = await a.connect();
+    if (res && res.success) {
+      _wk.open = false;
+      _wk.msg = '';
+      _wakaDropHours();
+    } else if (!res || !res.cancelled) {
+      throw new Error((res && res.error) || 'WakaTime sign in failed.');
+    }
+  } catch (err) {
+    _wk.msg = err && err.message ? err.message : 'WakaTime sign in failed.';
+    _wk.warn = true;
+  }
+  _wk.busy = false;
+  _renderBody('dash');
+}
+
+async function _wakaCancel() {
+  const a = _wakaApi();
+  if (!a) return;
+  try {
+    await a.cancel();
+  } catch (_) {}
+}
+
 
 function _topWithOther(items, top) {
   const sorted = items.filter((i) => i.value > 0).sort((a, b) => b.value - a.value);
@@ -1824,9 +1922,10 @@ async function _renderDashboard() {
   const hoursItems = hoursSource.length
     ? _topWithOther(hoursSource.map((p) => ({ label: p.name, value: p.seconds })), 6)
     : [];
+  const hoursEmpty = hrs && hrs.error ? hrs.error : 'Connect WakaTime to see hours';
   const hoursCard = hoursItems.length
     ? _buildDonutHTML('Hours by Project', hoursItems, _fmtHours)
-    : '<div class="pf-donut-wrap"><div class="pf-donut-title">Hours by Project</div><div class="pf-donut-empty">' + _esc(hrs && hrs.error ? hrs.error : 'Connect WakaTime to see hours') + '</div></div>';
+    : '<div class="pf-donut-wrap"><div class="pf-donut-title">Hours by Project</div><div class="pf-donut-empty">' + _esc(hoursEmpty) + '</div>' + _wakaConnectHtml(hrs) + '</div>';
 
   let notes = '';
   if (skipped > 0) {
@@ -1864,6 +1963,24 @@ async function _renderDashboard() {
       if (row) _openRepoFromDash(row.dataset.path);
     });
   }
+  section.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-waka]');
+    if (!t) return;
+    const act = t.dataset.waka;
+    if (act === 'open') _wakaOpen();
+    else if (act === 'connect') _wakaConnect();
+    else if (act === 'cancel') _wakaCancel();
+    else if (act === 'apps') _openUrl('https://wakatime.com/apps');
+    else if (act === 'close') {
+      _wk.open = false;
+      _wk.msg = '';
+      _renderBody('dash');
+    }
+  });
+  section.addEventListener('input', (e) => {
+    if (e.target.id === 'pfWkId') _wk.clientId = e.target.value;
+    else if (e.target.id === 'pfWkSecret') _wk.secret = e.target.value;
+  });
   return section;
 }
 
