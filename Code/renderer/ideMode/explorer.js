@@ -191,9 +191,9 @@ function renderChanges() {
   }
   for (const d of dirs) added.push(chRow(d, 'U', 'dir'));
   changesCount.innerHTML =
-    (nMod ? '<button type="button" class="ide-ch-n m" data-ch="mod" title="Show only modified files">' + nMod + ' modified</button>' : '') +
-    (nNew ? '<button type="button" class="ide-ch-n u" data-ch="new" title="Show only new files">' + nNew + ' new</button>' : '') +
-    (deleted.length ? '<button type="button" class="ide-ch-n d" data-ch="del" title="Show only deleted files">' + deleted.length + ' deleted</button>' : '');
+    (nMod ? '<button type="button" class="ide-ch-n m" data-ch="mod" aria-label="' + nMod + ' modified" title="' + nMod + ' modified - show only modified files">' + nMod + '</button>' : '') +
+    (nNew ? '<button type="button" class="ide-ch-n u" data-ch="new" aria-label="' + nNew + ' new" title="' + nNew + ' new - show only new files">' + nNew + '</button>' : '') +
+    (deleted.length ? '<button type="button" class="ide-ch-n d" data-ch="del" aria-label="' + deleted.length + ' deleted" title="' + deleted.length + ' deleted - show only deleted files">' + deleted.length + '</button>' : '');
   changesBody.innerHTML =
     chGroup('Conflicts', conflicts) +
     chGroup('Modified', modified) +
