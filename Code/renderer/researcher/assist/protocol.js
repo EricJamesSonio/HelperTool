@@ -22,7 +22,7 @@ export const PROTOCOL_TITLE = 'TICKET WORKFLOW PROTOCOL';
 export const PROTOCOL_PROMPT = [
   PROTOCOL_TITLE + ' (follow exactly)',
   '',
-  'A helper tool reads every reply you send and answers for me. It only understands the markers below.',
+  'A ES Code reads every reply you send and answers for me. It only understands the markers below.',
   '',
   'FORMAT RULES (strict):',
   '1. Every reply has exactly ONE opening marker, written exactly like ^|send-file-contents|^ (caret, pipe, name, pipe, caret).',
