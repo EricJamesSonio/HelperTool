@@ -16,16 +16,37 @@ function safeUrl(value) {
   return url;
 }
 
-function inline(source) {
-  const pattern = /(!?)\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)|`([^`]+)`|(\*\*|__)(?=\S)(.+?\S)\6|(\*|_)(?=\S)(.+?\S)\8|~~(?=\S)(.+?\S)~~/g;
+function fileUrl(filePath) {
+  const normalized = String(filePath || '').replace(/\\/g, '/');
+  if (!/^(?:[a-zA-Z]:\/|\/)/.test(normalized)) return null;
+  const encoded = normalized.split('/').map((part, index) =>
+    index === 0 && /^[a-zA-Z]:$/.test(part) ? part : encodeURIComponent(part)
+  ).join('/');
+  return normalized.charAt(0) === '/' ? 'file://' + encoded : 'file:///' + encoded;
+}
+
+function imageUrl(url, basePath) {
+  const safe = safeUrl(url);
+  if (!safe || safe.charAt(0) === '#' || /^(?:https?:|mailto:)/i.test(safe)) return safe;
+  const baseUrl = fileUrl(basePath);
+  if (!baseUrl) return safe;
+  try {
+    return new URL(safe, baseUrl).href;
+  } catch (_) {
+    return null;
+  }
+}
+
+function inline(source, basePath) {
+  const pattern = /(!?)\[([^\]]+)\]\(([^)]+?)(?:\s+"([^"]*)")?\)|`([^`]+)`|(\*\*|__)(?=\S)(.+?\S)\6|(\*|_)(?=\S)(.+?\S)\8|~~(?=\S)(.+?\S)~~/g;
   let html = '';
   let last = 0;
   let match;
   while ((match = pattern.exec(source))) {
     html += escapeHtml(source.slice(last, match.index));
     if (match[2] !== undefined) {
-      const url = safeUrl(match[3]);
-      const label = inline(match[2]);
+      const url = match[1] ? imageUrl(match[3], basePath) : safeUrl(match[3]);
+      const label = inline(match[2], basePath);
       if (!url) html += label;
       else if (match[1]) html += '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(match[2]) + '" loading="lazy">';
       else {
@@ -37,11 +58,11 @@ function inline(source) {
     } else if (match[5] !== undefined) {
       html += '<code>' + escapeHtml(match[5]) + '</code>';
     } else if (match[6] !== undefined) {
-      html += '<strong>' + inline(match[7]) + '</strong>';
+      html += '<strong>' + inline(match[7], basePath) + '</strong>';
     } else if (match[8] !== undefined) {
-      html += '<em>' + inline(match[9]) + '</em>';
+      html += '<em>' + inline(match[9], basePath) + '</em>';
     } else {
-      html += '<del>' + inline(match[10]) + '</del>';
+      html += '<del>' + inline(match[10], basePath) + '</del>';
     }
     last = pattern.lastIndex;
   }
@@ -69,7 +90,7 @@ function isBlockStart(lines, index) {
     (index + 1 < lines.length && isTableDivider(lines[index + 1]));
 }
 
-function renderBlocks(lines) {
+function renderBlocks(lines, basePath) {
   const out = [];
   let i = 0;
   while (i < lines.length) {
@@ -97,7 +118,7 @@ function renderBlocks(lines) {
     const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
     if (heading) {
       const level = heading[1].length;
-      out.push('<h' + level + '>' + inline(heading[2]) + '</h' + level + '>');
+      out.push('<h' + level + '>' + inline(heading[2], basePath) + '</h' + level + '>');
       i++;
       continue;
     }
@@ -116,7 +137,7 @@ function renderBlocks(lines) {
       );
       const row = (cells, tag) => '<tr>' + headers.map((_, col) =>
         '<' + tag + (alignments[col] ? ' style="text-align:' + alignments[col] + '"' : '') + '>' +
-        inline(cells[col] || '') + '</' + tag + '>'
+        inline(cells[col] || '', basePath) + '</' + tag + '>'
       ).join('') + '</tr>';
       const body = [];
       i += 2;
@@ -134,7 +155,7 @@ function renderBlocks(lines) {
         quote.push(lines[i].replace(/^\s{0,3}>\s?/, ''));
         i++;
       }
-      out.push('<blockquote>' + renderBlocks(quote) + '</blockquote>');
+      out.push('<blockquote>' + renderBlocks(quote, basePath) + '</blockquote>');
       continue;
     }
 
@@ -148,7 +169,7 @@ function renderBlocks(lines) {
         if (!item || /^\d/.test(item[1]) !== ordered) break;
         const task = item[2].match(/^\[([ xX])\]\s+(.*)$/);
         const text = task ? task[2] : item[2];
-        items.push('<li>' + (task ? '<input type="checkbox" disabled' + (task[1].toLowerCase() === 'x' ? ' checked' : '') + '> ' : '') + inline(text) + '</li>');
+        items.push('<li>' + (task ? '<input type="checkbox" disabled' + (task[1].toLowerCase() === 'x' ? ' checked' : '') + '> ' : '') + inline(text, basePath) + '</li>');
         i++;
       }
       out.push('<' + tag + '>' + items.join('') + '</' + tag + '>');
@@ -161,11 +182,11 @@ function renderBlocks(lines) {
       paragraph.push(lines[i].trim());
       i++;
     }
-    out.push('<p>' + paragraph.map(inline).join(' ') + '</p>');
+    out.push('<p>' + paragraph.map((text) => inline(text, basePath)).join(' ') + '</p>');
   }
   return out.join('');
 }
 
-export function renderMarkdown(markdown) {
-  return renderBlocks(String(markdown || '').replace(/\r\n?/g, '\n').split('\n'));
+export function renderMarkdown(markdown, basePath) {
+  return renderBlocks(String(markdown || '').replace(/\r\n?/g, '\n').split('\n'), basePath);
 }

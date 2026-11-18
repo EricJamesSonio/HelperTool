@@ -617,7 +617,7 @@ function makeTab(path, name, media) {
     selStart: 0,
     selEnd: 0,
     hist: null,
-    markdownPreview: false,
+    markdownPreview: /\.(?:md|markdown|mdown|mkd)$/i.test(name || ''),
   };
 }
 
@@ -1148,7 +1148,7 @@ function showTab(tab, focus) {
   els.mdToggle.title = previewMd ? 'Show Markdown source' : 'Preview Markdown';
   els.mdPreview.hidden = !previewMd;
   els.codewrap.hidden = !showCode || previewMd;
-  els.mdPreview.innerHTML = previewMd ? renderMarkdown(tab.content) : '';
+  els.mdPreview.innerHTML = previewMd ? renderMarkdown(tab.content, tab.path) : '';
   els.dv.hidden = !isPane;
   els.media.hidden = !isMedia;
   els.welcome.hidden = showCode || isPane || isMedia;
@@ -2742,7 +2742,8 @@ export function mount(mainEl, handlers) {
   onChange = (handlers && handlers.onTabsChange) || null;
   mainEl.innerHTML = TEMPLATE;
   const crumbsEl = mainEl.querySelector('.ide-crumbs');
-  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML;
+  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML +
+    '<button class="ide-md-toggle" type="button" title="Preview Markdown" hidden>Preview</button>';
   els = {
     tabs: mainEl.querySelector('.ide-tabs'),
     crumbs: crumbsEl,
@@ -2768,7 +2769,7 @@ export function mount(mainEl, handlers) {
     pbTitle: mainEl.querySelector('.ide-pb-title'),
     stProb: mainEl.querySelector('.ide-st-problems'),
     find: mainEl.querySelector('.ide-find'),
-    mdToggle: document.getElementById('ideMarkdownToggleBtn'),
+    mdToggle: crumbsEl.querySelector('.ide-md-toggle'),
     mdPreview: mainEl.querySelector('.ide-md-preview'),
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
