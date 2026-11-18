@@ -11,8 +11,6 @@ const TAB_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const ACCOUNT_ID = /^[A-Za-z0-9_-]{1,80}$/;
 const GH_USER = /^[A-Za-z0-9-]{1,39}$/;
 const GH_URL = 'https://github.com';
-const FIREFOX_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0';
-const GOOGLE_AUTH = /^https:\/\/accounts\.google\.com\//i;
 const OAUTH_POPUP = /^https:\/\/(accounts\.google\.com|github\.com\/login\/oauth)\//i;
 
 let getWin = () => null;
@@ -55,40 +53,6 @@ function secureSession(ses, partition) {
   try {
     ses.setUserAgent(cleanUserAgent(ses.getUserAgent()));
   } catch (_) {}
-  try {
-    const nodePath = require('path');
-    const preload = nodePath.join(__dirname, 'deployGooglePreload.js');
-    const current = typeof ses.getPreloads === 'function' ? ses.getPreloads() : [];
-    if (current.indexOf(preload) === -1) ses.setPreloads(current.concat([preload]));
-  } catch (_) {}
-  try {
-    ses.webRequest.onBeforeSendHeaders({ urls: ['https://accounts.google.com/*'] }, (details, callback) => {
-      const headers = Object.assign({}, details.requestHeaders);
-      for (const key of Object.keys(headers)) {
-        if (/^sec-ch-ua/i.test(key) || /^user-agent$/i.test(key)) delete headers[key];
-      }
-      headers['User-Agent'] = FIREFOX_UA;
-      callback({ requestHeaders: headers });
-    });
-  } catch (_) {}
-}
-
-function urlOf(event, url) {
-  if (typeof url === 'string') return url;
-  return event && typeof event.url === 'string' ? event.url : '';
-}
-
-function watchGoogle(wc, baseUa) {
-  const apply = (url) => {
-    try {
-      if (wc.isDestroyed()) return;
-      const want = GOOGLE_AUTH.test(url) ? FIREFOX_UA : baseUa;
-      if (wc.getUserAgent() !== want) wc.setUserAgent(want);
-    } catch (_) {}
-  };
-  wc.on('will-navigate', (event, url) => apply(urlOf(event, url)));
-  wc.on('will-redirect', (event, url) => apply(urlOf(event, url)));
-  return apply;
 }
 
 function canGo(wc, dir) {
@@ -179,14 +143,12 @@ function createView(tab) {
   secureSession(wc.session, partition);
   const baseUa = cleanUserAgent(wc.getUserAgent());
   wc.setUserAgent(baseUa);
-  const applyUa = watchGoogle(wc, baseUa);
   wc.setWindowOpenHandler(popupHandler(wc, partition));
   wc.on('did-create-window', (child) => {
     tab.popups.add(child);
     child.on('closed', () => tab.popups.delete(child));
     const cwc = child.webContents;
     cwc.setUserAgent(baseUa);
-    watchGoogle(cwc, baseUa);
     cwc.setWindowOpenHandler(popupHandler(cwc, partition));
   });
   const push = () => sendState(tab);
@@ -195,7 +157,6 @@ function createView(tab) {
   }
   tab.view = view;
   tab.attached = false;
-  applyUa(tab.url);
   wc.loadURL(tab.url).catch(() => {});
   return view;
 }
