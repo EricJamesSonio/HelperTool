@@ -198,12 +198,18 @@ function apply(notify) {
 }
 
 function injectCss() {
-  if (document.getElementById(CSS_ID)) return;
-  const link = document.createElement('link');
-  link.id = CSS_ID;
-  link.rel = 'stylesheet';
-  link.href = './styles/ide-theme.css';
-  document.head.appendChild(link);
+  const sheets = [
+    [CSS_ID, './styles/ide-theme.css'],
+    ['ideVividCss', './styles/ide-vivid.css'],
+  ];
+  for (const pair of sheets) {
+    if (document.getElementById(pair[0])) continue;
+    const link = document.createElement('link');
+    link.id = pair[0];
+    link.rel = 'stylesheet';
+    link.href = pair[1];
+    document.head.appendChild(link);
+  }
 }
 
 function cardHtml(t) {
