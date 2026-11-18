@@ -17,7 +17,7 @@ const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
 const MAX_WATCHERS = 6;
 const SYNC_START_DELAY_MS = 8000;
 const SYNC_GAP_MS = 400;
-const OVERVIEW_TTL_MS = 20000;
+const OVERVIEW_TTL_MS = 60000;
 const DAY_CACHE_TTL_MS = 300000;
 const DAY_CACHE_MAX = 50;
 
@@ -504,6 +504,99 @@ function _dayCacheSet(key, data) {
   }
 }
 
+const REMOTE_TTL_MS = 10 * 60 * 1000;
+const WARM_DELAY_MS = 4000;
+const _remoteCache = new Map();
+const _ovBuilding = {};
+
+function _svc(name, status, message) {
+  try {
+    updateService(name, status, message);
+  } catch (_) {}
+}
+
+function _ovStore() {
+  if (!_overviewCache.byRange) _overviewCache.byRange = {};
+  return _overviewCache.byRange;
+}
+
+async function _remoteFor(repoPath) {
+  const key = _norm(repoPath);
+  const hit = _remoteCache.get(key);
+  if (hit && Date.now() - hit.at < REMOTE_TTL_MS) return hit.value;
+  let value = '';
+  try {
+    const url = String(await runGit(repoPath, ['remote', 'get-url', 'origin'])).trim();
+    const m = /github\.com[:/]+([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(url);
+    value = m ? (m[1] + '/' + m[2]).toLowerCase() : '';
+  } catch (_) {
+    value = '';
+  }
+  _remoteCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+async function _buildOverview(range, config) {
+  const cfg = _readConfig(config);
+  const q = queries();
+  const stats = new Map(q.getRepoStats(range).map((r) => [_norm(r.repoPath), r]));
+
+  const paths = new Map();
+  for (const p of Object.keys(cfg.projects || {})) paths.set(_norm(p), p);
+  for (const r of stats.values()) {
+    if (!paths.has(_norm(r.repoPath))) paths.set(_norm(r.repoPath), r.repoPath);
+  }
+
+  const gitRows = await collectRepos(Array.from(paths.values()), 4);
+  const deployStore = makeDeployStore({ app });
+  const active = _norm(cfg.activeProject);
+  const remotes = await Promise.all(gitRows.map((g) => (g.exists && g.isGit ? _remoteFor(g.repoPath) : Promise.resolve(''))));
+
+  const repos = gitRows.map((g, i) => {
+    const s = stats.get(_norm(g.repoPath)) || {};
+    let deploy = [];
+    try {
+      deploy = deployStore.view(g.repoPath).targets.map((t) => ({
+        role: t.role === 'custom' ? (t.roleLabel || 'Custom') : t.role,
+        name: t.name,
+      }));
+    } catch (_) {
+      deploy = [];
+    }
+    return Object.assign({}, g, {
+      commits: s.commits || 0,
+      saves: s.saves || 0,
+      files: s.files || 0,
+      activeDays: s.days || 0,
+      deploy,
+      remote: remotes[i] || '',
+      isActive: _norm(g.repoPath) === active,
+    });
+  });
+
+  const data = { success: true, range, repos, daily: q.getDaily(30), generatedAt: Date.now() };
+  _ovStore()[range] = { at: Date.now(), data };
+  return data;
+}
+
+function _refreshOverview(range, config) {
+  if (_ovBuilding[range]) return _ovBuilding[range];
+  const p = _buildOverview(range, config).finally(() => {
+    delete _ovBuilding[range];
+  });
+  _ovBuilding[range] = p;
+  return p;
+}
+
+async function _warmOverview(config) {
+  _svc('profileWarm', 'running', 'Loading profile resources...');
+  try {
+    await _refreshOverview('week', config);
+    _svc('profileWarm', 'done');
+  } catch (err) {
+    _svc('profileWarm', 'failed', err && err.message ? err.message : 'failed');
+  }
+}
 function register(shared) {
   const config = shared ? shared.config : null;
 
@@ -515,6 +608,8 @@ function register(shared) {
   if (_profileEnabled()) {
     const t = setTimeout(() => _syncAllRepos(config), SYNC_START_DELAY_MS);
     if (t.unref) t.unref();
+    const w = setTimeout(() => { _warmOverview(config); }, WARM_DELAY_MS);
+    if (w.unref) w.unref();
   }
 
   ipcMain.handle('profile:get', async () => _ensureProfile());
@@ -660,48 +755,9 @@ function register(shared) {
   ipcMain.handle('profile:getOverview', async (event, opts) => {
     const o = opts || {};
     const range = o.range === 'month' ? 'month' : 'week';
-    if (!o.fresh && _overviewCache.range === range && Date.now() - _overviewCache.at < OVERVIEW_TTL_MS) {
-      return _overviewCache.data;
-    }
-
-    const cfg = _readConfig(config);
-    const q = queries();
-    const stats = new Map(q.getRepoStats(range).map((r) => [_norm(r.repoPath), r]));
-
-    const paths = new Map();
-    for (const p of Object.keys(cfg.projects || {})) paths.set(_norm(p), p);
-    for (const r of stats.values()) {
-      if (!paths.has(_norm(r.repoPath))) paths.set(_norm(r.repoPath), r.repoPath);
-    }
-
-    const gitRows = await collectRepos(Array.from(paths.values()), 4);
-    const deployStore = makeDeployStore({ app });
-    const active = _norm(cfg.activeProject);
-
-    const repos = gitRows.map((g) => {
-      const s = stats.get(_norm(g.repoPath)) || {};
-      let deploy = [];
-      try {
-        deploy = deployStore.view(g.repoPath).targets.map((t) => ({
-          role: t.role === 'custom' ? (t.roleLabel || 'Custom') : t.role,
-          name: t.name,
-        }));
-      } catch (_) {
-        deploy = [];
-      }
-      return Object.assign({}, g, {
-        commits: s.commits || 0,
-        saves: s.saves || 0,
-        files: s.files || 0,
-        activeDays: s.days || 0,
-        deploy,
-        isActive: _norm(g.repoPath) === active,
-      });
-    });
-
-    const data = { success: true, range, repos, daily: q.getDaily(30), generatedAt: Date.now() };
-    _overviewCache = { range, at: Date.now(), data };
-    return data;
+    const hit = _ovStore()[range];
+    if (!o.fresh && hit && Date.now() - hit.at < OVERVIEW_TTL_MS) return hit.data;
+    return _refreshOverview(range, config);
   });
 
   ipcMain.handle('profile:initWatcher', () => {
