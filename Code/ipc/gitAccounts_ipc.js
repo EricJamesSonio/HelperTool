@@ -140,7 +140,7 @@ function ghGet(pathname, token) {
       hostname: 'api.github.com',
       path: pathname,
       headers: {
-        'User-Agent': 'HelperTool/1.0',
+        'User-Agent': 'ES Code/1.0',
         'Accept': 'application/vnd.github+json',
         'Authorization': 'Bearer ' + token,
       },
@@ -166,7 +166,7 @@ function postJson(hostname, pathname, body) {
       path: pathname,
       method: 'POST',
       headers: {
-        'User-Agent': 'HelperTool/1.0',
+        'User-Agent': 'ES Code/1.0',
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(payload),
@@ -586,7 +586,7 @@ function ghSend(method, pathname, token, body) {
   return new Promise((resolve, reject) => {
     const payload = body ? JSON.stringify(body) : '';
     const headers = {
-      'User-Agent': 'HelperTool/1.0',
+      'User-Agent': 'ES Code/1.0',
       'Accept': 'application/vnd.github+json',
       'Authorization': 'Bearer ' + token,
       'Content-Length': Buffer.byteLength(payload),
@@ -947,7 +947,7 @@ function ghRequest(method, pathname, token) {
       path: pathname,
       method,
       headers: {
-        'User-Agent': 'HelperTool/1.0',
+        'User-Agent': 'ES Code/1.0',
         'Accept': 'application/vnd.github+json',
         'Authorization': 'Bearer ' + token,
         'Content-Length': 0,

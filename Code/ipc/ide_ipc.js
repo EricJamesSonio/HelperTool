@@ -3,6 +3,12 @@ const fs = require('fs');
 const path = require('path');
 
 const fuzzy = require('../utils/fuzzyMatch.js');
+const {
+  extOf,
+  countExts,
+  decodeTextBuffer,
+  isProbablyTextBuffer,
+} = require('../utils/ideSearchFiles.js');
 const MAX_ENTRIES = 5000;
 
 const SKIP_DIRS = new Set([
@@ -10,11 +16,6 @@ const SKIP_DIRS = new Set([
   'playwright-report', 'test-results', '.turbo', '.parcel-cache', '.nuxt', '.svelte-kit',
   'vendor', '.venv', 'venv', 'target', '.gradle', '.idea',
 ]);
-const SKIP_EXT = new Set('png jpg jpeg gif webp bmp ico icns pdf zip gz tgz rar 7z exe dll so dylib node wasm mp3 mp4 mov avi mkv webm woff woff2 ttf otf eot db sqlite bin class jar map'.split(' '));
-const SKIP_NAMES = new Set(['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
-
-const MAX_FILES = 20000;
-const MAX_FILE_BYTES = 1000000;
 const CORPUS_CHARS = 60000000;
 const FRESH_MS = 15000;
 const LIST_TTL = 60000;
@@ -150,16 +151,7 @@ async function listFiles(root, isCancelled) {
         continue;
       }
       if (!d.isFile()) continue;
-      const lower = d.name.toLowerCase();
-      if (SKIP_NAMES.has(lower)) continue;
-      const dot = lower.lastIndexOf('.');
-      const ext = dot < 0 ? '' : lower.slice(dot + 1);
-      if (SKIP_EXT.has(ext)) continue;
       files.push(path.join(dir, d.name));
-      if (files.length >= MAX_FILES) {
-        stack.length = 0;
-        break;
-      }
     }
   }
   files.sort();
@@ -189,24 +181,17 @@ async function getEntry(file) {
     corpus.chars -= e.cost || 0;
     corpus.map.delete(file);
   }
-  if (st.size === 0 || st.size > MAX_FILE_BYTES) {
-    corpus.map.set(file, { skip: true, mtime: st.mtimeMs, size: st.size, at: now, cost: 0 });
-    return null;
-  }
   let buf;
   try {
     buf = await fs.promises.readFile(file);
   } catch (_) {
     return null;
   }
-  const probe = Math.min(buf.length, 4000);
-  for (let i = 0; i < probe; i++) {
-    if (buf[i] === 0) {
-      corpus.map.set(file, { skip: true, mtime: st.mtimeMs, size: st.size, at: now, cost: 0 });
-      return null;
-    }
+  if (!isProbablyTextBuffer(buf)) {
+    corpus.map.set(file, { skip: true, mtime: st.mtimeMs, size: st.size, at: now, cost: 0 });
+    return null;
   }
-  const text = buf.toString('utf8');
+  const text = decodeTextBuffer(buf);
   const entry = { file, text, lower: text.toLowerCase(), mtime: st.mtimeMs, size: st.size, at: now, cost: text.length * 2 };
   if (corpus.chars + entry.cost <= CORPUS_CHARS) {
     corpus.map.set(file, entry);
@@ -318,24 +303,6 @@ function fileMatches(root, files, ctx) {
   }
   hits.sort((a, b) => (b.score - a.score) || a.rel.localeCompare(b.rel));
   return hits.slice(0, NAME_HIT_CAP);
-}
-
-function extOf(file) {
-  const name = path.basename(file).toLowerCase();
-  const dot = name.lastIndexOf('.');
-  if (dot < 0) return '';
-  return name.slice(dot + 1);
-}
-
-function countExts(files) {
-  const map = new Map();
-  for (const f of files) {
-    const e = extOf(f);
-    map.set(e, (map.get(e) || 0) + 1);
-  }
-  return Array.from(map.entries())
-    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
-    .slice(0, 80);
 }
 
 async function runSearch(sender, id, root, query, session, extSet) {
@@ -491,10 +458,6 @@ async function listFolders(root, isCancelled) {
       const full = path.join(dir, d.name);
       dirs.push(full);
       stack.push(full);
-      if (dirs.length >= MAX_FILES) {
-        stack.length = 0;
-        break;
-      }
     }
   }
   dirs.sort();
@@ -788,7 +751,7 @@ function register() {
     const rawExts = args && Array.isArray(args.exts) ? args.exts : [];
     const extList = rawExts
       .filter((x) => typeof x === 'string')
-      .slice(0, 200)
+      .slice(0, 10000)
       .map((x) => x.toLowerCase());
     const extSet = extList.length ? new Set(extList) : null;
     if (mode === 'folders') runFolderSearch(sender, id, root, query, session);

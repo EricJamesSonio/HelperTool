@@ -415,7 +415,7 @@ async function describeOther(abs, rel, isDir, repoByStorage) {
   } else if (INTERNAL_RE.test(name)) {
     item.internal = true;
     item.label = 'Electron / Chromium internal';
-    item.note = 'Created by the browser engine inside the app, not by a Helper Tool feature. Cannot be previewed.';
+    item.note = 'Created by the browser engine inside the app, not by a ES Code feature. Cannot be previewed.';
   } else if (BACKUP_RE.test(name)) {
     item.label = 'Temporary or backup file';
     item.note = 'Left behind by an atomic save or a corrupt-file backup.';

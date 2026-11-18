@@ -9,7 +9,7 @@ const HOME = os.homedir();
 const DIR = path.join(HOME, '.wakatime');
 const CFG = path.join(HOME, '.wakatime.cfg');
 const PLUGIN = 'helpertool/1.0 helpertool-wakatime/1.0';
-const APP_NAME = 'Helper Tool';
+const APP_NAME = 'ES Code';
 const SAME_GAP = 100000;
 const WRITE_GAP = 5000;
 const TICK_MS = 30000;
@@ -127,7 +127,7 @@ function download(url, dest, hops) {
       reject(new Error('Too many redirects'));
       return;
     }
-    const req = https.get(url, { headers: { 'User-Agent': 'HelperTool/1.0' } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'ES Code/1.0' } }, (res) => {
       const code = res.statusCode;
       if ([301, 302, 303, 307, 308].indexOf(code) !== -1 && res.headers.location) {
         res.resume();
@@ -466,7 +466,7 @@ function apiGet(urlPath, key) {
       hostname: 'api.wakatime.com',
       path: urlPath,
       headers: {
-        'User-Agent': 'HelperTool/1.0',
+        'User-Agent': 'ES Code/1.0',
         'Accept': 'application/json',
         'Authorization': 'Basic ' + Buffer.from(key).toString('base64'),
       },

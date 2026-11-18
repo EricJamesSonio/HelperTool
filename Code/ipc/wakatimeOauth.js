@@ -138,7 +138,7 @@ function postForm(fields) {
     path: '/oauth/token',
     method: 'POST',
     headers: {
-      'User-Agent': 'HelperTool/1.0',
+      'User-Agent': 'ES Code/1.0',
       'Accept': 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
       'Content-Length': Buffer.byteLength(payload),
@@ -152,7 +152,7 @@ function apiGet(pathname, token) {
     path: pathname,
     method: 'GET',
     headers: {
-      'User-Agent': 'HelperTool/1.0',
+      'User-Agent': 'ES Code/1.0',
       'Accept': 'application/json',
       'Authorization': 'Bearer ' + token,
     },
@@ -256,7 +256,7 @@ async function readRange(days) {
 
 function page(res, text) {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Connection': 'close' });
-  res.end('<!doctype html><html><head><meta charset="utf-8"><title>Helper Tool</title></head><body style="font-family:sans-serif;padding:40px;text-align:center">' + text + '</body></html>');
+  res.end('<!doctype html><html><head><meta charset="utf-8"><title>ES Code</title></head><body style="font-family:sans-serif;padding:40px;text-align:center">' + text + '</body></html>');
 }
 
 async function handleCallback(req, res, flow, expected) {
@@ -303,7 +303,7 @@ async function handleCallback(req, res, flow, expected) {
     result = { success: false, error: 'Could not reach WakaTime: ' + err.message };
   }
   page(res, result.success
-    ? 'WakaTime is connected. You can close this tab and return to Helper Tool.'
+    ? 'WakaTime is connected. You can close this tab and return to ES Code.'
     : 'WakaTime sign in failed. You can close this tab.');
   flow.finish(result);
 }

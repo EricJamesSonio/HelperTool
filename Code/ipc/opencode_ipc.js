@@ -62,10 +62,10 @@ function notifyTerminalDone(rec, info) {
   let notif;
   try {
     notif = new Notification({
-      title: `${label} finished`,
+      title: `ES Code - ${label} finished`,
       body,
       silent: false,
-      icon: path.join(__dirname, '..', 'assets', 'helpertool.png'),
+      icon: path.join(__dirname, '..', 'assets', 'es-code.png'),
     });
   } catch (err) {
     console.log(`[CS-IPC] notification failed: ${err.message}`);

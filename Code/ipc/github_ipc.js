@@ -15,7 +15,7 @@ function githubApiGet(path, token) {
       path,
       method: 'GET',
       headers: {
-        'User-Agent': 'HelperTool/1.0',
+        'User-Agent': 'ES Code/1.0',
         'Accept': 'application/vnd.github.v3+json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
@@ -83,7 +83,7 @@ function githubApiGetRaw(path, token) {
       path,
       method: 'GET',
       headers: {
-        'User-Agent': 'HelperTool/1.0',
+        'User-Agent': 'ES Code/1.0',
         'Accept': 'application/vnd.github.v3+json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
