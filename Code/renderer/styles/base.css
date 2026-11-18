@@ -989,8 +989,7 @@ body {
   -webkit-app-region: no-drag;
 }
 
-.titlebar-markdown-toggle[hidden],
-body:not(.ide-mode) .titlebar-markdown-toggle {
+.ide-md-toggle[hidden] {
   display: none !important;
 }
 

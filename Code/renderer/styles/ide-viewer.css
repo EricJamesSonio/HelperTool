@@ -152,15 +152,23 @@
   overflow-wrap: anywhere;
 }
 
-.titlebar-markdown-toggle {
-  width: auto;
+.ide-md-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   min-width: 64px;
+  height: 24px;
+  margin-left: 12px;
   padding: 0 12px;
-  border-right: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: 12px;
+  font: 12px var(--font-ui);
+  cursor: pointer;
 }
-.titlebar-markdown-toggle:hover {
+.ide-md-toggle:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
