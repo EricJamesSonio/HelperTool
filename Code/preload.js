@@ -986,3 +986,11 @@ contextBridge.exposeInMainWorld('deployGithubAPI', {
   status: (accountId) => ipcRenderer.invoke('deploy:githubStatus', { accountId }),
   logout: (accountId) => ipcRenderer.invoke('deploy:githubLogout', { accountId }),
 });
+contextBridge.exposeInMainWorld('storageInspectorAPI', {
+  catalog:      ()        => ipcRenderer.invoke('storageInspector:catalog'),
+  dbTables:     (payload) => ipcRenderer.invoke('storageInspector:dbTables', payload),
+  dbRows:       (payload) => ipcRenderer.invoke('storageInspector:dbRows', payload),
+  readFile:     (payload) => ipcRenderer.invoke('storageInspector:readFile', payload),
+  listDir:      (payload) => ipcRenderer.invoke('storageInspector:listDir', payload),
+  showInFolder: (payload) => ipcRenderer.invoke('storageInspector:showInFolder', payload),
+});

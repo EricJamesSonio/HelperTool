@@ -600,3 +600,10 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   try { require('./ipc/deploy_ipc.js').cleanup(); } catch (_) {}
 });
+app.whenReady().then(() => {
+  try {
+    require('./ipc/storageInspector_ipc.js').register({ app, config });
+  } catch (e) {
+    console.error('[IPC] Failed to register storageInspector_ipc:', e);
+  }
+});
