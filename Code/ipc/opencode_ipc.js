@@ -1,8 +1,9 @@
-const { ipcMain, dialog } = require('electron');
+const { ipcMain, dialog, Notification } = require('electron');
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { CompletionTracker } = require('./csCompletionTracker.js');
 
 let pty = null;
 try { pty = require('node-pty'); } catch (e) { console.log('[CS-IPC] node-pty not available:', e.message); }
@@ -36,6 +37,60 @@ function _invalidateConvCache() {
 
 function getWin() {
   return _getMainWindow ? _getMainWindow() : null;
+}
+
+let _notifyOnDone = true;
+
+function _repoLabel(repoPath) {
+  if (!repoPath) return '';
+  return String(repoPath).split(/[/\\]/).filter(Boolean).pop() || '';
+}
+
+function notifyTerminalDone(rec, info) {
+  if (!rec || !_notifyOnDone) return;
+  try {
+    if (typeof Notification.isSupported === 'function' && !Notification.isSupported()) return;
+  } catch (_) {}
+
+  const label = rec.providerLabel || 'AI';
+  const repoName = _repoLabel(rec.repoPath);
+  let body = repoName ? `${repoName} - task complete` : 'Task complete';
+  if (rec.slotIndex !== undefined && rec.slotIndex !== null && Number.isFinite(Number(rec.slotIndex))) {
+    body += ` | pane ${Number(rec.slotIndex) + 1}`;
+  }
+
+  let notif;
+  try {
+    notif = new Notification({
+      title: `${label} finished`,
+      body,
+      silent: false,
+      icon: path.join(__dirname, '..', 'assets', 'helpertool.png'),
+    });
+  } catch (err) {
+    console.log(`[CS-IPC] notification failed: ${err.message}`);
+    return;
+  }
+
+  notif.on('click', () => {
+    const w = getWin();
+    if (!w || w.isDestroyed()) return;
+    try {
+      if (w.isMinimized()) w.restore();
+      w.show();
+      w.focus();
+      w.webContents.send('opencode:termActivated', {
+        id: rec.id,
+        repoPath: rec.repoPath,
+        slotIndex: rec.slotIndex,
+        providerId: rec.providerId,
+        providerLabel: rec.providerLabel,
+      });
+    } catch (_) {}
+  });
+
+  notif.show();
+  console.log(`[CS-IPC] notified "${label} finished" repo="${repoName}" slot=${rec.slotIndex}`);
 }
 
 function getDataRoot() {
@@ -521,7 +576,7 @@ function register(shared) {
   const _csTerminals = new Map();
   let _csTermNextId = 1;
 
-  ipcMain.handle('opencode:termSpawn', async (_, { cwd, shell, args }) => {
+  ipcMain.handle('opencode:termSpawn', async (_, { cwd, shell, args, providerId, providerLabel, repoPath, slotIndex, completion }) => {
     if (!pty) return { error: 'node-pty not available' };
     const id = _csTermNextId++;
     const resolvedCwd = cwd && fs.existsSync(cwd) ? cwd : os.homedir();
@@ -551,7 +606,22 @@ function register(shared) {
         }
       }
 
-      console.log(`[CS-IPC] termSpawn: id=${id} shell="${useShell}" args=${JSON.stringify(useArgs)} cwd="${resolvedCwd}"`);
+      console.log(`[CS-IPC] termSpawn: id=${id} shell="${useShell}" args=${JSON.stringify(useArgs)} cwd="${resolvedCwd}" provider="${providerLabel || providerId || ''}"`);
+
+      const rec = {
+        id,
+        term: null,
+        cwd: resolvedCwd,
+        providerId: providerId || '',
+        providerLabel: providerLabel || '',
+        repoPath: repoPath || resolvedCwd,
+        slotIndex: slotIndex === undefined ? null : slotIndex,
+        tracker: null,
+      };
+      rec.tracker = new CompletionTracker({
+        ...(completion && typeof completion === 'object' ? completion : {}),
+        onDone: () => notifyTerminalDone(rec),
+      });
 
       const term = pty.spawn(useShell, useArgs, {
         name: 'xterm-256color',
@@ -560,8 +630,11 @@ function register(shared) {
         cwd: resolvedCwd,
         env: { ...process.env, TERM: 'xterm-256color' },
       });
+      rec.term = term;
+      _csTerminals.set(id, rec);
 
       term.onData((data) => {
+        rec.tracker.data(data);
         const w = getWin();
         if (w && !w.isDestroyed()) {
           w.webContents.send('opencode:termData', { id, data });
@@ -570,6 +643,7 @@ function register(shared) {
 
       term.onExit(({ exitCode }) => {
         console.log(`[CS-IPC] termExit: id=${id} code=${exitCode}`);
+        rec.tracker.dispose();
         const w = getWin();
         if (w && !w.isDestroyed()) {
           w.webContents.send('opencode:termData', {
@@ -581,7 +655,6 @@ function register(shared) {
         _csTerminals.delete(id);
       });
 
-      _csTerminals.set(id, { term, cwd: resolvedCwd });
       return { id, cwd: resolvedCwd };
     } catch (err) {
       console.log(`[CS-IPC] termSpawn error: ${err.message}`);
@@ -589,9 +662,11 @@ function register(shared) {
     }
   });
 
-  ipcMain.handle('opencode:termWrite', (_, { id, data }) => {
+  ipcMain.handle('opencode:termWrite', (_, { id, data, submit }) => {
     const t = _csTerminals.get(id);
-    if (t) t.term.write(data);
+    if (!t) return;
+    t.term.write(data);
+    if (submit) t.tracker.submit();
   });
 
   ipcMain.handle('opencode:termResize', (_, { id, cols, rows }) => {
@@ -602,9 +677,15 @@ function register(shared) {
   ipcMain.handle('opencode:termKill', (_, id) => {
     const t = _csTerminals.get(id);
     if (t) {
+      if (t.tracker) t.tracker.dispose();
       try { t.term.kill(); } catch {}
       _csTerminals.delete(id);
     }
+  });
+
+  ipcMain.handle('opencode:setNotifyEnabled', (_, enabled) => {
+    _notifyOnDone = enabled !== false;
+    return { enabled: _notifyOnDone };
   });
 }
 
