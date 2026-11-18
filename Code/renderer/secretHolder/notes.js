@@ -1,13 +1,19 @@
 import { S, notesList, noteFormTitle, noteFormBody, noteFormDate, tabStudy,
     noteSaveBtn, noteDeleteBtn, noteMoveBtn, notesEditorEmpty, notesEditorForm,
-    notePreview, noteToolbar, noteModeBar } from './state.js';
+    notePreview, noteToolbar, noteModeBar, noteSaveStatus, noteSmartBtn } from './state.js';
 import { _newNoteId, _todayISO, _formatDisplayDate } from './utils.js';
 import { renderMarkdown } from '../ideMode/markdownPreview.js';
+import { smartFormat } from './smartFormat.js';
 import { switchTab } from './tabs.js';
 
 const NOTES_KEY = 'sh_notes_v1';
+const SMART_KEY = 'sh_notes_smart_v1';
+const SAVE_DEBOUNCE = 800;
 const FENCE = '`'.repeat(3);
 const SAVE_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M6 10h8"/><path d="M6 14h8"/><path d="M6 6h2"/></svg> Save';
+
+let saveTimer = 0;
+let newNoteCat = 'general';
 
 export function loadNotesFromStorage() {
     try {
@@ -28,9 +34,19 @@ function currentCat() {
     return S.activeTab === 'study' ? 'study' : 'general';
 }
 
+function byRecent(a, b) {
+    return (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '');
+}
+
 function setText(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
+}
+
+function setStatus(text, state) {
+    if (!noteSaveStatus) return;
+    noteSaveStatus.textContent = text || '';
+    noteSaveStatus.dataset.state = state || '';
 }
 
 function updateCounts() {
@@ -102,10 +118,7 @@ export function renderSidebar() {
     const cat = currentCat();
     const rawQ = (S.searchNotes || '').trim();
     const q = rawQ.toLowerCase();
-    const sorted = [...S.notes].sort((a, b) =>
-        (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
-    );
-    const filtered = sorted.filter((n) => {
+    const filtered = [...S.notes].sort(byRecent).filter((n) => {
         if (catOf(n) !== cat) return false;
         if (!q) return true;
         return (n.title || '').toLowerCase().includes(q) || (n.body || '').toLowerCase().includes(q);
@@ -128,9 +141,18 @@ function highlightSidebarItem(id) {
 
 function renderPreview() {
     const text = noteFormBody.value;
-    notePreview.innerHTML = text.trim()
-        ? renderMarkdown(text)
-        : '<div class="sh-md-empty">Nothing to preview yet. Switch to Edit and start typing.</div>';
+    if (!text.trim()) {
+        notePreview.innerHTML = '<div class="sh-md-empty">Nothing to preview yet. Switch to Edit and start typing.</div>';
+    } else {
+        let src = text;
+        try {
+            src = smartFormat(text, { tablesOnly: !S.smartFormat });
+        } catch (err) {
+            console.error('[SecretHolder] auto-structure failed:', err);
+            src = text;
+        }
+        notePreview.innerHTML = renderMarkdown(src);
+    }
     notePreview.scrollTop = 0;
 }
 
@@ -150,29 +172,56 @@ function setMode(mode, focus) {
     }
 }
 
-export function openEditorForNew() {
-    S.editingNoteId = null;
-    noteFormTitle.value = '';
-    noteFormBody.value = '';
-    noteFormDate.value = _todayISO();
-    noteDeleteBtn.style.display = 'none';
+function saveNow(manual) {
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    if (!S.unlocked || !noteFormTitle) return false;
+    const title = noteFormTitle.value.trim();
+    const body = noteFormBody.value.replace(/\s+$/, '');
+    if (!title && !body.trim()) {
+        if (manual) {
+            noteFormTitle.classList.add('sh-err-border');
+            setTimeout(() => noteFormTitle.classList.remove('sh-err-border'), 1200);
+        }
+        setStatus('');
+        return false;
+    }
+    const date = noteFormDate.value || _todayISO();
+    const finalTitle = title || '(Untitled)';
+    const now = new Date().toISOString();
+    if (S.editingNoteId) {
+        const idx = S.notes.findIndex((n) => n.id === S.editingNoteId);
+        if (idx === -1) return false;
+        const prev = S.notes[idx];
+        if (prev.title === finalTitle && prev.body === body && prev.date === date) {
+            setStatus('Saved', 'saved');
+            return true;
+        }
+        S.notes[idx] = { ...prev, title: finalTitle, body, category: catOf(prev), date, updatedAt: now };
+    } else {
+        const created = { id: _newNoteId(), title: finalTitle, body, category: newNoteCat, date,
+            createdAt: now, updatedAt: null };
+        S.notes.unshift(created);
+        S.editingNoteId = created.id;
+        noteDeleteBtn.style.display = 'inline-flex';
+    }
+    saveNotesToStorage();
+    renderSidebar();
     syncMoveBtn();
-    showEditor();
-    highlightSidebarItem(null);
-    setMode('edit', false);
-    setTimeout(() => noteFormTitle.focus(), 40);
+    highlightSidebarItem(S.editingNoteId);
+    setStatus('Saved', 'saved');
+    return true;
 }
 
-export function openEditorForNote(note) {
-    S.editingNoteId = note.id;
-    noteFormTitle.value = note.title || '';
-    noteFormBody.value = note.body || '';
-    noteFormDate.value = note.date || note.createdAt?.slice(0, 10) || _todayISO();
-    noteDeleteBtn.style.display = 'inline-flex';
-    syncMoveBtn();
-    showEditor();
-    highlightSidebarItem(note.id);
-    setMode('view', false);
+export function flushNoteSave() {
+    if (saveTimer) saveNow(false);
+}
+
+function scheduleAutoSave() {
+    if (!S.unlocked) return;
+    setStatus('Unsaved changes...', 'pending');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveNow(false), SAVE_DEBOUNCE);
 }
 
 function showEditor() {
@@ -180,40 +229,64 @@ function showEditor() {
     notesEditorForm.style.display  = 'flex';
 }
 
-export function closeEditor() {
+export function openEditorForNew() {
+    flushNoteSave();
+    newNoteCat = currentCat();
     S.editingNoteId = null;
+    noteFormTitle.value = '';
+    noteFormBody.value = '';
+    noteFormDate.value = _todayISO();
+    noteDeleteBtn.style.display = 'none';
+    syncMoveBtn();
+    setStatus('');
+    showEditor();
+    highlightSidebarItem(null);
+    setMode('edit', false);
+    setTimeout(() => noteFormTitle.focus(), 40);
+}
+
+export function openEditorForNote(note) {
+    flushNoteSave();
+    const cur = S.notes.find((n) => n.id === note.id) || note;
+    S.editingNoteId = cur.id;
+    noteFormTitle.value = cur.title || '';
+    noteFormBody.value = cur.body || '';
+    noteFormDate.value = cur.date || cur.createdAt?.slice(0, 10) || _todayISO();
+    noteDeleteBtn.style.display = 'inline-flex';
+    syncMoveBtn();
+    setStatus('');
+    showEditor();
+    highlightSidebarItem(cur.id);
+    setMode('view', false);
+}
+
+export function openMostRecent() {
+    if (!S.unlocked || S.activeTab === 'secrets') return;
+    const cat = currentCat();
+    const cur = S.editingNoteId ? S.notes.find((n) => n.id === S.editingNoteId) : null;
+    if (cur && catOf(cur) === cat) return;
+    const list = S.notes.filter((n) => catOf(n) === cat).sort(byRecent);
+    if (list.length) openEditorForNote(list[0]);
+    else closeEditor();
+}
+
+export function closeEditor() {
+    if (S.unlocked) flushNoteSave();
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    S.editingNoteId = null;
+    noteFormTitle.value = '';
+    noteFormBody.value = '';
+    notePreview.innerHTML = '';
+    syncMoveBtn();
+    setStatus('');
     notesEditorEmpty.style.display = 'flex';
     notesEditorForm.style.display  = 'none';
     highlightSidebarItem(null);
 }
 
 export function handleNoteSave() {
-    const title = noteFormTitle.value.trim();
-    const body  = noteFormBody.value.trim();
-    if (!title && !body) {
-        noteFormTitle.classList.add('sh-err-border');
-        setTimeout(() => noteFormTitle.classList.remove('sh-err-border'), 1200);
-        return;
-    }
-    const date = noteFormDate.value || _todayISO();
-    if (S.editingNoteId) {
-        const idx = S.notes.findIndex(n => n.id === S.editingNoteId);
-        if (idx !== -1) {
-            S.notes[idx] = { ...S.notes[idx], title: title || '(Untitled)', body,
-                category: catOf(S.notes[idx]), date, updatedAt: new Date().toISOString() };
-        }
-    } else {
-        const newNote = { id: _newNoteId(), title: title || '(Untitled)', body, category: currentCat(), date,
-            createdAt: new Date().toISOString(), updatedAt: null };
-        S.notes.unshift(newNote);
-        S.editingNoteId = newNote.id;
-        noteDeleteBtn.style.display = 'inline-flex';
-    }
-    saveNotesToStorage();
-    renderSidebar();
-    syncMoveBtn();
-    highlightSidebarItem(S.editingNoteId);
-    if (S.noteMode === 'view') renderPreview();
+    if (!saveNow(true)) return;
     noteSaveBtn.textContent       = 'Saved';
     noteSaveBtn.style.background  = 'var(--green-dim)';
     noteSaveBtn.style.borderColor = 'var(--green)';
@@ -228,14 +301,18 @@ export function handleNoteSave() {
 
 export function handleNoteDeleteCurrent() {
     if (!S.editingNoteId) return;
+    clearTimeout(saveTimer);
+    saveTimer = 0;
     S.notes = S.notes.filter(n => n.id !== S.editingNoteId);
     saveNotesToStorage();
     closeEditor();
     renderSidebar();
+    openMostRecent();
 }
 
 function handleNoteMove() {
     if (!S.editingNoteId) return;
+    flushNoteSave();
     const idx = S.notes.findIndex(n => n.id === S.editingNoteId);
     if (idx === -1) return;
     const to = catOf(S.notes[idx]) === 'study' ? 'general' : 'study';
@@ -243,6 +320,7 @@ function handleNoteMove() {
     saveNotesToStorage();
     closeEditor();
     renderSidebar();
+    openMostRecent();
 }
 
 function insertText(text) {
@@ -406,7 +484,21 @@ function onBodyKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) continueList(e);
 }
 
+function syncSmartBtn() {
+    if (!noteSmartBtn) return;
+    noteSmartBtn.classList.toggle('on', !!S.smartFormat);
+    noteSmartBtn.setAttribute('aria-pressed', S.smartFormat ? 'true' : 'false');
+}
+
 export function wireNotesExtras() {
+    try { S.smartFormat = localStorage.getItem(SMART_KEY) !== '0'; } catch (_) { S.smartFormat = true; }
+    syncSmartBtn();
+    noteSmartBtn.addEventListener('click', () => {
+        S.smartFormat = !S.smartFormat;
+        try { localStorage.setItem(SMART_KEY, S.smartFormat ? '1' : '0'); } catch (_) {}
+        syncSmartBtn();
+        if (S.noteMode === 'view') renderPreview();
+    });
     tabStudy.addEventListener('click', () => switchTab('study'));
     noteMoveBtn.addEventListener('click', handleNoteMove);
     noteModeBar.addEventListener('click', (e) => {
@@ -423,6 +515,10 @@ export function wireNotesExtras() {
         if (b) applyFormat(b.dataset.md);
     });
     noteFormBody.addEventListener('keydown', onBodyKey);
+    noteFormBody.addEventListener('input', scheduleAutoSave);
+    noteFormTitle.addEventListener('input', scheduleAutoSave);
+    noteFormDate.addEventListener('input', scheduleAutoSave);
+    noteFormDate.addEventListener('change', scheduleAutoSave);
     noteFormTitle.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter') return;
         e.preventDefault();
@@ -441,4 +537,5 @@ export function wireNotesExtras() {
             setMode(S.noteMode === 'edit' ? 'view' : 'edit', true);
         }
     });
+    window.addEventListener('beforeunload', flushNoteSave);
 }

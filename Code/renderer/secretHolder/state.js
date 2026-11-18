@@ -9,6 +9,7 @@ export const S = {
     searchSecrets: '',
     searchNotes: '',
     noteMode: 'view',
+    smartFormat: true,
 };
 
 export let panel, lockScreen, mainScreen,
@@ -22,6 +23,7 @@ export let panel, lockScreen, mainScreen,
     tabSecrets, tabNotes, tabStudy, panelSecrets, panelNotes,
     notesList, noteFormTitle, noteFormBody, noteFormDate,
     noteSaveBtn, noteCancelBtn, noteDeleteBtn, noteMoveBtn, noteNewBtn,
+    noteSaveStatus, noteSmartBtn,
     notesEditorEmpty, notesEditorForm,
     notePreview, noteToolbar, noteModeBar,
     searchSecretsInput, searchNotesInput;
@@ -72,6 +74,8 @@ export function assignRefs() {
     noteDeleteBtn      = document.getElementById('shNoteDeleteBtn');
     noteMoveBtn        = document.getElementById('shNoteMoveBtn');
     noteNewBtn         = document.getElementById('shNoteNewBtn');
+    noteSaveStatus     = document.getElementById('shNoteSaveStatus');
+    noteSmartBtn       = document.getElementById('shNoteSmartBtn');
     notesEditorEmpty   = document.getElementById('shNotesEditorEmpty');
     notesEditorForm    = document.getElementById('shNotesEditorForm');
     notePreview        = document.getElementById('shNotePreview');

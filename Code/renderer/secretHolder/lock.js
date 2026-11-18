@@ -2,7 +2,7 @@ import { S, lockScreen, mainScreen, pwInput, pwSubmitBtn, pwError, pwLabel, pwSu
     searchSecretsInput, searchNotesInput } from './state.js';
 import { _showPwError, _hidePwError } from './utils.js';
 import { refreshSecrets, closeEditModal } from './secrets.js';
-import { loadNotesFromStorage, renderSidebar, closeEditor } from './notes.js';
+import { loadNotesFromStorage, renderSidebar, closeEditor, flushNoteSave, openMostRecent } from './notes.js';
 
 export function showLockScreen() {
     lockScreen.style.display = 'flex';
@@ -59,9 +59,11 @@ export async function openVault() {
     await refreshSecrets();
     S.notes = loadNotesFromStorage();
     renderSidebar();
+    if (S.activeTab !== 'secrets') openMostRecent();
 }
 
 export function lockVault() {
+    flushNoteSave();
     S.unlocked      = false;
     S.secrets       = [];
     S.notes         = [];

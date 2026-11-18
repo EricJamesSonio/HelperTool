@@ -6,6 +6,7 @@ function icon(name) {
     note:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M6 9h8"/><path d="M6 12h6"/><path d="M6 15h4"/></svg>',
     book:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H10v14H4.5A1.5 1.5 0 0 0 3 18.5z"/><path d="M17 4.5A1.5 1.5 0 0 0 15.5 3H10v14h5.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg>',
     swap:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h13"/><path d="M13 4l3 3-3 3"/><path d="M17 13H4"/><path d="M7 10l-3 3 3 3"/></svg>',
+    spark:   '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2l1.6 4.4L15 8l-4.4 1.6L9 14l-1.6-4.4L3 8l4.4-1.6z"/><path d="M16 13v4"/><path d="M14 15h4"/></svg>',
     plus:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v14"/><path d="M3 10h14"/></svg>',
     search:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg>',
     edit:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2l4 4-10 10H4v-4L14 2z"/></svg>',
@@ -119,16 +120,18 @@ export function getTemplate() {
             <button type="button" class="sh-md-btn" data-md="task" title="To-do list">To-do</button>
             <button type="button" class="sh-md-btn" data-md="quote" title="Quote">Quote</button>
           </div>
-          <span class="sh-notes-hint">Markdown supported</span>
+          <button id="shNoteSmartBtn" class="sh-smart-btn on" type="button" aria-pressed="true" title="Auto-structure the preview: a line alone between blank lines becomes a heading, '- a -- b' rows become a table, 'Note: ...' becomes a quote, '[ ] task' becomes a to-do.">${icon('spark')} Auto-structure</button>
+          <span class="sh-notes-hint">Autosaves while you type</span>
         </div>
-        <textarea id="shNoteFormBody" class="sh-input sh-notes-editor-textarea" placeholder="Write your note here... Markdown works: ## heading, **bold**, - list"></textarea>
+        <textarea id="shNoteFormBody" class="sh-input sh-notes-editor-textarea" placeholder="Write your note here... A line alone between blank lines becomes a heading. Rows like '- name -- value' become a table. Markdown also works."></textarea>
         <div id="shNotePreview" class="sh-md sh-notes-preview" style="display:none" title="Double-click to edit"></div>
         <div class="sh-notes-editor-actions">
           <button id="shNoteDeleteBtn" class="sh-btn sh-btn-danger sh-btn-sm" type="button" style="display:none">${icon('trash')} Delete</button>
           <button id="shNoteMoveBtn" class="sh-btn sh-btn-ghost sh-btn-sm" type="button" style="display:none">${icon('swap')} Move to Study notes</button>
           <div style="flex:1"></div>
-          <button id="shNoteCancelBtn" class="sh-btn sh-btn-ghost sh-btn-sm" type="button">${icon('close')} Discard</button>
-          <button id="shNoteSaveBtn"   class="sh-btn sh-btn-accent sh-btn-sm" type="button">${icon('save')} Save</button>
+          <span id="shNoteSaveStatus" class="sh-notes-status"></span>
+          <button id="shNoteCancelBtn" class="sh-btn sh-btn-ghost sh-btn-sm" type="button" title="Close this note (changes are saved automatically)">${icon('close')} Close</button>
+          <button id="shNoteSaveBtn"   class="sh-btn sh-btn-accent sh-btn-sm" type="button" title="Save now (Ctrl+S)">${icon('save')} Save</button>
         </div>
       </div>
     </div>
