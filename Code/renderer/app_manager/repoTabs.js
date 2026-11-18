@@ -229,6 +229,91 @@ async function addNew() {
     console.error('[RepoTabs] open repo failed:', err);
   }
 }
+async function showRepoMenu(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const old = document.getElementById('repoDropdown');
+  if (old) old.remove();
+  const anchor = document.getElementById('repoTabsAdd');
+  if (!anchor) return;
+
+  let repos = [];
+  try {
+    repos = (await window.electronAPI.getRecentRepos?.()) || [];
+  } catch (_) {
+    repos = [];
+  }
+
+  const dropdown = document.createElement('div');
+  dropdown.id = 'repoDropdown';
+  dropdown.className = 'repo-dropdown';
+  const rect = anchor.getBoundingClientRect();
+  dropdown.style.top = rect.bottom + 4 + 'px';
+  dropdown.style.left = rect.left + 'px';
+
+  const close = () => {
+    dropdown.remove();
+    document.removeEventListener('click', onDocClick);
+    document.removeEventListener('keydown', onEsc);
+  };
+  const onDocClick = (ev) => {
+    if (!dropdown.contains(ev.target) && ev.target !== anchor) close();
+  };
+  const onEsc = (ev) => {
+    if (ev.key === 'Escape') close();
+  };
+
+  if (repos.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'repo-dropdown-item repo-dropdown-empty';
+    empty.textContent = 'No recent repos';
+    dropdown.appendChild(empty);
+  } else {
+    repos.forEach((r) => {
+      const item = document.createElement('div');
+      item.className = 'repo-dropdown-item';
+      if (same(r.repoPath, state.selectedRepoPath)) item.classList.add('repo-dropdown-item--active');
+      const nameEl = document.createElement('div');
+      nameEl.className = 'repo-dropdown-item-name';
+      nameEl.textContent = baseName(r.repoPath);
+      const pathEl = document.createElement('div');
+      pathEl.className = 'repo-dropdown-item-path';
+      pathEl.textContent = r.repoPath;
+      item.appendChild(nameEl);
+      item.appendChild(pathEl);
+      item.addEventListener('click', () => {
+        close();
+        activate(r.repoPath);
+      });
+      dropdown.appendChild(item);
+    });
+  }
+
+  const divider = document.createElement('div');
+  divider.className = 'repo-dropdown-divider';
+  dropdown.appendChild(divider);
+
+  const browse = document.createElement('div');
+  browse.className = 'repo-dropdown-item';
+  browse.innerHTML = '<span style="margin-right:6px"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle"><path d="M2 7v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H9L7 4H4a2 2 0 0 0-2 2v1z"/></svg></span> Browse for another folder...';
+  browse.addEventListener('click', () => {
+    close();
+    addNew();
+  });
+  dropdown.appendChild(browse);
+
+  document.body.appendChild(dropdown);
+  const box = dropdown.getBoundingClientRect();
+  if (box.right > window.innerWidth) {
+    dropdown.style.left = Math.max(8, window.innerWidth - box.width - 8) + 'px';
+  }
+
+  setTimeout(() => {
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onEsc);
+  }, 0);
+}
+
 
 function onSwitched(e) {
   const p = (e && e.detail && e.detail.repoPath) || state.selectedRepoPath;
@@ -294,7 +379,7 @@ function build() {
   bar.className = 'repo-tabs-row';
   bar.innerHTML =
     '<div class="rt-list" id="repoTabsList"></div>' +
-    '<button type="button" class="rt-add" id="repoTabsAdd" title="Open another repo in a new tab">' + ICON_PLUS + '</button>';
+    '<button type="button" class="rt-add" id="repoTabsAdd" title="Open a repo (right-click for recent repos)">' + ICON_PLUS + '</button>';
   const controls = titlebar.querySelector('.titlebar-controls');
   if (controls) titlebar.insertBefore(bar, controls);
   else titlebar.appendChild(bar);
@@ -302,7 +387,9 @@ function build() {
   listEl.addEventListener('click', onListClick);
   listEl.addEventListener('auxclick', onListAux);
   listEl.addEventListener('wheel', onListWheel, { passive: false });
-  bar.querySelector('#repoTabsAdd').addEventListener('click', addNew);
+  const addBtn = bar.querySelector('#repoTabsAdd');
+  addBtn.addEventListener('click', addNew);
+  addBtn.addEventListener('contextmenu', showRepoMenu);
   return true;
 }
 

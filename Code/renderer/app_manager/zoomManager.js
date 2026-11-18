@@ -4,9 +4,12 @@ const ZOOM_MIN = 1;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
 const ZOOM_KEY = 'helpertool-ui-zoom';
+const SHOW_MS = 1400;
 
 let _zoom = DEFAULT_PREFERENCES.app.zoom;
 let _zoomKeyHandler = null;
+let _indicator = null;
+let _hideTimer = null;
 
 function _clamp(val) {
   const n = Number(val);
@@ -29,45 +32,40 @@ function _saveZoom() {
   } catch (_) {}
 }
 
-function setZoom(val, persist = true) {
+function _ensureIndicator() {
+  if (_indicator && _indicator.isConnected) return _indicator;
+  const el = document.createElement('div');
+  el.id = 'zoomIndicator';
+  el.className = 'zoom-indicator';
+  el.innerHTML =
+    '<span class="zoom-indicator-val"></span>' +
+    '<span class="zoom-indicator-bar"><span class="zoom-indicator-fill"></span></span>' +
+    '<span class="zoom-indicator-hint">Ctrl + / Ctrl - to resize, Ctrl 0 to reset</span>';
+  document.body.appendChild(el);
+  _indicator = el;
+  return el;
+}
+
+function _showIndicator() {
+  const el = _ensureIndicator();
+  const val = el.querySelector('.zoom-indicator-val');
+  const fill = el.querySelector('.zoom-indicator-fill');
+  if (val) val.textContent = Math.round(_zoom * 100) + '%';
+  if (fill) fill.style.width = (((_zoom - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)) * 100) + '%';
+  el.classList.add('show');
+  clearTimeout(_hideTimer);
+  _hideTimer = setTimeout(() => el.classList.remove('show'), SHOW_MS);
+}
+
+function setZoom(val, persist = true, announce = false) {
   _zoom = _clamp(val);
   document.documentElement.style.setProperty('--ui-zoom', String(_zoom));
-
-  const lbl = document.getElementById('zoomLevel');
-  if (lbl) lbl.textContent = Math.round(_zoom * 100) + '%';
-
-  const outBtn = document.getElementById('zoomOutBtn');
-  const inBtn = document.getElementById('zoomInBtn');
-  if (outBtn) outBtn.disabled = _zoom <= ZOOM_MIN;
-  if (inBtn) inBtn.disabled = _zoom >= ZOOM_MAX;
-
   if (persist) _saveZoom();
+  if (announce) _showIndicator();
   requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 
-function _mountInTitlebar() {
-  const controls = document.getElementById('zoomControls');
-  const host = document.querySelector('.titlebar-controls');
-  if (!controls || !host) return controls;
-  controls.classList.add('zoom-controls--titlebar');
-  controls.style.display = '';
-  if (controls.parentElement !== host) host.insertBefore(controls, host.firstChild);
-  return controls;
-}
-
 export function initZoomManager() {
-  _mountInTitlebar();
-
-  document.getElementById('zoomInBtn')?.addEventListener('click', () => setZoom(_zoom + ZOOM_STEP));
-  document.getElementById('zoomOutBtn')?.addEventListener('click', () => setZoom(_zoom - ZOOM_STEP));
-  document.getElementById('zoomResetBtn')?.addEventListener('click', () => setZoom(1));
-
-  const lbl = document.getElementById('zoomLevel');
-  if (lbl) {
-    lbl.title = 'Reset zoom (Ctrl+0)';
-    lbl.addEventListener('click', () => setZoom(1));
-  }
-
   if (_zoomKeyHandler) destroyZoomManager();
   _zoomKeyHandler = (e) => {
     const canvasPanel = document.getElementById('canvasPanelWrapper');
@@ -76,13 +74,13 @@ export function initZoomManager() {
     if (!ctrl) return;
     if (e.key === '=' || e.key === '+') {
       e.preventDefault();
-      setZoom(_zoom + ZOOM_STEP);
+      setZoom(_zoom + ZOOM_STEP, true, true);
     } else if (e.key === '-') {
       e.preventDefault();
-      setZoom(_zoom - ZOOM_STEP);
+      setZoom(_zoom - ZOOM_STEP, true, true);
     } else if (e.key === '0') {
       e.preventDefault();
-      setZoom(1);
+      setZoom(1, true, true);
     }
   };
   document.addEventListener('keydown', _zoomKeyHandler);
@@ -94,5 +92,10 @@ export function destroyZoomManager() {
   if (_zoomKeyHandler) {
     document.removeEventListener('keydown', _zoomKeyHandler);
     _zoomKeyHandler = null;
+  }
+  clearTimeout(_hideTimer);
+  if (_indicator) {
+    _indicator.remove();
+    _indicator = null;
   }
 }
