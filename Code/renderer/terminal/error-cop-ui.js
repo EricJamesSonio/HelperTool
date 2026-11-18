@@ -826,15 +826,15 @@ export default class ErrorCopUI {
     this._rightCol.innerHTML = `
       <div class="ecp-info-line">
         <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-error"></span>Errors</span>
-        <span class="ecp-info-value" style="color:#ff4444">${errorCount}</span>
+        <span class="ecp-info-value" style="color:var(--red)">${errorCount}</span>
       </div>
       <div class="ecp-info-line">
         <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-warning"></span>Warnings</span>
-        <span class="ecp-info-value" style="color:#eab308">${warnCount}</span>
+        <span class="ecp-info-value" style="color:var(--yellow)">${warnCount}</span>
       </div>
       <div class="ecp-info-line">
         <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-info"></span>Info / Server</span>
-        <span class="ecp-info-value" style="color:#3b8eea">${infoCount}</span>
+        <span class="ecp-info-value" style="color:var(--blue)">${infoCount}</span>
       </div>
       <div class="ecp-info-line">
         <span>Total Events</span>
@@ -913,11 +913,11 @@ export default class ErrorCopUI {
     this._rightCol.innerHTML = `
       <div class="ecp-info-line">
         <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-error"></span>Errors</span>
-        <span class="ecp-info-value" style="color:#ff4444">${errCount}</span>
+        <span class="ecp-info-value" style="color:var(--red)">${errCount}</span>
       </div>
       <div class="ecp-info-line">
         <span class="ecp-stat-label"><span class="ecp-event-dot ecp-dot-warning"></span>Warnings</span>
-        <span class="ecp-info-value" style="color:#eab308">${warnCount}</span>
+        <span class="ecp-info-value" style="color:var(--yellow)">${warnCount}</span>
       </div>
       <div class="ecp-info-line">
         <span>Total</span>
@@ -947,14 +947,14 @@ export default class ErrorCopUI {
 
     this._leftCol.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0">
-        <span style="font-size:12px;font-weight:600;color:#8899aa">${sessions.length} session${sessions.length !== 1 ? 's' : ''}</span>
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted)">${sessions.length} session${sessions.length !== 1 ? 's' : ''}</span>
         <div style="display:flex;gap:6px">
           ${this._selectMode ? `
             <button class="ecp-filter-btn" id="ecpSelectAllBtn" style="padding:3px 12px;font-size:11px">${this._selectedSessionIds.size === sessions.length ? 'Deselect All' : 'Select All'}</button>
-            <button class="ecp-filter-btn" id="ecpDeleteSelected" style="padding:3px 12px;font-size:11px;border-color:#ff4444;color:#ff4444" ${this._selectedSessionIds.size === 0 ? 'disabled' : ''}>Delete (${this._selectedSessionIds.size})</button>
+            <button class="ecp-filter-btn" id="ecpDeleteSelected" style="padding:3px 12px;font-size:11px;border-color:var(--red);color:var(--red)" ${this._selectedSessionIds.size === 0 ? 'disabled' : ''}>Delete (${this._selectedSessionIds.size})</button>
             <button class="ecp-filter-btn" id="ecpCancelSelect" style="padding:3px 12px;font-size:11px">Cancel</button>
           ` : `
-            <button class="ecp-filter-btn" id="ecpEnterSelect" style="padding:3px 12px;font-size:11px;border-color:#ff4444;color:#ff4444">Delete</button>
+            <button class="ecp-filter-btn" id="ecpEnterSelect" style="padding:3px 12px;font-size:11px;border-color:var(--red);color:var(--red)">Delete</button>
           `}
         </div>
       </div>
@@ -1021,7 +1021,7 @@ export default class ErrorCopUI {
       let browserHtml = '';
       if (browserInfo.length) {
         browserHtml = browserInfo.map(b =>
-          `<span style="color:#3b8eea;font-size:11px;display:inline-flex;align-items:center;gap:5px"><span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>${this._escapeHtml(b.framework || 'Dev Server')} (${this._escapeHtml(b.url || '')})</span>`
+          `<span style="color:var(--blue);font-size:11px;display:inline-flex;align-items:center;gap:5px"><span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>${this._escapeHtml(b.framework || 'Dev Server')} (${this._escapeHtml(b.url || '')})</span>`
         ).join('');
       }
 
@@ -1041,8 +1041,8 @@ export default class ErrorCopUI {
         ${browserHtml ? `<div class="ecp-session-row" style="gap:4px;padding-left:${this._selectMode ? '26px' : '0'}">${browserHtml}</div>` : ''}
         <div class="ecp-session-row" style="${browserHtml ? 'margin-top:4px;' : ''}${this._selectMode ? 'padding-left:26px' : ''}">
           <div class="ecp-session-stats">
-            <span>Errors: <strong style="color:#ff4444">${s.total_errors || 0}</strong></span>
-            <span>Warnings: <strong style="color:#eab308">${s.total_warnings || 0}</strong></span>
+            <span>Errors: <strong style="color:var(--red)">${s.total_errors || 0}</strong></span>
+            <span>Warnings: <strong style="color:var(--yellow)">${s.total_warnings || 0}</strong></span>
             <span>Lines: <strong>${s.total_lines || 0}</strong></span>
           </div>
           <span class="ecp-session-time">${_fmtDate(s.started_at)}</span>
@@ -1131,7 +1131,7 @@ export default class ErrorCopUI {
           ${note ? `<div class="ecp-modal-note">${this._escapeHtml(note)}</div>` : ''}
           <div class="ecp-modal-actions">
             <button class="ecp-filter-btn ecp-modal-cancel">Cancel</button>
-            <button class="ecp-filter-btn ecp-modal-confirm" style="${danger ? 'border-color:#ff4444;color:#ff4444' : ''}">${this._escapeHtml(confirmText || 'OK')}</button>
+            <button class="ecp-filter-btn ecp-modal-confirm" style="${danger ? 'border-color:var(--red);color:var(--red)' : ''}">${this._escapeHtml(confirmText || 'OK')}</button>
           </div>
         </div>
       `;
@@ -1174,7 +1174,7 @@ export default class ErrorCopUI {
     });
     header.appendChild(backBtn);
     const title = document.createElement('span');
-    title.style.cssText = 'font-size:12px;font-weight:600;color:#f0dfdf';
+    title.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-primary)';
     const occLabel = s.label || s.project || 'Terminal';
     title.textContent = s.command ? `${occLabel} \u2014 ${s.command}` : occLabel;
     header.appendChild(title);
@@ -1189,7 +1189,7 @@ export default class ErrorCopUI {
 
     if (browserServers.length > 0) {
       const browserSection = document.createElement('div');
-      browserSection.style.cssText = 'margin-bottom:10px;padding:8px 10px;background:rgba(59,142,234,0.1);border-radius:6px;border:1px solid rgba(59,142,234,0.25);flex-shrink:0';
+      browserSection.style.cssText = 'margin-bottom:10px;padding:8px 10px;background:color-mix(in srgb, var(--blue) 10%, transparent);border-radius:6px;border:1px solid color-mix(in srgb, var(--blue) 25%, transparent);flex-shrink:0';
 
       for (const bs of browserServers) {
         const isAttached = !!attachedBrowsers[bs.port];
@@ -1197,8 +1197,8 @@ export default class ErrorCopUI {
         row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px';
         row.innerHTML = `
           <span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>
-          <span style="flex:1;color:#c0d0e0">${this._escapeHtml(bs.framework || 'Dev Server')}</span>
-          <span style="color:#7a8a9a">${this._escapeHtml(bs.url || '')}</span>
+          <span style="flex:1;color:var(--text-secondary)">${this._escapeHtml(bs.framework || 'Dev Server')}</span>
+          <span style="color:var(--text-muted)">${this._escapeHtml(bs.url || '')}</span>
         `;
 
         const btn = document.createElement('button');
@@ -1206,8 +1206,8 @@ export default class ErrorCopUI {
         btn.style.cssText = 'padding:2px 10px;font-size:11px';
         if (isAttached) {
           btn.textContent = 'Detach';
-          btn.style.borderColor = '#23d18b';
-          btn.style.color = '#23d18b';
+          btn.style.borderColor = 'var(--green)';
+          btn.style.color = 'var(--green)';
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             try {
@@ -1295,14 +1295,14 @@ export default class ErrorCopUI {
     let browserSourcesHtml = '';
     if (browserServers && browserServers.length > 0) {
       browserSourcesHtml = browserServers.map(bs =>
-        `<div class="ecp-info-line" style="font-size:11px;color:#7a8a9a;padding-left:4px">
+        `<div class="ecp-info-line" style="font-size:11px;color:var(--text-muted);padding-left:4px">
           <span class="ecp-stat-label"><span class="ecp-ico ecp-ico-net">${ICON_GLOBE}</span>${this._escapeHtml(bs.framework || 'Dev Server')} \u2014 ${this._escapeHtml(bs.url || '')}</span>
         </div>`
       ).join('');
     }
 
     const statusText = s.ended_reason === 'killed' ? 'Killed' : (s.status || 'ended');
-    const statusColor = s.ended_reason === 'killed' ? '#f87171' : (s.status === 'running' ? '#23d18b' : '#8899aa');
+    const statusColor = s.ended_reason === 'killed' ? 'var(--red)' : (s.status === 'running' ? 'var(--green)' : 'var(--text-muted)');
 
     this._rightCol.innerHTML = `
       <div class="ecp-info-line">
@@ -1311,7 +1311,7 @@ export default class ErrorCopUI {
       </div>
       <div class="ecp-info-line">
         <span>Label</span>
-        <span class="ecp-info-value" style="color:#f0dfdf">${this._escapeHtml(s.label || '-')}</span>
+        <span class="ecp-info-value" style="color:var(--text-primary)">${this._escapeHtml(s.label || '-')}</span>
       </div>
       <div class="ecp-info-line">
         <span>Status</span>
@@ -1321,7 +1321,7 @@ export default class ErrorCopUI {
         <span>Started</span>
         <span class="ecp-info-value">${_fmtDate(s.started_at)}</span>
       </div>
-      <div class="ecp-info-line" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:6px">
+      <div class="ecp-info-line" style="margin-top:8px;border-top:1px solid var(--border-subtle);padding-top:6px">
         <span style="font-weight:600;font-size:11px">Sources</span>
         <span></span>
       </div>
@@ -1335,7 +1335,7 @@ export default class ErrorCopUI {
         <span class="ecp-info-value">${brwErrors} err \u00b7 ${brwWarns} warn</span>
       </div>
       ${browserSourcesHtml}` : ''}
-      <div class="ecp-info-line" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:6px">
+      <div class="ecp-info-line" style="margin-top:8px;border-top:1px solid var(--border-subtle);padding-top:6px">
         <span>Total Occurrences</span>
         <span class="ecp-info-value">${items.length}</span>
       </div>
@@ -1356,7 +1356,7 @@ export default class ErrorCopUI {
     const container = document.createElement('div');
     container.className = 'ecp-landing';
 
-    const statusColor = this._serverStarting ? '#eab308' : this._serverRunning ? '#23d18b' : '#6d5050';
+    const statusColor = this._serverStarting ? 'var(--yellow)' : this._serverRunning ? 'var(--green)' : 'var(--text-faint)';
     const statusText = this._serverStarting ? 'Starting...' : this._serverRunning ? 'Running' : 'Stopped';
 
     container.innerHTML = `
