@@ -527,64 +527,15 @@ function ymd(d) {
 }
 
 async function readRange(days) {
-  const key = getKey();
-  if (!key) return { success: false, error: 'No WakaTime API key saved.' };
-  if (cfgValue('api_url')) return { success: false, error: 'A custom WakaTime server is configured.' };
-  const n = Math.max(1, Math.min(Math.floor(Number(days)) || 7, 30));
-  const now = Date.now();
-  if (rangeCache.key === String(n) && rangeCache.data && now - rangeCache.at < 300000) return rangeCache.data;
-
-  const end = new Date();
-  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (n - 1));
-  const res = await apiGet('/api/v1/users/current/summaries?start=' + ymd(start) + '&end=' + ymd(end), key);
-  if (res.status === 401) return { success: false, error: 'WakaTime rejected the API key.' };
-
-  if (res.status === 200 && res.body && Array.isArray(res.body.data)) {
-    const totals = new Map();
-    const daysOut = [];
-    let seconds = 0;
-    for (const day of res.body.data) {
-      const total = Number(day.grand_total && day.grand_total.total_seconds) || 0;
-      seconds += total;
-      daysOut.push({ date: String((day.range && day.range.date) || ''), seconds: total });
-      for (const p of Array.isArray(day.projects) ? day.projects : []) {
-        const name = String(p.name || '');
-        if (!name) continue;
-        totals.set(name, (totals.get(name) || 0) + (Number(p.total_seconds) || 0));
-      }
-    }
-    const projects = Array.from(totals, ([name, sec]) => ({ name, seconds: sec })).sort((a, b) => b.seconds - a.seconds);
-    const data = { success: true, days: daysOut, projects, seconds };
-    rangeCache = { key: String(n), at: now, data };
-    return data;
-  }
-
-  const span = n <= 7 ? 'last_7_days' : 'last_30_days';
-  let fallback = null;
-  try {
-    fallback = await apiGet('/api/v1/users/current/stats/' + span, key);
-  } catch (_) {
-    fallback = null;
-  }
-  if (fallback && fallback.status === 200 && fallback.body && fallback.body.data && Array.isArray(fallback.body.data.projects)) {
-    const projects = fallback.body.data.projects
-      .map((p) => ({ name: String(p.name || ''), seconds: Number(p.total_seconds) || 0 }))
-      .filter((p) => p.name && p.seconds > 0)
-      .sort((a, b) => b.seconds - a.seconds);
-    const seconds = Number(fallback.body.data.total_seconds) || projects.reduce((s, p) => s + p.seconds, 0);
-    const data = { success: true, days: [], projects, seconds, approx: true };
-    rangeCache = { key: String(n), at: now, data };
-    return data;
-  }
-  if (fallback && fallback.status === 202) {
-    return { success: false, error: 'WakaTime is still calculating your stats. Try again in a minute.' };
-  }
-
-  const body = res.body || {};
-  const detail = String(body.error || body.message || '').trim();
-  return { success: false, error: 'WakaTime returned ' + res.status + (detail ? ': ' + detail : '') };
+  return require('./wakatimeOauth.js').readRange(days);
 }
 function register() {
+  try {
+    require('./wakatimeOauth.js').register();
+  } catch (err) {
+    console.warn('[WakaTime] OAuth handlers failed to register:', err.message);
+  }
+
   ipcMain.handle('wakatime:status', async () => {
     try {
       return { success: true, installed: !!cliPath(), hasKey: hasKey() };
