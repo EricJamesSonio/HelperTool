@@ -519,6 +519,47 @@ function startTicker() {
   if (timer.unref) timer.unref();
 }
 
+let rangeCache = { key: '', at: 0, data: null };
+
+function ymd(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+async function readRange(days) {
+  const key = getKey();
+  if (!key) return { success: false, error: 'No WakaTime API key saved.' };
+  if (cfgValue('api_url')) return { success: false, error: 'A custom WakaTime server is configured.' };
+  const n = Math.max(1, Math.min(Math.floor(Number(days)) || 7, 30));
+  const now = Date.now();
+  if (rangeCache.key === String(n) && rangeCache.data && now - rangeCache.at < 300000) return rangeCache.data;
+
+  const end = new Date();
+  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (n - 1));
+  const res = await apiGet('/api/v1/users/current/summaries?start=' + ymd(start) + '&end=' + ymd(end), key);
+  if (res.status === 401) return { success: false, error: 'WakaTime rejected the API key.' };
+  if (res.status !== 200 || !res.body || !Array.isArray(res.body.data)) {
+    return { success: false, error: 'WakaTime returned ' + res.status };
+  }
+
+  const totals = new Map();
+  const daysOut = [];
+  let seconds = 0;
+  for (const day of res.body.data) {
+    const total = Number(day.grand_total && day.grand_total.total_seconds) || 0;
+    seconds += total;
+    daysOut.push({ date: String((day.range && day.range.date) || ''), seconds: total });
+    for (const p of Array.isArray(day.projects) ? day.projects : []) {
+      const name = String(p.name || '');
+      if (!name) continue;
+      totals.set(name, (totals.get(name) || 0) + (Number(p.total_seconds) || 0));
+    }
+  }
+  const projects = Array.from(totals, ([name, sec]) => ({ name, seconds: sec })).sort((a, b) => b.seconds - a.seconds);
+  const data = { success: true, days: daysOut, projects, seconds };
+  rangeCache = { key: String(n), at: now, data };
+  return data;
+}
 function register() {
   ipcMain.handle('wakatime:status', async () => {
     try {
@@ -574,6 +615,14 @@ function register() {
   ipcMain.handle('wakatime:today', async () => {
     try {
       return await readToday();
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('wakatime:range', async (_e, payload) => {
+    try {
+      return await readRange(payload && payload.days);
     } catch (err) {
       return { success: false, error: err.message };
     }
