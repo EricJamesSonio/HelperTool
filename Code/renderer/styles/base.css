@@ -989,6 +989,11 @@ body {
   -webkit-app-region: no-drag;
 }
 
+.titlebar-markdown-toggle[hidden],
+body:not(.ide-mode) .titlebar-markdown-toggle {
+  display: none !important;
+}
+
 .titlebar-btn {
   width: 46px;
   height: 100%;

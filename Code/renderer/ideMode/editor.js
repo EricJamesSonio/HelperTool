@@ -617,7 +617,7 @@ function makeTab(path, name, media) {
     selStart: 0,
     selEnd: 0,
     hist: null,
-    markdownPreview: /\.(?:md|markdown|mdown|mkd)$/i.test(name || ''),
+    markdownPreview: false,
   };
 }
 
@@ -1144,9 +1144,8 @@ function showTab(tab, focus) {
   const isMd = showCode && isMarkdown(tab);
   const previewMd = isMd && !!tab.markdownPreview;
   els.mdToggle.hidden = !isMd;
-  els.mdToggle.dataset.mdMode = previewMd ? 'source' : 'preview';
-  els.mdToggle.setAttribute('aria-pressed', previewMd ? 'true' : 'false');
   els.mdToggle.textContent = previewMd ? 'Source' : 'Preview';
+  els.mdToggle.title = previewMd ? 'Show Markdown source' : 'Preview Markdown';
   els.mdPreview.hidden = !previewMd;
   els.codewrap.hidden = !showCode || previewMd;
   els.mdPreview.innerHTML = previewMd ? renderMarkdown(tab.content) : '';
@@ -2743,8 +2742,7 @@ export function mount(mainEl, handlers) {
   onChange = (handlers && handlers.onTabsChange) || null;
   mainEl.innerHTML = TEMPLATE;
   const crumbsEl = mainEl.querySelector('.ide-crumbs');
-  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML +
-    '<button type="button" class="ide-md-toggle" aria-label="Toggle Markdown preview" aria-pressed="false" data-md-mode="preview" hidden>Preview</button>';
+  crumbsEl.innerHTML = '<div class="ide-crumb-path"></div>' + RUNBAR_HTML;
   els = {
     tabs: mainEl.querySelector('.ide-tabs'),
     crumbs: crumbsEl,
@@ -2752,7 +2750,6 @@ export function mount(mainEl, handlers) {
     runbar: crumbsEl.querySelector('.ide-runbar'),
     dbgBtn: crumbsEl.querySelector('[data-rb="debug"]'),
     runBtn: crumbsEl.querySelector('[data-rb="run"]'),
-    mdToggle: crumbsEl.querySelector('.ide-md-toggle'),
     welcome: mainEl.querySelector('.ide-welcome'),
     home: mainEl.querySelector('.ide-welcome-home'),
     notice: mainEl.querySelector('.ide-notice'),
@@ -2771,6 +2768,7 @@ export function mount(mainEl, handlers) {
     pbTitle: mainEl.querySelector('.ide-pb-title'),
     stProb: mainEl.querySelector('.ide-st-problems'),
     find: mainEl.querySelector('.ide-find'),
+    mdToggle: document.getElementById('ideMarkdownToggleBtn'),
     mdPreview: mainEl.querySelector('.ide-md-preview'),
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
@@ -2805,14 +2803,14 @@ export function mount(mainEl, handlers) {
   els.tabs.addEventListener('click', onTabClick);
   els.tabs.addEventListener('auxclick', onTabAux);
   els.tabs.addEventListener('wheel', onTabsWheel, { passive: false });
-  els.crumbs.addEventListener('click', (e) => {
-    const button = e.target.closest('[data-md-mode]');
-    if (button) setMarkdownPreview(button.dataset.mdMode === 'preview');
-  });
   els.findIn.addEventListener('input', () => runFind(true));
   els.findIn.addEventListener('keydown', onFindKey);
   els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
+  els.mdToggle.addEventListener('click', () => {
+    const tab = activeTab();
+    if (tab && isMarkdown(tab)) setMarkdownPreview(!tab.markdownPreview);
+  });
   els.runbar.addEventListener('click', onRunbarClick);
   els.stProb.addEventListener('click', () => setProblemsOpen(!problemsOpen));
   els.problems.addEventListener('click', onProblemsClick);
