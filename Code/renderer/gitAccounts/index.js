@@ -431,7 +431,7 @@ async function removeAccount(id) {
   const acc = accounts.find((x) => x.id === id);
   if (!a || !acc || busy) return;
   const ok = await confirmDialog(
-    'Remove <b>@' + esc(acc.username) + '</b> from Helper Tool? Its saved token is deleted from this PC, and repos using it go back to your system git login.',
+    'Remove <b>@' + esc(acc.username) + '</b> from ES Code? Its saved token is deleted from this PC, and repos using it go back to your system git login.',
     { title: 'Remove GitHub account', confirmText: 'Remove' }
   );
   if (!ok) return;

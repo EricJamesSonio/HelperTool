@@ -439,7 +439,7 @@ export async function openCloneModal() {
         '<div class="grt-lbl">Folder name</div>' +
         '<input id="grtName" class="grt-in" type="text" autocomplete="off" spellcheck="false" placeholder="Select a repository first">' +
         '<div id="grtHint" class="grt-hint"></div>' +
-        '<label class="grt-check"><input type="checkbox" id="grtOpen" checked><span>Open in Helper Tool after cloning</span></label>' +
+        '<label class="grt-check"><input type="checkbox" id="grtOpen" checked><span>Open in ES Code after cloning</span></label>' +
       '</div>' +
       '<div class="grt-right">' +
         '<div class="grt-right-head">' +
@@ -587,7 +587,7 @@ export async function openCreateModal() {
             '<button type="button" id="grtBrowse" class="grt-btn">Browse</button>' +
           '</div>' +
           '<div id="grtHint" class="grt-hint"></div>' +
-          '<label class="grt-check"><input type="checkbox" id="grtOpen" checked><span>Open in Helper Tool after cloning</span></label>' +
+          '<label class="grt-check"><input type="checkbox" id="grtOpen" checked><span>Open in ES Code after cloning</span></label>' +
         '</div>' +
       '</div>' +
       '<div class="grt-right">' +
