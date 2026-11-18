@@ -12,6 +12,10 @@ function register({ app }) {
         return path.join(app.getPath('userData'), 'secrets.json');
     }
 
+    function getNotesPath() {
+        return path.join(app.getPath('userData'), 'notes.json');
+    }
+
     async function readSecretsFile() {
         const p = getSecretsPath();
         if (!fs.existsSync(p)) return { passwordHash: null, secrets: [] };
@@ -76,6 +80,33 @@ function register({ app }) {
         data.secrets = (data.secrets || []).filter(s => s.id !== id);
         await writeSecretsFile(data);
         return true;
+    });
+
+    ipcMain.handle('notes-load', () => {
+        const p = getNotesPath();
+        if (!fs.existsSync(p)) return null;
+        try {
+            const parsed = JSON.parse(fs.readFileSync(p, 'utf-8'));
+            return Array.isArray(parsed) ? parsed : null;
+        } catch (err) {
+            console.error('[Notes] notes.json unreadable, keeping a copy:', err.message);
+            try { fs.renameSync(p, p + '.corrupt-' + Date.now()); } catch (_) {}
+            return null;
+        }
+    });
+
+    ipcMain.handle('notes-save', (event, notes) => {
+        if (!Array.isArray(notes)) return false;
+        const p = getNotesPath();
+        const tmp = p + '.tmp';
+        try {
+            fs.writeFileSync(tmp, JSON.stringify(notes), 'utf-8');
+            fs.renameSync(tmp, p);
+            return true;
+        } catch (err) {
+            console.error('[Notes] write failed:', err.message);
+            return false;
+        }
     });
 }
 
