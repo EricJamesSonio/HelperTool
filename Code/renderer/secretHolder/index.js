@@ -11,6 +11,8 @@ import { renderSecrets } from './secrets.js';
 import { openEditorForNew, handleNoteSave, closeEditor, handleNoteDeleteCurrent, renderSidebar } from './notes.js';
 import { handleResetPassword } from './reset.js';
 import { switchTab } from './tabs.js';
+import { wireNotesExtras } from './notes.js';
+
 
 let _initialized = false;
 
@@ -20,6 +22,7 @@ function setup() {
     injectHTML();
     assignRefs();
     wireEvents();
+    wireNotesExtras();
 }
 
 function injectHTML() {

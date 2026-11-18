@@ -88,6 +88,11 @@ export function getTemplate() {
                  placeholder="Search notes..." autocomplete="off" />
         </div>
       </div>
+      <div id="shNotesFilter" class="sh-notes-filter-bar">
+        <button type="button" class="sh-notes-filter active" data-filter="all">All <span class="sh-notes-filter-n">0</span></button>
+        <button type="button" class="sh-notes-filter" data-filter="study">Study <span class="sh-notes-filter-n">0</span></button>
+        <button type="button" class="sh-notes-filter" data-filter="general">General <span class="sh-notes-filter-n">0</span></button>
+      </div>
       <div id="shNotesList" class="sh-notes-sidebar-list"></div>
     </div>
     <div class="sh-notes-editor">
@@ -98,9 +103,32 @@ export function getTemplate() {
       <div id="shNotesEditorForm" class="sh-notes-editor-form" style="display:none">
         <div class="sh-notes-editor-topbar">
           <input id="shNoteFormTitle" class="sh-input sh-notes-editor-title-input" placeholder="Note title..." maxlength="120" />
+          <select id="shNoteFormCategory" class="sh-input sh-input-sm sh-note-cat-select" title="Note section">
+            <option value="general">General notes</option>
+            <option value="study">Study notes</option>
+          </select>
           <input id="shNoteFormDate"  class="sh-input sh-input-sm sh-mono sh-note-date-input" type="date" />
         </div>
-        <textarea id="shNoteFormBody" class="sh-input sh-notes-editor-textarea" placeholder="Write your note here..."></textarea>
+        <div class="sh-notes-editor-bar">
+          <div id="shNoteModeBar" class="sh-notes-mode">
+            <button type="button" class="sh-notes-mode-btn" data-mode="view" title="Read the note as formatted Markdown (Ctrl+E)">${icon('eye')} Preview</button>
+            <button type="button" class="sh-notes-mode-btn" data-mode="edit" title="Edit the note text (Ctrl+E)">${icon('edit')} Edit</button>
+          </div>
+          <div id="shNoteToolbar" class="sh-notes-toolbar">
+            <button type="button" class="sh-md-btn" data-md="h2" title="Heading 2">H2</button>
+            <button type="button" class="sh-md-btn" data-md="h3" title="Heading 3">H3</button>
+            <button type="button" class="sh-md-btn sh-md-bold" data-md="bold" title="Bold (Ctrl+B)">B</button>
+            <button type="button" class="sh-md-btn sh-md-italic" data-md="italic" title="Italic (Ctrl+I)">I</button>
+            <button type="button" class="sh-md-btn" data-md="code" title="Inline code, or a code block for several lines">Code</button>
+            <button type="button" class="sh-md-btn" data-md="ul" title="Bullet list">List</button>
+            <button type="button" class="sh-md-btn" data-md="ol" title="Numbered list">Numbered</button>
+            <button type="button" class="sh-md-btn" data-md="task" title="To-do list">To-do</button>
+            <button type="button" class="sh-md-btn" data-md="quote" title="Quote">Quote</button>
+          </div>
+          <span class="sh-notes-hint">Markdown supported</span>
+        </div>
+        <textarea id="shNoteFormBody" class="sh-input sh-notes-editor-textarea" placeholder="Write your note here... Markdown works: ## heading, **bold**, - list"></textarea>
+        <div id="shNotePreview" class="sh-md sh-notes-preview" style="display:none" title="Double-click to edit"></div>
         <div class="sh-notes-editor-actions">
           <button id="shNoteDeleteBtn" class="sh-btn sh-btn-danger sh-btn-sm" type="button" style="display:none">${icon('trash')} Delete</button>
           <div style="flex:1"></div>
