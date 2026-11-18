@@ -1,0 +1,33 @@
+/* IDE mode: search bar and its icons centered on the window, like VS Code */
+html body.ide-mode .navbar-row--primary .navbar-section.center {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 100%;
+  flex: none;
+  width: auto;
+  margin: 0;
+  gap: 6px;
+  justify-content: center;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+html body.ide-mode .navbar-row--primary .navbar-section.center::before {
+  display: none !important;
+  content: none !important;
+}
+
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideNavSearch,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideHistoryBtn,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideExtBtn,
+html body.ide-mode .navbar-row--primary .navbar-section.center > #ideCsBtn {
+  display: flex !important;
+  flex: 0 0 auto;
+  margin: 0 !important;
+}
+
+html body.ide-mode .navbar-row--primary .ide-nav-search {
+  width: clamp(180px, calc(50vw - 520px), 440px);
+  min-width: 0;
+}
