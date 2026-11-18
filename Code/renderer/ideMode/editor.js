@@ -9,6 +9,7 @@ import * as ext from './extensions/index.js';
 import * as fmt from './extensions/formatter.js';
 import * as runners from './extensions/runners.js';
 import * as lineMarks from './lineMarks.js';
+import { renderMarkdown } from './markdownPreview.js';
 const repoStash = new Map();
 
 document.addEventListener('repo:closed', (e) => {
@@ -525,6 +526,14 @@ const TEMPLATE =
       '</div>' +
     '</div>' +
   '</div>' +
+  '<div class="ide-md-toolbar" hidden>' +
+    '<span class="ide-md-label">Markdown</span>' +
+    '<div class="ide-md-modes" role="group" aria-label="Markdown view">' +
+      '<button type="button" class="ide-md-mode active" data-md-mode="source" aria-pressed="true">Source</button>' +
+      '<button type="button" class="ide-md-mode" data-md-mode="preview" aria-pressed="false">Preview</button>' +
+    '</div>' +
+  '</div>' +
+  '<div class="ide-md-preview" hidden></div>' +
   '<div class="ide-dv" hidden></div>' +
   '<div class="ide-media" hidden></div>' +
   '<div class="ide-codewrap" hidden>' +
@@ -594,6 +603,10 @@ function isText(tab) {
   return !!tab && !tab.kind && !tab.media && !tab.loading && !tab.notice;
 }
 
+function isMarkdown(tab) {
+  return !!tab && /\.(?:md|markdown|mdown|mkd)$/i.test(tab.name || '');
+}
+
 function makeTab(path, name, media) {
   return {
     path,
@@ -611,6 +624,7 @@ function makeTab(path, name, media) {
     selStart: 0,
     selEnd: 0,
     hist: null,
+    markdownPreview: false,
   };
 }
 
@@ -1134,7 +1148,17 @@ function showTab(tab, focus) {
   const isPane = !!tab && !!tab.kind;
   const isMedia = !!tab && !isPane && !!tab.media;
   const showCode = !!tab && !isPane && !isMedia && !tab.loading && !tab.notice;
-  els.codewrap.hidden = !showCode;
+  const isMd = showCode && isMarkdown(tab);
+  const previewMd = isMd && !!tab.markdownPreview;
+  els.mdToolbar.hidden = !isMd;
+  els.mdPreview.hidden = !previewMd;
+  els.codewrap.hidden = !showCode || previewMd;
+  els.mdPreview.innerHTML = previewMd ? renderMarkdown(tab.content) : '';
+  els.mdModes.forEach((button) => {
+    const active = button.dataset.mdMode === (previewMd ? 'preview' : 'source');
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
   els.dv.hidden = !isPane;
   els.media.hidden = !isMedia;
   els.welcome.hidden = showCode || isPane || isMedia;
@@ -1157,6 +1181,7 @@ function showTab(tab, focus) {
     return;
   }
   if (!showCode) {
+    els.mdPreview.innerHTML = '';
     closeFind(true);
     updateStatus(tab);
     return;
@@ -1177,6 +1202,19 @@ function showTab(tab, focus) {
   if (focus) els.ta.focus({ preventScroll: true });
   updateStatus(tab);
   scheduleCursor();
+}
+
+function setMarkdownPreview(preview) {
+  const tab = activeTab();
+  if (!isText(tab) || !isMarkdown(tab)) return;
+  if (preview) {
+    saveViewState();
+    closeFind(true);
+    tab.markdownPreview = true;
+  } else {
+    tab.markdownPreview = false;
+  }
+  showTab(tab, !preview);
 }
 
 function activate(path, focus) {
@@ -2740,6 +2778,9 @@ export function mount(mainEl, handlers) {
     pbTitle: mainEl.querySelector('.ide-pb-title'),
     stProb: mainEl.querySelector('.ide-st-problems'),
     find: mainEl.querySelector('.ide-find'),
+    mdToolbar: mainEl.querySelector('.ide-md-toolbar'),
+    mdPreview: mainEl.querySelector('.ide-md-preview'),
+    mdModes: Array.from(mainEl.querySelectorAll('.ide-md-mode')),
     findIn: mainEl.querySelector('.ide-find-in'),
     findCs: mainEl.querySelector('.ide-find-cs'),
     findCount: mainEl.querySelector('.ide-find-count'),
@@ -2777,6 +2818,10 @@ export function mount(mainEl, handlers) {
   els.findIn.addEventListener('keydown', onFindKey);
   els.repIn.addEventListener('keydown', onFindKey);
   els.find.addEventListener('click', onFindClick);
+  els.mdToolbar.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-md-mode]');
+    if (button) setMarkdownPreview(button.dataset.mdMode === 'preview');
+  });
   els.runbar.addEventListener('click', onRunbarClick);
   els.stProb.addEventListener('click', () => setProblemsOpen(!problemsOpen));
   els.problems.addEventListener('click', onProblemsClick);
