@@ -19,7 +19,7 @@ describe('IDE Markdown preview', () => {
       '',
       '| Name | Value |',
       '| --- | ---: |',
-      '| App | Helper Tool |',
+      '| App | ES Code |',
     ].join('\n'));
 
     assert.ok(html.includes('<h1>Commands Reference</h1>'));
@@ -45,7 +45,7 @@ describe('IDE Markdown preview', () => {
     const { renderMarkdown } = await loadModuleCopy('renderer/ideMode/markdownPreview.js');
     const html = renderMarkdown(
       '![Screenshot](../assets/version 10.png)\n\n![Remote](https://example.com/image.png)',
-      'C:\\Projects\\Helper Tool\\docs\\preview.md'
+      'C:\\Projects\\ES Code\\docs\\preview.md'
     );
 
     assert.ok(html.includes('src="file:///C:/Projects/Helper%20Tool/assets/version%2010.png"'));

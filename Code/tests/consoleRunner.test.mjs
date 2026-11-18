@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkTmp, rmRf } from './helpers.mjs';
 
+process.env.HELPER_CONSOLE_NO_PTY = '1';
+
 const require = createRequire(import.meta.url);
 const { createRunner } = require('../services/consoleRunner.js');
 
