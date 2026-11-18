@@ -1,26 +1,29 @@
 import { PROVIDERS } from './providers.js';
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
 
 function loadProvider() {
   try {
     const saved = localStorage.getItem('helpertool-cs-provider');
     if (saved && PROVIDERS[saved]) return saved;
   } catch (_) {}
-  return 'opencode';
+  return DEFAULT_PREFERENCES.codeSwamp.provider;
 }
 
 function loadModalView() {
   try {
-    return localStorage.getItem('helpertool-cs-modal') === '1';
+    const saved = localStorage.getItem('helpertool-cs-modal');
+    return saved === null ? DEFAULT_PREFERENCES.codeSwamp.modalView : saved === '1';
   } catch (_) {
-    return false;
+    return DEFAULT_PREFERENCES.codeSwamp.modalView;
   }
 }
 
 function loadNotifyOnDone() {
   try {
-    return localStorage.getItem('helpertool-cs-notify') !== '0';
+    const saved = localStorage.getItem('helpertool-cs-notify');
+    return saved === null ? DEFAULT_PREFERENCES.codeSwamp.notifyOnDone : saved !== '0';
   } catch (_) {
-    return true;
+    return DEFAULT_PREFERENCES.codeSwamp.notifyOnDone;
   }
 }
 
