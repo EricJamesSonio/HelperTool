@@ -1,6 +1,6 @@
 /* ============================================================
-   IDE theme. Editor, sidebar and tabs are themed in IDE mode.
-   With scope "app" the whole app is themed in every mode.
+   IDE theme. Editor, sidebar and tabs share one background.
+   data-ide-app="1" (set by theme.js) themes the whole app.
    Palettes are defined once and reused by the picker cards
    and by the live preview inside the picker.
    ============================================================ */
@@ -107,17 +107,16 @@ body[data-ide-theme="maclight"], .ith-box [data-t="maclight"] {
 }
 .ith-card, .ith-pv { --sx-cs: normal; --sx-ks: normal; }
 
-/* ---- Surfaces: editor always; sidebar/tabs/status with "chrome"; the whole app with "shell" in IDE mode, or always with scope "app" ---- */
+/* ---- Surfaces: editor always; sidebar/tabs/status with "chrome"; the whole app with data-ide-app ---- */
 body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
 body[data-ide-theme][data-ide-chrome="1"] :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems, #ideLookup),
-body.ide-mode[data-ide-theme][data-ide-shell="1"],
-body[data-ide-theme][data-ide-scope="app"] {
+body[data-ide-theme][data-ide-app="1"] {
   --bg-base: var(--th-bg);
   --bg-surface: var(--th-sf);
   --bg-elevated: var(--th-el);
   --bg-raised: var(--th-el);
   --bg-overlay: var(--th-el);
-  --bg-statusbar: var(--th-sf);
+  --bg-statusbar: var(--th-bg);
   --bg-tree: var(--th-bg);
   --bg-hover: color-mix(in srgb, var(--th-fg) 8%, transparent);
   --bg-active: color-mix(in srgb, var(--th-fg) 14%, transparent);
@@ -144,17 +143,88 @@ body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor) {
   background: var(--th-bg);
 }
 
-body.ide-mode[data-ide-theme][data-ide-shell="1"],
-body[data-ide-theme][data-ide-scope="app"] {
+body[data-ide-theme][data-ide-app="1"] {
   background: var(--bg-base);
   color: var(--text-primary);
+}
+
+/* ---- Whole-app derived tokens (folders, files, tree depth colors) ---- */
+body[data-ide-theme][data-ide-app="1"] {
+  --blue: var(--th-ac);
+  --blue-dim: color-mix(in srgb, var(--th-ac) 13%, transparent);
+  --node-folder: var(--th-ac);
+  --node-file: var(--th-fg2);
+  --node-selected-file: var(--th-ac);
+  --node-selected-folder: var(--green);
+  --folder-text: var(--th-ac);
+  --folder-bg: color-mix(in srgb, var(--th-ac) 8%, transparent);
+  --folder-border: color-mix(in srgb, var(--th-ac) 20%, transparent);
+  --folder-bg-h: color-mix(in srgb, var(--th-ac) 14%, transparent);
+  --folder-hover-border: color-mix(in srgb, var(--th-ac) 38%, transparent);
+  --folder-hover-color: var(--th-fg);
+  --file-bg: color-mix(in srgb, var(--th-mu) 5%, transparent);
+  --file-border: color-mix(in srgb, var(--th-mu) 13%, transparent);
+  --file-text: var(--th-fg2);
+  --file-bg-h: color-mix(in srgb, var(--th-mu) 10%, transparent);
+  --file-hover-border: color-mix(in srgb, var(--th-mu) 28%, transparent);
+  --file-hover-color: var(--th-fg);
+  --connector-color: color-mix(in srgb, var(--th-fg) 12%, transparent);
+  --dl0-color: var(--th-ac);
+  --dl1-color: var(--sx-k);
+  --dl2-color: var(--sx-s);
+  --dl3-color: var(--sx-f);
+  --dl4-color: var(--sx-t);
+  --dl5-color: var(--th-ac);
+  --dl6-color: var(--sx-k);
+  --dl7-color: var(--sx-s);
+  --dl8-color: var(--sx-f);
+  --dl9-color: var(--sx-t);
+  --dl0-bg: color-mix(in srgb, var(--dl0-color) 10%, transparent);
+  --dl0-bg-h: color-mix(in srgb, var(--dl0-color) 18%, transparent);
+  --dl0-border: color-mix(in srgb, var(--dl0-color) 40%, transparent);
+  --dl0-line: color-mix(in srgb, var(--dl0-color) 35%, transparent);
+  --dl1-bg: color-mix(in srgb, var(--dl1-color) 10%, transparent);
+  --dl1-bg-h: color-mix(in srgb, var(--dl1-color) 18%, transparent);
+  --dl1-border: color-mix(in srgb, var(--dl1-color) 40%, transparent);
+  --dl1-line: color-mix(in srgb, var(--dl1-color) 35%, transparent);
+  --dl2-bg: color-mix(in srgb, var(--dl2-color) 10%, transparent);
+  --dl2-bg-h: color-mix(in srgb, var(--dl2-color) 18%, transparent);
+  --dl2-border: color-mix(in srgb, var(--dl2-color) 40%, transparent);
+  --dl2-line: color-mix(in srgb, var(--dl2-color) 35%, transparent);
+  --dl3-bg: color-mix(in srgb, var(--dl3-color) 10%, transparent);
+  --dl3-bg-h: color-mix(in srgb, var(--dl3-color) 18%, transparent);
+  --dl3-border: color-mix(in srgb, var(--dl3-color) 40%, transparent);
+  --dl3-line: color-mix(in srgb, var(--dl3-color) 35%, transparent);
+  --dl4-bg: color-mix(in srgb, var(--dl4-color) 10%, transparent);
+  --dl4-bg-h: color-mix(in srgb, var(--dl4-color) 18%, transparent);
+  --dl4-border: color-mix(in srgb, var(--dl4-color) 40%, transparent);
+  --dl4-line: color-mix(in srgb, var(--dl4-color) 35%, transparent);
+  --dl5-bg: color-mix(in srgb, var(--dl5-color) 10%, transparent);
+  --dl5-bg-h: color-mix(in srgb, var(--dl5-color) 18%, transparent);
+  --dl5-border: color-mix(in srgb, var(--dl5-color) 40%, transparent);
+  --dl5-line: color-mix(in srgb, var(--dl5-color) 35%, transparent);
+  --dl6-bg: color-mix(in srgb, var(--dl6-color) 10%, transparent);
+  --dl6-bg-h: color-mix(in srgb, var(--dl6-color) 18%, transparent);
+  --dl6-border: color-mix(in srgb, var(--dl6-color) 40%, transparent);
+  --dl6-line: color-mix(in srgb, var(--dl6-color) 35%, transparent);
+  --dl7-bg: color-mix(in srgb, var(--dl7-color) 10%, transparent);
+  --dl7-bg-h: color-mix(in srgb, var(--dl7-color) 18%, transparent);
+  --dl7-border: color-mix(in srgb, var(--dl7-color) 40%, transparent);
+  --dl7-line: color-mix(in srgb, var(--dl7-color) 35%, transparent);
+  --dl8-bg: color-mix(in srgb, var(--dl8-color) 10%, transparent);
+  --dl8-bg-h: color-mix(in srgb, var(--dl8-color) 18%, transparent);
+  --dl8-border: color-mix(in srgb, var(--dl8-color) 40%, transparent);
+  --dl8-line: color-mix(in srgb, var(--dl8-color) 35%, transparent);
+  --dl9-bg: color-mix(in srgb, var(--dl9-color) 10%, transparent);
+  --dl9-bg-h: color-mix(in srgb, var(--dl9-color) 18%, transparent);
+  --dl9-border: color-mix(in srgb, var(--dl9-color) 40%, transparent);
+  --dl9-line: color-mix(in srgb, var(--dl9-color) 35%, transparent);
 }
 
 /* ---- Light tone: darker semantic colors and dark text on selected rows ---- */
 body[data-ide-theme][data-ide-tone="light"] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
 body[data-ide-theme][data-ide-tone="light"][data-ide-chrome="1"] :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems, #ideLookup),
-body.ide-mode[data-ide-theme][data-ide-tone="light"][data-ide-shell="1"],
-body[data-ide-theme][data-ide-tone="light"][data-ide-scope="app"] {
+body[data-ide-theme][data-ide-tone="light"][data-ide-app="1"] {
   --green: #1a7f37;
   --red: #cf222e;
   --yellow: #9a6700;
@@ -165,12 +235,80 @@ body[data-ide-theme][data-ide-tone="light"][data-ide-scope="app"] {
   --yellow-dim: rgba(154, 103, 0, 0.12);
   color-scheme: light;
 }
+body[data-ide-theme][data-ide-tone="light"][data-ide-app="1"] {
+  --blue: var(--th-ac);
+  --blue-dim: color-mix(in srgb, var(--th-ac) 13%, transparent);
+}
 body[data-ide-theme][data-ide-tone="light"][data-ide-chrome="1"] #ideSidebar :is(.ide-row.active, .ide-oe-item.active) {
   color: var(--th-fg);
 }
 body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-oe-item.dirty .ide-name,
 body[data-ide-theme][data-ide-chrome="1"] #ideMain > .ide-tabs .ide-tab:has(.ide-tab-x.dirty) .ide-tab-name {
   color: var(--accent);
+}
+
+/* ---- One background for the file view, sidebar, tabs and status bar ---- */
+body.ide-mode :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems) {
+  background: var(--bg-base);
+}
+body.ide-mode #ideMain > .ide-tabs .ide-tab:not(.active) {
+  background: transparent;
+}
+body.ide-mode #ideMain > .ide-tabs .ide-tab:not(.active):hover {
+  background: var(--bg-hover);
+}
+
+/* ---- Whole app: shared bars use the same base background ---- */
+body[data-ide-theme][data-ide-app="1"] :is(.navbar-row--primary, .status-filter-bar, .jumper-row, .root-jumper, .select-shortcut-bar, .tools-sidebar, .tree-view-container) {
+  background: var(--bg-base);
+}
+
+/* ---- Whole app: selected tree rows follow the depth colors ---- */
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="0"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl0-color) 26%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="1"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl1-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="2"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl2-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="3"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl3-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="4"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl4-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="5"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl5-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="6"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl6-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="7"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl7-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="8"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl8-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer :is(.mode-list, .mode-tree) [data-depth-level="9"] > .tree-node:is(.folder-selected, .selected, .file-selected) { background: color-mix(in srgb, var(--dl9-color) 24%, transparent) !important; }
+body[data-ide-theme][data-ide-app="1"] #treeContainer.mode-list [data-depth-level="1"] > .tree-node.file { color: color-mix(in srgb, var(--dl1-color) 75%, transparent); }
+body[data-ide-theme][data-ide-app="1"] #treeContainer.mode-list [data-depth-level="2"] > .tree-node.file { color: color-mix(in srgb, var(--dl2-color) 75%, transparent); }
+body[data-ide-theme][data-ide-app="1"] #treeContainer.mode-list [data-depth-level="3"] > .tree-node.file { color: color-mix(in srgb, var(--dl3-color) 75%, transparent); }
+body[data-ide-theme][data-ide-app="1"] #treeContainer.mode-list [data-depth-level="4"] > .tree-node.file { color: color-mix(in srgb, var(--dl4-color) 75%, transparent); }
+
+/* ---- Git tool: dark cards on a lighter page ---- */
+.git-tool-panel,
+.git-tool-wrapper,
+.git-tool-body,
+.git-content {
+  background: var(--bg-surface);
+}
+.git-panel,
+.ins-panel,
+.bm-panel-inline {
+  background: var(--bg-base);
+}
+.bm-panel-inline {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md, 9px);
+}
+.dp-root {
+  background: var(--bg-surface);
+}
+.dp-main,
+.dp-card,
+.dp-pane,
+.dp-view {
+  background: var(--bg-base);
+}
+.dp-cat,
+.dp-pc-main,
+.dp-input,
+.dp-addr {
+  background: var(--bg-surface);
 }
 
 /* ---- Syntax colors ---- */
@@ -527,7 +665,7 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
   background: var(--th-bg);
   color: var(--th-fg);
   font: 11px var(--font-ui);
-  --cb: var(--th-sf);
+  --cb: var(--th-bg);
   --cbase: var(--th-bg);
   --cfg: var(--th-fg);
   --cmu: var(--th-mu);
@@ -535,7 +673,7 @@ body.ide-mode .navbar-row--primary .navbar-section.center > button.ide-th-btn {
   --ca: var(--th-ac);
 }
 .ith-pv[data-c="0"] :is(.pv-side, .pv-tabs, .pv-status) {
-  --cb: var(--pa-sf);
+  --cb: var(--pa-bg);
   --cbase: var(--pa-bg);
   --cfg: var(--pa-fg);
   --cmu: var(--pa-mu);

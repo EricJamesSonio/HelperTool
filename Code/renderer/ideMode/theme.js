@@ -169,6 +169,18 @@ function setAttr(el, name, value) {
   if (el.getAttribute(name) !== value) el.setAttribute(name, value);
 }
 
+function appOn() {
+  const b = document.body;
+  if (prefs.scope === 'app') return true;
+  return !!b && b.classList.contains('ide-mode') && prefs.shell;
+}
+
+function syncAppAttr() {
+  const b = document.body;
+  if (!b) return;
+  setAttr(b, 'data-ide-app', appOn() ? '1' : null);
+}
+
 function apply(notify) {
   const b = document.body;
   if (!b) return;
@@ -181,6 +193,7 @@ function apply(notify) {
   setAttr(b, 'data-ide-ruler', prefs.ruler ? '1' : null);
   setAttr(b, 'data-ide-chrome', prefs.chrome ? '1' : null);
   setAttr(b, 'data-ide-shell', prefs.shell ? '1' : null);
+  syncAppAttr();
   if (notify) document.dispatchEvent(new CustomEvent('ide:theme-changed'));
 }
 
@@ -472,9 +485,18 @@ function placeBtn() {
   return true;
 }
 
+function watchBodyClass() {
+  if (typeof MutationObserver !== 'function' || !document.body) return;
+  const mo = new MutationObserver(() => {
+    syncAppAttr();
+  });
+  mo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+}
+
 function run() {
   injectCss();
   apply(true);
+  watchBodyClass();
   document.addEventListener('ide:close-search', close);
   document.addEventListener('keydown', onKey, true);
   let ticks = 0;
