@@ -1,4 +1,6 @@
-const DEFAULT_SETTINGS = { themeId: 'github-hc-dark', customAccent: null, fontSize: 14, uiScale: 50, folderDepths: [] };
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
+
+const DEFAULT_SETTINGS = DEFAULT_PREFERENCES.appearance;
 const STORAGE_KEY = 'helpertool-settings';
 
 const S = {

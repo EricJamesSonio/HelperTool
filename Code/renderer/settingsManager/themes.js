@@ -9,7 +9,7 @@ const THEME_ICONS = {
 
 const FULL_THEMES = {
   'github-hc-dark': {
-    label: 'HelperTool Theme', dark: true,
+    label: 'ES Code Theme', dark: true,
     bg: { base:'#000000', surface:'#050505', elevated:'#0a0a0a', overlay:'#101010',
           hover:'rgba(255,255,255,0.10)', active:'rgba(255,255,255,0.14)',
           raised:'#181818', statusbar:'#000000', tree:'#000000' },
