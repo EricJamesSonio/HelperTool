@@ -1,3 +1,5 @@
+import { DEFAULT_PREFERENCES } from '../../defaultPreferences.js';
+
 const LS_KEY = 'helpertool-ide-prettier-v1';
 const MAX_CHARS = 600000;
 
@@ -37,17 +39,7 @@ export const PRESETS = [
   },
 ];
 
-const DEFAULTS = {
-  preset: 'standard',
-  indent: { js: 2, json: 2, css: 2, html: 2, py: 4, php: 4 },
-  maxBlank: 1,
-  fnGap: 1,
-  pyGap: 2,
-  pyMethodGap: 1,
-  trimTrailing: true,
-  finalNewline: true,
-  formatOnSave: true,
-};
+const DEFAULTS = DEFAULT_PREFERENCES.ide.formatter;
 
 const SAMPLES = {
   js:
