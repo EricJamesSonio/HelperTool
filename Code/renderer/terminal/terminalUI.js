@@ -770,3 +770,22 @@ TerminalUI.prototype.runCommand = async function runCommand(repoPath, build) {
   try { inst.terminal.focus(); } catch (_) {}
   return true;
 };
+const _origInit = TerminalUI.prototype.init;
+TerminalUI.prototype.init = async function init() {
+  await _origInit.call(this);
+  document.addEventListener('ide:theme-changed', () => {
+    requestAnimationFrame(() => this._refreshTheme());
+  });
+};
+
+const _origDock = TerminalUI.prototype.dockInto;
+TerminalUI.prototype.dockInto = function dockInto(host, before) {
+  _origDock.call(this, host, before);
+  requestAnimationFrame(() => this._refreshTheme());
+};
+
+const _origUndock = TerminalUI.prototype.undock;
+TerminalUI.prototype.undock = function undock() {
+  _origUndock.call(this);
+  requestAnimationFrame(() => this._refreshTheme());
+};

@@ -1,7 +1,16 @@
 function cssVar(name, fallback) {
   try {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
+    const host = document.getElementById('terminalPanel') || document.body || document.documentElement;
+    const v = getComputedStyle(host).getPropertyValue(name).trim();
+    if (!v) return fallback;
+    if (v.charAt(0) === '#') return v;
+    const probe = document.createElement('span');
+    probe.style.color = v;
+    if (!probe.style.color) return fallback;
+    host.appendChild(probe);
+    const out = getComputedStyle(probe).color;
+    probe.remove();
+    return out || fallback;
   } catch (_) {
     return fallback;
   }
