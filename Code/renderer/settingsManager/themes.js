@@ -1,5 +1,6 @@
 const THEME_ICONS = {
   'github-hc-dark':   'M6 5l-4 4 4 4M14 5l4 4-4 4',
+  'es-code':          'M7 5l-5 5 5 5M13 5l5 5-5 5M11 4l-2 12',
   'carbon-dark':      'M10 2a8 8 0 100 16 8 8 0 000-16z',
   'github-hc-green':  'M10 2a8 8 0 100 16 8 8 0 000-16zM6 10l3 3 5-6',
   'github-hc-red':    'M10 2C5 7 4 11 4 13a6 6 0 1012 0c0-2-1-6-6-11z',
@@ -8,7 +9,7 @@ const THEME_ICONS = {
 
 const FULL_THEMES = {
   'github-hc-dark': {
-    label: 'GitHub Dark HC', dark: true,
+    label: 'HelperTool Theme', dark: true,
     bg: { base:'#000000', surface:'#050505', elevated:'#0a0a0a', overlay:'#101010',
           hover:'rgba(255,255,255,0.10)', active:'rgba(255,255,255,0.14)',
           raised:'#181818', statusbar:'#000000', tree:'#000000' },
@@ -18,6 +19,18 @@ const FULL_THEMES = {
     accent: '#2f81f7',
     green:'#3fb950', red:'#ff6b69', blue:'#2f81f7', purple:'#bc8cff', yellow:'#d29922',
     depths: ['#2f81f7','#bc8cff','#3fb950','#d29922','#ff6b69'],
+  },
+  'es-code': {
+    label: 'ES Code Theme', dark: true,
+    bg: { base:'#1b1b1f', surface:'#202025', elevated:'#27272d', overlay:'#2e2e35',
+          hover:'rgba(255,255,255,0.08)', active:'rgba(255,255,255,0.13)',
+          raised:'#32323a', statusbar:'#1b1b1f', tree:'#1b1b1f' },
+    border: { subtle:'rgba(255,255,255,0.12)', default:'rgba(255,255,255,0.22)',
+              strong:'rgba(255,255,255,0.38)', mid:'rgba(255,255,255,0.18)' },
+    text: { primary:'#f2f2f5', secondary:'#d0d0d8', muted:'#9a9aa6', faint:'#6c6c78' },
+    accent: '#f5a02b',
+    green:'#3fa34d', red:'#e0524f', blue:'#1a8ad4', purple:'#b48cf0', yellow:'#f5a02b',
+    depths: ['#f5a02b','#1a8ad4','#3fa34d','#e0524f','#b48cf0'],
   },
   'carbon-dark': {
     label: 'Carbon', dark: true,
