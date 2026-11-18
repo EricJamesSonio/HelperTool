@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { getTemplate } from './template.js';
-import { renderRepoTabs, addRepo, renderConvList } from './repoTabs.js';
+import { renderRepoTabs, addRepo, renderConvList, restoreActiveView } from './repoTabs.js';
 import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle, renderParallelModeControls } from './sidebar.js';
 import { renderInput } from './input.js';
 import { clearCache as clearFilePickerCache, isOpen as isFilePickerOpen } from './filePicker.js';
@@ -161,6 +161,8 @@ export function openCodeSwampUI() {
     state.open = true;
     if (state.tabs.length === 0) {
       initCodeSwampUI();
+    } else {
+      restoreActiveView();
     }
   }
 }

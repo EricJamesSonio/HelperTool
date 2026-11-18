@@ -1,11 +1,10 @@
 import { state } from './state.js';
 import { refreshSidebar, loadConversation, startNewChat } from './sidebar.js';
-import { hasTerminalSession, showTerminalSession, getSlotForRepo, getConvSlotMap, getTerminalInstances, killSlot, activateSlot } from './terminalManager.js';
+import { hasTerminalSession, hasRevealedTerminal, getRevealedProvider, showTerminalSession, getSlotForRepo, getConvSlotMap, getTerminalInstances, killSlot, activateSlot, isTerminalRevealed, syncStage } from './terminalManager.js';
 import { escapeHtml, formatTime, groupByDate } from './utils.js';
 import { getProvider } from './providers.js';
 import { convStore } from './conversationStore.js';
 import { promptDialog, confirmDialog } from '../utils/confirmDialog.js';
-import { isTerminalRevealed, syncStage } from './terminalManager.js';
 import { ensureRepoBadges, dismissRepo, undismissRepo } from './repoBadges.js';
 
 function normRepo(p) {
@@ -37,12 +36,29 @@ function ensureTab(repoPath) {
   return tab;
 }
 
+function adoptProvider(id) {
+  if (!id || state.selectedProvider === id) return;
+  state.selectedProvider = id;
+  try {
+    localStorage.setItem('helpertool-cs-provider', id);
+  } catch (_) {}
+  const select = document.getElementById('ocAIProviderSelect');
+  if (select) select.value = id;
+  import('./providerTabs.js').then((m) => m.renderProviderTabs()).catch(() => {});
+}
+
 export async function addRepo(repoPath) {
   if (!repoPath) return;
   undismissRepo(repoPath);
   const tab = ensureTab(repoPath);
-  if (!state.activeTab) {
-    switchTab(tab.repoPath);
+  const current = state.activeTab;
+  if (!current || !sameRepoPath(current, repoPath)) {
+    const targetLive = hasRevealedTerminal(tab.repoPath);
+    const currentLive = current ? hasRevealedTerminal(current) : false;
+    if (!current || targetLive || !currentLive) {
+      switchTab(tab.repoPath);
+      refreshSidebar().catch(() => {});
+    }
   }
   renderRepoTabs();
   ensureRepoBadges();
@@ -151,9 +167,21 @@ export function updateRepoPath(repoPath) {
   ensureRepoBadges();
 }
 
+export function restoreActiveView() {
+  const repoPath = state.activeTab;
+  const welcome = document.getElementById('ocWelcome');
+  if (!repoPath || !welcome || welcome.style.display === 'none') return;
+  if (!hasRevealedTerminal(repoPath)) return;
+  switchTab(repoPath);
+}
+
 export function switchTab(repoPath) {
   state.activeTab = repoPath;
-  for (const tab of state.tabs) tab.active = tab.repoPath === repoPath;
+  for (const tab of state.tabs) tab.active = sameRepoPath(tab.repoPath, repoPath);
+
+  if (!isTerminalRevealed(repoPath)) {
+    adoptProvider(getRevealedProvider(repoPath));
+  }
 
   if (hasTerminalSession(repoPath) && isTerminalRevealed(repoPath)) {
     const slot = getSlotForRepo(repoPath);

@@ -70,11 +70,15 @@ function sleepSweep() {
     killSlot(Number(key));
     left--;
     stageTerminal(false);
-    if (state.activeTab === repoPath) {
-      const w = document.getElementById('ocWelcome');
-      const t = document.getElementById('ocTerminal');
-      if (w) w.style.display = '';
-      if (t) t.style.display = 'none';
+    if (sameRepoPath(state.activeTab, repoPath)) {
+      if (hasRevealedTerminal(repoPath)) {
+        showTerminalSession(repoPath);
+      } else {
+        const w = document.getElementById('ocWelcome');
+        const t = document.getElementById('ocTerminal');
+        if (w) w.style.display = '';
+        if (t) t.style.display = 'none';
+      }
     }
     try {
       document.dispatchEvent(new CustomEvent('cs:slept', { detail: { repoPath } }));
@@ -131,14 +135,39 @@ function getDarkTheme() {
   };
 }
 
+function normRepoPath(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function sameRepoPath(a, b) {
+  return normRepoPath(a) === normRepoPath(b);
+}
+
 function _findSlotByRepoPath(repoPath) {
   const want = state.parallelMode ? null : getProvider(state.selectedProvider).id;
+  let hidden = -1;
   for (const [slot, inst] of Object.entries(instances)) {
-    if (!inst || inst.repoPath !== repoPath) continue;
+    if (!inst || !sameRepoPath(inst.repoPath, repoPath)) continue;
     if (want && inst.provider && inst.provider !== want) continue;
-    return Number(slot);
+    if (inst.revealed !== false) return Number(slot);
+    if (hidden < 0) hidden = Number(slot);
   }
-  return -1;
+  return hidden;
+}
+
+export function getRevealedProvider(repoPath) {
+  for (const inst of Object.values(instances)) {
+    if (!inst || !sameRepoPath(inst.repoPath, repoPath)) continue;
+    if (inst.revealed === false) continue;
+    return inst.provider || null;
+  }
+  return null;
+}
+
+export function hasRevealedTerminal(repoPath) {
+  return Object.values(instances).some((inst) =>
+    inst && sameRepoPath(inst.repoPath, repoPath) && inst.revealed !== false
+  );
 }
 
 function _getSlotDiv(slotIndex) {
