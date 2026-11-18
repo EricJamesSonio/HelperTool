@@ -4,6 +4,8 @@
  * All modules import from here — no state duplication.
  */
 
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
+
 export const state = {
     selectedRepoPath: null,
     selectedItems:    [],       // mutated in-place; do NOT replace the array reference
@@ -12,7 +14,7 @@ export const state = {
     generateMinified: false,
     generateOutputType: 'normal', // normal | minified | prompt
 
-    viewMode:         localStorage.getItem('helpertool-viewmode') || 'list',
+    viewMode:         localStorage.getItem('helpertool-viewmode') || DEFAULT_PREFERENCES.app.viewMode,
     selectedPromptText: '',
     selectedPromptId:   null,
     selectedPromptIds:  [],

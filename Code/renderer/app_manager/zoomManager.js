@@ -1,9 +1,11 @@
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
+
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
 const ZOOM_KEY = 'helpertool-ui-zoom';
 
-let _zoom = 1;
+let _zoom = DEFAULT_PREFERENCES.app.zoom;
 let _zoomKeyHandler = null;
 
 function _clamp(val) {
@@ -14,9 +16,10 @@ function _clamp(val) {
 
 function _readSaved() {
   try {
-    return _clamp(localStorage.getItem(ZOOM_KEY) || 1);
+    const saved = localStorage.getItem(ZOOM_KEY);
+    return _clamp(saved === null ? DEFAULT_PREFERENCES.app.zoom : saved);
   } catch (_) {
-    return 1;
+    return DEFAULT_PREFERENCES.app.zoom;
   }
 }
 
