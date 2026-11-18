@@ -40,4 +40,15 @@ describe('IDE Markdown preview', () => {
     assert.ok(!html.includes('href="javascript:'));
     assert.ok(html.includes('href="https://example.com"'));
   });
+
+  it('resolves relative image paths from the Markdown file location', async () => {
+    const { renderMarkdown } = await loadModuleCopy('renderer/ideMode/markdownPreview.js');
+    const html = renderMarkdown(
+      '![Screenshot](../assets/version 10.png)\n\n![Remote](https://example.com/image.png)',
+      'C:\\Projects\\Helper Tool\\docs\\preview.md'
+    );
+
+    assert.ok(html.includes('src="file:///C:/Projects/Helper%20Tool/assets/version%2010.png"'));
+    assert.ok(html.includes('src="https://example.com/image.png"'));
+  });
 });
