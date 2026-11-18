@@ -61,6 +61,7 @@ const files = [
   'styles/repo-console.css',
   'styles/repo-console-security.css',
   'styles/ui-global.css',
+  'styles/ui-neat.css',
 ];
 
 let css = '';
