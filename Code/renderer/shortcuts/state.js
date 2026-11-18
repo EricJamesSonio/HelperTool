@@ -1,47 +1,8 @@
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
+
 const STORAGE_KEY = 'helpertool-shortcuts';
 
-const DEFAULT_SHORTCUTS = {
-  shortcutTool:  null,
-  shortcutMode:  'G',
-  globalSeeder:  'Shift+G',
-  apiTool:       null,
-  gitTool:       null,
-  dbInspector:   null,
-  locDetector:   null,
-  terminalTool:  null,
-  blueprintLibraryTool: null,
-  profileTool:   null,
-  dockerTool:    null,
-  promptTool:    null,
-  settings:      null,
-  secretHolder:  null,
-  workspaceTool: null,
-  symbolIndex:   null,
-  canvasTool:    null,
-  exitInput:     null,
-  portManagerTool: null,
-  teamActivityTool: null,
-  envManager: null,
-  codebbaseChat: null,
-  videoTool: null,
-  gmailTool: null,
-  automationSketch: null,
-  githubExplorer: null,
-  codeswampChat: null,
-  codebaseMap: 'Ctrl+Shift+M',
-  uiLayoutHelper: null,
-  essentialsGlossary: null,
-  graphify: null,
-  errorCop: null,
-  ecosystemWatcher: null,
-  performanceTracker: null,
-  mcp: null,
-  projectInspector: null,
-  researcherTool: null,
-  harnessTool: null,
-  flowTool: 'Space',
-  repoConsole: 'F1',
-};
+const DEFAULT_SHORTCUTS = DEFAULT_PREFERENCES.shortcuts;
 
 const S = { shortcuts: {} };
 
