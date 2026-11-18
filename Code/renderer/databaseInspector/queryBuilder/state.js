@@ -1,5 +1,7 @@
+import { DEFAULT_PREFERENCES } from '../../defaultPreferences.js';
+
 export const state = {
-  mode: localStorage.getItem('helpertool-dbi-query-mode') || 'easy',
+  mode: localStorage.getItem('helpertool-dbi-query-mode') || DEFAULT_PREFERENCES.databaseInspector.queryMode,
   step: 'table',
   dbType: 'postgres',
   tables: [],
