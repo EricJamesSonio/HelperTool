@@ -73,7 +73,7 @@ function sendTrace(base, token) {
           path: '/',
           method: 'TRACE',
           agent: false,
-          headers: { 'User-Agent': 'HelperTool-SecurityTest/1', 'X-Trace-Probe': token },
+          headers: { 'User-Agent': 'ES Code-SecurityTest/1', 'X-Trace-Probe': token },
           timeout: TRACE_TIMEOUT_MS,
         },
         (res) => {

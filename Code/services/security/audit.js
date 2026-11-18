@@ -868,7 +868,7 @@ function makeClient(baseUrl, say) {
     const started = Date.now();
     const res = await fetch(url, {
       method: o.method || 'GET',
-      headers: Object.assign({ 'User-Agent': 'HelperTool-SecurityTest/1', Accept: '*/*' }, o.headers || {}),
+      headers: Object.assign({ 'User-Agent': 'ES Code-SecurityTest/1', Accept: '*/*' }, o.headers || {}),
       redirect: 'manual',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });

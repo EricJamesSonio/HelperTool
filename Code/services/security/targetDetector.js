@@ -222,7 +222,7 @@ async function probe(url) {
     const res = await fetch(url, {
       redirect: 'manual',
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-      headers: { 'User-Agent': 'HelperTool-SecurityTest/1' },
+      headers: { 'User-Agent': 'ES Code-SecurityTest/1' },
     });
     try {
       if (res.body) await res.body.cancel();

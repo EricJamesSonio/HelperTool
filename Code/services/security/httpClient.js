@@ -51,7 +51,7 @@ function createClient(options) {
           port: url.port || undefined,
           path: url.pathname + url.search,
           method: o.method || 'GET',
-          headers: Object.assign({ 'User-Agent': 'HelperTool-SecurityCheck/1.0', Accept: '*/*' }, o.headers || {}),
+          headers: Object.assign({ 'User-Agent': 'ES Code-SecurityCheck/1.0', Accept: '*/*' }, o.headers || {}),
           timeout: opts.timeoutMs,
           rejectUnauthorized: !isLocalHost(hostname),
         },
