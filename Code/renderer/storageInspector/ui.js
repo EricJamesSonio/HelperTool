@@ -200,7 +200,7 @@ export function mountStorageInspector(root, opts) {
   }
 
   function showWelcome() {
-    $('siHead').innerHTML = '<div class="si-head-title">Where Helper Tool keeps its data</div><div class="si-note">Pick a source on the left. The colored chips show which tool uses it. Secrets are hidden until you switch on Show hidden secrets. Everything here is read-only.</div>';
+    $('siHead').innerHTML = '<div class="si-head-title">Where ES Code keeps its data</div><div class="si-note">Pick a source on the left. The colored chips show which tool uses it. Secrets are hidden until you switch on Show hidden secrets. Everything here is read-only.</div>';
     $('siNav').innerHTML = '';
     freshHost().innerHTML = '';
   }
