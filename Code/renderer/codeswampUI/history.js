@@ -8,7 +8,7 @@ export async function discoverOpencode() {
 
 export async function listConversations(repoPath, provider = 'opencode') {
   try {
-    if (provider === 'cline') {
+    if (provider === 'cline' || provider === 'copilot') {
       return { conversations: [], error: null };
     }
     let convs;
@@ -31,7 +31,7 @@ export async function listConversations(repoPath, provider = 'opencode') {
 
 export async function getConversation(convId, provider = 'opencode') {
   try {
-    if (provider === 'gemini') return null; // Gemini doesn't support message export
+    if (provider === 'gemini' || provider === 'copilot') return null; // No message export
     return await window.electronAPI.opencode.getConversation(convId);
   } catch {
     return null;

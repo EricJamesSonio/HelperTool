@@ -513,7 +513,7 @@ async function _createSession(repoPath, slotIndex, opts) {
 
   requestAnimationFrame(() => fitActiveTerminal());
 
-  const binaryPath = state.opencodePath || provider.bin;
+  const binaryPath = provider.id === 'opencode' ? (state.opencodePath || provider.bin) : provider.bin;
   const convId = state.slotData[slotIndex]?.convId || state.activeConvId[repoPath];
   const cmd = convId ? provider.resumeCmd(convId, binaryPath) : provider.newChatCmd(binaryPath);
   window.electronAPI.opencode.termWrite({ id: result.id, data: cmd });
@@ -989,7 +989,7 @@ export function setupTerminalDataHandler() {
       if (next.toLowerCase().includes('session not found')) {
         console.log(`[CS] session not found for terminal ${id} (repo: ${inst.repoPath}), auto-fallback to new chat`);
         const provider = getProvider(state.selectedProvider);
-        const binaryPath = state.opencodePath || provider.bin;
+        const binaryPath = provider.id === 'opencode' ? (state.opencodePath || provider.bin) : provider.bin;
         window.electronAPI.opencode.termWrite({ id, data: provider.newChatCmd(binaryPath) });
         state.activeConvId[inst.repoPath] = null;
         if (state.slotData[inst.slotIndex]) {

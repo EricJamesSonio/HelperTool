@@ -4,6 +4,7 @@ import { getTerminalInstances } from './terminalManager.js';
 const TABS = [
   { id: 'opencode', label: 'OpenCode' },
   { id: 'cline', label: 'Cline' },
+  { id: 'copilot', label: 'Copilot' },
 ];
 const CSS_ID = 'ocProviderTabsCss';
 let timer = 0;

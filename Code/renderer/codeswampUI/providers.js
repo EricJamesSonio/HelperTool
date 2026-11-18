@@ -27,6 +27,14 @@ export const PROVIDERS = {
     newChatCmd: (binaryPath) => `${q(binaryPath) || 'gemini'}\r`,
     resumeCmd: (sessionId, binaryPath) => `${q(binaryPath) || 'gemini'} --resume ${sessionId}\r`,
   },
+  copilot: {
+    id: 'copilot',
+    label: 'GitHub Copilot',
+    bin: 'copilot',
+    shortLabel: 'CP',
+    newChatCmd: (binaryPath) => `${q(binaryPath) || 'copilot'}\r`,
+    resumeCmd: (sessionId, binaryPath) => `${q(binaryPath) || 'copilot'} --resume=${sessionId}\r`,
+  },
 };
 
 export function getProvider(id) {

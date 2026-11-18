@@ -63,7 +63,7 @@ export function renderInput() {
   area.innerHTML = `
     <div class="oc-pending-files" id="ocPendingFiles"></div>
     <div class="oc-input-row">
-      <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="1"></textarea>
+      <textarea class="oc-input" id="ocInput" placeholder="Type a message..." rows="3"></textarea>
       <button class="oc-btn oc-btn-file" id="ocAttachBtn" title="Attach file">File</button>
       <button class="oc-btn oc-btn-prompt" id="ocPromptBtn" title="Load prompt">Prompt</button>
       <button class="oc-btn oc-btn-ticket" id="ocTicketBtn" title="Tickets">Ticket</button>
@@ -89,7 +89,7 @@ export function renderInput() {
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+    input.style.height = Math.min(input.scrollHeight, 340) + 'px';
     handleAtMention(input);
   });
 
