@@ -2,6 +2,7 @@
 // Global (cross-repo) storage for the named "select shortcut" presets.
 //
 // Shape: [{ id, name, targets: ['backend', 'frontend'] }]
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
 
 const STORAGE_KEY = 'helpertool-select-shortcuts';
 
@@ -27,7 +28,7 @@ function sanitizeItem(raw) {
 
 export function loadSelectShortcuts() {
   if (_cache) return _cache;
-  let items = [];
+  let items = DEFAULT_PREFERENCES.selectShortcuts.map(sanitizeItem).filter(Boolean);
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -37,7 +38,7 @@ export function loadSelectShortcuts() {
       }
     }
   } catch (_) {
-    items = [];
+    items = DEFAULT_PREFERENCES.selectShortcuts.map(sanitizeItem).filter(Boolean);
   }
   _cache = items;
   return _cache;
