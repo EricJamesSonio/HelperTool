@@ -2993,3 +2993,9 @@ window.addEventListener('beforeunload', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) autoSaveDirty();
 });
+document.addEventListener('ide:theme-changed', () => {
+  if (!els) return;
+  charW = 0;
+  invalidate();
+  minimap.setContent(lines, lang, true);
+});

@@ -457,3 +457,6 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+import('./theme.js')
+  .then((m) => m.init())
+  .catch((err) => console.error('[IDE] theme failed to load:', err));

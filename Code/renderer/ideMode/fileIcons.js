@@ -79,11 +79,24 @@ const NAME_ICON = {
   'readme.md': ['i', '--blue'],
   '.docignore': ['G', '--red'],
 };
+const ICON_GROUP = {
+  js: 'js', mjs: 'js', cjs: 'js', jsx: 'jsx', ts: 'ts', tsx: 'ts', json: 'json',
+  css: 'css', scss: 'css', less: 'css', html: 'html', htm: 'html', xml: 'html', vue: 'vue',
+  md: 'md', py: 'py', php: 'php', sh: 'sh', bat: 'sh', ps1: 'sh',
+  yml: 'cfg', yaml: 'cfg', env: 'cfg', toml: 'cfg', ini: 'cfg', gitignore: 'cfg', dockerignore: 'cfg', lock: 'cfg', prisma: 'cfg', wasm: 'cfg',
+  sql: 'sql', svg: 'img', png: 'img', jpg: 'img', jpeg: 'img', jfif: 'img', gif: 'img', webp: 'img', avif: 'img', bmp: 'img', ico: 'img',
+  mp4: 'vid', m4v: 'vid', webm: 'vid', ogv: 'vid', mov: 'vid', mkv: 'vid', avi: 'vid',
+  mp3: 'aud', wav: 'aud', ogg: 'aud', flac: 'aud', m4a: 'aud', aac: 'aud', opus: 'aud',
+  pdf: 'pdf', zip: 'zip', go: 'go', rs: 'rs', java: 'java', c: 'c', cpp: 'c', cs: 'c',
+  txt: 'txt', log: 'txt', ttf: 'font', otf: 'font', woff: 'font', woff2: 'font',
+};
+
 
 export function fileIcon(name) {
   const lower = String(name || '').toLowerCase();
   const i = lower.lastIndexOf('.');
   const ext = lower.indexOf('.env') === 0 ? 'env' : (i < 0 ? '' : lower.slice(i + 1));
   const ic = NAME_ICON[lower] || EXT_ICON[ext] || ['.', '--text-muted'];
-  return '<span class="ide-fi" style="color:var(' + ic[1] + ')">' + esc(ic[0]) + '</span>';
+  const g = ICON_GROUP[ext] || (lower === 'dockerfile' ? 'cfg' : '');
+  return '<span class="ide-fi" data-g="' + g + '" style="color:var(' + ic[1] + ')">' + esc(ic[0]) + '</span>';
 }
