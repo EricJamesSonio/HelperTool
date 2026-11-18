@@ -2,33 +2,104 @@
 
 body[data-ide-theme] :is(#ideMain > .ide-editor, #ideLookup .lk-editor),
 body[data-ide-theme][data-ide-chrome="1"] :is(#ideSidebar, #ideMain > .ide-tabs, #ideMain > .ide-crumbs, #ideMain > .ide-status, #ideMain > .ide-problems, #ideLookup),
-body[data-ide-theme][data-ide-app="1"] {
+body[data-ide-theme][data-ide-app="1"],
+body[data-ide-theme] #terminalPanel {
+  --bg-base: var(--th-bg);
+  --bg-surface: var(--th-sf);
+  --bg-elevated: var(--th-el);
+  --bg-raised: var(--th-el);
+  --bg-overlay: var(--th-el);
   --text-primary: var(--th-fg);
-  --text-secondary: color-mix(in srgb, var(--th-fg) 94%, var(--th-bg));
-  --text-muted: color-mix(in srgb, var(--th-fg) 72%, var(--th-bg));
-  --text-faint: color-mix(in srgb, var(--th-fg) 54%, var(--th-bg));
+  --text-secondary: color-mix(in srgb, var(--th-fg) 97%, var(--th-bg));
+  --text-muted: color-mix(in srgb, var(--th-fg) 88%, var(--th-bg));
+  --text-faint: color-mix(in srgb, var(--th-fg) 72%, var(--th-bg));
   --border-subtle: color-mix(in srgb, var(--th-fg) 16%, transparent);
-  --border-default: color-mix(in srgb, var(--th-fg) 28%, transparent);
-  --border-mid: color-mix(in srgb, var(--th-fg) 28%, transparent);
-  --border-strong: color-mix(in srgb, var(--th-fg) 42%, transparent);
+  --border-default: color-mix(in srgb, var(--th-fg) 30%, transparent);
+  --border-mid: color-mix(in srgb, var(--th-fg) 30%, transparent);
+  --border-strong: color-mix(in srgb, var(--th-fg) 46%, transparent);
   --bg-hover: color-mix(in srgb, var(--th-fg) 10%, transparent);
   --bg-active: color-mix(in srgb, var(--th-fg) 18%, transparent);
+  --accent: var(--th-ac);
+  --accent-hover: var(--th-ac);
+  --accent-dim: color-mix(in srgb, var(--th-ac) 16%, transparent);
+  --accent-glow: color-mix(in srgb, var(--th-ac) 28%, transparent);
+  --accent-border: color-mix(in srgb, var(--th-ac) 40%, transparent);
 }
 
+body[data-ide-theme][data-ide-tone="light"] #terminalPanel {
+  --green: #1a7f37;
+  --red: #cf222e;
+  --yellow: #9a6700;
+  --blue: #0969da;
+  --purple: #8250df;
+  --green-dim: rgba(26, 127, 55, 0.12);
+  --red-dim: rgba(207, 34, 46, 0.1);
+  --yellow-dim: rgba(154, 103, 0, 0.12);
+  color-scheme: light;
+}
+
+/* Terminal panel follows the theme */
+body[data-ide-theme] #terminalPanel {
+  background: var(--th-bg);
+  color: var(--text-secondary);
+}
+body[data-ide-theme] #terminalPanel .terminal-body {
+  background: var(--th-bg);
+}
+body[data-ide-theme] #terminalPanel .terminal-tabs {
+  background: var(--th-sf);
+}
+body[data-ide-theme] #terminalPanel .terminal-tab {
+  color: var(--text-secondary);
+}
+body[data-ide-theme] #terminalPanel .terminal-tab:hover {
+  color: var(--th-fg);
+}
+body[data-ide-theme] #terminalPanel .terminal-tab.active {
+  background: var(--th-bg);
+  color: var(--th-fg);
+  font-weight: 700;
+}
+body[data-ide-theme] #terminalPanel .terminal-tab.active::before {
+  height: 3px;
+}
+body[data-ide-theme] #terminalPanel .terminal-tab-add {
+  background: var(--th-el);
+  border-color: var(--border-default);
+  color: var(--th-fg);
+}
+body[data-ide-theme] #terminalPanel .terminal-tab-add:hover {
+  background: var(--accent-dim);
+  border-color: var(--th-ac);
+  color: var(--th-ac);
+}
+body[data-ide-theme] #terminalPanel .terminal-tab-close,
+body[data-ide-theme] #terminalPanel .terminal-view-output,
+body[data-ide-theme] #terminalPanel .terminal-panel-close {
+  color: var(--text-secondary);
+}
+body[data-ide-theme] #terminalPanel .terminal-view-output:hover {
+  color: var(--th-ac);
+}
+body[data-ide-theme] #terminalPanel .terminal-instance-output-btn {
+  color: var(--text-secondary);
+}
+
+/* Code colors */
 body[data-ide-theme] :is(.ide-hl-inner, .lk-hl-inner) .t-c {
-  color: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
+  color: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
 }
 
 body[data-ide-theme] .ide-minimap {
-  --text-muted: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
+  --text-muted: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
 }
 
 body[data-ide-theme] .ide-gutter {
-  color: color-mix(in srgb, var(--th-fg) 62%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) 76%, var(--th-bg));
 }
 
 body[data-ide-theme] .ide-tab:not(.active) {
-  color: color-mix(in srgb, var(--th-fg) 80%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) 92%, var(--th-bg));
 }
 body[data-ide-theme] .ide-tab:not(.active):hover {
   color: var(--th-fg);
@@ -42,43 +113,49 @@ body[data-ide-theme] .ide-tab.active::before {
 }
 
 body[data-ide-theme] .ide-crumb {
-  color: color-mix(in srgb, var(--th-fg) 80%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) 92%, var(--th-bg));
 }
 body[data-ide-theme] .ide-crumb.last {
   color: var(--th-fg);
   font-weight: 600;
 }
+body[data-ide-theme] .ide-crumb-sep::before {
+  color: color-mix(in srgb, var(--th-fg) 70%, var(--th-bg));
+}
 
 body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-row {
-  color: color-mix(in srgb, var(--th-fg) 94%, var(--th-bg));
+  color: var(--th-fg);
 }
 body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-row.dim {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 body[data-ide-theme][data-ide-chrome="1"] #ideSidebar .ide-oe-item {
-  color: color-mix(in srgb, var(--th-fg) 94%, var(--th-bg));
+  color: var(--th-fg);
 }
 
 body[data-ide-theme] .ide-status {
-  color: color-mix(in srgb, var(--th-fg) 90%, var(--th-bg));
+  color: var(--th-fg);
+}
+body[data-ide-theme] .ide-rb-btn {
+  color: var(--th-fg);
 }
 
 /* Picker cards and live preview (App theme card is left as it was) */
 .ith-card:not([data-t="app"]) .ith-prev .c {
-  color: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
+  color: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
 }
 .ith-card:not([data-t="app"]) .ith-name {
   color: var(--th-fg);
 }
 .ith-pv:not([data-t="app"]) {
-  --cmu: color-mix(in srgb, var(--th-fg) 72%, var(--th-bg));
+  --cmu: color-mix(in srgb, var(--th-fg) 88%, var(--th-bg));
 }
 .ith-pv:not([data-t="app"]) .pv-body .c {
-  color: color-mix(in srgb, var(--sx-c) 68%, var(--th-fg));
+  color: color-mix(in srgb, var(--sx-c) 50%, var(--th-fg));
 }
 .ith-pv:not([data-t="app"]) .pv-gut {
-  color: color-mix(in srgb, var(--th-fg) 62%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) 76%, var(--th-bg));
 }
 .ith-pv:not([data-t="app"]) .pv-tab:not(.on) {
-  color: color-mix(in srgb, var(--th-fg) 80%, var(--th-bg));
+  color: color-mix(in srgb, var(--th-fg) 92%, var(--th-bg));
 }
