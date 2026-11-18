@@ -192,7 +192,7 @@ function projectsHtml() {
 function panelHtml() {
   let h = '<div class="waka-title">WakaTime</div>';
   if (!st.installed) {
-    h += '<div class="waka-text">Tracks the time you spend in Helper Tool. The official WakaTime program is downloaded once to your user folder.</div>';
+    h += '<div class="waka-text">Tracks the time you spend in ES Code. The official WakaTime program is downloaded once to your user folder.</div>';
     h += '<button type="button" class="waka-btn primary" data-act="install"' + (busy ? ' disabled' : '') + '>' +
       (busy === 'install' ? '<span class="waka-spin"></span>Downloading...' : 'Install WakaTime') + '</button>';
   } else if (!st.hasKey || keyForm) {
@@ -204,7 +204,7 @@ function panelHtml() {
   } else {
     h += '<div class="waka-text">Today: <b>' + esc(todayText || 'no data yet') + '</b></div>';
     h += projectsHtml();
-    h += '<div class="waka-note">Counted while Helper Tool is open and you are active, including Flow Tool and Global Seeder file changes. WakaTime can take a few minutes to update its totals.</div>';
+    h += '<div class="waka-note">Counted while ES Code is open and you are active, including Flow Tool and Global Seeder file changes. WakaTime can take a few minutes to update its totals.</div>';
     h += '<div class="waka-row">' +
       '<button type="button" class="waka-btn" data-act="toggle">' + (isOff() ? 'Resume tracking' : 'Pause tracking') + '</button>' +
       '<button type="button" class="waka-btn" data-act="dash">Dashboard</button></div>';

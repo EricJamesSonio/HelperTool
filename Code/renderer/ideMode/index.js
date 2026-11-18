@@ -4,6 +4,7 @@ import { getFeatures } from '../featureManager.js';
 import { buildCommand } from './extensions/runners.js';
 import * as ideExt from './extensions/index.js';
 import * as ideHistory from './history.js';
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
 
 
 
@@ -65,7 +66,7 @@ function injectCss() {
 }
 
 function applyWidth() {
-  const w = parseInt(readLS(LS_W, ''), 10);
+  const w = parseInt(readLS(LS_W, String(DEFAULT_PREFERENCES.ide.sidebarWidth)), 10);
   if (w >= 180 && w <= 600) document.documentElement.style.setProperty('--ide-sb-w', w + 'px');
   document.body.classList.toggle('ide-sb-right', readLS('helpertool-ide-sidebar-side', 'left') === 'right');
 }
@@ -448,7 +449,7 @@ function init() {
   import('./missingTabs.js')
     .then((m) => m.init())
     .catch((err) => console.error('[IDE] missing tabs watcher failed to load:', err));
-  if (readLS(LS_ON, '0') === '1') setActive(true);
+  if (readLS(LS_ON, DEFAULT_PREFERENCES.ide.startOnLaunch ? '1' : '0') === '1') setActive(true);
 }
 
 if (document.readyState === 'loading') {

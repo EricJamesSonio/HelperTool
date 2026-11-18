@@ -1,4 +1,5 @@
 import { fileIcon } from './fileIcons.js';
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
 
 const LS_KEY = 'helpertool-ide-theme';
 const CSS_ID = 'ideThemeCss';
@@ -79,17 +80,7 @@ const SCOPES = [
 
 const FLAGS = ['ruler', 'chrome', 'shell'];
 
-const DEFAULTS = {
-  theme: 'app',
-  font: 'default',
-  icons: 'classic',
-  guides: 'normal',
-  contrast: 'high',
-  scope: 'ide',
-  ruler: true,
-  chrome: true,
-  shell: true,
-};
+const DEFAULTS = DEFAULT_PREFERENCES.ide;
 
 const APP_VARS = [
   ['--pa-bg', '--bg-base'],

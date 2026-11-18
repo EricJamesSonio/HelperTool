@@ -1,5 +1,6 @@
 import { state as csState } from '../codeswampUI/state.js';
 import { getFeatures } from '../featureManager.js';
+import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
 
 const LS_W = 'helpertool-ide-cs-w2';
 const W_MIN = 300;
@@ -85,7 +86,7 @@ function setSidebarCollapsed(want) {
 
 function initResizer(el, handle) {
   const apply = (w) => document.documentElement.style.setProperty('--ide-cs-w', w + 'px');
-  const saved = parseInt(readLS(LS_W, ''), 10);
+  const saved = parseInt(readLS(LS_W, String(DEFAULT_PREFERENCES.ide.codeSwampDockWidth)), 10);
   if (saved >= W_MIN && saved <= W_MAX) apply(saved);
   let dragging = false;
   let next = 0;

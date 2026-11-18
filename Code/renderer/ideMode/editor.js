@@ -494,7 +494,7 @@ const TEMPLATE =
   '<div class="ide-welcome">' +
     '<div class="ide-welcome-home">' +
       '<div class="ide-welcome-logo">&lt;/&gt;</div>' +
-      '<div class="ide-welcome-title">Helper Tool IDE</div>' +
+      '<div class="ide-welcome-title">ES Code IDE</div>' +
       '<div class="ide-welcome-msg">Open a file from the explorer to start editing.</div>' +
       '<div class="ide-welcome-grid">' +
         '<div class="ide-wk"><span>Save file</span><span class="ide-wk-keys"><kbd>Ctrl</kbd><kbd>S</kbd></span></div>' +
