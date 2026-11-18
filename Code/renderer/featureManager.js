@@ -247,7 +247,7 @@ function _injectWizard() {
       <div class="fw-modal">
         <div class="fw-header">
           <div class="fw-logo">${FW_LOGO}</div>
-          <h1 class="fw-title">Welcome to Helper Tool</h1>
+          <h1 class="fw-title">Welcome to ES Code</h1>
           <p class="fw-subtitle">Choose which features to load. You can change this any time in <strong>Settings → Features</strong>.</p>
         </div>
 

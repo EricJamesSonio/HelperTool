@@ -11,7 +11,7 @@ const STATUS_LABEL = { critical: 'Critical', warning: 'Warning', good: 'Good', i
 const STATUS_COLOR = { critical: '#ff6b69', warning: '#d29922', good: '#3fb950', idle: '#6a78ff' };
 
 const PSEUDO = {
-  core: { label: 'Helper Tool core', group: 'Core', desc: 'Main process and the app window. Features without their own process live here.' },
+  core: { label: 'ES Code core', group: 'Core', desc: 'Main process and the app window. Features without their own process live here.' },
   workerService: { label: 'Background worker', group: 'Core', desc: 'Shared process for git status, profile, LOC scans and media jobs.' },
   electron: { label: 'Electron helpers', group: 'Core', desc: 'GPU, network and utility processes.' },
   commands: { label: 'Commands and scripts', group: 'Core', desc: 'Shell commands started by the console, ecosystem and error tools.' },
@@ -19,7 +19,7 @@ const PSEUDO = {
   deployTool: { label: 'Deploy Tool browsers', group: 'Code and Git', desc: 'Hosting dashboards opened in the Deploy tab of the Git Tool. They sleep shortly after you leave it.' },
 };
 const EXTRA_FEATURES = [
-  { id: 'ideMode', label: 'IDE Mode', group: 'Code and Git', desc: 'Built-in explorer, editor, search and WakaTime. Runs inside the app window, so its memory is part of Helper Tool core.' },
+  { id: 'ideMode', label: 'IDE Mode', group: 'Code and Git', desc: 'Built-in explorer, editor, search and WakaTime. Runs inside the app window, so its memory is part of ES Code core.' },
 ];
 
 
@@ -122,7 +122,7 @@ function buildReport() {
   const stamp = stampParts(snap.ts);
   const out = [];
 
-  out.push('# Helper Tool Performance Report');
+  out.push('# ES Code Performance Report');
   out.push('');
   out.push('- Generated: ' + stamp.date + ' ' + stamp.time);
   out.push('- Platform: ' + snap.platform + (snap.electron ? ' (Electron ' + snap.electron + ')' : ''));
@@ -267,7 +267,7 @@ function buildReport() {
   out.push('');
 
   out.push('---');
-  out.push('Memory is the private memory of each process. CPU is percent of one core. Power is an estimate from CPU use and idle wake-ups. Features that run inside the app window have no process of their own, so their memory is part of Helper Tool core.');
+  out.push('Memory is the private memory of each process. CPU is percent of one core. Power is an estimate from CPU use and idle wake-ups. Features that run inside the app window have no process of their own, so their memory is part of ES Code core.');
   out.push('');
 
   return out.join('\n');
@@ -337,7 +337,7 @@ function downloadReport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'helper-tool-performance-' + stampParts(_snap.ts).file + '.md';
+    a.download = 'helpertool-performance-' + stampParts(_snap.ts).file + '.md';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -364,7 +364,7 @@ export function open() {
   _quick = true;
   syncPauseButton();
   if (!window.perfAPI) {
-    setNotice('Restart Helper Tool once so the Performance Tracker can start collecting data.');
+    setNotice('Restart ES Code once so the Performance Tracker can start collecting data.');
     return;
   }
   setNotice('');
@@ -429,7 +429,7 @@ function _buildPanel() {
       '<div class="pt-header">' +
         '<div class="pt-header-main">' +
           '<h1 class="pt-title"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M10 2a8 8 0 1 0 8 8"/><path d="M10 6a4 4 0 1 0 4 4"/><circle cx="10" cy="10" r="1.5"/></svg> Performance Tracker</h1>' +
-          '<p class="pt-sub">Memory and CPU used by Helper Tool and each feature you have enabled</p>' +
+          '<p class="pt-sub">Memory and CPU used by ES Code and each feature you have enabled</p>' +
         '</div>' +
         '<div class="pt-controls">' +
           '<label class="pt-ctl">Update every ' +
@@ -447,7 +447,7 @@ function _buildPanel() {
         '<div class="pt-cards" id="ptCards"></div>' +
         '<div class="pt-row pt-row-main">' +
           '<section class="pt-card pt-card-chart">' +
-            '<h2 class="pt-h2">Memory</h2><p class="pt-hint">Total memory used by Helper Tool over time</p>' +
+            '<h2 class="pt-h2">Memory</h2><p class="pt-hint">Total memory used by ES Code over time</p>' +
             '<div class="pt-chart-wrap" id="ptChartWrap"><canvas id="ptChart"></canvas></div>' +
             '<div class="pt-chart-axis"><span id="ptAxisStart"></span><span>now</span></div>' +
           '</section>' +
@@ -581,7 +581,7 @@ function render() {
   if (snap.limited) {
     setNotice('Child processes could not be read' + (snap.scanError ? ' (' + snap.scanError + ')' : '') + '. Only Electron processes are shown.');
   } else if (!window.perfAPI) {
-    setNotice('Restart Helper Tool once so the Performance Tracker can start collecting data.');
+    setNotice('Restart ES Code once so the Performance Tracker can start collecting data.');
   } else {
     setNotice('');
   }
@@ -597,7 +597,7 @@ function render() {
   $('ptProcs').innerHTML = renderProcs(snap);
   $('ptFoot').textContent =
     'Memory is the private memory of each process. CPU is percent of one core (100% = one full core, this computer has ' + snap.cores + '). ' +
-    'Power is an estimate from CPU use and idle wake-ups. Features that run inside the app window have no process of their own, so their memory is part of Helper Tool core; ' +
+    'Power is an estimate from CPU use and idle wake-ups. Features that run inside the app window have no process of their own, so their memory is part of ES Code core; ' +
     'their Activity column shows time the main process spent answering their requests. Sampling only happens while this page is open.';
   drawChart();
 }
@@ -656,7 +656,7 @@ function buildInsights(rows, snap) {
   const SHELLISH = /^(powershell|pwsh|cmd|conhost|openconsole|bash|zsh|sh|wsl)/i;
   const byId = new Map(rows.map((r) => [r.id, r]));
   if (snap.total.memKB >= 2 * 1024 * 1024) {
-    items.push({ tone: 'warn', text: 'Helper Tool is using ' + fmtMem(snap.total.memKB) + ' in total.' });
+    items.push({ tone: 'warn', text: 'ES Code is using ' + fmtMem(snap.total.memKB) + ' in total.' });
   }
   const heavy = rows
     .filter((r) => r.enabled && (r.status === 'critical' || r.status === 'warning'))
@@ -673,7 +673,7 @@ function buildInsights(rows, snap) {
         items.push({
           tone: r.status === 'critical' ? 'bad' : 'warn',
           text: r.label + ' is using ' + fmtMem(r.mem) + '. Biggest: ' + top.map((p) => p.name + ' ' + fmtMem(p.memKB)).join(', ') + '.' +
-            (own ? ' These are programs you run inside it, not Helper Tool itself.' : ''),
+            (own ? ' These are programs you run inside it, not ES Code itself.' : ''),
         });
         continue;
       }
@@ -712,7 +712,7 @@ function renderInsights(rows, snap) {
   const body = items.length
     ? items.map((i) => '<div class="pt-insight pt-insight-' + i.tone + '"><span class="pt-dot"></span>' + esc(i.text) + '</div>').join('')
     : '<div class="pt-insight pt-insight-ok"><span class="pt-dot"></span>Nothing is slowing the app down.</div>';
-  return '<h2 class="pt-h2">What is slowing things down</h2><p class="pt-hint">Plain-language checks on Helper Tool and your computer</p>' + body;
+  return '<h2 class="pt-h2">What is slowing things down</h2><p class="pt-hint">Plain-language checks on ES Code and your computer</p>' + body;
 }
 
 function renderHeavy(rows) {
@@ -905,7 +905,7 @@ function renderOptimizer(snap) {
     '<span class="pt-cell-muted">Caps Next.js, NestJS and other Node programs in terminals you open from now on. Programs already running keep their memory until you restart them.</span></div>' +
     '<select class="pt-select" data-opt="cap">' + options + '</select></div>';
   if (_optMsg) body += '<div class="pt-opt-msg">' + esc(_optMsg) + '</div>';
-  return '<h2 class="pt-h2">Optimizer</h2><p class="pt-hint">Safe clean-ups for the programs running inside Helper Tool terminals</p>' + body;
+  return '<h2 class="pt-h2">Optimizer</h2><p class="pt-hint">Safe clean-ups for the programs running inside ES Code terminals</p>' + body;
 }
 
 async function onOptClick(e) {
@@ -913,7 +913,7 @@ async function onOptClick(e) {
   if (!btn || _optBusy) return;
   const api = window.perfOptAPI;
   if (!api) {
-    _optMsg = 'Restart Helper Tool once to enable the optimizer.';
+    _optMsg = 'Restart ES Code once to enable the optimizer.';
     renderOpt();
     return;
   }
@@ -945,7 +945,7 @@ async function onOptChange(e) {
   const api = window.perfOptAPI;
   if (!sel) return;
   if (!api) {
-    _optMsg = 'Restart Helper Tool once to enable the optimizer.';
+    _optMsg = 'Restart ES Code once to enable the optimizer.';
     renderOpt();
     return;
   }
@@ -1011,14 +1011,14 @@ function renderHibernate() {
   }
   const sleeping = (_hib.sleeping || []).map(hibLabelFor);
   let status = 'Everything is awake.';
-  if (_hib.asleep) status = 'Helper Tool is hibernating now.';
+  if (_hib.asleep) status = 'ES Code is hibernating now.';
   else if (sleeping.length) status = 'Sleeping: ' + sleeping.join(', ') + '.';
   const canWake = !!_hib.asleep || sleeping.length > 0;
   let body = '<div class="pt-opt-row"><div class="pt-opt-text"><strong>Hibernate when minimized or hidden</strong><br>' +
-    '<span class="pt-cell-muted">After this long in the taskbar or tray, Helper Tool stops its background worker and symbol indexer, pauses Gmail checks, closes idle Code Swamp terminals and pauses repeating timers. Everything wakes when you open the window. Terminals you opened, servers you started and running jobs are left alone.</span></div>' +
+    '<span class="pt-cell-muted">After this long in the taskbar or tray, ES Code stops its background worker and symbol indexer, pauses Gmail checks, closes idle Code Swamp terminals and pauses repeating timers. Everything wakes when you open the window. Terminals you opened, servers you started and running jobs are left alone.</span></div>' +
     '<select class="pt-select" data-hib="after"' + (api ? '' : ' disabled') + '>' + options + '</select></div>';
   body += '<div class="pt-opt-row"><div class="pt-opt-text"><strong>' + esc(status) + '</strong>' +
-    (api ? '' : '<br><span class="pt-cell-muted">Restart Helper Tool once so hibernate can load.</span>') + '</div>' +
+    (api ? '' : '<br><span class="pt-cell-muted">Restart ES Code once so hibernate can load.</span>') + '</div>' +
     (canWake ? '<button type="button" class="pt-btn" data-hib="wake">Wake all</button>' : '') + '</div>';
   return '<div style="margin-bottom:20px"><h2 class="pt-h2">Hibernate</h2><p class="pt-hint">Let the app rest while you are not using it</p>' + body + '</div>';
 }
@@ -1037,7 +1037,7 @@ async function onHibClick(e) {
   if (!btn) return;
   const api = window.hibernateAPI;
   if (!api) {
-    _optMsg = 'Restart Helper Tool once so hibernate can load.';
+    _optMsg = 'Restart ES Code once so hibernate can load.';
     renderOpt();
     return;
   }
@@ -1058,7 +1058,7 @@ async function onHibChange(e) {
   if (!sel) return;
   const api = window.hibernateAPI;
   if (!api) {
-    _optMsg = 'Restart Helper Tool once so hibernate can load.';
+    _optMsg = 'Restart ES Code once so hibernate can load.';
     renderOpt();
     return;
   }
@@ -1068,7 +1068,7 @@ async function onHibChange(e) {
     if (res && res.ok) {
       _hib = Object.assign({}, _hib, { afterSec: res.afterSec });
       _optMsg = res.afterSec
-        ? 'Helper Tool will hibernate after ' + sel.options[sel.selectedIndex].text + ' minimized or hidden.'
+        ? 'ES Code will hibernate after ' + sel.options[sel.selectedIndex].text + ' minimized or hidden.'
         : 'Auto-hibernate is off.';
     } else {
       _optMsg = (res && res.error) || 'Could not save the setting.';
@@ -1175,7 +1175,7 @@ async function codeswampHasChats() {
 
 async function callFeature(id, action) {
   const api = window.hibernateAPI;
-  if (!api) throw new Error('Restart Helper Tool once so the sleep controls can load.');
+  if (!api) throw new Error('Restart ES Code once so the sleep controls can load.');
   const res = await api.feature(id, action);
   if (res && res.state) _hib = res.state;
   return res || { ok: false, error: 'No answer from the app.' };
