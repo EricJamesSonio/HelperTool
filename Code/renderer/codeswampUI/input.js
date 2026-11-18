@@ -230,7 +230,7 @@ async function sendMessage() {
 
     await new Promise(r => setTimeout(r, 800));
 
-    await writeToSlot(slotIndex, '\r');
+    await writeToSlot(slotIndex, '\r', { submit: true });
 
     input.value = '';
     input.style.height = 'auto';

@@ -10,6 +10,11 @@ export const PROVIDERS = {
     shortLabel: 'OC',
     newChatCmd: (binaryPath) => `${q(binaryPath) || 'opencode'}\r`,
     resumeCmd: (sessionId, binaryPath) => `${q(binaryPath) || 'opencode'} -s ${sessionId}\r`,
+    completion: {
+      idleMs: 3200,
+      minOutputChars: 40,
+      minElapsedMs: 1500,
+    },
   },
   cline: {
     id: 'cline',
@@ -18,6 +23,11 @@ export const PROVIDERS = {
     shortLabel: 'CL',
     newChatCmd: () => 'cline\r',
     resumeCmd: () => 'cline\r',
+    completion: {
+      idleMs: 2600,
+      minOutputChars: 30,
+      minElapsedMs: 1200,
+    },
   },
   gemini: {
     id: 'gemini',
@@ -26,6 +36,11 @@ export const PROVIDERS = {
     shortLabel: 'G',
     newChatCmd: (binaryPath) => `${q(binaryPath) || 'gemini'}\r`,
     resumeCmd: (sessionId, binaryPath) => `${q(binaryPath) || 'gemini'} --resume ${sessionId}\r`,
+    completion: {
+      idleMs: 3000,
+      minOutputChars: 40,
+      minElapsedMs: 1500,
+    },
   },
   copilot: {
     id: 'copilot',
@@ -34,6 +49,11 @@ export const PROVIDERS = {
     shortLabel: 'CP',
     newChatCmd: (binaryPath) => `${q(binaryPath) || 'copilot'}\r`,
     resumeCmd: (sessionId, binaryPath) => `${q(binaryPath) || 'copilot'} --resume=${sessionId}\r`,
+    completion: {
+      idleMs: 3000,
+      minOutputChars: 40,
+      minElapsedMs: 1500,
+    },
   },
 };
 

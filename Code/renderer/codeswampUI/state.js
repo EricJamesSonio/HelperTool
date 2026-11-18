@@ -16,6 +16,14 @@ function loadModalView() {
   }
 }
 
+function loadNotifyOnDone() {
+  try {
+    return localStorage.getItem('helpertool-cs-notify') !== '0';
+  } catch (_) {
+    return true;
+  }
+}
+
 export const state = {
   open: false,
 
@@ -50,6 +58,9 @@ export const state = {
 
   // Show Code Swamp in the modal even when parallel mode is off
   modalView: loadModalView(),
+
+  // Desktop notification when an AI provider finishes responding
+  notifyOnDone: loadNotifyOnDone(),
 
   // Last sent message text (used by session detection for title)
   lastSentMessage: null,

@@ -102,6 +102,22 @@ export function renderAIProviderSelect() {
   import('./providerTabs.js').then((m) => m.renderProviderTabs()).catch(() => {});
 }
 
+export function renderNotificationSettings() {
+  const toggle = document.getElementById('ocNotifyToggle');
+  if (!toggle) return;
+
+  toggle.checked = state.notifyOnDone !== false;
+  window.electronAPI.opencode.setNotifyEnabled?.(toggle.checked).catch(() => {});
+
+  toggle.addEventListener('change', () => {
+    state.notifyOnDone = toggle.checked;
+    try {
+      localStorage.setItem('helpertool-cs-notify', toggle.checked ? '1' : '0');
+    } catch (_) {}
+    window.electronAPI.opencode.setNotifyEnabled?.(toggle.checked).catch(() => {});
+  });
+}
+
 export function renderSidebarToggle() {
   const btn = document.getElementById('ocSidebarToggle');
   if (!btn) return;

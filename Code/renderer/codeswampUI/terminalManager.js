@@ -42,6 +42,12 @@ function isTermReply(d) {
   return /^\x1b\[[?>0-9;]*[cRnIO]$/.test(d);
 }
 
+function isSubmitData(data) {
+  if (!data) return false;
+  if (data.indexOf('\x1b[200~') !== -1 || data.indexOf('\x1b[201~') !== -1) return false;
+  return data.indexOf('\r') !== -1;
+}
+
 function sleepCandidate(inst, now) {
   if (!inst || !inst.terminal) return false;
   if (inst.revealed !== false || inst.used || inst.chatted) return false;
@@ -488,6 +494,11 @@ async function _createSession(repoPath, slotIndex, opts) {
     cwd: repoPath,
     shell: shell.cmd,
     args: shell.args,
+    providerId: provider.id,
+    providerLabel: provider.label,
+    repoPath,
+    slotIndex,
+    completion: provider.completion,
   });
 
   if (!result || result.error) {
@@ -529,7 +540,11 @@ async function _createSession(repoPath, slotIndex, opts) {
   instances[slotIndex] = instance;
 
   terminal.onData((data) => {
-    window.electronAPI.opencode.termWrite({ id: result.id, data });
+    window.electronAPI.opencode.termWrite({
+      id: result.id,
+      data,
+      submit: instance.booted && isSubmitData(data),
+    });
   });
 
   terminal.onResize(({ cols, rows }) => {
@@ -597,12 +612,13 @@ export function writeToTerminal(repoPath, text) {
   return window.electronAPI.opencode.termWrite({ id: inst.id, data: text }).catch(() => {});
 }
 
-export function writeToSlot(slotIndex, text) {
+export function writeToSlot(slotIndex, text, opts = {}) {
   const inst = instances[slotIndex];
   if (!inst) return Promise.resolve();
   inst.lastUserAt = Date.now();
   if (text && String(text).indexOf('\r') !== -1) inst.chatted = true;
-  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text }).catch(() => {});
+  const submit = !!opts.submit && inst.booted;
+  return window.electronAPI.opencode.termWrite({ id: inst.id, data: text, submit }).catch(() => {});
 }
 
 export function writeToTerminalDisplay(repoPath, slotIndex, text) {
@@ -991,11 +1007,17 @@ export function fitActiveTerminal() {
 
 let _termDataHandlerSetup = false;
 let _termExitHandlerSetup = false;
+let _termActivatedHandlerSetup = false;
 let _onSessionDetected = null;
+let _onTermActivated = null;
 const _seenSessionIds = new Set();
 
 export function setOnSessionDetected(cb) {
   _onSessionDetected = cb;
+}
+
+export function setOnTermActivated(cb) {
+  _onTermActivated = cb;
 }
 
 export function setupTerminalDataHandler() {
@@ -1067,6 +1089,13 @@ export function setupTerminalDataHandler() {
           break;
         }
       }
+    });
+  }
+
+  if (!_termActivatedHandlerSetup && typeof window.electronAPI.opencode.onTermActivated === 'function') {
+    _termActivatedHandlerSetup = true;
+    window.electronAPI.opencode.onTermActivated((payload) => {
+      if (_onTermActivated) _onTermActivated(payload);
     });
   }
 }

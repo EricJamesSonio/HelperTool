@@ -40,6 +40,17 @@ export function getTemplate(mode = 'full') {
             <select class="oc-settings-select" id="ocAIProviderSelect"></select>
           </div>
 
+          <div class="oc-term-settings" id="ocNotifySettings">
+            <label class="oc-settings-label">Notifications</label>
+            <div class="oc-parallel-row">
+              <label class="oc-toggle" title="Show a desktop notification when the AI provider finishes responding">
+                <input type="checkbox" id="ocNotifyToggle">
+                <span class="oc-toggle-slider"></span>
+              </label>
+              <span class="oc-settings-label" style="margin:0;text-transform:none;letter-spacing:0">Notify when AI finishes</span>
+            </div>
+          </div>
+
           <div class="oc-conv-list" id="ocConvList"></div>
         </div>
         <button class="oc-sidebar-toggle" id="ocSidebarToggle" title="Toggle sidebar">◀</button>

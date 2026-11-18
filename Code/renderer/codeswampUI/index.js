@@ -1,12 +1,12 @@
 import { state } from './state.js';
 import { getTemplate } from './template.js';
 import { renderRepoTabs, addRepo, renderConvList, restoreActiveView } from './repoTabs.js';
-import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle, renderParallelModeControls } from './sidebar.js';
+import { refreshSidebar, startNewChat, renderShellSelect, renderAIProviderSelect, renderSidebarToggle, renderParallelModeControls, renderNotificationSettings } from './sidebar.js';
 import { renderInput } from './input.js';
 import { clearCache as clearFilePickerCache, isOpen as isFilePickerOpen } from './filePicker.js';
 import { discoverOpencode, listRepos } from './history.js';
 import { showWelcome } from './chat.js';
-import { setupTerminalDataHandler, initXterm, setOnSessionDetected } from './terminalManager.js';
+import { setupTerminalDataHandler, initXterm, setOnSessionDetected, setOnTermActivated } from './terminalManager.js';
 import { getLoadingController } from './loading.js';
 import { convStore } from './conversationStore.js';
 
@@ -29,6 +29,7 @@ export async function initCodeSwampUI() {
   getLoadingController();
   renderAIProviderSelect();
   renderParallelModeControls();
+  renderNotificationSettings();
   renderSidebarToggle();
   setupDom();
   showWelcome();
@@ -71,6 +72,18 @@ export async function initCodeSwampUI() {
     if (state.activeTab === repoPath) {
       state.conversations[repoPath] = convStore.getConversations(repoPath);
       renderConvList();
+    }
+  });
+
+  setOnTermActivated(async ({ repoPath, slotIndex }) => {
+    openCodeSwampUI();
+    if (repoPath) {
+      const { openRepoTab } = await import('./repoTabs.js');
+      await openRepoTab(repoPath);
+    }
+    if (slotIndex !== undefined && slotIndex !== null) {
+      const { activateSlot } = await import('./terminalManager.js');
+      activateSlot(Number(slotIndex));
     }
   });
 
