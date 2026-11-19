@@ -23,6 +23,22 @@ function withNodeCap(opts) {
   env.NODE_OPTIONS = (cur + ' --max-old-space-size=' + mb).trim();
   return Object.assign({}, opts, { env });
 }
+
+// Build a shell environment that does not depend on how the app was launched.
+// Vars injected by npm, Electron, editors and Windows Terminal are dropped so
+// dev and installed runs behave the same.
+const LAUNCH_ONLY_ENV = /^(npm_|ELECTRON_|VSCODE_|OPENCODE_|CLAUDE_|INIT_CWD$|NODE_ENV$|PSExecutionPolicyPreference$|__COMPAT_LAYER$|TERM$|COLORTERM$|TERM_PROGRAM$|TERM_PROGRAM_VERSION$|WT_SESSION$|WT_PROFILE_ID$|FORCE_COLOR$|NO_COLOR$)/i;
+
+function terminalEnv() {
+  const env = {};
+  for (const key of Object.keys(process.env)) {
+    if (!LAUNCH_ONLY_ENV.test(key)) env[key] = process.env[key];
+  }
+  env.TERM = 'xterm-256color';
+  env.COLORTERM = 'truecolor';
+  env.FORCE_COLOR = '1';
+  return env;
+}
 function getPty() {
   if (!_pty) {
     try {
@@ -221,7 +237,7 @@ function register({ getMainWindow }) {
     const defaultCwd = cwd || os.homedir();
     const resolvedCwd = defaultCwd && fs.existsSync(defaultCwd) ? defaultCwd : os.homedir();
 
-    const env = Object.assign({}, process.env);
+    const env = terminalEnv();
     const term = getPty().spawn(shell, args || [], {
       name: 'xterm-256color',
       cols: 80,
