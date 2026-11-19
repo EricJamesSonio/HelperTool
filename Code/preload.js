@@ -1009,3 +1009,7 @@ contextBridge.exposeInMainWorld('wakaOauthAPI', {
   cancel:     ()                         => ipcRenderer.invoke('wakatime:oauthCancel'),
   disconnect: ()                         => ipcRenderer.invoke('wakatime:oauthDisconnect'),
 });
+contextBridge.exposeInMainWorld('csSuspendAPI', {
+  suspend: (ids) => ipcRenderer.invoke('opencode:termSuspend', ids),
+  resume:  (ids) => ipcRenderer.invoke('opencode:termResume', ids),
+});
