@@ -22,7 +22,7 @@ const BOOT_QUIET = 1000;
 const BOOT_MIN_QUIET = 3000;
 const SLEEP_PREWARM_KEY = 'helpertool-cs-sleep-prewarm';
 const SLEEP_CHAT_KEY = 'helpertool-cs-sleep-chat';
-const SLEEP_SWEEP_MS = 30000;
+const SLEEP_SWEEP_MS = 2000;
 const SLEEP_QUIET_MS = 30000;
 let _sleepTimer = 0;
 
@@ -49,12 +49,15 @@ function isSubmitData(data) {
 }
 
 function sleepCandidate(inst, now) {
+  const SLEEP_AFTER_READY_SEC = 10;
   if (!inst || !inst.terminal) return false;
+  if (!inst.booted || !inst.readyAt) return false;
   if (inst.revealed !== false || inst.used || inst.chatted) return false;
-  if (sameRepoPath(inst.repoPath, state.activeTab)) return false;
-  const idle = now - (inst.lastUserAt || inst.bootStart || now);
-  const mins = sleepMinutes(SLEEP_PREWARM_KEY, 2);
-  return mins > 0 && idle > mins * 60000;
+  if (state.open) return false;
+  const mins = sleepMinutes(SLEEP_PREWARM_KEY, SLEEP_AFTER_READY_SEC / 60);
+  if (!(mins > 0)) return false;
+  const since = Math.max(inst.readyAt, inst.lastUserAt || 0);
+  return now - since >= mins * 60000;
 }
 
 function stopSleepWatch() {
@@ -66,17 +69,19 @@ function stopSleepWatch() {
 
 function sleepSweep() {
   const now = Date.now();
-  let left = 0;
+  let waiting = 0;
   for (const key of Object.keys(instances)) {
     const inst = instances[key];
     if (!inst) continue;
-    left++;
+    if (inst.revealed === false && !inst.used && !inst.chatted) waiting++;
     if (!sleepCandidate(inst, now)) continue;
     const repoPath = inst.repoPath;
     console.log('[CS] sleeping idle terminal slot=' + key + ' repo=' + repoPath);
     killSlot(Number(key));
-    left--;
-    stageTerminal(false);
+    waiting--;
+    if (!Object.values(instances).some((i) => i && i.revealed === false)) {
+      stageTerminal(false);
+    }
     if (sameRepoPath(state.activeTab, repoPath)) {
       if (hasRevealedTerminal(repoPath)) {
         showTerminalSession(repoPath);
@@ -91,7 +96,7 @@ function sleepSweep() {
       document.dispatchEvent(new CustomEvent('cs:slept', { detail: { repoPath } }));
     } catch (_) {}
   }
-  if (left <= 0) stopSleepWatch();
+  if (waiting <= 0) stopSleepWatch();
 }
 
 function ensureSleepWatch() {
@@ -308,6 +313,7 @@ function finishBoot(inst, reason) {
   if (!inst || inst.booted) return;
   inst.booted = true;
   inst.ready = true;
+  inst.readyAt = Date.now();
   if (inst.bootTimer) {
     clearInterval(inst.bootTimer);
     inst.bootTimer = 0;
