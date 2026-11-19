@@ -5,6 +5,7 @@
  */
 
 import { buildGroupMessage } from './commitMessageAnalyzer.js';
+import { invalidate as invalidateViewCache } from './viewCache.js';
 
 class GitCommandHandler {
   constructor(gitManager) {
@@ -17,6 +18,13 @@ class GitCommandHandler {
     this._onConnectivityReady = null; // callback when connectivity edges are loaded
     this._fileTimestamps = new Map(); // file -> last modified timestamp from watcher
     this.currentBranch = null;
+  }
+
+  /**
+   * Mark cached Branches and Inspect data of this repo as stale
+   */
+  _invalidateViews() {
+    if (this.repoPath) invalidateViewCache(this.repoPath);
   }
 
   /**
@@ -48,7 +56,12 @@ class GitCommandHandler {
 
       this.gitManager.updateWorkingTree(result.workingFiles || [], timestamps);
       this.gitManager.updateStagedFiles(result.stagedFiles || []);
-      this.currentBranch = result.currentBranch || null;
+
+      const previousBranch = this.currentBranch;
+      this.currentBranch = result.currentBranch || result.branch || null;
+      if (previousBranch && this.currentBranch && previousBranch !== this.currentBranch) {
+        this._invalidateViews();
+      }
 
       // Prune stale timestamps (files no longer in working tree)
       if (this._fileTimestamps.size > 0 && result.workingFiles) {
@@ -206,6 +219,8 @@ class GitCommandHandler {
         }
       }
 
+      this._invalidateViews();
+
       return {
         ...commit
       };
@@ -305,6 +320,8 @@ class GitCommandHandler {
     const succeeded = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
 
+    if (succeeded > 0) this._invalidateViews();
+
     return {
       success: failed === 0,
       results,
@@ -334,6 +351,7 @@ class GitCommandHandler {
 
       // Mark as pushed in local state
       const result = this.gitManager.markCommitPushed(commitId);
+      this._invalidateViews();
       return {
         success: true,
         commit: result.commit
@@ -351,6 +369,7 @@ class GitCommandHandler {
         if (result.error) return result;
       }
       const result = this.gitManager.markAllPushed();
+      this._invalidateViews();
       return {
         success: true,
         count: result.count
@@ -368,7 +387,11 @@ class GitCommandHandler {
 
   async pushSetUpstream() {
     if (!this.ipc?.pushSetUpstream) return { error: 'Push set-upstream not available' };
-    return await this.ipc.pushSetUpstream(this.repoPath);
+    const result = await this.ipc.pushSetUpstream(this.repoPath);
+    if (result && result.success !== false && !result.error) {
+      this._invalidateViews();
+    }
+    return result;
   }
 
   /**
