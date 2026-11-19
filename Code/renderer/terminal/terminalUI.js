@@ -33,6 +33,15 @@ function injectRepoTabCss() {
   document.head.appendChild(el);
 }
 
+function injectLinksCss() {
+  if (document.getElementById('termLinksCss')) return;
+  const link = document.createElement('link');
+  link.id = 'termLinksCss';
+  link.rel = 'stylesheet';
+  link.href = './styles/terminal-links.css';
+  document.head.appendChild(link);
+}
+
 function monoFont() {
   try {
     const v = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim();
@@ -62,6 +71,8 @@ const ICON_CHEVRON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
 import { showOutputViewer } from '../utils/outputViewer.js';
 import ErrorCopUI from './error-cop-ui.js';
 import { createColorizer } from './outputColors.js';
+import { extractUrls, renderUrlBar } from './urlActions.js';
+import { createEcoButton, openEcosystem, shortcutKindOf } from './ecoLink.js';
 
 function _stripAnsiForDetection(text) {
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
@@ -86,11 +97,13 @@ export default class TerminalUI {
     this._docked = false;
     this._resizeObs = null;
     this._repoPending = new Map();
+    this._ecoBtn = null;
   }
 
   async init() {
     await ensureXterm();
     injectRepoTabCss();
+    injectLinksCss();
 
     this.shells = await window.electronAPI.terminalListShells();
     if (!this.shells || this.shells.length === 0) {
@@ -171,6 +184,9 @@ export default class TerminalUI {
     });
     ecpBtn.appendChild(this._errorCop.getBadgeEl());
     ecpContainer.appendChild(ecpBtn);
+
+    this._ecoBtn = createEcoButton(() => this._openEcosystem());
+    this.panel.querySelector('.terminal-tabs-right').insertBefore(this._ecoBtn, ecpContainer);
 
     this._addBtn = this.panel.querySelector('#terminalTabAdd');
     this._addLabel = this.panel.querySelector('.terminal-tab-add-label');
@@ -407,12 +423,21 @@ export default class TerminalUI {
     this._addTerminal(folderPath);
   }
 
-  async openTerminal(cwd, label, command) {
-    this._lastCwd = cwd;
+  async _openCommandTerminal(cwd, label, command, shortcut) {
     this._showPanel();
     const id = this.nextId++;
     const useShell = this._selectedShell || this.shells[0];
     await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
+    const inst = this.instances.get(id);
+    if (inst && shortcut) {
+      inst.shortcut = {
+        kind: shortcutKindOf(label),
+        cwd: cwd || '',
+        command: command || '',
+        label: label || '',
+      };
+      this._syncEcoButton();
+    }
     if (command && this.instances.has(id)) {
       const d = this._firstDataDeferred.get(id);
       if (d) {
@@ -423,19 +448,14 @@ export default class TerminalUI {
     return id;
   }
 
+  async openTerminal(cwd, label, command) {
+    this._lastCwd = cwd;
+    const asShortcut = !!command && !!shortcutKindOf(label);
+    return this._openCommandTerminal(cwd, label, command, asShortcut);
+  }
+
   async openShortcutTerminal(cwd, label, command) {
-    this._showPanel();
-    const id = this.nextId++;
-    const useShell = this._selectedShell || this.shells[0];
-    await this._addTerminalInstance(id, cwd, useShell, label || `${useShell.name} ${id}`);
-    if (command && this.instances.has(id)) {
-      const d = this._firstDataDeferred.get(id);
-      if (d) {
-        try { await d.promise; } catch { return id; }
-      }
-      await window.electronAPI.terminalWrite({ id, data: command + '\r' });
-    }
-    return id;
+    return this._openCommandTerminal(cwd, label, command, true);
   }
 
   updateLastCwd(cwd) {
@@ -505,6 +525,7 @@ export default class TerminalUI {
     this.tabBar.insertBefore(tab, this.tabBar.querySelector('.terminal-tabs-right'));
 
     let sessionId = null;
+    let mainId = null;
     var deferred = {};
     deferred.promise = new Promise(function (resolve, reject) {
       deferred.resolve = resolve;
@@ -524,7 +545,10 @@ export default class TerminalUI {
         args: useShell.args,
         label,
       });
-      if (result) sessionId = result.sessionId || null;
+      if (result) {
+        sessionId = result.sessionId || null;
+        mainId = result.id != null ? result.id : null;
+      }
     } catch (err) {
       terminal.write(`\r\n\x1b[31mFailed to spawn terminal: ${err.message}\x1b[0m\r\n`);
       if (this._firstDataDeferred.has(id)) {
@@ -533,7 +557,21 @@ export default class TerminalUI {
       }
     }
 
-    this.instances.set(id, { terminal, fitAddon, shell: useShell, tab, inst, cwd, repo: repo || null, sessionId, discoveredUrls: new Set(), colorizer: createColorizer() });
+    this.instances.set(id, {
+      terminal,
+      fitAddon,
+      shell: useShell,
+      tab,
+      inst,
+      cwd,
+      repo: repo || null,
+      sessionId,
+      mainId,
+      discoveredUrls: new Set(),
+      urlTail: '',
+      shortcut: null,
+      colorizer: createColorizer(),
+    });
 
     terminal.onData((data) => {
       window.electronAPI.terminalWrite({ id, data });
@@ -562,7 +600,30 @@ export default class TerminalUI {
       inst.tab.classList.toggle('active', i === id);
       inst.inst.classList.toggle('active', i === id);
     });
+    this._syncEcoButton();
     requestAnimationFrame(() => this._fitActive());
+  }
+
+  _syncEcoButton() {
+    if (!this._ecoBtn) return;
+    const inst = this.instances.get(this.activeId);
+    const on = !!(inst && inst.shortcut);
+    this._ecoBtn.hidden = !on;
+    if (on) {
+      const name = inst.shortcut.label || 'this terminal';
+      this._ecoBtn.title = 'Ecosystem Tool for ' + name + ' - logs, API calls and errors';
+    }
+  }
+
+  async _openEcosystem() {
+    const inst = this.instances.get(this.activeId);
+    if (!inst || !inst.shortcut) return;
+    const termId = inst.mainId != null ? inst.mainId : this.activeId;
+    try {
+      await openEcosystem(inst.shortcut, termId);
+    } catch (err) {
+      console.error('[Terminal] ecosystem open failed:', err);
+    }
   }
 
   _fitActive() {
@@ -680,6 +741,7 @@ export default class TerminalUI {
     inst.inst.remove();
     inst.tab.remove();
     this.instances.delete(id);
+    this._syncEcoButton();
 
     if (quiet) return;
 
@@ -692,36 +754,29 @@ export default class TerminalUI {
   }
 
   _detectUrls(inst, data) {
-    const URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d+)(?:\/[^\s"')\]]*)?/gi;
-    let match;
-    let changed = false;
-    while ((match = URL_RE.exec(data)) !== null) {
-      let url = match[0];
-      url = url.replace(/[^a-zA-Z0-9:/._~%+?&=#@!*'()-]/g, '');
-      if (!inst.discoveredUrls.has(url)) {
-        inst.discoveredUrls.add(url);
-        changed = true;
-      }
-    }
-    if (changed) this._renderUrlBar(inst);
+    const fresh = extractUrls(inst, data);
+    if (fresh.length) this._renderUrlBar(inst);
   }
 
   _renderUrlBar(inst) {
     const bar = inst.inst.querySelector('.terminal-url-bar');
     if (!bar) return;
-    bar.innerHTML = '';
-    for (const url of inst.discoveredUrls) {
-      const btn = document.createElement('button');
-      btn.className = 'terminal-url-btn';
-      const label = url.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-      btn.textContent = label;
-      btn.title = url;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.electronAPI.openExternal(url);
-      });
-      bar.appendChild(btn);
+    renderUrlBar(bar, inst.discoveredUrls, {
+      onView: (url) => this._viewHere(url, inst),
+      onExternal: (url) => window.electronAPI.openExternal(url),
+    });
+  }
+
+  async _viewHere(url, inst) {
+    const nameEl = inst && inst.tab ? inst.tab.querySelector('.terminal-tab-name') : null;
+    const title = nameEl ? nameEl.textContent.trim() : '';
+    try {
+      const mod = await import('../ideMode/browserPane.js');
+      if (mod.show({ url, title })) return;
+    } catch (err) {
+      console.error('[Terminal] browser pane failed:', err);
     }
+    window.electronAPI.openExternal(url);
   }
 }
 
