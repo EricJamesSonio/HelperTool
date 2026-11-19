@@ -1,3 +1,6 @@
+import { highlightRange, langFor } from './ideMode/highlight.js';
+import { fileIcon } from './ideMode/fileIcons.js';
+
 let _panel = null;
 let _open = false;
 let _repoPath = '';
@@ -21,6 +24,20 @@ let _diffCache = {};
 let _visibleCount = 50;
 let _profileContributor = null;
 
+const LS_DIFF_MODE = 'helpertool-ide-diff-mode';
+const FOLD_STEP = 40;
+const FOLD_ALL_MAX = 80;
+const MAX_DIFF_ROWS = 6000;
+const MAX_LINE_CHARS = 3000;
+const MAX_DIFF_CACHE = 60;
+
+let _dvMode = _readDiffMode();
+let _dvModel = null;
+let _dvEls = null;
+let _dvChg = -1;
+let _dvToken = 0;
+let _drawerParent = null;
+
 const CACHE_TTL = 5 * 60 * 1000;
 const CACHE_MAX = 6;
 const _cache = new Map();
@@ -39,6 +56,29 @@ const TA_CROWN = '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3.5 15.
 const TA_STAR = '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.8 4.8 17.6l1-5.8L1.5 7.7l5.9-.9L10 1.5z"/></svg>';
 const TA_ACTIVITY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17V9M8 17V4M13 17v-6M18 17V7"/></svg>';
 const TA_TROPHY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8v5a4 4 0 0 1-8 0V3z"/><path d="M6 5H3v1a3 3 0 0 0 3 3"/><path d="M14 5h3v1a3 3 0 0 1-3 3"/><path d="M10 12v3"/><path d="M7 17h6"/></svg>';
+
+const DV_SV = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
+const DV_UP = DV_SV + '<path d="M3.5 10L8 5.5 12.5 10"/></svg>';
+const DV_DOWN = DV_SV + '<path d="M3.5 6L8 10.5 12.5 6"/></svg>';
+const DV_SPLIT = DV_SV + '<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M8 3v10"/></svg>';
+const DV_INLINE = DV_SV + '<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M2 8h12"/></svg>';
+const DV_FOLD = DV_SV + '<path d="M4 6l4 4 4-4"/></svg>';
+
+const DV_TEMPLATE =
+  '<div class="ide-dv-head">' +
+    '<div class="ide-dv-title"><span class="ide-dv-name"></span><span class="ide-dv-path"></span></div>' +
+    '<div class="ide-dv-actions">' +
+      '<span class="ide-dv-stat"></span>' +
+      '<span class="ide-dv-count"></span>' +
+      '<button type="button" class="ide-dv-btn" data-a="prev" title="Previous change (Alt+Up)" hidden>' + DV_UP + '</button>' +
+      '<button type="button" class="ide-dv-btn" data-a="next" title="Next change (Alt+Down)" hidden>' + DV_DOWN + '</button>' +
+      '<button type="button" class="ide-dv-btn" data-a="mode" title="Toggle side-by-side / inline" hidden></button>' +
+      '<button type="button" class="taf-copy-btn" data-a="copy-raw" hidden>Copy Raw</button>' +
+      '<button type="button" class="taf-copy-btn" data-a="copy-content" hidden>Copy Content</button>' +
+    '</div>' +
+  '</div>' +
+  '<div class="ide-dv-sub"></div>' +
+  '<div class="ide-dv-body" tabindex="0"></div>';
 
 function _el(tag, attrs, children) {
   const el = document.createElement(tag);
@@ -107,6 +147,47 @@ function _reduceMotion() {
 function _repoName(p) {
   const parts = String(p || '').split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : '';
+}
+
+function _baseName(p) {
+  const parts = String(p || '').split('/');
+  return parts[parts.length - 1] || String(p || '');
+}
+
+function _dirName(p) {
+  const s = String(p || '');
+  const i = s.lastIndexOf('/');
+  return i < 0 ? '' : s.slice(0, i);
+}
+
+// ── Local date keys (graph) ───────────────────────────────────
+
+function _pad(n) {
+  return n < 10 ? '0' + n : String(n);
+}
+
+function _dayKey(d) {
+  return d.getFullYear() + '-' + _pad(d.getMonth() + 1) + '-' + _pad(d.getDate());
+}
+
+function _monthKey(d) {
+  return d.getFullYear() + '-' + _pad(d.getMonth() + 1);
+}
+
+function _weekStart(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+}
+
+function _parseDayKey(key) {
+  const p = String(key).split('-');
+  return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+}
+
+function _dateToGraphKey(dateStr, mode) {
+  const d = new Date(dateStr);
+  if (mode === 'day') return _dayKey(d);
+  if (mode === 'week') return _dayKey(_weekStart(d));
+  return _monthKey(d);
 }
 
 // ── Per-repo cache ────────────────────────────────────────────
@@ -233,9 +314,20 @@ function _renderRepoChip() {
   chip.style.display = name ? '' : 'none';
 }
 
+function _ensureDiffStyles() {
+  if (document.querySelector('link[href*="ide-diff.css"]')) return;
+  if (document.getElementById('tafDiffCss')) return;
+  const link = document.createElement('link');
+  link.id = 'tafDiffCss';
+  link.rel = 'stylesheet';
+  link.href = './styles/ide-diff.css';
+  document.head.appendChild(link);
+}
+
 // ── Panel construction ────────────────────────────────────────
 
 function _buildPanel() {
+  _ensureDiffStyles();
   _panel = document.createElement('div');
   _panel.id = 'tafPanel';
   _panel.className = 'taf-overlay';
@@ -287,13 +379,13 @@ function _buildPanel() {
       <div class="taf-drawer" id="tafDrawer">
         <div class="taf-drawer-header">
           <h3 id="tafDrawerHash"></h3>
+          <span class="taf-drawer-title" id="tafDrawerTitle"></span>
           <button class="taf-drawer-close" id="tafDrawerClose">${TA_CLOSE}</button>
         </div>
         <div class="taf-drawer-meta" id="tafDrawerMeta"></div>
         <div class="taf-drawer-body">
           <div class="taf-drawer-content">
-            <div class="taf-file-header" id="tafFileHeader"></div>
-            <div class="taf-drawer-diff" id="tafDrawerDiff"></div>
+            <div class="ide-dv taf-dv" id="tafDv"></div>
           </div>
           <div class="taf-drawer-sidebar">
             <div class="taf-sidebar-header" id="tafSidebarHeader">Files</div>
@@ -305,12 +397,38 @@ function _buildPanel() {
   `;
   document.body.appendChild(_panel);
 
+  const dv = _panel.querySelector('#tafDv');
+  dv.innerHTML = DV_TEMPLATE;
+  _dvEls = {
+    root: dv,
+    head: dv.querySelector('.ide-dv-head'),
+    name: dv.querySelector('.ide-dv-name'),
+    path: dv.querySelector('.ide-dv-path'),
+    stat: dv.querySelector('.ide-dv-stat'),
+    count: dv.querySelector('.ide-dv-count'),
+    sub: dv.querySelector('.ide-dv-sub'),
+    body: dv.querySelector('.ide-dv-body'),
+    btnPrev: dv.querySelector('[data-a="prev"]'),
+    btnNext: dv.querySelector('[data-a="next"]'),
+    btnMode: dv.querySelector('[data-a="mode"]'),
+    btnRaw: dv.querySelector('[data-a="copy-raw"]'),
+    btnContent: dv.querySelector('[data-a="copy-content"]'),
+  };
+  _dvEls.head.addEventListener('click', _onDvHeadClick);
+  _dvEls.body.addEventListener('click', _onDvBodyClick);
+  dv.addEventListener('keydown', _onDvKey);
+
   _panel.querySelector('.taf-backdrop').addEventListener('click', close);
   _panel.querySelector('#tafCloseBtn').addEventListener('click', close);
   _panel.querySelector('#tafRefreshBtn').addEventListener('click', _onRefresh);
   _panel.querySelector('#tafCommitFilter').addEventListener('input', _onFilter);
   _panel.querySelector('#tafDrawerClose').addEventListener('click', _closeDrawer);
   _panel.querySelector('#tafGraphReset').addEventListener('click', _resetGraphFilter);
+
+  _panel.querySelector('#tafDrawerFiles').addEventListener('click', (e) => {
+    const row = e.target.closest ? e.target.closest('.taf-drawer-file') : null;
+    if (row) _selectDrawerFile(row.dataset.file);
+  });
 
   _panel.querySelectorAll('.taf-tab').forEach((btn) => {
     btn.addEventListener('click', () => _setView(btn.dataset.view));
@@ -372,11 +490,12 @@ function _setView(view, skipRender) {
 
 function _hideDrawer() {
   _selectedCommit = null;
+  _dvToken++;
+  _drawerParent = null;
   const drawer = _panel.querySelector('#tafDrawer');
   drawer.classList.remove('open');
-  _panel.querySelector('#tafDrawerDiff').innerHTML = '';
   _panel.querySelector('#tafDrawerFiles').innerHTML = '';
-  _panel.querySelector('#tafFileHeader').textContent = '';
+  _dvReset();
 }
 
 function _resetUiState() {
@@ -785,11 +904,10 @@ function _getGraphCommits() {
   if (_drillOriginalMode && _drillKey) {
     if (_drillOriginalMode === 'month') {
       const monthKey = _drillKey.slice(0, 7);
-      commits = commits.filter((c) => c.date.startsWith(monthKey));
+      commits = commits.filter((c) => _dateToGraphKey(c.date, 'month') === monthKey);
     } else if (_drillOriginalMode === 'week') {
-      const wkStart = new Date(_drillKey.slice(0, 10));
-      const wkEnd = new Date(wkStart);
-      wkEnd.setDate(wkEnd.getDate() + 7);
+      const wkStart = _parseDayKey(_drillKey.slice(0, 10));
+      const wkEnd = new Date(wkStart.getFullYear(), wkStart.getMonth(), wkStart.getDate() + 7);
       commits = commits.filter((c) => {
         const d = new Date(c.date);
         return d >= wkStart && d < wkEnd;
@@ -802,11 +920,7 @@ function _getGraphCommits() {
 function _getFilteredCommits() {
   let filtered = _getGraphCommits();
   if (_selectedGraphKey) {
-    if (_drillOriginalMode) {
-      filtered = filtered.filter((c) => c.date.startsWith(_selectedGraphKey));
-    } else {
-      filtered = filtered.filter((c) => _dateToGraphKey(c.date, _graphViewMode) === _selectedGraphKey);
-    }
+    filtered = filtered.filter((c) => _dateToGraphKey(c.date, _graphViewMode) === _selectedGraphKey);
   }
   if (_commitFilterText) {
     const ft = _commitFilterText.toLowerCase();
@@ -817,17 +931,6 @@ function _getFilteredCommits() {
     );
   }
   return filtered;
-}
-
-function _dateToGraphKey(dateStr, mode) {
-  const d = new Date(dateStr);
-  if (mode === 'day') return d.toISOString().slice(0, 10);
-  if (mode === 'week') {
-    const wkStart = new Date(d);
-    wkStart.setDate(d.getDate() - d.getDay());
-    return wkStart.toISOString().slice(0, 10);
-  }
-  return d.toISOString().slice(0, 7);
 }
 
 function _onBarClick(key) {
@@ -979,17 +1082,7 @@ function _buildGraphData(commits, mode) {
 
   const grouped = {};
   for (const c of commits) {
-    const d = new Date(c.date);
-    let key;
-    if (mode === 'day') {
-      key = d.toISOString().slice(0, 10);
-    } else if (mode === 'week') {
-      const wkStart = new Date(d);
-      wkStart.setDate(d.getDate() - d.getDay());
-      key = wkStart.toISOString().slice(0, 10);
-    } else {
-      key = d.toISOString().slice(0, 7);
-    }
+    const key = _dateToGraphKey(c.date, mode);
     if (!grouped[key]) grouped[key] = { key, label: key, count: 0, commits: [] };
     grouped[key].count++;
     grouped[key].commits.push(c);
@@ -1004,30 +1097,27 @@ function _buildGraphData(commits, mode) {
   }
 
   const result = [];
-  const cursor = new Date(minDate);
 
   if (mode === 'day') {
-    cursor.setHours(0, 0, 0, 0);
+    let cursor = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
     while (cursor <= maxDate) {
-      const key = cursor.toISOString().slice(0, 10);
+      const key = _dayKey(cursor);
       result.push(grouped[key] || { key, label: key, count: 0, commits: [] });
-      cursor.setDate(cursor.getDate() + 1);
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
     }
   } else if (mode === 'week') {
-    cursor.setDate(cursor.getDate() - cursor.getDay());
-    cursor.setHours(0, 0, 0, 0);
+    let cursor = _weekStart(minDate);
     while (cursor <= maxDate) {
-      const key = cursor.toISOString().slice(0, 10);
+      const key = _dayKey(cursor);
       result.push(grouped[key] || { key, label: key, count: 0, commits: [] });
-      cursor.setDate(cursor.getDate() + 7);
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7);
     }
   } else {
-    cursor.setDate(1);
-    cursor.setHours(0, 0, 0, 0);
+    let cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
     while (cursor <= maxDate) {
-      const key = cursor.toISOString().slice(0, 7);
+      const key = _monthKey(cursor);
       result.push(grouped[key] || { key, label: key, count: 0, commits: [] });
-      cursor.setMonth(cursor.getMonth() + 1);
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
   }
 
@@ -1062,7 +1152,7 @@ function _drawBarChart(wrap, data, mode) {
 
   let svg = `<svg viewBox="0 0 ${totalW} ${h}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">`;
 
-  const gridLines = 4;
+  const gridLines = Math.min(4, Math.max(1, maxCount));
   for (let i = 0; i <= gridLines; i++) {
     const y = graphH - (graphH / gridLines) * i;
     svg += `<line x1="${padL - 4}" y1="${y}" x2="${totalW - padR}" y2="${y}" stroke="var(--border-subtle)" stroke-width="0.5"/>`;
@@ -1206,71 +1296,101 @@ function _onFilter() {
 
 async function _openDrawer(commit) {
   _selectedCommit = commit;
+  _dvToken++;
+  _drawerParent = null;
   const repoPath = _repoPath;
   const drawer = _panel.querySelector('#tafDrawer');
   drawer.classList.add('open');
 
   _panel.querySelector('#tafDrawerHash').textContent = _shortHash(commit.hash);
+  _panel.querySelector('#tafDrawerTitle').textContent = commit.message || '';
 
   const meta = _panel.querySelector('#tafDrawerMeta');
   const dateStr = commit.date ? new Date(commit.date).toLocaleString() : '\u2014';
   meta.innerHTML = `
     <span><strong>${_esc(commit.author)}</strong> &lt;${_esc(commit.email)}&gt;</span>
     <span>${_esc(dateStr)}</span>
-    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(commit.message)}</span>
+    <span class="taf-meta-stats"><span class="taf-stat-add">+${_n(commit.linesAdded)}</span> <span class="taf-stat-del">-${_n(commit.linesRemoved)}</span></span>
   `;
 
   const filesEl = _panel.querySelector('#tafDrawerFiles');
   const sidebarHeader = _panel.querySelector('#tafSidebarHeader');
-  const fileHeader = _panel.querySelector('#tafFileHeader');
+  sidebarHeader.textContent = 'Files';
   filesEl.innerHTML = '<div class="taf-drawer-note">Loading files\u2026</div>';
-  fileHeader.textContent = '';
-  _panel.querySelector('#tafDrawerDiff').innerHTML = '';
+  _dvReset();
 
-  let files = commit.files && commit.files.length ? commit.files : [];
+  let files = [];
+  let failure = '';
   try {
     const result = await window.electronAPI.teamActivityCommitFiles(repoPath, commit.hash);
-    if (result.files && result.files.length) {
-      files = result.files;
-    }
+    if (result && result.files) files = result.files;
+    if (result && result.parent) _drawerParent = result.parent;
+    if (result && result.error) failure = result.error;
   } catch (err) {
+    failure = 'Failed to load the files of this commit';
     console.warn('[TeamActivity] Failed to fetch files for', commit.hash, err);
   }
 
   if (!_selectedCommit || _selectedCommit.hash !== commit.hash || repoPath !== _repoPath) return;
 
-  if (files.length) {
-    sidebarHeader.textContent = `Files (${files.length})`;
-    let fhtml = '';
-    for (const f of files) {
-      const statusClass = f.status || 'modified';
-      const added = f.added || 0;
-      const removed = f.removed || 0;
-      fhtml += `<div class="taf-drawer-file" data-file="${_esc(f.path)}">
-        <span class="taf-drawer-file-status ${statusClass}">${statusClass}</span>
-        <span class="taf-drawer-file-path">${_esc(f.path)}</span>
-        <span class="taf-drawer-file-stats">+${added}/-${removed}</span>
-      </div>`;
-    }
-    filesEl.innerHTML = fhtml;
-
-    filesEl.querySelectorAll('.taf-drawer-file').forEach((el) => {
-      el.addEventListener('click', () => {
-        const filePath = el.dataset.file;
-        _loadFileAtCommit(commit.hash, filePath);
-        filesEl.querySelectorAll('.taf-drawer-file').forEach((e) => e.classList.remove('active'));
-        el.classList.add('active');
-      });
-    });
-
-    const firstFile = files[0].path;
-    const firstEl = filesEl.querySelector('.taf-drawer-file');
-    if (firstEl) firstEl.classList.add('active');
-    _loadFileAtCommit(commit.hash, firstFile);
-  } else {
+  if (!files.length) {
     sidebarHeader.textContent = 'Files';
-    filesEl.innerHTML = '<div class="taf-drawer-note">No file changes</div>';
+    filesEl.innerHTML = '<div class="taf-drawer-note">' + _esc(failure || 'No file changes') + '</div>';
+    _dvEls.body.innerHTML = '<div class="ide-dv-msg">' + _esc(failure || 'This commit has no file changes.') + '</div>';
+    return;
   }
+
+  sidebarHeader.textContent = `Files (${files.length})`;
+  filesEl.innerHTML = files.map(_fileRowHtml).join('');
+  _selectDrawerFile(files[0].path);
+}
+
+function _statusLetter(status) {
+  if (status === 'added') return 'A';
+  if (status === 'deleted') return 'D';
+  return 'M';
+}
+
+function _fileRowHtml(f) {
+  const name = _baseName(f.path);
+  const dir = _dirName(f.path);
+  const letter = _statusLetter(f.status);
+  const stats = f.binary
+    ? '<span class="taf-file-bin">bin</span>'
+    : '<span class="taf-stat-add">+' + (f.added || 0) + '</span><span class="taf-stat-del">-' + (f.removed || 0) + '</span>';
+  return '<div class="taf-drawer-file" data-file="' + _esc(f.path) + '" title="' + _esc(f.path) + '">' +
+    fileIcon(name) +
+    '<span class="taf-file-name">' + _esc(name) + '</span>' +
+    (dir ? '<span class="taf-file-dir">' + _esc(dir) + '</span>' : '<span class="taf-file-dir"></span>') +
+    '<span class="taf-file-stats">' + stats + '</span>' +
+    '<span class="taf-fs taf-fs-' + letter.toLowerCase() + '">' + letter + '</span>' +
+  '</div>';
+}
+
+function _selectDrawerFile(path) {
+  if (!_selectedCommit || !path) return;
+  const filesEl = _panel.querySelector('#tafDrawerFiles');
+  filesEl.querySelectorAll('.taf-drawer-file').forEach((el) => {
+    const on = el.dataset.file === path;
+    el.classList.toggle('active', on);
+    if (on && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+  });
+  _loadFileAtCommit(_selectedCommit.hash, path);
+}
+
+function _currentFileEntry(path) {
+  const els = _panel.querySelectorAll('.taf-drawer-file');
+  for (const el of els) {
+    if (el.dataset.file !== path) continue;
+    const letter = el.querySelector('.taf-fs') ? el.querySelector('.taf-fs').textContent : 'M';
+    const bin = !!el.querySelector('.taf-file-bin');
+    return {
+      path,
+      status: letter === 'A' ? 'added' : letter === 'D' ? 'deleted' : 'modified',
+      binary: bin,
+    };
+  }
+  return { path, status: 'modified', binary: false };
 }
 
 function _closeDrawer() {
@@ -1278,109 +1398,432 @@ function _closeDrawer() {
   _renderCommits();
 }
 
-async function _loadFileAtCommit(hash, filePath) {
-  const el = _panel.querySelector('#tafDrawerDiff');
-  const fileHeader = _panel.querySelector('#tafFileHeader');
-  el.innerHTML = '<div class="taf-drawer-diff-loading">Loading diff\u2026</div>';
+// ── Diff viewer (same look as the IDE diff pane) ──────────────
 
-  const repoPath = _repoPath;
-  const base = _activeKey + '|' + hash + '::' + filePath;
-  const diffKey = 'diff:' + base;
-  const rawKey = 'raw:' + base;
-
-  if (_diffCache[diffKey] !== undefined && _diffCache[rawKey] !== undefined) {
-    _renderFileHeader(fileHeader, filePath, hash, _diffCache[diffKey], _diffCache[rawKey]);
-    _renderDiffContent(el, _diffCache[diffKey]);
-    return;
-  }
-
+function _readDiffMode() {
   try {
-    const [diffResult, rawResult] = await Promise.all([
-      window.electronAPI.teamActivityDiff(repoPath, hash, filePath),
-      window.electronAPI.teamActivityFileAtCommit(repoPath, hash, filePath),
-    ]);
-    if (repoPath !== _repoPath || !_selectedCommit || _selectedCommit.hash !== hash) return;
-    const diff = diffResult.diff || '';
-    const raw = rawResult.content || '';
-    _diffCache[diffKey] = diff;
-    _diffCache[rawKey] = raw;
-    _renderFileHeader(fileHeader, filePath, hash, diff, raw);
-    _renderDiffContent(el, diff);
-  } catch (err) {
-    el.innerHTML = '<div class="taf-drawer-diff-loading">Failed to load diff</div>';
+    return localStorage.getItem(LS_DIFF_MODE) === 'inline' ? 'inline' : 'split';
+  } catch (_) {
+    return 'split';
   }
 }
 
-function _renderFileHeader(headerEl, filePath, hash, diffText, rawContent) {
-  headerEl.innerHTML = `
-    <span style="flex-shrink:0">${_esc(filePath)} at ${_shortHash(hash)}</span>
-    <span class="taf-diff-legend">
-      <span class="taf-legend-added">+ added</span>
-      <span class="taf-legend-removed">- removed</span>
-      <span class="taf-legend-hunk">@@ hunk</span>
-    </span>
-    <span class="taf-header-actions">
-      <button class="taf-copy-btn" data-copy="raw">Copy Raw</button>
-      <button class="taf-copy-btn" data-copy="content">Copy Content</button>
-    </span>`;
+function _writeDiffMode(v) {
+  try {
+    localStorage.setItem(LS_DIFF_MODE, v);
+  } catch (_) {
+    return;
+  }
+}
 
-  headerEl.querySelectorAll('.taf-copy-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const type = btn.dataset.copy;
-      const text = type === 'raw' ? diffText : rawContent;
-      navigator.clipboard.writeText(text).then(() => {
-        btn.textContent = 'Copied!';
-        setTimeout(() => {
-          btn.textContent = type === 'raw' ? 'Copy Raw' : 'Copy Content';
-        }, 1500);
-      }).catch(() => {
-        btn.textContent = 'Failed';
-      });
-    });
+function _splitLines(content) {
+  const a = String(content || '').split(/\r?\n/);
+  if (a.length && a[a.length - 1] === '') a.pop();
+  return a;
+}
+
+function _clip(text) {
+  const s = String(text === undefined || text === null ? '' : text);
+  return s.length > MAX_LINE_CHARS ? s.slice(0, MAX_LINE_CHARS) + '\u2026' : s;
+}
+
+function _parseDiff(text) {
+  const hunks = [];
+  let h = null;
+  const raws = String(text || '').split('\n');
+  for (let i = 0; i < raws.length; i++) {
+    const raw = raws[i].replace(/\r$/, '');
+    if (raw.indexOf('@@') === 0) {
+      const m = raw.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+      if (!m) continue;
+      h = {
+        oldStart: Number(m[1]),
+        oldCount: m[2] === undefined ? 1 : Number(m[2]),
+        newStart: Number(m[3]),
+        newCount: m[4] === undefined ? 1 : Number(m[4]),
+        lines: [],
+      };
+      hunks.push(h);
+      continue;
+    }
+    if (!h) continue;
+    const ch = raw.charAt(0);
+    if (ch === ' ') h.lines.push({ k: 'c', text: _clip(raw.slice(1)) });
+    else if (ch === '-') h.lines.push({ k: 'd', text: _clip(raw.slice(1)) });
+    else if (ch === '+') h.lines.push({ k: 'a', text: _clip(raw.slice(1)) });
+  }
+  return hunks;
+}
+
+function _buildRows(hunks, newLines) {
+  const rows = [];
+  let o = 1;
+  let n = 1;
+  for (const h of hunks) {
+    const os = h.oldCount === 0 ? h.oldStart + 1 : h.oldStart;
+    const ns = h.newCount === 0 ? h.newStart + 1 : h.newStart;
+    const gap = ns - n;
+    if (gap > 0) rows.push({ k: 'f', o, n, count: gap });
+    o = os;
+    n = ns;
+    for (const l of h.lines) {
+      if (l.k === 'c') rows.push({ k: 'c', o: o++, n: n++, text: l.text });
+      else if (l.k === 'd') rows.push({ k: 'd', o: o++, text: l.text });
+      else rows.push({ k: 'a', n: n++, text: l.text });
+    }
+  }
+  if (newLines) {
+    const remain = newLines.length - (n - 1);
+    if (remain > 0) rows.push({ k: 'f', o, n, count: remain });
+  }
+  return rows;
+}
+
+function _computeStats(m) {
+  let add = 0;
+  let del = 0;
+  for (const r of m.rows) {
+    if (r.k === 'a') add++;
+    else if (r.k === 'd') del++;
+  }
+  m.add = add;
+  m.del = del;
+}
+
+function _ensureHtml(rows, lang) {
+  const todo = rows.filter((r) => r.k !== 'f' && r.h === undefined);
+  if (!todo.length) return;
+  const texts = todo.map((r) => r.text);
+  let html = null;
+  try {
+    html = highlightRange(texts, 0, texts.length - 1, lang).split('\n');
+  } catch (_) {
+    html = texts.map((t) => _esc(t));
+  }
+  for (let i = 0; i < todo.length; i++) todo[i].h = html[i] === undefined ? '' : html[i];
+}
+
+function _foldHtml(r, i, canExpand) {
+  return '<div class="ide-fold' + (canExpand ? '' : ' disabled') + '" data-fold="' + i + '">' +
+    '<span class="ide-fold-ic">' + DV_FOLD + '</span>' +
+    '<span>' + r.count + ' unchanged line' + (r.count === 1 ? '' : 's') + '</span>' +
+    (canExpand ? '<span class="ide-fold-hint">click to expand, shift+click for all</span>' : '') +
+  '</div>';
+}
+
+function _cell(row, kind) {
+  if (!row) return '<div class="ide-dc empty"></div>';
+  const no = kind === 'del' ? row.o : row.n;
+  return '<div class="ide-dc ' + kind + '"><span class="ide-dn">' + no + '</span><span class="ide-dt">' + row.h + '</span></div>';
+}
+
+function _splitHtml(rows, canExpand) {
+  let out = '';
+  let id = 0;
+  let i = 0;
+  while (i < rows.length) {
+    const r = rows[i];
+    if (r.k === 'f') {
+      out += _foldHtml(r, i, canExpand);
+      i++;
+      continue;
+    }
+    if (r.k === 'c') {
+      out += '<div class="ide-dr">' +
+        '<div class="ide-dc ctx"><span class="ide-dn">' + r.o + '</span><span class="ide-dt">' + r.h + '</span></div>' +
+        '<div class="ide-dc ctx"><span class="ide-dn">' + r.n + '</span><span class="ide-dt">' + r.h + '</span></div>' +
+      '</div>';
+      i++;
+      continue;
+    }
+    let first = true;
+    while (i < rows.length && (rows[i].k === 'd' || rows[i].k === 'a')) {
+      const dels = [];
+      const adds = [];
+      while (i < rows.length && rows[i].k === 'd') dels.push(rows[i++]);
+      while (i < rows.length && rows[i].k === 'a') adds.push(rows[i++]);
+      const nmax = Math.max(dels.length, adds.length);
+      for (let j = 0; j < nmax; j++) {
+        const mark = first ? ' data-chg="' + (id++) + '"' : '';
+        first = false;
+        out += '<div class="ide-dr"' + mark + '>' + _cell(dels[j], 'del') + _cell(adds[j], 'add') + '</div>';
+      }
+    }
+  }
+  return out;
+}
+
+function _inlineHtml(rows, canExpand) {
+  let out = '';
+  let id = 0;
+  let prevChg = false;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.k === 'f') {
+      out += _foldHtml(r, i, canExpand);
+      prevChg = false;
+      continue;
+    }
+    const chg = r.k !== 'c';
+    const mark = chg && !prevChg ? ' data-chg="' + (id++) + '"' : '';
+    prevChg = chg;
+    const cls = r.k === 'd' ? 'del' : r.k === 'a' ? 'add' : 'ctx';
+    const sign = r.k === 'd' ? '-' : r.k === 'a' ? '+' : '';
+    out += '<div class="ide-dr1 ' + cls + '"' + mark + '>' +
+      '<span class="ide-dn">' + (r.o || '') + '</span>' +
+      '<span class="ide-dn">' + (r.n || '') + '</span>' +
+      '<span class="ide-dsign">' + sign + '</span>' +
+      '<span class="ide-dt">' + r.h + '</span>' +
+    '</div>';
+  }
+  return out;
+}
+
+function _dvToggleActions(show) {
+  if (!_dvEls) return;
+  _dvEls.btnPrev.hidden = !show;
+  _dvEls.btnNext.hidden = !show;
+  _dvEls.btnMode.hidden = !show;
+  _dvEls.btnRaw.hidden = !show;
+  _dvEls.btnContent.hidden = !show;
+}
+
+function _dvReset() {
+  _dvModel = null;
+  _dvChg = -1;
+  if (!_dvEls) return;
+  _dvEls.name.textContent = '';
+  _dvEls.path.textContent = '';
+  _dvEls.stat.textContent = '';
+  _dvEls.count.textContent = '';
+  _dvEls.sub.className = 'ide-dv-sub';
+  _dvEls.sub.innerHTML = '';
+  _dvEls.body.innerHTML = '';
+  _dvToggleActions(false);
+}
+
+function _dvSetHead(path) {
+  _dvEls.name.textContent = _baseName(path);
+  _dvEls.path.textContent = path;
+}
+
+function _dvMessage(text, isErr) {
+  _dvEls.body.innerHTML = '<div class="ide-dv-msg' + (isErr ? ' err' : '') + '">' + _esc(text) + '</div>';
+}
+
+function _dvBuild(entry, file) {
+  const lines = entry.rawOk ? _splitLines(entry.raw) : null;
+  const hunks = _parseDiff(entry.diff);
+  let rows = _buildRows(hunks, lines);
+  let truncated = false;
+  if (rows.length > MAX_DIFF_ROWS) {
+    rows = rows.slice(0, MAX_DIFF_ROWS);
+    truncated = true;
+  }
+  const model = {
+    rows,
+    newLines: lines,
+    lang: langFor(_baseName(file.path)),
+    truncated,
+    binary: !!file.binary,
+    isNew: file.status === 'added',
+    diff: entry.diff,
+    raw: entry.raw,
+    rawOk: entry.rawOk,
+  };
+  _computeStats(model);
+  return model;
+}
+
+async function _loadFileAtCommit(hash, filePath) {
+  const token = ++_dvToken;
+  _dvChg = -1;
+  _dvModel = null;
+  _dvSetHead(filePath);
+  _dvEls.stat.textContent = '';
+  _dvEls.count.textContent = '';
+  _dvEls.sub.className = 'ide-dv-sub';
+  _dvEls.sub.innerHTML = '';
+  _dvToggleActions(false);
+  _dvMessage('Loading diff\u2026', false);
+
+  const repoPath = _repoPath;
+  const cacheKey = _activeKey + '|' + hash + '::' + filePath;
+  let entry = _diffCache[cacheKey];
+
+  if (!entry) {
+    try {
+      const out = await Promise.all([
+        window.electronAPI.teamActivityDiff(repoPath, hash, filePath),
+        window.electronAPI.teamActivityFileAtCommit(repoPath, hash, filePath),
+      ]);
+      if (token !== _dvToken || repoPath !== _repoPath) return;
+      const diffRes = out[0] || {};
+      const rawRes = out[1] || {};
+      if (diffRes.error) {
+        _dvMessage(diffRes.error, true);
+        return;
+      }
+      entry = {
+        diff: diffRes.diff || '',
+        raw: rawRes.content || '',
+        rawOk: !rawRes.error && !rawRes.binary && !rawRes.tooLarge,
+      };
+      if (Object.keys(_diffCache).length > MAX_DIFF_CACHE) _diffCache = {};
+      _diffCache[cacheKey] = entry;
+    } catch (err) {
+      if (token !== _dvToken) return;
+      _dvMessage('Failed to load diff', true);
+      return;
+    }
+  }
+
+  if (token !== _dvToken || repoPath !== _repoPath) return;
+  _dvModel = _dvBuild(entry, _currentFileEntry(filePath));
+  _dvRender();
+  _dvEls.body.scrollTop = 0;
+  _dvEls.body.focus({ preventScroll: true });
+}
+
+function _dvRender() {
+  if (!_dvModel || !_dvEls) return;
+  const m = _dvModel;
+  const scroll = _dvEls.body.scrollTop;
+  _dvEls.root.dataset.lang = m.lang || '';
+  if (!m.rows.length) {
+    _dvMessage(m.binary ? 'Binary file. There is no text diff to show.' : 'No text changes to show for this file.', false);
+  } else {
+    _ensureHtml(m.rows, m.lang);
+    const canExpand = !!m.newLines;
+    const html = _dvMode === 'split' ? _splitHtml(m.rows, canExpand) : _inlineHtml(m.rows, canExpand);
+    _dvEls.body.innerHTML = '<div class="ide-dv-diff ' + (_dvMode === 'split' ? 'is-split' : 'is-inline') + '">' + html + '</div>' +
+      (m.truncated ? '<div class="ide-dv-msg">Showing the first ' + MAX_DIFF_ROWS + ' rows of this diff.</div>' : '');
+  }
+  _dvEls.body.scrollTop = scroll;
+  _dvUpdateHead();
+}
+
+function _dvUpdateHead() {
+  const m = _dvModel;
+  if (!m || !_dvEls) return;
+  const hasRows = m.rows.length > 0;
+  _dvToggleActions(true);
+  _dvEls.btnPrev.hidden = !hasRows;
+  _dvEls.btnNext.hidden = !hasRows;
+  _dvEls.btnMode.hidden = !hasRows;
+  _dvEls.btnMode.innerHTML = _dvMode === 'split' ? DV_INLINE : DV_SPLIT;
+  _dvEls.btnMode.title = _dvMode === 'split' ? 'Switch to inline view' : 'Switch to side-by-side view';
+  _dvEls.stat.innerHTML = m.isNew
+    ? '<span class="ide-dv-add">New file</span>'
+    : '<span class="ide-dv-add">+' + m.add + '</span> <span class="ide-dv-del">\u2212' + m.del + '</span>';
+  _dvEls.count.textContent = '';
+  const hash = _selectedCommit ? _selectedCommit.hash : '';
+  const left = _esc(_drawerParent ? _shortHash(_drawerParent) : 'empty');
+  const right = _esc(_shortHash(hash));
+  if (hasRows && _dvMode === 'split') {
+    _dvEls.sub.className = 'ide-dv-sub split';
+    _dvEls.sub.innerHTML = '<div class="ide-dv-l">' + left + '</div><div class="ide-dv-r">' + right + '</div>';
+  } else if (hasRows) {
+    _dvEls.sub.className = 'ide-dv-sub';
+    _dvEls.sub.innerHTML = '<div class="ide-dv-l">' + left + ' \u2192 ' + right + '</div>';
+  } else {
+    _dvEls.sub.className = 'ide-dv-sub';
+    _dvEls.sub.innerHTML = '';
+  }
+}
+
+function _dvGoChange(dir) {
+  if (!_dvModel || !_dvEls) return;
+  const list = _dvEls.body.querySelectorAll('[data-chg]');
+  const n = list.length;
+  if (!n) return;
+  if (_dvChg < 0 || _dvChg >= n) _dvChg = dir > 0 ? 0 : n - 1;
+  else _dvChg = (_dvChg + dir + n) % n;
+  const old = _dvEls.body.querySelector('.ide-chg-cur');
+  if (old) old.classList.remove('ide-chg-cur');
+  const el = list[_dvChg];
+  el.classList.add('ide-chg-cur');
+  el.scrollIntoView({ block: 'center' });
+  _dvEls.count.textContent = (_dvChg + 1) + ' of ' + n;
+}
+
+function _dvExpandFold(i, all) {
+  const m = _dvModel;
+  if (!m || !m.newLines) return;
+  const r = m.rows[i];
+  if (!r || r.k !== 'f') return;
+  const take = all || r.count <= FOLD_ALL_MAX ? r.count : FOLD_STEP;
+  const rest = r.count - take;
+  const atEnd = i === m.rows.length - 1;
+  const start = atEnd ? 0 : rest;
+  const add = [];
+  for (let j = 0; j < take; j++) {
+    const off = start + j;
+    add.push({ k: 'c', o: r.o + off, n: r.n + off, text: _clip(m.newLines[r.n - 1 + off]) });
+  }
+  let repl = add;
+  if (rest > 0) {
+    if (atEnd) repl = add.concat([{ k: 'f', o: r.o + take, n: r.n + take, count: rest }]);
+    else repl = [{ k: 'f', o: r.o, n: r.n, count: rest }].concat(add);
+  }
+  m.rows.splice.apply(m.rows, [i, 1].concat(repl));
+  _dvRender();
+}
+
+function _dvCopy(btn, text, label, unavailable) {
+  if (unavailable) {
+    btn.textContent = 'Unavailable';
+    setTimeout(() => {
+      btn.textContent = label;
+    }, 1500);
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => {
+      btn.textContent = label;
+    }, 1500);
+  }).catch(() => {
+    btn.textContent = 'Failed';
+    setTimeout(() => {
+      btn.textContent = label;
+    }, 1500);
   });
 }
 
-function _renderDiffContent(el, diffText) {
-  if (!diffText) {
-    el.innerHTML = '<div class="taf-drawer-diff-loading">No diff available</div>';
-    return;
+function _onDvHeadClick(e) {
+  const btn = e.target.closest ? e.target.closest('[data-a]') : null;
+  if (!btn || !_dvModel) return;
+  e.stopPropagation();
+  const a = btn.dataset.a;
+  if (a === 'prev') {
+    _dvGoChange(-1);
+  } else if (a === 'next') {
+    _dvGoChange(1);
+  } else if (a === 'mode') {
+    _dvMode = _dvMode === 'split' ? 'inline' : 'split';
+    _writeDiffMode(_dvMode);
+    _dvChg = -1;
+    _dvRender();
+  } else if (a === 'copy-raw') {
+    _dvCopy(btn, _dvModel.diff, 'Copy Raw', !_dvModel.diff);
+  } else if (a === 'copy-content') {
+    _dvCopy(btn, _dvModel.raw, 'Copy Content', !_dvModel.rawOk);
   }
+}
 
-  const lines = diffText.split('\n');
-  let html = '';
-  for (const line of lines) {
-    const ch = line.charAt(0);
-    let cls = 'context';
-    let sign = ch;
-    if (ch === '+') {
-      cls = 'added';
-      sign = '+';
-    } else if (ch === '-') {
-      cls = 'removed';
-      sign = '-';
-    } else if (ch === '@') {
-      cls = 'hunk';
-      sign = '@';
-    } else if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) {
-      cls = 'header';
-      sign = '';
-    } else if (ch === '\\') {
-      cls = 'context';
-      sign = '';
-    } else {
-      sign = ' ';
-    }
+function _onDvBodyClick(e) {
+  const f = e.target.closest ? e.target.closest('.ide-fold') : null;
+  if (!f || f.classList.contains('disabled')) return;
+  _dvExpandFold(Number(f.dataset.fold), e.shiftKey);
+}
 
-    if (line.startsWith('---') || line.startsWith('+++')) {
-      cls = 'header';
-      sign = '';
-    }
-
-    html += `<div class="taf-drawer-diff-line ${cls}">
-      <span class="taf-diff-sign">${sign}</span>
-      <span class="taf-diff-text">${_esc(cls === 'header' || cls === 'hunk' ? line : line.substring(1))}</span>
-    </div>`;
+function _onDvKey(e) {
+  if ((e.altKey && e.key === 'ArrowDown') || (e.key === 'F3' && !e.shiftKey)) {
+    e.preventDefault();
+    _dvGoChange(1);
+  } else if ((e.altKey && e.key === 'ArrowUp') || (e.key === 'F3' && e.shiftKey)) {
+    e.preventDefault();
+    _dvGoChange(-1);
   }
-  el.innerHTML = html || '<div class="taf-drawer-diff-loading">No diff available</div>';
 }
