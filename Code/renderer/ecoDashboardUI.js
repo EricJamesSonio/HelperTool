@@ -77,6 +77,46 @@ export function close() {
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
   document.removeEventListener('keydown', _escHandler);
 }
+function _setTitle(label) {
+  var el = _panel ? _panel.querySelector('.eco-title') : null;
+  if (!el) return;
+  el.textContent = label ? 'Ecosystem Tool \u2014 ' + label : 'Ecosystem Tool';
+}
+
+export async function attachTerminal(opts) {
+  var o = opts || {};
+  if (!_open) await open();
+  var pathInput = document.getElementById('ecoPathInput');
+  var cmdInput = document.getElementById('ecoCmdInput');
+  var dot = document.getElementById('ecoStatusDot');
+  var txt = document.getElementById('ecoStatusText');
+  if (!pathInput || !cmdInput || !dot || !txt) return { success: false, error: 'Dashboard not ready' };
+  if (o.cwd) pathInput.value = o.cwd;
+  if (o.command) cmdInput.value = o.command;
+  _saveInputs();
+  _setTitle(o.label);
+  txt.textContent = 'Attaching\u2026';
+  dot.className = 'eco-status-indicator eco-status-waiting';
+  for (var i = 0; i < _TYPES.length; i++) {
+    _state[_TYPES[i]] = { events: [], oldestSeq: null, hasMore: false, autoScroll: true, loading: false };
+    _renderQuadrant(_TYPES[i]);
+  }
+  var res = null;
+  try {
+    res = await window.electronAPI.eco.attach(o.terminalId);
+  } catch (e) {
+    res = { success: false, error: e.message };
+  }
+  if (!res || !res.success) {
+    txt.textContent = 'Failed: ' + ((res && res.error) || 'unknown');
+    dot.className = 'eco-status-indicator eco-status-stopped';
+    return res;
+  }
+  await _refreshStatus();
+  _poll();
+  return res;
+}
+
 
 function _saveInputs() {
   _lastPath = document.getElementById('ecoPathInput').value.trim();
@@ -306,6 +346,7 @@ async function _handleStop() {
   document.getElementById('ecoUrlDisplay').style.display = 'none';
   document.getElementById('ecoStatusText').textContent = 'Stopped';
   document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
+  _setTitle('');
   _updateShortcutButtons();
 }
 
