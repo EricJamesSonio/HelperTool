@@ -1,0 +1,105 @@
+.terminal-instance .terminal-url-bar {
+  left: auto;
+  right: 22px;
+  bottom: 8px;
+  max-width: calc(100% - 44px);
+  justify-content: flex-end;
+}
+
+.terminal-url-group {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.terminal-url-label {
+  max-width: 260px;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.terminal-url-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.terminal-url-action svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  flex: 0 0 12px;
+}
+
+.terminal-url-action:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.terminal-url-action--view {
+  color: var(--green);
+}
+
+.terminal-url-action--view:hover {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.terminal-eco-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--yellow);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.terminal-eco-btn[hidden] {
+  display: none;
+}
+
+.terminal-eco-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  flex: 0 0 14px;
+}
+
+.terminal-eco-btn:hover {
+  background: var(--yellow-dim);
+  border-color: var(--yellow);
+}
