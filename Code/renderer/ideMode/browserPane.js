@@ -44,6 +44,13 @@ function ensureCss() {
   document.head.appendChild(link);
 }
 
+function emit() {
+  const open = !!pane && !pane.hidden;
+  document.dispatchEvent(new CustomEvent('ide:browser-state', {
+    detail: { open, full: open && full },
+  }));
+}
+
 function hostEl() {
   if (!document.body.classList.contains('ide-mode')) return null;
   return document.querySelector('#ideMain .ide-editor');
@@ -139,6 +146,7 @@ function setFull(on) {
   pane.classList.toggle('ide-bv--full', full);
   refs.full.innerHTML = (full ? I_MIN : I_FULL) + '<span>' + (full ? 'Minimize' : 'Full screen') + '</span>';
   refs.full.title = full ? 'Back to the editor area (Esc)' : 'Show the app over the whole IDE';
+  emit();
 }
 
 function onPaneClick(e) {
@@ -272,6 +280,7 @@ export function show(opts) {
   else if (next !== url) load(next);
   if (typeof o.title === 'string') refs.tag.textContent = o.title;
   pane.hidden = false;
+  emit();
   return true;
 }
 
@@ -279,11 +288,18 @@ export function hide() {
   if (!pane) return;
   setFull(false);
   pane.hidden = true;
+  emit();
 }
 
 export function close() {
   if (pane) pane.remove();
   resetState();
+  emit();
+}
+
+export function setFullscreen(on) {
+  if (!pane || pane.hidden) return;
+  setFull(on);
 }
 
 export function isOpen() {

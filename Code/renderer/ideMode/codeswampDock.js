@@ -275,6 +275,7 @@ async function show() {
   if (!panel || !isIde()) return;
   if (!tm) tm = await import('../codeswampUI/terminalManager.js');
   if (!scroll) scroll = await import('./csScrollHelper.js');
+  Promise.resolve(tm.wakeSleeping(csState.activeTab)).catch(() => {});
   visible = true;
   place();
   import('../codeswampUI/repoTabs.js')
