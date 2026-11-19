@@ -120,18 +120,20 @@ function _parseNumstat(stdout, commits, contributors) {
   }
 }
 
-async function logHandler({ repoPath }) {
+async function logHandler({ repoPath, force }) {
   if (!repoPath) throw new Error('repoPath is required');
 
-  const cached = prefetchService.get('teamActivity:' + repoPath);
-  if (cached) return { commits: cached.commits, contributors: cached.contributors };
+  if (!force) {
+    const cached2 = _cache.get(repoPath);
+    if (cached2 && (Date.now() - cached2.timestamp) < CACHE_TTL) {
+      return { commits: cached2.commits, contributors: cached2.contributors };
+    }
 
-  const cached2 = _cache.get(repoPath);
-  if (cached2 && (Date.now() - cached2.timestamp) < CACHE_TTL) {
-    return { commits: cached2.commits, contributors: cached2.contributors };
+    const cached = prefetchService.get('teamActivity:' + repoPath);
+    if (cached) return { commits: cached.commits, contributors: cached.contributors };
   }
 
-  // Offload to worker — parsing happens in child process, not main process
+  // Offload to worker: parsing happens in child process, not main process
   if (workerProxy.isReady()) {
     try {
       const result = await workerProxy.send('teamActivity', { repoPath }, 120000);
@@ -146,7 +148,7 @@ async function logHandler({ repoPath }) {
 
   // Fallback: run in main process
   const metaStdout = await gitService.getCommits(repoPath, {
-    format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: 120000,
+    format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: force ? 0 : 120000,
   });
   const { commits, contributors } = _parseMeta(metaStdout);
   if (commits.length) {
@@ -210,9 +212,9 @@ async function diffHandler({ repoPath, hash, filePath }) {
 }
 
 function register() {
-  ipcMain.handle('team-activity:log', async (event, { repoPath }) => {
+  ipcMain.handle('team-activity:log', async (event, { repoPath, force }) => {
     try {
-      return await logHandler({ repoPath });
+      return await logHandler({ repoPath, force: !!force });
     } catch (err) {
       return { commits: [], contributors: {}, error: err.message };
     }
