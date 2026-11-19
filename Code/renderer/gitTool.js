@@ -23,7 +23,9 @@ class GitTool {
   }
 
   /**
-   * Initialize Git Tool with a repository path
+   * Initialize Git Tool with a repository path.
+   * Returns right away (from the cached snapshot when there is one);
+   * the real git status loads in the background.
    */
   async initialize(repoPath) {
     try {
@@ -36,6 +38,7 @@ class GitTool {
       }
 
       this.isInitialized = true;
+      this._loadInitialStatus();
 
       console.log('Git Tool initialized for:', repoPath);
 
@@ -55,6 +58,38 @@ class GitTool {
   }
 
   /**
+   * Load the real git status without blocking the UI
+   */
+  _loadInitialStatus() {
+    this.gitCommandHandler.getStatus().then((result) => {
+      this.gitToolUI?.refreshUI();
+      if (result && result.error) {
+        this.gitToolUI?.showError(result.error);
+      }
+    }).catch((err) => {
+      console.warn('[GitTool] initial status failed:', err);
+    });
+  }
+
+  /**
+   * Show loading placeholders while the first status is still on its way
+   */
+  _syncLoadingState(containerElement) {
+    const handler = this.gitCommandHandler;
+    if (handler.statusLoaded) return;
+    if (handler.statusError) {
+      this.gitToolUI?.showError(handler.statusError);
+      return;
+    }
+    if (handler.fromCache) return;
+
+    const working = containerElement.querySelector('#workingTreeList');
+    if (working) working.innerHTML = '<div class="empty-state">Loading changes…</div>';
+    const staged = containerElement.querySelector('#stagedFilesList');
+    if (staged) staged.innerHTML = '<div class="empty-state">Loading…</div>';
+  }
+
+  /**
    * Render the Git Tool UI into a container element
    */
   async render(containerElement) {
@@ -70,6 +105,7 @@ class GitTool {
 
       await this.gitToolUI.render(containerElement);
 
+      this._syncLoadingState(containerElement);
       this.startWatching();
 
       console.log('Git Tool UI rendered');

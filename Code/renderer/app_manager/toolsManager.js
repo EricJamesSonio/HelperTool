@@ -292,40 +292,21 @@ function _hideGraphify() {
 
 // ---- Tool lifecycles -------------------------------------------------------
 
-let _gitInitPromise = null;
-let _gitInitRepo = null;
 async function _initializeGitTool(repoPath) {
-  if (_gitInitPromise && _gitInitRepo === repoPath) return _gitInitPromise;
-  _gitInitRepo = repoPath;
-  const run = (async () => {
-    try {
-      const { default: GitTool } = await import('../gitTool.js');
-      if (!_gitTool) _gitTool = new GitTool();
-      const tool = _gitTool;
-      const result = await tool.initialize(repoPath);
-      if (!result.success) { console.error('[Tools] Git Tool init failed:', result.error); return; }
-      if (_gitTool !== tool) return;
-      if (!_gitPanel) _initGitPanel();
-      await tool.render(_gitContainer);
-      console.log('[Tools] Git Tool initialised');
-    } catch (err) {
-      console.error('[Tools] Git Tool error:', err);
-    }
-  })();
-  _gitInitPromise = run;
   try {
-    await run;
-  } finally {
-    if (_gitInitPromise === run) {
-      _gitInitPromise = null;
-      _gitInitRepo = null;
-    }
+    const { default: GitTool } = await import('../gitTool.js');
+    if (!_gitTool) _gitTool = new GitTool();
+    const result = await _gitTool.initialize(repoPath);
+    if (!result.success) { console.error('[Tools] Git Tool init failed:', result.error); return; }
+    if (!_gitPanel) _initGitPanel();
+    await _gitTool.render(_gitContainer);
+    console.log('[Tools] Git Tool initialised');
+  } catch (err) {
+    console.error('[Tools] Git Tool error:', err);
   }
 }
 
 function _destroyGitTool() {
-  _gitInitPromise = null;
-  _gitInitRepo = null;
   _gitTool?.destroy(); _gitTool = null;
   if (_gitContainer) _gitContainer.innerHTML = '';
   _gitPanel?._escCleanup?.(); _gitPanel?.classList.remove('open');
