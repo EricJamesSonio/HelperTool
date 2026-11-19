@@ -1,7 +1,7 @@
 import { state, setState } from './state.js';
 import { getBranchRow, getRemoteRow } from './template.js';
 import { branchColor } from './utils.js';
-import { getEntry, peekEntry, setCached, invalidate } from '../viewCache.js';
+import { getEntry, setCached, invalidate } from '../viewCache.js';
 
 const KIND = 'branches';
 
@@ -76,12 +76,14 @@ export async function show() {
   const entry = getEntry(state.repoPath, KIND);
   if (entry) {
     paint(entry.data);
+    // Revalidate in the background so the user doesn't see stale branches
+    load(false).catch(() => {});
     return;
   }
   await load(false);
 }
 
 export function repaint() {
-  const entry = peekEntry(state.repoPath, KIND);
+  const entry = getEntry(state.repoPath, KIND);
   if (entry) paint(entry.data);
 }
