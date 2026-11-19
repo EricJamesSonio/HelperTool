@@ -14,6 +14,7 @@ var _lineBuf = '';
 var _urlTimeout = null;
 var _onTerminalData = null;
 var _onTerminalExit = null;
+var _attachOnly = false;
 var _status = { running: false, url: null, browserConnected: false };
 
 function start(path, command, terminalId) {
@@ -51,6 +52,19 @@ function start(path, command, terminalId) {
 
   _status.running = true;
   return { success: true };
+}
+
+function attach(terminalId) {
+  if (terminalId == null) return { success: false, error: 'Terminal id is required' };
+  if (_terminalId === terminalId && _status.running) return { success: true, message: 'Already attached' };
+  if (_process) return { success: false, error: 'A process started from the dashboard is running. Stop it first.' };
+  if (_terminalId != null) {
+    _closeBrowser();
+    _cleanup();
+  }
+  var res = start('', '', terminalId);
+  if (res && res.success) _attachOnly = true;
+  return res;
 }
 
 function _spawnProcess(path, command) {
@@ -315,7 +329,7 @@ function stop() {
     }, 5000);
   }
 
-  if (_terminalId) {
+  if (_terminalId && !_attachOnly) {
     var termApi = require('./ipc/terminal_ipc');
     termApi.killTerminal(_terminalId);
   }
@@ -342,6 +356,7 @@ function _cleanup() {
     _onTerminalExit = null;
   }
   _process = null;
+  _attachOnly = false;
   _ctxBuf = [];
   _lineBuf = '';
   if (_urlTimeout) { clearTimeout(_urlTimeout); _urlTimeout = null; }
@@ -366,4 +381,4 @@ function setUrl(url) {
   return { success: true };
 }
 
-module.exports = { start: start, stop: stop, getStatus: getStatus, setUrl: setUrl };
+module.exports = { start: start, attach: attach, stop: stop, getStatus: getStatus, setUrl: setUrl };

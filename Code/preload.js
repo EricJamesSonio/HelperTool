@@ -708,6 +708,7 @@ const ecoBridge = {
   stop:     ()             => ipcRenderer.invoke('eco:stop'),
   status:   ()             => ipcRenderer.invoke('eco:status'),
   setUrl:   (url)          => ipcRenderer.invoke('eco:setUrl', url),
+  attach:   (terminalId)   => ipcRenderer.invoke('eco:attach', terminalId),
 };
 
 

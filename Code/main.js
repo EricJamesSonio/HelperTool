@@ -386,11 +386,38 @@ function createWindow() {
       contextIsolation: true,
       spellcheck: false,
       enableWebSQL: false,
+      webviewTag: true,
       devTools: process.env.NODE_ENV !== 'production',
     }
   });
 
+  // The IDE browser view embeds the user's own dev server in a <webview>.
+  // Guests never get the preload bridge or Node, and can only start on http(s).
+  mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload;
+    delete webPreferences.preloadURL;
+    webPreferences.nodeIntegration = false;
+    webPreferences.nodeIntegrationInSubFrames = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    const src = String(params.src || '');
+    if (src && !/^https?:\/\//i.test(src)) event.preventDefault();
+  });
+
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Chromium persists page zoom per URL. The dev page and the packaged
+  // app.asar page have different URLs, so their saved zoom drifts apart.
+  // Pin native zoom to 100% and keep it there; Ctrl +/- is handled by the
+  // in-app zoom manager (--ui-zoom, stored in shared localStorage).
+  const wc = mainWindow.webContents;
+  const pinZoom = () => {
+    try { wc.setZoomLevel(0); } catch (_) {}
+  };
+  wc.on('dom-ready', pinZoom);
+  wc.on('did-finish-load', pinZoom);
+  wc.on('zoom-changed', pinZoom);
+
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
   try {
@@ -643,5 +670,12 @@ app.whenReady().then(() => {
     require('./ipc/recentRepos_ipc.js').register({ config });
   } catch (e) {
     console.error('[IPC] Failed to register recentRepos_ipc:', e);
+  }
+});
+app.whenReady().then(() => {
+  try {
+    require('./ipc/ecoAttach_ipc.js').register();
+  } catch (e) {
+    console.error('[IPC] Failed to register ecoAttach_ipc:', e);
   }
 });
