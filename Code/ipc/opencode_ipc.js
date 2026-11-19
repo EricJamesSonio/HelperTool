@@ -690,4 +690,3 @@ function register(shared) {
 }
 
 module.exports = { register, discover };
-require('./csSuspend.js').install();
