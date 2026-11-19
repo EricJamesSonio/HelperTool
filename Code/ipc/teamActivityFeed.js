@@ -1,8 +1,8 @@
 const { ipcMain } = require('electron');
-const path = require('path');
 const gitService = require('./gitService.js');
 const prefetchService = require('./prefetchService.js');
 const workerProxy = require('./workerProxy.js');
+const gitInspect = require('./gitInspect_ipc.js');
 
 const _cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
@@ -120,18 +120,20 @@ function _parseNumstat(stdout, commits, contributors) {
   }
 }
 
-async function logHandler({ repoPath }) {
+async function logHandler({ repoPath, force }) {
   if (!repoPath) throw new Error('repoPath is required');
 
-  const cached = prefetchService.get('teamActivity:' + repoPath);
-  if (cached) return { commits: cached.commits, contributors: cached.contributors };
+  if (!force) {
+    const cached2 = _cache.get(repoPath);
+    if (cached2 && (Date.now() - cached2.timestamp) < CACHE_TTL) {
+      return { commits: cached2.commits, contributors: cached2.contributors };
+    }
 
-  const cached2 = _cache.get(repoPath);
-  if (cached2 && (Date.now() - cached2.timestamp) < CACHE_TTL) {
-    return { commits: cached2.commits, contributors: cached2.contributors };
+    const cached = prefetchService.get('teamActivity:' + repoPath);
+    if (cached) return { commits: cached.commits, contributors: cached.contributors };
   }
 
-  // Offload to worker — parsing happens in child process, not main process
+  // Offload to worker: parsing happens in child process, not main process
   if (workerProxy.isReady()) {
     try {
       const result = await workerProxy.send('teamActivity', { repoPath }, 120000);
@@ -146,7 +148,7 @@ async function logHandler({ repoPath }) {
 
   // Fallback: run in main process
   const metaStdout = await gitService.getCommits(repoPath, {
-    format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: 120000,
+    format: '%H|%an|%ae|%aI|%s', all: true, noMerges: false, ttl: force ? 0 : 120000,
   });
   const { commits, contributors } = _parseMeta(metaStdout);
   if (commits.length) {
@@ -163,29 +165,23 @@ async function logHandler({ repoPath }) {
 async function commitFilesHandler({ repoPath, hash }) {
   if (!repoPath || !hash) throw new Error('repoPath and hash are required');
 
-  const stdout = await gitService.getNumstat(repoPath, hash, { ttl: 60000 });
-  const files = [];
-  for (const line of stdout.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const parts = trimmed.split('\t');
-    if (parts.length < 3) continue;
-    const added = parseInt(parts[0], 10);
-    const removed = parseInt(parts[1], 10);
-    const filePath = parts[2];
-    if (isNaN(added) || isNaN(removed)) continue;
-    const status = added > 0 && removed === 0 ? 'added' : added === 0 && removed > 0 ? 'deleted' : 'modified';
-    files.push({ path: filePath, added, removed, status });
-  }
-  return { files };
+  const r = await gitInspect.listFiles(repoPath, hash);
+  const files = r.files.map((f) => ({
+    path: f.file,
+    added: f.additions,
+    removed: f.deletions,
+    binary: !!f.binary,
+    status: f.status === 'A' ? 'added' : f.status === 'D' ? 'deleted' : 'modified',
+  }));
+  return { files, parent: r.parent || null, total: r.total, truncated: !!r.truncated };
 }
 
 async function fileAtCommitHandler({ repoPath, hash, filePath }) {
   if (!repoPath || !hash || !filePath) throw new Error('repoPath, hash, and filePath are required');
 
   try {
-    const stdout = await gitService.showFileAtCommit(repoPath, hash, filePath, { ttl: 60000 });
-    return { content: stdout };
+    const r = await gitInspect.readFileAt(repoPath, hash, filePath);
+    return { content: r.content || '', binary: !!r.binary, tooLarge: !!r.tooLarge };
   } catch (err) {
     return { content: '', error: err.message };
   }
@@ -194,25 +190,14 @@ async function fileAtCommitHandler({ repoPath, hash, filePath }) {
 async function diffHandler({ repoPath, hash, filePath }) {
   if (!repoPath || !hash || !filePath) throw new Error('repoPath, hash, and filePath are required');
 
-  const stdout = await gitService.show(repoPath, hash, { filePath, ttl: 30000 });
-
-  // Parse diff lines with +/- prefixes
-  const lines = stdout.split('\n');
-  const diffLines = [];
-  for (const line of lines) {
-    const ch = line.charAt(0);
-    if (ch === '+' || ch === '-' || ch === '@' || line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++') || ch === ' ' || ch === '\\') {
-      diffLines.push(line);
-    }
-  }
-
-  return { diff: diffLines.join('\n') };
+  const r = await gitInspect.readDiff(repoPath, hash, filePath);
+  return { diff: r.diff };
 }
 
 function register() {
-  ipcMain.handle('team-activity:log', async (event, { repoPath }) => {
+  ipcMain.handle('team-activity:log', async (event, { repoPath, force }) => {
     try {
-      return await logHandler({ repoPath });
+      return await logHandler({ repoPath, force: !!force });
     } catch (err) {
       return { commits: [], contributors: {}, error: err.message };
     }
