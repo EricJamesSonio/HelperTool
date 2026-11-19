@@ -1,5 +1,56 @@
 /* ── Team Activity Feed ──────────────────────────── */
 
+/* ── IDE theme: the overlay follows the selected IDE theme, font and syntax colors ── */
+body[data-ide-theme] .taf-overlay {
+  --bg-base: var(--th-bg);
+  --bg-surface: var(--th-sf);
+  --bg-elevated: var(--th-el);
+  --bg-raised: var(--th-el);
+  --bg-overlay: var(--th-el);
+  --bg-hover: color-mix(in srgb, var(--th-fg) 8%, transparent);
+  --bg-active: color-mix(in srgb, var(--th-fg) 14%, transparent);
+  --border-subtle: color-mix(in srgb, var(--th-fg) 11%, transparent);
+  --border-default: color-mix(in srgb, var(--th-fg) 20%, transparent);
+  --border-mid: color-mix(in srgb, var(--th-fg) 20%, transparent);
+  --border-strong: color-mix(in srgb, var(--th-fg) 34%, transparent);
+  --text-primary: var(--th-fg);
+  --text-secondary: var(--th-fg2);
+  --text-muted: var(--th-mu);
+  --text-faint: color-mix(in srgb, var(--th-mu) 70%, transparent);
+  --accent: var(--th-ac);
+  --accent-hover: var(--th-ac);
+  --accent-dim: color-mix(in srgb, var(--th-ac) 16%, transparent);
+  --accent-glow: color-mix(in srgb, var(--th-ac) 28%, transparent);
+  --accent-border: color-mix(in srgb, var(--th-ac) 40%, transparent);
+  color: var(--th-fg);
+}
+body[data-ide-theme][data-ide-tone="light"] .taf-overlay {
+  --green: #1a7f37;
+  --red: #cf222e;
+  --yellow: #9a6700;
+  --blue: #0969da;
+  --purple: #8250df;
+  --green-dim: rgba(26, 127, 55, 0.12);
+  --red-dim: rgba(207, 34, 46, 0.1);
+  --yellow-dim: rgba(154, 103, 0, 0.12);
+  color-scheme: light;
+}
+body[data-ide-theme] .taf-dv .t-c { color: var(--sx-c); font-style: var(--sx-cs, normal); }
+body[data-ide-theme] .taf-dv .t-s { color: var(--sx-s); }
+body[data-ide-theme] .taf-dv .t-n { color: var(--sx-n); }
+body[data-ide-theme] .taf-dv .t-k { color: var(--sx-k); font-style: var(--sx-ks, normal); }
+body[data-ide-theme] .taf-dv .t-f { color: var(--sx-f); }
+body[data-ide-theme] .taf-dv .t-t { color: var(--sx-t); }
+body[data-ide-theme] .taf-dv .t-p { color: var(--sx-p); }
+body[data-ide-theme] .taf-dv .t-a { color: var(--sx-a); }
+body[data-ide-theme] .taf-dv[data-lang="html"] .t-t { color: var(--sx-tag); }
+body[data-ide-theme] .taf-dv[data-lang="md"] .t-k { color: var(--sx-t); font-style: normal; }
+body[data-ide-font="cascadia"] .taf-dv { --font-mono: 'Cascadia Code', 'Cascadia Mono', Consolas, monospace; }
+body[data-ide-font="consolas"] .taf-dv { --font-mono: Consolas, 'Courier New', monospace; }
+body[data-ide-font="jetbrains"] .taf-dv { --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace; }
+body[data-ide-font="fira"] .taf-dv { --font-mono: 'Fira Code', 'Fira Mono', 'Cascadia Code', Consolas, monospace; }
+body[data-ide-font="courier"] .taf-dv { --font-mono: 'Courier New', Courier, monospace; }
+
 .taf-overlay {
   position: fixed;
   inset: 0;
@@ -916,7 +967,7 @@
   position: absolute;
   inset: 0;
   width: 100%;
-  background: var(--bg-surface);
+  background: var(--bg-base);
   display: none;
   flex-direction: column;
   z-index: 10;
@@ -930,20 +981,30 @@
 .taf-drawer-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  background: var(--bg-base);
+  background: var(--bg-surface);
   min-height: 42px;
 }
 .taf-drawer-header h3 {
   margin: 0;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: var(--accent);
   font-family: var(--font-mono);
   flex-shrink: 0;
+}
+.taf-drawer-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 .taf-drawer-close {
   width: 26px;
@@ -967,94 +1028,92 @@
 .taf-drawer-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   padding: 5px 16px;
-  font-size: 10px;
-  color: var(--text-faint);
+  font-size: 11px;
+  color: var(--text-muted);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   flex-shrink: 0;
   overflow: hidden;
+  white-space: nowrap;
 }
-.taf-drawer-meta strong { color: var(--text-muted); }
+.taf-drawer-meta strong { color: var(--text-secondary); }
+.taf-meta-stats {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
 .taf-drawer-body {
   flex: 1;
   display: flex;
   flex-direction: row;
   overflow: hidden;
+  min-height: 0;
 }
 .taf-drawer-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
-.taf-file-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-  background: var(--bg-base);
-  min-height: 28px;
+
+/* Diff viewer reuses the IDE diff pane styles (ide-diff.css) */
+.taf-drawer .taf-dv {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  flex: 1;
+  min-height: 0;
 }
-.taf-diff-legend {
-  display: flex;
-  gap: 6px;
-  font-size: 10px;
-  font-family: var(--font-ui);
-  user-select: none;
-}
-.taf-legend-added { color: var(--green); }
-.taf-legend-removed { color: var(--red); }
-.taf-legend-hunk { color: var(--blue); }
-.taf-header-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
+.taf-dv [hidden] {
+  display: none !important;
 }
 .taf-copy-btn {
-  height: 20px;
-  padding: 0 8px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  height: 22px;
+  padding: 0 9px;
+  margin-left: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
+  font: 600 11px var(--font-ui);
   cursor: pointer;
   transition: all 0.1s;
   white-space: nowrap;
 }
-.taf-copy-btn[data-copy="raw"] {
+.taf-copy-btn[data-a="copy-raw"] {
   border-color: var(--blue);
   color: var(--blue);
 }
-.taf-copy-btn[data-copy="raw"]:hover { background: var(--blue-dim); }
-.taf-copy-btn[data-copy="content"] {
+.taf-copy-btn[data-a="copy-raw"]:hover { background: var(--blue-dim); }
+.taf-copy-btn[data-a="copy-content"] {
   border-color: var(--green);
   color: var(--green);
 }
-.taf-copy-btn[data-copy="content"]:hover { background: var(--green-dim); }
+.taf-copy-btn[data-a="copy-content"]:hover { background: var(--green-dim); }
+
+/* File list */
 .taf-drawer-sidebar {
-  width: 240px;
+  width: 320px;
   flex-shrink: 0;
   border-left: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
-  background: var(--bg-surface);
+  background: var(--bg-base);
 }
 .taf-sidebar-header {
   padding: 8px 12px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
   flex-shrink: 0;
 }
 .taf-drawer-files {
@@ -1070,111 +1129,72 @@
 .taf-drawer-file {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 7px;
+  height: 28px;
+  padding: 0 8px;
   border-radius: var(--r-xs);
   cursor: pointer;
   transition: background 0.1s;
   font-size: 12px;
   border: 1px solid transparent;
 }
+.taf-drawer-file > :first-child { flex: 0 0 auto; }
 .taf-drawer-file:hover { background: var(--bg-hover); }
 .taf-drawer-file.active {
-  background: var(--bg-active);
-  border-color: var(--border-default);
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
-.taf-drawer-file-status {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  text-transform: uppercase;
-  font-weight: 600;
-  flex-shrink: 0;
-  width: 40px;
-  text-align: center;
-}
-.taf-drawer-file-status.added {
-  background: var(--green-dim);
-  color: var(--green);
-}
-.taf-drawer-file-status.modified {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-}
-.taf-drawer-file-status.deleted {
-  background: var(--red-dim);
-  color: var(--red);
-}
-.taf-drawer-file-status.unchanged {
-  background: var(--bg-elevated);
-  color: var(--text-faint);
-}
-.taf-drawer-file-path {
-  flex: 1;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-primary);
+.taf-file-name {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
+  font-weight: 600;
+  color: var(--text-primary);
 }
-.taf-drawer-file-stats {
+.taf-file-dir {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10px;
   color: var(--text-faint);
-  flex-shrink: 0;
+}
+.taf-file-stats {
+  display: inline-flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
-.taf-drawer-diff {
-  flex: 1;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.5;
-  background: var(--bg-base);
+.taf-file-bin {
+  color: var(--text-faint);
 }
-.taf-drawer-diff-line {
-  display: flex;
-  padding: 0 8px;
-  min-height: 20px;
+.taf-fs {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 4px;
+  font: 700 10px var(--font-mono);
 }
-.taf-drawer-diff-line.added {
+.taf-fs-a {
   background: var(--green-dim);
-  color: var(--text-primary);
+  color: var(--green);
 }
-.taf-drawer-diff-line.added .taf-diff-sign { color: var(--green); }
-.taf-drawer-diff-line.removed {
+.taf-fs-m {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+.taf-fs-d {
   background: var(--red-dim);
-  color: var(--text-primary);
-}
-.taf-drawer-diff-line.removed .taf-diff-sign { color: var(--red); }
-.taf-drawer-diff-line.hunk {
-  background: var(--blue-dim);
-  color: var(--blue);
-  font-weight: 500;
-}
-.taf-drawer-diff-line.header {
-  color: var(--text-faint);
-  background: var(--bg-elevated);
-}
-.taf-drawer-diff-line.context { color: var(--text-muted); }
-.taf-drawer-diff-line .taf-diff-sign {
-  width: 14px;
-  flex-shrink: 0;
-  text-align: center;
-  color: var(--text-faint);
-  font-weight: 600;
-}
-.taf-drawer-diff-line .taf-diff-text {
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.taf-drawer-diff-loading {
-  padding: 20px;
-  text-align: center;
-  color: var(--text-faint);
-  font-size: 11px;
+  color: var(--red);
 }
 
 /* ── Contributor profile ── */
@@ -1292,6 +1312,7 @@
 
 @media (max-width: 960px) {
   .taf-contributors { width: 230px; }
+  .taf-drawer-sidebar { width: 240px; }
   .taf-rank-row { grid-template-columns: 34px 30px minmax(100px, 1fr) 90px; }
   .taf-rank-track { display: none; }
   .taf-podium { gap: 10px; }
