@@ -1,5 +1,6 @@
 import { createPanel } from './panel.js';
 import { runFunction } from './actions.js';
+import { init as initBrowserToggle } from './browserToggle.js';
 
 const ICON = '<svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 3v-3H5a2 2 0 0 1-2-2z"/><path d="M7 7.5h6M7 10.5h3.5"/></svg>';
 
@@ -70,4 +71,5 @@ export function init() {
   document.body.appendChild(btn);
   document.body.appendChild(panel.el);
   document.addEventListener('mousedown', onDocDown, true);
+  initBrowserToggle();
 }
