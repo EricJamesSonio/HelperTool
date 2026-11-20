@@ -1,6 +1,6 @@
 import { DEFAULT_PREFERENCES } from '../defaultPreferences.js';
 
-const ZOOM_MIN = 1;
+const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
 const ZOOM_KEY = 'helpertool-ui-zoom';
