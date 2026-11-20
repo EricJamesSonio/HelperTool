@@ -226,6 +226,10 @@ function register() {
       return { files: [], error: err.message };
     }
   });
+
+  require('./teamActivityExport.js').register({
+    getData: (repoPath) => logHandler({ repoPath, force: false }),
+  });
 }
 
 module.exports = { register };
