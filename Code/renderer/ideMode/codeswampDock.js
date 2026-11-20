@@ -25,8 +25,6 @@ let tm = null;
 let scroll = null;
 let resizeBound = false;
 let menuEl = null;
-let warmKey = '';
-let warmTimer = 0;
 
 function readLS(key, fallback) {
   try {
@@ -237,36 +235,6 @@ function place() {
   });
 }
 
-function prewarm() {
-  const repo = csState.activeTab;
-  if (!repo || !tm || typeof tm.prewarmAllProviders !== 'function') return;
-  if (repo === warmKey) return;
-  warmKey = repo;
-  const p = tm.prewarmAllProviders(repo);
-  if (p && typeof p.catch === 'function') {
-    p.catch(() => {
-      warmKey = '';
-    });
-  }
-}
-
-async function warm() {
-  if (!isIde() || !enabled()) return;
-  buildHosts();
-  if (!dock) return;
-  const panel = await ensurePanel();
-  if (!panel || !isIde()) return;
-  if (!tm) tm = await import('../codeswampUI/terminalManager.js');
-  prewarm();
-}
-
-function scheduleWarm() {
-  clearTimeout(warmTimer);
-  warmTimer = setTimeout(() => {
-    warm().catch((err) => console.error('[IDE] Code Swamp warm-up failed:', err));
-  }, 1200);
-}
-
 async function show() {
   if (!isIde() || !enabled()) return;
   buildHosts();
@@ -283,7 +251,9 @@ async function show() {
     .catch(() => {});
   const input = document.getElementById('ocInput');
   if (input) input.focus();
-  prewarm();
+  import('../codeswampUI.js')
+    .then((m) => m.ensureFirstChat())
+    .catch((err) => console.error('[IDE] Code Swamp auto-start failed:', err));
 }
 
 function hide() {
@@ -316,15 +286,17 @@ function closeMenu() {
 
 async function pickAgent(id) {
   closeMenu();
-  await show();
-  const sel = document.getElementById('ocAIProviderSelect');
-  if (sel && sel.value !== id) {
-    sel.value = id;
-    sel.dispatchEvent(new Event('change'));
-  } else if (!sel && csState.selectedProvider !== id) {
-    csState.selectedProvider = id;
-    writeLS('helpertool-cs-provider', id);
+  if (csState.selectedProvider !== id) {
+    const sel = document.getElementById('ocAIProviderSelect');
+    if (sel) {
+      sel.value = id;
+      sel.dispatchEvent(new Event('change'));
+    } else {
+      csState.selectedProvider = id;
+      writeLS('helpertool-cs-provider', id);
+    }
   }
+  await show();
 }
 
 function openMenu() {
@@ -389,10 +361,8 @@ function watchMode() {
   new MutationObserver(() => {
     const now = isIde();
     if (was && !now) leaveIde();
-    if (!was && now) scheduleWarm();
     was = now;
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  if (was) scheduleWarm();
 }
 
 function onKey(e) {
@@ -433,13 +403,6 @@ export function init() {
   createButton();
   document.addEventListener('ide:codeswamp-toggle', toggle);
   document.addEventListener('keydown', onKey);
-  document.addEventListener('repo:switched', () => {
-    warmKey = '';
-    if (isIde()) scheduleWarm();
-  });
-  document.addEventListener('cs:slept', () => {
-    warmKey = '';
-  });
   document.addEventListener('ide:close-search', () => {
     if (visible && currentMode() === 'modal') hide();
   });
