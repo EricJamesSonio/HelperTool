@@ -165,7 +165,24 @@ function syncControls() {
   renderSwatches();
   renderFolderDepthSwatches();
   _renderFeaturesList();
+  _renderEnvDefaults();
 }
+function _renderEnvDefaults() {
+  const anchor = document.getElementById('settingsFeaturesSection');
+  if (!anchor || !anchor.parentElement) return;
+  let sec = document.getElementById('settingsEnvDefaults');
+  if (!sec) {
+    sec = document.createElement('div');
+    sec.className = 'settings-section';
+    sec.id = 'settingsEnvDefaults';
+    sec.innerHTML = '<div class="settings-section-label">Config files (Notes button)</div><div id="settingsEnvDefaultsBody"></div>';
+    anchor.parentElement.insertBefore(sec, anchor);
+  }
+  import('../sessionNotes.js')
+    .then((m) => m.renderDefaultsEditor(sec.querySelector('#settingsEnvDefaultsBody')))
+    .catch((err) => console.error('[Settings] config file defaults failed:', err));
+}
+
 
 function openSettings() {
   _ensureModal();
