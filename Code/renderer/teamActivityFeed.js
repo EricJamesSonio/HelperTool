@@ -267,6 +267,7 @@ export async function open(repoPath) {
     return;
   }
   if (!_panel) _buildPanel();
+  _wireExport();
   _open = true;
   _panel.classList.add('taf-open');
   _setView(_view, true);
@@ -475,6 +476,72 @@ function _escHandler(e) {
       return;
     }
     close();
+  }
+}
+const TA_SHARE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="4.5" r="2.2"/><circle cx="5" cy="10" r="2.2"/><circle cx="15" cy="15.5" r="2.2"/><path d="M7 9l6-3.4M7 11l6 3.4"/></svg>';
+const TA_PDF = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h7l4 4V16a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 4 16V4A1.5 1.5 0 0 1 5.5 2.5z"/><path d="M12 2.5v4h4"/><path d="M7 12h6M7 14.5h4"/></svg>';
+
+let _exportBusy = false;
+
+function _wireExport() {
+  if (!_panel || _panel.querySelector('#tafExportHtml')) return;
+  const right = _panel.querySelector('.taf-header-right');
+  const refresh = _panel.querySelector('#tafRefreshBtn');
+  if (!right || !refresh) return;
+  const make = (id, icon, text, title, kind) => {
+    const btn = _el('button', {
+      className: 'taf-refresh-btn taf-export-btn',
+      id,
+      title,
+      innerHTML: icon + ' ' + text,
+    });
+    btn.addEventListener('click', () => _runExport(kind));
+    return btn;
+  };
+  right.insertBefore(
+    make('tafExportHtml', TA_SHARE, 'Share', 'Save an interactive snapshot (one HTML file) that anyone can open in a browser', 'html'),
+    refresh
+  );
+  right.insertBefore(
+    make('tafExportPdf', TA_PDF, 'PDF', 'Save a PDF report: rankings, commit counts and the latest 20 commit messages', 'pdf'),
+    refresh
+  );
+}
+
+function _flash(text) {
+  _updateAgeLabel(text);
+  setTimeout(() => {
+    if (_open) _updateAgeLabel();
+  }, 4000);
+}
+
+async function _runExport(kind) {
+  if (_exportBusy) return;
+  if (!_repoPath || !_commits.length) {
+    _flash('Nothing to export yet');
+    return;
+  }
+  _exportBusy = true;
+  const btn = _panel.querySelector(kind === 'pdf' ? '#tafExportPdf' : '#tafExportHtml');
+  if (btn) btn.disabled = true;
+  try {
+    const api = window.electronAPI;
+    const res = kind === 'pdf'
+      ? await api.teamActivityExportPdf(_repoPath)
+      : await api.teamActivityExportHtml(_repoPath);
+    if (res && res.success) {
+      _flash('Saved ' + _baseName(String(res.filePath || '').replace(/\\/g, '/')));
+    } else if (res && res.canceled) {
+      _updateAgeLabel();
+    } else {
+      _flash((res && res.error) || 'Export failed');
+    }
+  } catch (err) {
+    console.warn('[TeamActivity] export failed:', err);
+    _flash('Export failed');
+  } finally {
+    _exportBusy = false;
+    if (btn) btn.disabled = false;
   }
 }
 

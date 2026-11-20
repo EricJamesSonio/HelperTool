@@ -1,22 +1,21 @@
-import { initCodeSwampUI, openCodeSwampUI, closeCodeSwampUI, isOpen } from './codeswampUI/index.js';
+import { initCodeSwampUI, openCodeSwampUI, closeCodeSwampUI, isOpen, ensureFirstChat as ensureChat } from './codeswampUI/index.js';
 import { addRepo } from './codeswampUI/repoTabs.js';
 
-let _initialized = false;
+let _initPromise = null;
 
-export async function init() {
-  if (_initialized) return;
-  _initialized = true;
-  await initCodeSwampUI();
+export function init() {
+  if (!_initPromise) {
+    _initPromise = initCodeSwampUI().catch((err) => {
+      _initPromise = null;
+      throw err;
+    });
+  }
+  return _initPromise;
 }
 
-export function open() {
-  if (!_initialized) {
-    init().then(() => {
-      openCodeSwampUI();
-    });
-  } else {
-    openCodeSwampUI();
-  }
+export async function open() {
+  await init();
+  openCodeSwampUI();
 }
 
 export function close() {
@@ -27,10 +26,13 @@ export function isCodeSwampOpen() {
   return isOpen();
 }
 
+export function ensureFirstChat() {
+  return ensureChat();
+}
+
 export async function handleRepoChange(repoPath) {
   if (!repoPath) return;
-  if (!_initialized) {
-    await init();
-  }
+  if (!_initPromise) return;
+  await _initPromise;
   await addRepo(repoPath);
 }
