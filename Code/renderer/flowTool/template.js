@@ -24,10 +24,12 @@ export function getTemplate() {
         <button class="ft-btn" id="ftCopyBtn">Copy box</button>
         <button class="ft-btn" id="ftClearBtn">Clear box</button>
       </div>
-      <div class="ft-steps ft-hidden" id="ftSteps"></div>
-      <div class="ft-result ft-hidden" id="ftResult">
-        <div class="ft-result-title" id="ftResultTitle"></div>
-        <div class="ft-lines" id="ftLines"></div>
+      <div class="ft-status" id="ftStatus">
+        <div class="ft-steps ft-hidden" id="ftSteps"></div>
+        <div class="ft-result ft-hidden" id="ftResult">
+          <div class="ft-result-title" id="ftResultTitle"></div>
+          <div class="ft-lines" id="ftLines"></div>
+        </div>
       </div>
     </section>
     <section class="ft-col ft-right" id="ftRight" data-reply="none" data-mode="review">

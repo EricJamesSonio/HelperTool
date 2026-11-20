@@ -61,11 +61,16 @@ export const FLOW_CSS = `
 .ft-row { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 
 .ft-box {
-  flex: 1 1 0; min-height: 120px; resize: none; padding: 12px; border-radius: 10px;
+  flex: 0 0 46%; min-height: 160px; resize: none; padding: 12px; border-radius: 10px;
   border: 1px solid var(--border-default, rgba(255,255,255,0.1)); background: var(--bg-elevated, #0d1117);
   color: var(--text-primary, #eef2ff); font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; outline: none;
 }
 .ft-box:focus { border-color: var(--accent, #f0b429); }
+
+.ft-status {
+  flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; gap: 10px; padding-right: 4px;
+}
 
 .ft-steps { flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; }
 .ft-step { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-muted, #7d8590); }
@@ -81,7 +86,7 @@ export const FLOW_CSS = `
 .ft-step-detail { margin-left: auto; font-size: 0.72rem; color: var(--text-muted, #7d8590); }
 @keyframes ftSpin { to { transform: rotate(360deg); } }
 
-.ft-result { flex: 0 1 auto; min-height: 0; max-height: 45%; overflow-y: auto; border: 1px solid var(--border-default, rgba(255,255,255,0.08)); border-radius: 10px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
+.ft-result { flex: 0 0 auto; border: 1px solid var(--border-default, rgba(255,255,255,0.08)); border-radius: 10px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
 .ft-result-title { font-weight: 700; margin-bottom: 4px; }
 .ft-lines { display: flex; flex-direction: column; gap: 3px; }
 .ft-line { font-size: 0.76rem; line-height: 1.4; color: var(--text-muted, #7d8590); word-break: break-word; }
@@ -164,5 +169,7 @@ export const FLOW_CSS = `
   .ft-body { grid-template-columns: 1fr; overflow-y: auto; }
   .ft-review-body { grid-template-columns: 1fr; }
   .ft-left { overflow-y: auto; }
+  .ft-box { flex: 0 0 280px; }
+  .ft-status { flex: 0 0 auto; max-height: 320px; }
 }
 `;
