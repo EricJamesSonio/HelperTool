@@ -53,6 +53,7 @@ class GitToolUI {
     this._savedContent = null;
     this._savedForm = null;
     this._suppressClose = false;
+    this._initialRenderShown = false;
   }
 
   /**
@@ -576,7 +577,15 @@ class GitToolUI {
 
     this.setButtonLoading(btn, true);
 
-    const result = await this.gitHandler.commitAllGroups();
+    const result = await this.gitHandler.commitAllGroups((progress) => {
+      // Incremental feedback per group so the user sees commits happening one by one
+      const done = progress.index + 1;
+      const total = progress.total;
+      const label = progress.group?.label || progress.message || 'Group ' + (progress.index + 1);
+      this.showProgress(`Committing group ${done}/${total}: ${progress.success ? '✓ ' : '✗ '}${label}` + (progress.error ? ' (' + progress.error + ')' : ''));
+      // Refresh UI incrementally so committed groups are reflected right away
+      this.refreshUI();
+    });
 
     this.setButtonLoading(btn, false);
 
@@ -860,6 +869,18 @@ class GitToolUI {
     this.syncViewTabs();
 
     // Update panels
+    const hasData = state.workingTree.length > 0 || state.staged.length > 0 || state.history.length > 0;
+    const loadingEl = this.container.querySelector('.git-loading-state');
+    if (loadingEl) loadingEl.remove();
+    if (!hasData && !this._initialRenderShown) {
+      this._initialRenderShown = true;
+      const loader = document.createElement('div');
+      loader.className = 'git-loading-state';
+      loader.textContent = 'Loading git changes...';
+      const bodyEl = this.container.querySelector('.git-content');
+      if (bodyEl) bodyEl.prepend(loader);
+      setTimeout(() => loader.remove(), 800);
+    }
     this.renderWorkingTree(state.workingTree);
     this.renderStagedFiles(state.staged);
     this.renderCommitHistory(state.history);
@@ -1177,6 +1198,17 @@ class GitToolUI {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 4000);
   }
+  /**
+   * Show progress notification (stays briefly then auto-removes)
+   */
+  showProgress(message) {
+    const toast = document.createElement('div');
+    toast.className = 'git-toast git-toast-progress';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
 
   /**
    * Show success notification

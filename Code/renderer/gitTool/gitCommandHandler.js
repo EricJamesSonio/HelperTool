@@ -5,6 +5,7 @@
  */
 
 import { buildGroupMessage } from './commitMessageAnalyzer.js';
+import { invalidate as invalidateViewCache } from './viewCache.js';
 
 class GitCommandHandler {
   constructor(gitManager) {
@@ -17,6 +18,13 @@ class GitCommandHandler {
     this._onConnectivityReady = null; // callback when connectivity edges are loaded
     this._fileTimestamps = new Map(); // file -> last modified timestamp from watcher
     this.currentBranch = null;
+  }
+
+  /**
+   * Mark cached Branches and Inspect data of this repo as stale
+   */
+  _invalidateViews() {
+    if (this.repoPath) invalidateViewCache(this.repoPath);
   }
 
   /**
@@ -48,7 +56,12 @@ class GitCommandHandler {
 
       this.gitManager.updateWorkingTree(result.workingFiles || [], timestamps);
       this.gitManager.updateStagedFiles(result.stagedFiles || []);
-      this.currentBranch = result.currentBranch || null;
+
+      const previousBranch = this.currentBranch;
+      this.currentBranch = result.currentBranch || result.branch || null;
+      if (previousBranch && this.currentBranch && previousBranch !== this.currentBranch) {
+        this._invalidateViews();
+      }
 
       // Prune stale timestamps (files no longer in working tree)
       if (this._fileTimestamps.size > 0 && result.workingFiles) {
@@ -206,6 +219,8 @@ class GitCommandHandler {
         }
       }
 
+      this._invalidateViews();
+
       return {
         ...commit
       };
@@ -253,11 +268,14 @@ class GitCommandHandler {
     }
   }
 
-  /**
+  /****
    * Iterate through all smart groups, auto-generate a commit message for each,
    * stage + commit each group to real git, and refresh state once at the end.
+   *
+   * @param {Function} [onProgress] - Called after each group with { index, total, group, message, success, error }
+   *   so the UI can render incremental feedback per group instead of waiting for the whole batch.
    */
-  async commitAllGroups() {
+  async commitAllGroups(onProgress) {
     const groups = this.gitManager.getSmartGroups();
     if (!groups || groups.length === 0) {
       return { error: 'No changes to commit' };
@@ -265,17 +283,23 @@ class GitCommandHandler {
 
     const results = [];
 
-    for (const group of groups) {
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
       const filePaths = group.files.map(f => f.file);
       // Message is built before staging so the diff against the index still shows the changes
       const message = await this._smartGroupMessage(group);
+
+      let success = false;
+      let error = null;
 
       try {
         // Real git stage
         if (this.ipc?.stage) {
           const stageResult = await this.ipc.stage(this.repoPath, filePaths);
           if (!stageResult.success) {
-            results.push({ files: group.files, message, error: stageResult.error || 'Stage failed', success: false });
+            error = stageResult.error || 'Stage failed';
+            results.push({ files: group.files, message, error, success: false });
+            onProgress?.({ index: i, total: groups.length, group, message, success: false, error });
             continue;
           }
         }
@@ -284,7 +308,9 @@ class GitCommandHandler {
         if (this.ipc?.commit) {
           const commitResult = await this.ipc.commit(this.repoPath, message, filePaths);
           if (!commitResult.success) {
+            error = commitResult.error || 'Commit failed';
             results.push({ files: group.files, message, error: commitResult.error || 'Commit failed', success: false });
+            onProgress?.({ index: i, total: groups.length, group, message, success: false, error });
             continue;
           }
         }
@@ -293,10 +319,15 @@ class GitCommandHandler {
         this.gitManager.stageFiles(filePaths);
         this.gitManager.createCommit(message);
 
+        success = true;
         results.push({ files: group.files, message, success: true });
       } catch (err) {
+        error = err.message;
         results.push({ files: group.files, message, error: err.message, success: false });
       }
+
+      // Report incremental progress so the UI can refresh per-group
+      onProgress?.({ index: i, total: groups.length, group, message, success, error });
     }
 
     // Single refresh at end to reconcile with real git state
@@ -304,6 +335,8 @@ class GitCommandHandler {
 
     const succeeded = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
+
+    if (succeeded > 0) this._invalidateViews();
 
     return {
       success: failed === 0,
@@ -334,6 +367,7 @@ class GitCommandHandler {
 
       // Mark as pushed in local state
       const result = this.gitManager.markCommitPushed(commitId);
+      this._invalidateViews();
       return {
         success: true,
         commit: result.commit
@@ -351,6 +385,7 @@ class GitCommandHandler {
         if (result.error) return result;
       }
       const result = this.gitManager.markAllPushed();
+      this._invalidateViews();
       return {
         success: true,
         count: result.count
@@ -368,7 +403,11 @@ class GitCommandHandler {
 
   async pushSetUpstream() {
     if (!this.ipc?.pushSetUpstream) return { error: 'Push set-upstream not available' };
-    return await this.ipc.pushSetUpstream(this.repoPath);
+    const result = await this.ipc.pushSetUpstream(this.repoPath);
+    if (result && result.success !== false && !result.error) {
+      this._invalidateViews();
+    }
+    return result;
   }
 
   /**
