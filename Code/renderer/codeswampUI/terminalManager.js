@@ -212,6 +212,13 @@ export function hasRevealedTerminal(repoPath) {
     inst && sameRepoPath(inst.repoPath, repoPath) && inst.revealed !== false
   );
 }
+export function hasRevealedProvider(repoPath, providerId) {
+  const pid = providerId || getProvider(state.selectedProvider).id;
+  return Object.values(instances).some((inst) =>
+    inst && sameRepoPath(inst.repoPath, repoPath) && inst.provider === pid && inst.revealed !== false
+  );
+}
+
 
 function _getSlotDiv(slotIndex) {
   return document.querySelector(`.oc-term-instance.slot-${slotIndex}`);

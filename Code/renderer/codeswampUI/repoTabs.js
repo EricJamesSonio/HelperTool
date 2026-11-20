@@ -64,9 +64,6 @@ export async function addRepo(repoPath) {
   }
   renderRepoTabs();
   ensureRepoBadges();
-  if (state.activeTab) {
-    prewarmAllProviders(state.activeTab).catch(() => {});
-  }
 }
 
 export async function openRepoTab(repoPath) {
@@ -75,7 +72,6 @@ export async function openRepoTab(repoPath) {
   const tab = ensureTab(repoPath);
   switchTab(tab.repoPath);
   refreshSidebar().catch(() => {});
-  prewarmAllProviders(tab.repoPath).catch(() => {});
 }
 
 export async function closeRepoTab(repoPath, slotIndex) {
