@@ -55,6 +55,7 @@ function injectCss() {
     ['ideClipboardCss', './styles/ide-clipboard.css'],
     ['ideGuidesCss', './styles/ide-guides.css'],
     ['ideCenterCss', './styles/ide-center.css'],
+    ['ideBadgesCss', './styles/ide-badges.css'],
   ];
   for (const [id, href] of sheets) {
     if (document.getElementById(id)) continue;
