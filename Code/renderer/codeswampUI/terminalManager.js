@@ -50,7 +50,8 @@ function isSubmitData(data) {
 
 function sleepCandidate(inst, now) {
   const SLEEP_AFTER_READY_SEC = 10;
-  if (!inst || !inst.terminal) return false;
+  if (!inst || !inst.terminal || inst.asleep) return false;
+  if (!window.csSuspendAPI) return false;
   if (!inst.booted || !inst.readyAt) return false;
   if (inst.revealed !== false || inst.used || inst.chatted) return false;
   if (state.open) return false;
@@ -69,32 +70,25 @@ function stopSleepWatch() {
 
 function sleepSweep() {
   const now = Date.now();
+  const api = window.csSuspendAPI;
+  const picked = [];
   let waiting = 0;
   for (const key of Object.keys(instances)) {
     const inst = instances[key];
-    if (!inst) continue;
+    if (!inst || inst.asleep) continue;
     if (inst.revealed === false && !inst.used && !inst.chatted) waiting++;
     if (!sleepCandidate(inst, now)) continue;
-    const repoPath = inst.repoPath;
-    console.log('[CS] sleeping idle terminal slot=' + key + ' repo=' + repoPath);
-    killSlot(Number(key));
+    inst.asleep = true;
+    picked.push(inst);
     waiting--;
-    if (!Object.values(instances).some((i) => i && i.revealed === false)) {
-      stageTerminal(false);
-    }
-    if (sameRepoPath(state.activeTab, repoPath)) {
-      if (hasRevealedTerminal(repoPath)) {
-        showTerminalSession(repoPath);
-      } else {
-        const w = document.getElementById('ocWelcome');
-        const t = document.getElementById('ocTerminal');
-        if (w) w.style.display = '';
-        if (t) t.style.display = 'none';
-      }
-    }
-    try {
-      document.dispatchEvent(new CustomEvent('cs:slept', { detail: { repoPath } }));
-    } catch (_) {}
+  }
+  if (picked.length && api) {
+    console.log('[CS] suspending idle terminals count=' + picked.length);
+    api.suspend(picked.map((inst) => inst.id)).then((res) => {
+      if (!res || res.ok === false) wakeInstances(picked.filter((i) => i.asleep));
+    }).catch(() => {
+      wakeInstances(picked.filter((i) => i.asleep));
+    });
   }
   if (waiting <= 0) stopSleepWatch();
 }
@@ -103,6 +97,39 @@ function ensureSleepWatch() {
   if (_sleepTimer) return;
   _sleepTimer = setInterval(sleepSweep, SLEEP_SWEEP_MS);
 }
+function wakeInstances(list) {
+  if (!list || !list.length) return Promise.resolve(false);
+  const api = window.csSuspendAPI;
+  const t = Date.now();
+  list.forEach((inst) => {
+    inst.asleep = false;
+    inst.readyAt = t;
+    inst.lastDataAt = t;
+  });
+  ensureSleepWatch();
+  if (!api) return Promise.resolve(false);
+  return api.resume(list.map((inst) => inst.id)).then((res) => {
+    if (!res || res.ok === false) throw new Error(res && res.error ? res.error : 'resume failed');
+    return true;
+  }).catch((err) => {
+    console.warn('[CS] resume failed, restarting:', err && err.message ? err.message : err);
+    list.forEach((inst) => {
+      if (instances[inst.slotIndex] === inst) killSlot(inst.slotIndex);
+    });
+    try {
+      document.dispatchEvent(new CustomEvent('cs:slept', { detail: {} }));
+    } catch (_) {}
+    return false;
+  });
+}
+
+export function wakeSleeping(repoPath) {
+  const list = Object.values(instances).filter((inst) =>
+    inst && inst.asleep && (!repoPath || sameRepoPath(inst.repoPath, repoPath))
+  );
+  return wakeInstances(list);
+}
+
 
 
 async function loadXterm() {
@@ -367,7 +394,10 @@ export async function initXterm() {
 }
 
 export function createTerminalSession(repoPath, slotIndex = 0, opts = {}) {
-  if (instances[slotIndex]) return Promise.resolve(instances[slotIndex]);
+  if (instances[slotIndex]) {
+    if (instances[slotIndex].asleep) wakeInstances([instances[slotIndex]]);
+    return Promise.resolve(instances[slotIndex]);
+  }
   if (_creating.has(slotIndex)) return _creating.get(slotIndex);
   const pid = getProvider((opts && opts.providerId) || state.selectedProvider).id;
   const p = _createSession(repoPath, slotIndex, opts)
@@ -600,6 +630,7 @@ export function showSlot(slotIndex) {
   }
 
   const inst = instances[slotIndex];
+  if (inst && inst.asleep) wakeInstances([inst]);
   if (inst && inst.fitAddon) {
     requestAnimationFrame(() => {
       safeFit(inst);
@@ -626,12 +657,14 @@ export function showTerminalSession(repoPath) {
 export function writeToTerminal(repoPath, text) {
   const inst = Object.values(instances).find(i => i && i.repoPath === repoPath);
   if (!inst) return Promise.resolve();
+  if (inst.asleep) wakeInstances([inst]);
   return window.electronAPI.opencode.termWrite({ id: inst.id, data: text }).catch(() => {});
 }
 
 export function writeToSlot(slotIndex, text, opts = {}) {
   const inst = instances[slotIndex];
   if (!inst) return Promise.resolve();
+  if (inst.asleep) wakeInstances([inst]);
   inst.lastUserAt = Date.now();
   if (text && String(text).indexOf('\r') !== -1) inst.chatted = true;
   const submit = !!opts.submit && inst.booted;
@@ -1285,6 +1318,7 @@ export function prewarmSession(repoPath, providerId) {
 
 export async function prewarmAllProviders(repoPath) {
   if (!repoPath || !prewarmEnabled()) return [];
+  wakeSleeping(repoPath);
   killUnusedPrewarmed(repoPath);
   const selected = getProvider(state.selectedProvider).id;
   const order = [selected, ...AUTO_PREPARE_PROVIDERS.filter((id) => id !== selected)];
