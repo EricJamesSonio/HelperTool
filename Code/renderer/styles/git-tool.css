@@ -681,12 +681,6 @@
   color: var(--red, #f85149);
 }
 
-.git-toast-progress {
-  background: var(--blue-dim, rgba(37,99,235,0.15));
-  border: 1px solid var(--blue, #2563eb);
-  color: var(--blue, #2563eb);
-}
-
 /* ══ SCROLLBAR STYLING ══ */
 .file-list::-webkit-scrollbar,
 .commit-list::-webkit-scrollbar,

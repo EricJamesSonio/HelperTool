@@ -580,14 +580,6 @@ function cleanupAndExit(deleteIndex) {
 }
 app.whenReady().then(() => {
   try {
-    require('./ipc/ideBrowser_ipc.js').register({ getMainWindow });
-  } catch (e) {
-    console.error('[IPC] Failed to register ideBrowser_ipc:', e);
-  }
-});
-
-app.whenReady().then(() => {
-  try {
   require('./ipc/repoConsole_ipc.js').register({ app, config, getMainWindow });
   } catch (e) {
   console.error('[IPC] Failed to register repoConsole_ipc:', e);

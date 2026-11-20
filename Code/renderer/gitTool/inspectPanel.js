@@ -1,6 +1,5 @@
 import { escHtml, timeAgo, parseDiff } from './branchManager/utils.js';
 import { createCodeViewer } from '../shared/codeViewer.js';
-import { getEntry, setCached, needsRefresh, invalidate } from './viewCache.js';
 
 let viewer = null;
 
@@ -10,8 +9,6 @@ const MAX_LINE_CHARS = 4000;
 const MAX_DIFF_ROWS = 4000;
 const MAX_CACHE = 24;
 const STYLE_ID = 'gitInspectSheet';
-const BRANCHES_KIND = 'inspect:branches';
-const MAX_MEMORY_REPOS = 6;
 
 const ICON_REFRESH = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 1 1-1.76-4.24"/><path d="M16 3.5V6h-2.5"/></svg>';
 const ICON_COPY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M4 13V4a1 1 0 0 1 1-1h8"/></svg>';
@@ -23,8 +20,6 @@ const STATUS = {
   T: ['t', 'Type changed'],
   U: ['u', 'Unmerged'],
 };
-
-const memory = new Map();
 
 function freshState() {
   return {
@@ -57,64 +52,6 @@ function freshState() {
 let S = freshState();
 let root = null;
 
-function repoMemory(repoPath) {
-  let m = memory.get(repoPath);
-  if (m) {
-    memory.delete(repoPath);
-  } else {
-    m = { files: new Map(), contents: new Map(), diffs: new Map(), view: null };
-  }
-  memory.set(repoPath, m);
-  while (memory.size > MAX_MEMORY_REPOS) {
-    memory.delete(memory.keys().next().value);
-  }
-  return m;
-}
-
-function commitsKey(branch) {
-  return 'inspect:commits:' + branch;
-}
-
-function applyBranches(r, keep) {
-  S.branches = r;
-  const names = new Set([].concat(r.local, r.remote, r.detached ? ['HEAD'] : []));
-  S.branch = keep && S.branch && names.has(S.branch) ? S.branch : pickBranch(r);
-}
-
-function applyCommits(d) {
-  S.commits = d.commits.slice();
-  S.page = d.page;
-  S.totalPages = d.totalPages;
-  S.total = d.total;
-}
-
-function commitsSnapshot() {
-  return {
-    commits: S.commits.slice(),
-    page: S.page,
-    totalPages: S.totalPages,
-    total: S.total,
-  };
-}
-
-function settleSelection() {
-  if (S.selectedHash && S.commits.some((c) => c.hash === S.selectedHash)) return S.selectedHash;
-  S.selectedHash = '';
-  S.selectedFile = '';
-  return S.commits.length ? S.commits[0].hash : '';
-}
-
-function samePage(r) {
-  if (r.total !== S.total || !S.commits.length || r.commits.length > S.commits.length) return false;
-  return r.commits.every((c, i) => c.hash === S.commits[i].hash && c.refs.join(',') === S.commits[i].refs.join(','));
-}
-
-function dropFailures(map) {
-  for (const [key, value] of Array.from(map.entries())) {
-    if (!value || value.success === false) map.delete(key);
-  }
-}
-
 export function ensureStyles() {
   if (typeof document === 'undefined') return;
   if (document.getElementById(STYLE_ID)) return;
@@ -136,34 +73,7 @@ export function open(container, repoPath) {
   S.gen = gen;
   S.open = true;
   S.repoPath = repoPath || '';
-
-  const mem = repoMemory(S.repoPath);
-  S.files = mem.files;
-  S.contents = mem.contents;
-  S.diffs = mem.diffs;
-  if (mem.view) {
-    S.branch = mem.view.branch || '';
-    S.selectedHash = mem.view.selectedHash || '';
-    S.selectedFile = mem.view.selectedFile || '';
-    S.mode = mem.view.mode || 'changes';
-  }
-
-  const cachedBranches = getEntry(S.repoPath, BRANCHES_KIND);
-  let cachedCommits = null;
-  if (cachedBranches) {
-    applyBranches(cachedBranches.data, true);
-    cachedCommits = getEntry(S.repoPath, commitsKey(S.branch));
-  }
-
-  let pick = '';
-  if (cachedCommits) {
-    applyCommits(cachedCommits.data);
-    pick = settleSelection();
-  } else {
-    S.loadingBranches = true;
-    S.selectedHash = '';
-    S.selectedFile = '';
-  }
+  S.loadingBranches = true;
 
   container.innerHTML = template();
   root = container.querySelector('.ins-panel');
@@ -173,31 +83,10 @@ export function open(container, repoPath) {
   root.addEventListener('keydown', onKeydown);
 
   renderAll();
-
-  if (!cachedBranches) {
-    loadBranches(false, false);
-    return;
-  }
-  if (!cachedCommits) {
-    loadBranches(true, false);
-    return;
-  }
-  if (pick) selectCommit(pick, true);
-  if (needsRefresh(cachedBranches) || needsRefresh(cachedCommits)) {
-    loadBranches(true, true);
-  }
+  loadBranches(false);
 }
 
 export function close() {
-  if (S.open) {
-    const mem = repoMemory(S.repoPath);
-    mem.view = {
-      branch: S.branch,
-      selectedHash: S.selectedHash,
-      selectedFile: S.selectedFile,
-      mode: S.mode,
-    };
-  }
   S.open = false;
   S.gen += 1;
   root = null;
@@ -672,23 +561,21 @@ function resetPreviewScroll() {
 
 /* ---------- loading ---------- */
 
-async function loadBranches(keep, silent) {
+async function loadBranches(keep) {
   const gen = S.gen;
-  const repo = S.repoPath;
-  if (!silent) {
-    S.loadingBranches = true;
-    S.commitsError = '';
-    renderBranchSelect();
-    renderCommits();
-  }
+  S.loadingBranches = true;
+  S.commitsError = '';
+  renderBranchSelect();
+  renderCommits();
 
   let failure = '';
-  let fresh = null;
   try {
-    const r = await api('gitInspectBranches')(repo);
+    const r = await api('gitInspectBranches')(S.repoPath);
     if (!S.open || gen !== S.gen) return;
     if (r && r.success) {
-      fresh = r;
+      S.branches = r;
+      const names = new Set([].concat(r.local, r.remote, r.detached ? ['HEAD'] : []));
+      S.branch = keep && S.branch && names.has(S.branch) ? S.branch : pickBranch(r);
     } else {
       failure = (r && r.error) || 'Could not read the branches of this repository.';
     }
@@ -698,22 +585,16 @@ async function loadBranches(keep, silent) {
   }
 
   S.loadingBranches = false;
+  renderBranchSelect();
   if (failure) {
-    if (silent) return;
-    renderBranchSelect();
     S.commitsError = failure;
     renderCommits();
     return;
   }
-
-  setCached(repo, BRANCHES_KIND, fresh);
-  const before = S.branch;
-  applyBranches(fresh, keep);
-  renderBranchSelect();
-  await loadCommits(true, !!silent && before === S.branch);
+  await loadCommits(true);
 }
 
-async function loadCommits(first, silent) {
+async function loadCommits(first) {
   const gen = S.gen;
   const branch = S.branch;
   if (!branch) {
@@ -722,55 +603,43 @@ async function loadCommits(first, silent) {
   }
 
   const page = first ? 1 : S.page + 1;
-  if (!silent) {
-    if (first) S.loadingCommits = true;
-    else S.loadingMore = true;
-    S.commitsError = '';
-    renderCommits();
-  }
+  if (first) S.loadingCommits = true;
+  else S.loadingMore = true;
+  S.commitsError = '';
+  renderCommits();
 
   let pick = '';
-  let unchanged = false;
-  let failed = false;
   try {
     const r = await api('gitInspectCommits')(S.repoPath, branch, page, PAGE_SIZE);
     if (!S.open || gen !== S.gen || branch !== S.branch) return;
     if (r && r.success) {
-      if (silent && first && samePage(r)) {
-        unchanged = true;
-      } else {
-        const seen = new Set(first ? [] : S.commits.map((c) => c.hash));
-        const fresh = (r.commits || []).filter((c) => !seen.has(c.hash));
-        S.commits = first ? fresh : S.commits.concat(fresh);
-        S.page = r.page;
-        S.totalPages = r.totalPages;
-        S.total = r.total;
-        if (first) {
-          const keep = S.selectedHash && S.commits.some((c) => c.hash === S.selectedHash);
-          if (keep) {
-            pick = S.selectedHash;
-          } else if (S.commits.length) {
-            pick = S.commits[0].hash;
-          } else {
-            S.selectedHash = '';
-            S.selectedFile = '';
-          }
+      const seen = new Set(first ? [] : S.commits.map((c) => c.hash));
+      const fresh = (r.commits || []).filter((c) => !seen.has(c.hash));
+      S.commits = first ? fresh : S.commits.concat(fresh);
+      S.page = r.page;
+      S.totalPages = r.totalPages;
+      S.total = r.total;
+      if (first) {
+        const keep = S.selectedHash && S.commits.some((c) => c.hash === S.selectedHash);
+        if (keep) {
+          pick = S.selectedHash;
+        } else if (S.commits.length) {
+          pick = S.commits[0].hash;
+        } else {
+          S.selectedHash = '';
+          S.selectedFile = '';
         }
       }
-      setCached(S.repoPath, commitsKey(branch), commitsSnapshot());
     } else {
-      failed = true;
-      if (!silent) S.commitsError = (r && r.error) || 'Could not read the commits of this branch.';
+      S.commitsError = (r && r.error) || 'Could not read the commits of this branch.';
     }
   } catch (e) {
     if (!S.open || gen !== S.gen || branch !== S.branch) return;
-    failed = true;
-    if (!silent) S.commitsError = e.message;
+    S.commitsError = e.message;
   }
 
   S.loadingCommits = false;
   S.loadingMore = false;
-  if (unchanged || (silent && failed)) return;
   renderCommits();
   if (!pick) {
     renderFiles();
@@ -904,33 +773,16 @@ function changeBranch(name) {
   S.filesLoading = '';
   S.filesError = '';
   S.previewLoading = false;
-
-  const cached = getEntry(S.repoPath, commitsKey(name));
-  if (cached) {
-    applyCommits(cached.data);
-    const pick = settleSelection();
-    renderCommits();
-    if (pick) {
-      selectCommit(pick, true);
-    } else {
-      renderFiles();
-      renderPreview();
-    }
-    if (needsRefresh(cached)) loadCommits(true, true);
-    return;
-  }
-
   renderFiles();
   renderPreview();
-  loadCommits(true, false);
+  loadCommits(true);
 }
 
 function refresh() {
-  invalidate(S.repoPath);
-  dropFailures(S.contents);
-  dropFailures(S.diffs);
-  dropFailures(S.files);
-  loadBranches(true, false);
+  S.files.clear();
+  S.contents.clear();
+  S.diffs.clear();
+  loadBranches(true);
 }
 
 function toast(message, kind) {
@@ -1045,7 +897,7 @@ function onClick(e) {
     return;
   }
   if (t.closest('#insLoadMore')) {
-    if (!S.loadingMore) loadCommits(false, false);
+    if (!S.loadingMore) loadCommits(false);
     return;
   }
   if (t.closest('#insCopyMain')) {

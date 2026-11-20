@@ -1,5 +1,3 @@
-import { getRun, setRun, clearRun } from './ecoRunState.js';
-
 let _panel = null;
 let _open = false;
 let _pollTimer = null;
@@ -9,10 +7,8 @@ let _shortcutConfig = null;
 let _shortcutRepoPath = '';
 
 document.addEventListener('repo:switched', function () {
-  if (!getRun()) {
-    _lastPath = '';
-    _lastCmd = '';
-  }
+  _lastPath = '';
+  _lastCmd = '';
   _shortcutConfig = null;
   _shortcutRepoPath = '';
 });
@@ -61,14 +57,6 @@ async function _autoFillPath() {
   var pathInput = document.getElementById('ecoPathInput');
   var cmdInput = document.getElementById('ecoCmdInput');
 
-  var run = getRun();
-  if (run) {
-    pathInput.value = run.cwd;
-    cmdInput.value = run.command;
-    _setTitle(run.label);
-    return;
-  }
-
   if (_lastPath) {
     pathInput.value = _lastPath;
     cmdInput.value = _lastCmd;
@@ -89,7 +77,6 @@ export function close() {
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
   document.removeEventListener('keydown', _escHandler);
 }
-
 function _setTitle(label) {
   var el = _panel ? _panel.querySelector('.eco-title') : null;
   if (!el) return;
@@ -125,11 +112,11 @@ export async function attachTerminal(opts) {
     dot.className = 'eco-status-indicator eco-status-stopped';
     return res;
   }
-  setRun({ cwd: o.cwd || pathInput.value.trim(), command: o.command || cmdInput.value.trim(), label: o.label || '' });
   await _refreshStatus();
   _poll();
   return res;
 }
+
 
 function _saveInputs() {
   _lastPath = document.getElementById('ecoPathInput').value.trim();
@@ -297,9 +284,6 @@ async function _handleShortcut(type) {
       document.getElementById('ecoRunBtn').style.display = '';
       document.getElementById('ecoStopBtn').style.display = 'none';
       _updateShortcutButtons();
-    } else {
-      setRun({ cwd: cwd, command: cmd, label: label });
-      _setTitle(label);
     }
   } catch (e) {
     document.getElementById('ecoStatusText').textContent = 'Terminal unavailable, switching to direct mode\u2026';
@@ -312,9 +296,6 @@ async function _handleShortcut(type) {
         document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
         document.getElementById('ecoRunBtn').style.display = '';
         document.getElementById('ecoStopBtn').style.display = 'none';
-      } else {
-        setRun({ cwd: cwd, command: cmd, label: label });
-        _setTitle(label);
       }
     } catch (e2) {
       document.getElementById('ecoStatusText').textContent = 'Error: ' + e2.message;
@@ -345,8 +326,6 @@ async function _handleRun() {
       document.getElementById('ecoStatusDot').className = 'eco-status-indicator eco-status-stopped';
       document.getElementById('ecoRunBtn').style.display = '';
       document.getElementById('ecoStopBtn').style.display = 'none';
-    } else {
-      setRun({ cwd: path, command: cmd, label: '' });
     }
   } catch (e) {
     document.getElementById('ecoStatusText').textContent = 'Error: ' + e.message;
@@ -359,7 +338,6 @@ async function _handleRun() {
 async function _handleStop() {
   _lastPath = '';
   _lastCmd = '';
-  clearRun();
   try {
     await window.electronAPI.eco.stop();
   } catch (e) { /* ignore */ }
@@ -413,10 +391,6 @@ async function _refreshStatus() {
       dot.className = 'eco-status-indicator eco-status-stopped';
       txt.textContent = 'Stopped';
       urlDisp.style.display = 'none';
-      if (getRun()) {
-        clearRun();
-        _setTitle('');
-      }
       _updateShortcutButtons();
       if (document.getElementById('ecoRunBtn').style.display === 'none') {
         document.getElementById('ecoRunBtn').style.display = '';
@@ -523,10 +497,10 @@ function _showApiDetail(evt) {
   var d = evt.details || {};
   var body = _fmtBody(d.body);
   var contentType = d.contentType || evt.contentType || '';
-  var status = d.status || evt.status || '\u2014';
+  var status = d.status || evt.status || '—';
   var method = d.method || evt.method || 'GET';
   var url = d.url || evt.url || '';
-  var duration = d.duration || evt.duration || '\u2014';
+  var duration = d.duration || evt.duration || '—';
   var statusClass = status >= 200 && status < 400 ? 'ok' : 'fail';
 
   overlay.innerHTML =

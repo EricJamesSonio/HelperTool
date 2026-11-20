@@ -159,18 +159,22 @@ async function _guardActiveServices() {
         } catch (_) {}
     };
 
-    // CodeSwamp chats, terminals and the Ecosystem Tool are intentionally not guarded here:
+    // CodeSwamp chats and terminals are intentionally not guarded here:
     // they keep running across repo switches.
-    const [gStatus, ecStatus] = await Promise.all([
+    const [gStatus, ecStatus, ecosStatus] = await Promise.all([
         feats.graphify !== false
             ? safeCall(() => api.graphifyIsRunning?.(), idle)
             : idle,
         safeCall(() => api.getServerStatus?.(), idle),
+        feats.ecosystemWatcher !== false
+            ? safeCall(() => api.eco?.status(), idle)
+            : idle,
     ]);
 
     const items = [];
     if (gStatus.running) items.push({ name: 'Graphify', stop: () => safeStop(() => api.graphifyStop?.()) });
     if (ecStatus.running) items.push({ name: 'Error Cop', stop: () => safeStop(() => api.stopServer?.()) });
+    if (ecosStatus.running) items.push({ name: 'Ecosystem Tool', stop: () => safeStop(() => api.eco?.stop()) });
 
     if (items.length === 0) return true;
 

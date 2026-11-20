@@ -325,15 +325,11 @@ const windowControls = {
 };
 
 const teamActivityBridge = {
-  teamActivityLog: (repoPath, force) => ipcRenderer.invoke('team-activity:log', { repoPath, force: !!force }),
+  teamActivityLog: (repoPath) => ipcRenderer.invoke('team-activity:log', { repoPath }),
   teamActivityDiff: (repoPath, hash, filePath) => ipcRenderer.invoke('team-activity:diff', { repoPath, hash, filePath }),
   teamActivityFileAtCommit: (repoPath, hash, filePath) => ipcRenderer.invoke('team-activity:file-at-commit', { repoPath, hash, filePath }),
   teamActivityCommitFiles: (repoPath, hash) => ipcRenderer.invoke('team-activity:commit-files', { repoPath, hash }),
 };
-contextBridge.exposeInMainWorld('ideBrowserAPI', {
-  emulate: (payload) => ipcRenderer.invoke('ideBrowser:emulate', payload),
-});
-
 
 const blueprintBridge = {
   blueprint: {
@@ -1012,8 +1008,4 @@ contextBridge.exposeInMainWorld('wakaOauthAPI', {
   connect:    ()                         => ipcRenderer.invoke('wakatime:oauthConnect'),
   cancel:     ()                         => ipcRenderer.invoke('wakatime:oauthCancel'),
   disconnect: ()                         => ipcRenderer.invoke('wakatime:oauthDisconnect'),
-});
-contextBridge.exposeInMainWorld('csSuspendAPI', {
-  suspend: (ids) => ipcRenderer.invoke('opencode:termSuspend', ids),
-  resume:  (ids) => ipcRenderer.invoke('opencode:termResume', ids),
 });

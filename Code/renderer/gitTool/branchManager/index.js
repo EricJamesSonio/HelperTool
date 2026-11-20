@@ -8,8 +8,6 @@ import { open as openMerge } from './mergeFlow.js';
 import { open as openGraph } from './graph.js';
 import { openCreate as openPRCreate, renderList as renderPRList } from './pullRequest.js';
 import { isBusy, runBusy } from './busy.js';
-import { show as showList, repaint as repaintList } from './list.js';
-
 
 let _container = null;
 let _repoPath = null;
@@ -87,7 +85,7 @@ function _wireEvents() {
   });
 
   _container.querySelector('#bmSearch')?.addEventListener('input', () => {
-    repaintList();
+    renderList();
   });
 
   _container.querySelectorAll('.bm-mode-btn').forEach(btn => {
@@ -225,5 +223,5 @@ function _showToast(msg) {
 }
 
 async function _load() {
-  await showList();
+  await renderList();
 }

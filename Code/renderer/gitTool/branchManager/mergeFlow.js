@@ -5,8 +5,6 @@ import { isAnimated, branchColor, escHtml } from './utils.js';
 import { render } from './list.js';
 import { showRight, showError } from './index.js';
 import { isBusy, startBusy } from './busy.js';
-import { invalidate } from '../viewCache.js';
-
 
 function colorizeDiff(diff) {
   if (!diff) return '';
@@ -67,7 +65,6 @@ async function _executeMerge() {
   if (!mf) return;
   try {
     const r = await window.electronAPI.gitMergeBranch(state.repoPath, mf.from, mf.into);
-    invalidate(state.repoPath);
     console.debug('[mergeFlow] merge result:', r);
     if (r.success) {
       mf.step = 'success';
@@ -106,7 +103,6 @@ async function _executeMerge() {
         btn.textContent = 'Pushing…';
         try {
           const pr = await window.electronAPI.gitPushBranch(state.repoPath, mf.into, 'origin');
-          invalidate(state.repoPath);
           if (pr && pr.success) {
             if (statusEl) { statusEl.style.color = ''; statusEl.textContent = 'Pushed to the remote'; }
             btn.remove();
@@ -155,7 +151,6 @@ async function _executeMerge() {
       showError(r.error);
     }
   } catch (err) {
-    invalidate(state.repoPath);
     setState({ mergeFlow: null, conflicts: [], selectedConflicts: [], activeConflictFile: null });
     showError(err.message);
   }

@@ -850,7 +850,6 @@ function renderTabs() {
   }).join('');
   const a = els.tabs.querySelector('.ide-tab.active');
   if (a) a.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  document.dispatchEvent(new CustomEvent('ide:tabs-rendered'));
 }
 
 function syncTransform() {
@@ -1212,7 +1211,6 @@ function activate(path, focus) {
   const want = focus !== false;
   const tab = tabs.find((t) => t.path === path);
   if (!tab) return;
-  document.dispatchEvent(new CustomEvent('ide:file-activate'));
   if (path === activePath) {
     if (want && isText(tab)) els.ta.focus({ preventScroll: true });
     return;
