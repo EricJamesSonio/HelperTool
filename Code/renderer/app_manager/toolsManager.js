@@ -870,7 +870,9 @@ export async function handleRepoChange(newRepoPath) {
 
   if (_piModule) _piModule.updateRepo(newRepoPath);
 
-  if (on('codeswampChat')) {
+  // Code Swamp loads only when the user opens it. Its panel exists in the DOM
+  // only after it has been opened once, so skip the import until then.
+  if (on('codeswampChat') && document.getElementById('ocPanel')) {
     import('../codeswampUI.js').then(mod => {
       mod.handleRepoChange?.(newRepoPath);
     }).catch(() => {});
