@@ -329,6 +329,8 @@ const teamActivityBridge = {
   teamActivityDiff: (repoPath, hash, filePath) => ipcRenderer.invoke('team-activity:diff', { repoPath, hash, filePath }),
   teamActivityFileAtCommit: (repoPath, hash, filePath) => ipcRenderer.invoke('team-activity:file-at-commit', { repoPath, hash, filePath }),
   teamActivityCommitFiles: (repoPath, hash) => ipcRenderer.invoke('team-activity:commit-files', { repoPath, hash }),
+  teamActivityExportHtml: (repoPath) => ipcRenderer.invoke('team-activity:export-html', { repoPath }),
+  teamActivityExportPdf: (repoPath) => ipcRenderer.invoke('team-activity:export-pdf', { repoPath }),
 };
 contextBridge.exposeInMainWorld('ideBrowserAPI', {
   emulate: (payload) => ipcRenderer.invoke('ideBrowser:emulate', payload),
