@@ -103,14 +103,35 @@ function buildSnapshot(repoPath, data) {
 }
 
 function buildPdfHtml(snap) {
+  const initials = (name) => {
+    const s = String(name || '?').trim();
+    return s ? s.split(' ').map((p) => p.charAt(0)).join('').substring(0, 2).toUpperCase() : '?';
+  };
+  const colors = {};
+  snap.people.forEach((p) => {
+    colors[p.name] = p.color;
+  });
+  const maxScore = snap.people.reduce((m, p) => Math.max(m, scoreOf(p)), 0) || 1;
+
+  const topCards = snap.people.slice(0, 3).map((p, i) => {
+    return '<div class="pc">'
+      + '<div class="pcn">' + (i + 1) + '</div>'
+      + '<div class="pav" style="border-color:' + esc(p.color) + '">' + esc(initials(p.name)) + '</div>'
+      + '<div class="pci"><b>' + esc(p.name) + '</b><span>' + fmt(p.commits) + ' commits</span></div>'
+      + '<div class="pcs"><b>' + fmt(scoreOf(p)) + '</b><span>pts</span></div>'
+      + '</div>';
+  }).join('');
+
   const rankRows = snap.people.map((p, i) => {
+    const pct = Math.max(2, Math.round((scoreOf(p) / maxScore) * 100));
     return '<tr>'
       + '<td class="pos">' + (i + 1) + '</td>'
       + '<td><span class="dot" style="background:' + esc(p.color) + '"></span>' + esc(p.name) + '</td>'
       + '<td class="num">' + fmt(p.commits) + '</td>'
       + '<td class="num add">+' + fmt(p.added) + '</td>'
       + '<td class="num del">-' + fmt(p.removed) + '</td>'
-      + '<td class="num sc">' + fmt(scoreOf(p)) + '</td>'
+      + '<td class="sco"><div class="sn">' + fmt(scoreOf(p)) + '</div>'
+      + '<div class="bar"><i style="width:' + pct + '%;background:' + esc(p.color) + '"></i></div></td>'
       + '</tr>';
   }).join('');
 
@@ -118,56 +139,80 @@ function buildPdfHtml(snap) {
   const recentRows = recent.map((c) => {
     return '<tr>'
       + '<td class="date">' + esc(c.k) + '</td>'
-      + '<td class="who">' + esc(c.a) + '</td>'
-      + '<td>' + esc(c.m) + '</td>'
+      + '<td class="who"><span class="dot" style="background:' + esc(colors[c.a] || '#9aa3b5') + '"></span>' + esc(c.a) + '</td>'
+      + '<td class="cm">' + esc(c.m) + '</td>'
       + '</tr>';
   }).join('');
 
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(snap.repo) + ' - Team Activity</title>'
     + '<style>'
-    + '@page { size: A4; margin: 14mm 12mm; }'
+    + '@page { size: A4; margin: 16mm 14mm 20mm; }'
     + '* { box-sizing: border-box; }'
-    + 'body { font-family: "Segoe UI", Arial, sans-serif; font-size: 9.5pt; color: #1b2233; margin: 0; }'
-    + '.cover { border-bottom: 3px solid #fb923c; padding-bottom: 10px; margin-bottom: 16px; }'
-    + '.cover h1 { font-size: 22pt; margin: 0 0 4px; }'
-    + '.cover .meta { color: #5b6780; font-size: 10pt; }'
-    + '.stats { display: flex; gap: 10px; margin-top: 10px; }'
-    + '.stat { background: #fff4ea; border-radius: 6px; padding: 6px 14px; }'
-    + '.stat b { display: block; font-size: 15pt; color: #c2570c; }'
-    + '.stat span { font-size: 8pt; color: #5b6780; text-transform: uppercase; letter-spacing: .04em; }'
-    + 'h2 { font-size: 13pt; margin: 18px 0 8px; }'
+    + 'body { font-family: "Segoe UI", Arial, sans-serif; font-size: 9.5pt; line-height: 1.4; color: #151a22; margin: 0; }'
+    + '.hd { padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid #dfe3ea; }'
+    + '.eyebrow { font-size: 8pt; letter-spacing: .14em; text-transform: uppercase; color: #6b7487; }'
+    + 'h1 { font-size: 27pt; margin: 2px 0 4px; letter-spacing: -.01em; }'
+    + '.sub { color: #6b7487; font-size: 9.5pt; }'
+    + '.tiles { display: flex; gap: 10px; margin-bottom: 20px; }'
+    + '.tile { flex: 1; border: 1px solid #dfe3ea; border-radius: 8px; padding: 10px 12px; }'
+    + '.tile b { display: block; font-size: 17pt; font-variant-numeric: tabular-nums; line-height: 1.2; }'
+    + '.tile span { font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; color: #6b7487; }'
+    + '.tile.add b { color: #15803d; }'
+    + '.tile.del b { color: #b91c1c; }'
+    + 'h2 { font-size: 12pt; margin: 0 0 8px; letter-spacing: -.005em; }'
+    + 'section { margin-bottom: 22px; }'
+    + '.top3 { display: flex; gap: 10px; }'
+    + '.pc { flex: 1; display: flex; align-items: center; gap: 9px; border: 1px solid #dfe3ea; border-radius: 8px; padding: 9px 11px; page-break-inside: avoid; }'
+    + '.pcn { font-size: 18pt; font-weight: 800; color: #c4cad6; width: 16px; text-align: center; }'
+    + '.pav { width: 30px; height: 30px; flex: 0 0 30px; border: 2px solid #9aa3b5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8.5pt; font-weight: 700; }'
+    + '.pci { flex: 1; min-width: 0; }'
+    + '.pci b { display: block; font-size: 10pt; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }'
+    + '.pci span { font-size: 8pt; color: #6b7487; }'
+    + '.pcs { text-align: right; }'
+    + '.pcs b { display: block; font-size: 11pt; font-variant-numeric: tabular-nums; }'
+    + '.pcs span { font-size: 7.5pt; color: #6b7487; text-transform: uppercase; letter-spacing: .06em; }'
     + 'table { width: 100%; border-collapse: collapse; }'
     + 'thead { display: table-header-group; }'
-    + 'th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: #5b6780; background: #eef2f9; padding: 5px 8px; }'
-    + 'td { padding: 5px 8px; border-bottom: 1px solid #e3e8f2; vertical-align: top; word-break: break-word; }'
+    + 'th { text-align: left; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .08em; color: #6b7487; font-weight: 600; padding: 5px 8px; border-bottom: 1.5px solid #151a22; }'
+    + 'td { padding: 6px 8px; border-bottom: 1px solid #e6e9f0; vertical-align: middle; }'
     + 'tr { page-break-inside: avoid; }'
-    + '.num { text-align: right; font-variant-numeric: tabular-nums; }'
-    + 'th.num { text-align: right; }'
-    + '.pos { width: 28px; font-weight: 700; color: #5b6780; }'
+    + 'th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }'
+    + '.pos { width: 26px; font-weight: 700; color: #6b7487; }'
     + '.add { color: #15803d; }'
     + '.del { color: #b91c1c; }'
-    + '.sc { font-weight: 700; }'
-    + '.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }'
-    + '.date { width: 78px; color: #5b6780; white-space: nowrap; }'
-    + '.who { width: 120px; color: #5b6780; }'
-    + '.foot { margin-top: 14px; font-size: 8pt; color: #7a859c; }'
+    + '.sco { width: 130px; }'
+    + '.sn { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }'
+    + '.bar { height: 4px; background: #eceff4; border-radius: 2px; margin-top: 3px; }'
+    + '.bar i { display: block; height: 100%; border-radius: 2px; }'
+    + '.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }'
+    + '.note { margin-top: 6px; font-size: 8pt; color: #8a93a6; }'
+    + '.date { width: 74px; color: #6b7487; white-space: nowrap; font-variant-numeric: tabular-nums; }'
+    + '.who { width: 130px; white-space: nowrap; }'
+    + '.cm { word-break: break-word; }'
+    + '.foot { position: fixed; left: 0; right: 0; bottom: -11mm; display: flex; justify-content: space-between; font-size: 7.5pt; color: #8a93a6; }'
     + '</style></head><body>'
-    + '<div class="cover"><h1>' + esc(snap.repo) + '</h1>'
-    + '<div class="meta">Team activity report &middot; ' + esc(snap.generatedDay) + '</div>'
-    + '<div class="stats">'
-    + '<div class="stat"><b>' + fmt(snap.total) + '</b><span>Commits</span></div>'
-    + '<div class="stat"><b>' + fmt(snap.people.length) + '</b><span>Contributors</span></div>'
-    + '<div class="stat"><b>' + esc(snap.since || '-') + '</b><span>First commit</span></div>'
-    + '</div></div>'
-    + '<h2>Rankings</h2>'
+    + '<div class="foot"><span>' + esc(snap.repo) + ' &middot; Team activity report</span><span>' + esc(snap.generatedDay) + '</span></div>'
+    + '<div class="hd">'
+    + '<div class="eyebrow">Team activity report</div>'
+    + '<h1>' + esc(snap.repo) + '</h1>'
+    + '<div class="sub">' + esc(snap.since || '-') + ' to ' + esc(snap.generatedDay) + '</div>'
+    + '</div>'
+    + '<div class="tiles">'
+    + '<div class="tile"><b>' + fmt(snap.total) + '</b><span>Commits</span></div>'
+    + '<div class="tile"><b>' + fmt(snap.people.length) + '</b><span>Contributors</span></div>'
+    + '<div class="tile add"><b>+' + fmt(snap.added) + '</b><span>Lines added</span></div>'
+    + '<div class="tile del"><b>-' + fmt(snap.removed) + '</b><span>Lines removed</span></div>'
+    + '</div>'
+    + (topCards ? '<section><h2>Top contributors</h2><div class="top3">' + topCards + '</div></section>' : '')
+    + '<section><h2>Rankings</h2>'
     + '<table><thead><tr><th>#</th><th>Contributor</th><th class="num">Commits</th><th class="num">Added</th><th class="num">Removed</th><th class="num">Score</th></tr></thead><tbody>'
     + rankRows
     + '</tbody></table>'
-    + '<div class="foot">Score = commits x 10 + lines added + lines removed</div>'
-    + '<h2>Recent commits (latest ' + recent.length + ')</h2>'
+    + '<div class="note">Score = commits x 10 + lines added + lines removed</div></section>'
+    + '<section><h2>Latest ' + recent.length + ' commits</h2>'
     + '<table><thead><tr><th>Date</th><th>Author</th><th>Message</th></tr></thead><tbody>'
     + recentRows
-    + '</tbody></table>'
+    + '</tbody></table></section>'
     + '</body></html>';
 }
 
