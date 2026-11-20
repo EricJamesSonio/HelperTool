@@ -1,0 +1,27 @@
+html body .navbar-row--primary,
+html body .navbar-row--primary .navbar-section {
+  overflow: visible;
+}
+
+html body .navbar-row--primary .ide-ext-btn {
+  z-index: 6;
+  overflow: visible;
+}
+
+html body .navbar-row--primary .ide-th-btn {
+  z-index: 5;
+  overflow: visible;
+}
+
+html body .navbar-row--primary .ide-hx-btn {
+  z-index: 4;
+  overflow: visible;
+}
+
+html body .navbar-row--primary .ide-ext-btn .ide-ext-count,
+html body .navbar-row--primary .ide-hx-btn .ide-hx-count {
+  z-index: 2;
+  top: -6px;
+  right: -6px;
+  box-shadow: 0 0 0 2px var(--bg-base);
+}
