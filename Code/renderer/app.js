@@ -83,6 +83,7 @@ import * as essentialsGlossary from './essentialsGlossary.js';
 import { openShortcutSetup, onShortcutSave, showConfirmDialog } from './shortcut-setup.js';
 import './ideMode/index.js';
 import './gitAccounts/index.js';
+import './repoDetails/index.js';
 
 
 
