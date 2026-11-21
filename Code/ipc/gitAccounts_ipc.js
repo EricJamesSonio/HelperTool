@@ -1077,3 +1077,17 @@ async function explainPushError(repoPath, original) {
 }
 
 module.exports = { register, authedGit, configFor, explainPushError };
+async function getActiveToken() {
+  const acc = activeAccount();
+  if (!acc) return '';
+  if (dueForRefresh(acc)) {
+    try {
+      await refreshAccount(acc);
+    } catch (_) {
+      return openToken(acc) || '';
+    }
+  }
+  return openToken(acc) || '';
+}
+
+module.exports.getActiveToken = getActiveToken;
