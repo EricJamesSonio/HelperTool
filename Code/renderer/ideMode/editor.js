@@ -597,7 +597,7 @@ function isText(tab) {
 }
 
 function isMarkdown(tab) {
-  return !!tab && /\.(?:md|markdown|mdown|mkd)$/i.test(tab.name || '');
+  return !!tab && /\.(?:md|markdown|mdown|mkd|csv|tsv)$/i.test(tab.name || '');
 }
 
 function makeTab(path, name, media) {
@@ -617,7 +617,7 @@ function makeTab(path, name, media) {
     selStart: 0,
     selEnd: 0,
     hist: null,
-    markdownPreview: /\.(?:md|markdown|mdown|mkd)$/i.test(name || ''),
+    markdownPreview: /\.(?:md|markdown|mdown|mkd|csv|tsv)$/i.test(name || ''),
   };
 }
 

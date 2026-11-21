@@ -1,3 +1,5 @@
+
+import { renderCsv } from './csvPreview.js';
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -188,5 +190,6 @@ function renderBlocks(lines, basePath) {
 }
 
 export function renderMarkdown(markdown, basePath) {
+  if (/\.(?:csv|tsv)$/i.test(String(basePath || ''))) return renderCsv(markdown, basePath);
   return renderBlocks(String(markdown || '').replace(/\r\n?/g, '\n').split('\n'), basePath);
 }

@@ -65,6 +65,9 @@ const EXT_LABEL = {
   env: 'Environment', php: 'PHP', java: 'Java', go: 'Go', rs: 'Rust', prisma: 'Prisma',
   c: 'C', cpp: 'C++', cs: 'C#', toml: 'TOML', ini: 'INI', txt: 'Plain Text',
 };
+EXT_LABEL.csv = 'CSV';
+EXT_LABEL.tsv = 'TSV';
+
 
 export function extOf(name) {
   const lower = String(name || '').toLowerCase();

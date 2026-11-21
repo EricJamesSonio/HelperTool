@@ -410,6 +410,10 @@ async function undockTerminal() {
     if (ui && ui.isDocked()) ui.undock();
   } catch (_) {}
 }
+import('./openWith.js')
+.then((m) => m.init())
+.catch((err) => console.error('[IDE] open-with failed to load:', err));
+
 function init() {
   injectCss();
   applyWidth();

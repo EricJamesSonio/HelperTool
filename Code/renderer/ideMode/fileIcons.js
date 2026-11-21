@@ -71,6 +71,9 @@ const EXT_ICON = {
   cpp: ['C++', '--blue'],
   cs: ['C#', '--green'],
 };
+EXT_ICON.csv = ['CSV', '--green'];
+EXT_ICON.tsv = ['TSV', '--green'];
+
 
 const NAME_ICON = {
   'package.json': ['{}', '--green'],
@@ -90,6 +93,9 @@ const ICON_GROUP = {
   pdf: 'pdf', zip: 'zip', go: 'go', rs: 'rs', java: 'java', c: 'c', cpp: 'c', cs: 'c',
   txt: 'txt', log: 'txt', ttf: 'font', otf: 'font', woff: 'font', woff2: 'font',
 };
+ICON_GROUP.csv = 'sh';
+ICON_GROUP.tsv = 'sh';
+
 
 
 export function fileIcon(name) {
