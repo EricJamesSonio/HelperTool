@@ -332,6 +332,17 @@ const teamActivityBridge = {
   teamActivityExportHtml: (repoPath) => ipcRenderer.invoke('team-activity:export-html', { repoPath }),
   teamActivityExportPdf: (repoPath) => ipcRenderer.invoke('team-activity:export-pdf', { repoPath }),
 };
+contextBridge.exposeInMainWorld('openWithAPI', {
+  take: () => ipcRenderer.invoke('openWith:take'),
+  onFiles: (callback) => {
+    ipcRenderer.removeAllListeners('openWith:files');
+    ipcRenderer.on('openWith:files', (_event, files) => callback(files));
+  },
+  status: () => ipcRenderer.invoke('openWith:status'),
+  register: () => ipcRenderer.invoke('openWith:register'),
+  unregister: () => ipcRenderer.invoke('openWith:unregister'),
+});
+
 contextBridge.exposeInMainWorld('ideBrowserAPI', {
   emulate: (payload) => ipcRenderer.invoke('ideBrowser:emulate', payload),
 });
@@ -1018,4 +1029,7 @@ contextBridge.exposeInMainWorld('wakaOauthAPI', {
 contextBridge.exposeInMainWorld('csSuspendAPI', {
   suspend: (ids) => ipcRenderer.invoke('opencode:termSuspend', ids),
   resume:  (ids) => ipcRenderer.invoke('opencode:termResume', ids),
+});
+contextBridge.exposeInMainWorld('repoDetailsAPI', {
+  get: (payload) => ipcRenderer.invoke('repoDetails:get', payload),
 });

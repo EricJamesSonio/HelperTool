@@ -578,6 +578,12 @@ function cleanupAndExit(deleteIndex) {
   try { graphifyIpc.shutdown(); } catch (_) {}
   try { require('./ipc/researcher_ipc.js').cleanup(); } catch (_) {}
 }
+try {
+  require('./ipc/openWith.js').install({ getMainWindow });
+} catch (e) {
+  console.error('[OpenWith] install failed:', e);
+}
+
 app.whenReady().then(() => {
   try {
     require('./ipc/ideBrowser_ipc.js').register({ getMainWindow });
@@ -685,5 +691,12 @@ app.whenReady().then(() => {
     require('./ipc/ecoAttach_ipc.js').register();
   } catch (e) {
     console.error('[IPC] Failed to register ecoAttach_ipc:', e);
+  }
+});
+app.whenReady().then(() => {
+  try {
+    require('./ipc/repoDetails_ipc.js').register();
+  } catch (e) {
+    console.error('[IPC] Failed to register repoDetails_ipc:', e);
   }
 });
