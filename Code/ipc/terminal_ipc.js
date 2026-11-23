@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { exec } = require('child_process');
 
 let _pty = null;
 function nodeCapMB() {
@@ -74,64 +75,114 @@ function getErrorEngine() {
 
 let _shellCache = null;
 
+function runCmd(cmd, opts) {
+  return new Promise((resolve) => {
+    try {
+      exec(cmd, Object.assign({ timeout: 3000, windowsHide: true }, opts || {}), (err, stdout) => {
+        resolve({ err, stdout: stdout || '' });
+      });
+    } catch (e) {
+      resolve({ err: e, stdout: '' });
+    }
+  });
+}
+
+async function whereAll(name) {
+  const res = await runCmd('where ' + name);
+  if (res.err) return [];
+  return String(res.stdout).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+}
+
+function isSystemBash(p) {
+  return /[\\/]windows[\\/](system32|syswow64|sysnative)[\\/]/i.test(p) || /[\\/]windowsapps[\\/]/i.test(p);
+}
+
+async function findGitBash() {
+  const env = process.env;
+  const roots = [env.ProgramFiles, env.ProgramW6432, env['ProgramFiles(x86)']].filter(Boolean);
+  const list = [];
+  for (const r of roots) {
+    list.push(path.join(r, 'Git', 'bin', 'bash.exe'));
+    list.push(path.join(r, 'Git', 'usr', 'bin', 'bash.exe'));
+  }
+  if (env.LOCALAPPDATA) {
+    list.push(path.join(env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe'));
+    list.push(path.join(env.LOCALAPPDATA, 'Programs', 'Git', 'usr', 'bin', 'bash.exe'));
+  }
+  list.push(path.join(os.homedir(), 'scoop', 'apps', 'git', 'current', 'bin', 'bash.exe'));
+  for (const p of list) {
+    if (fs.existsSync(p) && !isSystemBash(p)) return p;
+  }
+  const gits = await whereAll('git');
+  for (const g of gits) {
+    let dir = path.dirname(g);
+    for (let i = 0; i < 3; i++) {
+      const cand = path.join(dir, 'bin', 'bash.exe');
+      if (fs.existsSync(cand) && !isSystemBash(cand)) return cand;
+      dir = path.dirname(dir);
+    }
+  }
+  const bashes = await whereAll('bash.exe');
+  for (const b of bashes) {
+    if (!isSystemBash(b) && fs.existsSync(b)) return b;
+  }
+  return '';
+}
+
+async function listWslDistros() {
+  const sysDir = process.env.WINDIR ? path.join(process.env.WINDIR, 'System32') : '';
+  if (sysDir && !fs.existsSync(path.join(sysDir, 'wsl.exe'))) return [];
+  const res = await runCmd('wsl.exe -l -q', { encoding: 'buffer', timeout: 4000 });
+  if (res.err) return [];
+  const text = Buffer.from(res.stdout).toString('utf8').replace(/\0/g, '');
+  const names = text
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter((s) => /^[A-Za-z0-9._-]+$/.test(s))
+    .filter((s) => !/^docker-desktop/i.test(s));
+  return names;
+}
+
+async function detectWindowsShells() {
+  const shells = [];
+  shells.push({ name: 'PowerShell', cmd: 'powershell.exe', args: ['-NoLogo'], kind: 'powershell' });
+  const pwshList = await whereAll('pwsh.exe');
+  if (pwshList.length) {
+    shells.push({ name: 'PowerShell 7', cmd: pwshList[0], args: ['-NoLogo'], kind: 'powershell' });
+  }
+  const sysDir = process.env.WINDIR ? path.join(process.env.WINDIR, 'System32') : '';
+  if (!sysDir || fs.existsSync(path.join(sysDir, 'cmd.exe'))) {
+    shells.push({ name: 'Command Prompt', cmd: 'cmd.exe', args: [], kind: 'cmd' });
+  }
+  const gitBash = await findGitBash();
+  if (gitBash) {
+    shells.push({ name: 'Git Bash', cmd: gitBash, args: ['--login', '-i'], kind: 'gitbash' });
+  }
+  const distros = await listWslDistros();
+  if (distros.length) {
+    shells.push({ name: 'WSL', cmd: 'wsl.exe', args: [], kind: 'wsl' });
+  }
+  return shells;
+}
+
+async function detectPosixShells() {
+  const shells = [];
+  const candidates = [
+    { name: 'bash', cmd: 'bash', args: ['--login'], kind: 'posix' },
+    { name: 'zsh', cmd: 'zsh', args: ['--login'], kind: 'posix' },
+    { name: 'sh', cmd: 'sh', args: [], kind: 'posix' },
+  ];
+  for (const s of candidates) {
+    const res = await runCmd('which ' + s.cmd);
+    if (!res.err) shells.push(s);
+  }
+  if (shells.length === 0) shells.push({ name: 'sh', cmd: 'sh', args: [], kind: 'posix' });
+  return shells;
+}
+
 async function detectShells() {
   if (_shellCache) return _shellCache;
-  const shells = [];
-  const isWin = process.platform === 'win32';
-
-  if (isWin) {
-    shells.push({ name: 'PowerShell', cmd: 'powershell.exe', args: ['-NoLogo'] });
-    const candidates = [
-      { name: 'Command Prompt', cmd: 'cmd.exe',             args: [] },
-      { name: 'Git Bash',    cmd: 'bash.exe',               args: ['--login'] },
-    ];
-    if (process.env.WINDIR) {
-      const sysDir = path.join(process.env.WINDIR, 'System32');
-      const wowDir = path.join(process.env.WINDIR, 'SysWOW64');
-      for (const s of candidates) {
-        if (fs.existsSync(path.join(sysDir, s.cmd)) || fs.existsSync(path.join(wowDir, s.cmd))) {
-          shells.push(s);
-        }
-      }
-    }
-    if (process.env.LOCALAPPDATA) {
-      const gitBash = path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe');
-      if (fs.existsSync(gitBash)) {
-        if (!shells.find(s => s.name === 'Git Bash')) {
-          shells.push({ name: 'Git Bash', cmd: gitBash, args: ['--login'] });
-        }
-      }
-    }
-    try {
-      const { exec } = require('child_process');
-      await new Promise((resolve) => {
-        exec('where wsl.exe', { timeout: 3000 }, (err, stdout) => {
-          if (!err && stdout.trim()) {
-            shells.push({ name: 'WSL / Ubuntu', cmd: 'wsl.exe', args: ['--cd', '~'] });
-          }
-          resolve();
-        });
-      });
-    } catch { }
-  } else {
-    const candidates = [
-      { name: 'bash', cmd: 'bash', args: ['--login'] },
-      { name: 'zsh',  cmd: 'zsh',  args: ['--login'] },
-      { name: 'sh',   cmd: 'sh',   args: [] },
-    ];
-    for (const s of candidates) {
-      try {
-        const { exec } = require('child_process');
-        await new Promise((resolve) => {
-          exec(`which ${s.cmd}`, { timeout: 3000 }, (err) => {
-            if (!err) shells.push(s);
-            resolve();
-          });
-        });
-      } catch { }
-    }
-    if (shells.length === 0) shells.push({ name: 'sh', cmd: 'sh', args: [] });
-  }
+  const shells = process.platform === 'win32' ? await detectWindowsShells() : await detectPosixShells();
   _shellCache = shells;
   return shells;
 }
@@ -231,25 +282,50 @@ function register({ getMainWindow }) {
 
   ipcMain.handle('terminal:listShells', () => detectShells());
 
-  ipcMain.handle('terminal:spawn', (event, { cwd, shell, args, label }) => {
-    const id = nextId++;
+  ipcMain.handle('terminal:spawn', async (event, opts) => {
+    const { cwd, shell, args, label, kind } = opts || {};
     const win = getMainWindow();
     const defaultCwd = cwd || os.homedir();
     const resolvedCwd = defaultCwd && fs.existsSync(defaultCwd) ? defaultCwd : os.homedir();
 
+    let shellCmd = shell;
+    let shellArgs = Array.isArray(args) ? args : [];
+    let shellKind = kind || '';
+    if (!shellCmd || (path.isAbsolute(shellCmd) && !fs.existsSync(shellCmd))) {
+      const list = await detectShells();
+      const fallback = list[0];
+      if (!fallback) return { error: 'No shell is available on this machine.' };
+      shellCmd = fallback.cmd;
+      shellArgs = fallback.args || [];
+      shellKind = fallback.kind || '';
+    }
+
     const env = terminalEnv();
-    const term = getPty().spawn(shell, args || [], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd: resolvedCwd,
-      env,
-    });
+    if (shellKind === 'gitbash') {
+      env.CHERE_INVOKING = '1';
+      env.MSYSTEM = 'MINGW64';
+    }
+
+    let term;
+    try {
+      term = getPty().spawn(shellCmd, shellArgs, {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: resolvedCwd,
+        env,
+      });
+    } catch (e) {
+      console.error('[Terminal] spawn failed:', e);
+      return { error: 'Could not start ' + (label || shellCmd) + ': ' + (e && e.message ? e.message : String(e)) };
+    }
+
+    const id = nextId++;
 
     let sessionId = null;
     if (_errorEngine) {
       try {
-        const session = _errorEngine.createSession({ cwd: resolvedCwd, shell, command: '', label });
+        const session = _errorEngine.createSession({ cwd: resolvedCwd, shell: shellCmd, command: '', label });
         sessionId = session.sessionId;
       } catch (e) {
         console.error('[ErrorCop] createSession failed:', e);
@@ -297,11 +373,11 @@ function register({ getMainWindow }) {
       terminals.delete(id);
     });
 
-    terminals.set(id, { term, cwd: resolvedCwd, shell, sessionId, hasInput: false });
+    terminals.set(id, { term, cwd: resolvedCwd, shell: shellCmd, sessionId, hasInput: false });
     if (win && !win.isDestroyed()) {
       win.webContents.send('terminal:ready', { id });
     }
-    return { id, cwd: resolvedCwd, sessionId };
+    return { id, cwd: resolvedCwd, sessionId, shell: shellCmd, kind: shellKind };
   });
 
   ipcMain.handle('terminal:write', (event, { id, data }) => {
@@ -322,6 +398,7 @@ function register({ getMainWindow }) {
     if (t) {
       try { t.term.kill(); } catch (e) { console.error('[Terminal] kill error:', e); }
       terminals.delete(id);
+      _outputBuffers.delete(id);
       dropPending(id);
     }
   });
