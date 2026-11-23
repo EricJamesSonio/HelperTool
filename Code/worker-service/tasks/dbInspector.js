@@ -453,7 +453,97 @@ async function scan(conn) {
   return { success: true, schema };
 }
 
+function quoteIdent(type, name) {
+  const s = String(name);
+  if (type === 'mysql') return '`' + s.replace(/`/g, '``') + '`';
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+function normalizeCell(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'bigint') return v.toString();
+  if (v instanceof Date) return isNaN(v.getTime()) ? String(v) : v.toISOString();
+  if (Buffer.isBuffer(v) || v instanceof Uint8Array) return '<binary ' + v.length + ' bytes>';
+  if (typeof v === 'object') {
+    if (typeof v.toHexString === 'function') return v.toHexString();
+    try { return JSON.stringify(v); } catch (_) { return String(v); }
+  }
+  return v;
+}
+
+async function closeClient(client, type) {
+  try {
+    if (type === 'mongodb') await client.close();
+    else if (type === 'sqlite') client.close();
+    else await client.end();
+  } catch (_) {}
+}
+
+async function gatherMongoCollection(client, name, cap) {
+  const cursor = client.db().collection(name).find({});
+  if (cap > 0) cursor.limit(cap + 1);
+  const docs = await cursor.toArray();
+  const columns = [];
+  const seen = new Set();
+  for (const doc of docs) {
+    for (const key of Object.keys(doc)) {
+      if (!seen.has(key)) {
+        seen.add(key);
+        columns.push(key);
+      }
+    }
+  }
+  return { columns, rows: docs.map(d => columns.map(c => d[c])) };
+}
+
+async function gatherOne(client, type, name, cap) {
+  let data;
+  if (type === 'mongodb') {
+    data = await gatherMongoCollection(client, name, cap);
+  } else {
+    const sql = 'SELECT * FROM ' + quoteIdent(type, name) + (cap > 0 ? ' LIMIT ' + (cap + 1) : '');
+    data = await runQuery(client, type, sql);
+  }
+  let rows = data.rows || [];
+  let truncated = false;
+  if (cap > 0 && rows.length > cap) {
+    rows = rows.slice(0, cap);
+    truncated = true;
+  }
+  return {
+    table: name,
+    columns: data.columns || [],
+    rows: rows.map(r => r.map(normalizeCell)),
+    truncated,
+  };
+}
+
+async function gatherTables(conn, tables, limit) {
+  const cap = Number(limit) > 0 ? Math.floor(Number(limit)) : 0;
+  let client;
+  try {
+    client = await connect(conn);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+  const results = [];
+  try {
+    for (const name of tables || []) {
+      try {
+        results.push(await gatherOne(client, conn.type, name, cap));
+      } catch (err) {
+        results.push({ table: name, columns: [], rows: [], truncated: false, error: err.message });
+      }
+    }
+  } finally {
+    await closeClient(client, conn.type);
+  }
+  return { success: true, results, limit: cap };
+}
 async function executeQuery(conn, query, queryTimeout) {
+  if (query && typeof query === 'object' && query.gather) {
+    return gatherTables(conn, query.tables, query.limit);
+  }
   const client = await connect(conn);
   const timer = setTimeout(() => { try { client.end(); } catch (_) {} }, queryTimeout || 30000);
   try {
