@@ -220,6 +220,7 @@ const dbInspectorBridge = {
         getGraphData:    (snapshotId)    => ipcRenderer.invoke('dbInspector:getGraphData', snapshotId),
         getTableDetails: (snapshotId, tableName) => ipcRenderer.invoke('dbInspector:getTableDetails', snapshotId, tableName),
         executeQuery:    ({ snapshotId, query }) => ipcRenderer.invoke('dbInspector:executeQuery', { snapshotId, query }),
+        gatherTables:    (payload)       => ipcRenderer.invoke('dbInspector:gatherTables', payload),
         encrypt:         (text)          => ipcRenderer.invoke('dbInspector:encrypt', text),
         decrypt:         (encrypted)     => ipcRenderer.invoke('dbInspector:decrypt', encrypted),
         listSeeds:       (snapshotId)    => ipcRenderer.invoke('dbInspector:listSeeds', snapshotId),
