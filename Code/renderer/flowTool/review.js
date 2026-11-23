@@ -127,6 +127,7 @@ export function diffStats(ops) {
 
 export function entryKind(e) {
   if (e.applied) return 'applied';
+  if (e.failed) return 'problem';
   if (e.invalid) return 'invalid';
   if (e.mode && e.mode !== 'full') return 'patch';
   return e.exists ? 'overwrite' : 'new';
@@ -281,10 +282,38 @@ export async function applyReview(review, api, meta) {
     ? await api.applyContent(review.basePath, payload, info)
     : await api.seedContent(review.basePath, payload);
   if (!res || res.error) return { error: (res && res.error) || 'Seed failed.' };
-  const failed = new Set((res.errors || []).map((x) => (x && (x.path || x.relPath || x.file)) || ''));
+  const errs = res.errors || [];
+  const reasonByPath = new Map();
+  const noteByPath = new Map();
+  for (const x of errs) {
+    const p = (x && (x.path || x.relPath || x.file)) || '';
+    const reason = (x && (x.error || x.warning)) || 'Unknown error';
+    if (/created full file/.test(reason)) {
+      noteByPath.set(p, reason);
+      continue;
+    }
+    if (!reasonByPath.has(p)) reasonByPath.set(p, reason);
+  }
+  const failed = [];
+  const matched = new Set();
   for (const e of active) {
-    const bad = failed.has(e.resolved) || failed.has(e.relPath);
-    if (!bad) e.applied = true;
+    const key = reasonByPath.has(e.resolved) ? e.resolved : reasonByPath.has(e.relPath) ? e.relPath : null;
+    if (key !== null) {
+      const reason = reasonByPath.get(key);
+      matched.add(key);
+      e.failed = true;
+      e.failReason = reason;
+      failed.push({ path: e.resolved, reason });
+    } else {
+      e.applied = true;
+      e.failed = false;
+      e.failReason = '';
+      const note = noteByPath.get(e.resolved) || noteByPath.get(e.relPath);
+      if (note) e.applyNote = note;
+    }
+  }
+  for (const entry of reasonByPath) {
+    if (!matched.has(entry[0])) failed.push({ path: entry[0], reason: entry[1] });
   }
   try {
     document.dispatchEvent(new CustomEvent('ft:history-changed'));
@@ -293,7 +322,9 @@ export async function applyReview(review, api, meta) {
     created: res.created || [],
     overwritten: res.overwritten || [],
     patched: res.patched || [],
-    errors: res.errors || [],
+    errors: errs,
+    failed,
+    notices: res.notices || [],
     count: active.length,
     historyId: res.historyId || null,
   };

@@ -38,6 +38,7 @@ const KIND_LABEL = {
   patch: 'patch',
   invalid: 'invalid',
   applied: 'applied',
+  problem: 'failed',
   multi: 'several targets',
 };
 
@@ -176,7 +177,7 @@ function renderChips() {
   els.chips.textContent = '';
   if (!state.review) return;
   const c = summarize(state.review);
-  const order = ['new', 'overwrite', 'patch', 'invalid', 'applied', 'skip', 'multi'];
+  const order = ['new', 'overwrite', 'patch', 'problem', 'invalid', 'applied', 'skip', 'multi'];
   for (const k of order) {
     if (!c[k]) continue;
     const chip = makeEl('span', 'ft-chip', c[k] + ' ' + (KIND_LABEL[k] || k));
@@ -217,7 +218,15 @@ function renderFiles() {
     main.appendChild(makeEl('div', 'ft-file-name', e.resolved));
     let sub = e.resolved !== e.relPath ? 'from ' + e.relPath : e.mode !== 'full' ? 'mode: ' + e.mode : '';
     if (isMulti(e)) sub = (sub ? sub + ' | ' : '') + e.candidates.length + ' possible targets';
-    if (sub) main.appendChild(makeEl('div', 'ft-file-sub', sub));
+    if (e.failReason && !e.applied) {
+      sub = 'FAILED: ' + e.failReason;
+      main.title = e.failReason;
+    }
+    if (sub) {
+      const subEl = makeEl('div', 'ft-file-sub', sub);
+      if (e.failReason && !e.applied) subEl.style.color = '#f87171';
+      main.appendChild(subEl);
+    }
     const kind = entryKind(e);
     const chip = makeEl('span', 'ft-chip', KIND_LABEL[kind] || kind);
     chip.dataset.kind = kind;
@@ -286,6 +295,8 @@ function renderDetail() {
   }
 
   const notes = makeEl('div', 'ft-notes');
+  if (e.failReason && !e.applied) addNote(notes, 'error', 'Apply failed: ' + e.failReason);
+  if (e.applyNote) addNote(notes, 'warn', e.applyNote);
   if (e.invalid) addNote(notes, 'error', 'Syntax problem detected. This file is still selected for Apply; untick it to skip.');
   if (e.syntaxError) addNote(notes, 'error', 'Syntax: ' + e.syntaxError);
   if (e.warning) addNote(notes, 'warn', e.warning);
@@ -375,6 +386,32 @@ async function openReview(seederText) {
   renderAll();
 }
 
+function describeApply(res) {
+  const failed = res.failed || [];
+  const ok = res.count - failed.length;
+  const lines = [];
+  lines.push({
+    tone: failed.length ? 'warn' : 'ok',
+    text: 'Applied ' + ok + ' of ' + res.count + ' file(s): ' + res.created.length + ' created, ' + res.overwritten.length + ' overwritten, ' + res.patched.length + ' patched.',
+  });
+  for (const f of failed) {
+    lines.push({ tone: 'error', text: 'FAILED ' + f.path + ' - ' + f.reason });
+  }
+  for (const n of res.notices || []) {
+    lines.push({ tone: 'info', text: 'Note ' + (n.path || '') + ' - ' + (n.notice || '') });
+  }
+  const blocked = failed.filter((f) => /is a file, not a folder|folder with that name|ENOTDIR|EEXIST/.test(f.reason));
+  if (blocked.length) {
+    lines.push({
+      tone: 'warn',
+      text: 'Fix: a file is in the way of a folder (or the reverse). Delete the blocking file named above, then press Apply selected again. Failed files stay selected.',
+    });
+  } else if (failed.length) {
+    lines.push({ tone: 'warn', text: 'Failed files stay selected. Fix the cause, or untick them, then press Apply selected again.' });
+  }
+  return lines;
+}
+
 const applySelected = guardAsync(async function applySelected() {
   const r = state.review;
   if (!r || state.busy) return;
@@ -388,15 +425,23 @@ const applySelected = guardAsync(async function applySelected() {
   }
   if (res.error) {
     setBanner('error', res.error);
+    renderResult({ title: 'Apply failed', lines: [{ tone: 'error', text: res.error }] });
     refreshApply();
     return;
   }
-  const bad = res.errors.length;
+  const bad = res.failed.length;
+  const ok = res.count - bad;
   setBanner(
     bad ? 'error' : 'ok',
-    'Applied ' + (res.count - bad) + ' file(s)' + (bad ? ', ' + bad + ' failed (see the log).' : '.')
+    'Applied ' + ok + ' file(s)' + (bad ? ', ' + bad + ' failed. Reasons are in the log on the left and on each file.' : '.')
   );
-  if (bad) console.warn('[FlowTool] seed errors:', res.errors);
+  renderResult({ title: bad ? 'Apply finished with ' + bad + ' failure(s)' : 'Apply finished', lines: describeApply(res) });
+  setBadge(bad ? 'warning' : 'done');
+  if (bad) {
+    console.warn('[FlowTool] seed errors:', res.errors);
+    const firstBad = r.entries.findIndex((e) => e.failed && !e.applied);
+    if (firstBad >= 0) state.selected = firstBad;
+  }
   const refresh = document.getElementById('refreshBtn');
   if (refresh) refresh.click();
   renderAll();
