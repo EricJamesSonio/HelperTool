@@ -17,6 +17,7 @@ const ALLOWED_EXTS = new Set([
     'vue','svelte','go','rs','java','c','cpp','rb','php','blade','env','gitignore',
     'toml','ini','cfg','conf','mako','lock','properties','csv','svg','gql','prisma','proto','j2','jinja',
     'gitattributes','dockerignore','editorconfig','prettierrc','prettierignore','eslintrc','eslintignore','npmrc','nvmrc',
+    'ps1','psm1','psd1','bat','cmd','zsh','fish','cs','kt','swift','dart','lua','scala','gradle','tf','sass','styl','mdx','astro','vbs','reg','nix','hpp',
 ]);
 // Well-known files that have no extension.
 const SPECIAL_BASENAMES = new Set(['Dockerfile', 'Makefile', 'Procfile']);
