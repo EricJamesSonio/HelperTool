@@ -230,6 +230,7 @@ function jsonCheck(text, ext) {
 async function verifySyntax(text, ext) {
     if (!text || !text.trim()) return null;
     const e = (ext||'').toLowerCase().replace(/^\./,'');
+    if (['ps1', 'psm1', 'psd1', 'bat', 'cmd', 'sh', 'bash', 'zsh', 'fish'].indexOf(e) !== -1) return null;
     // JSON strict check first — catches polluted package.json (json + plain list)
     if (e === 'json') {
         const jc = jsonCheck(text, e);

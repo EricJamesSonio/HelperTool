@@ -486,6 +486,25 @@ async function previewContent(basePath, entries) {
     return { toCreate, toOverwrite, toPatch, details, warnings };
 }
 
+function findBlockingPath(basePath, resolved) {
+    const parts = String(resolved || '').replace(/\\/g, '/').split('/').filter(Boolean);
+    let current = basePath;
+    for (let i = 0; i < parts.length; i++) {
+        current = path.join(current, parts[i]);
+        const isLast = i === parts.length - 1;
+        let st = null;
+        try { st = fs.statSync(current); } catch (_) { st = null; }
+        if (!st) return null;
+        const rel = parts.slice(0, i + 1).join('/');
+        if (!isLast && st.isFile()) {
+            return `cannot create "${resolved}": "${rel}" is a file, not a folder. Delete that file first, then apply again.`;
+        }
+        if (isLast && st.isDirectory()) {
+            return `cannot write "${resolved}": a folder with that name already exists. Delete or rename the folder first.`;
+        }
+    }
+    return null;
+}
 async function seedContent(basePath, entries) {
     const created     = [];
     const overwritten = [];
@@ -521,10 +540,18 @@ async function seedContent(basePath, entries) {
                 errors.push({
                     path: resolved,
                     original: relPath,
-                    warning: `skipped — invalid syntax: ${prep.error.error}`,
+                    warning: `skipped — invalid syntax: ${prep.error.error}` + (prep.error.line ? ` at line ${prep.error.line}` : ''),
                 });
                 continue;
             }
+        }
+
+        // A file sitting where a folder is needed (or the reverse) makes
+        // mkdir/write fail with a vague OS error. Say it plainly instead.
+        const blocked = findBlockingPath(basePath, resolved);
+        if (blocked) {
+            errors.push({ path: resolved, original: relPath, error: blocked });
+            continue;
         }
 
         try {
@@ -577,7 +604,8 @@ async function seedContent(basePath, entries) {
             if (existed) overwritten.push(resolved);
             else created.push(resolved);
         } catch (err) {
-            errors.push({ path: resolved, original: relPath, candidates, ambiguous, error: err.message });
+            const code = err && err.code ? err.code + ': ' : '';
+            errors.push({ path: resolved, original: relPath, candidates, ambiguous, error: code + (err && err.message ? err.message : String(err)) });
         }
     }
 
