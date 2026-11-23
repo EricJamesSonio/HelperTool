@@ -6,6 +6,8 @@ import { renderDetails } from './detailsPanel.js';
 import { initGraph, updateGraph } from './graph-bundle.js';
 import { getTableColor } from './colors.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+import { openGatherModal } from './gather.js';
+
 
 const LAYOUT_KEY = 'dbi_grid_cols_v2';
 const DEFAULT_COLS = ['300px', '4px', '1fr', '4px', '400px'];
@@ -36,6 +38,14 @@ export function createPanel() {
     pdfBtn.innerHTML = dbiIcon('save') + ' PDF';
     pdfBtn.addEventListener('click', () => exportSchemaPdf());
     refreshBtn.insertAdjacentElement('beforebegin', pdfBtn);
+
+    const gatherBtn = document.createElement('button');
+    gatherBtn.className = 'dbi-btn dbi-btn-secondary';
+    gatherBtn.id = 'dbiGatherBtn';
+    gatherBtn.title = 'Gather data from selected tables';
+    gatherBtn.innerHTML = dbiIcon('table') + ' Gather';
+    gatherBtn.addEventListener('click', () => openGatherModal());
+    pdfBtn.insertAdjacentElement('beforebegin', gatherBtn);
   }
 
   setupEventListeners(wrapper);
