@@ -7,6 +7,8 @@ let xtermLoaded = false;
 
 const DOCK_H_KEY = 'helpertool-ide-terminal-h2';
 const DOCK_H_DEFAULT = DEFAULT_PREFERENCES.ide.terminalDockHeight;
+const EARLY_MAX_ENTRIES = 50;
+const EARLY_MAX_CHARS = 262144;
 
 async function ensureXterm() {
   if (xtermLoaded) return;
@@ -78,6 +80,17 @@ function _stripAnsiForDetection(text) {
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
 }
 
+function shellKindOf(shell) {
+  const k = String((shell && shell.kind) || '').toLowerCase();
+  if (k === 'powershell') return 'ps';
+  if (k === 'cmd') return 'cmd';
+  if (k) return 'sh';
+  const s = String((shell && (shell.cmd || shell.name)) || '').toLowerCase();
+  if (s.indexOf('powershell') !== -1 || s.indexOf('pwsh') !== -1) return 'ps';
+  if (/(^|[\\/])cmd(\.exe)?$/.test(s) || s === 'command prompt') return 'cmd';
+  return 'sh';
+}
+
 export default class TerminalUI {
   constructor() {
     this.panel = null;
@@ -98,6 +111,9 @@ export default class TerminalUI {
     this._resizeObs = null;
     this._repoPending = new Map();
     this._ecoBtn = null;
+    this._mainToLocal = new Map();
+    this._closedMain = new Set();
+    this._early = new Map();
   }
 
   async init() {
@@ -107,7 +123,7 @@ export default class TerminalUI {
 
     this.shells = await window.electronAPI.terminalListShells();
     if (!this.shells || this.shells.length === 0) {
-      this.shells = [{ name: 'PowerShell', cmd: 'powershell.exe', args: ['-NoLogo'] }];
+      this.shells = [{ name: 'PowerShell', cmd: 'powershell.exe', args: ['-NoLogo'], kind: 'powershell' }];
     }
     this._selectedShell = this.shells[0];
 
@@ -116,33 +132,99 @@ export default class TerminalUI {
     this._createPanel();
 
     window.electronAPI.onTerminalReady(({ id }) => {
-      if (this._firstDataDeferred.has(id)) {
-        this._firstDataDeferred.get(id).resolve();
-        this._firstDataDeferred.delete(id);
+      if (this._closedMain.has(id)) return;
+      const local = this._mainToLocal.get(id);
+      if (local == null) {
+        this._earlyFor(id).ready = true;
+        return;
       }
+      this._resolveFirst(local);
     });
 
     window.electronAPI.onTerminalData(({ id, data }) => {
-      const inst = this.instances.get(id);
-      if (inst && inst.terminal) {
-        inst.terminal.write(inst.colorizer ? inst.colorizer.process(data) : data);
-        this._detectUrls(inst, data);
+      if (this._closedMain.has(id)) return;
+      const local = this._mainToLocal.get(id);
+      if (local == null) {
+        const e = this._earlyFor(id);
+        if (e.size < EARLY_MAX_CHARS) {
+          e.chunks.push(data);
+          e.size += data.length;
+        }
+        return;
       }
-      if (this._firstDataDeferred.has(id)) {
-        this._firstDataDeferred.get(id).resolve();
-        this._firstDataDeferred.delete(id);
-      }
+      this._deliverData(local, data);
     });
 
     window.electronAPI.onTerminalExit(({ id, exitCode }) => {
-      const inst = this.instances.get(id);
-      if (inst) {
-        if (inst.terminal) {
-          inst.terminal.write(`\r\n\x1b[31mProcess exited with code ${exitCode}\x1b[0m\r\n`);
-        }
+      if (this._closedMain.has(id)) return;
+      const local = this._mainToLocal.get(id);
+      if (local == null) {
+        this._earlyFor(id).exit = { exitCode };
+        return;
       }
+      this._deliverExit(local, exitCode);
     });
 
+  }
+
+  _earlyFor(mainId) {
+    let e = this._early.get(mainId);
+    if (!e) {
+      if (this._early.size >= EARLY_MAX_ENTRIES) {
+        const oldest = this._early.keys().next().value;
+        this._early.delete(oldest);
+      }
+      e = { ready: false, chunks: [], size: 0, exit: null };
+      this._early.set(mainId, e);
+    }
+    return e;
+  }
+
+  _resolveFirst(localId) {
+    const d = this._firstDataDeferred.get(localId);
+    if (d) {
+      d.resolve();
+      this._firstDataDeferred.delete(localId);
+    }
+  }
+
+  _deliverData(localId, data) {
+    const inst = this.instances.get(localId);
+    if (inst && inst.terminal) {
+      inst.terminal.write(inst.colorizer ? inst.colorizer.process(data) : data);
+      this._detectUrls(inst, data);
+    }
+    this._resolveFirst(localId);
+  }
+
+  _deliverExit(localId, exitCode) {
+    const inst = this.instances.get(localId);
+    if (!inst) return;
+    inst.exited = true;
+    if (inst.terminal) {
+      inst.terminal.write(`\r\n\x1b[31mProcess exited with code ${exitCode}\x1b[0m\r\n`);
+    }
+  }
+
+  _bindMain(localId, mainId) {
+    if (mainId == null) return;
+    this._mainToLocal.set(mainId, localId);
+    const early = this._early.get(mainId);
+    if (!early) return;
+    this._early.delete(mainId);
+    if (early.ready) this._resolveFirst(localId);
+    for (const chunk of early.chunks) this._deliverData(localId, chunk);
+    if (early.exit) this._deliverExit(localId, early.exit.exitCode);
+  }
+
+  _activeRepo() {
+    return window.__activeRepoPath || this._lastCwd || '';
+  }
+
+  _newInActiveRepo(shell) {
+    const repo = this._activeRepo();
+    if (repo) this._lastCwd = repo;
+    return this._addTerminal(repo, shell || null, repo || null);
   }
 
   _createPanel() {
@@ -153,7 +235,7 @@ export default class TerminalUI {
       <div class="terminal-resize-handle"></div>
       <div class="terminal-tabs" id="terminalTabs">
         <div class="terminal-tabs-left">
-          <button class="terminal-tab-add" id="terminalTabAdd" title="Left-click: new terminal \u00b7 Right-click: select shell">
+          <button class="terminal-tab-add" id="terminalTabAdd" title="Left-click: new terminal in the active repo \u00b7 Right-click: select shell">
             <span class="terminal-tab-add-icon">${ICON_PLUS}</span>
             <span class="terminal-tab-add-label">${this._selectedShell.name}</span>
             <span class="terminal-tab-add-chevron">${ICON_CHEVRON}</span>
@@ -199,8 +281,13 @@ export default class TerminalUI {
       if (e.target.closest('.terminal-tab-add-chevron')) {
         this._openDropdown();
       } else {
-        this._addTerminal(this._lastCwd);
+        this._newInActiveRepo();
       }
+    });
+    this._addBtn.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this._openDropdown();
     });
     document.addEventListener('click', () => {
       this._shellDropdown.classList.remove('open');
@@ -244,6 +331,7 @@ export default class TerminalUI {
         this._shellDropdown.classList.remove('open');
         this._selectedShell = s;
         this._addLabel.textContent = s.name;
+        this._newInActiveRepo(s);
       });
       this._shellDropdown.appendChild(opt);
     });
@@ -387,7 +475,7 @@ export default class TerminalUI {
     if (cwd) {
       this._ensureRepoTerminal(cwd);
     } else if (this.instances.size === 0) {
-      this._addTerminal(this._lastCwd);
+      this._newInActiveRepo();
     }
     requestAnimationFrame(() => this._fitActive());
   }
@@ -418,9 +506,8 @@ export default class TerminalUI {
   }
 
   openTerminalHere(folderPath) {
-    this._lastCwd = folderPath;
-    this.open();
-    this._addTerminal(folderPath);
+    this._showPanel();
+    this._addTerminal(folderPath, null, this._activeRepo() || null);
   }
 
   async _openCommandTerminal(cwd, label, command, shortcut) {
@@ -438,12 +525,12 @@ export default class TerminalUI {
       };
       this._syncEcoButton();
     }
-    if (command && this.instances.has(id)) {
+    if (command && inst && inst.mainId != null) {
       const d = this._firstDataDeferred.get(id);
       if (d) {
         try { await d.promise; } catch { return id; }
       }
-      await window.electronAPI.terminalWrite({ id, data: command + '\r' });
+      await window.electronAPI.terminalWrite({ id: inst.mainId, data: command + '\r' });
     }
     return id;
   }
@@ -526,34 +613,39 @@ export default class TerminalUI {
 
     let sessionId = null;
     let mainId = null;
-    var deferred = {};
-    deferred.promise = new Promise(function (resolve, reject) {
+    const deferred = {};
+    deferred.promise = new Promise((resolve, reject) => {
       deferred.resolve = resolve;
       deferred.reject = reject;
-      setTimeout(function () {
-        if (this._firstDataDeferred.has(id)) {
+      setTimeout(() => {
+        if (this._firstDataDeferred.get(id) === deferred) {
           this._firstDataDeferred.delete(id);
           resolve();
         }
-      }.bind(this), 5000);
-    }.bind(this));
+      }, 5000);
+    });
+    deferred.promise.catch(() => {});
     this._firstDataDeferred.set(id, deferred);
+    let spawnFailed = false;
     try {
       const result = await window.electronAPI.terminalSpawn({
         cwd: cwd || '',
         shell: useShell.cmd,
         args: useShell.args,
+        kind: useShell.kind || '',
         label,
       });
+      if (result && result.error) throw new Error(result.error);
       if (result) {
         sessionId = result.sessionId || null;
         mainId = result.id != null ? result.id : null;
       }
     } catch (err) {
-      terminal.write(`\r\n\x1b[31mFailed to spawn terminal: ${err.message}\x1b[0m\r\n`);
-      if (this._firstDataDeferred.has(id)) {
-        this._firstDataDeferred.get(id).reject(err);
+      spawnFailed = true;
+      terminal.write(`\r\n\x1b[31m${err.message}\x1b[0m\r\n`);
+      if (this._firstDataDeferred.get(id) === deferred) {
         this._firstDataDeferred.delete(id);
+        deferred.reject(err);
       }
     }
 
@@ -567,28 +659,33 @@ export default class TerminalUI {
       repo: repo || null,
       sessionId,
       mainId,
+      exited: spawnFailed,
       discoveredUrls: new Set(),
       urlTail: '',
       shortcut: null,
       colorizer: createColorizer(),
     });
 
+    this._bindMain(id, mainId);
+
     terminal.onData((data) => {
-      window.electronAPI.terminalWrite({ id, data });
+      if (mainId == null) return;
+      window.electronAPI.terminalWrite({ id: mainId, data });
     });
 
     terminal.onResize(({ cols, rows }) => {
-      window.electronAPI.terminalResize({ id, cols, rows });
+      if (mainId == null) return;
+      window.electronAPI.terminalResize({ id: mainId, cols, rows });
     });
 
     this._activateTerminal(id);
 
     requestAnimationFrame(() => {
       setTimeout(() => {
-        fitAddon.fit();
+        try { fitAddon.fit(); } catch (_) {}
         const dims = fitAddon.proposeDimensions();
-        if (dims) {
-          window.electronAPI.terminalResize({ id, cols: dims.cols, rows: dims.rows });
+        if (dims && mainId != null) {
+          window.electronAPI.terminalResize({ id: mainId, cols: dims.cols, rows: dims.rows });
         }
       }, 50);
     });
@@ -735,7 +832,12 @@ export default class TerminalUI {
     const inst = this.instances.get(id);
     if (!inst) return;
 
-    window.electronAPI.terminalKill(id);
+    if (inst.mainId != null) {
+      this._closedMain.add(inst.mainId);
+      this._mainToLocal.delete(inst.mainId);
+      window.electronAPI.terminalKill(inst.mainId);
+    }
+    this._firstDataDeferred.delete(id);
 
     inst.terminal.dispose();
     inst.inst.remove();
@@ -780,40 +882,25 @@ export default class TerminalUI {
   }
 }
 
-const _exitedIds = new Set();
-try {
-  if (window.electronAPI && window.electronAPI.onTerminalExit) {
-    window.electronAPI.onTerminalExit((p) => {
-      if (p && p.id != null) _exitedIds.add(p.id);
-    });
-  }
-} catch (_) {}
-
-function shellKindOf(shell) {
-  const s = String((shell && (shell.cmd || shell.name)) || '').toLowerCase();
-  if (s.indexOf('powershell') !== -1 || s.indexOf('pwsh') !== -1) return 'ps';
-  if (/(^|[\\/])cmd(\.exe)?$/.test(s) || s === 'command prompt') return 'cmd';
-  return 'sh';
-}
-
 TerminalUI.prototype.runCommand = async function runCommand(repoPath, build) {
   if (!this.panel || typeof build !== 'function') return false;
   if (repoPath) this._lastCwd = repoPath;
   this._showPanel();
   for (const eid of Array.from(this.instances.keys())) {
-    if (_exitedIds.has(eid)) this._killTerminal(eid, true);
+    const dead = this.instances.get(eid);
+    if (dead && dead.exited) this._killTerminal(eid, true);
   }
   let id = this.activeId;
   let inst = this.instances.get(id);
   let created = false;
   if (!inst) {
     if (repoPath) await this._ensureRepoTerminal(repoPath);
-    else await this._addTerminal(this._lastCwd);
+    else await this._newInActiveRepo();
     id = this.activeId;
     inst = this.instances.get(id);
     created = true;
   }
-  if (!inst) return false;
+  if (!inst || inst.mainId == null) return false;
   if (created) {
     const d = this._firstDataDeferred.get(id);
     if (d) {
@@ -823,7 +910,7 @@ TerminalUI.prototype.runCommand = async function runCommand(repoPath, build) {
   const cmd = build(shellKindOf(inst.shell));
   if (!cmd) return false;
   this._activateTerminal(id);
-  await window.electronAPI.terminalWrite({ id, data: cmd + '\r' });
+  await window.electronAPI.terminalWrite({ id: inst.mainId, data: cmd + '\r' });
   try { inst.terminal.focus(); } catch (_) {}
   return true;
 };
