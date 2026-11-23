@@ -268,3 +268,4 @@ function register(shared) {
 }
 
 module.exports = { register };
+require('./dbInspectorGather.js').register();
