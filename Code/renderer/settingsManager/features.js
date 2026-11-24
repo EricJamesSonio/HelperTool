@@ -75,6 +75,15 @@ const HEAVY_BADGE =
   'text-transform:uppercase;letter-spacing:0.5px;color:var(--yellow);background:var(--yellow-dim);' +
   'border:1px solid rgba(251,191,36,0.25);border-radius:4px;padding:1px 5px;margin-left:4px;' +
   'vertical-align:middle">heavy</span>';
+FEATURES_META.push({
+  id: 'pdfMaster',
+  group: 'Workspace and Utilities',
+  label: 'PDF Master',
+  desc: 'Inspect PDFs locally: pages, text, images and scan detection',
+  icon: FEATURE_SVGS.generic,
+  heavy: false,
+});
+
 
 const INPUT_STYLE =
   'flex:1;min-width:0;padding:6px 9px;border-radius:7px;border:1px solid var(--border-default);' +
