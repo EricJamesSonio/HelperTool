@@ -11,6 +11,7 @@ const MAX_PDF_BYTES = 500 * 1024 * 1024;
 const MAX_REPORT_BYTES = 50 * 1024 * 1024;
 const INSPECT_TIMEOUT_MS = 10 * 60 * 1000;
 const RENDER_TIMEOUT_MS = 60 * 1000;
+const CONVERT_TIMEOUT_MS = 30 * 60 * 1000;
 const FORMATS = new Set(['png', 'jpeg']);
 
 let _getMainWindow = () => null;
@@ -132,6 +133,35 @@ function register(deps) {
   handle('pdfMaster:cancel', async (payload) => {
     const jobId = payload && typeof payload.jobId === 'string' ? payload.jobId : '';
     return { success: true, cancelled: sidecar.cancel(jobId) };
+  });
+
+  handle('pdfMaster:convertToDocx', async (payload, win) => {
+    const chk = checkPdf(payload && payload.inputPath);
+    if (!chk.ok) return { success: false, error: chk.error };
+    const jobId = safeJobId(payload && payload.jobId);
+    const rawName = path.basename(chk.path).replace(/\.pdf$/i, '') + '.docx';
+    const name = rawName.replace(/[^\w.\- ]+/g, '_') || 'converted.docx';
+    const startDir = app && app.getPath ? app.getPath('documents') : '';
+    const res = await dialog.showSaveDialog(win, {
+      defaultPath: startDir ? path.join(startDir, name) : name,
+      filters: [{ name: 'Microsoft Word Document (*.docx)', extensions: ['docx'] }],
+    });
+    if (res.canceled || !res.filePath) return { success: true, canceled: true };
+    let target = res.filePath;
+    if (path.extname(target).toLowerCase() !== '.docx') target += '.docx';
+    const send = (data) => {
+      if (win.isDestroyed()) return;
+      win.webContents.send('pdfMaster:progress', Object.assign({ jobId }, data));
+    };
+    const result = await sidecar.request('convert_pdf_to_docx', {
+      inputPath: chk.path,
+      outputPath: target,
+    }, {
+      jobId,
+      timeoutMs: CONVERT_TIMEOUT_MS,
+      onProgress: send,
+    });
+    return Object.assign({ success: true, jobId }, result);
   });
 
   handle('pdfMaster:saveReport', async (payload, win) => {
