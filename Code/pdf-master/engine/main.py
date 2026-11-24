@@ -47,10 +47,22 @@ def op_render(payload, progress, inspector):
     )
 
 
+def op_convert(payload, progress, inspector):
+    global converter
+    if "converter" not in globals():
+        raise EngineError("MISSING_DEPENDENCY", "The DOCX converter module could not be loaded.")
+    return converter.convert_pdf_to_docx(
+        payload.get("inputPath"),
+        payload.get("outputPath"),
+        progress,
+    )
+
+
 OPERATIONS = {
     "ping": op_ping,
     "inspect_pdf": op_inspect,
     "render_page": op_render,
+    "convert_pdf_to_docx": op_convert,
 }
 
 
@@ -78,15 +90,21 @@ def handle(message, inspector, engine_error):
         emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": exc.code, "message": exc.message})
     except MemoryError:
         emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "OUT_OF_MEMORY", "message": "The document is too large to process on this computer."})
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "INTERNAL_ERROR", "message": "The document could not be processed."})
+        detail = str(exc).strip()
+        message = "The document could not be processed"
+        if detail:
+            message += ": " + detail[:300]
+        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "INTERNAL_ERROR", "message": message})
 
 
 def main():
     configure_streams()
     try:
+        global converter
         import inspector
+        import converter
         from errors import EngineError
     except ImportError as exc:
         emit({"type": "ready", "ok": False, "code": "MISSING_DEPENDENCY", "message": "A required Python package is missing (%s). Run: pip install -r pdf-master/engine/requirements.txt" % exc})
