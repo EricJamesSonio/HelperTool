@@ -1034,3 +1034,24 @@ contextBridge.exposeInMainWorld('csSuspendAPI', {
 contextBridge.exposeInMainWorld('repoDetailsAPI', {
   get: (payload) => ipcRenderer.invoke('repoDetails:get', payload),
 });
+const { webUtils: _pdfmWebUtils } = require('electron');
+
+contextBridge.exposeInMainWorld('pdfMasterAPI', {
+  status:      ()        => ipcRenderer.invoke('pdfMaster:status'),
+  pickPdf:     ()        => ipcRenderer.invoke('pdfMaster:pickPdf'),
+  inspect:     (payload) => ipcRenderer.invoke('pdfMaster:inspect', payload),
+  renderPage:  (payload) => ipcRenderer.invoke('pdfMaster:renderPage', payload),
+  cancel:      (jobId)   => ipcRenderer.invoke('pdfMaster:cancel', { jobId }),
+  saveReport:  (payload) => ipcRenderer.invoke('pdfMaster:saveReport', payload),
+  getPathForFile: (file) => {
+    try {
+      return _pdfmWebUtils.getPathForFile(file);
+    } catch (_) {
+      return (file && file.path) || '';
+    }
+  },
+  onProgress: (callback) => {
+    ipcRenderer.removeAllListeners('pdfMaster:progress');
+    ipcRenderer.on('pdfMaster:progress', (_event, data) => callback(data));
+  },
+});

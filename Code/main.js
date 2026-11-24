@@ -700,3 +700,13 @@ app.whenReady().then(() => {
     console.error('[IPC] Failed to register repoDetails_ipc:', e);
   }
 });
+app.whenReady().then(() => {
+  try {
+    require('./ipc/pdfMaster_ipc.js').register({ app, getMainWindow });
+  } catch (e) {
+    console.error('[IPC] Failed to register pdfMaster_ipc:', e);
+  }
+});
+app.on('before-quit', () => {
+  try { require('./ipc/pdfMaster_ipc.js').cleanup(); } catch (_) {}
+});
