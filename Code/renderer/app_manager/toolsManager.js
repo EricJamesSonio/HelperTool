@@ -1208,3 +1208,22 @@ TOOLS.push({
   desc: 'Every database, JSON file & local storage this app uses',
   shortcut: null,
 });
+ICONS.pdfMaster = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h7l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 2v4h4"/><path d="M7 11h6"/><path d="M7 14h4"/></svg>';
+
+RUN.pdfMaster = async () => {
+  const mod = await import('../pdfMaster.js');
+  if (mod.isOpen()) { mod.close(); return; }
+  _registry.closeAll();
+  await mod.open();
+  _registry.register('pdfMaster', mod.getPanel());
+};
+
+TOOLS.push({
+  id: 'pdfMaster',
+  key: 'pdfMaster',
+  flag: 'pdfMaster',
+  icon: ICONS.pdfMaster,
+  name: 'PDF Master',
+  desc: 'Inspect PDFs: pages, text, images & scan detection',
+  shortcut: null,
+});
