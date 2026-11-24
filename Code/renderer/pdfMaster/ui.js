@@ -26,7 +26,11 @@ let toastTimer = 0;
 const S = {
   status: null,
   statusLoading: false,
+  activeTab: 'inspector',
   busy: false,
+  convertBusy: false,
+  convertProgress: null,
+  convertResult: null,
   jobId: '',
   progress: null,
   filePath: '',
@@ -89,11 +93,14 @@ export function mount(container) {
   root.innerHTML =
     '<div class="pdfm">' +
       '<div class="pdfm-tabs" id="pdfmTabs"></div>' +
-      '<div id="pdfmSource"></div>' +
-      '<div class="pdfm-main">' +
+      '<div class="pdfm-inspector" id="pdfmInspector">' +
+        '<div id="pdfmSource"></div>' +
+        '<div class="pdfm-main">' +
         '<aside class="pdfm-side" id="pdfmSide"></aside>' +
         '<section class="pdfm-detail" id="pdfmDetail"></section>' +
+        '</div>' +
       '</div>' +
+      '<div class="pdfm-converter" id="pdfmConverter"></div>' +
     '</div>';
   root.addEventListener('click', onClick);
   root.addEventListener('dragover', onDragOver);
@@ -105,6 +112,7 @@ export function mount(container) {
   renderSource();
   renderList();
   renderDetail();
+  renderConverter();
 }
 
 export function onShow() {
@@ -145,10 +153,76 @@ function renderTabs() {
       '<button type="button" class="pdfm-btn pdfm-btn-small" data-act="retry">Retry</button>';
   }
   setHtml('#pdfmTabs',
-    '<button type="button" class="pdfm-tab active">Inspector</button>' +
-    '<button type="button" class="pdfm-tab" disabled title="Planned for a later release">PDF to DOCX <span class="pdfm-soon">soon</span></button>' +
+    '<button type="button" class="pdfm-tab' + (S.activeTab === 'inspector' ? ' active' : '') + '" data-act="tab" data-tab="inspector">Inspector</button>' +
+    '<button type="button" class="pdfm-tab' + (S.activeTab === 'converter' ? ' active' : '') + '" data-act="tab" data-tab="converter">PDF to DOCX</button>' +
     '<button type="button" class="pdfm-tab" disabled title="Planned for a later release">PDF Writer <span class="pdfm-soon">soon</span></button>' +
     '<span class="pdfm-tabs-right">' + chip + '</span>');
+  const inspector = $('#pdfmInspector');
+  const converter = $('#pdfmConverter');
+  if (inspector) inspector.classList.toggle('hidden', S.activeTab !== 'inspector');
+  if (converter) converter.classList.toggle('hidden', S.activeTab !== 'converter');
+}
+
+function renderConverter() {
+  const report = S.report;
+  let summary = '';
+  if (report) {
+    summary =
+      '<div class="pdfm-convert-file">' +
+        '<div><div class="pdfm-file-name" title="' + esc(S.filePath) + '">' + esc(report.file.name) + '</div>' +
+        '<div class="pdfm-file-sub">' + esc(fmtBytes(report.file.size)) + ' | ' + report.document.pageCount + ' pages</div></div>' +
+        '<div class="pdfm-counts">' +
+          '<span class="pdfm-badge pdfm-badge-text">Text ' + report.summary.counts.text + '</span>' +
+          '<span class="pdfm-badge pdfm-badge-image">Scanned ' + report.summary.counts.image + '</span>' +
+          '<span class="pdfm-badge pdfm-badge-mixed">Mixed ' + report.summary.counts.mixed + '</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  let progress = '';
+  if (S.convertBusy) {
+    const p = S.convertProgress || {};
+    progress =
+      '<div class="pdfm-convert-progress">' +
+        '<div class="pdfm-busy-top"><div class="pdfm-file-sub" id="pdfmConvertProgressMsg">' + esc(p.message || 'Starting conversion...') + '</div>' +
+        '<button type="button" class="pdfm-btn" data-act="cancel">Cancel</button></div>' +
+        '<div class="pdfm-bar"><div class="pdfm-bar-fill" id="pdfmConvertProgressFill" style="width:' + (Number(p.percent) || 0) + '%"></div></div>' +
+      '</div>';
+  }
+
+  let result = '';
+  if (S.convertResult) {
+    const r = S.convertResult;
+    result =
+      '<div class="pdfm-convert-result">' +
+        '<div class="pdfm-drop-title">DOCX created</div>' +
+        '<div class="pdfm-file-sub">' + esc(r.outputPath || '') + '</div>' +
+        (r.warnings && r.warnings.length
+          ? r.warnings.map((warning) => '<div class="pdfm-warn">Warning: ' + esc(warning) + '</div>').join('')
+          : '') +
+      '</div>';
+  }
+
+  let engineNote = '';
+  if (S.status && S.status.available === false) {
+    engineNote = '<div class="pdfm-error">' + esc(S.status.error || 'The document engine is not available.') + '</div>';
+  } else if (S.status && S.status.available && report) {
+    engineNote = '<div class="pdfm-warn">Pages are embedded as images to preserve layout. Text inside the DOCX pages will not be directly editable.</div>';
+  }
+
+  setHtml('#pdfmConverter',
+    '<div class="pdfm-convert-workspace">' +
+      '<div class="pdfm-convert-header">' +
+        '<div><div class="pdfm-drop-title">PDF to DOCX</div>' +
+        '<div class="pdfm-file-sub">Preserve the PDF appearance by placing each page as a high-resolution image in Word.</div></div>' +
+        '<button type="button" class="pdfm-btn pdfm-btn-primary" data-act="convert"' +
+          (!report || S.convertBusy || !(S.status && S.status.available) ? ' disabled' : '') + '>Convert to DOCX</button>' +
+      '</div>' +
+      (summary || '<div class="pdfm-empty pdfm-empty-big">Open a PDF in the Inspector tab before converting it to DOCX.</div>') +
+      engineNote +
+      progress +
+      result +
+    '</div>');
 }
 
 function renderSource() {
@@ -287,10 +361,16 @@ function onClick(e) {
   const btn = e.target.closest('[data-act]');
   if (!btn || !root.contains(btn) || btn.disabled) return;
   const act = btn.dataset.act;
-  if (act === 'open') pick();
+  if (act === 'tab') {
+    S.activeTab = btn.dataset.tab === 'converter' ? 'converter' : 'inspector';
+    renderTabs();
+    if (S.activeTab === 'converter') renderConverter();
+  }
+  else if (act === 'open') pick();
   else if (act === 'cancel') cancel();
   else if (act === 'retry') refreshStatus();
   else if (act === 'export') exportReport();
+  else if (act === 'convert') convertToDocx();
   else if (act === 'select') select(Number(btn.dataset.page));
   else if (act === 'prev') select(S.selected - 1);
   else if (act === 'next') select(S.selected + 1);
@@ -327,6 +407,7 @@ async function loadFile(filePath) {
   S.progress = { percent: 0, message: 'Starting...' };
   S.filePath = filePath;
   S.report = null;
+  S.convertResult = null;
   S.selected = 0;
   S.filter = 'all';
   S.thumbCache.clear();
@@ -359,19 +440,27 @@ async function loadFile(filePath) {
 
 async function cancel() {
   const bridge = api();
-  if (!bridge || !S.busy) return;
+  if (!bridge || (!S.busy && !S.convertBusy)) return;
   try {
     await bridge.cancel(S.jobId);
   } catch (_) {}
 }
 
 function onProgress(d) {
-  if (!d || !S.busy || d.jobId !== S.jobId) return;
-  S.progress = d;
-  const fill = $('#pdfmProgressFill');
-  if (fill) fill.style.width = (Number(d.percent) || 0) + '%';
-  const msg = $('#pdfmProgressMsg');
-  if (msg) msg.textContent = d.message || '';
+  if (!d || d.jobId !== S.jobId) return;
+  if (S.busy) {
+    S.progress = d;
+    const fill = $('#pdfmProgressFill');
+    if (fill) fill.style.width = (Number(d.percent) || 0) + '%';
+    const msg = $('#pdfmProgressMsg');
+    if (msg) msg.textContent = d.message || '';
+  } else if (S.convertBusy) {
+    S.convertProgress = d;
+    const fill = $('#pdfmConvertProgressFill');
+    if (fill) fill.style.width = (Number(d.percent) || 0) + '%';
+    const msg = $('#pdfmConvertProgressMsg');
+    if (msg) msg.textContent = d.message || '';
+  }
 }
 
 function select(i) {
@@ -428,6 +517,37 @@ async function exportReport() {
   } catch (err) {
     toast(err && err.message ? err.message : String(err), true);
   }
+}
+
+async function convertToDocx() {
+  const bridge = api();
+  if (!bridge || S.convertBusy || !S.report || !S.filePath) return;
+  if (!S.status || !S.status.available) {
+    toast('The PDF engine is not available.', true);
+    return;
+  }
+  S.convertBusy = true;
+  S.convertProgress = { percent: 0, message: 'Preparing conversion...' };
+  S.convertResult = null;
+  S.jobId = 'pmc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  renderConverter();
+  let res;
+  try {
+    res = await bridge.convertToDocx({ jobId: S.jobId, inputPath: S.filePath });
+  } catch (err) {
+    res = { success: false, error: err && err.message ? err.message : String(err) };
+  }
+  S.convertBusy = false;
+  S.convertProgress = null;
+  if (res && res.success && !res.canceled) {
+    S.convertResult = res;
+    toast('DOCX created');
+  } else if (res && res.success === false) {
+    toast(res.code === 'CANCELLED' ? 'Conversion cancelled.' : (res.error || 'The conversion failed.'), res.code !== 'CANCELLED');
+  } else if (res && res.canceled) {
+    toast('Conversion cancelled.');
+  }
+  renderConverter();
 }
 
 /* ---------- thumbnails ---------- */
