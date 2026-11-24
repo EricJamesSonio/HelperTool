@@ -47,6 +47,7 @@ const DEFAULT_FEATURES = {
   researcherTool: true,
   flowTool:      true,
   shortcutMode: true,
+  pdfMaster: true,
 };
 
 let _features = { ...DEFAULT_FEATURES };
