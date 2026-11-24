@@ -1,0 +1,112 @@
+"""PDF Master document engine.
+
+Protocol: one JSON object per line on stdin (requests) and stdout (responses).
+Standard output is reserved for protocol messages. Diagnostics go to stderr.
+"""
+import json
+import sys
+import traceback
+
+VERSION = "0.1.0"
+
+PROTO = sys.stdout
+sys.stdout = sys.stderr
+
+
+def emit(message):
+    PROTO.write(json.dumps(message, ensure_ascii=True, separators=(",", ":")) + "\n")
+    PROTO.flush()
+
+
+def configure_streams():
+    for stream in (sys.stdin, PROTO, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+    try:
+        PROTO.reconfigure(newline="\n")
+    except Exception:
+        pass
+
+
+def op_ping(payload, progress, inspector):
+    return {"pong": True, "version": VERSION}
+
+
+def op_inspect(payload, progress, inspector):
+    return inspector.inspect_pdf(payload.get("inputPath"), progress)
+
+
+def op_render(payload, progress, inspector):
+    return inspector.render_page(
+        payload.get("inputPath"),
+        payload.get("pageIndex"),
+        payload.get("maxWidth", 900),
+        payload.get("format", "png"),
+    )
+
+
+OPERATIONS = {
+    "ping": op_ping,
+    "inspect_pdf": op_inspect,
+    "render_page": op_render,
+}
+
+
+def handle(message, inspector, engine_error):
+    request_id = message.get("requestId")
+    if message.get("type") != "request" or not isinstance(request_id, str):
+        emit({"type": "error", "requestId": request_id if isinstance(request_id, str) else None, "code": "INVALID_REQUEST", "message": "The request is not valid."})
+        return
+    job_id = message.get("payload", {}).get("jobId") if isinstance(message.get("payload"), dict) else None
+    if not isinstance(job_id, str):
+        job_id = None
+    operation = OPERATIONS.get(message.get("operation"))
+    payload = message.get("payload")
+    if operation is None or not isinstance(payload, dict):
+        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "INVALID_REQUEST", "message": "The operation is not supported."})
+        return
+
+    def progress(stage, percent, text):
+        emit({"type": "progress", "requestId": request_id, "jobId": job_id, "stage": stage, "percent": percent, "message": text})
+
+    try:
+        result = operation(payload, progress, inspector)
+        emit({"type": "result", "requestId": request_id, "jobId": job_id, "status": "completed", "payload": result})
+    except engine_error as exc:
+        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": exc.code, "message": exc.message})
+    except MemoryError:
+        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "OUT_OF_MEMORY", "message": "The document is too large to process on this computer."})
+    except Exception:
+        traceback.print_exc()
+        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "INTERNAL_ERROR", "message": "The document could not be processed."})
+
+
+def main():
+    configure_streams()
+    try:
+        import inspector
+        from errors import EngineError
+    except ImportError as exc:
+        emit({"type": "ready", "ok": False, "code": "MISSING_DEPENDENCY", "message": "A required Python package is missing (%s). Run: pip install -r pdf-master/engine/requirements.txt" % exc})
+        return 1
+    emit({"type": "ready", "ok": True, "version": VERSION, "python": sys.version.split()[0]})
+    for raw in sys.stdin:
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            message = json.loads(line)
+        except ValueError:
+            emit({"type": "error", "requestId": None, "code": "INVALID_REQUEST", "message": "The request is not valid JSON."})
+            continue
+        if not isinstance(message, dict):
+            emit({"type": "error", "requestId": None, "code": "INVALID_REQUEST", "message": "The request is not valid."})
+            continue
+        handle(message, inspector, EngineError)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
