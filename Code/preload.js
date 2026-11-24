@@ -1041,6 +1041,7 @@ contextBridge.exposeInMainWorld('pdfMasterAPI', {
   pickPdf:     ()        => ipcRenderer.invoke('pdfMaster:pickPdf'),
   inspect:     (payload) => ipcRenderer.invoke('pdfMaster:inspect', payload),
   renderPage:  (payload) => ipcRenderer.invoke('pdfMaster:renderPage', payload),
+  convertToDocx: (payload) => ipcRenderer.invoke('pdfMaster:convertToDocx', payload),
   cancel:      (jobId)   => ipcRenderer.invoke('pdfMaster:cancel', { jobId }),
   saveReport:  (payload) => ipcRenderer.invoke('pdfMaster:saveReport', payload),
   getPathForFile: (file) => {
