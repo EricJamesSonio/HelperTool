@@ -98,6 +98,24 @@
   outline-offset: -6px;
 }
 
+.pdfm-inspector {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pdfm-inspector.hidden,
+.pdfm-converter.hidden {
+  display: none;
+}
+
+.pdfm-converter {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .pdfm-tabs {
   display: flex;
   align-items: center;
@@ -194,6 +212,42 @@
   grid-template-columns: 340px 1fr;
   margin-top: 14px;
   border-top: 1px solid var(--border-subtle);
+}
+
+.pdfm-convert-workspace {
+  max-width: 920px;
+  margin: 24px auto;
+  padding: 0 24px 24px;
+}
+
+.pdfm-convert-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.pdfm-convert-file,
+.pdfm-convert-progress,
+.pdfm-convert-result {
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-raised);
+}
+
+.pdfm-convert-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pdfm-convert-progress,
+.pdfm-convert-result {
+  margin-top: 14px;
 }
 
 .pdfm-side {
