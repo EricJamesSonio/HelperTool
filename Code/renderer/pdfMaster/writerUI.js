@@ -564,35 +564,43 @@ function statusById() {
 }
 
 function renderSide() {
+  const isEd = (s) => s.kind === 'flow' || s.kind === 'slots' || (s.kind === 'journal' && !!s.journal);
   if (!W.sections.length) {
     setHtml('#pdfwSideHead', '');
     setHtml('#pdfwSide', '<div class="pdfm-empty">' + (W.busy === 'analyze' ? 'Analyzing pages...' : 'No sections yet.') + '</div>');
     return;
   }
-  const editable = W.sections.filter((s) => s.kind === 'flow' || s.kind === 'slots').length;
+  const editable = W.sections.filter(isEd).length;
   const fixed = W.sections.length - editable;
   setHtml('#pdfwSideHead',
     '<div class="pdfw-side-title">Sections</div>' +
     '<div class="pdfm-file-sub">' + editable + ' editable, ' + fixed + ' kept as is. Click a page chip to split or join sections.</div>');
   const status = statusById();
   const cards = W.sections.map((sec) => {
-    const editableSec = sec.kind === 'flow' || sec.kind === 'slots';
+    const editableSec = isEd(sec);
     const state = status.get(sec.id);
     const chips = [];
     for (let i = sec.start; i <= sec.end; i++) {
       chips.push('<button type="button" class="pdfw-chip' + (i === sec.start ? ' start' : '') + '" data-wact="chip" data-page="' + i + '" ' +
         'title="' + (i === sec.start ? (i > 0 ? 'Join with the previous section' : 'First page') : 'Start a new section here') + '">p' + (i + 1) + '</button>');
     }
-    const preview = sec.lines.slice(0, 6).map((l) => esc(l.t)).join('\n');
+    const isJournal = sec.kind === 'journal' && !!sec.journal;
+    const preview = isJournal ? '' : sec.lines.slice(0, 6).map((l) => esc(l.t)).join('\n');
     let tag = '';
     if (state === 'ready') tag = '<span class="pdfw-pill ok">Will be rewritten</span>';
     else if (state === 'fix') tag = '<span class="pdfw-pill bad">Needs fix</span>';
     else if (!editableSec) tag = '<span class="pdfw-pill mute">Kept as is</span>';
+    let count = '';
+    if (isJournal) {
+      count = ' | ' + plural(sec.journal.rows.length, 'row') + ' in ' + plural(sec.journal.weeks.length, 'week');
+    } else if (sec.lines.length) {
+      count = ' | ' + sec.lines.length + ' lines';
+    }
     return '<div class="pdfw-sec pdfw-kind-' + esc(sec.kind) + (editableSec ? '' : ' pdfw-sec-fixed') + (state ? ' pdfw-sec-' + state : '') + '">' +
       '<div class="pdfw-sec-head"><span class="pdfw-id">' + esc(sec.id) + '</span>' +
       '<span class="pdfw-sec-title">' + esc(sec.title) + '</span></div>' +
       '<div class="pdfw-sec-sub"><span class="pdfw-badge pdfw-badge-' + esc(sec.kind) + '">' + esc(KIND_LABEL[sec.kind] || sec.kind) + '</span> ' +
-      esc(pageLabel(sec)) + (sec.lines.length ? ' | ' + sec.lines.length + ' lines' : '') + '</div>' +
+      esc(pageLabel(sec)) + count + '</div>' +
       (tag ? '<div class="pdfw-sec-tag">' + tag + '</div>' : '') +
       '<div class="pdfw-chips">' + chips.join('') + '</div>' +
       (preview && editableSec ? '<details class="pdfw-prev"><summary>Preview text</summary><pre class="pdfw-preview">' + preview + '</pre></details>' : '') +

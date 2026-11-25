@@ -23,15 +23,21 @@ export const KIND_LABEL = {
   flow: 'Editable text',
   slots: 'Fixed layout',
   toc: 'Contents (auto numbers)',
-  journal: 'Journal pages (kept as is)',
+  journal: 'Journal table (text replaced, images kept)',
   locked: 'Images (kept as is)',
   blank: 'Blank (kept as is)',
 };
 
-export const EDITABLE_KINDS = ['flow', 'slots'];
+export const EDITABLE_KINDS = ['flow', 'slots', 'journal'];
 
 export function norm(text) {
   return String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function isEditable(sec) {
+  if (!sec) return false;
+  if (sec.kind === 'journal') return !!sec.journal;
+  return sec.kind === 'flow' || sec.kind === 'slots';
 }
 
 function isCentered(line, width) {
@@ -70,6 +76,10 @@ function medianOf(values) {
   return sorted[Math.floor(sorted.length / 2)];
 }
 
+function wordCount(text) {
+  return String(text || '').split(/\s+/).filter(Boolean).length;
+}
+
 function gapRatio(lines) {
   if (lines.length < 3) return 0;
   const deltas = [];
@@ -86,6 +96,49 @@ function classify(pages, lines) {
   if (tocHits >= 4) return 'toc';
   if (pages.length === 1 && lines.length <= 24 && gapRatio(lines) >= 3.5) return 'slots';
   return 'flow';
+}
+
+/**
+ * Builds the row list of a journal section from the table bands found by the
+ * engine. A band that continues from the previous page belongs to the row
+ * above it, exactly as the engine groups them when it writes.
+ */
+function collectJournal(ps) {
+  const rows = [];
+  const fields = {};
+  let week = '';
+  ps.forEach((p) => {
+    const j = p.journal;
+    if (!j) return;
+    const f = j.fields || {};
+    if (f.week) week = f.week;
+    ['student', 'course', 'company', 'prepared', 'reviewed'].forEach((key) => {
+      if (f[key] && !fields[key]) fields[key] = f[key];
+    });
+    (j.bands || []).forEach((band) => {
+      if (band.header || band.blank) return;
+      const cells = (band.cells || []).concat(['', '', '', '']).slice(0, 4);
+      if (band.cont && rows.length) {
+        const last = rows[rows.length - 1];
+        last.cells = last.cells.map((text, i) => (text + ' ' + cells[i]).trim());
+        return;
+      }
+      rows.push({ week, cells });
+    });
+  });
+  if (!rows.length) return null;
+  const weeks = [];
+  rows.forEach((row) => {
+    const label = row.week || 'No week label';
+    let entry = weeks[weeks.length - 1];
+    if (!entry || entry.label !== label) {
+      entry = { label, rows: 0 };
+      weeks.push(entry);
+    }
+    entry.rows += 1;
+  });
+  const maxWords = [0, 1, 2, 3].map((i) => Math.max(1, Math.max.apply(null, rows.map((r) => wordCount(r.cells[i])))));
+  return { rows, weeks, fields, maxWords };
 }
 
 export function pageLabel(sec) {
@@ -124,6 +177,7 @@ export function buildSections(analysis, overrides) {
     const width = ps[0].width;
     const sec = { id: 'S' + (n + 1), start, end, lines, width, height: ps[0].height };
     sec.kind = classify(ps, lines);
+    sec.journal = sec.kind === 'journal' ? collectJournal(ps) : null;
     const first = lines[0];
     sec.hasHeading = !!first && isHeadingLine(first, width);
     if (first) sec.title = first.t.trim().slice(0, 56);

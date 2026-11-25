@@ -167,6 +167,61 @@ export function toSlotLines(rawLines) {
     .map((row) => row.trim().replace(/^#{1,2}\s+/, ''))
     .filter((row) => row);
 }
+const J_ROW = /^\s*\[\[\s*ROW\b[^\]]*\]\]\s*$/i;
+const J_FIELD = /^\s*(STUDENT|COURSE|COMPANY|PREPARED|REVIEWED|DATE|TASK|CHALLENGES|LEARNINGS)\s*:\s*(.*)$/i;
+const J_KEYS = ['date', 'task', 'challenges', 'learnings'];
+
+function splitPerson(value) {
+  const parts = String(value || '').split('|');
+  return { name: parts[0].trim(), role: parts.slice(1).join('|').trim() };
+}
+
+function wordCount(text) {
+  return String(text || '').split(/\s+/).filter(Boolean).length;
+}
+
+export function parseJournalBlock(rawLines) {
+  const header = {};
+  const rows = [];
+  let row = null;
+  let last = null;
+  const begin = () => {
+    row = { date: '', task: '', challenges: '', learnings: '' };
+    rows.push(row);
+  };
+  rawLines.forEach((raw) => {
+    const text = raw.trim();
+    if (!text) return;
+    if (J_ROW.test(text)) {
+      begin();
+      last = null;
+      return;
+    }
+    const m = J_FIELD.exec(text);
+    if (m) {
+      const key = m[1].toLowerCase();
+      const value = m[2].trim();
+      if (J_KEYS.indexOf(key) !== -1) {
+        if (!row || (key === 'date' && row.date)) begin();
+        row[key] = value;
+        last = { owner: row, key };
+      } else {
+        header[key] = value;
+        last = { owner: header, key };
+      }
+      return;
+    }
+    if (last) last.owner[last.key] = (last.owner[last.key] + ' ' + text).trim();
+  });
+  const clean = {};
+  ['student', 'course', 'company'].forEach((key) => {
+    if (header[key]) clean[key] = header[key];
+  });
+  ['prepared', 'reviewed'].forEach((key) => {
+    if (header[key]) clean[key] = splitPerson(header[key]);
+  });
+  return { header: clean, rows };
+}
 
 function countType(items, type) {
   return items.filter((item) => item.type === type).length;
@@ -223,6 +278,40 @@ export function checkText(text, sections) {
           info.summary = pageLabel(sec) + ': ' + sec.lines.length + ' lines';
           if (padded) {
             info.messages.push('The last ' + (padded === 1 ? 'line' : padded + ' lines') + ' of the original only held punctuation, so ' + (padded === 1 ? 'it is' : 'they are') + ' left blank.');
+          }
+        }
+      } else if (sec.kind === 'journal') {
+        if (!sec.journal) {
+          info.ok = false;
+          info.messages.push('No table grid was detected on these journal pages, so they are kept as is.');
+        } else {
+          const entry = parseJournalBlock(block.lines);
+          const need = sec.journal.rows.length;
+          const missing = [];
+          entry.rows.forEach((row, i) => {
+            J_KEYS.forEach((key) => {
+              if (!row[key]) missing.push('row ' + (i + 1) + ' ' + key);
+            });
+          });
+          if (entry.rows.length !== need) {
+            info.ok = false;
+            info.messages.push('Needs exactly ' + need + ' entries but has ' + entry.rows.length + '.');
+          } else if (missing.length) {
+            info.ok = false;
+            info.messages.push('Missing: ' + missing.slice(0, 6).join(', ') + (missing.length > 6 ? ', ...' : '') + '.');
+          } else {
+            result.replace.push({ start: sec.start, end: sec.end, mode: 'journal', header: entry.header, rows: entry.rows });
+            info.summary = pageLabel(sec) + ': ' + need + ' entries in ' + sec.journal.weeks.length + ' weeks';
+            const long = [];
+            entry.rows.forEach((row, i) => {
+              [1, 2, 3].forEach((c) => {
+                const limit = Math.ceil(sec.journal.maxWords[c] * 1.25) + 3;
+                if (wordCount(row[J_KEYS[c]]) > limit) long.push('row ' + (i + 1) + ' ' + J_KEYS[c]);
+              });
+            });
+            if (long.length) {
+              info.messages.push('These cells are longer than any current cell and may be shrunk to fit: ' + long.slice(0, 6).join(', ') + (long.length > 6 ? ', ...' : '') + '.');
+            }
           }
         }
       } else {
