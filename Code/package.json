@@ -79,6 +79,7 @@
     "sharp": "^0.35.1",
     "simple-git": "^3.36.0",
     "sql.js": "^1.14.1",
+    "tesseract.js": "^7.0.0",
     "tree-sitter-css": "^0.25.0",
     "tree-sitter-html": "^0.23.2",
     "tree-sitter-javascript": "^0.25.0",

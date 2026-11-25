@@ -522,10 +522,15 @@ const imageBridge = {
         pickOutputFolder: ()            => ipcRenderer.invoke('image:pickOutputFolder'),
         getMetadata:    (payload)       => ipcRenderer.invoke('image:getMetadata', payload),
         convert:        (payload)       => ipcRenderer.invoke('image:convert', payload),
+        ocr:            (payload)       => ipcRenderer.invoke('image:ocr', payload),
         revealFile:     (payload)       => ipcRenderer.invoke('image:revealFile', payload),
         onConvertProgress: (callback) => {
             ipcRenderer.removeAllListeners('image:convertProgress');
             ipcRenderer.on('image:convertProgress', (_event, data) => callback(data));
+        },
+        onOcrProgress: (callback) => {
+            ipcRenderer.removeAllListeners('image:ocrProgress');
+            ipcRenderer.on('image:ocrProgress', (_event, data) => callback(data));
         },
     },
 };
