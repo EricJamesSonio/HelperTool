@@ -64,12 +64,28 @@ async function trustManifest() {
 function itemCard(item) {
   const plan = item.targets[S.env];
   if (!plan) {
+    const other = S.env === 'local' ? 'production' : 'local';
+    const otherLabel = other === 'production' ? 'Production' : 'Local';
     return h(
       'div',
       { class: 'rc-card' },
       h('div', { class: 'rc-card-head' }, h('h3', { text: item.title }), badge(item.risk)),
       h('p', { text: item.summary }),
-      h('div', { class: 'rc-where', text: 'Not available for ' + S.env + '.' })
+      h(
+        'div',
+        { class: 'rc-row' },
+        h('span', { class: 'rc-where', text: 'Only available in ' + otherLabel + ' mode.' }),
+        item.targets[other]
+          ? h('button', {
+              class: 'rc-btn secondary small',
+              text: 'Switch to ' + otherLabel,
+              onclick: () => {
+                S.env = other;
+                S.hooks.renderAll();
+              },
+            })
+          : null
+      )
     );
   }
   const needsDb = item.needsDb !== false;
@@ -228,14 +244,12 @@ function otherMatches(pageId, words) {
 function actionPage(pageId, lead) {
   const words = searchWords(searchText);
   const onPage = S.catalog.items.filter((i) => i.page === pageId);
-  const available = onPage.filter((i) => !!(i.targets && i.targets[S.env]));
-  const items = words.length ? available.filter((i) => itemMatches(i, words)) : available;
-  const hidden = onPage.length - available.length;
+  const items = words.length ? onPage.filter((i) => itemMatches(i, words)) : onPage;
   const sections = [];
   for (const item of items) if (!sections.includes(item.section)) sections.push(item.section);
   const out = [trustBox(), h('p', { class: 'rc-lead', text: lead })];
   if (words.length) {
-    out.push(h('div', { class: 'rc-where', text: 'Showing ' + items.length + ' of ' + available.length + ' for "' + searchText + '"' }), otherMatches(pageId, words));
+    out.push(h('div', { class: 'rc-where', text: 'Showing ' + items.length + ' of ' + onPage.length + ' for "' + searchText + '"' }), otherMatches(pageId, words));
   }
   if (!onPage.length) {
     out.push(emptyActions());
@@ -245,16 +259,16 @@ function actionPage(pageId, lead) {
     out.push(
       h('div', {
         class: 'rc-empty',
-        text: words.length ? 'Nothing on this page matches "' + searchText + '".' : 'Nothing on this page is available for ' + S.env + '.',
+        text: words.length ? 'Nothing on this page matches "' + searchText + '".' : 'Nothing was found for this page.',
       })
     );
     return out;
   }
   for (const section of sections) {
-    out.push(h('div', { class: 'rc-section', text: section }), h('div', { class: 'rc-grid' }, items.filter((i) => i.section === section).map(itemCard)));
-  }
-  if (hidden && !words.length) {
-    out.push(h('p', { class: 'rc-where', text: hidden + ' action' + (hidden === 1 ? ' is' : 's are') + ' hidden because ' + (hidden === 1 ? 'it is' : 'they are') + ' not available for ' + S.env + '.' }));
+    const inSection = items.filter((i) => i.section === section);
+    const ready = inSection.filter((i) => !!(i.targets && i.targets[S.env]));
+    const other = inSection.filter((i) => !(i.targets && i.targets[S.env]));
+    out.push(h('div', { class: 'rc-section', text: section }), h('div', { class: 'rc-grid' }, [...ready, ...other].map(itemCard)));
   }
   return out;
 }

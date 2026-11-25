@@ -40,6 +40,7 @@ describe('consoleManifest - detected npm scripts', () => {
         migrate: 'prisma migrate dev',
         'migrate:production': 'APP_ENV=production prisma migrate deploy',
       },
+      devDependencies: { jest: '^29.0.0' },
     },
   });
   const view = manifest.describe(dir);
@@ -50,10 +51,15 @@ describe('consoleManifest - detected npm scripts', () => {
     assert.equal(view.trusted, true);
   });
 
-  it('skips long-running scripts, test and hook scripts', () => {
-    for (const name of ['start', 'dev', 'test', 'prebuild']) {
+  it('skips the test script and hook scripts', () => {
+    for (const name of ['test', 'prebuild']) {
       assert.equal(byTitle[name], undefined, name + ' should not be listed');
     }
+  });
+
+  it('lists long-running scripts under Dev servers', () => {
+    assert.equal(byTitle.start.section, 'Dev servers');
+    assert.equal(byTitle.dev.section, 'Dev servers');
   });
 
   it('classifies scripts by name', () => {
@@ -75,6 +81,46 @@ describe('consoleManifest - detected npm scripts', () => {
     assert.equal(item.targets.local.appEnv, 'development');
     assert.equal(item.targets.production.appEnv, 'production');
     assert.equal(item.targets.local.missing, false);
+  });
+});
+
+describe('consoleManifest - local and prod suffix pairing', () => {
+  const dir = repo({
+    'package.json': {
+      scripts: {
+        'db:deploy:local': 'node scripts/db.js local deploy',
+        'db:deploy:prod': 'node scripts/db.js prod deploy',
+        'db:reset:full': 'node reset-full.js',
+        'db:reset:full:prod': 'node reset-full.js --prod',
+        'db:status': 'node status.js',
+        'db:status:local': 'node status-local.js',
+      },
+    },
+  });
+  const view = manifest.describe(dir);
+  const byTitle = Object.fromEntries(view.items.map((i) => [i.title, i]));
+
+  it('pairs a :local script with its :prod script', () => {
+    const item = byTitle['db:deploy'];
+    assert.ok(item);
+    assert.equal(item.targets.local.display, 'npm run db:deploy:local');
+    assert.equal(item.targets.production.display, 'npm run db:deploy:prod');
+    assert.equal(item.targets.production.appEnv, 'production');
+  });
+
+  it('pairs a plain script with its :prod script', () => {
+    const item = byTitle['db:reset:full'];
+    assert.ok(item);
+    assert.equal(item.risk, 'destructive');
+    assert.equal(item.targets.local.display, 'npm run db:reset:full');
+    assert.equal(item.targets.production.display, 'npm run db:reset:full:prod');
+  });
+
+  it('keeps a plain script and a :local script apart when both exist', () => {
+    assert.ok(byTitle['db:status']);
+    assert.ok(byTitle['db:status:local']);
+    assert.equal(byTitle['db:status'].targets.local.display, 'npm run db:status');
+    assert.equal(byTitle['db:status:local'].targets.local.display, 'npm run db:status:local');
   });
 });
 

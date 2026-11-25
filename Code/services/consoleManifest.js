@@ -296,10 +296,15 @@ function detectNode(dir, rel, actions, suites) {
     const hook = /^(pre|post)(.+)$/.exec(name);
     if (hook && scripts[hook[2]]) continue;
     const isProd = /:prod(uction)?$/.test(name);
-    const base = name.replace(/:prod(uction)?$/, '');
+    const base = name.replace(/:(prod(uction)?|local)$/, '');
     const info = classifyTool(base);
-    const key = info.needsDb ? base : name;
-    const slot = info.needsDb && isProd ? 'production' : 'local';
+    let key = info.needsDb ? base : name;
+    let slot = info.needsDb && isProd ? 'production' : 'local';
+    const taken = groups.get(key);
+    if (taken && taken.names[slot]) {
+      key = name;
+      slot = 'local';
+    }
     if (!groups.has(key)) groups.set(key, { info, names: {} });
     groups.get(key).names[slot] = name;
   }
