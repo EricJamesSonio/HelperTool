@@ -1,13 +1,16 @@
 import VideoState from './videoTool/videoState.js';
 import ImageState from './videoTool/imageState.js';
+import OcrState, { OCR_IMAGE_REGEX } from './videoTool/ocrState.js';
 import VideoUI from './videoTool/videoUI.js';
 
 export default class VideoTool {
   constructor() {
     this.state = new VideoState();
     this.imageState = new ImageState();
+    this.ocrState = new OcrState();
     this.ui = null;
     this._container = null;
+    this._copyTimer = null;
   }
 
   initialize() {
@@ -16,7 +19,7 @@ export default class VideoTool {
 
   render(container) {
     this._container = container;
-    this.ui = new VideoUI(this.state, this.imageState);
+    this.ui = new VideoUI(this.state, this.imageState, this.ocrState);
     this.ui.setCallbacks({
       // Timeline
       onPickFile: (path) => this._handlePickFile(path),
@@ -54,6 +57,20 @@ export default class VideoTool {
       onImageOpenFile: () => this._handleImageOpenFile(),
       onImageOpenFolder: () => this._handleImageOpenFolder(),
       onImageConvertAnother: () => this._handleImageConvertAnother(),
+      // Image to Text
+      onOcrPickFiles: (paths) => this._handleOcrPickFiles(paths),
+      onOcrAddMore: () => this._handleOcrAddMore(),
+      onOcrRemoveFile: (idx) => this._handleOcrRemoveFile(idx),
+      onOcrChangeOutput: () => this._handleOcrChangeOutput(),
+      onOcrLangChange: (lang) => this._handleOcrLangChange(lang),
+      onOcrExtract: () => this._startOcr(),
+      onOcrRetry: () => this._handleOcrRetry(),
+      onOcrSelectResult: (idx) => this._handleOcrSelectResult(idx),
+      onOcrCopy: () => this._handleOcrCopy(),
+      onOcrCopyAll: () => this._handleOcrCopyAll(),
+      onOcrOpenFile: () => this._handleOcrOpenFile(),
+      onOcrOpenFolder: () => this._handleOcrOpenFolder(),
+      onOcrAnother: () => this._handleOcrAnother(),
       // Tab
       onTabChange: (tab) => this._handleTabChange(tab),
     });
@@ -63,13 +80,19 @@ export default class VideoTool {
   destroy() {
     window.electronAPI.video.onProgress(() => {});
     window.electronAPI.image.onConvertProgress(() => {});
+    window.electronAPI.image.onOcrProgress(() => {});
+    if (this._copyTimer) {
+      clearTimeout(this._copyTimer);
+      this._copyTimer = null;
+    }
     this.ui = null;
     this.state.reset();
     this.imageState.reset();
+    this.ocrState.reset();
     this._container = null;
   }
 
-  // ── Shared ──
+  // -- Shared --
 
   async _handlePickFile(path) {
     const st = this.state;
@@ -137,7 +160,7 @@ export default class VideoTool {
     if (this.ui) this.ui.update();
   }
 
-  // ── Timeline handlers ──
+  // -- Timeline handlers --
 
   _handleDelete(segId) {
     this.state.removeSegment(segId);
@@ -294,7 +317,7 @@ export default class VideoTool {
     if (video) { video.src = ''; video.load(); }
   }
 
-  // ── Quick Compress handlers ──
+  // -- Quick Compress handlers --
 
   async _startCompress() {
     const st = this.state;
@@ -356,7 +379,7 @@ export default class VideoTool {
     if (this.ui) this.ui.update();
   }
 
-  // ── Image Converter handlers ──
+  // -- Image Converter handlers --
 
   async _handleImagePickFiles(paths) {
     const im = this.imageState;
@@ -501,6 +524,200 @@ export default class VideoTool {
     im.progress = null;
     im.result = null;
     im.error = null;
+    if (this.ui) this.ui.update();
+  }
+
+  // -- Image to Text handlers --
+
+  async _readImageMetas(paths) {
+    return Promise.all(paths.map(async (p) => {
+      const meta = await window.electronAPI.image.getMetadata({ inputPath: p });
+      return meta.success ? { resolution: meta.resolution, fileSize: meta.fileSize } : { resolution: '?', fileSize: 0 };
+    }));
+  }
+
+  async _handleOcrPickFiles(paths) {
+    const om = this.ocrState;
+
+    if (!paths) {
+      const picked = await window.electronAPI.image.pickFiles();
+      if (!picked || picked.length === 0) return;
+      paths = picked;
+    }
+
+    if (typeof paths === 'string') paths = [paths];
+    paths = paths.filter((p) => OCR_IMAGE_REGEX.test(p));
+    if (paths.length === 0) return;
+
+    om.inputPaths = paths;
+    om.inputMetas = [];
+    om.status = 'loading';
+    om.error = null;
+    om.result = null;
+    om.activeIndex = 0;
+    om.copied = null;
+    if (this.ui) this.ui.update();
+
+    om.inputMetas = await this._readImageMetas(paths);
+    om.status = 'idle';
+    this.state.activeSection = 'ocr';
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleOcrAddMore() {
+    const om = this.ocrState;
+    const picked = await window.electronAPI.image.pickFiles();
+    if (!picked || picked.length === 0) return;
+
+    const existing = new Set(om.inputPaths);
+    const newPaths = picked.filter((p) => !existing.has(p) && OCR_IMAGE_REGEX.test(p));
+    if (newPaths.length === 0) return;
+
+    const newMetas = await this._readImageMetas(newPaths);
+    om.inputPaths = [...om.inputPaths, ...newPaths];
+    om.inputMetas = [...om.inputMetas, ...newMetas];
+    if (this.ui) this.ui.update();
+  }
+
+  _handleOcrRemoveFile(idx) {
+    const om = this.ocrState;
+    om.inputPaths.splice(idx, 1);
+    om.inputMetas.splice(idx, 1);
+    if (om.inputPaths.length === 0) {
+      om.reset();
+    }
+    if (this.ui) this.ui.update();
+  }
+
+  async _handleOcrChangeOutput() {
+    const folder = await window.electronAPI.image.pickOutputFolder();
+    if (folder) {
+      this.ocrState.outputFolder = folder;
+      if (this.ui) this.ui.update();
+    }
+  }
+
+  _handleOcrLangChange(lang) {
+    this.ocrState.lang = lang;
+    if (this.ui) this.ui.update();
+  }
+
+  async _startOcr() {
+    const om = this.ocrState;
+    if (om.inputPaths.length === 0 || om.status === 'extracting') return;
+
+    om.status = 'extracting';
+    om.progress = null;
+    om.result = null;
+    om.error = null;
+    om.activeIndex = 0;
+    om.copied = null;
+    if (this.ui) this.ui.update();
+
+    window.electronAPI.image.onOcrProgress((data) => {
+      om.progress = data;
+      if (this.ui) this.ui.update();
+    });
+
+    const result = await window.electronAPI.image.ocr({
+      inputPaths: om.inputPaths,
+      lang: om.lang,
+      outputPath: om.outputFolder || undefined,
+    });
+
+    window.electronAPI.image.onOcrProgress(() => {});
+
+    if (result.success) {
+      om.status = 'done';
+      om.result = result;
+      const firstOk = result.results.findIndex((r) => !r.error);
+      om.activeIndex = firstOk >= 0 ? firstOk : 0;
+    } else {
+      om.status = 'error';
+      om.error = result.error || 'Text extraction failed';
+    }
+    if (this.ui) this.ui.update();
+  }
+
+  _handleOcrRetry() {
+    const om = this.ocrState;
+    om.status = 'idle';
+    om.progress = null;
+    om.error = null;
+    if (this.ui) this.ui.update();
+  }
+
+  _handleOcrSelectResult(idx) {
+    const om = this.ocrState;
+    om.activeIndex = idx;
+    om.copied = null;
+    if (this.ui) this.ui.update();
+  }
+
+  async _copyOcrText(text, kind) {
+    const om = this.ocrState;
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch (e) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (e2) {
+        ok = false;
+      }
+    }
+    if (!ok) return;
+    om.copied = kind;
+    if (this.ui) this.ui.update();
+    if (this._copyTimer) clearTimeout(this._copyTimer);
+    this._copyTimer = setTimeout(() => {
+      this._copyTimer = null;
+      om.copied = null;
+      if (this.ui) this.ui.update();
+    }, 1500);
+  }
+
+  async _handleOcrCopy() {
+    const entry = this.ocrState.activeEntry;
+    if (!entry || entry.error) return;
+    await this._copyOcrText(entry.text || '', 'one');
+  }
+
+  async _handleOcrCopyAll() {
+    const text = this.ocrState.combinedText;
+    if (!text) return;
+    await this._copyOcrText(text, 'all');
+  }
+
+  async _handleOcrOpenFile() {
+    const entry = this.ocrState.activeEntry;
+    if (entry && entry.outputPath) {
+      await window.electronAPI.image.revealFile({ filePath: entry.outputPath });
+    }
+  }
+
+  async _handleOcrOpenFolder() {
+    const result = this.ocrState.result;
+    if (!result) return;
+    let target = result.combinedPath;
+    if (!target) {
+      const firstOk = result.results.find((r) => r.outputPath);
+      target = firstOk ? firstOk.outputPath : result.outputDir;
+    }
+    if (target) await window.electronAPI.image.revealFile({ filePath: target });
+  }
+
+  _handleOcrAnother() {
+    const om = this.ocrState;
+    om.reset();
     if (this.ui) this.ui.update();
   }
 }
