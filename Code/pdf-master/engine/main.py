@@ -12,6 +12,8 @@ VERSION = "0.2.0"
 PROTO = sys.stdout
 sys.stdout = sys.stderr
 
+converter = None
+
 
 def emit(message):
     PROTO.write(json.dumps(message, ensure_ascii=True, separators=(",", ":")) + "\n")
@@ -28,6 +30,23 @@ def configure_streams():
         PROTO.reconfigure(newline="\n")
     except Exception:
         pass
+
+
+def describe_error(exc):
+    name = type(exc).__name__
+    detail = str(exc).strip()
+    where = ""
+    if isinstance(exc, SyntaxError):
+        where = " in %s line %s" % (str(getattr(exc, "filename", "") or "").replace("\\", "/").split("/")[-1], getattr(exc, "lineno", "?"))
+    else:
+        try:
+            frames = traceback.extract_tb(exc.__traceback__)
+            if frames:
+                last = frames[-1]
+                where = " in %s line %s" % (str(last.filename).replace("\\", "/").split("/")[-1], last.lineno)
+        except Exception:
+            where = ""
+    return ("%s: %s%s" % (name, detail, where))[:400]
 
 
 def op_ping(payload, progress, inspector):
@@ -48,8 +67,7 @@ def op_render(payload, progress, inspector):
 
 
 def op_convert(payload, progress, inspector):
-    global converter
-    if "converter" not in globals():
+    if converter is None:
         raise RuntimeError("The DOCX converter module could not be loaded.")
     return converter.convert_pdf_to_docx(
         payload.get("inputPath"),
@@ -120,14 +138,20 @@ def handle(message, inspector, engine_error):
 
 
 def main():
+    global converter
     configure_streams()
     try:
-        global converter
         import inspector
-        import converter
         from errors import EngineError
+        import converter as converter_module
+        converter = converter_module
     except ImportError as exc:
+        traceback.print_exc()
         emit({"type": "ready", "ok": False, "code": "MISSING_DEPENDENCY", "message": "A required Python package is missing (%s). Run: pip install -r pdf-master/engine/requirements.txt" % exc})
+        return 1
+    except Exception as exc:
+        traceback.print_exc()
+        emit({"type": "ready", "ok": False, "code": "ENGINE_LOAD_ERROR", "message": "The PDF engine files could not be loaded. " + describe_error(exc)})
         return 1
     emit({"type": "ready", "ok": True, "version": VERSION, "python": sys.version.split()[0]})
     for raw in sys.stdin:
