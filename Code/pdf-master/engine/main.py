@@ -7,7 +7,7 @@ import json
 import sys
 import traceback
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 PROTO = sys.stdout
 sys.stdout = sys.stderr
@@ -50,10 +50,28 @@ def op_render(payload, progress, inspector):
 def op_convert(payload, progress, inspector):
     global converter
     if "converter" not in globals():
-        raise EngineError("MISSING_DEPENDENCY", "The DOCX converter module could not be loaded.")
+        raise RuntimeError("The DOCX converter module could not be loaded.")
     return converter.convert_pdf_to_docx(
         payload.get("inputPath"),
         payload.get("outputPath"),
+        progress,
+    )
+
+
+def op_analyze_writer(payload, progress, inspector):
+    import pdf_writer
+    return pdf_writer.analyze_pdf(payload.get("inputPath"), progress)
+
+
+def op_write_pdf(payload, progress, inspector):
+    import pdf_writer
+    return pdf_writer.write_pdf(
+        payload.get("inputPath"),
+        payload.get("outputPath"),
+        payload.get("replace"),
+        payload.get("tocPages"),
+        payload.get("footers"),
+        payload.get("footerGeo"),
         progress,
     )
 
@@ -63,6 +81,8 @@ OPERATIONS = {
     "inspect_pdf": op_inspect,
     "render_page": op_render,
     "convert_pdf_to_docx": op_convert,
+    "analyze_writer": op_analyze_writer,
+    "write_pdf": op_write_pdf,
 }
 
 
@@ -93,10 +113,10 @@ def handle(message, inspector, engine_error):
     except Exception as exc:
         traceback.print_exc()
         detail = str(exc).strip()
-        message = "The document could not be processed"
+        text = "The document could not be processed"
         if detail:
-            message += ": " + detail[:300]
-        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "INTERNAL_ERROR", "message": message})
+            text += ": " + detail[:300]
+        emit({"type": "error", "requestId": request_id, "jobId": job_id, "code": "INTERNAL_ERROR", "message": text})
 
 
 def main():
