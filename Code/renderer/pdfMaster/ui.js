@@ -106,6 +106,10 @@ export function mount(container) {
   root.addEventListener('dragover', onDragOver);
   root.addEventListener('dragleave', onDragLeave);
   root.addEventListener('drop', onDrop);
+  root.addEventListener('pdfm:reload', (e) => {
+    const target = e && e.detail && e.detail.path;
+    if (target) loadFile(String(target));
+  });
   const bridge = api();
   if (bridge && bridge.onProgress) bridge.onProgress(onProgress);
   renderTabs();
@@ -155,12 +159,14 @@ function renderTabs() {
   setHtml('#pdfmTabs',
     '<button type="button" class="pdfm-tab' + (S.activeTab === 'inspector' ? ' active' : '') + '" data-act="tab" data-tab="inspector">Inspector</button>' +
     '<button type="button" class="pdfm-tab' + (S.activeTab === 'converter' ? ' active' : '') + '" data-act="tab" data-tab="converter">PDF to DOCX</button>' +
-    '<button type="button" class="pdfm-tab" disabled title="Planned for a later release">PDF Writer <span class="pdfm-soon">soon</span></button>' +
+    '<button type="button" class="pdfm-tab' + (S.activeTab === 'writer' ? ' active' : '') + '" data-act="tab" data-tab="writer">PDF Writer</button>' +
     '<span class="pdfm-tabs-right">' + chip + '</span>');
   const inspector = $('#pdfmInspector');
   const converter = $('#pdfmConverter');
+  const writerPane = $('#pdfmWriter');
   if (inspector) inspector.classList.toggle('hidden', S.activeTab !== 'inspector');
   if (converter) converter.classList.toggle('hidden', S.activeTab !== 'converter');
+  if (writerPane) writerPane.classList.toggle('hidden', S.activeTab !== 'writer');
 }
 
 function renderConverter() {
@@ -362,9 +368,11 @@ function onClick(e) {
   if (!btn || !root.contains(btn) || btn.disabled) return;
   const act = btn.dataset.act;
   if (act === 'tab') {
-    S.activeTab = btn.dataset.tab === 'converter' ? 'converter' : 'inspector';
+    const tab = btn.dataset.tab;
+    S.activeTab = tab === 'converter' || tab === 'writer' ? tab : 'inspector';
     renderTabs();
     if (S.activeTab === 'converter') renderConverter();
+    root.dispatchEvent(new CustomEvent('pdfm:tab', { detail: { tab: S.activeTab } }));
   }
   else if (act === 'open') pick();
   else if (act === 'cancel') cancel();
@@ -413,6 +421,7 @@ async function loadFile(filePath) {
   S.thumbCache.clear();
   S.previewCache.clear();
   queue = [];
+  if (root) root.dispatchEvent(new CustomEvent('pdfm:file', { detail: { filePath: '', report: null } }));
   renderSource();
   renderList();
   renderDetail();
@@ -435,6 +444,11 @@ async function loadFile(filePath) {
   renderSource();
   renderList();
   renderDetail();
+  if (root) {
+    root.dispatchEvent(new CustomEvent('pdfm:file', {
+      detail: { filePath: S.report ? S.filePath : '', report: S.report },
+    }));
+  }
   if (S.report) loadPreview(0);
 }
 
@@ -447,7 +461,11 @@ async function cancel() {
 }
 
 function onProgress(d) {
-  if (!d || d.jobId !== S.jobId) return;
+  if (!d) return;
+  if (d.jobId !== S.jobId) {
+    if (root) root.dispatchEvent(new CustomEvent('pdfm:progress', { detail: d }));
+    return;
+  }
   if (S.busy) {
     S.progress = d;
     const fill = $('#pdfmProgressFill');
