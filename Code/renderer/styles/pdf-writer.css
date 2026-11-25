@@ -596,6 +596,21 @@
 .pdfw-progress {
   margin-top: 10px;
 }
+.pdfw-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pdfw-check input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 
 .pdfw-done {
   margin-bottom: 10px;
