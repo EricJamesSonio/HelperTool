@@ -1,11 +1,14 @@
 const { ipcMain, dialog } = require('electron');
+const path = require('path');
 const workerProxy = require('./workerProxy.js');
 
 const IMAGE_FILTERS = [
-  { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'tiff', 'svg'] }
+  { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'jfif', 'webp', 'gif', 'avif', 'tiff', 'tif', 'svg'] }
 ];
 
-function register({ getMainWindow }) {
+const OCR_TIMEOUT_MS = 30 * 60 * 1000;
+
+function register({ app, getMainWindow }) {
   ipcMain.handle('image:getMetadata', async (event, { inputPath }) => {
     try {
       const sharp = require('sharp');
@@ -65,6 +68,30 @@ function register({ getMainWindow }) {
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('image:ocr', async (event, payload) => {
+    const win = getMainWindow();
+    const progressHandler = (progress) => {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('image:ocrProgress', progress);
+      }
+    };
+    try {
+      workerProxy.onProgress(progressHandler);
+      let cachePath;
+      try {
+        cachePath = path.join(app.getPath('userData'), 'ocr-langdata');
+      } catch (_) {
+        cachePath = undefined;
+      }
+      const result = await workerProxy.send('image:ocr', { ...payload, cachePath }, OCR_TIMEOUT_MS);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    } finally {
+      workerProxy.offProgress(progressHandler);
     }
   });
 }
