@@ -53,6 +53,7 @@ run(python.cmd, [
   '--specpath', workDir,
   '--paths', engineDir,
   '--hidden-import', 'pdf_writer',
+  '--hidden-import', 'journal',
   '--hidden-import', 'converter',
   '--hidden-import', 'inspector',
   '--hidden-import', 'errors',
