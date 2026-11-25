@@ -5,21 +5,23 @@
 
 import { createPanel } from './app_manager/panels/panelFactory.js';
 import * as ui from './pdfMaster/ui.js';
+import * as writer from './pdfMaster/writerUI.js';
 
 let _panel = null;
 
-function injectCss() {
-  if (document.getElementById('pdfMasterCss')) return;
+function injectCss(id, href) {
+  if (document.getElementById(id)) return;
   const link = document.createElement('link');
-  link.id = 'pdfMasterCss';
+  link.id = id;
   link.rel = 'stylesheet';
-  link.href = './styles/pdf-master.css';
+  link.href = href;
   document.head.appendChild(link);
 }
 
 function ensurePanel() {
   if (_panel) return;
-  injectCss();
+  injectCss('pdfMasterCss', './styles/pdf-master.css');
+  injectCss('pdfWriterCss', './styles/pdf-writer.css');
   const made = createPanel({
     id: 'pdfMasterPanel',
     className: 'pdfm-panel',
@@ -29,6 +31,7 @@ function ensurePanel() {
   });
   _panel = made.panel;
   ui.mount(made.container);
+  writer.mount(made.container);
 }
 
 export async function open() {
