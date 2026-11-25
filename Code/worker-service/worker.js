@@ -28,6 +28,7 @@ const progressTasks = {
   generate:         lazy('./tasks/generate'),
   'video:compress': lazy('./tasks/videoCompress'),
   'image:convert':  lazy('./tasks/imageConvert'),
+  'image:ocr':      lazy('./tasks/imageToText'),
   'video:gif':      lazy('./tasks/videoToGif'),
   'video:render':   lazy('./tasks/videoRender'),
   'video:preview':  lazy('./tasks/videoPreview'),
