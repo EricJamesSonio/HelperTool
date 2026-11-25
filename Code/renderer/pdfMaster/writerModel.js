@@ -23,6 +23,7 @@ export const KIND_LABEL = {
   flow: 'Editable text',
   slots: 'Fixed layout',
   toc: 'Contents (auto numbers)',
+  journal: 'Journal pages (kept as is)',
   locked: 'Images (kept as is)',
   blank: 'Blank (kept as is)',
 };
@@ -42,8 +43,25 @@ export function isHeadingLine(line, width) {
   if (!text) return false;
   if (ROMAN_HEADING.test(text)) return true;
   if (HEADING_WORDS.has(norm(text))) return true;
-  if (text.length <= 60 && text === text.toUpperCase() && /[A-Z]{4}/.test(text)) return true;
+  if (text.length <= 60 && text === text.toUpperCase() && /[A-Z]{4}/.test(text) && isCentered(line, width)) return true;
   return !!(line.bold && isCentered(line, width) && text.length <= 70);
+}
+
+function pageText(page) {
+  return ((page && page.lines) || []).map((l) => l.t).join(' ');
+}
+
+/**
+ * Journal pages belong to the daily journal tables. A table that overflows
+ * onto a new page leaves only text and the signature block, so these pages
+ * are recognized by their markers and never treated as editable text.
+ */
+export function isJournalPage(page) {
+  const text = pageText(page);
+  if (!text) return false;
+  if (/\bOJT\s+JOURNAL\b/i.test(text)) return true;
+  if (/\bPrepared\s+By\b/i.test(text) && /\bReviewed\s+By\b/i.test(text)) return true;
+  return /Specific\s+Task/i.test(text) && /Challenges/i.test(text) && /Learnings/i.test(text);
 }
 
 function medianOf(values) {
@@ -61,6 +79,7 @@ function gapRatio(lines) {
 }
 
 function classify(pages, lines) {
+  if (pages.some(isJournalPage)) return 'journal';
   if (pages.some((p) => p.locked)) return 'locked';
   if (!lines.length) return 'blank';
   const tocHits = lines.filter((l) => TOC_LINE.test(l.t.trim())).length;
@@ -80,16 +99,22 @@ export function buildSections(analysis, overrides) {
   const splits = new Set((overrides && overrides.splits) || []);
   const joins = new Set((overrides && overrides.joins) || []);
   const starts = [];
+  let inJournal = false;
   pages.forEach((page, i) => {
+    const journal = isJournalPage(page);
     let start = i === 0;
     if (i > 0) {
       const prev = pages[i - 1];
       const first = page.lines[0];
+      const heading = !!first && isHeadingLine(first, page.width);
       if (!!page.locked !== !!prev.locked) start = true;
-      else if (first && isHeadingLine(first, page.width)) start = true;
+      else if (heading) start = true;
+      if (journal && inJournal) start = false;
       if (joins.has(i)) start = false;
       if (splits.has(i)) start = true;
     }
+    if (journal) inJournal = true;
+    else if (start) inJournal = false;
     if (start) starts.push(i);
   });
   return starts.map((start, n) => {

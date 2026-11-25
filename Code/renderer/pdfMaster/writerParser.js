@@ -89,6 +89,39 @@ export function fillPlaceholder(text, raw, value) {
       .replace(/\s+$/, '');
   }).join('\n');
 }
+/**
+ * Removes the whole sentence (or the whole bullet or line) that holds a
+ * placeholder, so no broken wording is left behind.
+ */
+export function dropSentence(text, raw) {
+  const out = [];
+  String(text || '').split('\n').forEach((row) => {
+    if (row.indexOf(raw) === -1) {
+      out.push(row);
+      return;
+    }
+    let line = row;
+    let guard = 0;
+    while (line.indexOf(raw) !== -1 && guard < 20) {
+      guard += 1;
+      const at = line.indexOf(raw);
+      const before = line.slice(0, at);
+      const after = line.slice(at + raw.length);
+      const cut = Math.max(before.lastIndexOf('. '), before.lastIndexOf('! '), before.lastIndexOf('? '));
+      const prefix = /^(\s*(?:#{1,2}|[-*])\s+)/.exec(line);
+      const m = /[.!?](\s|$)/.exec(after);
+      const tail = m ? after.slice(m.index + 1).replace(/^\s+/, '') : '';
+      if (cut === -1) {
+        line = (prefix ? prefix[1] : '') + tail;
+      } else {
+        const head = before.slice(0, cut + 1);
+        line = head + (tail ? ' ' + tail : '');
+      }
+    }
+    if (/[A-Za-z0-9]/.test(line)) out.push(line.replace(/\s+$/, ''));
+  });
+  return out.join('\n');
+}
 
 export function toItems(rawLines) {
   const items = [];
@@ -174,12 +207,23 @@ export function checkText(text, sections) {
         info.messages.push('It still contains [CONFIRM: ...] placeholders. Fill them in first.');
       } else if (sec.kind === 'slots') {
         const lines = toSlotLines(block.lines);
+        let padded = 0;
+        if (lines.length < sec.lines.length) {
+          const tail = sec.lines.slice(lines.length);
+          if (tail.every((l) => !/[A-Za-z0-9]/.test(l.t))) {
+            padded = tail.length;
+            while (lines.length < sec.lines.length) lines.push('');
+          }
+        }
         if (lines.length !== sec.lines.length) {
           info.ok = false;
           info.messages.push('Needs exactly ' + sec.lines.length + ' lines but has ' + lines.length + '.');
         } else {
           result.replace.push({ start: sec.start, end: sec.end, mode: 'slots', lines });
-          info.summary = pageLabel(sec) + ': ' + lines.length + ' lines';
+          info.summary = pageLabel(sec) + ': ' + sec.lines.length + ' lines';
+          if (padded) {
+            info.messages.push('The last ' + (padded === 1 ? 'line' : padded + ' lines') + ' of the original only held punctuation, so ' + (padded === 1 ? 'it is' : 'they are') + ' left blank.');
+          }
         }
       } else {
         const items = toItems(block.lines);

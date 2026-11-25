@@ -7,6 +7,7 @@
 import { buildSections, KIND_LABEL, pageLabel } from './writerModel.js';
 import { checkText, findPlaceholders, fillPlaceholder } from './writerParser.js';
 import { buildPrompt } from './writerPrompt.js';
+import { dropSentence } from './writerParser.js';
 
 const MISSING_BRIDGE = 'The PDF Writer bridge is not loaded. Fully restart the app.';
 const CHECK_DELAY = 350;
@@ -253,6 +254,7 @@ function onClick(e) {
     setText('');
   } else if (act === 'fill-one') fillOne(Number(btn.dataset.hidx));
   else if (act === 'fill-remove') fillRemove(Number(btn.dataset.hidx));
+  else if (act === 'fill-drop') fillDrop(Number(btn.dataset.hidx));
   else if (act === 'fill-all') fillAll();
   else if (act === 'mode') {
     W.saveMode = btn.value === 'replace' ? 'replace' : 'new';
@@ -368,6 +370,12 @@ function fillRemove(index) {
   if (!holder) return;
   delete W.fills[holder.raw];
   setText(fillPlaceholder(W.text, holder.raw, ''));
+}
+function fillDrop(index) {
+  const holder = W.holders[index];
+  if (!holder) return;
+  delete W.fills[holder.raw];
+  setText(dropSentence(W.text, holder.raw));
 }
 
 function fillAll() {
@@ -595,18 +603,19 @@ function renderHolders() {
       '<div class="pdfw-holder-row">' +
         '<input type="text" class="pdfw-input" data-hfill="' + i + '" value="' + esc(W.fills[h.raw] || '') + '" placeholder="Type the real value" spellcheck="false">' +
         '<button type="button" class="pdfm-btn pdfm-btn-primary pdfm-btn-small" data-wact="fill-one" data-hidx="' + i + '">Apply</button>' +
+        '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="fill-remove" data-hidx="' + i + '" title="Delete only this placeholder from the text">Remove</button>' +
         (inSlots
           ? ''
-          : '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="fill-remove" data-hidx="' + i + '" title="Delete this placeholder from the text">Remove</button>') +
+          : '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="fill-drop" data-hidx="' + i + '" title="Delete the whole sentence or bullet that contains it">Drop sentence</button>') +
       '</div>' +
-      (inSlots ? '<div class="pdfm-file-sub">Fixed layout section: it needs a real line here to keep the exact line count.</div>' : '') +
+      (inSlots ? '<div class="pdfm-file-sub">Fixed layout: Remove only works when the original line was empty or just punctuation. Otherwise type a real line.</div>' : '') +
     '</div>';
   }).join('');
   setHtml('#pdfwHolders',
     '<div class="pdfw-holders">' +
       '<div class="pdfw-holders-head">' +
         '<div><div class="pdfw-title">Fill in ' + plural(W.holders.length, 'missing detail') + '</div>' +
-        '<div class="pdfm-file-sub">The AI marked these as unknown. Type the real value and apply it; the text above is updated for you.</div></div>' +
+        '<div class="pdfm-file-sub">The AI marked these as unknown. Type the real value and apply it, or drop the sentence that uses it.</div></div>' +
         (W.holders.length > 1 ? '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="fill-all">Apply all filled</button>' : '') +
       '</div>' +
       items +
