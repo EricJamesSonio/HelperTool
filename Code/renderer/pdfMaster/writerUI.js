@@ -61,11 +61,13 @@ const W = {
   holders: [],
   fills: {},
   saveMode: 'new',
+  alsoDocx: false,
   busy: '',
   jobId: '',
   progress: null,
   error: '',
   result: null,
+  docxResult: null,
   token: 0,
 };
 
@@ -155,6 +157,7 @@ function onFile(detail) {
   W.prompt = '';
   W.check = null;
   W.result = null;
+  W.docxResult = null;
   W.error = '';
   W.busy = '';
   W.progress = null;
@@ -256,10 +259,15 @@ function onClick(e) {
   else if (act === 'fill-remove') fillRemove(Number(btn.dataset.hidx));
   else if (act === 'fill-drop') fillDrop(Number(btn.dataset.hidx));
   else if (act === 'fill-all') fillAll();
+  else if (act === 'resolve-all') resolveAll();
   else if (act === 'mode') {
     W.saveMode = btn.value === 'replace' ? 'replace' : 'new';
     renderSave();
-  } else if (act === 'write') write();
+  } else if (act === 'docxopt') {
+    W.alsoDocx = !!btn.checked;
+    renderSave();
+  } else if (act === 'docx') exportDocx(btn.dataset.path);
+  else if (act === 'write') write();
   else if (act === 'reload') {
     const target = btn.dataset.path;
     if (target && host) host.dispatchEvent(new CustomEvent('pdfm:reload', { detail: { path: target } }));
@@ -377,6 +385,25 @@ function fillDrop(index) {
   delete W.fills[holder.raw];
   setText(dropSentence(W.text, holder.raw));
 }
+function resolveAll() {
+  if (!W.holders.length) return;
+  let text = W.text;
+  let filled = 0;
+  let dropped = 0;
+  W.holders.forEach((holder) => {
+    const value = String(W.fills[holder.raw] || '').trim();
+    if (value) {
+      text = fillPlaceholder(text, holder.raw, value);
+      filled += 1;
+    } else {
+      text = dropSentence(text, holder.raw);
+      dropped += 1;
+    }
+  });
+  W.fills = {};
+  setText(text);
+  toast(filled + ' filled, ' + dropped + ' dropped');
+}
 
 function fillAll() {
   let text = W.text;
@@ -407,6 +434,7 @@ async function write() {
   W.busy = 'write';
   W.error = '';
   W.result = null;
+  W.docxResult = null;
   W.jobId = newJobId();
   W.progress = { percent: 0, message: 'Starting...' };
   renderAll();
@@ -440,6 +468,42 @@ async function write() {
     toast('Cancelled');
   } else {
     W.error = res && res.code === 'CANCELLED' ? 'Writing cancelled.' : ((res && res.error) || 'The PDF could not be written.');
+  }
+  renderAll();
+  if (W.alsoDocx && W.result && W.result.outputPath) exportDocx(W.result.outputPath);
+}
+async function exportDocx(pdfPath) {
+  const bridge = window.pdfMasterAPI;
+  if (!bridge || !bridge.convertToDocx) {
+    W.error = 'The DOCX export bridge is not loaded. Fully restart the app.';
+    renderAll();
+    return;
+  }
+  if (!pdfPath || W.busy) return;
+  W.token += 1;
+  const token = W.token;
+  W.busy = 'docx';
+  W.error = '';
+  W.docxResult = null;
+  W.jobId = newJobId();
+  W.progress = { percent: 0, message: 'Preparing DOCX...' };
+  renderAll();
+  let res;
+  try {
+    res = await bridge.convertToDocx({ jobId: W.jobId, inputPath: pdfPath });
+  } catch (err) {
+    res = { success: false, error: err && err.message ? err.message : String(err) };
+  }
+  if (token !== W.token) return;
+  W.busy = '';
+  W.progress = null;
+  if (res && res.success && !res.canceled) {
+    W.docxResult = res;
+    toast('DOCX created');
+  } else if (res && res.success && res.canceled) {
+    toast('Cancelled');
+  } else {
+    W.error = res && res.code === 'CANCELLED' ? 'DOCX export cancelled.' : ((res && res.error) || 'The DOCX could not be created.');
   }
   renderAll();
 }
@@ -615,8 +679,11 @@ function renderHolders() {
     '<div class="pdfw-holders">' +
       '<div class="pdfw-holders-head">' +
         '<div><div class="pdfw-title">Fill in ' + plural(W.holders.length, 'missing detail') + '</div>' +
-        '<div class="pdfm-file-sub">The AI marked these as unknown. Type the real value and apply it, or drop the sentence that uses it.</div></div>' +
-        (W.holders.length > 1 ? '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="fill-all">Apply all filled</button>' : '') +
+        '<div class="pdfm-file-sub">The AI marked these as unknown. Type real values where you have them, then press Resolve all: typed values are filled in and the rest are dropped with their sentence.</div></div>' +
+        '<div class="pdfw-row">' +
+          (W.holders.length > 1 ? '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="fill-all">Apply all filled</button>' : '') +
+          '<button type="button" class="pdfm-btn pdfm-btn-primary pdfm-btn-small" data-wact="resolve-all">Resolve all</button>' +
+        '</div>' +
       '</div>' +
       items +
     '</div>');
@@ -685,7 +752,18 @@ function renderSave() {
       '<div class="pdfm-file-sub">' + esc(r.outputPath || '') + ' | ' + plural(Number(r.pageCount) || 0, 'page') +
       (r.tocUpdated ? ' | contents updated' : '') + '</div>' +
       (r.warnings || []).map((w) => '<div class="pdfm-warn">Warning: ' + esc(w) + '</div>').join('') +
-      '<div class="pdfw-row"><button type="button" class="pdfm-btn pdfm-btn-small" data-wact="reload" data-path="' + esc(r.outputPath || '') + '">Open result in Inspector</button></div>' +
+      '<div class="pdfw-row">' +
+        '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="reload" data-path="' + esc(r.outputPath || '') + '">Open result in Inspector</button>' +
+        '<button type="button" class="pdfm-btn pdfm-btn-small" data-wact="docx" data-path="' + esc(r.outputPath || '') + '"' + (W.busy ? ' disabled' : '') + '>Export as DOCX</button>' +
+      '</div>' +
+    '</div>';
+  }
+  if (W.docxResult) {
+    const d = W.docxResult;
+    html += '<div class="pdfw-done">' +
+      '<div class="pdfw-done-head"><span class="pdfw-pill ok">Done</span><span class="pdfm-drop-title">DOCX created</span></div>' +
+      '<div class="pdfm-file-sub">' + esc(d.outputPath || '') + ' | ' + plural(Number(d.pageCount) || 0, 'page') + '</div>' +
+      (d.warnings || []).map((w) => '<div class="pdfm-warn">' + esc(w) + '</div>').join('') +
     '</div>';
   }
   html += '<div class="pdfw-bar">' +
@@ -694,11 +772,12 @@ function renderSave() {
       '<label class="' + (W.saveMode === 'new' ? 'on' : '') + '"><input type="radio" name="pdfwMode" value="new" data-wact="mode"' + (W.saveMode === 'new' ? ' checked' : '') + '>Save as new file</label>' +
       '<label class="' + (W.saveMode === 'replace' ? 'on' : '') + '"><input type="radio" name="pdfwMode" value="replace" data-wact="mode"' + (W.saveMode === 'replace' ? ' checked' : '') + '>Replace original</label>' +
     '</div>' +
+    '<label class="pdfw-check"><input type="checkbox" data-wact="docxopt"' + (W.alsoDocx ? ' checked' : '') + '>Also export DOCX</label>' +
     '<div class="pdfw-bar-status ' + statusClass + '">' + esc(statusText) + '</div>' +
     '<button type="button" class="pdfm-btn pdfm-btn-primary" data-wact="write"' + (ready ? '' : ' disabled') + '>Write PDF</button>' +
   '</div>';
   if (W.saveMode === 'replace') html += '<div class="pdfm-warn">The original file will be overwritten.</div>';
-  if (W.busy === 'write') html += progressHtml();
+  if (W.busy === 'write' || W.busy === 'docx') html += progressHtml();
   if (W.error && W.busy !== 'analyze') html += '<div class="pdfm-error">' + esc(W.error) + '</div>';
   setHtml('#pdfwSave', html);
 }
