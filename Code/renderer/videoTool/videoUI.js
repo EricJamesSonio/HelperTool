@@ -1,5 +1,6 @@
 import { renderFileDropZone, renderPresetCards, renderOutputRow as renderVideoCompressOutputRow, renderCompressButton as renderVideoCompressButton, renderProgress as renderVideoCompressProgress, renderResult as renderVideoCompressResult, renderError as renderVideoCompressError } from './videoRenderer.js';
 import { renderConvertDropZone, renderConvertOutputRow, renderConvertControls, renderConvertButton, renderConvertProgress, renderConvertResult, renderConvertError } from './imageRenderer.js';
+import { renderOcrDropZone, renderOcrOutputRow, renderOcrControls, renderOcrButton, renderOcrProgress, renderOcrResult, renderOcrError } from './ocrRenderer.js';
 import {
   renderDropZone, renderFileInfo, renderOutputRow, renderPlayerSlot,
   renderTimeline, renderSegmentActions,
@@ -7,9 +8,10 @@ import {
 } from './timelineRenderer.js';
 
 export default class VideoUI {
-  constructor(state, imageState) {
+  constructor(state, imageState, ocrState) {
     this._state = state;
     this._imageState = imageState;
+    this._ocrState = ocrState;
     this._container = null;
     this._videoEl = null;
 
@@ -48,6 +50,20 @@ export default class VideoUI {
     this._onImageOpenFile = null;
     this._onImageOpenFolder = null;
     this._onImageConvertAnother = null;
+
+    this._onOcrPickFiles = null;
+    this._onOcrAddMore = null;
+    this._onOcrRemoveFile = null;
+    this._onOcrChangeOutput = null;
+    this._onOcrLangChange = null;
+    this._onOcrExtract = null;
+    this._onOcrRetry = null;
+    this._onOcrSelectResult = null;
+    this._onOcrCopy = null;
+    this._onOcrCopyAll = null;
+    this._onOcrOpenFile = null;
+    this._onOcrOpenFolder = null;
+    this._onOcrAnother = null;
 
     this._onTabChange = null;
   }
@@ -88,6 +104,20 @@ export default class VideoUI {
     this._onImageOpenFile = cbs.onImageOpenFile || null;
     this._onImageOpenFolder = cbs.onImageOpenFolder || null;
     this._onImageConvertAnother = cbs.onImageConvertAnother || null;
+
+    this._onOcrPickFiles = cbs.onOcrPickFiles || null;
+    this._onOcrAddMore = cbs.onOcrAddMore || null;
+    this._onOcrRemoveFile = cbs.onOcrRemoveFile || null;
+    this._onOcrChangeOutput = cbs.onOcrChangeOutput || null;
+    this._onOcrLangChange = cbs.onOcrLangChange || null;
+    this._onOcrExtract = cbs.onOcrExtract || null;
+    this._onOcrRetry = cbs.onOcrRetry || null;
+    this._onOcrSelectResult = cbs.onOcrSelectResult || null;
+    this._onOcrCopy = cbs.onOcrCopy || null;
+    this._onOcrCopyAll = cbs.onOcrCopyAll || null;
+    this._onOcrOpenFile = cbs.onOcrOpenFile || null;
+    this._onOcrOpenFolder = cbs.onOcrOpenFolder || null;
+    this._onOcrAnother = cbs.onOcrAnother || null;
 
     this._onTabChange = cbs.onTabChange || null;
   }
@@ -159,7 +189,7 @@ export default class VideoUI {
       const seg = st.segments.find(s => s.enabled && t >= s.startTime && t < s.endTime);
 
       if (!seg) {
-        // Disabled/gap area → skip to next enabled segment
+        // Disabled/gap area -> skip to next enabled segment
         const next = st.segments
           .filter(s => s.enabled && s.startTime > t)
           .sort((a, b) => a.startTime - b.startTime)[0];
@@ -220,12 +250,17 @@ export default class VideoUI {
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="14" rx="1.5"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/></svg>
           Image Converter
         </button>
+        <button class="vt-tab ${active === 'ocr' ? 'vt-tab--active' : ''}" data-tab="ocr">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14"/><path d="M3 9h10"/><path d="M3 13h14"/><path d="M3 17h8"/></svg>
+          Image to Text
+        </button>
       </div>`;
   }
 
   _getTemplate() {
     const st = this._state;
     const im = this._imageState;
+    const om = this._ocrState;
 
     let timelineContent = '';
     if (st.activeSection === 'timeline') {
@@ -319,12 +354,37 @@ export default class VideoUI {
       imageContent = drop + inner;
     }
 
+    let ocrContent = '';
+    if (st.activeSection === 'ocr') {
+      const drop = renderOcrDropZone(om.inputPaths, om.inputMetas);
+      let inner = '';
+      if (om.inputPaths.length > 0) {
+        const showForm = om.status !== 'extracting' && om.status !== 'done';
+        const outputSection = showForm ? renderOcrOutputRow(om.outputFolder) : '';
+        const controls = showForm ? renderOcrControls(om.lang) : '';
+        const btnSection = showForm ? renderOcrButton(om.inputPaths.length) : '';
+        const progressSection = om.status === 'extracting' ? renderOcrProgress(om.progress) : '';
+        const resultSection = om.status === 'done' && om.result
+          ? renderOcrResult(om.result, om.activeIndex, om.copied) : '';
+        const errorSection = om.status === 'error' ? renderOcrError(om.error) : '';
+        inner = `
+          ${outputSection ? `<div class="oc-section">${outputSection}</div>` : ''}
+          ${controls}
+          ${btnSection ? `<div class="oc-section">${btnSection}</div>` : ''}
+          ${progressSection ? `<div class="oc-section">${progressSection}</div>` : ''}
+          ${resultSection ? `<div class="oc-section">${resultSection}</div>` : ''}
+          ${errorSection ? `<div class="oc-section">${errorSection}</div>` : ''}`;
+      }
+      ocrContent = drop + inner;
+    }
+
     return `
       <div class="vt-body">
         ${this._renderTabs()}
         ${timelineContent}
         ${compressContent}
         ${imageContent}
+        ${ocrContent}
       </div>`;
   }
 
@@ -348,7 +408,7 @@ export default class VideoUI {
     const big = this._container ? this._container.querySelector('#tlBigPlay') : null;
     const btn = this._container ? this._container.querySelector('#tlPbPlay') : null;
     if (big) big.style.display = playing ? 'none' : 'flex';
-    if (btn) btn.textContent = playing ? '⏸' : '▶';
+    if (btn) btn.textContent = playing ? '\u23F8' : '\u25B6';
   }
 
   _formatTime(s) {
@@ -367,7 +427,7 @@ export default class VideoUI {
       });
     });
 
-    // ── Shared timeline + compress file pick events ──
+    // -- Shared timeline + compress file pick events --
     const vDrop = this._container.querySelector('#vtDropZone');
     if (vDrop) {
       vDrop.addEventListener('dragover', (e) => { e.preventDefault(); vDrop.classList.add('vt-drag-over'); });
@@ -388,7 +448,7 @@ export default class VideoUI {
     const coBtn = this._container.querySelector('#tlChangeOutputBtn') || this._container.querySelector('#vtChangeOutputBtn');
     if (coBtn && this._onChangeOutput) coBtn.addEventListener('click', () => this._onChangeOutput());
 
-    // ── Timeline Editor events ──
+    // -- Timeline Editor events --
     const timeline = this._container.querySelector('#tlTimeline');
     if (timeline && this._onTimelineClick) {
       timeline.addEventListener('click', (e) => {
@@ -440,7 +500,7 @@ export default class VideoUI {
     const redoBtn = this._container.querySelector('#tlRedoBtn');
     if (redoBtn && this._onRedo) redoBtn.addEventListener('click', () => this._onRedo());
 
-    // ── Custom player controls ──
+    // -- Custom player controls --
     const video = this._videoEl;
     const bigPlay = this._container.querySelector('#tlBigPlay');
     if (bigPlay && video) bigPlay.addEventListener('click', () => { video.paused ? video.play() : video.pause(); });
@@ -458,9 +518,9 @@ export default class VideoUI {
     }
 
     const pbVol = this._container.querySelector('#tlPbVol');
-    if (pbVol && video) pbVol.addEventListener('click', () => { video.muted = !video.muted; pbVol.textContent = video.muted ? '🔇' : '🔊'; });
+    if (pbVol && video) pbVol.addEventListener('click', () => { video.muted = !video.muted; pbVol.textContent = video.muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'; });
 
-    // ── Quick Compress events ──
+    // -- Quick Compress events --
     this._container.querySelectorAll('.vt-preset-card').forEach(c => {
       c.addEventListener('click', () => { if (this._onPresetChange) this._onPresetChange(c.dataset.preset); });
     });
@@ -480,7 +540,7 @@ export default class VideoUI {
     const cmpCA = this._container.querySelector('#vtCompressAnotherBtn');
     if (cmpCA && this._onCompressAnother) cmpCA.addEventListener('click', () => this._onCompressAnother());
 
-    // ── Image Converter events ──
+    // -- Image Converter events --
     const imDrop = this._container.querySelector('#imDropZone');
     if (imDrop) {
       imDrop.addEventListener('dragover', (e) => { e.preventDefault(); imDrop.classList.add('im-drag-over'); });
@@ -526,6 +586,59 @@ export default class VideoUI {
 
     const imCA = this._container.querySelector('#imConvertAnotherBtn');
     if (imCA && this._onImageConvertAnother) imCA.addEventListener('click', () => this._onImageConvertAnother());
+
+    // -- Image to Text events --
+    const ocDrop = this._container.querySelector('#ocDropZone');
+    if (ocDrop) {
+      ocDrop.addEventListener('dragover', (e) => { e.preventDefault(); ocDrop.classList.add('im-drag-over'); });
+      ocDrop.addEventListener('dragleave', () => ocDrop.classList.remove('im-drag-over'));
+      ocDrop.addEventListener('drop', (e) => {
+        e.preventDefault(); ocDrop.classList.remove('im-drag-over');
+        const files = Array.from(e.dataTransfer.files).map(f => f.path).filter(Boolean);
+        if (files.length > 0 && this._onOcrPickFiles) this._onOcrPickFiles(files);
+      });
+    }
+
+    const ocBrowse = this._container.querySelector('#ocBrowseBtn');
+    if (ocBrowse && this._onOcrPickFiles) ocBrowse.addEventListener('click', () => this._onOcrPickFiles(null));
+
+    const ocAddMore = this._container.querySelector('#ocAddMoreBtn');
+    if (ocAddMore && this._onOcrAddMore) ocAddMore.addEventListener('click', () => this._onOcrAddMore());
+
+    this._container.querySelectorAll('.oc-file-remove').forEach(btn => {
+      if (this._onOcrRemoveFile) btn.addEventListener('click', () => this._onOcrRemoveFile(parseInt(btn.dataset.idx, 10) || 0));
+    });
+
+    const ocLang = this._container.querySelector('#ocLangSelect');
+    if (ocLang && this._onOcrLangChange) ocLang.addEventListener('change', () => this._onOcrLangChange(ocLang.value));
+
+    const ocCo = this._container.querySelector('#ocChangeOutputBtn');
+    if (ocCo && this._onOcrChangeOutput) ocCo.addEventListener('click', () => this._onOcrChangeOutput());
+
+    const ocExtract = this._container.querySelector('#ocExtractBtn');
+    if (ocExtract && this._onOcrExtract) ocExtract.addEventListener('click', () => this._onOcrExtract());
+
+    const ocRetry = this._container.querySelector('#ocRetryBtn');
+    if (ocRetry && this._onOcrRetry) ocRetry.addEventListener('click', () => this._onOcrRetry());
+
+    this._container.querySelectorAll('.oc-result-item').forEach(item => {
+      if (this._onOcrSelectResult) item.addEventListener('click', () => this._onOcrSelectResult(parseInt(item.dataset.idx, 10) || 0));
+    });
+
+    const ocCopy = this._container.querySelector('#ocCopyBtn');
+    if (ocCopy && this._onOcrCopy) ocCopy.addEventListener('click', () => this._onOcrCopy());
+
+    const ocCopyAll = this._container.querySelector('#ocCopyAllBtn');
+    if (ocCopyAll && this._onOcrCopyAll) ocCopyAll.addEventListener('click', () => this._onOcrCopyAll());
+
+    const ocOF = this._container.querySelector('#ocOpenFileBtn');
+    if (ocOF && this._onOcrOpenFile) ocOF.addEventListener('click', () => this._onOcrOpenFile());
+
+    const ocOFd = this._container.querySelector('#ocOpenFolderBtn');
+    if (ocOFd && this._onOcrOpenFolder) ocOFd.addEventListener('click', () => this._onOcrOpenFolder());
+
+    const ocAnother = this._container.querySelector('#ocAnotherBtn');
+    if (ocAnother && this._onOcrAnother) ocAnother.addEventListener('click', () => this._onOcrAnother());
 
     if (this._onUndo || this._onRedo) {
       if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
