@@ -1056,3 +1056,7 @@ contextBridge.exposeInMainWorld('pdfMasterAPI', {
     ipcRenderer.on('pdfMaster:progress', (_event, data) => callback(data));
   },
 });
+contextBridge.exposeInMainWorld('pdfWriterAPI', {
+  analyze: (payload) => ipcRenderer.invoke('pdfMaster:analyzeWriter', payload),
+  write:   (payload) => ipcRenderer.invoke('pdfMaster:writePdf', payload),
+});
