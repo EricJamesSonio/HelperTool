@@ -32,6 +32,11 @@ except Exception:
 
 MAX_PAGES = 2000
 MAX_RENDER_PIXELS = MAX_PIXELS
+HEADER_PROBE_PAGES = 6
+HEADER_VERIFY_PAGES = 14
+HEADER_MIN_REPEATS = 2
+HEADER_MIN_DARK = 1.0
+HEADER_REL_TOLERANCE = 0.35
 
 HEADER_RENDER_SCALE = 3.0
 HEADER_GAP_PT = 28.0
@@ -250,6 +255,10 @@ def _header_signature(image, bottom_px):
     return band.resize((240, max(1, int(bottom_px * 240.0 / width))), _resampling())
 
 
+def _signature_dark(signature):
+    return ImageStat.Stat(ImageChops.invert(signature)).mean[0]
+
+
 def _detect_header(lines, image, scale, width, height):
     if not lines:
         return None
@@ -299,6 +308,7 @@ def _detect_header(lines, image, scale, width, height):
         return None
     buffer = io.BytesIO()
     image.crop((0, 0, image_width, bottom_px)).save(buffer, format="PNG", optimize=True)
+    signature = _header_signature(image, bottom_px)
     return {
         "png": buffer.getvalue(),
         "bottom_px": bottom_px,
@@ -306,27 +316,74 @@ def _detect_header(lines, image, scale, width, height):
         "width": width,
         "height": height,
         "image_width": image_width,
-        "signature": _header_signature(image, bottom_px),
+        "signature": signature,
+        "dark": _signature_dark(signature),
     }
 
 
 def _header_matches(header, image):
     if image.size[0] != header["image_width"] or image.size[1] < header["bottom_px"]:
         return False
+    dark = header.get("dark", 0.0)
+    if dark < HEADER_MIN_DARK:
+        return False
     signature = _header_signature(image, header["bottom_px"])
     if signature.size != header["signature"].size:
         return False
     diff = ImageChops.difference(signature, header["signature"])
-    return ImageStat.Stat(diff).mean[0] <= HEADER_MATCH_DIFF
+    tolerance = min(HEADER_MATCH_DIFF, HEADER_REL_TOLERANCE * dark)
+    return ImageStat.Stat(diff).mean[0] <= tolerance
+
+
+def _header_repeats(pdf, header, skip_index, page_count):
+    limit = min(page_count, HEADER_VERIFY_PAGES)
+    needed = min(HEADER_MIN_REPEATS, limit - 1)
+    if needed <= 0:
+        return False
+    found = 0
+    for index in range(limit):
+        if index == skip_index:
+            continue
+        page = pdf[index]
+        try:
+            width, height = page.get_size()
+            if abs(width - header["width"]) > 1.0 or abs(height - header["height"]) > 1.0:
+                continue
+            image, _scale = _render_image(page, width, height)
+            if _header_matches(header, image):
+                found += 1
+        except Exception:
+            continue
+        finally:
+            page.close()
+        if found >= needed:
+            return True
+    return False
+
+
+def _find_header_reference(pdf, page_count):
+    for probe_index in range(min(page_count, HEADER_PROBE_PAGES)):
+        candidate = None
+        probe_page = pdf[probe_index]
+        try:
+            probe_width, probe_height = probe_page.get_size()
+            probe_lines = _page_lines(probe_page, probe_height)
+            if probe_lines and probe_lines[0]["top"] <= probe_height * HEADER_FIRST_LINE_FRACTION:
+                probe_image, probe_scale = _render_image(probe_page, probe_width, probe_height)
+                candidate = _detect_header(probe_lines, probe_image, probe_scale, probe_width, probe_height)
+        except Exception:
+            candidate = None
+        finally:
+            probe_page.close()
+        if candidate is None:
+            continue
+        if _header_repeats(pdf, candidate, probe_index, page_count):
+            return candidate
+    return None
 
 
 def _resolve_header(page, lines, width, height, index, reference):
     try:
-        if index == 0:
-            if lines[0]["top"] > height * HEADER_FIRST_LINE_FRACTION:
-                return None
-            image, scale = _render_image(page, width, height)
-            return _detect_header(lines, image, scale, width, height)
         if reference is None:
             return None
         if abs(width - reference["width"]) > 1.0 or abs(height - reference["height"]) > 1.0:
@@ -643,7 +700,8 @@ def convert_pdf_to_docx(input_path, output_path, progress):
         except Exception:
             pass
 
-        header_reference = None
+        progress("template", 3, "Detecting the page template")
+        header_reference = _find_header_reference(pdf, page_count)
 
         for index in range(page_count):
             progress("extracting", 5 + int(88 * index / page_count), "Converting page %d of %d" % (index + 1, page_count))
@@ -663,8 +721,6 @@ def convert_pdf_to_docx(input_path, output_path, progress):
                 section.footer_distance = Pt(0)
 
                 plan, header = _plan_for_page(page, width, height, index, header_reference)
-                if index == 0:
-                    header_reference = header
 
                 if plan is None:
                     image_pages.append(index + 1)
