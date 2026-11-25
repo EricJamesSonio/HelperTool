@@ -60,6 +60,40 @@ def _norm(text):
 
 def _median(values, default):
     return statistics.median(values) if values else default
+_CENTER_TOL = 8.0
+
+
+def _line_center(line):
+    return (line["l"] + line["r"]) / 2.0
+
+
+def _infer_center(lines):
+    """Finds the common center of centered lines. It is not always the page
+    center because documents often have unequal left and right margins."""
+    centers = [_line_center(line) for line in lines]
+    best = None
+    best_count = 0
+    for c in centers:
+        count = sum(1 for other in centers if abs(other - c) <= 3.0)
+        if count > best_count:
+            best = c
+            best_count = count
+    if best is None or best_count < 3 or best_count < 0.4 * len(centers):
+        return None
+    members = [other for other in centers if abs(other - best) <= 3.0]
+    return sum(members) / len(members)
+
+
+def _match_center(line, refs):
+    center = _line_center(line)
+    found = None
+    for ref in refs:
+        if ref is None:
+            continue
+        distance = abs(center - ref)
+        if distance <= _CENTER_TOL and (found is None or distance < found[0]):
+            found = (distance, ref)
+    return found[1] if found else None
 
 
 def _line_style(line):
@@ -401,217 +435,229 @@ def _draw_line(pw, words, x, base, font, size, available, justify):
 
 
 def _derive_style(lines_by_page, width, bottom_limit):
-    flat = [line for page_lines in lines_by_page for line in page_lines]
-    if not flat:
-        base = {"family": "Times New Roman", "size": 12.0, "bold": False, "italic": False}
-        return {
-            "body": base,
-            "head": dict(base, bold=True, size=14.0, align="center"),
-            "left": 72.0,
-            "right": width - 72.0,
-            "pitch": 14.4,
-            "para_gap": 14.4,
-            "justify": False,
-            "first_indent": 0.0,
-            "first_base": 100.0,
-            "cont_base": 100.0,
-            "bullet_x": 18.0,
-            "text_x": 36.0,
-        }
-
-    weights = Counter()
-    for line in flat:
-        count = len(line["text"].strip())
-        if count >= 25:
-            st = _line_style(line)
-            weights[(st["family"], st["size"], st["bold"], st["italic"])] += count
-    if not weights:
-        for line in flat:
-            st = _line_style(line)
-            weights[(st["family"], st["size"], st["bold"], st["italic"])] += max(len(line["text"].strip()), 1)
-    family, size, bold, italic = weights.most_common(1)[0][0]
-    body = {"family": family, "size": size, "bold": bold, "italic": italic}
-
-    side_lines = [ln for ln in flat if abs((ln["l"] + ln["r"]) / 2.0 - width / 2.0) > 8.0] or flat
-    left = min(ln["l"] for ln in side_lines)
-    long_lines = [ln for ln in flat if len(ln["text"].strip()) >= 40] or flat
-    right = max(ln["r"] for ln in long_lines)
-    if right - left < width * 0.3:
-        left = 72.0
-        right = width - 72.0
-
-    pitches = []
-    for page_lines in lines_by_page:
-        for a, b in zip(page_lines, page_lines[1:]):
-            if abs(a["size"] - size) < 0.6 and abs(b["size"] - size) < 0.6:
-                delta = b["baseline"] - a["baseline"]
-                if 0.9 * size < delta < 1.9 * size:
-                    pitches.append(delta)
-    pitch = _median(pitches, size * 1.2)
-
-    gaps = []
-    edges = []
-    indents = []
-    for page_lines in lines_by_page:
-        for i, a in enumerate(page_lines[:-1]):
-            b = page_lines[i + 1]
-            if abs(a["size"] - size) >= 0.6 or abs(b["size"] - size) >= 0.6:
-                continue
-            delta = b["baseline"] - a["baseline"]
-            if 1.6 * pitch <= delta <= 4.5 * pitch:
-                gaps.append(delta - pitch)
-            if 0.9 * size < delta < 1.9 * size:
-                if len(a["text"].strip()) >= 40:
-                    edges.append(a["r"])
-                before = (a["baseline"] - page_lines[i - 1]["baseline"]) if i > 0 else None
-                if before is None or before > 1.6 * pitch:
-                    indents.append(a["l"] - b["l"])
-    para_gap = _median(gaps, pitch)
-
-    justify = False
-    if len(edges) >= 3:
-        top_edge = max(edges)
-        justify = statistics.median([top_edge - e for e in edges]) < 1.5
-
-    first_indent = 0.0
-    if indents:
-        candidate = statistics.median(indents)
-        if 6.0 < candidate < 90.0:
-            first_indent = candidate
-
-    first_lines = [page_lines[0] for page_lines in lines_by_page if page_lines]
-    first = first_lines[0]
-    head_style = _line_style(first)
-    centered = abs((first["l"] + first["r"]) / 2.0 - width / 2.0) <= 8.0
-    is_head = (head_style["bold"] and not bold) or head_style["size"] > size + 0.4 or centered
-    if is_head:
-        head = {
-            "family": head_style["family"],
-            "size": head_style["size"],
-            "bold": head_style["bold"],
-            "italic": head_style["italic"],
-            "align": "center" if centered else "left",
-        }
-    else:
-        head = {"family": family, "size": size, "bold": True, "italic": italic, "align": "left"}
-
+flat = [line for page_lines in lines_by_page for line in page_lines]
+if not flat:
+    base = {"family": "Times New Roman", "size": 12.0, "bold": False, "italic": False}
     return {
-        "body": body,
-        "head": head,
-        "left": left,
-        "right": right,
-        "pitch": pitch,
-        "para_gap": para_gap,
-        "justify": justify,
-        "first_indent": first_indent,
-        "first_base": first["baseline"],
-        "cont_base": min(line["baseline"] for line in first_lines),
+        "body": base,
+        "head": dict(base, bold=True, size=14.0, align="center"),
+        "left": 72.0,
+        "right": width - 72.0,
+        "pitch": 14.4,
+        "para_gap": 14.4,
+        "justify": False,
+        "first_indent": 0.0,
+        "first_base": 100.0,
+        "cont_base": 100.0,
         "bullet_x": 18.0,
         "text_x": 36.0,
     }
 
+weights = Counter()
+for line in flat:
+    count = len(line["text"].strip())
+    if count >= 25:
+        st = _line_style(line)
+        weights[(st["family"], st["size"], st["bold"], st["italic"])] += count
+if not weights:
+    for line in flat:
+        st = _line_style(line)
+        weights[(st["family"], st["size"], st["bold"], st["italic"])] += max(len(line["text"].strip()), 1)
+family, size, bold, italic = weights.most_common(1)[0][0]
+body = {"family": family, "size": size, "bold": bold, "italic": italic}
+
+side_lines = [ln for ln in flat if abs(_line_center(ln) - width / 2.0) > _CENTER_TOL] or flat
+left = min(ln["l"] for ln in side_lines)
+long_lines = [ln for ln in flat if len(ln["text"].strip()) >= 40] or flat
+right = max(ln["r"] for ln in long_lines)
+if right - left < width * 0.3:
+    left = 72.0
+    right = width - 72.0
+block_center = (left + right) / 2.0
+
+pitches = []
+for page_lines in lines_by_page:
+    for a, b in zip(page_lines, page_lines[1:]):
+        if abs(a["size"] - size) < 0.6 and abs(b["size"] - size) < 0.6:
+            delta = b["baseline"] - a["baseline"]
+            if 0.9 * size < delta < 1.9 * size:
+                pitches.append(delta)
+pitch = _median(pitches, size * 1.2)
+
+gaps = []
+edges = []
+indents = []
+for page_lines in lines_by_page:
+    for i, a in enumerate(page_lines[:-1]):
+        b = page_lines[i + 1]
+        if abs(a["size"] - size) >= 0.6 or abs(b["size"] - size) >= 0.6:
+            continue
+        delta = b["baseline"] - a["baseline"]
+        if 1.6 * pitch <= delta <= 4.5 * pitch:
+            gaps.append(delta - pitch)
+        if 0.9 * size < delta < 1.9 * size:
+            if len(a["text"].strip()) >= 40:
+                edges.append(a["r"])
+            before = (a["baseline"] - page_lines[i - 1]["baseline"]) if i > 0 else None
+            if before is None or before > 1.6 * pitch:
+                indents.append(a["l"] - b["l"])
+para_gap = _median(gaps, pitch)
+
+justify = False
+if len(edges) >= 3:
+    top_edge = max(edges)
+    justify = statistics.median([top_edge - e for e in edges]) < 1.5
+
+first_indent = 0.0
+if indents:
+    candidate = statistics.median(indents)
+    if 6.0 < candidate < 90.0:
+        first_indent = candidate
+
+first_lines = [page_lines[0] for page_lines in lines_by_page if page_lines]
+first = first_lines[0]
+head_style = _line_style(first)
+first_center = _line_center(first)
+narrow = (first["r"] - first["l"]) < 0.9 * (right - left)
+centered = narrow and (
+    abs(first_center - width / 2.0) <= _CENTER_TOL
+    or abs(first_center - block_center) <= _CENTER_TOL
+)
+is_head = (head_style["bold"] and not bold) or head_style["size"] > size + 0.4 or centered
+if is_head:
+    head = {
+        "family": head_style["family"],
+        "size": head_style["size"],
+        "bold": head_style["bold"],
+        "italic": head_style["italic"],
+        "align": "center" if centered else "left",
+    }
+else:
+    head = {"family": family, "size": size, "bold": True, "italic": italic, "align": "left"}
+
+return {
+    "body": body,
+    "head": head,
+    "left": left,
+    "right": right,
+    "pitch": pitch,
+    "para_gap": para_gap,
+    "justify": justify,
+    "first_indent": first_indent,
+    "first_base": first["baseline"],
+    "cont_base": min(line["baseline"] for line in first_lines),
+    "bullet_x": 18.0,
+    "text_x": 36.0,
+}
+
 
 def _layout_flow(pw, items, style, width, height):
-    body = style["body"]
-    head = style["head"]
-    body_font = pw.font_for(body)
-    head_font = pw.font_for(head)
-    sub_font = pw.font_for(dict(body, bold=True))
-    size = body["size"]
-    pitch = style["pitch"]
-    gap = style["para_gap"]
-    left = style["left"]
-    right = style["right"]
-    text_width = max(right - left, 50.0)
-    indent = style["first_indent"]
-    justify = style["justify"]
-    limit = pw.bottom_limit
-    state = {"y": style["first_base"]}
+body = style["body"]
+head = style["head"]
+body_font = pw.font_for(body)
+head_font = pw.font_for(head)
+sub_font = pw.font_for(dict(body, bold=True))
+size = body["size"]
+pitch = style["pitch"]
+gap = style["para_gap"]
+left = style["left"]
+right = style["right"]
+text_width = max(right - left, 50.0)
+indent = style["first_indent"]
+justify = style["justify"]
+limit = pw.bottom_limit
+state = {"y": style["first_base"]}
 
-    def new_page():
-        pw.start_page(width, height)
-        state["y"] = style["cont_base"]
-
-    def ensure(line_size, reserve=0.0):
-        if state["y"] + reserve + line_size * 0.25 > limit and state["y"] > style["cont_base"] + 1.0:
-            new_page()
-
+def new_page():
     pw.start_page(width, height)
-    previous = None
-    for item in items:
-        kind = item["type"]
-        text = " ".join(item["text"].split())
-        if not text:
-            continue
-        if previous is not None:
-            if previous == "b" and kind == "b":
-                pass
-            elif previous == "h2":
-                pass
-            else:
-                state["y"] += gap
-        if kind == "h1":
-            hsize = head["size"]
-            hpitch = max(pitch * hsize / size, hsize * 1.15)
-            lines = _wrap(pw, text.split(), head_font, hsize, text_width, text_width)
-            ensure(hsize, reserve=hpitch * len(lines) + gap + pitch * 2.0)
-            for words in lines:
-                ensure(hsize)
-                line = " ".join(words)
-                line_width = pw.measure(line, head_font, hsize)
-                x = (pw.width - line_width) / 2.0 if head["align"] == "center" else left
-                pw.draw(x, state["y"], line, head_font, hsize)
-                state["y"] += hpitch
-        elif kind == "h2":
-            lines = _wrap(pw, text.split(), sub_font, size, text_width, text_width)
-            ensure(size, reserve=pitch * 2.0)
-            for words in lines:
-                ensure(size)
-                pw.draw(left, state["y"], " ".join(words), sub_font, size)
-                state["y"] += pitch
-        elif kind == "b":
-            bullet_x = left + style["bullet_x"]
-            text_x = left + style["text_x"]
-            avail = max(right - text_x, 50.0)
-            lines = _wrap(pw, text.split(), body_font, size, avail, avail)
-            for n, words in enumerate(lines):
-                ensure(size)
-                if n == 0:
-                    pw.draw(bullet_x, state["y"], "\u2022", body_font, size)
-                _draw_line(pw, words, text_x, state["y"], body_font, size, avail, justify and n < len(lines) - 1)
-                state["y"] += pitch
-        else:
-            lines = _wrap(pw, text.split(), body_font, size, text_width - indent, text_width)
-            for n, words in enumerate(lines):
-                ensure(size)
-                x = left + (indent if n == 0 else 0.0)
-                avail = text_width - (indent if n == 0 else 0.0)
-                _draw_line(pw, words, x, state["y"], body_font, size, avail, justify and n < len(lines) - 1)
-                state["y"] += pitch
-        previous = kind
+    state["y"] = style["cont_base"]
 
+def ensure(line_size, reserve=0.0):
+    if state["y"] + reserve + line_size * 0.25 > limit and state["y"] > style["cont_base"] + 1.0:
+        new_page()
 
-def _draw_slot_line(pw, line, text, width, avail, side):
-    text = " ".join(str(text).split())
+pw.start_page(width, height)
+previous = None
+for item in items:
+    kind = item["type"]
+    text = " ".join(item["text"].split())
     if not text:
-        return
-    st = _line_style(line)
-    font = pw.font_for(st)
-    size = st["size"]
-    line_width = pw.measure(text, font, size)
-    if line_width > avail and line_width > 0:
-        size = max(size * avail / line_width, size * 0.6)
-        line_width = pw.measure(text, font, size)
-    center = (line["l"] + line["r"]) / 2.0
-    if abs(center - width / 2.0) <= 8.0:
-        x = (width - line_width) / 2.0
-    elif width - line["r"] <= 8.0 and line["l"] > width * 0.3:
-        x = line["r"] - line_width
+        continue
+    if previous is not None:
+        if previous == "b" and kind == "b":
+            pass
+        elif previous == "h2":
+            pass
+        else:
+            state["y"] += gap
+    if kind == "h1":
+        hsize = head["size"]
+        hpitch = max(pitch * hsize / size, hsize * 1.15)
+        lines = _wrap(pw, text.split(), head_font, hsize, text_width, text_width)
+        ensure(hsize, reserve=hpitch * len(lines) + gap + pitch * 2.0)
+        for words in lines:
+            ensure(hsize)
+            line = " ".join(words)
+            line_width = pw.measure(line, head_font, hsize)
+            x = left + (text_width - line_width) / 2.0 if head["align"] == "center" else left
+            pw.draw(x, state["y"], line, head_font, hsize)
+            state["y"] += hpitch
+    elif kind == "h2":
+        lines = _wrap(pw, text.split(), sub_font, size, text_width, text_width)
+        ensure(size, reserve=pitch * 2.0)
+        for words in lines:
+            ensure(size)
+            pw.draw(left, state["y"], " ".join(words), sub_font, size)
+            state["y"] += pitch
+    elif kind == "b":
+        bullet_x = left + style["bullet_x"]
+        text_x = left + style["text_x"]
+        avail = max(right - text_x, 50.0)
+        lines = _wrap(pw, text.split(), body_font, size, avail, avail)
+        for n, words in enumerate(lines):
+            ensure(size)
+            if n == 0:
+                pw.draw(bullet_x, state["y"], "\u2022", body_font, size)
+            _draw_line(pw, words, text_x, state["y"], body_font, size, avail, justify and n < len(lines) - 1)
+            state["y"] += pitch
     else:
-        x = line["l"]
-        if x + line_width > width - side:
-            x = max(side, width - side - line_width)
-    pw.draw(x, line["baseline"], text, font, size)
+        lines = _wrap(pw, text.split(), body_font, size, text_width - indent, text_width)
+        for n, words in enumerate(lines):
+            ensure(size)
+            x = left + (indent if n == 0 else 0.0)
+            avail = text_width - (indent if n == 0 else 0.0)
+            _draw_line(pw, words, x, state["y"], body_font, size, avail, justify and n < len(lines) - 1)
+            state["y"] += pitch
+    previous = kind
+
+
+def _draw_slot_line(pw, line, text, width, avail, side, refs=None):
+text = " ".join(str(text).split())
+if not text:
+    return
+st = _line_style(line)
+font = pw.font_for(st)
+size = st["size"]
+ref = _match_center(line, [width / 2.0] + list(refs or []))
+if ref is not None:
+    limit = 2.0 * min(ref - 54.0, width - 54.0 - ref)
+    if limit < 100.0:
+        limit = avail
+else:
+    limit = avail
+line_width = pw.measure(text, font, size)
+if line_width > limit and line_width > 0:
+    size = max(size * limit / line_width, size * 0.6)
+    line_width = pw.measure(text, font, size)
+if ref is not None:
+    x = ref - line_width / 2.0
+elif width - line["r"] <= 8.0 and line["l"] > width * 0.3:
+    x = line["r"] - line_width
+else:
+    x = line["l"]
+    if x + line_width > width - side:
+        x = max(side, width - side - line_width)
+pw.draw(x, line["baseline"], text, font, size)
 
 
 def _slot_geometry(lines, width):
@@ -621,10 +667,11 @@ def _slot_geometry(lines, width):
 
 
 def _layout_slots(pw, slot_lines, texts, width, height):
-    pw.start_page(width, height)
-    side, avail = _slot_geometry(slot_lines, width)
-    for line, text in zip(slot_lines, texts):
-        _draw_slot_line(pw, line, text, width, avail, side)
+pw.start_page(width, height)
+side, avail = _slot_geometry(slot_lines, width)
+refs = [_infer_center(slot_lines)]
+for line, text in zip(slot_lines, texts):
+    _draw_slot_line(pw, line, text, width, avail, side, refs)
 
 
 def _segments(line):

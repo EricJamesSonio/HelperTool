@@ -339,14 +339,23 @@ def _resolve_header(page, lines, width, height, index, reference):
     return None
 
 
-def _line_kind(line, width, margin, body_w):
-    center = (line["l"] + line["r"]) / 2.0
-    offset = line["l"] - margin
-    if offset > 0.04 * body_w and abs(center - width / 2.0) <= max(4.0, 0.012 * width):
+def _line_kind(line, width, margin, body_w, block_center=None, left_edges=None):
+center = (line["l"] + line["r"]) / 2.0
+offset = line["l"] - margin
+tolerance = max(4.0, 0.012 * width)
+if offset > 0.04 * body_w:
+    if abs(center - width / 2.0) <= tolerance:
         return "center"
-    if offset > 0.25 * body_w and (width - margin - line["r"]) <= max(4.0, 0.01 * width):
-        return "right"
-    return "left"
+    if block_center is not None and not line["has_tab"] and abs(center - block_center) <= tolerance:
+        on_edge = False
+        if left_edges:
+            hits = sum(count for edge, count in left_edges.items() if abs(edge - line["l"]) <= 1.5)
+            on_edge = hits >= 3
+        if not on_edge:
+            return "center"
+if offset > 0.25 * body_w and (width - margin - line["r"]) <= max(4.0, 0.01 * width):
+    return "right"
+return "left"
 
 
 def _try_merge(para, line, kind, body_w, text_right):
@@ -414,20 +423,26 @@ def _finish_paragraph(para):
 
 
 def _group_paragraphs(body, width, margin, body_w, text_right):
-    paragraphs = []
+block_center = None
+left_edges = Counter()
+if body:
+    block_center = (min(line["l"] for line in body) + max(line["r"] for line in body)) / 2.0
     for line in body:
-        kind = _line_kind(line, width, margin, body_w)
-        if paragraphs and _try_merge(paragraphs[-1], line, kind, body_w, text_right):
-            continue
-        paragraphs.append({
-            "kind": kind,
-            "lines": [line],
-            "left": line["l"],
-            "first_left": line["l"],
-        })
-    for para in paragraphs:
-        _finish_paragraph(para)
-    return paragraphs
+        left_edges[int(round(line["l"]))] += 1
+paragraphs = []
+for line in body:
+    kind = _line_kind(line, width, margin, body_w, block_center, left_edges)
+    if paragraphs and _try_merge(paragraphs[-1], line, kind, body_w, text_right):
+        continue
+    paragraphs.append({
+        "kind": kind,
+        "lines": [line],
+        "left": line["l"],
+        "first_left": line["l"],
+    })
+for para in paragraphs:
+    _finish_paragraph(para)
+return paragraphs
 
 
 def _plan_page(lines, width, height, header):
@@ -514,42 +529,48 @@ def _add_spacer(document):
 
 
 def _add_text_paragraph(document, para, margin, cursor):
-    pitch = para["pitch"]
-    space_before = max(0.0, min(1500.0, para["desired_top"] - cursor))
-    paragraph = document.add_paragraph()
-    fmt = paragraph.paragraph_format
-    fmt.space_before = Pt(space_before)
-    fmt.space_after = Pt(0)
-    fmt.line_spacing = Pt(pitch)
-    fmt.line_spacing_rule = WD_LINE_SPACING.EXACTLY
-    kind = para["kind"]
-    first = para["lines"][0]
-    if kind == "center":
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    elif kind == "right":
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        fmt.right_indent = Pt(max(0.0, para["right_edge"] - first["r"]))
-    else:
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        left_indent = max(0.0, para["left"] - margin)
-        if left_indent > 1.0:
-            fmt.left_indent = Pt(left_indent)
-        first_indent = para["first_left"] - para["left"]
-        if first_indent > 1.0:
-            fmt.first_line_indent = Pt(first_indent)
-        if len(para["lines"]) == 1:
-            fmt.right_indent = Pt(-min(margin, 18.0))
-    for tab_x in para["tabs"]:
-        fmt.tab_stops.add_tab_stop(Pt(max(0.0, tab_x - margin)))
-    for text, style in para["runs"]:
-        run = paragraph.add_run(_sanitize_xml_text(text))
-        family, bold, italic, size = style
-        if family:
-            run.font.name = family
-        run.font.size = Pt(size)
-        run.font.bold = bool(bold)
-        run.font.italic = bool(italic)
-    return max(cursor, para["desired_top"]) + pitch * len(para["lines"])
+pitch = para["pitch"]
+space_before = max(0.0, min(1500.0, para["desired_top"] - cursor))
+paragraph = document.add_paragraph()
+fmt = paragraph.paragraph_format
+fmt.space_before = Pt(space_before)
+fmt.space_after = Pt(0)
+fmt.line_spacing = Pt(pitch)
+fmt.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+kind = para["kind"]
+first = para["lines"][0]
+if kind == "center":
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    line_center = (first["l"] + first["r"]) / 2.0
+    area_center = (margin + para["right_edge"]) / 2.0
+    if abs(line_center - area_center) > 1.0:
+        half = (first["r"] - first["l"]) / 2.0 + 14.0
+        fmt.left_indent = Pt(line_center - half - margin)
+        fmt.right_indent = Pt(para["right_edge"] - (line_center + half))
+elif kind == "right":
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    fmt.right_indent = Pt(max(0.0, para["right_edge"] - first["r"]))
+else:
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    left_indent = max(0.0, para["left"] - margin)
+    if left_indent > 1.0:
+        fmt.left_indent = Pt(left_indent)
+    first_indent = para["first_left"] - para["left"]
+    if first_indent > 1.0:
+        fmt.first_line_indent = Pt(first_indent)
+    if len(para["lines"]) == 1:
+        fmt.right_indent = Pt(-min(margin, 18.0))
+for tab_x in para["tabs"]:
+    fmt.tab_stops.add_tab_stop(Pt(max(0.0, tab_x - margin)))
+for text, style in para["runs"]:
+    run = paragraph.add_run(_sanitize_xml_text(text))
+    family, bold, italic, size = style
+    if family:
+        run.font.name = family
+    run.font.size = Pt(size)
+    run.font.bold = bool(bold)
+    run.font.italic = bool(italic)
+return max(cursor, para["desired_top"]) + pitch * len(para["lines"])
 
 
 def _fill_image_page(document, section, page, width, height):
