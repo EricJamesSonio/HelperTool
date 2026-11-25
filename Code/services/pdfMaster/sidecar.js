@@ -24,18 +24,34 @@ function fail(code, message) {
   return err;
 }
 
+function unpacked(p) {
+  return String(p).replace(/app\.asar(?=[\\/]|$)/, 'app.asar.unpacked');
+}
+
 function candidates() {
   const list = [];
   if (process.resourcesPath) {
-    list.push({ kind: 'bundled', cmd: path.join(process.resourcesPath, 'pdf-master-engine', EXE_NAME), args: [] });
+    list.push({
+      kind: 'bundled',
+      cmd: path.join(process.resourcesPath, 'pdf-master-engine', EXE_NAME),
+      args: [],
+    });
   }
-  list.push({ kind: 'bundled', cmd: path.join(ROOT, 'pdf-master', 'dist', 'pdf-master-engine', EXE_NAME), args: [] });
-  const script = path.join(ROOT, 'pdf-master', 'engine', 'main.py');
+  list.push({
+    kind: 'bundled',
+    cmd: path.join(ROOT, 'pdf-master', 'dist', 'pdf-master-engine', EXE_NAME),
+    args: [],
+  });
+  const script = unpacked(path.join(ROOT, 'pdf-master', 'engine', 'main.py'));
+  const custom = process.env.PDF_MASTER_PYTHON;
+  if (custom) {
+    list.push({ kind: 'python', cmd: custom, args: [script], script });
+  }
   if (process.platform === 'win32') {
-    list.push({ kind: 'python', cmd: 'py', args: ['-3', script] });
+    list.push({ kind: 'python', cmd: 'py', args: ['-3', script], script });
   }
-  list.push({ kind: 'python', cmd: 'python', args: [script] });
-  list.push({ kind: 'python', cmd: 'python3', args: [script] });
+  list.push({ kind: 'python', cmd: 'python', args: [script], script });
+  list.push({ kind: 'python', cmd: 'python3', args: [script], script });
   return list;
 }
 
@@ -137,6 +153,7 @@ function launch(candidate) {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
         shell: false,
+        cwd: path.dirname(candidate.script || candidate.cmd),
         env: engineEnv(),
       });
     } catch (e) {
@@ -168,7 +185,9 @@ function launch(candidate) {
     });
     proc.on('exit', (code) => {
       if (!settled) {
-        done(fail('EXITED', 'The engine exited with code ' + code + '. ' + stderrTail.trim()));
+        setTimeout(() => {
+          done(fail('EXITED', 'The engine exited with code ' + code + '. ' + stderrTail.trim()));
+        }, 50);
         return;
       }
       onExit(proc, code);
@@ -194,13 +213,42 @@ function launch(candidate) {
   });
 }
 
+function pickError(errors, sawPython) {
+  const priority = ['MISSING_DEPENDENCY', 'ENGINE_LOAD_ERROR', 'SCRIPT_MISSING'];
+  for (const code of priority) {
+    const hit = errors.find((e) => e.code === code);
+    if (hit) return hit;
+  }
+  const exited = errors.find((e) => e.code === 'EXITED');
+  if (exited) {
+    const text = exited.message.trim();
+    const detail = text.length > 500 ? text.slice(-500) : text;
+    return fail('ENGINE_START_FAILED', 'The PDF engine crashed on startup. Details: ' + detail);
+  }
+  let message = 'The PDF engine could not be started.';
+  if (sawPython) {
+    message += ' Install Python 3.9 or newer and run "pip install -r pdf-master/engine/requirements.txt", or add the bundled pdf-master-engine build.';
+  } else {
+    message += ' The bundled pdf-master-engine build was not found in this installation.';
+  }
+  return fail('ENGINE_NOT_FOUND', message);
+}
+
 function ensure() {
   if (_proc && _info) return Promise.resolve(_info);
   if (_starting) return _starting;
   const run = async () => {
     const errors = [];
+    let sawPython = false;
     for (const candidate of candidates()) {
       if (candidate.kind === 'bundled' && !fs.existsSync(candidate.cmd)) continue;
+      if (candidate.kind === 'python') {
+        if (!fs.existsSync(candidate.script)) {
+          errors.push(fail('SCRIPT_MISSING', 'The PDF engine files were not found at ' + candidate.script));
+          continue;
+        }
+        sawPython = true;
+      }
       try {
         const res = await launch(candidate);
         _proc = res.proc;
@@ -211,12 +259,7 @@ function ensure() {
         errors.push(e);
       }
     }
-    const dep = errors.find((e) => e.code === 'MISSING_DEPENDENCY');
-    if (dep) throw dep;
-    const exited = errors.find((e) => e.code === 'EXITED' && e.message.length > 40);
-    let message = 'The PDF engine could not be started. Install Python 3.9 or newer and run "pip install -r pdf-master/engine/requirements.txt", or add the bundled pdf-master-engine build.';
-    if (exited) message += ' Details: ' + exited.message.slice(0, 300);
-    throw fail('ENGINE_NOT_FOUND', message);
+    throw pickError(errors, sawPython);
   };
   const p = run();
   _starting = p;
