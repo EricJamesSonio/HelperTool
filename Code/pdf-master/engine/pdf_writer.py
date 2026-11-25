@@ -220,6 +220,11 @@ def analyze_pdf(input_path, progress):
                 if footer is not None and footer_geo is None:
                     footer_geo = footer
                 images = _content_images(page, width, height, header)
+                try:
+                    import journal
+                    journal_info = journal.analyze_page(page, index)
+                except Exception:
+                    journal_info = None
                 pages.append({
                     "index": index,
                     "width": _r(width),
@@ -228,6 +233,7 @@ def analyze_pdf(input_path, progress):
                     "contentImages": images,
                     "locked": images > 0,
                     "footer": footer,
+                    "journal": journal_info,
                 })
             finally:
                 page.close()
@@ -814,6 +820,28 @@ def _clean_toc(toc_pages, count):
     return (toc_pages[0], toc_pages[1])
 
 
+def _clean_header(header):
+    out = {}
+    if not isinstance(header, dict):
+        return out
+    for key in ("student", "course", "company"):
+        value = header.get(key)
+        if isinstance(value, str) and value.strip():
+            out[key] = value.strip()[:200]
+    for key in ("prepared", "reviewed"):
+        person = header.get(key)
+        if not isinstance(person, dict):
+            continue
+        entry = {}
+        for slot in ("name", "role"):
+            value = person.get(slot)
+            if isinstance(value, str) and value.strip():
+                entry[slot] = value.strip()[:200]
+        if entry:
+            out[key] = entry
+    return out
+
+
 def _validate_replace(replace, toc_range, count):
     if not isinstance(replace, list) or not replace:
         raise EngineError("INVALID_INPUT", "There is nothing to write.")
@@ -833,6 +861,23 @@ def _validate_replace(replace, toc_range, count):
             if not isinstance(lines, list) or not lines or any(not isinstance(v, str) for v in lines):
                 raise EngineError("INVALID_INPUT", "A fixed layout section has no lines.")
             clean.append({"start": start, "end": end, "mode": mode, "lines": [v[:MAX_TEXT] for v in lines]})
+        elif mode == "journal":
+            rows = item.get("rows")
+            if not isinstance(rows, list) or not rows or len(rows) > 400:
+                raise EngineError("INVALID_INPUT", "A journal section has no entries.")
+            fixed_rows = []
+            for entry in rows:
+                keys = ("date", "task", "challenges", "learnings")
+                if not isinstance(entry, dict) or any(not isinstance(entry.get(k), str) for k in keys):
+                    raise EngineError("INVALID_INPUT", "A journal entry is not valid.")
+                fixed_rows.append({k: entry[k][:MAX_TEXT] for k in keys})
+            clean.append({
+                "start": start,
+                "end": end,
+                "mode": mode,
+                "rows": fixed_rows,
+                "header": _clean_header(item.get("header")),
+            })
         elif mode == "flow":
             items = item.get("items")
             if not isinstance(items, list) or not items or len(items) > MAX_ITEMS:
@@ -908,6 +953,7 @@ def write_pdf(input_path, output_path, replace, toc_pages, footers, footer_geo, 
     out = None
     page_total = 0
     toc_updated = False
+    overlay_refs = []
     try:
         try:
             src = open_pdf(input_path)
@@ -926,6 +972,8 @@ def write_pdf(input_path, output_path, replace, toc_pages, footers, footer_geo, 
 
             needed = set()
             for item in plan:
+                if item["mode"] == "journal":
+                    continue
                 needed.update(range(item["start"], item["end"] + 1))
             if toc_range is not None:
                 needed.update(range(toc_range[0], toc_range[1] + 1))
@@ -943,12 +991,19 @@ def write_pdf(input_path, output_path, replace, toc_pages, footers, footer_geo, 
                 cache[index] = {"w": width, "h": height, "lines": body}
 
             sequence = []
+            journal_items = []
             cursor = 0
             for number, item in enumerate(plan):
                 progress("writing", 22 + int(45 * number / len(plan)), "Building section %d of %d" % (number + 1, len(plan)))
                 while cursor < item["start"]:
                     sequence.append(["keep", cursor])
                     cursor += 1
+                if item["mode"] == "journal":
+                    while cursor <= item["end"]:
+                        sequence.append(["keep", cursor])
+                        cursor += 1
+                    journal_items.append(item)
+                    continue
                 first = cache[item["start"]]
                 width = first["w"]
                 height = first["h"]
@@ -1029,6 +1084,15 @@ def write_pdf(input_path, output_path, replace, toc_pages, footers, footer_geo, 
                 else:
                     out.import_pages(toc_doc, pages=[idx], index=len(out))
 
+            if journal_items:
+                progress("journal", 80, "Replacing journal text")
+                import journal
+                pos_of = {}
+                for pos, (kind, idx) in enumerate(sequence):
+                    if kind == "keep":
+                        pos_of[idx] = pos
+                warnings.extend(journal.apply(src, out, journal_items, pos_of, fonts, deps, overlay_refs))
+
             progress("numbering", 85, "Updating page numbers")
             failed = 0
             for pos, (kind, idx) in enumerate(sequence):
@@ -1061,6 +1125,7 @@ def write_pdf(input_path, output_path, replace, toc_pages, footers, footer_geo, 
                         doc.close()
                     except Exception:
                         pass
+            overlay_refs.clear()
         _replace_file(temp_path, output_path)
     finally:
         if os.path.exists(temp_path):
